@@ -42,9 +42,9 @@ func saveEntityMetadata(db *gorm.DB, entityType, entityID string, metadata []Met
 
 	for _, meta := range metadata {
 		entry := models.Metadata{
-			ID:         uuid.New().String(),
+			ID:         models.DBVarchar(uuid.New().String()),
 			EntityType: entityType,
-			EntityID:   entityID,
+			EntityID:   models.DBVarchar(entityID),
 			Key:        meta.Key,
 			Value:      meta.Value,
 		}

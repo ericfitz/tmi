@@ -39,7 +39,7 @@ func TestPurgeTombstones_CleansUpVersionSnapshotsForOrphanedSubResources(t *test
 	// Create a non-deleted threat model (parent is active)
 	tmID := uuid.New().String()
 	require.NoError(t, db.Create(&models.ThreatModel{
-		ID:   tmID,
+		ID:   models.DBVarchar(tmID),
 		Name: "Active TM",
 	}).Error)
 
@@ -47,17 +47,17 @@ func TestPurgeTombstones_CleansUpVersionSnapshotsForOrphanedSubResources(t *test
 	diagramID := uuid.New().String()
 	expiredTime := time.Now().UTC().Add(-60 * 24 * time.Hour) // 60 days ago, well past 30-day retention
 	require.NoError(t, db.Create(&models.Diagram{
-		ID:            diagramID,
-		ThreatModelID: tmID,
+		ID:            models.DBVarchar(diagramID),
+		ThreatModelID: models.DBVarchar(tmID),
 		Name:          "Deleted Diagram",
 		DeletedAt:     &expiredTime,
 	}).Error)
 
 	// Create metadata for the diagram
 	require.NoError(t, db.Create(&models.Metadata{
-		ID:         uuid.New().String(),
+		ID:         models.DBVarchar(uuid.New().String()),
 		EntityType: "diagram",
-		EntityID:   diagramID,
+		EntityID:   models.DBVarchar(diagramID),
 		Key:        "test-key",
 		Value:      "test-value",
 	}).Error)
@@ -65,10 +65,10 @@ func TestPurgeTombstones_CleansUpVersionSnapshotsForOrphanedSubResources(t *test
 	// Create an audit entry for the diagram
 	auditID := uuid.New().String()
 	require.NoError(t, db.Create(&models.AuditEntry{
-		ID:               auditID,
-		ThreatModelID:    tmID,
+		ID:               models.DBVarchar(auditID),
+		ThreatModelID:    models.DBVarchar(tmID),
 		ObjectType:       "diagram",
-		ObjectID:         diagramID,
+		ObjectID:         models.DBVarchar(diagramID),
 		ChangeType:       "created",
 		ActorEmail:       "alice@tmi.local",
 		ActorProvider:    "tmi",
@@ -79,10 +79,10 @@ func TestPurgeTombstones_CleansUpVersionSnapshotsForOrphanedSubResources(t *test
 	// Create a version snapshot for the diagram
 	snapshotID := uuid.New().String()
 	require.NoError(t, db.Create(&models.VersionSnapshot{
-		ID:           snapshotID,
-		AuditEntryID: auditID,
+		ID:           models.DBVarchar(snapshotID),
+		AuditEntryID: models.DBVarchar(auditID),
 		ObjectType:   "diagram",
-		ObjectID:     diagramID,
+		ObjectID:     models.DBVarchar(diagramID),
 		Version:      1,
 		SnapshotType: "checkpoint",
 	}).Error)
@@ -122,7 +122,7 @@ func TestPurgeTombstones_PreservesNonExpiredTombstones(t *testing.T) {
 
 	tmID := uuid.New().String()
 	require.NoError(t, db.Create(&models.ThreatModel{
-		ID:   tmID,
+		ID:   models.DBVarchar(tmID),
 		Name: "Active TM",
 	}).Error)
 
@@ -130,8 +130,8 @@ func TestPurgeTombstones_PreservesNonExpiredTombstones(t *testing.T) {
 	noteID := uuid.New().String()
 	recentDelete := time.Now().UTC().Add(-5 * 24 * time.Hour) // 5 days ago, within 30-day retention
 	require.NoError(t, db.Create(&models.Note{
-		ID:            noteID,
-		ThreatModelID: tmID,
+		ID:            models.DBVarchar(noteID),
+		ThreatModelID: models.DBVarchar(tmID),
 		Name:          "Test Note",
 		Content:       models.DBText("test content"),
 		DeletedAt:     &recentDelete,
@@ -155,7 +155,7 @@ func TestPurgeTombstones_MultipleSubResourceTypes(t *testing.T) {
 
 	tmID := uuid.New().String()
 	require.NoError(t, db.Create(&models.ThreatModel{
-		ID:   tmID,
+		ID:   models.DBVarchar(tmID),
 		Name: "Active TM",
 	}).Error)
 
@@ -165,8 +165,8 @@ func TestPurgeTombstones_MultipleSubResourceTypes(t *testing.T) {
 	threatID := uuid.New().String()
 	now := time.Now().UTC()
 	require.NoError(t, db.Create(&models.Threat{
-		ID:            threatID,
-		ThreatModelID: tmID,
+		ID:            models.DBVarchar(threatID),
+		ThreatModelID: models.DBVarchar(tmID),
 		Name:          "Test Threat",
 		ThreatType:    models.StringArray{"spoofing"},
 		CreatedAt:     now,
@@ -176,8 +176,8 @@ func TestPurgeTombstones_MultipleSubResourceTypes(t *testing.T) {
 
 	assetID := uuid.New().String()
 	require.NoError(t, db.Create(&models.Asset{
-		ID:            assetID,
-		ThreatModelID: tmID,
+		ID:            models.DBVarchar(assetID),
+		ThreatModelID: models.DBVarchar(tmID),
 		Name:          "Test Asset",
 		Type:          "data",
 		DeletedAt:     &expiredTime,
@@ -190,10 +190,10 @@ func TestPurgeTombstones_MultipleSubResourceTypes(t *testing.T) {
 	} {
 		auditID := uuid.New().String()
 		require.NoError(t, db.Create(&models.AuditEntry{
-			ID:               auditID,
-			ThreatModelID:    tmID,
+			ID:               models.DBVarchar(auditID),
+			ThreatModelID:    models.DBVarchar(tmID),
 			ObjectType:       pair.objType,
-			ObjectID:         pair.objID,
+			ObjectID:         models.DBVarchar(pair.objID),
 			ChangeType:       "created",
 			ActorEmail:       "alice@tmi.local",
 			ActorProvider:    "tmi",
@@ -201,10 +201,10 @@ func TestPurgeTombstones_MultipleSubResourceTypes(t *testing.T) {
 			ActorDisplayName: "Alice",
 		}).Error)
 		require.NoError(t, db.Create(&models.VersionSnapshot{
-			ID:           uuid.New().String(),
-			AuditEntryID: auditID,
+			ID:           models.DBVarchar(uuid.New().String()),
+			AuditEntryID: models.DBVarchar(auditID),
 			ObjectType:   pair.objType,
-			ObjectID:     pair.objID,
+			ObjectID:     models.DBVarchar(pair.objID),
 			Version:      1,
 			SnapshotType: "checkpoint",
 		}).Error)

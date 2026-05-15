@@ -472,8 +472,8 @@ func TestConvertModelToClientCredential(t *testing.T) {
 	ownerUUID := uuid.New().String()
 
 	model := &models.ClientCredential{
-		ID:               id,
-		OwnerUUID:        ownerUUID,
+		ID:               models.DBVarchar(id),
+		OwnerUUID:        models.DBVarchar(ownerUUID),
 		ClientID:         "tmi_cc_test123",
 		ClientSecretHash: "hashed_secret",
 		Name:             "Test Credential",
@@ -505,8 +505,8 @@ func TestConvertModelToClientCredential(t *testing.T) {
 
 func TestConvertModelToClientCredential_NilDescription(t *testing.T) {
 	model := &models.ClientCredential{
-		ID:               uuid.New().String(),
-		OwnerUUID:        uuid.New().String(),
+		ID:               models.DBVarchar(uuid.New().String()),
+		OwnerUUID:        models.DBVarchar(uuid.New().String()),
 		ClientID:         "tmi_cc_test123",
 		ClientSecretHash: "hashed_secret",
 		Name:             "Test Credential",
@@ -532,8 +532,8 @@ func TestConvertModelToClientCredential_DBBool(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			model := &models.ClientCredential{
-				ID:               uuid.New().String(),
-				OwnerUUID:        uuid.New().String(),
+				ID:               models.DBVarchar(uuid.New().String()),
+				OwnerUUID:        models.DBVarchar(uuid.New().String()),
 				ClientID:         "tmi_cc_test123",
 				ClientSecretHash: "hashed_secret",
 				Name:             "Test Credential",

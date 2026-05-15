@@ -68,8 +68,8 @@ func (s *GormRepositoryRepository) Create(ctx context.Context, repository *Repos
 	}
 
 	model := models.Repository{
-		ID:            repository.Id.String(),
-		ThreatModelID: threatModelID,
+		ID:            models.DBVarchar(repository.Id.String()),
+		ThreatModelID: models.DBVarchar(threatModelID),
 		Name:          repository.Name,
 		URI:           repository.Uri,
 		Description:   repository.Description,
@@ -345,7 +345,7 @@ func (s *GormRepositoryRepository) hardDeleteRepository(ctx context.Context, id 
 			EntityType:    "repository",
 			EntityID:      id,
 			ParentType:    "threat_model",
-			ParentID:      model.ThreatModelID,
+			ParentID:      string(model.ThreatModelID),
 			OperationType: "delete",
 			Strategy:      InvalidateImmediately,
 		}
@@ -405,7 +405,7 @@ func (s *GormRepositoryRepository) List(ctx context.Context, threatModelID strin
 		repo := s.modelToAPI(&model)
 
 		// Load metadata for this repository
-		metadata, metaErr := s.loadMetadata(ctx, model.ID)
+		metadata, metaErr := s.loadMetadata(ctx, string(model.ID))
 		if metaErr != nil {
 			logger.Error("Failed to load metadata for repository %s: %v", model.ID, metaErr)
 			metadata = []Metadata{}
@@ -475,8 +475,8 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 			}
 
 			model := models.Repository{
-				ID:            repository.Id.String(),
-				ThreatModelID: threatModelID,
+				ID:            models.DBVarchar(repository.Id.String()),
+				ThreatModelID: models.DBVarchar(threatModelID),
 				Name:          repository.Name,
 				URI:           repository.Uri,
 				Description:   repository.Description,
@@ -592,7 +592,7 @@ func (s *GormRepositoryRepository) WarmCache(ctx context.Context, threatModelID 
 
 // modelToAPI converts a GORM Repository model to the API Repository type
 func (s *GormRepositoryRepository) modelToAPI(model *models.Repository) *Repository {
-	id, _ := uuid.Parse(model.ID)
+	id, _ := uuid.Parse(string(model.ID))
 
 	includeInReport := model.IncludeInReport.Bool()
 	timmyEnabled := model.TimmyEnabled.Bool()
@@ -707,5 +707,5 @@ func (s *GormRepositoryRepository) getRepositoryThreatModelID(ctx context.Contex
 		}
 		return "", dberrors.Classify(err)
 	}
-	return model.ThreatModelID, nil
+	return string(model.ThreatModelID), nil
 }

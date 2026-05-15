@@ -41,7 +41,7 @@ func TestUser_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, user.InternalUUID)
-	_, err = uuid.Parse(user.InternalUUID)
+	_, err = uuid.Parse(string(user.InternalUUID))
 	assert.NoError(t, err, "InternalUUID should be valid UUID")
 }
 
@@ -50,7 +50,7 @@ func TestUser_BeforeCreate_PreservesExistingUUID(t *testing.T) {
 
 	existingUUID := uuid.New().String()
 	user := &User{
-		InternalUUID: existingUUID,
+		InternalUUID: DBVarchar(existingUUID),
 		Provider:     "google",
 		Email:        "test@example.com",
 		Name:         "Test User",
@@ -59,7 +59,7 @@ func TestUser_BeforeCreate_PreservesExistingUUID(t *testing.T) {
 	err := db.Create(user).Error
 	require.NoError(t, err)
 
-	assert.Equal(t, existingUUID, user.InternalUUID)
+	assert.Equal(t, existingUUID, string(user.InternalUUID))
 }
 
 func TestRefreshTokenRecord_BeforeCreate_GeneratesUUID(t *testing.T) {
@@ -78,7 +78,7 @@ func TestRefreshTokenRecord_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, record.ID)
-	_, err = uuid.Parse(record.ID)
+	_, err = uuid.Parse(string(record.ID))
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 
@@ -90,7 +90,7 @@ func TestRefreshTokenRecord_BeforeCreate_PreservesExistingUUID(t *testing.T) {
 
 	existingUUID := uuid.New().String()
 	record := &RefreshTokenRecord{
-		ID:               existingUUID,
+		ID:               DBVarchar(existingUUID),
 		UserInternalUUID: user.InternalUUID,
 		Token:            "test-token-12345",
 	}
@@ -98,7 +98,7 @@ func TestRefreshTokenRecord_BeforeCreate_PreservesExistingUUID(t *testing.T) {
 	err := db.Create(record).Error
 	require.NoError(t, err)
 
-	assert.Equal(t, existingUUID, record.ID)
+	assert.Equal(t, existingUUID, string(record.ID))
 }
 
 func TestClientCredential_BeforeCreate_GeneratesUUID(t *testing.T) {
@@ -118,7 +118,7 @@ func TestClientCredential_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, cred.ID)
-	_, err = uuid.Parse(cred.ID)
+	_, err = uuid.Parse(string(cred.ID))
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 
@@ -138,7 +138,7 @@ func TestThreatModel_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, tm.ID)
-	_, err = uuid.Parse(tm.ID)
+	_, err = uuid.Parse(string(tm.ID))
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 
@@ -160,7 +160,7 @@ func TestDiagram_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, diagram.ID)
-	_, err = uuid.Parse(diagram.ID)
+	_, err = uuid.Parse(string(diagram.ID))
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 
@@ -183,7 +183,7 @@ func TestAsset_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, asset.ID)
-	_, err = uuid.Parse(asset.ID)
+	_, err = uuid.Parse(string(asset.ID))
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 
@@ -199,7 +199,7 @@ func TestGroup_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, group.InternalUUID)
-	_, err = uuid.Parse(group.InternalUUID)
+	_, err = uuid.Parse(string(group.InternalUUID))
 	assert.NoError(t, err, "InternalUUID should be valid UUID")
 }
 
@@ -208,7 +208,7 @@ func TestGroup_BeforeCreate_PreservesExistingUUID(t *testing.T) {
 
 	existingUUID := uuid.New().String()
 	group := &Group{
-		InternalUUID: existingUUID,
+		InternalUUID: DBVarchar(existingUUID),
 		Provider:     "google",
 		GroupName:    "test-group",
 	}
@@ -216,7 +216,7 @@ func TestGroup_BeforeCreate_PreservesExistingUUID(t *testing.T) {
 	err := db.Create(group).Error
 	require.NoError(t, err)
 
-	assert.Equal(t, existingUUID, group.InternalUUID)
+	assert.Equal(t, existingUUID, string(group.InternalUUID))
 }
 
 func TestThreatModelAccess_BeforeCreate_GeneratesUUID(t *testing.T) {
@@ -230,7 +230,7 @@ func TestThreatModelAccess_BeforeCreate_GeneratesUUID(t *testing.T) {
 
 	access := &ThreatModelAccess{
 		ThreatModelID:    tm.ID,
-		UserInternalUUID: &user.InternalUUID,
+		UserInternalUUID: NewNullableDBVarchar(func() *string { s := string(user.InternalUUID); return &s }()),
 		SubjectType:      "user",
 		Role:             "owner",
 	}
@@ -239,7 +239,7 @@ func TestThreatModelAccess_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, access.ID)
-	_, err = uuid.Parse(access.ID)
+	_, err = uuid.Parse(string(access.ID))
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 
@@ -262,7 +262,7 @@ func TestDocument_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, doc.ID)
-	_, err = uuid.Parse(doc.ID)
+	_, err = uuid.Parse(string(doc.ID))
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 
@@ -285,7 +285,7 @@ func TestNote_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, note.ID)
-	_, err = uuid.Parse(note.ID)
+	_, err = uuid.Parse(string(note.ID))
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 
@@ -307,7 +307,7 @@ func TestRepository_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, repo.ID)
-	_, err = uuid.Parse(repo.ID)
+	_, err = uuid.Parse(string(repo.ID))
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 
@@ -333,7 +333,7 @@ func TestCollaborationSession_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, session.ID)
-	_, err = uuid.Parse(session.ID)
+	_, err = uuid.Parse(string(session.ID))
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 
@@ -361,7 +361,7 @@ func TestSessionParticipant_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, participant.ID)
-	_, err = uuid.Parse(participant.ID)
+	_, err = uuid.Parse(string(participant.ID))
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 
@@ -383,7 +383,7 @@ func TestWebhookSubscription_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, webhook.ID)
-	_, err = uuid.Parse(webhook.ID)
+	_, err = uuid.Parse(string(webhook.ID))
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 
@@ -399,7 +399,7 @@ func TestWebhookURLDenyList_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, denyEntry.ID)
-	_, err = uuid.Parse(denyEntry.ID)
+	_, err = uuid.Parse(string(denyEntry.ID))
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 
@@ -427,7 +427,7 @@ func TestAddon_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, addon.ID)
-	_, err = uuid.Parse(addon.ID)
+	_, err = uuid.Parse(string(addon.ID))
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 
@@ -440,10 +440,10 @@ func TestGroupMember_BeforeCreate_GeneratesUUID(t *testing.T) {
 	group := &Group{Provider: "tmi", GroupName: "test-group"}
 	require.NoError(t, db.Create(group).Error)
 
-	userUUID := user.InternalUUID
+	userUUIDStr := string(user.InternalUUID)
 	member := &GroupMember{
 		GroupInternalUUID: group.InternalUUID,
-		UserInternalUUID:  &userUUID,
+		UserInternalUUID:  NewNullableDBVarchar(&userUUIDStr),
 		SubjectType:       "user",
 	}
 
@@ -451,7 +451,7 @@ func TestGroupMember_BeforeCreate_GeneratesUUID(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, member.ID)
-	_, err = uuid.Parse(member.ID)
+	_, err = uuid.Parse(string(member.ID))
 	assert.NoError(t, err, "ID should be valid UUID")
 }
 

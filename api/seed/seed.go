@@ -120,7 +120,7 @@ func seedEveryoneGroup(db *gorm.DB) error {
 
 	name := "Everyone (Pseudo-group)"
 	group := models.Group{
-		InternalUUID: validation.EveryonePseudoGroupUUID,
+		InternalUUID: models.DBVarchar(validation.EveryonePseudoGroupUUID),
 		Provider:     builtInProvider,
 		GroupName:    "everyone",
 		Name:         &name,
@@ -153,7 +153,7 @@ func seedSecurityReviewersGroup(db *gorm.DB) error {
 
 	name := "Security Reviewers"
 	group := models.Group{
-		InternalUUID: validation.SecurityReviewersGroupUUID,
+		InternalUUID: models.DBVarchar(validation.SecurityReviewersGroupUUID),
 		Provider:     builtInProvider,
 		GroupName:    "security-reviewers",
 		Name:         &name,
@@ -186,7 +186,7 @@ func seedAdministratorsGroup(db *gorm.DB) error {
 
 	name := "Administrators"
 	group := models.Group{
-		InternalUUID: validation.AdministratorsGroupUUID,
+		InternalUUID: models.DBVarchar(validation.AdministratorsGroupUUID),
 		Provider:     builtInProvider,
 		GroupName:    "administrators",
 		Name:         &name,
@@ -219,7 +219,7 @@ func seedConfidentialProjectReviewersGroup(db *gorm.DB) error {
 
 	name := "Confidential Project Reviewers"
 	group := models.Group{
-		InternalUUID: validation.ConfidentialProjectReviewersGroupUUID,
+		InternalUUID: models.DBVarchar(validation.ConfidentialProjectReviewersGroupUUID),
 		Provider:     builtInProvider,
 		GroupName:    "confidential-project-reviewers",
 		Name:         &name,
@@ -252,7 +252,7 @@ func seedEmbeddingAutomationGroup(db *gorm.DB) error {
 
 	name := "Embedding Automation"
 	group := models.Group{
-		InternalUUID: validation.EmbeddingAutomationGroupUUID,
+		InternalUUID: models.DBVarchar(validation.EmbeddingAutomationGroupUUID),
 		Provider:     builtInProvider,
 		GroupName:    "embedding-automation",
 		Name:         &name,
@@ -285,7 +285,7 @@ func seedTMIAutomationGroup(db *gorm.DB) error {
 
 	name := "TMI Automation"
 	group := models.Group{
-		InternalUUID: validation.TMIAutomationGroupUUID,
+		InternalUUID: models.DBVarchar(validation.TMIAutomationGroupUUID),
 		Provider:     builtInProvider,
 		GroupName:    "tmi-automation",
 		Name:         &name,

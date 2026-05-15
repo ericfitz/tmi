@@ -10,8 +10,8 @@ import (
 
 // TeamNoteRecord represents a note attached to a team
 type TeamNoteRecord struct {
-	ID           string    `gorm:"primaryKey;type:varchar(36)"`
-	TeamID       string    `gorm:"type:varchar(36);not null;index:idx_tnote_team;index:idx_tnote_team_name,priority:1"`
+	ID           DBVarchar `gorm:"primaryKey;size:36"`
+	TeamID       DBVarchar `gorm:"size:36;not null;index:idx_tnote_team;index:idx_tnote_team_name,priority:1"`
 	Name         string    `gorm:"type:varchar(256);not null;index:idx_tnote_name;index:idx_tnote_team_name,priority:2"`
 	Content      DBText    `gorm:"not null"`
 	Description  *string   `gorm:"type:varchar(2048)"`
@@ -32,7 +32,7 @@ func (TeamNoteRecord) TableName() string {
 // BeforeCreate generates a UUID if not set and validates required fields.
 func (n *TeamNoteRecord) BeforeCreate(tx *gorm.DB) error {
 	if n.ID == "" {
-		n.ID = uuid.New().String()
+		n.ID = DBVarchar(uuid.New().String())
 	}
 	if err := validation.ValidateNonEmpty("name", n.Name); err != nil {
 		return err
@@ -45,8 +45,8 @@ func (n *TeamNoteRecord) BeforeCreate(tx *gorm.DB) error {
 
 // ProjectNoteRecord represents a note attached to a project
 type ProjectNoteRecord struct {
-	ID           string    `gorm:"primaryKey;type:varchar(36)"`
-	ProjectID    string    `gorm:"type:varchar(36);not null;index:idx_pnote_project;index:idx_pnote_project_name,priority:1"`
+	ID           DBVarchar `gorm:"primaryKey;size:36"`
+	ProjectID    DBVarchar `gorm:"size:36;not null;index:idx_pnote_project;index:idx_pnote_project_name,priority:1"`
 	Name         string    `gorm:"type:varchar(256);not null;index:idx_pnote_name;index:idx_pnote_project_name,priority:2"`
 	Content      DBText    `gorm:"not null"`
 	Description  *string   `gorm:"type:varchar(2048)"`
@@ -67,7 +67,7 @@ func (ProjectNoteRecord) TableName() string {
 // BeforeCreate generates a UUID if not set and validates required fields.
 func (n *ProjectNoteRecord) BeforeCreate(tx *gorm.DB) error {
 	if n.ID == "" {
-		n.ID = uuid.New().String()
+		n.ID = DBVarchar(uuid.New().String())
 	}
 	if err := validation.ValidateNonEmpty("name", n.Name); err != nil {
 		return err

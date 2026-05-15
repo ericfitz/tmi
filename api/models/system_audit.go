@@ -16,7 +16,7 @@ import (
 // persist after user deletion. No FKs by design — investigators rely on the
 // row content, not on join integrity.
 type SystemAuditEntry struct {
-	ID string `gorm:"primaryKey;type:varchar(36)"`
+	ID DBVarchar `gorm:"primaryKey;size:36"`
 
 	// Actor identity (denormalized)
 	ActorEmail       string `gorm:"type:varchar(320);not null;index:idx_sysaudit_actor,priority:1"`
@@ -45,7 +45,7 @@ func (SystemAuditEntry) TableName() string {
 // BeforeCreate generates a UUID if not set.
 func (s *SystemAuditEntry) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
-		s.ID = uuid.New().String()
+		s.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }

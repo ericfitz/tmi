@@ -31,8 +31,8 @@ func (r *GormClientCredentialRepository) Create(ctx context.Context, params Clie
 	now := time.Now()
 
 	gormCred := &models.ClientCredential{
-		ID:               uuid.New().String(),
-		OwnerUUID:        params.OwnerUUID.String(),
+		ID:               models.DBVarchar(uuid.New().String()),
+		OwnerUUID:        models.DBVarchar(params.OwnerUUID.String()),
 		ClientID:         params.ClientID,
 		ClientSecretHash: models.DBText(params.ClientSecretHash),
 		Name:             params.Name,
@@ -144,8 +144,8 @@ func (r *GormClientCredentialRepository) Delete(ctx context.Context, id, ownerUU
 
 // convertModelToClientCredential converts a GORM ClientCredential model to a repository ClientCredential
 func convertModelToClientCredential(m *models.ClientCredential) *ClientCredential {
-	id, _ := uuid.Parse(m.ID)
-	ownerUUID, _ := uuid.Parse(m.OwnerUUID)
+	id, _ := uuid.Parse(string(m.ID))
+	ownerUUID, _ := uuid.Parse(string(m.OwnerUUID))
 
 	description := ""
 	if m.Description != nil {

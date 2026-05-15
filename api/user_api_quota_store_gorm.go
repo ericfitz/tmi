@@ -240,7 +240,7 @@ func (s *GormUserAPIQuotaStore) Upsert(ctx context.Context, item UserAPIQuota) (
 
 // modelToAPI converts a GORM model to the API type
 func (s *GormUserAPIQuotaStore) modelToAPI(model models.UserAPIQuota) UserAPIQuota {
-	userUUID, _ := uuid.Parse(model.UserInternalUUID)
+	userUUID, _ := uuid.Parse(string(model.UserInternalUUID))
 	return UserAPIQuota{
 		UserId:               userUUID,
 		MaxRequestsPerMinute: model.MaxRequestsPerMinute,
@@ -253,7 +253,7 @@ func (s *GormUserAPIQuotaStore) modelToAPI(model models.UserAPIQuota) UserAPIQuo
 // apiToModel converts an API type to a GORM model
 func (s *GormUserAPIQuotaStore) apiToModel(api UserAPIQuota) models.UserAPIQuota {
 	return models.UserAPIQuota{
-		UserInternalUUID:     api.UserId.String(),
+		UserInternalUUID:     models.DBVarchar(api.UserId.String()),
 		MaxRequestsPerMinute: api.MaxRequestsPerMinute,
 		MaxRequestsPerHour:   api.MaxRequestsPerHour,
 		CreatedAt:            api.CreatedAt,

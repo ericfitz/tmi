@@ -380,7 +380,7 @@ func TestModelToAPISystemSetting(t *testing.T) {
 		SettingType: "string",
 		Description: &description,
 		ModifiedAt:  now,
-		ModifiedBy:  &modifiedBy,
+		ModifiedBy:  models.NewNullableDBVarchar(&modifiedBy),
 	}
 
 	apiSetting := modelToAPISystemSetting(model)

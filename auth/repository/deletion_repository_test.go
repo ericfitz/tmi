@@ -49,10 +49,11 @@ func TestGormDeletionRepository_DeleteUserAndData_TransfersOwnership(t *testing.
 	alternateOwner := tdb.SeedUser(t, "alternate@example.com", "google")
 
 	// Create threat model owned by user to delete
-	tm := tdb.SeedThreatModel(t, userToDelete.InternalUUID, "Test TM")
+	tm := tdb.SeedThreatModel(t, string(userToDelete.InternalUUID), "Test TM")
 
 	// Grant alternate owner "owner" role via threat_model_access
-	tdb.SeedThreatModelAccess(t, tm.ID, &alternateOwner.InternalUUID, nil, "user", "owner")
+	altOwnerUUID := string(alternateOwner.InternalUUID)
+	tdb.SeedThreatModelAccess(t, string(tm.ID), &altOwnerUUID, nil, "user", "owner")
 
 	result, err := repo.DeleteUserAndData(context.Background(), "delete@example.com")
 	require.NoError(t, err)
@@ -82,7 +83,7 @@ func TestGormDeletionRepository_DeleteUserAndData_DeletesOrphaned(t *testing.T) 
 	userToDelete := tdb.SeedUser(t, "delete@example.com", "google")
 
 	// Create threat model owned by user (no alternate owners)
-	tm := tdb.SeedThreatModel(t, userToDelete.InternalUUID, "Orphaned TM")
+	tm := tdb.SeedThreatModel(t, string(userToDelete.InternalUUID), "Orphaned TM")
 
 	result, err := repo.DeleteUserAndData(context.Background(), "delete@example.com")
 	require.NoError(t, err)
@@ -109,11 +110,12 @@ func TestGormDeletionRepository_DeleteUserAndData_MixedScenario(t *testing.T) {
 	alternateOwner := tdb.SeedUser(t, "alternate@example.com", "google")
 
 	// Create TM that will be transferred (has alternate owner)
-	tmTransfer := tdb.SeedThreatModel(t, userToDelete.InternalUUID, "Transferable TM")
-	tdb.SeedThreatModelAccess(t, tmTransfer.ID, &alternateOwner.InternalUUID, nil, "user", "owner")
+	tmTransfer := tdb.SeedThreatModel(t, string(userToDelete.InternalUUID), "Transferable TM")
+	altOwnerUUID2 := string(alternateOwner.InternalUUID)
+	tdb.SeedThreatModelAccess(t, string(tmTransfer.ID), &altOwnerUUID2, nil, "user", "owner")
 
 	// Create TM that will be deleted (no alternate owner)
-	tmDelete := tdb.SeedThreatModel(t, userToDelete.InternalUUID, "Orphaned TM")
+	tmDelete := tdb.SeedThreatModel(t, string(userToDelete.InternalUUID), "Orphaned TM")
 
 	result, err := repo.DeleteUserAndData(context.Background(), "delete@example.com")
 	require.NoError(t, err)
@@ -156,10 +158,11 @@ func TestGormDeletionRepository_DeleteUserAndData_CleansPermissions(t *testing.T
 
 	// Create another user who owns a TM
 	owner := tdb.SeedUser(t, "owner@example.com", "google")
-	tm := tdb.SeedThreatModel(t, owner.InternalUUID, "Owner's TM")
+	tm := tdb.SeedThreatModel(t, string(owner.InternalUUID), "Owner's TM")
 
 	// Grant the user to delete reader access
-	tdb.SeedThreatModelAccess(t, tm.ID, &userToDelete.InternalUUID, nil, "user", "reader")
+	userToDeleteUUID := string(userToDelete.InternalUUID)
+	tdb.SeedThreatModelAccess(t, string(tm.ID), &userToDeleteUUID, nil, "user", "reader")
 
 	// Delete the user
 	_, err := repo.DeleteUserAndData(context.Background(), "delete@example.com")
@@ -187,7 +190,7 @@ func TestGormDeletionRepository_DeleteGroupAndData_NoThreatModels(t *testing.T) 
 	// Create a group with no threat models
 	group := tdb.SeedGroup(t, "*", "test-group")
 
-	result, err := repo.DeleteGroupAndData(context.Background(), group.InternalUUID)
+	result, err := repo.DeleteGroupAndData(context.Background(), string(group.InternalUUID))
 	require.NoError(t, err)
 
 	assert.Equal(t, "test-group", result.GroupName)
@@ -210,9 +213,9 @@ func TestGormDeletionRepository_DeleteGroupAndData_DeletesOrphaned(t *testing.T)
 	group := tdb.SeedGroup(t, "*", "test-group")
 
 	// Create threat model owned by the group
-	tm := tdb.SeedThreatModel(t, group.InternalUUID, "Group TM")
+	tm := tdb.SeedThreatModel(t, string(group.InternalUUID), "Group TM")
 
-	result, err := repo.DeleteGroupAndData(context.Background(), group.InternalUUID)
+	result, err := repo.DeleteGroupAndData(context.Background(), string(group.InternalUUID))
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, result.ThreatModelsDeleted)
@@ -235,12 +238,13 @@ func TestGormDeletionRepository_DeleteGroupAndData_RetainsWithUserOwners(t *test
 	user := tdb.SeedUser(t, "user@example.com", "google")
 
 	// Create threat model owned by the group
-	tm := tdb.SeedThreatModel(t, group.InternalUUID, "Group TM")
+	tm := tdb.SeedThreatModel(t, string(group.InternalUUID), "Group TM")
 
 	// Add user as owner via threat_model_access
-	tdb.SeedThreatModelAccess(t, tm.ID, &user.InternalUUID, nil, "user", "owner")
+	userUUID3 := string(user.InternalUUID)
+	tdb.SeedThreatModelAccess(t, string(tm.ID), &userUUID3, nil, "user", "owner")
 
-	result, err := repo.DeleteGroupAndData(context.Background(), group.InternalUUID)
+	result, err := repo.DeleteGroupAndData(context.Background(), string(group.InternalUUID))
 	require.NoError(t, err)
 
 	assert.Equal(t, 0, result.ThreatModelsDeleted)
@@ -274,13 +278,13 @@ func TestGormDeletionRepository_DeleteGroupAndData_ProtectedGroup(t *testing.T) 
 
 	// Create the "everyone" group with the well-known built-in UUID
 	everyoneGroup := &models.Group{
-		InternalUUID: validation.EveryonePseudoGroupUUID,
+		InternalUUID: models.DBVarchar(validation.EveryonePseudoGroupUUID),
 		Provider:     builtInProvider,
 		GroupName:    "everyone",
 	}
 	require.NoError(t, tdb.DB.Create(everyoneGroup).Error)
 
-	result, err := repo.DeleteGroupAndData(context.Background(), everyoneGroup.InternalUUID)
+	result, err := repo.DeleteGroupAndData(context.Background(), string(everyoneGroup.InternalUUID))
 
 	assert.Nil(t, result)
 	assert.Error(t, err)
@@ -298,13 +302,14 @@ func TestGormDeletionRepository_DeleteGroupAndData_CleansPermissions(t *testing.
 	user := tdb.SeedUser(t, "user@example.com", "google")
 
 	// Create threat model owned by user
-	tm := tdb.SeedThreatModel(t, user.InternalUUID, "User's TM")
+	tm := tdb.SeedThreatModel(t, string(user.InternalUUID), "User's TM")
 
 	// Grant the group reader access
-	tdb.SeedThreatModelAccess(t, tm.ID, nil, &group.InternalUUID, "group", "reader")
+	groupUUID4 := string(group.InternalUUID)
+	tdb.SeedThreatModelAccess(t, string(tm.ID), nil, &groupUUID4, "group", "reader")
 
 	// Delete the group
-	_, err := repo.DeleteGroupAndData(context.Background(), group.InternalUUID)
+	_, err := repo.DeleteGroupAndData(context.Background(), string(group.InternalUUID))
 	require.NoError(t, err)
 
 	// Verify the group's access record is cleaned up
@@ -331,7 +336,7 @@ func TestGormDeletionRepository_DeleteUserAndData_Transaction_Success(t *testing
 
 	// Create multiple threat models
 	for range 3 {
-		tdb.SeedThreatModel(t, userToDelete.InternalUUID, "TM")
+		tdb.SeedThreatModel(t, string(userToDelete.InternalUUID), "TM")
 	}
 
 	// All should succeed in one transaction
@@ -354,7 +359,7 @@ func TestGormDeletionRepository_DeleteUserAndData_HandlesSurveyTemplates(t *test
 
 	// Create user who created a survey template
 	user := tdb.SeedUser(t, "template-creator@example.com", "google")
-	tdb.SeedSurveyTemplate(t, user.InternalUUID)
+	tdb.SeedSurveyTemplate(t, string(user.InternalUUID))
 
 	// Deleting the user should succeed (no FK constraint blocking)
 	result, err := repo.DeleteUserAndData(context.Background(), "template-creator@example.com")
@@ -374,8 +379,8 @@ func TestGormDeletionRepository_DeleteUserAndData_NullifiesSurveyResponseOwner(t
 	repo := NewGormDeletionRepository(tdb.DB)
 
 	user := tdb.SeedUser(t, "owner@example.com", "google")
-	st := tdb.SeedSurveyTemplate(t, user.InternalUUID)
-	sr := tdb.SeedSurveyResponse(t, st.ID, user.InternalUUID, false)
+	st := tdb.SeedSurveyTemplate(t, string(user.InternalUUID))
+	sr := tdb.SeedSurveyResponse(t, string(st.ID), string(user.InternalUUID), false)
 
 	_, err := repo.DeleteUserAndData(context.Background(), "owner@example.com")
 	require.NoError(t, err)
@@ -384,7 +389,7 @@ func TestGormDeletionRepository_DeleteUserAndData_NullifiesSurveyResponseOwner(t
 	var response models.SurveyResponse
 	err = tdb.DB.First(&response, "id = ?", sr.ID).Error
 	require.NoError(t, err)
-	assert.Nil(t, response.OwnerInternalUUID)
+	assert.False(t, response.OwnerInternalUUID.Valid)
 }
 
 func TestGormDeletionRepository_DeleteUserAndData_NullifiesReviewedBy(t *testing.T) {
@@ -395,8 +400,8 @@ func TestGormDeletionRepository_DeleteUserAndData_NullifiesReviewedBy(t *testing
 
 	owner := tdb.SeedUser(t, "owner@example.com", "google")
 	reviewer := tdb.SeedUser(t, "reviewer@example.com", "google")
-	st := tdb.SeedSurveyTemplate(t, owner.InternalUUID)
-	sr := tdb.SeedSurveyResponse(t, st.ID, owner.InternalUUID, false)
+	st := tdb.SeedSurveyTemplate(t, string(owner.InternalUUID))
+	sr := tdb.SeedSurveyResponse(t, string(st.ID), string(owner.InternalUUID), false)
 
 	// Set the reviewer
 	tdb.DB.Model(&models.SurveyResponse{}).Where("id = ?", sr.ID).
@@ -410,7 +415,7 @@ func TestGormDeletionRepository_DeleteUserAndData_NullifiesReviewedBy(t *testing
 	var response models.SurveyResponse
 	err = tdb.DB.First(&response, "id = ?", sr.ID).Error
 	require.NoError(t, err)
-	assert.Nil(t, response.ReviewedByInternalUUID)
+	assert.False(t, response.ReviewedByInternalUUID.Valid)
 }
 
 func TestGormDeletionRepository_DeleteUserAndData_DeletesSurveyResponseAccess(t *testing.T) {
@@ -421,11 +426,12 @@ func TestGormDeletionRepository_DeleteUserAndData_DeletesSurveyResponseAccess(t 
 
 	user := tdb.SeedUser(t, "grantee@example.com", "google")
 	owner := tdb.SeedUser(t, "owner@example.com", "google")
-	st := tdb.SeedSurveyTemplate(t, owner.InternalUUID)
-	sr := tdb.SeedSurveyResponse(t, st.ID, owner.InternalUUID, false)
+	st := tdb.SeedSurveyTemplate(t, string(owner.InternalUUID))
+	sr := tdb.SeedSurveyResponse(t, string(st.ID), string(owner.InternalUUID), false)
 
 	// Grant user access as grantee
-	tdb.SeedSurveyResponseAccess(t, sr.ID, &user.InternalUUID, nil, "user", "reader")
+	granteeUUID5 := string(user.InternalUUID)
+	tdb.SeedSurveyResponseAccess(t, string(sr.ID), &granteeUUID5, nil, "user", "reader")
 
 	// Delete the grantee
 	_, err := repo.DeleteUserAndData(context.Background(), "grantee@example.com")
@@ -446,17 +452,19 @@ func TestGormDeletionRepository_DeleteUserAndData_NullifiesGrantedBy(t *testing.
 
 	granter := tdb.SeedUser(t, "granter@example.com", "google")
 	grantee := tdb.SeedUser(t, "grantee@example.com", "google")
-	st := tdb.SeedSurveyTemplate(t, granter.InternalUUID)
-	sr := tdb.SeedSurveyResponse(t, st.ID, granter.InternalUUID, false)
+	st := tdb.SeedSurveyTemplate(t, string(granter.InternalUUID))
+	sr := tdb.SeedSurveyResponse(t, string(st.ID), string(granter.InternalUUID), false)
 
 	// Create access record where granter granted access to grantee
+	granteeUUIDStr := string(grantee.InternalUUID)
+	granterUUIDStr := string(granter.InternalUUID)
 	access := &models.SurveyResponseAccess{
-		ID:                    uuid.New().String(),
+		ID:                    models.DBVarchar(uuid.New().String()),
 		SurveyResponseID:      sr.ID,
-		UserInternalUUID:      &grantee.InternalUUID,
+		UserInternalUUID:      models.NewNullableDBVarchar(&granteeUUIDStr),
 		SubjectType:           "user",
 		Role:                  "reader",
-		GrantedByInternalUUID: &granter.InternalUUID,
+		GrantedByInternalUUID: models.NewNullableDBVarchar(&granterUUIDStr),
 	}
 	require.NoError(t, tdb.DB.Create(access).Error)
 
@@ -468,8 +476,8 @@ func TestGormDeletionRepository_DeleteUserAndData_NullifiesGrantedBy(t *testing.
 	var updatedAccess models.SurveyResponseAccess
 	err = tdb.DB.First(&updatedAccess, "id = ?", access.ID).Error
 	require.NoError(t, err)
-	assert.Nil(t, updatedAccess.GrantedByInternalUUID)
-	assert.Equal(t, &grantee.InternalUUID, updatedAccess.UserInternalUUID)
+	assert.False(t, updatedAccess.GrantedByInternalUUID.Valid)
+	assert.Equal(t, granteeUUIDStr, updatedAccess.UserInternalUUID.String)
 }
 
 func TestGormDeletionRepository_DeleteUserAndData_NullifiesTriageNoteAuthors(t *testing.T) {
@@ -480,9 +488,9 @@ func TestGormDeletionRepository_DeleteUserAndData_NullifiesTriageNoteAuthors(t *
 
 	user := tdb.SeedUser(t, "author@example.com", "google")
 	owner := tdb.SeedUser(t, "owner@example.com", "google")
-	st := tdb.SeedSurveyTemplate(t, owner.InternalUUID)
-	sr := tdb.SeedSurveyResponse(t, st.ID, owner.InternalUUID, false)
-	note := tdb.SeedTriageNote(t, sr.ID, user.InternalUUID, user.InternalUUID)
+	st := tdb.SeedSurveyTemplate(t, string(owner.InternalUUID))
+	sr := tdb.SeedSurveyResponse(t, string(st.ID), string(owner.InternalUUID), false)
+	note := tdb.SeedTriageNote(t, string(sr.ID), string(user.InternalUUID), string(user.InternalUUID))
 
 	// Delete the author
 	_, err := repo.DeleteUserAndData(context.Background(), "author@example.com")
@@ -493,8 +501,8 @@ func TestGormDeletionRepository_DeleteUserAndData_NullifiesTriageNoteAuthors(t *
 	err = tdb.DB.Where("survey_response_id = ? AND id = ?", sr.ID, note.ID).First(&updatedNote).Error
 	require.NoError(t, err)
 	assert.Equal(t, "Test content", string(updatedNote.Content))
-	assert.Nil(t, updatedNote.CreatedByInternalUUID)
-	assert.Nil(t, updatedNote.ModifiedByInternalUUID)
+	assert.False(t, updatedNote.CreatedByInternalUUID.Valid)
+	assert.False(t, updatedNote.ModifiedByInternalUUID.Valid)
 }
 
 func TestGormDeletionRepository_DeleteUserAndData_EnsuresSecurityReviewersOnConfidentialResponses(t *testing.T) {
@@ -504,8 +512,8 @@ func TestGormDeletionRepository_DeleteUserAndData_EnsuresSecurityReviewersOnConf
 	repo := NewGormDeletionRepository(tdb.DB)
 
 	user := tdb.SeedUser(t, "owner@example.com", "google")
-	st := tdb.SeedSurveyTemplate(t, user.InternalUUID)
-	sr := tdb.SeedSurveyResponse(t, st.ID, user.InternalUUID, true) // confidential
+	st := tdb.SeedSurveyTemplate(t, string(user.InternalUUID))
+	sr := tdb.SeedSurveyResponse(t, string(st.ID), string(user.InternalUUID), true) // confidential
 
 	// Verify no Security Reviewers access exists initially
 	var countBefore int64
@@ -533,8 +541,8 @@ func TestGormDeletionRepository_DeleteUserAndData_SkipsDuplicateSecurityReviewer
 	repo := NewGormDeletionRepository(tdb.DB)
 
 	user := tdb.SeedUser(t, "owner@example.com", "google")
-	st := tdb.SeedSurveyTemplate(t, user.InternalUUID)
-	sr := tdb.SeedSurveyResponse(t, st.ID, user.InternalUUID, false) // non-confidential
+	st := tdb.SeedSurveyTemplate(t, string(user.InternalUUID))
+	sr := tdb.SeedSurveyResponse(t, string(st.ID), string(user.InternalUUID), false) // non-confidential
 
 	// Create Security Reviewers group with well-known UUID
 	groupUUID := securityReviewersGroupUUID
@@ -544,7 +552,7 @@ func TestGormDeletionRepository_DeleteUserAndData_SkipsDuplicateSecurityReviewer
 	tdb.DB.Model(&models.Group{}).Where("internal_uuid = ?", group.InternalUUID).
 		Update("internal_uuid", groupUUID)
 
-	tdb.SeedSurveyResponseAccess(t, sr.ID, nil, &groupUUID, "group", "owner")
+	tdb.SeedSurveyResponseAccess(t, string(sr.ID), nil, &groupUUID, "group", "owner")
 
 	// Delete the owner
 	_, err := repo.DeleteUserAndData(context.Background(), "owner@example.com")
@@ -583,16 +591,17 @@ func TestGormDeletionRepository_DeleteUserAndData_HardDeletesTombstonedTMs(t *te
 	alternateOwner := tdb.SeedUser(t, "alternate@example.com", "google")
 
 	// Create a tombstoned threat model owned by user to delete
-	tombstonedTM := tdb.SeedThreatModel(t, userToDelete.InternalUUID, "Tombstoned TM")
+	tombstonedTM := tdb.SeedThreatModel(t, string(userToDelete.InternalUUID), "Tombstoned TM")
 	now := time.Now().UTC()
 	tdb.DB.Model(tombstonedTM).Update("deleted_at", now)
 
 	// Grant alternate owner "owner" role — should NOT prevent hard-delete of tombstone
-	tdb.SeedThreatModelAccess(t, tombstonedTM.ID, &alternateOwner.InternalUUID, nil, "user", "owner")
+	altOwnerUUID6 := string(alternateOwner.InternalUUID)
+	tdb.SeedThreatModelAccess(t, string(tombstonedTM.ID), &altOwnerUUID6, nil, "user", "owner")
 
 	// Create an active threat model that should be transferred
-	activeTM := tdb.SeedThreatModel(t, userToDelete.InternalUUID, "Active TM")
-	tdb.SeedThreatModelAccess(t, activeTM.ID, &alternateOwner.InternalUUID, nil, "user", "owner")
+	activeTM := tdb.SeedThreatModel(t, string(userToDelete.InternalUUID), "Active TM")
+	tdb.SeedThreatModelAccess(t, string(activeTM.ID), &altOwnerUUID6, nil, "user", "owner")
 
 	result, err := repo.DeleteUserAndData(context.Background(), "delete@example.com")
 	require.NoError(t, err)
@@ -626,17 +635,18 @@ func TestGormDeletionRepository_DeleteGroupAndData_HardDeletesTombstonedTMs(t *t
 	userOwner := tdb.SeedUser(t, "owner@example.com", "google")
 
 	// Create a tombstoned threat model owned by the group
-	tombstonedTM := tdb.SeedThreatModel(t, group.InternalUUID, "Tombstoned Group TM")
+	tombstonedTM := tdb.SeedThreatModel(t, string(group.InternalUUID), "Tombstoned Group TM")
 	now := time.Now().UTC()
 	tdb.DB.Model(tombstonedTM).Update("deleted_at", now)
 	// Even though there's a user owner, the tombstoned TM should be hard-deleted
-	tdb.SeedThreatModelAccess(t, tombstonedTM.ID, &userOwner.InternalUUID, nil, "user", "owner")
+	userOwnerUUID := string(userOwner.InternalUUID)
+	tdb.SeedThreatModelAccess(t, string(tombstonedTM.ID), &userOwnerUUID, nil, "user", "owner")
 
 	// Create an active threat model owned by the group, with a user owner — should be retained
-	activeTM := tdb.SeedThreatModel(t, group.InternalUUID, "Active Group TM")
-	tdb.SeedThreatModelAccess(t, activeTM.ID, &userOwner.InternalUUID, nil, "user", "owner")
+	activeTM := tdb.SeedThreatModel(t, string(group.InternalUUID), "Active Group TM")
+	tdb.SeedThreatModelAccess(t, string(activeTM.ID), &userOwnerUUID, nil, "user", "owner")
 
-	result, err := repo.DeleteGroupAndData(context.Background(), group.InternalUUID)
+	result, err := repo.DeleteGroupAndData(context.Background(), string(group.InternalUUID))
 	require.NoError(t, err)
 
 	// Tombstoned TM should be deleted, active TM should be retained

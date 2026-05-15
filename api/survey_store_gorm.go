@@ -65,7 +65,7 @@ func (s *GormSurveyStore) Create(ctx context.Context, survey *Survey, userIntern
 	}
 
 	// Set the creator
-	model.CreatedByInternalUUID = userInternalUUID
+	model.CreatedByInternalUUID = models.DBVarchar(userInternalUUID)
 
 	err = authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(&model).Error; err != nil {
@@ -303,7 +303,7 @@ func (s *GormSurveyStore) apiToModel(survey *Survey) (*models.SurveyTemplate, er
 	}
 
 	if survey.Id != nil {
-		model.ID = survey.Id.String()
+		model.ID = models.DBVarchar(survey.Id.String())
 	}
 
 	if survey.Description != nil {
@@ -339,7 +339,7 @@ func (s *GormSurveyStore) apiToModel(survey *Survey) (*models.SurveyTemplate, er
 
 // modelToAPI converts a database model to an API Survey
 func (s *GormSurveyStore) modelToAPI(model *models.SurveyTemplate) (*Survey, error) {
-	id, err := uuid.Parse(model.ID)
+	id, err := uuid.Parse(string(model.ID))
 	if err != nil {
 		return nil, fmt.Errorf("invalid survey ID: %w", err)
 	}
@@ -388,7 +388,7 @@ func (s *GormSurveyStore) modelToAPI(model *models.SurveyTemplate) (*Survey, err
 
 // modelToListItem converts a database model to an API SurveyListItem
 func (s *GormSurveyStore) modelToListItem(model *models.SurveyTemplate) SurveyListItem {
-	id, _ := uuid.Parse(model.ID)
+	id, _ := uuid.Parse(string(model.ID))
 
 	item := SurveyListItem{
 		Id:          &id,

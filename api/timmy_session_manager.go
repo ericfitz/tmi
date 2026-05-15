@@ -128,8 +128,8 @@ func (sm *TimmySessionManager) CreateSession(
 
 	// Create session record
 	session := &models.TimmySession{
-		ThreatModelID:  threatModelID,
-		UserID:         userID,
+		ThreatModelID:  models.DBVarchar(threatModelID),
+		UserID:         models.DBVarchar(userID),
 		Title:          title,
 		SourceSnapshot: models.JSONRaw(snapshotJSON),
 		Status:         "active",
@@ -231,7 +231,7 @@ func (sm *TimmySessionManager) HandleMessage(
 
 	// Persist user message
 	userMsg := &models.TimmyMessage{
-		SessionID: sessionID,
+		SessionID: models.DBVarchar(sessionID),
 		Role:      "user",
 		Content:   models.DBText(userMessage),
 		Sequence:  seq,
@@ -256,7 +256,7 @@ func (sm *TimmySessionManager) HandleMessage(
 	tier2 := ""
 	if sm.llmService != nil && sm.vectorManager != nil {
 		emitStatus("querying_embeddings", "", "", "")
-		tier2 = sm.buildTier2Context(ctx, session.ThreatModelID, userMessage)
+		tier2 = sm.buildTier2Context(ctx, string(session.ThreatModelID), userMessage)
 	}
 	buildSpan.SetAttributes(
 		attribute.Int("tmi.timmy.tier1_entities", len(summaries)),
@@ -312,7 +312,7 @@ func (sm *TimmySessionManager) HandleMessage(
 	}
 
 	assistantMsg := &models.TimmyMessage{
-		SessionID:  sessionID,
+		SessionID:  models.DBVarchar(sessionID),
 		Role:       "assistant",
 		Content:    models.DBText(responseText),
 		TokenCount: tokenCount,
@@ -335,8 +335,8 @@ func (sm *TimmySessionManager) HandleMessage(
 	// Record usage asynchronously (best-effort)
 	now := time.Now().UTC()
 	usage := &models.TimmyUsage{
-		UserID:           userID,
-		SessionID:        sessionID,
+		UserID:           models.DBVarchar(userID),
+		SessionID:        models.DBVarchar(sessionID),
 		ThreatModelID:    session.ThreatModelID,
 		MessageCount:     1,
 		CompletionTokens: tokenCount,
@@ -829,9 +829,9 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 				break
 			}
 			emb := models.TimmyEmbedding{
-				ThreatModelID:  threatModelID,
+				ThreatModelID:  models.DBVarchar(threatModelID),
 				EntityType:     src.EntityType,
-				EntityID:       src.EntityID,
+				EntityID:       models.DBVarchar(src.EntityID),
 				ChunkIndex:     j,
 				ContentHash:    hash,
 				IndexType:      indexType,

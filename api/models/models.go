@@ -29,7 +29,7 @@ func tableName(name string) string {
 // Note: Column names are intentionally not specified to allow GORM's NamingStrategy
 // to handle database-specific casing (lowercase for PostgreSQL, UPPERCASE for Oracle)
 type User struct {
-	InternalUUID   string         `gorm:"primaryKey;type:varchar(36)"`
+	InternalUUID   DBVarchar      `gorm:"primaryKey;size:36"`
 	Provider       string         `gorm:"type:varchar(100);not null;index:idx_users_provider;index:idx_users_provider_lookup,priority:1"`
 	ProviderUserID *string        `gorm:"type:varchar(500);index:idx_users_provider_lookup,priority:2"`
 	Email          string         `gorm:"type:varchar(320);not null;index:idx_users_email"`
@@ -56,7 +56,7 @@ func (User) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (u *User) BeforeCreate(tx *gorm.DB) error {
 	if u.InternalUUID == "" {
-		u.InternalUUID = uuid.New().String()
+		u.InternalUUID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -64,8 +64,8 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 // RefreshTokenRecord represents a refresh token for a user
 // Note: Explicit column tags removed for Oracle compatibility
 type RefreshTokenRecord struct {
-	ID               string    `gorm:"primaryKey;type:varchar(36)"`
-	UserInternalUUID string    `gorm:"type:varchar(36);not null;index"`
+	ID               DBVarchar `gorm:"primaryKey;size:36"`
+	UserInternalUUID DBVarchar `gorm:"size:36;not null;index"`
 	Token            string    `gorm:"type:varchar(4000);not null;uniqueIndex"` // varchar(4000) for Oracle compatibility (CLOB cannot have unique index)
 	ExpiresAt        time.Time `gorm:"not null"`
 	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
@@ -82,7 +82,7 @@ func (RefreshTokenRecord) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (r *RefreshTokenRecord) BeforeCreate(tx *gorm.DB) error {
 	if r.ID == "" {
-		r.ID = uuid.New().String()
+		r.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -90,13 +90,13 @@ func (r *RefreshTokenRecord) BeforeCreate(tx *gorm.DB) error {
 // ClientCredential represents OAuth 2.0 client credentials for machine-to-machine auth
 // Note: Explicit column tags removed for Oracle compatibility
 type ClientCredential struct {
-	ID               string  `gorm:"primaryKey;type:varchar(36)"`
-	OwnerUUID        string  `gorm:"type:varchar(36);not null;index"`
-	ClientID         string  `gorm:"type:varchar(1000);not null;uniqueIndex"`
-	ClientSecretHash DBText  `gorm:"not null"`
-	Name             string  `gorm:"type:varchar(256);not null"`
-	Description      *string `gorm:"type:varchar(1024)"`
-	IsActive         DBBool  `gorm:"default:1"`
+	ID               DBVarchar `gorm:"primaryKey;size:36"`
+	OwnerUUID        DBVarchar `gorm:"size:36;not null;index"`
+	ClientID         string    `gorm:"type:varchar(1000);not null;uniqueIndex"`
+	ClientSecretHash DBText    `gorm:"not null"`
+	Name             string    `gorm:"type:varchar(256);not null"`
+	Description      *string   `gorm:"type:varchar(1024)"`
+	IsActive         DBBool    `gorm:"default:1"`
 	LastUsedAt       *time.Time
 	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt       time.Time `gorm:"not null;autoUpdateTime"`
@@ -114,7 +114,7 @@ func (ClientCredential) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (c *ClientCredential) BeforeCreate(tx *gorm.DB) error {
 	if c.ID == "" {
-		c.ID = uuid.New().String()
+		c.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -123,23 +123,23 @@ func (c *ClientCredential) BeforeCreate(tx *gorm.DB) error {
 // Note: Explicit column tags removed for Oracle compatibility (Oracle stores column names as UPPERCASE,
 // and the Oracle GORM driver doesn't handle case-insensitive matching with explicit column tags)
 type ThreatModel struct {
-	ID                           string     `gorm:"primaryKey;type:varchar(36)"`
-	OwnerInternalUUID            string     `gorm:"type:varchar(36);not null;index:idx_tm_owner;index:idx_tm_owner_created,priority:1"`
-	Name                         string     `gorm:"type:varchar(256);not null"`
-	Description                  *string    `gorm:"type:varchar(2048)"`
-	CreatedByInternalUUID        string     `gorm:"type:varchar(36);not null;index:idx_tm_created_by"`
-	ThreatModelFramework         string     `gorm:"type:varchar(30);default:STRIDE;index:idx_tm_framework"`
-	IssueURI                     *string    `gorm:"type:varchar(1000)"`
-	Status                       string     `gorm:"type:varchar(128);not null;default:'not_started';index:idx_tm_status"`
-	StatusUpdated                time.Time  `gorm:"not null;default:CURRENT_TIMESTAMP;index:idx_tm_status_updated"`
-	Alias                        int32      `gorm:"column:alias;not null;default:0;<-:create"` // Server-assigned globally-unique integer alias
-	IsConfidential               DBBool     `gorm:"default:0"`                                 // Immutable after creation
-	SecurityReviewerInternalUUID *string    `gorm:"type:varchar(36);index:idx_tm_security_reviewer"`
-	ProjectID                    *string    `gorm:"type:varchar(36);index:idx_tm_project"`
-	CreatedAt                    time.Time  `gorm:"not null;autoCreateTime;index:idx_tm_owner_created,priority:2"`
-	ModifiedAt                   time.Time  `gorm:"not null;autoUpdateTime"`
-	DeletedAt                    *time.Time `gorm:"index:idx_tm_deleted_at"`
-	LastAccessedAt               *time.Time `gorm:"index:idx_tm_last_accessed_at"`
+	ID                           DBVarchar         `gorm:"primaryKey;size:36"`
+	OwnerInternalUUID            DBVarchar         `gorm:"size:36;not null;index:idx_tm_owner;index:idx_tm_owner_created,priority:1"`
+	Name                         string            `gorm:"type:varchar(256);not null"`
+	Description                  *string           `gorm:"type:varchar(2048)"`
+	CreatedByInternalUUID        DBVarchar         `gorm:"size:36;not null;index:idx_tm_created_by"`
+	ThreatModelFramework         string            `gorm:"type:varchar(30);default:STRIDE;index:idx_tm_framework"`
+	IssueURI                     *string           `gorm:"type:varchar(1000)"`
+	Status                       string            `gorm:"type:varchar(128);not null;default:'not_started';index:idx_tm_status"`
+	StatusUpdated                time.Time         `gorm:"not null;default:CURRENT_TIMESTAMP;index:idx_tm_status_updated"`
+	Alias                        int32             `gorm:"column:alias;not null;default:0;<-:create"` // Server-assigned globally-unique integer alias
+	IsConfidential               DBBool            `gorm:"default:0"`                                 // Immutable after creation
+	SecurityReviewerInternalUUID NullableDBVarchar `gorm:"size:36;index:idx_tm_security_reviewer"`
+	ProjectID                    NullableDBVarchar `gorm:"size:36;index:idx_tm_project"`
+	CreatedAt                    time.Time         `gorm:"not null;autoCreateTime;index:idx_tm_owner_created,priority:2"`
+	ModifiedAt                   time.Time         `gorm:"not null;autoUpdateTime"`
+	DeletedAt                    *time.Time        `gorm:"index:idx_tm_deleted_at"`
+	LastAccessedAt               *time.Time        `gorm:"index:idx_tm_last_accessed_at"`
 	// Version is incremented on every successful update (T14 / #385).
 	// Clients pass the expected value via If-Match (or version body field) on
 	// PUT/PATCH; mismatches return 409 Conflict.
@@ -163,7 +163,7 @@ func (ThreatModel) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (t *ThreatModel) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == "" {
-		t.ID = uuid.New().String()
+		t.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -171,8 +171,8 @@ func (t *ThreatModel) BeforeCreate(tx *gorm.DB) error {
 // Diagram represents a diagram within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Diagram struct {
-	ID                string         `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID     string         `gorm:"type:varchar(36);not null;index:idx_diagrams_tm;index:idx_diagrams_tm_type,priority:1"`
+	ID                DBVarchar      `gorm:"primaryKey;size:36"`
+	ThreatModelID     DBVarchar      `gorm:"size:36;not null;index:idx_diagrams_tm;index:idx_diagrams_tm_type,priority:1"`
 	Name              string         `gorm:"type:varchar(256);not null"`
 	Description       *string        `gorm:"type:varchar(2048)"`
 	Type              *string        `gorm:"type:varchar(64);index:idx_diagrams_type;index:idx_diagrams_tm_type,priority:2"`
@@ -204,7 +204,7 @@ func (Diagram) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (d *Diagram) BeforeCreate(tx *gorm.DB) error {
 	if d.ID == "" {
-		d.ID = uuid.New().String()
+		d.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -212,8 +212,8 @@ func (d *Diagram) BeforeCreate(tx *gorm.DB) error {
 // Asset represents an asset within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Asset struct {
-	ID              string      `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID   string      `gorm:"type:varchar(36);not null;index:idx_assets_tm;index:idx_assets_tm_created,priority:1;index:idx_assets_tm_modified,priority:1"`
+	ID              DBVarchar   `gorm:"primaryKey;size:36"`
+	ThreatModelID   DBVarchar   `gorm:"size:36;not null;index:idx_assets_tm;index:idx_assets_tm_created,priority:1;index:idx_assets_tm_modified,priority:1"`
 	Name            string      `gorm:"type:varchar(256);not null;index:idx_assets_name"`
 	Description     *string     `gorm:"type:varchar(2048)"`
 	Type            string      `gorm:"type:varchar(64);not null;index:idx_assets_type"`
@@ -243,7 +243,7 @@ func (Asset) TableName() string {
 // trigger BeforeSave on the empty model struct, causing false validation errors.
 func (a *Asset) BeforeCreate(tx *gorm.DB) error {
 	if a.ID == "" {
-		a.ID = uuid.New().String()
+		a.ID = DBVarchar(uuid.New().String())
 	}
 	if err := validation.ValidateNonEmpty("name", a.Name); err != nil {
 		return err
@@ -257,30 +257,30 @@ func (a *Asset) BeforeCreate(tx *gorm.DB) error {
 // Threat represents a threat within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Threat struct {
-	ID              string       `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID   string       `gorm:"type:varchar(36);not null;index:idx_threats_tm;index:idx_threats_tm_created,priority:1;index:idx_threats_tm_modified,priority:1"`
-	DiagramID       *string      `gorm:"type:varchar(36);index:idx_threats_diagram"`
-	CellID          *string      `gorm:"type:varchar(36);index:idx_threats_cell"`
-	AssetID         *string      `gorm:"type:varchar(36);index:idx_threats_asset"`
-	Name            string       `gorm:"type:varchar(256);not null;index:idx_threats_name"`
-	Description     *string      `gorm:"type:varchar(2048)"`
-	Severity        *string      `gorm:"type:varchar(50);index:idx_threats_severity"`
-	Likelihood      *string      `gorm:"type:varchar(50)"`
-	RiskLevel       *string      `gorm:"type:varchar(50);index:idx_threats_risk_level"`
-	Score           *float64     `gorm:"type:decimal(3,1);index:idx_threats_score"`
-	Priority        *string      `gorm:"type:varchar(256);index:idx_threats_priority"`
-	Mitigated       DBBool       `gorm:"index:idx_threats_mitigated"`
-	IncludeInReport DBBool       `gorm:"default:1"`
-	TimmyEnabled    DBBool       `gorm:"default:1"`
-	AutoGenerated   DBBool       `gorm:"default:0;<-:create" json:"auto_generated"`
-	Status          *string      `gorm:"type:varchar(128);index:idx_threats_status"`
-	ThreatType      StringArray  `gorm:"not null"`
-	CweID           StringArray  `gorm:"column:cwe_id"` // CWE identifiers (e.g., CWE-89)
-	Cvss            CVSSArray    `gorm:"column:cvss"`   // CVSS vector and score pairs
-	Ssvc            NullableSSVC `gorm:"column:ssvc"`   // SSVC assessment result
-	Mitigation      *string      `gorm:"type:varchar(1024)"`
-	IssueURI        *string      `gorm:"type:varchar(1000)"`
-	Alias           int32        `gorm:"column:alias;not null;default:0;<-:create"` // Server-assigned per-(threat_model_id, type) alias
+	ID              DBVarchar         `gorm:"primaryKey;size:36"`
+	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_threats_tm;index:idx_threats_tm_created,priority:1;index:idx_threats_tm_modified,priority:1"`
+	DiagramID       NullableDBVarchar `gorm:"size:36;index:idx_threats_diagram"`
+	CellID          NullableDBVarchar `gorm:"size:36;index:idx_threats_cell"`
+	AssetID         NullableDBVarchar `gorm:"size:36;index:idx_threats_asset"`
+	Name            string            `gorm:"type:varchar(256);not null;index:idx_threats_name"`
+	Description     *string           `gorm:"type:varchar(2048)"`
+	Severity        *string           `gorm:"type:varchar(50);index:idx_threats_severity"`
+	Likelihood      *string           `gorm:"type:varchar(50)"`
+	RiskLevel       *string           `gorm:"type:varchar(50);index:idx_threats_risk_level"`
+	Score           *float64          `gorm:"type:decimal(3,1);index:idx_threats_score"`
+	Priority        *string           `gorm:"type:varchar(256);index:idx_threats_priority"`
+	Mitigated       DBBool            `gorm:"index:idx_threats_mitigated"`
+	IncludeInReport DBBool            `gorm:"default:1"`
+	TimmyEnabled    DBBool            `gorm:"default:1"`
+	AutoGenerated   DBBool            `gorm:"default:0;<-:create" json:"auto_generated"`
+	Status          *string           `gorm:"type:varchar(128);index:idx_threats_status"`
+	ThreatType      StringArray       `gorm:"not null"`
+	CweID           StringArray       `gorm:"column:cwe_id"` // CWE identifiers (e.g., CWE-89)
+	Cvss            CVSSArray         `gorm:"column:cvss"`   // CVSS vector and score pairs
+	Ssvc            NullableSSVC      `gorm:"column:ssvc"`   // SSVC assessment result
+	Mitigation      *string           `gorm:"type:varchar(1024)"`
+	IssueURI        *string           `gorm:"type:varchar(1000)"`
+	Alias           int32             `gorm:"column:alias;not null;default:0;<-:create"` // Server-assigned per-(threat_model_id, type) alias
 	// Note: autoCreateTime/autoUpdateTime tags removed for Oracle compatibility.
 	// Timestamps are set explicitly in the store layer (toGormModelForCreate).
 	CreatedAt  time.Time  `gorm:"not null;index:idx_threats_tm_created,priority:2"`
@@ -305,7 +305,7 @@ func (Threat) TableName() string {
 // properly handle IDs set after struct initialization
 func (t *Threat) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == "" {
-		t.ID = uuid.New().String()
+		t.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -313,7 +313,7 @@ func (t *Threat) BeforeCreate(tx *gorm.DB) error {
 // Group represents an identity provider group
 // Note: Explicit column tags removed for Oracle compatibility
 type Group struct {
-	InternalUUID string    `gorm:"primaryKey;type:varchar(36)"`
+	InternalUUID DBVarchar `gorm:"primaryKey;size:36"`
 	Provider     string    `gorm:"type:varchar(100);not null;index:idx_groups_provider"`
 	GroupName    string    `gorm:"type:varchar(500);not null;index:idx_groups_group_name"`
 	Name         *string   `gorm:"type:varchar(256)"`
@@ -331,7 +331,7 @@ func (Group) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (g *Group) BeforeCreate(tx *gorm.DB) error {
 	if g.InternalUUID == "" {
-		g.InternalUUID = uuid.New().String()
+		g.InternalUUID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -340,15 +340,15 @@ func (g *Group) BeforeCreate(tx *gorm.DB) error {
 // Note: Explicit column tags removed for Oracle compatibility (Oracle stores column names as UPPERCASE,
 // and the Oracle GORM driver doesn't handle case-insensitive matching with explicit column tags)
 type ThreatModelAccess struct {
-	ID                    string    `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID         string    `gorm:"type:varchar(36);not null;index:idx_tma_tm;index:idx_tma_perf,priority:1"`
-	UserInternalUUID      *string   `gorm:"type:varchar(36);index:idx_tma_user;index:idx_tma_perf,priority:3"`
-	GroupInternalUUID     *string   `gorm:"type:varchar(36);index:idx_tma_group;index:idx_tma_perf,priority:4"`
-	SubjectType           string    `gorm:"type:varchar(10);not null;index:idx_tma_subject_type;index:idx_tma_perf,priority:2"`
-	Role                  string    `gorm:"type:varchar(6);not null;index:idx_tma_role"`
-	GrantedByInternalUUID *string   `gorm:"type:varchar(36)"`
-	CreatedAt             time.Time `gorm:"not null;autoCreateTime"`
-	ModifiedAt            time.Time `gorm:"not null;autoUpdateTime"`
+	ID                    DBVarchar         `gorm:"primaryKey;size:36"`
+	ThreatModelID         DBVarchar         `gorm:"size:36;not null;index:idx_tma_tm;index:idx_tma_perf,priority:1"`
+	UserInternalUUID      NullableDBVarchar `gorm:"size:36;index:idx_tma_user;index:idx_tma_perf,priority:3"`
+	GroupInternalUUID     NullableDBVarchar `gorm:"size:36;index:idx_tma_group;index:idx_tma_perf,priority:4"`
+	SubjectType           string            `gorm:"type:varchar(10);not null;index:idx_tma_subject_type;index:idx_tma_perf,priority:2"`
+	Role                  string            `gorm:"type:varchar(6);not null;index:idx_tma_role"`
+	GrantedByInternalUUID NullableDBVarchar `gorm:"size:36"`
+	CreatedAt             time.Time         `gorm:"not null;autoCreateTime"`
+	ModifiedAt            time.Time         `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -365,7 +365,7 @@ func (ThreatModelAccess) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (t *ThreatModelAccess) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == "" {
-		t.ID = uuid.New().String()
+		t.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -373,15 +373,15 @@ func (t *ThreatModelAccess) BeforeCreate(tx *gorm.DB) error {
 // Document represents a document attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Document struct {
-	ID              string  `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID   string  `gorm:"type:varchar(36);not null;index:idx_docs_tm;index:idx_docs_tm_created,priority:1;index:idx_docs_tm_modified,priority:1"`
-	Name            string  `gorm:"type:varchar(256);not null;index:idx_docs_name"`
-	URI             string  `gorm:"type:varchar(1000);not null"`
-	Description     *string `gorm:"type:varchar(2048)"`
-	IncludeInReport DBBool  `gorm:"default:1"`
-	TimmyEnabled    DBBool  `gorm:"default:1"`
-	AccessStatus    *string `gorm:"type:varchar(32);default:unknown"`
-	ContentSource   *string `gorm:"type:varchar(64)"`
+	ID              DBVarchar `gorm:"primaryKey;size:36"`
+	ThreatModelID   DBVarchar `gorm:"size:36;not null;index:idx_docs_tm;index:idx_docs_tm_created,priority:1;index:idx_docs_tm_modified,priority:1"`
+	Name            string    `gorm:"type:varchar(256);not null;index:idx_docs_name"`
+	URI             string    `gorm:"type:varchar(1000);not null"`
+	Description     *string   `gorm:"type:varchar(2048)"`
+	IncludeInReport DBBool    `gorm:"default:1"`
+	TimmyEnabled    DBBool    `gorm:"default:1"`
+	AccessStatus    *string   `gorm:"type:varchar(32);default:unknown"`
+	ContentSource   *string   `gorm:"type:varchar(64)"`
 
 	// Picker registration (all three set together or all null — enforced by application code).
 	PickerProviderID *string `gorm:"type:varchar(64);index:idx_docs_picker,priority:1"`
@@ -412,7 +412,7 @@ func (Document) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (d *Document) BeforeCreate(tx *gorm.DB) error {
 	if d.ID == "" {
-		d.ID = uuid.New().String()
+		d.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -420,8 +420,8 @@ func (d *Document) BeforeCreate(tx *gorm.DB) error {
 // Note represents a note attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Note struct {
-	ID              string     `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID   string     `gorm:"type:varchar(36);not null;index:idx_notes_tm;index:idx_notes_tm_created,priority:1;index:idx_notes_tm_modified,priority:1"`
+	ID              DBVarchar  `gorm:"primaryKey;size:36"`
+	ThreatModelID   DBVarchar  `gorm:"size:36;not null;index:idx_notes_tm;index:idx_notes_tm_created,priority:1;index:idx_notes_tm_modified,priority:1"`
 	Name            string     `gorm:"type:varchar(256);not null;index:idx_notes_name"`
 	Content         DBText     `gorm:"not null"`
 	Description     *string    `gorm:"type:varchar(2048)"`
@@ -449,7 +449,7 @@ func (Note) TableName() string {
 // "cannot be empty" errors. Update-time validation is handled by the API layer.
 func (n *Note) BeforeCreate(tx *gorm.DB) error {
 	if n.ID == "" {
-		n.ID = uuid.New().String()
+		n.ID = DBVarchar(uuid.New().String())
 	}
 	if err := validation.ValidateNonEmpty("name", n.Name); err != nil {
 		return err
@@ -463,8 +463,8 @@ func (n *Note) BeforeCreate(tx *gorm.DB) error {
 // Repository represents a repository attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Repository struct {
-	ID              string     `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID   string     `gorm:"type:varchar(36);not null;index:idx_repos_tm;index:idx_repos_tm_created,priority:1;index:idx_repos_tm_modified,priority:1"`
+	ID              DBVarchar  `gorm:"primaryKey;size:36"`
+	ThreatModelID   DBVarchar  `gorm:"size:36;not null;index:idx_repos_tm;index:idx_repos_tm_created,priority:1;index:idx_repos_tm_modified,priority:1"`
 	Name            *string    `gorm:"type:varchar(256);index:idx_repos_name"`
 	URI             string     `gorm:"type:varchar(1000);not null"`
 	Description     *string    `gorm:"type:varchar(2048)"`
@@ -489,7 +489,7 @@ func (Repository) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (r *Repository) BeforeCreate(tx *gorm.DB) error {
 	if r.ID == "" {
-		r.ID = uuid.New().String()
+		r.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -497,9 +497,9 @@ func (r *Repository) BeforeCreate(tx *gorm.DB) error {
 // Metadata represents key-value metadata for entities
 // Note: Explicit column tags removed for Oracle compatibility
 type Metadata struct {
-	ID         string    `gorm:"primaryKey;type:varchar(36)"`
+	ID         DBVarchar `gorm:"primaryKey;size:36"`
 	EntityType string    `gorm:"type:varchar(50);not null;index:idx_metadata_entity_type_id,priority:1;index:idx_metadata_unique,priority:1,unique;index:idx_metadata_entity_created,priority:1;index:idx_metadata_entity_modified,priority:1"`
-	EntityID   string    `gorm:"type:varchar(36);not null;index:idx_metadata_entity_id;index:idx_metadata_entity_type_id,priority:2;index:idx_metadata_unique,priority:2;index:idx_metadata_key_value,priority:1"`
+	EntityID   DBVarchar `gorm:"size:36;not null;index:idx_metadata_entity_id;index:idx_metadata_entity_type_id,priority:2;index:idx_metadata_unique,priority:2;index:idx_metadata_key_value,priority:1"`
 	Key        string    `gorm:"type:varchar(256);not null;index:idx_metadata_key;index:idx_metadata_unique,priority:3;index:idx_metadata_key_value,priority:2"`
 	Value      string    `gorm:"type:varchar(1024);not null;index:idx_metadata_key_value,priority:3"`
 	CreatedAt  time.Time `gorm:"not null;autoCreateTime;index:idx_metadata_created;index:idx_metadata_entity_created,priority:2"`
@@ -514,7 +514,7 @@ func (Metadata) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (m *Metadata) BeforeCreate(tx *gorm.DB) error {
 	if m.ID == "" {
-		m.ID = uuid.New().String()
+		m.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -522,9 +522,9 @@ func (m *Metadata) BeforeCreate(tx *gorm.DB) error {
 // CollaborationSession represents a real-time collaboration session
 // Note: Explicit column tags removed for Oracle compatibility
 type CollaborationSession struct {
-	ID            string    `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID string    `gorm:"type:varchar(36);not null;index"`
-	DiagramID     string    `gorm:"type:varchar(36);not null;index"`
+	ID            DBVarchar `gorm:"primaryKey;size:36"`
+	ThreatModelID DBVarchar `gorm:"size:36;not null;index"`
+	DiagramID     DBVarchar `gorm:"size:36;not null;index"`
 	WebsocketURL  string    `gorm:"type:varchar(1024);not null"`
 	CreatedAt     time.Time `gorm:"not null;autoCreateTime"`
 	ExpiresAt     *time.Time
@@ -543,7 +543,7 @@ func (CollaborationSession) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (c *CollaborationSession) BeforeCreate(tx *gorm.DB) error {
 	if c.ID == "" {
-		c.ID = uuid.New().String()
+		c.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -551,9 +551,9 @@ func (c *CollaborationSession) BeforeCreate(tx *gorm.DB) error {
 // SessionParticipant represents a participant in a collaboration session
 // Note: Explicit column tags removed for Oracle compatibility
 type SessionParticipant struct {
-	ID               string    `gorm:"primaryKey;type:varchar(36)"`
-	SessionID        string    `gorm:"type:varchar(36);not null;index"`
-	UserInternalUUID string    `gorm:"type:varchar(36);not null;index"`
+	ID               DBVarchar `gorm:"primaryKey;size:36"`
+	SessionID        DBVarchar `gorm:"size:36;not null;index"`
+	UserInternalUUID DBVarchar `gorm:"size:36;not null;index"`
 	JoinedAt         time.Time `gorm:"not null;autoCreateTime"`
 	LeftAt           *time.Time
 
@@ -570,7 +570,7 @@ func (SessionParticipant) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (s *SessionParticipant) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
-		s.ID = uuid.New().String()
+		s.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -578,19 +578,19 @@ func (s *SessionParticipant) BeforeCreate(tx *gorm.DB) error {
 // WebhookSubscription represents a webhook subscription
 // Note: Explicit column tags removed for Oracle compatibility
 type WebhookSubscription struct {
-	ID                  string      `gorm:"primaryKey;type:varchar(36)"`
-	OwnerInternalUUID   string      `gorm:"type:varchar(36);not null;index"`
-	ThreatModelID       *string     `gorm:"type:varchar(36);index"`
-	Name                string      `gorm:"type:varchar(256);not null"`
-	URL                 string      `gorm:"type:varchar(1024);not null"`
-	Events              StringArray `gorm:"not null"`
-	Secret              *string     `gorm:"type:varchar(128)"`
-	Status              string      `gorm:"type:varchar(128);default:pending_verification"`
-	Challenge           *string     `gorm:"type:varchar(1000)"`
-	ChallengesSent      int         `gorm:"default:0"`
-	TimeoutCount        int         `gorm:"default:0"`
-	CreatedAt           time.Time   `gorm:"not null;autoCreateTime"`
-	ModifiedAt          time.Time   `gorm:"not null;autoUpdateTime"`
+	ID                  DBVarchar         `gorm:"primaryKey;size:36"`
+	OwnerInternalUUID   DBVarchar         `gorm:"size:36;not null;index"`
+	ThreatModelID       NullableDBVarchar `gorm:"size:36;index"`
+	Name                string            `gorm:"type:varchar(256);not null"`
+	URL                 string            `gorm:"type:varchar(1024);not null"`
+	Events              StringArray       `gorm:"not null"`
+	Secret              *string           `gorm:"type:varchar(128)"`
+	Status              string            `gorm:"type:varchar(128);default:pending_verification"`
+	Challenge           *string           `gorm:"type:varchar(1000)"`
+	ChallengesSent      int               `gorm:"default:0"`
+	TimeoutCount        int               `gorm:"default:0"`
+	CreatedAt           time.Time         `gorm:"not null;autoCreateTime"`
+	ModifiedAt          time.Time         `gorm:"not null;autoUpdateTime"`
 	LastSuccessfulUse   *time.Time
 	PublicationFailures int `gorm:"default:0"`
 
@@ -607,7 +607,7 @@ func (WebhookSubscription) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (w *WebhookSubscription) BeforeCreate(tx *gorm.DB) error {
 	if w.ID == "" {
-		w.ID = uuid.New().String()
+		w.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -615,7 +615,7 @@ func (w *WebhookSubscription) BeforeCreate(tx *gorm.DB) error {
 // WebhookQuota represents per-user webhook quotas
 // Note: Explicit column tags removed for Oracle compatibility
 type WebhookQuota struct {
-	OwnerID                          string    `gorm:"primaryKey;type:varchar(36)"`
+	OwnerID                          DBVarchar `gorm:"primaryKey;size:36"`
 	MaxSubscriptions                 int       `gorm:"default:10"`
 	MaxEventsPerMinute               int       `gorm:"default:12"`
 	MaxSubscriptionRequestsPerMinute int       `gorm:"default:10"`
@@ -635,7 +635,7 @@ func (WebhookQuota) TableName() string {
 // WebhookURLDenyList represents URL patterns blocked for webhooks
 // Note: Explicit column tags removed for Oracle compatibility
 type WebhookURLDenyList struct {
-	ID          string    `gorm:"primaryKey;type:varchar(36)"`
+	ID          DBVarchar `gorm:"primaryKey;size:36"`
 	Pattern     string    `gorm:"type:varchar(256);not null;uniqueIndex:idx_webhook_deny_pattern"`
 	PatternType string    `gorm:"type:varchar(64);not null"`
 	Description *string   `gorm:"type:varchar(2048)"`
@@ -650,7 +650,7 @@ func (WebhookURLDenyList) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (w *WebhookURLDenyList) BeforeCreate(tx *gorm.DB) error {
 	if w.ID == "" {
-		w.ID = uuid.New().String()
+		w.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -658,15 +658,15 @@ func (w *WebhookURLDenyList) BeforeCreate(tx *gorm.DB) error {
 // Addon represents an addon configuration
 // Note: Explicit column tags removed for Oracle compatibility
 type Addon struct {
-	ID            string      `gorm:"primaryKey;type:varchar(36)"`
-	CreatedAt     time.Time   `gorm:"not null;autoCreateTime"`
-	Name          string      `gorm:"type:varchar(256);not null"`
-	WebhookID     string      `gorm:"type:varchar(36);not null;index"`
-	Description   *string     `gorm:"type:varchar(2048)"`
-	Icon          *string     `gorm:"type:varchar(60)"`
-	Objects       StringArray `gorm:""`
-	ThreatModelID *string     `gorm:"type:varchar(36);index"`
-	Parameters    JSONRaw     `gorm:""`
+	ID            DBVarchar         `gorm:"primaryKey;size:36"`
+	CreatedAt     time.Time         `gorm:"not null;autoCreateTime"`
+	Name          string            `gorm:"type:varchar(256);not null"`
+	WebhookID     DBVarchar         `gorm:"size:36;not null;index"`
+	Description   *string           `gorm:"type:varchar(2048)"`
+	Icon          *string           `gorm:"type:varchar(60)"`
+	Objects       StringArray       `gorm:""`
+	ThreatModelID NullableDBVarchar `gorm:"size:36;index"`
+	Parameters    JSONRaw           `gorm:""`
 
 	// Relationships
 	Webhook     WebhookSubscription `gorm:"foreignKey:WebhookID"`
@@ -681,7 +681,7 @@ func (Addon) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (a *Addon) BeforeCreate(tx *gorm.DB) error {
 	if a.ID == "" {
-		a.ID = uuid.New().String()
+		a.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -689,7 +689,7 @@ func (a *Addon) BeforeCreate(tx *gorm.DB) error {
 // AddonInvocationQuota represents per-user addon invocation quotas
 // Note: Explicit column tags removed for Oracle compatibility
 type AddonInvocationQuota struct {
-	OwnerInternalUUID     string    `gorm:"primaryKey;type:varchar(36)"`
+	OwnerInternalUUID     DBVarchar `gorm:"primaryKey;size:36"`
 	MaxActiveInvocations  int       `gorm:"default:1"`
 	MaxInvocationsPerHour int       `gorm:"default:10"`
 	CreatedAt             time.Time `gorm:"not null;autoCreateTime"`
@@ -707,8 +707,8 @@ func (AddonInvocationQuota) TableName() string {
 // UserAPIQuota represents per-user API rate limits
 // Note: Explicit column tags removed for Oracle compatibility
 type UserAPIQuota struct {
-	UserInternalUUID     string `gorm:"primaryKey;type:varchar(36)"`
-	MaxRequestsPerMinute int    `gorm:"default:100"`
+	UserInternalUUID     DBVarchar `gorm:"primaryKey;size:36"`
+	MaxRequestsPerMinute int       `gorm:"default:100"`
 	MaxRequestsPerHour   *int
 	CreatedAt            time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt           time.Time `gorm:"not null;autoUpdateTime"`
@@ -728,14 +728,14 @@ func (UserAPIQuota) TableName() string {
 // the external group to inherit the built-in group's privileges.
 // Note: Explicit column tags removed for Oracle compatibility
 type GroupMember struct {
-	ID                      string    `gorm:"primaryKey;type:varchar(36)"`
-	GroupInternalUUID       string    `gorm:"type:varchar(36);not null;index;uniqueIndex:idx_gm_group_user_type,priority:1"`
-	UserInternalUUID        *string   `gorm:"type:varchar(36);index;uniqueIndex:idx_gm_group_user_type,priority:2"`
-	MemberGroupInternalUUID *string   `gorm:"type:varchar(36);index"`
-	SubjectType             string    `gorm:"type:varchar(10);not null;default:user;uniqueIndex:idx_gm_group_user_type,priority:3"`
-	AddedByInternalUUID     *string   `gorm:"type:varchar(36)"`
-	AddedAt                 time.Time `gorm:"not null;autoCreateTime"`
-	Notes                   *string   `gorm:"type:varchar(2048)"`
+	ID                      DBVarchar         `gorm:"primaryKey;size:36"`
+	GroupInternalUUID       DBVarchar         `gorm:"size:36;not null;index;uniqueIndex:idx_gm_group_user_type,priority:1"`
+	UserInternalUUID        NullableDBVarchar `gorm:"size:36;index;uniqueIndex:idx_gm_group_user_type,priority:2"`
+	MemberGroupInternalUUID NullableDBVarchar `gorm:"size:36;index"`
+	SubjectType             string            `gorm:"type:varchar(10);not null;default:user;uniqueIndex:idx_gm_group_user_type,priority:3"`
+	AddedByInternalUUID     NullableDBVarchar `gorm:"size:36"`
+	AddedAt                 time.Time         `gorm:"not null;autoCreateTime"`
+	Notes                   *string           `gorm:"type:varchar(2048)"`
 
 	// Relationships
 	Group       Group  `gorm:"foreignKey:GroupInternalUUID;references:InternalUUID"`
@@ -752,7 +752,7 @@ func (GroupMember) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (g *GroupMember) BeforeCreate(tx *gorm.DB) error {
 	if g.ID == "" {
-		g.ID = uuid.New().String()
+		g.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -761,8 +761,8 @@ func (g *GroupMember) BeforeCreate(tx *gorm.DB) error {
 // Preferences are keyed by client application identifier (e.g., "tmi-ux", "tmi-cli")
 // Maximum total size: 1KB, maximum 20 client entries
 type UserPreference struct {
-	ID               string    `gorm:"primaryKey;type:varchar(36)"`
-	UserInternalUUID string    `gorm:"type:varchar(36);not null;uniqueIndex"`
+	ID               DBVarchar `gorm:"primaryKey;size:36"`
+	UserInternalUUID DBVarchar `gorm:"size:36;not null;uniqueIndex"`
 	Preferences      JSONRaw   `gorm:"not null"`
 	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt       time.Time `gorm:"not null;autoUpdateTime"`
@@ -779,7 +779,7 @@ func (UserPreference) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (u *UserPreference) BeforeCreate(tx *gorm.DB) error {
 	if u.ID == "" {
-		u.ID = uuid.New().String()
+		u.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -788,7 +788,7 @@ func (u *UserPreference) BeforeCreate(tx *gorm.DB) error {
 // Issued via POST /usability_feedback by any authenticated user.
 // Listed via GET /usability_feedback (admin only).
 type UsabilityFeedback struct {
-	ID            string         `gorm:"primaryKey;type:varchar(36)"`
+	ID            DBVarchar      `gorm:"primaryKey;size:36"`
 	Sentiment     string         `gorm:"type:varchar(8);not null;index:idx_usability_feedback_sentiment"`
 	Verbatim      *string        `gorm:"type:varchar(2048)"`
 	Surface       string         `gorm:"type:varchar(32);not null;index:idx_usability_feedback_surface"`
@@ -799,7 +799,7 @@ type UsabilityFeedback struct {
 	UserAgentData JSONRaw        `gorm:"column:user_agent_data"`
 	Viewport      *string        `gorm:"type:varchar(11)"`
 	Screenshot    NullableDBText `gorm:"column:screenshot"`
-	CreatedByUUID string         `gorm:"column:created_by;type:varchar(36);not null;index:idx_usability_feedback_created_by"`
+	CreatedByUUID DBVarchar      `gorm:"column:created_by;size:36;not null;index:idx_usability_feedback_created_by"`
 	// Note: autoCreateTime tag removed for Oracle compatibility (#380). The
 	// repository sets CreatedAt explicitly in Create before INSERT, matching
 	// the Threat model pattern (see api/models/models.go Threat.CreatedAt).
@@ -820,7 +820,7 @@ func (UsabilityFeedback) TableName() string {
 // BeforeCreate generates a UUID if not set.
 func (u *UsabilityFeedback) BeforeCreate(tx *gorm.DB) error {
 	if u.ID == "" {
-		u.ID = uuid.New().String()
+		u.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -829,10 +829,10 @@ func (u *UsabilityFeedback) BeforeCreate(tx *gorm.DB) error {
 // (notes, diagrams, threats, threat-classification fields) within a threat model.
 // Issued via POST /threat_models/{id}/feedback by reader+ on the parent TM.
 type ContentFeedback struct {
-	ID                     string         `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID          string         `gorm:"type:varchar(36);not null;index:idx_content_feedback_target,priority:1"`
+	ID                     DBVarchar      `gorm:"primaryKey;size:36"`
+	ThreatModelID          DBVarchar      `gorm:"size:36;not null;index:idx_content_feedback_target,priority:1"`
 	TargetType             string         `gorm:"type:varchar(24);not null;index:idx_content_feedback_target,priority:2"`
-	TargetID               string         `gorm:"type:varchar(36);not null;index:idx_content_feedback_target,priority:3"`
+	TargetID               DBVarchar      `gorm:"size:36;not null;index:idx_content_feedback_target,priority:3"`
 	TargetField            *string        `gorm:"type:varchar(64)"`
 	Sentiment              string         `gorm:"type:varchar(8);not null;index:idx_content_feedback_sentiment"`
 	Verbatim               *string        `gorm:"type:varchar(2048)"`
@@ -841,7 +841,7 @@ type ContentFeedback struct {
 	ClientID               string         `gorm:"column:client_id;type:varchar(32);not null"`
 	ClientVersion          *string        `gorm:"column:client_version;type:varchar(32)"`
 	Screenshot             NullableDBText `gorm:"column:screenshot"`
-	CreatedByUUID          string         `gorm:"column:created_by;type:varchar(36);not null"`
+	CreatedByUUID          DBVarchar      `gorm:"column:created_by;size:36;not null"`
 	// Note: autoCreateTime tag removed for Oracle compatibility (#380). The
 	// repository sets CreatedAt explicitly in Create / CreateWithTargetCheck
 	// before INSERT, matching the Threat model pattern.
@@ -863,7 +863,7 @@ func (ContentFeedback) TableName() string {
 // BeforeCreate generates a UUID if not set.
 func (c *ContentFeedback) BeforeCreate(tx *gorm.DB) error {
 	if c.ID == "" {
-		c.ID = uuid.New().String()
+		c.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -873,9 +873,9 @@ func (c *ContentFeedback) BeforeCreate(tx *gorm.DB) error {
 // counters use the parent threat-model UUID. Allocation is done via
 // SELECT ... FOR UPDATE inside the calling repository's transaction.
 type AliasCounter struct {
-	ParentID   string `gorm:"primaryKey;type:varchar(36);column:parent_id"`
-	ObjectType string `gorm:"primaryKey;type:varchar(16);column:object_type"`
-	NextAlias  int32  `gorm:"not null;default:1;column:next_alias"`
+	ParentID   DBVarchar `gorm:"primaryKey;size:36;column:parent_id"`
+	ObjectType string    `gorm:"primaryKey;type:varchar(16);column:object_type"`
+	NextAlias  int32     `gorm:"not null;default:1;column:next_alias"`
 }
 
 // TableName returns the dialect-aware table name.

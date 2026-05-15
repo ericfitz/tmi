@@ -30,7 +30,7 @@ func setupDiagramAliasTestDB(t *testing.T) (*gorm.DB, *models.ThreatModel) {
 	))
 
 	user := &models.User{
-		InternalUUID:   uuid.New().String(),
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
 		ProviderUserID: strPtr("diagram-alias-user"),
 		Email:          "alice@example.com",
@@ -39,7 +39,7 @@ func setupDiagramAliasTestDB(t *testing.T) (*gorm.DB, *models.ThreatModel) {
 	require.NoError(t, db.Create(user).Error)
 
 	tm := &models.ThreatModel{
-		ID:                    uuid.New().String(),
+		ID:                    models.DBVarchar(uuid.New().String()),
 		OwnerInternalUUID:     user.InternalUUID,
 		CreatedByInternalUUID: user.InternalUUID,
 		Name:                  "Test TM for Diagrams",
@@ -65,7 +65,7 @@ func TestGormDiagramStore_CreateAssignsAlias(t *testing.T) {
 		return d
 	}
 
-	created, err := store.CreateWithThreatModel(diagram, tm.ID, idSetter)
+	created, err := store.CreateWithThreatModel(diagram, string(tm.ID), idSetter)
 	require.NoError(t, err)
 	require.NotNil(t, created.Id)
 

@@ -2200,7 +2200,7 @@ func findGroupByProviderAndNameGorm(ctx context.Context, gormDB *gorm.DB, provid
 		return uuid.Nil, err
 	}
 
-	return uuid.Parse(group.InternalUUID)
+	return uuid.Parse(string(group.InternalUUID))
 }
 
 // buildGormConfig creates a GORM configuration from the application config.

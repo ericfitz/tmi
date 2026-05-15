@@ -36,8 +36,8 @@ func TestTimmyUsageStore_RecordAndGet(t *testing.T) {
 	results, err := store.GetByUser(ctx, "user-001", now.Add(-time.Minute), now.Add(2*time.Hour))
 	require.NoError(t, err)
 	require.Len(t, results, 1)
-	assert.Equal(t, "user-001", results[0].UserID)
-	assert.Equal(t, "tm-usage-001", results[0].ThreatModelID)
+	assert.Equal(t, "user-001", string(results[0].UserID))
+	assert.Equal(t, "tm-usage-001", string(results[0].ThreatModelID))
 	assert.Equal(t, 5, results[0].MessageCount)
 	assert.Equal(t, 100, results[0].PromptTokens)
 	assert.Equal(t, 200, results[0].CompletionTokens)
@@ -66,9 +66,9 @@ func TestTimmyUsageStore_GetAggregated(t *testing.T) {
 
 	records := []*models.TimmyUsage{
 		{
-			UserID:           userID,
+			UserID:           models.DBVarchar(userID),
 			SessionID:        "session-A",
-			ThreatModelID:    tmID,
+			ThreatModelID:    models.DBVarchar(tmID),
 			MessageCount:     3,
 			PromptTokens:     100,
 			CompletionTokens: 150,
@@ -77,9 +77,9 @@ func TestTimmyUsageStore_GetAggregated(t *testing.T) {
 			PeriodEnd:        now.Add(time.Hour),
 		},
 		{
-			UserID:           userID,
+			UserID:           models.DBVarchar(userID),
 			SessionID:        "session-B",
-			ThreatModelID:    tmID,
+			ThreatModelID:    models.DBVarchar(tmID),
 			MessageCount:     5,
 			PromptTokens:     200,
 			CompletionTokens: 250,
@@ -90,7 +90,7 @@ func TestTimmyUsageStore_GetAggregated(t *testing.T) {
 		{
 			UserID:           "other-user",
 			SessionID:        "session-C",
-			ThreatModelID:    tmID,
+			ThreatModelID:    models.DBVarchar(tmID),
 			MessageCount:     2,
 			PromptTokens:     50,
 			CompletionTokens: 75,

@@ -92,7 +92,7 @@ func (s *GormThreatModelStore) SoftDelete(ctx context.Context, id string) error 
 
 		// Soft-delete the threat model
 		// Use Model with primary key set to satisfy Oracle GORM driver's WHERE clause check
-		if err := tx.Model(&models.ThreatModel{ID: id}).UpdateColumn("deleted_at", now).Error; err != nil {
+		if err := tx.Model(&models.ThreatModel{ID: models.DBVarchar(id)}).UpdateColumn("deleted_at", now).Error; err != nil {
 			return dberrors.Classify(err)
 		}
 
@@ -143,7 +143,7 @@ func (s *GormThreatModelStore) Restore(id string) error {
 		}
 
 		// Restore the threat model
-		if err := tx.Model(&models.ThreatModel{ID: id}).UpdateColumn("deleted_at", nil).Error; err != nil {
+		if err := tx.Model(&models.ThreatModel{ID: models.DBVarchar(id)}).UpdateColumn("deleted_at", nil).Error; err != nil {
 			return dberrors.Classify(err)
 		}
 
@@ -285,7 +285,7 @@ func (s *GormDiagramStore) SoftDelete(ctx context.Context, id string) error {
 
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// 1. Soft-delete the diagram
-		result := tx.Model(&models.Diagram{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
+		result := tx.Model(&models.Diagram{ID: models.DBVarchar(id)}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -313,7 +313,7 @@ func (s *GormDiagramStore) Restore(id string) error {
 	defer s.mutex.Unlock()
 
 	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Model(&models.Diagram{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
+		result := tx.Model(&models.Diagram{ID: models.DBVarchar(id)}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -359,7 +359,7 @@ func (s *GormDocumentRepository) SoftDelete(ctx context.Context, id string) erro
 		// Use Model with primary key set to satisfy Oracle GORM driver's WHERE clause check.
 		// Oracle's GORM driver rejects UpdateColumn with Model(&empty{}).Where(...) as
 		// "WHERE conditions required" even though a WHERE clause is present.
-		result := tx.Model(&models.Document{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
+		result := tx.Model(&models.Document{ID: models.DBVarchar(id)}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -385,7 +385,7 @@ func (s *GormDocumentRepository) Restore(ctx context.Context, id string) error {
 	defer s.mutex.Unlock()
 
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Model(&models.Document{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
+		result := tx.Model(&models.Document{ID: models.DBVarchar(id)}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -430,7 +430,7 @@ func (s *GormNoteRepository) SoftDelete(ctx context.Context, id string) error {
 
 	now := time.Now().UTC()
 	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Model(&models.Note{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
+		result := tx.Model(&models.Note{ID: models.DBVarchar(id)}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -455,7 +455,7 @@ func (s *GormNoteRepository) Restore(ctx context.Context, id string) error {
 	defer s.mutex.Unlock()
 
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Model(&models.Note{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
+		result := tx.Model(&models.Note{ID: models.DBVarchar(id)}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -500,7 +500,7 @@ func (s *GormRepositoryRepository) SoftDelete(ctx context.Context, id string) er
 
 	now := time.Now().UTC()
 	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Model(&models.Repository{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
+		result := tx.Model(&models.Repository{ID: models.DBVarchar(id)}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -525,7 +525,7 @@ func (s *GormRepositoryRepository) Restore(ctx context.Context, id string) error
 	defer s.mutex.Unlock()
 
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Model(&models.Repository{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
+		result := tx.Model(&models.Repository{ID: models.DBVarchar(id)}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -567,7 +567,7 @@ func (s *GormRepositoryRepository) GetIncludingDeleted(ctx context.Context, id s
 func (s *GormAssetRepository) SoftDelete(ctx context.Context, id string) error {
 	now := time.Now().UTC()
 	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Model(&models.Asset{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
+		result := tx.Model(&models.Asset{ID: models.DBVarchar(id)}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -589,7 +589,7 @@ func (s *GormAssetRepository) SoftDelete(ctx context.Context, id string) error {
 
 func (s *GormAssetRepository) Restore(ctx context.Context, id string) error {
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Model(&models.Asset{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
+		result := tx.Model(&models.Asset{ID: models.DBVarchar(id)}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -628,7 +628,7 @@ func (s *GormAssetRepository) GetIncludingDeleted(ctx context.Context, id string
 func (s *GormThreatRepository) SoftDelete(ctx context.Context, id string) error {
 	now := time.Now().UTC()
 	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Model(&models.Threat{ID: id}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
+		result := tx.Model(&models.Threat{ID: models.DBVarchar(id)}).Where("deleted_at IS NULL").UpdateColumn("deleted_at", now)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -650,7 +650,7 @@ func (s *GormThreatRepository) SoftDelete(ctx context.Context, id string) error 
 
 func (s *GormThreatRepository) Restore(ctx context.Context, id string) error {
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Model(&models.Threat{ID: id}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
+		result := tx.Model(&models.Threat{ID: models.DBVarchar(id)}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}

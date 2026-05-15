@@ -460,7 +460,7 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) 
 		// Update in database
 		setting.Value = encrypted
 		setting.ModifiedAt = time.Now()
-		setting.ModifiedBy = modifiedBy
+		setting.ModifiedBy = models.NewNullableDBVarchar(modifiedBy)
 		if err := s.gormDB.WithContext(ctx).Save(&setting).Error; err != nil {
 			logger.Error("Failed to save re-encrypted setting %s: %v", setting.SettingKey, err)
 			settingErrors = append(settingErrors, SettingError{Key: setting.SettingKey, Error: err.Error()})

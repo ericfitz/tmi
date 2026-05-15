@@ -226,7 +226,7 @@ func buildUsabilityFeedbackModel(in *UsabilityFeedbackInput, userInternalUUID st
 		UserAgent:     in.UserAgent,
 		Viewport:      in.Viewport,
 		Screenshot:    models.NewNullableDBText(in.Screenshot),
-		CreatedByUUID: userInternalUUID,
+		CreatedByUUID: models.DBVarchar(userInternalUUID),
 	}
 	if in.UserAgentData != nil {
 		buf, _ := json.Marshal(in.UserAgentData)
@@ -237,7 +237,7 @@ func buildUsabilityFeedbackModel(in *UsabilityFeedbackInput, userInternalUUID st
 
 func modelToUsabilityFeedback(row *models.UsabilityFeedback) UsabilityFeedback {
 	out := UsabilityFeedback{
-		Id:            uuidMustParse(row.ID),
+		Id:            uuidMustParse(string(row.ID)),
 		Sentiment:     UsabilityFeedbackSentiment(row.Sentiment),
 		Surface:       row.Surface,
 		ClientId:      row.ClientID,
@@ -247,7 +247,7 @@ func modelToUsabilityFeedback(row *models.UsabilityFeedback) UsabilityFeedback {
 		Verbatim:      row.Verbatim,
 		Viewport:      row.Viewport,
 		Screenshot:    row.Screenshot.Ptr(),
-		CreatedBy:     uuidMustParse(row.CreatedByUUID),
+		CreatedBy:     uuidMustParse(string(row.CreatedByUUID)),
 		CreatedAt:     row.CreatedAt,
 	}
 	if len(row.UserAgentData) > 0 {

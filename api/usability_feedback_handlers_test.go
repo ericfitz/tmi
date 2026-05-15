@@ -25,7 +25,7 @@ func setupUsabilityFeedbackHandler(t *testing.T) (*UsabilityFeedbackHandler, *gi
 
 	aliceProviderIDVal := aliceTestProviderID
 	user := &models.User{
-		InternalUUID:   uuid.New().String(),
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
 		ProviderUserID: &aliceProviderIDVal,
 		Email:          "alice@example.com",
@@ -41,7 +41,7 @@ func setupUsabilityFeedbackHandler(t *testing.T) (*UsabilityFeedbackHandler, *gi
 	r.Use(func(c *gin.Context) {
 		c.Set("userEmail", user.Email)
 		c.Set("userID", providerIDStr)
-		c.Set("userInternalUUID", user.InternalUUID)
+		c.Set("userInternalUUID", string(user.InternalUUID))
 		c.Next()
 	})
 	return handler, r, user
@@ -71,7 +71,7 @@ func TestUsabilityFeedbackHandler_PostHappyPath(t *testing.T) {
 	assert.Equal(t, "up", string(resp.Sentiment))
 	assert.Equal(t, "tm_list", resp.Surface)
 	assert.Equal(t, "tmi-ux", resp.ClientId)
-	assert.Equal(t, user.InternalUUID, resp.CreatedBy.String())
+	assert.Equal(t, string(user.InternalUUID), resp.CreatedBy.String())
 }
 
 func TestUsabilityFeedbackHandler_PostRejectsInvalidSurface(t *testing.T) {
@@ -111,7 +111,7 @@ func TestUsabilityFeedbackHandler_GetHappyPath(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec2.Body.Bytes(), &got))
 	assert.Equal(t, created.Id, got.Id)
 	assert.Equal(t, "down", string(got.Sentiment))
-	assert.Equal(t, user.InternalUUID, got.CreatedBy.String())
+	assert.Equal(t, string(user.InternalUUID), got.CreatedBy.String())
 }
 
 func TestUsabilityFeedbackHandler_GetNotFound(t *testing.T) {

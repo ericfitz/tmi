@@ -155,9 +155,9 @@ func (s *Server) IngestEmbeddings(c *gin.Context, threatModelId ThreatModelId) {
 	records := make([]models.TimmyEmbedding, 0, len(req.Embeddings))
 	for _, item := range req.Embeddings {
 		records = append(records, models.TimmyEmbedding{
-			ThreatModelID:  tmID,
+			ThreatModelID:  models.DBVarchar(tmID),
 			EntityType:     item.EntityType,
-			EntityID:       item.EntityId.String(),
+			EntityID:       models.DBVarchar(item.EntityId.String()),
 			ChunkIndex:     item.ChunkIndex,
 			IndexType:      indexType,
 			ContentHash:    item.ContentHash,

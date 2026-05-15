@@ -76,9 +76,9 @@ func (s *GormAuditService) RecordMutation(ctx context.Context, params AuditParam
 
 		// Create audit entry
 		entry := models.AuditEntry{
-			ThreatModelID:    params.ThreatModelID,
+			ThreatModelID:    models.DBVarchar(params.ThreatModelID),
 			ObjectType:       params.ObjectType,
-			ObjectID:         params.ObjectID,
+			ObjectID:         models.DBVarchar(params.ObjectID),
 			Version:          &nextVersion,
 			ChangeType:       params.ChangeType,
 			ActorEmail:       params.Actor.Email,
@@ -106,7 +106,7 @@ func (s *GormAuditService) createVersionSnapshot(tx *gorm.DB, entry models.Audit
 	snapshot := models.VersionSnapshot{
 		AuditEntryID: entry.ID,
 		ObjectType:   params.ObjectType,
-		ObjectID:     params.ObjectID,
+		ObjectID:     models.DBVarchar(params.ObjectID),
 		Version:      version,
 	}
 
@@ -240,7 +240,7 @@ func (s *GormAuditService) GetSnapshot(ctx context.Context, entryID string) ([]b
 	}
 
 	// For diffs, we need to reconstruct from the nearest checkpoint
-	return s.reconstructFromCheckpoint(ctx, entry.ObjectType, entry.ObjectID, targetVersion)
+	return s.reconstructFromCheckpoint(ctx, entry.ObjectType, string(entry.ObjectID), targetVersion)
 }
 
 // reconstructFromCheckpoint finds the nearest checkpoint and applies diffs to reach the target version.
@@ -561,10 +561,10 @@ func applyAuditFilters(query *gorm.DB, filters *AuditFilters) *gorm.DB {
 // toAuditEntryResponse converts a GORM model to an API response.
 func toAuditEntryResponse(entry models.AuditEntry) AuditEntryResponse {
 	resp := AuditEntryResponse{
-		ID:            entry.ID,
-		ThreatModelID: entry.ThreatModelID,
+		ID:            string(entry.ID),
+		ThreatModelID: string(entry.ThreatModelID),
 		ObjectType:    entry.ObjectType,
-		ObjectID:      entry.ObjectID,
+		ObjectID:      string(entry.ObjectID),
 		Version:       entry.Version,
 		ChangeType:    entry.ChangeType,
 		Actor: InternalAuditActor{
@@ -606,7 +606,7 @@ func (s *GormAuditService) PurgeTombstones(ctx context.Context) (int, error) {
 		tmID := tm.ID
 		// Use HardDelete on the ThreatModelStore (which cascades to children)
 		if ThreatModelStore != nil {
-			if err := ThreatModelStore.HardDelete(tmID); err != nil {
+			if err := ThreatModelStore.HardDelete(string(tmID)); err != nil {
 				logger.Error("failed to hard-delete expired threat model %s: %v", tmID, err)
 				continue
 			}

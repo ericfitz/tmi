@@ -35,7 +35,7 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 	// Create test user
 	providerUserID := prefix + "-user@tmi.local"
 	testUser := &models.User{
-		InternalUUID:   uuid.New().String(),
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "tmi",
 		ProviderUserID: &providerUserID,
 		Email:          prefix + "-user@example.com",
@@ -52,7 +52,7 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 	// Create second test user for collaboration testing
 	collaboratorUserID := prefix + "-collaborator@tmi.local"
 	secondUser := &models.User{
-		InternalUUID:   uuid.New().String(),
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "tmi",
 		ProviderUserID: &collaboratorUserID,
 		Email:          prefix + "-collaborator@example.com",
@@ -68,7 +68,7 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 
 	// Create test threat model
 	testTM := &models.ThreatModel{
-		ID:                    uuid.New().String(),
+		ID:            models.DBVarchar(uuid.New().String()),
 		Name:                  prefix + "-threat-model",
 		Description:           new("Test threat model for integration testing"),
 		OwnerInternalUUID:     testUser.InternalUUID,
@@ -85,7 +85,7 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 	// Create test diagram
 	diagramType := "dfd"
 	testDiagram := &models.Diagram{
-		ID:            uuid.New().String(),
+		ID:            models.DBVarchar(uuid.New().String()),
 		ThreatModelID: testTM.ID,
 		Name:          prefix + "-diagram",
 		Description:   new("Test diagram for integration testing"),
@@ -100,7 +100,7 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 
 	// Create test threat
 	testThreat := &models.Threat{
-		ID:            uuid.New().String(),
+		ID:            models.DBVarchar(uuid.New().String()),
 		ThreatModelID: testTM.ID,
 		Name:          prefix + "-threat",
 		Description:   new("Test threat for integration testing"),
@@ -125,7 +125,7 @@ func (t *TestDB) CreateMinimalFixtures(prefix string) (*Fixtures, error) {
 	// Create test user
 	providerUserID := prefix + "-user@tmi.local"
 	testUser := &models.User{
-		InternalUUID:   uuid.New().String(),
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "tmi",
 		ProviderUserID: &providerUserID,
 		Email:          prefix + "-user@example.com",
@@ -146,7 +146,7 @@ func (t *TestDB) CreateMinimalFixtures(prefix string) (*Fixtures, error) {
 func (t *TestDB) CleanupFixtures(fixtures *Fixtures) error {
 	// Delete threats first (child of threat model)
 	for _, threat := range fixtures.Threats {
-		if err := t.DeleteThreat(threat.ID); err != nil {
+		if err := t.DeleteThreat(string(threat.ID)); err != nil {
 			// Log but continue - entity might already be deleted
 			continue
 		}
@@ -154,21 +154,21 @@ func (t *TestDB) CleanupFixtures(fixtures *Fixtures) error {
 
 	// Delete diagrams (child of threat model)
 	for _, diagram := range fixtures.Diagrams {
-		if err := t.DeleteDiagram(diagram.ID); err != nil {
+		if err := t.DeleteDiagram(string(diagram.ID)); err != nil {
 			continue
 		}
 	}
 
 	// Delete threat models
 	for _, tm := range fixtures.ThreatModels {
-		if err := t.DeleteThreatModel(tm.ID); err != nil {
+		if err := t.DeleteThreatModel(string(tm.ID)); err != nil {
 			continue
 		}
 	}
 
 	// Delete users last
 	for _, user := range fixtures.Users {
-		if err := t.DeleteUser(user.InternalUUID); err != nil {
+		if err := t.DeleteUser(string(user.InternalUUID)); err != nil {
 			continue
 		}
 	}
@@ -186,7 +186,7 @@ func NewUserBuilder(prefix string) *UserBuilder {
 	providerUserID := prefix + "-user@tmi.local"
 	return &UserBuilder{
 		user: &models.User{
-			InternalUUID:   uuid.New().String(),
+			InternalUUID:   models.DBVarchar(uuid.New().String()),
 			Provider:       "tmi",
 			ProviderUserID: &providerUserID,
 			Email:          prefix + "-user@example.com",
@@ -236,11 +236,11 @@ type ThreatModelBuilder struct {
 func NewThreatModelBuilder(prefix string, ownerInternalUUID string) *ThreatModelBuilder {
 	return &ThreatModelBuilder{
 		tm: &models.ThreatModel{
-			ID:                    uuid.New().String(),
+			ID:            models.DBVarchar(uuid.New().String()),
 			Name:                  prefix + "-threat-model",
 			Description:           new("Test threat model"),
-			OwnerInternalUUID:     ownerInternalUUID,
-			CreatedByInternalUUID: ownerInternalUUID,
+			OwnerInternalUUID:     models.DBVarchar(ownerInternalUUID),
+			CreatedByInternalUUID: models.DBVarchar(ownerInternalUUID),
 			ThreatModelFramework:  "STRIDE",
 			CreatedAt:             time.Now(),
 			ModifiedAt:            time.Now(),

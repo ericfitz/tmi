@@ -14,7 +14,8 @@ func TestTimmyEmbeddingStore_CreateAndList(t *testing.T) {
 	store := NewGormTimmyEmbeddingStore(db)
 	ctx := context.Background()
 
-	tmID := "tm-embed-001"
+	tmIDStr := "tm-embed-001"
+	tmID := models.DBVarchar(tmIDStr)
 	embeddings := []models.TimmyEmbedding{
 		{
 			ThreatModelID:  tmID,
@@ -54,7 +55,7 @@ func TestTimmyEmbeddingStore_CreateAndList(t *testing.T) {
 	err := store.CreateBatch(ctx, embeddings)
 	require.NoError(t, err)
 
-	results, err := store.ListByThreatModelAndIndexType(ctx, tmID, IndexTypeText)
+	results, err := store.ListByThreatModelAndIndexType(ctx, tmIDStr, IndexTypeText)
 	require.NoError(t, err)
 	assert.Len(t, results, 3)
 
@@ -85,7 +86,7 @@ func TestTimmyEmbeddingStore_IndexTypeIsolation(t *testing.T) {
 	tmID := "tm-embed-idx-iso"
 	embeddings := []models.TimmyEmbedding{
 		{
-			ThreatModelID:  tmID,
+			ThreatModelID:  models.DBVarchar(tmID),
 			EntityType:     "asset",
 			EntityID:       "asset-001",
 			ChunkIndex:     0,
@@ -96,7 +97,7 @@ func TestTimmyEmbeddingStore_IndexTypeIsolation(t *testing.T) {
 			IndexType:      IndexTypeText,
 		},
 		{
-			ThreatModelID:  tmID,
+			ThreatModelID:  models.DBVarchar(tmID),
 			EntityType:     "asset",
 			EntityID:       "asset-002",
 			ChunkIndex:     0,
@@ -107,7 +108,7 @@ func TestTimmyEmbeddingStore_IndexTypeIsolation(t *testing.T) {
 			IndexType:      IndexTypeText,
 		},
 		{
-			ThreatModelID:  tmID,
+			ThreatModelID:  models.DBVarchar(tmID),
 			EntityType:     "repository",
 			EntityID:       "repo-001",
 			ChunkIndex:     0,
@@ -136,7 +137,7 @@ func TestTimmyEmbeddingStore_IndexTypeIsolation(t *testing.T) {
 	assert.Len(t, codeResults, 1)
 	assert.Equal(t, IndexTypeCode, codeResults[0].IndexType)
 	assert.Equal(t, "repository", codeResults[0].EntityType)
-	assert.Equal(t, "repo-001", codeResults[0].EntityID)
+	assert.Equal(t, "repo-001", string(codeResults[0].EntityID))
 
 	// An unknown index type returns empty
 	noneResults, err := store.ListByThreatModelAndIndexType(ctx, tmID, "unknown")
@@ -152,7 +153,7 @@ func TestTimmyEmbeddingStore_DeleteByEntity(t *testing.T) {
 	tmID := "tm-embed-002"
 	embeddings := []models.TimmyEmbedding{
 		{
-			ThreatModelID:  tmID,
+			ThreatModelID:  models.DBVarchar(tmID),
 			EntityType:     "asset",
 			EntityID:       "asset-001",
 			ChunkIndex:     0,
@@ -163,7 +164,7 @@ func TestTimmyEmbeddingStore_DeleteByEntity(t *testing.T) {
 			IndexType:      IndexTypeText,
 		},
 		{
-			ThreatModelID:  tmID,
+			ThreatModelID:  models.DBVarchar(tmID),
 			EntityType:     "threat",
 			EntityID:       "threat-001",
 			ChunkIndex:     0,
@@ -186,7 +187,7 @@ func TestTimmyEmbeddingStore_DeleteByEntity(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, remaining, 1)
 	assert.Equal(t, "threat", remaining[0].EntityType)
-	assert.Equal(t, "threat-001", remaining[0].EntityID)
+	assert.Equal(t, "threat-001", string(remaining[0].EntityID))
 }
 
 func TestTimmyEmbeddingStore_DeleteByThreatModel(t *testing.T) {
@@ -197,7 +198,7 @@ func TestTimmyEmbeddingStore_DeleteByThreatModel(t *testing.T) {
 	tmID := "tm-embed-003"
 	embeddings := []models.TimmyEmbedding{
 		{
-			ThreatModelID:  tmID,
+			ThreatModelID:  models.DBVarchar(tmID),
 			EntityType:     "asset",
 			EntityID:       "asset-001",
 			ChunkIndex:     0,
@@ -208,7 +209,7 @@ func TestTimmyEmbeddingStore_DeleteByThreatModel(t *testing.T) {
 			IndexType:      IndexTypeText,
 		},
 		{
-			ThreatModelID:  tmID,
+			ThreatModelID:  models.DBVarchar(tmID),
 			EntityType:     "threat",
 			EntityID:       "threat-001",
 			ChunkIndex:     0,
@@ -253,7 +254,7 @@ func TestTimmyEmbeddingStore_DeleteByThreatModelAndIndexType(t *testing.T) {
 	tmID := "tm-embed-004"
 	embeddings := []models.TimmyEmbedding{
 		{
-			ThreatModelID:  tmID,
+			ThreatModelID:  models.DBVarchar(tmID),
 			EntityType:     "asset",
 			EntityID:       "asset-001",
 			ChunkIndex:     0,
@@ -264,7 +265,7 @@ func TestTimmyEmbeddingStore_DeleteByThreatModelAndIndexType(t *testing.T) {
 			IndexType:      IndexTypeText,
 		},
 		{
-			ThreatModelID:  tmID,
+			ThreatModelID:  models.DBVarchar(tmID),
 			EntityType:     "repository",
 			EntityID:       "repo-001",
 			ChunkIndex:     0,
@@ -304,7 +305,7 @@ func TestTimmyEmbeddingStore_DeleteByEntity_ReturnsCount(t *testing.T) {
 	tmID := "tm-embed-005"
 	embeddings := []models.TimmyEmbedding{
 		{
-			ThreatModelID:  tmID,
+			ThreatModelID:  models.DBVarchar(tmID),
 			EntityType:     "asset",
 			EntityID:       "asset-count-001",
 			ChunkIndex:     0,
@@ -315,7 +316,7 @@ func TestTimmyEmbeddingStore_DeleteByEntity_ReturnsCount(t *testing.T) {
 			IndexType:      IndexTypeText,
 		},
 		{
-			ThreatModelID:  tmID,
+			ThreatModelID:  models.DBVarchar(tmID),
 			EntityType:     "asset",
 			EntityID:       "asset-count-001",
 			ChunkIndex:     1,
@@ -347,7 +348,7 @@ func TestTimmyEmbeddingStore_DeleteByThreatModel_ReturnsCount(t *testing.T) {
 	tmID := "tm-embed-006"
 	embeddings := []models.TimmyEmbedding{
 		{
-			ThreatModelID:  tmID,
+			ThreatModelID:  models.DBVarchar(tmID),
 			EntityType:     "asset",
 			EntityID:       "asset-001",
 			ChunkIndex:     0,
@@ -358,7 +359,7 @@ func TestTimmyEmbeddingStore_DeleteByThreatModel_ReturnsCount(t *testing.T) {
 			IndexType:      IndexTypeText,
 		},
 		{
-			ThreatModelID:  tmID,
+			ThreatModelID:  models.DBVarchar(tmID),
 			EntityType:     "repository",
 			EntityID:       "repo-001",
 			ChunkIndex:     0,
@@ -389,9 +390,9 @@ func TestTimmyEmbeddingStore_ListEntityMetadataByThreatModelAndIndexType_OneEntr
 
 	tmID := "tm-meta-001"
 	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
-		{ThreatModelID: tmID, EntityType: "asset", EntityID: "a1", ChunkIndex: 0, ContentHash: "h-a", EmbeddingModel: "m1", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
-		{ThreatModelID: tmID, EntityType: "asset", EntityID: "a1", ChunkIndex: 1, ContentHash: "h-a", EmbeddingModel: "m1", EmbeddingDim: 8, ChunkText: "y", IndexType: IndexTypeText},
-		{ThreatModelID: tmID, EntityType: "threat", EntityID: "t1", ChunkIndex: 0, ContentHash: "h-t", EmbeddingModel: "m1", EmbeddingDim: 8, ChunkText: "z", IndexType: IndexTypeText},
+		{ThreatModelID: models.DBVarchar(tmID), EntityType: "asset", EntityID: "a1", ChunkIndex: 0, ContentHash: "h-a", EmbeddingModel: "m1", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
+		{ThreatModelID: models.DBVarchar(tmID), EntityType: "asset", EntityID: "a1", ChunkIndex: 1, ContentHash: "h-a", EmbeddingModel: "m1", EmbeddingDim: 8, ChunkText: "y", IndexType: IndexTypeText},
+		{ThreatModelID: models.DBVarchar(tmID), EntityType: "threat", EntityID: "t1", ChunkIndex: 0, ContentHash: "h-t", EmbeddingModel: "m1", EmbeddingDim: 8, ChunkText: "z", IndexType: IndexTypeText},
 	}))
 
 	meta, err := store.ListEntityMetadataByThreatModelAndIndexType(ctx, tmID, IndexTypeText)
@@ -411,8 +412,8 @@ func TestTimmyEmbeddingStore_ListEntityMetadataByThreatModelAndIndexType_ScopesT
 
 	tmID := "tm-meta-002"
 	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
-		{ThreatModelID: tmID, EntityType: "asset", EntityID: "a1", ChunkIndex: 0, ContentHash: "h-text", EmbeddingModel: "m1", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
-		{ThreatModelID: tmID, EntityType: "repository", EntityID: "r1", ChunkIndex: 0, ContentHash: "h-code", EmbeddingModel: "m2", EmbeddingDim: 16, ChunkText: "y", IndexType: IndexTypeCode},
+		{ThreatModelID: models.DBVarchar(tmID), EntityType: "asset", EntityID: "a1", ChunkIndex: 0, ContentHash: "h-text", EmbeddingModel: "m1", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
+		{ThreatModelID: models.DBVarchar(tmID), EntityType: "repository", EntityID: "r1", ChunkIndex: 0, ContentHash: "h-code", EmbeddingModel: "m2", EmbeddingDim: 16, ChunkText: "y", IndexType: IndexTypeCode},
 	}))
 
 	textMeta, err := store.ListEntityMetadataByThreatModelAndIndexType(ctx, tmID, IndexTypeText)
@@ -446,11 +447,11 @@ func TestTimmyEmbeddingStore_DeleteEntitiesWithStaleEmbeddingMetadata_DeletesOnl
 	tmID := "tm-stale-001"
 	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
 		// fresh: matches current (m-current/8)
-		{ThreatModelID: tmID, EntityType: "asset", EntityID: "fresh", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-current", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
+		{ThreatModelID: models.DBVarchar(tmID), EntityType: "asset", EntityID: "fresh", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-current", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
 		// stale model
-		{ThreatModelID: tmID, EntityType: "asset", EntityID: "stale-model", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-old", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
+		{ThreatModelID: models.DBVarchar(tmID), EntityType: "asset", EntityID: "stale-model", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-old", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
 		// stale dim
-		{ThreatModelID: tmID, EntityType: "asset", EntityID: "stale-dim", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-current", EmbeddingDim: 16, ChunkText: "x", IndexType: IndexTypeText},
+		{ThreatModelID: models.DBVarchar(tmID), EntityType: "asset", EntityID: "stale-dim", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-current", EmbeddingDim: 16, ChunkText: "x", IndexType: IndexTypeText},
 	}))
 
 	deleted, err := store.DeleteEntitiesWithStaleEmbeddingMetadata(ctx, tmID, IndexTypeText, "m-current", 8)
@@ -471,7 +472,7 @@ func TestTimmyEmbeddingStore_DeleteEntitiesWithStaleEmbeddingMetadata_NoOpWhenAl
 
 	tmID := "tm-stale-002"
 	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
-		{ThreatModelID: tmID, EntityType: "asset", EntityID: "a1", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-current", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
+		{ThreatModelID: models.DBVarchar(tmID), EntityType: "asset", EntityID: "a1", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-current", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
 	}))
 
 	deleted, err := store.DeleteEntitiesWithStaleEmbeddingMetadata(ctx, tmID, IndexTypeText, "m-current", 8)
@@ -491,9 +492,9 @@ func TestTimmyEmbeddingStore_DeleteEntitiesWithStaleEmbeddingMetadata_ScopesToIn
 	tmID := "tm-stale-003"
 	require.NoError(t, store.CreateBatch(ctx, []models.TimmyEmbedding{
 		// stale text
-		{ThreatModelID: tmID, EntityType: "asset", EntityID: "a1", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-old", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
+		{ThreatModelID: models.DBVarchar(tmID), EntityType: "asset", EntityID: "a1", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-old", EmbeddingDim: 8, ChunkText: "x", IndexType: IndexTypeText},
 		// stale code (different model on the code side, must NOT be deleted by a text-side call)
-		{ThreatModelID: tmID, EntityType: "repository", EntityID: "r1", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-old-code", EmbeddingDim: 16, ChunkText: "y", IndexType: IndexTypeCode},
+		{ThreatModelID: models.DBVarchar(tmID), EntityType: "repository", EntityID: "r1", ChunkIndex: 0, ContentHash: "h", EmbeddingModel: "m-old-code", EmbeddingDim: 16, ChunkText: "y", IndexType: IndexTypeCode},
 	}))
 
 	deleted, err := store.DeleteEntitiesWithStaleEmbeddingMetadata(ctx, tmID, IndexTypeText, "m-current", 8)

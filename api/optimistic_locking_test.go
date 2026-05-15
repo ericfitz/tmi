@@ -60,10 +60,10 @@ func TestCheckAndBumpVersion_Concurrent(t *testing.T) {
 	// Seed a threat model row with version=1.
 	id := uuid.New().String()
 	tm := &models.ThreatModel{
-		ID:                    id,
+		ID:                    models.DBVarchar(id),
 		Name:                  "Concurrent Lock Test",
-		OwnerInternalUUID:     uuid.New().String(),
-		CreatedByInternalUUID: uuid.New().String(),
+		OwnerInternalUUID:     models.DBVarchar(uuid.New().String()),
+		CreatedByInternalUUID: models.DBVarchar(uuid.New().String()),
 		ThreatModelFramework:  "STRIDE",
 		Status:                "not_started",
 		Version:               1,
@@ -131,10 +131,10 @@ func TestCheckAndBumpVersion_VersionMismatch(t *testing.T) {
 	db, _ := setupThreatModelAliasTestDB(t)
 	id := uuid.New().String()
 	tm := &models.ThreatModel{
-		ID:                    id,
+		ID:                    models.DBVarchar(id),
 		Name:                  "Stale Version Test",
-		OwnerInternalUUID:     uuid.New().String(),
-		CreatedByInternalUUID: uuid.New().String(),
+		OwnerInternalUUID:     models.DBVarchar(uuid.New().String()),
+		CreatedByInternalUUID: models.DBVarchar(uuid.New().String()),
 		ThreatModelFramework:  "STRIDE",
 		Status:                "not_started",
 		Version:               5,
@@ -223,10 +223,10 @@ func TestCheckAndBumpVersion_SwallowsOracleSyntheticError(t *testing.T) {
 	// Seed a row so the existence-probe distinguishes 409 from 404.
 	id := uuid.New().String()
 	tm := &models.ThreatModel{
-		ID:                    id,
+		ID:                    models.DBVarchar(id),
 		Name:                  "Synthetic Error Test",
-		OwnerInternalUUID:     uuid.New().String(),
-		CreatedByInternalUUID: uuid.New().String(),
+		OwnerInternalUUID:     models.DBVarchar(uuid.New().String()),
+		CreatedByInternalUUID: models.DBVarchar(uuid.New().String()),
 		ThreatModelFramework:  "STRIDE",
 		Status:                "not_started",
 		Version:               1,

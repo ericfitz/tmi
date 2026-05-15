@@ -33,7 +33,7 @@ func setupContentFeedbackHandler(t *testing.T) (*ContentFeedbackHandler, *gin.En
 	r.Use(func(c *gin.Context) {
 		c.Set("userEmail", user.Email)
 		c.Set("userID", providerIDStr)
-		c.Set("userInternalUUID", user.InternalUUID)
+		c.Set("userInternalUUID", string(user.InternalUUID))
 		c.Next()
 	})
 	return handler, r, db, user, tm
@@ -45,7 +45,7 @@ func TestContentFeedbackHandler_PostHappyPath(t *testing.T) {
 
 	// Pre-create a target threat in this TM.
 	threat := &models.Threat{
-		ID:            uuid.New().String(),
+		ID:            models.DBVarchar(uuid.New().String()),
 		ThreatModelID: tm.ID,
 		Name:          "Test Threat",
 		ThreatType:    models.StringArray{"X"},
@@ -55,11 +55,11 @@ func TestContentFeedbackHandler_PostHappyPath(t *testing.T) {
 	body := map[string]any{
 		"sentiment":   "down",
 		"target_type": "threat",
-		"target_id":   threat.ID,
+		"target_id":   string(threat.ID),
 		"client_id":   "tmi-ux",
 	}
 	buf, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+tm.ID+"/feedback", bytes.NewReader(buf))
+	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+string(tm.ID)+"/feedback", bytes.NewReader(buf))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -82,7 +82,7 @@ func TestContentFeedbackHandler_PostRejectsMissingTarget(t *testing.T) {
 		"client_id":   "tmi-ux",
 	}
 	buf, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+tm.ID+"/feedback", bytes.NewReader(buf))
+	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+string(tm.ID)+"/feedback", bytes.NewReader(buf))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -95,7 +95,7 @@ func TestContentFeedbackHandler_PostRejectsTargetFieldOnNonClassification(t *tes
 	r.POST("/threat_models/:threat_model_id/feedback", handler.Create)
 
 	body := `{"sentiment":"up","target_type":"note","target_id":"` + uuid.New().String() + `","target_field":"x","client_id":"tmi-ux"}`
-	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+tm.ID+"/feedback", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+string(tm.ID)+"/feedback", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -108,7 +108,7 @@ func TestContentFeedbackHandler_PostRequiresTargetFieldForClassification(t *test
 	r.POST("/threat_models/:threat_model_id/feedback", handler.Create)
 
 	body := `{"sentiment":"up","target_type":"threat_classification","target_id":"` + uuid.New().String() + `","client_id":"tmi-ux"}`
-	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+tm.ID+"/feedback", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+string(tm.ID)+"/feedback", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -121,7 +121,7 @@ func TestContentFeedbackHandler_PostRejectsFalsePositiveOnSentimentUp(t *testing
 	r.POST("/threat_models/:threat_model_id/feedback", handler.Create)
 
 	body := `{"sentiment":"up","target_type":"threat","target_id":"` + uuid.New().String() + `","false_positive_reason":"duplicate","client_id":"tmi-ux"}`
-	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+tm.ID+"/feedback", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+string(tm.ID)+"/feedback", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -134,15 +134,15 @@ func TestContentFeedbackHandler_PostRejectsBadSubreasonForReason(t *testing.T) {
 	r.POST("/threat_models/:threat_model_id/feedback", handler.Create)
 
 	threat := &models.Threat{
-		ID:            uuid.New().String(),
+		ID:            models.DBVarchar(uuid.New().String()),
 		ThreatModelID: tm.ID,
 		Name:          "T",
 		ThreatType:    models.StringArray{"X"},
 	}
 	require.NoError(t, db.Create(threat).Error)
 
-	body := `{"sentiment":"down","target_type":"threat","target_id":"` + threat.ID + `","false_positive_reason":"detection_misfired","false_positive_subreason":"sanctioned_by_design","client_id":"tmi-ux"}`
-	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+tm.ID+"/feedback", strings.NewReader(body))
+	body := `{"sentiment":"down","target_type":"threat","target_id":"` + string(threat.ID) + `","false_positive_reason":"detection_misfired","false_positive_subreason":"sanctioned_by_design","client_id":"tmi-ux"}`
+	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+string(tm.ID)+"/feedback", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -157,15 +157,15 @@ func TestContentFeedbackHandler_GetAndList(t *testing.T) {
 	r.GET("/threat_models/:threat_model_id/feedback", handler.List)
 
 	threat := &models.Threat{
-		ID:            uuid.New().String(),
+		ID:            models.DBVarchar(uuid.New().String()),
 		ThreatModelID: tm.ID,
 		Name:          "T",
 		ThreatType:    models.StringArray{"X"},
 	}
 	require.NoError(t, db.Create(threat).Error)
 
-	body := `{"sentiment":"up","target_type":"threat","target_id":"` + threat.ID + `","client_id":"tmi-ux"}`
-	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+tm.ID+"/feedback", strings.NewReader(body))
+	body := `{"sentiment":"up","target_type":"threat","target_id":"` + string(threat.ID) + `","client_id":"tmi-ux"}`
+	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+string(tm.ID)+"/feedback", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -174,13 +174,13 @@ func TestContentFeedbackHandler_GetAndList(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &created))
 
 	// Get by id.
-	req2 := httptest.NewRequest(http.MethodGet, "/threat_models/"+tm.ID+"/feedback/"+created.Id.String(), nil)
+	req2 := httptest.NewRequest(http.MethodGet, "/threat_models/"+string(tm.ID)+"/feedback/"+created.Id.String(), nil)
 	rec2 := httptest.NewRecorder()
 	r.ServeHTTP(rec2, req2)
 	require.Equal(t, http.StatusOK, rec2.Code)
 
 	// List.
-	req3 := httptest.NewRequest(http.MethodGet, "/threat_models/"+tm.ID+"/feedback", nil)
+	req3 := httptest.NewRequest(http.MethodGet, "/threat_models/"+string(tm.ID)+"/feedback", nil)
 	rec3 := httptest.NewRecorder()
 	r.ServeHTTP(rec3, req3)
 	require.Equal(t, http.StatusOK, rec3.Code)
@@ -199,7 +199,7 @@ func TestContentFeedbackHandler_PostPersistsScreenshot(t *testing.T) {
 	r.GET("/threat_models/:threat_model_id/feedback/:feedback_id", handler.Get)
 
 	threat := &models.Threat{
-		ID:            uuid.New().String(),
+		ID:            models.DBVarchar(uuid.New().String()),
 		ThreatModelID: tm.ID,
 		Name:          "Test Threat",
 		ThreatType:    models.StringArray{"X"},
@@ -210,12 +210,12 @@ func TestContentFeedbackHandler_PostPersistsScreenshot(t *testing.T) {
 	body := map[string]any{
 		"sentiment":   "down",
 		"target_type": "threat",
-		"target_id":   threat.ID,
+		"target_id":   string(threat.ID),
 		"client_id":   "tmi-ux",
 		"screenshot":  screenshot,
 	}
 	buf, _ := json.Marshal(body)
-	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+tm.ID+"/feedback", bytes.NewReader(buf))
+	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+string(tm.ID)+"/feedback", bytes.NewReader(buf))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
@@ -226,7 +226,7 @@ func TestContentFeedbackHandler_PostPersistsScreenshot(t *testing.T) {
 	require.NotNil(t, created.Screenshot)
 	assert.Equal(t, screenshot, *created.Screenshot)
 
-	req2 := httptest.NewRequest(http.MethodGet, "/threat_models/"+tm.ID+"/feedback/"+created.Id.String(), nil)
+	req2 := httptest.NewRequest(http.MethodGet, "/threat_models/"+string(tm.ID)+"/feedback/"+created.Id.String(), nil)
 	rec2 := httptest.NewRecorder()
 	r.ServeHTTP(rec2, req2)
 	require.Equal(t, http.StatusOK, rec2.Code)
@@ -241,15 +241,15 @@ func TestContentFeedbackHandler_PostRejectsInvalidScreenshot(t *testing.T) {
 	r.POST("/threat_models/:threat_model_id/feedback", handler.Create)
 
 	threat := &models.Threat{
-		ID:            uuid.New().String(),
+		ID:            models.DBVarchar(uuid.New().String()),
 		ThreatModelID: tm.ID,
 		Name:          "Test Threat",
 		ThreatType:    models.StringArray{"X"},
 	}
 	require.NoError(t, db.Create(threat).Error)
 
-	body := `{"sentiment":"down","target_type":"threat","target_id":"` + threat.ID + `","client_id":"tmi-ux","screenshot":"data:image/gif;base64,AAAA"}`
-	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+tm.ID+"/feedback", strings.NewReader(body))
+	body := `{"sentiment":"down","target_type":"threat","target_id":"` + string(threat.ID) + `","client_id":"tmi-ux","screenshot":"data:image/gif;base64,AAAA"}`
+	req := httptest.NewRequest(http.MethodPost, "/threat_models/"+string(tm.ID)+"/feedback", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)

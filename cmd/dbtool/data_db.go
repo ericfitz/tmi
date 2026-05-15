@@ -49,7 +49,7 @@ func seedUser(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 			displayName = fmt.Sprintf("%s (Seed User)", capitalize(userID))
 		}
 		user = models.User{
-			InternalUUID:   uuid.New().String(),
+			InternalUUID:   models.DBVarchar(uuid.New().String()),
 			Provider:       providerName,
 			ProviderUserID: &userID,
 			Email:          email,
@@ -71,7 +71,7 @@ func seedUser(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 	}
 
 	if quota, ok := entry.Data["api_quota"].(map[string]any); ok {
-		if err := setQuotas(db, user.InternalUUID, quota); err != nil {
+		if err := setQuotas(db, string(user.InternalUUID), quota); err != nil {
 			return nil, err
 		}
 	}
@@ -79,7 +79,7 @@ func seedUser(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 	return &SeedResult{
 		Ref:  entry.Ref,
 		Kind: kindUser,
-		ID:   user.InternalUUID,
+		ID:   string(user.InternalUUID),
 		Extra: map[string]string{
 			"provider":         providerName,
 			"provider_user_id": userID,
@@ -104,9 +104,9 @@ func grantAdmin(db *testdb.TestDB, user *models.User) error {
 
 	notes := "Granted by tmi-dbtool"
 	member := models.GroupMember{
-		ID:                uuid.New().String(),
-		GroupInternalUUID: administratorsGroupUUID,
-		UserInternalUUID:  &user.InternalUUID,
+		ID:                models.DBVarchar(uuid.New().String()),
+		GroupInternalUUID: models.DBVarchar(administratorsGroupUUID),
+		UserInternalUUID:  models.NewNullableDBVarchar(func() *string { s := string(user.InternalUUID); return &s }()),
 		SubjectType:       "user",
 		Notes:             &notes,
 	}
@@ -152,7 +152,7 @@ func setQuotas(db *testdb.TestDB, userInternalUUID string, quota map[string]any)
 		}
 	} else {
 		q := models.UserAPIQuota{
-			UserInternalUUID:     userInternalUUID,
+			UserInternalUUID:     models.DBVarchar(userInternalUUID),
 			MaxRequestsPerMinute: rpm,
 		}
 		if rph > 0 {

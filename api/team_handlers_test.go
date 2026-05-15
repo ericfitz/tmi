@@ -304,16 +304,16 @@ const testUserUUID = "owner-internal-uuid" // matches TestUsers.Owner.InternalUU
 func seedTeamAuthData(t *testing.T, db *gorm.DB, teamID, memberUUID string) {
 	t.Helper()
 	err := db.Create(&models.TeamRecord{
-		ID:                    teamID,
+		ID:                    models.DBVarchar(teamID),
 		Name:                  "Test Team",
-		CreatedByInternalUUID: memberUUID,
+		CreatedByInternalUUID: models.DBVarchar(memberUUID),
 	}).Error
 	require.NoError(t, err)
 
 	err = db.Create(&models.TeamMemberRecord{
-		ID:               uuid.New().String(),
-		TeamID:           teamID,
-		UserInternalUUID: memberUUID,
+		ID:               models.DBVarchar(uuid.New().String()),
+		TeamID:           models.DBVarchar(teamID),
+		UserInternalUUID: models.DBVarchar(memberUUID),
 		Role:             "engineer",
 	}).Error
 	require.NoError(t, err)
@@ -323,9 +323,10 @@ func seedTeamAuthData(t *testing.T, db *gorm.DB, teamID, memberUUID string) {
 func seedProjectAuthData(t *testing.T, db *gorm.DB, projectID, teamID string) {
 	t.Helper()
 	err := db.Create(&models.ProjectRecord{
-		ID:     projectID,
-		TeamID: teamID,
-		Name:   "Test Project",
+		ID:                    models.DBVarchar(projectID),
+		TeamID:                models.DBVarchar(teamID),
+		Name:                  "Test Project",
+		CreatedByInternalUUID: models.DBVarchar(teamID), // placeholder, not validated in these tests
 	}).Error
 	require.NoError(t, err)
 }
@@ -946,7 +947,7 @@ func TestDeleteTeam(t *testing.T) {
 		require.NoError(t, err)
 		// Add test user as member (not owner)
 		err = db.Create(&models.TeamMemberRecord{
-			ID:               uuid.New().String(),
+			ID:               models.DBVarchar(uuid.New().String()),
 			TeamID:           testTeamID,
 			UserInternalUUID: testUserUUID,
 			Role:             "engineer",

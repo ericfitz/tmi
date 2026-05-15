@@ -30,11 +30,11 @@ func (s *GormTriageNoteStore) Create(ctx context.Context, note *TriageNote, surv
 	now := time.Now().UTC()
 
 	model := models.TriageNote{
-		SurveyResponseID:       surveyResponseID,
+		SurveyResponseID:       models.DBVarchar(surveyResponseID),
 		Name:                   note.Name,
 		Content:                models.DBText(note.Content),
-		CreatedByInternalUUID:  &creatorInternalUUID,
-		ModifiedByInternalUUID: &creatorInternalUUID,
+		CreatedByInternalUUID:  models.NewNullableDBVarchar(&creatorInternalUUID),
+		ModifiedByInternalUUID: models.NewNullableDBVarchar(&creatorInternalUUID),
 		CreatedAt:              now,
 		ModifiedAt:             now,
 	}

@@ -226,16 +226,16 @@ func (r *GormGroupMemberRepository) AddMember(ctx context.Context, groupInternal
 	userUUIDStr := userInternalUUID.String()
 
 	model := models.GroupMember{
-		ID:                memberID.String(),
-		GroupInternalUUID: groupInternalUUID.String(),
-		UserInternalUUID:  &userUUIDStr,
+		ID:                models.DBVarchar(memberID.String()),
+		GroupInternalUUID: models.DBVarchar(groupInternalUUID.String()),
+		UserInternalUUID:  models.NewNullableDBVarchar(&userUUIDStr),
 		SubjectType:       "user",
 		AddedAt:           addedAt,
 	}
 
 	if addedByInternalUUID != nil {
 		addedByStr := addedByInternalUUID.String()
-		model.AddedByInternalUUID = &addedByStr
+		model.AddedByInternalUUID = models.NewNullableDBVarchar(&addedByStr)
 	}
 	if notes != nil {
 		model.Notes = notes
@@ -407,16 +407,16 @@ func (r *GormGroupMemberRepository) AddGroupMember(ctx context.Context, groupInt
 	memberGroupStr := memberGroupInternalUUID.String()
 
 	model := models.GroupMember{
-		ID:                      memberID.String(),
-		GroupInternalUUID:       groupInternalUUID.String(),
-		MemberGroupInternalUUID: &memberGroupStr,
+		ID:                      models.DBVarchar(memberID.String()),
+		GroupInternalUUID:       models.DBVarchar(groupInternalUUID.String()),
+		MemberGroupInternalUUID: models.NewNullableDBVarchar(&memberGroupStr),
 		SubjectType:             "group",
 		AddedAt:                 addedAt,
 	}
 
 	if addedByInternalUUID != nil {
 		addedByStr := addedByInternalUUID.String()
-		model.AddedByInternalUUID = &addedByStr
+		model.AddedByInternalUUID = models.NewNullableDBVarchar(&addedByStr)
 	}
 	if notes != nil {
 		model.Notes = notes

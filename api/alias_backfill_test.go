@@ -34,7 +34,7 @@ func setupBackfillTestDB(t *testing.T) *gorm.DB {
 func makeUser(t *testing.T, db *gorm.DB) *models.User {
 	t.Helper()
 	u := &models.User{
-		InternalUUID:   uuid.New().String(),
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
 		ProviderUserID: ptrStr("u-" + uuid.New().String()[:8]),
 		Email:          "u@example.com",
@@ -83,20 +83,20 @@ func TestBackfillSubObjectsScopedPerTM(t *testing.T) {
 	user := makeUser(t, db)
 	ctx := context.Background()
 
-	tm1 := &models.ThreatModel{ID: uuid.New().String(), OwnerInternalUUID: user.InternalUUID, Name: "TM1"}
-	tm2 := &models.ThreatModel{ID: uuid.New().String(), OwnerInternalUUID: user.InternalUUID, Name: "TM2"}
+	tm1 := &models.ThreatModel{ID: models.DBVarchar(uuid.New().String()), OwnerInternalUUID: user.InternalUUID, Name: "TM1"}
+	tm2 := &models.ThreatModel{ID: models.DBVarchar(uuid.New().String()), OwnerInternalUUID: user.InternalUUID, Name: "TM2"}
 	require.NoError(t, db.Create(tm1).Error)
 	require.NoError(t, db.Create(tm2).Error)
 
 	now := time.Now().UTC().Truncate(time.Second)
 	for i := 0; i < 3; i++ {
 		require.NoError(t, db.Create(&models.Note{
-			ID: uuid.New().String(), ThreatModelID: tm1.ID, Name: "n", Content: models.DBText("x"), CreatedAt: now.Add(time.Duration(i) * time.Minute),
+			ID: models.DBVarchar(uuid.New().String()), ThreatModelID: tm1.ID, Name: "n", Content: models.DBText("x"), CreatedAt: now.Add(time.Duration(i) * time.Minute),
 		}).Error)
 	}
 	for i := 0; i < 2; i++ {
 		require.NoError(t, db.Create(&models.Note{
-			ID: uuid.New().String(), ThreatModelID: tm2.ID, Name: "n", Content: models.DBText("x"), CreatedAt: now.Add(time.Duration(i) * time.Minute),
+			ID: models.DBVarchar(uuid.New().String()), ThreatModelID: tm2.ID, Name: "n", Content: models.DBText("x"), CreatedAt: now.Add(time.Duration(i) * time.Minute),
 		}).Error)
 	}
 
@@ -128,7 +128,7 @@ func TestBackfillIdempotent(t *testing.T) {
 	user := makeUser(t, db)
 	ctx := context.Background()
 
-	tm := &models.ThreatModel{ID: uuid.New().String(), OwnerInternalUUID: user.InternalUUID, Name: "TM"}
+	tm := &models.ThreatModel{ID: models.DBVarchar(uuid.New().String()), OwnerInternalUUID: user.InternalUUID, Name: "TM"}
 	require.NoError(t, db.Create(tm).Error)
 
 	require.NoError(t, RunAliasBackfill(ctx, db))

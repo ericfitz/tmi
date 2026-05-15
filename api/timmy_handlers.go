@@ -174,7 +174,7 @@ func (s *Server) DeleteTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 		return
 	}
 
-	if deleteErr := GlobalTimmySessionStore.SoftDelete(c.Request.Context(), session.ID); deleteErr != nil {
+	if deleteErr := GlobalTimmySessionStore.SoftDelete(c.Request.Context(), string(session.ID)); deleteErr != nil {
 		HandleRequestError(c, StoreErrorToRequestError(deleteErr, "session not found", "failed to delete session"))
 		return
 	}
@@ -497,7 +497,7 @@ func (s *Server) RefreshTimmySources(c *gin.Context, threatModelId ThreatModelId
 
 	// Update session snapshot
 	snapshotJSON, _ := json.Marshal(sources)
-	if updateErr := GlobalTimmySessionStore.UpdateSnapshot(c.Request.Context(), session.ID, models.JSONRaw(snapshotJSON)); updateErr != nil {
+	if updateErr := GlobalTimmySessionStore.UpdateSnapshot(c.Request.Context(), string(session.ID), models.JSONRaw(snapshotJSON)); updateErr != nil {
 		logger.Error("Failed to update session snapshot: %v", updateErr)
 		HandleRequestError(c, ServerError("Failed to update session"))
 		return
@@ -609,11 +609,11 @@ func (s *Server) getAndVerifyTimmySession(c *gin.Context, threatModelId ThreatMo
 		return nil, StoreErrorToRequestError(getErr, "session not found", "failed to get session")
 	}
 
-	if session.ThreatModelID != threatModelId.String() {
+	if string(session.ThreatModelID) != threatModelId.String() {
 		return nil, NotFoundError("session not found in the specified threat model")
 	}
 
-	if session.UserID != userID {
+	if string(session.UserID) != userID {
 		return nil, ForbiddenError("you do not have access to this session")
 	}
 

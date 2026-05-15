@@ -31,7 +31,7 @@ func setupDocumentAliasTestDB(t *testing.T) (*gorm.DB, *models.User, *models.Thr
 	))
 
 	user := &models.User{
-		InternalUUID:   uuid.New().String(),
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
 		ProviderUserID: strPtr("doc-alias-test-user"),
 		Email:          "alice@example.com",
@@ -40,7 +40,7 @@ func setupDocumentAliasTestDB(t *testing.T) (*gorm.DB, *models.User, *models.Thr
 	require.NoError(t, db.Create(user).Error)
 
 	tm := &models.ThreatModel{
-		ID:                    uuid.New().String(),
+		ID:                    models.DBVarchar(uuid.New().String()),
 		OwnerInternalUUID:     user.InternalUUID,
 		CreatedByInternalUUID: user.InternalUUID,
 		Name:                  "Test TM for Documents",
@@ -62,7 +62,7 @@ func TestGormDocumentRepository_CreateAssignsAlias(t *testing.T) {
 		Uri:  "https://example.com/doc.pdf",
 	}
 
-	require.NoError(t, repo.Create(ctx, doc, tm.ID))
+	require.NoError(t, repo.Create(ctx, doc, string(tm.ID)))
 
 	stored, err := repo.Get(ctx, docID.String())
 	require.NoError(t, err)

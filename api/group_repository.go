@@ -311,7 +311,7 @@ func (r *GormGroupRepository) UpsertGroup(ctx context.Context, group Group) erro
 
 // convertToGroup converts a GORM Group model to API Group
 func (r *GormGroupRepository) convertToGroup(gg *models.Group) Group {
-	internalUUID, _ := uuid.Parse(gg.InternalUUID)
+	internalUUID, _ := uuid.Parse(string(gg.InternalUUID))
 
 	return Group{
 		InternalUUID: internalUUID,
@@ -328,7 +328,7 @@ func (r *GormGroupRepository) convertToGroup(gg *models.Group) Group {
 // convertFromGroup converts an API Group to GORM Group model
 func (r *GormGroupRepository) convertFromGroup(g *Group) *models.Group {
 	return &models.Group{
-		InternalUUID: g.InternalUUID.String(),
+		InternalUUID: models.DBVarchar(g.InternalUUID.String()),
 		Provider:     g.Provider,
 		GroupName:    g.GroupName,
 		Name:         ptrOrNil(g.Name),

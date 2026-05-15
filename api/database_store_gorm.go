@@ -46,20 +46,20 @@ func (s *GormThreatModelStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifi
 	if _, err := uuid.Parse(identifier); err == nil {
 		result := tx.Where(map[string]any{"internal_uuid": identifier}).First(&user)
 		if result.Error == nil {
-			return user.InternalUUID, nil
+			return string(user.InternalUUID), nil
 		}
 	}
 
 	// Step 2: Try as provider_user_id
 	result := tx.Where(map[string]any{"provider_user_id": identifier}).First(&user)
 	if result.Error == nil {
-		return user.InternalUUID, nil
+		return string(user.InternalUUID), nil
 	}
 
 	// Step 3: Try as email
 	result = tx.Where(map[string]any{"email": identifier}).First(&user)
 	if result.Error == nil {
-		return user.InternalUUID, nil
+		return string(user.InternalUUID), nil
 	}
 
 	return "", ErrUserNotFound
@@ -82,7 +82,7 @@ func (s *GormThreatModelStore) resolveGroupToUUID(tx *gorm.DB, groupName string,
 		return "", result.Error
 	}
 
-	return group.InternalUUID, nil
+	return string(group.InternalUUID), nil
 }
 
 // ensureGroupExists creates a group entry if it doesn't exist and returns its internal_uuid using GORM
@@ -124,10 +124,10 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 		if err := tx.Where(&models.Group{Provider: provider, GroupName: groupName}).First(&existingGroup).Error; err != nil {
 			return "", dberrors.Classify(err)
 		}
-		return existingGroup.InternalUUID, nil
+		return string(existingGroup.InternalUUID), nil
 	}
 
-	return group.InternalUUID, nil
+	return string(group.InternalUUID), nil
 }
 
 // Get retrieves a threat model by ID using GORM
@@ -227,7 +227,7 @@ func (s *GormThreatModelStore) getAuthorizationInternal(id string, includeDelete
 
 // convertToAPIModel converts a GORM ThreatModel to the API ThreatModel
 func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (ThreatModel, error) {
-	tmUUID, _ := uuid.Parse(tm.ID)
+	tmUUID, _ := uuid.Parse(string(tm.ID))
 
 	// Create owner User
 	owner := User{
@@ -252,7 +252,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 
 	// Create security_reviewer User (if assigned)
 	var securityReviewer *User
-	if tm.SecurityReviewerInternalUUID != nil && *tm.SecurityReviewerInternalUUID != "" && tm.SecurityReviewer != nil {
+	if tm.SecurityReviewerInternalUUID.Valid && tm.SecurityReviewerInternalUUID.String != "" && tm.SecurityReviewer != nil {
 		securityReviewer = &User{
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      tm.SecurityReviewer.Provider,
@@ -263,25 +263,25 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 	}
 
 	// Load authorization
-	authorization, err := s.loadAuthorization(tm.ID)
+	authorization, err := s.loadAuthorization(string(tm.ID))
 	if err != nil {
 		return ThreatModel{}, dberrors.Classify(err)
 	}
 
 	// Load metadata
-	metadata, err := s.loadMetadata(tm.ID)
+	metadata, err := s.loadMetadata(string(tm.ID))
 	if err != nil {
 		return ThreatModel{}, dberrors.Classify(err)
 	}
 
 	// Load threats
-	threats, err := s.loadThreats(tm.ID)
+	threats, err := s.loadThreats(string(tm.ID))
 	if err != nil {
 		return ThreatModel{}, dberrors.Classify(err)
 	}
 
 	// Load diagrams dynamically from DiagramStore
-	diagrams, err := s.loadDiagramsDynamically(tm.ID)
+	diagrams, err := s.loadDiagramsDynamically(string(tm.ID))
 	if err != nil {
 		return ThreatModel{}, dberrors.Classify(err)
 	}
@@ -296,8 +296,8 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 
 	// Convert project_id if present
 	var projectID *openapi_types.UUID
-	if tm.ProjectID != nil && *tm.ProjectID != "" {
-		pid, err := uuid.Parse(*tm.ProjectID)
+	if tm.ProjectID.Valid && tm.ProjectID.String != "" {
+		pid, err := uuid.Parse(tm.ProjectID.String)
 		if err == nil {
 			projectID = &pid
 		}
@@ -331,7 +331,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 // convertToListItem converts a GORM ThreatModel to TMListItem without any sub-resource queries.
 // Used by ListWithCounts for lightweight list conversion.
 func (s *GormThreatModelStore) convertToListItem(tm *models.ThreatModel) TMListItem {
-	tmUUID, _ := uuid.Parse(tm.ID)
+	tmUUID, _ := uuid.Parse(string(tm.ID))
 
 	owner := User{
 		PrincipalType: UserPrincipalTypeUser,
@@ -353,7 +353,7 @@ func (s *GormThreatModelStore) convertToListItem(tm *models.ThreatModel) TMListI
 	}
 
 	var securityReviewer *User
-	if tm.SecurityReviewerInternalUUID != nil && *tm.SecurityReviewerInternalUUID != "" && tm.SecurityReviewer != nil {
+	if tm.SecurityReviewerInternalUUID.Valid && tm.SecurityReviewerInternalUUID.String != "" && tm.SecurityReviewer != nil {
 		securityReviewer = &User{
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      tm.SecurityReviewer.Provider,
@@ -516,8 +516,8 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 	allIDs := make([]string, 0, len(tmModels))
 	for i := range tmModels {
 		tm := &tmModels[i]
-		allIDs = append(allIDs, tm.ID)
-		ownerMap[tm.ID] = User{
+		allIDs = append(allIDs, string(tm.ID))
+		ownerMap[string(tm.ID)] = User{
 			PrincipalType: UserPrincipalTypeUser,
 			Provider:      tm.Owner.Provider,
 			ProviderId:    strFromPtr(tm.Owner.ProviderUserID),
@@ -542,7 +542,7 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 		tm := &tmModels[i]
 
 		if filter != nil {
-			awo := authMap[tm.ID]
+			awo := authMap[string(tm.ID)]
 			// Build minimal ThreatModel for the filter callback
 			filterTM := ThreatModel{
 				Owner:         awo.Owner,
@@ -554,7 +554,7 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 		}
 
 		item := s.convertToListItem(tm)
-		filtered = append(filtered, filteredItem{listItem: item, modelID: tm.ID})
+		filtered = append(filtered, filteredItem{listItem: item, modelID: string(tm.ID)})
 	}
 
 	// Store total count before pagination
@@ -685,10 +685,10 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 	userUUIDSet := make(map[string]bool)
 	groupUUIDSet := make(map[string]bool)
 	for _, entry := range accessEntries {
-		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID != nil {
-			userUUIDSet[*entry.UserInternalUUID] = true
-		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID != nil {
-			groupUUIDSet[*entry.GroupInternalUUID] = true
+		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID.Valid {
+			userUUIDSet[entry.UserInternalUUID.String] = true
+		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID.Valid {
+			groupUUIDSet[entry.GroupInternalUUID.String] = true
 		}
 	}
 
@@ -705,11 +705,11 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 
 	// Build authorization entries grouped by threat model ID
 	for _, entry := range accessEntries {
-		awo := result[entry.ThreatModelID]
+		awo := result[string(entry.ThreatModelID)]
 		role := AuthorizationRole(entry.Role)
 
-		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID != nil {
-			if user, ok := userMap[*entry.UserInternalUUID]; ok {
+		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID.Valid {
+			if user, ok := userMap[entry.UserInternalUUID.String]; ok {
 				awo.Authorization = append(awo.Authorization, Authorization{
 					PrincipalType: AuthorizationPrincipalTypeUser,
 					Provider:      user.Provider,
@@ -719,8 +719,8 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 					Role:          role,
 				})
 			}
-		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID != nil {
-			if group, ok := groupMap[*entry.GroupInternalUUID]; ok {
+		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID.Valid {
+			if group, ok := groupMap[entry.GroupInternalUUID.String]; ok {
 				awo.Authorization = append(awo.Authorization, Authorization{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
 					Provider:      group.Provider,
@@ -730,7 +730,7 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 				})
 			}
 		}
-		result[entry.ThreatModelID] = awo
+		result[string(entry.ThreatModelID)] = awo
 	}
 
 	return result
@@ -811,18 +811,18 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	}
 
 	tm := models.ThreatModel{
-		ID:                           id,
+		ID:                           models.DBVarchar(id),
 		Name:                         item.Name,
 		Description:                  item.Description,
-		OwnerInternalUUID:            ownerUUID,
-		CreatedByInternalUUID:        createdByUUID,
-		SecurityReviewerInternalUUID: securityReviewerUUID,
+		OwnerInternalUUID:            models.DBVarchar(ownerUUID),
+		CreatedByInternalUUID:        models.DBVarchar(createdByUUID),
+		SecurityReviewerInternalUUID: models.NewNullableDBVarchar(securityReviewerUUID),
 		ThreatModelFramework:         framework,
 		IssueURI:                     item.IssueUri,
 		IsConfidential:               isConfidential,
 		Status:                       status,
 		StatusUpdated:                statusUpdated,
-		ProjectID:                    projectID,
+		ProjectID:                    models.NewNullableDBVarchar(projectID),
 	}
 
 	// Set timestamps
@@ -1033,10 +1033,10 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 	userUUIDSet := make(map[string]bool)
 	groupUUIDSet := make(map[string]bool)
 	for _, entry := range accessEntries {
-		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID != nil {
-			userUUIDSet[*entry.UserInternalUUID] = true
-		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID != nil {
-			groupUUIDSet[*entry.GroupInternalUUID] = true
+		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID.Valid {
+			userUUIDSet[entry.UserInternalUUID.String] = true
+		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID.Valid {
+			groupUUIDSet[entry.GroupInternalUUID.String] = true
 		}
 	}
 
@@ -1058,8 +1058,8 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 		logger.Debug("[GORM-STORE] loadAuthorization: Entry %d - SubjectType=%s, UserUUID=%v, GroupUUID=%v, Role=%s",
 			i, entry.SubjectType, entry.UserInternalUUID, entry.GroupInternalUUID, entry.Role)
 
-		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID != nil {
-			if user, ok := userMap[*entry.UserInternalUUID]; ok {
+		if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeUser) && entry.UserInternalUUID.Valid {
+			if user, ok := userMap[entry.UserInternalUUID.String]; ok {
 				auth := Authorization{
 					PrincipalType: AuthorizationPrincipalTypeUser,
 					Provider:      user.Provider,
@@ -1077,8 +1077,8 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 				}
 				authorization = append(authorization, auth)
 			}
-		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID != nil {
-			if group, ok := groupMap[*entry.GroupInternalUUID]; ok {
+		} else if entry.SubjectType == string(AddGroupMemberRequestSubjectTypeGroup) && entry.GroupInternalUUID.Valid {
+			if group, ok := groupMap[entry.GroupInternalUUID.String]; ok {
 				auth := Authorization{
 					PrincipalType: AuthorizationPrincipalTypeGroup,
 					Provider:      group.Provider,
@@ -1105,7 +1105,7 @@ func (s *GormThreatModelStore) resolveUsersAndGroupsBatch(userUUIDs, groupUUIDs 
 			var users []models.User
 			s.db.Where("internal_uuid IN ?", chunk).Find(&users)
 			for _, u := range users {
-				userMap[u.InternalUUID] = u
+				userMap[string(u.InternalUUID)] = u
 			}
 		}
 	}
@@ -1115,7 +1115,7 @@ func (s *GormThreatModelStore) resolveUsersAndGroupsBatch(userUUIDs, groupUUIDs 
 			var groups []models.Group
 			s.db.Where("internal_uuid IN ?", chunk).Find(&groups)
 			for _, g := range groups {
-				groupMap[g.InternalUUID] = g
+				groupMap[string(g.InternalUUID)] = g
 			}
 		}
 	}
@@ -1155,7 +1155,7 @@ func (s *GormThreatModelStore) loadThreats(threatModelID string) ([]Threat, erro
 	// Batch load all threat metadata
 	threatIDs := make([]string, len(threatModels))
 	for i, tm := range threatModels {
-		threatIDs[i] = tm.ID
+		threatIDs[i] = string(tm.ID)
 	}
 	metadataMap := s.batchLoadThreatMetadata(threatIDs)
 
@@ -1163,23 +1163,23 @@ func (s *GormThreatModelStore) loadThreats(threatModelID string) ([]Threat, erro
 	threats := []Threat{}
 
 	for _, tm := range threatModels {
-		threatUUID, _ := uuid.Parse(tm.ID)
+		threatUUID, _ := uuid.Parse(string(tm.ID))
 		threatModelUUID, _ := uuid.Parse(threatModelID)
 
 		// Convert diagram_id, cell_id, and asset_id
 		var diagramID, cellID, assetID *uuid.UUID
-		if tm.DiagramID != nil {
-			if id, err := uuid.Parse(*tm.DiagramID); err == nil {
+		if tm.DiagramID.Valid {
+			if id, err := uuid.Parse(tm.DiagramID.String); err == nil {
 				diagramID = &id
 			}
 		}
-		if tm.CellID != nil {
-			if id, err := uuid.Parse(*tm.CellID); err == nil {
+		if tm.CellID.Valid {
+			if id, err := uuid.Parse(tm.CellID.String); err == nil {
 				cellID = &id
 			}
 		}
-		if tm.AssetID != nil {
-			if id, err := uuid.Parse(*tm.AssetID); err == nil {
+		if tm.AssetID.Valid {
+			if id, err := uuid.Parse(tm.AssetID.String); err == nil {
 				assetID = &id
 			}
 		}
@@ -1191,7 +1191,7 @@ func (s *GormThreatModelStore) loadThreats(threatModelID string) ([]Threat, erro
 			scoreFloat32 = &score32
 		}
 
-		threatMeta := metadataMap[tm.ID]
+		threatMeta := metadataMap[string(tm.ID)]
 		if threatMeta == nil {
 			threatMeta = []Metadata{}
 		}
@@ -1243,7 +1243,7 @@ func (s *GormThreatModelStore) batchLoadThreatMetadata(threatIDs []string) map[s
 	}
 
 	for _, entry := range metadataEntries {
-		result[entry.EntityID] = append(result[entry.EntityID], Metadata{
+		result[string(entry.EntityID)] = append(result[string(entry.EntityID)], Metadata{
 			Key:   entry.Key,
 			Value: entry.Value,
 		})
@@ -1346,9 +1346,9 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 
 		// Create access entry
 		access := models.ThreatModelAccess{
-			ThreatModelID:     threatModelID,
-			UserInternalUUID:  userUUID,
-			GroupInternalUUID: groupUUID,
+			ThreatModelID:     models.DBVarchar(threatModelID),
+			UserInternalUUID:  models.NewNullableDBVarchar(userUUID),
+			GroupInternalUUID: models.NewNullableDBVarchar(groupUUID),
 			SubjectType:       subjectTypeStr,
 			Role:              string(auth.Role),
 		}
@@ -1493,12 +1493,12 @@ func (s *GormDiagramStore) GetThreatModelID(diagramID string) (string, error) {
 		return "", dberrors.Classify(result.Error)
 	}
 
-	return diagram.ThreatModelID, nil
+	return string(diagram.ThreatModelID), nil
 }
 
 // convertToAPIDiagram converts a GORM Diagram to the API DfdDiagram
 func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiagram, error) {
-	diagramUUID, _ := uuid.Parse(diagram.ID)
+	diagramUUID, _ := uuid.Parse(string(diagram.ID))
 
 	// Parse cells JSON
 	var cells []DfdDiagram_Cells_Item
@@ -1521,7 +1521,7 @@ func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiag
 	}
 
 	// Load diagram metadata
-	metadata, err := s.loadMetadata("diagram", diagram.ID)
+	metadata, err := s.loadMetadata("diagram", string(diagram.ID))
 	if err != nil {
 		return DfdDiagram{}, dberrors.Classify(err)
 	}
@@ -1627,8 +1627,8 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 	}
 
 	diagram := models.Diagram{
-		ID:                id,
-		ThreatModelID:     threatModelID,
+		ID:                models.DBVarchar(id),
+		ThreatModelID:     models.DBVarchar(threatModelID),
 		Name:              item.Name,
 		Description:       item.Description,
 		Type:              diagType,

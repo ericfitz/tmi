@@ -86,7 +86,7 @@ func IsTeamOwnerOrAdmin(ctx context.Context, teamID string, userInternalUUID str
 		return false, result.Error
 	}
 
-	return team.CreatedByInternalUUID == userInternalUUID, nil
+	return string(team.CreatedByInternalUUID) == userInternalUUID, nil
 }
 
 // IsProjectTeamMemberOrAdmin checks if a user is a member of the team that owns the project, or an administrator.
@@ -122,7 +122,7 @@ func IsProjectTeamMemberOrAdmin(ctx context.Context, projectID string, userInter
 	}
 
 	// Check team membership
-	return IsTeamMemberOrAdmin(ctx, project.TeamID, userInternalUUID, c)
+	return IsTeamMemberOrAdmin(ctx, string(project.TeamID), userInternalUUID, c)
 }
 
 // GetProjectTeamID retrieves the team_id for a given project.
@@ -140,5 +140,5 @@ func GetProjectTeamID(ctx context.Context, projectID string) (string, error) {
 		return "", result.Error
 	}
 
-	return project.TeamID, nil
+	return string(project.TeamID), nil
 }

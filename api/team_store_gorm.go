@@ -115,12 +115,12 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Create the team record
 		record := &models.TeamRecord{
-			ID:                    teamID,
+			ID:                    models.DBVarchar(teamID),
 			Name:                  team.Name,
 			Description:           team.Description,
 			URI:                   team.Uri,
 			Status:                teamStatusToString(team.Status),
-			CreatedByInternalUUID: userInternalUUID,
+			CreatedByInternalUUID: models.DBVarchar(userInternalUUID),
 		}
 
 		if team.EmailAddress != nil {
@@ -136,8 +136,8 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 		// Auto-add creator as member with engineering_lead role
 		creatorRole := EngineeringLead
 		creatorMember := &models.TeamMemberRecord{
-			TeamID:           teamID,
-			UserInternalUUID: userInternalUUID,
+			TeamID:           models.DBVarchar(teamID),
+			UserInternalUUID: models.DBVarchar(userInternalUUID),
 			Role:             string(creatorRole),
 		}
 		if err := tx.Create(creatorMember).Error; err != nil {
@@ -158,8 +158,8 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 					role = string(*member.Role)
 				}
 				rec := &models.TeamMemberRecord{
-					TeamID:           teamID,
-					UserInternalUUID: memberUUID,
+					TeamID:           models.DBVarchar(teamID),
+					UserInternalUUID: models.DBVarchar(memberUUID),
 					Role:             role,
 					CustomRole:       member.CustomRole,
 				}
@@ -179,8 +179,8 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 					role = string(*rp.Role)
 				}
 				rec := &models.TeamResponsiblePartyRecord{
-					TeamID:           teamID,
-					UserInternalUUID: rpUUID,
+					TeamID:           models.DBVarchar(teamID),
+					UserInternalUUID: models.DBVarchar(rpUUID),
 					Role:             role,
 					CustomRole:       rp.CustomRole,
 				}
@@ -195,8 +195,8 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 		if team.RelatedTeams != nil {
 			for _, rel := range *team.RelatedTeams {
 				rec := &models.TeamRelationshipRecord{
-					TeamID:             teamID,
-					RelatedTeamID:      uuidToString(rel.RelatedTeamId),
+					TeamID:             models.DBVarchar(teamID),
+					RelatedTeamID:      models.DBVarchar(uuidToString(rel.RelatedTeamId)),
 					Relationship:       string(rel.Relationship),
 					CustomRelationship: rel.CustomRelationship,
 				}
@@ -358,8 +358,8 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 					role = string(*member.Role)
 				}
 				rec := &models.TeamMemberRecord{
-					TeamID:           id,
-					UserInternalUUID: uuidToString(member.UserId),
+					TeamID:           models.DBVarchar(id),
+					UserInternalUUID: models.DBVarchar(uuidToString(member.UserId)),
 					Role:             role,
 					CustomRole:       member.CustomRole,
 				}
@@ -382,8 +382,8 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 					role = string(*rp.Role)
 				}
 				rec := &models.TeamResponsiblePartyRecord{
-					TeamID:           id,
-					UserInternalUUID: uuidToString(rp.UserId),
+					TeamID:           models.DBVarchar(id),
+					UserInternalUUID: models.DBVarchar(uuidToString(rp.UserId)),
 					Role:             role,
 					CustomRole:       rp.CustomRole,
 				}
@@ -402,8 +402,8 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 		if team.RelatedTeams != nil {
 			for _, rel := range *team.RelatedTeams {
 				rec := &models.TeamRelationshipRecord{
-					TeamID:             id,
-					RelatedTeamID:      uuidToString(rel.RelatedTeamId),
+					TeamID:             models.DBVarchar(id),
+					RelatedTeamID:      models.DBVarchar(uuidToString(rel.RelatedTeamId)),
 					Relationship:       string(rel.Relationship),
 					CustomRelationship: rel.CustomRelationship,
 				}
@@ -615,7 +615,7 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 		nc := int(noteCount)
 
 		item := TeamListItem{
-			Id:           stringToUUID(rec.ID),
+			Id:           stringToUUID(string(rec.ID)),
 			Name:         rec.Name,
 			Description:  rec.Description,
 			Status:       stringToTeamStatus(rec.Status),
@@ -909,7 +909,7 @@ func (s *GormTeamStore) recordToAPI(
 	rels []models.TeamRelationshipRecord,
 	metadata []Metadata,
 ) *Team {
-	teamID := stringToUUID(record.ID)
+	teamID := stringToUUID(string(record.ID))
 
 	team := &Team{
 		Id:        &teamID,
@@ -957,7 +957,7 @@ func (s *GormTeamStore) recordToAPI(
 	apiMembers := make([]TeamMember, 0, len(members))
 	for _, m := range members {
 		member := TeamMember{
-			UserId: stringToUUID(m.UserInternalUUID),
+			UserId: stringToUUID(string(m.UserInternalUUID)),
 		}
 		role := TeamMemberRole(m.Role)
 		member.Role = &role
@@ -976,7 +976,7 @@ func (s *GormTeamStore) recordToAPI(
 	apiRPs := make([]ResponsibleParty, 0, len(rps))
 	for _, rp := range rps {
 		party := ResponsibleParty{
-			UserId: stringToUUID(rp.UserInternalUUID),
+			UserId: stringToUUID(string(rp.UserInternalUUID)),
 		}
 		role := TeamMemberRole(rp.Role)
 		party.Role = &role
@@ -995,7 +995,7 @@ func (s *GormTeamStore) recordToAPI(
 	apiRels := make([]RelatedTeam, 0, len(rels))
 	for _, rel := range rels {
 		related := RelatedTeam{
-			RelatedTeamId:      stringToUUID(rel.RelatedTeamID),
+			RelatedTeamId:      stringToUUID(string(rel.RelatedTeamID)),
 			Relationship:       RelationshipType(rel.Relationship),
 			CustomRelationship: rel.CustomRelationship,
 		}

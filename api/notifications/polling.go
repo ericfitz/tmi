@@ -15,11 +15,11 @@ import (
 
 // NotificationQueueEntry represents an entry in the notification polling table
 type NotificationQueueEntry struct {
-	ID        string        `gorm:"column:id;primaryKey;type:varchar(36)"`
-	Channel   string        `gorm:"column:channel;type:varchar(255);not null;index"`
-	Payload   models.DBText `gorm:"column:payload"`
-	CreatedAt time.Time     `gorm:"column:created_at;not null;autoCreateTime"`
-	Processed bool          `gorm:"column:processed;default:false;not null;index"`
+	ID        models.DBVarchar `gorm:"column:id;primaryKey;size:36"`
+	Channel   string           `gorm:"column:channel;type:varchar(255);not null;index"`
+	Payload   models.DBText    `gorm:"column:payload"`
+	CreatedAt time.Time        `gorm:"column:created_at;not null;autoCreateTime"`
+	Processed bool             `gorm:"column:processed;default:false;not null;index"`
 }
 
 // TableName specifies the table name for NotificationQueueEntry
@@ -129,7 +129,7 @@ func (p *PollingNotifier) processNewNotifications() {
 	var processedIDs []string
 	for _, entry := range entries {
 		p.handleNotification(entry)
-		processedIDs = append(processedIDs, entry.ID)
+		processedIDs = append(processedIDs, string(entry.ID))
 		p.lastProcessed = entry.CreatedAt
 	}
 
@@ -232,7 +232,7 @@ func (p *PollingNotifier) unsubscribe(channel string, notifyChan chan Notificati
 // Notify implements NotificationService.Notify
 func (p *PollingNotifier) Notify(ctx context.Context, channel string, payload string) error {
 	entry := NotificationQueueEntry{
-		ID:        generateUUID(),
+		ID:        models.DBVarchar(generateUUID()),
 		Channel:   channel,
 		Payload:   models.DBText(payload),
 		Processed: false,

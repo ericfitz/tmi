@@ -25,12 +25,12 @@ func TestTimmySessionStore_CreateAndGet(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, session.ID)
 
-	got, err := store.Get(ctx, session.ID)
+	got, err := store.Get(ctx, string(session.ID))
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, session.ID, got.ID)
-	assert.Equal(t, "tm-session-001", got.ThreatModelID)
-	assert.Equal(t, "user-001", got.UserID)
+	assert.Equal(t, "tm-session-001", string(got.ThreatModelID))
+	assert.Equal(t, "user-001", string(got.UserID))
 	assert.Equal(t, "Test Session", got.Title)
 	assert.Equal(t, "active", got.Status)
 }
@@ -56,8 +56,8 @@ func TestTimmySessionStore_ListByUserAndThreatModel(t *testing.T) {
 	// Create sessions for alice with this TM
 	for i := range 3 {
 		err := store.Create(ctx, &models.TimmySession{
-			ThreatModelID: tmID,
-			UserID:        aliceID,
+			ThreatModelID: models.DBVarchar(tmID),
+			UserID:        models.DBVarchar(aliceID),
 			Title:         "Alice session",
 			Status:        "active",
 		})
@@ -66,8 +66,8 @@ func TestTimmySessionStore_ListByUserAndThreatModel(t *testing.T) {
 
 	// Create session for bob with the same TM
 	err := store.Create(ctx, &models.TimmySession{
-		ThreatModelID: tmID,
-		UserID:        bobID,
+		ThreatModelID: models.DBVarchar(tmID),
+		UserID:        models.DBVarchar(bobID),
 		Title:         "Bob session",
 		Status:        "active",
 	})
@@ -107,20 +107,20 @@ func TestTimmySessionStore_SoftDelete(t *testing.T) {
 	require.NoError(t, err)
 
 	// Confirm it exists
-	got, err := store.Get(ctx, session.ID)
+	got, err := store.Get(ctx, string(session.ID))
 	require.NoError(t, err)
 	require.NotNil(t, got)
 
 	// Soft delete
-	err = store.SoftDelete(ctx, session.ID)
+	err = store.SoftDelete(ctx, string(session.ID))
 	require.NoError(t, err)
 
 	// Get should now return not found
-	_, err = store.Get(ctx, session.ID)
+	_, err = store.Get(ctx, string(session.ID))
 	require.Error(t, err)
 
 	// Deleting again should return an error
-	err = store.SoftDelete(ctx, session.ID)
+	err = store.SoftDelete(ctx, string(session.ID))
 	require.Error(t, err)
 }
 
@@ -133,14 +133,14 @@ func TestTimmySessionStore_CountActiveByThreatModel(t *testing.T) {
 
 	// Create active and inactive sessions
 	err := store.Create(ctx, &models.TimmySession{
-		ThreatModelID: tmID,
+		ThreatModelID: models.DBVarchar(tmID),
 		UserID:        "user-001",
 		Status:        "active",
 	})
 	require.NoError(t, err)
 
 	err = store.Create(ctx, &models.TimmySession{
-		ThreatModelID: tmID,
+		ThreatModelID: models.DBVarchar(tmID),
 		UserID:        "user-002",
 		Status:        "active",
 	})
@@ -148,7 +148,7 @@ func TestTimmySessionStore_CountActiveByThreatModel(t *testing.T) {
 
 	// Create one with "closed" status
 	err = store.Create(ctx, &models.TimmySession{
-		ThreatModelID: tmID,
+		ThreatModelID: models.DBVarchar(tmID),
 		UserID:        "user-003",
 		Status:        "closed",
 	})
@@ -204,7 +204,7 @@ func TestTimmyMessageStore_CreateAndList(t *testing.T) {
 		assert.NotEmpty(t, msg.ID)
 	}
 
-	results, total, err := msgStore.ListBySession(ctx, session.ID, 0, 10)
+	results, total, err := msgStore.ListBySession(ctx, string(session.ID), 0, 10)
 	require.NoError(t, err)
 	assert.Equal(t, 3, total)
 	assert.Len(t, results, 3)
@@ -217,7 +217,7 @@ func TestTimmyMessageStore_CreateAndList(t *testing.T) {
 	assert.Equal(t, 3, results[2].Sequence)
 
 	// Pagination
-	paged, pageTotal, err := msgStore.ListBySession(ctx, session.ID, 0, 2)
+	paged, pageTotal, err := msgStore.ListBySession(ctx, string(session.ID), 0, 2)
 	require.NoError(t, err)
 	assert.Equal(t, 3, pageTotal)
 	assert.Len(t, paged, 2)
@@ -238,7 +238,7 @@ func TestTimmyMessageStore_GetNextSequence(t *testing.T) {
 	require.NoError(t, err)
 
 	// No messages yet: should start at 1
-	seq, err := msgStore.GetNextSequence(ctx, session.ID)
+	seq, err := msgStore.GetNextSequence(ctx, string(session.ID))
 	require.NoError(t, err)
 	assert.Equal(t, 1, seq)
 
@@ -252,7 +252,7 @@ func TestTimmyMessageStore_GetNextSequence(t *testing.T) {
 	require.NoError(t, err)
 
 	// Next should be 2
-	seq, err = msgStore.GetNextSequence(ctx, session.ID)
+	seq, err = msgStore.GetNextSequence(ctx, string(session.ID))
 	require.NoError(t, err)
 	assert.Equal(t, 2, seq)
 
@@ -266,7 +266,7 @@ func TestTimmyMessageStore_GetNextSequence(t *testing.T) {
 	require.NoError(t, err)
 
 	// Next should be 3
-	seq, err = msgStore.GetNextSequence(ctx, session.ID)
+	seq, err = msgStore.GetNextSequence(ctx, string(session.ID))
 	require.NoError(t, err)
 	assert.Equal(t, 3, seq)
 }
@@ -284,9 +284,9 @@ func TestTimmySessionStore_UpdateTitle(t *testing.T) {
 	}
 	require.NoError(t, store.Create(ctx, session))
 
-	require.NoError(t, store.UpdateTitle(ctx, session.ID, "Auth flow review"))
+	require.NoError(t, store.UpdateTitle(ctx, string(session.ID), "Auth flow review"))
 
-	got, err := store.Get(ctx, session.ID)
+	got, err := store.Get(ctx, string(session.ID))
 	require.NoError(t, err)
 	assert.Equal(t, "Auth flow review", got.Title)
 }
@@ -312,8 +312,8 @@ func TestTimmySessionStore_UpdateTitle_SoftDeleted(t *testing.T) {
 		Status:        "active",
 	}
 	require.NoError(t, store.Create(ctx, session))
-	require.NoError(t, store.SoftDelete(ctx, session.ID))
+	require.NoError(t, store.SoftDelete(ctx, string(session.ID)))
 
-	err := store.UpdateTitle(ctx, session.ID, "should not stick")
+	err := store.UpdateTitle(ctx, string(session.ID), "should not stick")
 	require.ErrorIs(t, err, ErrTimmySessionNotFound)
 }

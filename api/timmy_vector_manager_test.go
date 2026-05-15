@@ -13,9 +13,9 @@ import (
 
 func makeTestEmbedding(tmID, entityType, entityID string, chunkIdx int, vector []float32, chunkText string, indexType string) models.TimmyEmbedding {
 	return models.TimmyEmbedding{
-		ThreatModelID:  tmID,
+		ThreatModelID:  models.DBVarchar(tmID),
 		EntityType:     entityType,
-		EntityID:       entityID,
+		EntityID:       models.DBVarchar(entityID),
 		ChunkIndex:     chunkIdx,
 		IndexType:      indexType,
 		ContentHash:    "hash-" + entityID + "-" + string(rune('0'+chunkIdx)),

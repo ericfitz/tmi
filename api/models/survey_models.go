@@ -11,14 +11,14 @@ import (
 
 // SurveyTemplate represents a survey template for security review intake
 type SurveyTemplate struct {
-	ID                    string    `gorm:"primaryKey;type:varchar(36)"`
+	ID                    DBVarchar `gorm:"primaryKey;size:36"`
 	Name                  string    `gorm:"type:varchar(256);not null;index:idx_st_name;uniqueIndex:idx_st_name_version,priority:1"`
 	Description           *string   `gorm:"type:varchar(2048)"`
 	Version               string    `gorm:"type:varchar(64);not null;index:idx_st_version;uniqueIndex:idx_st_name_version,priority:2"`
 	Status                string    `gorm:"type:varchar(20);not null;default:inactive;index:idx_st_status"`
 	SurveyJSON            JSONRaw   `gorm:"column:survey_json"` // Complete SurveyJS JSON definition (opaque blob)
 	Settings              JSONRaw   `gorm:""`                   // Template settings (allow_threat_model_linking, etc.)
-	CreatedByInternalUUID string    `gorm:"type:varchar(36);not null;index:idx_st_created_by"`
+	CreatedByInternalUUID DBVarchar `gorm:"size:36;not null;index:idx_st_created_by"`
 	CreatedAt             time.Time `gorm:"not null;autoCreateTime;index:idx_st_created_at"`
 	ModifiedAt            time.Time `gorm:"not null;autoUpdateTime"`
 }
@@ -31,18 +31,18 @@ func (SurveyTemplate) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (s *SurveyTemplate) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
-		s.ID = uuid.New().String()
+		s.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
 
 // SurveyTemplateVersion represents a versioned snapshot of a survey template definition
 type SurveyTemplateVersion struct {
-	ID                    string    `gorm:"primaryKey;type:varchar(36)"`
-	TemplateID            string    `gorm:"type:varchar(36);not null;index:idx_stv_template;uniqueIndex:idx_stv_template_version,priority:1"`
+	ID                    DBVarchar `gorm:"primaryKey;size:36"`
+	TemplateID            DBVarchar `gorm:"size:36;not null;index:idx_stv_template;uniqueIndex:idx_stv_template_version,priority:1"`
 	Version               string    `gorm:"type:varchar(64);not null;uniqueIndex:idx_stv_template_version,priority:2"`
 	SurveyJSON            JSONRaw   `gorm:"column:survey_json"`
-	CreatedByInternalUUID string    `gorm:"type:varchar(36);not null"`
+	CreatedByInternalUUID DBVarchar `gorm:"size:36;not null"`
 	CreatedAt             time.Time `gorm:"not null;autoCreateTime"`
 
 	// Relationships
@@ -57,31 +57,31 @@ func (SurveyTemplateVersion) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (s *SurveyTemplateVersion) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
-		s.ID = uuid.New().String()
+		s.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
 
 // SurveyResponse represents a user's response to a survey template
 type SurveyResponse struct {
-	ID                     string     `gorm:"primaryKey;type:varchar(36)"`
-	TemplateID             string     `gorm:"type:varchar(36);not null;index:idx_sr_template;index:idx_sr_template_status,priority:1"`
-	TemplateVersion        string     `gorm:"type:varchar(64);not null"` // Captured at creation, immutable
-	Status                 string     `gorm:"type:varchar(30);not null;default:draft;index:idx_sr_status;index:idx_sr_template_status,priority:2"`
-	IsConfidential         DBBool     `gorm:"default:0"`          // If true, Security Reviewers group not auto-added
-	Answers                JSONRaw    `gorm:""`                   // Question answers keyed by question name
-	UIState                JSONRaw    `gorm:"column:ui_state"`    // Client-managed UI state for draft resumption
-	SurveyJSON             JSONRaw    `gorm:"column:survey_json"` // Snapshot of template survey_json at creation
-	LinkedThreatModelID    *string    `gorm:"type:varchar(36);index:idx_sr_linked_tm"`
-	CreatedThreatModelID   *string    `gorm:"type:varchar(36);index:idx_sr_created_tm"`
-	RevisionNotes          *string    `gorm:"type:varchar(4000)"` // Notes from reviewer when returning for revision (varchar(4000) for Oracle ADB-STANDARD compatibility)
-	OwnerInternalUUID      *string    `gorm:"type:varchar(36);index:idx_sr_owner"`
-	CreatedAt              time.Time  `gorm:"not null;autoCreateTime;index:idx_sr_created_at"`
-	ModifiedAt             time.Time  `gorm:"not null;autoUpdateTime"`
-	SubmittedAt            *time.Time `gorm:"index:idx_sr_submitted_at"`
+	ID                     DBVarchar         `gorm:"primaryKey;size:36"`
+	TemplateID             DBVarchar         `gorm:"size:36;not null;index:idx_sr_template;index:idx_sr_template_status,priority:1"`
+	TemplateVersion        string            `gorm:"type:varchar(64);not null"` // Captured at creation, immutable
+	Status                 string            `gorm:"type:varchar(30);not null;default:draft;index:idx_sr_status;index:idx_sr_template_status,priority:2"`
+	IsConfidential         DBBool            `gorm:"default:0"`          // If true, Security Reviewers group not auto-added
+	Answers                JSONRaw           `gorm:""`                   // Question answers keyed by question name
+	UIState                JSONRaw           `gorm:"column:ui_state"`    // Client-managed UI state for draft resumption
+	SurveyJSON             JSONRaw           `gorm:"column:survey_json"` // Snapshot of template survey_json at creation
+	LinkedThreatModelID    NullableDBVarchar `gorm:"size:36;index:idx_sr_linked_tm"`
+	CreatedThreatModelID   NullableDBVarchar `gorm:"size:36;index:idx_sr_created_tm"`
+	RevisionNotes          *string           `gorm:"type:varchar(4000)"` // Notes from reviewer when returning for revision (varchar(4000) for Oracle ADB-STANDARD compatibility)
+	OwnerInternalUUID      NullableDBVarchar `gorm:"size:36;index:idx_sr_owner"`
+	CreatedAt              time.Time         `gorm:"not null;autoCreateTime;index:idx_sr_created_at"`
+	ModifiedAt             time.Time         `gorm:"not null;autoUpdateTime"`
+	SubmittedAt            *time.Time        `gorm:"index:idx_sr_submitted_at"`
 	ReviewedAt             *time.Time
-	ReviewedByInternalUUID *string `gorm:"type:varchar(36)"`
-	ProjectID              *string `gorm:"type:varchar(36);index:idx_sr_project"`
+	ReviewedByInternalUUID NullableDBVarchar `gorm:"size:36"`
+	ProjectID              NullableDBVarchar `gorm:"size:36;index:idx_sr_project"`
 	// Version is incremented on every successful update (T14 / #385).
 	Version int `gorm:"not null;default:1"`
 
@@ -102,7 +102,7 @@ func (SurveyResponse) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (s *SurveyResponse) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
-		s.ID = uuid.New().String()
+		s.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -111,14 +111,14 @@ func (s *SurveyResponse) BeforeCreate(tx *gorm.DB) error {
 // Uses a composite primary key (SurveyResponseID, ID) where ID is a
 // per-response monotonically increasing integer.
 type TriageNote struct {
-	SurveyResponseID       string    `gorm:"primaryKey;type:varchar(36);index:idx_tn_sr"`
-	ID                     int       `gorm:"primaryKey;autoIncrement:false"`
-	Name                   string    `gorm:"type:varchar(256);not null"`
-	Content                DBText    `gorm:"not null"`
-	CreatedByInternalUUID  *string   `gorm:"type:varchar(36)"`
-	ModifiedByInternalUUID *string   `gorm:"type:varchar(36)"`
-	CreatedAt              time.Time `gorm:"not null;autoCreateTime;index:idx_tn_created"`
-	ModifiedAt             time.Time `gorm:"not null;autoUpdateTime"`
+	SurveyResponseID       DBVarchar         `gorm:"primaryKey;size:36;index:idx_tn_sr"`
+	ID                     int               `gorm:"primaryKey;autoIncrement:false"`
+	Name                   string            `gorm:"type:varchar(256);not null"`
+	Content                DBText            `gorm:"not null"`
+	CreatedByInternalUUID  NullableDBVarchar `gorm:"size:36"`
+	ModifiedByInternalUUID NullableDBVarchar `gorm:"size:36"`
+	CreatedAt              time.Time         `gorm:"not null;autoCreateTime;index:idx_tn_created"`
+	ModifiedAt             time.Time         `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	SurveyResponse SurveyResponse `gorm:"foreignKey:SurveyResponseID"`
@@ -151,15 +151,15 @@ func (t *TriageNote) BeforeCreate(tx *gorm.DB) error {
 // SurveyResponseAccess represents access control for a survey response
 // Mirrors the ThreatModelAccess pattern for consistency
 type SurveyResponseAccess struct {
-	ID                    string    `gorm:"primaryKey;type:varchar(36)"`
-	SurveyResponseID      string    `gorm:"type:varchar(36);not null;index:idx_sra_sr;index:idx_sra_perf,priority:1"`
-	UserInternalUUID      *string   `gorm:"type:varchar(36);index:idx_sra_user;index:idx_sra_perf,priority:3"`
-	GroupInternalUUID     *string   `gorm:"type:varchar(36);index:idx_sra_group;index:idx_sra_perf,priority:4"`
-	SubjectType           string    `gorm:"type:varchar(10);not null;index:idx_sra_subject_type;index:idx_sra_perf,priority:2"`
-	Role                  string    `gorm:"type:varchar(6);not null;index:idx_sra_role"`
-	GrantedByInternalUUID *string   `gorm:"type:varchar(36)"`
-	CreatedAt             time.Time `gorm:"not null;autoCreateTime"`
-	ModifiedAt            time.Time `gorm:"not null;autoUpdateTime"`
+	ID                    DBVarchar         `gorm:"primaryKey;size:36"`
+	SurveyResponseID      DBVarchar         `gorm:"size:36;not null;index:idx_sra_sr;index:idx_sra_perf,priority:1"`
+	UserInternalUUID      NullableDBVarchar `gorm:"size:36;index:idx_sra_user;index:idx_sra_perf,priority:3"`
+	GroupInternalUUID     NullableDBVarchar `gorm:"size:36;index:idx_sra_group;index:idx_sra_perf,priority:4"`
+	SubjectType           string            `gorm:"type:varchar(10);not null;index:idx_sra_subject_type;index:idx_sra_perf,priority:2"`
+	Role                  string            `gorm:"type:varchar(6);not null;index:idx_sra_role"`
+	GrantedByInternalUUID NullableDBVarchar `gorm:"size:36"`
+	CreatedAt             time.Time         `gorm:"not null;autoCreateTime"`
+	ModifiedAt            time.Time         `gorm:"not null;autoUpdateTime"`
 
 	// Relationships
 	SurveyResponse SurveyResponse `gorm:"foreignKey:SurveyResponseID"`
@@ -176,7 +176,7 @@ func (SurveyResponseAccess) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (s *SurveyResponseAccess) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
-		s.ID = uuid.New().String()
+		s.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
@@ -184,8 +184,8 @@ func (s *SurveyResponseAccess) BeforeCreate(tx *gorm.DB) error {
 // SurveyAnswer represents an extracted answer from a survey response.
 // Rows are fully replaced on every response save for consistency.
 type SurveyAnswer struct {
-	ID             string    `gorm:"primaryKey;type:varchar(36)"`
-	ResponseID     string    `gorm:"type:varchar(36);not null;index:idx_sa_response_id;index:idx_sa_response_mapping"`
+	ID             DBVarchar `gorm:"primaryKey;size:36"`
+	ResponseID     DBVarchar `gorm:"size:36;not null;index:idx_sa_response_id;index:idx_sa_response_mapping"`
 	QuestionName   string    `gorm:"type:varchar(256);not null"`
 	QuestionType   string    `gorm:"type:varchar(64);not null"`
 	QuestionTitle  *string   `gorm:"type:varchar(1024)"`
@@ -206,7 +206,7 @@ func (SurveyAnswer) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (s *SurveyAnswer) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
-		s.ID = uuid.New().String()
+		s.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }

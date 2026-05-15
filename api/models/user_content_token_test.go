@@ -32,14 +32,14 @@ func TestUserContentToken_BeforeCreate_GeneratesUUID(t *testing.T) {
 	tok := &UserContentToken{}
 	err := tok.BeforeCreate(nil)
 	require.NoError(t, err)
-	_, err = uuid.Parse(tok.ID)
+	_, err = uuid.Parse(string(tok.ID))
 	assert.NoError(t, err)
 }
 
 func TestUserContentToken_BeforeCreate_PreservesExistingID(t *testing.T) {
 	id := uuid.New().String()
-	tok := &UserContentToken{ID: id, CreatedAt: time.Now()}
+	tok := &UserContentToken{ID: DBVarchar(id), CreatedAt: time.Now()}
 	err := tok.BeforeCreate(nil)
 	require.NoError(t, err)
-	assert.Equal(t, id, tok.ID)
+	assert.Equal(t, id, string(tok.ID))
 }

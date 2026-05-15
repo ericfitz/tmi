@@ -36,7 +36,7 @@ func GetGroupUUIDsByNames(ctx context.Context, db *gorm.DB, provider string, gro
 
 	groupUUIDs := make([]uuid.UUID, 0, len(groups))
 	for _, g := range groups {
-		if groupUUID, err := uuid.Parse(g.InternalUUID); err == nil {
+		if groupUUID, err := uuid.Parse(string(g.InternalUUID)); err == nil {
 			groupUUIDs = append(groupUUIDs, groupUUID)
 		}
 	}

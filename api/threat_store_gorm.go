@@ -61,7 +61,7 @@ func (s *GormThreatRepository) Create(ctx context.Context, threat *Threat) error
 	// Use GORM's standard Create - this handles all type conversions correctly
 	// (StringArray, OracleBool, etc.) across different database dialects.
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		alias, err := AllocateNextAlias(ctx, tx, gormThreat.ThreatModelID, "threat")
+		alias, err := AllocateNextAlias(ctx, tx, string(gormThreat.ThreatModelID), "threat")
 		if err != nil {
 			return fmt.Errorf("allocate threat alias: %w", err)
 		}
@@ -768,7 +768,7 @@ func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat)
 	// whole transaction so the allocations are atomic with the insert.
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		for i := range gormThreats {
-			alias, err := AllocateNextAlias(ctx, tx, gormThreats[i].ThreatModelID, "threat")
+			alias, err := AllocateNextAlias(ctx, tx, string(gormThreats[i].ThreatModelID), "threat")
 			if err != nil {
 				return fmt.Errorf("allocate threat alias: %w", err)
 			}
@@ -910,9 +910,9 @@ func (s *GormThreatRepository) saveMetadataTx(tx *gorm.DB, threatID string, meta
 	if metadata != nil && len(*metadata) > 0 {
 		for _, m := range *metadata {
 			entry := models.Metadata{
-				ID:         uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String(),
+				ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
 				EntityType: "threat",
-				EntityID:   threatID,
+				EntityID:   models.DBVarchar(threatID),
 				Key:        m.Key,
 				Value:      m.Value,
 			}
@@ -1099,8 +1099,8 @@ func (s *GormThreatRepository) toGormModelForCreate(threat *Threat) *models.Thre
 	now := time.Now().UTC()
 
 	gm := &models.Threat{
-		ID:            id,
-		ThreatModelID: threatModelID,
+		ID:            models.DBVarchar(id),
+		ThreatModelID: models.DBVarchar(threatModelID),
 		Name:          threat.Name,
 		ThreatType:    models.StringArray(threat.ThreatType),
 		CreatedAt:     now,
@@ -1142,15 +1142,15 @@ func (s *GormThreatRepository) toGormModelForCreate(threat *Threat) *models.Thre
 	}
 	if threat.DiagramId != nil {
 		diagID := threat.DiagramId.String()
-		gm.DiagramID = &diagID
+		gm.DiagramID = models.NewNullableDBVarchar(&diagID)
 	}
 	if threat.CellId != nil {
 		cellID := threat.CellId.String()
-		gm.CellID = &cellID
+		gm.CellID = models.NewNullableDBVarchar(&cellID)
 	}
 	if threat.AssetId != nil {
 		assetID := threat.AssetId.String()
-		gm.AssetID = &assetID
+		gm.AssetID = models.NewNullableDBVarchar(&assetID)
 	}
 	if threat.CweId != nil && len(*threat.CweId) > 0 {
 		gm.CweID = models.StringArray(*threat.CweId)
@@ -1199,12 +1199,12 @@ func (s *GormThreatRepository) toAPIModel(gm *models.Threat) *Threat {
 	}
 
 	if gm.ID != "" {
-		if id, err := uuid.Parse(gm.ID); err == nil {
+		if id, err := uuid.Parse(string(gm.ID)); err == nil {
 			threat.Id = &id
 		}
 	}
 	if gm.ThreatModelID != "" {
-		if tmID, err := uuid.Parse(gm.ThreatModelID); err == nil {
+		if tmID, err := uuid.Parse(string(gm.ThreatModelID)); err == nil {
 			threat.ThreatModelId = &tmID
 		}
 	}
@@ -1230,18 +1230,18 @@ func (s *GormThreatRepository) toAPIModel(gm *models.Threat) *Threat {
 	if gm.IssueURI != nil {
 		threat.IssueUri = gm.IssueURI
 	}
-	if gm.DiagramID != nil {
-		if diagID, err := uuid.Parse(*gm.DiagramID); err == nil {
+	if gm.DiagramID.Valid {
+		if diagID, err := uuid.Parse(gm.DiagramID.String); err == nil {
 			threat.DiagramId = &diagID
 		}
 	}
-	if gm.CellID != nil {
-		if cellID, err := uuid.Parse(*gm.CellID); err == nil {
+	if gm.CellID.Valid {
+		if cellID, err := uuid.Parse(gm.CellID.String); err == nil {
 			threat.CellId = &cellID
 		}
 	}
-	if gm.AssetID != nil {
-		if assetID, err := uuid.Parse(*gm.AssetID); err == nil {
+	if gm.AssetID.Valid {
+		if assetID, err := uuid.Parse(gm.AssetID.String); err == nil {
 			threat.AssetId = &assetID
 		}
 	}

@@ -101,7 +101,7 @@ func (h *ContentFeedbackHandler) Get(c *gin.Context) {
 		HandleRequestError(c, mapDBError(err))
 		return
 	}
-	if row.ThreatModelID != tmID {
+	if string(row.ThreatModelID) != tmID {
 		// Don't leak existence across TMs — return 404.
 		HandleRequestError(c, NotFoundError("feedback not found"))
 		return
@@ -260,16 +260,16 @@ func resolveContentFeedbackTarget(tmID string, in *ContentFeedbackInput) (Conten
 
 func buildContentFeedbackModel(in *ContentFeedbackInput, tmID, userInternalUUID string) *models.ContentFeedback {
 	row := &models.ContentFeedback{
-		ThreatModelID: tmID,
+		ThreatModelID: models.DBVarchar(tmID),
 		TargetType:    string(in.TargetType),
-		TargetID:      in.TargetId.String(),
+		TargetID:      models.DBVarchar(in.TargetId.String()),
 		TargetField:   in.TargetField,
 		Sentiment:     string(in.Sentiment),
 		Verbatim:      in.Verbatim,
 		ClientID:      in.ClientId,
 		ClientVersion: in.ClientVersion,
 		Screenshot:    models.NewNullableDBText(in.Screenshot),
-		CreatedByUUID: userInternalUUID,
+		CreatedByUUID: models.DBVarchar(userInternalUUID),
 	}
 	if in.FalsePositiveReason != nil {
 		s := string(*in.FalsePositiveReason)
@@ -284,17 +284,17 @@ func buildContentFeedbackModel(in *ContentFeedbackInput, tmID, userInternalUUID 
 
 func modelToContentFeedback(row *models.ContentFeedback) ContentFeedback {
 	out := ContentFeedback{
-		Id:            uuidMustParse(row.ID),
-		ThreatModelId: uuidMustParse(row.ThreatModelID),
+		Id:            uuidMustParse(string(row.ID)),
+		ThreatModelId: uuidMustParse(string(row.ThreatModelID)),
 		TargetType:    ContentFeedbackTargetType(row.TargetType),
-		TargetId:      uuidMustParse(row.TargetID),
+		TargetId:      uuidMustParse(string(row.TargetID)),
 		TargetField:   row.TargetField,
 		Sentiment:     ContentFeedbackSentiment(row.Sentiment),
 		Verbatim:      row.Verbatim,
 		ClientId:      row.ClientID,
 		ClientVersion: row.ClientVersion,
 		Screenshot:    row.Screenshot.Ptr(),
-		CreatedBy:     uuidMustParse(row.CreatedByUUID),
+		CreatedBy:     uuidMustParse(string(row.CreatedByUUID)),
 		CreatedAt:     row.CreatedAt,
 	}
 	if row.FalsePositiveReason != nil {

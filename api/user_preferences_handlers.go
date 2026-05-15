@@ -161,8 +161,8 @@ func (s *Server) CreateCurrentUserPreferences(c *gin.Context) {
 	// Create new preferences
 	now := time.Now()
 	pref := models.UserPreference{
-		ID:               uuid.New().String(),
-		UserInternalUUID: userUUID,
+		ID:               models.DBVarchar(uuid.New().String()),
+		UserInternalUUID: models.DBVarchar(userUUID),
 		Preferences:      models.JSONRaw(body),
 		CreatedAt:        now,
 		ModifiedAt:       now,
@@ -237,8 +237,8 @@ func (s *Server) UpdateCurrentUserPreferences(c *gin.Context) {
 	case errors.Is(result.Error, gorm.ErrRecordNotFound):
 		// Create new preferences
 		pref := models.UserPreference{
-			ID:               uuid.New().String(),
-			UserInternalUUID: userUUID,
+			ID:               models.DBVarchar(uuid.New().String()),
+			UserInternalUUID: models.DBVarchar(userUUID),
 			Preferences:      models.JSONRaw(body),
 			CreatedAt:        now,
 			ModifiedAt:       now,

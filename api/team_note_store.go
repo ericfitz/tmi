@@ -37,13 +37,13 @@ func NewGormTeamNoteStore(db *gorm.DB) *GormTeamNoteStore {
 // teamNoteToRecord converts an API TeamNote to a GORM record
 func teamNoteToRecord(note *TeamNote, teamID string) *models.TeamNoteRecord {
 	record := &models.TeamNoteRecord{
-		TeamID:  teamID,
+		TeamID:  models.DBVarchar(teamID),
 		Name:    note.Name,
 		Content: models.DBText(note.Content),
 	}
 
 	if note.Id != nil {
-		record.ID = note.Id.String()
+		record.ID = models.DBVarchar(note.Id.String())
 	}
 	if note.Description != nil {
 		record.Description = note.Description
@@ -64,7 +64,7 @@ func teamNoteToRecord(note *TeamNote, teamID string) *models.TeamNoteRecord {
 
 // teamNoteFromRecord converts a GORM record to an API TeamNote
 func teamNoteFromRecord(record *models.TeamNoteRecord) *TeamNote {
-	id := uuid.MustParse(record.ID)
+	id := uuid.MustParse(string(record.ID))
 	sharable := bool(record.Sharable)
 	timmyEnabled := bool(record.TimmyEnabled)
 	createdAt := record.CreatedAt
@@ -84,7 +84,7 @@ func teamNoteFromRecord(record *models.TeamNoteRecord) *TeamNote {
 
 // teamNoteListItemFromRecord converts a GORM record to an API TeamNoteListItem
 func teamNoteListItemFromRecord(record *models.TeamNoteRecord) TeamNoteListItem {
-	id := uuid.MustParse(record.ID)
+	id := uuid.MustParse(string(record.ID))
 	sharable := bool(record.Sharable)
 	timmyEnabled := bool(record.TimmyEnabled)
 	createdAt := record.CreatedAt
@@ -124,7 +124,7 @@ func (s *GormTeamNoteStore) Create(ctx context.Context, note *TeamNote, teamID s
 	}
 
 	record := teamNoteToRecord(note, teamID)
-	record.ID = note.Id.String()
+	record.ID = models.DBVarchar(note.Id.String())
 
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(record).Error; err != nil {
@@ -174,7 +174,7 @@ func (s *GormTeamNoteStore) Update(ctx context.Context, id string, note *TeamNot
 	}
 
 	// Verify the note belongs to the specified team
-	if existing.TeamID != teamID {
+	if string(existing.TeamID) != teamID {
 		return nil, ErrTeamNoteNotFound
 	}
 
@@ -252,7 +252,7 @@ func (s *GormTeamNoteStore) Patch(ctx context.Context, id string, operations []P
 		return nil, dberrors.Classify(err)
 	}
 
-	return s.Update(ctx, id, &patched, record.TeamID)
+	return s.Update(ctx, id, &patched, string(record.TeamID))
 }
 
 // List returns a paginated list of team notes for a team

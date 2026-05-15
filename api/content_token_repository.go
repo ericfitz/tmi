@@ -153,7 +153,7 @@ func (r *GormContentTokenRepository) Upsert(ctx context.Context, token *ContentT
 		return classified
 	}
 	// Back-fill the generated ID so the caller can use it immediately.
-	token.ID = row.ID
+	token.ID = string(row.ID)
 	return nil
 }
 
@@ -173,7 +173,7 @@ func (r *GormContentTokenRepository) UpdateStatus(ctx context.Context, id, statu
 
 // Delete removes the token with the given ID.
 func (r *GormContentTokenRepository) Delete(ctx context.Context, id string) error {
-	res := r.db.WithContext(ctx).Delete(&models.UserContentToken{ID: id})
+	res := r.db.WithContext(ctx).Delete(&models.UserContentToken{ID: models.DBVarchar(id)})
 	if res.Error != nil {
 		return dberrors.Classify(res.Error)
 	}
@@ -270,8 +270,8 @@ func (r *GormContentTokenRepository) encode(t *ContentToken) (*models.UserConten
 		status = ContentTokenStatusActive
 	}
 	row := &models.UserContentToken{
-		ID:            t.ID,
-		UserID:        t.UserID,
+		ID:            models.DBVarchar(t.ID),
+		UserID:        models.DBVarchar(t.UserID),
 		ProviderID:    t.ProviderID,
 		AccessToken:   models.DBBytes(atCipher),
 		RefreshToken:  models.DBBytes(rtCipher),
@@ -306,8 +306,8 @@ func (r *GormContentTokenRepository) decode(row *models.UserContentToken) (*Cont
 		}
 	}
 	out := &ContentToken{
-		ID:            row.ID,
-		UserID:        row.UserID,
+		ID:            string(row.ID),
+		UserID:        string(row.UserID),
 		ProviderID:    row.ProviderID,
 		AccessToken:   string(at),
 		RefreshToken:  string(rt),

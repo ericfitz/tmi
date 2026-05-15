@@ -38,7 +38,7 @@ func setupThreatModelAliasTestDB(t *testing.T) (*gorm.DB, *models.User) {
 
 	providerID := "tm-alias-test-user"
 	user := &models.User{
-		InternalUUID:   uuid.New().String(),
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
 		ProviderUserID: &providerID,
 		Email:          "alice@example.com",

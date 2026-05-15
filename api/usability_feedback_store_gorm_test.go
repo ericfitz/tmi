@@ -39,7 +39,7 @@ func TestGormUsabilityFeedbackRepository_CreateAndGet(t *testing.T) {
 	// Create the prerequisite user row.
 	aliceProviderIDVal := aliceTestProviderID
 	user := &models.User{
-		InternalUUID:   uuid.New().String(),
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
 		ProviderUserID: &aliceProviderIDVal,
 		Email:          "alice@example.com",
@@ -56,7 +56,7 @@ func TestGormUsabilityFeedbackRepository_CreateAndGet(t *testing.T) {
 	require.NoError(t, repo.Create(context.Background(), fb))
 	require.NotEmpty(t, fb.ID)
 
-	got, err := repo.Get(context.Background(), fb.ID)
+	got, err := repo.Get(context.Background(), string(fb.ID))
 	require.NoError(t, err)
 	assert.Equal(t, "up", got.Sentiment)
 	assert.Equal(t, "tm_list", got.Surface)
@@ -72,7 +72,7 @@ func TestGormUsabilityFeedbackRepository_ListWithFilters(t *testing.T) {
 
 	aliceProviderIDVal2 := aliceTestProviderID
 	user := &models.User{
-		InternalUUID:   uuid.New().String(),
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
 		ProviderUserID: &aliceProviderIDVal2,
 		Email:          "alice@example.com",
@@ -164,7 +164,7 @@ func TestGormUsabilityFeedbackRepository_Create_SetsCreatedAtExplicitly(t *testi
 
 	providerID := aliceTestProviderID
 	user := &models.User{
-		InternalUUID:   uuid.New().String(),
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
 		ProviderUserID: &providerID,
 		Email:          "alice@example.com",

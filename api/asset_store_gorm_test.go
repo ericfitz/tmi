@@ -31,7 +31,7 @@ func setupAssetTestDB(t *testing.T) (*gorm.DB, *models.User, *models.ThreatModel
 	))
 
 	user := &models.User{
-		InternalUUID:   uuid.New().String(),
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
 		ProviderUserID: strPtr("asset-test-user"),
 		Email:          "alice@example.com",
@@ -40,7 +40,7 @@ func setupAssetTestDB(t *testing.T) (*gorm.DB, *models.User, *models.ThreatModel
 	require.NoError(t, db.Create(user).Error)
 
 	tm := &models.ThreatModel{
-		ID:                    uuid.New().String(),
+		ID:                    models.DBVarchar(uuid.New().String()),
 		OwnerInternalUUID:     user.InternalUUID,
 		CreatedByInternalUUID: user.InternalUUID,
 		Name:                  "Test TM for Assets",
@@ -62,7 +62,7 @@ func TestGormAssetRepository_CreateAssignsAlias(t *testing.T) {
 		Type: AssetTypeSoftware,
 	}
 
-	require.NoError(t, repo.Create(ctx, asset, tm.ID))
+	require.NoError(t, repo.Create(ctx, asset, string(tm.ID)))
 
 	stored, err := repo.Get(ctx, assetID.String())
 	require.NoError(t, err)

@@ -104,13 +104,13 @@ func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInt
 
 	// Build the project record
 	record := models.ProjectRecord{
-		ID:                    project.Id.String(),
+		ID:                    models.DBVarchar(project.Id.String()),
 		Name:                  project.Name,
 		Description:           project.Description,
-		TeamID:                project.TeamId.String(),
+		TeamID:                models.DBVarchar(project.TeamId.String()),
 		URI:                   project.Uri,
 		Status:                projectStatusToString(project.Status),
-		CreatedByInternalUUID: userInternalUUID,
+		CreatedByInternalUUID: models.DBVarchar(userInternalUUID),
 	}
 
 	// Begin transaction (with retry on transient errors)
@@ -123,14 +123,14 @@ func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInt
 
 		// Save responsible parties
 		if project.ResponsibleParties != nil {
-			if err := s.saveResponsibleParties(tx, record.ID, *project.ResponsibleParties); err != nil {
+			if err := s.saveResponsibleParties(tx, string(record.ID), *project.ResponsibleParties); err != nil {
 				return err
 			}
 		}
 
 		// Save relationships
 		if project.RelatedProjects != nil {
-			if err := s.saveRelationships(tx, record.ID, *project.RelatedProjects); err != nil {
+			if err := s.saveRelationships(tx, string(record.ID), *project.RelatedProjects); err != nil {
 				return err
 			}
 		}
@@ -142,7 +142,7 @@ func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInt
 
 	// Save metadata outside the transaction (uses its own transaction internally)
 	if project.Metadata != nil && len(*project.Metadata) > 0 {
-		if err := saveEntityMetadata(s.db.WithContext(ctx), "project", record.ID, *project.Metadata); err != nil {
+		if err := saveEntityMetadata(s.db.WithContext(ctx), "project", string(record.ID), *project.Metadata); err != nil {
 			logger.Error("failed to save metadata for project: id=%s, error=%v", record.ID, err)
 			return nil, dberrors.Classify(err)
 		}
@@ -151,7 +151,7 @@ func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInt
 	logger.Info("project created: id=%s, name=%s, team_id=%s", record.ID, record.Name, record.TeamID)
 
 	// Return the full project via Get
-	return s.Get(ctx, record.ID)
+	return s.Get(ctx, string(record.ID))
 }
 
 // Get retrieves a project by ID
@@ -219,7 +219,7 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 
 	// Validate team_id if changed
 	newTeamID := project.TeamId.String()
-	if newTeamID != existing.TeamID {
+	if newTeamID != string(existing.TeamID) {
 		var teamCount int64
 		if err := s.db.WithContext(ctx).Model(&models.TeamRecord{}).
 			Where(map[string]any{"id": newTeamID}).
@@ -517,7 +517,7 @@ func (s *GormProjectStore) GetTeamID(ctx context.Context, projectID string) (str
 		return "", dberrors.Classify(result.Error)
 	}
 
-	return record.TeamID, nil
+	return string(record.TeamID), nil
 }
 
 // HasThreatModels checks if a project has any associated threat models
@@ -620,8 +620,8 @@ func (s *GormProjectStore) detectProjectCycle(ctx context.Context, sourceID, tar
 				return dberrors.Classify(err)
 			}
 			for _, r := range rels {
-				if !visited[r.RelatedProjectID] {
-					nextQueue = append(nextQueue, r.RelatedProjectID)
+				if !visited[string(r.RelatedProjectID)] {
+					nextQueue = append(nextQueue, string(r.RelatedProjectID))
 				}
 			}
 		}
@@ -637,8 +637,8 @@ func (s *GormProjectStore) saveResponsibleParties(tx *gorm.DB, projectID string,
 
 	for _, party := range parties {
 		record := models.ProjectResponsiblePartyRecord{
-			ProjectID:        projectID,
-			UserInternalUUID: party.UserId.String(),
+			ProjectID:        models.DBVarchar(projectID),
+			UserInternalUUID: models.DBVarchar(party.UserId.String()),
 			CustomRole:       party.CustomRole,
 		}
 		if party.Role != nil {
@@ -674,8 +674,8 @@ func (s *GormProjectStore) saveRelationships(tx *gorm.DB, projectID string, rela
 
 	for _, rel := range relationships {
 		record := models.ProjectRelationshipRecord{
-			ProjectID:          projectID,
-			RelatedProjectID:   rel.RelatedProjectId.String(),
+			ProjectID:          models.DBVarchar(projectID),
+			RelatedProjectID:   models.DBVarchar(rel.RelatedProjectId.String()),
 			Relationship:       string(rel.Relationship),
 			CustomRelationship: rel.CustomRelationship,
 		}
@@ -701,7 +701,7 @@ func (s *GormProjectStore) loadResponsibleParties(ctx context.Context, projectID
 
 	parties := make([]ResponsibleParty, 0, len(records))
 	for _, r := range records {
-		userID, err := uuid.Parse(r.UserInternalUUID)
+		userID, err := uuid.Parse(string(r.UserInternalUUID))
 		if err != nil {
 			continue
 		}
@@ -735,7 +735,7 @@ func (s *GormProjectStore) loadRelationships(ctx context.Context, projectID stri
 
 	relationships := make([]RelatedProject, 0, len(records))
 	for _, r := range records {
-		relatedID, err := uuid.Parse(r.RelatedProjectID)
+		relatedID, err := uuid.Parse(string(r.RelatedProjectID))
 		if err != nil {
 			continue
 		}
@@ -753,8 +753,8 @@ func (s *GormProjectStore) loadRelationships(ctx context.Context, projectID stri
 
 // recordToAPI converts a ProjectRecord and associated data to an API Project type
 func (s *GormProjectStore) recordToAPI(record *models.ProjectRecord, responsibleParties []ResponsibleParty, relationships []RelatedProject, metadata []Metadata) *Project {
-	projectID := uuid.MustParse(record.ID)
-	teamID := uuid.MustParse(record.TeamID)
+	projectID := uuid.MustParse(string(record.ID))
+	teamID := uuid.MustParse(string(record.TeamID))
 
 	project := &Project{
 		Id:          &projectID,
@@ -804,7 +804,7 @@ func (s *GormProjectStore) recordToAPI(record *models.ProjectRecord, responsible
 
 // teamRecordToTeamRef converts a TeamRecord to an API Team reference (minimal)
 func (s *GormProjectStore) teamRecordToTeamRef(record *models.TeamRecord) *Team {
-	teamID := uuid.MustParse(record.ID)
+	teamID := uuid.MustParse(string(record.ID))
 	return &Team{
 		Id:          &teamID,
 		Name:        record.Name,
@@ -871,10 +871,10 @@ func (s *GormProjectStore) collectTransitiveRelatedIDs(ctx context.Context, star
 				continue
 			}
 			for _, r := range rels {
-				if !visited[r.RelatedProjectID] {
-					visited[r.RelatedProjectID] = true
-					result = append(result, r.RelatedProjectID)
-					nextQueue = append(nextQueue, r.RelatedProjectID)
+				if !visited[string(r.RelatedProjectID)] {
+					visited[string(r.RelatedProjectID)] = true
+					result = append(result, string(r.RelatedProjectID))
+					nextQueue = append(nextQueue, string(r.RelatedProjectID))
 				}
 			}
 
@@ -887,10 +887,10 @@ func (s *GormProjectStore) collectTransitiveRelatedIDs(ctx context.Context, star
 				continue
 			}
 			for _, r := range reverseRels {
-				if !visited[r.ProjectID] {
-					visited[r.ProjectID] = true
-					result = append(result, r.ProjectID)
-					nextQueue = append(nextQueue, r.ProjectID)
+				if !visited[string(r.ProjectID)] {
+					visited[string(r.ProjectID)] = true
+					result = append(result, string(r.ProjectID))
+					nextQueue = append(nextQueue, string(r.ProjectID))
 				}
 			}
 		}

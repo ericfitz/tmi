@@ -131,7 +131,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 		// Add owner access entry
 		ownerAccess := models.SurveyResponseAccess{
 			SurveyResponseID: model.ID,
-			UserInternalUUID: &userInternalUUID,
+			UserInternalUUID: models.NewNullableDBVarchar(&userInternalUUID),
 			SubjectType:      "user",
 			Role:             string(AuthorizationRoleOwner),
 		}
@@ -148,7 +148,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 			}
 			reviewersAccess := models.SurveyResponseAccess{
 				SurveyResponseID:  model.ID,
-				GroupInternalUUID: &groupUUID,
+				GroupInternalUUID: models.NewNullableDBVarchar(&groupUUID),
 				SubjectType:       "group",
 				Role:              string(AuthorizationRoleOwner),
 			}
@@ -162,7 +162,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 			}
 			reviewersAccess := models.SurveyResponseAccess{
 				SurveyResponseID:  model.ID,
-				GroupInternalUUID: &groupUUID,
+				GroupInternalUUID: models.NewNullableDBVarchar(&groupUUID),
 				SubjectType:       "group",
 				Role:              string(AuthorizationRoleOwner),
 			}
@@ -178,7 +178,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 		}
 		automationAccess := models.SurveyResponseAccess{
 			SurveyResponseID:  model.ID,
-			GroupInternalUUID: &automationGroupUUID,
+			GroupInternalUUID: models.NewNullableDBVarchar(&automationGroupUUID),
 			SubjectType:       "group",
 			Role:              string(AuthorizationRoleWriter),
 		}
@@ -232,7 +232,7 @@ func (s *GormSurveyResponseStore) ensureBuiltInGroup(tx *gorm.DB, groupKey, grou
 	var group models.Group
 	result := tx.Where("group_name = ? AND provider = ?", groupKey, BuiltInProvider).First(&group)
 	if result.Error == nil {
-		return group.InternalUUID, nil
+		return string(group.InternalUUID), nil
 	}
 	if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return "", dberrors.Classify(result.Error)
@@ -245,7 +245,7 @@ func (s *GormSurveyResponseStore) ensureBuiltInGroup(tx *gorm.DB, groupKey, grou
 	}
 
 	group = models.Group{
-		InternalUUID: groupUUID,
+		InternalUUID: models.DBVarchar(groupUUID),
 		Provider:     BuiltInProvider,
 		GroupName:    groupKey,
 		Name:         &groupDisplay,
@@ -260,12 +260,12 @@ func (s *GormSurveyResponseStore) ensureBuiltInGroup(tx *gorm.DB, groupKey, grou
 		// Race recovery: re-fetch the row that another transaction must have created.
 		var existingGroup models.Group
 		if fetchErr := tx.Where("group_name = ? AND provider = ?", groupKey, BuiltInProvider).First(&existingGroup).Error; fetchErr == nil {
-			return existingGroup.InternalUUID, nil
+			return string(existingGroup.InternalUUID), nil
 		}
 		return "", dberrors.Classify(err)
 	}
 
-	return group.InternalUUID, nil
+	return string(group.InternalUUID), nil
 }
 
 // ensureSecurityReviewersGroup ensures the Security Reviewers group exists and returns its UUID
@@ -639,7 +639,7 @@ func (s *GormSurveyResponseStore) UpdateAuthorization(ctx context.Context, id uu
 		// Create new entries
 		for _, auth := range authorization {
 			access := models.SurveyResponseAccess{
-				SurveyResponseID: id.String(),
+				SurveyResponseID: models.DBVarchar(id.String()),
 				SubjectType:      string(auth.PrincipalType),
 				Role:             string(auth.Role),
 			}
@@ -650,13 +650,13 @@ func (s *GormSurveyResponseStore) UpdateAuthorization(ctx context.Context, id uu
 				if err != nil {
 					return err
 				}
-				access.UserInternalUUID = &userUUID
+				access.UserInternalUUID = models.NewNullableDBVarchar(&userUUID)
 			case AuthorizationPrincipalTypeGroup:
 				groupUUID, err := s.resolveGroupToUUID(tx, auth.ProviderId, &auth.Provider)
 				if err != nil {
 					return err
 				}
-				access.GroupInternalUUID = &groupUUID
+				access.GroupInternalUUID = models.NewNullableDBVarchar(&groupUUID)
 			}
 
 			if err := tx.Create(&access).Error; err != nil {
@@ -684,7 +684,7 @@ func (s *GormSurveyResponseStore) HasAccess(ctx context.Context, id uuid.UUID, u
 
 	groupUUIDs := make([]string, len(userGroups))
 	for i, g := range userGroups {
-		groupUUIDs[i] = g.GroupInternalUUID
+		groupUUIDs[i] = string(g.GroupInternalUUID)
 	}
 
 	// Check user's direct access and group access
@@ -752,8 +752,8 @@ func (s *GormSurveyResponseStore) SetCreatedThreatModel(ctx context.Context, id 
 				return dberrors.Classify(err)
 			}
 			if existing.Status == ResponseStatusReviewCreated &&
-				existing.CreatedThreatModelID != nil &&
-				*existing.CreatedThreatModelID == threatModelID {
+				existing.CreatedThreatModelID.Valid &&
+				existing.CreatedThreatModelID.String == threatModelID {
 				// Already transitioned to the requested state — treat as success.
 				return nil
 			}
@@ -810,7 +810,7 @@ func (s *GormSurveyResponseStore) resolveUserToUUID(tx *gorm.DB, providerUserID,
 		}
 		return "", dberrors.Classify(result.Error)
 	}
-	return user.InternalUUID, nil
+	return string(user.InternalUUID), nil
 }
 
 // resolveGroupToUUID resolves a group identifier to internal UUID
@@ -828,18 +828,18 @@ func (s *GormSurveyResponseStore) resolveGroupToUUID(tx *gorm.DB, groupName stri
 		}
 		return "", dberrors.Classify(result.Error)
 	}
-	return group.InternalUUID, nil
+	return string(group.InternalUUID), nil
 }
 
 // apiToModel converts an API SurveyResponse to a database model
 func (s *GormSurveyResponseStore) apiToModel(response *SurveyResponse, ownerInternalUUID string) (*models.SurveyResponse, error) {
 	model := &models.SurveyResponse{
-		TemplateID:        response.SurveyId.String(),
-		OwnerInternalUUID: &ownerInternalUUID,
+		TemplateID:        models.DBVarchar(response.SurveyId.String()),
+		OwnerInternalUUID: models.NewNullableDBVarchar(&ownerInternalUUID),
 	}
 
 	if response.Id != nil {
-		model.ID = response.Id.String()
+		model.ID = models.DBVarchar(response.Id.String())
 	}
 
 	if response.SurveyVersion != nil {
@@ -885,7 +885,7 @@ func (s *GormSurveyResponseStore) apiToModel(response *SurveyResponse, ownerInte
 
 	if response.LinkedThreatModelId != nil {
 		idStr := response.LinkedThreatModelId.String()
-		model.LinkedThreatModelID = &idStr
+		model.LinkedThreatModelID = models.NewNullableDBVarchar(&idStr)
 	}
 
 	if response.RevisionNotes != nil {
@@ -894,7 +894,7 @@ func (s *GormSurveyResponseStore) apiToModel(response *SurveyResponse, ownerInte
 
 	if response.ProjectId != nil {
 		s := response.ProjectId.String()
-		model.ProjectID = &s
+		model.ProjectID = models.NewNullableDBVarchar(&s)
 	}
 
 	return model, nil
@@ -902,12 +902,12 @@ func (s *GormSurveyResponseStore) apiToModel(response *SurveyResponse, ownerInte
 
 // modelToAPI converts a database model to an API SurveyResponse
 func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*SurveyResponse, error) {
-	id, err := uuid.Parse(model.ID)
+	id, err := uuid.Parse(string(model.ID))
 	if err != nil {
 		return nil, fmt.Errorf("invalid response ID: %w", err)
 	}
 
-	surveyID, err := uuid.Parse(model.TemplateID)
+	surveyID, err := uuid.Parse(string(model.TemplateID))
 	if err != nil {
 		return nil, fmt.Errorf("invalid survey ID: %w", err)
 	}
@@ -959,16 +959,16 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 	}
 
 	// Convert linked threat model ID
-	if model.LinkedThreatModelID != nil {
-		linkedID, err := uuid.Parse(*model.LinkedThreatModelID)
+	if model.LinkedThreatModelID.Valid {
+		linkedID, err := uuid.Parse(model.LinkedThreatModelID.String)
 		if err == nil {
 			response.LinkedThreatModelId = &linkedID
 		}
 	}
 
 	// Convert created threat model ID
-	if model.CreatedThreatModelID != nil {
-		createdID, err := uuid.Parse(*model.CreatedThreatModelID)
+	if model.CreatedThreatModelID.Valid {
+		createdID, err := uuid.Parse(model.CreatedThreatModelID.String)
 		if err == nil {
 			response.CreatedThreatModelId = &createdID
 		}
@@ -985,8 +985,8 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 	}
 
 	// Convert project_id
-	if model.ProjectID != nil && *model.ProjectID != "" {
-		pid, err := uuid.Parse(*model.ProjectID)
+	if model.ProjectID.Valid && model.ProjectID.String != "" {
+		pid, err := uuid.Parse(model.ProjectID.String)
 		if err == nil {
 			response.ProjectId = &pid
 		}
@@ -997,8 +997,8 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 
 // modelToListItem converts a database model to an API SurveyResponseListItem
 func (s *GormSurveyResponseStore) modelToListItem(model *models.SurveyResponse) SurveyResponseListItem {
-	id, _ := uuid.Parse(model.ID)
-	surveyID, _ := uuid.Parse(model.TemplateID)
+	id, _ := uuid.Parse(string(model.ID))
+	surveyID, _ := uuid.Parse(string(model.TemplateID))
 
 	item := SurveyResponseListItem{
 		Id:            &id,

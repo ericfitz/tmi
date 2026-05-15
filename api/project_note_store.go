@@ -37,13 +37,13 @@ func NewGormProjectNoteStore(db *gorm.DB) *GormProjectNoteStore {
 // projectNoteToRecord converts an API ProjectNote to a GORM record
 func projectNoteToRecord(note *ProjectNote, projectID string) *models.ProjectNoteRecord {
 	record := &models.ProjectNoteRecord{
-		ProjectID: projectID,
+		ProjectID: models.DBVarchar(projectID),
 		Name:      note.Name,
 		Content:   models.DBText(note.Content),
 	}
 
 	if note.Id != nil {
-		record.ID = note.Id.String()
+		record.ID = models.DBVarchar(note.Id.String())
 	}
 	if note.Description != nil {
 		record.Description = note.Description
@@ -64,7 +64,7 @@ func projectNoteToRecord(note *ProjectNote, projectID string) *models.ProjectNot
 
 // projectNoteFromRecord converts a GORM record to an API ProjectNote
 func projectNoteFromRecord(record *models.ProjectNoteRecord) *ProjectNote {
-	id := uuid.MustParse(record.ID)
+	id := uuid.MustParse(string(record.ID))
 	sharable := bool(record.Sharable)
 	timmyEnabled := bool(record.TimmyEnabled)
 	createdAt := record.CreatedAt
@@ -84,7 +84,7 @@ func projectNoteFromRecord(record *models.ProjectNoteRecord) *ProjectNote {
 
 // projectNoteListItemFromRecord converts a GORM record to an API ProjectNoteListItem
 func projectNoteListItemFromRecord(record *models.ProjectNoteRecord) ProjectNoteListItem {
-	id := uuid.MustParse(record.ID)
+	id := uuid.MustParse(string(record.ID))
 	sharable := bool(record.Sharable)
 	timmyEnabled := bool(record.TimmyEnabled)
 	createdAt := record.CreatedAt
@@ -124,7 +124,7 @@ func (s *GormProjectNoteStore) Create(ctx context.Context, note *ProjectNote, pr
 	}
 
 	record := projectNoteToRecord(note, projectID)
-	record.ID = note.Id.String()
+	record.ID = models.DBVarchar(note.Id.String())
 
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(record).Error; err != nil {
@@ -174,7 +174,7 @@ func (s *GormProjectNoteStore) Update(ctx context.Context, id string, note *Proj
 	}
 
 	// Verify the note belongs to the specified project
-	if existing.ProjectID != projectID {
+	if string(existing.ProjectID) != projectID {
 		return nil, ErrProjectNoteNotFound
 	}
 
@@ -252,7 +252,7 @@ func (s *GormProjectNoteStore) Patch(ctx context.Context, id string, operations 
 		return nil, dberrors.Classify(err)
 	}
 
-	return s.Update(ctx, id, &patched, record.ProjectID)
+	return s.Update(ctx, id, &patched, string(record.ProjectID))
 }
 
 // List returns a paginated list of project notes for a project

@@ -9,9 +9,9 @@ import (
 
 // TimmySession represents a chat session between a user and Timmy for a threat model
 type TimmySession struct {
-	ID               string     `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID    string     `gorm:"type:varchar(36);not null;index:idx_timmy_sessions_tm;index:idx_timmy_sessions_tm_user,priority:1"`
-	UserID           string     `gorm:"type:varchar(36);not null;index:idx_timmy_sessions_user;index:idx_timmy_sessions_tm_user,priority:2"`
+	ID               DBVarchar  `gorm:"primaryKey;size:36"`
+	ThreatModelID    DBVarchar  `gorm:"size:36;not null;index:idx_timmy_sessions_tm;index:idx_timmy_sessions_tm_user,priority:1"`
+	UserID           DBVarchar  `gorm:"size:36;not null;index:idx_timmy_sessions_user;index:idx_timmy_sessions_tm_user,priority:2"`
 	Title            string     `gorm:"type:varchar(256)"`
 	SourceSnapshot   JSONRaw    `gorm:""`
 	SystemPromptHash string     `gorm:"type:varchar(64)"`
@@ -33,7 +33,7 @@ func (TimmySession) TableName() string {
 // BeforeCreate generates a UUID and sets default status if not set
 func (s *TimmySession) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
-		s.ID = uuid.New().String()
+		s.ID = DBVarchar(uuid.New().String())
 	}
 	if s.Status == "" {
 		s.Status = "active"
@@ -43,8 +43,8 @@ func (s *TimmySession) BeforeCreate(tx *gorm.DB) error {
 
 // TimmyMessage represents a single message in a Timmy chat session
 type TimmyMessage struct {
-	ID         string    `gorm:"primaryKey;type:varchar(36)"`
-	SessionID  string    `gorm:"type:varchar(36);not null;index:idx_timmy_messages_session;uniqueIndex:idx_timmy_messages_session_seq,priority:1"`
+	ID         DBVarchar `gorm:"primaryKey;size:36"`
+	SessionID  DBVarchar `gorm:"size:36;not null;index:idx_timmy_messages_session;uniqueIndex:idx_timmy_messages_session_seq,priority:1"`
 	Role       string    `gorm:"type:varchar(20);not null"`
 	Content    DBText    `gorm:"not null"`
 	TokenCount int       `gorm:"default:0"`
@@ -63,17 +63,17 @@ func (TimmyMessage) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (m *TimmyMessage) BeforeCreate(tx *gorm.DB) error {
 	if m.ID == "" {
-		m.ID = uuid.New().String()
+		m.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
 
 // TimmyEmbedding represents a vector embedding for a chunk of threat model content
 type TimmyEmbedding struct {
-	ID             string    `gorm:"primaryKey;type:varchar(36)"`
-	ThreatModelID  string    `gorm:"type:varchar(36);not null;index:idx_timmy_embeddings_tm;index:idx_timmy_embeddings_entity,priority:1"`
+	ID             DBVarchar `gorm:"primaryKey;size:36"`
+	ThreatModelID  DBVarchar `gorm:"size:36;not null;index:idx_timmy_embeddings_tm;index:idx_timmy_embeddings_entity,priority:1"`
 	EntityType     string    `gorm:"type:varchar(30);not null;index:idx_timmy_embeddings_entity,priority:2"`
-	EntityID       string    `gorm:"type:varchar(36);not null;index:idx_timmy_embeddings_entity,priority:3"`
+	EntityID       DBVarchar `gorm:"size:36;not null;index:idx_timmy_embeddings_entity,priority:3"`
 	ChunkIndex     int       `gorm:"not null;index:idx_timmy_embeddings_entity,priority:4"`
 	IndexType      string    `gorm:"type:varchar(10);not null;default:text;index:idx_timmy_embeddings_entity,priority:5"`
 	ContentHash    string    `gorm:"type:varchar(64);not null"`
@@ -95,17 +95,17 @@ func (TimmyEmbedding) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (e *TimmyEmbedding) BeforeCreate(tx *gorm.DB) error {
 	if e.ID == "" {
-		e.ID = uuid.New().String()
+		e.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
 
 // TimmyUsage tracks LLM token usage for billing and monitoring
 type TimmyUsage struct {
-	ID               string    `gorm:"primaryKey;type:varchar(36)"`
-	UserID           string    `gorm:"type:varchar(36);not null;index:idx_timmy_usage_user"`
-	SessionID        string    `gorm:"type:varchar(36);not null;index:idx_timmy_usage_session"`
-	ThreatModelID    string    `gorm:"type:varchar(36);not null;index:idx_timmy_usage_tm"`
+	ID               DBVarchar `gorm:"primaryKey;size:36"`
+	UserID           DBVarchar `gorm:"size:36;not null;index:idx_timmy_usage_user"`
+	SessionID        DBVarchar `gorm:"size:36;not null;index:idx_timmy_usage_session"`
+	ThreatModelID    DBVarchar `gorm:"size:36;not null;index:idx_timmy_usage_tm"`
 	MessageCount     int       `gorm:"default:0"`
 	PromptTokens     int       `gorm:"default:0"`
 	CompletionTokens int       `gorm:"default:0"`
@@ -127,7 +127,7 @@ func (TimmyUsage) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (u *TimmyUsage) BeforeCreate(tx *gorm.DB) error {
 	if u.ID == "" {
-		u.ID = uuid.New().String()
+		u.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }

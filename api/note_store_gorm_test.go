@@ -31,7 +31,7 @@ func setupNoteTestDB(t *testing.T) (*gorm.DB, *models.User, *models.ThreatModel)
 	))
 
 	user := &models.User{
-		InternalUUID:   uuid.New().String(),
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
 		ProviderUserID: strPtr("note-test-user"),
 		Email:          "alice@example.com",
@@ -40,7 +40,7 @@ func setupNoteTestDB(t *testing.T) (*gorm.DB, *models.User, *models.ThreatModel)
 	require.NoError(t, db.Create(user).Error)
 
 	tm := &models.ThreatModel{
-		ID:                    uuid.New().String(),
+		ID:                    models.DBVarchar(uuid.New().String()),
 		OwnerInternalUUID:     user.InternalUUID,
 		CreatedByInternalUUID: user.InternalUUID,
 		Name:                  "Test TM for Notes",
@@ -62,7 +62,7 @@ func TestGormNoteRepository_CreateAssignsAlias(t *testing.T) {
 		Content: "Some note content",
 	}
 
-	require.NoError(t, repo.Create(ctx, note, tm.ID))
+	require.NoError(t, repo.Create(ctx, note, string(tm.ID)))
 
 	stored, err := repo.Get(ctx, noteID.String())
 	require.NoError(t, err)

@@ -315,7 +315,7 @@ func (s *GormAssetRepository) hardDeleteAsset(ctx context.Context, id string) er
 			EntityType:    "asset",
 			EntityID:      id,
 			ParentType:    "threat_model",
-			ParentID:      gormAsset.ThreatModelID,
+			ParentID:      string(gormAsset.ThreatModelID),
 			OperationType: "delete",
 			Strategy:      InvalidateImmediately,
 		}
@@ -381,7 +381,7 @@ func (s *GormAssetRepository) List(ctx context.Context, threatModelID string, of
 		asset := s.toAPIModel(&ga)
 
 		// Load metadata for this asset
-		metadata, metaErr := s.loadMetadata(ctx, ga.ID)
+		metadata, metaErr := s.loadMetadata(ctx, string(ga.ID))
 		if metaErr != nil {
 			logger.Error("Failed to load metadata for asset %s: %v", ga.ID, metaErr)
 			metadata = []Metadata{}
@@ -610,7 +610,7 @@ func (s *GormAssetRepository) getAssetThreatModelID(ctx context.Context, assetID
 		}
 		return "", dberrors.Classify(err)
 	}
-	return gormAsset.ThreatModelID, nil
+	return string(gormAsset.ThreatModelID), nil
 }
 
 // Count returns the total number of assets for a threat model
@@ -680,13 +680,13 @@ func (s *GormAssetRepository) saveMetadata(ctx context.Context, assetID string, 
 // toGormModel converts an API Asset to a GORM model
 func (s *GormAssetRepository) toGormModel(asset *Asset, threatModelID string) *models.Asset {
 	gm := &models.Asset{
-		ThreatModelID: threatModelID,
+		ThreatModelID: models.DBVarchar(threatModelID),
 		Name:          asset.Name,
 		Type:          string(asset.Type),
 	}
 
 	if asset.Id != nil {
-		gm.ID = asset.Id.String()
+		gm.ID = models.DBVarchar(asset.Id.String())
 	}
 	if asset.Description != nil {
 		gm.Description = asset.Description
@@ -720,7 +720,7 @@ func (s *GormAssetRepository) toAPIModel(gm *models.Asset) *Asset {
 	}
 
 	if gm.ID != "" {
-		if id, err := uuid.Parse(gm.ID); err == nil {
+		if id, err := uuid.Parse(string(gm.ID)); err == nil {
 			asset.Id = &id
 		}
 	}

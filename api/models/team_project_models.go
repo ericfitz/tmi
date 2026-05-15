@@ -11,18 +11,18 @@ import (
 
 // TeamRecord represents a team in the system
 type TeamRecord struct {
-	ID                     string     `gorm:"primaryKey;type:varchar(36)"`
-	Name                   string     `gorm:"type:varchar(256);not null;index:idx_team_name"`
-	Description            *string    `gorm:"type:varchar(2048)"`
-	URI                    *string    `gorm:"type:varchar(1000)"`
-	EmailAddress           *string    `gorm:"type:varchar(320)"`
-	Status                 *string    `gorm:"type:varchar(128);index:idx_team_status"`
-	CreatedByInternalUUID  string     `gorm:"type:varchar(36);not null"`
-	ModifiedByInternalUUID *string    `gorm:"type:varchar(36)"`
-	ReviewedByInternalUUID *string    `gorm:"type:varchar(36)"`
-	ReviewedAt             *time.Time `gorm:"index:idx_team_reviewed_at"`
-	CreatedAt              time.Time  `gorm:"not null;autoCreateTime;index:idx_team_created_at"`
-	ModifiedAt             time.Time  `gorm:"not null;autoUpdateTime"`
+	ID                     DBVarchar         `gorm:"primaryKey;size:36"`
+	Name                   string            `gorm:"type:varchar(256);not null;index:idx_team_name"`
+	Description            *string           `gorm:"type:varchar(2048)"`
+	URI                    *string           `gorm:"type:varchar(1000)"`
+	EmailAddress           *string           `gorm:"type:varchar(320)"`
+	Status                 *string           `gorm:"type:varchar(128);index:idx_team_status"`
+	CreatedByInternalUUID  DBVarchar         `gorm:"size:36;not null"`
+	ModifiedByInternalUUID NullableDBVarchar `gorm:"size:36"`
+	ReviewedByInternalUUID NullableDBVarchar `gorm:"size:36"`
+	ReviewedAt             *time.Time        `gorm:"index:idx_team_reviewed_at"`
+	CreatedAt              time.Time         `gorm:"not null;autoCreateTime;index:idx_team_created_at"`
+	ModifiedAt             time.Time         `gorm:"not null;autoUpdateTime"`
 	// Version is incremented on every successful update (T14 / #385).
 	Version int `gorm:"not null;default:1"`
 
@@ -40,16 +40,16 @@ func (TeamRecord) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (t *TeamRecord) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == "" {
-		t.ID = uuid.New().String()
+		t.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
 
 // TeamMemberRecord represents a user's membership in a team
 type TeamMemberRecord struct {
-	ID               string    `gorm:"primaryKey;type:varchar(36)"`
-	TeamID           string    `gorm:"type:varchar(36);not null;index:idx_tmem_team;uniqueIndex:idx_tmem_team_user,priority:1"`
-	UserInternalUUID string    `gorm:"type:varchar(36);not null;index:idx_tmem_user;uniqueIndex:idx_tmem_team_user,priority:2"`
+	ID               DBVarchar `gorm:"primaryKey;size:36"`
+	TeamID           DBVarchar `gorm:"size:36;not null;index:idx_tmem_team;uniqueIndex:idx_tmem_team_user,priority:1"`
+	UserInternalUUID DBVarchar `gorm:"size:36;not null;index:idx_tmem_user;uniqueIndex:idx_tmem_team_user,priority:2"`
 	Role             string    `gorm:"type:varchar(64);not null;default:engineer"`
 	CustomRole       *string   `gorm:"type:varchar(128)"`
 	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
@@ -67,16 +67,16 @@ func (TeamMemberRecord) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (t *TeamMemberRecord) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == "" {
-		t.ID = uuid.New().String()
+		t.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
 
 // TeamResponsiblePartyRecord represents a responsible party for a team
 type TeamResponsiblePartyRecord struct {
-	ID               string    `gorm:"primaryKey;type:varchar(36)"`
-	TeamID           string    `gorm:"type:varchar(36);not null;index:idx_trp_team;uniqueIndex:idx_trp_team_user,priority:1"`
-	UserInternalUUID string    `gorm:"type:varchar(36);not null;index:idx_trp_user;uniqueIndex:idx_trp_team_user,priority:2"`
+	ID               DBVarchar `gorm:"primaryKey;size:36"`
+	TeamID           DBVarchar `gorm:"size:36;not null;index:idx_trp_team;uniqueIndex:idx_trp_team_user,priority:1"`
+	UserInternalUUID DBVarchar `gorm:"size:36;not null;index:idx_trp_user;uniqueIndex:idx_trp_team_user,priority:2"`
 	Role             string    `gorm:"type:varchar(64);not null"`
 	CustomRole       *string   `gorm:"type:varchar(128)"`
 	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
@@ -94,16 +94,16 @@ func (TeamResponsiblePartyRecord) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (t *TeamResponsiblePartyRecord) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == "" {
-		t.ID = uuid.New().String()
+		t.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
 
 // TeamRelationshipRecord represents a relationship between two teams
 type TeamRelationshipRecord struct {
-	ID                 string    `gorm:"primaryKey;type:varchar(36)"`
-	TeamID             string    `gorm:"type:varchar(36);not null;index:idx_trel_team;uniqueIndex:idx_trel_team_related,priority:1"`
-	RelatedTeamID      string    `gorm:"type:varchar(36);not null;index:idx_trel_related;uniqueIndex:idx_trel_team_related,priority:2"`
+	ID                 DBVarchar `gorm:"primaryKey;size:36"`
+	TeamID             DBVarchar `gorm:"size:36;not null;index:idx_trel_team;uniqueIndex:idx_trel_team_related,priority:1"`
+	RelatedTeamID      DBVarchar `gorm:"size:36;not null;index:idx_trel_related;uniqueIndex:idx_trel_team_related,priority:2"`
 	Relationship       string    `gorm:"type:varchar(64);not null"`
 	CustomRelationship *string   `gorm:"type:varchar(128)"`
 	CreatedAt          time.Time `gorm:"not null;autoCreateTime"`
@@ -121,25 +121,25 @@ func (TeamRelationshipRecord) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (t *TeamRelationshipRecord) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == "" {
-		t.ID = uuid.New().String()
+		t.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
 
 // ProjectRecord represents a project in the system
 type ProjectRecord struct {
-	ID                     string     `gorm:"primaryKey;type:varchar(36)"`
-	Name                   string     `gorm:"type:varchar(256);not null;index:idx_proj_name"`
-	Description            *string    `gorm:"type:varchar(2048)"`
-	TeamID                 string     `gorm:"type:varchar(36);not null;index:idx_proj_team"`
-	URI                    *string    `gorm:"type:varchar(1000)"`
-	Status                 *string    `gorm:"type:varchar(128);index:idx_proj_status"`
-	CreatedByInternalUUID  string     `gorm:"type:varchar(36);not null"`
-	ModifiedByInternalUUID *string    `gorm:"type:varchar(36)"`
-	ReviewedByInternalUUID *string    `gorm:"type:varchar(36)"`
-	ReviewedAt             *time.Time `gorm:"index:idx_proj_reviewed_at"`
-	CreatedAt              time.Time  `gorm:"not null;autoCreateTime;index:idx_proj_created_at"`
-	ModifiedAt             time.Time  `gorm:"not null;autoUpdateTime"`
+	ID                     DBVarchar         `gorm:"primaryKey;size:36"`
+	Name                   string            `gorm:"type:varchar(256);not null;index:idx_proj_name"`
+	Description            *string           `gorm:"type:varchar(2048)"`
+	TeamID                 DBVarchar         `gorm:"size:36;not null;index:idx_proj_team"`
+	URI                    *string           `gorm:"type:varchar(1000)"`
+	Status                 *string           `gorm:"type:varchar(128);index:idx_proj_status"`
+	CreatedByInternalUUID  DBVarchar         `gorm:"size:36;not null"`
+	ModifiedByInternalUUID NullableDBVarchar `gorm:"size:36"`
+	ReviewedByInternalUUID NullableDBVarchar `gorm:"size:36"`
+	ReviewedAt             *time.Time        `gorm:"index:idx_proj_reviewed_at"`
+	CreatedAt              time.Time         `gorm:"not null;autoCreateTime;index:idx_proj_created_at"`
+	ModifiedAt             time.Time         `gorm:"not null;autoUpdateTime"`
 	// Version is incremented on every successful update (T14 / #385).
 	Version int `gorm:"not null;default:1"`
 
@@ -158,16 +158,16 @@ func (ProjectRecord) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (p *ProjectRecord) BeforeCreate(tx *gorm.DB) error {
 	if p.ID == "" {
-		p.ID = uuid.New().String()
+		p.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
 
 // ProjectResponsiblePartyRecord represents a responsible party for a project
 type ProjectResponsiblePartyRecord struct {
-	ID               string    `gorm:"primaryKey;type:varchar(36)"`
-	ProjectID        string    `gorm:"type:varchar(36);not null;index:idx_prp_project;uniqueIndex:idx_prp_project_user,priority:1"`
-	UserInternalUUID string    `gorm:"type:varchar(36);not null;index:idx_prp_user;uniqueIndex:idx_prp_project_user,priority:2"`
+	ID               DBVarchar `gorm:"primaryKey;size:36"`
+	ProjectID        DBVarchar `gorm:"size:36;not null;index:idx_prp_project;uniqueIndex:idx_prp_project_user,priority:1"`
+	UserInternalUUID DBVarchar `gorm:"size:36;not null;index:idx_prp_user;uniqueIndex:idx_prp_project_user,priority:2"`
 	Role             string    `gorm:"type:varchar(64);not null"`
 	CustomRole       *string   `gorm:"type:varchar(128)"`
 	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
@@ -185,16 +185,16 @@ func (ProjectResponsiblePartyRecord) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (p *ProjectResponsiblePartyRecord) BeforeCreate(tx *gorm.DB) error {
 	if p.ID == "" {
-		p.ID = uuid.New().String()
+		p.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }
 
 // ProjectRelationshipRecord represents a relationship between two projects
 type ProjectRelationshipRecord struct {
-	ID                 string    `gorm:"primaryKey;type:varchar(36)"`
-	ProjectID          string    `gorm:"type:varchar(36);not null;index:idx_prel_project;uniqueIndex:idx_prel_project_related,priority:1"`
-	RelatedProjectID   string    `gorm:"type:varchar(36);not null;index:idx_prel_related;uniqueIndex:idx_prel_project_related,priority:2"`
+	ID                 DBVarchar `gorm:"primaryKey;size:36"`
+	ProjectID          DBVarchar `gorm:"size:36;not null;index:idx_prel_project;uniqueIndex:idx_prel_project_related,priority:1"`
+	RelatedProjectID   DBVarchar `gorm:"size:36;not null;index:idx_prel_related;uniqueIndex:idx_prel_project_related,priority:2"`
 	Relationship       string    `gorm:"type:varchar(64);not null"`
 	CustomRelationship *string   `gorm:"type:varchar(128)"`
 	CreatedAt          time.Time `gorm:"not null;autoCreateTime"`
@@ -212,7 +212,7 @@ func (ProjectRelationshipRecord) TableName() string {
 // BeforeCreate generates a UUID if not set
 func (p *ProjectRelationshipRecord) BeforeCreate(tx *gorm.DB) error {
 	if p.ID == "" {
-		p.ID = uuid.New().String()
+		p.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }

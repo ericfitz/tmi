@@ -78,13 +78,13 @@ func TestTimmySessionManager_CreateSession(t *testing.T) {
 	assert.Empty(t, skipped)
 
 	assert.NotEmpty(t, session.ID)
-	assert.Equal(t, "user-alice", session.UserID)
-	assert.Equal(t, "tm-001", session.ThreatModelID)
+	assert.Equal(t, "user-alice", string(session.UserID))
+	assert.Equal(t, "tm-001", string(session.ThreatModelID))
 	assert.Equal(t, "Test Session", session.Title)
 	assert.Equal(t, "active", session.Status)
 
 	// Verify session is retrievable
-	got, err := GlobalTimmySessionStore.Get(ctx, session.ID)
+	got, err := GlobalTimmySessionStore.Get(ctx, string(session.ID))
 	require.NoError(t, err)
 	assert.Equal(t, session.ID, got.ID)
 }
@@ -160,7 +160,7 @@ func TestTimmySessionManager_HandleMessage_NoLLM(t *testing.T) {
 	require.NoError(t, err)
 
 	// HandleMessage should fail gracefully when LLM is nil
-	_, err = sm.HandleMessage(ctx, session.ID, "user-alice", "Hello Timmy!", nil, nil)
+	_, err = sm.HandleMessage(ctx, string(session.ID), "user-alice", "Hello Timmy!", nil, nil)
 	require.Error(t, err)
 
 	var reqErr *RequestError
@@ -193,10 +193,10 @@ func TestTimmySessionManager_HandleMessage_PersistsUserMessage(t *testing.T) {
 	require.NoError(t, err)
 
 	// HandleMessage will fail at LLM call, but user message should be persisted
-	_, _ = sm.HandleMessage(ctx, session.ID, "user-alice", "Test message", nil, nil)
+	_, _ = sm.HandleMessage(ctx, string(session.ID), "user-alice", "Test message", nil, nil)
 
 	// Verify user message was persisted
-	messages, count, err := GlobalTimmyMessageStore.ListBySession(ctx, session.ID, 0, 10)
+	messages, count, err := GlobalTimmyMessageStore.ListBySession(ctx, string(session.ID), 0, 10)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 	require.Len(t, messages, 1)
@@ -224,7 +224,7 @@ func TestTimmySessionManager_HandleMessage_EmitsStatusEvents(t *testing.T) {
 
 	// LLM is nil, so HandleMessage will return at the LLM dispatch point.
 	// All status events that fire before that point should still be observed.
-	_, err = sm.HandleMessage(ctx, session.ID, "user-alice", "Test message", nil, statusCb)
+	_, err = sm.HandleMessage(ctx, string(session.ID), "user-alice", "Test message", nil, statusCb)
 	require.Error(t, err) // expected: no LLM configured
 
 	// building_context fires after the user message persists; loading_history
@@ -263,7 +263,7 @@ func TestTimmySessionManager_HandleMessage_NilStatusCallback(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should not panic with nil status callback.
-	_, _ = sm.HandleMessage(ctx, session.ID, "user-alice", "Test message", nil, nil)
+	_, _ = sm.HandleMessage(ctx, string(session.ID), "user-alice", "Test message", nil, nil)
 }
 
 func TestTimmySessionManager_IsTimmyEnabled(t *testing.T) {

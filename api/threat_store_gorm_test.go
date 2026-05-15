@@ -180,8 +180,8 @@ func TestSSVCConversion(t *testing.T) {
 
 	t.Run("toAPIModel with SSVC", func(t *testing.T) {
 		gm := &models.Threat{
-			ID:            uuid.New().String(),
-			ThreatModelID: uuid.New().String(),
+			ID:            models.DBVarchar(uuid.New().String()),
+			ThreatModelID: models.DBVarchar(uuid.New().String()),
 			Name:          "Test Threat",
 			ThreatType:    models.StringArray{"spoofing"},
 			Ssvc: models.NullableSSVC{
@@ -203,8 +203,8 @@ func TestSSVCConversion(t *testing.T) {
 
 	t.Run("toAPIModel without SSVC", func(t *testing.T) {
 		gm := &models.Threat{
-			ID:            uuid.New().String(),
-			ThreatModelID: uuid.New().String(),
+			ID:            models.DBVarchar(uuid.New().String()),
+			ThreatModelID: models.DBVarchar(uuid.New().String()),
 			Name:          "Test Threat",
 			ThreatType:    models.StringArray{"spoofing"},
 			Ssvc:          models.NullableSSVC{Valid: false},

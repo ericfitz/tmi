@@ -66,7 +66,7 @@ func (t *ThreatModelAccess) BeforeSave(tx *gorm.DB) error {
 	if err := validation.ValidateRole(t.Role); err != nil {
 		return err
 	}
-	if err := validation.ValidateSubjectXOR(t.SubjectType, t.UserInternalUUID, t.GroupInternalUUID); err != nil {
+	if err := validation.ValidateSubjectXOR(t.SubjectType, t.UserInternalUUID.Ptr(), t.GroupInternalUUID.Ptr()); err != nil {
 		return err
 	}
 	return nil
@@ -159,7 +159,7 @@ func (w *WebhookURLDenyList) BeforeSave(tx *gorm.DB) error {
 
 // BeforeDelete prevents deletion of built-in groups (everyone, security-reviewers, administrators)
 func (g *Group) BeforeDelete(tx *gorm.DB) error {
-	if validation.IsBuiltInGroup(g.InternalUUID) {
+	if validation.IsBuiltInGroup(string(g.InternalUUID)) {
 		return fmt.Errorf("cannot delete built-in group %q: %w", g.GroupName, ErrBuiltInGroupProtected)
 	}
 	return nil
@@ -167,7 +167,7 @@ func (g *Group) BeforeDelete(tx *gorm.DB) error {
 
 // BeforeUpdate prevents renaming or changing the description of built-in groups
 func (g *Group) BeforeUpdate(tx *gorm.DB) error {
-	if !validation.IsBuiltInGroup(g.InternalUUID) {
+	if !validation.IsBuiltInGroup(string(g.InternalUUID)) {
 		return nil
 	}
 
@@ -208,7 +208,7 @@ func (g *Group) BeforeUpdate(tx *gorm.DB) error {
 
 // BeforeSave validates GroupMember and prevents adding to "everyone" group
 func (gm *GroupMember) BeforeSave(tx *gorm.DB) error {
-	if err := validation.ValidateNotEveryoneGroupMember(gm.GroupInternalUUID); err != nil {
+	if err := validation.ValidateNotEveryoneGroupMember(string(gm.GroupInternalUUID)); err != nil {
 		return err
 	}
 	// Default SubjectType to "user" for backward compatibility
@@ -218,7 +218,7 @@ func (gm *GroupMember) BeforeSave(tx *gorm.DB) error {
 	if err := validation.ValidateSubjectType(gm.SubjectType); err != nil {
 		return err
 	}
-	if err := validation.ValidateSubjectXOR(gm.SubjectType, gm.UserInternalUUID, gm.MemberGroupInternalUUID); err != nil {
+	if err := validation.ValidateSubjectXOR(gm.SubjectType, gm.UserInternalUUID.Ptr(), gm.MemberGroupInternalUUID.Ptr()); err != nil {
 		return err
 	}
 	return nil

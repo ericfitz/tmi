@@ -173,8 +173,8 @@ func (s *GormSurveyAnswerStore) DeleteByResponseID(ctx context.Context, response
 // toModelRow converts a SurveyAnswerRow to a models.SurveyAnswer for persistence.
 func toModelRow(row *SurveyAnswerRow) models.SurveyAnswer {
 	m := models.SurveyAnswer{
-		ID:             row.ID,
-		ResponseID:     row.ResponseID,
+		ID:             models.DBVarchar(row.ID),
+		ResponseID:     models.DBVarchar(row.ResponseID),
 		QuestionName:   row.QuestionName,
 		QuestionType:   row.QuestionType,
 		QuestionTitle:  row.QuestionTitle,
@@ -200,8 +200,8 @@ func toAnswerRows(modelRows []models.SurveyAnswer) []SurveyAnswerRow {
 // toAnswerRow converts a single models.SurveyAnswer to a SurveyAnswerRow.
 func toAnswerRow(m *models.SurveyAnswer) SurveyAnswerRow {
 	row := SurveyAnswerRow{
-		ID:             m.ID,
-		ResponseID:     m.ResponseID,
+		ID:             string(m.ID),
+		ResponseID:     string(m.ResponseID),
 		QuestionName:   m.QuestionName,
 		QuestionType:   m.QuestionType,
 		QuestionTitle:  m.QuestionTitle,

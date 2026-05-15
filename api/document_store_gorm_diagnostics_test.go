@@ -34,17 +34,17 @@ func TestGormDocumentStore_UpdateAccessStatusWithDiagnostics(t *testing.T) {
 	tmID := uuid.New().String()
 	userID := uuid.New().String()
 	tm := models.ThreatModel{
-		ID:                    tmID,
-		OwnerInternalUUID:     userID,
-		CreatedByInternalUUID: userID,
+		ID:                    models.DBVarchar(tmID),
+		OwnerInternalUUID:     models.DBVarchar(userID),
+		CreatedByInternalUUID: models.DBVarchar(userID),
 		Name:                  "test-tm",
 	}
 	require.NoError(t, store.db.Create(&tm).Error)
 
 	docID := uuid.New().String()
 	doc := models.Document{
-		ID:            docID,
-		ThreatModelID: tmID,
+		ID:            models.DBVarchar(docID),
+		ThreatModelID: models.DBVarchar(tmID),
 		Name:          "test-doc",
 		URI:           "https://docs.google.com/document/d/abc123/edit",
 	}
@@ -95,15 +95,15 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 	userB := uuid.New().String()
 
 	tmA := models.ThreatModel{
-		ID:                    uuid.New().String(),
-		OwnerInternalUUID:     userA,
-		CreatedByInternalUUID: userA,
+		ID:                    models.DBVarchar(uuid.New().String()),
+		OwnerInternalUUID:     models.DBVarchar(userA),
+		CreatedByInternalUUID: models.DBVarchar(userA),
 		Name:                  "tm-user-a",
 	}
 	tmB := models.ThreatModel{
-		ID:                    uuid.New().String(),
-		OwnerInternalUUID:     userB,
-		CreatedByInternalUUID: userB,
+		ID:                    models.DBVarchar(uuid.New().String()),
+		OwnerInternalUUID:     models.DBVarchar(userB),
+		CreatedByInternalUUID: models.DBVarchar(userB),
 		Name:                  "tm-user-b",
 	}
 	require.NoError(t, store.db.Create(&tmA).Error)
@@ -115,7 +115,7 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 	// doc1: user A, google_workspace — should be cleared
 	doc1ID := uuid.New().String()
 	doc1 := models.Document{
-		ID:               doc1ID,
+		ID:               models.DBVarchar(doc1ID),
 		ThreatModelID:    tmA.ID,
 		Name:             "doc1",
 		URI:              "https://docs.google.com/d/1",
@@ -128,7 +128,7 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 	// doc2: user A, confluence — should NOT be cleared (different provider)
 	doc2ID := uuid.New().String()
 	doc2 := models.Document{
-		ID:               doc2ID,
+		ID:               models.DBVarchar(doc2ID),
 		ThreatModelID:    tmA.ID,
 		Name:             "doc2",
 		URI:              "https://confluence.example.com/d/2",
@@ -140,7 +140,7 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 	// doc3: user A, no picker — should NOT be touched
 	doc3ID := uuid.New().String()
 	doc3 := models.Document{
-		ID:            doc3ID,
+		ID:            models.DBVarchar(doc3ID),
 		ThreatModelID: tmA.ID,
 		Name:          "doc3",
 		URI:           "https://example.com/d/3",
@@ -150,7 +150,7 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 	// doc4: user B, google_workspace — should NOT be cleared (different owner)
 	doc4ID := uuid.New().String()
 	doc4 := models.Document{
-		ID:               doc4ID,
+		ID:               models.DBVarchar(doc4ID),
 		ThreatModelID:    tmB.ID,
 		Name:             "doc4",
 		URI:              "https://docs.google.com/d/4",
@@ -201,17 +201,17 @@ func TestGormDocumentStore_GetAccessReason(t *testing.T) {
 	tmID := uuid.New().String()
 	userID := uuid.New().String()
 	tm := models.ThreatModel{
-		ID:                    tmID,
-		OwnerInternalUUID:     userID,
-		CreatedByInternalUUID: userID,
+		ID:                    models.DBVarchar(tmID),
+		OwnerInternalUUID:     models.DBVarchar(userID),
+		CreatedByInternalUUID: models.DBVarchar(userID),
 		Name:                  "test-tm",
 	}
 	require.NoError(t, store.db.Create(&tm).Error)
 
 	docID := uuid.New().String()
 	doc := models.Document{
-		ID:            docID,
-		ThreatModelID: tmID,
+		ID:            models.DBVarchar(docID),
+		ThreatModelID: models.DBVarchar(tmID),
 		Name:          "test-doc",
 		URI:           "https://docs.google.com/document/d/abc123/edit",
 	}

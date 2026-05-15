@@ -233,11 +233,11 @@ func (s *GormAddonStore) modelToAPI(model models.Addon) Addon {
 		CreatedAt: model.CreatedAt,
 	}
 
-	if id, err := uuid.Parse(model.ID); err == nil {
+	if id, err := uuid.Parse(string(model.ID)); err == nil {
 		addon.ID = id
 	}
 
-	if webhookID, err := uuid.Parse(model.WebhookID); err == nil {
+	if webhookID, err := uuid.Parse(string(model.WebhookID)); err == nil {
 		addon.WebhookID = webhookID
 	}
 
@@ -249,8 +249,8 @@ func (s *GormAddonStore) modelToAPI(model models.Addon) Addon {
 		addon.Icon = *model.Icon
 	}
 
-	if model.ThreatModelID != nil {
-		if tmID, err := uuid.Parse(*model.ThreatModelID); err == nil {
+	if model.ThreatModelID.Valid {
+		if tmID, err := uuid.Parse(model.ThreatModelID.String); err == nil {
 			addon.ThreatModelID = &tmID
 		}
 	}
@@ -274,10 +274,10 @@ func (s *GormAddonStore) modelToAPI(model models.Addon) Addon {
 // apiToModel converts an API type to a GORM model
 func (s *GormAddonStore) apiToModel(addon Addon) models.Addon {
 	model := models.Addon{
-		ID:        addon.ID.String(),
+		ID:        models.DBVarchar(addon.ID.String()),
 		CreatedAt: addon.CreatedAt,
 		Name:      addon.Name,
-		WebhookID: addon.WebhookID.String(),
+		WebhookID: models.DBVarchar(addon.WebhookID.String()),
 	}
 
 	if addon.Description != "" {
@@ -290,7 +290,7 @@ func (s *GormAddonStore) apiToModel(addon Addon) models.Addon {
 
 	if addon.ThreatModelID != nil {
 		tmIDStr := addon.ThreatModelID.String()
-		model.ThreatModelID = &tmIDStr
+		model.ThreatModelID = models.NewNullableDBVarchar(&tmIDStr)
 	}
 
 	// Convert []string to StringArray

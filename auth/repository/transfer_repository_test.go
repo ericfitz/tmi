@@ -19,7 +19,7 @@ func TestGormDeletionRepository_TransferOwnership_NoOwnedItems(t *testing.T) {
 	source := tdb.SeedUser(t, "source@example.com", "tmi")
 	target := tdb.SeedUser(t, "target@example.com", "tmi")
 
-	result, err := repo.TransferOwnership(context.Background(), source.InternalUUID, target.InternalUUID)
+	result, err := repo.TransferOwnership(context.Background(), string(source.InternalUUID), string(target.InternalUUID))
 	require.NoError(t, err)
 
 	assert.Empty(t, result.ThreatModelIDs)
@@ -36,18 +36,19 @@ func TestGormDeletionRepository_TransferOwnership_ThreatModels(t *testing.T) {
 	target := tdb.SeedUser(t, "target@example.com", "tmi")
 
 	// Create two threat models owned by source
-	tm1 := tdb.SeedThreatModel(t, source.InternalUUID, "TM 1")
-	tm2 := tdb.SeedThreatModel(t, source.InternalUUID, "TM 2")
+	tm1 := tdb.SeedThreatModel(t, string(source.InternalUUID), "TM 1")
+	tm2 := tdb.SeedThreatModel(t, string(source.InternalUUID), "TM 2")
 
 	// Give source explicit owner access on tm1 (to test downgrade)
-	tdb.SeedThreatModelAccess(t, tm1.ID, &source.InternalUUID, nil, "user", "owner")
+	sourceUUID := string(source.InternalUUID)
+	tdb.SeedThreatModelAccess(t, string(tm1.ID), &sourceUUID, nil, "user", "owner")
 
-	result, err := repo.TransferOwnership(context.Background(), source.InternalUUID, target.InternalUUID)
+	result, err := repo.TransferOwnership(context.Background(), string(source.InternalUUID), string(target.InternalUUID))
 	require.NoError(t, err)
 
 	assert.Len(t, result.ThreatModelIDs, 2)
-	assert.Contains(t, result.ThreatModelIDs, tm1.ID)
-	assert.Contains(t, result.ThreatModelIDs, tm2.ID)
+	assert.Contains(t, result.ThreatModelIDs, string(tm1.ID))
+	assert.Contains(t, result.ThreatModelIDs, string(tm2.ID))
 	assert.Empty(t, result.SurveyResponseIDs)
 
 	// Verify ownership transferred
@@ -84,20 +85,20 @@ func TestGormDeletionRepository_TransferOwnership_SurveyResponses(t *testing.T) 
 	target := tdb.SeedUser(t, "target@example.com", "tmi")
 
 	// Create survey template and response
-	template := tdb.SeedSurveyTemplate(t, source.InternalUUID)
-	sr := tdb.SeedSurveyResponse(t, template.ID, source.InternalUUID, false)
+	template := tdb.SeedSurveyTemplate(t, string(source.InternalUUID))
+	sr := tdb.SeedSurveyResponse(t, string(template.ID), string(source.InternalUUID), false)
 
-	result, err := repo.TransferOwnership(context.Background(), source.InternalUUID, target.InternalUUID)
+	result, err := repo.TransferOwnership(context.Background(), string(source.InternalUUID), string(target.InternalUUID))
 	require.NoError(t, err)
 
 	assert.Empty(t, result.ThreatModelIDs)
 	assert.Len(t, result.SurveyResponseIDs, 1)
-	assert.Contains(t, result.SurveyResponseIDs, sr.ID)
+	assert.Contains(t, result.SurveyResponseIDs, string(sr.ID))
 
 	// Verify ownership transferred
 	var updatedSR models.SurveyResponse
 	require.NoError(t, tdb.DB.First(&updatedSR, "id = ?", sr.ID).Error)
-	assert.Equal(t, target.InternalUUID, *updatedSR.OwnerInternalUUID)
+	assert.Equal(t, string(target.InternalUUID), updatedSR.OwnerInternalUUID.String)
 
 	// Verify target has owner role in access table
 	var targetAccess models.SurveyResponseAccess
@@ -124,17 +125,17 @@ func TestGormDeletionRepository_TransferOwnership_Mixed(t *testing.T) {
 	target := tdb.SeedUser(t, "target@example.com", "tmi")
 
 	// Create threat models and survey responses
-	tm := tdb.SeedThreatModel(t, source.InternalUUID, "TM Mixed")
-	template := tdb.SeedSurveyTemplate(t, source.InternalUUID)
-	sr := tdb.SeedSurveyResponse(t, template.ID, source.InternalUUID, false)
+	tm := tdb.SeedThreatModel(t, string(source.InternalUUID), "TM Mixed")
+	template := tdb.SeedSurveyTemplate(t, string(source.InternalUUID))
+	sr := tdb.SeedSurveyResponse(t, string(template.ID), string(source.InternalUUID), false)
 
-	result, err := repo.TransferOwnership(context.Background(), source.InternalUUID, target.InternalUUID)
+	result, err := repo.TransferOwnership(context.Background(), string(source.InternalUUID), string(target.InternalUUID))
 	require.NoError(t, err)
 
 	assert.Len(t, result.ThreatModelIDs, 1)
-	assert.Contains(t, result.ThreatModelIDs, tm.ID)
+	assert.Contains(t, result.ThreatModelIDs, string(tm.ID))
 	assert.Len(t, result.SurveyResponseIDs, 1)
-	assert.Contains(t, result.SurveyResponseIDs, sr.ID)
+	assert.Contains(t, result.SurveyResponseIDs, string(sr.ID))
 }
 
 func TestGormDeletionRepository_TransferOwnership_TargetAlreadyHasAccess(t *testing.T) {
@@ -146,12 +147,13 @@ func TestGormDeletionRepository_TransferOwnership_TargetAlreadyHasAccess(t *test
 	source := tdb.SeedUser(t, "source@example.com", "tmi")
 	target := tdb.SeedUser(t, "target@example.com", "tmi")
 
-	tm := tdb.SeedThreatModel(t, source.InternalUUID, "TM With Existing Access")
+	tm := tdb.SeedThreatModel(t, string(source.InternalUUID), "TM With Existing Access")
 
 	// Target already has reader access
-	tdb.SeedThreatModelAccess(t, tm.ID, &target.InternalUUID, nil, "user", "reader")
+	targetUUID2 := string(target.InternalUUID)
+	tdb.SeedThreatModelAccess(t, string(tm.ID), &targetUUID2, nil, "user", "reader")
 
-	result, err := repo.TransferOwnership(context.Background(), source.InternalUUID, target.InternalUUID)
+	result, err := repo.TransferOwnership(context.Background(), string(source.InternalUUID), string(target.InternalUUID))
 	require.NoError(t, err)
 
 	assert.Len(t, result.ThreatModelIDs, 1)
@@ -175,9 +177,9 @@ func TestGormDeletionRepository_TransferOwnership_SourceAccessRecordCreated(t *t
 
 	// Create TM but do NOT create an access record for source
 	// (ownership is only in threat_models.owner_internal_uuid)
-	tm := tdb.SeedThreatModel(t, source.InternalUUID, "TM No Access Record")
+	tm := tdb.SeedThreatModel(t, string(source.InternalUUID), "TM No Access Record")
 
-	result, err := repo.TransferOwnership(context.Background(), source.InternalUUID, target.InternalUUID)
+	result, err := repo.TransferOwnership(context.Background(), string(source.InternalUUID), string(target.InternalUUID))
 	require.NoError(t, err)
 
 	assert.Len(t, result.ThreatModelIDs, 1)
@@ -201,9 +203,9 @@ func TestGormDeletionRepository_TransferOwnership_SelfTransfer(t *testing.T) {
 	// Self-transfer should succeed at the repository level (validation is at the service layer)
 	// but since the user would own the same items, this is effectively a no-op
 	// The service layer validates source != target before calling the repository
-	tdb.SeedThreatModel(t, user.InternalUUID, "TM Self")
+	tdb.SeedThreatModel(t, string(user.InternalUUID), "TM Self")
 
-	result, err := repo.TransferOwnership(context.Background(), user.InternalUUID, user.InternalUUID)
+	result, err := repo.TransferOwnership(context.Background(), string(user.InternalUUID), string(user.InternalUUID))
 	require.NoError(t, err)
 	// Items are "transferred" to the same user
 	assert.Len(t, result.ThreatModelIDs, 1)
@@ -217,7 +219,7 @@ func TestGormDeletionRepository_TransferOwnership_TargetNotFound(t *testing.T) {
 
 	source := tdb.SeedUser(t, "source@example.com", "tmi")
 
-	_, err := repo.TransferOwnership(context.Background(), source.InternalUUID, "00000000-0000-0000-0000-000000000099")
+	_, err := repo.TransferOwnership(context.Background(), string(source.InternalUUID), "00000000-0000-0000-0000-000000000099")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrUserNotFound)
 }
@@ -230,7 +232,7 @@ func TestGormDeletionRepository_TransferOwnership_SourceNotFound(t *testing.T) {
 
 	target := tdb.SeedUser(t, "target@example.com", "tmi")
 
-	_, err := repo.TransferOwnership(context.Background(), "00000000-0000-0000-0000-000000000099", target.InternalUUID)
+	_, err := repo.TransferOwnership(context.Background(), "00000000-0000-0000-0000-000000000099", string(target.InternalUUID))
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrUserNotFound)
 }

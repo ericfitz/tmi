@@ -291,7 +291,7 @@ func (s *GormUserStore) EnrichUsers(ctx context.Context, users []AdminUser) ([]A
 
 // convertToAdminUser converts a GORM User model to AdminUser
 func (s *GormUserStore) convertToAdminUser(gu *models.User) AdminUser {
-	internalUUID, _ := uuid.Parse(gu.InternalUUID)
+	internalUUID, _ := uuid.Parse(string(gu.InternalUUID))
 
 	// Sanitize email: openapi_types.Email.MarshalJSON calls mail.ParseAddress
 	// which fails on empty strings, causing c.JSON to produce an empty 200 response.

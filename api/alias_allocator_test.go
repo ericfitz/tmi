@@ -75,7 +75,7 @@ func TestAllocateNextAlias_IndependentScopes(t *testing.T) {
 	require.NoError(t, db.Where("object_type = ?", "note").Find(&counters).Error)
 	got := map[string]int32{}
 	for _, c := range counters {
-		got[c.ParentID] = c.NextAlias
+		got[string(c.ParentID)] = c.NextAlias
 	}
 	assert.Equal(t, int32(3), got["tm-A"])
 	assert.Equal(t, int32(4), got["tm-B"])

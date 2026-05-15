@@ -11,10 +11,10 @@ import (
 // access_token and refresh_token are AES-256-GCM ciphertexts (nonce prepended).
 // DBBytes maps to BYTEA on PostgreSQL and BLOB on Oracle / SQLite (#404).
 type UserContentToken struct {
-	ID                   string  `gorm:"primaryKey;type:varchar(36)"`
-	UserID               string  `gorm:"type:varchar(36);not null;index:idx_uct_user;uniqueIndex:uq_uct_user_provider,priority:1"`
-	ProviderID           string  `gorm:"type:varchar(64);not null;uniqueIndex:uq_uct_user_provider,priority:2"`
-	AccessToken          DBBytes `gorm:"not null"`
+	ID                   DBVarchar `gorm:"primaryKey;size:36"`
+	UserID               DBVarchar `gorm:"size:36;not null;index:idx_uct_user;uniqueIndex:uq_uct_user_provider,priority:1"`
+	ProviderID           string    `gorm:"type:varchar(64);not null;uniqueIndex:uq_uct_user_provider,priority:2"`
+	AccessToken          DBBytes   `gorm:"not null"`
 	RefreshToken         DBBytes
 	Scopes               DBText
 	ExpiresAt            *time.Time
@@ -38,7 +38,7 @@ func (UserContentToken) TableName() string {
 // BeforeCreate generates a UUID if not set.
 func (u *UserContentToken) BeforeCreate(tx *gorm.DB) error {
 	if u.ID == "" {
-		u.ID = uuid.New().String()
+		u.ID = DBVarchar(uuid.New().String())
 	}
 	return nil
 }

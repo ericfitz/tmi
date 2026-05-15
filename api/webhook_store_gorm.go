@@ -453,8 +453,8 @@ func (s *GormWebhookSubscriptionStore) CountByOwner(ctx context.Context, ownerID
 // toDBModel converts a GORM model to DBWebhookSubscription
 func (s *GormWebhookSubscriptionStore) toDBModel(sub *models.WebhookSubscription) DBWebhookSubscription {
 	dbSub := DBWebhookSubscription{
-		Id:                  uuid.MustParse(sub.ID),
-		OwnerId:             uuid.MustParse(sub.OwnerInternalUUID),
+		Id:                  uuid.MustParse(string(sub.ID)),
+		OwnerId:             uuid.MustParse(string(sub.OwnerInternalUUID)),
 		Name:                sub.Name,
 		Url:                 sub.URL,
 		Events:              []string(sub.Events),
@@ -466,8 +466,8 @@ func (s *GormWebhookSubscriptionStore) toDBModel(sub *models.WebhookSubscription
 		TimeoutCount:        sub.TimeoutCount,
 	}
 
-	if sub.ThreatModelID != nil && *sub.ThreatModelID != "" {
-		tmID := uuid.MustParse(*sub.ThreatModelID)
+	if sub.ThreatModelID.Valid && sub.ThreatModelID.String != "" {
+		tmID := uuid.MustParse(sub.ThreatModelID.String)
 		dbSub.ThreatModelId = &tmID
 	}
 	if sub.Secret != nil {
@@ -486,8 +486,8 @@ func (s *GormWebhookSubscriptionStore) toDBModel(sub *models.WebhookSubscription
 // toGormModel converts a DBWebhookSubscription to GORM model
 func (s *GormWebhookSubscriptionStore) toGormModel(sub *DBWebhookSubscription) *models.WebhookSubscription {
 	gormSub := &models.WebhookSubscription{
-		ID:                  sub.Id.String(),
-		OwnerInternalUUID:   sub.OwnerId.String(),
+		ID:                  models.DBVarchar(sub.Id.String()),
+		OwnerInternalUUID:   models.DBVarchar(sub.OwnerId.String()),
 		Name:                sub.Name,
 		URL:                 sub.Url,
 		Events:              models.StringArray(sub.Events),
@@ -501,7 +501,7 @@ func (s *GormWebhookSubscriptionStore) toGormModel(sub *DBWebhookSubscription) *
 
 	if sub.ThreatModelId != nil {
 		tmID := sub.ThreatModelId.String()
-		gormSub.ThreatModelID = &tmID
+		gormSub.ThreatModelID = models.NewNullableDBVarchar(&tmID)
 	}
 	if sub.Secret != "" {
 		gormSub.Secret = &sub.Secret
@@ -677,7 +677,7 @@ func (s *GormWebhookQuotaStore) Count(ctx context.Context) (int, error) {
 // toDBModel converts a GORM model to DBWebhookQuota
 func (s *GormWebhookQuotaStore) toDBModel(quota *models.WebhookQuota) DBWebhookQuota {
 	return DBWebhookQuota{
-		OwnerId:                          uuid.MustParse(quota.OwnerID),
+		OwnerId:                          uuid.MustParse(string(quota.OwnerID)),
 		MaxSubscriptions:                 quota.MaxSubscriptions,
 		MaxEventsPerMinute:               quota.MaxEventsPerMinute,
 		MaxSubscriptionRequestsPerMinute: quota.MaxSubscriptionRequestsPerMinute,
@@ -690,7 +690,7 @@ func (s *GormWebhookQuotaStore) toDBModel(quota *models.WebhookQuota) DBWebhookQ
 // toGormModel converts a DBWebhookQuota to GORM model
 func (s *GormWebhookQuotaStore) toGormModel(quota *DBWebhookQuota) *models.WebhookQuota {
 	return &models.WebhookQuota{
-		OwnerID:                          quota.OwnerId.String(),
+		OwnerID:                          models.DBVarchar(quota.OwnerId.String()),
 		MaxSubscriptions:                 quota.MaxSubscriptions,
 		MaxEventsPerMinute:               quota.MaxEventsPerMinute,
 		MaxSubscriptionRequestsPerMinute: quota.MaxSubscriptionRequestsPerMinute,
@@ -780,7 +780,7 @@ func (s *GormWebhookUrlDenyListStore) Delete(ctx context.Context, id string) err
 // toDBModel converts a GORM model to WebhookUrlDenyListEntry
 func (s *GormWebhookUrlDenyListStore) toDBModel(entry *models.WebhookURLDenyList) WebhookUrlDenyListEntry {
 	result := WebhookUrlDenyListEntry{
-		Id:          uuid.MustParse(entry.ID),
+		Id:          uuid.MustParse(string(entry.ID)),
 		Pattern:     entry.Pattern,
 		PatternType: entry.PatternType,
 		CreatedAt:   entry.CreatedAt,
@@ -794,7 +794,7 @@ func (s *GormWebhookUrlDenyListStore) toDBModel(entry *models.WebhookURLDenyList
 // toGormModel converts a WebhookUrlDenyListEntry to GORM model
 func (s *GormWebhookUrlDenyListStore) toGormModel(entry *WebhookUrlDenyListEntry) *models.WebhookURLDenyList {
 	gormEntry := &models.WebhookURLDenyList{
-		ID:          entry.Id.String(),
+		ID:          models.DBVarchar(entry.Id.String()),
 		Pattern:     entry.Pattern,
 		PatternType: entry.PatternType,
 		CreatedAt:   entry.CreatedAt,

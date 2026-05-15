@@ -677,6 +677,29 @@ func NewNullableDBVarchar(s *string) NullableDBVarchar {
 	return NullableDBVarchar{String: *s, Valid: true}
 }
 
+// MarshalJSON implements the json.Marshaler interface.
+// A valid NullableDBVarchar marshals as a JSON string; an invalid one marshals as null.
+func (v NullableDBVarchar) MarshalJSON() ([]byte, error) {
+	if !v.Valid {
+		return []byte("null"), nil
+	}
+	return json.Marshal(v.String)
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+// A JSON null sets Valid to false; a JSON string sets Valid to true and String to the value.
+func (v *NullableDBVarchar) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		v.String, v.Valid = "", false
+		return nil
+	}
+	if err := json.Unmarshal(data, &v.String); err != nil {
+		return err
+	}
+	v.Valid = true
+	return nil
+}
+
 // DBBool is a cross-database boolean type that handles different database
 // representations of booleans. Oracle uses NUMBER(1), MySQL uses TINYINT(1),
 // SQL Server uses BIT, while PostgreSQL and SQLite have native boolean support.

@@ -15,10 +15,10 @@ type SystemSetting struct {
 	Value      string `gorm:"type:varchar(4000);not null" json:"value"`
 	// SettingType stores the value type: "string", "int", "bool", "json"
 	// Note: default tag removed for Oracle compatibility (unquoted string defaults cause syntax errors)
-	SettingType string    `gorm:"column:setting_type;type:varchar(50);not null" json:"type"`
-	Description *string   `gorm:"type:varchar(2048)" json:"description,omitempty"`
-	ModifiedAt  time.Time `gorm:"not null;autoUpdateTime" json:"modified_at"`
-	ModifiedBy  *string   `gorm:"type:varchar(36)" json:"modified_by,omitempty"` // User InternalUUID
+	SettingType string            `gorm:"column:setting_type;type:varchar(50);not null" json:"type"`
+	Description *string           `gorm:"type:varchar(2048)" json:"description,omitempty"`
+	ModifiedAt  time.Time         `gorm:"not null;autoUpdateTime" json:"modified_at"`
+	ModifiedBy  NullableDBVarchar `gorm:"size:36" json:"modified_by,omitempty"` // User InternalUUID
 	// Source indicates where the effective value comes from: "database", "config", "environment", "vault"
 	// Computed at response time, not stored in the database.
 	Source string `gorm:"-" json:"source"`

@@ -183,7 +183,7 @@ func (s *GormAddonInvocationQuotaStore) Delete(ctx context.Context, ownerID uuid
 
 // modelToAPI converts a GORM model to the API type
 func (s *GormAddonInvocationQuotaStore) modelToAPI(model models.AddonInvocationQuota) AddonInvocationQuota {
-	ownerUUID, _ := uuid.Parse(model.OwnerInternalUUID)
+	ownerUUID, _ := uuid.Parse(string(model.OwnerInternalUUID))
 	return AddonInvocationQuota{
 		OwnerId:               ownerUUID,
 		MaxActiveInvocations:  model.MaxActiveInvocations,
@@ -196,7 +196,7 @@ func (s *GormAddonInvocationQuotaStore) modelToAPI(model models.AddonInvocationQ
 // apiToModel converts an API type to a GORM model
 func (s *GormAddonInvocationQuotaStore) apiToModel(quota AddonInvocationQuota) models.AddonInvocationQuota {
 	return models.AddonInvocationQuota{
-		OwnerInternalUUID:     quota.OwnerId.String(),
+		OwnerInternalUUID:     models.DBVarchar(quota.OwnerId.String()),
 		MaxActiveInvocations:  quota.MaxActiveInvocations,
 		MaxInvocationsPerHour: quota.MaxInvocationsPerHour,
 		CreatedAt:             quota.CreatedAt,

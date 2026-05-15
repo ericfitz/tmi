@@ -121,7 +121,7 @@ func (m *VectorIndexManager) GetOrLoadIndex(
 				ExpectedModel: expectedModel,
 				ExpectedDim:   dimension,
 				EntityType:    emb.EntityType,
-				EntityID:      emb.EntityID,
+				EntityID:      string(emb.EntityID),
 			}
 		}
 	}
@@ -129,7 +129,7 @@ func (m *VectorIndexManager) GetOrLoadIndex(
 	idx := NewVectorIndex(dimension)
 	for _, emb := range embeddings {
 		vector := bytesToFloat32(emb.VectorData)
-		idx.Add(emb.ID, vector, string(emb.ChunkText))
+		idx.Add(string(emb.ID), vector, string(emb.ChunkText))
 	}
 
 	loaded := &LoadedIndex{

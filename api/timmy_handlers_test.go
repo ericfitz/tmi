@@ -62,8 +62,8 @@ func setupTimmyHandlerTest(t *testing.T) (*Server, func()) {
 func createTestTimmySession(t *testing.T, userID, tmID, title, status string) *models.TimmySession {
 	t.Helper()
 	session := &models.TimmySession{
-		ThreatModelID: tmID,
-		UserID:        userID,
+		ThreatModelID: models.DBVarchar(tmID),
+		UserID:        models.DBVarchar(userID),
 		Title:         title,
 		Status:        status,
 	}
@@ -76,7 +76,7 @@ func createTestTimmySession(t *testing.T, userID, tmID, title, status string) *m
 func createTestTimmyMessage(t *testing.T, sessionID, role, content string, seq int) *models.TimmyMessage {
 	t.Helper()
 	msg := &models.TimmyMessage{
-		SessionID: sessionID,
+		SessionID: models.DBVarchar(sessionID),
 		Role:      role,
 		Content:   models.DBText(content),
 		Sequence:  seq,
@@ -91,9 +91,9 @@ func createTestTimmyUsage(t *testing.T, userID, sessionID, tmID string, messages
 	t.Helper()
 	now := time.Now().UTC()
 	usage := &models.TimmyUsage{
-		UserID:           userID,
-		SessionID:        sessionID,
-		ThreatModelID:    tmID,
+		UserID:           models.DBVarchar(userID),
+		SessionID:        models.DBVarchar(sessionID),
+		ThreatModelID:    models.DBVarchar(tmID),
 		MessageCount:     messages,
 		PromptTokens:     promptTokens,
 		CompletionTokens: completionTokens,
@@ -198,13 +198,13 @@ func TestTimmyGetSession_Success(t *testing.T) {
 
 	c, w := timmyTestContext("GET", "/", timmyTestUserAlice)
 
-	server.GetTimmyChatSession(c, mustParseTimmyUUID(timmyTestTMID3), mustParseTimmyUUID(session.ID))
+	server.GetTimmyChatSession(c, mustParseTimmyUUID(timmyTestTMID3), mustParseTimmyUUID(string(session.ID)))
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	var resp TimmyChatSession
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, session.ID, resp.Id.String())
+	assert.Equal(t, string(session.ID), resp.Id.String())
 	assert.NotNil(t, resp.Title)
 	assert.Equal(t, "My Session", *resp.Title)
 }
@@ -229,7 +229,7 @@ func TestTimmyGetSession_WrongUser(t *testing.T) {
 	// Bob tries to access Alice's session
 	c, w := timmyTestContext("GET", "/", timmyTestUserBob)
 
-	server.GetTimmyChatSession(c, mustParseTimmyUUID(timmyTestTMID3), mustParseTimmyUUID(session.ID))
+	server.GetTimmyChatSession(c, mustParseTimmyUUID(timmyTestTMID3), mustParseTimmyUUID(string(session.ID)))
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
@@ -243,7 +243,7 @@ func TestTimmyGetSession_WrongThreatModel(t *testing.T) {
 	// Access with wrong threat model ID
 	c, w := timmyTestContext("GET", "/", timmyTestUserAlice)
 
-	server.GetTimmyChatSession(c, mustParseTimmyUUID(timmyTestOtherTMID), mustParseTimmyUUID(session.ID))
+	server.GetTimmyChatSession(c, mustParseTimmyUUID(timmyTestOtherTMID), mustParseTimmyUUID(string(session.ID)))
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
@@ -258,12 +258,12 @@ func TestTimmyDeleteSession_Success(t *testing.T) {
 
 	c, w := timmyTestContext("DELETE", "/", timmyTestUserAlice)
 
-	server.DeleteTimmyChatSession(c, mustParseTimmyUUID(timmyTestTMID4), mustParseTimmyUUID(session.ID))
+	server.DeleteTimmyChatSession(c, mustParseTimmyUUID(timmyTestTMID4), mustParseTimmyUUID(string(session.ID)))
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
 
 	// Verify session is no longer retrievable
-	_, err := GlobalTimmySessionStore.Get(context.Background(), session.ID)
+	_, err := GlobalTimmySessionStore.Get(context.Background(), string(session.ID))
 	assert.Error(t, err)
 }
 
@@ -286,7 +286,7 @@ func TestTimmyDeleteSession_WrongUser(t *testing.T) {
 
 	c, w := timmyTestContext("DELETE", "/", timmyTestUserBob)
 
-	server.DeleteTimmyChatSession(c, mustParseTimmyUUID(timmyTestTMID4), mustParseTimmyUUID(session.ID))
+	server.DeleteTimmyChatSession(c, mustParseTimmyUUID(timmyTestTMID4), mustParseTimmyUUID(string(session.ID)))
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
@@ -299,13 +299,13 @@ func TestTimmyListMessages_Success(t *testing.T) {
 
 	session := createTestTimmySession(t, timmyTestUserAlice, timmyTestTMID5, "Chat Session", "active")
 
-	createTestTimmyMessage(t, session.ID, "user", "Hello", 1)
-	createTestTimmyMessage(t, session.ID, "assistant", "Hi there!", 2)
-	createTestTimmyMessage(t, session.ID, "user", "Tell me about threats", 3)
+	createTestTimmyMessage(t, string(session.ID), "user", "Hello", 1)
+	createTestTimmyMessage(t, string(session.ID), "assistant", "Hi there!", 2)
+	createTestTimmyMessage(t, string(session.ID), "user", "Tell me about threats", 3)
 
 	c, w := timmyTestContext("GET", "/", timmyTestUserAlice)
 
-	server.ListTimmyChatMessages(c, mustParseTimmyUUID(timmyTestTMID5), mustParseTimmyUUID(session.ID), ListTimmyChatMessagesParams{})
+	server.ListTimmyChatMessages(c, mustParseTimmyUUID(timmyTestTMID5), mustParseTimmyUUID(string(session.ID)), ListTimmyChatMessagesParams{})
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -328,7 +328,7 @@ func TestTimmyListMessages_Pagination(t *testing.T) {
 	session := createTestTimmySession(t, timmyTestUserAlice, timmyTestTMID5, "Chat", "active")
 
 	for i := range 10 {
-		createTestTimmyMessage(t, session.ID, "user", "Msg", i+1)
+		createTestTimmyMessage(t, string(session.ID), "user", "Msg", i+1)
 	}
 
 	limit := 3
@@ -336,7 +336,7 @@ func TestTimmyListMessages_Pagination(t *testing.T) {
 	c, w := timmyTestContext("GET", "/", timmyTestUserAlice)
 	params := ListTimmyChatMessagesParams{Limit: &limit, Offset: &offset}
 
-	server.ListTimmyChatMessages(c, mustParseTimmyUUID(timmyTestTMID5), mustParseTimmyUUID(session.ID), params)
+	server.ListTimmyChatMessages(c, mustParseTimmyUUID(timmyTestTMID5), mustParseTimmyUUID(string(session.ID)), params)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
@@ -354,7 +354,7 @@ func TestTimmyListMessages_WrongUser(t *testing.T) {
 
 	c, w := timmyTestContext("GET", "/", timmyTestUserBob)
 
-	server.ListTimmyChatMessages(c, mustParseTimmyUUID(timmyTestTMID5), mustParseTimmyUUID(session.ID), ListTimmyChatMessagesParams{})
+	server.ListTimmyChatMessages(c, mustParseTimmyUUID(timmyTestTMID5), mustParseTimmyUUID(string(session.ID)), ListTimmyChatMessagesParams{})
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
@@ -524,7 +524,7 @@ func TestTimmyCreateMessage_NotConfigured(t *testing.T) {
 	c.Request = httptest.NewRequest("POST", "/", timmyJSONBody(t, map[string]string{"content": "hello"}))
 	c.Request.Header.Set("Content-Type", "application/json")
 
-	server.CreateTimmyChatMessage(c, mustParseTimmyUUID(timmyTestTMID8), mustParseTimmyUUID(session.ID))
+	server.CreateTimmyChatMessage(c, mustParseTimmyUUID(timmyTestTMID8), mustParseTimmyUUID(string(session.ID)))
 
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
@@ -548,7 +548,7 @@ func TestTimmyCreateMessage_WrongUser(t *testing.T) {
 
 	c, w := timmyTestContext("POST", "/", timmyTestUserBob)
 
-	server.CreateTimmyChatMessage(c, mustParseTimmyUUID(timmyTestTMID8), mustParseTimmyUUID(session.ID))
+	server.CreateTimmyChatMessage(c, mustParseTimmyUUID(timmyTestTMID8), mustParseTimmyUUID(string(session.ID)))
 
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
@@ -564,7 +564,7 @@ func TestTimmyCreateMessage_EmptyContent(t *testing.T) {
 	c.Request = httptest.NewRequest("POST", "/", timmyJSONBody(t, map[string]string{"content": ""}))
 	c.Request.Header.Set("Content-Type", "application/json")
 
-	server.CreateTimmyChatMessage(c, mustParseTimmyUUID(timmyTestTMID8), mustParseTimmyUUID(session.ID))
+	server.CreateTimmyChatMessage(c, mustParseTimmyUUID(timmyTestTMID8), mustParseTimmyUUID(string(session.ID)))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }

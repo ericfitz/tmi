@@ -49,8 +49,8 @@ func (s *GormDocumentRepository) Create(ctx context.Context, document *Document,
 	now := time.Now().UTC()
 
 	model := models.Document{
-		ID:            document.Id.String(),
-		ThreatModelID: threatModelID,
+		ID:            models.DBVarchar(document.Id.String()),
+		ThreatModelID: models.DBVarchar(threatModelID),
 		Name:          document.Name,
 		URI:           document.Uri,
 		Description:   document.Description,
@@ -321,7 +321,7 @@ func (s *GormDocumentRepository) hardDeleteDocument(ctx context.Context, id stri
 			EntityType:    "document",
 			EntityID:      id,
 			ParentType:    "threat_model",
-			ParentID:      model.ThreatModelID,
+			ParentID:      string(model.ThreatModelID),
 			OperationType: "delete",
 			Strategy:      InvalidateImmediately,
 		}
@@ -381,9 +381,9 @@ func (s *GormDocumentRepository) List(ctx context.Context, threatModelID string,
 		doc := s.modelToAPI(&model)
 
 		// Load metadata for this document
-		metadata, metaErr := s.loadMetadata(ctx, model.ID)
+		metadata, metaErr := s.loadMetadata(ctx, string(model.ID))
 		if metaErr != nil {
-			logger.Error("Failed to load metadata for document %s: %v", model.ID, metaErr)
+			logger.Error("Failed to load metadata for document %s: %v", string(model.ID), metaErr)
 			metadata = []Metadata{}
 		}
 		doc.Metadata = &metadata
@@ -454,8 +454,8 @@ func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Doc
 			}
 
 			model := models.Document{
-				ID:            document.Id.String(),
-				ThreatModelID: threatModelID,
+				ID:            models.DBVarchar(document.Id.String()),
+				ThreatModelID: models.DBVarchar(threatModelID),
 				Name:          document.Name,
 				URI:           document.Uri,
 				Description:   document.Description,
@@ -830,7 +830,7 @@ func (s *GormDocumentRepository) ClearPickerMetadataForOwner(
 
 // modelToAPI converts a GORM Document model to the API Document type
 func (s *GormDocumentRepository) modelToAPI(model *models.Document) *Document {
-	id, _ := uuid.Parse(model.ID)
+	id, _ := uuid.Parse(string(model.ID))
 	includeInReport := model.IncludeInReport.Bool()
 	timmyEnabled := model.TimmyEnabled.Bool()
 	alias := model.Alias
@@ -925,5 +925,5 @@ func (s *GormDocumentRepository) getDocumentThreatModelID(ctx context.Context, d
 		}
 		return "", dberrors.Classify(err)
 	}
-	return model.ThreatModelID, nil
+	return string(model.ThreatModelID), nil
 }

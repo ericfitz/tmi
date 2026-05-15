@@ -59,9 +59,9 @@ func (r *GormMetadataRepository) Create(ctx context.Context, entityType, entityI
 	now := time.Now().UTC()
 
 	model := models.Metadata{
-		ID:         uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String(),
+		ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
 		EntityType: entityType,
-		EntityID:   entityID,
+		EntityID:   models.DBVarchar(entityID),
 		Key:        metadata.Key,
 		Value:      metadata.Value,
 		CreatedAt:  now,
@@ -89,7 +89,7 @@ func (r *GormMetadataRepository) Create(ctx context.Context, entityType, entityI
 	if r.cacheInvalidator != nil {
 		event := InvalidationEvent{
 			EntityType:    "metadata",
-			EntityID:      model.ID,
+			EntityID:      string(model.ID),
 			ParentType:    entityType,
 			ParentID:      entityID,
 			OperationType: "create",
@@ -370,9 +370,9 @@ func (r *GormMetadataRepository) BulkCreate(ctx context.Context, entityType, ent
 		// Insert new entries (no upsert)
 		for _, meta := range metadata {
 			model := models.Metadata{
-				ID:         uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String(),
+				ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
 				EntityType: entityType,
-				EntityID:   entityID,
+				EntityID:   models.DBVarchar(entityID),
 				Key:        meta.Key,
 				Value:      meta.Value,
 				CreatedAt:  now,
@@ -435,9 +435,9 @@ func (r *GormMetadataRepository) BulkUpdate(ctx context.Context, entityType, ent
 	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		for _, meta := range metadata {
 			model := models.Metadata{
-				ID:         uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String(),
+				ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
 				EntityType: entityType,
-				EntityID:   entityID,
+				EntityID:   models.DBVarchar(entityID),
 				Key:        meta.Key,
 				Value:      meta.Value,
 				CreatedAt:  now,
@@ -513,9 +513,9 @@ func (r *GormMetadataRepository) BulkReplace(ctx context.Context, entityType, en
 		// Insert new entries
 		for _, meta := range metadata {
 			model := models.Metadata{
-				ID:         uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String(),
+				ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
 				EntityType: entityType,
-				EntityID:   entityID,
+				EntityID:   models.DBVarchar(entityID),
 				Key:        meta.Key,
 				Value:      meta.Value,
 				CreatedAt:  now,

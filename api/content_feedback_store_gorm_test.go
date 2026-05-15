@@ -30,7 +30,7 @@ func setupContentFeedbackTestDB(t *testing.T) (*gorm.DB, *models.User, *models.T
 	require.NoError(t, db.AutoMigrate(&models.User{}, &models.ThreatModel{}, &models.Threat{}, &models.Diagram{}, &models.Note{}, &models.ContentFeedback{}))
 
 	user := &models.User{
-		InternalUUID:   uuid.New().String(),
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
 		ProviderUserID: strPtr("alice-test"),
 		Email:          "alice@example.com",
@@ -39,7 +39,7 @@ func setupContentFeedbackTestDB(t *testing.T) (*gorm.DB, *models.User, *models.T
 	require.NoError(t, db.Create(user).Error)
 
 	tm := &models.ThreatModel{
-		ID:                    uuid.New().String(),
+		ID:                    models.DBVarchar(uuid.New().String()),
 		OwnerInternalUUID:     user.InternalUUID,
 		CreatedByInternalUUID: user.InternalUUID,
 		Name:                  "Test TM",
@@ -57,7 +57,7 @@ func TestGormContentFeedbackRepository_CreateAndGet(t *testing.T) {
 	fb := &models.ContentFeedback{
 		ThreatModelID: tm.ID,
 		TargetType:    "note",
-		TargetID:      targetID,
+		TargetID:      models.DBVarchar(targetID),
 		Sentiment:     "down",
 		ClientID:      "tmi-ux",
 		CreatedByUUID: user.InternalUUID,
@@ -65,11 +65,11 @@ func TestGormContentFeedbackRepository_CreateAndGet(t *testing.T) {
 	require.NoError(t, repo.Create(context.Background(), fb))
 	require.NotEmpty(t, fb.ID)
 
-	got, err := repo.Get(context.Background(), fb.ID)
+	got, err := repo.Get(context.Background(), string(fb.ID))
 	require.NoError(t, err)
 	assert.Equal(t, tm.ID, got.ThreatModelID)
 	assert.Equal(t, "note", got.TargetType)
-	assert.Equal(t, targetID, got.TargetID)
+	assert.Equal(t, targetID, string(got.TargetID))
 	assert.Equal(t, "down", got.Sentiment)
 }
 
@@ -92,7 +92,7 @@ func TestGormContentFeedbackRepository_ListFilters(t *testing.T) {
 		fb := &models.ContentFeedback{
 			ThreatModelID:       tm.ID,
 			TargetType:          tc.ttype,
-			TargetID:            uuid.New().String(),
+			TargetID:            models.DBVarchar(uuid.New().String()),
 			Sentiment:           tc.sentiment,
 			FalsePositiveReason: tc.fpr,
 			ClientID:            "tmi-ux",
@@ -101,19 +101,19 @@ func TestGormContentFeedbackRepository_ListFilters(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, fb))
 	}
 
-	rows, err := repo.List(ctx, tm.ID, ContentFeedbackListFilter{}, 0, 100)
+	rows, err := repo.List(ctx, string(tm.ID), ContentFeedbackListFilter{}, 0, 100)
 	require.NoError(t, err)
 	assert.Len(t, rows, 4)
 
-	rows, err = repo.List(ctx, tm.ID, ContentFeedbackListFilter{TargetType: "threat"}, 0, 100)
+	rows, err = repo.List(ctx, string(tm.ID), ContentFeedbackListFilter{TargetType: "threat"}, 0, 100)
 	require.NoError(t, err)
 	assert.Len(t, rows, 2)
 
-	rows, err = repo.List(ctx, tm.ID, ContentFeedbackListFilter{FalsePositiveReason: "duplicate"}, 0, 100)
+	rows, err = repo.List(ctx, string(tm.ID), ContentFeedbackListFilter{FalsePositiveReason: "duplicate"}, 0, 100)
 	require.NoError(t, err)
 	assert.Len(t, rows, 1)
 
-	total, err := repo.Count(ctx, tm.ID, ContentFeedbackListFilter{Sentiment: "up"})
+	total, err := repo.Count(ctx, string(tm.ID), ContentFeedbackListFilter{Sentiment: "up"})
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), total)
 }
@@ -146,7 +146,7 @@ func TestGormContentFeedbackRepository_Create_SetsCreatedAtExplicitly(t *testing
 	fb := &models.ContentFeedback{
 		ThreatModelID: tm.ID,
 		TargetType:    "note",
-		TargetID:      uuid.New().String(),
+		TargetID:      models.DBVarchar(uuid.New().String()),
 		Sentiment:     "down",
 		ClientID:      "tmi-ux",
 		CreatedByUUID: user.InternalUUID,
@@ -171,7 +171,7 @@ func TestGormContentFeedbackRepository_CreateWithTargetCheck_SetsCreatedAtExplic
 
 	// Create a note row that the feedback targets.
 	note := &models.Note{
-		ID:            uuid.New().String(),
+		ID:            models.DBVarchar(uuid.New().String()),
 		ThreatModelID: tm.ID,
 		Name:          "Test note",
 		Content:       models.DBText("body"),
@@ -190,8 +190,8 @@ func TestGormContentFeedbackRepository_CreateWithTargetCheck_SetsCreatedAtExplic
 
 	before := time.Now().UTC().Add(-time.Second)
 	err := repo.CreateWithTargetCheck(context.Background(), fb, ContentFeedbackTargetRef{
-		ThreatModelID: tm.ID,
-		TargetID:      note.ID,
+		ThreatModelID: string(tm.ID),
+		TargetID:      string(note.ID),
 		Table:         models.Note{}.TableName(),
 	})
 	after := time.Now().UTC().Add(time.Second)

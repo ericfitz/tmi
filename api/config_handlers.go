@@ -528,7 +528,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 		Value:       req.Value,
 		SettingType: string(req.Type),
 		ModifiedAt:  time.Now(),
-		ModifiedBy:  modifiedBy,
+		ModifiedBy:  models.NewNullableDBVarchar(modifiedBy),
 	}
 	if req.Description != nil {
 		setting.Description = req.Description
@@ -743,9 +743,9 @@ func modelToAPISystemSetting(m models.SystemSetting) SystemSetting {
 	if m.Description != nil {
 		setting.Description = m.Description
 	}
-	if m.ModifiedBy != nil {
+	if m.ModifiedBy.Valid {
 		// Convert string UUID to openapi_types.UUID
-		if parsedUUID, err := uuid.Parse(*m.ModifiedBy); err == nil {
+		if parsedUUID, err := uuid.Parse(m.ModifiedBy.String); err == nil {
 			setting.ModifiedBy = &parsedUUID
 		}
 	}
