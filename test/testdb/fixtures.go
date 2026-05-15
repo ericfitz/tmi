@@ -70,7 +70,7 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 	testTM := &models.ThreatModel{
 		ID:                    models.DBVarchar(uuid.New().String()),
 		Name:                  models.DBVarchar(prefix + "-threat-model"),
-		Description:           new("Test threat model for integration testing"),
+		Description:           models.NullableDBText{String: "Test threat model for integration testing", Valid: true},
 		OwnerInternalUUID:     testUser.InternalUUID,
 		CreatedByInternalUUID: testUser.InternalUUID,
 		ThreatModelFramework:  "STRIDE",
@@ -88,7 +88,7 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 		ID:            models.DBVarchar(uuid.New().String()),
 		ThreatModelID: testTM.ID,
 		Name:          models.DBVarchar(prefix + "-diagram"),
-		Description:   new("Test diagram for integration testing"),
+		Description:   models.NullableDBText{String: "Test diagram for integration testing", Valid: true},
 		Type:          models.NewNullableDBVarchar(&diagramType),
 		CreatedAt:     time.Now(),
 		ModifiedAt:    time.Now(),
@@ -103,7 +103,7 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 		ID:            models.DBVarchar(uuid.New().String()),
 		ThreatModelID: testTM.ID,
 		Name:          models.DBVarchar(prefix + "-threat"),
-		Description:   new("Test threat for integration testing"),
+		Description:   models.NullableDBText{String: "Test threat for integration testing", Valid: true},
 		ThreatType:    models.StringArray{"Spoofing"},
 		Priority:      models.NewNullableDBVarchar(new("high")),
 		Status:        models.NewNullableDBVarchar(new("identified")),
@@ -238,7 +238,7 @@ func NewThreatModelBuilder(prefix string, ownerInternalUUID string) *ThreatModel
 		tm: &models.ThreatModel{
 			ID:                    models.DBVarchar(uuid.New().String()),
 			Name:                  models.DBVarchar(prefix + "-threat-model"),
-			Description:           new("Test threat model"),
+			Description:           models.NullableDBText{String: "Test threat model", Valid: true},
 			OwnerInternalUUID:     models.DBVarchar(ownerInternalUUID),
 			CreatedByInternalUUID: models.DBVarchar(ownerInternalUUID),
 			ThreatModelFramework:  "STRIDE",
@@ -256,7 +256,7 @@ func (b *ThreatModelBuilder) WithName(name string) *ThreatModelBuilder {
 
 // WithDescription sets the description
 func (b *ThreatModelBuilder) WithDescription(desc string) *ThreatModelBuilder {
-	b.tm.Description = &desc
+	b.tm.Description = models.NullableDBText{String: desc, Valid: true}
 	return b
 }
 

@@ -309,7 +309,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 	return ThreatModel{
 		Id:                   &tmUUID,
 		Name:                 string(tm.Name),
-		Description:          tm.Description,
+		Description:          tm.Description.Ptr(),
 		Owner:                owner,
 		CreatedBy:            createdBy,
 		SecurityReviewer:     securityReviewer,
@@ -375,7 +375,7 @@ func (s *GormThreatModelStore) convertToListItem(tm *models.ThreatModel) TMListI
 	return TMListItem{
 		Id:                   &tmUUID,
 		Name:                 string(tm.Name),
-		Description:          tm.Description,
+		Description:          tm.Description.Ptr(),
 		CreatedAt:            tm.CreatedAt,
 		ModifiedAt:           tm.ModifiedAt,
 		Owner:                owner,
@@ -817,7 +817,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	tm := models.ThreatModel{
 		ID:                           models.DBVarchar(id),
 		Name:                         models.DBVarchar(item.Name),
-		Description:                  item.Description,
+		Description:                  models.NewNullableDBText(item.Description),
 		OwnerInternalUUID:            models.DBVarchar(ownerUUID),
 		CreatedByInternalUUID:        models.DBVarchar(createdByUUID),
 		SecurityReviewerInternalUUID: models.NewNullableDBVarchar(securityReviewerUUID),
@@ -1209,9 +1209,9 @@ func (s *GormThreatModelStore) loadThreats(threatModelID string) ([]Threat, erro
 		threats = append(threats, Threat{
 			Id:            &threatUUID,
 			Name:          string(tm.Name),
-			Description:   tm.Description,
+			Description:   tm.Description.Ptr(),
 			Severity:      tm.Severity.Ptr(),
-			Mitigation:    tm.Mitigation,
+			Mitigation:    tm.Mitigation.Ptr(),
 			DiagramId:     diagramID,
 			CellId:        cellID,
 			AssetId:       assetID,
@@ -1561,7 +1561,7 @@ func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiag
 	return DfdDiagram{
 		Id:              &diagramUUID,
 		Name:            string(diagram.Name),
-		Description:     diagram.Description,
+		Description:     diagram.Description.Ptr(),
 		Type:            diagType,
 		Cells:           cells,
 		ColorPalette:    colorPalette,
@@ -1635,7 +1635,7 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 		ID:                models.DBVarchar(id),
 		ThreatModelID:     models.DBVarchar(threatModelID),
 		Name:              models.DBVarchar(item.Name),
-		Description:       item.Description,
+		Description:       models.NewNullableDBText(item.Description),
 		Type:              diagType,
 		Cells:             models.JSONRaw(cellsJSON),
 		ColorPalette:      colorPaletteJSON,

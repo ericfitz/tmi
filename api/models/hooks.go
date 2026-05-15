@@ -192,13 +192,13 @@ func (g *Group) BeforeUpdate(tx *gorm.DB) error {
 		return fmt.Errorf("cannot rename built-in group %q: %w", existing.GroupName, ErrBuiltInGroupProtected)
 	}
 
-	// Check Description pointer changes
+	// Check Description changes
 	switch {
-	case g.Description == nil && existing.Description != nil:
+	case !g.Description.Valid && existing.Description.Valid:
 		return fmt.Errorf("cannot clear the description of built-in group %q: %w", existing.GroupName, ErrBuiltInGroupProtected)
-	case g.Description != nil && existing.Description == nil:
+	case g.Description.Valid && !existing.Description.Valid:
 		// Setting a description for the first time is OK
-	case g.Description != nil && existing.Description != nil && *g.Description != *existing.Description:
+	case g.Description.Valid && existing.Description.Valid && g.Description.String != existing.Description.String:
 		return fmt.Errorf("cannot change the description of built-in group %q: %w", existing.GroupName, ErrBuiltInGroupProtected)
 	}
 

@@ -241,8 +241,8 @@ func (s *GormAddonStore) modelToAPI(model models.Addon) Addon {
 		addon.WebhookID = webhookID
 	}
 
-	if model.Description != nil {
-		addon.Description = *model.Description
+	if model.Description.Valid {
+		addon.Description = model.Description.String
 	}
 
 	if model.Icon.Valid {
@@ -281,7 +281,7 @@ func (s *GormAddonStore) apiToModel(addon Addon) models.Addon {
 	}
 
 	if addon.Description != "" {
-		model.Description = &addon.Description
+		model.Description = models.NullableDBText{String: addon.Description, Valid: true}
 	}
 
 	if addon.Icon != "" {

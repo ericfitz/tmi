@@ -46,7 +46,7 @@ func teamNoteToRecord(note *TeamNote, teamID string) *models.TeamNoteRecord {
 		record.ID = models.DBVarchar(note.Id.String())
 	}
 	if note.Description != nil {
-		record.Description = note.Description
+		record.Description = models.NewNullableDBText(note.Description)
 	}
 	if note.TimmyEnabled != nil {
 		record.TimmyEnabled = models.DBBool(*note.TimmyEnabled)
@@ -74,7 +74,7 @@ func teamNoteFromRecord(record *models.TeamNoteRecord) *TeamNote {
 		Id:           &id,
 		Name:         string(record.Name),
 		Content:      string(record.Content),
-		Description:  record.Description,
+		Description:  record.Description.Ptr(),
 		Sharable:     &sharable,
 		TimmyEnabled: &timmyEnabled,
 		CreatedAt:    &createdAt,
@@ -93,7 +93,7 @@ func teamNoteListItemFromRecord(record *models.TeamNoteRecord) TeamNoteListItem 
 	return TeamNoteListItem{
 		Id:           &id,
 		Name:         string(record.Name),
-		Description:  record.Description,
+		Description:  record.Description.Ptr(),
 		Sharable:     &sharable,
 		TimmyEnabled: &timmyEnabled,
 		CreatedAt:    &createdAt,
@@ -181,7 +181,7 @@ func (s *GormTeamNoteStore) Update(ctx context.Context, id string, note *TeamNot
 	// Update fields
 	existing.Name = models.DBVarchar(note.Name)
 	existing.Content = models.DBText(note.Content)
-	existing.Description = note.Description
+	existing.Description = models.NewNullableDBText(note.Description)
 	if note.TimmyEnabled != nil {
 		existing.TimmyEnabled = models.DBBool(*note.TimmyEnabled)
 	}

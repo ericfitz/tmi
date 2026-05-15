@@ -46,7 +46,7 @@ func projectNoteToRecord(note *ProjectNote, projectID string) *models.ProjectNot
 		record.ID = models.DBVarchar(note.Id.String())
 	}
 	if note.Description != nil {
-		record.Description = note.Description
+		record.Description = models.NewNullableDBText(note.Description)
 	}
 	if note.TimmyEnabled != nil {
 		record.TimmyEnabled = models.DBBool(*note.TimmyEnabled)
@@ -74,7 +74,7 @@ func projectNoteFromRecord(record *models.ProjectNoteRecord) *ProjectNote {
 		Id:           &id,
 		Name:         string(record.Name),
 		Content:      string(record.Content),
-		Description:  record.Description,
+		Description:  record.Description.Ptr(),
 		Sharable:     &sharable,
 		TimmyEnabled: &timmyEnabled,
 		CreatedAt:    &createdAt,
@@ -93,7 +93,7 @@ func projectNoteListItemFromRecord(record *models.ProjectNoteRecord) ProjectNote
 	return ProjectNoteListItem{
 		Id:           &id,
 		Name:         string(record.Name),
-		Description:  record.Description,
+		Description:  record.Description.Ptr(),
 		Sharable:     &sharable,
 		TimmyEnabled: &timmyEnabled,
 		CreatedAt:    &createdAt,
@@ -181,7 +181,7 @@ func (s *GormProjectNoteStore) Update(ctx context.Context, id string, note *Proj
 	// Update fields
 	existing.Name = models.DBVarchar(note.Name)
 	existing.Content = models.DBText(note.Content)
-	existing.Description = note.Description
+	existing.Description = models.NewNullableDBText(note.Description)
 	if note.TimmyEnabled != nil {
 		existing.TimmyEnabled = models.DBBool(*note.TimmyEnabled)
 	}

@@ -90,13 +90,13 @@ func (r *RefreshTokenRecord) BeforeCreate(tx *gorm.DB) error {
 // ClientCredential represents OAuth 2.0 client credentials for machine-to-machine auth
 // Note: Explicit column tags removed for Oracle compatibility
 type ClientCredential struct {
-	ID               DBVarchar `gorm:"primaryKey;size:36"`
-	OwnerUUID        DBVarchar `gorm:"size:36;not null;index"`
-	ClientID         DBVarchar `gorm:"size:1000;not null;uniqueIndex"`
-	ClientSecretHash DBText    `gorm:"not null"`
-	Name             DBVarchar `gorm:"size:256;not null"`
-	Description      *string   `gorm:"type:varchar(1024)"`
-	IsActive         DBBool    `gorm:"default:1"`
+	ID               DBVarchar      `gorm:"primaryKey;size:36"`
+	OwnerUUID        DBVarchar      `gorm:"size:36;not null;index"`
+	ClientID         DBVarchar      `gorm:"size:1000;not null;uniqueIndex"`
+	ClientSecretHash DBText         `gorm:"not null"`
+	Name             DBVarchar      `gorm:"size:256;not null"`
+	Description      NullableDBText `gorm:""`
+	IsActive         DBBool         `gorm:"default:1"`
 	LastUsedAt       *time.Time
 	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt       time.Time `gorm:"not null;autoUpdateTime"`
@@ -126,7 +126,7 @@ type ThreatModel struct {
 	ID                           DBVarchar         `gorm:"primaryKey;size:36"`
 	OwnerInternalUUID            DBVarchar         `gorm:"size:36;not null;index:idx_tm_owner;index:idx_tm_owner_created,priority:1"`
 	Name                         DBVarchar         `gorm:"size:256;not null"`
-	Description                  *string           `gorm:"type:varchar(2048)"`
+	Description                  NullableDBText    `gorm:""`
 	CreatedByInternalUUID        DBVarchar         `gorm:"size:36;not null;index:idx_tm_created_by"`
 	ThreatModelFramework         DBVarchar         `gorm:"size:30;default:STRIDE;index:idx_tm_framework"`
 	IssueURI                     *string           `gorm:"type:varchar(1000)"`
@@ -174,7 +174,7 @@ type Diagram struct {
 	ID                DBVarchar         `gorm:"primaryKey;size:36"`
 	ThreatModelID     DBVarchar         `gorm:"size:36;not null;index:idx_diagrams_tm;index:idx_diagrams_tm_type,priority:1"`
 	Name              DBVarchar         `gorm:"size:256;not null"`
-	Description       *string           `gorm:"type:varchar(2048)"`
+	Description       NullableDBText    `gorm:""`
 	Type              NullableDBVarchar `gorm:"size:64;index:idx_diagrams_type;index:idx_diagrams_tm_type,priority:2"`
 	Content           NullableDBText    `gorm:""`
 	Cells             JSONRaw           `gorm:""`
@@ -215,7 +215,7 @@ type Asset struct {
 	ID              DBVarchar         `gorm:"primaryKey;size:36"`
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_assets_tm;index:idx_assets_tm_created,priority:1;index:idx_assets_tm_modified,priority:1"`
 	Name            DBVarchar         `gorm:"size:256;not null;index:idx_assets_name"`
-	Description     *string           `gorm:"type:varchar(2048)"`
+	Description     NullableDBText    `gorm:""`
 	Type            DBVarchar         `gorm:"size:64;not null;index:idx_assets_type"`
 	Criticality     NullableDBVarchar `gorm:"size:128"`
 	Classification  StringArray       `gorm:""`
@@ -263,7 +263,7 @@ type Threat struct {
 	CellID          NullableDBVarchar `gorm:"size:36;index:idx_threats_cell"`
 	AssetID         NullableDBVarchar `gorm:"size:36;index:idx_threats_asset"`
 	Name            DBVarchar         `gorm:"size:256;not null;index:idx_threats_name"`
-	Description     *string           `gorm:"type:varchar(2048)"`
+	Description     NullableDBText    `gorm:""`
 	Severity        NullableDBVarchar `gorm:"size:50;index:idx_threats_severity"`
 	Likelihood      NullableDBVarchar `gorm:"size:50"`
 	RiskLevel       NullableDBVarchar `gorm:"size:50;index:idx_threats_risk_level"`
@@ -278,7 +278,7 @@ type Threat struct {
 	CweID           StringArray       `gorm:"column:cwe_id"` // CWE identifiers (e.g., CWE-89)
 	Cvss            CVSSArray         `gorm:"column:cvss"`   // CVSS vector and score pairs
 	Ssvc            NullableSSVC      `gorm:"column:ssvc"`   // SSVC assessment result
-	Mitigation      *string           `gorm:"type:varchar(1024)"`
+	Mitigation      NullableDBText    `gorm:""`
 	IssueURI        *string           `gorm:"type:varchar(1000)"`
 	Alias           int32             `gorm:"column:alias;not null;default:0;<-:create"` // Server-assigned per-(threat_model_id, type) alias
 	// Note: autoCreateTime/autoUpdateTime tags removed for Oracle compatibility.
@@ -317,7 +317,7 @@ type Group struct {
 	Provider     DBVarchar         `gorm:"size:100;not null;index:idx_groups_provider"`
 	GroupName    DBVarchar         `gorm:"size:500;not null;index:idx_groups_group_name"`
 	Name         NullableDBVarchar `gorm:"size:256"`
-	Description  *string           `gorm:"type:varchar(2048)"`
+	Description  NullableDBText    `gorm:""`
 	FirstUsed    time.Time         `gorm:"not null;autoCreateTime"`
 	LastUsed     time.Time         `gorm:"not null;autoUpdateTime;index:idx_groups_last_used"`
 	UsageCount   int               `gorm:"default:1"`
@@ -377,7 +377,7 @@ type Document struct {
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_docs_tm;index:idx_docs_tm_created,priority:1;index:idx_docs_tm_modified,priority:1"`
 	Name            DBVarchar         `gorm:"size:256;not null;index:idx_docs_name"`
 	URI             string            `gorm:"type:varchar(1000);not null"`
-	Description     *string           `gorm:"type:varchar(2048)"`
+	Description     NullableDBText    `gorm:""`
 	IncludeInReport DBBool            `gorm:"default:1"`
 	TimmyEnabled    DBBool            `gorm:"default:1"`
 	AccessStatus    NullableDBVarchar `gorm:"size:32;default:unknown"`
@@ -420,18 +420,18 @@ func (d *Document) BeforeCreate(tx *gorm.DB) error {
 // Note represents a note attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Note struct {
-	ID              DBVarchar  `gorm:"primaryKey;size:36"`
-	ThreatModelID   DBVarchar  `gorm:"size:36;not null;index:idx_notes_tm;index:idx_notes_tm_created,priority:1;index:idx_notes_tm_modified,priority:1"`
-	Name            DBVarchar  `gorm:"size:256;not null;index:idx_notes_name"`
-	Content         DBText     `gorm:"not null"`
-	Description     *string    `gorm:"type:varchar(2048)"`
-	IncludeInReport DBBool     `gorm:"default:1"`
-	TimmyEnabled    DBBool     `gorm:"default:1"`
-	AutoGenerated   DBBool     `gorm:"default:0;<-:create" json:"auto_generated"`
-	Alias           int32      `gorm:"column:alias;not null;default:0;<-:create"` // Server-assigned per-(threat_model_id, type) alias
-	CreatedAt       time.Time  `gorm:"not null;autoCreateTime;index:idx_notes_created;index:idx_notes_tm_created,priority:2"`
-	ModifiedAt      time.Time  `gorm:"not null;autoUpdateTime;index:idx_notes_modified;index:idx_notes_tm_modified,priority:2"`
-	DeletedAt       *time.Time `gorm:"index:idx_notes_deleted_at"`
+	ID              DBVarchar      `gorm:"primaryKey;size:36"`
+	ThreatModelID   DBVarchar      `gorm:"size:36;not null;index:idx_notes_tm;index:idx_notes_tm_created,priority:1;index:idx_notes_tm_modified,priority:1"`
+	Name            DBVarchar      `gorm:"size:256;not null;index:idx_notes_name"`
+	Content         DBText         `gorm:"not null"`
+	Description     NullableDBText `gorm:""`
+	IncludeInReport DBBool         `gorm:"default:1"`
+	TimmyEnabled    DBBool         `gorm:"default:1"`
+	AutoGenerated   DBBool         `gorm:"default:0;<-:create" json:"auto_generated"`
+	Alias           int32          `gorm:"column:alias;not null;default:0;<-:create"` // Server-assigned per-(threat_model_id, type) alias
+	CreatedAt       time.Time      `gorm:"not null;autoCreateTime;index:idx_notes_created;index:idx_notes_tm_created,priority:2"`
+	ModifiedAt      time.Time      `gorm:"not null;autoUpdateTime;index:idx_notes_modified;index:idx_notes_tm_modified,priority:2"`
+	DeletedAt       *time.Time     `gorm:"index:idx_notes_deleted_at"`
 
 	// Relationships
 	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
@@ -467,7 +467,7 @@ type Repository struct {
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_repos_tm;index:idx_repos_tm_created,priority:1;index:idx_repos_tm_modified,priority:1"`
 	Name            NullableDBVarchar `gorm:"size:256;index:idx_repos_name"`
 	URI             string            `gorm:"type:varchar(1000);not null"`
-	Description     *string           `gorm:"type:varchar(2048)"`
+	Description     NullableDBText    `gorm:""`
 	Type            NullableDBVarchar `gorm:"size:64;index:idx_repos_type"`
 	Parameters      JSONMap           `gorm:""`
 	IncludeInReport DBBool            `gorm:"default:1"`
@@ -635,11 +635,11 @@ func (WebhookQuota) TableName() string {
 // WebhookURLDenyList represents URL patterns blocked for webhooks
 // Note: Explicit column tags removed for Oracle compatibility
 type WebhookURLDenyList struct {
-	ID          DBVarchar `gorm:"primaryKey;size:36"`
-	Pattern     DBVarchar `gorm:"size:256;not null;uniqueIndex:idx_webhook_deny_pattern"`
-	PatternType DBVarchar `gorm:"size:64;not null"`
-	Description *string   `gorm:"type:varchar(2048)"`
-	CreatedAt   time.Time `gorm:"not null;autoCreateTime"`
+	ID          DBVarchar      `gorm:"primaryKey;size:36"`
+	Pattern     DBVarchar      `gorm:"size:256;not null;uniqueIndex:idx_webhook_deny_pattern"`
+	PatternType DBVarchar      `gorm:"size:64;not null"`
+	Description NullableDBText `gorm:""`
+	CreatedAt   time.Time      `gorm:"not null;autoCreateTime"`
 }
 
 // TableName specifies the table name for WebhookURLDenyList
@@ -662,7 +662,7 @@ type Addon struct {
 	CreatedAt     time.Time         `gorm:"not null;autoCreateTime"`
 	Name          DBVarchar         `gorm:"size:256;not null"`
 	WebhookID     DBVarchar         `gorm:"size:36;not null;index"`
-	Description   *string           `gorm:"type:varchar(2048)"`
+	Description   NullableDBText    `gorm:""`
 	Icon          NullableDBVarchar `gorm:"size:60"`
 	Objects       StringArray       `gorm:""`
 	ThreatModelID NullableDBVarchar `gorm:"size:36;index"`
@@ -735,7 +735,7 @@ type GroupMember struct {
 	SubjectType             DBVarchar         `gorm:"size:10;not null;default:user;uniqueIndex:idx_gm_group_user_type,priority:3"`
 	AddedByInternalUUID     NullableDBVarchar `gorm:"size:36"`
 	AddedAt                 time.Time         `gorm:"not null;autoCreateTime"`
-	Notes                   *string           `gorm:"type:varchar(2048)"`
+	Notes                   NullableDBText    `gorm:""`
 
 	// Relationships
 	Group       Group  `gorm:"foreignKey:GroupInternalUUID;references:InternalUUID"`
@@ -790,7 +790,7 @@ func (u *UserPreference) BeforeCreate(tx *gorm.DB) error {
 type UsabilityFeedback struct {
 	ID            DBVarchar         `gorm:"primaryKey;size:36"`
 	Sentiment     DBVarchar         `gorm:"size:8;not null;index:idx_usability_feedback_sentiment"`
-	Verbatim      *string           `gorm:"type:varchar(2048)"`
+	Verbatim      NullableDBText    `gorm:""`
 	Surface       DBVarchar         `gorm:"size:32;not null;index:idx_usability_feedback_surface"`
 	ClientID      DBVarchar         `gorm:"column:client_id;size:32;not null"`
 	ClientVersion NullableDBVarchar `gorm:"column:client_version;size:32"`
@@ -835,7 +835,7 @@ type ContentFeedback struct {
 	TargetID               DBVarchar         `gorm:"size:36;not null;index:idx_content_feedback_target,priority:3"`
 	TargetField            NullableDBVarchar `gorm:"size:64"`
 	Sentiment              DBVarchar         `gorm:"size:8;not null;index:idx_content_feedback_sentiment"`
-	Verbatim               *string           `gorm:"type:varchar(2048)"`
+	Verbatim               NullableDBText    `gorm:""`
 	FalsePositiveReason    NullableDBVarchar `gorm:"column:false_positive_reason;size:32;index:idx_content_feedback_fp_reason"`
 	FalsePositiveSubreason NullableDBVarchar `gorm:"column:false_positive_subreason;size:40"`
 	ClientID               DBVarchar         `gorm:"column:client_id;size:32;not null"`

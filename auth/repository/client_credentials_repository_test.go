@@ -477,7 +477,7 @@ func TestConvertModelToClientCredential(t *testing.T) {
 		ClientID:         "tmi_cc_test123",
 		ClientSecretHash: "hashed_secret",
 		Name:             "Test Credential",
-		Description:      &description,
+		Description:      models.NewNullableDBText(&description),
 		IsActive:         models.DBBool(true),
 		LastUsedAt:       &now,
 		CreatedAt:        now,
@@ -510,7 +510,7 @@ func TestConvertModelToClientCredential_NilDescription(t *testing.T) {
 		ClientID:         "tmi_cc_test123",
 		ClientSecretHash: "hashed_secret",
 		Name:             "Test Credential",
-		Description:      nil,
+		Description:      models.NullableDBText{},
 		IsActive:         models.DBBool(true),
 	}
 

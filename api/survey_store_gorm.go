@@ -307,7 +307,7 @@ func (s *GormSurveyStore) apiToModel(survey *Survey) (*models.SurveyTemplate, er
 	}
 
 	if survey.Description != nil {
-		model.Description = survey.Description
+		model.Description = models.NewNullableDBText(survey.Description)
 	}
 
 	if survey.Status != nil {
@@ -347,7 +347,7 @@ func (s *GormSurveyStore) modelToAPI(model *models.SurveyTemplate) (*Survey, err
 	survey := &Survey{
 		Id:          &id,
 		Name:        string(model.Name),
-		Description: model.Description,
+		Description: model.Description.Ptr(),
 		Version:     string(model.Version),
 		CreatedAt:   &model.CreatedAt,
 		ModifiedAt:  &model.ModifiedAt,
@@ -393,7 +393,7 @@ func (s *GormSurveyStore) modelToListItem(model *models.SurveyTemplate) SurveyLi
 	item := SurveyListItem{
 		Id:          &id,
 		Name:        string(model.Name),
-		Description: model.Description,
+		Description: model.Description.Ptr(),
 		Version:     string(model.Version),
 		CreatedAt:   model.CreatedAt,
 		ModifiedAt:  &model.ModifiedAt,

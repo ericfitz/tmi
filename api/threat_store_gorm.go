@@ -1107,13 +1107,13 @@ func (s *GormThreatRepository) toGormModelForCreate(threat *Threat) *models.Thre
 		ModifiedAt:    now,
 	}
 	if threat.Description != nil {
-		gm.Description = threat.Description
+		gm.Description = models.NewNullableDBText(threat.Description)
 	}
 	if threat.Severity != nil {
 		gm.Severity = models.NewNullableDBVarchar(threat.Severity)
 	}
 	if threat.Mitigation != nil {
-		gm.Mitigation = threat.Mitigation
+		gm.Mitigation = models.NewNullableDBText(threat.Mitigation)
 	}
 	if threat.Status != nil {
 		gm.Status = models.NewNullableDBVarchar(threat.Status)
@@ -1208,14 +1208,14 @@ func (s *GormThreatRepository) toAPIModel(gm *models.Threat) *Threat {
 			threat.ThreatModelId = &tmID
 		}
 	}
-	if gm.Description != nil {
-		threat.Description = gm.Description
+	if gm.Description.Valid {
+		threat.Description = gm.Description.Ptr()
 	}
 	if gm.Severity.Valid {
 		threat.Severity = gm.Severity.Ptr()
 	}
-	if gm.Mitigation != nil {
-		threat.Mitigation = gm.Mitigation
+	if gm.Mitigation.Valid {
+		threat.Mitigation = gm.Mitigation.Ptr()
 	}
 	if gm.Status.Valid {
 		threat.Status = gm.Status.Ptr()

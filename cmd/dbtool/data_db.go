@@ -109,7 +109,7 @@ func grantAdmin(db *testdb.TestDB, user *models.User) error {
 		GroupInternalUUID: models.DBVarchar(administratorsGroupUUID),
 		UserInternalUUID:  models.NewNullableDBVarchar(&userInternalUUID),
 		SubjectType:       "user",
-		Notes:             &notes,
+		Notes:             models.NewNullableDBText(&notes),
 	}
 
 	if err := db.DB().Create(&member).Error; err != nil {
@@ -182,9 +182,9 @@ func seedSetting(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 
 	setting := models.SystemSetting{
 		SettingKey:  models.DBVarchar(key),
-		Value:       value,
+		Value:       models.DBText(value),
 		SettingType: models.DBVarchar(settingType),
-		Description: &description,
+		Description: models.NewNullableDBText(&description),
 	}
 
 	var existing models.SystemSetting

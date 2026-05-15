@@ -13,7 +13,7 @@ import (
 type TeamRecord struct {
 	ID                     DBVarchar         `gorm:"primaryKey;size:36"`
 	Name                   DBVarchar         `gorm:"size:256;not null;index:idx_team_name"`
-	Description            *string           `gorm:"type:varchar(2048)"`
+	Description            NullableDBText    `gorm:""`
 	URI                    *string           `gorm:"type:varchar(1000)"`
 	EmailAddress           NullableDBVarchar `gorm:"size:320"`
 	Status                 NullableDBVarchar `gorm:"size:128;index:idx_team_status"`
@@ -130,7 +130,7 @@ func (t *TeamRelationshipRecord) BeforeCreate(tx *gorm.DB) error {
 type ProjectRecord struct {
 	ID                     DBVarchar         `gorm:"primaryKey;size:36"`
 	Name                   DBVarchar         `gorm:"size:256;not null;index:idx_proj_name"`
-	Description            *string           `gorm:"type:varchar(2048)"`
+	Description            NullableDBText    `gorm:""`
 	TeamID                 DBVarchar         `gorm:"size:36;not null;index:idx_proj_team"`
 	URI                    *string           `gorm:"type:varchar(1000)"`
 	Status                 NullableDBVarchar `gorm:"size:128;index:idx_proj_status"`

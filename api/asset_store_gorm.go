@@ -689,7 +689,7 @@ func (s *GormAssetRepository) toGormModel(asset *Asset, threatModelID string) *m
 		gm.ID = models.DBVarchar(asset.Id.String())
 	}
 	if asset.Description != nil {
-		gm.Description = asset.Description
+		gm.Description = models.NewNullableDBText(asset.Description)
 	}
 	if asset.Criticality != nil {
 		gm.Criticality = models.NewNullableDBVarchar(asset.Criticality)
@@ -724,8 +724,8 @@ func (s *GormAssetRepository) toAPIModel(gm *models.Asset) *Asset {
 			asset.Id = &id
 		}
 	}
-	if gm.Description != nil {
-		asset.Description = gm.Description
+	if gm.Description.Valid {
+		asset.Description = gm.Description.Ptr()
 	}
 	if gm.Criticality.Valid {
 		asset.Criticality = gm.Criticality.Ptr()

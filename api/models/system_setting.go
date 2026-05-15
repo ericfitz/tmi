@@ -12,11 +12,11 @@ type SystemSetting struct {
 	// SettingKey is the unique identifier for this setting (e.g., "rate_limit.requests_per_minute")
 	// Named SettingKey instead of Key to avoid Oracle reserved word conflict
 	SettingKey DBVarchar `gorm:"column:setting_key;primaryKey;size:256" json:"key"`
-	Value      string    `gorm:"type:varchar(4000);not null" json:"value"`
+	Value      DBText    `gorm:"not null" json:"value"`
 	// SettingType stores the value type: "string", "int", "bool", "json"
 	// Note: default tag removed for Oracle compatibility (unquoted string defaults cause syntax errors)
 	SettingType DBVarchar         `gorm:"column:setting_type;size:50;not null" json:"type"`
-	Description *string           `gorm:"type:varchar(2048)" json:"description,omitempty"`
+	Description NullableDBText    `gorm:"" json:"description,omitempty"`
 	ModifiedAt  time.Time         `gorm:"not null;autoUpdateTime" json:"modified_at"`
 	ModifiedBy  NullableDBVarchar `gorm:"size:36" json:"modified_by,omitempty"` // User InternalUUID
 	// Source indicates where the effective value comes from: "database", "config", "environment", "vault"
@@ -44,56 +44,56 @@ const (
 // when the database is initialized. These provide sensible defaults that can be
 // overridden by administrators.
 func DefaultSystemSettings() []SystemSetting {
-	defaultDescription := func(s string) *string { return &s }
+	desc := func(s string) NullableDBText { return NullableDBText{String: s, Valid: true} }
 
 	return []SystemSetting{
 		{
 			SettingKey:  "rate_limit.requests_per_minute",
 			Value:       "100",
 			SettingType: SystemSettingTypeInt,
-			Description: defaultDescription("Maximum API requests per minute per user"),
+			Description: desc("Maximum API requests per minute per user"),
 		},
 		{
 			SettingKey:  "rate_limit.requests_per_hour",
 			Value:       "1000",
 			SettingType: SystemSettingTypeInt,
-			Description: defaultDescription("Maximum API requests per hour per user"),
+			Description: desc("Maximum API requests per hour per user"),
 		},
 		{
 			SettingKey:  "session.timeout_minutes",
 			Value:       "60",
 			SettingType: SystemSettingTypeInt,
-			Description: defaultDescription("JWT token expiration in minutes"),
+			Description: desc("JWT token expiration in minutes"),
 		},
 		{
 			SettingKey:  "websocket.max_participants",
 			Value:       "10",
 			SettingType: SystemSettingTypeInt,
-			Description: defaultDescription("Maximum participants per collaboration session"),
+			Description: desc("Maximum participants per collaboration session"),
 		},
 		{
 			SettingKey:  "features.saml_enabled",
 			Value:       "false",
 			SettingType: SystemSettingTypeBool,
-			Description: defaultDescription("Enable SAML authentication"),
+			Description: desc("Enable SAML authentication"),
 		},
 		{
 			SettingKey:  "features.webhooks_enabled",
 			Value:       "true",
 			SettingType: SystemSettingTypeBool,
-			Description: defaultDescription("Enable webhook subscriptions"),
+			Description: desc("Enable webhook subscriptions"),
 		},
 		{
 			SettingKey:  "ui.default_theme",
 			Value:       "auto",
 			SettingType: SystemSettingTypeString,
-			Description: defaultDescription("Default UI theme (auto, light, dark)"),
+			Description: desc("Default UI theme (auto, light, dark)"),
 		},
 		{
 			SettingKey:  "upload.max_file_size_mb",
 			Value:       "10",
 			SettingType: SystemSettingTypeInt,
-			Description: defaultDescription("Maximum file upload size in megabytes"),
+			Description: desc("Maximum file upload size in megabytes"),
 		},
 	}
 }

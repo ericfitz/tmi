@@ -890,7 +890,7 @@ func (s *GormSurveyResponseStore) apiToModel(response *SurveyResponse, ownerInte
 	}
 
 	if response.RevisionNotes != nil {
-		model.RevisionNotes = response.RevisionNotes
+		model.RevisionNotes = models.NewNullableDBText(response.RevisionNotes)
 	}
 
 	if response.ProjectId != nil {
@@ -922,7 +922,7 @@ func (s *GormSurveyResponseStore) modelToAPI(model *models.SurveyResponse) (*Sur
 		ModifiedAt:    &model.ModifiedAt,
 		SubmittedAt:   model.SubmittedAt,
 		ReviewedAt:    model.ReviewedAt,
-		RevisionNotes: model.RevisionNotes,
+		RevisionNotes: model.RevisionNotes.Ptr(),
 	}
 
 	// Convert status

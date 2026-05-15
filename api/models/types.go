@@ -535,6 +535,29 @@ func (t NullableDBText) Ptr() *string {
 	return &s
 }
 
+// MarshalJSON implements the json.Marshaler interface.
+// A valid NullableDBText marshals as a JSON string; an invalid one marshals as null.
+func (t NullableDBText) MarshalJSON() ([]byte, error) {
+	if !t.Valid {
+		return []byte("null"), nil
+	}
+	return json.Marshal(t.String)
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+// A JSON null sets Valid to false; a JSON string sets Valid to true and String to the value.
+func (t *NullableDBText) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		t.String, t.Valid = "", false
+		return nil
+	}
+	if err := json.Unmarshal(data, &t.String); err != nil {
+		return err
+	}
+	t.Valid = true
+	return nil
+}
+
 // NewNullableDBText creates a NullableDBText from a string pointer
 func NewNullableDBText(s *string) NullableDBText {
 	if s == nil {

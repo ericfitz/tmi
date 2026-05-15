@@ -126,7 +126,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 		record := &models.TeamRecord{
 			ID:                    models.DBVarchar(teamID),
 			Name:                  models.DBVarchar(team.Name),
-			Description:           team.Description,
+			Description:           models.NewNullableDBText(team.Description),
 			URI:                   team.Uri,
 			Status:                teamStatusToString(team.Status),
 			CreatedByInternalUUID: models.DBVarchar(userInternalUUID),
@@ -626,7 +626,7 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 		item := TeamListItem{
 			Id:           stringToUUID(string(rec.ID)),
 			Name:         string(rec.Name),
-			Description:  rec.Description,
+			Description:  rec.Description.Ptr(),
 			Status:       nullableDBVarcharToTeamStatus(rec.Status),
 			CreatedAt:    rec.CreatedAt,
 			MemberCount:  &mc,
@@ -927,8 +927,8 @@ func (s *GormTeamStore) recordToAPI(
 	}
 
 	// Optional fields
-	if record.Description != nil {
-		team.Description = record.Description
+	if record.Description.Valid {
+		team.Description = record.Description.Ptr()
 	}
 	if record.URI != nil {
 		team.Uri = record.URI

@@ -152,12 +152,12 @@ func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSe
 
 	// Decrypt if encryptor is configured
 	if s.encryptor != nil {
-		decrypted, err := s.encryptor.Decrypt(dbSetting.Value)
+		decrypted, err := s.encryptor.Decrypt(string(dbSetting.Value))
 		if err != nil {
 			logger.Error("Failed to decrypt setting %s: %v", key, err)
 			return nil, fmt.Errorf("failed to decrypt setting %s: %w", key, err)
 		}
-		dbSetting.Value = decrypted
+		dbSetting.Value = models.DBText(decrypted)
 	}
 
 	// Cache the decrypted result (cache stores plaintext)
@@ -182,7 +182,7 @@ func (s *SettingsService) GetString(ctx context.Context, key string) (string, er
 	if setting == nil {
 		return "", nil
 	}
-	return setting.Value, nil
+	return string(setting.Value), nil
 }
 
 // GetInt retrieves an integer setting value.
@@ -205,7 +205,7 @@ func (s *SettingsService) GetInt(ctx context.Context, key string) (int, error) {
 	if setting == nil {
 		return 0, nil
 	}
-	val, err := strconv.Atoi(setting.Value)
+	val, err := strconv.Atoi(string(setting.Value))
 	if err != nil {
 		return 0, fmt.Errorf("setting %s is not a valid integer: %w", key, err)
 	}
@@ -232,7 +232,7 @@ func (s *SettingsService) GetBool(ctx context.Context, key string) (bool, error)
 	if setting == nil {
 		return false, nil
 	}
-	val, err := strconv.ParseBool(setting.Value)
+	val, err := strconv.ParseBool(string(setting.Value))
 	if err != nil {
 		return false, fmt.Errorf("setting %s is not a valid boolean: %w", key, err)
 	}
@@ -258,7 +258,7 @@ func (s *SettingsService) GetJSON(ctx context.Context, key string, target any) e
 	if setting == nil {
 		return nil
 	}
-	if err := json.Unmarshal([]byte(setting.Value), target); err != nil {
+	if err := json.Unmarshal([]byte(string(setting.Value)), target); err != nil {
 		return fmt.Errorf("setting %s is not valid JSON: %w", key, err)
 	}
 	return nil
@@ -276,12 +276,12 @@ func (s *SettingsService) List(ctx context.Context) ([]models.SystemSetting, err
 	// Decrypt all values
 	if s.encryptor != nil {
 		for i := range settings {
-			decrypted, err := s.encryptor.Decrypt(settings[i].Value)
+			decrypted, err := s.encryptor.Decrypt(string(settings[i].Value))
 			if err != nil {
 				logger.Error("Failed to decrypt setting %s: %v", settings[i].SettingKey, err)
 				return nil, fmt.Errorf("failed to decrypt setting %s: %w", settings[i].SettingKey, err)
 			}
-			settings[i].Value = decrypted
+			settings[i].Value = models.DBText(decrypted)
 		}
 	}
 
@@ -304,12 +304,12 @@ func (s *SettingsService) ListByPrefix(ctx context.Context, prefix string) ([]mo
 	// Decrypt values if encryptor is configured
 	if s.encryptor != nil {
 		for i := range settings {
-			decrypted, err := s.encryptor.Decrypt(settings[i].Value)
+			decrypted, err := s.encryptor.Decrypt(string(settings[i].Value))
 			if err != nil {
 				// Value may not be encrypted (e.g., migrated from before encryption was enabled)
 				continue
 			}
-			settings[i].Value = decrypted
+			settings[i].Value = models.DBText(decrypted)
 		}
 	}
 
@@ -337,11 +337,11 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 	// Encrypt value before saving to database
 	dbSetting := *setting
 	if s.encryptor != nil && s.encryptor.IsEnabled() {
-		encrypted, err := s.encryptor.Encrypt(setting.Value)
+		encrypted, err := s.encryptor.Encrypt(string(setting.Value))
 		if err != nil {
 			return fmt.Errorf("failed to encrypt setting %s: %w", setting.SettingKey, err)
 		}
-		dbSetting.Value = encrypted
+		dbSetting.Value = models.DBText(encrypted)
 	}
 
 	// Upsert the setting
@@ -397,11 +397,11 @@ func (s *SettingsService) SeedDefaults(ctx context.Context) error {
 		// Encrypt value before seeding
 		dbSetting := setting
 		if s.encryptor != nil && s.encryptor.IsEnabled() {
-			encrypted, err := s.encryptor.Encrypt(setting.Value)
+			encrypted, err := s.encryptor.Encrypt(string(setting.Value))
 			if err != nil {
 				return fmt.Errorf("failed to encrypt default setting %s: %w", setting.SettingKey, err)
 			}
-			dbSetting.Value = encrypted
+			dbSetting.Value = models.DBText(encrypted)
 		}
 
 		// Create the setting
@@ -442,7 +442,7 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) 
 
 	for _, setting := range settings {
 		// Decrypt (handles both plaintext and encrypted values, tries current then previous key)
-		plaintext, err := s.encryptor.Decrypt(setting.Value)
+		plaintext, err := s.encryptor.Decrypt(string(setting.Value))
 		if err != nil {
 			logger.Error("Failed to decrypt setting %s during re-encryption: %v", setting.SettingKey, err)
 			settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: err.Error()})
@@ -458,7 +458,7 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) 
 		}
 
 		// Update in database
-		setting.Value = encrypted
+		setting.Value = models.DBText(encrypted)
 		setting.ModifiedAt = time.Now()
 		setting.ModifiedBy = models.NewNullableDBVarchar(modifiedBy)
 		if err := s.gormDB.WithContext(ctx).Save(&setting).Error; err != nil {
@@ -481,16 +481,16 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) 
 func (s *SettingsService) validateValue(setting *models.SystemSetting) error {
 	switch setting.SettingType {
 	case models.SystemSettingTypeInt:
-		if _, err := strconv.Atoi(setting.Value); err != nil {
+		if _, err := strconv.Atoi(string(setting.Value)); err != nil {
 			return fmt.Errorf("value '%s' is not a valid integer", setting.Value)
 		}
 	case models.SystemSettingTypeBool:
-		if _, err := strconv.ParseBool(setting.Value); err != nil {
+		if _, err := strconv.ParseBool(string(setting.Value)); err != nil {
 			return fmt.Errorf("value '%s' is not a valid boolean", setting.Value)
 		}
 	case models.SystemSettingTypeJSON:
 		var js json.RawMessage
-		if err := json.Unmarshal([]byte(setting.Value), &js); err != nil {
+		if err := json.Unmarshal([]byte(string(setting.Value)), &js); err != nil {
 			return fmt.Errorf("value '%s' is not valid JSON", setting.Value)
 		}
 	case models.SystemSettingTypeString:

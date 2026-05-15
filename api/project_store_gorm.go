@@ -115,7 +115,7 @@ func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInt
 	record := models.ProjectRecord{
 		ID:                    models.DBVarchar(project.Id.String()),
 		Name:                  models.DBVarchar(project.Name),
-		Description:           project.Description,
+		Description:           models.NewNullableDBText(project.Description),
 		TeamID:                models.DBVarchar(project.TeamId.String()),
 		URI:                   project.Uri,
 		Status:                projectStatusToString(project.Status),
@@ -768,7 +768,7 @@ func (s *GormProjectStore) recordToAPI(record *models.ProjectRecord, responsible
 	project := &Project{
 		Id:          &projectID,
 		Name:        string(record.Name),
-		Description: record.Description,
+		Description: record.Description.Ptr(),
 		TeamId:      teamID,
 		Uri:         record.URI,
 		Status:      nullableDBVarcharToProjectStatus(record.Status),
@@ -817,7 +817,7 @@ func (s *GormProjectStore) teamRecordToTeamRef(record *models.TeamRecord) *Team 
 	return &Team{
 		Id:          &teamID,
 		Name:        string(record.Name),
-		Description: record.Description,
+		Description: record.Description.Ptr(),
 	}
 }
 

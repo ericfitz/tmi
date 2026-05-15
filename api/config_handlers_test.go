@@ -41,7 +41,7 @@ func (m *MockSettingsService) Get(ctx context.Context, key string) (*models.Syst
 
 func (m *MockSettingsService) GetString(ctx context.Context, key string) (string, error) {
 	if setting, ok := m.settings[key]; ok {
-		return setting.Value, nil
+		return string(setting.Value), nil
 	}
 	return "", nil
 }
@@ -103,7 +103,7 @@ func (m *MockSettingsService) ReEncryptAll(ctx context.Context, modifiedBy *stri
 func (m *MockSettingsService) AddSetting(key, value, settingType string) {
 	m.settings[key] = &models.SystemSetting{
 		SettingKey:  models.DBVarchar(key),
-		Value:       value,
+		Value:       models.DBText(value),
 		SettingType: models.DBVarchar(settingType),
 		ModifiedAt:  time.Now(),
 	}
@@ -376,9 +376,9 @@ func TestModelToAPISystemSetting(t *testing.T) {
 
 	model := models.SystemSetting{
 		SettingKey:  "test.key",
-		Value:       "test-value",
+		Value:       models.DBText("test-value"),
 		SettingType: "string",
-		Description: &description,
+		Description: models.NewNullableDBText(&description),
 		ModifiedAt:  now,
 		ModifiedBy:  models.NewNullableDBVarchar(&modifiedBy),
 	}

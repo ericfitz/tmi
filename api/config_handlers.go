@@ -102,7 +102,7 @@ func (s *Server) validateProviderEnableKey(ctx context.Context, key, value strin
 
 		providerSettings := make([]auth.ProviderSetting, len(settings))
 		for i, setting := range settings {
-			providerSettings[i] = auth.ProviderSetting{Key: string(setting.SettingKey), Value: setting.Value}
+			providerSettings[i] = auth.ProviderSetting{Key: string(setting.SettingKey), Value: string(setting.Value)}
 		}
 		providers := auth.AssembleOAuthProviders(providerSettings)
 		p := providers[providerID]
@@ -127,7 +127,7 @@ func (s *Server) validateProviderEnableKey(ctx context.Context, key, value strin
 
 		providerSettings := make([]auth.ProviderSetting, len(settings))
 		for i, setting := range settings {
-			providerSettings[i] = auth.ProviderSetting{Key: string(setting.SettingKey), Value: setting.Value}
+			providerSettings[i] = auth.ProviderSetting{Key: string(setting.SettingKey), Value: string(setting.Value)}
 		}
 		providers := auth.AssembleSAMLProviders(providerSettings)
 		p := providers[providerID]
@@ -525,17 +525,15 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 	// Convert to model
 	setting := models.SystemSetting{
 		SettingKey:  models.DBVarchar(key),
-		Value:       req.Value,
+		Value:       models.DBText(req.Value),
 		SettingType: models.DBVarchar(string(req.Type)),
 		ModifiedAt:  time.Now(),
 		ModifiedBy:  models.NewNullableDBVarchar(modifiedBy),
-	}
-	if req.Description != nil {
-		setting.Description = req.Description
+		Description: models.NewNullableDBText(req.Description),
 	}
 
 	// Enable-validation gate: validate required fields when enabling a provider
-	if validationErr := s.validateProviderEnableKey(ctx, key, setting.Value); validationErr != "" {
+	if validationErr := s.validateProviderEnableKey(ctx, key, string(setting.Value)); validationErr != "" {
 		c.JSON(http.StatusConflict, gin.H{"error": validationErr})
 		return
 	}
@@ -735,13 +733,11 @@ func buildContentProviders(sources *ContentSourceRegistry, cfg *config.ContentOA
 // modelToAPISystemSetting converts a models.SystemSetting to an API SystemSetting
 func modelToAPISystemSetting(m models.SystemSetting) SystemSetting {
 	setting := SystemSetting{
-		Key:        string(m.SettingKey),
-		Value:      m.Value,
-		Type:       SystemSettingType(m.SettingType),
-		ModifiedAt: &m.ModifiedAt,
-	}
-	if m.Description != nil {
-		setting.Description = m.Description
+		Key:         string(m.SettingKey),
+		Value:       string(m.Value),
+		Type:        SystemSettingType(m.SettingType),
+		ModifiedAt:  &m.ModifiedAt,
+		Description: m.Description.Ptr(),
 	}
 	if m.ModifiedBy.Valid {
 		// Convert string UUID to openapi_types.UUID

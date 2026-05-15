@@ -785,8 +785,8 @@ func (s *GormWebhookUrlDenyListStore) toDBModel(entry *models.WebhookURLDenyList
 		PatternType: string(entry.PatternType),
 		CreatedAt:   entry.CreatedAt,
 	}
-	if entry.Description != nil {
-		result.Description = *entry.Description
+	if entry.Description.Valid {
+		result.Description = entry.Description.String
 	}
 	return result
 }
@@ -800,7 +800,7 @@ func (s *GormWebhookUrlDenyListStore) toGormModel(entry *WebhookUrlDenyListEntry
 		CreatedAt:   entry.CreatedAt,
 	}
 	if entry.Description != "" {
-		gormEntry.Description = &entry.Description
+		gormEntry.Description = models.NullableDBText{String: entry.Description, Valid: true}
 	}
 	return gormEntry
 }

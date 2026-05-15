@@ -43,5 +43,5 @@ func (r *systemSettingReaderImpl) Read(c *gin.Context, key string) string {
 		}
 		return ""
 	}
-	return s.Value
+	return string(s.Value)
 }

@@ -238,7 +238,7 @@ func (r *GormGroupMemberRepository) AddMember(ctx context.Context, groupInternal
 		model.AddedByInternalUUID = models.NewNullableDBVarchar(&addedByStr)
 	}
 	if notes != nil {
-		model.Notes = notes
+		model.Notes = models.NewNullableDBText(notes)
 	}
 
 	// Fetch-back row type (declared here to be visible in closure below)
@@ -419,7 +419,7 @@ func (r *GormGroupMemberRepository) AddGroupMember(ctx context.Context, groupInt
 		model.AddedByInternalUUID = models.NewNullableDBVarchar(&addedByStr)
 	}
 	if notes != nil {
-		model.Notes = notes
+		model.Notes = models.NewNullableDBText(notes)
 	}
 
 	var member *GroupMember

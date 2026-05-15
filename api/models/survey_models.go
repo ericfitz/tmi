@@ -11,16 +11,16 @@ import (
 
 // SurveyTemplate represents a survey template for security review intake
 type SurveyTemplate struct {
-	ID                    DBVarchar `gorm:"primaryKey;size:36"`
-	Name                  DBVarchar `gorm:"size:256;not null;index:idx_st_name;uniqueIndex:idx_st_name_version,priority:1"`
-	Description           *string   `gorm:"type:varchar(2048)"`
-	Version               DBVarchar `gorm:"size:64;not null;index:idx_st_version;uniqueIndex:idx_st_name_version,priority:2"`
-	Status                DBVarchar `gorm:"size:20;not null;default:inactive;index:idx_st_status"`
-	SurveyJSON            JSONRaw   `gorm:"column:survey_json"` // Complete SurveyJS JSON definition (opaque blob)
-	Settings              JSONRaw   `gorm:""`                   // Template settings (allow_threat_model_linking, etc.)
-	CreatedByInternalUUID DBVarchar `gorm:"size:36;not null;index:idx_st_created_by"`
-	CreatedAt             time.Time `gorm:"not null;autoCreateTime;index:idx_st_created_at"`
-	ModifiedAt            time.Time `gorm:"not null;autoUpdateTime"`
+	ID                    DBVarchar      `gorm:"primaryKey;size:36"`
+	Name                  DBVarchar      `gorm:"size:256;not null;index:idx_st_name;uniqueIndex:idx_st_name_version,priority:1"`
+	Description           NullableDBText `gorm:""`
+	Version               DBVarchar      `gorm:"size:64;not null;index:idx_st_version;uniqueIndex:idx_st_name_version,priority:2"`
+	Status                DBVarchar      `gorm:"size:20;not null;default:inactive;index:idx_st_status"`
+	SurveyJSON            JSONRaw        `gorm:"column:survey_json"` // Complete SurveyJS JSON definition (opaque blob)
+	Settings              JSONRaw        `gorm:""`                   // Template settings (allow_threat_model_linking, etc.)
+	CreatedByInternalUUID DBVarchar      `gorm:"size:36;not null;index:idx_st_created_by"`
+	CreatedAt             time.Time      `gorm:"not null;autoCreateTime;index:idx_st_created_at"`
+	ModifiedAt            time.Time      `gorm:"not null;autoUpdateTime"`
 }
 
 // TableName specifies the table name for SurveyTemplate
@@ -74,7 +74,7 @@ type SurveyResponse struct {
 	SurveyJSON             JSONRaw           `gorm:"column:survey_json"` // Snapshot of template survey_json at creation
 	LinkedThreatModelID    NullableDBVarchar `gorm:"size:36;index:idx_sr_linked_tm"`
 	CreatedThreatModelID   NullableDBVarchar `gorm:"size:36;index:idx_sr_created_tm"`
-	RevisionNotes          *string           `gorm:"type:varchar(4000)"` // Notes from reviewer when returning for revision (varchar(4000) for Oracle ADB-STANDARD compatibility)
+	RevisionNotes          NullableDBText    `gorm:""`
 	OwnerInternalUUID      NullableDBVarchar `gorm:"size:36;index:idx_sr_owner"`
 	CreatedAt              time.Time         `gorm:"not null;autoCreateTime;index:idx_sr_created_at"`
 	ModifiedAt             time.Time         `gorm:"not null;autoUpdateTime"`
@@ -188,7 +188,7 @@ type SurveyAnswer struct {
 	ResponseID     DBVarchar         `gorm:"size:36;not null;index:idx_sa_response_id;index:idx_sa_response_mapping"`
 	QuestionName   DBVarchar         `gorm:"size:256;not null"`
 	QuestionType   DBVarchar         `gorm:"size:64;not null"`
-	QuestionTitle  *string           `gorm:"type:varchar(1024)"`
+	QuestionTitle  NullableDBText    `gorm:""`
 	MapsToTmField  NullableDBVarchar `gorm:"size:128;index:idx_sa_response_mapping"`
 	AnswerValue    JSONRaw           `gorm:""`
 	ResponseStatus DBVarchar         `gorm:"size:30;not null"`

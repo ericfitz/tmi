@@ -34,7 +34,7 @@ func TestSettingsService_MemCache(t *testing.T) {
 		assert.True(t, found)
 		require.NotNil(t, cached)
 		assert.Equal(t, "test.key", string(cached.SettingKey))
-		assert.Equal(t, "test-value", cached.Value)
+		assert.Equal(t, models.DBText("test-value"), cached.Value)
 	})
 
 	t.Run("getFromMemCache returns false for missing key", func(t *testing.T) {

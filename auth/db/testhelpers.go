@@ -84,13 +84,12 @@ func (tdb *TestDB) SeedUser(t *testing.T, email, provider string) *models.User {
 func (tdb *TestDB) SeedThreatModel(t *testing.T, ownerUUID, name string) *models.ThreatModel {
 	t.Helper()
 
-	description := "Test threat model"
 	tm := &models.ThreatModel{
 		ID:                    models.DBVarchar(uuid.New().String()),
 		OwnerInternalUUID:     models.DBVarchar(ownerUUID),
 		CreatedByInternalUUID: models.DBVarchar(ownerUUID),
 		Name:                  models.DBVarchar(name),
-		Description:           &description,
+		Description:           models.NullableDBText{String: "Test threat model", Valid: true},
 	}
 
 	if err := tdb.DB.Create(tm).Error; err != nil {

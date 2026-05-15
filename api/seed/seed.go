@@ -395,11 +395,10 @@ func seedWebhookDenyList(db *gorm.DB) error {
 
 	created := 0
 	for _, entry := range webhookDenyList {
-		desc := entry.Description
 		denyEntry := models.WebhookURLDenyList{
 			Pattern:     models.DBVarchar(entry.Pattern),
 			PatternType: models.DBVarchar(entry.PatternType),
-			Description: &desc,
+			Description: models.NewNullableDBText(&entry.Description),
 		}
 
 		// Use FirstOrCreate for idempotent seeding
