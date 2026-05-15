@@ -1,6 +1,7 @@
 package db
 
 import (
+	"sync/atomic"
 	"testing"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -9,6 +10,11 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
+
+// testAliasCounter provides process-wide unique alias values for test threat models.
+// The uniq_threat_models_alias index (added in #412) requires globally-unique aliases;
+// this counter ensures each call to SeedThreatModel gets a distinct value.
+var testAliasCounter atomic.Int32
 
 // TestDB holds a test database connection and cleanup function
 type TestDB struct {
@@ -90,6 +96,7 @@ func (tdb *TestDB) SeedThreatModel(t *testing.T, ownerUUID, name string) *models
 		CreatedByInternalUUID: models.DBVarchar(ownerUUID),
 		Name:                  models.DBVarchar(name),
 		Description:           models.NullableDBText{String: "Test threat model", Valid: true},
+		Alias:                 testAliasCounter.Add(1),
 	}
 
 	if err := tdb.DB.Create(tm).Error; err != nil {

@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -584,17 +583,9 @@ func (g *GormDB) LogStats() {
 }
 
 // AutoMigrate runs GORM auto-migration for the given models.
-// For Oracle, models are migrated individually so that a benign ORA-01442
-// error on one model does not prevent migration of subsequent models.
 func (g *GormDB) AutoMigrate(models ...any) error {
 	log := slogging.Get()
 	log.Debug("Running GORM auto-migration for %d models", len(models))
-
-	// Backfill NULL values before AutoMigrate tightens nullability. AutoMigrate's
-	// ALTER COLUMN ... SET NOT NULL fails if NULLs exist, so data-level fixups
-	// must run first. Idempotent — no-ops once the column is already populated.
-	backfillNullableToNonNull(g.db, g.cfg.Type == DatabaseTypeOracle)
-	dropLegacyAliasColumn(g.db, g.cfg.Type == DatabaseTypeOracle)
 
 	if g.cfg.Type == DatabaseTypeOracle {
 		if err := g.autoMigrateOracle(models...); err != nil {
@@ -606,302 +597,27 @@ func (g *GormDB) AutoMigrate(models ...any) error {
 			return fmt.Errorf("auto-migration failed: %w", err)
 		}
 	}
-
 	log.Debug("GORM auto-migration completed successfully")
-
-	// Drop stale FK constraints that were removed from GORM models.
-	// GORM AutoMigrate does not drop FK constraints when a relationship is removed
-	// from a model struct, so we must do it explicitly.
-	dropStaleForeignKeys(g.db, g.cfg.Type == DatabaseTypeOracle)
-
 	return nil
 }
 
-// dropLegacyAliasColumn drops the legacy ThreatModel.alias array/text column
-// before AutoMigrate replaces it with the new INTEGER column. Idempotent: if
-// the column doesn't exist or is already INTEGER, this is a no-op.
-//
-// Pre-#374 the column was a TEXT[] (PG) / CLOB (Oracle) holding user-supplied
-// nicknames. The new design uses a server-assigned INTEGER. Old data is
-// destroyed by design (issue #374 explicitly authorizes the breakage).
-func dropLegacyAliasColumn(db *gorm.DB, isOracle bool) {
-	log := slogging.Get()
-	table := "threat_models"
-	if isOracle {
-		table = strings.ToUpper(table)
-	}
-	if !db.Migrator().HasTable(table) {
-		return
-	}
-
-	// Detect column type. If already integer, nothing to do.
-	if isOracle {
-		var dataType string
-		_ = db.Raw(
-			"SELECT DATA_TYPE FROM USER_TAB_COLUMNS WHERE TABLE_NAME = UPPER(?) AND COLUMN_NAME = UPPER(?)",
-			table, "alias",
-		).Scan(&dataType).Error
-		if dataType == "" {
-			return // column doesn't exist
-		}
-		if dataType == "NUMBER" {
-			return // already migrated
-		}
-		log.Info("dropping legacy %s.alias column (was %s)", table, dataType)
-		if err := db.Exec(fmt.Sprintf("ALTER TABLE %s DROP COLUMN alias", table)).Error; err != nil {
-			log.Warn("drop legacy alias column failed (non-fatal; AutoMigrate may surface): %v", err)
-		}
-		return
-	}
-
-	// PostgreSQL.
-	var dataType string
-	_ = db.Raw(
-		"SELECT data_type FROM information_schema.columns WHERE table_name = ? AND column_name = ?",
-		table, "alias",
-	).Scan(&dataType).Error
-	if dataType == "" {
-		return
-	}
-	if dataType == "integer" {
-		return
-	}
-	log.Info("dropping legacy %s.alias column (was %s)", table, dataType)
-	if err := db.Exec(fmt.Sprintf("ALTER TABLE %s DROP COLUMN alias", table)).Error; err != nil {
-		log.Warn("drop legacy alias column failed (non-fatal; AutoMigrate may surface): %v", err)
-	}
-}
-
-// backfillNullableToNonNull populates NULL values on columns that were previously
-// nullable but have since been tightened to NOT NULL in the GORM model. Must run
-// before AutoMigrate so its ALTER COLUMN SET NOT NULL succeeds. Safe to re-run:
-// once the columns have no NULLs, the UPDATEs touch zero rows.
-func backfillNullableToNonNull(db *gorm.DB, isOracle bool) {
-	log := slogging.Get()
-	table := "threat_models"
-	if isOracle {
-		table = strings.ToUpper(table)
-	}
-	if !db.Migrator().HasTable(table) {
-		return
-	}
-	// threat_models.status → 'not_started' when NULL (Issue #282).
-	if err := db.Exec(fmt.Sprintf(
-		`UPDATE %s SET status = 'not_started' WHERE status IS NULL`, table)).Error; err != nil {
-		log.Warn("Backfill threat_models.status failed (non-fatal; AutoMigrate will surface NOT NULL errors if any remain): %v", err)
-	}
-	// threat_models.status_updated → COALESCE(modified_at, created_at) when NULL.
-	if err := db.Exec(fmt.Sprintf(
-		`UPDATE %s SET status_updated = COALESCE(modified_at, created_at) WHERE status_updated IS NULL`, table)).Error; err != nil {
-		log.Warn("Backfill threat_models.status_updated failed (non-fatal; AutoMigrate will surface NOT NULL errors if any remain): %v", err)
-	}
-}
-
-// autoMigrateOracle migrates each model individually to work around Oracle-specific
-// GORM issues. Oracle raises benign errors during migration when the schema is
-// already in the desired state:
-//   - ORA-01442: "column to be modified to NOT NULL is already NOT NULL"
-//   - ORA-01408: "such column list already indexed"
-//   - ORA-01430: "column being added already exists in table"
-//
-// These errors can fire on referenced FK tables (e.g., USERS) before GORM creates
-// the model's own table, preventing table creation even with
-// DisableForeignKeyConstraintWhenMigrating enabled (GORM still validates referenced
-// table columns). When a benign error occurs and the model's table doesn't exist,
-// we fall back to CreateTable to ensure the table is created, then retry
-// AutoMigrate for any additional schema changes (indexes, constraints).
+// autoMigrateOracle creates the schema for each model on Oracle. Because TMI uses
+// a single fresh-schema baseline (#412), this only ever runs CREATE TABLE — there
+// is no ALTER path and therefore no Oracle benign-migration-error handling. GORM's
+// AutoMigrate per-model is used so that foreign-key references to not-yet-created
+// tables are tolerated (GORM creates the table, FK constraints settle on later
+// models). DisableForeignKeyConstraintWhenMigrating is already set in the GORM config.
 func (g *GormDB) autoMigrateOracle(models ...any) error {
 	log := slogging.Get()
 	for _, model := range models {
 		modelName := reflect.TypeOf(model).Elem().Name()
 		if err := g.db.AutoMigrate(model); err != nil {
-			if !isOracleBenignMigrationError(err) {
-				log.Error("GORM auto-migration failed for model %s: %v", modelName, err)
-				return fmt.Errorf("auto-migration failed for %s: %w", modelName, err)
-			}
-			// Benign error — check if the table actually exists
-			if g.db.Migrator().HasTable(model) {
-				log.Debug("Oracle migration warning for %s: checking for missing columns", modelName)
-				if colErr := g.addMissingColumnsOracle(model, modelName); colErr != nil {
-					return colErr
-				}
-				continue
-			}
-			// Table doesn't exist — the benign error was from a referenced FK table.
-			// Use CreateTable to create just this table, then retry AutoMigrate for
-			// indexes and constraints.
-			log.Info("Oracle migration for %s: creating missing table after benign FK error", modelName)
-			if createErr := g.db.Migrator().CreateTable(model); createErr != nil {
-				log.Error("Failed to create table for model %s: %v", modelName, createErr)
-				return fmt.Errorf("failed to create table for %s: %w", modelName, createErr)
-			}
-			// Retry AutoMigrate to add indexes and constraints
-			if retryErr := g.db.AutoMigrate(model); retryErr != nil {
-				if isOracleBenignMigrationError(retryErr) {
-					log.Debug("Oracle migration warning for %s on retry (ignored): schema already in desired state", modelName)
-					continue
-				}
-				log.Error("GORM auto-migration failed for model %s on retry: %v", modelName, retryErr)
-				return fmt.Errorf("auto-migration failed for %s on retry: %w", modelName, retryErr)
-			}
-			log.Debug("Migrated model %s (table created, then auto-migrated)", modelName)
-			continue
+			log.Error("GORM auto-migration failed for model %s: %v", modelName, err)
+			return fmt.Errorf("auto-migration failed for %s: %w", modelName, err)
 		}
 		log.Debug("Migrated model %s", modelName)
 	}
 	return nil
-}
-
-// dropStaleForeignKeys drops FK constraints that were removed from GORM model
-// structs. GORM AutoMigrate only adds/modifies — it never drops constraints.
-// This function is idempotent; it silently skips constraints that don't exist.
-func dropStaleForeignKeys(db *gorm.DB, isOracle bool) {
-	log := slogging.Get()
-
-	// FK constraints removed from audit/historical fields. These columns record
-	// who performed an action and must survive deletion of the referenced user.
-	// GORM models now use constraint:- to prevent re-creation.
-	staleConstraints := []struct {
-		table      string
-		constraint string
-	}{
-		{"survey_templates", "fk_survey_templates_created_by"},
-		{"survey_template_versions", "fk_survey_template_versions_created_by"},
-		// Audit FK constraints on threat_models
-		{"threat_models", "fk_threat_models_created_by"},
-		// Audit FK constraints on group_members
-		{"group_members", "fk_group_members_added_by"},
-		// Audit FK constraints on teams
-		{"teams", "fk_teams_created_by"},
-		{"teams", "fk_teams_modified_by"},
-		{"teams", "fk_teams_reviewed_by"},
-		// Audit FK constraints on projects
-		{"projects", "fk_projects_created_by"},
-		{"projects", "fk_projects_modified_by"},
-		{"projects", "fk_projects_reviewed_by"},
-		// Audit FK constraints on survey responses
-		{"survey_responses", "fk_survey_responses_reviewed_by"},
-		// Audit FK constraints on triage notes
-		{"triage_notes", "fk_triage_notes_created_by"},
-		{"triage_notes", "fk_triage_notes_modified_by"},
-		// Audit FK constraints on usability feedback
-		{"usability_feedback", "fk_usability_feedback_created_by"},
-		// Audit FK constraints on threat_model_access
-		{"threat_model_access", "fk_threat_model_accesses_granted_by"},
-	}
-
-	for _, c := range staleConstraints {
-		table := c.table
-		constraint := c.constraint
-		// Oracle stores identifiers in uppercase
-		if isOracle {
-			table = strings.ToUpper(table)
-			constraint = strings.ToUpper(constraint)
-		}
-		if !db.Migrator().HasTable(table) {
-			continue
-		}
-		// Attempt the drop directly — HasConstraint is unreliable on Oracle
-		// due to case sensitivity (Oracle stores names in uppercase).
-		// DropConstraint is idempotent: "constraint does not exist" errors
-		// are expected and silently ignored.
-		if err := db.Migrator().DropConstraint(table, constraint); err != nil {
-			errStr := err.Error()
-			// ORA-02443: constraint does not exist — expected, ignore
-			// PostgreSQL: "does not exist"
-			if strings.Contains(errStr, "ORA-02443") ||
-				strings.Contains(errStr, "does not exist") {
-				continue
-			}
-			log.Warn("Failed to drop stale FK constraint %s on %s: %v", constraint, table, err)
-		} else {
-			log.Info("Dropped stale FK constraint %s on %s", constraint, table)
-		}
-	}
-
-	// Drop legacy administrators table. Admin management was migrated to the
-	// built-in Administrators group (group_members table) in 402df881. The
-	// table's FK constraints (fk_administrators_user, fk_administrators_group,
-	// fk_administrators_granted_by) block user deletion with SQLSTATE 23503.
-	dropLegacyTable(db, isOracle, "administrators", log)
-
-	// Drop legacy webhook_deliveries table. Webhook deliveries are now stored
-	// in Redis (api/webhook_delivery_redis_store.go). Refs #220.
-	dropLegacyTable(db, isOracle, "webhook_deliveries", log)
-}
-
-// dropLegacyTable drops a table if it exists. Idempotent — silently ignores
-// "table does not exist" errors.
-func dropLegacyTable(db *gorm.DB, isOracle bool, table string, log *slogging.Logger) {
-	if isOracle {
-		table = strings.ToUpper(table)
-	}
-	if !db.Migrator().HasTable(table) {
-		return
-	}
-	if err := db.Migrator().DropTable(table); err != nil {
-		log.Warn("Failed to drop legacy table %s: %v", table, err)
-	} else {
-		log.Info("Dropped legacy table %s", table)
-	}
-}
-
-// addMissingColumnsOracle checks for and adds any columns that exist in the GORM model
-// but are missing from the database table. This handles the case where a benign Oracle
-// error (e.g., ORA-01442) during AutoMigrate's MigrateColumn step causes GORM to abort
-// the model before reaching AddColumn for new columns.
-func (g *GormDB) addMissingColumnsOracle(model any, modelName string) error {
-	log := slogging.Get()
-
-	// Get existing columns from the database
-	columnTypes, err := g.db.Migrator().ColumnTypes(model)
-	if err != nil {
-		return fmt.Errorf("failed to get column types for %s: %w", modelName, err)
-	}
-
-	existingColumns := make(map[string]bool, len(columnTypes))
-	for _, col := range columnTypes {
-		existingColumns[strings.ToUpper(col.Name())] = true
-	}
-
-	// Parse the model's GORM schema to get expected DB column names.
-	// Uses OracleNamingStrategy to produce uppercase column names matching Oracle.
-	parsedSchema, parseErr := schema.Parse(model, &sync.Map{}, &OracleNamingStrategy{})
-	if parseErr != nil {
-		return fmt.Errorf("failed to parse schema for %s: %w", modelName, parseErr)
-	}
-
-	// Add any missing columns
-	for _, dbName := range parsedSchema.DBNames {
-		if !existingColumns[strings.ToUpper(dbName)] {
-			field := parsedSchema.FieldsByDBName[dbName]
-			log.Info("Adding missing column %s to %s", dbName, modelName)
-			if addErr := g.db.Migrator().AddColumn(model, field.Name); addErr != nil {
-				if isOracleBenignMigrationError(addErr) {
-					log.Debug("Benign error adding column %s to %s (ignored)", dbName, modelName)
-					continue
-				}
-				return fmt.Errorf("failed to add column %s to %s: %w", dbName, modelName, addErr)
-			}
-		}
-	}
-
-	return nil
-}
-
-// isOracleBenignMigrationError checks if the error is a benign Oracle migration error
-// that indicates the schema is already in the desired state:
-//   - ORA-01442: "column to be modified to NOT NULL is already NOT NULL"
-//   - ORA-01408: "such column list already indexed"
-//   - ORA-01430: "column being added already exists in table"
-func isOracleBenignMigrationError(err error) bool {
-	if err == nil {
-		return false
-	}
-	errStr := err.Error()
-	return strings.Contains(errStr, "ORA-01442") ||
-		strings.Contains(errStr, "ORA-01408") ||
-		strings.Contains(errStr, "ORA-01430")
 }
 
 // gormLogger adapts our slogging to GORM's logger interface

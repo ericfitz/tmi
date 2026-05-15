@@ -395,18 +395,6 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 		return fmt.Errorf("failed to seed database: %w", err)
 	}
 
-	// Backfill alias counters for all existing rows (idempotent).
-	// Use the Unlocked variant because the outer schema-migration advisory
-	// lock acquired at the top of this function already serializes replicas.
-	if err := api.RunAliasBackfillUnlocked(ctx, gormDB.DB()); err != nil {
-		return fmt.Errorf("alias backfill failed: %w", err)
-	}
-
-	// Add unique indexes for alias columns (idempotent; runs after backfill so no duplicates exist).
-	if err := api.AddAliasUniqueIndexes(ctx, gormDB.DB()); err != nil {
-		return fmt.Errorf("alias unique-index creation failed: %w", err)
-	}
-
 	// T19 (#356): install DB-level UPDATE/DELETE-blocking triggers on
 	// audit_entries and version_snapshots so audit history cannot be
 	// silently mutated even by a code path that bypasses the audit-emit

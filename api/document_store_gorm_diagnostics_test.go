@@ -100,12 +100,14 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 		OwnerInternalUUID:     models.DBVarchar(userA),
 		CreatedByInternalUUID: models.DBVarchar(userA),
 		Name:                  "tm-user-a",
+		Alias:                 1,
 	}
 	tmB := models.ThreatModel{
 		ID:                    models.DBVarchar(uuid.New().String()),
 		OwnerInternalUUID:     models.DBVarchar(userB),
 		CreatedByInternalUUID: models.DBVarchar(userB),
 		Name:                  "tm-user-b",
+		Alias:                 2,
 	}
 	require.NoError(t, store.db.Create(&tmA).Error)
 	require.NoError(t, store.db.Create(&tmB).Error)
@@ -120,6 +122,7 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 		ThreatModelID:    tmA.ID,
 		Name:             "doc1",
 		URI:              "https://docs.google.com/d/1",
+		Alias:            1,
 		PickerProviderID: models.NewNullableDBVarchar(&providerGW),
 		PickerFileID:     models.NewNullableDBVarchar(strPtr("file-1")),
 		PickerMimeType:   models.NewNullableDBVarchar(strPtr("application/vnd.google-apps.document")),
@@ -133,6 +136,7 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 		ThreatModelID:    tmA.ID,
 		Name:             "doc2",
 		URI:              "https://confluence.example.com/d/2",
+		Alias:            2,
 		PickerProviderID: models.NewNullableDBVarchar(&providerConfluence),
 		PickerFileID:     models.NewNullableDBVarchar(strPtr("file-2")),
 	}
@@ -145,6 +149,7 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 		ThreatModelID: tmA.ID,
 		Name:          "doc3",
 		URI:           "https://example.com/d/3",
+		Alias:         3,
 	}
 	require.NoError(t, store.db.Create(&doc3).Error)
 
@@ -155,6 +160,7 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 		ThreatModelID:    tmB.ID,
 		Name:             "doc4",
 		URI:              "https://docs.google.com/d/4",
+		Alias:            1,
 		PickerProviderID: models.NewNullableDBVarchar(&providerGW),
 		PickerFileID:     models.NewNullableDBVarchar(strPtr("file-4")),
 	}

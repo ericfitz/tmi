@@ -561,7 +561,7 @@ func (r *GormDeletionRepository) deleteUserTimmyEntities(tx *gorm.DB, userIntern
 // and SETs threat_model_access.granted_by_internal_uuid to NULL where the
 // deleted user granted access to someone else. Unlike the audit columns on
 // teams/projects (created_by/modified_by/reviewed_by, suppressed via
-// constraint:- and cleaned up by dropStaleForeignKeys), these membership tables
+// constraint:- to suppress DB-level FK enforcement), these membership tables
 // retain enforced GORM-managed FKs to users.internal_uuid. UpdateColumn is used
 // on ThreatModelAccess to bypass BeforeSave, which validates SubjectType on the
 // zero-value struct used by map-based GORM updates.
