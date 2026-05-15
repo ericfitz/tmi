@@ -72,7 +72,7 @@ func (m *MockSettingsService) List(ctx context.Context) ([]models.SystemSetting,
 }
 
 func (m *MockSettingsService) Set(ctx context.Context, setting *models.SystemSetting) error {
-	m.settings[setting.SettingKey] = setting
+	m.settings[string(setting.SettingKey)] = setting
 	return nil
 }
 
@@ -84,7 +84,7 @@ func (m *MockSettingsService) Delete(ctx context.Context, key string) error {
 func (m *MockSettingsService) ListByPrefix(ctx context.Context, prefix string) ([]models.SystemSetting, error) {
 	result := make([]models.SystemSetting, 0)
 	for _, s := range m.settings {
-		if strings.HasPrefix(s.SettingKey, prefix) {
+		if strings.HasPrefix(string(s.SettingKey), prefix) {
 			result = append(result, *s)
 		}
 	}
@@ -102,7 +102,7 @@ func (m *MockSettingsService) ReEncryptAll(ctx context.Context, modifiedBy *stri
 // Helper to add a setting to the mock
 func (m *MockSettingsService) AddSetting(key, value, settingType string) {
 	m.settings[key] = &models.SystemSetting{
-		SettingKey:  key,
+		SettingKey:  models.DBVarchar(key),
 		Value:       value,
 		SettingType: models.DBVarchar(settingType),
 		ModifiedAt:  time.Now(),

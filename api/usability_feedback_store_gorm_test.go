@@ -41,9 +41,9 @@ func TestGormUsabilityFeedbackRepository_CreateAndGet(t *testing.T) {
 	user := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
-		ProviderUserID: &aliceProviderIDVal,
-		Email:          "alice@example.com",
-		Name:           "Alice",
+		ProviderUserID: models.NewNullableDBVarchar(&aliceProviderIDVal),
+		Email:          models.DBVarchar("alice@example.com"),
+		Name:           models.DBVarchar("Alice"),
 	}
 	require.NoError(t, db.Create(user).Error)
 
@@ -74,9 +74,9 @@ func TestGormUsabilityFeedbackRepository_ListWithFilters(t *testing.T) {
 	user := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
-		ProviderUserID: &aliceProviderIDVal2,
-		Email:          "alice@example.com",
-		Name:           "Alice",
+		ProviderUserID: models.NewNullableDBVarchar(&aliceProviderIDVal2),
+		Email:          models.DBVarchar("alice@example.com"),
+		Name:           models.DBVarchar("Alice"),
 	}
 	require.NoError(t, db.Create(user).Error)
 
@@ -166,9 +166,9 @@ func TestGormUsabilityFeedbackRepository_Create_SetsCreatedAtExplicitly(t *testi
 	user := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
-		ProviderUserID: &providerID,
-		Email:          "alice@example.com",
-		Name:           "Alice",
+		ProviderUserID: models.NewNullableDBVarchar(&providerID),
+		Email:          models.DBVarchar("alice@example.com"),
+		Name:           models.DBVarchar("Alice"),
 	}
 	require.NoError(t, db.Create(user).Error)
 

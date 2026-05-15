@@ -229,7 +229,7 @@ func (s *GormAddonStore) DeleteByWebhookID(ctx context.Context, webhookID uuid.U
 // modelToAPI converts a GORM model to the API type
 func (s *GormAddonStore) modelToAPI(model models.Addon) Addon {
 	addon := Addon{
-		Name:      model.Name,
+		Name:      string(model.Name),
 		CreatedAt: model.CreatedAt,
 	}
 
@@ -276,7 +276,7 @@ func (s *GormAddonStore) apiToModel(addon Addon) models.Addon {
 	model := models.Addon{
 		ID:        models.DBVarchar(addon.ID.String()),
 		CreatedAt: addon.CreatedAt,
-		Name:      addon.Name,
+		Name:      models.DBVarchar(addon.Name),
 		WebhookID: models.DBVarchar(addon.WebhookID.String()),
 	}
 

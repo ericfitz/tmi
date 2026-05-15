@@ -125,7 +125,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 		// Create the team record
 		record := &models.TeamRecord{
 			ID:                    models.DBVarchar(teamID),
-			Name:                  team.Name,
+			Name:                  models.DBVarchar(team.Name),
 			Description:           team.Description,
 			URI:                   team.Uri,
 			Status:                teamStatusToString(team.Status),
@@ -134,7 +134,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 
 		if team.EmailAddress != nil {
 			emailStr := string(*team.EmailAddress)
-			record.EmailAddress = &emailStr
+			record.EmailAddress = models.NewNullableDBVarchar(&emailStr)
 		}
 
 		if err := tx.Create(record).Error; err != nil {
@@ -625,7 +625,7 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 
 		item := TeamListItem{
 			Id:           stringToUUID(string(rec.ID)),
-			Name:         rec.Name,
+			Name:         string(rec.Name),
 			Description:  rec.Description,
 			Status:       nullableDBVarcharToTeamStatus(rec.Status),
 			CreatedAt:    rec.CreatedAt,
@@ -922,7 +922,7 @@ func (s *GormTeamStore) recordToAPI(
 
 	team := &Team{
 		Id:        &teamID,
-		Name:      record.Name,
+		Name:      string(record.Name),
 		CreatedAt: &record.CreatedAt,
 	}
 
@@ -936,8 +936,8 @@ func (s *GormTeamStore) recordToAPI(
 	if record.Status.Valid {
 		team.Status = nullableDBVarcharToTeamStatus(record.Status)
 	}
-	if record.EmailAddress != nil {
-		email := openapi_types.Email(*record.EmailAddress)
+	if record.EmailAddress.Valid {
+		email := openapi_types.Email(record.EmailAddress.String)
 		team.EmailAddress = &email
 	}
 	if !record.ModifiedAt.IsZero() {

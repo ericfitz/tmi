@@ -436,10 +436,11 @@ func (r *GormGroupMemberRepository) AddGroupMember(ctx context.Context, groupInt
 		var memberGroupName *string
 		var memberGroupModel models.Group
 		if err := tx.Where("internal_uuid = ?", memberGroupInternalUUID.String()).First(&memberGroupModel).Error; err == nil {
-			if memberGroupModel.Name != nil {
-				memberGroupName = memberGroupModel.Name
+			if memberGroupModel.Name.Valid {
+				memberGroupName = memberGroupModel.Name.Ptr()
 			} else {
-				memberGroupName = &memberGroupModel.GroupName
+				groupName := string(memberGroupModel.GroupName)
+				memberGroupName = &groupName
 			}
 		}
 

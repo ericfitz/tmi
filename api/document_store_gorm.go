@@ -51,7 +51,7 @@ func (s *GormDocumentRepository) Create(ctx context.Context, document *Document,
 	model := models.Document{
 		ID:            models.DBVarchar(document.Id.String()),
 		ThreatModelID: models.DBVarchar(threatModelID),
-		Name:          document.Name,
+		Name:          models.DBVarchar(document.Name),
 		URI:           document.Uri,
 		Description:   document.Description,
 		CreatedAt:     now,
@@ -456,7 +456,7 @@ func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Doc
 			model := models.Document{
 				ID:            models.DBVarchar(document.Id.String()),
 				ThreatModelID: models.DBVarchar(threatModelID),
-				Name:          document.Name,
+				Name:          models.DBVarchar(document.Name),
 				URI:           document.Uri,
 				Description:   document.Description,
 				CreatedAt:     now,
@@ -836,7 +836,7 @@ func (s *GormDocumentRepository) modelToAPI(model *models.Document) *Document {
 	alias := model.Alias
 	doc := &Document{
 		Id:              &id,
-		Name:            model.Name,
+		Name:            string(model.Name),
 		Uri:             model.URI,
 		Description:     model.Description,
 		IncludeInReport: &includeInReport,

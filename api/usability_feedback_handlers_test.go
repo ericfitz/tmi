@@ -27,19 +27,19 @@ func setupUsabilityFeedbackHandler(t *testing.T) (*UsabilityFeedbackHandler, *gi
 	user := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
-		ProviderUserID: &aliceProviderIDVal,
-		Email:          "alice@example.com",
-		Name:           "Alice",
+		ProviderUserID: models.NewNullableDBVarchar(&aliceProviderIDVal),
+		Email:          models.DBVarchar("alice@example.com"),
+		Name:           models.DBVarchar("Alice"),
 	}
 	require.NoError(t, db.Create(user).Error)
 
 	providerIDStr := ""
-	if user.ProviderUserID != nil {
-		providerIDStr = *user.ProviderUserID
+	if user.ProviderUserID.Valid {
+		providerIDStr = user.ProviderUserID.String
 	}
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
-		c.Set("userEmail", user.Email)
+		c.Set("userEmail", string(user.Email))
 		c.Set("userID", providerIDStr)
 		c.Set("userInternalUUID", string(user.InternalUUID))
 		c.Next()

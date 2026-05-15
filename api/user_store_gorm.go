@@ -303,9 +303,9 @@ func (s *GormUserStore) convertToAdminUser(gu *models.User) AdminUser {
 	user := AdminUser{
 		InternalUuid:   internalUUID,
 		Provider:       string(gu.Provider),
-		ProviderUserId: strFromPtr(gu.ProviderUserID),
+		ProviderUserId: strFromPtr(gu.ProviderUserID.Ptr()),
 		Email:          openapi_types.Email(email),
-		Name:           gu.Name,
+		Name:           string(gu.Name),
 		EmailVerified:  gu.EmailVerified.Bool(),
 		CreatedAt:      gu.CreatedAt,
 		ModifiedAt:     gu.ModifiedAt,

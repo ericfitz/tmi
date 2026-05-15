@@ -81,10 +81,10 @@ func (s *GormAuditService) RecordMutation(ctx context.Context, params AuditParam
 			ObjectID:         models.DBVarchar(params.ObjectID),
 			Version:          &nextVersion,
 			ChangeType:       models.DBVarchar(params.ChangeType),
-			ActorEmail:       params.Actor.Email,
+			ActorEmail:       models.DBVarchar(params.Actor.Email),
 			ActorProvider:    models.DBVarchar(params.Actor.Provider),
-			ActorProviderID:  params.Actor.ProviderID,
-			ActorDisplayName: params.Actor.DisplayName,
+			ActorProviderID:  models.DBVarchar(params.Actor.ProviderID),
+			ActorDisplayName: models.DBVarchar(params.Actor.DisplayName),
 			ChangeSummary:    models.NewNullableDBText(params.ChangeSummary),
 		}
 
@@ -568,10 +568,10 @@ func toAuditEntryResponse(entry models.AuditEntry) AuditEntryResponse {
 		Version:       entry.Version,
 		ChangeType:    string(entry.ChangeType),
 		Actor: InternalAuditActor{
-			Email:       entry.ActorEmail,
+			Email:       string(entry.ActorEmail),
 			Provider:    string(entry.ActorProvider),
-			ProviderID:  entry.ActorProviderID,
-			DisplayName: entry.ActorDisplayName,
+			ProviderID:  string(entry.ActorProviderID),
+			DisplayName: string(entry.ActorDisplayName),
 		},
 		CreatedAt: entry.CreatedAt,
 	}

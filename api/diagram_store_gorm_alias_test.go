@@ -32,9 +32,9 @@ func setupDiagramAliasTestDB(t *testing.T) (*gorm.DB, *models.ThreatModel) {
 	user := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
-		ProviderUserID: strPtr("diagram-alias-user"),
-		Email:          "alice@example.com",
-		Name:           "Alice",
+		ProviderUserID: models.NewNullableDBVarchar(strPtr("diagram-alias-user")),
+		Email:          models.DBVarchar("alice@example.com"),
+		Name:           models.DBVarchar("Alice"),
 	}
 	require.NoError(t, db.Create(user).Error)
 
@@ -42,7 +42,7 @@ func setupDiagramAliasTestDB(t *testing.T) (*gorm.DB, *models.ThreatModel) {
 		ID:                    models.DBVarchar(uuid.New().String()),
 		OwnerInternalUUID:     user.InternalUUID,
 		CreatedByInternalUUID: user.InternalUUID,
-		Name:                  "Test TM for Diagrams",
+		Name:                  models.DBVarchar("Test TM for Diagrams"),
 	}
 	require.NoError(t, db.Create(tm).Error)
 

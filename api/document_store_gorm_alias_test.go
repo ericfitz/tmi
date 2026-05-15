@@ -33,9 +33,9 @@ func setupDocumentAliasTestDB(t *testing.T) (*gorm.DB, *models.User, *models.Thr
 	user := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
-		ProviderUserID: strPtr("doc-alias-test-user"),
-		Email:          "alice@example.com",
-		Name:           "Alice",
+		ProviderUserID: models.NewNullableDBVarchar(strPtr("doc-alias-test-user")),
+		Email:          models.DBVarchar("alice@example.com"),
+		Name:           models.DBVarchar("Alice"),
 	}
 	require.NoError(t, db.Create(user).Error)
 
@@ -43,7 +43,7 @@ func setupDocumentAliasTestDB(t *testing.T) (*gorm.DB, *models.User, *models.Thr
 		ID:                    models.DBVarchar(uuid.New().String()),
 		OwnerInternalUUID:     user.InternalUUID,
 		CreatedByInternalUUID: user.InternalUUID,
-		Name:                  "Test TM for Documents",
+		Name:                  models.DBVarchar("Test TM for Documents"),
 	}
 	require.NoError(t, db.Create(tm).Error)
 

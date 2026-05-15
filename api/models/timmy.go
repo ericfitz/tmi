@@ -12,7 +12,7 @@ type TimmySession struct {
 	ID               DBVarchar         `gorm:"primaryKey;size:36"`
 	ThreatModelID    DBVarchar         `gorm:"size:36;not null;index:idx_timmy_sessions_tm;index:idx_timmy_sessions_tm_user,priority:1"`
 	UserID           DBVarchar         `gorm:"size:36;not null;index:idx_timmy_sessions_user;index:idx_timmy_sessions_tm_user,priority:2"`
-	Title            string            `gorm:"type:varchar(256)"`
+	Title            DBVarchar         `gorm:"size:256"`
 	SourceSnapshot   JSONRaw           `gorm:""`
 	SystemPromptHash NullableDBVarchar `gorm:"size:64"`
 	Status           DBVarchar         `gorm:"size:20;not null;default:active;index:idx_timmy_sessions_status"`

@@ -31,7 +31,7 @@ func TestTimmySessionStore_CreateAndGet(t *testing.T) {
 	assert.Equal(t, session.ID, got.ID)
 	assert.Equal(t, "tm-session-001", string(got.ThreatModelID))
 	assert.Equal(t, "user-001", string(got.UserID))
-	assert.Equal(t, "Test Session", got.Title)
+	assert.Equal(t, "Test Session", string(got.Title))
 	assert.Equal(t, "active", string(got.Status))
 }
 
@@ -288,7 +288,7 @@ func TestTimmySessionStore_UpdateTitle(t *testing.T) {
 
 	got, err := store.Get(ctx, string(session.ID))
 	require.NoError(t, err)
-	assert.Equal(t, "Auth flow review", got.Title)
+	assert.Equal(t, "Auth flow review", string(got.Title))
 }
 
 func TestTimmySessionStore_UpdateTitle_NotFound(t *testing.T) {

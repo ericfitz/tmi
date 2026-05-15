@@ -427,9 +427,9 @@ func TestGoogleWorkspaceDelegated_EndToEnd_Integration(t *testing.T) {
 		if raw.PickerProviderID.Valid {
 			assert.Equal(t, ProviderGoogleWorkspace, raw.PickerProviderID.String)
 		}
-		assert.NotNil(t, raw.PickerFileID, "picker_file_id must be set")
-		if raw.PickerFileID != nil {
-			assert.Equal(t, "abc123", *raw.PickerFileID)
+		assert.True(t, raw.PickerFileID.Valid, "picker_file_id must be set")
+		if raw.PickerFileID.Valid {
+			assert.Equal(t, "abc123", raw.PickerFileID.String)
 		}
 		assert.True(t, raw.PickerMimeType.Valid, "picker_mime_type must be set")
 

@@ -123,7 +123,7 @@ func seedEveryoneGroup(db *gorm.DB) error {
 		InternalUUID: models.DBVarchar(validation.EveryonePseudoGroupUUID),
 		Provider:     builtInProvider,
 		GroupName:    "everyone",
-		Name:         &name,
+		Name:         models.NewNullableDBVarchar(&name),
 		UsageCount:   0,
 	}
 
@@ -156,7 +156,7 @@ func seedSecurityReviewersGroup(db *gorm.DB) error {
 		InternalUUID: models.DBVarchar(validation.SecurityReviewersGroupUUID),
 		Provider:     builtInProvider,
 		GroupName:    "security-reviewers",
-		Name:         &name,
+		Name:         models.NewNullableDBVarchar(&name),
 		UsageCount:   0,
 	}
 
@@ -189,7 +189,7 @@ func seedAdministratorsGroup(db *gorm.DB) error {
 		InternalUUID: models.DBVarchar(validation.AdministratorsGroupUUID),
 		Provider:     builtInProvider,
 		GroupName:    "administrators",
-		Name:         &name,
+		Name:         models.NewNullableDBVarchar(&name),
 		UsageCount:   0,
 	}
 
@@ -222,7 +222,7 @@ func seedConfidentialProjectReviewersGroup(db *gorm.DB) error {
 		InternalUUID: models.DBVarchar(validation.ConfidentialProjectReviewersGroupUUID),
 		Provider:     builtInProvider,
 		GroupName:    "confidential-project-reviewers",
-		Name:         &name,
+		Name:         models.NewNullableDBVarchar(&name),
 		UsageCount:   0,
 	}
 
@@ -255,7 +255,7 @@ func seedEmbeddingAutomationGroup(db *gorm.DB) error {
 		InternalUUID: models.DBVarchar(validation.EmbeddingAutomationGroupUUID),
 		Provider:     builtInProvider,
 		GroupName:    "embedding-automation",
-		Name:         &name,
+		Name:         models.NewNullableDBVarchar(&name),
 		UsageCount:   0,
 	}
 
@@ -288,7 +288,7 @@ func seedTMIAutomationGroup(db *gorm.DB) error {
 		InternalUUID: models.DBVarchar(validation.TMIAutomationGroupUUID),
 		Provider:     builtInProvider,
 		GroupName:    "tmi-automation",
-		Name:         &name,
+		Name:         models.NewNullableDBVarchar(&name),
 		UsageCount:   0,
 	}
 
@@ -397,14 +397,14 @@ func seedWebhookDenyList(db *gorm.DB) error {
 	for _, entry := range webhookDenyList {
 		desc := entry.Description
 		denyEntry := models.WebhookURLDenyList{
-			Pattern:     entry.Pattern,
+			Pattern:     models.DBVarchar(entry.Pattern),
 			PatternType: models.DBVarchar(entry.PatternType),
 			Description: &desc,
 		}
 
 		// Use FirstOrCreate for idempotent seeding
 		result := db.Where(&models.WebhookURLDenyList{
-			Pattern: entry.Pattern,
+			Pattern: models.DBVarchar(entry.Pattern),
 		}).FirstOrCreate(&denyEntry)
 
 		if result.Error != nil {

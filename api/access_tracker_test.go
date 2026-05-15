@@ -28,7 +28,7 @@ func createAccessTrackerTestThreatModel(t *testing.T, db *gorm.DB, id string) {
 	tm := models.ThreatModel{
 		ID:                    models.DBVarchar(id),
 		OwnerInternalUUID:     "owner-uuid",
-		Name:                  "Test TM " + id,
+		Name:                  models.DBVarchar("Test TM " + id),
 		CreatedByInternalUUID: "creator-uuid",
 	}
 	require.NoError(t, db.Create(&tm).Error)

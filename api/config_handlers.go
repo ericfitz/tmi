@@ -102,7 +102,7 @@ func (s *Server) validateProviderEnableKey(ctx context.Context, key, value strin
 
 		providerSettings := make([]auth.ProviderSetting, len(settings))
 		for i, setting := range settings {
-			providerSettings[i] = auth.ProviderSetting{Key: setting.SettingKey, Value: setting.Value}
+			providerSettings[i] = auth.ProviderSetting{Key: string(setting.SettingKey), Value: setting.Value}
 		}
 		providers := auth.AssembleOAuthProviders(providerSettings)
 		p := providers[providerID]
@@ -127,7 +127,7 @@ func (s *Server) validateProviderEnableKey(ctx context.Context, key, value strin
 
 		providerSettings := make([]auth.ProviderSetting, len(settings))
 		for i, setting := range settings {
-			providerSettings[i] = auth.ProviderSetting{Key: setting.SettingKey, Value: setting.Value}
+			providerSettings[i] = auth.ProviderSetting{Key: string(setting.SettingKey), Value: setting.Value}
 		}
 		providers := auth.AssembleSAMLProviders(providerSettings)
 		p := providers[providerID]
@@ -313,7 +313,7 @@ func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []Sy
 
 	dbMap := make(map[string]models.SystemSetting)
 	for _, ds := range dbSettings {
-		dbMap[ds.SettingKey] = ds
+		dbMap[string(ds.SettingKey)] = ds
 	}
 
 	allKeys := make(map[string]bool)
@@ -524,7 +524,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 
 	// Convert to model
 	setting := models.SystemSetting{
-		SettingKey:  key,
+		SettingKey:  models.DBVarchar(key),
 		Value:       req.Value,
 		SettingType: models.DBVarchar(string(req.Type)),
 		ModifiedAt:  time.Now(),
@@ -735,7 +735,7 @@ func buildContentProviders(sources *ContentSourceRegistry, cfg *config.ContentOA
 // modelToAPISystemSetting converts a models.SystemSetting to an API SystemSetting
 func modelToAPISystemSetting(m models.SystemSetting) SystemSetting {
 	setting := SystemSetting{
-		Key:        m.SettingKey,
+		Key:        string(m.SettingKey),
 		Value:      m.Value,
 		Type:       SystemSettingType(m.SettingType),
 		ModifiedAt: &m.ModifiedAt,

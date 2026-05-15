@@ -70,7 +70,7 @@ func (s *GormRepositoryRepository) Create(ctx context.Context, repository *Repos
 	model := models.Repository{
 		ID:            models.DBVarchar(repository.Id.String()),
 		ThreatModelID: models.DBVarchar(threatModelID),
-		Name:          repository.Name,
+		Name:          models.NewNullableDBVarchar(repository.Name),
 		URI:           repository.Uri,
 		Description:   repository.Description,
 		Type:          repoType,
@@ -477,7 +477,7 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 			model := models.Repository{
 				ID:            models.DBVarchar(repository.Id.String()),
 				ThreatModelID: models.DBVarchar(threatModelID),
-				Name:          repository.Name,
+				Name:          models.NewNullableDBVarchar(repository.Name),
 				URI:           repository.Uri,
 				Description:   repository.Description,
 				Type:          repoType,
@@ -599,7 +599,7 @@ func (s *GormRepositoryRepository) modelToAPI(model *models.Repository) *Reposit
 	alias := model.Alias
 	repo := &Repository{
 		Id:              &id,
-		Name:            model.Name,
+		Name:            model.Name.Ptr(),
 		Uri:             model.URI,
 		Description:     model.Description,
 		IncludeInReport: &includeInReport,

@@ -38,7 +38,7 @@ func NewGormTeamNoteStore(db *gorm.DB) *GormTeamNoteStore {
 func teamNoteToRecord(note *TeamNote, teamID string) *models.TeamNoteRecord {
 	record := &models.TeamNoteRecord{
 		TeamID:  models.DBVarchar(teamID),
-		Name:    note.Name,
+		Name:    models.DBVarchar(note.Name),
 		Content: models.DBText(note.Content),
 	}
 
@@ -72,7 +72,7 @@ func teamNoteFromRecord(record *models.TeamNoteRecord) *TeamNote {
 
 	return &TeamNote{
 		Id:           &id,
-		Name:         record.Name,
+		Name:         string(record.Name),
 		Content:      string(record.Content),
 		Description:  record.Description,
 		Sharable:     &sharable,
@@ -92,7 +92,7 @@ func teamNoteListItemFromRecord(record *models.TeamNoteRecord) TeamNoteListItem 
 
 	return TeamNoteListItem{
 		Id:           &id,
-		Name:         record.Name,
+		Name:         string(record.Name),
 		Description:  record.Description,
 		Sharable:     &sharable,
 		TimmyEnabled: &timmyEnabled,
@@ -179,7 +179,7 @@ func (s *GormTeamNoteStore) Update(ctx context.Context, id string, note *TeamNot
 	}
 
 	// Update fields
-	existing.Name = note.Name
+	existing.Name = models.DBVarchar(note.Name)
 	existing.Content = models.DBText(note.Content)
 	existing.Description = note.Description
 	if note.TimmyEnabled != nil {

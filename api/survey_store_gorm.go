@@ -298,7 +298,7 @@ func (s *GormSurveyStore) HasResponses(ctx context.Context, id uuid.UUID) (bool,
 // apiToModel converts an API Survey to a database model
 func (s *GormSurveyStore) apiToModel(survey *Survey) (*models.SurveyTemplate, error) {
 	model := &models.SurveyTemplate{
-		Name:    survey.Name,
+		Name:    models.DBVarchar(survey.Name),
 		Version: models.DBVarchar(survey.Version),
 	}
 
@@ -346,7 +346,7 @@ func (s *GormSurveyStore) modelToAPI(model *models.SurveyTemplate) (*Survey, err
 
 	survey := &Survey{
 		Id:          &id,
-		Name:        model.Name,
+		Name:        string(model.Name),
 		Description: model.Description,
 		Version:     string(model.Version),
 		CreatedAt:   &model.CreatedAt,
@@ -392,7 +392,7 @@ func (s *GormSurveyStore) modelToListItem(model *models.SurveyTemplate) SurveyLi
 
 	item := SurveyListItem{
 		Id:          &id,
-		Name:        model.Name,
+		Name:        string(model.Name),
 		Description: model.Description,
 		Version:     string(model.Version),
 		CreatedAt:   model.CreatedAt,

@@ -54,13 +54,13 @@ func AdminAuditMiddleware(repo SystemAuditRepository, redactor Redactor, descrip
 		providerUserID, _, provider, _ := GetUserAuthFieldsForAccessCheck(c)
 
 		entry := models.SystemAuditEntry{
-			ActorEmail:       c.GetString("userEmail"),
+			ActorEmail:       models.DBVarchar(c.GetString("userEmail")),
 			ActorProvider:    models.DBVarchar(provider),
-			ActorProviderID:  providerUserID,
-			ActorDisplayName: c.GetString("userDisplayName"),
+			ActorProviderID:  models.DBVarchar(providerUserID),
+			ActorDisplayName: models.DBVarchar(c.GetString("userDisplayName")),
 			HTTPMethod:       models.DBVarchar(c.Request.Method),
 			HTTPPath:         c.FullPath(),
-			FieldPath:        fieldPath,
+			FieldPath:        models.DBVarchar(fieldPath),
 			OldValueRedacted: nullableTextFromString(redactor.Redact(fieldPath, oldVal)),
 			NewValueRedacted: nullableTextFromString(redactor.Redact(fieldPath, newVal)),
 			ChangeSummary:    nullableTextFromString(summary),

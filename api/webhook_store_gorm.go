@@ -455,7 +455,7 @@ func (s *GormWebhookSubscriptionStore) toDBModel(sub *models.WebhookSubscription
 	dbSub := DBWebhookSubscription{
 		Id:                  uuid.MustParse(string(sub.ID)),
 		OwnerId:             uuid.MustParse(string(sub.OwnerInternalUUID)),
-		Name:                sub.Name,
+		Name:                string(sub.Name),
 		Url:                 sub.URL,
 		Events:              []string(sub.Events),
 		Status:              string(sub.Status),
@@ -473,8 +473,8 @@ func (s *GormWebhookSubscriptionStore) toDBModel(sub *models.WebhookSubscription
 	if sub.Secret.Valid {
 		dbSub.Secret = sub.Secret.String
 	}
-	if sub.Challenge != nil {
-		dbSub.Challenge = *sub.Challenge
+	if sub.Challenge.Valid {
+		dbSub.Challenge = sub.Challenge.String
 	}
 	if sub.LastSuccessfulUse != nil {
 		dbSub.LastSuccessfulUse = sub.LastSuccessfulUse
@@ -488,7 +488,7 @@ func (s *GormWebhookSubscriptionStore) toGormModel(sub *DBWebhookSubscription) *
 	gormSub := &models.WebhookSubscription{
 		ID:                  models.DBVarchar(sub.Id.String()),
 		OwnerInternalUUID:   models.DBVarchar(sub.OwnerId.String()),
-		Name:                sub.Name,
+		Name:                models.DBVarchar(sub.Name),
 		URL:                 sub.Url,
 		Events:              models.StringArray(sub.Events),
 		Status:              models.DBVarchar(sub.Status),
@@ -507,7 +507,7 @@ func (s *GormWebhookSubscriptionStore) toGormModel(sub *DBWebhookSubscription) *
 		gormSub.Secret = models.NewNullableDBVarchar(&sub.Secret)
 	}
 	if sub.Challenge != "" {
-		gormSub.Challenge = &sub.Challenge
+		gormSub.Challenge = models.NewNullableDBVarchar(&sub.Challenge)
 	}
 	if sub.LastSuccessfulUse != nil {
 		gormSub.LastSuccessfulUse = sub.LastSuccessfulUse
@@ -781,7 +781,7 @@ func (s *GormWebhookUrlDenyListStore) Delete(ctx context.Context, id string) err
 func (s *GormWebhookUrlDenyListStore) toDBModel(entry *models.WebhookURLDenyList) WebhookUrlDenyListEntry {
 	result := WebhookUrlDenyListEntry{
 		Id:          uuid.MustParse(string(entry.ID)),
-		Pattern:     entry.Pattern,
+		Pattern:     string(entry.Pattern),
 		PatternType: string(entry.PatternType),
 		CreatedAt:   entry.CreatedAt,
 	}
@@ -795,7 +795,7 @@ func (s *GormWebhookUrlDenyListStore) toDBModel(entry *models.WebhookURLDenyList
 func (s *GormWebhookUrlDenyListStore) toGormModel(entry *WebhookUrlDenyListEntry) *models.WebhookURLDenyList {
 	gormEntry := &models.WebhookURLDenyList{
 		ID:          models.DBVarchar(entry.Id.String()),
-		Pattern:     entry.Pattern,
+		Pattern:     models.DBVarchar(entry.Pattern),
 		PatternType: models.DBVarchar(entry.PatternType),
 		CreatedAt:   entry.CreatedAt,
 	}

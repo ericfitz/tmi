@@ -644,7 +644,7 @@ func timmySessionToAPI(s *models.TimmySession) TimmyChatSession {
 	}
 
 	if s.Title != "" {
-		title := s.Title
+		title := string(s.Title)
 		apiSession.Title = &title
 	}
 

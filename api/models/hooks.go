@@ -77,7 +77,7 @@ func (t *ThreatModelAccess) BeforeSave(tx *gorm.DB) error {
 
 // BeforeSave validates Document before create or update
 func (d *Document) BeforeSave(tx *gorm.DB) error {
-	if err := validation.ValidateNonEmpty("name", d.Name); err != nil {
+	if err := validation.ValidateNonEmpty("name", string(d.Name)); err != nil {
 		return err
 	}
 	if err := validation.ValidateURI("uri", d.URI); err != nil {
@@ -114,10 +114,10 @@ func (m *Metadata) BeforeSave(tx *gorm.DB) error {
 	if err := validation.ValidateEntityType(string(m.EntityType)); err != nil {
 		return err
 	}
-	if err := validation.ValidateMetadataKey(m.Key); err != nil {
+	if err := validation.ValidateMetadataKey(string(m.Key)); err != nil {
 		return err
 	}
-	if err := validation.ValidateMetadataValue(m.Value); err != nil {
+	if err := validation.ValidateMetadataValue(string(m.Value)); err != nil {
 		return err
 	}
 	return nil
@@ -184,11 +184,11 @@ func (g *Group) BeforeUpdate(tx *gorm.DB) error {
 
 	// Check Name pointer changes
 	switch {
-	case g.Name == nil && existing.Name != nil:
+	case !g.Name.Valid && existing.Name.Valid:
 		return fmt.Errorf("cannot clear the display name of built-in group %q: %w", existing.GroupName, ErrBuiltInGroupProtected)
-	case g.Name != nil && existing.Name == nil:
+	case g.Name.Valid && !existing.Name.Valid:
 		// Setting a name for the first time is OK (shouldn't happen for seeded groups, but safe)
-	case g.Name != nil && existing.Name != nil && *g.Name != *existing.Name:
+	case g.Name.Valid && existing.Name.Valid && g.Name.String != existing.Name.String:
 		return fmt.Errorf("cannot rename built-in group %q: %w", existing.GroupName, ErrBuiltInGroupProtected)
 	}
 

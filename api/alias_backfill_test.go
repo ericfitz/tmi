@@ -36,9 +36,9 @@ func makeUser(t *testing.T, db *gorm.DB) *models.User {
 	u := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
-		ProviderUserID: ptrStr("u-" + uuid.New().String()[:8]),
-		Email:          "u@example.com",
-		Name:           "Test",
+		ProviderUserID: models.NewNullableDBVarchar(ptrStr("u-" + uuid.New().String()[:8])),
+		Email:          models.DBVarchar("u@example.com"),
+		Name:           models.DBVarchar("Test"),
 	}
 	require.NoError(t, db.Create(u).Error)
 	return u

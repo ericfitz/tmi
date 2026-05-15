@@ -31,7 +31,7 @@ func (s *GormTriageNoteStore) Create(ctx context.Context, note *TriageNote, surv
 
 	model := models.TriageNote{
 		SurveyResponseID:       models.DBVarchar(surveyResponseID),
-		Name:                   note.Name,
+		Name:                   models.DBVarchar(note.Name),
 		Content:                models.DBText(note.Content),
 		CreatedByInternalUUID:  models.NewNullableDBVarchar(&creatorInternalUUID),
 		ModifiedByInternalUUID: models.NewNullableDBVarchar(&creatorInternalUUID),
@@ -131,7 +131,7 @@ func (s *GormTriageNoteStore) Count(ctx context.Context, surveyResponseID string
 func (s *GormTriageNoteStore) modelToAPI(model *models.TriageNote) *TriageNote {
 	note := &TriageNote{
 		Id:         &model.ID,
-		Name:       model.Name,
+		Name:       string(model.Name),
 		Content:    string(model.Content),
 		CreatedAt:  &model.CreatedAt,
 		ModifiedAt: &model.ModifiedAt,

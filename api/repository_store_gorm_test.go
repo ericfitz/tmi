@@ -33,9 +33,9 @@ func setupRepositoryTestDB(t *testing.T) (*gorm.DB, *models.User, *models.Threat
 	user := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
-		ProviderUserID: strPtr("repo-test-user"),
-		Email:          "alice@example.com",
-		Name:           "Alice",
+		ProviderUserID: models.NewNullableDBVarchar(strPtr("repo-test-user")),
+		Email:          models.DBVarchar("alice@example.com"),
+		Name:           models.DBVarchar("Alice"),
 	}
 	require.NoError(t, db.Create(user).Error)
 
@@ -43,7 +43,7 @@ func setupRepositoryTestDB(t *testing.T) (*gorm.DB, *models.User, *models.Threat
 		ID:                    models.DBVarchar(uuid.New().String()),
 		OwnerInternalUUID:     user.InternalUUID,
 		CreatedByInternalUUID: user.InternalUUID,
-		Name:                  "Test TM for Repositories",
+		Name:                  models.DBVarchar("Test TM for Repositories"),
 	}
 	require.NoError(t, db.Create(tm).Error)
 

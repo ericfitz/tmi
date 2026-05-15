@@ -33,7 +33,7 @@ func TestSettingsService_MemCache(t *testing.T) {
 		cached, found := service.getFromMemCache("test.key")
 		assert.True(t, found)
 		require.NotNil(t, cached)
-		assert.Equal(t, "test.key", cached.SettingKey)
+		assert.Equal(t, "test.key", string(cached.SettingKey))
 		assert.Equal(t, "test-value", cached.Value)
 	})
 
@@ -247,7 +247,7 @@ func TestDefaultSystemSettings(t *testing.T) {
 
 		defaultKeys := make(map[string]bool)
 		for _, setting := range defaults {
-			defaultKeys[setting.SettingKey] = true
+			defaultKeys[string(setting.SettingKey)] = true
 		}
 
 		for _, key := range expectedKeys {
@@ -424,7 +424,7 @@ func TestSettingsService_InvalidateAll(t *testing.T) {
 	// Add some entries
 	for i := range 5 {
 		setting := &models.SystemSetting{
-			SettingKey:  "key." + string(rune('a'+i)),
+			SettingKey:  models.DBVarchar("key." + string(rune('a'+i))),
 			Value:       "value",
 			SettingType: models.SystemSettingTypeString,
 			ModifiedAt:  time.Now(),

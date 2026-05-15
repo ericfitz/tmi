@@ -355,7 +355,7 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 	setting.ModifiedAt = dbSetting.ModifiedAt
 
 	// Invalidate cache
-	s.invalidateCache(ctx, setting.SettingKey)
+	s.invalidateCache(ctx, string(setting.SettingKey))
 	logger.Info("Updated system setting: %s", setting.SettingKey)
 
 	return nil
@@ -445,7 +445,7 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) 
 		plaintext, err := s.encryptor.Decrypt(setting.Value)
 		if err != nil {
 			logger.Error("Failed to decrypt setting %s during re-encryption: %v", setting.SettingKey, err)
-			settingErrors = append(settingErrors, SettingError{Key: setting.SettingKey, Error: err.Error()})
+			settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: err.Error()})
 			continue
 		}
 
@@ -453,7 +453,7 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) 
 		encrypted, err := s.encryptor.Encrypt(plaintext)
 		if err != nil {
 			logger.Error("Failed to re-encrypt setting %s: %v", setting.SettingKey, err)
-			settingErrors = append(settingErrors, SettingError{Key: setting.SettingKey, Error: err.Error()})
+			settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: err.Error()})
 			continue
 		}
 
@@ -463,7 +463,7 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) 
 		setting.ModifiedBy = models.NewNullableDBVarchar(modifiedBy)
 		if err := s.gormDB.WithContext(ctx).Save(&setting).Error; err != nil {
 			logger.Error("Failed to save re-encrypted setting %s: %v", setting.SettingKey, err)
-			settingErrors = append(settingErrors, SettingError{Key: setting.SettingKey, Error: err.Error()})
+			settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: err.Error()})
 			continue
 		}
 
@@ -545,7 +545,7 @@ func (s *SettingsService) setInMemCache(setting *models.SystemSetting) {
 	s.memCacheMu.Lock()
 	defer s.memCacheMu.Unlock()
 
-	s.memCache[setting.SettingKey] = settingsCacheEntry{
+	s.memCache[string(setting.SettingKey)] = settingsCacheEntry{
 		setting:   *setting,
 		expiresAt: time.Now().Add(s.memCacheTTL),
 	}
@@ -584,7 +584,7 @@ func (s *SettingsService) getFromRedisCache(ctx context.Context, key string) (*m
 
 func (s *SettingsService) setInRedisCache(ctx context.Context, setting *models.SystemSetting) {
 	logger := slogging.Get()
-	cacheKey := SettingsCacheKey + setting.SettingKey
+	cacheKey := SettingsCacheKey + string(setting.SettingKey)
 
 	data, err := json.Marshal(setting)
 	if err != nil {

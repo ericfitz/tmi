@@ -61,13 +61,13 @@ func NewStepUpAuditAdapter(repo SystemAuditRepository) *StepUpAuditAdapter {
 // WriteSystemAudit implements auth.SystemAuditWriter.
 func (a *StepUpAuditAdapter) WriteSystemAudit(ctx context.Context, rec auth.SystemAuditRecord) error {
 	entry := models.SystemAuditEntry{
-		ActorEmail:       rec.ActorEmail,
+		ActorEmail:       models.DBVarchar(rec.ActorEmail),
 		ActorProvider:    models.DBVarchar(rec.ActorProvider),
-		ActorProviderID:  rec.ActorProviderID,
-		ActorDisplayName: rec.ActorDisplayName,
+		ActorProviderID:  models.DBVarchar(rec.ActorProviderID),
+		ActorDisplayName: models.DBVarchar(rec.ActorDisplayName),
 		HTTPMethod:       models.DBVarchar(rec.HTTPMethod),
 		HTTPPath:         rec.HTTPPath,
-		FieldPath:        rec.FieldPath,
+		FieldPath:        models.DBVarchar(rec.FieldPath),
 		OldValueRedacted: models.NewNullableDBText(rec.OldValueRedacted),
 		NewValueRedacted: models.NewNullableDBText(rec.NewValueRedacted),
 		ChangeSummary:    models.NewNullableDBText(rec.ChangeSummary),

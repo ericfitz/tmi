@@ -51,9 +51,9 @@ func seedUser(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 		user = models.User{
 			InternalUUID:   models.DBVarchar(uuid.New().String()),
 			Provider:       models.DBVarchar(providerName),
-			ProviderUserID: &userID,
-			Email:          email,
-			Name:           displayName,
+			ProviderUserID: models.NewNullableDBVarchar(&userID),
+			Email:          models.DBVarchar(email),
+			Name:           models.DBVarchar(displayName),
 			EmailVerified:  models.DBBool(true),
 		}
 		if err := db.DB().Create(&user).Error; err != nil {
@@ -83,7 +83,7 @@ func seedUser(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 		Extra: map[string]string{
 			"provider":         providerName,
 			"provider_user_id": userID,
-			"email":            user.Email,
+			"email":            string(user.Email),
 		},
 	}, nil
 }
@@ -181,7 +181,7 @@ func seedSetting(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 	description, _ := entry.Data["description"].(string)
 
 	setting := models.SystemSetting{
-		SettingKey:  key,
+		SettingKey:  models.DBVarchar(key),
 		Value:       value,
 		SettingType: models.DBVarchar(settingType),
 		Description: &description,

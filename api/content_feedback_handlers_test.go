@@ -26,12 +26,12 @@ func setupContentFeedbackHandler(t *testing.T) (*ContentFeedbackHandler, *gin.En
 	handler := NewContentFeedbackHandler(repo, db)
 
 	providerIDStr := ""
-	if user.ProviderUserID != nil {
-		providerIDStr = *user.ProviderUserID
+	if user.ProviderUserID.Valid {
+		providerIDStr = user.ProviderUserID.String
 	}
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
-		c.Set("userEmail", user.Email)
+		c.Set("userEmail", string(user.Email))
 		c.Set("userID", providerIDStr)
 		c.Set("userInternalUUID", string(user.InternalUUID))
 		c.Next()

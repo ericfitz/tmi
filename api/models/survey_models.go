@@ -12,7 +12,7 @@ import (
 // SurveyTemplate represents a survey template for security review intake
 type SurveyTemplate struct {
 	ID                    DBVarchar `gorm:"primaryKey;size:36"`
-	Name                  string    `gorm:"type:varchar(256);not null;index:idx_st_name;uniqueIndex:idx_st_name_version,priority:1"`
+	Name                  DBVarchar `gorm:"size:256;not null;index:idx_st_name;uniqueIndex:idx_st_name_version,priority:1"`
 	Description           *string   `gorm:"type:varchar(2048)"`
 	Version               DBVarchar `gorm:"size:64;not null;index:idx_st_version;uniqueIndex:idx_st_name_version,priority:2"`
 	Status                DBVarchar `gorm:"size:20;not null;default:inactive;index:idx_st_status"`
@@ -113,7 +113,7 @@ func (s *SurveyResponse) BeforeCreate(tx *gorm.DB) error {
 type TriageNote struct {
 	SurveyResponseID       DBVarchar         `gorm:"primaryKey;size:36;index:idx_tn_sr"`
 	ID                     int               `gorm:"primaryKey;autoIncrement:false"`
-	Name                   string            `gorm:"type:varchar(256);not null"`
+	Name                   DBVarchar         `gorm:"size:256;not null"`
 	Content                DBText            `gorm:"not null"`
 	CreatedByInternalUUID  NullableDBVarchar `gorm:"size:36"`
 	ModifiedByInternalUUID NullableDBVarchar `gorm:"size:36"`

@@ -32,9 +32,9 @@ func setupContentFeedbackTestDB(t *testing.T) (*gorm.DB, *models.User, *models.T
 	user := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
-		ProviderUserID: strPtr("alice-test"),
-		Email:          "alice@example.com",
-		Name:           "Alice",
+		ProviderUserID: models.NewNullableDBVarchar(strPtr("alice-test")),
+		Email:          models.DBVarchar("alice@example.com"),
+		Name:           models.DBVarchar("Alice"),
 	}
 	require.NoError(t, db.Create(user).Error)
 
@@ -42,7 +42,7 @@ func setupContentFeedbackTestDB(t *testing.T) (*gorm.DB, *models.User, *models.T
 		ID:                    models.DBVarchar(uuid.New().String()),
 		OwnerInternalUUID:     user.InternalUUID,
 		CreatedByInternalUUID: user.InternalUUID,
-		Name:                  "Test TM",
+		Name:                  models.DBVarchar("Test TM"),
 	}
 	require.NoError(t, db.Create(tm).Error)
 

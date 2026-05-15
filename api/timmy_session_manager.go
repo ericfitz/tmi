@@ -130,7 +130,7 @@ func (sm *TimmySessionManager) CreateSession(
 	session := &models.TimmySession{
 		ThreatModelID:  models.DBVarchar(threatModelID),
 		UserID:         models.DBVarchar(userID),
-		Title:          title,
+		Title:          models.DBVarchar(title),
 		SourceSnapshot: models.JSONRaw(snapshotJSON),
 		Status:         "active",
 	}
@@ -327,7 +327,7 @@ func (sm *TimmySessionManager) HandleMessage(
 	// matches the client placeholder. Runs in a goroutine with its own context
 	// so SSE-stream cancellation can't interrupt it; failures are swallowed
 	// (the placeholder title is left in place).
-	if seq == 1 && shouldAutoRenameTitle(session.Title) && len(strings.TrimSpace(userMessage)) >= 3 && sm.llmService != nil {
+	if seq == 1 && shouldAutoRenameTitle(string(session.Title)) && len(strings.TrimSpace(userMessage)) >= 3 && sm.llmService != nil {
 		//nolint:gosec // G118 - SSE stream context may cancel before title generation completes; detached context is intentional (see autoRenameSession)
 		go sm.autoRenameSession(sessionID, userMessage)
 	}
@@ -464,7 +464,7 @@ func (sm *TimmySessionManager) autoRenameSession(sessionID, firstUserMessage str
 		logger.Warn("Auto-title pre-check failed for session %s: %v", sessionID, err)
 		return
 	}
-	if !shouldAutoRenameTitle(current.Title) {
+	if !shouldAutoRenameTitle(string(current.Title)) {
 		logger.Debug("Skipping auto-title for session %s: title was set in the meantime (%q)", sessionID, current.Title)
 		return
 	}

@@ -681,7 +681,7 @@ func (s *GormAssetRepository) saveMetadata(ctx context.Context, assetID string, 
 func (s *GormAssetRepository) toGormModel(asset *Asset, threatModelID string) *models.Asset {
 	gm := &models.Asset{
 		ThreatModelID: models.DBVarchar(threatModelID),
-		Name:          asset.Name,
+		Name:          models.DBVarchar(asset.Name),
 		Type:          models.DBVarchar(string(asset.Type)),
 	}
 
@@ -714,7 +714,7 @@ func (s *GormAssetRepository) toGormModel(asset *Asset, threatModelID string) *m
 func (s *GormAssetRepository) toAPIModel(gm *models.Asset) *Asset {
 	alias := gm.Alias
 	asset := &Asset{
-		Name:  gm.Name,
+		Name:  string(gm.Name),
 		Type:  AssetType(gm.Type),
 		Alias: &alias,
 	}

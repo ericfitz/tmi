@@ -121,7 +121,7 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 		Name:             "doc1",
 		URI:              "https://docs.google.com/d/1",
 		PickerProviderID: models.NewNullableDBVarchar(&providerGW),
-		PickerFileID:     strPtr("file-1"),
+		PickerFileID:     models.NewNullableDBVarchar(strPtr("file-1")),
 		PickerMimeType:   models.NewNullableDBVarchar(strPtr("application/vnd.google-apps.document")),
 	}
 	require.NoError(t, store.db.Create(&doc1).Error)
@@ -134,7 +134,7 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 		Name:             "doc2",
 		URI:              "https://confluence.example.com/d/2",
 		PickerProviderID: models.NewNullableDBVarchar(&providerConfluence),
-		PickerFileID:     strPtr("file-2"),
+		PickerFileID:     models.NewNullableDBVarchar(strPtr("file-2")),
 	}
 	require.NoError(t, store.db.Create(&doc2).Error)
 
@@ -156,7 +156,7 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 		Name:             "doc4",
 		URI:              "https://docs.google.com/d/4",
 		PickerProviderID: models.NewNullableDBVarchar(&providerGW),
-		PickerFileID:     strPtr("file-4"),
+		PickerFileID:     models.NewNullableDBVarchar(strPtr("file-4")),
 	}
 	require.NoError(t, store.db.Create(&doc4).Error)
 
@@ -171,7 +171,7 @@ func TestGormDocumentStore_ClearPickerMetadataForOwner(t *testing.T) {
 	var raw1 models.Document
 	require.NoError(t, store.db.First(&raw1, "id = ?", doc1ID).Error)
 	assert.False(t, raw1.PickerProviderID.Valid, "doc1 picker_provider_id should be NULL")
-	assert.Nil(t, raw1.PickerFileID, "doc1 picker_file_id should be NULL")
+	assert.False(t, raw1.PickerFileID.Valid, "doc1 picker_file_id should be NULL")
 	assert.False(t, raw1.PickerMimeType.Valid, "doc1 picker_mime_type should be NULL")
 	require.True(t, raw1.AccessStatus.Valid)
 	assert.Equal(t, AccessStatusUnknown, raw1.AccessStatus.String, "doc1 access_status should be 'unknown'")

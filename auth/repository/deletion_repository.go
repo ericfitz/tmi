@@ -72,7 +72,7 @@ func (r *GormDeletionRepository) DeleteUserByInternalUUID(ctx context.Context, i
 			return dberrors.Classify(err)
 		}
 
-		result.UserEmail = user.Email
+		result.UserEmail = string(user.Email)
 		return r.deleteUserCore(tx, &user, result)
 	})
 
@@ -197,7 +197,7 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 		}
 
 		// Store group_name for result
-		result.GroupName = group.GroupName
+		result.GroupName = string(group.GroupName)
 
 		// Validate not deleting built-in groups (everyone, security-reviewers, administrators)
 		if validation.IsBuiltInGroup(string(group.InternalUUID)) {
@@ -794,7 +794,7 @@ func ensureSecurityReviewersGroupForDeletion(tx *gorm.DB) (string, error) {
 		InternalUUID: models.DBVarchar(securityReviewersGroupUUID),
 		Provider:     builtInProvider,
 		GroupName:    securityReviewersGroupName,
-		Name:         &groupName,
+		Name:         models.NewNullableDBVarchar(&groupName),
 		UsageCount:   1,
 	}
 

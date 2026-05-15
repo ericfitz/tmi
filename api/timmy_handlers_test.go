@@ -64,7 +64,7 @@ func createTestTimmySession(t *testing.T, userID, tmID, title, status string) *m
 	session := &models.TimmySession{
 		ThreatModelID: models.DBVarchar(tmID),
 		UserID:        models.DBVarchar(userID),
-		Title:         title,
+		Title:         models.DBVarchar(title),
 		Status:        models.DBVarchar(status),
 	}
 	err := GlobalTimmySessionStore.Create(context.Background(), session)

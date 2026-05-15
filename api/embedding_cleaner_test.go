@@ -34,7 +34,7 @@ func createTestTM(t *testing.T, db *gorm.DB, id string, status string, lastAcces
 	tm := models.ThreatModel{
 		ID:                    models.DBVarchar(id),
 		OwnerInternalUUID:     "owner-uuid",
-		Name:                  "Test TM " + id,
+		Name:                  models.DBVarchar("Test TM " + id),
 		CreatedByInternalUUID: "creator-uuid",
 		Status:                models.DBVarchar(status),
 		StatusUpdated:         modifiedAt,

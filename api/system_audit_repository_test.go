@@ -29,13 +29,13 @@ func TestSystemAuditRepository_CreateAndRead(t *testing.T) {
 	ctx := context.Background()
 
 	entry := models.SystemAuditEntry{
-		ActorEmail:       "alice@example.com",
+		ActorEmail:       models.DBVarchar("alice@example.com"),
 		ActorProvider:    "google",
-		ActorProviderID:  "google-sub-1",
-		ActorDisplayName: "Alice",
+		ActorProviderID:  models.DBVarchar("google-sub-1"),
+		ActorDisplayName: models.DBVarchar("Alice"),
 		HTTPMethod:       "PUT",
 		HTTPPath:         "/admin/settings/foo",
-		FieldPath:        "system_settings.foo",
+		FieldPath:        models.DBVarchar("system_settings.foo"),
 		ChangeSummary:    models.NewNullableDBText(strPtr("PUT system_settings.foo")),
 	}
 
@@ -45,7 +45,7 @@ func TestSystemAuditRepository_CreateAndRead(t *testing.T) {
 	rows, err := repo.ListByActor(ctx, "alice@example.com", time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
-	assert.Equal(t, "system_settings.foo", rows[0].FieldPath)
+	assert.Equal(t, "system_settings.foo", string(rows[0].FieldPath))
 	assert.NotEmpty(t, rows[0].ID, "BeforeCreate should have generated UUID")
 }
 
@@ -56,18 +56,18 @@ func TestSystemAuditRepository_ListByActor_Filters(t *testing.T) {
 
 	// Insert two rows: one for alice, one for bob.
 	require.NoError(t, repo.Create(ctx, models.SystemAuditEntry{
-		ActorEmail: "alice@example.com", FieldPath: "x.alice",
-		ActorProvider: "google", ActorProviderID: "a", ActorDisplayName: "Alice",
+		ActorEmail: models.DBVarchar("alice@example.com"), FieldPath: models.DBVarchar("x.alice"),
+		ActorProvider: "google", ActorProviderID: models.DBVarchar("a"), ActorDisplayName: models.DBVarchar("Alice"),
 		HTTPMethod: "PUT", HTTPPath: "/admin/x",
 	}))
 	require.NoError(t, repo.Create(ctx, models.SystemAuditEntry{
-		ActorEmail: "bob@example.com", FieldPath: "x.bob",
-		ActorProvider: "google", ActorProviderID: "b", ActorDisplayName: "Bob",
+		ActorEmail: models.DBVarchar("bob@example.com"), FieldPath: models.DBVarchar("x.bob"),
+		ActorProvider: "google", ActorProviderID: models.DBVarchar("b"), ActorDisplayName: models.DBVarchar("Bob"),
 		HTTPMethod: "PUT", HTTPPath: "/admin/x",
 	}))
 
 	rows, err := repo.ListByActor(ctx, "alice@example.com", time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
 	require.NoError(t, err)
 	assert.Len(t, rows, 1)
-	assert.Equal(t, "alice@example.com", rows[0].ActorEmail)
+	assert.Equal(t, "alice@example.com", string(rows[0].ActorEmail))
 }

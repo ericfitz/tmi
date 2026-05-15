@@ -67,9 +67,9 @@ func (tdb *TestDB) SeedUser(t *testing.T, email, provider string) *models.User {
 	user := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       models.DBVarchar(provider),
-		ProviderUserID: &providerUserID,
-		Email:          email,
-		Name:           "Test User",
+		ProviderUserID: models.NewNullableDBVarchar(&providerUserID),
+		Email:          models.DBVarchar(email),
+		Name:           models.DBVarchar("Test User"),
 		EmailVerified:  models.DBBool(true),
 	}
 
@@ -89,7 +89,7 @@ func (tdb *TestDB) SeedThreatModel(t *testing.T, ownerUUID, name string) *models
 		ID:                    models.DBVarchar(uuid.New().String()),
 		OwnerInternalUUID:     models.DBVarchar(ownerUUID),
 		CreatedByInternalUUID: models.DBVarchar(ownerUUID),
-		Name:                  name,
+		Name:                  models.DBVarchar(name),
 		Description:           &description,
 	}
 
@@ -107,7 +107,7 @@ func (tdb *TestDB) SeedGroup(t *testing.T, provider, groupName string) *models.G
 	group := &models.Group{
 		InternalUUID: models.DBVarchar(uuid.New().String()),
 		Provider:     models.DBVarchar(provider),
-		GroupName:    groupName,
+		GroupName:    models.DBVarchar(groupName),
 	}
 
 	if err := tdb.DB.Create(group).Error; err != nil {
@@ -143,7 +143,7 @@ func (tdb *TestDB) SeedSurveyTemplate(t *testing.T, createdByUUID string) *model
 
 	st := &models.SurveyTemplate{
 		ID:                    models.DBVarchar(uuid.New().String()),
-		Name:                  "Test Survey",
+		Name:                  models.DBVarchar("Test Survey"),
 		Version:               "v1",
 		Status:                "active",
 		CreatedByInternalUUID: models.DBVarchar(createdByUUID),
@@ -202,7 +202,7 @@ func (tdb *TestDB) SeedTriageNote(t *testing.T, responseID, createdByUUID, modif
 
 	note := &models.TriageNote{
 		SurveyResponseID:       models.DBVarchar(responseID),
-		Name:                   "Test Note",
+		Name:                   models.DBVarchar("Test Note"),
 		Content:                models.DBText("Test content"),
 		CreatedByInternalUUID:  models.NewNullableDBVarchar(&createdByUUID),
 		ModifiedByInternalUUID: models.NewNullableDBVarchar(&modifiedByUUID),
@@ -221,9 +221,9 @@ func (tdb *TestDB) SeedClientCredential(t *testing.T, ownerUUID, clientID, name 
 
 	cc := &models.ClientCredential{
 		ID:               models.DBVarchar(uuid.New().String()),
-		ClientID:         clientID,
+		ClientID:         models.DBVarchar(clientID),
 		ClientSecretHash: models.DBText("hashed_secret"),
-		Name:             name,
+		Name:             models.DBVarchar(name),
 		OwnerUUID:        models.DBVarchar(ownerUUID),
 		IsActive:         models.DBBool(true),
 	}

@@ -33,9 +33,9 @@ func setupNoteTestDB(t *testing.T) (*gorm.DB, *models.User, *models.ThreatModel)
 	user := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
-		ProviderUserID: strPtr("note-test-user"),
-		Email:          "alice@example.com",
-		Name:           "Alice",
+		ProviderUserID: models.NewNullableDBVarchar(strPtr("note-test-user")),
+		Email:          models.DBVarchar("alice@example.com"),
+		Name:           models.DBVarchar("Alice"),
 	}
 	require.NoError(t, db.Create(user).Error)
 
@@ -43,7 +43,7 @@ func setupNoteTestDB(t *testing.T) (*gorm.DB, *models.User, *models.ThreatModel)
 		ID:                    models.DBVarchar(uuid.New().String()),
 		OwnerInternalUUID:     user.InternalUUID,
 		CreatedByInternalUUID: user.InternalUUID,
-		Name:                  "Test TM for Notes",
+		Name:                  models.DBVarchar("Test TM for Notes"),
 	}
 	require.NoError(t, db.Create(tm).Error)
 

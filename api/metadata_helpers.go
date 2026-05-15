@@ -25,8 +25,8 @@ func loadEntityMetadata(db *gorm.DB, entityType, entityID string) ([]Metadata, e
 	metadata := make([]Metadata, 0, len(metadataEntries))
 	for _, entry := range metadataEntries {
 		metadata = append(metadata, Metadata{
-			Key:   entry.Key,
-			Value: entry.Value,
+			Key:   string(entry.Key),
+			Value: string(entry.Value),
 		})
 	}
 
@@ -45,8 +45,8 @@ func saveEntityMetadata(db *gorm.DB, entityType, entityID string, metadata []Met
 			ID:         models.DBVarchar(uuid.New().String()),
 			EntityType: models.DBVarchar(entityType),
 			EntityID:   models.DBVarchar(entityID),
-			Key:        meta.Key,
-			Value:      meta.Value,
+			Key:        models.DBVarchar(meta.Key),
+			Value:      models.DBVarchar(meta.Value),
 		}
 
 		// Use Col()/ColumnName() so the Oracle GORM driver receives uppercase

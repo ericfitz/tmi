@@ -248,8 +248,8 @@ func (s *GormSurveyResponseStore) ensureBuiltInGroup(tx *gorm.DB, groupKey, grou
 	group = models.Group{
 		InternalUUID: models.DBVarchar(groupUUID),
 		Provider:     BuiltInProvider,
-		GroupName:    groupKey,
-		Name:         &groupDisplay,
+		GroupName:    models.DBVarchar(groupKey),
+		Name:         models.NewNullableDBVarchar(&groupDisplay),
 		UsageCount:   1,
 	}
 
@@ -786,13 +786,13 @@ func (s *GormSurveyResponseStore) loadAuthorization(ctx context.Context, respons
 		if entry.SubjectType == "user" && entry.User != nil {
 			auth.PrincipalType = AuthorizationPrincipalTypeUser
 			auth.Provider = string(entry.User.Provider)
-			if entry.User.ProviderUserID != nil {
-				auth.ProviderId = *entry.User.ProviderUserID
+			if entry.User.ProviderUserID.Valid {
+				auth.ProviderId = entry.User.ProviderUserID.String
 			}
 		} else if entry.SubjectType == "group" && entry.Group != nil {
 			auth.PrincipalType = AuthorizationPrincipalTypeGroup
 			auth.Provider = string(entry.Group.Provider)
-			auth.ProviderId = entry.Group.GroupName
+			auth.ProviderId = string(entry.Group.GroupName)
 		}
 
 		authorization = append(authorization, auth)
@@ -1015,7 +1015,8 @@ func (s *GormSurveyResponseStore) modelToListItem(model *models.SurveyResponse) 
 
 	// Get survey name (pointer field)
 	if model.Template.Name != "" {
-		item.SurveyName = &model.Template.Name
+		templateName := string(model.Template.Name)
+		item.SurveyName = &templateName
 	}
 
 	// Convert owner (nullable)

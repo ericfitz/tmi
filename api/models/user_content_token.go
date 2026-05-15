@@ -21,10 +21,10 @@ type UserContentToken struct {
 	Status               NullableDBVarchar `gorm:"size:16;default:active;index:idx_uct_status_expires,priority:1"`
 	LastRefreshAt        *time.Time        `gorm:"index:idx_uct_status_expires,priority:2"`
 	LastError            DBText
-	ProviderAccountID    *string   `gorm:"type:varchar(255)"`
-	ProviderAccountLabel *string   `gorm:"type:varchar(255)"`
-	CreatedAt            time.Time `gorm:"not null;autoCreateTime"`
-	ModifiedAt           time.Time `gorm:"not null;autoUpdateTime"`
+	ProviderAccountID    NullableDBVarchar `gorm:"size:255"`
+	ProviderAccountLabel NullableDBVarchar `gorm:"size:255"`
+	CreatedAt            time.Time         `gorm:"not null;autoCreateTime"`
+	ModifiedAt           time.Time         `gorm:"not null;autoUpdateTime"`
 
 	// Owner is the user who owns this token; ON DELETE CASCADE removes the token when the user is deleted.
 	Owner User `gorm:"foreignKey:UserID;references:InternalUUID;constraint:OnDelete:CASCADE"`

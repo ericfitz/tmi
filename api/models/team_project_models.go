@@ -12,10 +12,10 @@ import (
 // TeamRecord represents a team in the system
 type TeamRecord struct {
 	ID                     DBVarchar         `gorm:"primaryKey;size:36"`
-	Name                   string            `gorm:"type:varchar(256);not null;index:idx_team_name"`
+	Name                   DBVarchar         `gorm:"size:256;not null;index:idx_team_name"`
 	Description            *string           `gorm:"type:varchar(2048)"`
 	URI                    *string           `gorm:"type:varchar(1000)"`
-	EmailAddress           *string           `gorm:"type:varchar(320)"`
+	EmailAddress           NullableDBVarchar `gorm:"size:320"`
 	Status                 NullableDBVarchar `gorm:"size:128;index:idx_team_status"`
 	CreatedByInternalUUID  DBVarchar         `gorm:"size:36;not null"`
 	ModifiedByInternalUUID NullableDBVarchar `gorm:"size:36"`
@@ -129,7 +129,7 @@ func (t *TeamRelationshipRecord) BeforeCreate(tx *gorm.DB) error {
 // ProjectRecord represents a project in the system
 type ProjectRecord struct {
 	ID                     DBVarchar         `gorm:"primaryKey;size:36"`
-	Name                   string            `gorm:"type:varchar(256);not null;index:idx_proj_name"`
+	Name                   DBVarchar         `gorm:"size:256;not null;index:idx_proj_name"`
 	Description            *string           `gorm:"type:varchar(2048)"`
 	TeamID                 DBVarchar         `gorm:"size:36;not null;index:idx_proj_team"`
 	URI                    *string           `gorm:"type:varchar(1000)"`

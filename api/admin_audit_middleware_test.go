@@ -67,11 +67,11 @@ func TestAdminAuditMiddleware_Writes2xx(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Len(t, repo.rows, 1)
 	row := repo.rows[0]
-	assert.Equal(t, "system_settings.foo", row.FieldPath)
-	assert.Equal(t, "alice@example.com", row.ActorEmail)
+	assert.Equal(t, "system_settings.foo", string(row.FieldPath))
+	assert.Equal(t, "alice@example.com", string(row.ActorEmail))
 	assert.Equal(t, "google", string(row.ActorProvider))
-	assert.Equal(t, "google-sub-1", row.ActorProviderID)
-	assert.Equal(t, "Alice", row.ActorDisplayName)
+	assert.Equal(t, "google-sub-1", string(row.ActorProviderID))
+	assert.Equal(t, "Alice", string(row.ActorDisplayName))
 	assert.Equal(t, "PUT", string(row.HTTPMethod))
 	assert.Equal(t, "/admin/settings/:key", row.HTTPPath)
 	// "foo" is not in the deny-list, so old/new values are verbatim.

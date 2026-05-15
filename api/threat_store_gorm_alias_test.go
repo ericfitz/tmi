@@ -33,9 +33,9 @@ func setupThreatAliasTestDB(t *testing.T) (*gorm.DB, *models.ThreatModel) {
 	user := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "test",
-		ProviderUserID: strPtr("threat-alias-user"),
-		Email:          "alice@example.com",
-		Name:           "Alice",
+		ProviderUserID: models.NewNullableDBVarchar(strPtr("threat-alias-user")),
+		Email:          models.DBVarchar("alice@example.com"),
+		Name:           models.DBVarchar("Alice"),
 	}
 	require.NoError(t, db.Create(user).Error)
 
@@ -43,7 +43,7 @@ func setupThreatAliasTestDB(t *testing.T) (*gorm.DB, *models.ThreatModel) {
 		ID:                    models.DBVarchar(uuid.New().String()),
 		OwnerInternalUUID:     user.InternalUUID,
 		CreatedByInternalUUID: user.InternalUUID,
-		Name:                  "Test TM for Threats",
+		Name:                  models.DBVarchar("Test TM for Threats"),
 	}
 	require.NoError(t, db.Create(tm).Error)
 

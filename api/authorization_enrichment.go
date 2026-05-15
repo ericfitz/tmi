@@ -139,23 +139,24 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 	// Normalize ProviderId to the canonical provider_user_id from the database
 	// to prevent identity mismatches (e.g., email used as provider_id).
 	auth.Provider = string(user.Provider)
-	if user.ProviderUserID != nil && *user.ProviderUserID != "" {
-		if auth.ProviderId != *user.ProviderUserID {
-			logger.Debug("Normalizing provider_id from %q to canonical %q", auth.ProviderId, *user.ProviderUserID)
+	if user.ProviderUserID.Valid && user.ProviderUserID.String != "" {
+		if auth.ProviderId != user.ProviderUserID.String {
+			logger.Debug("Normalizing provider_id from %q to canonical %q", auth.ProviderId, user.ProviderUserID.String)
 		}
-		auth.ProviderId = *user.ProviderUserID
+		auth.ProviderId = user.ProviderUserID.String
 	}
 	if (auth.Email == nil || string(*auth.Email) == "") && user.Email != "" {
 		emailAddr := openapi_types.Email(user.Email)
 		auth.Email = &emailAddr
 	}
 	if (auth.DisplayName == nil || *auth.DisplayName == "") && user.Name != "" {
-		auth.DisplayName = &user.Name
+		nameStr := string(user.Name)
+		auth.DisplayName = &nameStr
 	}
 
 	providerIDStr := "<null>"
-	if user.ProviderUserID != nil {
-		providerIDStr = *user.ProviderUserID
+	if user.ProviderUserID.Valid {
+		providerIDStr = user.ProviderUserID.String
 	}
 	logger.Debug("Enriched authorization entry: provider=%s, internal_uuid=%s, provider_user_id=%s, email=%s, name=%s, provider_id=%s",
 		user.Provider, user.InternalUUID, providerIDStr, user.Email, user.Name, auth.ProviderId)
@@ -193,9 +194,9 @@ func performSparseUserInsert(ctx context.Context, db *gorm.DB, auth *Authorizati
 	// Create sparse user with GORM
 	user := models.User{
 		Provider:       models.DBVarchar(auth.Provider),
-		ProviderUserID: providerUserID,
-		Email:          email,
-		Name:           displayName,
+		ProviderUserID: models.NewNullableDBVarchar(providerUserID),
+		Email:          models.DBVarchar(email),
+		Name:           models.DBVarchar(displayName),
 		EmailVerified:  false,
 	}
 

@@ -62,8 +62,8 @@ func (r *GormMetadataRepository) Create(ctx context.Context, entityType, entityI
 		ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
 		EntityType: models.DBVarchar(entityType),
 		EntityID:   models.DBVarchar(entityID),
-		Key:        metadata.Key,
-		Value:      metadata.Value,
+		Key:        models.DBVarchar(metadata.Key),
+		Value:      models.DBVarchar(metadata.Value),
 		CreatedAt:  now,
 		ModifiedAt: now,
 	}
@@ -149,8 +149,8 @@ func (r *GormMetadataRepository) Get(ctx context.Context, entityType, entityID, 
 	}
 
 	metadata := &Metadata{
-		Key:   model.Key,
-		Value: model.Value,
+		Key:   string(model.Key),
+		Value: string(model.Value),
 	}
 
 	r.logger.Debug("Successfully retrieved metadata: %s=%s", metadata.Key, metadata.Value)
@@ -306,8 +306,8 @@ func (r *GormMetadataRepository) List(ctx context.Context, entityType, entityID 
 	metadataList := make([]Metadata, 0, len(modelList))
 	for _, model := range modelList {
 		metadataList = append(metadataList, Metadata{
-			Key:   model.Key,
-			Value: model.Value,
+			Key:   string(model.Key),
+			Value: string(model.Value),
 		})
 	}
 
@@ -373,8 +373,8 @@ func (r *GormMetadataRepository) BulkCreate(ctx context.Context, entityType, ent
 				ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
 				EntityType: models.DBVarchar(entityType),
 				EntityID:   models.DBVarchar(entityID),
-				Key:        meta.Key,
-				Value:      meta.Value,
+				Key:        models.DBVarchar(meta.Key),
+				Value:      models.DBVarchar(meta.Value),
 				CreatedAt:  now,
 				ModifiedAt: now,
 			}
@@ -438,8 +438,8 @@ func (r *GormMetadataRepository) BulkUpdate(ctx context.Context, entityType, ent
 				ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
 				EntityType: models.DBVarchar(entityType),
 				EntityID:   models.DBVarchar(entityID),
-				Key:        meta.Key,
-				Value:      meta.Value,
+				Key:        models.DBVarchar(meta.Key),
+				Value:      models.DBVarchar(meta.Value),
 				CreatedAt:  now,
 				ModifiedAt: now,
 			}
@@ -516,8 +516,8 @@ func (r *GormMetadataRepository) BulkReplace(ctx context.Context, entityType, en
 				ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
 				EntityType: models.DBVarchar(entityType),
 				EntityID:   models.DBVarchar(entityID),
-				Key:        meta.Key,
-				Value:      meta.Value,
+				Key:        models.DBVarchar(meta.Key),
+				Value:      models.DBVarchar(meta.Value),
 				CreatedAt:  now,
 				ModifiedAt: now,
 			}
@@ -615,8 +615,8 @@ func (r *GormMetadataRepository) GetByKey(ctx context.Context, key string) ([]Me
 	metadataList := make([]Metadata, 0, len(modelList))
 	for _, model := range modelList {
 		metadataList = append(metadataList, Metadata{
-			Key:   model.Key,
-			Value: model.Value,
+			Key:   string(model.Key),
+			Value: string(model.Value),
 		})
 	}
 

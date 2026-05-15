@@ -27,7 +27,7 @@ func (a *ProviderSettingsReaderAdapter) ListByPrefix(ctx context.Context, prefix
 	result := make([]auth.ProviderSetting, len(dbSettings))
 	for i, s := range dbSettings {
 		result[i] = auth.ProviderSetting{
-			Key:   s.SettingKey,
+			Key:   string(s.SettingKey),
 			Value: s.Value,
 		}
 	}

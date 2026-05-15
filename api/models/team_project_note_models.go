@@ -12,7 +12,7 @@ import (
 type TeamNoteRecord struct {
 	ID           DBVarchar `gorm:"primaryKey;size:36"`
 	TeamID       DBVarchar `gorm:"size:36;not null;index:idx_tnote_team;index:idx_tnote_team_name,priority:1"`
-	Name         string    `gorm:"type:varchar(256);not null;index:idx_tnote_name;index:idx_tnote_team_name,priority:2"`
+	Name         DBVarchar `gorm:"size:256;not null;index:idx_tnote_name;index:idx_tnote_team_name,priority:2"`
 	Content      DBText    `gorm:"not null"`
 	Description  *string   `gorm:"type:varchar(2048)"`
 	TimmyEnabled DBBool    `gorm:"default:1"`
@@ -34,7 +34,7 @@ func (n *TeamNoteRecord) BeforeCreate(tx *gorm.DB) error {
 	if n.ID == "" {
 		n.ID = DBVarchar(uuid.New().String())
 	}
-	if err := validation.ValidateNonEmpty("name", n.Name); err != nil {
+	if err := validation.ValidateNonEmpty("name", string(n.Name)); err != nil {
 		return err
 	}
 	if err := validation.ValidateNonEmpty("content", string(n.Content)); err != nil {
@@ -47,7 +47,7 @@ func (n *TeamNoteRecord) BeforeCreate(tx *gorm.DB) error {
 type ProjectNoteRecord struct {
 	ID           DBVarchar `gorm:"primaryKey;size:36"`
 	ProjectID    DBVarchar `gorm:"size:36;not null;index:idx_pnote_project;index:idx_pnote_project_name,priority:1"`
-	Name         string    `gorm:"type:varchar(256);not null;index:idx_pnote_name;index:idx_pnote_project_name,priority:2"`
+	Name         DBVarchar `gorm:"size:256;not null;index:idx_pnote_name;index:idx_pnote_project_name,priority:2"`
 	Content      DBText    `gorm:"not null"`
 	Description  *string   `gorm:"type:varchar(2048)"`
 	TimmyEnabled DBBool    `gorm:"default:1"`
@@ -69,7 +69,7 @@ func (n *ProjectNoteRecord) BeforeCreate(tx *gorm.DB) error {
 	if n.ID == "" {
 		n.ID = DBVarchar(uuid.New().String())
 	}
-	if err := validation.ValidateNonEmpty("name", n.Name); err != nil {
+	if err := validation.ValidateNonEmpty("name", string(n.Name)); err != nil {
 		return err
 	}
 	if err := validation.ValidateNonEmpty("content", string(n.Content)); err != nil {

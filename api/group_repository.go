@@ -135,7 +135,7 @@ func (r *GormGroupRepository) GetByProviderAndName(ctx context.Context, provider
 	var gormGroup models.Group
 	// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	result := r.db.WithContext(ctx).
-		Where(&models.Group{Provider: models.DBVarchar(provider), GroupName: groupName}).
+		Where(&models.Group{Provider: models.DBVarchar(provider), GroupName: models.DBVarchar(groupName)}).
 		First(&gormGroup)
 
 	if result.Error != nil {
@@ -316,8 +316,8 @@ func (r *GormGroupRepository) convertToGroup(gg *models.Group) Group {
 	return Group{
 		InternalUUID: internalUUID,
 		Provider:     string(gg.Provider),
-		GroupName:    gg.GroupName,
-		Name:         strFromPtr(gg.Name),
+		GroupName:    string(gg.GroupName),
+		Name:         strFromPtr(gg.Name.Ptr()),
 		Description:  strFromPtr(gg.Description),
 		FirstUsed:    gg.FirstUsed,
 		LastUsed:     gg.LastUsed,
@@ -330,8 +330,8 @@ func (r *GormGroupRepository) convertFromGroup(g *Group) *models.Group {
 	return &models.Group{
 		InternalUUID: models.DBVarchar(g.InternalUUID.String()),
 		Provider:     models.DBVarchar(g.Provider),
-		GroupName:    g.GroupName,
-		Name:         ptrOrNil(g.Name),
+		GroupName:    models.DBVarchar(g.GroupName),
+		Name:         models.NewNullableDBVarchar(ptrOrNil(g.Name)),
 		Description:  ptrOrNil(g.Description),
 		FirstUsed:    g.FirstUsed,
 		LastUsed:     g.LastUsed,

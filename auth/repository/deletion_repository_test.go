@@ -23,7 +23,7 @@ func TestGormDeletionRepository_DeleteUserAndData_NoThreatModels(t *testing.T) {
 	// Create a user with no threat models
 	user := tdb.SeedUser(t, "test@example.com", "google")
 
-	result, err := repo.DeleteUserAndData(context.Background(), user.Email)
+	result, err := repo.DeleteUserAndData(context.Background(), string(user.Email))
 	require.NoError(t, err)
 
 	assert.Equal(t, "test@example.com", result.UserEmail)

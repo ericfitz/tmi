@@ -523,7 +523,7 @@ func TestDocument_HasPickerAndDiagnosticFields(t *testing.T) {
 	// helper function signatures below.
 	d := Document{}
 	assertPtrString(d.PickerProviderID.Ptr())
-	assertPtrString(d.PickerFileID)
+	assertPtrString(d.PickerFileID.Ptr())
 	assertPtrString(d.PickerMimeType.Ptr())
 	assertPtrString(d.AccessReasonCode.Ptr())
 	// AccessReasonDetail is NullableDBText; Ptr() returns *string for the check.

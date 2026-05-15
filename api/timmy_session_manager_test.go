@@ -80,7 +80,7 @@ func TestTimmySessionManager_CreateSession(t *testing.T) {
 	assert.NotEmpty(t, session.ID)
 	assert.Equal(t, "user-alice", string(session.UserID))
 	assert.Equal(t, "tm-001", string(session.ThreatModelID))
-	assert.Equal(t, "Test Session", session.Title)
+	assert.Equal(t, "Test Session", string(session.Title))
 	assert.Equal(t, "active", string(session.Status))
 
 	// Verify session is retrievable

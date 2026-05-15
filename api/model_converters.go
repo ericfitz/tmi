@@ -11,8 +11,8 @@ func userModelToAPI(model *models.User) *User {
 	return &User{
 		PrincipalType: UserPrincipalType(AuthorizationPrincipalTypeUser),
 		Provider:      string(model.Provider),
-		ProviderId:    model.Email,
-		DisplayName:   model.Name,
+		ProviderId:    string(model.Email),
+		DisplayName:   string(model.Name),
 		Email:         email,
 	}
 }

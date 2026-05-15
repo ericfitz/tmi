@@ -38,7 +38,7 @@ func NewGormProjectNoteStore(db *gorm.DB) *GormProjectNoteStore {
 func projectNoteToRecord(note *ProjectNote, projectID string) *models.ProjectNoteRecord {
 	record := &models.ProjectNoteRecord{
 		ProjectID: models.DBVarchar(projectID),
-		Name:      note.Name,
+		Name:      models.DBVarchar(note.Name),
 		Content:   models.DBText(note.Content),
 	}
 
@@ -72,7 +72,7 @@ func projectNoteFromRecord(record *models.ProjectNoteRecord) *ProjectNote {
 
 	return &ProjectNote{
 		Id:           &id,
-		Name:         record.Name,
+		Name:         string(record.Name),
 		Content:      string(record.Content),
 		Description:  record.Description,
 		Sharable:     &sharable,
@@ -92,7 +92,7 @@ func projectNoteListItemFromRecord(record *models.ProjectNoteRecord) ProjectNote
 
 	return ProjectNoteListItem{
 		Id:           &id,
-		Name:         record.Name,
+		Name:         string(record.Name),
 		Description:  record.Description,
 		Sharable:     &sharable,
 		TimmyEnabled: &timmyEnabled,
@@ -179,7 +179,7 @@ func (s *GormProjectNoteStore) Update(ctx context.Context, id string, note *Proj
 	}
 
 	// Update fields
-	existing.Name = note.Name
+	existing.Name = models.DBVarchar(note.Name)
 	existing.Content = models.DBText(note.Content)
 	existing.Description = note.Description
 	if note.TimmyEnabled != nil {

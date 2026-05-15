@@ -103,8 +103,8 @@ func createIntegrationUser(t *testing.T, db *gorm.DB, label string) string {
 	u := models.User{
 		InternalUUID: models.DBVarchar(id),
 		Provider:     "test",
-		Email:        email,
-		Name:         fmt.Sprintf("Integration Test User (%s)", label),
+		Email:        models.DBVarchar(email),
+		Name:         models.DBVarchar(fmt.Sprintf("Integration Test User (%s)", label)),
 	}
 	require.NoError(t, db.Create(&u).Error, "create test user")
 	t.Cleanup(func() {

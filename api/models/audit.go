@@ -18,10 +18,10 @@ type AuditEntry struct {
 	ObjectID         DBVarchar      `gorm:"size:36;not null;index:idx_audit_object,priority:2;index:idx_audit_object_version,priority:2"`
 	Version          *int           `gorm:"index:idx_audit_object_version,priority:3"` // nullable: NULL means version snapshot has been pruned
 	ChangeType       DBVarchar      `gorm:"size:20;not null;index:idx_audit_change_type"`
-	ActorEmail       string         `gorm:"type:varchar(320);not null"`
+	ActorEmail       DBVarchar      `gorm:"size:320;not null"`
 	ActorProvider    DBVarchar      `gorm:"size:100;not null"`
-	ActorProviderID  string         `gorm:"type:varchar(500);not null"`
-	ActorDisplayName string         `gorm:"type:varchar(256);not null"`
+	ActorProviderID  DBVarchar      `gorm:"size:500;not null"`
+	ActorDisplayName DBVarchar      `gorm:"size:256;not null"`
 	ChangeSummary    NullableDBText `gorm:""`
 	CreatedAt        time.Time      `gorm:"not null;autoCreateTime;index:idx_audit_tm_created,priority:2"`
 }

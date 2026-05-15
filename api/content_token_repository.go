@@ -283,11 +283,11 @@ func (r *GormContentTokenRepository) encode(t *ContentToken) (*models.UserConten
 	}
 	if t.ProviderAccountID != "" {
 		v := t.ProviderAccountID
-		row.ProviderAccountID = &v
+		row.ProviderAccountID = models.NewNullableDBVarchar(&v)
 	}
 	if t.ProviderAccountLabel != "" {
 		v := t.ProviderAccountLabel
-		row.ProviderAccountLabel = &v
+		row.ProviderAccountLabel = models.NewNullableDBVarchar(&v)
 	}
 	return row, nil
 }
@@ -319,11 +319,11 @@ func (r *GormContentTokenRepository) decode(row *models.UserContentToken) (*Cont
 		CreatedAt:     row.CreatedAt,
 		ModifiedAt:    row.ModifiedAt,
 	}
-	if row.ProviderAccountID != nil {
-		out.ProviderAccountID = *row.ProviderAccountID
+	if row.ProviderAccountID.Valid {
+		out.ProviderAccountID = row.ProviderAccountID.String
 	}
-	if row.ProviderAccountLabel != nil {
-		out.ProviderAccountLabel = *row.ProviderAccountLabel
+	if row.ProviderAccountLabel.Valid {
+		out.ProviderAccountLabel = row.ProviderAccountLabel.String
 	}
 	return out, nil
 }

@@ -502,9 +502,9 @@ func TestConvertModelToUser(t *testing.T) {
 	model := &models.User{
 		InternalUUID:   "test-uuid",
 		Provider:       "google",
-		ProviderUserID: &providerUserID,
-		Email:          "test@example.com",
-		Name:           "Test User",
+		ProviderUserID: models.NewNullableDBVarchar(&providerUserID),
+		Email:          models.DBVarchar("test@example.com"),
+		Name:           models.DBVarchar("Test User"),
 		EmailVerified:  models.DBBool(true),
 		CreatedAt:      now,
 		ModifiedAt:     now,
@@ -528,9 +528,9 @@ func TestConvertModelToUser_NilProviderUserID(t *testing.T) {
 	model := &models.User{
 		InternalUUID:   "test-uuid",
 		Provider:       "google",
-		ProviderUserID: nil,
-		Email:          "test@example.com",
-		Name:           "Test User",
+		ProviderUserID: models.NullableDBVarchar{},
+		Email:          models.DBVarchar("test@example.com"),
+		Name:           models.DBVarchar("Test User"),
 	}
 
 	user := convertModelToUser(model)
@@ -584,10 +584,10 @@ func TestConvertUserToModel(t *testing.T) {
 
 	assert.Equal(t, "test-uuid", string(model.InternalUUID))
 	assert.Equal(t, "google", string(model.Provider))
-	require.NotNil(t, model.ProviderUserID)
-	assert.Equal(t, "provider-123", *model.ProviderUserID)
-	assert.Equal(t, "test@example.com", model.Email)
-	assert.Equal(t, "Test User", model.Name)
+	assert.True(t, model.ProviderUserID.Valid)
+	assert.Equal(t, "provider-123", model.ProviderUserID.String)
+	assert.Equal(t, "test@example.com", string(model.Email))
+	assert.Equal(t, "Test User", string(model.Name))
 	assert.True(t, model.EmailVerified.Bool())
 }
 
@@ -602,5 +602,5 @@ func TestConvertUserToModel_EmptyProviderUserID(t *testing.T) {
 
 	model := convertUserToModel(user)
 
-	assert.Nil(t, model.ProviderUserID)
+	assert.False(t, model.ProviderUserID.Valid, "expected ProviderUserID to be invalid/empty")
 }

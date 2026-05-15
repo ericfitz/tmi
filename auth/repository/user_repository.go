@@ -133,8 +133,8 @@ func (r *GormUserRepository) GetProviders(ctx context.Context, userID string) ([
 	}
 
 	providerUserID := ""
-	if gormUser.ProviderUserID != nil {
-		providerUserID = *gormUser.ProviderUserID
+	if gormUser.ProviderUserID.Valid {
+		providerUserID = gormUser.ProviderUserID.String
 	}
 
 	providers := []UserProvider{
@@ -143,7 +143,7 @@ func (r *GormUserRepository) GetProviders(ctx context.Context, userID string) ([
 			UserID:         string(gormUser.InternalUUID),
 			Provider:       string(gormUser.Provider),
 			ProviderUserID: providerUserID,
-			Email:          gormUser.Email,
+			Email:          string(gormUser.Email),
 			IsPrimary:      true, // Always true since there's only one provider per user
 			CreatedAt:      gormUser.CreatedAt,
 			LastLogin:      lastLogin,
@@ -237,7 +237,7 @@ func (r *GormUserRepository) Update(ctx context.Context, user *User) error {
 				updates["provider"] = user.Provider
 			}
 			// Update provider_user_id only if current value is blank/null and new value is provided
-			if (existing.ProviderUserID == nil || *existing.ProviderUserID == "") && user.ProviderUserID != "" {
+			if (!existing.ProviderUserID.Valid || existing.ProviderUserID.String == "") && user.ProviderUserID != "" {
 				updates["provider_user_id"] = user.ProviderUserID
 			}
 		}
@@ -278,16 +278,16 @@ func (r *GormUserRepository) Delete(ctx context.Context, id string) error {
 // convertModelToUser converts a GORM User model to a repository User
 func convertModelToUser(m *models.User) *User {
 	providerUserID := ""
-	if m.ProviderUserID != nil {
-		providerUserID = *m.ProviderUserID
+	if m.ProviderUserID.Valid {
+		providerUserID = m.ProviderUserID.String
 	}
 
 	return &User{
 		InternalUUID:   string(m.InternalUUID),
 		Provider:       string(m.Provider),
 		ProviderUserID: providerUserID,
-		Email:          m.Email,
-		Name:           m.Name,
+		Email:          string(m.Email),
+		Name:           string(m.Name),
 		EmailVerified:  m.EmailVerified.Bool(), // Convert DBBool to bool
 		AccessToken:    m.AccessToken.Ptr(),    // Convert NullableDBText to *string
 		RefreshToken:   m.RefreshToken.Ptr(),   // Convert NullableDBText to *string
@@ -309,9 +309,9 @@ func convertUserToModel(u *User) *models.User {
 	return &models.User{
 		InternalUUID:   models.DBVarchar(u.InternalUUID),
 		Provider:       models.DBVarchar(u.Provider),
-		ProviderUserID: providerUserID,
-		Email:          u.Email,
-		Name:           u.Name,
+		ProviderUserID: models.NewNullableDBVarchar(providerUserID),
+		Email:          models.DBVarchar(u.Email),
+		Name:           models.DBVarchar(u.Name),
 		EmailVerified:  models.DBBool(u.EmailVerified),           // Convert bool to DBBool
 		AccessToken:    models.NewNullableDBText(u.AccessToken),  // Convert *string to NullableDBText
 		RefreshToken:   models.NewNullableDBText(u.RefreshToken), // Convert *string to NullableDBText

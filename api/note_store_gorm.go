@@ -51,7 +51,7 @@ func (s *GormNoteRepository) Create(ctx context.Context, note *Note, threatModel
 	model := models.Note{
 		ID:            models.DBVarchar(note.Id.String()),
 		ThreatModelID: models.DBVarchar(threatModelID),
-		Name:          note.Name,
+		Name:          models.DBVarchar(note.Name),
 		Content:       models.DBText(note.Content),
 		Description:   note.Description,
 		CreatedAt:     now,
@@ -481,7 +481,7 @@ func (s *GormNoteRepository) modelToAPI(model *models.Note) *Note {
 	alias := model.Alias
 	return &Note{
 		Id:              &id,
-		Name:            model.Name,
+		Name:            string(model.Name),
 		Content:         string(model.Content), // Convert DBText to string
 		Description:     model.Description,
 		IncludeInReport: &includeInReport,

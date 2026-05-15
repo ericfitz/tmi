@@ -37,9 +37,9 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 	testUser := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "tmi",
-		ProviderUserID: &providerUserID,
-		Email:          prefix + "-user@example.com",
-		Name:           prefix + " Test User",
+		ProviderUserID: models.NewNullableDBVarchar(&providerUserID),
+		Email:          models.DBVarchar(prefix + "-user@example.com"),
+		Name:           models.DBVarchar(prefix + " Test User"),
 		EmailVerified:  true,
 		CreatedAt:      time.Now(),
 		ModifiedAt:     time.Now(),
@@ -54,9 +54,9 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 	secondUser := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "tmi",
-		ProviderUserID: &collaboratorUserID,
-		Email:          prefix + "-collaborator@example.com",
-		Name:           prefix + " Collaborator",
+		ProviderUserID: models.NewNullableDBVarchar(&collaboratorUserID),
+		Email:          models.DBVarchar(prefix + "-collaborator@example.com"),
+		Name:           models.DBVarchar(prefix + " Collaborator"),
 		EmailVerified:  true,
 		CreatedAt:      time.Now(),
 		ModifiedAt:     time.Now(),
@@ -68,8 +68,8 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 
 	// Create test threat model
 	testTM := &models.ThreatModel{
-		ID:            models.DBVarchar(uuid.New().String()),
-		Name:                  prefix + "-threat-model",
+		ID:                    models.DBVarchar(uuid.New().String()),
+		Name:                  models.DBVarchar(prefix + "-threat-model"),
 		Description:           new("Test threat model for integration testing"),
 		OwnerInternalUUID:     testUser.InternalUUID,
 		CreatedByInternalUUID: testUser.InternalUUID,
@@ -87,7 +87,7 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 	testDiagram := &models.Diagram{
 		ID:            models.DBVarchar(uuid.New().String()),
 		ThreatModelID: testTM.ID,
-		Name:          prefix + "-diagram",
+		Name:          models.DBVarchar(prefix + "-diagram"),
 		Description:   new("Test diagram for integration testing"),
 		Type:          models.NewNullableDBVarchar(&diagramType),
 		CreatedAt:     time.Now(),
@@ -102,10 +102,10 @@ func (t *TestDB) CreateStandardFixtures(prefix string) (*Fixtures, error) {
 	testThreat := &models.Threat{
 		ID:            models.DBVarchar(uuid.New().String()),
 		ThreatModelID: testTM.ID,
-		Name:          prefix + "-threat",
+		Name:          models.DBVarchar(prefix + "-threat"),
 		Description:   new("Test threat for integration testing"),
 		ThreatType:    models.StringArray{"Spoofing"},
-		Priority:      new("high"),
+		Priority:      models.NewNullableDBVarchar(new("high")),
 		Status:        models.NewNullableDBVarchar(new("identified")),
 		CreatedAt:     time.Now(),
 		ModifiedAt:    time.Now(),
@@ -127,9 +127,9 @@ func (t *TestDB) CreateMinimalFixtures(prefix string) (*Fixtures, error) {
 	testUser := &models.User{
 		InternalUUID:   models.DBVarchar(uuid.New().String()),
 		Provider:       "tmi",
-		ProviderUserID: &providerUserID,
-		Email:          prefix + "-user@example.com",
-		Name:           prefix + " Test User",
+		ProviderUserID: models.NewNullableDBVarchar(&providerUserID),
+		Email:          models.DBVarchar(prefix + "-user@example.com"),
+		Name:           models.DBVarchar(prefix + " Test User"),
 		EmailVerified:  true,
 		CreatedAt:      time.Now(),
 		ModifiedAt:     time.Now(),
@@ -188,9 +188,9 @@ func NewUserBuilder(prefix string) *UserBuilder {
 		user: &models.User{
 			InternalUUID:   models.DBVarchar(uuid.New().String()),
 			Provider:       "tmi",
-			ProviderUserID: &providerUserID,
-			Email:          prefix + "-user@example.com",
-			Name:           prefix + " User",
+			ProviderUserID: models.NewNullableDBVarchar(&providerUserID),
+			Email:          models.DBVarchar(prefix + "-user@example.com"),
+			Name:           models.DBVarchar(prefix + " User"),
 			EmailVerified:  true,
 			CreatedAt:      time.Now(),
 			ModifiedAt:     time.Now(),
@@ -206,19 +206,19 @@ func (b *UserBuilder) WithProvider(provider string) *UserBuilder {
 
 // WithEmail sets the email
 func (b *UserBuilder) WithEmail(email string) *UserBuilder {
-	b.user.Email = email
+	b.user.Email = models.DBVarchar(email)
 	return b
 }
 
 // WithName sets the name
 func (b *UserBuilder) WithName(name string) *UserBuilder {
-	b.user.Name = name
+	b.user.Name = models.DBVarchar(name)
 	return b
 }
 
 // WithProviderUserID sets the provider user ID
 func (b *UserBuilder) WithProviderUserID(id string) *UserBuilder {
-	b.user.ProviderUserID = &id
+	b.user.ProviderUserID = models.NewNullableDBVarchar(&id)
 	return b
 }
 
@@ -236,8 +236,8 @@ type ThreatModelBuilder struct {
 func NewThreatModelBuilder(prefix string, ownerInternalUUID string) *ThreatModelBuilder {
 	return &ThreatModelBuilder{
 		tm: &models.ThreatModel{
-			ID:            models.DBVarchar(uuid.New().String()),
-			Name:                  prefix + "-threat-model",
+			ID:                    models.DBVarchar(uuid.New().String()),
+			Name:                  models.DBVarchar(prefix + "-threat-model"),
 			Description:           new("Test threat model"),
 			OwnerInternalUUID:     models.DBVarchar(ownerInternalUUID),
 			CreatedByInternalUUID: models.DBVarchar(ownerInternalUUID),
@@ -250,7 +250,7 @@ func NewThreatModelBuilder(prefix string, ownerInternalUUID string) *ThreatModel
 
 // WithName sets the name
 func (b *ThreatModelBuilder) WithName(name string) *ThreatModelBuilder {
-	b.tm.Name = name
+	b.tm.Name = models.DBVarchar(name)
 	return b
 }
 
