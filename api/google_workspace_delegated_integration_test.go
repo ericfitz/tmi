@@ -544,7 +544,7 @@ func TestGoogleWorkspaceDelegated_EndToEnd_Integration(t *testing.T) {
 			"document row must still exist",
 		)
 		assert.False(t, raw.PickerProviderID.Valid, "picker_provider_id must be cleared after un-link")
-		assert.Nil(t, raw.PickerFileID, "picker_file_id must be cleared after un-link")
+		assert.False(t, raw.PickerFileID.Valid, "picker_file_id must be cleared after un-link")
 		assert.False(t, raw.PickerMimeType.Valid, "picker_mime_type must be cleared after un-link")
 		require.True(t, raw.AccessStatus.Valid)
 		assert.Equal(t, AccessStatusUnknown, raw.AccessStatus.String,
