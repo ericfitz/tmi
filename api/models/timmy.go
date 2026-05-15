@@ -9,7 +9,7 @@ import (
 
 // TimmySession represents a chat session between a user and Timmy for a threat model
 type TimmySession struct {
-	ID               DBVarchar         `gorm:"primaryKey;size:36"`
+	ID               DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID    DBVarchar         `gorm:"size:36;not null;index:idx_timmy_sessions_tm;index:idx_timmy_sessions_tm_user,priority:1"`
 	UserID           DBVarchar         `gorm:"size:36;not null;index:idx_timmy_sessions_user;index:idx_timmy_sessions_tm_user,priority:2"`
 	Title            DBVarchar         `gorm:"size:256"`
@@ -43,7 +43,7 @@ func (s *TimmySession) BeforeCreate(tx *gorm.DB) error {
 
 // TimmyMessage represents a single message in a Timmy chat session
 type TimmyMessage struct {
-	ID         DBVarchar `gorm:"primaryKey;size:36"`
+	ID         DBVarchar `gorm:"primaryKey;not null;size:36"`
 	SessionID  DBVarchar `gorm:"size:36;not null;index:idx_timmy_messages_session;uniqueIndex:idx_timmy_messages_session_seq,priority:1"`
 	Role       DBVarchar `gorm:"size:20;not null"`
 	Content    DBText    `gorm:"not null"`
@@ -70,7 +70,7 @@ func (m *TimmyMessage) BeforeCreate(tx *gorm.DB) error {
 
 // TimmyEmbedding represents a vector embedding for a chunk of threat model content
 type TimmyEmbedding struct {
-	ID             DBVarchar `gorm:"primaryKey;size:36"`
+	ID             DBVarchar `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID  DBVarchar `gorm:"size:36;not null;index:idx_timmy_embeddings_tm;index:idx_timmy_embeddings_entity,priority:1"`
 	EntityType     DBVarchar `gorm:"size:30;not null;index:idx_timmy_embeddings_entity,priority:2"`
 	EntityID       DBVarchar `gorm:"size:36;not null;index:idx_timmy_embeddings_entity,priority:3"`
@@ -102,7 +102,7 @@ func (e *TimmyEmbedding) BeforeCreate(tx *gorm.DB) error {
 
 // TimmyUsage tracks LLM token usage for billing and monitoring
 type TimmyUsage struct {
-	ID               DBVarchar `gorm:"primaryKey;size:36"`
+	ID               DBVarchar `gorm:"primaryKey;not null;size:36"`
 	UserID           DBVarchar `gorm:"size:36;not null;index:idx_timmy_usage_user"`
 	SessionID        DBVarchar `gorm:"size:36;not null;index:idx_timmy_usage_session"`
 	ThreatModelID    DBVarchar `gorm:"size:36;not null;index:idx_timmy_usage_tm"`

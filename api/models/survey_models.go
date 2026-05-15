@@ -11,7 +11,7 @@ import (
 
 // SurveyTemplate represents a survey template for security review intake
 type SurveyTemplate struct {
-	ID                    DBVarchar      `gorm:"primaryKey;size:36"`
+	ID                    DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	Name                  DBVarchar      `gorm:"size:256;not null;index:idx_st_name;uniqueIndex:idx_st_name_version,priority:1"`
 	Description           NullableDBText `gorm:""`
 	Version               DBVarchar      `gorm:"size:64;not null;index:idx_st_version;uniqueIndex:idx_st_name_version,priority:2"`
@@ -38,7 +38,7 @@ func (s *SurveyTemplate) BeforeCreate(tx *gorm.DB) error {
 
 // SurveyTemplateVersion represents a versioned snapshot of a survey template definition
 type SurveyTemplateVersion struct {
-	ID                    DBVarchar `gorm:"primaryKey;size:36"`
+	ID                    DBVarchar `gorm:"primaryKey;not null;size:36"`
 	TemplateID            DBVarchar `gorm:"size:36;not null;index:idx_stv_template;uniqueIndex:idx_stv_template_version,priority:1"`
 	Version               DBVarchar `gorm:"size:64;not null;uniqueIndex:idx_stv_template_version,priority:2"`
 	SurveyJSON            JSONRaw   `gorm:"column:survey_json"`
@@ -64,7 +64,7 @@ func (s *SurveyTemplateVersion) BeforeCreate(tx *gorm.DB) error {
 
 // SurveyResponse represents a user's response to a survey template
 type SurveyResponse struct {
-	ID                     DBVarchar         `gorm:"primaryKey;size:36"`
+	ID                     DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	TemplateID             DBVarchar         `gorm:"size:36;not null;index:idx_sr_template;index:idx_sr_template_status,priority:1"`
 	TemplateVersion        DBVarchar         `gorm:"size:64;not null"` // Captured at creation, immutable
 	Status                 DBVarchar         `gorm:"size:30;not null;default:draft;index:idx_sr_status;index:idx_sr_template_status,priority:2"`
@@ -111,8 +111,8 @@ func (s *SurveyResponse) BeforeCreate(tx *gorm.DB) error {
 // Uses a composite primary key (SurveyResponseID, ID) where ID is a
 // per-response monotonically increasing integer.
 type TriageNote struct {
-	SurveyResponseID       DBVarchar         `gorm:"primaryKey;size:36;index:idx_tn_sr"`
-	ID                     int               `gorm:"primaryKey;autoIncrement:false"`
+	SurveyResponseID       DBVarchar         `gorm:"primaryKey;not null;size:36;index:idx_tn_sr"`
+	ID                     int               `gorm:"primaryKey;not null;autoIncrement:false"`
 	Name                   DBVarchar         `gorm:"size:256;not null"`
 	Content                DBText            `gorm:"not null"`
 	CreatedByInternalUUID  NullableDBVarchar `gorm:"size:36"`
@@ -151,7 +151,7 @@ func (t *TriageNote) BeforeCreate(tx *gorm.DB) error {
 // SurveyResponseAccess represents access control for a survey response
 // Mirrors the ThreatModelAccess pattern for consistency
 type SurveyResponseAccess struct {
-	ID                    DBVarchar         `gorm:"primaryKey;size:36"`
+	ID                    DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	SurveyResponseID      DBVarchar         `gorm:"size:36;not null;index:idx_sra_sr;index:idx_sra_perf,priority:1"`
 	UserInternalUUID      NullableDBVarchar `gorm:"size:36;index:idx_sra_user;index:idx_sra_perf,priority:3"`
 	GroupInternalUUID     NullableDBVarchar `gorm:"size:36;index:idx_sra_group;index:idx_sra_perf,priority:4"`
@@ -184,7 +184,7 @@ func (s *SurveyResponseAccess) BeforeCreate(tx *gorm.DB) error {
 // SurveyAnswer represents an extracted answer from a survey response.
 // Rows are fully replaced on every response save for consistency.
 type SurveyAnswer struct {
-	ID             DBVarchar         `gorm:"primaryKey;size:36"`
+	ID             DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ResponseID     DBVarchar         `gorm:"size:36;not null;index:idx_sa_response_id;index:idx_sa_response_mapping"`
 	QuestionName   DBVarchar         `gorm:"size:256;not null"`
 	QuestionType   DBVarchar         `gorm:"size:64;not null"`

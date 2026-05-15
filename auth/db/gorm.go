@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -587,36 +586,18 @@ func (g *GormDB) AutoMigrate(models ...any) error {
 	log := slogging.Get()
 	log.Debug("Running GORM auto-migration for %d models", len(models))
 
-	if g.cfg.Type == DatabaseTypeOracle {
-		if err := g.autoMigrateOracle(models...); err != nil {
-			return err
-		}
-	} else {
-		if err := g.db.AutoMigrate(models...); err != nil {
-			log.Error("GORM auto-migration failed: %v", err)
-			return fmt.Errorf("auto-migration failed: %w", err)
-		}
+	// All dialects, including Oracle, use a single batched AutoMigrate call.
+	// Passing every model in one call lets GORM topologically sort them and
+	// create all tables before resolving foreign-key constraints across the
+	// set — avoiding the per-model re-touch of FK-parent tables that, on
+	// Oracle, otherwise emits a redundant ALTER ... MODIFY on already-correct
+	// primary-key columns. TMI uses a single fresh-schema baseline (#412):
+	// there is no version-to-version ALTER path to compensate for.
+	if err := g.db.AutoMigrate(models...); err != nil {
+		log.Error("GORM auto-migration failed: %v", err)
+		return fmt.Errorf("auto-migration failed: %w", err)
 	}
 	log.Debug("GORM auto-migration completed successfully")
-	return nil
-}
-
-// autoMigrateOracle creates the schema for each model on Oracle. Because TMI uses
-// a single fresh-schema baseline (#412), this only ever runs CREATE TABLE — there
-// is no ALTER path and therefore no Oracle benign-migration-error handling. GORM's
-// AutoMigrate per-model is used so that foreign-key references to not-yet-created
-// tables are tolerated (GORM creates the table, FK constraints settle on later
-// models). DisableForeignKeyConstraintWhenMigrating is already set in the GORM config.
-func (g *GormDB) autoMigrateOracle(models ...any) error {
-	log := slogging.Get()
-	for _, model := range models {
-		modelName := reflect.TypeOf(model).Elem().Name()
-		if err := g.db.AutoMigrate(model); err != nil {
-			log.Error("GORM auto-migration failed for model %s: %v", modelName, err)
-			return fmt.Errorf("auto-migration failed for %s: %w", modelName, err)
-		}
-		log.Debug("Migrated model %s", modelName)
-	}
 	return nil
 }
 

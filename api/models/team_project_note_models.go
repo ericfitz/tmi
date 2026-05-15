@@ -10,7 +10,7 @@ import (
 
 // TeamNoteRecord represents a note attached to a team
 type TeamNoteRecord struct {
-	ID           DBVarchar      `gorm:"primaryKey;size:36"`
+	ID           DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	TeamID       DBVarchar      `gorm:"size:36;not null;index:idx_tnote_team;index:idx_tnote_team_name,priority:1"`
 	Name         DBVarchar      `gorm:"size:256;not null;index:idx_tnote_name;index:idx_tnote_team_name,priority:2"`
 	Content      DBText         `gorm:"not null"`
@@ -45,7 +45,7 @@ func (n *TeamNoteRecord) BeforeCreate(tx *gorm.DB) error {
 
 // ProjectNoteRecord represents a note attached to a project
 type ProjectNoteRecord struct {
-	ID           DBVarchar      `gorm:"primaryKey;size:36"`
+	ID           DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	ProjectID    DBVarchar      `gorm:"size:36;not null;index:idx_pnote_project;index:idx_pnote_project_name,priority:1"`
 	Name         DBVarchar      `gorm:"size:256;not null;index:idx_pnote_name;index:idx_pnote_project_name,priority:2"`
 	Content      DBText         `gorm:"not null"`

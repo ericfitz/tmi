@@ -29,7 +29,7 @@ func tableName(name string) string {
 // Note: Column names are intentionally not specified to allow GORM's NamingStrategy
 // to handle database-specific casing (lowercase for PostgreSQL, UPPERCASE for Oracle)
 type User struct {
-	InternalUUID   DBVarchar         `gorm:"primaryKey;size:36"`
+	InternalUUID   DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	Provider       DBVarchar         `gorm:"size:100;not null;index:idx_users_provider;index:idx_users_provider_lookup,priority:1"`
 	ProviderUserID NullableDBVarchar `gorm:"size:500;index:idx_users_provider_lookup,priority:2"`
 	Email          DBVarchar         `gorm:"size:320;not null;index:idx_users_email"`
@@ -64,7 +64,7 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 // RefreshTokenRecord represents a refresh token for a user
 // Note: Explicit column tags removed for Oracle compatibility
 type RefreshTokenRecord struct {
-	ID               DBVarchar `gorm:"primaryKey;size:36"`
+	ID               DBVarchar `gorm:"primaryKey;not null;size:36"`
 	UserInternalUUID DBVarchar `gorm:"size:36;not null;index"`
 	Token            DBVarchar `gorm:"size:4000;not null;uniqueIndex"` // DBVarchar size:4000 for Oracle compatibility (CLOB cannot have unique index)
 	ExpiresAt        time.Time `gorm:"not null"`
@@ -90,7 +90,7 @@ func (r *RefreshTokenRecord) BeforeCreate(tx *gorm.DB) error {
 // ClientCredential represents OAuth 2.0 client credentials for machine-to-machine auth
 // Note: Explicit column tags removed for Oracle compatibility
 type ClientCredential struct {
-	ID               DBVarchar      `gorm:"primaryKey;size:36"`
+	ID               DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	OwnerUUID        DBVarchar      `gorm:"size:36;not null;index"`
 	ClientID         DBVarchar      `gorm:"size:1000;not null;uniqueIndex"`
 	ClientSecretHash DBText         `gorm:"not null"`
@@ -123,7 +123,7 @@ func (c *ClientCredential) BeforeCreate(tx *gorm.DB) error {
 // Note: Explicit column tags removed for Oracle compatibility (Oracle stores column names as UPPERCASE,
 // and the Oracle GORM driver doesn't handle case-insensitive matching with explicit column tags)
 type ThreatModel struct {
-	ID                           DBVarchar         `gorm:"primaryKey;size:36"`
+	ID                           DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	OwnerInternalUUID            DBVarchar         `gorm:"size:36;not null;index:idx_tm_owner;index:idx_tm_owner_created,priority:1"`
 	Name                         DBVarchar         `gorm:"size:256;not null"`
 	Description                  NullableDBText    `gorm:""`
@@ -171,7 +171,7 @@ func (t *ThreatModel) BeforeCreate(tx *gorm.DB) error {
 // Diagram represents a diagram within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Diagram struct {
-	ID                DBVarchar         `gorm:"primaryKey;size:36"`
+	ID                DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID     DBVarchar         `gorm:"size:36;not null;index:idx_diagrams_tm;index:idx_diagrams_tm_type,priority:1;uniqueIndex:uniq_diagrams_tm_alias,priority:1"`
 	Name              DBVarchar         `gorm:"size:256;not null"`
 	Description       NullableDBText    `gorm:""`
@@ -212,7 +212,7 @@ func (d *Diagram) BeforeCreate(tx *gorm.DB) error {
 // Asset represents an asset within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Asset struct {
-	ID              DBVarchar         `gorm:"primaryKey;size:36"`
+	ID              DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_assets_tm;index:idx_assets_tm_created,priority:1;index:idx_assets_tm_modified,priority:1;uniqueIndex:uniq_assets_tm_alias,priority:1"`
 	Name            DBVarchar         `gorm:"size:256;not null;index:idx_assets_name"`
 	Description     NullableDBText    `gorm:""`
@@ -257,7 +257,7 @@ func (a *Asset) BeforeCreate(tx *gorm.DB) error {
 // Threat represents a threat within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Threat struct {
-	ID              DBVarchar         `gorm:"primaryKey;size:36"`
+	ID              DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_threats_tm;index:idx_threats_tm_created,priority:1;index:idx_threats_tm_modified,priority:1;uniqueIndex:uniq_threats_tm_alias,priority:1"`
 	DiagramID       NullableDBVarchar `gorm:"size:36;index:idx_threats_diagram"`
 	CellID          NullableDBVarchar `gorm:"size:36;index:idx_threats_cell"`
@@ -313,7 +313,7 @@ func (t *Threat) BeforeCreate(tx *gorm.DB) error {
 // Group represents an identity provider group
 // Note: Explicit column tags removed for Oracle compatibility
 type Group struct {
-	InternalUUID DBVarchar         `gorm:"primaryKey;size:36"`
+	InternalUUID DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	Provider     DBVarchar         `gorm:"size:100;not null;index:idx_groups_provider"`
 	GroupName    DBVarchar         `gorm:"size:500;not null;index:idx_groups_group_name"`
 	Name         NullableDBVarchar `gorm:"size:256"`
@@ -340,7 +340,7 @@ func (g *Group) BeforeCreate(tx *gorm.DB) error {
 // Note: Explicit column tags removed for Oracle compatibility (Oracle stores column names as UPPERCASE,
 // and the Oracle GORM driver doesn't handle case-insensitive matching with explicit column tags)
 type ThreatModelAccess struct {
-	ID                    DBVarchar         `gorm:"primaryKey;size:36"`
+	ID                    DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID         DBVarchar         `gorm:"size:36;not null;index:idx_tma_tm;index:idx_tma_perf,priority:1"`
 	UserInternalUUID      NullableDBVarchar `gorm:"size:36;index:idx_tma_user;index:idx_tma_perf,priority:3"`
 	GroupInternalUUID     NullableDBVarchar `gorm:"size:36;index:idx_tma_group;index:idx_tma_perf,priority:4"`
@@ -373,7 +373,7 @@ func (t *ThreatModelAccess) BeforeCreate(tx *gorm.DB) error {
 // Document represents a document attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Document struct {
-	ID              DBVarchar         `gorm:"primaryKey;size:36"`
+	ID              DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_docs_tm;index:idx_docs_tm_created,priority:1;index:idx_docs_tm_modified,priority:1;uniqueIndex:uniq_documents_tm_alias,priority:1"`
 	Name            DBVarchar         `gorm:"size:256;not null;index:idx_docs_name"`
 	URI             DBText            `gorm:"not null"`
@@ -420,7 +420,7 @@ func (d *Document) BeforeCreate(tx *gorm.DB) error {
 // Note represents a note attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Note struct {
-	ID              DBVarchar      `gorm:"primaryKey;size:36"`
+	ID              DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID   DBVarchar      `gorm:"size:36;not null;index:idx_notes_tm;index:idx_notes_tm_created,priority:1;index:idx_notes_tm_modified,priority:1;uniqueIndex:uniq_notes_tm_alias,priority:1"`
 	Name            DBVarchar      `gorm:"size:256;not null;index:idx_notes_name"`
 	Content         DBText         `gorm:"not null"`
@@ -463,7 +463,7 @@ func (n *Note) BeforeCreate(tx *gorm.DB) error {
 // Repository represents a repository attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
 type Repository struct {
-	ID              DBVarchar         `gorm:"primaryKey;size:36"`
+	ID              DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_repos_tm;index:idx_repos_tm_created,priority:1;index:idx_repos_tm_modified,priority:1;uniqueIndex:uniq_repositories_tm_alias,priority:1"`
 	Name            NullableDBVarchar `gorm:"size:256;index:idx_repos_name"`
 	URI             DBText            `gorm:"not null"`
@@ -497,7 +497,7 @@ func (r *Repository) BeforeCreate(tx *gorm.DB) error {
 // Metadata represents key-value metadata for entities
 // Note: Explicit column tags removed for Oracle compatibility
 type Metadata struct {
-	ID         DBVarchar `gorm:"primaryKey;size:36"`
+	ID         DBVarchar `gorm:"primaryKey;not null;size:36"`
 	EntityType DBVarchar `gorm:"size:50;not null;index:idx_metadata_entity_type_id,priority:1;index:idx_metadata_unique,priority:1,unique;index:idx_metadata_entity_created,priority:1;index:idx_metadata_entity_modified,priority:1"`
 	EntityID   DBVarchar `gorm:"size:36;not null;index:idx_metadata_entity_id;index:idx_metadata_entity_type_id,priority:2;index:idx_metadata_unique,priority:2;index:idx_metadata_key_value,priority:1"`
 	Key        DBVarchar `gorm:"size:256;not null;index:idx_metadata_key;index:idx_metadata_unique,priority:3;index:idx_metadata_key_value,priority:2"`
@@ -522,7 +522,7 @@ func (m *Metadata) BeforeCreate(tx *gorm.DB) error {
 // CollaborationSession represents a real-time collaboration session
 // Note: Explicit column tags removed for Oracle compatibility
 type CollaborationSession struct {
-	ID            DBVarchar `gorm:"primaryKey;size:36"`
+	ID            DBVarchar `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID DBVarchar `gorm:"size:36;not null;index"`
 	DiagramID     DBVarchar `gorm:"size:36;not null;index"`
 	WebsocketURL  DBText    `gorm:"not null"`
@@ -551,7 +551,7 @@ func (c *CollaborationSession) BeforeCreate(tx *gorm.DB) error {
 // SessionParticipant represents a participant in a collaboration session
 // Note: Explicit column tags removed for Oracle compatibility
 type SessionParticipant struct {
-	ID               DBVarchar `gorm:"primaryKey;size:36"`
+	ID               DBVarchar `gorm:"primaryKey;not null;size:36"`
 	SessionID        DBVarchar `gorm:"size:36;not null;index"`
 	UserInternalUUID DBVarchar `gorm:"size:36;not null;index"`
 	JoinedAt         time.Time `gorm:"not null;autoCreateTime"`
@@ -578,7 +578,7 @@ func (s *SessionParticipant) BeforeCreate(tx *gorm.DB) error {
 // WebhookSubscription represents a webhook subscription
 // Note: Explicit column tags removed for Oracle compatibility
 type WebhookSubscription struct {
-	ID                  DBVarchar         `gorm:"primaryKey;size:36"`
+	ID                  DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	OwnerInternalUUID   DBVarchar         `gorm:"size:36;not null;index"`
 	ThreatModelID       NullableDBVarchar `gorm:"size:36;index"`
 	Name                DBVarchar         `gorm:"size:256;not null"`
@@ -615,7 +615,7 @@ func (w *WebhookSubscription) BeforeCreate(tx *gorm.DB) error {
 // WebhookQuota represents per-user webhook quotas
 // Note: Explicit column tags removed for Oracle compatibility
 type WebhookQuota struct {
-	OwnerID                          DBVarchar `gorm:"primaryKey;size:36"`
+	OwnerID                          DBVarchar `gorm:"primaryKey;not null;size:36"`
 	MaxSubscriptions                 int       `gorm:"default:10"`
 	MaxEventsPerMinute               int       `gorm:"default:12"`
 	MaxSubscriptionRequestsPerMinute int       `gorm:"default:10"`
@@ -635,7 +635,7 @@ func (WebhookQuota) TableName() string {
 // WebhookURLDenyList represents URL patterns blocked for webhooks
 // Note: Explicit column tags removed for Oracle compatibility
 type WebhookURLDenyList struct {
-	ID          DBVarchar      `gorm:"primaryKey;size:36"`
+	ID          DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	Pattern     DBVarchar      `gorm:"size:256;not null;uniqueIndex:idx_webhook_deny_pattern"`
 	PatternType DBVarchar      `gorm:"size:64;not null"`
 	Description NullableDBText `gorm:""`
@@ -658,7 +658,7 @@ func (w *WebhookURLDenyList) BeforeCreate(tx *gorm.DB) error {
 // Addon represents an addon configuration
 // Note: Explicit column tags removed for Oracle compatibility
 type Addon struct {
-	ID            DBVarchar         `gorm:"primaryKey;size:36"`
+	ID            DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	CreatedAt     time.Time         `gorm:"not null;autoCreateTime"`
 	Name          DBVarchar         `gorm:"size:256;not null"`
 	WebhookID     DBVarchar         `gorm:"size:36;not null;index"`
@@ -689,7 +689,7 @@ func (a *Addon) BeforeCreate(tx *gorm.DB) error {
 // AddonInvocationQuota represents per-user addon invocation quotas
 // Note: Explicit column tags removed for Oracle compatibility
 type AddonInvocationQuota struct {
-	OwnerInternalUUID     DBVarchar `gorm:"primaryKey;size:36"`
+	OwnerInternalUUID     DBVarchar `gorm:"primaryKey;not null;size:36"`
 	MaxActiveInvocations  int       `gorm:"default:1"`
 	MaxInvocationsPerHour int       `gorm:"default:10"`
 	CreatedAt             time.Time `gorm:"not null;autoCreateTime"`
@@ -707,7 +707,7 @@ func (AddonInvocationQuota) TableName() string {
 // UserAPIQuota represents per-user API rate limits
 // Note: Explicit column tags removed for Oracle compatibility
 type UserAPIQuota struct {
-	UserInternalUUID     DBVarchar `gorm:"primaryKey;size:36"`
+	UserInternalUUID     DBVarchar `gorm:"primaryKey;not null;size:36"`
 	MaxRequestsPerMinute int       `gorm:"default:100"`
 	MaxRequestsPerHour   *int
 	CreatedAt            time.Time `gorm:"not null;autoCreateTime"`
@@ -728,7 +728,7 @@ func (UserAPIQuota) TableName() string {
 // the external group to inherit the built-in group's privileges.
 // Note: Explicit column tags removed for Oracle compatibility
 type GroupMember struct {
-	ID                      DBVarchar         `gorm:"primaryKey;size:36"`
+	ID                      DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	GroupInternalUUID       DBVarchar         `gorm:"size:36;not null;index;uniqueIndex:idx_gm_group_user_type,priority:1"`
 	UserInternalUUID        NullableDBVarchar `gorm:"size:36;index;uniqueIndex:idx_gm_group_user_type,priority:2"`
 	MemberGroupInternalUUID NullableDBVarchar `gorm:"size:36;index"`
@@ -761,7 +761,7 @@ func (g *GroupMember) BeforeCreate(tx *gorm.DB) error {
 // Preferences are keyed by client application identifier (e.g., "tmi-ux", "tmi-cli")
 // Maximum total size: 1KB, maximum 20 client entries
 type UserPreference struct {
-	ID               DBVarchar `gorm:"primaryKey;size:36"`
+	ID               DBVarchar `gorm:"primaryKey;not null;size:36"`
 	UserInternalUUID DBVarchar `gorm:"size:36;not null;uniqueIndex"`
 	Preferences      JSONRaw   `gorm:"not null"`
 	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
@@ -788,7 +788,7 @@ func (u *UserPreference) BeforeCreate(tx *gorm.DB) error {
 // Issued via POST /usability_feedback by any authenticated user.
 // Listed via GET /usability_feedback (admin only).
 type UsabilityFeedback struct {
-	ID            DBVarchar         `gorm:"primaryKey;size:36"`
+	ID            DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	Sentiment     DBVarchar         `gorm:"size:8;not null;index:idx_usability_feedback_sentiment"`
 	Verbatim      NullableDBText    `gorm:""`
 	Surface       DBVarchar         `gorm:"size:32;not null;index:idx_usability_feedback_surface"`
@@ -829,7 +829,7 @@ func (u *UsabilityFeedback) BeforeCreate(tx *gorm.DB) error {
 // (notes, diagrams, threats, threat-classification fields) within a threat model.
 // Issued via POST /threat_models/{id}/feedback by reader+ on the parent TM.
 type ContentFeedback struct {
-	ID                     DBVarchar         `gorm:"primaryKey;size:36"`
+	ID                     DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID          DBVarchar         `gorm:"size:36;not null;index:idx_content_feedback_target,priority:1"`
 	TargetType             DBVarchar         `gorm:"size:24;not null;index:idx_content_feedback_target,priority:2"`
 	TargetID               DBVarchar         `gorm:"size:36;not null;index:idx_content_feedback_target,priority:3"`
@@ -873,8 +873,8 @@ func (c *ContentFeedback) BeforeCreate(tx *gorm.DB) error {
 // counters use the parent threat-model UUID. Allocation is done via
 // SELECT ... FOR UPDATE inside the calling repository's transaction.
 type AliasCounter struct {
-	ParentID   DBVarchar `gorm:"primaryKey;size:36;column:parent_id"`
-	ObjectType DBVarchar `gorm:"primaryKey;size:16;column:object_type"`
+	ParentID   DBVarchar `gorm:"primaryKey;not null;size:36;column:parent_id"`
+	ObjectType DBVarchar `gorm:"primaryKey;not null;size:16;column:object_type"`
 	NextAlias  int32     `gorm:"not null;default:1;column:next_alias"`
 }
 

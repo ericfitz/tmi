@@ -12,7 +12,7 @@ import (
 // Actor fields are denormalized (not FKs) so audit entries persist after user deletion.
 // threat_model_id is not a FK so the "threat model deleted" entry persists after TM deletion.
 type AuditEntry struct {
-	ID               DBVarchar      `gorm:"primaryKey;size:36"`
+	ID               DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID    DBVarchar      `gorm:"size:36;not null;index:idx_audit_tm;index:idx_audit_tm_created,priority:1"`
 	ObjectType       DBVarchar      `gorm:"size:50;not null;index:idx_audit_object,priority:1;index:idx_audit_object_version,priority:1"`
 	ObjectID         DBVarchar      `gorm:"size:36;not null;index:idx_audit_object,priority:2;index:idx_audit_object_version,priority:2"`
@@ -44,7 +44,7 @@ func (a *AuditEntry) BeforeCreate(tx *gorm.DB) error {
 // Checkpoints are stored every 10th version; all others are diffs.
 // Snapshots have their own retention policy and can be pruned independently of audit entries.
 type VersionSnapshot struct {
-	ID           DBVarchar      `gorm:"primaryKey;size:36"`
+	ID           DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	AuditEntryID DBVarchar      `gorm:"size:36;not null;index:idx_vs_audit_entry"`
 	ObjectType   DBVarchar      `gorm:"size:50;not null;index:idx_vs_object,priority:1;index:idx_vs_object_snapshot,priority:1"`
 	ObjectID     DBVarchar      `gorm:"size:36;not null;index:idx_vs_object,priority:2;index:idx_vs_object_snapshot,priority:2"`

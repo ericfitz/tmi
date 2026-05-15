@@ -5,23 +5,30 @@
 // VARCHAR2(N CHAR) and issue an ALTER ... MODIFY?"
 //
 // Procedure:
+//
 //  1. Connect to the Oracle ADB pointed to by ORACLE_PASSWORD / TNS_ADMIN
 //     / ORACLE_CONNECT_STRING environment variables (sourced from oci-env.sh).
+//
 //  2. Drop the probe table if it exists from a prior run.
+//
 //  3. AutoMigrate(StagedV1) — creates PROBE_CHAR_SEMANTICS with a Name string
 //     declared as `gorm:"type:varchar(256);not null"`. On Oracle this lands
 //     as VARCHAR2(256 BYTE) (Oracle default semantics).
+//
 //  4. Snapshot USER_TAB_COLUMNS for the column.
+//
 //  5. AutoMigrate(StagedV2) — re-declares Name as DBVarchar with size:256.
 //     If GORM sees a real type diff it should issue
 //     ALTER TABLE PROBE_CHAR_SEMANTICS MODIFY (NAME VARCHAR2(256 CHAR)).
+//
 //  6. Snapshot USER_TAB_COLUMNS again.
+//
 //  7. Print before/after CHAR_USED and exit with code 0 if the result is
 //     interpretable (regardless of which way it went) or non-zero on driver
 //     error.
 //
-// Run via: source scripts/oci-env.sh && \
-//	go run -tags oracle ./scripts/oracle-char-probe/...
+//     Run via: source scripts/oci-env.sh && \
+//     go run -tags oracle ./scripts/oracle-char-probe/...
 //
 // Cleanup: the probe table is dropped at the end. Set PROBE_KEEP=1 to leave
 // it in place for manual inspection.
@@ -54,8 +61,8 @@ func (StagedV1) TableName() string { return "PROBE_CHAR_SEMANTICS" }
 // StagedV2 is the "after" model: same table, but Name is now DBVarchar.
 // On Oracle, DBVarchar emits VARCHAR2(256 CHAR).
 type StagedV2 struct {
-	ID   string            `gorm:"primaryKey;type:varchar(36)"`
-	Name models.DBVarchar  `gorm:"size:256;not null"`
+	ID   string           `gorm:"primaryKey;type:varchar(36)"`
+	Name models.DBVarchar `gorm:"size:256;not null"`
 }
 
 func (StagedV2) TableName() string { return "PROBE_CHAR_SEMANTICS" }
@@ -93,7 +100,9 @@ func main() {
 		return
 	}
 
-	dsn := fmt.Sprintf(`user="%s" password="%s" connectString="%s" configDir="%s"`,
+	// timezone=UTC keeps godror from emitting a warning when the local host TZ
+	// differs from the database's SYSTIMESTAMP offset.
+	dsn := fmt.Sprintf(`user="%s" password="%s" connectString="%s" configDir="%s" timezone=UTC`,
 		user, password, connectString, walletDir)
 
 	db, err := gorm.Open(oracle.New(oracle.Config{

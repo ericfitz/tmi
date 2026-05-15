@@ -11,7 +11,7 @@ import (
 // access_token and refresh_token are AES-256-GCM ciphertexts (nonce prepended).
 // DBBytes maps to BYTEA on PostgreSQL and BLOB on Oracle / SQLite (#404).
 type UserContentToken struct {
-	ID                   DBVarchar `gorm:"primaryKey;size:36"`
+	ID                   DBVarchar `gorm:"primaryKey;not null;size:36"`
 	UserID               DBVarchar `gorm:"size:36;not null;index:idx_uct_user;uniqueIndex:uq_uct_user_provider,priority:1"`
 	ProviderID           DBVarchar `gorm:"size:64;not null;uniqueIndex:uq_uct_user_provider,priority:2"`
 	AccessToken          DBBytes   `gorm:"not null"`

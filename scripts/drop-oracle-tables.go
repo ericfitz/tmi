@@ -7,66 +7,28 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
+	"regexp"
 
 	"github.com/oracle-samples/gorm-oracle/oracle"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
-// validOracleTableNames contains uppercase versions of all valid TMI table names.
-// Oracle stores table names in uppercase by default.
-// This whitelist prevents SQL injection via table name parameters.
-var validOracleTableNames = map[string]bool{
-	"USERS":                   true,
-	"THREAT_MODELS":           true,
-	"DIAGRAMS":                true,
-	"THREATS":                 true,
-	"DOCUMENTS":               true,
-	"METADATA":                true,
-	"CLIENT_CREDENTIALS":      true,
-	"WEBHOOK_SUBSCRIPTIONS":   true,
-	"WEBHOOK_DELIVERIES":      true,
-	"WEBHOOK_QUOTAS":          true,
-	"WEBHOOK_URL_DENY_LISTS":  true,
-	"WEBHOOK_URL_DENY_LIST":   true, // Legacy singular form
-	"ADDON_INVOCATION_QUOTAS": true,
-	"ADDONS":                  true,
-	"USER_API_QUOTAS":         true,
-	"GROUP_MEMBERS":           true,
-	"THREAT_MODEL_ACCESS":     true,
-	"REPOSITORIES":            true,
-	"NOTES":                   true,
-	"ASSETS":                  true,
-	"COLLABORATION_SESSIONS":  true,
-	"SESSION_PARTICIPANTS":    true,
-	"REFRESH_TOKEN_RECORDS":   true,
-	"REFRESH_TOKENS":          true, // Legacy form
-	"GROUPS":                  true,
-	"SCHEMA_MIGRATIONS":       true,
-	"USER_PREFERENCES":        true,
-	"SYSTEM_SETTINGS":         true,
-	"SURVEY_TEMPLATES":        true,
-	"SURVEY_TEMPLATE_VERSIONS": true,
-	"SURVEY_RESPONSES":        true,
-	"SURVEY_RESPONSE_ACCESS":  true,
-	"TRIAGE_NOTES":              true,
-	"TEAMS":                     true,
-	"TEAM_MEMBERS":              true,
-	"TEAM_RESPONSIBLE_PARTIES":  true,
-	"TEAM_RELATIONSHIPS":        true,
-	"PROJECTS":                  true,
-	"PROJECT_RESPONSIBLE_PARTIES": true,
-	"PROJECT_RELATIONSHIPS":     true,
-	"NOTIFICATION_QUEUE":        true,
-	"SURVEY_ANSWERS":            true,
-	"AUDIT_ENTRIES":             true,
-	"VERSION_SNAPSHOTS":         true,
-}
+// oracleIdentifier matches a syntactically valid unquoted Oracle identifier:
+// a letter followed by up to 127 letters, digits, or the characters _ $ #.
+// Table names returned by USER_TABLES (Oracle's own catalog, not user input)
+// always satisfy this; the check is a defense-in-depth guard before the name
+// is interpolated into a DROP TABLE statement, not a TMI-schema membership test.
+var oracleIdentifier = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_$#]{0,127}$`)
 
-// isValidOracleTableName checks if an Oracle table name is in the allowed whitelist
-func isValidOracleTableName(tableName string) bool {
-	return validOracleTableNames[strings.ToUpper(tableName)]
+// isValidOracleIdentifier reports whether name is a well-formed Oracle table
+// identifier safe to interpolate into DDL. This intentionally does NOT check
+// the name against a hand-maintained list of TMI tables: this is a dev/test
+// reset tool that drops every table the connected schema owns, and a stale
+// whitelist silently leaves tables behind, producing a non-fresh "fresh"
+// schema (see #412).
+func isValidOracleIdentifier(name string) bool {
+	return oracleIdentifier.MatchString(name)
 }
 
 func main() {
@@ -82,8 +44,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Connect to Oracle
-	dsn := fmt.Sprintf(`user=ADMIN password="%s" connectString=%s`, password, connectString)
+	// Connect to Oracle. timezone=UTC keeps godror from emitting a warning when
+	// the local host TZ differs from the database's SYSTIMESTAMP offset, and
+	// matches the UTC session timezone the TMI server itself configures.
+	dsn := fmt.Sprintf(`user=ADMIN password="%s" connectString=%s timezone=UTC`, password, connectString)
 	db, err := gorm.Open(oracle.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
@@ -104,14 +68,14 @@ func main() {
 
 	fmt.Printf("Found %d tables\n", len(tables))
 
-	// Drop each table (only if it's in our whitelist to prevent SQL injection)
+	// Drop every table the connected schema owns. The name is validated as a
+	// well-formed Oracle identifier (defense-in-depth) before interpolation.
 	for _, table := range tables {
-		if !isValidOracleTableName(table) {
-			fmt.Printf("Skipping unknown table: %s (not in TMI schema whitelist)\n", table)
+		if !isValidOracleIdentifier(table) {
+			fmt.Printf("Skipping table with non-identifier name: %q\n", table)
 			continue
 		}
 		fmt.Printf("Dropping table: %s\n", table)
-		// Table name is validated against whitelist, safe to use in query
 		if err := db.Exec(fmt.Sprintf("DROP TABLE \"%s\" CASCADE CONSTRAINTS PURGE", table)).Error; err != nil {
 			fmt.Printf("  Warning: Failed to drop %s: %v\n", table, err)
 		}

@@ -15,7 +15,7 @@ import (
 
 // NotificationQueueEntry represents an entry in the notification polling table
 type NotificationQueueEntry struct {
-	ID        models.DBVarchar `gorm:"column:id;primaryKey;size:36"`
+	ID        models.DBVarchar `gorm:"column:id;primaryKey;not null;size:36"`
 	Channel   models.DBVarchar `gorm:"column:channel;size:255;not null;index"`
 	Payload   models.DBText    `gorm:"column:payload"`
 	CreatedAt time.Time        `gorm:"column:created_at;not null;autoCreateTime"`

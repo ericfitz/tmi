@@ -11,7 +11,7 @@ import (
 
 // TeamRecord represents a team in the system
 type TeamRecord struct {
-	ID                     DBVarchar         `gorm:"primaryKey;size:36"`
+	ID                     DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	Name                   DBVarchar         `gorm:"size:256;not null;index:idx_team_name"`
 	Description            NullableDBText    `gorm:""`
 	URI                    NullableDBText    `gorm:""`
@@ -47,7 +47,7 @@ func (t *TeamRecord) BeforeCreate(tx *gorm.DB) error {
 
 // TeamMemberRecord represents a user's membership in a team
 type TeamMemberRecord struct {
-	ID               DBVarchar         `gorm:"primaryKey;size:36"`
+	ID               DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	TeamID           DBVarchar         `gorm:"size:36;not null;index:idx_tmem_team;uniqueIndex:idx_tmem_team_user,priority:1"`
 	UserInternalUUID DBVarchar         `gorm:"size:36;not null;index:idx_tmem_user;uniqueIndex:idx_tmem_team_user,priority:2"`
 	Role             DBVarchar         `gorm:"size:64;not null;default:engineer"`
@@ -74,7 +74,7 @@ func (t *TeamMemberRecord) BeforeCreate(tx *gorm.DB) error {
 
 // TeamResponsiblePartyRecord represents a responsible party for a team
 type TeamResponsiblePartyRecord struct {
-	ID               DBVarchar         `gorm:"primaryKey;size:36"`
+	ID               DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	TeamID           DBVarchar         `gorm:"size:36;not null;index:idx_trp_team;uniqueIndex:idx_trp_team_user,priority:1"`
 	UserInternalUUID DBVarchar         `gorm:"size:36;not null;index:idx_trp_user;uniqueIndex:idx_trp_team_user,priority:2"`
 	Role             DBVarchar         `gorm:"size:64;not null"`
@@ -101,7 +101,7 @@ func (t *TeamResponsiblePartyRecord) BeforeCreate(tx *gorm.DB) error {
 
 // TeamRelationshipRecord represents a relationship between two teams
 type TeamRelationshipRecord struct {
-	ID                 DBVarchar         `gorm:"primaryKey;size:36"`
+	ID                 DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	TeamID             DBVarchar         `gorm:"size:36;not null;index:idx_trel_team;uniqueIndex:idx_trel_team_related,priority:1"`
 	RelatedTeamID      DBVarchar         `gorm:"size:36;not null;index:idx_trel_related;uniqueIndex:idx_trel_team_related,priority:2"`
 	Relationship       DBVarchar         `gorm:"size:64;not null"`
@@ -128,7 +128,7 @@ func (t *TeamRelationshipRecord) BeforeCreate(tx *gorm.DB) error {
 
 // ProjectRecord represents a project in the system
 type ProjectRecord struct {
-	ID                     DBVarchar         `gorm:"primaryKey;size:36"`
+	ID                     DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	Name                   DBVarchar         `gorm:"size:256;not null;index:idx_proj_name"`
 	Description            NullableDBText    `gorm:""`
 	TeamID                 DBVarchar         `gorm:"size:36;not null;index:idx_proj_team"`
@@ -165,7 +165,7 @@ func (p *ProjectRecord) BeforeCreate(tx *gorm.DB) error {
 
 // ProjectResponsiblePartyRecord represents a responsible party for a project
 type ProjectResponsiblePartyRecord struct {
-	ID               DBVarchar         `gorm:"primaryKey;size:36"`
+	ID               DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ProjectID        DBVarchar         `gorm:"size:36;not null;index:idx_prp_project;uniqueIndex:idx_prp_project_user,priority:1"`
 	UserInternalUUID DBVarchar         `gorm:"size:36;not null;index:idx_prp_user;uniqueIndex:idx_prp_project_user,priority:2"`
 	Role             DBVarchar         `gorm:"size:64;not null"`
@@ -192,7 +192,7 @@ func (p *ProjectResponsiblePartyRecord) BeforeCreate(tx *gorm.DB) error {
 
 // ProjectRelationshipRecord represents a relationship between two projects
 type ProjectRelationshipRecord struct {
-	ID                 DBVarchar         `gorm:"primaryKey;size:36"`
+	ID                 DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ProjectID          DBVarchar         `gorm:"size:36;not null;index:idx_prel_project;uniqueIndex:idx_prel_project_related,priority:1"`
 	RelatedProjectID   DBVarchar         `gorm:"size:36;not null;index:idx_prel_related;uniqueIndex:idx_prel_project_related,priority:2"`
 	Relationship       DBVarchar         `gorm:"size:64;not null"`
