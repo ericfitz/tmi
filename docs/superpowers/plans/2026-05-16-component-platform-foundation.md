@@ -1235,10 +1235,11 @@ func TestStreamNameFor_IsDeterministicAndUppercase(t *testing.T) {
 
 func TestConsumerNameFor_IsDeterministic(t *testing.T) {
 	c := jsComp("tmi-extractor", "jobs.extract.ooxml")
-	if consumerNameFor(c) != consumerNameFor(c) {
+	got := consumerNameFor(c)
+	if got != consumerNameFor(c) {
 		t.Fatal("consumerNameFor must be deterministic")
 	}
-	if consumerNameFor(c) == "" {
+	if got == "" {
 		t.Fatal("consumerNameFor must not be empty")
 	}
 }
