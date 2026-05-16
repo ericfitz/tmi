@@ -60,10 +60,10 @@ func TestRenderScaledObject_UsesNatsJetStreamTrigger(t *testing.T) {
 
 func TestRenderScaledObject_TriggerMetadataValues(t *testing.T) {
 	so := RenderScaledObject(scaledComp())
-	min, _, _ := unstructuredNestedInt64(so.Object, "spec", "minReplicaCount")
-	max, _, _ := unstructuredNestedInt64(so.Object, "spec", "maxReplicaCount")
-	if min != 0 || max != 10 {
-		t.Fatalf("replica counts = %d/%d, want 0/10", min, max)
+	minReplicas, _, _ := unstructuredNestedInt64(so.Object, "spec", "minReplicaCount")
+	maxReplicas, _, _ := unstructuredNestedInt64(so.Object, "spec", "maxReplicaCount")
+	if minReplicas != 0 || maxReplicas != 10 {
+		t.Fatalf("replica counts = %d/%d, want 0/10", minReplicas, maxReplicas)
 	}
 	triggers, _, _ := unstructuredNestedSlice(so.Object, "spec", "triggers")
 	meta := triggers[0].(map[string]interface{})["metadata"].(map[string]interface{})
