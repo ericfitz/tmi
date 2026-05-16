@@ -664,3 +664,42 @@ help:
 
 list-targets:
 	@make -qp | awk -F':' '/^[a-zA-Z0-9][^$$#\/\t=]*:([^=]|$$)/ {print $$1}' | grep -v '^Makefile$$' | sort
+
+## --- TMI Component Platform (Plan 1: foundation) ---
+
+GOPATH_BIN := $(shell go env GOPATH)/bin
+
+.PHONY: build-component-controller generate-platform-crd test-platform e2e-platform-up e2e-platform-down test-e2e-platform
+
+build-component-controller:  ## Build the component-controller binary
+	go build -o bin/component-controller ./cmd/component-controller/
+
+generate-platform-crd:  ## Regenerate TMIComponent DeepCopy methods and CRD YAML
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.3
+	$(GOPATH_BIN)/controller-gen object paths=./api/platform/v1alpha1/...
+	$(GOPATH_BIN)/controller-gen crd paths=./api/platform/v1alpha1/... output:crd:dir=config/crd/bases
+
+test-platform:  ## Run platform controller unit tests (downloads envtest assets if needed)
+	go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+	@if [ -f $(CURDIR)/bin/k8s/1.30.0-darwin-arm64/kube-apiserver ] || [ -f $(CURDIR)/bin/k8s/1.30.0-linux-amd64/kube-apiserver ] || [ -f $(CURDIR)/bin/k8s/1.30.0-linux-arm64/kube-apiserver ]; then \
+		ASSETS=$$(ls -d $(CURDIR)/bin/k8s/1.30.0-* 2>/dev/null | head -1); \
+		echo "Using cached envtest binaries at $$ASSETS"; \
+		KUBEBUILDER_ASSETS="$$ASSETS" go test ./internal/platform/... ./api/platform/...; \
+	else \
+		KUBEBUILDER_ASSETS="$$($(GOPATH_BIN)/setup-envtest use 1.30.0 --bin-dir $(CURDIR)/bin/k8s -p path)" \
+		go test ./internal/platform/... ./api/platform/...; \
+	fi
+
+e2e-platform-up:  ## Create the kind cluster and install platform dependencies (NATS, KEDA, CRD)
+	kind create cluster --config deployments/k8s/platform/kind-cluster.yml
+	kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/calico.yml
+	kubectl --context kind-tmi-platform wait --for=condition=Ready nodes --all --timeout=180s
+	kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/nats.yml
+	kubectl --context kind-tmi-platform apply --server-side -f deployments/k8s/platform/keda.yml
+	kubectl --context kind-tmi-platform apply -f config/crd/bases/tmi.dev_tmicomponents.yaml
+
+e2e-platform-down:  ## Delete the kind platform cluster
+	kind delete cluster --name tmi-platform
+
+test-e2e-platform:  ## Run the platform e2e tests (requires e2e-platform-up + controller deployed)
+	go test -tags e2e ./test/e2e/platform/ -v
