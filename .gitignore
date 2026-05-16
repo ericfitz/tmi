@@ -66,6 +66,8 @@
 !api-schema/**
 !terraform/
 !terraform/**
+!deployments/
+!deployments/**
 
 # heroku
 !.godir

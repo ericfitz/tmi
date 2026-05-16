@@ -1,0 +1,12 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: tmi-platform
+networking:
+  # Disable the default CNI (kindnet). kindnet does NOT enforce
+  # NetworkPolicy; Calico (installed separately) does. Egress
+  # isolation tests are meaningless without a real CNI.
+  disableDefaultCNI: true
+  podSubnet: "192.168.0.0/16"
+nodes:
+  - role: control-plane
+  - role: worker
