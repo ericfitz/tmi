@@ -1,5 +1,10 @@
 # Webhook Delivery Unification — Phases 2 & 3 Implementation Plan
 
+> **HISTORICAL IMPLEMENTATION PLAN.** This is a point-in-time plan; the work it
+> describes has shipped. Path references may be stale. In particular,
+> `auth/migrations/` no longer exists — schema is managed by GORM `AutoMigrate()`
+> driven by struct tags in `api/models/*.go`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Unify webhook delivery infrastructure so all deliveries (resource-change events and addon invocations) flow through a single Redis-backed pipeline with shared endpoints, workers, and cleanup.

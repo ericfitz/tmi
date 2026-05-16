@@ -1,5 +1,10 @@
 # Dual-Index Infrastructure Design
 
+> **HISTORICAL DESIGN ARTIFACT.** This is a point-in-time design document; the
+> feature it describes has shipped. Path references may be stale. In particular,
+> `auth/migrations/` no longer exists — schema is managed by GORM `AutoMigrate()`
+> driven by struct tags in `api/models/*.go`.
+
 **Issue:** #241 (sub-spec 1 of 3)
 **Date:** 2026-04-10
 **Scope:** Configuration, data layer, vector manager, LLM service, and session manager changes to support dual vector indexes (text + code)

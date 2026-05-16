@@ -1,5 +1,12 @@
 # TMI Documentation
 
+> **HISTORICAL — DO NOT RELY ON.** Every file under `docs/migrated/` is a
+> point-in-time snapshot superseded by the [GitHub Wiki](https://github.com/ericfitz/tmi/wiki).
+> Content here may be stale. In particular, references to an `auth/migrations/`
+> directory predate the move to GORM `AutoMigrate()` (schema is now driven by
+> struct tags in `api/models/*.go`); that directory no longer exists. Legacy SQL
+> migrations are archived under `docs/reference/legacy-migrations/`.
+
 This directory contains comprehensive documentation for the TMI (Threat Modeling Interface) project, organized by audience and purpose.
 
 ## Directory Structure

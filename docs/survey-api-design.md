@@ -318,7 +318,7 @@ CREATE INDEX idx_survey_response_access_response ON survey_response_access(surve
 - `api/survey_response_store.go` - Response storage
 - `api/survey_response_handlers.go` - Intake/triage handlers
 - `api/survey_middleware.go` - Authorization middleware
-- `auth/migrations/NNNN_create_survey_tables.sql` - Database migration
+- `api/models/survey.go` - GORM models for survey tables (schema via `AutoMigrate()`; no standalone SQL migration)
 
 ### Files to Modify
 - `api-schema/tmi-openapi.json` - Add survey endpoints and schemas

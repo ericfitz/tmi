@@ -1,5 +1,10 @@
 # OOXML Content Extractors — DOCX, PPTX, XLSX
 
+> **HISTORICAL DESIGN ARTIFACT.** This is a point-in-time design document; the
+> feature it describes has shipped. Path references may be stale. In particular,
+> `auth/migrations/` no longer exists — schema is managed by GORM `AutoMigrate()`
+> driven by struct tags in `api/models/*.go`.
+
 **Issue:** [#287](https://github.com/ericfitz/tmi/issues/287)
 **Date:** 2026-04-29
 **Status:** Design

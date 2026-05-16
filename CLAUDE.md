@@ -53,7 +53,7 @@ TMI has several sibling projects. When you need to read files from or interact w
 
 - PostgreSQL for persistent storage (configured via auth/ package)
 - Redis for caching and session management
-- Database migrations in auth/migrations/
+- Schema is managed by GORM `AutoMigrate()`, driven by struct tags in `api/models/*.go` (single source of truth)
 - Dual-mode storage: in-memory for tests, database-backed for dev/prod
 - Redis-backed caching with invalidation, warming, and metrics (api/cache_service.go)
 - Automatic cache invalidation on resource updates

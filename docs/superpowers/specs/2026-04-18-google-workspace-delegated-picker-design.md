@@ -1,5 +1,10 @@
 # Google Workspace Delegated Picker Access
 
+> **HISTORICAL DESIGN ARTIFACT.** This is a point-in-time design document; the
+> feature it describes has shipped. Path references may be stale. In particular,
+> `auth/migrations/` no longer exists — schema is managed by GORM `AutoMigrate()`
+> driven by struct tags in `api/models/*.go`.
+
 **Issue:** #249 — feat(timmy): Confluence and OneDrive content providers (sub-project 4 of 5)
 **Date:** 2026-04-18
 **Status:** Draft (pending user review)
