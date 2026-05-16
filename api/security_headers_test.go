@@ -753,12 +753,9 @@ func TestJSONErrorHandler(t *testing.T) {
 		assert.Equal(t, 1, strings.Count(body, `{"phase":"x"}`),
 			"streamed event must not be duplicated by JSONErrorHandler")
 		// The decisive assertion: the underlying writer receives exactly two
-		// Write calls — one per SSE event. Removing the `if blw.streaming {
-		// return }` guard in JSONErrorHandler causes the middleware to fall
-		// through to its else branch after c.Next() and issue an extra
-		// Write([]byte{}) on the underlying writer, making this 3.
-		assert.Equal(t, 2, rec.writeCallCount(),
-			"JSONErrorHandler must not issue an extra Write to the underlying writer after a streamed response")
+		// Write calls — one per SSE event — and no spurious extra write from
+		// JSONErrorHandler's post-c.Next() pass-through.
+		assertNoExtraWrites(t, rec, 2)
 	})
 
 	// Regression test for #409: a streamed SSE response carrying a non-2xx
@@ -794,12 +791,9 @@ func TestJSONErrorHandler(t *testing.T) {
 		assert.NotContains(t, body, `"error_description"`,
 			"streamed non-2xx SSE response must not be wrapped in the Error envelope")
 		// The decisive assertion: the underlying writer receives exactly 1 Write
-		// call — the SSE body written during the streaming flip. Removing the
-		// `if blw.streaming { return }` guard in JSONErrorHandler causes the
-		// middleware to fall through to its else branch after c.Next() and issue
-		// an extra Write([]byte{}) on the underlying writer, making this 2.
-		assert.Equal(t, 1, rec.writeCallCount(),
-			"JSONErrorHandler must not issue an extra Write after a streamed non-2xx response")
+		// call — the SSE body written during the streaming flip — and no
+		// spurious extra write from JSONErrorHandler's post-c.Next() pass-through.
+		assertNoExtraWrites(t, rec, 1)
 	})
 }
 
@@ -973,6 +967,19 @@ func (f *flushRecorder) writeHeaderCallCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.writeHeaderCalls
+}
+
+// assertNoExtraWrites asserts the underlying writer received exactly
+// expectedBodyWrites Write calls — i.e. only the handler's own body writes,
+// with no spurious extra Write from JSONErrorHandler's post-c.Next()
+// pass-through after a streamed response. Removing the `if blw.streaming {
+// return }` guard in JSONErrorHandler makes the middleware fall through to its
+// else branch and issue an extra Write([]byte{}) on the underlying writer,
+// which this assertion catches (see issue #409).
+func assertNoExtraWrites(t *testing.T, rec *flushRecorder, expectedBodyWrites int) {
+	t.Helper()
+	assert.Equal(t, expectedBodyWrites, rec.writeCallCount(),
+		"JSONErrorHandler must not issue an extra Write to the underlying writer after a streamed response")
 }
 
 // testGinWriter adapts a flushRecorder to the gin.ResponseWriter interface for
