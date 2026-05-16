@@ -478,7 +478,7 @@ git commit -m "feat(platform): add TMIComponent CRD API types"
 
 Run:
 ```bash
-go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.15.0
+go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.3
 ```
 Expected: `controller-gen` installed to `$(go env GOPATH)/bin`.
 
