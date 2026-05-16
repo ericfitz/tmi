@@ -287,6 +287,13 @@ start-dev-oci:
 reset-db-oci:
 	@./scripts/drop-oracle-tables.sh
 
+# OCI ADB Diagnostic - Verify LOWER(CLOB) LIKE LOWER(?) works on Oracle ADB (#411)
+# Prerequisites: Same as start-dev-oci (Oracle Instant Client, wallet, credentials)
+# Creates a throwaway probe table, runs the exact TMI description-filter predicate,
+# and drops the table. Set PROBE_KEEP=1 to leave the table for inspection.
+probe-oracle-clob-like:
+	@bash -c "source scripts/oci-env.sh && go run -tags oracle ./scripts/oracle-clob-like-probe/..."
+
 # Development Environment - Restart (stop server, rebuild, clean logs, start dev)
 restart-dev:
 	@uv run scripts/start-dev.py --restart
