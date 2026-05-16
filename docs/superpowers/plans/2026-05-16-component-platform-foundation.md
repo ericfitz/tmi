@@ -1715,8 +1715,12 @@ func kubectl(t *testing.T, args ...string) string {
 }
 
 func TestFoundation_ReconcilesChildObjects(t *testing.T) {
-	// Assumes the cluster is up and the controller is deployed
-	// (make e2e-platform-up performs that setup).
+	// Prerequisites: `make e2e-platform-up` brings up the kind cluster with
+	// Calico, NATS, KEDA, and the TMIComponent CRD. The component-controller
+	// must ALSO be running against that cluster — Plan 1 has no in-cluster
+	// controller Deployment yet (tracked as a follow-up), so run it
+	// out-of-cluster first, e.g.:
+	//   KUBECONFIG=$(kind get kubeconfig --name tmi-platform) ./bin/component-controller &
 	const cr = `
 apiVersion: tmi.dev/v1alpha1
 kind: TMIComponent
