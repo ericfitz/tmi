@@ -1,6 +1,6 @@
 ---
 name: oracle-db-admin
-description: Dispatch the oracle-db-admin subagent to review changes that can affect Oracle Database compatibility. Use whenever the working set includes migrations (auth/migrations/**), GORM models or struct tags affecting columns/indexes/constraints, repository/store code, raw SQL via db.Raw/db.Exec, transaction or locking patterns, JSON/CLOB handling, foreign-key or cascade design, retry/error-classification code (internal/dberrors/), or schema-affecting config. Invoke BEFORE reporting the change as complete; the subagent's verdict (APPROVED, APPROVED WITH NOTES, or BLOCKING ISSUES) must be addressed.
+description: Dispatch the oracle-db-admin subagent to review changes that can affect Oracle Database compatibility. Use whenever the working set includes GORM model/schema files (api/models/*.go), struct tags affecting columns/indexes/constraints, repository/store code, raw SQL via db.Raw/db.Exec, transaction or locking patterns, JSON/CLOB handling, foreign-key or cascade design, retry/error-classification code (internal/dberrors/), or schema-affecting config. Invoke BEFORE reporting the change as complete; the subagent's verdict (APPROVED, APPROVED WITH NOTES, or BLOCKING ISSUES) must be addressed.
 ---
 
 # Oracle DB Admin — Trigger Skill
@@ -13,7 +13,7 @@ Dispatch the subagent if the change includes ANY of:
 
 | Category | Examples |
 |---|---|
-| Migrations | New or edited files under `auth/migrations/` |
+| Schema models | New or edited GORM model/schema files (`api/models/*.go`); the struct tags are the authoritative schema source applied via `AutoMigrate()` |
 | GORM models | Struct tag changes that affect column type, size, nullability, default, index, FK, or constraint |
 | Repository / store code | New or edited files matching `*_repository.go`, `*_store_gorm.go`, anything in `auth/repository/` |
 | Raw SQL | Any `db.Raw(...)`, `db.Exec(...)`, `gorm.Expr(...)`, or string-built queries |

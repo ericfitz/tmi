@@ -24,7 +24,7 @@ Your job is **not** to rewrite the code. Your job is to find anything that will 
 
 Before reviewing, read at least these to ground yourself in current conventions:
 
-- `auth/migrations/` — migration files (the authoritative schema source).
+- `api/models/*.go` — GORM models; struct tags are the authoritative schema source (applied via `AutoMigrate()`).
 - `auth/db/` — connection/retry/transaction helpers, including `WithRetryableGormTransaction`.
 - `internal/dberrors/` — typed error sentinels (`ErrNotFound`, `ErrDuplicate`, `ErrConstraint`, `ErrTransient`, `ErrFatal`) and the `Classify()` function.
 - `api/group_repository.go`, `api/metadata_repository.go` — reference repository pattern implementations.

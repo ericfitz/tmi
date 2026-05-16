@@ -85,13 +85,12 @@ docker exec tmi-postgresql psql -U tmi_dev -d tmi_dev -c "SELECT COUNT(*) FROM t
 docker exec tmi-postgresql psql -U tmi_dev -d tmi_dev -c "SELECT * FROM table_name LIMIT 10;"
 ```
 
-### Run Migrations
+### Schema Migrations
 
-Migrations are located in `auth/migrations/` directory. See the migration commands in the Makefile or use:
-
-```bash
-make migrate
-```
+The database schema is managed by GORM `AutoMigrate()`, driven by the struct tags
+in `api/models/*.go` — there are no standalone SQL migration files. The schema is
+applied automatically on server startup (`make start-dev`). Legacy SQL migrations
+are archived under `docs/reference/legacy-migrations/` for historical reference only.
 
 ### Database Reset
 
