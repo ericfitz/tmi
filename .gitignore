@@ -68,6 +68,8 @@
 !terraform/**
 !deployments/
 !deployments/**
+!config/
+!config/**
 
 # heroku
 !.godir

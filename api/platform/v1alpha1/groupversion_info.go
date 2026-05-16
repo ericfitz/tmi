@@ -1,5 +1,8 @@
 // Package v1alpha1 contains the TMIComponent custom resource API for the
 // TMI Component Platform.
+//
+// +groupName=tmi.dev
+// +kubebuilder:object:generate=true
 package v1alpha1
 
 import (
