@@ -85,7 +85,10 @@ func (r *TMIComponentReconciler) apply(ctx context.Context, obj client.Object) e
 	}
 	// Object exists: fetch the live copy to obtain its resourceVersion,
 	// then update the rendered object in place.
-	existing := obj.DeepCopyObject().(client.Object)
+	existing, ok := obj.DeepCopyObject().(client.Object)
+	if !ok {
+		return fmt.Errorf("rendered object %T does not implement client.Object", obj)
+	}
 	key := client.ObjectKeyFromObject(obj)
 	if err := r.Get(ctx, key, existing); err != nil {
 		return err
