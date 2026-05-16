@@ -1353,10 +1353,11 @@ import (
 
 	platformv1alpha1 "github.com/ericfitz/tmi/api/platform/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
-	networkingv1 "k8s.io/api/networking/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -1427,6 +1428,23 @@ func TestReconcile_CreatesChildObjects(t *testing.T) {
 	if err := waitGet(ctx, k8s, key, &np); err != nil {
 		t.Fatalf("expected child NetworkPolicy: %v", err)
 	}
+	// The child ScaledObject must exist (KEDA CRD, read as unstructured).
+	so := &unstructured.Unstructured{}
+	so.SetAPIVersion("keda.sh/v1alpha1")
+	so.SetKind("ScaledObject")
+	if err := waitGet(ctx, k8s, key, so); err != nil {
+		t.Fatalf("expected child ScaledObject: %v", err)
+	}
+
+	// Reconcile a second time: the reconciler MUST be idempotent. This is
+	// the regression guard for the Create-then-Update resourceVersion bug —
+	// the second pass exercises the AlreadyExists -> Update path.
+	if _, err := r.ReconcileComponent(ctx, key); err != nil {
+		t.Fatalf("second reconcile must succeed (idempotency): %v", err)
+	}
+	if err := waitGet(ctx, k8s, key, &appsv1.Deployment{}); err != nil {
+		t.Fatalf("Deployment missing after second reconcile: %v", err)
+	}
 }
 
 func waitGet(ctx context.Context, c client.Client, key types.NamespacedName, obj client.Object) error {
@@ -1458,6 +1476,8 @@ import (
 	"fmt"
 
 	platformv1alpha1 "github.com/ericfitz/tmi/api/platform/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -1522,19 +1542,38 @@ func (r *TMIComponentReconciler) ReconcileComponent(ctx context.Context, key typ
 	return ctrl.Result{}, nil
 }
 
-// apply creates the object, or updates it if it already exists.
+// apply creates the object, or updates it in place if it already exists.
+// On update it first fetches the live object to capture its resourceVersion
+// (required by the API server for optimistic concurrency), then carries that
+// resourceVersion onto the freshly-rendered object before the Update call.
 func (r *TMIComponentReconciler) apply(ctx context.Context, obj client.Object) error {
 	err := r.Create(ctx, obj)
-	if errors.IsAlreadyExists(err) {
-		return r.Update(ctx, obj)
+	if err == nil {
+		return nil
 	}
-	return err
+	if !errors.IsAlreadyExists(err) {
+		return err
+	}
+	// Object exists: fetch the live copy to obtain its resourceVersion,
+	// then update the rendered object in place.
+	existing := obj.DeepCopyObject().(client.Object)
+	key := client.ObjectKeyFromObject(obj)
+	if err := r.Get(ctx, key, existing); err != nil {
+		return err
+	}
+	obj.SetResourceVersion(existing.GetResourceVersion())
+	return r.Update(ctx, obj)
 }
 
 // SetupWithManager registers the reconciler and its owned child types.
 func (r *TMIComponentReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// Owns the typed children so the controller re-reconciles on child drift.
+	// The KEDA ScaledObject is unstructured and not watched here; drift
+	// correction for it is tracked as a follow-up.
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&platformv1alpha1.TMIComponent{}).
+		Owns(&appsv1.Deployment{}).
+		Owns(&networkingv1.NetworkPolicy{}).
 		Complete(r)
 }
 ```
