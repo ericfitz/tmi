@@ -279,6 +279,33 @@ func (s *NullableSSVC) Scan(value any) error {
 	return nil
 }
 
+// MarshalJSON implements the json.Marshaler interface.
+// A valid NullableSSVC marshals as the inner SSVCScore JSON object; an invalid
+// one marshals as null. This mirrors the Value/Scan database representation so
+// JSON round-trips (e.g. through a Redis cache) match the on-disk encoding.
+func (s NullableSSVC) MarshalJSON() ([]byte, error) {
+	if !s.Valid {
+		return []byte("null"), nil
+	}
+	return json.Marshal(s.SSVCScore)
+}
+
+// UnmarshalJSON implements the json.Unmarshaler interface.
+// A JSON null sets Valid to false; any other value is unmarshaled into the
+// inner SSVCScore and sets Valid to true.
+func (s *NullableSSVC) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		s.SSVCScore = SSVCScore{}
+		s.Valid = false
+		return nil
+	}
+	if err := json.Unmarshal(data, &s.SSVCScore); err != nil {
+		return err
+	}
+	s.Valid = true
+	return nil
+}
+
 // JSONMap is a custom type that stores JSON objects
 // This works across both PostgreSQL JSONB and Oracle JSON
 type JSONMap map[string]any
