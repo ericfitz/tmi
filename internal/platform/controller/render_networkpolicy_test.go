@@ -24,8 +24,21 @@ func TestRenderNetworkPolicy_NoneAllowsOnlyNats(t *testing.T) {
 	if len(np.Spec.Egress) != 1 {
 		t.Fatalf("egress:none expected 1 egress rule (NATS only), got %d", len(np.Spec.Egress))
 	}
-	if len(np.Spec.Egress[0].Ports) != 1 || np.Spec.Egress[0].Ports[0].Port.IntValue() != 4222 {
+	rule := np.Spec.Egress[0]
+	if len(rule.Ports) != 1 || rule.Ports[0].Port.IntValue() != 4222 {
 		t.Fatal("egress:none rule must permit only NATS port 4222")
+	}
+	// The rule MUST scope its To peer — a rule with ports but no To peer
+	// matches ALL destinations on that port, which would defeat the sandbox.
+	if len(rule.To) != 1 {
+		t.Fatalf("NATS egress rule must have exactly one To peer (scoped to NATS), got %d", len(rule.To))
+	}
+	peer := rule.To[0]
+	if peer.PodSelector == nil || peer.PodSelector.MatchLabels["app"] != "nats" {
+		t.Fatal("NATS egress rule To peer must select the NATS pod (app=nats)")
+	}
+	if peer.NamespaceSelector == nil {
+		t.Fatal("NATS egress rule To peer must scope to the NATS namespace")
 	}
 }
 
@@ -60,6 +73,13 @@ func TestRenderNetworkPolicy_AllowlistAddsDNS(t *testing.T) {
 		if p.Port.IntValue() != 53 {
 			t.Fatalf("DNS rule port must be 53, got %d", p.Port.IntValue())
 		}
+	}
+	// The DNS rule must scope its To peer to the cluster DNS pods.
+	if len(dns.To) != 1 {
+		t.Fatalf("DNS egress rule must have exactly one To peer, got %d", len(dns.To))
+	}
+	if dns.To[0].PodSelector == nil || dns.To[0].PodSelector.MatchLabels["k8s-app"] != "kube-dns" {
+		t.Fatal("DNS egress rule To peer must select the cluster DNS pods (k8s-app=kube-dns)")
 	}
 }
 

@@ -11,16 +11,50 @@ import (
 // natsPort is the JetStream client port every component is allowed to reach.
 const natsPort = 4222
 
+// platformNamespace is the namespace the shared NATS server runs in.
+const platformNamespace = "tmi-platform"
+
 // componentPodLabels are the pod labels the controller stamps on worker pods
 // and selects on in the NetworkPolicy.
 func componentPodLabels(c *platformv1alpha1.TMIComponent) map[string]string {
 	return map[string]string{"tmi.dev/component": c.Name}
 }
 
+// natsPeer selects the NATS server pod (app=nats in the platform namespace).
+// Egress rules scope their To peer to this so "NATS only" actually means
+// NATS only — not "port 4222 to any destination".
+func natsPeer() networkingv1.NetworkPolicyPeer {
+	return networkingv1.NetworkPolicyPeer{
+		NamespaceSelector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{"kubernetes.io/metadata.name": platformNamespace},
+		},
+		PodSelector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{"app": "nats"},
+		},
+	}
+}
+
+// dnsPeer selects the cluster DNS pods (CoreDNS: k8s-app=kube-dns in
+// kube-system). Without this scope a DNS egress rule would permit port 53
+// to every destination.
+func dnsPeer() networkingv1.NetworkPolicyPeer {
+	return networkingv1.NetworkPolicyPeer{
+		NamespaceSelector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{"kubernetes.io/metadata.name": "kube-system"},
+		},
+		PodSelector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{"k8s-app": "kube-dns"},
+		},
+	}
+}
+
 // RenderNetworkPolicy builds the NetworkPolicy for a component from its
 // egress posture. The Egress policy type is always set so a limited egress
-// list is an enforced deny. The controller always renders this as a
-// cluster-layer backstop, independent of any in-code egress guarding.
+// list is an enforced deny. Every egress rule carries an explicit To peer
+// selector — a rule with ports but no To matches all destinations, so
+// scoping the peers is what makes "egress: none" mean "NATS only". The
+// controller always renders this as a cluster-layer backstop, independent
+// of any in-code egress guarding.
 func RenderNetworkPolicy(c *platformv1alpha1.TMIComponent) *networkingv1.NetworkPolicy {
 	np := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: c.Name, Namespace: c.Namespace},
@@ -31,8 +65,10 @@ func RenderNetworkPolicy(c *platformv1alpha1.TMIComponent) *networkingv1.Network
 	}
 
 	// Every posture permits egress to NATS — without it a worker cannot
-	// receive jobs or publish results.
+	// receive jobs or publish results. The To peer scopes this to the
+	// NATS pod alone, not all destinations on port 4222.
 	natsRule := networkingv1.NetworkPolicyEgressRule{
+		To: []networkingv1.NetworkPolicyPeer{natsPeer()},
 		Ports: []networkingv1.NetworkPolicyPort{
 			{Port: intOrStringPtr(intstr.FromInt(natsPort))},
 		},
@@ -41,9 +77,10 @@ func RenderNetworkPolicy(c *platformv1alpha1.TMIComponent) *networkingv1.Network
 
 	if c.Spec.Egress == platformv1alpha1.EgressAllowlist {
 		// allowlist adds DNS (port 53) so hostnames resolve; host-level
-		// allowlisting itself is enforced in-worker. The NetworkPolicy
-		// widens egress to DNS but no further at the L3 layer.
+		// allowlisting itself is enforced in-worker. The DNS rule is
+		// scoped to the cluster DNS pods, not all destinations.
 		np.Spec.Egress = append(np.Spec.Egress, networkingv1.NetworkPolicyEgressRule{
+			To: []networkingv1.NetworkPolicyPeer{dnsPeer()},
 			Ports: []networkingv1.NetworkPolicyPort{
 				{Port: intOrStringPtr(intstr.FromInt(53)), Protocol: protoPtr(corev1.ProtocolUDP)},
 				{Port: intOrStringPtr(intstr.FromInt(53)), Protocol: protoPtr(corev1.ProtocolTCP)},
