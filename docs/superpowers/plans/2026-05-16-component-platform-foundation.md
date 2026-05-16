@@ -315,6 +315,7 @@ package v1alpha1
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -378,8 +379,9 @@ type ScalingSpec struct {
 type ScratchVolume struct {
 	// MountPath is where the emptyDir is mounted in the worker container.
 	MountPath string `json:"mountPath"`
-	// SizeLimit caps the emptyDir (e.g. "512Mi").
-	SizeLimit string `json:"sizeLimit"`
+	// SizeLimit caps the emptyDir (e.g. "512Mi"). Serialized as a string
+	// in YAML; validated as a Kubernetes quantity at admission time.
+	SizeLimit resource.Quantity `json:"sizeLimit"`
 }
 
 // TMIComponentSpec is the desired state of a component type.
@@ -423,6 +425,8 @@ type TMIComponentStatus struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:storageversion
+// +kubebuilder:resource:scope=Namespaced,shortName=tmicomp
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Egress",type=string,JSONPath=`.spec.egress`
 // +kubebuilder:printcolumn:name="Input",type=string,JSONPath=`.spec.inputMode`
@@ -809,6 +813,7 @@ import (
 
 	platformv1alpha1 "github.com/ericfitz/tmi/api/platform/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -878,7 +883,7 @@ func TestRenderDeployment_SecretRefBecomesEnvFromSecret(t *testing.T) {
 
 func TestRenderDeployment_ScratchVolumeWhenRequested(t *testing.T) {
 	c := deployComp()
-	c.Spec.ScratchVolume = &platformv1alpha1.ScratchVolume{MountPath: "/scratch", SizeLimit: "256Mi"}
+	c.Spec.ScratchVolume = &platformv1alpha1.ScratchVolume{MountPath: "/scratch", SizeLimit: resource.MustParse("256Mi")}
 	d := RenderDeployment(c)
 	pod := d.Spec.Template.Spec
 	if len(pod.Volumes) != 1 || pod.Volumes[0].EmptyDir == nil {
@@ -920,7 +925,6 @@ import (
 	platformv1alpha1 "github.com/ericfitz/tmi/api/platform/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -959,7 +963,9 @@ func RenderDeployment(c *platformv1alpha1.TMIComponent) *appsv1.Deployment {
 	}
 
 	if c.Spec.ScratchVolume != nil {
-		sizeLimit := resource.MustParse(c.Spec.ScratchVolume.SizeLimit)
+		// SizeLimit is already a resource.Quantity (validated at admission
+		// time by the CRD schema), so no parsing is needed here.
+		sizeLimit := c.Spec.ScratchVolume.SizeLimit
 		pod.Volumes = []corev1.Volume{{
 			Name: "scratch",
 			VolumeSource: corev1.VolumeSource{
