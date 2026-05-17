@@ -33,4 +33,8 @@ func TestEnvDuration(t *testing.T) {
 	if got := EnvDuration("TMI_TEST_DUR_MISSING", time.Minute); got != time.Minute {
 		t.Fatalf("EnvDuration fallback: got %v", got)
 	}
+	t.Setenv("TMI_TEST_DUR_BAD", "not-a-duration")
+	if got := EnvDuration("TMI_TEST_DUR_BAD", time.Minute); got != time.Minute {
+		t.Fatalf("EnvDuration bad-value fallback: got %v", got)
+	}
 }
