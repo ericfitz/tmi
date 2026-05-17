@@ -7,11 +7,12 @@ import (
 )
 
 func TestJobRoundTrip(t *testing.T) {
+	dl := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
 	in := Job{
 		JobID:       "job-abc-123",
 		ContentType: "application/pdf",
-		Limits:      Limits{MaxBytes: 50 << 20, WallClock: 60 * time.Second},
-		Deadline:    time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC),
+		Limits:      Limits{MaxBytes: 50 << 20, WallClock: Duration(60 * time.Second)},
+		Deadline:    &dl,
 		Input:       Input{ObjectRef: "TMI_PAYLOADS/job-abc-123/source", ByteSize: 1234},
 	}
 	b, err := json.Marshal(in)
@@ -27,6 +28,12 @@ func TestJobRoundTrip(t *testing.T) {
 	}
 	if out.Input.ObjectRef != in.Input.ObjectRef || out.Limits.MaxBytes != in.Limits.MaxBytes {
 		t.Fatalf("nested round-trip mismatch: got %+v", out)
+	}
+	if out.Deadline == nil || !out.Deadline.Equal(*in.Deadline) {
+		t.Fatalf("deadline round-trip mismatch: got %v want %v", out.Deadline, in.Deadline)
+	}
+	if out.Limits.WallClock != in.Limits.WallClock {
+		t.Fatalf("WallClock round-trip mismatch: got %v want %v", out.Limits.WallClock, in.Limits.WallClock)
 	}
 }
 
@@ -47,6 +54,9 @@ func TestResultRoundTrip(t *testing.T) {
 	}
 	if out.Status != StatusFailed || out.ReasonCode != "extraction_malformed" {
 		t.Fatalf("result round-trip mismatch: got %+v", out)
+	}
+	if out.Output.ResultRef != "" {
+		t.Fatalf("expected empty ResultRef on failure, got %q", out.Output.ResultRef)
 	}
 }
 

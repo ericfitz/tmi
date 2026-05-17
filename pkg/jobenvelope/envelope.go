@@ -1,6 +1,10 @@
 package jobenvelope
 
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+)
 
 // Status is the terminal state reported on a result envelope.
 type Status string
@@ -12,6 +16,39 @@ const (
 	StatusFailed Status = "failed"
 )
 
+// Duration is a time.Duration that marshals to and from a JSON string in
+// Go duration syntax (e.g. "60s", "1m30s") rather than a raw nanosecond
+// integer, so the job envelope stays human- and cross-language-readable.
+type Duration time.Duration
+
+// MarshalJSON renders the duration as a quoted Go duration string.
+func (d Duration) MarshalJSON() ([]byte, error) {
+	return json.Marshal(time.Duration(d).String())
+}
+
+// UnmarshalJSON parses a quoted Go duration string. It also accepts a bare
+// JSON number, interpreted as nanoseconds, for forward compatibility.
+func (d *Duration) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err == nil {
+		parsed, err := time.ParseDuration(s)
+		if err != nil {
+			return fmt.Errorf("jobenvelope: invalid duration %q: %w", s, err)
+		}
+		*d = Duration(parsed)
+		return nil
+	}
+	var n int64
+	if err := json.Unmarshal(b, &n); err != nil {
+		return fmt.Errorf("jobenvelope: duration must be a string or number: %w", err)
+	}
+	*d = Duration(n)
+	return nil
+}
+
+// Std returns the wrapped value as a standard time.Duration.
+func (d Duration) Std() time.Duration { return time.Duration(d) }
+
 // Limits are the per-job processing bounds carried in the envelope. They
 // mirror the in-code extractor caps so a worker can enforce the same wall
 // even when the controller's cgroup cap differs.
@@ -19,7 +56,8 @@ type Limits struct {
 	// MaxBytes caps the source payload size the worker will read.
 	MaxBytes int64 `json:"max_bytes"`
 	// WallClock is the per-job wall-clock budget for the parse/embed stage.
-	WallClock time.Duration `json:"wall_clock"`
+	// Serialized as a Go duration string (e.g. "60s").
+	WallClock Duration `json:"wall_clock"`
 }
 
 // Input carries job input. Exactly one mode is populated:
@@ -55,7 +93,9 @@ type Job struct {
 	// Limits are the per-job processing bounds.
 	Limits Limits `json:"limits"`
 	// Deadline is the absolute wall-clock deadline for the whole job.
-	Deadline time.Time `json:"deadline"`
+	// Nil means no deadline. Producers that enforce a deadline set a
+	// non-nil, future timestamp.
+	Deadline *time.Time `json:"deadline,omitempty"`
 	// Input carries the stage input (by reference).
 	Input Input `json:"input"`
 	// Metadata carries small key/value pairs forwarded between stages
