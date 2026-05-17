@@ -20,7 +20,7 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		slogging.Get().Error("%v", err)
+		slogging.Get().Error("tmi-chunk-embed: %v", err)
 		os.Exit(1)
 	}
 }
