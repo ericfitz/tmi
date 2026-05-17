@@ -75,6 +75,9 @@ func (e *extractionLimitError) Unwrap() error        { return ErrExtractionLimit
 // this constructor exists so callers outside the package (e.g. the
 // monolith's pipeline/poller tests) can inject a classifiable limit error
 // without depending on the private type.
+//
+// Limit and Observed are left zero — this constructor is for classification
+// and test injection, not for producing human-facing limit diagnostics.
 func NewLimitError(kind, detail string) error {
 	return &extractionLimitError{Kind: kind, Detail: detail}
 }
