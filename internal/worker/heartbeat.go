@@ -54,7 +54,7 @@ func RunHeartbeat(ctx context.Context, conn *Conn, instanceID string, interval t
 				logger.Error("worker heartbeat: marshal failed: %v", err)
 				continue
 			}
-			if err := conn.Publish(ctx, subject, b); err != nil {
+			if err := conn.PublishCore(subject, b); err != nil {
 				logger.Warn("worker heartbeat: publish failed: %v", err)
 			}
 		}

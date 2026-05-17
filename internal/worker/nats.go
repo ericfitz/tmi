@@ -103,10 +103,21 @@ func payloadName(ref string) (string, bool) {
 	return ref[len(prefix):], true
 }
 
-// Publish publishes a pre-marshaled message to a JetStream subject.
+// Publish publishes a pre-marshaled message to a JetStream subject (durable,
+// stream-backed). For ephemeral signals such as heartbeats use PublishCore.
 func (c *Conn) Publish(ctx context.Context, subject string, data []byte) error {
 	if _, err := c.js.Publish(ctx, subject, data); err != nil {
 		return fmt.Errorf("worker: publish %s: %w", subject, err)
+	}
+	return nil
+}
+
+// PublishCore publishes a message over core NATS (fire-and-forget, no
+// JetStream stream or persistence). Use this for ephemeral signals such as
+// heartbeats. Job messages that must be durable go through Publish.
+func (c *Conn) PublishCore(subject string, data []byte) error {
+	if err := c.nc.Publish(subject, data); err != nil {
+		return fmt.Errorf("worker: core publish %s: %w", subject, err)
 	}
 	return nil
 }
