@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/ericfitz/tmi/pkg/extract"
 )
 
 // TestOOXMLCorpus runs each file in testdata/ooxml-corpus/ through the
@@ -44,13 +46,13 @@ func TestOOXMLCorpus(t *testing.T) {
 		switch {
 		case strings.HasSuffix(name, ".docx"):
 			ct = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-			ext = NewDOCXExtractor(defaultOOXMLLimits())
+			ext = NewDOCXExtractor(extract.DefaultLimits())
 		case strings.HasSuffix(name, ".pptx"):
 			ct = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-			ext = NewPPTXExtractor(defaultOOXMLLimits())
+			ext = NewPPTXExtractor(extract.DefaultLimits())
 		case strings.HasSuffix(name, ".xlsx"):
 			ct = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-			ext = NewXLSXExtractor(defaultOOXMLLimits())
+			ext = NewXLSXExtractor(extract.DefaultLimits())
 		default:
 			t.Logf("corpus: skipping unrecognized file %q (no matching extractor)", name)
 			continue

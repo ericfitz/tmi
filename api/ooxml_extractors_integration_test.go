@@ -1,9 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -11,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ericfitz/tmi/pkg/extract"
 )
 
 // ooxmlStubSource always returns the configured bytes + content type.
@@ -33,7 +37,7 @@ func TestContentPipeline_HappyPath_DOCX(t *testing.T) {
 	srcs.Register(&ooxmlStubSource{data: docx, ct: docxContentType})
 
 	exts := NewContentExtractorRegistry()
-	exts.Register(NewDOCXExtractor(defaultOOXMLLimits()))
+	exts.Register(NewDOCXExtractor(extract.DefaultLimits()))
 
 	cl := NewConcurrencyLimiter(2, nil)
 	p := NewContentPipelineWithLimiter(srcs, exts, NewURLPatternMatcher(), cl, DefaultPipelineLimits())
@@ -100,7 +104,7 @@ func TestContentPipeline_ConcurrencyCap_DefaultTwo(t *testing.T) {
 	docx := buildZip(t, map[string][]byte{"word/document.xml": []byte(minimalDocxBody)})
 	srcs := NewContentSourceRegistry()
 	srcs.Register(&ooxmlStubSource{data: docx, ct: docxContentType})
-	wrapped := &countingExtractor{inner: NewDOCXExtractor(defaultOOXMLLimits())}
+	wrapped := &countingExtractor{inner: NewDOCXExtractor(extract.DefaultLimits())}
 	exts := NewContentExtractorRegistry()
 	exts.Register(wrapped)
 	cl := NewConcurrencyLimiter(2, nil)
@@ -116,6 +120,13 @@ func TestContentPipeline_ConcurrencyCap_DefaultTwo(t *testing.T) {
 	assert.LessOrEqual(t, observed, int32(2), "must never exceed default per-user cap")
 }
 
+// TestClassifyExtractionError_LimitsMappedCorrectly verifies the
+// monolith-owned overlay: ClassifyExtractionError delegates reason-code
+// classification to extract.ClassifyError (covered exhaustively per-Kind by
+// pkg/extract's own TestClassifyError_LimitsMappedCorrectly) and attaches
+// access_status. A representative slice of limit, sentinel, timeout, and
+// internal errors confirms the reason code + detail flow through and that
+// Status is set whenever a reason code is produced.
 func TestClassifyExtractionError_LimitsMappedCorrectly(t *testing.T) {
 	cases := []struct {
 		name       string
@@ -123,15 +134,10 @@ func TestClassifyExtractionError_LimitsMappedCorrectly(t *testing.T) {
 		want       string
 		wantDetail string
 	}{
-		{"compressed_size", &extractionLimitError{Kind: "compressed_size"}, ReasonExtractionLimitCompressedSize, ""},
-		{"decompressed_size", &extractionLimitError{Kind: "decompressed_size"}, ReasonExtractionLimitDecompressedSize, ""},
-		{"part_size", &extractionLimitError{Kind: "part_size", Detail: "word/document.xml"}, ReasonExtractionLimitPartSize, "word/document.xml"},
-		{"part_count_with_detail", &extractionLimitError{Kind: "part_count", Detail: "slide #42"}, ReasonExtractionLimitPartCount, "slide #42"},
-		{"markdown_size", &extractionLimitError{Kind: "markdown_size"}, ReasonExtractionLimitMarkdownSize, ""},
-		{"xml_depth", &extractionLimitError{Kind: "xml_depth"}, ReasonExtractionLimitXMLDepth, ""},
-		{"zip_nested", &extractionLimitError{Kind: "zip_nested", Detail: "nested.zip"}, ReasonExtractionLimitZipNested, "nested.zip"},
-		{"zip_path", &extractionLimitError{Kind: "zip_path"}, ReasonExtractionLimitZipPath, ""},
-		{"compression_ratio", &extractionLimitError{Kind: "compression_ratio"}, ReasonExtractionLimitCompressionRatio, ""},
+		{"compressed_size", extract.NewLimitError("compressed_size", ""), ReasonExtractionLimitCompressedSize, ""},
+		{"part_size", extract.NewLimitError("part_size", "word/document.xml"), ReasonExtractionLimitPartSize, "word/document.xml"},
+		{"part_count_with_detail", extract.NewLimitError("part_count", "slide #42"), ReasonExtractionLimitPartCount, "slide #42"},
+		{"zip_nested", extract.NewLimitError("zip_nested", "nested.zip"), ReasonExtractionLimitZipNested, "nested.zip"},
 		{"malformed_wrapped", fmt.Errorf("wrap: %w", ErrMalformed), ReasonExtractionMalformed, ""},
 		{"unsupported_wrapped", fmt.Errorf("wrap: %w", ErrUnsupported), ReasonExtractionUnsupported, ""},
 		{"context.DeadlineExceeded", context.DeadlineExceeded, ReasonExtractionLimitTimeout, ""},
@@ -154,38 +160,47 @@ func TestClassifyExtractionError_NilReturnsZero(t *testing.T) {
 	assert.Equal(t, "", r.ReasonDetail)
 }
 
-// slowReadingExtractor is a ContextAwareExtractor whose ExtractCtx opens a
-// real OOXML archive (so it traverses the same boundedReader code path as
-// the production extractors) and then deliberately slow-reads the document
-// part one byte at a time, sleeping between reads. It is the harness for
-// TestContentPipeline_TimeoutAbortsExtractionMidStream: with the archive's
-// extractionCtx wired in by WithContext, the slow read loop must abort
-// promptly when the wall-clock deadline fires rather than running to
-// completion.
+// ctxCheckingReader wraps an io.Reader and returns the context's error
+// before every Read once the context is done, so a slow read loop unblocks
+// promptly on wall-clock cancellation. It mirrors the cooperative
+// cancellation that pkg/extract's boundedReader applies to OOXML parts.
+type ctxCheckingReader struct {
+	r   io.Reader
+	ctx context.Context
+}
+
+func (c *ctxCheckingReader) Read(p []byte) (int, error) {
+	if err := c.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return c.r.Read(p)
+}
+
+// slowReadingExtractor is a ContextAwareExtractor whose ExtractCtx
+// deliberately slow-reads its input one byte at a time, sleeping between
+// reads, through a context-checking reader. It is the harness for
+// TestContentPipeline_TimeoutAbortsExtractionMidStream: with the
+// deadline-bearing context wired in by the pipeline through ExtractCtx,
+// the slow read loop must abort promptly when the wall-clock deadline
+// fires rather than running to completion.
+//
+// The extractor-internal boundedReader cancellation path is covered by
+// pkg/extract's own tests; this harness verifies only that the pipeline
+// hands the deadline-bearing context to a ContextAwareExtractor.
 type slowReadingExtractor struct {
-	limits    ooxmlLimits
+	ct        string
 	stepDelay time.Duration
 }
 
-func (e *slowReadingExtractor) Name() string             { return "slow-docx" }
-func (e *slowReadingExtractor) CanHandle(ct string) bool { return ct == docxContentType }
+func (e *slowReadingExtractor) Name() string             { return "slow" }
+func (e *slowReadingExtractor) CanHandle(ct string) bool { return ct == e.ct }
 func (e *slowReadingExtractor) Bounded() bool            { return true }
 func (e *slowReadingExtractor) Extract(data []byte, ct string) (ExtractedContent, error) {
 	return e.ExtractCtx(context.Background(), data, ct)
 }
 
 func (e *slowReadingExtractor) ExtractCtx(ctx context.Context, data []byte, _ string) (ExtractedContent, error) {
-	opener := newOOXMLOpener(e.limits)
-	arch, err := opener.open(data)
-	if err != nil {
-		return ExtractedContent{}, err
-	}
-	arch.WithContext(ctx)
-	rdr, err := arch.openMember("word/document.xml")
-	if err != nil {
-		return ExtractedContent{}, err
-	}
-	defer func() { _ = rdr.Close() }()
+	rdr := &ctxCheckingReader{r: bytes.NewReader(data), ctx: ctx}
 	buf := make([]byte, 1)
 	for {
 		// Sleep before each read so the wall-clock deadline has the chance
@@ -201,24 +216,21 @@ func (e *slowReadingExtractor) ExtractCtx(ctx context.Context, data []byte, _ st
 // TestContentPipeline_TimeoutAbortsExtractionMidStream verifies that a
 // wall-clock deadline does not just unblock the pipeline goroutine — it
 // also reaches into the extractor's in-flight I/O via the
-// ContextAwareExtractor + boundedReader.extractionCtx path, so a
-// slow-reading extractor returns context.DeadlineExceeded shortly after
-// the budget is exhausted instead of running to completion.
+// ContextAwareExtractor path, so a slow-reading extractor returns
+// context.DeadlineExceeded shortly after the budget is exhausted instead
+// of running to completion.
 func TestContentPipeline_TimeoutAbortsExtractionMidStream(t *testing.T) {
-	// A small, valid DOCX archive — the extractor reads its document.xml
-	// one byte at a time, sleeping between reads, so the document content
-	// is irrelevant beyond being a well-formed OOXML archive.
-	docx := buildZip(t, map[string][]byte{
-		"word/document.xml": []byte(minimalDocxBody),
-	})
+	// A few hundred bytes of payload — the extractor reads it one byte at a
+	// time, sleeping between reads, so the content itself is irrelevant.
+	payload := make([]byte, 400)
 
 	srcs := NewContentSourceRegistry()
-	srcs.Register(&ooxmlStubSource{data: docx, ct: docxContentType})
+	srcs.Register(&ooxmlStubSource{data: payload, ct: "application/slow"})
 	exts := NewContentExtractorRegistry()
-	// 5ms per-byte sleep over hundreds of bytes of document.xml ensures the
-	// extractor's natural runtime is on the order of seconds; without
-	// cooperative cancellation the call would block well past the budget.
-	exts.Register(&slowReadingExtractor{limits: defaultOOXMLLimits(), stepDelay: 5 * time.Millisecond})
+	// 5ms per-byte sleep over hundreds of bytes ensures the extractor's
+	// natural runtime is on the order of seconds; without cooperative
+	// cancellation the call would block well past the budget.
+	exts.Register(&slowReadingExtractor{ct: "application/slow", stepDelay: 5 * time.Millisecond})
 
 	cl := NewConcurrencyLimiter(2, nil)
 	cfg := DefaultPipelineLimits()

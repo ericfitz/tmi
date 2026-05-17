@@ -64,6 +64,21 @@ func (e *extractionLimitError) Error() string {
 func (e *extractionLimitError) Is(target error) bool { return target == ErrExtractionLimit }
 func (e *extractionLimitError) Unwrap() error        { return ErrExtractionLimit }
 
+// NewLimitError builds a typed extraction-limit error for the given Kind
+// (one of the documented Kind values: compressed_size, decompressed_size,
+// part_size, part_count, markdown_size, xml_depth, zip_nested, zip_path,
+// compression_ratio) with an optional human-readable detail. The result
+// satisfies errors.Is(err, ErrExtractionLimit) and is classified by
+// ClassifyError into the matching reason code.
+//
+// The extractors themselves construct the package-private value directly;
+// this constructor exists so callers outside the package (e.g. the
+// monolith's pipeline/poller tests) can inject a classifiable limit error
+// without depending on the private type.
+func NewLimitError(kind, detail string) error {
+	return &extractionLimitError{Kind: kind, Detail: detail}
+}
+
 // Classification describes how a typed extractor error maps to a reason
 // code, plus an optional human-readable Detail. Relocated from
 // api.ExtractionClassification; the Status field is dropped because
