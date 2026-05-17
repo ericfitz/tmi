@@ -79,6 +79,11 @@ type ConsumerConfig struct {
 // idempotency tracks job_ids already completed this process lifetime so a
 // redelivered message is acked without reprocessing. A worker restart loses
 // the set; the result-blob-exists check in the handler is the durable guard.
+//
+// NOT goroutine-safe: it relies on jetstream.Consume delivering messages
+// serially from a single goroutine (verified for nats.go v1.36.0). If the
+// consumer ever moves to concurrent/worker-pool delivery, this map must be
+// guarded with a sync.Mutex.
 type idempotency struct {
 	seen map[string]struct{}
 }

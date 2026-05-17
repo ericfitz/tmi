@@ -2,6 +2,7 @@ package worker
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ericfitz/tmi/pkg/jobenvelope"
@@ -47,6 +48,17 @@ func TestIdempotency(t *testing.T) {
 	}
 	if idem.done("j2") {
 		t.Fatal("j2 should not be done")
+	}
+}
+
+func TestOutcomeForWrappedJobError(t *testing.T) {
+	wrapped := fmt.Errorf("handler failed: %w", &JobError{ReasonCode: "x", Terminal: true})
+	if got := outcomeFor(wrapped); got != OutcomeTerm {
+		t.Fatalf("wrapped terminal JobError: got %v, want OutcomeTerm", got)
+	}
+	wrappedNonTerminal := fmt.Errorf("handler failed: %w", &JobError{ReasonCode: "y", Terminal: false})
+	if got := outcomeFor(wrappedNonTerminal); got != OutcomeNak {
+		t.Fatalf("wrapped non-terminal JobError: got %v, want OutcomeNak", got)
 	}
 }
 
