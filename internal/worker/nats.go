@@ -69,7 +69,7 @@ func (c *Conn) JetStream() jetstream.JetStream { return c.js }
 // Config returns the connection's config.
 func (c *Conn) Config() Config { return c.cfg }
 
-// Close drains and closes the NATS connection.
+// Close closes the NATS connection. In-flight messages are not drained.
 func (c *Conn) Close() { c.nc.Close() }
 
 // PutPayload writes bytes to the Object Store under the given name and
@@ -103,7 +103,7 @@ func payloadName(ref string) (string, bool) {
 	return ref[len(prefix):], true
 }
 
-// Publish marshals and publishes a message to a JetStream subject.
+// Publish publishes a pre-marshaled message to a JetStream subject.
 func (c *Conn) Publish(ctx context.Context, subject string, data []byte) error {
 	if _, err := c.js.Publish(ctx, subject, data); err != nil {
 		return fmt.Errorf("worker: publish %s: %w", subject, err)
