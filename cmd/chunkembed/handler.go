@@ -36,11 +36,14 @@ type chunkEmbedHandler struct {
 	embedder embeddings.Embedder
 }
 
-// chunk sizing — characters per chunk and overlap. Matches the monolith's
-// Timmy chunker defaults so ingest-time and query-time chunking agree.
+// chunk sizing — characters per chunk and overlap. These mirror the
+// monolith's Timmy chunker defaults (internal/config/timmy.go: ChunkSize
+// 512, ChunkOverlap 50) so ingest-time chunking here agrees with the
+// monolith's query-time chunking. Plan 3 / #415 replaces these hardcoded
+// values with the projected shared-config object.
 const (
-	chunkMaxChars = 1000
-	chunkOverlap  = 100
+	chunkMaxChars = 512
+	chunkOverlap  = 50
 )
 
 // newChunkEmbedHandler builds the handler.
