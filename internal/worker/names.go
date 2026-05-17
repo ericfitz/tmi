@@ -1,12 +1,10 @@
-// Package worker naming constants and helpers for NATS JetStream subjects,
-// streams, and the Object Store bucket used by TMI Component Platform workers.
-//
-// These names mirror what the component-controller renders in
-// internal/platform/controller/render_jetstream.go, which is the source of
-// truth for per-component stream and consumer naming. Any change to the
-// controller's sanitizeName, streamNameFor, or consumerNameFor functions MUST
-// be reflected here, and vice versa.
 package worker
+
+// Naming constants and helpers for NATS JetStream subjects, streams, the
+// payload Object Store bucket, and durable consumers. These mirror what the
+// component-controller renders — internal/platform/controller/render_jetstream.go
+// is the source of truth; SanitizeName/StreamNameFor/ConsumerNameFor here and
+// sanitizeName/streamNameFor/consumerNameFor there MUST stay in sync.
 
 import "strings"
 
@@ -26,25 +24,27 @@ const PayloadBucket = "TMI_PAYLOADS"
 // stream; the monolith result-consumer (Plan 3) and the workers both bind it.
 const ResultStream = "TMI_RESULTS"
 
-// SubjectExtractPrefix is the NATS subject prefix for extraction job messages
-// (e.g., "jobs.extract.<jobID>").
-const SubjectExtractPrefix = "jobs.extract."
+const (
+	// SubjectExtractPrefix is the NATS subject prefix for extraction job messages
+	// (e.g., "jobs.extract.<jobID>").
+	SubjectExtractPrefix = "jobs.extract."
 
-// SubjectChunkEmbedPrefix is the NATS subject prefix for chunk-and-embed job
-// messages (e.g., "jobs.chunkembed.<jobID>").
-const SubjectChunkEmbedPrefix = "jobs.chunkembed."
+	// SubjectChunkEmbedPrefix is the NATS subject prefix for chunk-and-embed job
+	// messages (e.g., "jobs.chunkembed.<jobID>").
+	SubjectChunkEmbedPrefix = "jobs.chunkembed."
 
-// SubjectResultPrefix is the NATS subject prefix for job result messages
-// (e.g., "jobs.result.<jobID>").
-const SubjectResultPrefix = "jobs.result."
+	// SubjectResultPrefix is the NATS subject prefix for job result messages
+	// (e.g., "jobs.result.<jobID>").
+	SubjectResultPrefix = "jobs.result."
 
-// SubjectDLQ is the NATS subject for dead-letter-queue messages: jobs that
-// have exhausted all delivery retries.
-const SubjectDLQ = "jobs.dlq"
+	// SubjectDLQ is the NATS subject for dead-letter-queue messages: jobs that
+	// have exhausted all delivery retries.
+	SubjectDLQ = "jobs.dlq"
 
-// SubjectHeartbeatPrefix is the NATS subject prefix for component heartbeat
-// messages (e.g., "components.heartbeat.<componentName>").
-const SubjectHeartbeatPrefix = "components.heartbeat."
+	// SubjectHeartbeatPrefix is the NATS subject prefix for component heartbeat
+	// messages (e.g., "components.heartbeat.<componentName>").
+	SubjectHeartbeatPrefix = "components.heartbeat."
+)
 
 // ResultSubject returns the NATS subject for the result of a specific job.
 func ResultSubject(jobID string) string {
@@ -58,7 +58,9 @@ func ChunkEmbedSubject(jobID string) string {
 }
 
 // HeartbeatSubject returns the NATS subject for a component's heartbeat
-// messages.
+// messages. The component argument is passed through UNSANITIZED: NATS
+// subjects use "." as a hierarchy delimiter (not an illegal character), so
+// sanitizing would corrupt the subject hierarchy.
 func HeartbeatSubject(component string) string {
 	return SubjectHeartbeatPrefix + component
 }
