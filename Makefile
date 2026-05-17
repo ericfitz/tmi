@@ -703,3 +703,52 @@ e2e-platform-down:  ## Delete the kind platform cluster
 
 test-e2e-platform:  ## Run the platform e2e tests (requires e2e-platform-up + controller deployed)
 	go test -tags e2e ./test/e2e/platform/ -v
+
+.PHONY: build-extractor build-chunkembed build-workers test-workers \
+        stage-worker-docker-deps build-extractor-container build-chunkembed-container
+
+build-extractor:  ## Build the tmi-extractor worker binary
+	go build -o bin/tmi-extractor ./cmd/extractor/
+
+build-chunkembed:  ## Build the tmi-chunk-embed worker binary
+	go build -o bin/tmi-chunk-embed ./cmd/chunkembed/
+
+build-workers: build-extractor build-chunkembed  ## Build both worker binaries
+
+test-workers:  ## Run worker + extract + envelope tests (starts a NATS JetStream container)
+	@docker run -d --rm --name tmi-nats-test -p 4222:4222 nats:2.10-alpine -js >/dev/null
+	@sleep 2
+	@TMI_RUN_NATS_TESTS=1 TMI_TEST_NATS_URL=nats://127.0.0.1:4222 \
+		go test ./internal/worker/... ./pkg/extract/... ./pkg/jobenvelope/... \
+		./cmd/extractor/... ./cmd/chunkembed/...; \
+		rc=$$?; docker stop tmi-nats-test >/dev/null; exit $$rc
+
+# Stage the tmi-client Go module into .docker-deps/tmi-client/ so the worker
+# Dockerfiles can COPY it (the repo's go.mod uses a relative replace directive
+# that a naive `COPY . .` build cannot resolve). The source path is derived
+# from the replace directive in go.mod itself, then resolved relative to the
+# repo root, so it works from a worktree as well as the main checkout.
+stage-worker-docker-deps:  ## Stage tmi-client dependency for worker container builds
+	@rel=$$(sed -n 's|.*=> \(\.\./tmi-clients/go-client-generated/[^ ]*\).*|\1|p' go.mod); \
+	if [ -z "$$rel" ]; then \
+		echo "go.mod has no tmi-clients replace directive; nothing to stage"; \
+		exit 0; \
+	fi; \
+	src=$$(cd "$$(dirname go.mod)" && cd "$$rel" 2>/dev/null && pwd); \
+	if [ -z "$$src" ] || [ ! -d "$$src" ]; then \
+		echo "ERROR: tmi-client source not found via go.mod replace path '$$rel'"; \
+		echo "       Ensure the tmi-clients repo is checked out as a sibling of the repo root."; \
+		exit 1; \
+	fi; \
+	rm -rf .docker-deps/tmi-client; \
+	mkdir -p .docker-deps; \
+	cp -R "$$src" .docker-deps/tmi-client; \
+	echo "Staged tmi-client dependency: $$src -> .docker-deps/tmi-client"
+
+build-extractor-container: stage-worker-docker-deps  ## Build the tmi-extractor container image
+	docker build -f Dockerfile.extractor -t tmi-extractor:dev .
+	@rm -rf .docker-deps
+
+build-chunkembed-container: stage-worker-docker-deps  ## Build the tmi-chunk-embed container image
+	docker build -f Dockerfile.chunkembed -t tmi-chunk-embed:dev .
+	@rm -rf .docker-deps
