@@ -37,7 +37,11 @@ const (
 // access_reason_code.
 //
 // Kind values: compressed_size | decompressed_size | part_size | part_count |
-// markdown_size | timeout | xml_depth | zip_nested | zip_path | compression_ratio
+// markdown_size | xml_depth | zip_nested | zip_path | compression_ratio
+//
+// Wall-clock timeouts are NOT reported as Kind="timeout"; they arrive as
+// context.DeadlineExceeded and are classified by ClassifyError before the
+// Kind switch is reached.
 //
 // Kept package-private — callers use errors.Is(err, ErrExtractionLimit)
 // and ClassifyError to consume it.
