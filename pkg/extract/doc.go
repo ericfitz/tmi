@@ -9,8 +9,8 @@
 // the extraction result and entity-reference types, the sentinel errors
 // and reason-code constants, the typed-error classifier (ClassifyError),
 // and the extraction Limits struct with DefaultLimits. The extractor
-// registry and the OOXML/PDF/HTML/plaintext extractors are relocated here
-// in subsequent Plan 2 tasks.
+// registry and the OOXML/PDF/HTML/plaintext extractors were
+// relocated here by Plan 2 Task 6.
 //
 // The move is a relocation, not a rewrite: the extraction logic is
 // byte-for-byte the same; only the package boundary, the import paths,

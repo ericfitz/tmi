@@ -57,7 +57,8 @@ func (e *PDFExtractor) Extract(data []byte, contentType string) (ExtractedConten
 
 // extractPDFText opens a PDF file and extracts plain text page by page.
 // It is intentionally named differently from extractTextFromPDF in
-// timmy_content_provider_pdf.go to avoid a package-level name collision.
+// api/timmy_content_provider_pdf.go (the monolith keeps its own copy under
+// that name; the names differ to avoid confusion when reading both files).
 func extractPDFText(filePath string) (string, error) {
 	f, r, err := pdflib.Open(filePath)
 	if err != nil {

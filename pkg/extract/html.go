@@ -6,9 +6,8 @@ import (
 	"golang.org/x/net/html"
 )
 
-// HTMLExtractor extracts visible text from HTML content.
-// It reuses extractTextFromHTML from timmy_content_provider_http.go,
-// which strips script and style elements.
+// HTMLExtractor extracts visible text from HTML content,
+// stripping script and style elements.
 type HTMLExtractor struct{}
 
 // NewHTMLExtractor creates a new HTMLExtractor.
