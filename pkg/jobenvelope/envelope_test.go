@@ -49,3 +49,33 @@ func TestResultRoundTrip(t *testing.T) {
 		t.Fatalf("result round-trip mismatch: got %+v", out)
 	}
 }
+
+func TestValidateContentRefOK(t *testing.T) {
+	j := Job{JobID: "j1", ContentType: "application/pdf",
+		Input: Input{ObjectRef: "b/k", ByteSize: 10}}
+	if err := Validate(j); err != nil {
+		t.Fatalf("expected valid, got %v", err)
+	}
+}
+
+func TestValidateRejectsMissingJobID(t *testing.T) {
+	j := Job{ContentType: "text/plain", Input: Input{ObjectRef: "b/k"}}
+	if err := Validate(j); err == nil {
+		t.Fatal("expected error for missing job_id")
+	}
+}
+
+func TestValidateRejectsNoInput(t *testing.T) {
+	j := Job{JobID: "j1", ContentType: "text/plain"}
+	if err := Validate(j); err == nil {
+		t.Fatal("expected error for empty input")
+	}
+}
+
+func TestValidateRejectsBothInputModes(t *testing.T) {
+	j := Job{JobID: "j1", ContentType: "text/plain",
+		Input: Input{ObjectRef: "b/k", SourceURL: "https://x"}}
+	if err := Validate(j); err == nil {
+		t.Fatal("expected error: content-ref and source-locator both set")
+	}
+}
