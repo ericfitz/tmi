@@ -31,7 +31,7 @@ type ContentExtractor interface {
 // ContextAwareExtractor is implemented by extractors that can receive a
 // deadline-bearing context for cooperative cancellation. When an extractor
 // implements both BoundedExtractor and ContextAwareExtractor, the pipeline's
-// extractWithDeadline wrapper calls ExtractCtx with the timeout-bounded
+// ExtractWithDeadline wrapper calls ExtractCtx with the timeout-bounded
 // context so any wall-clock cancellation aborts in-flight reads through
 // the archive's boundedReader (which checks ctx.Err() per Read call).
 //

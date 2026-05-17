@@ -391,10 +391,12 @@ func renderMarkdownTable(mb *markdownBuilder, rows [][]string, shapeComment stri
 	return nil
 }
 
-// ExtractWithDeadline runs fn under a fresh context with the given budget.
-// On timeout it returns context.DeadlineExceeded; on parent cancel it
-// returns ctx.Err(). The wrapped fn receives the deadline-bearing context
-// so that cooperative cancellation is possible.
+// ExtractWithDeadline runs an extraction function under a wall-clock budget,
+// returning early if the budget elapses. It is the entry point the extractor
+// worker uses to bound CPU/memory-heavy extractors on adversarial input.
+// On timeout it returns context.DeadlineExceeded; on parent cancellation it
+// returns ctx.Err(). The wrapped fn receives the deadline-bearing context so
+// cooperative cancellation is possible.
 func ExtractWithDeadline(ctx context.Context, budget time.Duration, fn func(context.Context) (ExtractedContent, error)) (ExtractedContent, error) {
 	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
