@@ -4,10 +4,16 @@
 # requires-python = ">=3.11"
 # ///
 
-"""Build TMI application containers (server, redis).
+"""Build TMI application containers (server, redis, extractor, chunkembed).
 
 Supports local Docker builds and cloud registry push for OCI, AWS, Azure, GCP,
 and Heroku targets. See --help for full usage.
+
+The TMI Component Platform worker images (extractor, chunkembed) are
+first-class components here so they get cloud-registry push targets, Syft
+SBOM generation, and the --scan security-scan path. The Makefile targets
+build-extractor-container / build-chunkembed-container remain valid for
+local dev and CI.
 """
 
 import argparse
@@ -23,9 +29,16 @@ import container_build_helpers as helpers  # noqa: E402
 
 
 VALID_TARGETS = ("local", "oci", "aws", "azure", "gcp", "heroku")
-VALID_COMPONENTS = ("server", "redis", "all")
+VALID_COMPONENTS = ("server", "redis", "extractor", "chunkembed", "all")
 VALID_ARCHS = ("arm64", "amd64", "both")
 VALID_DB_BACKENDS = ("postgresql", "oracle-adb")
+
+# Components built when --component=all (redis is intentionally excluded from
+# 'all' for cloud targets that supply a managed Redis; see resolve_components).
+ALL_COMPONENTS = ("server", "redis", "extractor", "chunkembed")
+
+# Worker components depend on the staged tmi-client module, same as the server.
+CLIENT_DEPENDENT_COMPONENTS = ("server", "extractor", "chunkembed")
 
 # Staging directory for external dependencies copied into the Docker build context
 DOCKER_DEPS_DIR = ".docker-deps"
@@ -212,7 +225,7 @@ def parse_args() -> argparse.Namespace:
 def resolve_components(component: str, target: str) -> list[str]:
     """Resolve 'all' to component list, applying target restrictions."""
     if component == "all":
-        components = ["server", "redis"]
+        components = list(ALL_COMPONENTS)
     else:
         components = [component]
 
@@ -220,7 +233,8 @@ def resolve_components(component: str, target: str) -> list[str]:
         skipped = [c for c in components if c not in HEROKU_COMPONENTS]
         if skipped:
             helpers.log_warn(
-                f"Heroku uses addons for Redis/Promtail; "
+                f"Heroku runs the server only (Redis via addon; the component "
+                f"platform workers are Kubernetes-native); "
                 f"skipping: {', '.join(skipped)}. Only building server."
             )
         components = [c for c in components if c in HEROKU_COMPONENTS]
@@ -350,9 +364,10 @@ def main() -> None:
         helpers.log_success("All scans completed")
         return
 
-    # Stage tmi-client dependency into build context if server is being built
+    # Stage tmi-client dependency into build context if any client-dependent
+    # component (server or a platform worker) is being built.
     staged_client = None
-    if "server" in components:
+    if any(c in CLIENT_DEPENDENT_COMPONENTS for c in components):
         staged_client = stage_client_dependency(project_root)
 
     try:

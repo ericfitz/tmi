@@ -174,12 +174,19 @@ def _resolve_arch(arch: str | None, target: str) -> str:
 
 
 def _get_dockerfile_map(target: str, db_backend: str) -> dict[str, str]:
-    """Determine Dockerfile for each component based on target and db backend."""
+    """Determine Dockerfile for each component based on target and db backend.
+
+    The component-platform workers (extractor, chunkembed) build on the same
+    Chainguard static base regardless of target/db-backend — they do not link
+    Oracle Instant Client — so they have a single Dockerfile each.
+    """
     use_oracle = target == "oci" or db_backend == "oracle-adb"
     return {
         "server": "Dockerfile.server-oracle" if use_oracle else "Dockerfile.server",
         "redis": "Dockerfile.redis-oracle" if target == "oci" else "Dockerfile.redis",
         "postgres": "Dockerfile.postgres",
+        "extractor": "Dockerfile.extractor",
+        "chunkembed": "Dockerfile.chunkembed",
     }
 
 
