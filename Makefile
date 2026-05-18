@@ -766,6 +766,18 @@ test-e2e-workers:  ## Build worker images, load into kind, deploy CRs, run the w
 	kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/components/
 	@echo ">> port-forwarding NATS to localhost:4222 for the test"
 	kubectl --context kind-tmi-platform -n tmi-platform port-forward svc/nats 4222:4222 & \
-		PF_PID=$$!; sleep 3; \
+		PF_PID=$$!; \
+		for i in $$(seq 1 60); do \
+			nc -z 127.0.0.1 4222 2>/dev/null && break; \
+			if ! kill -0 $$PF_PID 2>/dev/null; then \
+				echo "ERROR: port-forward exited before NATS became reachable" >&2; \
+				exit 1; \
+			fi; \
+			sleep 0.5; \
+		done; \
+		if ! nc -z 127.0.0.1 4222 2>/dev/null; then \
+			echo "ERROR: NATS not reachable on localhost:4222 after 30s" >&2; \
+			kill $$PF_PID 2>/dev/null; exit 1; \
+		fi; \
 		go test -tags e2e ./test/e2e/platform/ -run TestWorkersE2E -v; \
 		rc=$$?; kill $$PF_PID 2>/dev/null; exit $$rc
