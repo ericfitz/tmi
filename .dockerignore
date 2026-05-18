@@ -15,6 +15,11 @@ bin/
 # Dependency directories
 vendor/
 
+# Staged build dependency: copied explicitly into the builder via
+# COPY .docker-deps/tmi-client/; excluded here so the COPY . . step does
+# not duplicate it into the builder layer.
+.docker-deps/
+
 # Go workspace file
 go.work
 

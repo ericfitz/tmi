@@ -2,12 +2,12 @@ package api
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/pkg/extract"
 )
 
 // Provider name constants
@@ -215,7 +215,7 @@ func (p *ContentPipeline) Extract(ctx context.Context, uri string) (ExtractedCon
 		// the deadline-bearing context is wired into the OOXML archive's
 		// boundedReader so wall-clock cancellation aborts in-flight reads.
 		if ce, isCtxAware := ext.(ContextAwareExtractor); isCtxAware {
-			return extractWithDeadline(ctx, p.limits.WallClockBudget, func(dctx context.Context) (ExtractedContent, error) {
+			return extract.ExtractWithDeadline(ctx, p.limits.WallClockBudget, func(dctx context.Context) (ExtractedContent, error) {
 				return ce.ExtractCtx(dctx, data, contentType)
 			})
 		}
@@ -223,7 +223,7 @@ func (p *ContentPipeline) Extract(ctx context.Context, uri string) (ExtractedCon
 		// at the goroutine boundary, but in-flight I/O continues until it
 		// finishes naturally; the pipeline returns DeadlineExceeded promptly
 		// while the goroutine drains in the background.
-		return extractWithDeadline(ctx, p.limits.WallClockBudget, func(_ context.Context) (ExtractedContent, error) {
+		return extract.ExtractWithDeadline(ctx, p.limits.WallClockBudget, func(_ context.Context) (ExtractedContent, error) {
 			return ext.Extract(data, contentType)
 		})
 	}
@@ -231,64 +231,25 @@ func (p *ContentPipeline) Extract(ctx context.Context, uri string) (ExtractedCon
 }
 
 // ExtractionClassification describes how a typed extractor error maps to
-// access_status + access_reason_code, plus an optional human-readable
-// Detail used to enrich the persisted diagnostic. ReasonDetail is set
-// only for limit-errors that carry a Detail string (e.g. "slide #42",
-// "sheet 'Sales'", "word/document.xml"); other classifications leave it
-// empty.
+// access_status + access_reason_code. The reason code comes from
+// extract.ClassifyError; access_status is the monolith-owned overlay.
 type ExtractionClassification struct {
 	Status       string
 	ReasonCode   string
 	ReasonDetail string
 }
 
-// ClassifyExtractionError walks the error chain and returns the matching
-// status + reason. Default is internal.
+// ClassifyExtractionError classifies a typed extractor error and attaches
+// the monolith-owned access_status. The reason-code classification is
+// delegated to extract.ClassifyError (the relocated library logic); a
+// non-empty reason code maps to AccessStatusExtractionFailed.
 func ClassifyExtractionError(err error) ExtractionClassification {
-	if err == nil {
-		return ExtractionClassification{}
+	c := extract.ClassifyError(err)
+	out := ExtractionClassification{ReasonCode: c.ReasonCode, ReasonDetail: c.ReasonDetail}
+	if c.ReasonCode != "" {
+		out.Status = AccessStatusExtractionFailed
 	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionLimitTimeout}
-	}
-	var le *extractionLimitError
-	if errors.As(err, &le) {
-		var code string
-		switch le.Kind {
-		case "compressed_size":
-			code = ReasonExtractionLimitCompressedSize
-		case "decompressed_size":
-			code = ReasonExtractionLimitDecompressedSize
-		case "part_size":
-			code = ReasonExtractionLimitPartSize
-		case "part_count":
-			code = ReasonExtractionLimitPartCount
-		case "markdown_size":
-			code = ReasonExtractionLimitMarkdownSize
-		case "xml_depth":
-			code = ReasonExtractionLimitXMLDepth
-		case "zip_nested":
-			code = ReasonExtractionLimitZipNested
-		case "zip_path":
-			code = ReasonExtractionLimitZipPath
-		case "compression_ratio":
-			code = ReasonExtractionLimitCompressionRatio
-		}
-		if code != "" {
-			return ExtractionClassification{
-				Status:       AccessStatusExtractionFailed,
-				ReasonCode:   code,
-				ReasonDetail: le.Detail,
-			}
-		}
-	}
-	if errors.Is(err, ErrMalformed) {
-		return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionMalformed}
-	}
-	if errors.Is(err, ErrUnsupported) {
-		return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionUnsupported}
-	}
-	return ExtractionClassification{Status: AccessStatusExtractionFailed, ReasonCode: ReasonExtractionInternal}
+	return out
 }
 
 // ExtractForDocument is a document-aware variant of Extract. It runs the

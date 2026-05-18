@@ -1,0 +1,32 @@
+apiVersion: tmi.dev/v1alpha1
+kind: TMIComponent
+metadata:
+  name: tmi-extractor
+  namespace: tmi-platform
+spec:
+  image: tmi-extractor:dev
+  jobSubjects:
+    - jobs.extract.ooxml
+    - jobs.extract.pdf
+    - jobs.extract.html
+    - jobs.extract.plaintext
+  inputMode: content-ref
+  # egress: none — the parse sandbox reaches NATS only. No DNS, no
+  # 169.254.169.254, no DB, no Redis, no internet.
+  egress: none
+  config:
+    TMI_COMPONENT_NAME: tmi-extractor
+    TMI_NATS_URL: nats://nats.tmi-platform.svc:4222
+    TMI_CONTENT_EXTRACTORS_WALL_CLOCK_BUDGET: 30s
+    TMI_JOB_ACK_WAIT: 90s
+  resources:
+    requests:
+      cpu: 250m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  scaling:
+    minReplicas: 0
+    maxReplicas: 10
+    queueDepthTarget: 5

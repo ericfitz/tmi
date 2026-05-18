@@ -8,25 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// EntityReference identifies a source entity for content extraction.
-// For DB-resident content (notes, assets), URI is empty and the provider
-// reads directly from the database using EntityType + EntityID.
-// For external content (documents with URLs), URI is the fetch target.
-type EntityReference struct {
-	EntityType string // "asset", "threat", "document", "note", "diagram", "repository"
-	EntityID   string // UUID of the source entity
-	URI        string // External URL (empty for DB-resident content)
-	Name       string // Display name for progress reporting
-}
-
-// ExtractedContent holds the text extracted from a source entity
-type ExtractedContent struct {
-	Text        string            // Extracted plain text
-	Title       string            // Document title if available
-	ContentType string            // Original content type (e.g., "application/pdf")
-	Metadata    map[string]string // Provider-specific metadata
-}
-
 // EmbeddingSource extracts plain text from source entities for embedding
 type EmbeddingSource interface {
 	// Name returns the provider name for logging

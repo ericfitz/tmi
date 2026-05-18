@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/ericfitz/tmi/pkg/extract"
 )
 
 func TestAccessPoller_Creation(t *testing.T) {
@@ -431,9 +433,9 @@ func (s *pollerStubFetchSource) ValidateAccess(_ context.Context, _ string) (boo
 	return true, nil
 }
 
-// pollerFailingExtractor returns an extractionLimitError carrying a Detail
-// so the poller's extraction path classifies the failure AND propagates
-// the human-readable detail string into the persisted diagnostic.
+// pollerFailingExtractor returns a typed extraction-limit error carrying a
+// Detail so the poller's extraction path classifies the failure AND
+// propagates the human-readable detail string into the persisted diagnostic.
 type pollerFailingExtractor struct {
 	ct     string
 	detail string
@@ -443,12 +445,7 @@ func (e *pollerFailingExtractor) Name() string             { return "failing" }
 func (e *pollerFailingExtractor) CanHandle(ct string) bool { return ct == e.ct }
 func (e *pollerFailingExtractor) Bounded() bool            { return true }
 func (e *pollerFailingExtractor) Extract(_ []byte, _ string) (ExtractedContent, error) {
-	return ExtractedContent{}, &extractionLimitError{
-		Kind:     "part_count",
-		Limit:    100,
-		Observed: 101,
-		Detail:   e.detail,
-	}
+	return ExtractedContent{}, extract.NewLimitError("part_count", e.detail)
 }
 
 func TestAccessPoller_PollOnce_ExtractionFailure_ClassifiesAndPersists(t *testing.T) {
@@ -517,7 +514,7 @@ func TestAccessPoller_PollOnce_ExtractionSuccess_ClearsDiagnostic(t *testing.T) 
 	sources.Register(src)
 
 	exts := NewContentExtractorRegistry()
-	exts.Register(NewDOCXExtractor(defaultOOXMLLimits()))
+	exts.Register(NewDOCXExtractor(extract.DefaultLimits()))
 
 	pipeline := NewContentPipelineWithLimiter(
 		sources, exts, NewURLPatternMatcher(),

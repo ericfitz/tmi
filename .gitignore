@@ -53,6 +53,8 @@
 !wstest/**
 !functions/
 !functions/**
+!pkg/
+!pkg/**
 !test/
 !test/**
 !testdata/

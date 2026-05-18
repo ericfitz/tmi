@@ -1,0 +1,73 @@
+# Multi-stage Chainguard build for the TMI Chunk-Embed worker
+#
+# This image is run by the TMIComponent controller with a read-only root
+# filesystem and an `egress: allowlist` NetworkPolicy. The chunk-embed worker
+# talks to NATS (cluster-internal) and to the configured embedding endpoints
+# permitted by the egress allowlist.
+#
+# Stage 1: Build environment using Chainguard Go image
+FROM cgr.dev/chainguard/go:latest AS builder
+
+# Metadata for tracking
+LABEL security.scan-date="AUTO_GENERATED"
+LABEL security.patch-level="high-critical"
+LABEL maintainer="TMI Security Team"
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files and staged tmi-client dependency
+COPY go.mod go.sum ./
+COPY .docker-deps/tmi-client/ /tmi-client/
+
+# Rewrite go.mod replace directive to point at the in-container client path
+RUN sed -i 's|=> ../tmi-clients/go-client-generated/[^ ]*|=> /tmi-client|' go.mod
+
+# Download dependencies with security verification
+RUN go mod download && \
+    go mod verify
+
+# Copy source code
+COPY . .
+
+# Build the worker (CGO disabled for a static binary)
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-s -w" \
+    -trimpath \
+    -buildmode=exe \
+    -o tmi-chunk-embed \
+    ./cmd/chunkembed
+
+# Stage 2: Chainguard static runtime (minimal attack surface)
+FROM cgr.dev/chainguard/static:latest
+
+# Metadata for tracking security patches
+LABEL security.chainguard="true"
+LABEL security.scan-date="AUTO_GENERATED"
+LABEL security.patch-level="minimal-attack-surface"
+LABEL maintainer="TMI Security Team"
+LABEL org.opencontainers.image.title="TMI Chunk-Embed Worker"
+LABEL org.opencontainers.image.description="TMI Chunk-Embed Worker on Chainguard static base"
+LABEL org.opencontainers.image.name="tmi/tmi-chunk-embed"
+
+# Copy binary from builder
+COPY --from=builder /app/tmi-chunk-embed /tmi-chunk-embed
+
+# Set working directory
+WORKDIR /
+
+# Set secure environment variables
+ENV ENV=development
+ENV LOG_LEVEL=info
+ENV GOLANG_PROTOBUF_REGISTRATION_CONFLICT=warn
+
+# Note: Chainguard static doesn't include a shell.
+# This worker has no HTTP port and needs no writable filesystem; the
+# TMIComponent controller runs it with a read-only root filesystem and an
+# `egress: allowlist` NetworkPolicy.
+
+# Run as non-root user (Chainguard static runs as nonroot by default)
+USER nonroot:nonroot
+
+# Run the worker
+ENTRYPOINT ["/tmi-chunk-embed"]
