@@ -9,8 +9,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// nonRootUID is the high UID worker containers run as.
-const nonRootUID int64 = 65532
+// nonRootUID / nonRootGID are the high UID/GID worker containers run as.
+// 65532 is the conventional "nonroot" id baked into Chainguard/distroless
+// images; pinning the GID (not just the UID) removes the implicit reliance
+// on the worker image's primary group.
+const (
+	nonRootUID int64 = 65532
+	nonRootGID int64 = 65532
+)
 
 // RenderDeployment builds the worker Deployment for a TMIComponent.
 // Pod hardening (readOnlyRootFilesystem, runAsNonRoot, all caps dropped,
@@ -34,11 +40,17 @@ func RenderDeployment(c *platformv1alpha1.TMIComponent) *appsv1.Deployment {
 		},
 	}
 
+	// FsGroup makes the kubelet chown/ownership-fix mounted volumes to this
+	// GID. For a worker whose only writable path is the scratch emptyDir,
+	// this guarantees the capped scratch volume is group-writable by the
+	// non-root process regardless of the image's primary GID.
 	pod := corev1.PodSpec{
 		Containers: []corev1.Container{ctr},
 		SecurityContext: &corev1.PodSecurityContext{
 			RunAsNonRoot:   boolPtr(true),
 			RunAsUser:      int64Ptr(nonRootUID),
+			RunAsGroup:     int64Ptr(nonRootGID),
+			FSGroup:        int64Ptr(nonRootGID),
 			SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
 		},
 	}
@@ -101,6 +113,3 @@ func secretEnv(c *platformv1alpha1.TMIComponent) []corev1.EnvVar {
 	}
 	return env
 }
-
-func boolPtr(b bool) *bool    { return &b }
-func int64Ptr(i int64) *int64 { return &i }

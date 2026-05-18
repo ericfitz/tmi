@@ -33,6 +33,12 @@ func TestRenderDeployment_HardensPodSecurity(t *testing.T) {
 	if pod.SecurityContext.RunAsUser == nil || *pod.SecurityContext.RunAsUser == 0 {
 		t.Fatal("pod must run as a non-zero UID")
 	}
+	if pod.SecurityContext.RunAsGroup == nil || *pod.SecurityContext.RunAsGroup == 0 {
+		t.Fatal("pod must run as a non-zero GID (no implicit reliance on the image's primary group)")
+	}
+	if pod.SecurityContext.FSGroup == nil || *pod.SecurityContext.FSGroup == 0 {
+		t.Fatal("pod must set a non-zero fsGroup so the scratch emptyDir is group-writable")
+	}
 	if pod.SecurityContext.SeccompProfile == nil ||
 		pod.SecurityContext.SeccompProfile.Type != corev1.SeccompProfileTypeRuntimeDefault {
 		t.Fatal("pod must use the RuntimeDefault seccomp profile")

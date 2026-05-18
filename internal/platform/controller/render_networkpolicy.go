@@ -93,7 +93,3 @@ func RenderNetworkPolicy(c *platformv1alpha1.TMIComponent) *networkingv1.Network
 
 	return np
 }
-
-func intOrStringPtr(v intstr.IntOrString) *intstr.IntOrString { return &v }
-
-func protoPtr(p corev1.Protocol) *corev1.Protocol { return &p }
