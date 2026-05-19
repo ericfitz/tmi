@@ -423,21 +423,29 @@ func (m *MockConfigProvider) GetMigratableSettings() []MigratableSetting {
 }
 
 func TestListSystemSettings_MergedWithConfigSettings(t *testing.T) {
+	// Uses VisibilityAdminOnly keys so that the visibility filter does not drop
+	// them. server.port (bootstrap/VisibilityInternal) and unclassified keys are
+	// intentionally excluded from /admin/settings by the filter — that is correct
+	// behaviour, not a bug. This test uses operational keys that admins should see.
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
+	// websocket.inactivity_timeout_seconds is VisibilityAdminOnly in the registry;
+	// seed it in the mock DB so we can verify config wins over DB.
 	mockSettings := NewMockSettingsService()
-	mockSettings.AddSetting("rate_limit.requests_per_minute", "100", "int")
+	mockSettings.AddSetting("websocket.inactivity_timeout_seconds", "100", "int")
 
 	server := &Server{
 		settingsService: mockSettings,
 		configProvider: &MockConfigProvider{
 			settings: []MigratableSetting{
-				{Key: "server.port", Value: "8080", Type: "string", Description: "HTTP port", Source: "config"},
-				{Key: "rate_limit.requests_per_minute", Value: "200", Type: "int", Description: "Rate limit from config", Source: "config"},
+				// auth.auto_promote_first_user is VisibilityAdminOnly — config-only entry.
+				{Key: "auth.auto_promote_first_user", Value: "false", Type: "bool", Description: "Auto-promote first user", Source: "config"},
+				// websocket.inactivity_timeout_seconds is VisibilityAdminOnly — config overrides DB.
+				{Key: "websocket.inactivity_timeout_seconds", Value: "200", Type: "int", Description: "WS inactivity timeout from config", Source: "config"},
 			},
 		},
 	}
@@ -465,30 +473,37 @@ func TestListSystemSettings_MergedWithConfigSettings(t *testing.T) {
 
 	assert.GreaterOrEqual(t, len(settings), 2)
 
-	// Config-only setting
-	var serverPort map[string]interface{}
+	// Config-only setting appears with source=config and read_only=true.
+	var autoPromote map[string]interface{}
 	for _, s := range settings {
-		if s["key"] == "server.port" {
-			serverPort = s
+		if s["key"] == "auth.auto_promote_first_user" {
+			autoPromote = s
 		}
 	}
-	require.NotNil(t, serverPort)
-	assert.Equal(t, "config", serverPort["source"])
-	assert.Equal(t, true, serverPort["read_only"])
+	require.NotNil(t, autoPromote, "auth.auto_promote_first_user (VisibilityAdminOnly) must appear in admin settings")
+	assert.Equal(t, "config", autoPromote["source"])
+	assert.Equal(t, true, autoPromote["read_only"])
 
-	// Config overrides DB
-	var rateLimit map[string]interface{}
+	// Config value overrides DB value for the same key.
+	var wsTimeout map[string]interface{}
 	for _, s := range settings {
-		if s["key"] == "rate_limit.requests_per_minute" {
-			rateLimit = s
+		if s["key"] == "websocket.inactivity_timeout_seconds" {
+			wsTimeout = s
 		}
 	}
-	require.NotNil(t, rateLimit)
-	assert.Equal(t, "200", rateLimit["value"])
-	assert.Equal(t, "config", rateLimit["source"])
+	require.NotNil(t, wsTimeout, "websocket.inactivity_timeout_seconds (VisibilityAdminOnly) must appear in admin settings")
+	assert.Equal(t, "200", wsTimeout["value"])
+	assert.Equal(t, "config", wsTimeout["source"])
 }
 
 func TestListSystemSettings_SecretMasking(t *testing.T) {
+	// auth.jwt.secret is VisibilityInternal (bootstrap) and must NOT appear in
+	// admin settings — the visibility filter correctly drops it. Secret masking
+	// for admin-visible settings is tested using OAuth provider client_secret
+	// keys, which are VisibilityAdminOnly per the prefix classification table
+	// and are genuinely secret. client_id is deliberately NOT used here: it is
+	// semi-public (visible in the browser) and not a secret.
+	// The configSettingToAPI masking path is exercised via Secret:true.
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
 
@@ -499,8 +514,12 @@ func TestListSystemSettings_SecretMasking(t *testing.T) {
 		settingsService: NewMockSettingsService(),
 		configProvider: &MockConfigProvider{
 			settings: []MigratableSetting{
-				{Key: "auth.jwt.secret", Value: "super-secret", Type: "string", Description: "JWT secret", Source: "config", Secret: true},
-				{Key: "empty.secret", Value: "", Type: "string", Description: "Empty secret", Source: "config", Secret: true},
+				// VisibilityAdminOnly (prefix match), genuinely secret, non-empty
+				// value → masked as <configured>.
+				{Key: "auth.oauth.providers.azure.client_secret", Value: "super-secret", Type: "string", Description: "OAuth client secret", Source: "config", Secret: true},
+				// VisibilityAdminOnly (prefix match), genuinely secret, empty
+				// value → masked as <not configured>.
+				{Key: "auth.oauth.providers.entra.client_secret", Value: "", Type: "string", Description: "OAuth client secret empty", Source: "config", Secret: true},
 			},
 		},
 	}
@@ -526,14 +545,19 @@ func TestListSystemSettings_SecretMasking(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &settings)
 	require.NoError(t, err)
 
+	var configuredSecret, emptySecret map[string]interface{}
 	for _, s := range settings {
-		if s["key"] == "auth.jwt.secret" {
-			assert.Equal(t, "<configured>", s["value"])
+		if s["key"] == "auth.oauth.providers.azure.client_secret" {
+			configuredSecret = s
 		}
-		if s["key"] == "empty.secret" {
-			assert.Equal(t, "<not configured>", s["value"])
+		if s["key"] == "auth.oauth.providers.entra.client_secret" {
+			emptySecret = s
 		}
 	}
+	require.NotNil(t, configuredSecret, "admin-visible provider secret must appear in admin settings")
+	assert.Equal(t, "<configured>", configuredSecret["value"])
+	require.NotNil(t, emptySecret, "admin-visible provider secret must appear in admin settings")
+	assert.Equal(t, "<not configured>", emptySecret["value"])
 }
 
 func TestGetSystemSetting_ConfigSourced(t *testing.T) {
@@ -1121,6 +1145,40 @@ func TestBuildContentProviders_PickerConfigEmptyMapOmitted(t *testing.T) {
 	got := buildContentProviders(reg, nil, pickers)
 	if got[0].PickerConfig != nil {
 		t.Errorf("empty picker_config map should be omitted, got %+v", *got[0].PickerConfig)
+	}
+}
+
+func TestVisibilityFilter_PublicExcludesSecretsAndNonPublic(t *testing.T) {
+	// filterByVisibility takes the local api.MigratableSetting type and looks up
+	// classification from the registry via config.ClassificationFor(key).
+	settings := []MigratableSetting{
+		{Key: "operator.name", Value: "Acme"},
+		{Key: "auth.jwt.secret", Value: "shh", Secret: true},
+		{Key: "websocket.inactivity_timeout_seconds", Value: "300"},
+	}
+	pub := filterByVisibility(settings, config.VisibilityPublic)
+	for _, s := range pub {
+		cls := config.ClassificationFor(s.Key)
+		if cls.Visibility != config.VisibilityPublic {
+			t.Errorf("public filter leaked non-public key %q (visibility=%v)", s.Key, cls.Visibility)
+		}
+		if cls.Secret {
+			t.Errorf("public filter leaked secret key %q", s.Key)
+		}
+	}
+	// operator.name is classified VisibilityPublic; it must be present.
+	if len(pub) == 0 {
+		t.Error("public filter dropped operator.name")
+	}
+	// Confirm exactly: only operator.name should survive.
+	if len(pub) != 1 || pub[0].Key != "operator.name" {
+		t.Errorf("expected only operator.name in public result, got %v keys", func() []string {
+			keys := make([]string, len(pub))
+			for i, s := range pub {
+				keys[i] = s.Key
+			}
+			return keys
+		}())
 	}
 }
 

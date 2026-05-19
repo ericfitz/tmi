@@ -274,6 +274,39 @@ func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientCo
 	}
 }
 
+// filterByVisibility returns the subset of settings whose classification meets
+// the requested visibility level.
+//
+// For VisibilityPublic: only settings classified VisibilityPublic AND not
+// Secret are returned — secrets are never exposed on the public endpoint.
+//
+// For VisibilityAdminOnly: settings classified VisibilityAdminOnly OR
+// VisibilityPublic are returned (the admin view is a superset of public).
+// Secret settings pass through here because the admin endpoint still shows
+// them — masked as "<configured>" — so the admin can see a secret field
+// exists. VisibilityInternal settings (bootstrap keys like server.port,
+// database.url, auth.jwt.secret) are excluded from all API responses.
+//
+// Settings whose key is unclassified (zero ConfigClass, CategoryUnclassified)
+// are treated as VisibilityInternal and filtered out.
+func filterByVisibility(settings []MigratableSetting, level config.Visibility) []MigratableSetting {
+	out := make([]MigratableSetting, 0, len(settings))
+	for _, s := range settings {
+		cls := config.ClassificationFor(s.Key)
+		switch level {
+		case config.VisibilityPublic:
+			if cls.Visibility == config.VisibilityPublic && !cls.Secret {
+				out = append(out, s)
+			}
+		case config.VisibilityAdminOnly:
+			if cls.Visibility == config.VisibilityAdminOnly || cls.Visibility == config.VisibilityPublic {
+				out = append(out, s)
+			}
+		}
+	}
+	return out
+}
+
 // configSettingToAPI converts a MigratableSetting to an API SystemSetting with source/read_only.
 func configSettingToAPI(cs MigratableSetting) SystemSetting {
 	source := SystemSettingSource(cs.Source)
@@ -303,10 +336,17 @@ func configSettingToAPI(cs MigratableSetting) SystemSetting {
 
 // mergeSettingsWithConfig builds a merged view of database and config settings.
 // Config settings take priority over database settings for the same key.
+// Settings classified VisibilityInternal are excluded: they are bootstrap or
+// server-internal settings that must never appear in any API response.
 func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []SystemSetting {
 	configMap := make(map[string]MigratableSetting)
 	if s.configProvider != nil {
-		for _, cs := range s.configProvider.GetMigratableSettings() {
+		// Filter out VisibilityInternal settings before building the config map so
+		// that bootstrap keys (server.port, database.url, auth.jwt.secret, etc.)
+		// are never returned by the admin /admin/settings endpoint.
+		allConfigSettings := s.configProvider.GetMigratableSettings()
+		visible := filterByVisibility(allConfigSettings, config.VisibilityAdminOnly)
+		for _, cs := range visible {
 			configMap[cs.Key] = cs
 		}
 	}
@@ -414,10 +454,12 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		return
 	}
 
-	// Bootstrap keys are file/env-only and are never database-stored settings.
-	// Treat them as not found so the API never reports them as DB settings.
-	if config.ClassificationCategoryFor(key) == config.CategoryBootstrap {
-		logger.Debug("System setting not found (bootstrap key, not DB-stored): %s", key)
+	// VisibilityInternal settings are never surfaced via the API, regardless of
+	// category. This covers bootstrap keys (file/env-only, never DB-stored) and
+	// any internal-operational keys, as well as unclassified keys (zero
+	// ConfigClass = VisibilityInternal). Treat them as not found.
+	if config.ClassificationFor(key).Visibility == config.VisibilityInternal {
+		logger.Debug("System setting not found (internal-visibility key, not API-visible): %s", key)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
 			Code:    "not_found",
@@ -598,10 +640,13 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		return
 	}
 
-	// Bootstrap keys are file/env-only and are never database-stored settings,
-	// so there is nothing to delete. Treat them as not found.
-	if config.ClassificationCategoryFor(key) == config.CategoryBootstrap {
-		logger.Debug("System setting not found for deletion (bootstrap key, not DB-stored): %s", key)
+	// VisibilityInternal settings are never surfaced or mutated via the API,
+	// regardless of category. This covers bootstrap keys (file/env-only, never
+	// DB-stored, nothing to delete) and any internal-operational keys, as well
+	// as unclassified keys (zero ConfigClass = VisibilityInternal). Treat them
+	// as not found.
+	if config.ClassificationFor(key).Visibility == config.VisibilityInternal {
+		logger.Debug("System setting not found for deletion (internal-visibility key, not API-visible): %s", key)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
 			Code:    "not_found",

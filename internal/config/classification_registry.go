@@ -25,6 +25,12 @@ func ClassificationCategoryFor(key string) Category {
 	return classificationFor(key).Category
 }
 
+// ClassificationFor returns the full ConfigClass for a setting key. It is the
+// exported entry point for callers outside the config package.
+func ClassificationFor(key string) ConfigClass {
+	return classificationFor(key)
+}
+
 type prefixClass struct {
 	prefix string
 	class  ConfigClass
