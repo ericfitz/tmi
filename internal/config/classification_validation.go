@@ -48,6 +48,8 @@ func ValidateClassifications(settings []MigratableSetting) error {
 			if c.Delivery.SharedInvariant && !hasConsumer(c.Consumers, ConsumerMonolith) {
 				add(s.Key, "SharedInvariant requires the monolith as a Consumer")
 			}
+		default:
+			add(s.Key, fmt.Sprintf("unknown Category value %d — update ValidateClassifications", c.Category))
 		}
 
 		if c.ValueKind == ValueKindReference && !c.Secret {
@@ -75,6 +77,7 @@ func hasConsumer(cs []Consumer, want Consumer) bool {
 }
 
 // hasWorkerConsumer reports whether cs includes any worker consumer.
+// Update this if a new ConsumerWorker* constant is added.
 func hasWorkerConsumer(cs []Consumer) bool {
 	return hasConsumer(cs, ConsumerWorkerExtractor) || hasConsumer(cs, ConsumerWorkerChunkEmbed)
 }

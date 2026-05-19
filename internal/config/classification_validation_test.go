@@ -90,6 +90,9 @@ func TestValidateClassifications_NeedsDescriptionAndConsumer(t *testing.T) {
 	if err == nil {
 		t.Fatal("want error for empty description and no consumer")
 	}
+	if !strings.Contains(err.Error(), "Description") || !strings.Contains(err.Error(), "Consumers") {
+		t.Errorf("want both Description and Consumers violations, got %v", err)
+	}
 }
 
 func TestValidateClassifications_AcceptsValidSet(t *testing.T) {
