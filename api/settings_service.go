@@ -389,6 +389,36 @@ func (s *SettingsService) SeedDefaults(ctx context.Context) error {
 	logger := slogging.Get()
 	defaults := models.DefaultSystemSettings()
 
+	// Track keys already provided by the explicit defaults so we can
+	// de-duplicate when adding operational-config settings below.
+	seenKeys := make(map[string]bool, len(defaults))
+	for _, d := range defaults {
+		seenKeys[string(d.SettingKey)] = true
+	}
+
+	// Append operational-config defaults derived from the classification registry.
+	// Bootstrap-category settings are excluded by DefaultOperationalSettings().
+	// Keys with empty values are skipped — nothing meaningful to seed.
+	// The explicit models.DefaultSystemSettings() entry wins on collision.
+	for _, ms := range config.DefaultOperationalSettings() {
+		if ms.Value == "" {
+			continue
+		}
+		if seenKeys[ms.Key] {
+			logger.Debug("SeedDefaults: skipping config-derived operational key %q — already in explicit defaults", ms.Key)
+			continue
+		}
+		seenKeys[ms.Key] = true
+		desc := ms.Description
+		defaults = append(defaults, models.SystemSetting{
+			SettingKey:  models.DBVarchar(ms.Key),
+			Value:       models.DBText(ms.Value),
+			SettingType: models.DBVarchar(ms.Type),
+			Description: models.NewNullableDBText(&desc),
+			ModifiedAt:  time.Now(),
+		})
+	}
+
 	for _, setting := range defaults {
 		// Only insert if not exists (don't overwrite)
 		var existing models.SystemSetting

@@ -457,6 +457,21 @@ func (c *Config) getMigratableTimmySettings() []MigratableSetting {
 	return settings
 }
 
+// DefaultOperationalSettings returns the operational-category settings from a
+// default Config. It is the seed source for the DB-backed settings service.
+// Bootstrap-category settings are intentionally excluded — they are file/env
+// only and must never be written to the database.
+func DefaultOperationalSettings() []MigratableSetting {
+	all := getDefaultConfig().GetMigratableSettings()
+	out := make([]MigratableSetting, 0, len(all))
+	for _, s := range all {
+		if s.Class.Category == CategoryOperational {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // getMigratableAdministratorsSettings returns administrator configuration settings
 func (c *Config) getMigratableAdministratorsSettings() []MigratableSetting {
 	if len(c.Administrators) == 0 {

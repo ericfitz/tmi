@@ -134,3 +134,29 @@ func TestGetMigratableSettings_Administrators(t *testing.T) {
 	assert.Equal(t, "json", found.Type)
 	assert.Contains(t, found.Value, "google")
 }
+
+func TestDefaultOperationalSettings_OnlyOperational(t *testing.T) {
+	ops := DefaultOperationalSettings()
+	if len(ops) == 0 {
+		t.Fatal("DefaultOperationalSettings returned nothing")
+	}
+	for _, s := range ops {
+		if s.Class.Category != CategoryOperational {
+			t.Errorf("DefaultOperationalSettings included non-operational key %q (category %v)", s.Key, s.Class.Category)
+		}
+	}
+	// A representative operational key must be present.
+	found := false
+	for _, s := range ops {
+		if s.Key == "websocket.inactivity_timeout_seconds" {
+			found = true
+		}
+		// No bootstrap key may appear.
+		if s.Key == "database.url" {
+			t.Errorf("bootstrap key %q must not be in DefaultOperationalSettings", s.Key)
+		}
+	}
+	if !found {
+		t.Error("expected websocket.inactivity_timeout_seconds among operational settings")
+	}
+}
