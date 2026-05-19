@@ -519,6 +519,53 @@ func TestSearchIndexRaw_UsesStampedEmbeddingModel(t *testing.T) {
 	}
 }
 
+// TestPrepareVectorIndex_UsesStampedEmbeddingModel verifies the ingest-path
+// structural invariant: prepareVectorIndex must resolve the expected embedding
+// model through expectedEmbeddingModel (and therefore through
+// StampedConfigProvider) rather than reading sm.config.TextEmbeddingModel /
+// sm.config.CodeEmbeddingModel directly.
+//
+// Because prepareVectorIndex requires a live llmService (for EmbeddingDimension)
+// and vectorManager (for GetOrLoadIndex) — both concrete types with no test
+// double — it cannot be exercised at unit level without a full integration
+// stack. The test therefore validates the invariant at the accessor level:
+// the same expectedEmbeddingModel call that prepareVectorIndex uses (after the
+// fix) returns the provider model, not the static-config model, when a
+// StampedConfigProvider is wired. This is the exact same pattern used by
+// TestSearchIndexRaw_UsesStampedEmbeddingModel for the query path.
+//
+// A provider that returns "ingest-provider-model" is wired against a static
+// config that has "ingest-static-model". The test asserts the provider value
+// wins — which is what prepareVectorIndex must observe after the fix.
+func TestPrepareVectorIndex_UsesStampedEmbeddingModel(t *testing.T) {
+	g := fakeSettingsReader{vals: map[string]string{
+		"timmy.text_embedding_model":    "ingest-provider-model",
+		"timmy.text_embedding_base_url": "https://embed.example.com",
+		"timmy.embedding_dimension":     "1536",
+	}}
+	p := NewStampedConfigProvider(g)
+	sm := &TimmySessionManager{
+		config: config.TimmyConfig{
+			TextEmbeddingModel: "ingest-static-model", // must NOT be used after the fix
+			CodeEmbeddingModel: "ingest-static-code-model",
+		},
+		stampedConfig: p,
+	}
+
+	// The ingest path calls expectedEmbeddingModel(ctx, indexType) to resolve
+	// the model. Verify it returns the provider value, not the static-config value.
+	got, err := sm.expectedEmbeddingModel(context.Background(), IndexTypeText)
+	if err != nil {
+		t.Fatalf("expectedEmbeddingModel: %v", err)
+	}
+	if got == "ingest-static-model" {
+		t.Errorf("ingest path received static-config model %q; should have come from provider", got)
+	}
+	if got != "ingest-provider-model" {
+		t.Errorf("expectedEmbeddingModel = %q, want %q", got, "ingest-provider-model")
+	}
+}
+
 // TestExpectedEmbeddingModel_NilProviderFallsBackToStaticConfig verifies that
 // when no StampedConfigProvider is wired, expectedEmbeddingModel honors the
 // static config's code/text split.

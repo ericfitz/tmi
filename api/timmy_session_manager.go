@@ -756,9 +756,9 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 	if err != nil {
 		return fmt.Errorf("failed to determine embedding dimension: %w", err)
 	}
-	expectedModel := sm.config.TextEmbeddingModel
-	if indexType == IndexTypeCode {
-		expectedModel = sm.config.CodeEmbeddingModel
+	expectedModel, err := sm.expectedEmbeddingModel(ctx, indexType)
+	if err != nil {
+		return fmt.Errorf("failed to read expected embedding model: %w", err)
 	}
 
 	// Get or load the index. If stored rows disagree with (expectedModel, dim),
