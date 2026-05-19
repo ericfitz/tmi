@@ -318,6 +318,13 @@ func Load(configFile string) (*Config, error) {
 		if err := loadFromYAML(config, configFile); err != nil {
 			return nil, fmt.Errorf("failed to load config from YAML: %w", err)
 		}
+		if opKeys, dErr := OperationalKeysInFile(configFile); dErr != nil {
+			slogging.Get().Debug("config drift check skipped for %s: %v", configFile, dErr)
+		} else if len(opKeys) > 0 {
+			slogging.Get().Warn(
+				"config %s contains %d operational keys that belong in the database settings service: %v — see #415; this will become an error in a future release",
+				configFile, len(opKeys), opKeys)
+		}
 	}
 
 	// Override with environment variables (includes deprecated alias support)
@@ -1109,4 +1116,40 @@ func (c *Config) GetCookieDomain() string {
 		return ""
 	}
 	return parsed.Hostname()
+}
+
+// OperationalKeysInFile returns the operational-category setting keys present
+// in a YAML config file. Operational config belongs in the database; finding
+// it in a file indicates drift during the bootstrap-only migration.
+func OperationalKeysInFile(path string) ([]string, error) {
+	raw := map[string]any{}
+	data, err := os.ReadFile(path) //nolint:gosec // operator-supplied config path
+	if err != nil {
+		return nil, fmt.Errorf("read config file: %w", err)
+	}
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("parse config file: %w", err)
+	}
+	var found []string
+	walkYAMLKeys(raw, "", func(dotted string) {
+		if classificationFor(dotted).Category == CategoryOperational {
+			found = append(found, dotted)
+		}
+	})
+	return found, nil
+}
+
+// walkYAMLKeys invokes fn with the dotted path of every leaf key in m.
+func walkYAMLKeys(m map[string]any, prefix string, fn func(string)) {
+	for k, v := range m {
+		dotted := k
+		if prefix != "" {
+			dotted = prefix + "." + k
+		}
+		if child, ok := v.(map[string]any); ok {
+			walkYAMLKeys(child, dotted, fn)
+		} else {
+			fn(dotted)
+		}
+	}
 }

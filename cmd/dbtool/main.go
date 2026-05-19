@@ -33,7 +33,10 @@ func run() int {
 	importTestData := flag.Bool("import-test-data", false, "Import test data from a seed file")
 	flag.BoolVar(importTestData, "t", false, "Import test data from a seed file (short)")
 
-	inputFile := flag.String("input-file", "", "Input file (config YAML for -c, seed JSON for -t)")
+	importLegacy := flag.Bool("import-legacy", false, "Import operational settings from a legacy config file into the database")
+	flag.BoolVar(importLegacy, "l", false, "Import operational settings from a legacy config file (short)")
+
+	inputFile := flag.String("input-file", "", "Input file (config YAML for -c and -l, seed JSON for -t)")
 	flag.StringVar(inputFile, "f", "", "Input file (short)")
 
 	configFile := flag.String("config", "", "TMI config file (provides DB connection via database.url)")
@@ -80,6 +83,7 @@ func run() int {
 		"schema":           *schema,
 		"import_config":    *importConfig,
 		"import_test_data": *importTestData,
+		"import_legacy":    *importLegacy,
 		"dry_run":          *dryRun,
 	}
 	if *configFile != "" {
@@ -90,11 +94,11 @@ func run() int {
 	}
 
 	// Determine which operation to run
-	opCount := boolCount(*schema, *importConfig, *importTestData)
+	opCount := boolCount(*schema, *importConfig, *importTestData, *importLegacy)
 
 	// Resolve config file
 	dbConfigFile := *configFile
-	if dbConfigFile == "" && *importConfig && *inputFile != "" {
+	if dbConfigFile == "" && (*importConfig || *importLegacy) && *inputFile != "" {
 		dbConfigFile = *inputFile
 	}
 	if dbConfigFile == "" {
@@ -150,6 +154,17 @@ func run() int {
 			}
 			runErr = runDataSeed(db, *inputFile, *serverURL, *user, *provider, *dryRun)
 		}
+	case *importLegacy:
+		if *inputFile == "" {
+			runErr = fmt.Errorf("--input-file / -f is required for --import-legacy")
+		} else {
+			if !*dryRun {
+				if migrateErr := ensureSchema(db); migrateErr != nil {
+					log.Warn("Schema migration skipped or failed: %v", migrateErr)
+				}
+			}
+			runErr = runLegacyConfigImport(db, *inputFile, *overwrite, *dryRun)
+		}
 	}
 
 	if runErr != nil {
@@ -194,9 +209,10 @@ Database Operations:
   -s, --schema              Create/migrate schema and seed system data
   -c, --import-config       Import config file settings into database
   -t, --import-test-data    Import test data from a seed file
+  -l, --import-legacy       Import operational settings from a legacy config file into the database
 
 Input:
-  -f, --input-file FILE     Input file (config YAML for -c, seed JSON for -t)
+  -f, --input-file FILE     Input file (config YAML for -c and -l, seed JSON for -t)
       --config FILE         TMI config file (provides DB connection via database.url)
 
 Output:
@@ -222,6 +238,7 @@ Examples:
   tmi-dbtool -s --config=config-development.yml                 # Schema + seed
   tmi-dbtool -s --config=config-development.yml --dry-run       # Preview changes
   tmi-dbtool -c -f config-production.yml                        # Import config
+  tmi-dbtool -l -f config-production.yml                        # Import operational settings from a legacy config into the DB
   tmi-dbtool -t -f test/seeds/cats-seed-data.json --config=config-development.yml
 `)
 }

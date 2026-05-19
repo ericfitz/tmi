@@ -1129,3 +1129,35 @@ func TestMicrosoftConfig_IsConfigured(t *testing.T) {
 		})
 	}
 }
+
+// =============================================================================
+// Drift Detection Tests
+// =============================================================================
+
+func TestOperationalKeysInFile_DetectsDrift(t *testing.T) {
+	dir := t.TempDir()
+	p := dir + "/c.yml"
+	// websocket.inactivity_timeout_seconds is an operational key.
+	yamlText := "server:\n  port: \"8080\"\nwebsocket:\n  inactivity_timeout_seconds: 300\n"
+	if err := os.WriteFile(p, []byte(yamlText), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	keys, err := OperationalKeysInFile(p)
+	if err != nil {
+		t.Fatalf("OperationalKeysInFile: %v", err)
+	}
+	found := false
+	for _, k := range keys {
+		if k == "websocket.inactivity_timeout_seconds" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected websocket.inactivity_timeout_seconds in drift list, got %v", keys)
+	}
+	for _, k := range keys {
+		if k == "server.port" {
+			t.Errorf("server.port is a bootstrap key and must not appear in the drift list, got %v", keys)
+		}
+	}
+}
