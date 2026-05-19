@@ -29,7 +29,8 @@ func (c Category) String() string {
 type ValueKind int
 
 const (
-	// ValueKindInline means the field holds the actual value.
+	// ValueKindInline means the field holds the actual value. This is the
+	// zero value and a safe default for non-secret settings.
 	ValueKindInline ValueKind = iota
 	// ValueKindReference means the field holds a locator (vault://..., a file
 	// path, an env-var name) dereferenced at use time. Only valid when Secret.
@@ -88,9 +89,13 @@ func (m Mutability) String() string {
 type Consumer int
 
 const (
+	// ConsumerMonolith is the primary TMI server process.
 	ConsumerMonolith Consumer = iota
+	// ConsumerTMIUX is the tmi-ux frontend client.
 	ConsumerTMIUX
+	// ConsumerWorkerExtractor is the extractor worker process.
 	ConsumerWorkerExtractor
+	// ConsumerWorkerChunkEmbed is the chunk-embed worker process.
 	ConsumerWorkerChunkEmbed
 )
 
@@ -113,7 +118,8 @@ type Delivery struct {
 	// StampedIntoEnvelope: the monolith copies this into job envelopes.
 	StampedIntoEnvelope bool
 	// SharedInvariant: the monolith ALSO consumes this; ingest and the
-	// monolith must agree. Implies StampedIntoEnvelope.
+	// monolith must agree. The validation suite enforces that SharedInvariant
+	// implies StampedIntoEnvelope.
 	SharedInvariant bool
 }
 
