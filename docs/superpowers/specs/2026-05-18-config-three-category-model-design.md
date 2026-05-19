@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-18
 **Issue:** [#415](https://github.com/ericfitz/tmi/issues/415) — refactor(config): three-category config model + platform-shared config; shrink config-*.yml toward bootstrap-only
-**Status:** Design — approved in brainstorming, pending written-spec review
+**Status:** Implemented (lands on `dev/1.4.0`)
 **Milestone:** 1.4.0
 
 ---
