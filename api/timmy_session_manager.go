@@ -103,6 +103,10 @@ func (sm *TimmySessionManager) expectedEmbeddingModel(ctx context.Context, index
 		}
 		return sm.config.TextEmbeddingModel, nil
 	}
+	// StampedConfig.Embedding currently carries only the TEXT embedding model;
+	// code embeddings are not yet tracked through the shared-invariant
+	// mechanism, so the provider-wired path returns the text model for both
+	// index types. The nil-fallback above still honors the code/text split.
 	sc, err := sm.stampedConfig.Get(ctx)
 	if err != nil {
 		return "", err

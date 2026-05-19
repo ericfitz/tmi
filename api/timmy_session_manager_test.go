@@ -518,3 +518,30 @@ func TestSearchIndexRaw_UsesStampedEmbeddingModel(t *testing.T) {
 		t.Errorf("expectedEmbeddingModel = %q, want %q", got, "stamped-model")
 	}
 }
+
+// TestExpectedEmbeddingModel_NilProviderFallsBackToStaticConfig verifies that
+// when no StampedConfigProvider is wired, expectedEmbeddingModel honors the
+// static config's code/text split.
+func TestExpectedEmbeddingModel_NilProviderFallsBackToStaticConfig(t *testing.T) {
+	sm := &TimmySessionManager{
+		config: config.TimmyConfig{
+			TextEmbeddingModel: "static-text-model",
+			CodeEmbeddingModel: "static-code-model",
+		},
+		// stampedConfig left nil — exercises the fallback.
+	}
+	gotText, err := sm.expectedEmbeddingModel(context.Background(), IndexTypeText)
+	if err != nil {
+		t.Fatalf("text: %v", err)
+	}
+	if gotText != "static-text-model" {
+		t.Errorf("text fallback = %q, want %q", gotText, "static-text-model")
+	}
+	gotCode, err := sm.expectedEmbeddingModel(context.Background(), IndexTypeCode)
+	if err != nil {
+		t.Fatalf("code: %v", err)
+	}
+	if gotCode != "static-code-model" {
+		t.Errorf("code fallback = %q, want %q", gotCode, "static-code-model")
+	}
+}

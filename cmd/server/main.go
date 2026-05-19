@@ -1334,8 +1334,8 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 		reranker, decomposer,
 	)
 	// Wire the shared embedding profile so ingest and query cannot diverge.
-	// The setter tolerates a nil provider; expectedEmbeddingModel then falls
-	// back to the static config.
+	// The provider is always non-nil here; nil-tolerance in the setter exists
+	// only to simplify unit-test construction of TimmySessionManager.
 	sessionManager.SetStampedConfigProvider(stampedCfgProvider)
 	apiServer.SetTimmySessionManager(sessionManager)
 	logger.Info("Timmy AI assistant initialized (provider=%s, model=%s)", cfg.Timmy.LLMProvider, cfg.Timmy.LLMModel)
