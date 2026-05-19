@@ -11,6 +11,7 @@ type TimmyConfig struct {
 	TextEmbeddingModel              string `yaml:"text_embedding_model" env:"TMI_TIMMY_TEXT_EMBEDDING_MODEL"`
 	TextEmbeddingAPIKey             string `yaml:"text_embedding_api_key" env:"TMI_TIMMY_TEXT_EMBEDDING_API_KEY"`
 	TextEmbeddingBaseURL            string `yaml:"text_embedding_base_url" env:"TMI_TIMMY_TEXT_EMBEDDING_BASE_URL"`
+	EmbeddingDimension              int    `yaml:"embedding_dimension" env:"TMI_TIMMY_EMBEDDING_DIMENSION"`
 	TextRetrievalTopK               int    `yaml:"text_retrieval_top_k" env:"TMI_TIMMY_TEXT_RETRIEVAL_TOP_K"`
 	CodeEmbeddingProvider           string `yaml:"code_embedding_provider" env:"TMI_TIMMY_CODE_EMBEDDING_PROVIDER"`
 	CodeEmbeddingModel              string `yaml:"code_embedding_model" env:"TMI_TIMMY_CODE_EMBEDDING_MODEL"`

@@ -153,6 +153,7 @@ var exactClassifications = map[string]ConfigClass{
 	// --- Shared: embedding profile (text) ---
 	"timmy.text_embedding_model":    sharedEmbeddingClass(false),
 	"timmy.text_embedding_base_url": sharedEmbeddingClass(false),
+	"timmy.embedding_dimension":     sharedEmbeddingClass(false),
 	// The embedding API key is a secret; it is NOT stamped into the envelope —
 	// it is resolved from a mounted secret. Classified bootstrap.
 	"timmy.text_embedding_api_key": bootstrapClass(false, VisibilityInternal, true),

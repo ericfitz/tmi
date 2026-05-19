@@ -425,6 +425,7 @@ func (c *Config) getMigratableTimmySettings() []MigratableSetting {
 		{Key: "timmy.text_embedding_provider", Value: t.TextEmbeddingProvider, Type: "string", Description: "Text embedding provider", Source: settingSource("TMI_TIMMY_TEXT_EMBEDDING_PROVIDER")},
 		{Key: "timmy.text_embedding_model", Value: t.TextEmbeddingModel, Type: "string", Description: "Text embedding model — shared invariant between ingest and query", Source: settingSource("TMI_TIMMY_TEXT_EMBEDDING_MODEL")},
 		{Key: "timmy.text_embedding_base_url", Value: t.TextEmbeddingBaseURL, Type: "string", Description: "Text embedding API base URL — shared invariant", Source: settingSource("TMI_TIMMY_TEXT_EMBEDDING_BASE_URL")},
+		{Key: "timmy.embedding_dimension", Value: strconv.Itoa(t.EmbeddingDimension), Type: "int", Description: "Text embedding vector dimension — shared invariant", Source: settingSource("TMI_TIMMY_EMBEDDING_DIMENSION")},
 		{Key: "timmy.text_embedding_api_key", Value: t.TextEmbeddingAPIKey, Type: "string", Description: "Text embedding API key", Source: settingSource("TMI_TIMMY_TEXT_EMBEDDING_API_KEY"), Secret: true},
 		{Key: "timmy.text_retrieval_top_k", Value: strconv.Itoa(t.TextRetrievalTopK), Type: "int", Description: "Text retrieval top-k results", Source: settingSource("TMI_TIMMY_TEXT_RETRIEVAL_TOP_K")},
 		{Key: "timmy.code_embedding_provider", Value: t.CodeEmbeddingProvider, Type: "string", Description: "Code embedding provider", Source: settingSource("TMI_TIMMY_CODE_EMBEDDING_PROVIDER")},
