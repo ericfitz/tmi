@@ -17,3 +17,23 @@ func TestConfigClass_ZeroValueIsUnclassified(t *testing.T) {
 		t.Errorf("zero ConfigClass.Category = %v, want CategoryUnclassified", c.Category)
 	}
 }
+
+func TestGetMigratableSettings_EveryKeyClassified(t *testing.T) {
+	c := getDefaultConfig()
+	settings := c.GetMigratableSettings()
+	if len(settings) == 0 {
+		t.Fatal("GetMigratableSettings returned no settings")
+	}
+	for _, s := range settings {
+		if s.Class.Category == CategoryUnclassified {
+			t.Errorf("setting %q is unclassified — add it to the classification registry", s.Key)
+		}
+	}
+}
+
+func TestGetMigratableSettings_PassesValidationSuite(t *testing.T) {
+	c := getDefaultConfig()
+	if err := ValidateClassifications(c.GetMigratableSettings()); err != nil {
+		t.Fatalf("default config fails classification validation:\n%v", err)
+	}
+}

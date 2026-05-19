@@ -48,7 +48,9 @@ func TestGetMigratableSettings_DatabaseURLSanitized(t *testing.T) {
 	found := findSetting(settings, "database.url")
 	require.NotNil(t, found)
 	assert.Equal(t, "postgres://user:****@localhost:5432/db", found.Value)
-	assert.False(t, found.Secret)
+	// database.url is classified as a secret (bootstrap, secret=true) because it
+	// can contain credentials; the value is sanitized but the field is still secret.
+	assert.True(t, found.Secret)
 }
 
 func TestGetMigratableSettings_EnvironmentSource(t *testing.T) {

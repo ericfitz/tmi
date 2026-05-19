@@ -156,6 +156,13 @@ var exactClassifications = map[string]ConfigClass{
 	// The embedding API key is a secret; it is NOT stamped into the envelope —
 	// it is resolved from a mounted secret. Classified bootstrap.
 	"timmy.text_embedding_api_key": bootstrapClass(false, VisibilityInternal, true),
+
+	// --- Bootstrap: Timmy secret API keys ---
+	// These must be exact entries so they are not caught by the timmy.* prefix
+	// catch-all, which would wrongly mark them as non-secret operational settings.
+	"timmy.llm_api_key":            bootstrapClass(false, VisibilityInternal, true),
+	"timmy.code_embedding_api_key": bootstrapClass(false, VisibilityInternal, true),
+	"timmy.rerank_api_key":         bootstrapClass(false, VisibilityInternal, true),
 }
 
 // prefixClassifications handles repeating provider keys

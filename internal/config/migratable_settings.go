@@ -40,6 +40,15 @@ func (c *Config) GetMigratableSettings() []MigratableSetting {
 	settings = append(settings, c.getMigratableLoggingSettings()...)
 	settings = append(settings, c.getMigratableSecretsSettings()...)
 	settings = append(settings, c.getMigratableAdministratorsSettings()...)
+	settings = append(settings, c.getMigratableTimmySettings()...)
+
+	for i := range settings {
+		settings[i].Class = classificationFor(settings[i].Key)
+		// Keep the legacy per-setting Secret flag and Class.Secret consistent.
+		if settings[i].Class.Secret {
+			settings[i].Secret = true
+		}
+	}
 
 	return settings
 }
@@ -400,6 +409,50 @@ func (c *Config) getMigratableSecretsSettings() []MigratableSetting {
 		}
 	}
 	settings = append(settings, MigratableSetting{Key: "secrets.vault_token", Value: c.Secrets.VaultToken, Type: "string", Description: "HashiCorp Vault token", Source: settingSource("TMI_VAULT_TOKEN"), Secret: true})
+	return settings
+}
+
+// getMigratableTimmySettings returns Timmy AI assistant settings, including
+// the shared embedding profile keys.
+func (c *Config) getMigratableTimmySettings() []MigratableSetting {
+	t := c.Timmy
+	settings := []MigratableSetting{
+		{Key: "timmy.enabled", Value: strconv.FormatBool(t.Enabled), Type: "bool", Description: "Timmy AI assistant enabled", Source: settingSource("TMI_TIMMY_ENABLED")},
+		{Key: "timmy.llm_provider", Value: t.LLMProvider, Type: "string", Description: "LLM provider", Source: settingSource("TMI_TIMMY_LLM_PROVIDER")},
+		{Key: "timmy.llm_model", Value: t.LLMModel, Type: "string", Description: "LLM model", Source: settingSource("TMI_TIMMY_LLM_MODEL")},
+		{Key: "timmy.llm_api_key", Value: t.LLMAPIKey, Type: "string", Description: "LLM API key", Source: settingSource("TMI_TIMMY_LLM_API_KEY"), Secret: true},
+		{Key: "timmy.llm_base_url", Value: t.LLMBaseURL, Type: "string", Description: "LLM API base URL", Source: settingSource("TMI_TIMMY_LLM_BASE_URL")},
+		{Key: "timmy.text_embedding_provider", Value: t.TextEmbeddingProvider, Type: "string", Description: "Text embedding provider", Source: settingSource("TMI_TIMMY_TEXT_EMBEDDING_PROVIDER")},
+		{Key: "timmy.text_embedding_model", Value: t.TextEmbeddingModel, Type: "string", Description: "Text embedding model — shared invariant between ingest and query", Source: settingSource("TMI_TIMMY_TEXT_EMBEDDING_MODEL")},
+		{Key: "timmy.text_embedding_base_url", Value: t.TextEmbeddingBaseURL, Type: "string", Description: "Text embedding API base URL — shared invariant", Source: settingSource("TMI_TIMMY_TEXT_EMBEDDING_BASE_URL")},
+		{Key: "timmy.text_embedding_api_key", Value: t.TextEmbeddingAPIKey, Type: "string", Description: "Text embedding API key", Source: settingSource("TMI_TIMMY_TEXT_EMBEDDING_API_KEY"), Secret: true},
+		{Key: "timmy.text_retrieval_top_k", Value: strconv.Itoa(t.TextRetrievalTopK), Type: "int", Description: "Text retrieval top-k results", Source: settingSource("TMI_TIMMY_TEXT_RETRIEVAL_TOP_K")},
+		{Key: "timmy.code_embedding_provider", Value: t.CodeEmbeddingProvider, Type: "string", Description: "Code embedding provider", Source: settingSource("TMI_TIMMY_CODE_EMBEDDING_PROVIDER")},
+		{Key: "timmy.code_embedding_model", Value: t.CodeEmbeddingModel, Type: "string", Description: "Code embedding model", Source: settingSource("TMI_TIMMY_CODE_EMBEDDING_MODEL")},
+		{Key: "timmy.code_embedding_api_key", Value: t.CodeEmbeddingAPIKey, Type: "string", Description: "Code embedding API key", Source: settingSource("TMI_TIMMY_CODE_EMBEDDING_API_KEY"), Secret: true},
+		{Key: "timmy.code_embedding_base_url", Value: t.CodeEmbeddingBaseURL, Type: "string", Description: "Code embedding API base URL", Source: settingSource("TMI_TIMMY_CODE_EMBEDDING_BASE_URL")},
+		{Key: "timmy.code_retrieval_top_k", Value: strconv.Itoa(t.CodeRetrievalTopK), Type: "int", Description: "Code retrieval top-k results", Source: settingSource("TMI_TIMMY_CODE_RETRIEVAL_TOP_K")},
+		{Key: "timmy.query_decomposition_enabled", Value: strconv.FormatBool(t.QueryDecompositionEnabled), Type: "bool", Description: "Query decomposition enabled", Source: settingSource("TMI_TIMMY_QUERY_DECOMPOSITION_ENABLED")},
+		{Key: "timmy.rerank_provider", Value: t.RerankProvider, Type: "string", Description: "Reranker provider", Source: settingSource("TMI_TIMMY_RERANK_PROVIDER")},
+		{Key: "timmy.rerank_model", Value: t.RerankModel, Type: "string", Description: "Reranker model", Source: settingSource("TMI_TIMMY_RERANK_MODEL")},
+		{Key: "timmy.rerank_api_key", Value: t.RerankAPIKey, Type: "string", Description: "Reranker API key", Source: settingSource("TMI_TIMMY_RERANK_API_KEY"), Secret: true},
+		{Key: "timmy.rerank_base_url", Value: t.RerankBaseURL, Type: "string", Description: "Reranker API base URL", Source: settingSource("TMI_TIMMY_RERANK_BASE_URL")},
+		{Key: "timmy.rerank_top_k", Value: strconv.Itoa(t.RerankTopK), Type: "int", Description: "Reranker top-k results", Source: settingSource("TMI_TIMMY_RERANK_TOP_K")},
+		{Key: "timmy.max_conversation_history", Value: strconv.Itoa(t.MaxConversationHistory), Type: "int", Description: "Max conversation history entries", Source: settingSource("TMI_TIMMY_MAX_CONVERSATION_HISTORY")},
+		{Key: "timmy.operator_system_prompt", Value: t.OperatorSystemPrompt, Type: "string", Description: "Operator system prompt override", Source: settingSource("TMI_TIMMY_OPERATOR_SYSTEM_PROMPT")},
+		{Key: "timmy.max_memory_mb", Value: strconv.Itoa(t.MaxMemoryMB), Type: "int", Description: "Max memory in MB", Source: settingSource("TMI_TIMMY_MAX_MEMORY_MB")},
+		{Key: "timmy.inactivity_timeout_seconds", Value: strconv.Itoa(t.InactivityTimeoutSeconds), Type: "int", Description: "Session inactivity timeout in seconds", Source: settingSource("TMI_TIMMY_INACTIVITY_TIMEOUT_SECONDS")},
+		{Key: "timmy.max_messages_per_user_per_hour", Value: strconv.Itoa(t.MaxMessagesPerUserPerHour), Type: "int", Description: "Max messages per user per hour", Source: settingSource("TMI_TIMMY_MAX_MESSAGES_PER_USER_PER_HOUR")},
+		{Key: "timmy.max_sessions_per_threat_model", Value: strconv.Itoa(t.MaxSessionsPerThreatModel), Type: "int", Description: "Max Timmy sessions per threat model", Source: settingSource("TMI_TIMMY_MAX_SESSIONS_PER_THREAT_MODEL")},
+		{Key: "timmy.max_concurrent_llm_requests", Value: strconv.Itoa(t.MaxConcurrentLLMRequests), Type: "int", Description: "Max concurrent LLM requests", Source: settingSource("TMI_TIMMY_MAX_CONCURRENT_LLM_REQUESTS")},
+		{Key: "timmy.chunk_size", Value: strconv.Itoa(t.ChunkSize), Type: "int", Description: "Embedding chunk size", Source: settingSource("TMI_TIMMY_CHUNK_SIZE")},
+		{Key: "timmy.chunk_overlap", Value: strconv.Itoa(t.ChunkOverlap), Type: "int", Description: "Embedding chunk overlap", Source: settingSource("TMI_TIMMY_CHUNK_OVERLAP")},
+		{Key: "timmy.llm_timeout_seconds", Value: strconv.Itoa(t.LLMTimeoutSeconds), Type: "int", Description: "LLM request timeout in seconds", Source: settingSource("TMI_TIMMY_LLM_TIMEOUT_SECONDS")},
+		{Key: "timmy.embedding_cleanup_interval_minutes", Value: strconv.Itoa(t.EmbeddingCleanupIntervalMinutes), Type: "int", Description: "Embedding cleanup interval in minutes", Source: settingSource("TMI_TIMMY_EMBEDDING_CLEANUP_INTERVAL_MINUTES")},
+		{Key: "timmy.embedding_idle_days_active", Value: strconv.Itoa(t.EmbeddingIdleDaysActive), Type: "int", Description: "Days before idle active-TM embeddings are cleaned up", Source: settingSource("TMI_TIMMY_EMBEDDING_IDLE_DAYS_ACTIVE")},
+		{Key: "timmy.embedding_idle_days_closed", Value: strconv.Itoa(t.EmbeddingIdleDaysClosed), Type: "int", Description: "Days before idle closed-TM embeddings are cleaned up", Source: settingSource("TMI_TIMMY_EMBEDDING_IDLE_DAYS_CLOSED")},
+		{Key: "timmy.dump_extracted_text_to_note", Value: strconv.FormatBool(t.DumpExtractedTextToNote), Type: "bool", Description: "Dump extracted text to note (dev/test only)", Source: settingSource("TMI_TIMMY_DUMP_EXTRACTED_TEXT_TO_NOTE")},
+	}
 	return settings
 }
 
