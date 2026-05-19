@@ -455,3 +455,12 @@ func TestSettingsService_ListByPrefix(t *testing.T) {
 		assert.Empty(t, result)
 	})
 }
+
+func TestSettingsService_RefusesBootstrapKeyFromDB(t *testing.T) {
+	// A CategoryBootstrap key must never be served from the DB path.
+	svc := NewSettingsService(nil, nil) // no DB, no Redis — exercises the guard
+	_, err := svc.Get(context.Background(), "database.url")
+	if err == nil {
+		t.Fatal("Get(database.url) should refuse: bootstrap keys are not DB-served")
+	}
+}

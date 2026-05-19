@@ -11,6 +11,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/redis/go-redis/v9"
@@ -132,6 +133,12 @@ func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool)
 // Get retrieves a setting by key, checking cache first
 func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSetting, error) {
 	logger := slogging.Get()
+
+	// Bootstrap settings are file/env only and must never be served from the
+	// database. classificationFor returns CategoryBootstrap for them.
+	if config.ClassificationCategoryFor(key) == config.CategoryBootstrap {
+		return nil, fmt.Errorf("setting %q is a bootstrap key: read it from config/env, not the database", key)
+	}
 
 	// Try cache first
 	setting, found := s.getFromCache(ctx, key)

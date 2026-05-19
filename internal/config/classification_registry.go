@@ -18,6 +18,13 @@ func classificationFor(key string) ConfigClass {
 	return ConfigClass{}
 }
 
+// ClassificationCategoryFor returns the Category of a setting key. It is the
+// exported entry point for callers outside the config package that need to
+// know whether a key is bootstrap or operational.
+func ClassificationCategoryFor(key string) Category {
+	return classificationFor(key).Category
+}
+
 type prefixClass struct {
 	prefix string
 	class  ConfigClass
