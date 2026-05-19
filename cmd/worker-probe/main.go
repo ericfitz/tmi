@@ -15,9 +15,8 @@
 //     loop; there is no internal/worker primitive for "receive exactly one
 //     message with a timeout." The probe requires exactly that pattern.
 //
-// The probe does use worker.SubjectResultPrefix (a read-only constant) to
-// derive the result subject — no new exported helpers were added to
-// internal/worker.
+// The probe does use worker.ResultSubject (an existing helper) to derive the
+// result subject — no new exported helpers were added to internal/worker.
 package main
 
 import (
@@ -126,11 +125,13 @@ func run() error {
 	}
 	logger.Info("worker-probe: received job job_id=%s", env.JobID)
 
-	// Step 6: build probe result
+	// Step 6: build probe result. StampedConfigSeen is true only when the
+	// envelope carried a genuinely-valid stamped config (non-empty model and
+	// endpoint, positive dimension) — not merely a non-empty model string.
 	result := probeResult{
 		JobID:             env.JobID,
 		BootstrapOK:       true,
-		StampedConfigSeen: env.Config.Embedding.Model != "",
+		StampedConfigSeen: env.Config.Validate() == nil,
 	}
 
 	// Step 7: resolve secret
@@ -147,7 +148,7 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal probe result: %w", err)
 	}
-	resultSubject := worker.SubjectResultPrefix + env.JobID
+	resultSubject := worker.ResultSubject(env.JobID)
 	if err := nc.Publish(resultSubject, resultBytes); err != nil {
 		return fmt.Errorf("failed to publish result subject=%s: %w", resultSubject, err)
 	}

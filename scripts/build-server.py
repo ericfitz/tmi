@@ -1,13 +1,14 @@
 # /// script
 # requires-python = ">=3.11"
 # ///
-"""Build TMI Go binaries (server, migrate, dbtool).
+"""Build TMI Go binaries (server, migrate, dbtool, worker-probe).
 
 Usage:
     uv run scripts/build-server.py [flags]
 
 Flags:
-    --component NAME  Component to build: server (default), migrate, dbtool
+    --component NAME  Component to build: server (default), migrate, dbtool,
+                      worker-probe
     --tags TAGS       Additional build tags (space-separated)
     --oci             Build with Oracle support (dbtool only)
     -v/--verbose, -q/--quiet
