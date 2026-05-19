@@ -631,11 +631,18 @@ func TestDeleteSystemSetting_404_ConfigOnlyNoDB(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
+	// Uses an operational key (websocket.inactivity_timeout_seconds) so the
+	// request flows PAST the bootstrap-key guard and reaches settingsService.
+	// The key is deliberately NOT added to the mock store, so Get returns
+	// (nil, nil) and the handler's genuine `setting == nil` -> 404 branch runs.
+	// A config-provider entry exists for the key (config-only, no DB row),
+	// matching the test name; DeleteSystemSetting does not consult it, so the
+	// 404 comes solely from the no-DB-row path.
 	server := &Server{
 		settingsService: NewMockSettingsService(),
 		configProvider: &MockConfigProvider{
 			settings: []MigratableSetting{
-				{Key: "server.port", Value: "8080", Type: "string", Source: "config"},
+				{Key: "websocket.inactivity_timeout_seconds", Value: "300", Type: "int", Source: "config"},
 			},
 		},
 	}
@@ -653,7 +660,7 @@ func TestDeleteSystemSetting_404_ConfigOnlyNoDB(t *testing.T) {
 		server.DeleteSystemSetting(c, c.Param("key"))
 	})
 
-	req, _ := http.NewRequest("DELETE", "/admin/settings/server.port", nil)
+	req, _ := http.NewRequest("DELETE", "/admin/settings/websocket.inactivity_timeout_seconds", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
