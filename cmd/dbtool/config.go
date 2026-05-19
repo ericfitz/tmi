@@ -27,24 +27,24 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 	allSettings := cfg.GetMigratableSettings()
 	log.Info("Found %d settings in config", len(allSettings))
 
-	var infraSettings []config.MigratableSetting
-	var dbSettings []config.MigratableSetting
+	var bootstrapSettings []config.MigratableSetting
+	var operationalSettings []config.MigratableSetting
 
 	for _, s := range allSettings {
 		if s.Class.Category == config.CategoryBootstrap {
-			infraSettings = append(infraSettings, s)
+			bootstrapSettings = append(bootstrapSettings, s)
 		} else {
-			dbSettings = append(dbSettings, s)
+			operationalSettings = append(operationalSettings, s)
 		}
 	}
 
-	log.Info("  Bootstrap (stay in file): %d settings", len(infraSettings))
-	log.Info("  Operational (move to database): %d settings", len(dbSettings))
+	log.Info("  Bootstrap (stay in file): %d settings", len(bootstrapSettings))
+	log.Info("  Operational (move to database): %d settings", len(operationalSettings))
 
 	if dryRun {
 		log.Info("")
 		log.Info("[DRY RUN] Bootstrap settings (would stay in config file):")
-		for _, s := range infraSettings {
+		for _, s := range bootstrapSettings {
 			displayValue := s.Value
 			if s.Secret {
 				displayValue = "<secret>"
@@ -53,7 +53,7 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 		}
 		log.Info("")
 		log.Info("[DRY RUN] Operational settings (would write to database):")
-		for _, s := range dbSettings {
+		for _, s := range operationalSettings {
 			displayValue := s.Value
 			if s.Secret {
 				displayValue = "<secret>"
@@ -89,7 +89,7 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 
 	// Write DB-eligible settings
 	var written, skipped int
-	for _, s := range dbSettings {
+	for _, s := range operationalSettings {
 		var existing models.SystemSetting
 		exists := db.DB().Where("setting_key = ?", s.Key).First(&existing).Error == nil
 
@@ -142,7 +142,7 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 		outputFile = deriveOutputPath(inputFile)
 	}
 
-	if err := writeMigratedConfig(infraSettings, outputFile); err != nil {
+	if err := writeMigratedConfig(bootstrapSettings, outputFile); err != nil {
 		return fmt.Errorf("failed to write migrated config: %w", err)
 	}
 
@@ -157,10 +157,10 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 	return nil
 }
 
-func writeMigratedConfig(infraSettings []config.MigratableSetting, outputPath string) error {
+func writeMigratedConfig(bootstrapSettings []config.MigratableSetting, outputPath string) error {
 	root := make(map[string]any)
 
-	for _, s := range infraSettings {
+	for _, s := range bootstrapSettings {
 		parts := strings.Split(s.Key, ".")
 		current := root
 		for i, part := range parts {
