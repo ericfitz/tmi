@@ -70,7 +70,9 @@ const (
 )
 ```
 
-A `Reference` value is a locator (`vault://…`, a K8s `secretKeyRef`, a file path, an env-var name) resolved through the existing `secrets.provider` plumbing. This is the property that lets a production deployment store *references* while the actual secrets live in Vault / K8s Secrets. Only meaningful when `Secret = true`.
+A reference value is a locator with a scheme prefix — `vault://PATH`, `env://VARNAME`, or `file://PATH` — that is dereferenced **at startup, per value**. `internal/config/secret_reference.go` implements this: `IsSecretReference` inspects the value's scheme prefix, and `ResolveSecretValue(ctx, value, vault)` dereferences it — `vault://` through the existing `secrets.provider` (via a `SecretResolver` interface, because `internal/config` cannot import `internal/secrets`), `env://` from the environment, `file://` from disk. A value with no recognized scheme prefix (including a plain secret literal or a `postgres://` URL) is **inline** and returned unchanged. This is the property that lets a production deployment store *references* while the actual secrets live in Vault / K8s Secrets.
+
+`ValueKind` in the classification registry records the **default (inline) kind** of a key. Because resolution is per-value, the same key can be inline in dev and a reference in prod with **no registry change** — `ResolveSecretValue` handles both. `ValueKindReference` in the registry is reserved for a key that is *always* a reference in every deployment; today no key is classified that way, so the `ValueKindReference ⟹ Secret` validation rule holds vacuously. Only meaningful when `Secret = true`.
 
 **4. `Delivery` — how does an operational setting reach a process that cannot ask the monolith over HTTP?** (operational settings only; bootstrap settings carry no `Delivery`)
 
@@ -223,7 +225,7 @@ The monolith's job-envelope builder calls `StampedConfigProvider.Get()` and copi
 
 The embedding API key is **not** in `StampedConfig`, never in the envelope, and never stored as DB plaintext. It is a `Secret` setting. For the worker it is `CategoryBootstrap` — a mounted K8s `Secret` at a known path, resolved from the worker's `SecretMounts` (see Worker bootstrap). For the monolith it is `CategoryBootstrap` resolved from file/env or the `secrets.provider`. `StampedConfig` carries only the non-secret coordinates; each side resolves the key value independently from its own secret source. Rotation is one `Secret` object, two mounts.
 
-`Reference`-kind secrets are dereferenced through the existing `secrets.provider` plumbing. A resolution failure is a typed error, never a panic.
+Secret reference resolution is **implemented**. At startup, after `config.Load`, `cmd/server/main.go` calls `resolveSecretReferences`, which walks every bootstrap secret field of the loaded `Config` (`Auth.JWT.Secret`, `Database.URL`, `Database.Redis.URL`, `Database.Redis.Password`, `Server.TLSKeyFile`, `Secrets.VaultToken`, the Timmy API keys) and dereferences any `vault://`/`env://`/`file://` value in place via `ResolveSecretValue`; inline values pass through unchanged. Resolution runs **before** `runServer` connects the database and initializes auth, so those consumers see resolved values. Ordering is three-phase: `Secrets.VaultToken` is resolved first with no provider (`env://`/`file://` only — a `vault://` token is rejected), then `secrets.NewProvider` is built from the resolved `Secrets` block, then the remaining fields are resolved with the provider-backed vault leg. A resolution failure is fatal (`os.Exit(1)`) — a config that references an unresolvable secret cannot run — and is reported as a typed error, never a panic. The `internal/config` ↔ `internal/secrets` import cycle is avoided by the `config.SecretResolver` interface plus the `internal/configsecrets` adapter package.
 
 ---
 
@@ -328,7 +330,7 @@ All tests run under `make` targets per project rules (`make test-unit`, `make te
 | **Validation suite** | Every classification rule above; a misclassified or unclassified setting fails the build. The "never revisit" guarantee. |
 | **Bootstrap isolation** | `SettingsService` refuses to DB-serve a `Bootstrap` key; the seeder skips it. |
 | **Shared-invariant** | The value the monolith stamps equals the value the monolith's Timmy query path reads — both via `StampedConfigProvider.Get()`. |
-| **Secret resolution** | An `Inline` secret returns its value; a `Reference` secret dereferences through the `secrets.provider`; resolution failure is a typed error, not a panic. |
+| **Secret resolution** | Implemented per-value at startup by `ResolveSecretValue`: an inline secret returns its value unchanged; a `vault://` value dereferences through the `secrets.provider`, `env://` from the environment, `file://` from disk; a resolution failure is a typed, fatal error, not a panic. |
 | **Visibility** | The public config endpoint returns exactly the `Public` set and no `Secret`; the admin endpoint returns `AdminOnly ∪ Public`. |
 | **Generated example config** | `config-example.yml` regenerated from the registry matches the committed file. |
 | **Worker bootstrap** | `LoadWorker()` succeeds on a complete env set, fails cleanly on a missing required variable, never touches YAML or the DB. |
@@ -373,7 +375,7 @@ Settings-table seeding, the `dbtool config import-legacy` path, and any settings
 | Self-enforcement | A validation suite over the registry; misclassification fails the build |
 | Shared config delivery | Envelope-stamped by the monolith; no controller-projection dependency |
 | Shared-invariant guarantee | Structural — one `StampedConfigProvider.Get()` accessor for both stamp and Timmy query |
-| Secrets | `ValueKind` Inline / Reference; `Reference` reuses the existing `secrets.provider`; secrets never in envelopes, DB plaintext, or public endpoints (build-enforced) |
+| Secrets | Per-value `vault://`/`env://`/`file://` references resolved at startup by `ResolveSecretValue` (`vault://` reuses the existing `secrets.provider`); the registry's `ValueKind` records only the default inline kind; secrets never in envelopes, DB plaintext, or public endpoints (build-enforced) |
 | `config-*.yml` | Collapse 10 → 3 bootstrap-only files; DB backend by URL; operational config moves to DB seed |
 | Example config | Generated from the registry; drift is a test failure |
 | Legacy migration | `dbtool config import-legacy`; `config.Load()` warns then errors on operational keys in YAML |

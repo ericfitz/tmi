@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1170,5 +1171,87 @@ func TestOperationalKeysInFile_DetectsDrift(t *testing.T) {
 		if k == "server.port" {
 			t.Errorf("server.port is a bootstrap key and must not appear in the drift list, got %v", keys)
 		}
+	}
+}
+
+// --- Secret reference resolution wiring (Config.ResolveSecretReferences) ---
+
+func TestResolveSecretReferences_EnvReference(t *testing.T) {
+	t.Setenv("TEST_JWT", "resolved-secret")
+	cfg := &Config{}
+	cfg.Auth.JWT.Secret = "env://TEST_JWT"
+
+	if err := cfg.ResolveSecretReferences(context.Background(), nil); err != nil {
+		t.Fatalf("ResolveSecretReferences: %v", err)
+	}
+	if cfg.Auth.JWT.Secret != "resolved-secret" {
+		t.Errorf("Auth.JWT.Secret = %q, want resolved-secret", cfg.Auth.JWT.Secret)
+	}
+}
+
+func TestResolveSecretReferences_InlinePassThrough(t *testing.T) {
+	cfg := &Config{}
+	cfg.Auth.JWT.Secret = "a-plain-inline-jwt-secret"
+	cfg.Database.URL = "postgres://u:p@h:5432/db"
+
+	if err := cfg.ResolveSecretReferences(context.Background(), nil); err != nil {
+		t.Fatalf("ResolveSecretReferences: %v", err)
+	}
+	if cfg.Auth.JWT.Secret != "a-plain-inline-jwt-secret" {
+		t.Errorf("inline JWT secret changed: %q", cfg.Auth.JWT.Secret)
+	}
+	if cfg.Database.URL != "postgres://u:p@h:5432/db" {
+		t.Errorf("inline DB URL changed: %q", cfg.Database.URL)
+	}
+}
+
+func TestResolveSecretReferences_VaultReference(t *testing.T) {
+	vault := &fakeVaultResolver{values: map[string]string{
+		"kv/data/db": "postgres://vault-user:vault-pass@db:5432/tmi",
+	}}
+	cfg := &Config{}
+	cfg.Database.URL = "vault://kv/data/db"
+	cfg.Auth.JWT.Secret = "inline-stays"
+
+	if err := cfg.ResolveSecretReferences(context.Background(), vault); err != nil {
+		t.Fatalf("ResolveSecretReferences: %v", err)
+	}
+	if cfg.Database.URL != "postgres://vault-user:vault-pass@db:5432/tmi" {
+		t.Errorf("Database.URL = %q, want vault-resolved value", cfg.Database.URL)
+	}
+	if cfg.Auth.JWT.Secret != "inline-stays" {
+		t.Errorf("inline JWT secret changed: %q", cfg.Auth.JWT.Secret)
+	}
+}
+
+func TestResolveSecretReferences_VaultWithoutResolver(t *testing.T) {
+	cfg := &Config{}
+	cfg.Auth.JWT.Secret = "vault://kv/data/jwt"
+
+	err := cfg.ResolveSecretReferences(context.Background(), nil)
+	if err == nil {
+		t.Fatal("expected error for vault:// reference with nil resolver, got nil")
+	}
+}
+
+func TestResolveSecretsConfigReferences_EnvToken(t *testing.T) {
+	t.Setenv("TEST_VAULT_TOKEN", "resolved-token")
+	cfg := &Config{}
+	cfg.Secrets.VaultToken = "env://TEST_VAULT_TOKEN"
+
+	if err := cfg.ResolveSecretsConfigReferences(context.Background()); err != nil {
+		t.Fatalf("ResolveSecretsConfigReferences: %v", err)
+	}
+	if cfg.Secrets.VaultToken != "resolved-token" {
+		t.Errorf("Secrets.VaultToken = %q, want resolved-token", cfg.Secrets.VaultToken)
+	}
+}
+
+func TestResolveSecretsConfigReferences_VaultTokenRejected(t *testing.T) {
+	cfg := &Config{}
+	cfg.Secrets.VaultToken = "vault://kv/data/token"
+
+	if err := cfg.ResolveSecretsConfigReferences(context.Background()); err == nil {
+		t.Fatal("expected error: vault:// for secrets.vault_token must be rejected")
 	}
 }

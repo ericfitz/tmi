@@ -21,6 +21,7 @@ import (
 	"github.com/ericfitz/tmi/auth" // Import auth package
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
+	"github.com/ericfitz/tmi/internal/configsecrets"
 	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/ericfitz/tmi/internal/dbcheck"
 	"github.com/ericfitz/tmi/internal/dberrors"
@@ -1648,8 +1649,71 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Dereference any vault://, env://, or file:// secret references in the
+	// bootstrap config. This must run AFTER the logger is initialized (so a
+	// resolution failure is logged) and BEFORE runServer, because runServer ->
+	// setupRouter connects the database (Database.URL) and initializes auth
+	// (Auth.JWT.Secret). Inline secret values (the dev/test default shape) are
+	// returned unchanged, so dev startup is unaffected.
+	resolveSecretReferences(cfg)
+
 	// Run the server; os.Exit is deferred to allow defers in runServer to execute
 	os.Exit(runServer(cfg))
+}
+
+// resolveSecretReferences dereferences vault://, env://, and file:// secret
+// references in the loaded bootstrap config, in place.
+//
+// Ordering is deliberate and load-bearing:
+//
+//  1. Secrets.VaultToken is resolved first via ResolveSecretsConfigReferences
+//     with NO secrets provider — env:// and file:// references work without a
+//     provider, and a vault:// reference for the token itself is rejected (the
+//     provider cannot dereference the token it needs to exist).
+//  2. The secrets provider is then built from the (now-resolved) Secrets block.
+//  3. The remaining bootstrap secret fields (Auth.JWT.Secret, Database.URL,
+//     etc.) are resolved with the provider-backed vault resolver.
+//
+// A config that references an unresolvable secret cannot run, so any failure
+// is fatal.
+func resolveSecretReferences(cfg *config.Config) {
+	if err := doResolveSecretReferences(cfg); err != nil {
+		slogging.Get().Error("Failed to resolve secret references: %v", err)
+		os.Exit(1)
+	}
+}
+
+// doResolveSecretReferences performs the three-phase resolution and returns an
+// error rather than exiting, so its deferred secrets-provider Close runs before
+// the caller's os.Exit.
+func doResolveSecretReferences(cfg *config.Config) error {
+	logger := slogging.Get()
+	ctx := context.Background()
+
+	// Phase 1: resolve references inside the Secrets block itself (env:// and
+	// file:// only — no provider exists yet).
+	if err := cfg.ResolveSecretsConfigReferences(ctx); err != nil {
+		return fmt.Errorf("resolving secrets config references: %w", err)
+	}
+
+	// Phase 2: build the secrets provider from the resolved Secrets block.
+	provider, err := secrets.NewProvider(ctx, &cfg.Secrets)
+	if err != nil {
+		return fmt.Errorf("initializing secrets provider for reference resolution: %w", err)
+	}
+	defer func() {
+		if closeErr := provider.Close(); closeErr != nil {
+			logger.Warn("Failed to close secrets provider after reference resolution: %v", closeErr)
+		}
+	}()
+
+	// Phase 3: resolve the remaining bootstrap secret fields, dereferencing
+	// vault:// values through the provider.
+	resolver := configsecrets.NewProviderResolver(provider)
+	if err := cfg.ResolveSecretReferences(ctx, resolver); err != nil {
+		return fmt.Errorf("resolving bootstrap secret references: %w", err)
+	}
+	return nil
 }
 
 // printVersionAndExit dumps version, build, architecture, and commit metadata

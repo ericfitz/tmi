@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/url"
@@ -859,6 +860,61 @@ func (c *Config) Validate() error {
 	}
 	if err := c.validateCORS(); err != nil {
 		return err
+	}
+	return nil
+}
+
+// ResolveSecretsConfigReferences dereferences secret-reference values inside the
+// Secrets block itself (currently only Secrets.VaultToken). It is called BEFORE
+// the secrets provider is constructed, so it is passed no SecretResolver: only
+// env:// and file:// references resolve here. A vault:// reference for
+// Secrets.VaultToken is rejected — the provider cannot dereference a token it
+// needs in order to exist.
+//
+// An inline value (the dev/test default shape) is left unchanged.
+func (c *Config) ResolveSecretsConfigReferences(ctx context.Context) error {
+	resolved, err := ResolveSecretValue(ctx, c.Secrets.VaultToken, nil)
+	if err != nil {
+		return fmt.Errorf("resolving secrets.vault_token: %w", err)
+	}
+	c.Secrets.VaultToken = resolved
+	return nil
+}
+
+// ResolveSecretReferences walks every CategoryBootstrap secret field of the
+// loaded Config and, for any field whose value is a vault://, env://, or
+// file:// reference, dereferences it in place. Inline values (the dev/test
+// default shape) are left unchanged.
+//
+// It must run AFTER secrets.NewProvider (so the vault leg works) but BEFORE any
+// consumer reads Auth.JWT.Secret or Database.URL (JWT init, DB connect).
+// Secrets.VaultToken is resolved separately by ResolveSecretsConfigReferences,
+// which runs before the provider is built; it is not re-resolved here.
+//
+// vault references the secrets provider's vault leg; it may be nil, in which
+// case any vault:// reference is reported as an error.
+func (c *Config) ResolveSecretReferences(ctx context.Context, vault SecretResolver) error {
+	// field name -> pointer to the struct field holding the value.
+	fields := []struct {
+		name string
+		ptr  *string
+	}{
+		{"auth.jwt.secret", &c.Auth.JWT.Secret},
+		{"database.url", &c.Database.URL},
+		{"database.redis.url", &c.Database.Redis.URL},
+		{"database.redis.password", &c.Database.Redis.Password},
+		{"server.tls_key_file", &c.Server.TLSKeyFile},
+		{"timmy.llm_api_key", &c.Timmy.LLMAPIKey},
+		{"timmy.text_embedding_api_key", &c.Timmy.TextEmbeddingAPIKey},
+		{"timmy.code_embedding_api_key", &c.Timmy.CodeEmbeddingAPIKey},
+		{"timmy.rerank_api_key", &c.Timmy.RerankAPIKey},
+	}
+	for _, f := range fields {
+		resolved, err := ResolveSecretValue(ctx, *f.ptr, vault)
+		if err != nil {
+			return fmt.Errorf("resolving %s: %w", f.name, err)
+		}
+		*f.ptr = resolved
 	}
 	return nil
 }

@@ -26,14 +26,29 @@ func (c Category) String() string {
 }
 
 // ValueKind answers: is the stored value the secret itself, or a pointer to it?
+//
+// The registry records the DEFAULT (inline) kind of a setting. A secret VALUE
+// may still be a vault://, env://, or file:// reference at runtime: the same
+// key is typically inline in dev and a reference in prod. Such references are
+// dereferenced at startup, per value, by ResolveSecretValue (see
+// secret_reference.go) — IsSecretReference inspects the value's scheme prefix,
+// so no registry change is needed to support a reference value.
+//
+// ValueKindReference in the REGISTRY is therefore reserved for a key that is
+// ALWAYS a reference regardless of deployment; today no key is classified that
+// way, so the "ValueKindReference => Secret" validation rule holds vacuously.
 type ValueKind int
 
 const (
 	// ValueKindInline means the field holds the actual value. This is the
-	// zero value and a safe default for non-secret settings.
+	// zero value and a safe default for non-secret settings. A secret field
+	// classified inline may still carry a vault://, env://, or file://
+	// reference value, resolved at load time by ResolveSecretValue.
 	ValueKindInline ValueKind = iota
-	// ValueKindReference means the field holds a locator (vault://..., a file
-	// path, an env-var name) dereferenced at use time. Only valid when Secret.
+	// ValueKindReference means the field ALWAYS holds a locator (vault://...,
+	// a file path, an env-var name) dereferenced at use time, in every
+	// deployment. Only valid when Secret. Per-value references on an
+	// otherwise-inline key do NOT require this — see the type doc above.
 	ValueKindReference
 )
 
