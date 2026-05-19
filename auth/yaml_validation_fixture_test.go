@@ -14,18 +14,14 @@ package auth
 //
 // Files covered:
 //   - config-development.yml
-//   - config-development-mysql.yml
-//   - config-development-oci.yml
-//   - config-development-sqlite.yml
-//   - config-development-sqlserver.yml
 //   - config-test.yml
-//   - config-test-integration-pg.yml
-//   - config-test-integration-oci.yml
 //   - config-example.yml
 //
-// config-production.yml is intentionally excluded: it contains many disabled
-// providers with incomplete configs that are fine to disable but would fail if
-// we tried to validate them here.
+// config-production.yml is intentionally excluded: it contains no OAuth
+// providers (bootstrap-only, operational config lives in the database).
+// The six per-backend files (config-development-{sqlite,mysql,sqlserver,oci}.yml
+// and config-test-integration-{pg,oci}.yml) have been removed — all backends
+// now use config-development.yml or config-test.yml with TMI_DATABASE_URL.
 
 import (
 	"context"
@@ -214,17 +210,13 @@ func projectRoot(t *testing.T) string {
 func TestYAMLConfigsPassOAuthValidation(t *testing.T) {
 	root := projectRoot(t)
 
-	// Files to validate. config-production.yml is excluded (many intentionally
-	// incomplete disabled providers; validates as part of a different workflow).
+	// Files to validate. config-production.yml is excluded (bootstrap-only,
+	// no OAuth providers configured at file level — operational config lives
+	// in the database). The six per-backend files have been removed; all
+	// backends now use config-development.yml or config-test.yml.
 	files := []string{
 		"config-development.yml",
-		"config-development-mysql.yml",
-		"config-development-oci.yml",
-		"config-development-sqlite.yml",
-		"config-development-sqlserver.yml",
 		"config-test.yml",
-		"config-test-integration-pg.yml",
-		"config-test-integration-oci.yml",
 		"config-example.yml",
 	}
 

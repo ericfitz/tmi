@@ -75,7 +75,7 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz
+.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-genconfig generate-config-example clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz
 
 build-server:
 	@uv run scripts/build-server.py
@@ -91,6 +91,12 @@ build-dbtool-oci:  ## Build TMI database administration tool with Oracle support
 
 build-worker-probe:  ## Build the worker-probe stub (proves the #415 worker bootstrap contract)
 	@uv run scripts/build-server.py --component worker-probe
+
+build-genconfig:  ## Build the config-example.yml generator
+	@uv run scripts/build-server.py --component genconfig
+
+generate-config-example: build-genconfig  ## Regenerate config-example.yml from the classification registry
+	@./bin/genconfig
 
 clean-build:
 	@uv run scripts/clean.py build
@@ -147,10 +153,10 @@ reset-database:
 .PHONY: wait-test-database migrate-test-database
 
 wait-test-database:
-	@uv run scripts/manage-database.py --test --config config-test-integration-pg.yml wait
+	@uv run scripts/manage-database.py --test --config config-test.yml wait
 
 migrate-test-database:
-	@uv run scripts/manage-database.py --config config-test-integration-pg.yml migrate
+	@uv run scripts/manage-database.py --config config-test.yml migrate
 
 # ============================================================================
 # ATOMIC COMPONENTS - Process Management
@@ -228,7 +234,8 @@ test-integration: test-integration-pg
 
 # Integration Testing - PostgreSQL backend (Docker container)
 # Starts PostgreSQL, Redis, runs migrations, and executes integration tests
-# Configuration: config-test-integration-pg.yml
+# Configuration: config-test.yml + TMI_DATABASE_URL for the PostgreSQL backend
+# (run-integration-tests.py builds the URL from the local dev DB parameters)
 # Usage: make test-integration-pg
 # (Cleanup of dev containers is the responsibility of make stop-dev /
 #  make clean-everything, not this target.)
@@ -237,7 +244,7 @@ test-integration-pg:
 
 # Integration Testing - Oracle ADB backend (OCI Autonomous Database)
 # Requires Oracle Instant Client and wallet configuration
-# Configuration: config-test-integration-oci.yml
+# Configuration: config-test.yml + TMI_DATABASE_URL=oracle://ADMIN@tmiadb_tp (set by scripts/oci-env.sh)
 # Usage: make test-integration-oci                   - Run integration tests against OCI ADB
 test-integration-oci:
 	@uv run scripts/run-integration-tests.py --target oci

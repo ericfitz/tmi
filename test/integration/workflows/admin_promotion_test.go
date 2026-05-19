@@ -53,7 +53,7 @@ func countAdministrators(db *framework.TestDatabase) (string, error) {
 // when no administrators exist in the system.
 //
 // This test requires:
-// - TMI server running with auto_promote_first_user: true (config-test-integration-pg.yml)
+// - TMI server running with auto_promote_first_user: true (config-test.yml or config-development.yml)
 // - OAuth stub running (make start-oauth-stub)
 // - PostgreSQL database running with TEST_DB_* environment variables set
 //

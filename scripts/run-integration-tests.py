@@ -13,7 +13,10 @@ masked failures (tee always exits 0 without `set -o pipefail`).
 
 Targets:
   pg   — run integration + workflow tests against the dev PostgreSQL DB
+         Server started with config-test.yml + TMI_DATABASE_URL=postgres://...
   oci  — run integration tests against Oracle ADB (requires oci-env.sh)
+         Server started with config-test.yml + TMI_DATABASE_URL=oracle://...
+         (TMI_DATABASE_URL set by scripts/oci-env.sh via ORACLE_CONNECT_STRING)
 
 Both targets require `make start-dev` (or `start-dev-oci`) to be running.
 """
@@ -138,14 +141,26 @@ def run_pg(project_root: Path, log_path: str) -> int:
     if not oauth_running:
         log_warn("OAuth stub not available — workflow tests will be skipped")
 
+    db_host = "localhost"
+    db_port = "5432"
+    db_user = "tmi_dev"
+    db_password = "dev123"  # noqa: S105 - local dev Docker container credential
+    db_name = "tmi_dev"
+
     base_env = {
         **os.environ,
+        # config-test.yml is the bootstrap config; TMI_DATABASE_URL selects
+        # the PostgreSQL backend for the integration test run. Built from the
+        # local dev DB connection parameters below.
+        "TMI_DATABASE_URL": (
+            f"postgres://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?sslmode=disable"
+        ),
         "LOGGING_IS_TEST": "true",
-        "TEST_DB_HOST": "localhost",
-        "TEST_DB_PORT": "5432",
-        "TEST_DB_USER": "tmi_dev",
-        "TEST_DB_PASSWORD": "dev123",
-        "TEST_DB_NAME": "tmi_dev",
+        "TEST_DB_HOST": db_host,
+        "TEST_DB_PORT": db_port,
+        "TEST_DB_USER": db_user,
+        "TEST_DB_PASSWORD": db_password,
+        "TEST_DB_NAME": db_name,
         "TEST_REDIS_HOST": "localhost",
         "TEST_REDIS_PORT": "6379",
         "TEST_SERVER_URL": server_url,
@@ -191,6 +206,9 @@ def run_oci(project_root: Path, log_path: str) -> int:
     # Source oci-env.sh and run go test in the resulting environment. This
     # mirrors the original bash wrapper's behavior — the env file sets
     # DYLD_LIBRARY_PATH, TNS_ADMIN, ORACLE_PASSWORD, etc.
+    # config-test.yml is the bootstrap config; TMI_DATABASE_URL selects the
+    # Oracle ADB backend (oci-env.sh must export TMI_DATABASE_URL or set
+    # ORACLE_CONNECT_STRING which the server startup script translates).
     log_info("Running api/ integration tests against OCI ADB")
     bash_cmd = (
         f"source '{oci_env_file}' && "

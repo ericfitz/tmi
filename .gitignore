@@ -25,7 +25,6 @@
 !Dockerfile*
 !.dockerignore
 !config-example.yml
-!config-test-integration-pg.yml
 !.claude/settings.local.json
 !package.json
 !pnpm-lock.yaml

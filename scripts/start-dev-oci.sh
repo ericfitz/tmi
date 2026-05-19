@@ -93,8 +93,10 @@ fi
 mkdir -p logs
 
 # Start server directly (not via make, to preserve DYLD_LIBRARY_PATH)
+# The bootstrap config is config-development.yml; the Oracle backend is
+# selected by TMI_DATABASE_URL exported from oci-env.sh.
 echo "Starting server with OCI configuration..."
-./bin/tmiserver --config=config-development-oci.yml > logs/tmi.log 2>&1 &
+./bin/tmiserver --config=config-development.yml > logs/tmi.log 2>&1 &
 SERVER_PID=$!
 echo "$SERVER_PID" > .server.pid
 echo "Server started with PID: $SERVER_PID"

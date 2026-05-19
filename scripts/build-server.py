@@ -1,14 +1,14 @@
 # /// script
 # requires-python = ">=3.11"
 # ///
-"""Build TMI Go binaries (server, migrate, dbtool, worker-probe).
+"""Build TMI Go binaries (server, migrate, dbtool, worker-probe, genconfig).
 
 Usage:
     uv run scripts/build-server.py [flags]
 
 Flags:
     --component NAME  Component to build: server (default), migrate, dbtool,
-                      worker-probe
+                      worker-probe, genconfig
     --tags TAGS       Additional build tags (space-separated)
     --oci             Build with Oracle support (dbtool only)
     -v/--verbose, -q/--quiet
@@ -60,6 +60,12 @@ COMPONENTS = {
     "worker-probe": {
         "output": "bin/worker-probe",
         "package": "github.com/ericfitz/tmi/cmd/worker-probe",
+        "tags": [],
+        "ldflags": False,
+    },
+    "genconfig": {
+        "output": "bin/genconfig",
+        "package": "github.com/ericfitz/tmi/cmd/genconfig",
         "tags": [],
         "ldflags": False,
     },

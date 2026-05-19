@@ -60,23 +60,12 @@ fi
 # Change to project root
 cd "$(dirname "$0")/.."
 
-# Derive ORACLE_CONNECT_STRING from config if not set
+# ORACLE_CONNECT_STRING must be provided explicitly via scripts/oci-env.sh.
+# (The per-backend config files were removed; the Oracle backend is selected
+#  by TMI_DATABASE_URL / ORACLE_CONNECT_STRING from oci-env.sh.)
 if [ -z "$ORACLE_CONNECT_STRING" ]; then
-    OCI_CONFIG="config-development-oci.yml"
-    if [ -f "$OCI_CONFIG" ]; then
-        # Extract TNS alias from database URL (e.g., oracle://ADMIN@tmiadb_tp -> tmiadb_tp)
-        TNS_ALIAS=$(grep -E '^\s+url:' "$OCI_CONFIG" | head -1 | sed -E 's/.*@([a-zA-Z0-9_]+).*/\1/')
-        if [ -n "$TNS_ALIAS" ]; then
-            # Replace service level suffix with _medium for admin operations
-            DB_NAME=$(echo "$TNS_ALIAS" | sed -E 's/_(high|medium|low|tp|tpurgent)$//')
-            export ORACLE_CONNECT_STRING="${DB_NAME}_medium"
-        fi
-    fi
-fi
-
-if [ -z "$ORACLE_CONNECT_STRING" ]; then
-    echo "ERROR: ORACLE_CONNECT_STRING is not set and could not be derived from config"
-    echo "Set ORACLE_CONNECT_STRING in scripts/oci-env.sh or ensure config-development-oci.yml exists"
+    echo "ERROR: ORACLE_CONNECT_STRING is not set"
+    echo "Set ORACLE_CONNECT_STRING in scripts/oci-env.sh"
     exit 1
 fi
 

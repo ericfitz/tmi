@@ -67,21 +67,28 @@ func ParseFlagsExt() (Flags, error) {
 	return f, nil
 }
 
-// GenerateExampleConfig generates example configuration files
-func GenerateExampleConfig() error {
+// PrintConfigHelp prints guidance about configuration files. It is invoked
+// when the server binary is run with --generate-config.
+func PrintConfigHelp() error {
 	slogging.Get().Debug("Displaying configuration setup help to user")
 
-	fmt.Println("Configuration files already exist in the project:")
-	fmt.Println("- config-example.yml - Template configuration file")
-	fmt.Println("- config-development.yml - Development configuration (if present)")
-	fmt.Println("- config-production.yml - Production configuration template")
-	fmt.Println("- config-test.yml - Test configuration")
+	fmt.Println("config-example.yml is the only configuration template tracked in")
+	fmt.Println("the repository. It is generated from the classification registry")
+	fmt.Println("and contains the bootstrap-only keys (server, database, auth.jwt,")
+	fmt.Println("logging, secrets) with secret values shown as vault:// placeholders.")
 	fmt.Println("")
-	fmt.Println("To customize for your environment:")
-	fmt.Println("1. Copy config-example.yml to config-development.yml")
-	fmt.Println("2. Edit config-development.yml with your settings")
-	fmt.Println("3. For production, customize config-production.yml")
+	fmt.Println("The working config files (config-development.yml, config-test.yml,")
+	fmt.Println("config-production.yml) are local-only and gitignored — they carry")
+	fmt.Println("real secrets and must never be committed.")
 	fmt.Println("")
-	fmt.Println("Note: Environment variables can override any YAML setting (e.g., SERVER_PORT, POSTGRES_HOST).")
+	fmt.Println("To set up your environment:")
+	fmt.Println("1. Copy config-example.yml to config-development.yml (or config-test.yml,")
+	fmt.Println("   or config-production.yml).")
+	fmt.Println("2. Populate the secret values locally (replace the vault:// placeholders).")
+	fmt.Println("3. Run the server with --config <your-file>.")
+	fmt.Println("")
+	fmt.Println("Note: Environment variables can override any YAML setting (e.g.,")
+	fmt.Println("TMI_SERVER_PORT, TMI_DATABASE_URL). Operational config (OAuth providers,")
+	fmt.Println("timeouts, etc.) lives in the database settings service, not in these files.")
 	return nil
 }

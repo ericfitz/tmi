@@ -114,11 +114,10 @@ def main() -> None:
 
     project_root = get_project_root()
 
+    # All targets use the bootstrap config (default: config-development.yml).
+    # The Oracle backend is selected via TMI_DATABASE_URL from oci-env.sh, not
+    # by switching config files.
     config = args.config
-    if args.oci:
-        default_config = str(project_root / "config-development.yml")
-        if config == default_config:
-            config = str(project_root / "config-development-oci.yml")
 
     build_dbtool(args.oci, project_root)
     run_dbtool(config, args.user, args.provider, args.server, args.input_file, project_root)

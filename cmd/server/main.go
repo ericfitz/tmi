@@ -1612,7 +1612,7 @@ func main() {
 
 	// Generate example config files if requested
 	if flags.GenerateConfig {
-		if err := config.GenerateExampleConfig(); err != nil {
+		if err := config.PrintConfigHelp(); err != nil {
 			slogging.Get().Error("Error generating config: %v", err)
 			os.Exit(1)
 		}
