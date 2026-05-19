@@ -543,11 +543,14 @@ func TestGetSystemSetting_ConfigSourced(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
+	// Uses an operational key (websocket.inactivity_timeout_seconds) so the
+	// test exercises config-sourcing without tripping the bootstrap-key guard
+	// in GetSystemSetting (bootstrap keys like server.port are 404 by design).
 	server := &Server{
 		settingsService: NewMockSettingsService(),
 		configProvider: &MockConfigProvider{
 			settings: []MigratableSetting{
-				{Key: "server.port", Value: "8080", Type: "string", Description: "HTTP port", Source: "config"},
+				{Key: "websocket.inactivity_timeout_seconds", Value: "300", Type: "int", Description: "WS inactivity timeout", Source: "config"},
 			},
 		},
 	}
@@ -565,7 +568,7 @@ func TestGetSystemSetting_ConfigSourced(t *testing.T) {
 		server.GetSystemSetting(c, c.Param("key"))
 	})
 
-	req, _ := http.NewRequest("GET", "/admin/settings/server.port", nil)
+	req, _ := http.NewRequest("GET", "/admin/settings/websocket.inactivity_timeout_seconds", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
@@ -573,8 +576,8 @@ func TestGetSystemSetting_ConfigSourced(t *testing.T) {
 	var setting map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &setting)
 	require.NoError(t, err)
-	assert.Equal(t, "server.port", setting["key"])
-	assert.Equal(t, "8080", setting["value"])
+	assert.Equal(t, "websocket.inactivity_timeout_seconds", setting["key"])
+	assert.Equal(t, "300", setting["value"])
 	assert.Equal(t, "config", setting["source"])
 	assert.Equal(t, true, setting["read_only"])
 }
@@ -664,14 +667,18 @@ func TestDeleteSystemSetting_AllowDeleteDualSource(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
+	// Uses an operational key (websocket.inactivity_timeout_seconds) so the
+	// test exercises dual-source delete without tripping the bootstrap-key
+	// guard in DeleteSystemSetting (bootstrap keys like server.port are 404
+	// by design — they are never DB-stored, so there is nothing to delete).
 	mockSettings := NewMockSettingsService()
-	mockSettings.AddSetting("server.port", "9090", "string")
+	mockSettings.AddSetting("websocket.inactivity_timeout_seconds", "600", "int")
 
 	server := &Server{
 		settingsService: mockSettings,
 		configProvider: &MockConfigProvider{
 			settings: []MigratableSetting{
-				{Key: "server.port", Value: "8080", Type: "string", Source: "config"},
+				{Key: "websocket.inactivity_timeout_seconds", Value: "300", Type: "int", Source: "config"},
 			},
 		},
 	}
@@ -689,11 +696,85 @@ func TestDeleteSystemSetting_AllowDeleteDualSource(t *testing.T) {
 		server.DeleteSystemSetting(c, c.Param("key"))
 	})
 
-	req, _ := http.NewRequest("DELETE", "/admin/settings/server.port", nil)
+	req, _ := http.NewRequest("DELETE", "/admin/settings/websocket.inactivity_timeout_seconds", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
+}
+
+// TestDeleteSystemSetting_BootstrapKey404 verifies that deleting a bootstrap
+// key (file/env-only, never DB-stored) returns HTTP 404 — NOT 500. Without
+// the handler-level guard, the SettingsService bootstrap guard error would be
+// mapped to a 500, an unconditional user-triggerable 500 (Zero 500 policy).
+func TestDeleteSystemSetting_BootstrapKey404(t *testing.T) {
+	originalAdminStore := GlobalGroupMemberRepository
+	defer restoreConfigStores(originalAdminStore)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	// No configProvider — proves the guard returns 404 regardless of
+	// configProvider state.
+	server := &Server{
+		settingsService: NewMockSettingsService(),
+	}
+
+	GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+	userUUID := uuid.New()
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", userUUID.String())
+		c.Set("userProvider", "test")
+		c.Next()
+	})
+	r.DELETE("/admin/settings/:key", func(c *gin.Context) {
+		server.DeleteSystemSetting(c, c.Param("key"))
+	})
+
+	req, _ := http.NewRequest("DELETE", "/admin/settings/database.url", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code, "deleting a bootstrap key must return 404, not 500")
+	assert.NotEqual(t, http.StatusInternalServerError, w.Code)
+}
+
+// TestGetSystemSetting_BootstrapKey404 verifies that getting a bootstrap key
+// returns HTTP 404 — NOT 500 — even when configProvider is nil (the path the
+// code explicitly handles).
+func TestGetSystemSetting_BootstrapKey404(t *testing.T) {
+	originalAdminStore := GlobalGroupMemberRepository
+	defer restoreConfigStores(originalAdminStore)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	// No configProvider — bootstrap key would otherwise fall through to Get.
+	server := &Server{
+		settingsService: NewMockSettingsService(),
+	}
+
+	GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+	userUUID := uuid.New()
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", userUUID.String())
+		c.Set("userProvider", "test")
+		c.Next()
+	})
+	r.GET("/admin/settings/:key", func(c *gin.Context) {
+		server.GetSystemSetting(c, c.Param("key"))
+	})
+
+	req, _ := http.NewRequest("GET", "/admin/settings/database.url", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code, "getting a bootstrap key must return 404, not 500")
+	assert.NotEqual(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestIsProviderSecretKey(t *testing.T) {

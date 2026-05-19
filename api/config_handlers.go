@@ -414,6 +414,18 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		return
 	}
 
+	// Bootstrap keys are file/env-only and are never database-stored settings.
+	// Treat them as not found so the API never reports them as DB settings.
+	if config.ClassificationCategoryFor(key) == config.CategoryBootstrap {
+		logger.Debug("System setting not found (bootstrap key, not DB-stored): %s", key)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusNotFound,
+			Code:    "not_found",
+			Message: "Setting not found",
+		})
+		return
+	}
+
 	// Check config provider first
 	if s.configProvider != nil {
 		for _, cs := range s.configProvider.GetMigratableSettings() {
@@ -582,6 +594,18 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 			Status:  http.StatusInternalServerError,
 			Code:    "service_unavailable",
 			Message: "Settings service unavailable",
+		})
+		return
+	}
+
+	// Bootstrap keys are file/env-only and are never database-stored settings,
+	// so there is nothing to delete. Treat them as not found.
+	if config.ClassificationCategoryFor(key) == config.CategoryBootstrap {
+		logger.Debug("System setting not found for deletion (bootstrap key, not DB-stored): %s", key)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusNotFound,
+			Code:    "not_found",
+			Message: "Setting not found in database",
 		})
 		return
 	}

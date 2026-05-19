@@ -463,4 +463,44 @@ func TestSettingsService_RefusesBootstrapKeyFromDB(t *testing.T) {
 	if err == nil {
 		t.Fatal("Get(database.url) should refuse: bootstrap keys are not DB-served")
 	}
+	assert.Contains(t, err.Error(), "bootstrap key",
+		"the bootstrap guard error should identify the key as a bootstrap key")
+}
+
+func TestSettingsService_BootstrapGuardScope(t *testing.T) {
+	// The bootstrap guard must fire ONLY for bootstrap keys. For a
+	// non-bootstrap key the guard must NOT short-circuit Get: the call should
+	// proceed to the DB path and fail there (nil DB) with a different error.
+	svc := NewSettingsService(nil, nil) // no DB, no Redis
+
+	t.Run("guard does not fire for an unknown (non-bootstrap) key", func(t *testing.T) {
+		defer func() {
+			// With no guard match and a nil DB, the DB path panics on the
+			// nil *gorm.DB. Recovering proves the guard did NOT short-circuit
+			// the call — i.e. the key was not treated as a bootstrap key.
+			if r := recover(); r == nil {
+				t.Fatal("expected the non-bootstrap key to reach the DB path (nil-DB panic)")
+			}
+		}()
+		_, err := svc.Get(context.Background(), "some.unknown.key")
+		// If Get returns instead of panicking, the error must not be the
+		// bootstrap-guard error.
+		if err != nil {
+			assert.NotContains(t, err.Error(), "bootstrap key",
+				"a non-bootstrap key must not trigger the bootstrap guard")
+		}
+	})
+
+	t.Run("guard does not fire for an operational key", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Fatal("expected the operational key to reach the DB path (nil-DB panic)")
+			}
+		}()
+		_, err := svc.Get(context.Background(), "websocket.inactivity_timeout_seconds")
+		if err != nil {
+			assert.NotContains(t, err.Error(), "bootstrap key",
+				"an operational key must not trigger the bootstrap guard")
+		}
+	})
 }
