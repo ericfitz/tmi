@@ -40,6 +40,14 @@ func NewRedactor() Redactor {
 		},
 		tier2Patterns: []string{
 			"*.api_key",
+			// Contains-style patterns: catch sensitive words joined to a
+			// segment by underscore (e.g. timmy.code_embedding_api_key),
+			// which the "*.api_key" glob misses because path.Match needs a
+			// literal ".api_key" final segment. A field path containing the
+			// substring "api_key"/"apikey" is by definition an API key field,
+			// so contains-matching is correct and does not over-redact.
+			"*api_key*",
+			"*apikey*",
 			"*.client_secret",
 			"*.signing_key",
 			"*.private_key",
