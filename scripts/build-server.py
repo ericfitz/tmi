@@ -56,6 +56,12 @@ COMPONENTS = {
         "ldflags": True,
         "ldflags_prefix": "github.com/ericfitz/tmi/cmd/dbtool",
     },
+    "worker-probe": {
+        "output": "bin/worker-probe",
+        "package": "github.com/ericfitz/tmi/cmd/worker-probe",
+        "tags": [],
+        "ldflags": False,
+    },
 }
 
 # ---------------------------------------------------------------------------

@@ -75,7 +75,7 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-dbtool build-dbtool-oci clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz
+.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz
 
 build-server:
 	@uv run scripts/build-server.py
@@ -88,6 +88,9 @@ build-dbtool:  ## Build TMI database administration tool (database-agnostic)
 
 build-dbtool-oci:  ## Build TMI database administration tool with Oracle support (requires oci-env.sh)
 	@uv run scripts/build-server.py --component dbtool --oci
+
+build-worker-probe:  ## Build the worker-probe stub (proves the #415 worker bootstrap contract)
+	@uv run scripts/build-server.py --component worker-probe
 
 clean-build:
 	@uv run scripts/clean.py build
