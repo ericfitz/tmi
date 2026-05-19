@@ -30,8 +30,8 @@ import (
 // to publish the job. It must match the jobEnvelope struct in
 // cmd/worker-probe/main.go exactly.
 type probeJobEnvelope struct {
-	JobID  string              `json:"job_id"`
-	Config probeStampedConfig  `json:"config"`
+	JobID  string             `json:"job_id"`
+	Config probeStampedConfig `json:"config"`
 }
 
 // probeStampedConfig mirrors internal/config.StampedConfig as a local type
@@ -159,14 +159,15 @@ func TestWorkerProbe_ContractEndToEnd_Integration(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = sub.Unsubscribe() })
 
-	// Flush so the subscription interest is registered on the server before
-	// the probe subscribes and before we publish. This mirrors the pattern in
+	// Flush so our result-subject subscription is registered on the server
+	// before we publish. This mirrors the pattern in
 	// internal/worker/heartbeat_test.go (sub.Flush after SubscribeSync).
 	if err := nc.Flush(); err != nil {
 		t.Fatalf("flush subscription: %v", err)
 	}
-	// Brief pause so the probe's subscribe() on "jobs.probe" is live.
-	// 200 ms is the standard pragmatic allowance used in this codebase.
+	// Brief pause so the probe's own subscribe on "jobs.probe" is live before
+	// we publish. 200 ms is the standard pragmatic allowance used by NATS
+	// tests in this codebase.
 	time.Sleep(200 * time.Millisecond)
 
 	// ── Step 6: publish job envelope ─────────────────────────────────────────
@@ -201,6 +202,9 @@ func TestWorkerProbe_ContractEndToEnd_Integration(t *testing.T) {
 			t.Fatalf("unmarshal probe result: %v\nraw: %s", err, msg.Data)
 		}
 		t.Logf("probe result: %+v", result)
+		if result.JobID != jobID {
+			t.Errorf("result JobID = %q, want %q", result.JobID, jobID)
+		}
 		if !result.BootstrapOK {
 			t.Error("bootstrap_ok is false — probe failed to load bootstrap config")
 		}
