@@ -1063,16 +1063,16 @@ func TestObservabilityConfigEnvOverrides(t *testing.T) {
 // ContentOAuth Config Tests
 // =============================================================================
 
-// setBaselineEnv sets the minimum environment variables required for Load("") to succeed.
+// setBaselineEnv sets the minimum environment variables required for Load("")
+// to succeed. As of #415, Load()-time Validate() checks only CategoryBootstrap
+// config (server, database, JWT secret, CORS); operational config such as OAuth
+// providers is DB-seeded and no longer validated at load time, so only the
+// bootstrap env vars below are needed.
 func setBaselineEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("TMI_DATABASE_URL", "postgres://test:test@localhost:5432/test")
 	t.Setenv("TMI_REDIS_URL", "redis://localhost:6379/0")
 	t.Setenv("TMI_JWT_SECRET", "test-secret-for-jwt")
-	// Provide one enabled OAuth provider so validateOAuth passes.
-	t.Setenv("OAUTH_PROVIDERS_TESTPROVIDER_ENABLED", "true")
-	t.Setenv("OAUTH_PROVIDERS_TESTPROVIDER_CLIENT_ID", "test-client-id")
-	t.Setenv("OAUTH_PROVIDERS_TESTPROVIDER_CLIENT_SECRET", "test-client-secret")
 }
 
 func TestConfig_ContentOAuth_EnvOverride_DiscoversProviders(t *testing.T) {
@@ -1095,16 +1095,27 @@ func TestConfig_ContentOAuth_EnvOverride_DiscoversProviders(t *testing.T) {
 	assert.Equal(t, []string{"read", "write"}, m.RequiredScopes)
 }
 
-func TestConfig_ContentOAuth_Validation_FailsWithoutKey(t *testing.T) {
+// TestConfig_ContentOAuth_Load_DoesNotValidateOperationalConfig pins the #415
+// contract: content OAuth provider config is CategoryOperational (DB-seeded and
+// runtime-editable), so Load()-time Validate() must NOT reject a config where a
+// content OAuth provider is enabled without an encryption key. Before #415 this
+// test asserted the opposite (that Load() failed with a
+// "TMI_CONTENT_TOKEN_ENCRYPTION_KEY" error) — that was load-time validation of
+// operational config, which is wrong now that the config files are
+// bootstrap-only. The validator-level rule "enabled provider requires a key" is
+// still enforced and is covered directly by
+// TestContentOAuthConfig_Validate_RequiresKeyWhenEnabled in content_oauth_test.go.
+func TestConfig_ContentOAuth_Load_DoesNotValidateOperationalConfig(t *testing.T) {
 	setBaselineEnv(t)
 	t.Setenv("TMI_CONTENT_OAUTH_PROVIDERS_MOCK_ENABLED", "true")
 	t.Setenv("TMI_CONTENT_OAUTH_PROVIDERS_MOCK_CLIENT_ID", "c")
 	t.Setenv("TMI_CONTENT_OAUTH_PROVIDERS_MOCK_AUTH_URL", "http://a")
 	t.Setenv("TMI_CONTENT_OAUTH_PROVIDERS_MOCK_TOKEN_URL", "http://t")
-	// TMI_CONTENT_TOKEN_ENCRYPTION_KEY intentionally unset
-	_, err := Load("")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "TMI_CONTENT_TOKEN_ENCRYPTION_KEY")
+	// TMI_CONTENT_TOKEN_ENCRYPTION_KEY intentionally unset: operational config
+	// is no longer validated at load time, so Load() must still succeed.
+	cfg, err := Load("")
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
 }
 
 // =============================================================================

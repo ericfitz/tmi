@@ -830,7 +830,23 @@ func setFieldFromString(field reflect.Value, value string) error {
 	return nil
 }
 
-// Validate validates the configuration
+// Validate validates the configuration at config.Load() time.
+//
+// IMPORTANT: This runs at startup BEFORE the database settings service exists.
+// As of #415, the config files (config-development.yml, config-test.yml,
+// config-production.yml) are bootstrap-only — all CategoryOperational config
+// (OAuth/SAML providers, websocket tunables, content extractors/OAuth, Timmy,
+// administrators) was removed from the files and is now DB-seeded from the
+// classification registry via SettingsService.SeedDefaults ->
+// DefaultOperationalSettings(). Validating operational config here is wrong by
+// construction: the file no longer carries it, so the values would always be
+// the zero/default fallbacks rather than the effective runtime config.
+//
+// Therefore Validate() checks ONLY CategoryBootstrap config (server, database,
+// CORS, JWT secret). Operational config correctness is enforced by the
+// classification registry + ValidateClassifications suite; its values come from
+// SeedDefaults. See validateOperationalRemoved below for the rationale on each
+// operational check that used to live here.
 func (c *Config) Validate() error {
 	if err := c.validateServer(); err != nil {
 		return err
@@ -838,25 +854,10 @@ func (c *Config) Validate() error {
 	if err := c.validateDatabase(); err != nil {
 		return err
 	}
-	if err := c.validateAuth(); err != nil {
-		return err
-	}
-	if err := c.validateWebSocket(); err != nil {
-		return err
-	}
-	if err := c.validateAdministrators(); err != nil {
+	if err := c.validateJWTSecret(); err != nil {
 		return err
 	}
 	if err := c.validateCORS(); err != nil {
-		return err
-	}
-	if err := c.ContentOAuth.Validate(c.ContentTokenEncryptionKey); err != nil {
-		return err
-	}
-	if err := c.ContentExtractors.Validate(); err != nil {
-		return err
-	}
-	if err := c.validateTimmy(); err != nil {
 		return err
 	}
 	return nil
@@ -865,6 +866,10 @@ func (c *Config) Validate() error {
 // validateTimmy enforces invariants for dev/test-only Timmy flags. Today this
 // just refuses to start with DumpExtractedTextToNote enabled in production
 // builds — same posture as login_hint and other dev-only behaviors.
+//
+// NOTE: Timmy config is CategoryOperational (DB-seeded as of #415), so this is
+// NOT called from Load()-time Validate(). It is retained as a unit-testable
+// validator and may be invoked by callers that hold an effective Config.
 func (c *Config) validateTimmy() error {
 	if c.Timmy.DumpExtractedTextToNote && c.Auth.BuildMode == "production" {
 		return fmt.Errorf("timmy.dump_extracted_text_to_note is a dev/test-only flag; set TMI_BUILD_MODE != production or disable TMI_TIMMY_DUMP_EXTRACTED_TEXT_TO_NOTE")
@@ -896,19 +901,25 @@ func (c *Config) validateDatabase() error {
 	return nil
 }
 
-func (c *Config) validateAuth() error {
-	if err := c.validateJWT(); err != nil {
-		return err
-	}
-	if err := c.validateOAuth(); err != nil {
-		return err
+// validateJWTSecret validates the bootstrap JWT secret. auth.jwt.secret is
+// CategoryBootstrap (it must exist before any DB-backed settings can be read),
+// so this check stays in the Load()-time path.
+func (c *Config) validateJWTSecret() error {
+	if c.Auth.JWT.Secret == "" {
+		return fmt.Errorf("jwt secret is required")
 	}
 	return nil
 }
 
+// validateJWT validates the full JWT config (secret + expiration). It is NOT
+// called from Load()-time Validate(): auth.jwt.expiration_seconds is
+// CategoryOperational (DB-seeded; the classification registry supplies a
+// default), so its value cannot be meaningfully validated against a
+// bootstrap-only file. Retained for direct unit testing of the validation
+// rules and for any caller that has an effective (non-bootstrap) Config.
 func (c *Config) validateJWT() error {
-	if c.Auth.JWT.Secret == "" {
-		return fmt.Errorf("jwt secret is required")
+	if err := c.validateJWTSecret(); err != nil {
+		return err
 	}
 	if c.Auth.JWT.ExpirationSeconds <= 0 {
 		return fmt.Errorf("jwt expiration must be greater than 0")
@@ -916,6 +927,12 @@ func (c *Config) validateJWT() error {
 	return nil
 }
 
+// validateOAuth validates OAuth provider config. OAuth provider config (and the
+// callback URL) is CategoryOperational — DB-seeded as of #415 and editable at
+// runtime via the admin API. It is therefore NOT called from Load()-time
+// Validate(): a fresh deployment has zero OAuth providers seeded and an operator
+// adds them at runtime, so requiring >=1 provider AT BOOT would wrongly refuse
+// to start the server. Retained as a unit-testable validator only.
 func (c *Config) validateOAuth() error {
 	if c.Auth.OAuth.CallbackURL == "" {
 		return fmt.Errorf("oauth callback url is required")
@@ -935,6 +952,10 @@ func (c *Config) validateOAuth() error {
 	return nil
 }
 
+// validateWebSocket validates the websocket inactivity timeout.
+// websocket.inactivity_timeout_seconds is CategoryOperational (DB-seeded as of
+// #415; the classification registry supplies a sane default), so this is NOT
+// called from Load()-time Validate(). Retained as a unit-testable validator.
 func (c *Config) validateWebSocket() error {
 	if c.WebSocket.InactivityTimeoutSeconds < 15 {
 		return fmt.Errorf("websocket inactivity timeout must be at least 15 seconds")
@@ -942,6 +963,9 @@ func (c *Config) validateWebSocket() error {
 	return nil
 }
 
+// validateAdministrators validates the administrators list. administrators is
+// CategoryOperational (DB-seeded as of #415), so this is NOT called from
+// Load()-time Validate(). Retained as a unit-testable validator.
 func (c *Config) validateAdministrators() error {
 	for i, admin := range c.Administrators {
 		if err := c.validateAdministrator(i, admin); err != nil {
