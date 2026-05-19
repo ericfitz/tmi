@@ -12,8 +12,9 @@ type MigratableSetting struct {
 	Value       string
 	Type        string
 	Description string
-	Secret      bool   // true = mask value in API responses
+	Secret      bool   // true = mask value in API responses (kept for back-compat; mirrors Class.Secret)
 	Source      string // "config" or "environment"
+	Class       ConfigClass
 }
 
 // settingSource returns "environment" if the given env var is set, otherwise "config".
