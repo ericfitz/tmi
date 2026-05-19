@@ -1,0 +1,130 @@
+package config
+
+// Category answers: where does the value come from at rest?
+type Category int
+
+const (
+	// CategoryUnclassified is the zero value. A setting with this category
+	// fails the validation suite — it forces every setting to be classified.
+	CategoryUnclassified Category = iota
+	// CategoryBootstrap settings are loaded from file/env only, never the DB,
+	// and consumed at startup before the settings service exists.
+	CategoryBootstrap
+	// CategoryOperational settings are DB-backed and runtime-editable.
+	CategoryOperational
+)
+
+func (c Category) String() string {
+	switch c {
+	case CategoryBootstrap:
+		return "bootstrap"
+	case CategoryOperational:
+		return "operational"
+	default:
+		return "unclassified"
+	}
+}
+
+// ValueKind answers: is the stored value the secret itself, or a pointer to it?
+type ValueKind int
+
+const (
+	// ValueKindInline means the field holds the actual value.
+	ValueKindInline ValueKind = iota
+	// ValueKindReference means the field holds a locator (vault://..., a file
+	// path, an env-var name) dereferenced at use time. Only valid when Secret.
+	ValueKindReference
+)
+
+func (v ValueKind) String() string {
+	if v == ValueKindReference {
+		return "reference"
+	}
+	return "inline"
+}
+
+// Visibility answers: who may read this setting through the API?
+type Visibility int
+
+const (
+	// VisibilityInternal: server-side only, never in any API response.
+	VisibilityInternal Visibility = iota
+	// VisibilityAdminOnly: visible to admins via /admin config endpoints.
+	VisibilityAdminOnly
+	// VisibilityPublic: exposed on the unauthenticated /config endpoint.
+	VisibilityPublic
+)
+
+func (v Visibility) String() string {
+	switch v {
+	case VisibilityAdminOnly:
+		return "admin-only"
+	case VisibilityPublic:
+		return "public"
+	default:
+		return "internal"
+	}
+}
+
+// Mutability answers: can it change after startup?
+type Mutability int
+
+const (
+	// MutabilityStatic: read once at boot; a change needs a restart.
+	MutabilityStatic Mutability = iota
+	// MutabilityHot: re-read at use time; a runtime edit takes effect at once.
+	MutabilityHot
+)
+
+func (m Mutability) String() string {
+	if m == MutabilityHot {
+		return "hot"
+	}
+	return "static"
+}
+
+// Consumer is a closed enum of the processes that read configuration.
+// Add a value here when a new component type is introduced.
+type Consumer int
+
+const (
+	ConsumerMonolith Consumer = iota
+	ConsumerTMIUX
+	ConsumerWorkerExtractor
+	ConsumerWorkerChunkEmbed
+)
+
+func (c Consumer) String() string {
+	switch c {
+	case ConsumerTMIUX:
+		return "tmi-ux"
+	case ConsumerWorkerExtractor:
+		return "worker:extractor"
+	case ConsumerWorkerChunkEmbed:
+		return "worker:chunk-embed"
+	default:
+		return "monolith"
+	}
+}
+
+// Delivery describes how an operational setting reaches a process that cannot
+// ask the monolith over HTTP. It is nil on bootstrap settings.
+type Delivery struct {
+	// StampedIntoEnvelope: the monolith copies this into job envelopes.
+	StampedIntoEnvelope bool
+	// SharedInvariant: the monolith ALSO consumes this; ingest and the
+	// monolith must agree. Implies StampedIntoEnvelope.
+	SharedInvariant bool
+}
+
+// ConfigClass is the complete classification of one configuration item.
+type ConfigClass struct {
+	Category   Category
+	Secret     bool
+	ValueKind  ValueKind
+	Delivery   *Delivery // nil for CategoryBootstrap
+	Visibility Visibility
+	Mutability Mutability
+	Consumers  []Consumer
+	Required   bool
+}
