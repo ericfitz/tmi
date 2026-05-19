@@ -53,8 +53,9 @@ type TimmySessionManager struct {
 	chunker          *TextChunker
 	contextBuilder   *ContextBuilder
 	rateLimiter      *TimmyRateLimiter
-	reranker         Reranker        // nil if not configured
-	decomposer       QueryDecomposer // nil if not enabled
+	reranker         Reranker                     // nil if not configured
+	decomposer       QueryDecomposer              // nil if not enabled
+	stampedConfig    config.StampedConfigProvider // nil until SetStampedConfigProvider is called
 }
 
 // NewTimmySessionManager creates a new session manager with all required dependencies
@@ -78,6 +79,35 @@ func NewTimmySessionManager(
 		reranker:         reranker,
 		decomposer:       decomposer,
 	}
+}
+
+// SetStampedConfigProvider wires the shared-invariant embedding profile into
+// the session manager. Once set, the query path reads the embedding model
+// through the provider so that ingest and query always see the same value.
+// This mirrors the SetSettingsService wiring pattern used elsewhere in the
+// server startup sequence.
+func (sm *TimmySessionManager) SetStampedConfigProvider(p config.StampedConfigProvider) {
+	sm.stampedConfig = p
+}
+
+// expectedEmbeddingModel returns the embedding model the query path must use
+// for the given index type, read through the stamped config provider.
+// Falls back to the static config when no provider has been wired (e.g. in
+// unit tests that build a TimmySessionManager without a provider).
+func (sm *TimmySessionManager) expectedEmbeddingModel(ctx context.Context, indexType string) (string, error) {
+	if sm.stampedConfig == nil {
+		// Fallback for code paths that have not been wired with a provider
+		// (e.g. some unit tests): use the static config.
+		if indexType == IndexTypeCode {
+			return sm.config.CodeEmbeddingModel, nil
+		}
+		return sm.config.TextEmbeddingModel, nil
+	}
+	sc, err := sm.stampedConfig.Get(ctx)
+	if err != nil {
+		return "", err
+	}
+	return sc.Embedding.Model, nil
 }
 
 // CreateSession creates a new Timmy chat session for a user and threat model.
@@ -878,9 +908,10 @@ func (sm *TimmySessionManager) searchIndexRaw(ctx context.Context, threatModelID
 	}
 
 	dim := len(vectors[0])
-	expectedModel := sm.config.TextEmbeddingModel
-	if indexType == IndexTypeCode {
-		expectedModel = sm.config.CodeEmbeddingModel
+	expectedModel, err := sm.expectedEmbeddingModel(ctx, indexType)
+	if err != nil {
+		logger.Warn("Failed to read stamped embedding model for %s search: %v", indexType, err)
+		return nil
 	}
 	idx, err := sm.vectorManager.GetOrLoadIndex(ctx, threatModelID, indexType, expectedModel, dim)
 	if err != nil {

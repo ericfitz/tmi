@@ -776,7 +776,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	contentTokenRepo, contentOAuthRegistry := wireContentOAuthHandlers(apiServer, config, gormDB.DB(), dbManager, authHandlers)
 
 	// ==== PHASE 6: Timmy AI Assistant ====
-	initializeTimmySubsystem(config, apiServer, contentTokenRepo, contentOAuthRegistry)
+	initializeTimmySubsystem(config, apiServer, contentTokenRepo, contentOAuthRegistry, api.NewStampedConfigProvider(settingsService))
 
 	// Start embedding idle cleanup (runs unconditionally, even if Timmy is disabled,
 	// to clean up embeddings if Timmy was previously enabled)
@@ -1111,7 +1111,7 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 // NOTE: All content-source plumbing (including GoogleWorkspace) is gated on
 // cfg.Timmy.Enabled — a pre-existing architectural constraint. Enabling Google
 // Workspace also requires Timmy to be enabled.
-func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, contentTokenRepo api.ContentTokenRepository, contentOAuthRegistry *api.ContentOAuthProviderRegistry) {
+func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, contentTokenRepo api.ContentTokenRepository, contentOAuthRegistry *api.ContentOAuthProviderRegistry, stampedCfgProvider config.StampedConfigProvider) {
 	logger := slogging.Get()
 
 	if !cfg.Timmy.Enabled {
@@ -1333,6 +1333,10 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 		cfg.Timmy, llmService, vectorManager, registry, rateLimiter,
 		reranker, decomposer,
 	)
+	// Wire the shared embedding profile so ingest and query cannot diverge.
+	// The setter tolerates a nil provider; expectedEmbeddingModel then falls
+	// back to the static config.
+	sessionManager.SetStampedConfigProvider(stampedCfgProvider)
 	apiServer.SetTimmySessionManager(sessionManager)
 	logger.Info("Timmy AI assistant initialized (provider=%s, model=%s)", cfg.Timmy.LLMProvider, cfg.Timmy.LLMModel)
 }

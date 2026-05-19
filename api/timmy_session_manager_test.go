@@ -491,3 +491,30 @@ func TestSanitizeGeneratedTitle(t *testing.T) {
 		})
 	}
 }
+
+// TestSearchIndexRaw_UsesStampedEmbeddingModel verifies that the query path
+// reads the embedding model through StampedConfigProvider so that ingest and
+// query cannot diverge.
+func TestSearchIndexRaw_UsesStampedEmbeddingModel(t *testing.T) {
+	g := fakeSettingsReader{vals: map[string]string{
+		"timmy.text_embedding_model":    "stamped-model",
+		"timmy.text_embedding_base_url": "https://e",
+		"timmy.embedding_dimension":     "768",
+	}}
+	p := NewStampedConfigProvider(g)
+	sc, err := p.Get(context.Background())
+	if err != nil {
+		t.Fatalf("provider Get: %v", err)
+	}
+	if sc.Embedding.Model != "stamped-model" {
+		t.Fatalf("provider returned model %q, want %q", sc.Embedding.Model, "stamped-model")
+	}
+	sm := &TimmySessionManager{stampedConfig: p}
+	got, err := sm.expectedEmbeddingModel(context.Background(), IndexTypeText)
+	if err != nil {
+		t.Fatalf("expectedEmbeddingModel: %v", err)
+	}
+	if got != "stamped-model" {
+		t.Errorf("expectedEmbeddingModel = %q, want %q", got, "stamped-model")
+	}
+}
