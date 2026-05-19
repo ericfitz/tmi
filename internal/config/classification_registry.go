@@ -168,18 +168,26 @@ var exactClassifications = map[string]ConfigClass{
 // prefixClassifications handles repeating provider keys
 // (auth.oauth.providers.*, auth.saml.providers.*, content_oauth.providers.*).
 // The list is ordered; the first matching prefix wins.
+//
+// Provider subtrees contain a MIX of secret and non-secret keys (e.g.
+// `.client_secret` is secret, `.enabled`/`.name`/`.client_id` are not). The
+// prefix Class.Secret describes the whole key, so it must be false here — a
+// blanket true would cause GetMigratableSettings' Class.Secret->Secret sync to
+// mask non-secret sub-keys in API responses. The genuinely-secret sub-keys
+// (`client_secret`, `sp_private_key`, `sp_certificate`, `idp_metadata_b64xml`)
+// are already marked Secret:true precisely by the per-setting helpers.
 var prefixClassifications = []prefixClass{
 	{
 		prefix: "auth.oauth.providers.",
-		class:  operationalClass(VisibilityAdminOnly, true),
+		class:  operationalClass(VisibilityAdminOnly, false),
 	},
 	{
 		prefix: "auth.saml.providers.",
-		class:  operationalClass(VisibilityAdminOnly, true),
+		class:  operationalClass(VisibilityAdminOnly, false),
 	},
 	{
 		prefix: "content_oauth.providers.",
-		class:  operationalClass(VisibilityAdminOnly, true),
+		class:  operationalClass(VisibilityAdminOnly, false),
 	},
 	{
 		prefix: "content_extractors.",

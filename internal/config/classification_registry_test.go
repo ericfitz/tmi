@@ -24,9 +24,19 @@ func TestClassificationFor_SharedEmbeddingKey(t *testing.T) {
 }
 
 func TestClassificationFor_ProviderPrefixKey(t *testing.T) {
+	// classificationFor is purely prefix-based and cannot distinguish a
+	// provider's secret sub-keys (.client_secret) from its non-secret ones
+	// (.enabled, .client_id). The provider prefix is therefore classified
+	// operational and NOT blanket-secret — a blanket Class.Secret:true would
+	// cause GetMigratableSettings' Class.Secret->Secret sync to mask the
+	// non-secret sub-keys. Per-setting Secret flags are the precise masking
+	// source (see TestGetMigratableSettings_OAuthProviderSecretMasking).
 	c := classificationFor("auth.oauth.providers.google.client_secret")
-	if !c.Secret {
-		t.Error("oauth provider client_secret should be classified Secret")
+	if c.Category != CategoryOperational {
+		t.Errorf("oauth provider key Category = %v, want CategoryOperational", c.Category)
+	}
+	if c.Secret {
+		t.Error("oauth provider prefix must not be blanket-classified Secret — provider subtrees contain a mix of secret and non-secret keys")
 	}
 }
 
