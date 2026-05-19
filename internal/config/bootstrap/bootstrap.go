@@ -27,8 +27,10 @@ type WorkerBootstrap struct {
 	LogLevel string
 }
 
-// secretMountEnvPrefix is the env-var prefix for a mounted-secret path.
-// TMI_WORKER_SECRET_MOUNT_EMBEDDING_API_KEY -> SecretMounts["embedding-api-key"].
+// secretMountEnvPrefix is the env-var prefix for a mounted-secret path. The
+// suffix after the prefix is lowercased and each underscore becomes a dash to
+// form the logical name: TMI_WORKER_SECRET_MOUNT_EMBEDDING_API_KEY ->
+// SecretMounts["embedding-api-key"] (so a literal __ in the name becomes --).
 const secretMountEnvPrefix = "TMI_WORKER_SECRET_MOUNT_" //nolint:gosec // this is an env-var prefix, not a credential
 
 // LoadWorker builds a WorkerBootstrap from environment variables only.
@@ -57,6 +59,7 @@ func LoadWorker() (*WorkerBootstrap, error) {
 			continue
 		}
 		name, value := kv[:eq], kv[eq+1:]
+		// Skip non-mount vars and mount vars with an empty path.
 		if !strings.HasPrefix(name, secretMountEnvPrefix) || value == "" {
 			continue
 		}
