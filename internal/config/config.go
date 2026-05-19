@@ -367,6 +367,11 @@ func Load(configFile string) (*Config, error) {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
+	// Fail fast if any Required bootstrap setting has an empty effective value.
+	if err := config.ValidateRequired(); err != nil {
+		return nil, fmt.Errorf("configuration validation failed: %w", err)
+	}
+
 	// Warn if CORS allowed origins is empty in production mode
 	if !config.Logging.IsDev && len(config.Server.CORS.AllowedOrigins) == 0 {
 		logger := slogging.Get()
@@ -860,6 +865,30 @@ func (c *Config) Validate() error {
 	}
 	if err := c.validateCORS(); err != nil {
 		return err
+	}
+	return nil
+}
+
+// ValidateRequired checks that every Required-classified bootstrap setting has a
+// non-empty effective value. It is called from Load() after Validate() succeeds,
+// so the Config has already had defaults, file values, and env overrides applied.
+//
+// All five Required settings (server.port, server.interface, database.url,
+// auth.build_mode, auth.jwt.secret) are CategoryBootstrap — their values are
+// known at Load() time, making this the correct enforcement point.
+//
+// All missing required keys are collected into a single error rather than
+// failing on the first, mirroring the ValidateClassifications multi-error style.
+func (c *Config) ValidateRequired() error {
+	settings := c.GetMigratableSettings()
+	var missing []string
+	for _, s := range settings {
+		if s.Class.Required && s.Value == "" {
+			missing = append(missing, s.Key)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("required config setting(s) missing a value: %v", missing)
 	}
 	return nil
 }

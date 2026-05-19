@@ -58,6 +58,9 @@ func ValidateClassifications(settings []MigratableSetting) error {
 		if c.Visibility == VisibilityPublic && c.Secret {
 			add(s.Key, "a public setting must not be a secret")
 		}
+		if c.Required && c.Category != CategoryBootstrap {
+			add(s.Key, "Required is only meaningful on a bootstrap setting")
+		}
 	}
 
 	if len(problems) > 0 {

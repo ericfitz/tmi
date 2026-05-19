@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -973,6 +974,7 @@ database:
   redis:
     url: "redis://localhost:6379/0"
 auth:
+  build_mode: "test"
   jwt:
     secret: "test-secret-for-jwt"
     expiration_seconds: 3600
@@ -1069,11 +1071,16 @@ func TestObservabilityConfigEnvOverrides(t *testing.T) {
 // config (server, database, JWT secret, CORS); operational config such as OAuth
 // providers is DB-seeded and no longer validated at load time, so only the
 // bootstrap env vars below are needed.
+//
+// TMI_BUILD_MODE is set because auth.build_mode is a Required bootstrap setting
+// (enforced by Config.ValidateRequired in Load()); getDefaultConfig() supplies
+// no default for it, so Load("") with no config file needs it from the env.
 func setBaselineEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("TMI_DATABASE_URL", "postgres://test:test@localhost:5432/test")
 	t.Setenv("TMI_REDIS_URL", "redis://localhost:6379/0")
 	t.Setenv("TMI_JWT_SECRET", "test-secret-for-jwt")
+	t.Setenv("TMI_BUILD_MODE", "test")
 }
 
 func TestConfig_ContentOAuth_EnvOverride_DiscoversProviders(t *testing.T) {
@@ -1253,5 +1260,98 @@ func TestResolveSecretsConfigReferences_VaultTokenRejected(t *testing.T) {
 
 	if err := cfg.ResolveSecretsConfigReferences(context.Background()); err == nil {
 		t.Fatal("expected error: vault:// for secrets.vault_token must be rejected")
+	}
+}
+
+// =============================================================================
+// ValidateRequired Tests
+// =============================================================================
+
+// minimalValidConfig returns a Config that satisfies all 5 Required bootstrap
+// settings (server.port, server.interface, database.url, auth.build_mode,
+// auth.jwt.secret) by combining getDefaultConfig() defaults with explicit
+// overrides for the fields that have no default.
+func minimalValidConfig() *Config {
+	cfg := getDefaultConfig()
+	cfg.Database.URL = "postgres://test:test@localhost:5432/test"
+	cfg.Auth.BuildMode = "dev"
+	cfg.Auth.JWT.Secret = "test-jwt-secret"
+	return cfg
+}
+
+func TestValidateRequired_PassesWhenAllRequiredFieldsPresent(t *testing.T) {
+	cfg := minimalValidConfig()
+	if err := cfg.ValidateRequired(); err != nil {
+		t.Fatalf("ValidateRequired() should pass with all required fields set, got: %v", err)
+	}
+}
+
+func TestValidateRequired_FailsWhenDatabaseURLMissing(t *testing.T) {
+	cfg := minimalValidConfig()
+	cfg.Database.URL = ""
+	err := cfg.ValidateRequired()
+	if err == nil {
+		t.Fatal("ValidateRequired() should fail when database.url is empty")
+	}
+	if !strings.Contains(err.Error(), "database.url") {
+		t.Errorf("error should mention database.url, got: %v", err)
+	}
+}
+
+func TestValidateRequired_FailsWhenJWTSecretMissing(t *testing.T) {
+	cfg := minimalValidConfig()
+	cfg.Auth.JWT.Secret = ""
+	err := cfg.ValidateRequired()
+	if err == nil {
+		t.Fatal("ValidateRequired() should fail when auth.jwt.secret is empty")
+	}
+	if !strings.Contains(err.Error(), "auth.jwt.secret") {
+		t.Errorf("error should mention auth.jwt.secret, got: %v", err)
+	}
+}
+
+func TestValidateRequired_FailsWhenBuildModeMissing(t *testing.T) {
+	cfg := minimalValidConfig()
+	cfg.Auth.BuildMode = ""
+	err := cfg.ValidateRequired()
+	if err == nil {
+		t.Fatal("ValidateRequired() should fail when auth.build_mode is empty")
+	}
+	if !strings.Contains(err.Error(), "auth.build_mode") {
+		t.Errorf("error should mention auth.build_mode, got: %v", err)
+	}
+}
+
+func TestValidateRequired_CollectsMultipleMissingKeys(t *testing.T) {
+	cfg := minimalValidConfig()
+	cfg.Database.URL = ""
+	cfg.Auth.JWT.Secret = ""
+	err := cfg.ValidateRequired()
+	if err == nil {
+		t.Fatal("ValidateRequired() should fail when multiple required fields are empty")
+	}
+	if !strings.Contains(err.Error(), "database.url") {
+		t.Errorf("error should mention database.url, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "auth.jwt.secret") {
+		t.Errorf("error should mention auth.jwt.secret, got: %v", err)
+	}
+}
+
+func TestValidateRequired_LoadFailsWhenRequiredKeyMissing(t *testing.T) {
+	// Verify that Load() calls ValidateRequired() by showing Load fails
+	// when auth.build_mode (Required + Bootstrap) has no effective value.
+	// We use Load("") (no file) + env vars that satisfy Validate() but
+	// intentionally leave auth.build_mode empty (no TMI_BUILD_MODE set).
+	t.Setenv("TMI_DATABASE_URL", "postgres://test:test@localhost:5432/test")
+	t.Setenv("TMI_REDIS_URL", "redis://localhost:6379/0")
+	t.Setenv("TMI_JWT_SECRET", "test-jwt-secret")
+	// TMI_BUILD_MODE intentionally not set — getDefaultConfig().Auth.BuildMode == ""
+	_, err := Load("")
+	if err == nil {
+		t.Fatal("Load() should fail when auth.build_mode is empty (Required bootstrap key)")
+	}
+	if !strings.Contains(err.Error(), "auth.build_mode") {
+		t.Errorf("error should mention auth.build_mode, got: %v", err)
 	}
 }

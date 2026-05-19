@@ -95,6 +95,18 @@ func TestValidateClassifications_NeedsDescriptionAndConsumer(t *testing.T) {
 	}
 }
 
+func TestValidateClassifications_RequiredImpliesBootstrap(t *testing.T) {
+	// Required on an operational setting has no enforcement point and is
+	// therefore disallowed — the validation suite must reject it.
+	c := validClass() // CategoryOperational by default
+	c.Required = true
+	s := []MigratableSetting{{Key: "x", Description: "x", Class: c}}
+	err := ValidateClassifications(s)
+	if err == nil || !strings.Contains(err.Error(), "Required") {
+		t.Fatalf("want Required-implies-bootstrap error, got %v", err)
+	}
+}
+
 func TestValidateClassifications_AcceptsValidSet(t *testing.T) {
 	good := []MigratableSetting{
 		{Key: "database.url", Description: "DB URL", Class: ConfigClass{

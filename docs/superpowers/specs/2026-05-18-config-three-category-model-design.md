@@ -125,7 +125,9 @@ const (
 
 `[]Consumer` per setting. This is documentation-as-data: it makes the `SharedInvariant` property *derivable* (a `SharedInvariant` setting must list `ConsumerMonolith` plus at least one `ConsumerWorker*`) and turns a future component's config audit into a query rather than an investigation. `ConsumerTMIUX` records that TMI-UX reads a setting via the public config API — it documents audience, not a delivery role; TMI-UX receives nothing through the cascade or the envelope.
 
-**8. `Required` + `Default`.** `Required bool`; a typed `Default`. Startup validation fails fast on a missing required value rather than producing a confusing downstream nil.
+**8. `Required`.** `Required bool`. A `Required` setting must have a non-empty effective value at startup. This is enforced by `Config.ValidateRequired()`, which `config.Load()` calls right after `Validate()` succeeds: it walks `GetMigratableSettings()` and fails `Load()` with a single error naming every `Required` setting whose post-cascade `Value` is empty, rather than producing a confusing downstream nil. The validation suite additionally enforces `Required ⟹ CategoryBootstrap` — a required setting must be knowable at startup; an operational setting comes from the DB seed, where "required" has no enforcement point.
+
+There is **no `Default` field** on `ConfigClass` / `MigratableSetting`. Default *values* are not classification data: bootstrap defaults come from `getDefaultConfig()` and operational defaults from `DefaultOperationalSettings()` (itself derived from `getDefaultConfig()`). Those two functions are the single source of truth for default values; adding a `Default` field to the classification would create a second, divergent source — the opposite of the "never revisit config" goal.
 
 ### `MigratableSetting` — the complete shape
 
@@ -145,7 +147,8 @@ type MigratableSetting struct {
     Mutability  Mutability
     Consumers   []Consumer
     Required    bool
-    Default     any
+    // No Default field — default values come from getDefaultConfig()
+    // (bootstrap) and DefaultOperationalSettings() (operational).
 }
 ```
 
@@ -174,7 +177,7 @@ A unit test over the `MigratableSetting` registry, run as part of `make test-uni
 - `Delivery.SharedInvariant` ⟹ `Consumers` contains `ConsumerMonolith` and at least one `ConsumerWorker*`.
 - `ValueKind == ValueKindReference` ⟹ `Secret == true`.
 - `Visibility == VisibilityPublic` ⟹ `Secret == false`.
-- `Required == true` ⟹ a `Default` is present **or** the setting is documented as caller-supplied (a flag on the literal).
+- `Required == true` ⟹ `Category == CategoryBootstrap`. A required setting must be knowable at startup; an operational setting comes from the DB seed, where "required" has no enforcement point. Empty-value enforcement itself is done at runtime by `Config.ValidateRequired()` in `config.Load()`, not by this suite (the suite has no effective `Config`, only the classification registry).
 - Every setting has a non-empty `Description` and at least one `Consumer`.
 
 Config behavior is derived from these properties everywhere. After this issue, "dealing with config" is: add a literal with its properties; the suite proves consistency; every mechanism does the right thing automatically. That is the "never revisit" property.
@@ -247,7 +250,7 @@ Everything `CategoryOperational` moves out of YAML and into **DB seed data**. Th
 
 ### Generated example config
 
-`config-example.yml` is **generated** from the `MigratableSetting` registry — every setting is a typed literal with `Description`, `Default`, `Required`, and `Category`, so the example file can be emitted by a `make` target rather than hand-maintained. A test asserts the regenerated file matches the committed file (drift = test failure). `config-production.yml` shrinks to a bootstrap skeleton whose secret fields are `Reference`-kind placeholders (`vault://…`) — it is a template, not a populated file.
+`config-example.yml` is **generated** from the `MigratableSetting` registry — every setting is a typed literal with `Description`, `Required`, `Category`, and a `Value` (the default value, supplied by `getDefaultConfig()`), so the example file can be emitted by a `make` target rather than hand-maintained. A test asserts the regenerated file matches the committed file (drift = test failure). `config-production.yml` shrinks to a bootstrap skeleton whose secret fields are `Reference`-kind placeholders (`vault://…`) — it is a template, not a populated file.
 
 ### Integration-test configs
 
@@ -371,7 +374,7 @@ Settings-table seeding, the `dbtool config import-legacy` path, and any settings
 | Scope | Full, definitive classification of every config item; never revisit config |
 | Approach | Category as typed data on each `MigratableSetting` (Approach A); single `Config` struct retained |
 | Role model | `Category` (Bootstrap / Operational) × `Delivery` (`StampedIntoEnvelope`, `SharedInvariant`) → four roles |
-| Classification properties | `Category`, `Secret`, `ValueKind`, `Delivery`, `Visibility`, `Mutability`, `Consumers`, `Required`, `Default` |
+| Classification properties | `Category`, `Secret`, `ValueKind`, `Delivery`, `Visibility`, `Mutability`, `Consumers`, `Required` (no `Default` field — default values come from `getDefaultConfig()` / `DefaultOperationalSettings()`; `Required` is enforced by `ValidateRequired()` at startup and the suite rule `Required ⟹ CategoryBootstrap`) |
 | Self-enforcement | A validation suite over the registry; misclassification fails the build |
 | Shared config delivery | Envelope-stamped by the monolith; no controller-projection dependency |
 | Shared-invariant guarantee | Structural — one `StampedConfigProvider.Get()` accessor for both stamp and Timmy query |
