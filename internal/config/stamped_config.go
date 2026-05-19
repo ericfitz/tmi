@@ -40,6 +40,11 @@ type StampedConfig struct {
 	Embedding EmbeddingProfile `json:"embedding"`
 }
 
+// Validate returns an error if the stamped configuration is incomplete.
+func (s StampedConfig) Validate() error {
+	return s.Embedding.Validate()
+}
+
 // StampedConfigProvider is the single read point for stamped configuration.
 // Both the monolith's job-envelope builder and the monolith's own Timmy query
 // path read through this interface, which is what makes the shared-invariant

@@ -39,4 +39,19 @@ func TestEmbeddingProfile_Valid(t *testing.T) {
 	if err := badDim.Validate(); err == nil {
 		t.Error("profile with zero dimension should be invalid")
 	}
+	badEndpoint := EmbeddingProfile{Model: "m", Endpoint: "", Dimension: 768}
+	if err := badEndpoint.Validate(); err == nil {
+		t.Error("profile with empty endpoint should be invalid")
+	}
+}
+
+func TestStampedConfig_Validate(t *testing.T) {
+	good := StampedConfig{Embedding: EmbeddingProfile{Model: "m", Endpoint: "https://e", Dimension: 768}}
+	if err := good.Validate(); err != nil {
+		t.Errorf("valid StampedConfig rejected: %v", err)
+	}
+	bad := StampedConfig{Embedding: EmbeddingProfile{Model: "", Endpoint: "https://e", Dimension: 768}}
+	if err := bad.Validate(); err == nil {
+		t.Error("StampedConfig with invalid embedding profile should be invalid")
+	}
 }
