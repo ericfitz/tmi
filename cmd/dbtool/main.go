@@ -40,8 +40,10 @@ func run() int {
 	flag.StringVar(inputFile, "f", "", "Input file (short)")
 
 	configFile := flag.String("config", "", "TMI config file (provides DB connection via database.url)")
-	outputFile := flag.String("output", "", "Path for migrated config YAML (with -c)")
+	outputFile := flag.String("output", "", "Path for migrated config YAML (with -c or -l)")
 	overwrite := flag.Bool("overwrite", false, "Overwrite existing settings (with -c)")
+	noBackup := flag.Bool("no-backup", false, "Skip the timestamped backup of the source file (with -l default flow)")
+	noRewrite := flag.Bool("no-rewrite", false, "Keep legacy behavior — write a sibling *-migrated.yml and leave the source untouched (with -l)")
 
 	serverURL := flag.String("server", "http://localhost:8080", "TMI server URL for API calls (with -t)")
 	user := flag.String("user", "charlie", "OAuth user ID for API authentication (with -t)")
@@ -141,7 +143,7 @@ func run() int {
 					log.Warn("Schema migration skipped or failed: %v", migrateErr)
 				}
 			}
-			runErr = runConfigSeed(db, *inputFile, *outputFile, *overwrite, *dryRun)
+			runErr = runConfigSeed(db, *inputFile, *outputFile, *overwrite, *dryRun, true)
 		}
 	case *importTestData:
 		if *inputFile == "" {
@@ -155,15 +157,25 @@ func run() int {
 			runErr = runDataSeed(db, *inputFile, *serverURL, *user, *provider, *dryRun)
 		}
 	case *importLegacy:
-		if *inputFile == "" {
+		switch {
+		case *inputFile == "":
 			runErr = fmt.Errorf("--input-file / -f is required for --import-legacy")
-		} else {
+		case *noRewrite && *outputFile != "":
+			runErr = fmt.Errorf("--no-rewrite and --output are mutually exclusive")
+		default:
 			if !*dryRun {
 				if migrateErr := ensureSchema(db); migrateErr != nil {
 					log.Warn("Schema migration skipped or failed: %v", migrateErr)
 				}
 			}
-			runErr = runLegacyConfigImport(db, *inputFile, *overwrite, *dryRun)
+			runErr = runLegacyConfigImport(db, legacyImportOptions{
+				inputFile:  *inputFile,
+				outputFile: *outputFile,
+				overwrite:  *overwrite,
+				dryRun:     *dryRun,
+				noBackup:   *noBackup,
+				noRewrite:  *noRewrite,
+			})
 		}
 	}
 
@@ -216,11 +228,14 @@ Input:
       --config FILE         TMI config file (provides DB connection via database.url)
 
 Output:
-      --output FILE         Path for migrated config YAML (with -c)
+      --output FILE         Path for migrated config YAML (with -c or -l)
 
 Behavior:
       --dry-run             Show what would happen without writing
       --overwrite           Overwrite existing settings (with -c)
+      --no-backup           Skip the timestamped source backup (with -l default flow)
+      --no-rewrite          Write a sibling *-migrated.yml and leave the source
+                            untouched (with -l; mutually exclusive with --output)
   -v, --verbose             Print step-by-step operations and DB messages
   -h, --help                Print usage
 

@@ -16,7 +16,20 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, dryRun bool) error {
+// runConfigSeed imports operational settings from inputFile into the DB.
+//
+// The emitLegacyMigratedYAML flag controls whether a sibling
+// <input>-migrated.yml is written:
+//   - true (default for --import-config; also for --import-legacy with
+//     --no-rewrite or --output): preserve the legacy behavior. When
+//     outputFile is non-empty, the migrated YAML goes there; otherwise it
+//     goes to a sibling *-migrated.yml derived from the input path.
+//   - false (default for --import-legacy without --no-rewrite/--output):
+//     suppress the *-migrated.yml entirely. The caller (runLegacyConfigImport)
+//     handles the in-place source rewrite via stripOperationalKeys, which
+//     preserves comments, key ordering, and value types verbatim — none of
+//     which the *-migrated.yml writer below does.
+func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, dryRun, emitLegacyMigratedYAML bool) error {
 	log := slogging.Get()
 
 	cfg, err := config.Load(inputFile)
@@ -148,7 +161,14 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 
 	log.Info("Settings written to database: %d written, %d skipped", written, skipped)
 
-	// Generate migrated YAML
+	// Emit the legacy sibling *-migrated.yml unless the caller suppressed
+	// it. The caller (runLegacyConfigImport's default path) suppresses this
+	// because it does an in-place source rewrite instead, which preserves
+	// comments and value types verbatim.
+	if !emitLegacyMigratedYAML {
+		return nil
+	}
+
 	if outputFile == "" {
 		outputFile = deriveOutputPath(inputFile)
 	}
