@@ -82,7 +82,8 @@ type Handlers struct {
 	cookieOpts        CookieOptions
 	registry          ProviderRegistry
 	tokenLockoutImpl  *OAuthTokenLockout
-	stepUpAuditor     *StepUpAuditor // #397
+	stepUpAuditor     *StepUpAuditor      // #397
+	runtimeCfg        RuntimeConfigReader // #419 — DB-backed operational config
 }
 
 // tokenLockout returns the per-client_id /oauth2/token brute-force lockout.
@@ -146,6 +147,59 @@ func (h *Handlers) SetCookieOptions(opts CookieOptions) {
 // SetProviderRegistry sets the provider registry for unified provider lookup.
 func (h *Handlers) SetProviderRegistry(registry ProviderRegistry) {
 	h.registry = registry
+}
+
+// SetRuntimeConfigReader wires the DB-backed operational config reader used
+// by handlers at request time. Safe to call multiple times. A nil reader
+// makes handlers fall back to the YAML snapshot in h.config — see
+// RuntimeConfigReader for the contract. (#419)
+func (h *Handlers) SetRuntimeConfigReader(r RuntimeConfigReader) {
+	h.runtimeCfg = r
+}
+
+// clientCallbackAllowList returns the allowlist read from the runtime
+// config (DB-backed) when available, otherwise the YAML snapshot.
+//
+// Fail-closed semantics: a DB row that exists but is unusable (corrupt
+// JSON, read error, decryption failure) returns an empty list, NOT the
+// YAML fallback. Silently reverting to the YAML snapshot would defeat
+// the open-redirect mitigation when an operator's allowlist has been
+// corrupted in storage.
+func (h *Handlers) clientCallbackAllowList(ctx context.Context) []string {
+	if h.runtimeCfg != nil {
+		list, exists, err := h.runtimeCfg.GetClientCallbackAllowList(ctx)
+		switch {
+		case err != nil:
+			// DB row exists but unusable — fail-closed.
+			return nil
+		case exists:
+			return list
+		}
+		// exists == false → no DB row; fall through to YAML.
+	}
+	return h.config.OAuth.ClientCallbackAllowList
+}
+
+// samlEnabled reports whether SAML auth is enabled, preferring the runtime
+// config (DB-backed) over the YAML snapshot.
+func (h *Handlers) samlEnabled(ctx context.Context) bool {
+	if h.runtimeCfg != nil {
+		return h.runtimeCfg.IsSAMLEnabled(ctx)
+	}
+	return h.config.SAML.Enabled
+}
+
+// oauthCallbackURL returns the OAuth callback URL, preferring the runtime
+// config (DB-backed) over the YAML snapshot. An empty value from the
+// runtime reader falls through to the YAML snapshot so the YAML can still
+// supply the value in development before the DB row exists.
+func (h *Handlers) oauthCallbackURL(ctx context.Context) string {
+	if h.runtimeCfg != nil {
+		if v := h.runtimeCfg.GetOAuthCallbackURL(ctx); v != "" {
+			return v
+		}
+	}
+	return h.config.OAuth.CallbackURL
 }
 
 // Service returns the auth service (getter for unexported field)

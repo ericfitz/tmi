@@ -124,6 +124,10 @@ var exactClassifications = map[string]ConfigClass{
 	"auth.cookie.domain":             operationalClass(VisibilityAdminOnly, false),
 	"auth.cookie.secure":             operationalClass(VisibilityAdminOnly, false),
 	"auth.oauth_callback_url":        operationalClass(VisibilityAdminOnly, false),
+	// Read at request time by the auth handler to validate the
+	// client_callback query parameter. Operational so an operator can rotate
+	// it without a restart; not a secret (a public allowlist).
+	"auth.oauth.client_callback_allowlist": operationalClass(VisibilityAdminOnly, false),
 
 	// --- Operational: feature flags, runtime, operator ---
 	"features.saml_enabled":                operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),

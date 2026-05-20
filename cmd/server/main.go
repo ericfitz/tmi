@@ -707,6 +707,13 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		authHandlers.SetProviderRegistry(providerRegistry)
 		authHandlers.Service().SetProviderRegistry(providerRegistry)
 		logger.Info("Provider registry wired into auth handlers for unified provider lookup")
+
+		// Wire DB-backed runtime config reader so request-time reads of
+		// operational config (client_callback_allowlist, saml_enabled,
+		// oauth_callback_url) come from system_settings rather than the
+		// YAML snapshot loaded at boot. #419.
+		authHandlers.SetRuntimeConfigReader(api.NewRuntimeConfigReaderAdapter(settingsService))
+		logger.Info("Runtime config reader wired into auth handlers (#419)")
 	} else {
 		logger.Warn("Auth handlers not available - auth endpoints will return errors")
 	}

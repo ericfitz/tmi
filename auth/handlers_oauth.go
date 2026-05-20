@@ -30,7 +30,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	}
 
 	// Get the provider
-	provider, err := h.getProvider(providerID)
+	provider, err := h.getProviderWithContext(c.Request.Context(), providerID)
 	if err != nil {
 		// Return 404 for unavailable providers (like test provider in production)
 		if strings.Contains(err.Error(), "not available in production") {
@@ -74,7 +74,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	// is rejected to prevent open-redirect / OAuth phishing (T16).
 	clientCallback := c.Query("client_callback")
 	if clientCallback != "" {
-		allow := NewClientCallbackAllowList(h.config.OAuth.ClientCallbackAllowList)
+		allow := NewClientCallbackAllowList(h.clientCallbackAllowList(c.Request.Context()))
 		if !allow.Allowed(clientCallback) {
 			slogging.Get().WithContext(c).Warn("Rejected /oauth2/authorize: client_callback %q is not in the allowlist", clientCallback)
 			c.JSON(http.StatusBadRequest, gin.H{

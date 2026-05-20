@@ -63,7 +63,7 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 	}
 
 	// Get the provider
-	provider, err := h.getProvider(providerID)
+	provider, err := h.getProviderWithContext(c.Request.Context(), providerID)
 	if err != nil {
 		// Return 404 for unavailable providers (like test provider in production)
 		if strings.Contains(err.Error(), "not available in production") {

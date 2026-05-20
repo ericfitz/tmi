@@ -159,6 +159,19 @@ func (c *Config) getMigratableOAuthSettings() []MigratableSetting {
 		})
 	}
 
+	// OAuth client_callback allowlist (operational; read at request time by
+	// the auth handler to validate the client_callback query parameter).
+	if len(c.Auth.OAuth.ClientCallbackAllowList) > 0 {
+		allowJSON, _ := json.Marshal(c.Auth.OAuth.ClientCallbackAllowList)
+		settings = append(settings, MigratableSetting{
+			Key:         "auth.oauth.client_callback_allowlist",
+			Value:       string(allowJSON),
+			Type:        "json",
+			Description: "Allowlist of client_callback URLs for /oauth2/authorize and /oauth2/step_up (exact URL or wildcard pattern ending in '*')",
+			Source:      settingSource("TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST"),
+		})
+	}
+
 	// OAuth provider settings
 	for providerKey, p := range c.Auth.OAuth.Providers {
 		if !p.Enabled {

@@ -61,7 +61,7 @@ func (h *Handlers) StepUp(c *gin.Context) {
 
 	// 3. Provider lookup.
 	providerID := claims.IdentityProvider
-	provider, err := h.getProvider(providerID)
+	provider, err := h.getProviderWithContext(c.Request.Context(), providerID)
 	if err != nil {
 		_ = h.stepUpAud().LogRejected(c.Request.Context(), actor, "invalid_provider",
 			map[string]string{"provider": providerID})
@@ -81,7 +81,7 @@ func (h *Handlers) StepUp(c *gin.Context) {
 		})
 		return
 	}
-	allow := NewClientCallbackAllowList(h.config.OAuth.ClientCallbackAllowList)
+	allow := NewClientCallbackAllowList(h.clientCallbackAllowList(c.Request.Context()))
 	if !allow.Allowed(clientCallback) {
 		logger.Warn("Rejected /oauth2/step_up: client_callback %q not in allowlist", clientCallback)
 		c.JSON(http.StatusBadRequest, gin.H{
