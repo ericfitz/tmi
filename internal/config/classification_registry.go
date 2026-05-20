@@ -135,6 +135,7 @@ var exactClassifications = map[string]ConfigClass{
 	"session.timeout_minutes":              operationalClass(VisibilityAdminOnly, false),
 	"operator.name":                        operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),
 	"operator.contact":                     operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),
+	"operator.jurisdiction":                operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),
 	"administrators":                       operationalClass(VisibilityAdminOnly, false),
 
 	// --- Bootstrap: logging & observability ---

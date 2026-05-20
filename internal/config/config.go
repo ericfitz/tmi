@@ -280,8 +280,9 @@ type WebhookConfig struct {
 
 // OperatorConfig holds operator/maintainer information
 type OperatorConfig struct {
-	Name    string `yaml:"name" env:"TMI_OPERATOR_NAME"`
-	Contact string `yaml:"contact" env:"TMI_OPERATOR_CONTACT"`
+	Name         string `yaml:"name" env:"TMI_OPERATOR_NAME"`
+	Contact      string `yaml:"contact" env:"TMI_OPERATOR_CONTACT"`
+	Jurisdiction string `yaml:"jurisdiction" env:"TMI_OPERATOR_JURISDICTION"`
 }
 
 // SecretsConfig holds configuration for external secret providers
@@ -450,8 +451,9 @@ func getDefaultConfig() *Config {
 			SuppressUnauthenticatedLogs: true,
 		},
 		Operator: OperatorConfig{
-			Name:    "",
-			Contact: "",
+			Name:         "",
+			Contact:      "",
+			Jurisdiction: "",
 		},
 		Secrets: SecretsConfig{
 			Provider: "env", // Default to environment variables

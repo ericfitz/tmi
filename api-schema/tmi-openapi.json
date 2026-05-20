@@ -6706,6 +6706,11 @@
                 "type": "string",
                 "description": "Contact information for the operator",
                 "maxLength": 1024
+              },
+              "jurisdiction": {
+                "type": "string",
+                "description": "Legal jurisdiction under which the service operates",
+                "maxLength": 256
               }
             },
             "additionalProperties": false
@@ -6762,7 +6767,8 @@
           },
           "operator": {
             "name": "TMI Project",
-            "contact": "https://github.com/ericfitz/tmi"
+            "contact": "https://github.com/ericfitz/tmi",
+            "jurisdiction": "Florida, United States of America"
           },
           "limits": {
             "max_file_upload_mb": 10,

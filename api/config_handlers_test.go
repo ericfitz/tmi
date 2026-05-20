@@ -122,15 +122,12 @@ func TestGetClientConfig_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
-	// Create a real server with nil settings service (will use defaults)
-	server := &Server{}
-
-	// Add middleware to set context
-	r.Use(func(c *gin.Context) {
-		c.Set("operatorName", "Test Operator")
-		c.Set("operatorContact", "contact@test.com")
-		c.Next()
-	})
+	// Settings service supplies operator info — verifies the DB-backed path.
+	mockSettings := NewMockSettingsService()
+	mockSettings.AddSetting("operator.name", "Test Operator", "string")
+	mockSettings.AddSetting("operator.contact", "contact@test.com", "string")
+	mockSettings.AddSetting("operator.jurisdiction", "Test Jurisdiction", "string")
+	server := &Server{settingsService: mockSettings}
 
 	// Register the handler
 	r.GET("/config", server.GetClientConfig)
@@ -148,15 +145,19 @@ func TestGetClientConfig_Success(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &config)
 	require.NoError(t, err)
 
-	// Check default values when settingsService is nil
+	// Check default values when settingsService has no feature flags set
 	assert.NotNil(t, config.Features)
 	assert.NotNil(t, config.Features.WebsocketEnabled)
 	assert.True(t, *config.Features.WebsocketEnabled)
 
-	// Check operator info
-	assert.NotNil(t, config.Operator)
-	assert.NotNil(t, config.Operator.Name)
+	// Check operator info reflects all three DB-backed fields
+	require.NotNil(t, config.Operator)
+	require.NotNil(t, config.Operator.Name)
 	assert.Equal(t, "Test Operator", *config.Operator.Name)
+	require.NotNil(t, config.Operator.Contact)
+	assert.Equal(t, "contact@test.com", *config.Operator.Contact)
+	require.NotNil(t, config.Operator.Jurisdiction)
+	assert.Equal(t, "Test Jurisdiction", *config.Operator.Jurisdiction)
 
 	// Check cache headers
 	assert.Equal(t, "public, max-age=300", w.Header().Get("Cache-Control"))
@@ -167,9 +168,9 @@ func TestGetClientConfig_WithoutOperatorInfo(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 
+	// No settings service — operator block must be present but empty.
 	server := &Server{}
 
-	// No operator info middleware
 	r.GET("/config", server.GetClientConfig)
 
 	req, _ := http.NewRequest("GET", "/config", nil)
@@ -183,8 +184,10 @@ func TestGetClientConfig_WithoutOperatorInfo(t *testing.T) {
 	require.NoError(t, err)
 
 	// Operator info should be nil when not set
+	require.NotNil(t, config.Operator)
 	assert.Nil(t, config.Operator.Name)
 	assert.Nil(t, config.Operator.Contact)
+	assert.Nil(t, config.Operator.Jurisdiction)
 }
 
 func TestListSystemSettings_AdminRequired(t *testing.T) {

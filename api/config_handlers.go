@@ -191,16 +191,20 @@ func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientCo
 		}
 	}
 
-	// Operator info from context (set by middleware)
-	var operatorName, operatorContact *string
-	if name, exists := c.Get("operatorName"); exists {
-		if nameStr, ok := name.(string); ok && nameStr != "" {
-			operatorName = &nameStr
+	// Operator info from settings service (config file/env > database).
+	var operatorName, operatorContact, operatorJurisdiction *string
+	if s.settingsService != nil {
+		if val, err := s.settingsService.GetString(ctx, "operator.name"); err == nil && val != "" {
+			v := val
+			operatorName = &v
 		}
-	}
-	if contact, exists := c.Get("operatorContact"); exists {
-		if contactStr, ok := contact.(string); ok && contactStr != "" {
-			operatorContact = &contactStr
+		if val, err := s.settingsService.GetString(ctx, "operator.contact"); err == nil && val != "" {
+			v := val
+			operatorContact = &v
+		}
+		if val, err := s.settingsService.GetString(ctx, "operator.jurisdiction"); err == nil && val != "" {
+			v := val
+			operatorJurisdiction = &v
 		}
 	}
 
@@ -252,11 +256,13 @@ func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientCo
 			WebhooksEnabled:  &webhooksEnabled,
 		},
 		Operator: &struct {
-			Contact *string `json:"contact,omitempty"`
-			Name    *string `json:"name,omitempty"`
+			Contact      *string `json:"contact,omitempty"`
+			Jurisdiction *string `json:"jurisdiction,omitempty"`
+			Name         *string `json:"name,omitempty"`
 		}{
-			Name:    operatorName,
-			Contact: operatorContact,
+			Name:         operatorName,
+			Contact:      operatorContact,
+			Jurisdiction: operatorJurisdiction,
 		},
 		Limits: &struct {
 			MaxDiagramParticipants *int `json:"max_diagram_participants,omitempty"`

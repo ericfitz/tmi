@@ -375,6 +375,15 @@ func (c *Config) getMigratableRuntimeSettings() []MigratableSetting {
 			Source:      settingSource("TMI_OPERATOR_CONTACT"),
 		})
 	}
+	if c.Operator.Jurisdiction != "" {
+		settings = append(settings, MigratableSetting{
+			Key:         "operator.jurisdiction",
+			Value:       c.Operator.Jurisdiction,
+			Type:        "string",
+			Description: "Legal jurisdiction under which the service operates",
+			Source:      settingSource("TMI_OPERATOR_JURISDICTION"),
+		})
+	}
 
 	return settings
 }
