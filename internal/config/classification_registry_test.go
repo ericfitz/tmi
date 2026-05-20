@@ -46,3 +46,41 @@ func TestClassificationFor_UnknownKeyIsUnclassified(t *testing.T) {
 		t.Errorf("unknown key Category = %v, want CategoryUnclassified", c.Category)
 	}
 }
+
+// TestClassificationFor_TimmyAPIKeysAreOperationalSecrets pins #422: the four
+// Timmy API keys must be CategoryOperational + Secret + monolith-only, NOT
+// bootstrap. Bootstrap classification means file/env only — never DB-backed,
+// never imported by dbtool --import-legacy, never visible in /admin/settings
+// for rotation. The keys are operational by every meaningful criterion
+// (rotatable at runtime, no restart required); the Secret flag drives masking
+// and audit-log redaction.
+func TestClassificationFor_TimmyAPIKeysAreOperationalSecrets(t *testing.T) {
+	keys := []string{
+		"timmy.llm_api_key",
+		"timmy.text_embedding_api_key",
+		"timmy.code_embedding_api_key",
+		"timmy.rerank_api_key",
+	}
+	for _, k := range keys {
+		c := classificationFor(k)
+		if c.Category != CategoryOperational {
+			t.Errorf("%s Category = %v, want CategoryOperational", k, c.Category)
+		}
+		if !c.Secret {
+			t.Errorf("%s Secret = false, want true", k)
+		}
+		if c.Visibility != VisibilityAdminOnly {
+			t.Errorf("%s Visibility = %v, want VisibilityAdminOnly", k, c.Visibility)
+		}
+		if c.Delivery == nil {
+			t.Errorf("%s Delivery is nil, want non-nil for operational", k)
+			continue
+		}
+		if c.Delivery.StampedIntoEnvelope {
+			t.Errorf("%s StampedIntoEnvelope = true, want false — workers read keys from their own SecretMounts, not from job envelopes", k)
+		}
+		if len(c.Consumers) != 1 || c.Consumers[0] != ConsumerMonolith {
+			t.Errorf("%s Consumers = %v, want [ConsumerMonolith]", k, c.Consumers)
+		}
+	}
+}

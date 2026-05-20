@@ -910,10 +910,17 @@ func (c *Config) ResolveSecretsConfigReferences(ctx context.Context) error {
 	return nil
 }
 
-// ResolveSecretReferences walks every CategoryBootstrap secret field of the
-// loaded Config and, for any field whose value is a vault://, env://, or
-// file:// reference, dereferences it in place. Inline values (the dev/test
-// default shape) are left unchanged.
+// ResolveSecretReferences walks the secret fields of the loaded Config and,
+// for any field whose value is a vault://, env://, or file:// reference,
+// dereferences it in place. Inline values (the dev/test default shape) are
+// left unchanged.
+//
+// The fields walked include every CategoryBootstrap secret plus the four
+// Timmy API keys. The Timmy keys are CategoryOperational + Secret (see
+// classification_registry.go), but their runtime consumers still read from
+// the in-memory cfg.Timmy struct, so they need load-time resolution until
+// #419 routes those consumers through SettingsService. Once #419 lands, the
+// Timmy entries here can be removed and resolution moves to per-read.
 //
 // It must run AFTER secrets.NewProvider (so the vault leg works) but BEFORE any
 // consumer reads Auth.JWT.Secret or Database.URL (JWT init, DB connect).

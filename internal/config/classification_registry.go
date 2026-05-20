@@ -167,16 +167,43 @@ var exactClassifications = map[string]ConfigClass{
 	"timmy.text_embedding_model":    sharedEmbeddingClass(false),
 	"timmy.text_embedding_base_url": sharedEmbeddingClass(false),
 	"timmy.embedding_dimension":     sharedEmbeddingClass(false),
-	// The embedding API key is a secret; it is NOT stamped into the envelope —
-	// it is resolved from a mounted secret. Classified bootstrap.
-	"timmy.text_embedding_api_key": bootstrapClass(false, VisibilityInternal, true),
 
-	// --- Bootstrap: Timmy secret API keys ---
+	// --- Operational: Timmy secret API keys (monolith-only) ---
+	// These keys are SECRETS but not BOOTSTRAP. They are read by Timmy at
+	// runtime (chat, embedding, reranking) and an operator must be able to
+	// rotate them without restarting the server — that is the definition of
+	// CategoryOperational. The Secret flag drives API-response masking and
+	// audit-log redaction; ValueKindInline is correct because dev/test
+	// deployments inline the literal key (a vault://, env://, or file://
+	// reference is dereferenced per-value by ResolveSecretValue regardless of
+	// ValueKind, per the type doc in classification.go).
+	//
+	// Workers do NOT receive these keys via job envelopes; they obtain their
+	// own API keys via the SecretMounts bootstrap path (see
+	// internal/config/bootstrap), so the consumer is ConsumerMonolith only.
+	//
 	// These must be exact entries so they are not caught by the timmy.* prefix
-	// catch-all, which would wrongly mark them as non-secret operational settings.
-	"timmy.llm_api_key":            bootstrapClass(false, VisibilityInternal, true),
-	"timmy.code_embedding_api_key": bootstrapClass(false, VisibilityInternal, true),
-	"timmy.rerank_api_key":         bootstrapClass(false, VisibilityInternal, true),
+	// catch-all (which stamps non-secret operational settings into envelopes).
+	"timmy.llm_api_key":            operationalSecretMonolith(),
+	"timmy.text_embedding_api_key": operationalSecretMonolith(),
+	"timmy.code_embedding_api_key": operationalSecretMonolith(),
+	"timmy.rerank_api_key":         operationalSecretMonolith(),
+}
+
+// operationalSecretMonolith returns the shape used for monolith-only
+// operational secrets (Timmy API keys). It is intentionally NOT stamped into
+// any worker envelope — workers receive their own secrets through the
+// SecretMounts bootstrap path.
+func operationalSecretMonolith() ConfigClass {
+	return ConfigClass{
+		Category:   CategoryOperational,
+		Secret:     true,
+		ValueKind:  ValueKindInline,
+		Delivery:   &Delivery{},
+		Visibility: VisibilityAdminOnly,
+		Mutability: MutabilityHot,
+		Consumers:  []Consumer{ConsumerMonolith},
+	}
 }
 
 // prefixClassifications handles repeating provider keys
