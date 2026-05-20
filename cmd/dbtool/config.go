@@ -90,6 +90,17 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 	// Write DB-eligible settings
 	var written, skipped int
 	for _, s := range operationalSettings {
+		// Skip empty values. On Oracle ADB an empty string bound to a CLOB
+		// column is treated as NULL, which violates the NOT NULL constraint
+		// on system_settings.value (ORA-01400). The matching SeedDefaults
+		// path in api/settings_service.go also skips empty values, so this
+		// keeps the two seed paths in lockstep.
+		if s.Value == "" {
+			skipped++
+			log.Debug("  Skipping empty: %s", s.Key)
+			continue
+		}
+
 		var existing models.SystemSetting
 		exists := db.DB().Where("setting_key = ?", s.Key).First(&existing).Error == nil
 
