@@ -38,6 +38,13 @@ func (p *TimmyConfigProvider) Current(ctx context.Context) config.TimmyConfig {
 			logger.Warn("TimmyConfigProvider: read %s failed: %v", key, err)
 		}
 	}
+	// GetInt returns (0, nil) for both a missing key and a key explicitly set
+	// to 0, so getInt cannot distinguish the two and treats 0 as "unset",
+	// preserving the default. This is acceptable for Timmy because 0 is never a
+	// valid runtime value for any of these knobs (e.g. chunk_overlap=0 or
+	// embedding_dimension=0 are degenerate/invalid), matching the existing
+	// `val > 0` convention elsewhere in the package. We deliberately do not
+	// change SettingsServiceInterface to surface key presence here.
 	getInt := func(key string, dst *int) {
 		if v, err := p.settings.GetInt(ctx, key); err == nil {
 			if v != 0 {
@@ -87,6 +94,10 @@ func (p *TimmyConfigProvider) Current(ctx context.Context) config.TimmyConfig {
 	getInt("timmy.chunk_size", &cfg.ChunkSize)
 	getInt("timmy.chunk_overlap", &cfg.ChunkOverlap)
 	getInt("timmy.llm_timeout_seconds", &cfg.LLMTimeoutSeconds)
+	getInt("timmy.embedding_cleanup_interval_minutes", &cfg.EmbeddingCleanupIntervalMinutes)
+	getInt("timmy.embedding_idle_days_active", &cfg.EmbeddingIdleDaysActive)
+	getInt("timmy.embedding_idle_days_closed", &cfg.EmbeddingIdleDaysClosed)
+	getBool("timmy.dump_extracted_text_to_note", &cfg.DumpExtractedTextToNote)
 
 	return cfg
 }
