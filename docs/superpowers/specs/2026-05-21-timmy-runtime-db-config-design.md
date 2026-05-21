@@ -217,12 +217,13 @@ created.
 - Import values via `dbtool --import-legacy`; confirm the server log shows Timmy
   reachable and a Timmy endpoint responds.
 
-## Follow-up issues to file
+## Follow-up issues (filed)
 
-1. **Content-source + access-poller runtime toggling**: make the content-source
-   registry (Google Workspace / Confluence / Microsoft) and the access-poller
-   goroutine come up / tear down on runtime `timmy.enabled` changes; convert
-   their `os.Exit(1)` startup validations to graceful per-source disable.
-2. **Build-mode-aware secrets-at-rest startup warning**: when any
+1. **#427 — Content-source + access-poller runtime toggling**: make the
+   content-source registry (Google Workspace / Confluence / Microsoft) and the
+   access-poller goroutine come up / tear down on runtime `timmy.enabled`
+   changes; convert their `os.Exit(1)` startup validations to graceful per-source
+   disable.
+2. **#428 — Build-mode-aware secrets-at-rest startup warning**: when any
    Secret-classified setting has a non-empty DB value while settings encryption
    is disabled, log WARN (dev) / ERROR (prod) without failing startup.
