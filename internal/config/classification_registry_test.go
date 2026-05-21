@@ -84,3 +84,31 @@ func TestClassificationFor_TimmyAPIKeysAreOperationalSecrets(t *testing.T) {
 		}
 	}
 }
+
+// TestClassificationFor_ClientConfigKeysArePublic pins that the DB-only keys
+// surfaced on the public /config endpoint are classified VisibilityPublic
+// operational. Without a classification entry they default to the zero
+// ConfigClass (VisibilityInternal), which makes GET/DELETE
+// /admin/settings/{key} 404 even though the LIST endpoint shows them.
+func TestClassificationFor_ClientConfigKeysArePublic(t *testing.T) {
+	keys := []string{
+		"features.saml_enabled",
+		"features.webhooks_enabled",
+		"features.websocket_enabled",
+		"websocket.max_participants",
+		"upload.max_file_size_mb",
+		"ui.default_theme",
+	}
+	for _, k := range keys {
+		c := classificationFor(k)
+		if c.Category != CategoryOperational {
+			t.Errorf("%s Category = %v, want CategoryOperational", k, c.Category)
+		}
+		if c.Visibility != VisibilityPublic {
+			t.Errorf("%s Visibility = %v, want VisibilityPublic", k, c.Visibility)
+		}
+		if c.Secret {
+			t.Errorf("%s Secret = true, want false", k)
+		}
+	}
+}

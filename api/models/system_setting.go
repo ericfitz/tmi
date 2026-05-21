@@ -84,6 +84,12 @@ func DefaultSystemSettings() []SystemSetting {
 			Description: desc("Enable webhook subscriptions"),
 		},
 		{
+			SettingKey:  "features.websocket_enabled",
+			Value:       "true",
+			SettingType: SystemSettingTypeBool,
+			Description: desc("Enable WebSocket collaboration"),
+		},
+		{
 			SettingKey:  "ui.default_theme",
 			Value:       "auto",
 			SettingType: SystemSettingTypeString,

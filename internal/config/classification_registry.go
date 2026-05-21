@@ -138,6 +138,21 @@ var exactClassifications = map[string]ConfigClass{
 	"operator.jurisdiction":                operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),
 	"administrators":                       operationalClass(VisibilityAdminOnly, false),
 
+	// --- Operational: DB-only client-config knobs ---
+	// These keys have no Config struct field; they are seeded directly into
+	// the database by models.DefaultSystemSettings and surfaced on the public
+	// /config endpoint for tmi-ux. They are admin-editable at runtime. Without
+	// these classifications they default to VisibilityInternal, which makes
+	// GET/DELETE /admin/settings/{key} return 404 even though the LIST endpoint
+	// shows them — an inconsistency. They are intentionally NOT migratable
+	// (no config-file/env source), so they appear here but not in
+	// migratable_settings.go.
+	"features.webhooks_enabled":  operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),
+	"features.websocket_enabled": operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),
+	"websocket.max_participants": operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),
+	"upload.max_file_size_mb":    operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),
+	"ui.default_theme":           operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),
+
 	// --- Bootstrap: logging & observability ---
 	"logging.level":                         bootstrapClass(false, VisibilityInternal, false),
 	"logging.is_dev":                        bootstrapClass(false, VisibilityInternal, false),

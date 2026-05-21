@@ -190,6 +190,72 @@ func TestGetClientConfig_WithoutOperatorInfo(t *testing.T) {
 	assert.Nil(t, config.Operator.Jurisdiction)
 }
 
+// TestGetClientConfig_FeatureFlagsFromSettings verifies all three feature flags
+// — including websocket_enabled, which was previously hardcoded — are read from
+// the settings service.
+func TestGetClientConfig_FeatureFlagsFromSettings(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	mockSettings := NewMockSettingsService()
+	mockSettings.AddSetting("features.saml_enabled", "true", "bool")
+	mockSettings.AddSetting("features.webhooks_enabled", "false", "bool")
+	mockSettings.AddSetting("features.websocket_enabled", "false", "bool")
+	server := &Server{settingsService: mockSettings}
+
+	r.GET("/config", server.GetClientConfig)
+
+	req, _ := http.NewRequest("GET", "/config", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var config ClientConfig
+	err := json.Unmarshal(w.Body.Bytes(), &config)
+	require.NoError(t, err)
+
+	require.NotNil(t, config.Features)
+	require.NotNil(t, config.Features.SamlEnabled)
+	assert.True(t, *config.Features.SamlEnabled)
+	require.NotNil(t, config.Features.WebhooksEnabled)
+	assert.False(t, *config.Features.WebhooksEnabled)
+	require.NotNil(t, config.Features.WebsocketEnabled)
+	assert.False(t, *config.Features.WebsocketEnabled, "websocket_enabled must be read from settings, not hardcoded true")
+}
+
+// TestGetClientConfig_MissingFlagKeepsDefault pins that a missing webhooks_enabled
+// key keeps the default-true value rather than collapsing to GetBool's
+// (false, nil) for a not-found key.
+func TestGetClientConfig_MissingFlagKeepsDefault(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	// Empty settings service: no feature-flag keys present.
+	server := &Server{settingsService: NewMockSettingsService()}
+
+	r.GET("/config", server.GetClientConfig)
+
+	req, _ := http.NewRequest("GET", "/config", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var config ClientConfig
+	err := json.Unmarshal(w.Body.Bytes(), &config)
+	require.NoError(t, err)
+
+	require.NotNil(t, config.Features)
+	// Defaults: websocket=true, webhooks=true, saml=false.
+	require.NotNil(t, config.Features.WebhooksEnabled)
+	assert.True(t, *config.Features.WebhooksEnabled, "missing key must keep default-true, not flip to false")
+	require.NotNil(t, config.Features.WebsocketEnabled)
+	assert.True(t, *config.Features.WebsocketEnabled)
+	require.NotNil(t, config.Features.SamlEnabled)
+	assert.False(t, *config.Features.SamlEnabled)
+}
+
 func TestListSystemSettings_AdminRequired(t *testing.T) {
 	// Save original admin store
 	originalAdminStore := GlobalGroupMemberRepository

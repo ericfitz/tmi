@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -156,6 +157,28 @@ func isReservedSettingKey(key string) (bool, string) {
 	return false, ""
 }
 
+// boolSettingIfPresent resolves a boolean setting and reports whether the key
+// was actually present. It distinguishes a missing key from a key set to
+// "false": GetBool returns (false, nil) for both, which would silently flip a
+// default-true flag off when the key is simply unset. By reading the raw string
+// value first (which is "" only when the key resolves to nothing through the
+// config-provider-then-database cascade) we keep the caller's default intact
+// for absent keys.
+func (s *Server) boolSettingIfPresent(ctx context.Context, key string) (value bool, present bool) {
+	if s.settingsService == nil {
+		return false, false
+	}
+	raw, err := s.settingsService.GetString(ctx, key)
+	if err != nil || raw == "" {
+		return false, false
+	}
+	parsed, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, false
+	}
+	return parsed, true
+}
+
 // GetClientConfig returns public configuration for client applications
 // This is a public endpoint that does not require authentication.
 func (s *Server) GetClientConfig(c *gin.Context) {
@@ -177,17 +200,24 @@ func (s *Server) GetClientConfig(c *gin.Context) {
 func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientConfig {
 	logger := slogging.Get()
 
-	// Feature flags - check settings service for dynamic values
+	// Feature flags - check settings service for dynamic values.
+	//
+	// Read each flag only when its key actually resolves, so a missing key
+	// keeps the code default rather than collapsing to GetBool's (false, nil)
+	// for "not found" — which would silently flip a default-true flag off.
 	websocketEnabled := true
 	samlEnabled := false
 	webhooksEnabled := true
 
 	if s.settingsService != nil {
-		if val, err := s.settingsService.GetBool(ctx, "features.saml_enabled"); err == nil {
+		if val, ok := s.boolSettingIfPresent(ctx, "features.saml_enabled"); ok {
 			samlEnabled = val
 		}
-		if val, err := s.settingsService.GetBool(ctx, "features.webhooks_enabled"); err == nil {
+		if val, ok := s.boolSettingIfPresent(ctx, "features.webhooks_enabled"); ok {
 			webhooksEnabled = val
+		}
+		if val, ok := s.boolSettingIfPresent(ctx, "features.websocket_enabled"); ok {
+			websocketEnabled = val
 		}
 	}
 
