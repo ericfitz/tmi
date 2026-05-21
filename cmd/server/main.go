@@ -603,6 +603,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	apiServer.SetSettingsService(settingsService)
 
 	// Initialize settings encryption (must be before SeedDefaults so defaults are encrypted)
+	var startupEncryptor *crypto.SettingsEncryptor // hoisted so warnIfPlaintextSecretsAtRest can use it
 	secretsProvider, err := secrets.NewProvider(context.Background(), &config.Secrets)
 	if err != nil {
 		logger.Warn("Failed to initialize secrets provider for settings encryption: %v", err)
@@ -611,6 +612,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		if err != nil {
 			logger.Error("Failed to initialize settings encryptor: %v", err)
 		} else {
+			startupEncryptor = encryptor
 			settingsService.SetEncryptor(encryptor)
 			// Also inject into Redis for transparent encryption of sensitive cached values
 			if dbManager.Redis() != nil {
@@ -622,6 +624,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 			logger.Warn("Failed to close secrets provider: %v", closeErr)
 		}
 	}
+
+	// Warn if Secret-classified settings are stored as plaintext (encryption not configured).
+	// Severity is scaled by build mode: WARN in dev/test, ERROR in production.
+	warnIfPlaintextSecretsAtRest(context.Background(), startupEncryptor, settingsService, config, logger)
 
 	// Seed default settings (non-blocking - continue even if seeding fails)
 	if err := settingsService.SeedDefaults(context.Background()); err != nil {
