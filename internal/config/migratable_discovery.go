@@ -118,73 +118,20 @@ func ExpectedMigratableKeysSkipped() map[string]string {
 		// well before SettingsService exists.
 		"database.oracle_wallet_location": "filesystem path used at DB connect time; cannot be DB-backed by construction",
 
-		// --- Renamed in the emit set ---
+		// --- Renamed in the emit set (rename would break existing DB rows) ---
 
 		// auth.oauth.callback_url is emitted as auth.oauth_callback_url
 		// (note: underscore in the second-level segment, no dot). The
 		// key rename is preserved for backward compatibility with
-		// existing /admin/settings rows. Future cleanup: rename the
-		// struct field's yaml tag to match, drop this skip entry.
-		"auth.oauth.callback_url": "emitted as auth.oauth_callback_url (legacy key shape); rename later",
+		// existing /admin/settings rows written before #426. Renaming the
+		// DB key would silently drop the operator's stored value on next
+		// SeedDefaults run. Future cleanup requires a DB migration.
+		"auth.oauth.callback_url": "emitted as auth.oauth_callback_url (legacy key shape); rename requires DB migration",
 
 		// auth.saml.enabled is emitted as features.saml_enabled (the
 		// public /config endpoint shape). The struct field is kept for
 		// YAML compatibility; the emitted key matches the API contract.
-		"auth.saml.enabled": "emitted as features.saml_enabled (public /config key shape)",
-
-		// --- Tracked in #426: subsystems missing from migratable_settings.go ---
-		// These are real gaps surfaced by #421's completeness gate.
-		// Each emits no row today; the gate keeps them on a written
-		// list rather than letting them silently miss migration.
-		// Filing follow-up issue to plumb each block into the
-		// per-subsystem helpers in migratable_settings.go.
-
-		"content_extractors.compressed_size_bytes":        "TODO #426: plumb content_extractors.* into migratable_settings.go",
-		"content_extractors.decompressed_size_bytes":      "TODO #426: plumb content_extractors.* into migratable_settings.go",
-		"content_extractors.markdown_size_bytes":          "TODO #426: plumb content_extractors.* into migratable_settings.go",
-		"content_extractors.part_size_bytes":              "TODO #426: plumb content_extractors.* into migratable_settings.go",
-		"content_extractors.per_user_concurrency_default": "TODO #426: plumb content_extractors.* into migratable_settings.go",
-		"content_extractors.pptx_slides":                  "TODO #426: plumb content_extractors.* into migratable_settings.go",
-		"content_extractors.wall_clock_budget":            "TODO #426: plumb content_extractors.* into migratable_settings.go",
-		"content_extractors.xlsx_cells":                   "TODO #426: plumb content_extractors.* into migratable_settings.go",
-
-		"content_oauth.callback_url": "TODO #426: plumb content_oauth.* into migratable_settings.go",
-
-		"content_sources.confluence.enabled":                    "TODO #426: plumb content_sources.* into migratable_settings.go",
-		"content_sources.google_drive.browser_oauth_client_id":  "TODO #426: plumb content_sources.* into migratable_settings.go",
-		"content_sources.google_drive.credentials_file":         "TODO #426: plumb content_sources.* into migratable_settings.go",
-		"content_sources.google_drive.enabled":                  "TODO #426: plumb content_sources.* into migratable_settings.go",
-		"content_sources.google_drive.picker_app_id":            "TODO #426: plumb content_sources.* into migratable_settings.go",
-		"content_sources.google_drive.picker_developer_key":     "TODO #426: plumb content_sources.* into migratable_settings.go",
-		"content_sources.google_drive.service_account_email":    "TODO #426: plumb content_sources.* into migratable_settings.go",
-		"content_sources.google_workspace.enabled":              "TODO #426: plumb content_sources.* into migratable_settings.go",
-		"content_sources.google_workspace.picker_app_id":        "TODO #426: plumb content_sources.* into migratable_settings.go",
-		"content_sources.google_workspace.picker_developer_key": "TODO #426: plumb content_sources.* into migratable_settings.go",
-		"content_sources.microsoft.application_object_id":       "TODO #426: plumb content_sources.* into migratable_settings.go",
-		"content_sources.microsoft.client_id":                   "TODO #426: plumb content_sources.* into migratable_settings.go",
-		"content_sources.microsoft.enabled":                     "TODO #426: plumb content_sources.* into migratable_settings.go",
-		"content_sources.microsoft.picker_origin":               "TODO #426: plumb content_sources.* into migratable_settings.go",
-		"content_sources.microsoft.tenant_id":                   "TODO #426: plumb content_sources.* into migratable_settings.go",
-
-		"observability.enabled":         "TODO #426: plumb observability.* into migratable_settings.go (OTEL config)",
-		"observability.prometheus_port": "TODO #426: plumb observability.* into migratable_settings.go (OTEL config)",
-		"observability.sampling_rate":   "TODO #426: plumb observability.* into migratable_settings.go (OTEL config)",
-
-		"server.disable_rate_limiting": "TODO #426: plumb server.* rate-limit fields into migratable_settings.go",
-		"server.ratelimit_public_rpm":  "TODO #426: plumb server.* rate-limit fields into migratable_settings.go",
-		"server.require_if_match":      "TODO #426: plumb server.require_if_match into migratable_settings.go",
-
-		"ssrf.document_uri.allowlist":   "TODO #426: plumb ssrf.* allowlists into migratable_settings.go",
-		"ssrf.document_uri.schemes":     "TODO #426: plumb ssrf.* allowlists into migratable_settings.go",
-		"ssrf.issue_uri.allowlist":      "TODO #426: plumb ssrf.* allowlists into migratable_settings.go",
-		"ssrf.issue_uri.schemes":        "TODO #426: plumb ssrf.* allowlists into migratable_settings.go",
-		"ssrf.repository_uri.allowlist": "TODO #426: plumb ssrf.* allowlists into migratable_settings.go",
-		"ssrf.repository_uri.schemes":   "TODO #426: plumb ssrf.* allowlists into migratable_settings.go",
-		"ssrf.timmy.allowlist":          "TODO #426: plumb ssrf.* allowlists into migratable_settings.go",
-		"ssrf.timmy.schemes":            "TODO #426: plumb ssrf.* allowlists into migratable_settings.go",
-		"ssrf.webhook.allowlist":        "TODO #426: plumb ssrf.* allowlists into migratable_settings.go",
-		"ssrf.webhook.schemes":          "TODO #426: plumb ssrf.* allowlists into migratable_settings.go",
-
-		"webhooks.allow_http_targets": "TODO #426: plumb webhooks.* into migratable_settings.go",
+		// Renaming would break tmi-ux clients reading the /config endpoint.
+		"auth.saml.enabled": "emitted as features.saml_enabled (public /config key shape); rename breaks API contract",
 	}
 }

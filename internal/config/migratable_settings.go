@@ -41,6 +41,12 @@ func (c *Config) GetMigratableSettings() []MigratableSetting {
 	settings = append(settings, c.getMigratableSecretsSettings()...)
 	settings = append(settings, c.getMigratableAdministratorsSettings()...)
 	settings = append(settings, c.getMigratableTimmySettings()...)
+	settings = append(settings, c.getMigratableObservabilitySettings()...)
+	settings = append(settings, c.getMigratableSSRFSettings()...)
+	settings = append(settings, c.getMigratableWebhooksSettings()...)
+	settings = append(settings, c.getMigratableContentExtractorsSettings()...)
+	settings = append(settings, c.getMigratableContentOAuthSettings()...)
+	settings = append(settings, c.getMigratableContentSourcesSettings()...)
 
 	for i := range settings {
 		settings[i].Class = classificationFor(settings[i].Key)
@@ -64,6 +70,10 @@ func (c *Config) getMigratableServerSettings() []MigratableSetting {
 		{Key: "server.read_timeout", Value: c.Server.ReadTimeout.String(), Type: "string", Description: "HTTP read timeout", Source: settingSource("TMI_SERVER_READ_TIMEOUT")},
 		{Key: "server.write_timeout", Value: c.Server.WriteTimeout.String(), Type: "string", Description: "HTTP write timeout", Source: settingSource("TMI_SERVER_WRITE_TIMEOUT")},
 		{Key: "server.idle_timeout", Value: c.Server.IdleTimeout.String(), Type: "string", Description: "HTTP idle timeout", Source: settingSource("TMI_SERVER_IDLE_TIMEOUT")},
+		// Rate-limiting and optimistic-locking knobs (#426)
+		{Key: "server.disable_rate_limiting", Value: strconv.FormatBool(c.Server.DisableRateLimiting), Type: "bool", Description: "Disable all rate limiting (dev/test only)", Source: settingSource("TMI_DISABLE_RATE_LIMITING")},
+		{Key: "server.ratelimit_public_rpm", Value: strconv.Itoa(c.Server.RateLimitPublicRPM), Type: "int", Description: "Requests per minute per IP for public endpoints", Source: settingSource("TMI_RATELIMIT_PUBLIC_RPM")},
+		{Key: "server.require_if_match", Value: strconv.FormatBool(c.Server.RequireIfMatch), Type: "bool", Description: "Return 428 when If-Match header is missing on PUT/PATCH", Source: settingSource("TMI_REQUIRE_IF_MATCH")},
 	}
 	if c.Server.BaseURL != "" {
 		settings = append(settings, MigratableSetting{Key: "server.base_url", Value: c.Server.BaseURL, Type: "string", Description: "Public base URL for callbacks", Source: settingSource("TMI_SERVER_BASE_URL")})
@@ -506,4 +516,215 @@ func (c *Config) getMigratableAdministratorsSettings() []MigratableSetting {
 	return []MigratableSetting{
 		{Key: "administrators", Value: string(adminsJSON), Type: "json", Description: "Configured administrators", Source: "config"},
 	}
+}
+
+// getMigratableObservabilitySettings returns OpenTelemetry / Prometheus settings.
+func (c *Config) getMigratableObservabilitySettings() []MigratableSetting {
+	return []MigratableSetting{
+		{Key: "observability.enabled", Value: strconv.FormatBool(c.Observability.Enabled), Type: "bool", Description: "OpenTelemetry tracing enabled", Source: settingSource("TMI_OTEL_ENABLED")},
+		{Key: "observability.prometheus_port", Value: strconv.Itoa(c.Observability.PrometheusPort), Type: "int", Description: "Prometheus metrics port (0 = disabled)", Source: settingSource("TMI_OTEL_PROMETHEUS_PORT")},
+		{Key: "observability.sampling_rate", Value: strconv.FormatFloat(c.Observability.SamplingRate, 'f', -1, 64), Type: "string", Description: "OpenTelemetry trace sampling rate (0.0–1.0)", Source: settingSource("TMI_OTEL_SAMPLING_RATE")},
+	}
+}
+
+// getMigratableSSRFSettings returns SSRF protection allowlist settings.
+//
+// Allowlist and schemes fields are security-sensitive: they gate outbound HTTP
+// calls to external systems. An empty allowlist is fail-closed (no hosts
+// permitted), so we deliberately emit only when non-empty to avoid seeding an
+// empty-string CLOB row on Oracle (which is indistinguishable from NULL and
+// could silently widen the allowlist to all hosts on misconfigured installs).
+// The runtime SSRF validator already defaults to fail-closed when the setting
+// is absent from the DB.
+func (c *Config) getMigratableSSRFSettings() []MigratableSetting {
+	type ssrfEntry struct {
+		prefix string
+		cfg    SSRFURIConfig
+	}
+	entries := []ssrfEntry{
+		{"ssrf.issue_uri", c.SSRF.IssueURI},
+		{"ssrf.document_uri", c.SSRF.DocumentURI},
+		{"ssrf.repository_uri", c.SSRF.RepositoryURI},
+		{"ssrf.timmy", c.SSRF.Timmy},
+		{"ssrf.webhook", c.SSRF.Webhook},
+	}
+	settings := []MigratableSetting{}
+	for _, e := range entries {
+		// Only emit when the operator has explicitly configured the field;
+		// empty string is fail-closed (no hosts allowed) and must not be
+		// seeded as an empty CLOB row on Oracle.
+		if e.cfg.Allowlist != "" {
+			settings = append(settings, MigratableSetting{
+				Key:         e.prefix + ".allowlist",
+				Value:       e.cfg.Allowlist,
+				Type:        "string",
+				Description: "SSRF allowlist for " + e.prefix + " (comma-separated host patterns)",
+				Source:      "config",
+			})
+		}
+		if e.cfg.Schemes != "" {
+			settings = append(settings, MigratableSetting{
+				Key:         e.prefix + ".schemes",
+				Value:       e.cfg.Schemes,
+				Type:        "string",
+				Description: "Permitted URI schemes for " + e.prefix + " (comma-separated, e.g. https)",
+				Source:      "config",
+			})
+		}
+	}
+	return settings
+}
+
+// getMigratableWebhooksSettings returns webhook configuration settings.
+func (c *Config) getMigratableWebhooksSettings() []MigratableSetting {
+	return []MigratableSetting{
+		{Key: "webhooks.allow_http_targets", Value: strconv.FormatBool(c.Webhooks.AllowHTTPTargets), Type: "bool", Description: "Allow non-HTTPS webhook target URLs (intra-cluster use only)", Source: settingSource("TMI_WEBHOOK_ALLOW_HTTP_TARGETS")},
+	}
+}
+
+// getMigratableContentExtractorsSettings returns OOXML extractor pipeline limits.
+func (c *Config) getMigratableContentExtractorsSettings() []MigratableSetting {
+	e := c.ContentExtractors
+	return []MigratableSetting{
+		{Key: "content_extractors.compressed_size_bytes", Value: strconv.FormatInt(e.CompressedSizeBytes, 10), Type: "int", Description: "Max compressed upload size in bytes", Source: settingSource("TMI_CONTENT_EXTRACTORS_COMPRESSED_SIZE_BYTES")},
+		{Key: "content_extractors.decompressed_size_bytes", Value: strconv.FormatInt(e.DecompressedSizeBytes, 10), Type: "int", Description: "Max decompressed content size in bytes", Source: settingSource("TMI_CONTENT_EXTRACTORS_DECOMPRESSED_SIZE_BYTES")},
+		{Key: "content_extractors.part_size_bytes", Value: strconv.FormatInt(e.PartSizeBytes, 10), Type: "int", Description: "Max size of a single archive part in bytes", Source: settingSource("TMI_CONTENT_EXTRACTORS_PART_SIZE_BYTES")},
+		{Key: "content_extractors.pptx_slides", Value: strconv.Itoa(e.PPTXSlides), Type: "int", Description: "Max number of PowerPoint slides to extract", Source: settingSource("TMI_CONTENT_EXTRACTORS_PPTX_SLIDES")},
+		{Key: "content_extractors.xlsx_cells", Value: strconv.Itoa(e.XLSXCells), Type: "int", Description: "Max number of Excel cells to extract", Source: settingSource("TMI_CONTENT_EXTRACTORS_XLSX_CELLS")},
+		{Key: "content_extractors.markdown_size_bytes", Value: strconv.FormatInt(e.MarkdownSizeBytes, 10), Type: "int", Description: "Max markdown output size in bytes", Source: settingSource("TMI_CONTENT_EXTRACTORS_MARKDOWN_SIZE_BYTES")},
+		{Key: "content_extractors.wall_clock_budget", Value: e.WallClockBudget.String(), Type: "string", Description: "Max wall-clock time for a single extraction", Source: settingSource("TMI_CONTENT_EXTRACTORS_WALL_CLOCK_BUDGET")},
+		{Key: "content_extractors.per_user_concurrency_default", Value: strconv.Itoa(e.PerUserConcurrencyDefault), Type: "int", Description: "Default max concurrent extractions per user", Source: settingSource("TMI_CONTENT_EXTRACTORS_PER_USER_CONCURRENCY_DEFAULT")},
+	}
+}
+
+// getMigratableContentOAuthSettings returns delegated content OAuth settings.
+//
+// callback_url is omitted when empty to avoid seeding an empty-string CLOB row
+// on Oracle. content_oauth.providers.* are dynamic-cardinality and handled by
+// the prefix classification; individual provider secrets already carry
+// Secret:true in the per-provider helper below.
+func (c *Config) getMigratableContentOAuthSettings() []MigratableSetting {
+	settings := []MigratableSetting{}
+	if c.ContentOAuth.CallbackURL != "" {
+		settings = append(settings, MigratableSetting{
+			Key:         "content_oauth.callback_url",
+			Value:       c.ContentOAuth.CallbackURL,
+			Type:        "string",
+			Description: "Content OAuth callback URL",
+			Source:      settingSource("TMI_CONTENT_OAUTH_CALLBACK_URL"),
+		})
+	}
+	// content_oauth.providers.* — per-provider helper
+	for providerKey, p := range c.ContentOAuth.Providers {
+		if !p.Enabled {
+			continue
+		}
+		settings = append(settings, getMigratableContentOAuthProviderSettings(providerKey, p)...)
+	}
+	return settings
+}
+
+// getMigratableContentOAuthProviderSettings returns settings for a single content OAuth provider.
+func getMigratableContentOAuthProviderSettings(providerKey string, p ContentOAuthProviderConfig) []MigratableSetting {
+	prefix := "content_oauth.providers." + providerKey
+	settings := []MigratableSetting{
+		{Key: prefix + ".enabled", Value: "true", Type: "bool", Description: "Content OAuth provider enabled", Source: "config"},
+	}
+	stringFields := []struct{ suffix, value, desc string }{
+		{".name", p.Name, "Content OAuth provider display name"},
+		{".icon", p.Icon, "Content OAuth provider icon"},
+		{".client_id", p.ClientID, "Content OAuth provider client ID"},
+		{".auth_url", p.AuthURL, "Content OAuth authorization URL"},
+		{".token_url", p.TokenURL, "Content OAuth token URL"},
+		{".userinfo_url", p.UserinfoURL, "Content OAuth userinfo URL"},
+		{".revocation_url", p.RevocationURL, "Content OAuth token revocation URL"},
+	}
+	for _, f := range stringFields {
+		if f.value != "" {
+			settings = append(settings, MigratableSetting{
+				Key: prefix + f.suffix, Value: f.value, Type: "string", Description: f.desc, Source: "config",
+			})
+		}
+	}
+	// Client secret — masked in API responses
+	settings = append(settings, MigratableSetting{
+		Key: prefix + ".client_secret", Value: p.ClientSecret, Type: "string",
+		Description: "Content OAuth client secret", Source: "config", Secret: true,
+	})
+	if len(p.RequiredScopes) > 0 {
+		scopesJSON, _ := json.Marshal(p.RequiredScopes)
+		settings = append(settings, MigratableSetting{
+			Key: prefix + ".required_scopes", Value: string(scopesJSON), Type: "json",
+			Description: "Content OAuth required scopes", Source: "config",
+		})
+	}
+	return settings
+}
+
+// getMigratableContentSourcesSettings returns content source provider settings.
+//
+// String fields that are filesystem paths or email addresses are omitted when
+// empty (Oracle empty-CLOB safe). Boolean enabled flags and picker public IDs
+// always emit since they have meaningful zero/sentinel values.
+func (c *Config) getMigratableContentSourcesSettings() []MigratableSetting {
+	settings := []MigratableSetting{}
+
+	// Google Drive
+	gd := c.ContentSources.GoogleDrive
+	settings = append(settings,
+		MigratableSetting{Key: "content_sources.google_drive.enabled", Value: strconv.FormatBool(gd.Enabled), Type: "bool", Description: "Google Drive content source enabled", Source: settingSource("TMI_CONTENT_SOURCE_GOOGLE_DRIVE_ENABLED")},
+	)
+	if gd.ServiceAccountEmail != "" {
+		settings = append(settings, MigratableSetting{Key: "content_sources.google_drive.service_account_email", Value: gd.ServiceAccountEmail, Type: "string", Description: "Google Drive service account email", Source: settingSource("TMI_CONTENT_SOURCE_GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL")})
+	}
+	if gd.CredentialsFile != "" {
+		settings = append(settings, MigratableSetting{Key: "content_sources.google_drive.credentials_file", Value: gd.CredentialsFile, Type: "string", Description: "Google Drive service account credentials file path", Source: settingSource("TMI_CONTENT_SOURCE_GOOGLE_DRIVE_CREDENTIALS_FILE")})
+	}
+	if gd.BrowserOAuthClientID != "" {
+		settings = append(settings, MigratableSetting{Key: "content_sources.google_drive.browser_oauth_client_id", Value: gd.BrowserOAuthClientID, Type: "string", Description: "Google Drive browser OAuth client ID (public)", Source: settingSource("TMI_CONTENT_SOURCE_GOOGLE_DRIVE_BROWSER_OAUTH_CLIENT_ID")})
+	}
+	if gd.PickerDeveloperKey != "" {
+		settings = append(settings, MigratableSetting{Key: "content_sources.google_drive.picker_developer_key", Value: gd.PickerDeveloperKey, Type: "string", Description: "Google Drive Picker developer key (public)", Source: settingSource("TMI_CONTENT_SOURCE_GOOGLE_DRIVE_PICKER_DEVELOPER_KEY")})
+	}
+	if gd.PickerAppID != "" {
+		settings = append(settings, MigratableSetting{Key: "content_sources.google_drive.picker_app_id", Value: gd.PickerAppID, Type: "string", Description: "Google Drive Picker app ID (public)", Source: settingSource("TMI_CONTENT_SOURCE_GOOGLE_DRIVE_PICKER_APP_ID")})
+	}
+
+	// Google Workspace
+	gw := c.ContentSources.GoogleWorkspace
+	settings = append(settings,
+		MigratableSetting{Key: "content_sources.google_workspace.enabled", Value: strconv.FormatBool(gw.Enabled), Type: "bool", Description: "Google Workspace content source enabled", Source: settingSource("TMI_CONTENT_SOURCE_GOOGLE_WORKSPACE_ENABLED")},
+	)
+	if gw.PickerDeveloperKey != "" {
+		settings = append(settings, MigratableSetting{Key: "content_sources.google_workspace.picker_developer_key", Value: gw.PickerDeveloperKey, Type: "string", Description: "Google Workspace Picker developer key (public)", Source: settingSource("TMI_CONTENT_SOURCE_GOOGLE_WORKSPACE_PICKER_DEVELOPER_KEY")})
+	}
+	if gw.PickerAppID != "" {
+		settings = append(settings, MigratableSetting{Key: "content_sources.google_workspace.picker_app_id", Value: gw.PickerAppID, Type: "string", Description: "Google Workspace Picker app ID (public)", Source: settingSource("TMI_CONTENT_SOURCE_GOOGLE_WORKSPACE_PICKER_APP_ID")})
+	}
+
+	// Confluence
+	cf := c.ContentSources.Confluence
+	settings = append(settings,
+		MigratableSetting{Key: "content_sources.confluence.enabled", Value: strconv.FormatBool(cf.Enabled), Type: "bool", Description: "Confluence content source enabled", Source: settingSource("TMI_CONTENT_SOURCE_CONFLUENCE_ENABLED")},
+	)
+
+	// Microsoft
+	ms := c.ContentSources.Microsoft
+	settings = append(settings,
+		MigratableSetting{Key: "content_sources.microsoft.enabled", Value: strconv.FormatBool(ms.Enabled), Type: "bool", Description: "Microsoft content source enabled", Source: settingSource("TMI_CONTENT_SOURCE_MICROSOFT_ENABLED")},
+	)
+	if ms.TenantID != "" {
+		settings = append(settings, MigratableSetting{Key: "content_sources.microsoft.tenant_id", Value: ms.TenantID, Type: "string", Description: "Microsoft Entra tenant ID", Source: settingSource("TMI_CONTENT_SOURCE_MICROSOFT_TENANT_ID")})
+	}
+	if ms.ClientID != "" {
+		settings = append(settings, MigratableSetting{Key: "content_sources.microsoft.client_id", Value: ms.ClientID, Type: "string", Description: "Microsoft Entra app client ID (public)", Source: settingSource("TMI_CONTENT_SOURCE_MICROSOFT_CLIENT_ID")})
+	}
+	if ms.ApplicationObjectID != "" {
+		settings = append(settings, MigratableSetting{Key: "content_sources.microsoft.application_object_id", Value: ms.ApplicationObjectID, Type: "string", Description: "Microsoft Entra application object ID", Source: settingSource("TMI_CONTENT_SOURCE_MICROSOFT_APPLICATION_OBJECT_ID")})
+	}
+	if ms.PickerOrigin != "" {
+		settings = append(settings, MigratableSetting{Key: "content_sources.microsoft.picker_origin", Value: ms.PickerOrigin, Type: "string", Description: "Microsoft Picker allowed origin URL", Source: settingSource("TMI_CONTENT_SOURCE_MICROSOFT_PICKER_ORIGIN")})
+	}
+
+	return settings
 }

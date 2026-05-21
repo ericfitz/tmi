@@ -95,6 +95,10 @@ var exactClassifications = map[string]ConfigClass{
 	"server.idle_timeout":           bootstrapClass(false, VisibilityInternal, false),
 	"server.base_url":               bootstrapClass(false, VisibilityPublic, false),
 	"server.cors.allowed_origins":   bootstrapClass(false, VisibilityInternal, false),
+	// Operational server knobs — rate-limiting and optimistic-locking (#426)
+	"server.disable_rate_limiting": operationalClass(VisibilityAdminOnly, false),
+	"server.ratelimit_public_rpm":  operationalClass(VisibilityAdminOnly, false),
+	"server.require_if_match":      operationalClass(VisibilityAdminOnly, false),
 
 	// --- Bootstrap: database ---
 	"database.url": bootstrapClass(true, VisibilityInternal, true),
@@ -137,6 +141,32 @@ var exactClassifications = map[string]ConfigClass{
 	"operator.contact":                     operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),
 	"operator.jurisdiction":                operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),
 	"administrators":                       operationalClass(VisibilityAdminOnly, false),
+
+	// --- Operational: observability / OpenTelemetry (#426) ---
+	"observability.enabled":         operationalClass(VisibilityAdminOnly, false),
+	"observability.prometheus_port": operationalClass(VisibilityAdminOnly, false),
+	"observability.sampling_rate":   operationalClass(VisibilityAdminOnly, false),
+
+	// --- Operational: SSRF allowlists (#426) ---
+	// These are security-sensitive: they control which external hosts the server
+	// will make outbound HTTP requests to. Admin-only; fail-closed when absent.
+	"ssrf.issue_uri.allowlist":      operationalClass(VisibilityAdminOnly, false),
+	"ssrf.issue_uri.schemes":        operationalClass(VisibilityAdminOnly, false),
+	"ssrf.document_uri.allowlist":   operationalClass(VisibilityAdminOnly, false),
+	"ssrf.document_uri.schemes":     operationalClass(VisibilityAdminOnly, false),
+	"ssrf.repository_uri.allowlist": operationalClass(VisibilityAdminOnly, false),
+	"ssrf.repository_uri.schemes":   operationalClass(VisibilityAdminOnly, false),
+	"ssrf.timmy.allowlist":          operationalClass(VisibilityAdminOnly, false),
+	"ssrf.timmy.schemes":            operationalClass(VisibilityAdminOnly, false),
+	"ssrf.webhook.allowlist":        operationalClass(VisibilityAdminOnly, false),
+	"ssrf.webhook.schemes":          operationalClass(VisibilityAdminOnly, false),
+
+	// --- Operational: webhooks (#426) ---
+	"webhooks.allow_http_targets": operationalClass(VisibilityAdminOnly, false),
+
+	// --- Operational: content OAuth callback URL (#426) ---
+	// The content OAuth callback is operator-tunable without restart.
+	"content_oauth.callback_url": operationalClass(VisibilityAdminOnly, false),
 
 	// --- Operational: DB-only client-config knobs ---
 	// These keys have no Config struct field; they are seeded directly into
