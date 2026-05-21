@@ -2,6 +2,10 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"strconv"
+	"strings"
 
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -100,4 +104,27 @@ func (p *TimmyConfigProvider) Current(ctx context.Context) config.TimmyConfig {
 	getBool("timmy.dump_extracted_text_to_note", &cfg.DumpExtractedTextToNote)
 
 	return cfg
+}
+
+// WiringHash returns a stable hash over the fields that, when changed, require
+// rebuilding the LLM/embedding clients. Tuning knobs (top-k, limits, history)
+// are intentionally excluded so changing them does not force a costly client
+// rebuild. The enable flag is also excluded — it is evaluated by the
+// middleware, not the client build. LLMTimeoutSeconds is INCLUDED because
+// NewTimmyLLMService bakes it into the SafeHTTPClient at construction;
+// OperatorSystemPrompt is INCLUDED because it is baked into the base prompt at
+// construction.
+func (p *TimmyConfigProvider) WiringHash(cfg config.TimmyConfig) string {
+	fields := []string{
+		cfg.LLMProvider, cfg.LLMModel, cfg.LLMAPIKey, cfg.LLMBaseURL,
+		cfg.TextEmbeddingProvider, cfg.TextEmbeddingModel, cfg.TextEmbeddingAPIKey, cfg.TextEmbeddingBaseURL,
+		strconv.Itoa(cfg.EmbeddingDimension),
+		cfg.CodeEmbeddingProvider, cfg.CodeEmbeddingModel, cfg.CodeEmbeddingAPIKey, cfg.CodeEmbeddingBaseURL,
+		cfg.RerankProvider, cfg.RerankModel, cfg.RerankAPIKey, cfg.RerankBaseURL,
+		cfg.OperatorSystemPrompt,
+		strconv.Itoa(cfg.LLMTimeoutSeconds),
+	}
+	// NUL separator avoids collisions between concatenated field boundaries.
+	sum := sha256.Sum256([]byte(strings.Join(fields, "\x00")))
+	return hex.EncodeToString(sum[:])
 }

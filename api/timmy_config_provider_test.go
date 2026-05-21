@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ericfitz/tmi/internal/config"
 )
 
 func TestTimmyConfigProvider_Current_AssemblesFromSettings(t *testing.T) {
@@ -53,4 +55,33 @@ func TestTimmyConfigProvider_Current_NilSettings(t *testing.T) {
 	assert.False(t, cfg.Enabled)
 	assert.Equal(t, 50, cfg.MaxConversationHistory)
 	assert.False(t, cfg.IsConfigured())
+}
+
+func TestTimmyConfigProvider_WiringHash_StableForKnobs(t *testing.T) {
+	p := NewTimmyConfigProvider(NewMockSettingsService())
+	base := config.DefaultTimmyConfig()
+	base.LLMProvider = "openai"
+	base.LLMModel = "gpt-5.5"
+	base.LLMAPIKey = "sk-a"
+	base.TextEmbeddingProvider = "openai"
+	base.TextEmbeddingModel = "text-embedding-3-large"
+	base.EmbeddingDimension = 3072
+
+	h1 := p.WiringHash(base)
+
+	// Changing a tuning knob does NOT change the hash.
+	knob := base
+	knob.MaxConversationHistory = 99
+	knob.TextRetrievalTopK = 1
+	assert.Equal(t, h1, p.WiringHash(knob), "tuning-knob change must not change wiring hash")
+
+	// Changing the api key DOES change the hash.
+	rekey := base
+	rekey.LLMAPIKey = "sk-b"
+	assert.NotEqual(t, h1, p.WiringHash(rekey), "api key change must change wiring hash")
+
+	// Changing the model DOES change the hash.
+	remodel := base
+	remodel.LLMModel = "gpt-6"
+	assert.NotEqual(t, h1, p.WiringHash(remodel), "model change must change wiring hash")
 }
