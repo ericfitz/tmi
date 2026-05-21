@@ -180,13 +180,10 @@ func (s *Server) IngestEmbeddings(c *gin.Context, threatModelId ThreatModelId) {
 		return
 	}
 
-	// Invalidate the in-memory index so the next query reloads from DB
-	rt, rtErr := s.getTimmyRuntime(c.Request.Context())
-	if rtErr != nil {
-		HandleRequestError(c, ServiceUnavailableError("Timmy is temporarily unavailable"))
-		return
-	}
-	if rt != nil && rt.VectorManager != nil {
+	// Invalidate the in-memory index so the next query reloads from DB.
+	// Best-effort: failure to resolve the runtime or absence of a vector
+	// manager must never gate the 201 — the write already succeeded.
+	if rt, rtErr := s.getTimmyRuntime(c.Request.Context()); rtErr == nil && rt != nil && rt.VectorManager != nil {
 		rt.VectorManager.InvalidateIndex(tmID, indexType)
 	}
 
@@ -241,11 +238,6 @@ func (s *Server) DeleteEmbeddings(c *gin.Context, threatModelId ThreatModelId, p
 	}
 
 	ctx := c.Request.Context()
-	rt, rtErr := s.getTimmyRuntime(ctx)
-	if rtErr != nil {
-		HandleRequestError(c, ServiceUnavailableError("Timmy is temporarily unavailable"))
-		return
-	}
 	var deleted int64
 	var err error
 
@@ -260,9 +252,10 @@ func (s *Server) DeleteEmbeddings(c *gin.Context, threatModelId ThreatModelId, p
 			HandleRequestError(c, ServerError("Failed to delete embeddings"))
 			return
 		}
-		// Invalidate the index that corresponds to this entity type
+		// Invalidate the index that corresponds to this entity type.
+		// Best-effort: must not gate the delete's success response.
 		affectedIndex := EntityTypeToIndexType(entityType)
-		if rt != nil && rt.VectorManager != nil {
+		if rt, rtErr := s.getTimmyRuntime(ctx); rtErr == nil && rt != nil && rt.VectorManager != nil {
 			rt.VectorManager.InvalidateIndex(tmID, affectedIndex)
 		}
 
@@ -274,7 +267,8 @@ func (s *Server) DeleteEmbeddings(c *gin.Context, threatModelId ThreatModelId, p
 			HandleRequestError(c, ServerError("Failed to delete embeddings"))
 			return
 		}
-		if rt != nil && rt.VectorManager != nil {
+		// Best-effort cache invalidation: must not gate the delete response.
+		if rt, rtErr := s.getTimmyRuntime(ctx); rtErr == nil && rt != nil && rt.VectorManager != nil {
 			rt.VectorManager.InvalidateIndex(tmID, indexType)
 		}
 
