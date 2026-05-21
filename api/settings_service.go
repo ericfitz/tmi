@@ -531,7 +531,13 @@ func (s *SettingsService) validateValue(setting *models.SystemSetting) error {
 			return fmt.Errorf("value '%s' is not valid JSON", setting.Value)
 		}
 	case models.SystemSettingTypeString:
-		// Any string is valid
+		// Empty string is not allowed for string settings.
+		// On Oracle ADB an empty string bound to a CLOB/VARCHAR2 column is treated as NULL,
+		// which violates the NOT NULL constraint on system_settings.value (ORA-01400).
+		// Use DELETE to clear a string setting instead of setting it to empty string.
+		if setting.Value == "" {
+			return fmt.Errorf("empty value not allowed for string setting %q; use DELETE to clear the setting", setting.SettingKey)
+		}
 	}
 	return nil
 }

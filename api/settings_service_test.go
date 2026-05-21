@@ -194,10 +194,32 @@ func TestSettingsService_ValidateValue(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("empty string is valid for string type", func(t *testing.T) {
+	t.Run("empty string is rejected for string type", func(t *testing.T) {
 		setting := &models.SystemSetting{
 			SettingKey:  "test.string",
 			Value:       "",
+			SettingType: models.SystemSettingTypeString,
+		}
+		err := service.validateValue(setting)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "empty value not allowed for string setting")
+		assert.Contains(t, err.Error(), "use DELETE")
+	})
+
+	t.Run("non-empty string value is valid for string type", func(t *testing.T) {
+		setting := &models.SystemSetting{
+			SettingKey:  "test.string",
+			Value:       "hello",
+			SettingType: models.SystemSettingTypeString,
+		}
+		err := service.validateValue(setting)
+		assert.NoError(t, err)
+	})
+
+	t.Run("whitespace-only string value is valid for string type", func(t *testing.T) {
+		setting := &models.SystemSetting{
+			SettingKey:  "test.string",
+			Value:       " ",
 			SettingType: models.SystemSettingTypeString,
 		}
 		err := service.validateValue(setting)
