@@ -54,8 +54,15 @@ Make the **Timmy AI core** fully DB-backed and runtime-tunable:
   **lazy rebuild on next request** when a wiring-setting change is detected via a
   stable hash of the wiring fields.
 - **Vector index manager**: rebuilt as part of the same lazy reload.
-- **Tuning knobs** (top-k, timeouts, rate limits, conversation history, etc.):
-  read live.
+- **Tuning knobs** (top-k, rate limits, conversation history, chunk size/overlap,
+  session caps): read **live per request**, independently of the wiring-hash
+  rebuild. A knob change does NOT trigger an LLM-client rebuild (knobs are
+  excluded from the wiring hash); instead the session manager reads them through
+  a live-config closure (`cfgFor(ctx)`) and the rate limiter reads its thresholds
+  through a `limits()` closure on each check, preserving sliding-window state.
+  (`llm_timeout_seconds` and `operator_system_prompt` are the exceptions — they
+  ARE baked into the client/prompt at build time, so they live in the wiring hash
+  and take effect on the next rebuild.)
 - **Precedence**: config-first preserved — `env/config file > database`,
   identical to every other operational key (`SettingsService.GetString/GetBool/
   GetInt` already implement this). In dev (no Timmy YAML/env), the DB wins,
@@ -93,8 +100,11 @@ Make the **Timmy AI core** fully DB-backed and runtime-tunable:
   not change.
 - `WiringHash(cfg) string` — a stable hash over only the *wiring* fields
   (provider, model, base_url, api_key, dimension for LLM + text embedding + code
-  embedding + rerank). Used to detect "needs rebuild." Tuning-knob changes do
-  NOT change the hash.
+  embedding + rerank, plus `llm_timeout_seconds` and `operator_system_prompt`
+  which are baked in at client/prompt construction). Used to detect "needs
+  rebuild." Tuning-knob changes do NOT change the hash — they take effect via
+  the live-config closures wired into the session manager and rate limiter (see
+  below), so they apply without an LLM-client rebuild.
 - Cheap reads ride the existing settings cache (60s TTL) and its invalidation on
   `PUT /admin/settings`.
 
@@ -128,6 +138,20 @@ Make the **Timmy AI core** fully DB-backed and runtime-tunable:
 
 - Obtain the session manager via `server.timmyCore.Get(ctx)` instead of a
   startup-injected `timmySessionManager`.
+
+#### Live tuning knobs (no rebuild)
+
+- The session manager holds an optional live-config reader
+  (`SetLiveConfig(func(ctx) config.TimmyConfig)`) and resolves knob reads
+  (`MaxSessionsPerThreatModel`, `TextRetrievalTopK`, `CodeRetrievalTopK`,
+  `MaxConversationHistory`, `ChunkSize`/`ChunkOverlap`) through `cfgFor(ctx)`,
+  falling back to its frozen build-time config when no reader is wired (unit
+  tests). The chunker is built on demand per ingest from the live values.
+- The rate limiter holds its three thresholds behind a `limits()` closure read
+  on each check; the sliding-window + concurrency state is preserved across knob
+  edits. Both closures read the same `TimmyConfigProvider` the core uses, so a
+  knob-only change (which leaves the wiring hash unchanged and serves the same
+  `*TimmyRuntime`) is still picked up live on the next request.
 
 ### What stays the same
 
