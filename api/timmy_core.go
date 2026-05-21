@@ -41,6 +41,10 @@ func NewTimmyCore(provider *TimmyConfigProvider, build TimmyRuntimeBuilder) *Tim
 // does NOT poison the cache: the next Get retries. Callers hold the returned
 // pointer for the duration of their request; a concurrent rebuild swaps the
 // holder's pointer but never mutates an in-use runtime.
+//
+// The config is snapshotted before locking; if the config changes again during
+// a build, the result is still published under the snapshot's hash and will be
+// detected as stale on the next Get.
 func (c *TimmyCore) Get(ctx context.Context) (*TimmyRuntime, error) {
 	cfg := c.provider.Current(ctx)
 	want := c.provider.WiringHash(cfg)
