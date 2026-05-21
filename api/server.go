@@ -313,7 +313,7 @@ func (s *Server) getTimmyRuntime(ctx context.Context) (*TimmyRuntime, error) {
 	if s.timmyCore != nil {
 		return s.timmyCore.Get(ctx)
 	}
-	if s.timmySessionManager != nil {
+	if s.timmySessionManager != nil || s.vectorManager != nil {
 		return &TimmyRuntime{
 			SessionManager: s.timmySessionManager,
 			VectorManager:  s.vectorManager,

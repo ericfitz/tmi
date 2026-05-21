@@ -31,7 +31,12 @@ func (s *Server) CreateTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 		return
 	}
 
-	if s.timmySessionManager == nil {
+	rt, rtErr := s.getTimmyRuntime(c.Request.Context())
+	if rtErr != nil {
+		HandleRequestError(c, ServiceUnavailableError("Timmy is temporarily unavailable"))
+		return
+	}
+	if rt == nil || rt.SessionManager == nil {
 		HandleRequestError(c, ServiceUnavailableError("Timmy is not configured"))
 		return
 	}
@@ -75,7 +80,7 @@ func (s *Server) CreateTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 		})
 	}
 
-	session, skipped, createErr := s.timmySessionManager.CreateSession(
+	session, skipped, createErr := rt.SessionManager.CreateSession(
 		ctx, userID, threatModelId.String(), title, progressCb,
 	)
 	if createErr != nil {
@@ -204,7 +209,12 @@ func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatMode
 		return
 	}
 
-	if s.timmySessionManager == nil {
+	rt, rtErr := s.getTimmyRuntime(c.Request.Context())
+	if rtErr != nil {
+		HandleRequestError(c, ServiceUnavailableError("Timmy is temporarily unavailable"))
+		return
+	}
+	if rt == nil || rt.SessionManager == nil {
 		HandleRequestError(c, ServiceUnavailableError("Timmy is not configured"))
 		return
 	}
@@ -283,13 +293,13 @@ func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatMode
 	//     "stop work when client disappears" behaviour by detaching from the
 	//     request context's cancellation.
 	llmTimeout := 120 * time.Second
-	if s.timmySessionManager != nil && s.timmySessionManager.config.LLMTimeoutSeconds > 0 {
-		llmTimeout = time.Duration(s.timmySessionManager.config.LLMTimeoutSeconds) * time.Second
+	if rt.SessionManager.config.LLMTimeoutSeconds > 0 {
+		llmTimeout = time.Duration(rt.SessionManager.config.LLMTimeoutSeconds) * time.Second
 	}
 	llmCtx, llmCancel := context.WithTimeout(context.WithoutCancel(ctx), llmTimeout)
 	defer llmCancel()
 
-	assistantMsg, handleErr := s.timmySessionManager.HandleMessage(
+	assistantMsg, handleErr := rt.SessionManager.HandleMessage(
 		llmCtx, sessionId.String(), userID, req.Content, tokenCb, statusCb,
 	)
 	if handleErr != nil {
@@ -433,7 +443,12 @@ func (s *Server) GetTimmyUsage(c *gin.Context, params GetTimmyUsageParams) {
 
 // GetTimmyStatus returns current memory and index status (admin only).
 func (s *Server) GetTimmyStatus(c *gin.Context) {
-	if s.vectorManager == nil {
+	rt, rtErr := s.getTimmyRuntime(c.Request.Context())
+	if rtErr != nil {
+		HandleRequestError(c, ServiceUnavailableError("Timmy is temporarily unavailable"))
+		return
+	}
+	if rt == nil || rt.VectorManager == nil {
 		c.JSON(http.StatusOK, TimmyStatusResponse{
 			ActiveSessions:        0,
 			EvictionsPressure:     0,
@@ -447,7 +462,7 @@ func (s *Server) GetTimmyStatus(c *gin.Context) {
 		return
 	}
 
-	status := s.vectorManager.GetStatus()
+	status := rt.VectorManager.GetStatus()
 
 	// Sum active sessions from per-index details
 	activeSessions := 0
@@ -480,13 +495,18 @@ func (s *Server) RefreshTimmySources(c *gin.Context, threatModelId ThreatModelId
 		return
 	}
 
-	if s.timmySessionManager == nil {
+	rt, rtErr := s.getTimmyRuntime(c.Request.Context())
+	if rtErr != nil {
+		HandleRequestError(c, ServiceUnavailableError("Timmy is temporarily unavailable"))
+		return
+	}
+	if rt == nil || rt.SessionManager == nil {
 		HandleRequestError(c, ServiceUnavailableError("Timmy is not configured"))
 		return
 	}
 
 	// Re-snapshot sources
-	sources, skipped, snapshotErr := s.timmySessionManager.SnapshotSources(
+	sources, skipped, snapshotErr := rt.SessionManager.SnapshotSources(
 		c.Request.Context(), threatModelId.String(),
 	)
 	if snapshotErr != nil {

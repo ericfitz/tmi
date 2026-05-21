@@ -25,12 +25,17 @@ func (s *Server) GetEmbeddingConfig(c *gin.Context, threatModelId ThreatModelId)
 	}
 
 	// Timmy must be configured
-	if s.timmySessionManager == nil {
+	rt, rtErr := s.getTimmyRuntime(c.Request.Context())
+	if rtErr != nil {
+		HandleRequestError(c, ServiceUnavailableError("Timmy is temporarily unavailable"))
+		return
+	}
+	if rt == nil || rt.SessionManager == nil {
 		HandleRequestError(c, ServiceUnavailableError("Timmy is not configured"))
 		return
 	}
 
-	cfg := s.timmySessionManager.config
+	cfg := rt.SessionManager.config
 
 	// Build text embedding config (always present when Timmy is configured)
 	textCfg := EmbeddingProviderConfig{
@@ -176,8 +181,13 @@ func (s *Server) IngestEmbeddings(c *gin.Context, threatModelId ThreatModelId) {
 	}
 
 	// Invalidate the in-memory index so the next query reloads from DB
-	if s.vectorManager != nil {
-		s.vectorManager.InvalidateIndex(tmID, indexType)
+	rt, rtErr := s.getTimmyRuntime(c.Request.Context())
+	if rtErr != nil {
+		HandleRequestError(c, ServiceUnavailableError("Timmy is temporarily unavailable"))
+		return
+	}
+	if rt != nil && rt.VectorManager != nil {
+		rt.VectorManager.InvalidateIndex(tmID, indexType)
 	}
 
 	c.JSON(http.StatusCreated, EmbeddingIngestionResponse{Ingested: len(records)})
@@ -231,6 +241,11 @@ func (s *Server) DeleteEmbeddings(c *gin.Context, threatModelId ThreatModelId, p
 	}
 
 	ctx := c.Request.Context()
+	rt, rtErr := s.getTimmyRuntime(ctx)
+	if rtErr != nil {
+		HandleRequestError(c, ServiceUnavailableError("Timmy is temporarily unavailable"))
+		return
+	}
 	var deleted int64
 	var err error
 
@@ -247,8 +262,8 @@ func (s *Server) DeleteEmbeddings(c *gin.Context, threatModelId ThreatModelId, p
 		}
 		// Invalidate the index that corresponds to this entity type
 		affectedIndex := EntityTypeToIndexType(entityType)
-		if s.vectorManager != nil {
-			s.vectorManager.InvalidateIndex(tmID, affectedIndex)
+		if rt != nil && rt.VectorManager != nil {
+			rt.VectorManager.InvalidateIndex(tmID, affectedIndex)
 		}
 
 	case params.IndexType != nil:
@@ -259,8 +274,8 @@ func (s *Server) DeleteEmbeddings(c *gin.Context, threatModelId ThreatModelId, p
 			HandleRequestError(c, ServerError("Failed to delete embeddings"))
 			return
 		}
-		if s.vectorManager != nil {
-			s.vectorManager.InvalidateIndex(tmID, indexType)
+		if rt != nil && rt.VectorManager != nil {
+			rt.VectorManager.InvalidateIndex(tmID, indexType)
 		}
 
 	default:
