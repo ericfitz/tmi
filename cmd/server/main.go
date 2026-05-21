@@ -1307,6 +1307,12 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, setting
 		// build), so it must not capture the build-time ctx (which may be
 		// cancelled after the builder returns); use a fresh background context
 		// to read the settings cache.
+		// A new rate limiter is built only on a wiring-hash change (key/model/URL
+		// rotation), which resets the per-user sliding windows and the LLM
+		// concurrency counter. That is acceptable because wiring changes are rare;
+		// knob-only changes (limits, top-k, history) do NOT trigger a rebuild and
+		// are picked up live via the limits closure / SetLiveConfig below, so the
+		// windows persist across knob edits.
 		rateLimiter := api.NewTimmyRateLimiter(func() (int, int, int) {
 			lc := provider.Current(context.Background())
 			return lc.MaxMessagesPerUserPerHour, lc.MaxSessionsPerThreatModel, lc.MaxConcurrentLLMRequests

@@ -53,8 +53,14 @@ func NewTimmyRateLimiter(limitsFn func() (maxMessages, maxSessions, maxConcurren
 	}
 }
 
-// AllowMessage checks if a user is within their hourly message limit
+// AllowMessage checks if a user is within their hourly message limit.
+//
+// limits() is read before taking rl.mu so the (potentially I/O-backed) live
+// config lookup never extends the critical section guarding the per-user
+// sliding-window state.
 func (rl *TimmyRateLimiter) AllowMessage(userID string) bool {
+	maxMessages, _, _ := rl.limits()
+
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
@@ -64,7 +70,6 @@ func (rl *TimmyRateLimiter) AllowMessage(userID string) bool {
 		rl.userMessageCounts[userID] = sw
 	}
 
-	maxMessages, _, _ := rl.limits()
 	if sw.count(time.Hour) >= maxMessages {
 		return false
 	}
