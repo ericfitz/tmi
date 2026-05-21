@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -16,6 +17,7 @@ type AccessPoller struct {
 	interval      time.Duration
 	maxAge        time.Duration
 	stopCh        chan struct{}
+	stopOnce      sync.Once // ensures Stop is idempotent (no double-close panic)
 }
 
 // NewAccessPoller creates a new background access poller.
@@ -64,9 +66,12 @@ func (p *AccessPoller) Start() {
 	go p.run()
 }
 
-// Stop signals the poller to stop.
+// Stop signals the poller to stop. Safe to call more than once; subsequent
+// calls are no-ops. The goroutine exits asynchronously; callers that need
+// synchronous teardown should wait on a done channel (not exposed here
+// because the common pattern is fire-and-forget from the holder).
 func (p *AccessPoller) Stop() {
-	close(p.stopCh)
+	p.stopOnce.Do(func() { close(p.stopCh) })
 }
 
 func (p *AccessPoller) run() {

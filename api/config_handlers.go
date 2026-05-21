@@ -268,12 +268,18 @@ func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientCo
 
 	logger.Debug("Built client config with websocket=%v, saml=%v, webhooks=%v", websocketEnabled, samlEnabled, webhooksEnabled)
 
-	// Build content providers from registry + delegated overrides
+	// Build content providers from registry + delegated overrides.
+	// Resolve the live registry through the holder (runtime-toggleable) when
+	// available; fall back to the startup-wired field otherwise.
+	var liveRegistry *ContentSourceRegistry
+	if b := s.getContentSourceBundle(ctx); b != nil {
+		liveRegistry = b.Sources
+	}
 	var contentOAuthCfg *config.ContentOAuthConfig
 	if s.contentOAuth != nil {
 		contentOAuthCfg = &s.contentOAuth.Cfg
 	}
-	contentProviders := buildContentProviders(s.contentSourceRegistry, contentOAuthCfg, s.contentPickerConfigs)
+	contentProviders := buildContentProviders(liveRegistry, contentOAuthCfg, s.contentPickerConfigs)
 
 	return ClientConfig{
 		Features: &struct {

@@ -787,10 +787,13 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	// ==== Content OAuth handlers (must come BEFORE Timmy init so the token
 	// repo and OAuth registry are available for the GoogleWorkspace source,
 	// picker handler, and access poller's LinkedProviderChecker) ====
-	contentTokenRepo, contentOAuthRegistry := wireContentOAuthHandlers(apiServer, config, gormDB.DB(), dbManager, authHandlers)
+	contentTokenRepo, _ := wireContentOAuthHandlers(apiServer, config, gormDB.DB(), dbManager, authHandlers)
 
 	// ==== PHASE 6: Timmy AI Assistant ====
-	initializeTimmySubsystem(config, apiServer, settingsService, contentTokenRepo, contentOAuthRegistry, api.NewStampedConfigProvider(settingsService))
+	// The contentOAuthRegistry from wireContentOAuthHandlers is no longer passed
+	// to initializeTimmySubsystem; the ContentSourceHolder rebuilds it from the
+	// live config on each registry rebuild (runtime-toggleable, #427).
+	initializeTimmySubsystem(config, apiServer, settingsService, contentTokenRepo, api.NewStampedConfigProvider(settingsService))
 
 	// Start embedding idle cleanup (runs unconditionally, even if Timmy is disabled,
 	// to clean up embeddings if Timmy was previously enabled)
@@ -1120,13 +1123,18 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 }
 
 // initializeTimmySubsystem sets up the Timmy AI assistant when configured.
-// contentTokenRepo and contentOAuthRegistry are provided by wireContentOAuthHandlers
-// (called before this function) so the GoogleWorkspace delegated source, picker-token
-// handler, and access poller can be wired with provider-aware dispatch.
-// NOTE: Content-source plumbing now runs unconditionally at startup; the Timmy
-// LLM/embedding wiring is resolved lazily from DB config via the TimmyCore
-// builder below. Runtime toggling of content sources is tracked in #427.
-func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, settingsService *api.SettingsService, contentTokenRepo api.ContentTokenRepository, contentOAuthRegistry *api.ContentOAuthProviderRegistry, stampedCfgProvider config.StampedConfigProvider) {
+// contentTokenRepo is provided by wireContentOAuthHandlers (called before this
+// function) so the GoogleWorkspace delegated source, picker-token handler, and
+// access poller can be wired with provider-aware dispatch.
+//
+// Content-source registry and access-poller lifecycle are now managed by a
+// ContentSourceHolder that mirrors the TimmyCore lazy-rebuild pattern: a stable
+// hash of the content-source config detects when sources need to be rebuilt.
+// Any content-source misconfiguration at runtime is gracefully degraded (WARN +
+// skip) instead of crashing the server with os.Exit(1).  os.Exit(1) is still
+// used for genuinely fatal bootstrap problems unrelated to content sources
+// (database unavailable, auth init failure, etc.).
+func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, settingsService *api.SettingsService, contentTokenRepo api.ContentTokenRepository, stampedCfgProvider config.StampedConfigProvider) {
 	logger := slogging.Get()
 
 	logger.Info("==== PHASE 6: Wiring Timmy AI assistant (DB-backed runtime config) ====")
@@ -1139,137 +1147,59 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, setting
 	documentURIValidator := buildURIValidator(cfg.SSRF.DocumentURI, "TMI_SSRF_DOCUMENT_URI")
 	repositoryURIValidator := buildURIValidator(cfg.SSRF.RepositoryURI, "TMI_SSRF_REPOSITORY_URI")
 	timmyURIValidator := buildURIValidator(cfg.SSRF.Timmy, "TMI_SSRF_TIMMY")
+	contentOAuthValidator := buildURIValidator(cfg.SSRF.DocumentURI, "TMI_SSRF_DOCUMENT_URI")
 
 	apiServer.SetURIValidators(issueURIValidator, documentURIValidator, repositoryURIValidator)
 
-	// Build two-layer content pipeline for URI-based content
-	contentSources := api.NewContentSourceRegistry()
-
-	// Register Google Workspace delegated source if configured. Must register
-	// BEFORE GoogleDriveSource so FindSourceForDocument can pick the delegated
-	// source for picker-attached docs (URL patterns overlap with google_drive).
-	//
-	// Startup validation: GoogleWorkspace.Enabled implies the delegated content
-	// OAuth infrastructure must be available (encryption key set, registry
-	// loaded, google_workspace OAuth provider enabled). Otherwise the feature
-	// can never function — exit cleanly so the operator notices in dev.
-	if cfg.ContentSources.GoogleWorkspace.Enabled {
-		if contentTokenRepo == nil || contentOAuthRegistry == nil {
-			logger.Error("content_sources.google_workspace.enabled=true requires content-token encryption key and OAuth provider configuration; refusing to start")
-			os.Exit(1)
-		}
-		if _, ok := contentOAuthRegistry.Get(api.ProviderGoogleWorkspace); !ok {
-			logger.Error("content_sources.google_workspace.enabled=true requires content_oauth.providers.google_workspace.enabled=true; refusing to start")
-			os.Exit(1)
-		}
-		if !cfg.ContentSources.GoogleWorkspace.IsConfigured() {
-			logger.Error("content_sources.google_workspace.enabled=true requires picker_developer_key and picker_app_id; refusing to start")
-			os.Exit(1)
-		}
-		gwSource := api.NewDelegatedGoogleWorkspaceSource(
-			contentTokenRepo,
-			contentOAuthRegistry,
-			cfg.ContentSources.GoogleWorkspace.PickerDeveloperKey,
-			cfg.ContentSources.GoogleWorkspace.PickerAppID,
-		)
-		contentSources.Register(gwSource)
-		logger.Info("Content source enabled: google_workspace (delegated, drive.file scope)")
+	// ── Content-source pipeline factory ──────────────────────────────────────
+	// The factory captures the startup-wired extractor registry and limiter so
+	// they can be reused across source-registry rebuilds. Only the
+	// ContentSourceRegistry changes on runtime toggle; extractors are stable.
+	builtPipeline := buildContentPipeline(cfg, api.NewContentSourceRegistry(), logger)
+	pipelineFactory := func(sources *api.ContentSourceRegistry) *api.ContentPipeline {
+		// Swap in the new source registry on the already-built pipeline. The
+		// extractors, limiter, and limits are captured by reference from the
+		// initial buildContentPipeline call and reused unchanged.
+		return api.RebuildPipelineWithSources(builtPipeline, sources)
 	}
 
-	// Register Confluence delegated source if configured. Like Google Workspace,
-	// this must be registered before HTTPSource (which matches all http/https
-	// URLs). Confluence has no picker UX, so URL-pattern dispatch alone routes
-	// correctly: CanHandle returns true only for *.atlassian.net hosts under
-	// /wiki/, leaving the URL pattern matcher to mark them as "confluence".
-	if cfg.ContentSources.Confluence.Enabled {
-		if contentTokenRepo == nil || contentOAuthRegistry == nil {
-			logger.Error("content_sources.confluence.enabled=true requires content-token encryption key and OAuth provider configuration; refusing to start")
-			os.Exit(1)
-		}
-		confluenceProvider, ok := contentOAuthRegistry.Get(api.ProviderConfluence)
-		if !ok {
-			logger.Error("content_sources.confluence.enabled=true requires content_oauth.providers.confluence.enabled=true; refusing to start")
-			os.Exit(1)
-		}
-		// Warn (non-fatal) when offline_access is missing — refresh tokens
-		// will not be issued and users will need to re-link after each
-		// access-token expiry.
-		hasOfflineAccess := false
-		for _, scope := range confluenceProvider.RequiredScopes() {
-			if scope == "offline_access" {
-				hasOfflineAccess = true
-				break
+	// ── ContentSourceHolder: runtime-swappable registry + poller ─────────────
+	// The live config reader snapshots *config.Config from the boot config, then
+	// overlays timmy.enabled from the settings service (DB-backed). The wiring
+	// hash therefore detects timmy.enabled changes even though most content-source
+	// fields live in the static config.
+	cfgReader := func(ctx context.Context) config.Config {
+		snapshot := *cfg
+		if settingsService != nil {
+			if enabled, err := settingsService.GetBool(ctx, "timmy.enabled"); err == nil {
+				snapshot.Timmy.Enabled = enabled
 			}
 		}
-		if !hasOfflineAccess {
-			logger.Warn("content_oauth.providers.confluence.required_scopes does not include 'offline_access'; refresh tokens will not be issued and users will need to re-link after access tokens expire")
-		}
-		confluenceSource := api.NewDelegatedConfluenceSource(contentTokenRepo, contentOAuthRegistry, timmyURIValidator)
-		contentSources.Register(confluenceSource)
-		logger.Info("Content source enabled: confluence (delegated)")
+		return snapshot
 	}
+	csBuilder := api.BuildContentSourceBundle(
+		contentTokenRepo,
+		contentOAuthValidator,
+		timmyURIValidator,
+		pipelineFactory,
+	)
+	csHolder := api.NewContentSourceHolder(cfgReader, csBuilder)
 
-	// Register Microsoft delegated source when configured. Must register
-	// BEFORE HTTPSource (which matches all http/https URLs) since SharePoint
-	// URLs (*.sharepoint.com) would otherwise match the HTTP fallback.
-	if cfg.ContentSources.Microsoft.Enabled {
-		if contentTokenRepo == nil || contentOAuthRegistry == nil {
-			logger.Error("content_sources.microsoft.enabled=true requires content-token encryption key and OAuth provider configuration; refusing to start")
-			os.Exit(1)
+	// Rebuild hook: push the new pipeline into the document handler so
+	// CreateDocument and document diagnostics use the current sources.
+	csHolder.AddRebuildHook(func(b *api.ContentSourceBundle) {
+		if b.Pipeline != nil {
+			apiServer.SetContentPipeline(b.Pipeline)
 		}
-		if !cfg.ContentSources.Microsoft.IsConfigured() {
-			logger.Error("content_sources.microsoft.enabled=true requires tenant_id, client_id, and application_object_id; refusing to start")
-			os.Exit(1)
+		if b.Sources != nil {
+			apiServer.SetContentSourceRegistry(b.Sources)
 		}
-		msProvider, ok := contentOAuthRegistry.Get(api.ProviderMicrosoft)
-		if !ok {
-			logger.Error("content_sources.microsoft.enabled=true requires content_oauth.providers.microsoft.enabled=true; refusing to start")
-			os.Exit(1)
-		}
-		hasOfflineAccess := false
-		for _, scope := range msProvider.RequiredScopes() {
-			if scope == "offline_access" {
-				hasOfflineAccess = true
-				break
-			}
-		}
-		if !hasOfflineAccess {
-			logger.Warn("content_oauth.providers.microsoft.required_scopes does not include 'offline_access'; users will need to re-link after access tokens expire")
-		}
-		msSource := api.NewDelegatedMicrosoftSource(contentTokenRepo, contentOAuthRegistry, timmyURIValidator)
-		contentSources.Register(msSource)
-		logger.Info("Content source enabled: microsoft (delegated, OneDrive-for-Business + SharePoint)")
-	}
+	})
 
-	// Register Google Drive source if configured (must be before HTTPSource, which matches all http/https URLs)
-	if cfg.ContentSources.GoogleDrive.IsConfigured() {
-		gdSource, gdErr := api.NewGoogleDriveSource(
-			cfg.ContentSources.GoogleDrive.CredentialsFile,
-			cfg.ContentSources.GoogleDrive.ServiceAccountEmail,
-		)
-		if gdErr != nil {
-			logger.Error("Failed to initialize Google Drive source: %v", gdErr)
-		} else {
-			contentSources.Register(gdSource)
-			logger.Info("Content source enabled: google_drive (service account: %s)",
-				cfg.ContentSources.GoogleDrive.ServiceAccountEmail)
-		}
-	}
-
-	contentSources.Register(api.NewHTTPSource(timmyURIValidator))
-	apiServer.SetContentSourceRegistry(contentSources)
+	apiServer.SetContentSourceHolder(csHolder)
 	apiServer.SetContentPickerConfigs(buildBrowserPickerConfigs(cfg, logger))
 
-	pipeline := buildContentPipeline(cfg, contentSources, logger)
-	logger.Info("Content sources enabled: %s", strings.Join(contentSources.Names(), ", "))
-
-	// Adapter: pipeline implements EmbeddingSource for URI-based refs
-	registry.Register(api.NewPipelineEmbeddingSource(pipeline))
-
-	// Wire pipeline into document handler for content source detection on creation
-	apiServer.SetContentPipeline(pipeline)
-
-	// Wire diagnostics deps onto the document handler (Task 8.2b).
+	// Wire diagnostics deps onto the document handler.
 	// When contentTokenRepo is nil (delegated providers disabled), diagnostics
 	// still serialize but with empty linked-provider context.
 	// serviceAccountEmail is empty when google_drive is unconfigured; the
@@ -1280,27 +1210,21 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, setting
 		cfg.ContentSources.Microsoft.ApplicationObjectID,
 	)
 
-	// Start background access poller for pending document access
-	accessPoller := api.NewAccessPoller(
-		contentSources,
-		api.GlobalDocumentRepository,
-		5*time.Minute,
-		7*24*time.Hour,
-	)
-	// Inject picker-aware dispatch (Task 8.2d). Must be set before Start
-	// per SetLinkedProviderChecker's lifecycle contract.
-	if contentTokenRepo != nil {
-		accessPoller.SetLinkedProviderChecker(api.NewContentTokenLinkedChecker(contentTokenRepo))
-	}
-	accessPoller.Start()
+	// Register the live pipeline as an embedding source. LivePipelineEmbeddingSource
+	// resolves the pipeline from the holder per-call so it always uses the current
+	// sources, even after a runtime rebuild.
+	registry.Register(api.NewLivePipelineEmbeddingSource(csHolder))
 
+	logger.Info("Content source holder wired (runtime-toggleable, lazy rebuild on config change)")
+
+	// ── DB-backed Timmy core ──────────────────────────────────────────────────
 	// Wire the DB-backed Timmy core. The builder closure lazily reconstructs the
 	// LLM/vector/session objects from the current DB-resolved TimmyConfig on the
 	// next Timmy request (and on each wiring-config change), capturing the
 	// startup-wired SSRF validator, fully-populated embedding-source registry,
 	// and stamped embedding-profile provider by reference.
 	provider := api.NewTimmyConfigProvider(settingsService)
-	builder := func(ctx context.Context, tcfg config.TimmyConfig) (*api.TimmyRuntime, error) {
+	timmyBuilder := func(ctx context.Context, tcfg config.TimmyConfig) (*api.TimmyRuntime, error) {
 		vm := api.NewVectorIndexManager(
 			api.GlobalTimmyEmbeddingStore, tcfg.MaxMemoryMB, tcfg.InactivityTimeoutSeconds,
 		)
@@ -1348,7 +1272,7 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, setting
 		})
 		return &api.TimmyRuntime{SessionManager: sm, LLMService: llmService, VectorManager: vm}, nil
 	}
-	core := api.NewTimmyCore(provider, builder)
+	core := api.NewTimmyCore(provider, timmyBuilder)
 	apiServer.SetTimmyCore(core)
 	logger.Info("Timmy core wired (DB-backed, lazy rebuild)")
 }

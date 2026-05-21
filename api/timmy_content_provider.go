@@ -56,6 +56,64 @@ func NewPipelineEmbeddingSource(pipeline *ContentPipeline) *PipelineEmbeddingSou
 	return &PipelineEmbeddingSource{pipeline: pipeline}
 }
 
+// LivePipelineEmbeddingSource is like PipelineEmbeddingSource but resolves the
+// content pipeline from a ContentSourceHolder on each call, so the embedding
+// source stays current when the content-source registry is rebuilt at runtime.
+// This avoids stale-pipeline reads when content sources are toggled without a
+// restart.
+type LivePipelineEmbeddingSource struct {
+	holder *ContentSourceHolder
+}
+
+// NewLivePipelineEmbeddingSource creates an embedding source that resolves its
+// pipeline from holder.Get on each call.
+func NewLivePipelineEmbeddingSource(holder *ContentSourceHolder) *LivePipelineEmbeddingSource {
+	return &LivePipelineEmbeddingSource{holder: holder}
+}
+
+// Name returns the adapter name.
+func (l *LivePipelineEmbeddingSource) Name() string { return "pipeline" }
+
+// CanHandle returns true for entity references with a URI.
+func (l *LivePipelineEmbeddingSource) CanHandle(_ context.Context, ref EntityReference) bool {
+	return ref.URI != ""
+}
+
+// Extract resolves the live pipeline from the holder and delegates extraction.
+// If the holder has no bundle or the bundle has no pipeline, returns an error.
+func (l *LivePipelineEmbeddingSource) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
+	bundle, err := l.holder.Get(ctx)
+	if err != nil {
+		return ExtractedContent{}, fmt.Errorf("content source holder unavailable: %w", err)
+	}
+	if bundle == nil || bundle.Pipeline == nil {
+		return ExtractedContent{}, fmt.Errorf("content pipeline not available")
+	}
+	p := bundle.Pipeline
+	var (
+		result ExtractedContent
+		extErr error
+	)
+	if ref.EntityType == "document" && ref.EntityID != "" {
+		docID, parseErr := uuid.Parse(ref.EntityID)
+		if parseErr != nil {
+			result, extErr = p.Extract(ctx, ref.URI)
+		} else {
+			doc := Document{Id: &docID, Name: ref.Name, Uri: ref.URI}
+			result, extErr = p.ExtractForDocument(ctx, doc)
+		}
+	} else {
+		result, extErr = p.Extract(ctx, ref.URI)
+	}
+	if extErr != nil {
+		return ExtractedContent{}, extErr
+	}
+	if result.Title == "" {
+		result.Title = ref.Name
+	}
+	return result, nil
+}
+
 // Name returns the adapter name.
 func (p *PipelineEmbeddingSource) Name() string { return "pipeline" }
 

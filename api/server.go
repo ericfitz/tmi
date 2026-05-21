@@ -116,6 +116,12 @@ type Server struct {
 	// ContentProvider.picker_config. nil/missing entries are omitted from the
 	// response.
 	contentPickerConfigs map[string]map[string]string
+	// contentSourceHolder is the runtime-swappable holder for the content-source
+	// registry + access poller. When set, getContentSourceBundle resolves (and
+	// lazily rebuilds) from it; this is the DB-backed runtime-toggle path.
+	// When nil, the server uses the startup-wired contentSourceRegistry and
+	// contentPipeline directly (test path or when content sources are disabled).
+	contentSourceHolder *ContentSourceHolder
 }
 
 // SetContentOAuthHandlers attaches the content-OAuth handler bundle used to
@@ -375,6 +381,37 @@ func (s *Server) SetContentSourceRegistry(r *ContentSourceRegistry) {
 // matching source id. Pass nil or an empty map to clear.
 func (s *Server) SetContentPickerConfigs(m map[string]map[string]string) {
 	s.contentPickerConfigs = m
+}
+
+// SetContentSourceHolder wires the runtime content-source holder. When set,
+// getContentSourceBundle resolves (and lazily rebuilds) the registry + poller
+// from the holder instead of the startup-wired contentSourceRegistry field.
+func (s *Server) SetContentSourceHolder(h *ContentSourceHolder) {
+	s.contentSourceHolder = h
+}
+
+// getContentSourceBundle returns the live content-source bundle. When a
+// ContentSourceHolder is wired it resolves (and lazily rebuilds) from the
+// holder; otherwise it falls back to the startup-wired contentSourceRegistry
+// and contentPipeline (used in tests or when the holder is not configured).
+// Returns nil when no sources are available; callers must nil-check.
+func (s *Server) getContentSourceBundle(ctx context.Context) *ContentSourceBundle {
+	if s.contentSourceHolder != nil {
+		b, err := s.contentSourceHolder.Get(ctx)
+		if err != nil {
+			slogging.Get().Warn("getContentSourceBundle: holder rebuild failed: %v", err)
+			return nil
+		}
+		return b
+	}
+	// Fall back to startup-wired fields (test path / no holder configured).
+	if s.contentSourceRegistry != nil {
+		return &ContentSourceBundle{
+			Sources:  s.contentSourceRegistry,
+			Pipeline: s.contentPipeline,
+		}
+	}
+	return nil
 }
 
 // AuthService placeholder - we'll need to create this interface to avoid circular deps

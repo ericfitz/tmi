@@ -561,12 +561,13 @@ func (s *Server) RequestDocumentAccess(c *gin.Context, threatModelId ThreatModel
 		return
 	}
 
-	if s.contentPipeline == nil {
+	csBundle := s.getContentSourceBundle(c.Request.Context())
+	if csBundle == nil || csBundle.Sources == nil {
 		HandleRequestError(c, ServiceUnavailableError("Content pipeline not configured"))
 		return
 	}
 
-	src, ok := s.contentPipeline.Sources().FindSource(c.Request.Context(), doc.Uri)
+	src, ok := csBundle.Sources.FindSource(c.Request.Context(), doc.Uri)
 	if !ok {
 		HandleRequestError(c, &RequestError{
 			Status:  422,

@@ -176,6 +176,24 @@ func (p *ContentPipeline) SetExtractedTextNoteDumper(d *extractedTextNoteDumper)
 	p.dumper = d
 }
 
+// RebuildPipelineWithSources creates a new ContentPipeline that reuses all
+// settings from base (extractor registry, URL pattern matcher, concurrency
+// limiter, pipeline limits, and the extracted-text dumper) but replaces the
+// content source registry. This is used by ContentSourceHolder to build a
+// fresh pipeline whenever the source registry is rebuilt at runtime, without
+// reconstructing the extractor stack.
+func RebuildPipelineWithSources(base *ContentPipeline, sources *ContentSourceRegistry) *ContentPipeline {
+	p := &ContentPipeline{
+		sources:    sources,
+		extractors: base.extractors,
+		matcher:    base.matcher,
+		limiter:    base.limiter,
+		limits:     base.limits,
+		dumper:     base.dumper,
+	}
+	return p
+}
+
 // Extract fetches bytes from the appropriate source and extracts text.
 func (p *ContentPipeline) Extract(ctx context.Context, uri string) (ExtractedContent, error) {
 	logger := slogging.Get()
