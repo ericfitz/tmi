@@ -50,12 +50,15 @@ type TimmySessionManager struct {
 	llmService       *TimmyLLMService
 	vectorManager    *VectorIndexManager
 	providerRegistry *EmbeddingSourceRegistry
-	chunker          *TextChunker
 	contextBuilder   *ContextBuilder
 	rateLimiter      *TimmyRateLimiter
 	reranker         Reranker                     // nil if not configured
 	decomposer       QueryDecomposer              // nil if not enabled
 	stampedConfig    config.StampedConfigProvider // nil until SetStampedConfigProvider is called
+	// liveConfig reads current tuning knobs (top-k, session caps, conversation
+	// history, chunk sizes) per request from the database. nil when not wired
+	// (unit tests), in which case cfgFor falls back to the frozen config.
+	liveConfig func(ctx context.Context) config.TimmyConfig
 }
 
 // NewTimmySessionManager creates a new session manager with all required dependencies
@@ -73,7 +76,6 @@ func NewTimmySessionManager(
 		llmService:       llm,
 		vectorManager:    vm,
 		providerRegistry: registry,
-		chunker:          NewTextChunker(cfg.ChunkSize, cfg.ChunkOverlap),
 		contextBuilder:   NewContextBuilder(),
 		rateLimiter:      rl,
 		reranker:         reranker,
@@ -88,6 +90,24 @@ func NewTimmySessionManager(
 // server startup sequence.
 func (sm *TimmySessionManager) SetStampedConfigProvider(p config.StampedConfigProvider) {
 	sm.stampedConfig = p
+}
+
+// SetLiveConfig wires a live-config reader so tuning knobs (top-k, session
+// caps, conversation history, chunk sizes) are read per request from the
+// database instead of the build-time snapshot. When unset, the session
+// manager falls back to its frozen config (used by unit tests).
+func (sm *TimmySessionManager) SetLiveConfig(read func(ctx context.Context) config.TimmyConfig) {
+	sm.liveConfig = read
+}
+
+// cfgFor returns the live TimmyConfig when a live-config reader is wired,
+// else the build-time snapshot. Used for tuning knobs that may change at
+// runtime without an LLM-client rebuild.
+func (sm *TimmySessionManager) cfgFor(ctx context.Context) config.TimmyConfig {
+	if sm.liveConfig != nil {
+		return sm.liveConfig(ctx)
+	}
+	return sm.config
 }
 
 // expectedEmbeddingModel returns the embedding model the query path must use
@@ -130,11 +150,12 @@ func (sm *TimmySessionManager) CreateSession(
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to count active sessions: %w", err)
 	}
-	if activeCount >= sm.config.MaxSessionsPerThreatModel {
+	c := sm.cfgFor(ctx)
+	if activeCount >= c.MaxSessionsPerThreatModel {
 		return nil, nil, &RequestError{
 			Status:  429,
 			Code:    "session_limit_exceeded",
-			Message: fmt.Sprintf("threat model has reached the maximum of %d active sessions", sm.config.MaxSessionsPerThreatModel),
+			Message: fmt.Sprintf("threat model has reached the maximum of %d active sessions", c.MaxSessionsPerThreatModel),
 		}
 	}
 
@@ -843,8 +864,11 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 			logger.Warn("Failed to delete old embeddings for %s/%s: %v", src.EntityType, src.EntityID, err)
 		}
 
-		// Chunk the content.
-		chunks := sm.chunker.Chunk(content.Text)
+		// Chunk the content. Build the chunker on demand from live config so
+		// chunk-size/overlap knob changes take effect without an LLM-client
+		// rebuild; NewTextChunker is cheap (stores two ints).
+		c := sm.cfgFor(ctx)
+		chunks := NewTextChunker(c.ChunkSize, c.ChunkOverlap).Chunk(content.Text)
 		if len(chunks) == 0 {
 			continue
 		}
@@ -964,11 +988,11 @@ func (sm *TimmySessionManager) buildTier2Context(ctx context.Context, threatMode
 	// Step 2: Search both indexes
 	var allResults []VectorSearchResult
 
-	textResults := sm.searchIndexRaw(ctx, threatModelID, IndexTypeText, textQuery, sm.config.TextRetrievalTopK)
+	textResults := sm.searchIndexRaw(ctx, threatModelID, IndexTypeText, textQuery, sm.cfgFor(ctx).TextRetrievalTopK)
 	allResults = append(allResults, textResults...)
 
 	if sm.config.IsCodeIndexConfigured() {
-		codeResults := sm.searchIndexRaw(ctx, threatModelID, IndexTypeCode, codeQuery, sm.config.CodeRetrievalTopK)
+		codeResults := sm.searchIndexRaw(ctx, threatModelID, IndexTypeCode, codeQuery, sm.cfgFor(ctx).CodeRetrievalTopK)
 		allResults = append(allResults, codeResults...)
 	}
 
@@ -1018,7 +1042,7 @@ func (sm *TimmySessionManager) buildEntitySummaries(sources []SourceSnapshotEntr
 
 // getConversationHistory loads recent messages and converts them to LLM message format
 func (sm *TimmySessionManager) getConversationHistory(ctx context.Context, sessionID string) ([]llms.MessageContent, error) {
-	messages, _, err := GlobalTimmyMessageStore.ListBySession(ctx, sessionID, 0, sm.config.MaxConversationHistory)
+	messages, _, err := GlobalTimmyMessageStore.ListBySession(ctx, sessionID, 0, sm.cfgFor(ctx).MaxConversationHistory)
 	if err != nil {
 		return nil, err
 	}

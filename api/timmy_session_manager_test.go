@@ -45,9 +45,9 @@ func setupSessionManagerTest(t *testing.T) (*TimmySessionManager, func()) {
 
 	// Create manager without LLM service (nil) for unit tests
 	sm := NewTimmySessionManager(cfg, nil, nil, nil, NewTimmyRateLimiter(
-		cfg.MaxMessagesPerUserPerHour,
-		cfg.MaxSessionsPerThreatModel,
-		cfg.MaxConcurrentLLMRequests,
+		func() (int, int, int) {
+			return cfg.MaxMessagesPerUserPerHour, cfg.MaxSessionsPerThreatModel, cfg.MaxConcurrentLLMRequests
+		},
 	), nil, nil)
 
 	cleanup := func() {
@@ -64,6 +64,35 @@ func setupSessionManagerTest(t *testing.T) (*TimmySessionManager, func()) {
 	}
 
 	return sm, cleanup
+}
+
+// TestTimmySessionManager_cfgFor_LiveKnobs proves tuning knobs are read live
+// when a live-config reader is wired, and fall back to the frozen config when
+// it is not. Tests cfgFor directly (unexported, same package).
+func TestTimmySessionManager_cfgFor_LiveKnobs(t *testing.T) {
+	frozen := config.DefaultTimmyConfig()
+	sm := NewTimmySessionManager(frozen, nil, nil, nil, NewTimmyRateLimiter(
+		func() (int, int, int) { return 1, 1, 1 },
+	), nil, nil)
+
+	ctx := context.Background()
+
+	// No live config wired: cfgFor returns the frozen snapshot.
+	assert.Equal(t, frozen.MaxConversationHistory, sm.cfgFor(ctx).MaxConversationHistory)
+	assert.Equal(t, frozen.TextRetrievalTopK, sm.cfgFor(ctx).TextRetrievalTopK)
+
+	// Wire a live config whose knobs differ from the frozen snapshot.
+	live := frozen
+	live.MaxConversationHistory = frozen.MaxConversationHistory + 7
+	live.TextRetrievalTopK = frozen.TextRetrievalTopK + 3
+	sm.SetLiveConfig(func(context.Context) config.TimmyConfig { return live })
+
+	assert.Equal(t, live.MaxConversationHistory, sm.cfgFor(ctx).MaxConversationHistory,
+		"cfgFor should return live MaxConversationHistory once wired")
+	assert.Equal(t, live.TextRetrievalTopK, sm.cfgFor(ctx).TextRetrievalTopK,
+		"cfgFor should return live TextRetrievalTopK once wired")
+	assert.NotEqual(t, frozen.MaxConversationHistory, sm.cfgFor(ctx).MaxConversationHistory,
+		"live value should differ from frozen value")
 }
 
 func TestTimmySessionManager_CreateSession(t *testing.T) {

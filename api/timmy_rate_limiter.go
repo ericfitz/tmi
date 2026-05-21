@@ -8,9 +8,11 @@ import (
 
 // TimmyRateLimiter manages rate limits for Timmy operations
 type TimmyRateLimiter struct {
-	maxMessagesPerUserPerHour int
-	maxSessionsPerTM          int
-	maxConcurrentLLM          int
+	// limits reads the current thresholds (maxMessages, maxSessions,
+	// maxConcurrent) on each check, so limit changes take effect without
+	// rebuilding the limiter (preserving the in-flight sliding-window and
+	// concurrency state).
+	limits func() (maxMessages, maxSessions, maxConcurrent int)
 
 	mu                sync.Mutex
 	userMessageCounts map[string]*slidingWindow
@@ -41,13 +43,13 @@ func (sw *slidingWindow) add() {
 	sw.timestamps = append(sw.timestamps, time.Now())
 }
 
-// NewTimmyRateLimiter creates a rate limiter with the given limits
-func NewTimmyRateLimiter(maxMessagesPerUserPerHour, maxSessionsPerTM, maxConcurrentLLM int) *TimmyRateLimiter {
+// NewTimmyRateLimiter creates a rate limiter whose thresholds are read live
+// via limitsFn on each check, so limit changes take effect without rebuilding
+// the limiter (preserving the in-flight sliding-window + concurrency state).
+func NewTimmyRateLimiter(limitsFn func() (maxMessages, maxSessions, maxConcurrent int)) *TimmyRateLimiter {
 	return &TimmyRateLimiter{
-		maxMessagesPerUserPerHour: maxMessagesPerUserPerHour,
-		maxSessionsPerTM:          maxSessionsPerTM,
-		maxConcurrentLLM:          maxConcurrentLLM,
-		userMessageCounts:         make(map[string]*slidingWindow),
+		limits:            limitsFn,
+		userMessageCounts: make(map[string]*slidingWindow),
 	}
 }
 
@@ -62,7 +64,8 @@ func (rl *TimmyRateLimiter) AllowMessage(userID string) bool {
 		rl.userMessageCounts[userID] = sw
 	}
 
-	if sw.count(time.Hour) >= rl.maxMessagesPerUserPerHour {
+	maxMessages, _, _ := rl.limits()
+	if sw.count(time.Hour) >= maxMessages {
 		return false
 	}
 	sw.add()
@@ -71,9 +74,10 @@ func (rl *TimmyRateLimiter) AllowMessage(userID string) bool {
 
 // AcquireLLMSlot tries to acquire a concurrent LLM request slot
 func (rl *TimmyRateLimiter) AcquireLLMSlot() bool {
+	_, _, maxConcurrent := rl.limits()
 	for {
 		current := rl.concurrentLLM.Load()
-		if int(current) >= rl.maxConcurrentLLM {
+		if int(current) >= maxConcurrent {
 			return false
 		}
 		if rl.concurrentLLM.CompareAndSwap(current, current+1) {

@@ -1302,9 +1302,15 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, setting
 		if err != nil {
 			return nil, fmt.Errorf("build Timmy LLM service: %w", err)
 		}
-		rateLimiter := api.NewTimmyRateLimiter(
-			tcfg.MaxMessagesPerUserPerHour, tcfg.MaxSessionsPerThreatModel, tcfg.MaxConcurrentLLMRequests,
-		)
+		// Read limit thresholds live so knob changes take effect without a
+		// rebuild. The limits closure is called per request (later than this
+		// build), so it must not capture the build-time ctx (which may be
+		// cancelled after the builder returns); use a fresh background context
+		// to read the settings cache.
+		rateLimiter := api.NewTimmyRateLimiter(func() (int, int, int) {
+			lc := provider.Current(context.Background())
+			return lc.MaxMessagesPerUserPerHour, lc.MaxSessionsPerThreatModel, lc.MaxConcurrentLLMRequests
+		})
 		var reranker api.Reranker
 		if tcfg.IsRerankConfigured() {
 			rerankTimeout := time.Duration(tcfg.LLMTimeoutSeconds) * time.Second
@@ -1321,6 +1327,13 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, setting
 			tcfg, llmService, vm, registry, rateLimiter, reranker, decomposer,
 		)
 		sm.SetStampedConfigProvider(stampedCfgProvider)
+		// Wire live tuning knobs (top-k, session caps, conversation history,
+		// chunk sizes) so they take effect per request without an LLM-client
+		// rebuild. The session manager passes the live request context through,
+		// so reqCtx is correct here (better than Background).
+		sm.SetLiveConfig(func(reqCtx context.Context) config.TimmyConfig {
+			return provider.Current(reqCtx)
+		})
 		return &api.TimmyRuntime{SessionManager: sm, LLMService: llmService, VectorManager: vm}, nil
 	}
 	core := api.NewTimmyCore(provider, builder)
