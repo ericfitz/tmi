@@ -18,13 +18,25 @@ const administratorsGroupUUID = "00000000-0000-0000-0000-000000000002"
 // so tests that exercise the promotion path must drain both groups for a clean precondition.
 const securityReviewersGroupUUID = "00000000-0000-0000-0000-000000000001"
 
-// drainAdminGroups removes all members from the Administrators and Security Reviewers groups
-// and polls the dev DB until the row count for both groups settles to 0. Polling absorbs the
-// brief window where committed deletes are not yet visible to a subsequent SELECT through a
+// drainAdminGroups removes only TEST-user memberships (provider = 'tmi') from the
+// Administrators and Security Reviewers groups, then polls the dev DB until the
+// test-admin count for both groups settles to 0. Polling absorbs the brief window
+// where committed deletes are not yet visible to a subsequent SELECT through a
 // different connection (full-suite runs see this as flakiness; isolated runs do not).
+//
+// IMPORTANT: this deliberately scopes the delete to tmi-provider users. Built-in
+// groups may contain real, non-test administrators (e.g. a developer's Google
+// account added for local work). Test cleanup must remove test artifacts but must
+// NEVER remove non-test users from built-in groups. Callers that need a globally
+// empty admin group (the auto-promote precondition) must additionally check
+// countNonTestAdministrators and skip when a real admin is present — see
+// requireDrainableAdminGroups.
 func drainAdminGroups(db *framework.TestDatabase) error {
-	if err := db.ExecSQL("DELETE FROM group_members WHERE group_internal_uuid IN ('" +
-		administratorsGroupUUID + "', '" + securityReviewersGroupUUID + "')"); err != nil {
+	if err := db.ExecSQL(
+		"DELETE FROM group_members WHERE group_internal_uuid IN ('" +
+			administratorsGroupUUID + "', '" + securityReviewersGroupUUID + "') " +
+			"AND subject_type = 'user' AND user_internal_uuid IN " +
+			"(SELECT internal_uuid FROM users WHERE provider = 'tmi')"); err != nil {
 		return fmt.Errorf("delete failed: %w", err)
 	}
 
@@ -38,15 +50,57 @@ func drainAdminGroups(db *framework.TestDatabase) error {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("Administrators group still has %s members after drain", count)
+			return fmt.Errorf("Administrators group still has %s test-admin member(s) after drain", count)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
 }
 
-// countAdministrators returns the number of members in the Administrators group.
+// countAdministrators returns the number of TEST-user (provider = 'tmi') members
+// of the Administrators group. The promotion tests reason only about test admins;
+// non-test administrators are intentionally invisible to this count so the tests
+// neither depend on nor disturb them.
 func countAdministrators(db *framework.TestDatabase) (string, error) {
-	return db.QueryString("SELECT COUNT(*) FROM group_members WHERE group_internal_uuid = '" + administratorsGroupUUID + "'")
+	return db.QueryString(
+		"SELECT COUNT(*) FROM group_members gm " +
+			"JOIN users u ON u.internal_uuid = gm.user_internal_uuid " +
+			"WHERE gm.group_internal_uuid = '" + administratorsGroupUUID + "' " +
+			"AND gm.subject_type = 'user' AND u.provider = 'tmi'")
+}
+
+// countNonTestAdministrators returns the number of NON-test (provider != 'tmi')
+// user members of the Administrators group. When this is > 0, the auto-promote
+// precondition ("no administrators exist") cannot be established by draining test
+// users alone, because the server's HasAnyMembers check counts ALL members. Tests
+// that need the empty-admin precondition must skip in that case rather than delete
+// the real administrator.
+func countNonTestAdministrators(db *framework.TestDatabase) (string, error) {
+	return db.QueryString(
+		"SELECT COUNT(*) FROM group_members gm " +
+			"JOIN users u ON u.internal_uuid = gm.user_internal_uuid " +
+			"WHERE gm.group_internal_uuid = '" + administratorsGroupUUID + "' " +
+			"AND gm.subject_type = 'user' AND u.provider != 'tmi'")
+}
+
+// requireDrainableAdminGroups drains test-user admin memberships and asserts the
+// empty-admin precondition can be met without touching non-test users. If a
+// non-test administrator is present, it skips the test: the server's auto-promote
+// path keys on a globally empty Administrators group, which we refuse to force by
+// deleting a real admin. Returns after a successful drain; calls t.Skip otherwise.
+func requireDrainableAdminGroups(t *testing.T, db *framework.TestDatabase) {
+	t.Helper()
+	if err := drainAdminGroups(db); err != nil {
+		t.Fatalf("Failed to drain admin groups: %v", err)
+	}
+	nonTest, err := countNonTestAdministrators(db)
+	if err != nil {
+		t.Fatalf("Failed to count non-test administrators: %v", err)
+	}
+	if nonTest != "0" {
+		t.Skipf("Skipping: %s non-test administrator(s) present in the Administrators group; "+
+			"the auto-promote precondition needs a globally empty admin group and test cleanup "+
+			"must not remove non-test users from built-in groups", nonTest)
+	}
 }
 
 // TestFirstUserAdminPromotion tests the auto-promotion of the first user to administrator
@@ -88,13 +142,12 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 	defer db.Close()
 
 	t.Run("FirstUserPromotedToAdmin", func(t *testing.T) {
-		// Step 1: Drain the Administrators + Security Reviewers groups so the auto-promote
-		// precondition (no admins) holds, then verify with a short polling window. Earlier
-		// tests in the full suite often leave the Administrators group populated.
-		if err := drainAdminGroups(db); err != nil {
-			t.Fatalf("Failed to drain admin groups: %v", err)
-		}
-		t.Log("Verified: Administrators group has no members")
+		// Step 1: Drain TEST-admin memberships so the auto-promote precondition (no admins)
+		// holds, then verify with a short polling window. Earlier tests in the full suite
+		// often leave the Administrators group populated. Skips if a non-test admin is
+		// present (we must not remove real users from built-in groups).
+		requireDrainableAdminGroups(t, db)
+		t.Log("Verified: Administrators group has no test-admin members")
 
 		// Step 2: Now authenticate (this triggers auto-promotion during OAuth flow)
 		firstUserID := framework.UniqueUserID()
@@ -177,9 +230,7 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		if countStr == "0" {
 			// Need to set up an admin first
 			firstUserID := framework.UniqueUserID()
-			if err := drainAdminGroups(db); err != nil {
-				t.Fatalf("Failed to drain admin groups: %v", err)
-			}
+			requireDrainableAdminGroups(t, db)
 			tokens, err := framework.AuthenticateUser(firstUserID)
 			framework.AssertNoError(t, err, "First user authentication failed")
 			// Make a request to trigger auto-promotion
@@ -235,10 +286,8 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 	t.Run("AdminPromotionWithCleanDatabase", func(t *testing.T) {
 		// This test simulates a completely fresh database scenario.
 		// Drain both auto-promote target groups; SecondUserNotPromoted may have left
-		// itself populated.
-		if err := drainAdminGroups(db); err != nil {
-			t.Fatalf("Failed to drain admin groups: %v", err)
-		}
+		// itself populated. Skips if a non-test admin is present.
+		requireDrainableAdminGroups(t, db)
 
 		// Small delay to allow database state to settle after clearing
 		// This prevents race conditions with the OAuth flow
