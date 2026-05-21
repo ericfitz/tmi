@@ -52,6 +52,10 @@ type VectorIndexManager struct {
 	maxMemoryBytes    int64
 	inactivityTimeout time.Duration
 
+	// Lifecycle
+	stopCh   chan struct{}
+	stopOnce sync.Once
+
 	// Metrics
 	totalEvictions    int64
 	pressureEvictions int64
@@ -70,9 +74,30 @@ func NewVectorIndexManager(embeddingStore TimmyEmbeddingStore, maxMemoryMB int, 
 		embeddingStore:    embeddingStore,
 		maxMemoryBytes:    int64(maxMemoryMB) * 1024 * 1024,
 		inactivityTimeout: time.Duration(inactivityTimeoutSeconds) * time.Second,
+		stopCh:            make(chan struct{}),
 	}
 	go mgr.evictionLoop()
 	return mgr
+}
+
+// Stop terminates the background eviction goroutine. It is safe to call once;
+// subsequent calls are no-ops. Call this when discarding a VectorIndexManager
+// (e.g. when the Timmy runtime is rebuilt) to avoid leaking the eviction
+// goroutine and its ticker.
+func (m *VectorIndexManager) Stop() {
+	m.stopOnce.Do(func() { close(m.stopCh) })
+}
+
+// IsStopped reports whether Stop has been called on this manager. It does not
+// indicate that the eviction goroutine has fully exited, only that it has been
+// signalled to stop.
+func (m *VectorIndexManager) IsStopped() bool {
+	select {
+	case <-m.stopCh:
+		return true
+	default:
+		return false
+	}
 }
 
 // GetOrLoadIndex returns the index for a threat model and index type, loading
@@ -258,17 +283,22 @@ func (m *VectorIndexManager) evictLRU() {
 func (m *VectorIndexManager) evictionLoop() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
-	for range ticker.C {
-		m.mu.Lock()
-		now := time.Now()
-		for key, loaded := range m.indexes {
-			if loaded.ActiveSessions == 0 && now.Sub(loaded.LastAccessed) > m.inactivityTimeout {
-				delete(m.indexes, key)
-				m.totalEvictions++
-				slogging.Get().Debug("Inactivity-evicted vector index for key %s", key)
+	for {
+		select {
+		case <-m.stopCh:
+			return
+		case <-ticker.C:
+			m.mu.Lock()
+			now := time.Now()
+			for key, loaded := range m.indexes {
+				if loaded.ActiveSessions == 0 && now.Sub(loaded.LastAccessed) > m.inactivityTimeout {
+					delete(m.indexes, key)
+					m.totalEvictions++
+					slogging.Get().Debug("Inactivity-evicted vector index for key %s", key)
+				}
 			}
+			m.mu.Unlock()
 		}
-		m.mu.Unlock()
 	}
 }
 

@@ -125,3 +125,33 @@ func TestTimmyCore_Get_ConcurrentStable(t *testing.T) {
 	// initial race.
 	assert.Equal(t, int32(1), atomic.LoadInt32(&builds), "no per-call rebuild")
 }
+
+func TestTimmyCore_Get_StopsOldVectorManagerOnRebuild(t *testing.T) {
+	ms := NewMockSettingsService()
+	ms.AddSetting("timmy.llm_provider", "openai", "string")
+	ms.AddSetting("timmy.llm_model", "gpt-5.5", "string")
+	ms.AddSetting("timmy.llm_api_key", "sk-a", "string")
+	ms.AddSetting("timmy.text_embedding_provider", "openai", "string")
+	ms.AddSetting("timmy.text_embedding_model", "text-embedding-3-large", "string")
+
+	provider := NewTimmyConfigProvider(ms)
+	var managers []*VectorIndexManager
+	builder := func(ctx context.Context, cfg config.TimmyConfig) (*TimmyRuntime, error) {
+		vm := NewVectorIndexManager(nil, 64, 300)
+		managers = append(managers, vm)
+		return &TimmyRuntime{VectorManager: vm}, nil
+	}
+	core := NewTimmyCore(provider, builder)
+
+	_, err := core.Get(context.Background())
+	require.NoError(t, err)
+	ms.AddSetting("timmy.llm_api_key", "sk-b", "string") // force rebuild
+	_, err = core.Get(context.Background())
+	require.NoError(t, err)
+
+	require.Len(t, managers, 2)
+	// The first (discarded) manager must have been stopped on rebuild so its
+	// eviction goroutine and ticker are released; the new one must still run.
+	assert.True(t, managers[0].IsStopped(), "old vector manager stopped on rebuild")
+	assert.False(t, managers[1].IsStopped(), "new vector manager still running")
+}

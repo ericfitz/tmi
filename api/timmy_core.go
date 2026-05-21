@@ -67,6 +67,10 @@ func (c *TimmyCore) Get(ctx context.Context) (*TimmyRuntime, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Release the previous runtime's background resources before swapping.
+	if c.current != nil && c.current.VectorManager != nil {
+		c.current.VectorManager.Stop()
+	}
 	c.current = rt
 	c.hash = want
 	return rt, nil

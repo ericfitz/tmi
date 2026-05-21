@@ -1117,9 +1117,9 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 // contentTokenRepo and contentOAuthRegistry are provided by wireContentOAuthHandlers
 // (called before this function) so the GoogleWorkspace delegated source, picker-token
 // handler, and access poller can be wired with provider-aware dispatch.
-// NOTE: All content-source plumbing (including GoogleWorkspace) is gated on
-// cfg.Timmy.Enabled — a pre-existing architectural constraint. Enabling Google
-// Workspace also requires Timmy to be enabled.
+// NOTE: Content-source plumbing now runs unconditionally at startup; the Timmy
+// LLM/embedding wiring is resolved lazily from DB config via the TimmyCore
+// builder below. Runtime toggling of content sources is tracked in #427.
 func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, settingsService *api.SettingsService, contentTokenRepo api.ContentTokenRepository, contentOAuthRegistry *api.ContentOAuthProviderRegistry, stampedCfgProvider config.StampedConfigProvider) {
 	logger := slogging.Get()
 

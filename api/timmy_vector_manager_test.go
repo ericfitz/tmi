@@ -665,3 +665,15 @@ func TestVectorIndexManager_FreshLoad_NoMismatch(t *testing.T) {
 	require.NotNil(t, idx)
 	assert.Equal(t, 1, idx.Count())
 }
+
+// TestVectorIndexManager_StopIsIdempotent verifies that Stop signals the
+// eviction goroutine to exit and that calling it more than once is a safe
+// no-op (closing an already-closed channel would otherwise panic).
+func TestVectorIndexManager_StopIsIdempotent(t *testing.T) {
+	m := NewVectorIndexManager(nil, 64, 300)
+	assert.False(t, m.IsStopped(), "manager should not be stopped before Stop")
+	m.Stop()
+	assert.True(t, m.IsStopped(), "manager should report stopped after Stop")
+	m.Stop() // must not panic
+	assert.True(t, m.IsStopped(), "manager remains stopped after repeated Stop")
+}
