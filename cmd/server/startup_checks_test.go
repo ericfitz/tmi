@@ -97,7 +97,7 @@ func (m *mockSecretKeyGetter) Get(_ context.Context, key string) (*models.System
 	if !ok {
 		return nil, nil // not found
 	}
-	return &models.SystemSetting{SettingKey: key, Value: val}, nil
+	return &models.SystemSetting{SettingKey: models.DBVarchar(key), Value: models.DBText(val)}, nil
 }
 
 // minimalConfigWithBuildMode builds the smallest *config.Config that produces
