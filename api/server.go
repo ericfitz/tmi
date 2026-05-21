@@ -80,6 +80,7 @@ type Server struct {
 	// Timmy AI assistant
 	timmySessionManager *TimmySessionManager
 	vectorManager       *VectorIndexManager
+	timmyCore           *TimmyCore
 	contentPipeline     *ContentPipeline
 	// Trusted proxy configuration
 	trustedProxiesConfigured bool
@@ -295,6 +296,30 @@ func (s *Server) SetTimmySessionManager(manager *TimmySessionManager) {
 // SetVectorManager sets the vector index manager for Timmy AI assistant
 func (s *Server) SetVectorManager(manager *VectorIndexManager) {
 	s.vectorManager = manager
+}
+
+// SetTimmyCore wires the runtime Timmy core. When set, getTimmyRuntime resolves
+// the session manager from it (DB-backed, lazy rebuild) instead of the
+// startup-injected timmySessionManager.
+func (s *Server) SetTimmyCore(core *TimmyCore) {
+	s.timmyCore = core
+}
+
+// getTimmyRuntime returns the live TimmyRuntime. When a TimmyCore is wired it
+// resolves (and lazily rebuilds) from the database; otherwise it falls back to
+// the startup-injected session manager (used by unit tests that set the manager
+// directly). Returns nil when Timmy is not available; callers must nil-check.
+func (s *Server) getTimmyRuntime(ctx context.Context) (*TimmyRuntime, error) {
+	if s.timmyCore != nil {
+		return s.timmyCore.Get(ctx)
+	}
+	if s.timmySessionManager != nil {
+		return &TimmyRuntime{
+			SessionManager: s.timmySessionManager,
+			VectorManager:  s.vectorManager,
+		}, nil
+	}
+	return nil, nil
 }
 
 // SetURIValidators sets the URI validators for SSRF protection.
