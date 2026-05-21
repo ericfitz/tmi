@@ -784,7 +784,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	contentTokenRepo, contentOAuthRegistry := wireContentOAuthHandlers(apiServer, config, gormDB.DB(), dbManager, authHandlers)
 
 	// ==== PHASE 6: Timmy AI Assistant ====
-	initializeTimmySubsystem(config, apiServer, contentTokenRepo, contentOAuthRegistry, api.NewStampedConfigProvider(settingsService))
+	initializeTimmySubsystem(config, apiServer, settingsService, contentTokenRepo, contentOAuthRegistry, api.NewStampedConfigProvider(settingsService))
 
 	// Start embedding idle cleanup (runs unconditionally, even if Timmy is disabled,
 	// to clean up embeddings if Timmy was previously enabled)
@@ -909,8 +909,9 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	r.Use(api.DiagramMiddleware())
 
 	// Apply Timmy feature gate middleware
-	r.Use(api.TimmyEnabledMiddleware(config.Timmy))
-	logger.Info("Timmy middleware configured (enabled=%v, configured=%v)", config.Timmy.Enabled, config.Timmy.IsConfigured())
+	timmyConfigProvider := api.NewTimmyConfigProvider(settingsService)
+	r.Use(api.TimmyEnabledMiddleware(timmyConfigProvider))
+	logger.Info("Timmy middleware configured (DB-backed runtime config)")
 
 	// Apply automation group membership middleware for /automation/* routes
 	r.Use(api.AutomationMiddleware())
@@ -1119,26 +1120,10 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 // NOTE: All content-source plumbing (including GoogleWorkspace) is gated on
 // cfg.Timmy.Enabled — a pre-existing architectural constraint. Enabling Google
 // Workspace also requires Timmy to be enabled.
-func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, contentTokenRepo api.ContentTokenRepository, contentOAuthRegistry *api.ContentOAuthProviderRegistry, stampedCfgProvider config.StampedConfigProvider) {
+func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, settingsService *api.SettingsService, contentTokenRepo api.ContentTokenRepository, contentOAuthRegistry *api.ContentOAuthProviderRegistry, stampedCfgProvider config.StampedConfigProvider) {
 	logger := slogging.Get()
 
-	if !cfg.Timmy.Enabled {
-		return
-	}
-
-	if !cfg.Timmy.IsConfigured() {
-		logger.Warn("Timmy is enabled but LLM/embedding providers are not configured — Timmy endpoints will return 503")
-		return
-	}
-
-	logger.Info("==== PHASE 6: Initializing Timmy AI assistant ====")
-
-	vectorManager := api.NewVectorIndexManager(
-		api.GlobalTimmyEmbeddingStore,
-		cfg.Timmy.MaxMemoryMB,
-		cfg.Timmy.InactivityTimeoutSeconds,
-	)
-	apiServer.SetVectorManager(vectorManager)
+	logger.Info("==== PHASE 6: Wiring Timmy AI assistant (DB-backed runtime config) ====")
 
 	registry := api.NewEmbeddingSourceRegistry()
 	registry.Register(api.NewDirectTextProvider())
@@ -1303,50 +1288,44 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, content
 	}
 	accessPoller.Start()
 
-	rateLimiter := api.NewTimmyRateLimiter(
-		cfg.Timmy.MaxMessagesPerUserPerHour,
-		cfg.Timmy.MaxSessionsPerThreatModel,
-		cfg.Timmy.MaxConcurrentLLMRequests,
-	)
-
-	llmService, llmErr := api.NewTimmyLLMService(cfg.Timmy, timmyURIValidator)
-	if llmErr != nil {
-		logger.Error("Failed to initialize Timmy LLM service: %v", llmErr)
-		return
-	}
-
-	// Create reranker if configured
-	var reranker api.Reranker
-	if cfg.Timmy.IsRerankConfigured() {
-		rerankTimeout := time.Duration(cfg.Timmy.LLMTimeoutSeconds) * time.Second
-		// Reuse the Timmy SSRF validator; the reranker endpoint is the same
-		// class of operator-configured outbound LLM target as the chat/embedding
-		// endpoints.
-		reranker = api.NewAPIReranker(
-			cfg.Timmy.RerankBaseURL, cfg.Timmy.RerankModel,
-			cfg.Timmy.RerankAPIKey, cfg.Timmy.RerankTopK,
-			timmyURIValidator, rerankTimeout,
+	// Wire the DB-backed Timmy core. The builder closure lazily reconstructs the
+	// LLM/vector/session objects from the current DB-resolved TimmyConfig on the
+	// next Timmy request (and on each wiring-config change), capturing the
+	// startup-wired SSRF validator, fully-populated embedding-source registry,
+	// and stamped embedding-profile provider by reference.
+	provider := api.NewTimmyConfigProvider(settingsService)
+	builder := func(ctx context.Context, tcfg config.TimmyConfig) (*api.TimmyRuntime, error) {
+		vm := api.NewVectorIndexManager(
+			api.GlobalTimmyEmbeddingStore, tcfg.MaxMemoryMB, tcfg.InactivityTimeoutSeconds,
 		)
-		logger.Info("Timmy reranker configured (model=%s)", cfg.Timmy.RerankModel)
+		llmService, err := api.NewTimmyLLMService(tcfg, timmyURIValidator)
+		if err != nil {
+			return nil, fmt.Errorf("build Timmy LLM service: %w", err)
+		}
+		rateLimiter := api.NewTimmyRateLimiter(
+			tcfg.MaxMessagesPerUserPerHour, tcfg.MaxSessionsPerThreatModel, tcfg.MaxConcurrentLLMRequests,
+		)
+		var reranker api.Reranker
+		if tcfg.IsRerankConfigured() {
+			rerankTimeout := time.Duration(tcfg.LLMTimeoutSeconds) * time.Second
+			reranker = api.NewAPIReranker(
+				tcfg.RerankBaseURL, tcfg.RerankModel, tcfg.RerankAPIKey, tcfg.RerankTopK,
+				timmyURIValidator, rerankTimeout,
+			)
+		}
+		var decomposer api.QueryDecomposer
+		if tcfg.QueryDecompositionEnabled {
+			decomposer = api.NewLLMQueryDecomposer(llmService)
+		}
+		sm := api.NewTimmySessionManager(
+			tcfg, llmService, vm, registry, rateLimiter, reranker, decomposer,
+		)
+		sm.SetStampedConfigProvider(stampedCfgProvider)
+		return &api.TimmyRuntime{SessionManager: sm, LLMService: llmService, VectorManager: vm}, nil
 	}
-
-	// Create query decomposer if enabled
-	var decomposer api.QueryDecomposer
-	if cfg.Timmy.QueryDecompositionEnabled && llmService != nil {
-		decomposer = api.NewLLMQueryDecomposer(llmService)
-		logger.Info("Timmy query decomposition enabled")
-	}
-
-	sessionManager := api.NewTimmySessionManager(
-		cfg.Timmy, llmService, vectorManager, registry, rateLimiter,
-		reranker, decomposer,
-	)
-	// Wire the shared embedding profile so ingest and query cannot diverge.
-	// The provider is always non-nil here; nil-tolerance in the setter exists
-	// only to simplify unit-test construction of TimmySessionManager.
-	sessionManager.SetStampedConfigProvider(stampedCfgProvider)
-	apiServer.SetTimmySessionManager(sessionManager)
-	logger.Info("Timmy AI assistant initialized (provider=%s, model=%s)", cfg.Timmy.LLMProvider, cfg.Timmy.LLMModel)
+	core := api.NewTimmyCore(provider, builder)
+	apiServer.SetTimmyCore(core)
+	logger.Info("Timmy core wired (DB-backed, lazy rebuild)")
 }
 
 // buildContentPipeline assembles the OOXML-aware content pipeline: validates
