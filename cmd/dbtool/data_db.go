@@ -178,6 +178,19 @@ func seedSetting(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 		return nil, fmt.Errorf("setting seed requires key and type")
 	}
 
+	// Skip empty values regardless of type. On Oracle ADB an empty string
+	// bound to a CLOB column is treated as NULL, which violates the NOT NULL
+	// constraint on system_settings.value (ORA-01400). The guard is
+	// type-agnostic to stay in lockstep with the sibling seed paths in
+	// runConfigSeed (cmd/dbtool/config.go) and SeedDefaults
+	// (api/settings_service.go), which both skip on value alone — so a
+	// hand-authored seed entry of any type with an empty value can't reach
+	// the CLOB as NULL.
+	if value == "" {
+		log.Debug("  Skipping empty setting: %s", key)
+		return nil, nil
+	}
+
 	description, _ := entry.Data["description"].(string)
 
 	setting := models.SystemSetting{

@@ -646,11 +646,16 @@ func getMigratableContentOAuthProviderSettings(providerKey string, p ContentOAut
 			})
 		}
 	}
-	// Client secret — masked in API responses
-	settings = append(settings, MigratableSetting{
-		Key: prefix + ".client_secret", Value: p.ClientSecret, Type: "string",
-		Description: "Content OAuth client secret", Source: "config", Secret: true,
-	})
+	// Client secret — masked in API responses. Guarded with a non-empty check
+	// like its sibling string fields so an enabled provider with an empty
+	// ClientSecret never emits an empty-valued setting (Oracle empty-CLOB safe
+	// at the source, rather than relying solely on downstream skip guards).
+	if p.ClientSecret != "" {
+		settings = append(settings, MigratableSetting{
+			Key: prefix + ".client_secret", Value: p.ClientSecret, Type: "string",
+			Description: "Content OAuth client secret", Source: "config", Secret: true,
+		})
+	}
 	if len(p.RequiredScopes) > 0 {
 		scopesJSON, _ := json.Marshal(p.RequiredScopes)
 		settings = append(settings, MigratableSetting{
