@@ -75,7 +75,7 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-genconfig generate-config-example clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz
+.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-genconfig generate-config-example build-genconfigdocs generate-config-docs clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz
 
 build-server:
 	@uv run scripts/build-server.py
@@ -97,6 +97,12 @@ build-genconfig:  ## Build the config-example.yml generator
 
 generate-config-example: build-genconfig  ## Regenerate config-example.yml from the classification registry
 	@./bin/genconfig
+
+build-genconfigdocs:  ## Build the config-reference.md generator
+	@uv run scripts/build-server.py --component genconfigdocs
+
+generate-config-docs: build-genconfigdocs  ## Regenerate config-reference.md from the classification registry
+	@./bin/genconfigdocs
 
 clean-build:
 	@uv run scripts/clean.py build
