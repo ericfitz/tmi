@@ -14,7 +14,10 @@ import (
 var GroupVersion = schema.GroupVersion{Group: "tmi.dev", Version: "v1alpha1"}
 
 // SchemeBuilder registers the API types into a runtime scheme.
-var SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
+// scheme.Builder is the kubebuilder-idiomatic registration pattern (.Register + .AddToScheme);
+// the suggested runtime.SchemeBuilder has a different API and migrating would mean rewriting
+// generated-style scaffolding for no behavior gain.
+var SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion} //nolint:staticcheck // SA1019: see above
 
 // AddToScheme adds the types in this group/version to a scheme.
 var AddToScheme = SchemeBuilder.AddToScheme
