@@ -5,6 +5,8 @@
 **Status:** Implemented (lands on `dev/1.4.0`)
 **Milestone:** 1.4.0
 
+> **2026-05-25 reconciliation ([#431](https://github.com/ericfitz/tmi/issues/431)):** The shipped code retains a live `env > file > db` read-time precedence for operational settings — it was *not* removed by this refactor. Per #431 the project owner ratified this **hybrid model** as intentional ("an operator can pin any operational setting via env/YAML"). The "Category" property below has been clarified accordingly: `Category` governs *where a value may live at rest*; a separate, still-live precedence governs *which source wins at read time*. The earlier framing of operational config as purely DB-backed-at-read-time was aspirational and does not match the implementation.
+
 ---
 
 ## Context and intent
@@ -56,7 +58,15 @@ const (
 )
 ```
 
-`Bootstrap` settings are loaded from file/env before the settings service exists (chicken-and-egg: DB connection settings cannot themselves come from the DB). `Operational` settings are DB-backed.
+`Bootstrap` settings are loaded from file/env before the settings service exists (chicken-and-egg: DB connection settings cannot themselves come from the DB). `Operational` settings are DB-backed — the DB is their runtime-editable store of record.
+
+`Category` answers *where a value may live at rest*; it does **not** by itself decide which source wins when more than one supplies a value. The implemented model is a **hybrid** (ratified in [#431](https://github.com/ericfitz/tmi/issues/431)):
+
+- **At rest (the category):** Bootstrap values come only from file/env and are hard-refused from the DB (`SettingsService.Get` returns `setting %q is a bootstrap key…` for them). Operational values are seeded into and edited in the DB.
+- **At read time (the precedence):** `SettingsService` retains the legacy `env > file > db` precedence for **operational** keys too — it checks the `ConfigProvider` (which already merges env over config-file values) **first**, and only falls back to the DB value when no env/config value is present (`api/settings_service.go`). This lets an operator "pin" any operational setting via an environment variable or YAML entry; the DB value is then ignored at read time.
+- **Admin-API consequence:** while an operational key is pinned by env/config, `PUT /admin/settings/{key}` returns **409 Conflict** (`Setting '<key>' is controlled by <source> and cannot be modified via the API`, `api/config_handlers.go`). The key becomes DB-editable again only after the env/config override is removed.
+
+The two `env > file > db` precedence and the at-rest category are orthogonal: the category decides *where a value may legitimately live*, the precedence decides *which living value wins*. The wiki pages `Configuration-Model` and `Managing-Operational-Settings` document this hybrid behavior as the authoritative operator-facing reference.
 
 **2. `Secret` — is the value sensitive?** (`bool`) Drives API masking, log redaction, and audit redaction. Already present on `MigratableSetting` as an ad-hoc bool; formalized as a first-class classification property.
 
