@@ -74,7 +74,7 @@ func TestOTelGin_SpanHasHTTPAttributes(t *testing.T) {
 	allAttrs := make(map[string]string)
 	for _, span := range spans {
 		for _, attr := range span.Attributes {
-			allAttrs[string(attr.Key)] = attr.Value.Emit()
+			allAttrs[string(attr.Key)] = attr.Value.String()
 		}
 	}
 
