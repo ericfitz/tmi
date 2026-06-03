@@ -15,10 +15,13 @@ bin/
 # Dependency directories
 vendor/
 
-# Staged build dependency: copied explicitly into the builder via
-# COPY .docker-deps/tmi-client/; excluded here so the COPY . . step does
-# not duplicate it into the builder layer.
-.docker-deps/
+# NOTE: Do NOT ignore .docker-deps/ here. The build scripts stage the
+# tmi-client Go module into .docker-deps/tmi-client/ and every Dockerfile
+# pulls it in via an explicit `COPY .docker-deps/tmi-client/ /tmi-client/`.
+# .dockerignore filters the entire build context, so ignoring .docker-deps/
+# would strip the staged module out and break that COPY. The directory only
+# lands in the throwaway builder stage (the final image copies just the
+# binary), so the slight duplication via `COPY . .` is harmless.
 
 # Go workspace file
 go.work
