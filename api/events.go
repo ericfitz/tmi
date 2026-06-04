@@ -76,6 +76,10 @@ const (
 
 	// Addon Events
 	EventAddonInvoked = "addon.invoked"
+
+	// Document extraction outcome events (async pipeline, #347)
+	EventDocumentExtractionCompleted = "document.extraction_completed"
+	EventDocumentExtractionFailed    = "document.extraction_failed"
 )
 
 // EventPayload represents the structure of an event emitted to Redis

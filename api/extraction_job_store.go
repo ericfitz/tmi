@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -42,6 +43,24 @@ func (s *ExtractionJobStore) InsertQueued(ctx context.Context, jobID, documentRe
 		return fmt.Errorf("extraction job store: insert queued %s: %w", jobID, err)
 	}
 	return nil
+}
+
+// GetDocumentRef returns the document_ref stored for the given jobID.
+// Returns ("", nil) when the job row does not exist (e.g. the row was never
+// inserted, or the document was hard-deleted before the result arrived).
+func (s *ExtractionJobStore) GetDocumentRef(ctx context.Context, jobID string) (string, error) {
+	var row models.ExtractionJob
+	result := s.db.WithContext(ctx).
+		Select("document_ref").
+		Where("job_id = ?", jobID).
+		First(&row)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return "", nil
+		}
+		return "", fmt.Errorf("extraction job store: get document_ref for %s: %w", jobID, result.Error)
+	}
+	return string(row.DocumentRef), nil
 }
 
 // MarkTerminal upserts the terminal state for job_id. If the queued row is

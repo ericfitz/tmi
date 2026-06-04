@@ -72,6 +72,7 @@ type Server struct {
 	// the async path is unavailable and extraction falls back to inline.
 	extractionNATS *worker.Conn
 	extractionJobs *ExtractionJobStore
+	resultConsumer *ResultConsumer
 	// Provider registry for cache invalidation from settings handlers
 	providerRegistry auth.ProviderRegistry
 	// Ticket store for WebSocket authentication
@@ -296,6 +297,20 @@ func (s *Server) AsyncExtractionAvailable() bool { return s.extractionNATS != ni
 func (s *Server) CloseExtractionNATS() {
 	if s.extractionNATS != nil {
 		s.extractionNATS.Close()
+	}
+}
+
+// SetResultConsumer injects the result-consumer goroutine. The consumer must
+// already have been started before calling this; the server only uses it for
+// orderly shutdown via StopResultConsumer.
+func (s *Server) SetResultConsumer(rc *ResultConsumer) { s.resultConsumer = rc }
+
+// StopResultConsumer gracefully stops the result-consumer if one is wired.
+// Safe to call when no consumer is set (no-op). Must be called before
+// CloseExtractionNATS so the consumer can finish in-flight acks.
+func (s *Server) StopResultConsumer() {
+	if s.resultConsumer != nil {
+		s.resultConsumer.Stop()
 	}
 }
 

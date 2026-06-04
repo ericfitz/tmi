@@ -983,9 +983,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 }
 
 // wireExtractionNATS opens the monolith's NATS connection when TMI_NATS_URL is
-// set and injects it (along with the extraction_jobs store) into apiServer.
-// Absence of the env var, or a connect failure, is non-fatal: the async
-// extraction path stays unavailable and the server falls back to inline extraction.
+// set, injects it (along with the extraction_jobs store) into apiServer, and
+// starts the result-consumer goroutine. Absence of the env var, or a connect
+// failure, is non-fatal: the async extraction path stays unavailable and the
+// server falls back to inline extraction.
 func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) {
 	logger := slogging.Get()
 	natsURL := os.Getenv("TMI_NATS_URL")
@@ -997,9 +998,21 @@ func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) {
 		logger.Warn("async extraction disabled: NATS connect failed: %v", err)
 		return
 	}
+	jobStore := api.NewExtractionJobStore(gormDB)
 	apiServer.SetExtractionNATS(conn)
-	apiServer.SetExtractionJobStore(api.NewExtractionJobStore(gormDB))
+	apiServer.SetExtractionJobStore(jobStore)
 	logger.Info("async extraction pipeline connected to NATS")
+
+	// Start the result-consumer. It uses context.Background() as its root;
+	// shutdown is handled by an explicit Stop() call before the NATS conn
+	// is closed. A missing TMI_RESULTS stream (stream not yet created by any
+	// worker) is non-fatal — the consumer logs a warning and returns nil.
+	rc := api.NewResultConsumer(conn, jobStore, api.GlobalDocumentRepository)
+	if startErr := rc.Start(context.Background()); startErr != nil {
+		logger.Warn("result-consumer failed to start (non-fatal): %v", startErr)
+	}
+	apiServer.SetResultConsumer(rc)
+	logger.Info("result-consumer started")
 }
 
 // wireContentOAuthHandlers constructs the delegated content provider handler
@@ -1950,6 +1963,9 @@ func runServer(cfg *config.Config) int {
 	logger.Info("Server gracefully stopped")
 
 	stopBackgroundWorkers(apiServer, webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker, embeddingCleaner)
+
+	// Stop the result-consumer before closing NATS so in-flight acks complete.
+	apiServer.StopResultConsumer()
 
 	// Close the async extraction NATS connection (no-op when NATS was not configured).
 	apiServer.CloseExtractionNATS()
