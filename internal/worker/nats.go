@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/nats-io/nats.go"
@@ -92,6 +93,24 @@ func (c *Conn) GetPayload(ctx context.Context, ref string) ([]byte, error) {
 		return nil, fmt.Errorf("worker: get payload %s: %w", name, err)
 	}
 	return data, nil
+}
+
+// DeletePayload removes a blob by the object_ref produced by PutPayload.
+// It is idempotent from the caller's perspective: deleting an absent blob
+// is treated as success so result-consumer cleanup never blocks on a
+// double-delivery.
+func (c *Conn) DeletePayload(ctx context.Context, ref string) error {
+	name, ok := payloadName(ref)
+	if !ok {
+		return fmt.Errorf("worker: malformed object_ref %q", ref)
+	}
+	if err := c.objs.Delete(ctx, name); err != nil {
+		if errors.Is(err, jetstream.ErrObjectNotFound) {
+			return nil
+		}
+		return fmt.Errorf("worker: delete payload %s: %w", name, err)
+	}
+	return nil
 }
 
 // payloadName strips the "<bucket>/" prefix from an object_ref.

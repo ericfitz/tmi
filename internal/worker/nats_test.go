@@ -44,6 +44,34 @@ func TestConnect_Integration(t *testing.T) {
 	}
 }
 
+func TestConn_DeletePayload_Integration(t *testing.T) {
+	if os.Getenv("TMI_RUN_NATS_TESTS") == "" {
+		t.Skip("set TMI_RUN_NATS_TESTS=1 with a NATS server available")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	conn, err := Connect(ctx, Config{NATSURL: natsURL(t), ComponentName: "test-worker"})
+	if err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	defer conn.Close()
+
+	ref, err := conn.PutPayload(ctx, "del-me", []byte("hello"))
+	if err != nil {
+		t.Fatalf("PutPayload: %v", err)
+	}
+	if _, err := conn.GetPayload(ctx, ref); err != nil {
+		t.Fatalf("GetPayload before delete: %v", err)
+	}
+	if err := conn.DeletePayload(ctx, ref); err != nil {
+		t.Fatalf("DeletePayload: %v", err)
+	}
+	if _, err := conn.GetPayload(ctx, ref); err == nil {
+		t.Fatal("expected GetPayload to fail after delete, got nil error")
+	}
+}
+
 func TestPayloadName(t *testing.T) {
 	ref := PayloadBucket + "/job-1/source"
 	name, ok := payloadName(ref)
