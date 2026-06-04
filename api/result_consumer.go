@@ -265,8 +265,12 @@ func NewResultConsumer(
 			logger.Warn("result-consumer: lookup document_ref for job %s: %v", jobID, err)
 			return "", "", "", false
 		}
-		if docRef == "" {
-			// Row does not exist (document was deleted before result arrived).
+		if docRef == "" || docRef == unknownDocumentRef {
+			// Either the row does not exist (document deleted before the result
+			// arrived) or it was created by MarkTerminal's bare-upsert-insert
+			// path with the unknownDocumentRef sentinel (a terminal result with
+			// no prior queued row). In both cases the real document is unknown,
+			// so there is nothing to update and no webhook to emit — drop.
 			return "", "", "", false
 		}
 
