@@ -53,4 +53,9 @@ func TestExtractionJobStore_MarkTerminal_WithoutQueuedRow_Inserts(t *testing.T) 
 	var job models.ExtractionJob
 	require.NoError(t, db.Where("job_id = ?", "job-3").First(&job).Error)
 	assert.Equal(t, models.ExtractionStatusCompleted, string(job.Status))
+	// document_ref must be a non-empty sentinel, never "". On Oracle '' == NULL,
+	// and document_ref is NOT NULL, so an empty value would raise ORA-01400 and
+	// trap the result message in a redelivery loop. (oracle-db-admin blocking fix.)
+	assert.Equal(t, unknownDocumentRef, string(job.DocumentRef))
+	assert.NotEmpty(t, string(job.DocumentRef))
 }

@@ -63,6 +63,16 @@ func (s *ExtractionJobStore) GetDocumentRef(ctx context.Context, jobID string) (
 	return string(row.DocumentRef), nil
 }
 
+// unknownDocumentRef is the sentinel written to the NOT NULL document_ref
+// column on the bare-upsert-insert path (a terminal result arriving with no
+// prior queued row, possible under at-least-once delivery). The real
+// document_ref is unknown there, and an empty string must NOT be used: on
+// Oracle an empty string is indistinguishable from NULL, so inserting one into
+// the NOT NULL column raises ORA-01400 and the result message would redeliver
+// forever. A non-empty sentinel preserves the NOT NULL invariant on both
+// dialects.
+const unknownDocumentRef = "__unknown__"
+
 // MarkTerminal upserts the terminal state for job_id. If the queued row is
 // missing it is created. OnConflict on job_id updates status, reason_code,
 // completed_at, updated_at. Portable across PG and Oracle.
@@ -70,7 +80,9 @@ func (s *ExtractionJobStore) GetDocumentRef(ctx context.Context, jobID string) (
 // identifiers when emitting MERGE INTO.
 //
 // When no prior queued row exists (bare-upsert-insert path), document_ref is
-// set to empty string because the column is NOT NULL and no FK enforces it.
+// set to the unknownDocumentRef sentinel (NOT empty string; see the constant
+// doc for the Oracle ORA-01400 rationale). The DoUpdates list omits
+// document_ref, so an existing queued row keeps its real document_ref.
 // An empty reasonCode string is stored as SQL NULL (NullableDBVarchar{Valid: false}).
 func (s *ExtractionJobStore) MarkTerminal(ctx context.Context, jobID, status, reasonCode string) error {
 	dialect := s.db.Name()
@@ -83,7 +95,7 @@ func (s *ExtractionJobStore) MarkTerminal(ctx context.Context, jobID, status, re
 
 	row := models.ExtractionJob{
 		JobID:       models.DBVarchar(jobID),
-		DocumentRef: models.DBVarchar(""), // empty string on bare-upsert-insert; existing rows keep their value
+		DocumentRef: models.DBVarchar(unknownDocumentRef), // bare-insert path only; existing rows keep their value (omitted from DoUpdates)
 		Status:      models.DBVarchar(status),
 		ReasonCode:  reasonCodeVal,
 		CompletedAt: &now,
