@@ -4447,6 +4447,8 @@
               "document.created",
               "document.updated",
               "document.deleted",
+              "document.extraction_completed",
+              "document.extraction_failed",
               "note.created",
               "note.updated",
               "note.deleted",
@@ -5492,6 +5494,8 @@
           "document.created",
           "document.updated",
           "document.deleted",
+          "document.extraction_completed",
+          "document.extraction_failed",
           "note.created",
           "note.updated",
           "note.deleted",
@@ -5531,7 +5535,9 @@
           "document": [
             "document.created",
             "document.updated",
-            "document.deleted"
+            "document.deleted",
+            "document.extraction_completed",
+            "document.extraction_failed"
           ],
           "note": [
             "note.created",
@@ -19919,6 +19925,53 @@
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "202": {
+            "description": "Document created and queued for asynchronous content extraction. Returned instead of 201 when async extraction is enabled (extraction.async_enabled) and the document URI is extractable. The extraction outcome is delivered later via the document access_status and the document.extraction_completed / document.extraction_failed webhook events.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "document",
+                    "job_id"
+                  ],
+                  "properties": {
+                    "document": {
+                      "$ref": "#/components/schemas/Document"
+                    },
+                    "job_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "Identifier of the queued extraction job, for client correlation. The extraction result is surfaced via the document access_status and the document.extraction_* webhook events; there is no dedicated job-status endpoint."
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
