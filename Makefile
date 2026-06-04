@@ -23,7 +23,7 @@ SERVER_PORT ?= 8080
 # ATOMIC COMPONENTS - Infrastructure Management
 # ============================================================================
 
-.PHONY: start-database stop-database clean-database start-redis stop-redis clean-redis start-db stop-db
+.PHONY: start-database stop-database clean-database start-redis stop-redis clean-redis start-db stop-db start-nats stop-nats clean-nats start-workers stop-workers
 
 start-database:
 	@uv run scripts/manage-database.py start
@@ -46,6 +46,21 @@ stop-redis:
 
 clean-redis:
 	@uv run scripts/manage-redis.py clean
+
+start-nats:  ## Start the NATS JetStream container for local dev
+	@uv run scripts/manage-nats.py start
+
+stop-nats:  ## Stop the NATS JetStream container
+	@uv run scripts/manage-nats.py stop
+
+clean-nats:  ## Remove the NATS JetStream container
+	@uv run scripts/manage-nats.py clean
+
+start-workers:  ## Start async-extraction worker processes (tmi-extractor, tmi-chunk-embed)
+	@uv run scripts/manage-workers.py start
+
+stop-workers:  ## Stop async-extraction worker processes
+	@uv run scripts/manage-workers.py stop
 
 # Test Infrastructure - Ephemeral containers for integration tests (isolated from dev)
 .PHONY: start-test-database stop-test-database clean-test-database start-test-redis stop-test-redis clean-test-redis clean-test-infrastructure
@@ -367,7 +382,7 @@ kill-oauth-stub:
 check-oauth-stub:
 	@uv run scripts/manage-oauth-stub.py status
 
-stop-all: stop-server stop-database stop-redis stop-oauth-stub
+stop-all: stop-server stop-workers stop-nats stop-database stop-redis stop-oauth-stub
 
 
 # ============================================================================

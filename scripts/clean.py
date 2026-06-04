@@ -109,10 +109,14 @@ def clean_files() -> None:
 
 
 def clean_process() -> None:
-    """Stop the TMI server and OAuth stub processes."""
+    """Stop the TMI server, workers, and OAuth stub processes."""
     scripts_dir = get_project_root() / "scripts"
     run_cmd(
         ["uv", "run", str(scripts_dir / "manage-server.py"), "stop"],
+        check=False,
+    )
+    run_cmd(
+        ["uv", "run", str(scripts_dir / "manage-workers.py"), "stop"],
         check=False,
     )
     run_cmd(
@@ -128,6 +132,10 @@ def clean_all() -> None:
     clean_process()
 
     scripts_dir = get_project_root() / "scripts"
+    run_cmd(
+        ["uv", "run", str(scripts_dir / "manage-nats.py"), "clean"],
+        check=False,
+    )
     run_cmd(
         ["uv", "run", str(scripts_dir / "manage-redis.py"), "clean"],
         check=False,
@@ -172,6 +180,10 @@ def clean_containers() -> None:
     )
     run_cmd(
         ["uv", "run", str(scripts_dir / "manage-redis.py"), "clean"],
+        check=False,
+    )
+    run_cmd(
+        ["uv", "run", str(scripts_dir / "manage-nats.py"), "clean"],
         check=False,
     )
     log_success("Container cleanup completed")

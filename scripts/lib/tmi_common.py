@@ -255,6 +255,7 @@ def ensure_container(
     image: str,
     env_vars: dict | None = None,
     volumes: dict | None = None,
+    cmd_args: list[str] | None = None,
 ) -> None:
     """Ensure a Docker container is running.
 
@@ -269,6 +270,8 @@ def ensure_container(
         image: Docker image to use when creating.
         env_vars: Environment variables to pass to the container.
         volumes: Volume mounts as {host_path_or_volume_name: container_path}.
+        cmd_args: Extra command arguments appended after the image (container
+            entrypoint args, e.g. ["-js"] for NATS JetStream).
     """
     if container_is_running(name):
         log_info(f"Container already running: {name}")
@@ -296,6 +299,10 @@ def ensure_container(
             cmd.extend(["-v", f"{src}:{dst}"])
 
     cmd.append(image)
+
+    if cmd_args:
+        cmd.extend(cmd_args)
+
     run_cmd(cmd)
     log_success(f"Container created and started: {name} \u2713")
 
