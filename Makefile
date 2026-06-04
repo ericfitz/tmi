@@ -731,12 +731,12 @@ build-chunkembed:  ## Build the tmi-chunk-embed worker binary
 
 build-workers: build-extractor build-chunkembed  ## Build both worker binaries
 
-test-workers:  ## Run worker + extract + envelope tests (starts a NATS JetStream container)
+test-workers:  ## Run worker + extract + envelope + async-extraction tests (starts a NATS JetStream container)
 	@docker run -d --rm --name tmi-nats-test -p 4222:4222 nats:2.10-alpine -js >/dev/null
 	@sleep 2
 	@TMI_RUN_NATS_TESTS=1 TMI_TEST_NATS_URL=nats://127.0.0.1:4222 \
 		go test ./internal/worker/... ./pkg/extract/... ./pkg/jobenvelope/... \
-		./cmd/extractor/... ./cmd/chunkembed/...; \
+		./cmd/extractor/... ./cmd/chunkembed/... ./api/...; \
 		rc=$$?; docker stop tmi-nats-test >/dev/null; exit $$rc
 
 # Stage the tmi-client Go module into .docker-deps/tmi-client/ so the worker
