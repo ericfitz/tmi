@@ -29,6 +29,7 @@ import (
 	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/ericfitz/tmi/internal/secrets"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/worker"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -784,6 +785,9 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	apiServer.SetTicketStore(ticketStore)
 	apiServer.SetTrustedProxiesConfigured(len(config.Server.TrustedProxies) > 0)
 
+	// ==== Async extraction pipeline (Plan 3 of #347) ====
+	wireExtractionNATS(apiServer, gormDB.DB())
+
 	// ==== Content OAuth handlers (must come BEFORE Timmy init so the token
 	// repo and OAuth registry are available for the GoogleWorkspace source,
 	// picker handler, and access poller's LinkedProviderChecker) ====
@@ -976,6 +980,26 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	logger.Info("NoMethod handler configured (returns JSON 405)")
 
 	return r, apiServer, embeddingCleaner
+}
+
+// wireExtractionNATS opens the monolith's NATS connection when TMI_NATS_URL is
+// set and injects it (along with the extraction_jobs store) into apiServer.
+// Absence of the env var, or a connect failure, is non-fatal: the async
+// extraction path stays unavailable and the server falls back to inline extraction.
+func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) {
+	logger := slogging.Get()
+	natsURL := os.Getenv("TMI_NATS_URL")
+	if natsURL == "" {
+		return
+	}
+	conn, err := worker.Connect(context.Background(), worker.Config{NATSURL: natsURL, ComponentName: "monolith"})
+	if err != nil {
+		logger.Warn("async extraction disabled: NATS connect failed: %v", err)
+		return
+	}
+	apiServer.SetExtractionNATS(conn)
+	apiServer.SetExtractionJobStore(api.NewExtractionJobStore(gormDB))
+	logger.Info("async extraction pipeline connected to NATS")
 }
 
 // wireContentOAuthHandlers constructs the delegated content provider handler
@@ -1926,6 +1950,9 @@ func runServer(cfg *config.Config) int {
 	logger.Info("Server gracefully stopped")
 
 	stopBackgroundWorkers(apiServer, webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker, embeddingCleaner)
+
+	// Close the async extraction NATS connection (no-op when NATS was not configured).
+	apiServer.CloseExtractionNATS()
 
 	// Shutdown OpenTelemetry (flush pending spans/metrics)
 	logger.Info("Shutting down OpenTelemetry...")

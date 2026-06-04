@@ -11,6 +11,7 @@ import (
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/worker"
 )
 
 // SettingsServiceInterface defines the operations needed by handlers on settings.
@@ -67,6 +68,10 @@ type Server struct {
 	settingsService SettingsServiceInterface
 	// Config provider for settings migration
 	configProvider ConfigProvider
+	// Async extraction pipeline (Plan 3 of #347). A nil extractionNATS means
+	// the async path is unavailable and extraction falls back to inline.
+	extractionNATS *worker.Conn
+	extractionJobs *ExtractionJobStore
 	// Provider registry for cache invalidation from settings handlers
 	providerRegistry auth.ProviderRegistry
 	// Ticket store for WebSocket authentication
@@ -272,6 +277,26 @@ func (s *Server) SetRateLimitingDisabled(disabled bool) {
 // SetSettingsService sets the settings service for database-stored configuration
 func (s *Server) SetSettingsService(settingsService SettingsServiceInterface) {
 	s.settingsService = settingsService
+}
+
+// SetExtractionNATS injects the monolith's NATS connection used to publish
+// extraction jobs and run the result-consumer. A nil conn disables the async path.
+func (s *Server) SetExtractionNATS(conn *worker.Conn) { s.extractionNATS = conn }
+
+// SetExtractionJobStore injects the extraction_jobs repository.
+func (s *Server) SetExtractionJobStore(store *ExtractionJobStore) { s.extractionJobs = store }
+
+// AsyncExtractionAvailable reports whether the async worker path can be used.
+// It is false when no NATS connection is wired, which forces the inline path
+// regardless of the extraction.async_enabled setting (fail-safe).
+func (s *Server) AsyncExtractionAvailable() bool { return s.extractionNATS != nil }
+
+// CloseExtractionNATS closes the monolith NATS connection if one is wired.
+// Safe to call when no connection is set (no-op).
+func (s *Server) CloseExtractionNATS() {
+	if s.extractionNATS != nil {
+		s.extractionNATS.Close()
+	}
 }
 
 // SetConfigProvider sets the config provider for settings migration
