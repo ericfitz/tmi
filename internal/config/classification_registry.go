@@ -164,6 +164,12 @@ var exactClassifications = map[string]ConfigClass{
 	// --- Operational: webhooks (#426) ---
 	"webhooks.allow_http_targets": operationalClass(VisibilityAdminOnly, false),
 
+	// --- Operational: extraction pipeline routing (#347) ---
+	// Routes document extraction through the async worker pipeline when true.
+	// Requires NATS. Default false (inline mode). Admin-only; requires restart
+	// awareness of the NATS dependency before enabling.
+	"extraction.async_enabled": operationalClass(VisibilityAdminOnly, false),
+
 	// --- Operational: content OAuth callback URL (#426) ---
 	// The content OAuth callback is operator-tunable without restart.
 	"content_oauth.callback_url": operationalClass(VisibilityAdminOnly, false),

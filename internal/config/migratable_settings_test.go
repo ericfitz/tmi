@@ -135,6 +135,30 @@ func TestGetMigratableSettings_Administrators(t *testing.T) {
 	assert.Contains(t, found.Value, "google")
 }
 
+func TestMigratableSettings_IncludesExtractionAsyncEnabled(t *testing.T) {
+	cfg := getDefaultConfig()
+	settings := cfg.GetMigratableSettings()
+	var found *MigratableSetting
+	for i := range settings {
+		if settings[i].Key == "extraction.async_enabled" {
+			found = &settings[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("extraction.async_enabled not registered")
+	}
+	if found.Type != "bool" {
+		t.Errorf("Type = %q, want bool", found.Type)
+	}
+	if found.Value != "false" {
+		t.Errorf("default Value = %q, want false", found.Value)
+	}
+	if found.EnvVar != "TMI_EXTRACTION_ASYNC_ENABLED" {
+		t.Errorf("EnvVar = %q, want TMI_EXTRACTION_ASYNC_ENABLED", found.EnvVar)
+	}
+}
+
 func TestDefaultOperationalSettings_OnlyOperational(t *testing.T) {
 	ops := DefaultOperationalSettings()
 	if len(ops) == 0 {

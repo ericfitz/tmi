@@ -35,6 +35,9 @@ type ContentExtractorsConfig struct {
 	MarkdownSizeBytes         int64         `yaml:"markdown_size_bytes" env:"TMI_CONTENT_EXTRACTORS_MARKDOWN_SIZE_BYTES"`
 	WallClockBudget           time.Duration `yaml:"wall_clock_budget" env:"TMI_CONTENT_EXTRACTORS_WALL_CLOCK_BUDGET"`
 	PerUserConcurrencyDefault int           `yaml:"per_user_concurrency_default" env:"TMI_CONTENT_EXTRACTORS_PER_USER_CONCURRENCY_DEFAULT"`
+	// AsyncEnabled routes extraction through the async worker pipeline instead
+	// of inline processing. Requires NATS. Default false (inline mode).
+	AsyncEnabled bool `yaml:"async_enabled" env:"TMI_EXTRACTION_ASYNC_ENABLED"`
 }
 
 // DefaultContentExtractorsConfig returns the project-wide defaults documented

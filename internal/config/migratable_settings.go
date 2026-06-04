@@ -602,6 +602,7 @@ func (c *Config) getMigratableContentExtractorsSettings() []MigratableSetting {
 		{Key: "content_extractors.markdown_size_bytes", Value: strconv.FormatInt(e.MarkdownSizeBytes, 10), Type: "int", Description: "Max markdown output size in bytes", Source: settingSource("TMI_CONTENT_EXTRACTORS_MARKDOWN_SIZE_BYTES"), EnvVar: "TMI_CONTENT_EXTRACTORS_MARKDOWN_SIZE_BYTES"},
 		{Key: "content_extractors.wall_clock_budget", Value: e.WallClockBudget.String(), Type: "string", Description: "Max wall-clock time for a single extraction", Source: settingSource("TMI_CONTENT_EXTRACTORS_WALL_CLOCK_BUDGET"), EnvVar: "TMI_CONTENT_EXTRACTORS_WALL_CLOCK_BUDGET"},
 		{Key: "content_extractors.per_user_concurrency_default", Value: strconv.Itoa(e.PerUserConcurrencyDefault), Type: "int", Description: "Default max concurrent extractions per user", Source: settingSource("TMI_CONTENT_EXTRACTORS_PER_USER_CONCURRENCY_DEFAULT"), EnvVar: "TMI_CONTENT_EXTRACTORS_PER_USER_CONCURRENCY_DEFAULT"},
+		{Key: "extraction.async_enabled", Value: strconv.FormatBool(e.AsyncEnabled), Type: "bool", Description: "Route document extraction through the async worker pipeline instead of inline (default false; requires NATS)", Source: settingSource("TMI_EXTRACTION_ASYNC_ENABLED"), EnvVar: "TMI_EXTRACTION_ASYNC_ENABLED"},
 	}
 }
 

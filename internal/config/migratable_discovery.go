@@ -133,5 +133,13 @@ func ExpectedMigratableKeysSkipped() map[string]string {
 		// YAML compatibility; the emitted key matches the API contract.
 		// Renaming would break tmi-ux clients reading the /config endpoint.
 		"auth.saml.enabled": "emitted as features.saml_enabled (public /config key shape); rename breaks API contract",
+
+		// content_extractors.async_enabled is emitted as extraction.async_enabled
+		// (#347). The backing field lives on ContentExtractorsConfig because it
+		// governs the extraction pipeline, but the canonical settings key uses the
+		// logical "extraction.*" namespace to allow future extraction-related
+		// operational settings to live alongside it without polluting the
+		// content_extractors.* size/limit namespace.
+		"content_extractors.async_enabled": "emitted as extraction.async_enabled (#347); key namespace matches extraction pipeline domain",
 	}
 }
