@@ -910,6 +910,7 @@ func AllModels() []any {
 		&Threat{},
 		&ThreatModelAccess{},
 		&Document{},
+		&ExtractionJob{},
 		&Note{},
 		&Repository{},
 		&Metadata{},
