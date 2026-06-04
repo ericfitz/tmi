@@ -14,10 +14,16 @@ Environment variables passed to workers:
   TMI_NATS_URL          - NATS server URL (default: nats://localhost:4222)
   TMI_COMPONENT_NAME    - Set per-worker; overridden automatically
 
-Optional embedding env vars (for tmi-chunk-embed in dev):
+Embedding env vars (for tmi-chunk-embed in dev):
   TMI_EMBEDDING_MODEL   - Embedding model name (e.g. text-embedding-3-small)
   TMI_EMBEDDING_BASE_URL- OpenAI-compatible API base URL
   TMI_EMBEDDING_API_KEY - API key
+
+If these are not already exported, the chunk-embed worker is started with
+values read from the dev database (the post-#415 source of truth):
+  timmy.text_embedding_model / timmy.text_embedding_base_url /
+  timmy.text_embedding_api_key in the system_settings table.
+An explicitly-exported env var always wins over the DB value.
 """
 
 import argparse
@@ -49,6 +55,20 @@ from tmi_common import (  # noqa: E402
 
 DEFAULT_NATS_URL = "nats://localhost:4222"
 
+# Local dev PostgreSQL container (matches manage-database.py / start-dev).
+DEV_PG_CONTAINER = "tmi-postgresql"
+DEV_PG_USER = "tmi_dev"
+DEV_PG_DB = "tmi_dev"
+
+# Map of worker env var -> system_settings key (post-#415 source of truth).
+# Used to populate the chunk-embed worker's embedding config from the DB when
+# the operator has not exported the env vars explicitly.
+EMBED_ENV_TO_SETTING = {
+    "TMI_EMBEDDING_MODEL": "timmy.text_embedding_model",
+    "TMI_EMBEDDING_BASE_URL": "timmy.text_embedding_base_url",
+    "TMI_EMBEDDING_API_KEY": "timmy.text_embedding_api_key",
+}
+
 WORKERS = [
     {
         "name": "tmi-extractor",
@@ -78,6 +98,53 @@ WORKERS = [
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _read_setting_from_db(key: str) -> str | None:
+    """Read a single system_settings value from the dev PostgreSQL container.
+
+    Returns the trimmed value, or None if the container is unreachable, the row
+    is absent, or the value is empty. Never raises — a DB read failure here must
+    not block worker startup (the worker will simply warn/exit on its own).
+    """
+    try:
+        result = subprocess.run(
+            [
+                "docker",
+                "exec",
+                DEV_PG_CONTAINER,
+                "psql",
+                "-U",
+                DEV_PG_USER,
+                "-d",
+                DEV_PG_DB,
+                "-tAc",
+                f"SELECT value FROM system_settings WHERE setting_key = '{key}';",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return None
+    if result.returncode != 0:
+        return None
+    value = result.stdout.strip()
+    return value or None
+
+
+def _inject_embedding_env_from_db(env: dict) -> None:
+    """Populate TMI_EMBEDDING_* in env from the DB for any var not already set.
+
+    An explicitly-exported env var always wins (we only fill in blanks). Reads
+    the post-#415 source of truth: the timmy.text_embedding_* system_settings.
+    """
+    for env_var, setting_key in EMBED_ENV_TO_SETTING.items():
+        if env.get(env_var):
+            continue  # operator override wins
+        value = _read_setting_from_db(setting_key)
+        if value:
+            env[env_var] = value
 
 
 def _build_worker(worker: dict, project_root: Path, verbose: bool) -> None:
@@ -119,18 +186,22 @@ def _start_worker(
     env["TMI_NATS_URL"] = nats_url
     env["TMI_COMPONENT_NAME"] = worker["component_name"]
 
-    # Warn if embedding env vars are required but absent
+    # Populate embedding config from the DB (post-#415 source of truth) for any
+    # var the operator did not export, then warn about anything still missing.
     if worker.get("require_embed_env"):
-        missing = [
-            v
-            for v in ("TMI_EMBEDDING_MODEL", "TMI_EMBEDDING_BASE_URL", "TMI_EMBEDDING_API_KEY")
-            if not env.get(v)
-        ]
+        _inject_embedding_env_from_db(env)
+        missing = [v for v in EMBED_ENV_TO_SETTING if not env.get(v)]
         if missing:
             log_warn(
-                f"{worker['name']}: optional embedding env vars not set: "
+                f"{worker['name']}: embedding config not set and not found in DB: "
                 + ", ".join(missing)
-                + " — worker will exit if embedding is attempted"
+                + " — worker will exit if embedding is attempted. "
+                + "Seed the timmy.text_embedding_* system_settings or export the env vars."
+            )
+        else:
+            log_info(
+                f"{worker['name']}: embedding config resolved "
+                "(env overrides + DB system_settings)"
             )
 
     # Ensure log directory exists
