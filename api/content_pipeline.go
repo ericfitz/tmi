@@ -331,6 +331,38 @@ func (d *extractedTextNoteDumper) dump(ctx context.Context, doc Document, out Ex
 	logger.Debug("dump-extracted-text: wrote Note %v for doc %s (tm=%s, %d bytes)", note.Id, doc.Id, tmID, len(out.Text))
 }
 
+// FetchForPublish performs only the fetch step (FindSource + Fetch) of the
+// pipeline and returns the raw bytes and content-type. It does NOT run any
+// extractor. This is the seam used by the async extraction path to obtain
+// bytes for publishing to the worker pipeline; the worker performs the actual
+// extraction. The same per-user concurrency limiter that guards Extract is
+// also applied here so that concurrent fetch-for-publish calls are subject to
+// the same cap.
+func (p *ContentPipeline) FetchForPublish(ctx context.Context, uri string) ([]byte, string, error) {
+	logger := slogging.Get()
+
+	src, ok := p.sources.FindSource(ctx, uri)
+	if !ok {
+		return nil, "", fmt.Errorf("no content source can handle URI: %s", uri)
+	}
+
+	userID, _ := UserIDFromContext(ctx)
+	if p.limiter != nil && userID != "" {
+		release, err := p.limiter.acquire(ctx, userID)
+		if err != nil {
+			return nil, "", err
+		}
+		defer release()
+	}
+
+	logger.Debug("ContentPipeline.FetchForPublish: fetching %s via source %s", uri, src.Name())
+	data, contentType, err := src.Fetch(ctx, uri)
+	if err != nil {
+		return nil, "", fmt.Errorf("source %s fetch failed: %w", src.Name(), err)
+	}
+	return data, contentType, nil
+}
+
 // Matcher returns the pipeline's URL pattern matcher.
 func (p *ContentPipeline) Matcher() *URLPatternMatcher {
 	return p.matcher

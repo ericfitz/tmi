@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/ericfitz/tmi/pkg/extract"
+	"github.com/ericfitz/tmi/pkg/jobenvelope"
 )
 
 func TestAccessPoller_Creation(t *testing.T) {
@@ -546,4 +547,142 @@ func (s *pollerStubFetchSourceWithBytes) Fetch(_ context.Context, _ string) ([]b
 }
 func (s *pollerStubFetchSourceWithBytes) ValidateAccess(_ context.Context, _ string) (bool, error) {
 	return true, nil
+}
+
+// ── Async extraction tests (Task 8 / Plan 3 of #347) ─────────────────────────
+
+// fakePollerPublisher is a minimal ExtractionPublisher double that records
+// the last Publish call and returns a fixed job ID.
+type fakePollerPublisher struct {
+	bus   extractionBus
+	store queuedInserter
+	// captured fields
+	publishedDocID string
+	publishedCT    string
+	publishedBytes []byte
+	publishCalled  bool
+}
+
+func newFakePollerPublisher() *fakePollerPublisher {
+	f := &fakePollerPublisher{}
+	f.bus = &fakePollerBus{f}
+	f.store = &fakePollerStore{f}
+	return f
+}
+
+func (f *fakePollerPublisher) publisher() *ExtractionPublisher {
+	return &ExtractionPublisher{bus: f.bus, store: f.store}
+}
+
+type fakePollerBus struct{ p *fakePollerPublisher }
+
+func (b *fakePollerBus) PutPayload(_ context.Context, _ string, data []byte) (string, error) {
+	b.p.publishedBytes = data
+	return "ref-1", nil
+}
+func (b *fakePollerBus) PublishJob(_ context.Context, _ string, _ jobenvelope.Job) error {
+	return nil
+}
+
+type fakePollerStore struct{ p *fakePollerPublisher }
+
+func (s *fakePollerStore) InsertQueued(_ context.Context, jobID, docRef string) error {
+	s.p.publishCalled = true
+	s.p.publishedDocID = docRef
+	return nil
+}
+
+// pollerAsyncFetchSource is an AccessValidator+ContentSource whose Fetch
+// returns configurable bytes. Used to verify the async path calls FetchForPublish.
+type pollerAsyncFetchSource struct {
+	ct    string
+	bytes []byte
+}
+
+func (s *pollerAsyncFetchSource) Name() string                               { return "async-src" }
+func (s *pollerAsyncFetchSource) CanHandle(_ context.Context, _ string) bool { return true }
+func (s *pollerAsyncFetchSource) Fetch(_ context.Context, _ string) ([]byte, string, error) {
+	return s.bytes, s.ct, nil
+}
+func (s *pollerAsyncFetchSource) ValidateAccess(_ context.Context, _ string) (bool, error) {
+	return true, nil
+}
+
+func TestAccessPoller_AsyncPublishesInsteadOfInline(t *testing.T) {
+	docID := uuid.New()
+	now := time.Now()
+	store := &mockDocumentStoreForPoller{
+		documents: []Document{
+			{
+				Id:        &docID,
+				Uri:       "https://example.com/doc.pdf",
+				CreatedAt: &now,
+			},
+		},
+	}
+
+	// Source that returns real bytes and claims accessible.
+	src := &pollerAsyncFetchSource{ct: "application/pdf", bytes: []byte("%PDF")}
+	sources := NewContentSourceRegistry()
+	sources.Register(src)
+
+	// A minimal pipeline wired with the above source but NO extractor registered
+	// for application/pdf — if inline extraction ran it would fall back to plain
+	// text (no error). We verify async was chosen by checking publisher.publishCalled.
+	exts := NewContentExtractorRegistry()
+	pipeline := NewContentPipelineWithLimiter(
+		sources, exts, NewURLPatternMatcher(),
+		NewConcurrencyLimiter(2, nil), DefaultPipelineLimits(),
+	)
+
+	fake := newFakePollerPublisher()
+	pub := fake.publisher()
+
+	poller := NewAccessPoller(sources, store, time.Minute, 7*24*time.Hour)
+	poller.SetContentPipeline(pipeline)
+	poller.SetAsyncExtraction(pub, func(_ context.Context) bool { return true })
+	poller.pollOnce()
+
+	// Async path was taken: publisher was called, store NOT updated to accessible.
+	assert.True(t, fake.publishCalled, "expected publisher.Publish to be called on async path")
+	assert.Equal(t, docID.String(), fake.publishedDocID, "expected document ID passed to publisher")
+	assert.False(t, store.updateCalled,
+		"expected document to remain in pending_access (not updated to accessible) on async path")
+}
+
+func TestAccessPoller_AsyncOff_UsesInlinePath(t *testing.T) {
+	docID := uuid.New()
+	now := time.Now()
+	store := &mockDocumentStoreForPoller{
+		documents: []Document{
+			{
+				Id:        &docID,
+				Uri:       "https://example.com/doc.pdf",
+				CreatedAt: &now,
+			},
+		},
+	}
+
+	src := &pollerAsyncFetchSource{ct: "application/pdf", bytes: []byte("%PDF")}
+	sources := NewContentSourceRegistry()
+	sources.Register(src)
+
+	exts := NewContentExtractorRegistry()
+	pipeline := NewContentPipelineWithLimiter(
+		sources, exts, NewURLPatternMatcher(),
+		NewConcurrencyLimiter(2, nil), DefaultPipelineLimits(),
+	)
+
+	fake := newFakePollerPublisher()
+	pub := fake.publisher()
+
+	// Decider returns false → inline path.
+	poller := NewAccessPoller(sources, store, time.Minute, 7*24*time.Hour)
+	poller.SetContentPipeline(pipeline)
+	poller.SetAsyncExtraction(pub, func(_ context.Context) bool { return false })
+	poller.pollOnce()
+
+	assert.False(t, fake.publishCalled, "expected NO publish call when async is off")
+	assert.True(t, store.updateCalled, "expected inline path to update document to accessible")
+	assert.Equal(t, AccessStatusAccessible, store.updatedStatus)
 }

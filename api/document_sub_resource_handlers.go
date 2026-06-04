@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -34,6 +35,10 @@ type DocumentSubResourceHandler struct {
 	microsoftApplicationObjectID string
 	// contentOAuthRegistry resolves registered OAuth providers for picker_registration validation
 	contentOAuthRegistry *ContentOAuthProviderRegistry
+	// Async extraction collaborators (Task 8 / Plan 3 of #347). Both must be
+	// non-nil and asyncDecider must return true for the async path to activate.
+	publisher    *ExtractionPublisher
+	asyncDecider func(ctx context.Context) bool
 }
 
 // SetDocumentURIValidator sets the URI validator for document uri fields
@@ -71,6 +76,19 @@ func (h *DocumentSubResourceHandler) SetMicrosoftApplicationObjectID(id string) 
 // picker_registration is rejected with 422 (provider_not_registered).
 func (h *DocumentSubResourceHandler) SetContentOAuthRegistry(r *ContentOAuthProviderRegistry) {
 	h.contentOAuthRegistry = r
+}
+
+// SetAsyncExtraction injects the async extraction publisher and decider into
+// the handler. When the decider returns true AND publisher is non-nil,
+// CreateDocument fetches bytes and publishes an async extraction job, then
+// returns 202 Accepted with the job_id. On any fetch/publish failure the
+// handler falls back to the existing 201 path — extractions are never
+// silently dropped and 500 is never returned for extraction failures.
+//
+// Pass nil publisher or nil decider to keep the existing 201 path.
+func (h *DocumentSubResourceHandler) SetAsyncExtraction(publisher *ExtractionPublisher, decider func(context.Context) bool) {
+	h.publisher = publisher
+	h.asyncDecider = decider
 }
 
 // pickerRegistrationSniff is used to extract picker_registration from the raw request
@@ -495,60 +513,17 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 	}
 
 	// Persist access tracking and (if applicable) picker metadata on the row.
-	if sniff.PickerRegistration != nil {
-		pr := sniff.PickerRegistration
-		if err := h.documentStore.SetPickerMetadata(c.Request.Context(),
-			document.Id.String(), pr.ProviderID, pr.FileID, pr.MimeType); err != nil {
-			logger.Warn("Failed to set picker metadata for document %s: %v", document.Id.String(), err)
-		}
-		// Reflect access fields in the response.
-		status := DocumentAccessStatus(AccessStatusUnknown)
-		document.AccessStatus = &status
-		cs := pr.ProviderID
-		document.ContentSource = &cs
-	} else if h.contentPipeline != nil && accessStatus != "" {
-		// Try access validation for non-HTTP providers
-		if contentSource != "" && contentSource != ProviderHTTP {
-			src, _ := h.contentPipeline.Sources().FindSourceByName(contentSource)
-			if validator, ok := src.(AccessValidator); ok {
-				accessible, valErr := validator.ValidateAccess(c.Request.Context(), document.Uri)
-				if valErr != nil {
-					logger.Warn("Access validation failed for %s: %v", document.Uri, valErr)
-				}
-				if accessible {
-					accessStatus = AccessStatusAccessible
-				} else {
-					if requester, ok := src.(AccessRequester); ok {
-						if reqErr := requester.RequestAccess(c.Request.Context(), document.Uri); reqErr != nil {
-							logger.Warn("Access request failed for %s: %v", document.Uri, reqErr)
-						}
-					}
-					accessStatus = AccessStatusPendingAccess
-				}
-			}
-		}
-		// Update access fields in database. When the document is in pending_access,
-		// emit a diagnostic reason_code so the GET handler can produce actionable
-		// remediations (Task 11). When transitioning to accessible/unknown, pass an
-		// empty reason to clear any existing diagnostic.
-		reasonCode := pendingAccessReasonCode(accessStatus, contentSource)
-		if err := h.documentStore.UpdateAccessStatusWithDiagnostics(
-			c.Request.Context(),
-			document.Id.String(),
-			accessStatus,
-			contentSource,
-			reasonCode,
-			"", // reasonDetail
-		); err != nil {
-			logger.Warn("Failed to update access status for document %s: %v", document.Id.String(), err)
-		}
+	h.applyAccessTracking(c, document, sniff, accessStatus, contentSource)
 
-		// Reflect access fields in the response
-		status := DocumentAccessStatus(accessStatus)
-		document.AccessStatus = &status
-		if contentSource != "" {
-			document.ContentSource = &contentSource
-		}
+	// Async extraction path (Task 8 / Plan 3 of #347). ZERO-500 POLICY: any
+	// fetch/publish failure falls back to the existing 201 path — the document
+	// has already been created successfully.
+	if jobID, ok := h.tryAsyncExtraction(c.Request.Context(), document); ok {
+		RecordAuditCreate(c, threatModelID, "document", document.Id.String(), document)
+		invalidateThreatModelCaches(c, threatModelID)
+		logger.Info("CreateDocument: async extraction job %s published for document %s", jobID, document.Id.String())
+		c.JSON(http.StatusAccepted, gin.H{"document": document, "job_id": jobID})
+		return
 	}
 
 	RecordAuditCreate(c, threatModelID, "document", document.Id.String(), document)
@@ -556,6 +531,106 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 
 	logger.Debug("Successfully created document %s", document.Id.String())
 	c.JSON(http.StatusCreated, document)
+}
+
+// applyAccessTracking persists access-status and picker metadata on a newly-
+// created document and reflects the result into the document struct for the
+// response. Extracted from CreateDocument to keep cyclomatic complexity within
+// the project lint budget.
+func (h *DocumentSubResourceHandler) applyAccessTracking(
+	c *gin.Context,
+	document *Document,
+	sniff pickerRegistrationSniff,
+	accessStatus, contentSource string,
+) {
+	logger := slogging.GetContextLogger(c)
+	if sniff.PickerRegistration != nil {
+		pr := sniff.PickerRegistration
+		if err := h.documentStore.SetPickerMetadata(c.Request.Context(),
+			document.Id.String(), pr.ProviderID, pr.FileID, pr.MimeType); err != nil {
+			logger.Warn("Failed to set picker metadata for document %s: %v", document.Id.String(), err)
+		}
+		status := DocumentAccessStatus(AccessStatusUnknown)
+		document.AccessStatus = &status
+		cs := pr.ProviderID
+		document.ContentSource = &cs
+		return
+	}
+	if h.contentPipeline == nil || accessStatus == "" {
+		return
+	}
+	// Try access validation for non-HTTP providers.
+	if contentSource != "" && contentSource != ProviderHTTP {
+		src, _ := h.contentPipeline.Sources().FindSourceByName(contentSource)
+		if validator, ok := src.(AccessValidator); ok {
+			accessible, valErr := validator.ValidateAccess(c.Request.Context(), document.Uri)
+			if valErr != nil {
+				logger.Warn("Access validation failed for %s: %v", document.Uri, valErr)
+			}
+			if accessible {
+				accessStatus = AccessStatusAccessible
+			} else {
+				if requester, ok := src.(AccessRequester); ok {
+					if reqErr := requester.RequestAccess(c.Request.Context(), document.Uri); reqErr != nil {
+						logger.Warn("Access request failed for %s: %v", document.Uri, reqErr)
+					}
+				}
+				accessStatus = AccessStatusPendingAccess
+			}
+		}
+	}
+	// Update access fields in database. When the document is in pending_access,
+	// emit a diagnostic reason_code so the GET handler can produce actionable
+	// remediations (Task 11). When transitioning to accessible/unknown, pass an
+	// empty reason to clear any existing diagnostic.
+	reasonCode := pendingAccessReasonCode(accessStatus, contentSource)
+	if err := h.documentStore.UpdateAccessStatusWithDiagnostics(
+		c.Request.Context(),
+		document.Id.String(),
+		accessStatus,
+		contentSource,
+		reasonCode,
+		"", // reasonDetail
+	); err != nil {
+		logger.Warn("Failed to update access status for document %s: %v", document.Id.String(), err)
+	}
+	// Reflect access fields in the response.
+	status := DocumentAccessStatus(accessStatus)
+	document.AccessStatus = &status
+	if contentSource != "" {
+		document.ContentSource = &contentSource
+	}
+}
+
+// tryAsyncExtraction attempts to route document extraction through the async
+// worker pipeline. It returns (jobID, true) when the job was successfully
+// published; (", false) when async is disabled, the URI has no fetchable
+// source, or any fetch/publish error occurs (caller falls back to 201).
+// ZERO-500: all errors are logged as warnings, never surfaced to the caller.
+func (h *DocumentSubResourceHandler) tryAsyncExtraction(ctx context.Context, document *Document) (string, bool) {
+	if h.asyncDecider == nil || !h.asyncDecider(ctx) || h.publisher == nil || h.contentPipeline == nil {
+		return "", false
+	}
+	_, hasSource := h.contentPipeline.Sources().FindSource(ctx, document.Uri)
+	if !hasSource {
+		return "", false
+	}
+	logger := slogging.Get()
+	data, contentType, fetchErr := h.contentPipeline.FetchForPublish(ctx, document.Uri)
+	if fetchErr != nil {
+		logger.Warn("CreateDocument: fetch-for-publish failed for document %s, returning 201: %v", document.Id.String(), fetchErr)
+		return "", false
+	}
+	jobID, pubErr := h.publisher.Publish(ctx, ExtractionRequest{
+		DocumentID:  document.Id.String(),
+		ContentType: contentType,
+		Bytes:       data,
+	})
+	if pubErr != nil {
+		logger.Warn("CreateDocument: async publish failed for document %s, returning 201: %v", document.Id.String(), pubErr)
+		return "", false
+	}
+	return jobID, true
 }
 
 // UpdateDocument updates an existing document

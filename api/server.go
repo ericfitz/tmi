@@ -314,6 +314,22 @@ func (s *Server) StopResultConsumer() {
 	}
 }
 
+// UseAsyncExtraction reports whether extraction should route through the
+// worker pipeline: the setting is on AND a NATS connection is available.
+// When the setting is on but NATS is absent, it logs and returns false
+// (fail-safe to inline) so extractions are never silently dropped.
+func (s *Server) UseAsyncExtraction(ctx context.Context) bool {
+	if s.settingsService == nil || !s.AsyncExtractionAvailable() {
+		return false
+	}
+	on, err := s.settingsService.GetBool(ctx, "extraction.async_enabled")
+	if err != nil {
+		slogging.Get().Warn("extraction.async_enabled read failed, using inline: %v", err)
+		return false
+	}
+	return on
+}
+
 // SetConfigProvider sets the config provider for settings migration
 func (s *Server) SetConfigProvider(provider ConfigProvider) {
 	s.configProvider = provider
@@ -407,6 +423,14 @@ func (s *Server) SetDocumentDiagnosticsDeps(tokens ContentTokenRepository, servi
 // with 422 (provider_not_registered).
 func (s *Server) SetDocumentContentOAuthRegistry(r *ContentOAuthProviderRegistry) {
 	s.documentHandler.SetContentOAuthRegistry(r)
+}
+
+// SetDocumentAsyncExtraction wires the async extraction publisher and decider
+// into the document handler. When both are non-nil and the decider returns
+// true, CreateDocument returns 202 Accepted with a job_id instead of the
+// usual 201. Pass nil publisher to disable the async path.
+func (s *Server) SetDocumentAsyncExtraction(publisher *ExtractionPublisher, decider func(context.Context) bool) {
+	s.documentHandler.SetAsyncExtraction(publisher, decider)
 }
 
 // SetContentSourceRegistry attaches the content source registry so the

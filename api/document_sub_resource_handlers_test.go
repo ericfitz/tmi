@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ericfitz/tmi/pkg/jobenvelope"
 )
 
 // MockDocumentStore is a mock implementation of DocumentRepository for testing
@@ -1498,4 +1500,158 @@ func TestPendingAccessReasonCode(t *testing.T) {
 			assert.Equal(t, tc.expected, pendingAccessReasonCode(tc.accessStatus, tc.contentSource))
 		})
 	}
+}
+
+// ── Async extraction routing tests (Task 8 / Plan 3 of #347) ─────────────────
+
+// handlerFakeBus implements extractionBus for handler async tests.
+type handlerFakeBus struct {
+	published bool
+	jobID     string
+}
+
+func (b *handlerFakeBus) PutPayload(_ context.Context, _ string, _ []byte) (string, error) {
+	return "ref-handler-1", nil
+}
+func (b *handlerFakeBus) PublishJob(_ context.Context, _ string, job jobenvelope.Job) error {
+	b.published = true
+	b.jobID = job.JobID
+	return nil
+}
+
+// handlerFakeQueuedInserter implements queuedInserter for handler async tests.
+type handlerFakeQueuedInserter struct {
+	jobID  string
+	docRef string
+}
+
+func (s *handlerFakeQueuedInserter) InsertQueued(_ context.Context, jobID, docRef string) error {
+	s.jobID = jobID
+	s.docRef = docRef
+	return nil
+}
+
+// setupDocumentHandlerWithAsync builds a test router wired with:
+//   - a mock document store
+//   - a content pipeline backed by a stub source that returns fetchBytes/fetchCT
+//   - an ExtractionPublisher backed by fake bus + store
+//   - asyncDecider returning asyncOn
+func setupDocumentHandlerWithAsync(asyncOn bool, fetchBytes []byte, fetchCT string) (
+	*gin.Engine, *MockDocumentStore, *handlerFakeBus, *handlerFakeQueuedInserter,
+) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	mockDocumentStore := &MockDocumentStore{}
+
+	// Build a pipeline with a stub source that always handles and fetches fetchBytes.
+	src := &mockSource{
+		name:      "http",
+		canHandle: true,
+		data:      fetchBytes,
+		ct:        fetchCT,
+	}
+	sources := NewContentSourceRegistry()
+	sources.Register(src)
+	exts := NewContentExtractorRegistry()
+	pipeline := NewContentPipeline(sources, exts, NewURLPatternMatcher())
+
+	bus := &handlerFakeBus{}
+	store := &handlerFakeQueuedInserter{}
+	pub := &ExtractionPublisher{bus: bus, store: store}
+
+	handler := NewDocumentSubResourceHandler(mockDocumentStore, nil, nil, nil)
+	handler.SetContentPipeline(pipeline)
+	handler.SetAsyncExtraction(pub, func(_ context.Context) bool { return asyncOn })
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userID", "test-provider-id")
+		c.Set("userRole", RoleWriter)
+		c.Next()
+	})
+	r.POST("/threat_models/:threat_model_id/documents", handler.CreateDocument)
+
+	return r, mockDocumentStore, bus, store
+}
+
+func TestCreateDocument_AsyncReturns202(t *testing.T) {
+	r, mockStore, bus, qstore := setupDocumentHandlerWithAsync(
+		true,
+		[]byte("%PDF-1.7"),
+		"application/pdf",
+	)
+
+	threatModelID := testUUID1
+
+	mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Document"), threatModelID).
+		Return(nil).
+		Run(func(args mock.Arguments) {
+			doc := args.Get(1).(*Document)
+			id, _ := uuid.Parse(testUUID2)
+			doc.Id = &id
+		})
+	// The handler sets access_status=unknown / content_source=http for plain HTTP
+	// URIs before reaching the async branch.
+	mockStore.On("UpdateAccessStatusWithDiagnostics",
+		mock.Anything, testUUID2, AccessStatusUnknown, ProviderHTTP, "", "").
+		Return(nil)
+
+	body, _ := json.Marshal(map[string]any{
+		"name": "Async Doc",
+		"uri":  "https://example.com/file.pdf",
+	})
+	req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/documents", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusAccepted, w.Code, "expected 202 Accepted on async path; body: %s", w.Body.String())
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.NotEmpty(t, resp["job_id"], "expected job_id in 202 response")
+	assert.NotNil(t, resp["document"], "expected document in 202 response")
+
+	assert.True(t, bus.published, "expected extraction job published to NATS bus")
+	assert.NotEmpty(t, qstore.jobID, "expected job row inserted in store")
+	assert.Equal(t, testUUID2, qstore.docRef, "expected document ID recorded in job store")
+
+	mockStore.AssertExpectations(t)
+}
+
+func TestCreateDocument_AsyncOff_Returns201(t *testing.T) {
+	r, mockStore, bus, _ := setupDocumentHandlerWithAsync(
+		false,
+		[]byte("%PDF-1.7"),
+		"application/pdf",
+	)
+
+	threatModelID := testUUID1
+
+	mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Document"), threatModelID).
+		Return(nil).
+		Run(func(args mock.Arguments) {
+			doc := args.Get(1).(*Document)
+			id, _ := uuid.Parse(testUUID2)
+			doc.Id = &id
+		})
+	// HTTP URIs still go through the access-status path even with async off.
+	mockStore.On("UpdateAccessStatusWithDiagnostics",
+		mock.Anything, testUUID2, AccessStatusUnknown, ProviderHTTP, "", "").
+		Return(nil)
+
+	body, _ := json.Marshal(map[string]any{
+		"name": "Sync Doc",
+		"uri":  "https://example.com/file.pdf",
+	})
+	req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/documents", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code, "expected 201 Created when async is off; body: %s", w.Body.String())
+	assert.False(t, bus.published, "expected no NATS publish when async is off")
+
+	mockStore.AssertExpectations(t)
 }

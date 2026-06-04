@@ -786,7 +786,16 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	apiServer.SetTrustedProxiesConfigured(len(config.Server.TrustedProxies) > 0)
 
 	// ==== Async extraction pipeline (Plan 3 of #347) ====
-	wireExtractionNATS(apiServer, gormDB.DB())
+	// extractionPublisher is non-nil only when NATS is available.
+	// It is propagated to the DocumentSubResourceHandler immediately and (via
+	// the ContentSourceHolder rebuild hook below) to each newly-built
+	// AccessPoller so both call sites route through the async worker pipeline
+	// when extraction.async_enabled is on.
+	extractionPublisher := wireExtractionNATS(apiServer, gormDB.DB())
+	if extractionPublisher != nil {
+		apiServer.SetDocumentAsyncExtraction(extractionPublisher, apiServer.UseAsyncExtraction)
+		logger.Info("async extraction publisher wired into document handler")
+	}
 
 	// ==== Content OAuth handlers (must come BEFORE Timmy init so the token
 	// repo and OAuth registry are available for the GoogleWorkspace source,
@@ -797,7 +806,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	// The contentOAuthRegistry from wireContentOAuthHandlers is no longer passed
 	// to initializeTimmySubsystem; the ContentSourceHolder rebuilds it from the
 	// live config on each registry rebuild (runtime-toggleable, #427).
-	initializeTimmySubsystem(config, apiServer, settingsService, contentTokenRepo, api.NewStampedConfigProvider(settingsService))
+	initializeTimmySubsystem(config, apiServer, settingsService, contentTokenRepo, api.NewStampedConfigProvider(settingsService), extractionPublisher)
 
 	// Start embedding idle cleanup (runs unconditionally, even if Timmy is disabled,
 	// to clean up embeddings if Timmy was previously enabled)
@@ -987,16 +996,20 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 // starts the result-consumer goroutine. Absence of the env var, or a connect
 // failure, is non-fatal: the async extraction path stays unavailable and the
 // server falls back to inline extraction.
-func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) {
+//
+// Returns a non-nil *api.ExtractionPublisher when NATS is available; the
+// caller should propagate the publisher and the UseAsyncExtraction decider
+// into the DocumentSubResourceHandler and the AccessPoller (Task 8).
+func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) *api.ExtractionPublisher {
 	logger := slogging.Get()
 	natsURL := os.Getenv("TMI_NATS_URL")
 	if natsURL == "" {
-		return
+		return nil
 	}
 	conn, err := worker.Connect(context.Background(), worker.Config{NATSURL: natsURL, ComponentName: "monolith"})
 	if err != nil {
 		logger.Warn("async extraction disabled: NATS connect failed: %v", err)
-		return
+		return nil
 	}
 	jobStore := api.NewExtractionJobStore(gormDB)
 	apiServer.SetExtractionNATS(conn)
@@ -1013,6 +1026,10 @@ func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) {
 	}
 	apiServer.SetResultConsumer(rc)
 	logger.Info("result-consumer started")
+
+	pub := api.NewExtractionPublisher(conn, jobStore)
+	logger.Info("async extraction publisher created")
+	return pub
 }
 
 // wireContentOAuthHandlers constructs the delegated content provider handler
@@ -1171,7 +1188,7 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 // skip) instead of crashing the server with os.Exit(1).  os.Exit(1) is still
 // used for genuinely fatal bootstrap problems unrelated to content sources
 // (database unavailable, auth init failure, etc.).
-func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, settingsService *api.SettingsService, contentTokenRepo api.ContentTokenRepository, stampedCfgProvider config.StampedConfigProvider) {
+func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, settingsService *api.SettingsService, contentTokenRepo api.ContentTokenRepository, stampedCfgProvider config.StampedConfigProvider, extractionPublisher *api.ExtractionPublisher) {
 	logger := slogging.Get()
 
 	logger.Info("==== PHASE 6: Wiring Timmy AI assistant (DB-backed runtime config) ====")
@@ -1232,6 +1249,19 @@ func initializeTimmySubsystem(cfg *config.Config, apiServer *api.Server, setting
 			apiServer.SetContentSourceRegistry(b.Sources)
 		}
 	})
+
+	// Async-extraction rebuild hook: each newly-built AccessPoller receives the
+	// publisher + decider so it routes through the worker pipeline when
+	// extraction.async_enabled is on. Guarded on extractionPublisher != nil so
+	// the poller keeps its current inline-only behaviour when NATS is absent.
+	if extractionPublisher != nil {
+		csHolder.AddRebuildHook(func(b *api.ContentSourceBundle) {
+			if b.Poller != nil {
+				b.Poller.SetAsyncExtraction(extractionPublisher, apiServer.UseAsyncExtraction)
+			}
+		})
+		logger.Info("async extraction publisher wired into access poller rebuild hook")
+	}
 
 	apiServer.SetContentSourceHolder(csHolder)
 	apiServer.SetContentPickerConfigs(buildBrowserPickerConfigs(cfg, logger))

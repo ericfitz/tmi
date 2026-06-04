@@ -14,10 +14,14 @@ type AccessPoller struct {
 	documentStore DocumentRepository
 	pipeline      *ContentPipeline      // optional; when set, attempts extraction on accessible transition
 	linkedChecker LinkedProviderChecker // optional; when nil, picker-aware dispatch falls back to URL-based
-	interval      time.Duration
-	maxAge        time.Duration
-	stopCh        chan struct{}
-	stopOnce      sync.Once // ensures Stop is idempotent (no double-close panic)
+	// Async extraction collaborators (Task 8 / Plan 3 of #347). Both must be
+	// non-nil and asyncDecider must return true for the async path to activate.
+	publisher    *ExtractionPublisher
+	asyncDecider func(ctx context.Context) bool
+	interval     time.Duration
+	maxAge       time.Duration
+	stopCh       chan struct{}
+	stopOnce     sync.Once // ensures Stop is idempotent (no double-close panic)
 }
 
 // NewAccessPoller creates a new background access poller.
@@ -59,6 +63,19 @@ func (p *AccessPoller) SetLinkedProviderChecker(c LinkedProviderChecker) {
 // Lifecycle: same as SetLinkedProviderChecker; must be called BEFORE Start.
 func (p *AccessPoller) SetContentPipeline(pipeline *ContentPipeline) {
 	p.pipeline = pipeline
+}
+
+// SetAsyncExtraction injects the async extraction publisher and decider into
+// the poller. When the decider returns true AND publisher is non-nil, pollOnce
+// routes extraction through the worker pipeline (fetch bytes + publish job)
+// instead of running inline extraction. The document is left in pending_access;
+// the result-consumer transitions it to accessible when the worker completes.
+//
+// Pass nil publisher or a nil decider to keep the inline path.
+// Lifecycle: must be called BEFORE Start.
+func (p *AccessPoller) SetAsyncExtraction(publisher *ExtractionPublisher, decider func(context.Context) bool) {
+	p.publisher = publisher
+	p.asyncDecider = decider
 }
 
 // Start begins the background polling loop.
@@ -146,19 +163,46 @@ func (p *AccessPoller) pollOnce() {
 
 		if accessible {
 			logger.Info("AccessPoller: document %s is now accessible", doc.Id)
-			// If a content pipeline is wired, attempt extraction so that any
-			// failure (limit tripped, malformed input, timeout) is classified
-			// and persisted as extraction_failed with a stable reason code.
-			// On success, clear any prior diagnostic by writing accessible.
+
+			// Async extraction path (Plan 3 of #347): when the flag is on AND a
+			// publisher is wired, fetch raw bytes and submit to the worker pipeline.
+			// The document stays in pending_access; the result-consumer transitions
+			// it to accessible once the worker completes. On any fetch/publish error
+			// we fall through to the inline path so extraction is never silently
+			// dropped.
+			if p.pipeline != nil && p.publisher != nil && p.asyncDecider != nil && p.asyncDecider(ctx) {
+				data, contentType, fetchErr := p.pipeline.FetchForPublish(ctx, doc.Uri)
+				if fetchErr == nil {
+					if jobID, pubErr := p.publisher.Publish(ctx, ExtractionRequest{
+						DocumentID:  doc.Id.String(),
+						ContentType: contentType,
+						Bytes:       data,
+					}); pubErr == nil {
+						logger.Info("AccessPoller: async extraction job %s published for document %s", jobID, doc.Id)
+						continue // leave status pending_access; result-consumer finishes it
+					} else {
+						logger.Warn("AccessPoller: async publish failed for %s, falling back to inline: %v", doc.Id, pubErr)
+					}
+				} else {
+					logger.Warn("AccessPoller: fetch-for-publish failed for %s, falling back to inline: %v", doc.Id, fetchErr)
+				}
+			}
+
+			// Inline extraction path: if a content pipeline is wired, attempt
+			// extraction so that any failure (limit tripped, malformed input,
+			// timeout) is classified and persisted as extraction_failed with a
+			// stable reason code. On success, clear any prior diagnostic by
+			// writing accessible.
+			//
+			// pollOnce intentionally calls Extract with context.Background()
+			// (no user ID). The pipeline's per-user concurrency limiter is
+			// therefore bypassed, which is correct: the poller is
+			// single-threaded and processes documents sequentially, so
+			// there is no concurrent extraction to gate. If this code is
+			// ever parallelized for throughput, a "system" user ID (or a
+			// separate system-wide limiter) should be introduced to keep
+			// the cap honest.
 			if p.pipeline != nil {
-				// pollOnce intentionally calls Extract with context.Background()
-				// (no user ID). The pipeline's per-user concurrency limiter is
-				// therefore bypassed, which is correct: the poller is
-				// single-threaded and processes documents sequentially, so
-				// there is no concurrent extraction to gate. If this code is
-				// ever parallelized for throughput, a "system" user ID (or a
-				// separate system-wide limiter) should be introduced to keep
-				// the cap honest.
 				if _, extErr := p.pipeline.ExtractForDocument(ctx, doc); extErr != nil {
 					classified := ClassifyExtractionError(extErr)
 					contentSource := src.Name()
