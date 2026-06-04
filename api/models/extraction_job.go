@@ -25,7 +25,14 @@ const (
 // has no database-level foreign key, so a document deleted mid-job does not
 // cause a constraint violation; the result-consumer tolerates the missing row.
 type ExtractionJob struct {
-	JobID       DBVarchar         `gorm:"column:job_id;primaryKey;not null;size:36"`
+	JobID DBVarchar `gorm:"column:job_id;primaryKey;not null;size:36"`
+	// DocumentRef is the document being extracted. NOT NULL with no DB-level FK.
+	// On the bare-upsert-insert path (a terminal result arriving with no prior
+	// queued row) the real ref is unknown and the non-empty sentinel
+	// "__unknown__" (unknownDocumentRef in api/extraction_job_store.go) is
+	// written instead — an empty string is indistinguishable from NULL on
+	// Oracle and would violate NOT NULL (ORA-01400). Any query that filters on
+	// document_ref must exclude the sentinel.
 	DocumentRef DBVarchar         `gorm:"column:document_ref;size:36;not null;index:idx_extraction_jobs_doc"`
 	Status      DBVarchar         `gorm:"column:status;size:32;not null;default:queued"`
 	ReasonCode  NullableDBVarchar `gorm:"column:reason_code;size:64"`

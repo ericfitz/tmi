@@ -26,6 +26,11 @@ func NewExtractionJobStore(db *gorm.DB) *ExtractionJobStore {
 // is left unchanged (OnConflict DoNothing). Portable across PG and Oracle.
 // Uses Col()/ColumnName() so the Oracle GORM driver receives uppercase column
 // identifiers when emitting MERGE INTO.
+//
+// Oracle note: with OnConflict the gorm-oracle driver emits MERGE INTO, not
+// INSERT ... RETURNING. RETURNING-from-MERGE is fragile, so the store methods
+// must not rely on struct fields populated by Create after the call — re-read
+// via GetDocumentRef instead.
 func (s *ExtractionJobStore) InsertQueued(ctx context.Context, jobID, documentRef string) error {
 	dialect := s.db.Name()
 	row := models.ExtractionJob{
