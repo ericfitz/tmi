@@ -222,13 +222,21 @@ func (h *Handlers) readStepUpJWT(c *gin.Context) (string, bool) {
 	return "", false
 }
 
-// providerConfig returns the OAuthProviderConfig for the given providerID
-// from the in-memory configuration. Used by step-up to classify strength.
+// providerConfig returns the OAuthProviderConfig for the given providerID.
+// Used by step-up to classify strength. It must resolve from the same source
+// as getProviderWithContext — the DB-backed registry when wired, falling back
+// to the YAML snapshot otherwise — so a provider that getProviderWithContext
+// accepted is not then falsely rejected here (which previously surfaced as a
+// 500 on /oauth2/step_up, e.g. for the runtime-registered "tmi" dev provider).
 func (h *Handlers) providerConfig(providerID string) (OAuthProviderConfig, error) {
-	for _, cfg := range h.config.OAuth.Providers {
-		if cfg.ID == providerID {
+	if h.registry != nil {
+		if cfg, ok := h.registry.GetOAuthProvider(providerID); ok {
 			return cfg, nil
 		}
+		return OAuthProviderConfig{}, fmt.Errorf("provider %q not found", providerID)
+	}
+	if cfg, ok := h.config.OAuth.Providers[providerID]; ok {
+		return cfg, nil
 	}
 	return OAuthProviderConfig{}, fmt.Errorf("provider %q not found", providerID)
 }

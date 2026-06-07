@@ -86,6 +86,12 @@ type stepUpHarnessConfig struct {
 	auditWriter SystemAuditWriter
 	// Cookie options. Default Enabled=true.
 	cookieOpts CookieOptions
+	// registryOnlyProviders are wired into a DefaultProviderRegistry but
+	// deliberately omitted from the static config.OAuth.Providers map. This
+	// reproduces the production divergence where a provider (e.g. the
+	// runtime-registered "tmi" dev provider) is resolvable via the registry
+	// but not the YAML snapshot. When non-empty, the harness sets a registry.
+	registryOnlyProviders map[string]OAuthProviderConfig
 }
 
 // withProvider sets the providers map to contain only this provider entry.
@@ -121,6 +127,20 @@ func withJWTIdentity(provider, email, name string) stepUpHarnessOpt {
 
 func withAuditWriter(w SystemAuditWriter) stepUpHarnessOpt {
 	return func(c *stepUpHarnessConfig) { c.auditWriter = w }
+}
+
+// withRegistryOnlyProvider wires a provider into the DefaultProviderRegistry
+// while leaving it out of the static config.OAuth.Providers map. This models
+// the runtime-registered "tmi" dev provider, which getProviderWithContext
+// resolves from the registry but providerConfig (pre-fix) could not find in
+// the YAML snapshot — previously a 500 on /oauth2/step_up.
+func withRegistryOnlyProvider(id string, cfg OAuthProviderConfig) stepUpHarnessOpt {
+	return func(c *stepUpHarnessConfig) {
+		if c.registryOnlyProviders == nil {
+			c.registryOnlyProviders = map[string]OAuthProviderConfig{}
+		}
+		c.registryOnlyProviders[id] = cfg
+	}
 }
 
 func strongProviderConfig() OAuthProviderConfig {
@@ -240,6 +260,24 @@ func newStepUpTestHarness(t *testing.T, opts ...stepUpHarnessOpt) *stepUpTestHar
 		cookieOpts:    cfg.cookieOpts,
 	}
 
+	// Wire a registry when the test asked for registry-only providers. The
+	// registry's config source includes BOTH the static providers and the
+	// registry-only ones, mirroring production where getProviderWithContext
+	// resolves via the registry. The static config.OAuth.Providers map keeps
+	// only cfg.providers, so a registry-only provider is absent from it.
+	if len(cfg.registryOnlyProviders) > 0 {
+		registryProviders := make(map[string]OAuthProviderConfig, len(cfg.providers)+len(cfg.registryOnlyProviders))
+		for k, v := range cfg.providers {
+			registryProviders[k] = v
+		}
+		for k, v := range cfg.registryOnlyProviders {
+			registryProviders[k] = v
+		}
+		registry := NewDefaultProviderRegistry(registryProviders, nil, &mockSettingsReader{})
+		h.SetProviderRegistry(registry)
+		svc.SetProviderRegistry(registry)
+	}
+
 	// Mint the test JWT. If a custom subject was requested, build the JWT
 	// directly via the key manager so the Subject claim is whatever the test
 	// asked for (cannot use GenerateTokensWithUserInfo, which derives Subject
@@ -316,6 +354,49 @@ func TestStepUp_StrongProvider_Returns302WithPromptLogin(t *testing.T) {
 	if !strings.Contains(loc, "accounts.google.com") {
 		t.Errorf("Location should be absolute upstream URL: %s", loc)
 	}
+}
+
+// TestStepUp_RegistryOnlyProvider_NoFalse500 is the regression test for the
+// /oauth2/step_up 500 found by CATS fuzzing. The handler resolved the provider
+// twice: getProviderWithContext via the DB-backed registry (which knew the
+// runtime-registered provider) and providerConfig via the static YAML snapshot
+// (which did not). The mismatch caused providerConfig to fail and the handler
+// to return 500 server_error — even for a valid HappyPath request. After the
+// fix, providerConfig resolves from the same registry, so a registry-only
+// strong provider follows the normal strong path (302 redirect upstream) and
+// never returns 500.
+func TestStepUp_RegistryOnlyProvider_NoFalse500(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// "tmi" models the dev provider registered at runtime via the registry but
+	// absent from config.OAuth.Providers. Strong so the happy path redirects.
+	tmiProvider := strongProviderConfig()
+	tmiProvider.ID = "tmi"
+	tmiProvider.Name = "TMI"
+
+	h := newStepUpTestHarness(t,
+		// Static config has NO providers; the only provider lives in the registry.
+		withProvider("placeholder-unused", OAuthProviderConfig{ID: "placeholder-unused"}),
+		withRegistryOnlyProvider("tmi", tmiProvider),
+		withJWTIdentity("tmi", "alice@tmi.local", "Alice (TMI User)"),
+	)
+	defer h.cleanup()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET",
+		"/oauth2/step_up?client_callback=http%3A%2F%2Flocalhost%3A4200%2Fcallback&code_challenge=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk&code_challenge_method=S256",
+		nil)
+	c.Request.Header.Set("Authorization", "Bearer "+h.testJWT)
+
+	h.handlers.StepUp(c)
+
+	// The core assertion: the registry/config divergence must NOT surface as 500.
+	require.NotEqual(t, http.StatusInternalServerError, w.Code,
+		"registry-only provider must not yield a 500; body=%s", w.Body.String())
+	// A strong registry-only provider should follow the normal strong path.
+	require.Equal(t, http.StatusFound, w.Code, "body=%s", w.Body.String())
+	require.Contains(t, w.Header().Get("Location"), "prompt=login")
 }
 
 func TestStepUp_MissingJWT_Returns401(t *testing.T) {
