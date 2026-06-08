@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 TMI is a Go-based service implementing the REST API and store for managing a security review process, from request (intake) through analysis and followup. The review process focuses on a threat modeling approach, with collaborative data flow diagram creation and artifacts that can be created, read or updated by either machines or humans, interchangeably. The application is designed to be easy to integrate with and extend without having to make code modifications. The REST API is an instantiation of a protocol defined in an OpenAPI 3 protocol specification; the specification is the source of truth. Real-time collaborative diagram editing is implemented via WebSockets; the WS protocol is authoritatively defined in an AsyncAPI specification. The Application features OAuth or SAML authentication with JWT, role-based access control with roles assigned to users or groups, and persistent database stores implemented via a GORM interface.
 
+## Related Projects
+
+TMI has several sibling projects. When you need to read files from or interact with these projects, check `.local-projects.json` in the project root for local filesystem paths before fetching from GitHub. This file is gitignored (local to each developer's machine).
+
 ## Key Files
 
 - api-schema/tmi-openapi.json - OpenAPI specification
@@ -21,8 +25,8 @@ TMI is a Go-based service implementing the REST API and store for managing a sec
 
 - `api/` - API handlers, server implementation, and storage
 - `auth/` - Authentication service with OAuth, JWT, and RBAC
-- `cmd/` - Command-line executables (server, migrate, cats-seed)
-- `internal/` - Internal packages (logging, dbschema)
+- `cmd/` - Command-line executables (server, migrate, dbtool, plus worker/extraction subsystem: chunkembed, extractor, component-controller, worker-probe; and config generators genconfig/genconfigdocs)
+- `internal/` - Internal packages (slogging, config, crypto, dberrors, dbschema, otel, platform, worker, secrets, ...)
 - `docs/` - Legacy documentation (deprecated - see Documentation section below)
 - `scripts/` - Development setup scripts
 
@@ -49,11 +53,12 @@ TMI is a Go-based service implementing the REST API and store for managing a sec
 
 - PostgreSQL for persistent storage (configured via auth/ package)
 - Redis for caching and session management
-- Database migrations in auth/migrations/
+- Schema is managed by GORM `AutoMigrate()`, driven by struct tags in `api/models/*.go` (single source of truth)
 - Dual-mode storage: in-memory for tests, database-backed for dev/prod
 - Redis-backed caching with invalidation, warming, and metrics (api/cache_service.go)
 - Automatic cache invalidation on resource updates
 - Cache metrics tracking (hits, misses, size monitoring)
+- **Oracle ADB is a supported production target.** Any DB-touching change must be reviewed by the `oracle-db-admin` subagent before completion (see "Oracle Database Compatibility Review" below).
 
 ### OpenAPI Integration & Code Generation
 
@@ -150,7 +155,7 @@ Arazzo specification (OpenAPI Initiative) documents API workflow sequences and d
 
 - **Database Reset**: `make reset-db-heroku` - Drop and recreate Heroku database schema (DESTRUCTIVE)
   - Script location: `scripts/heroku-reset-database.sh`
-  - Documentation: `docs/operator/heroku-database-reset.md`
+  - Script: `scripts/heroku-reset-database.sh` (see GitHub Wiki for operator docs)
   - **WARNING**: Deletes all data - requires manual "yes" confirmation
   - Use cases: Schema out of sync, migration errors, clean deployment testing
   - Performs three steps: Drop schema -> Run migrations -> Verify schema
@@ -194,7 +199,7 @@ CATS performs security fuzzing of the TMI API with automatic OAuth authenticatio
 
 OAuth 2.0 testing harness with PKCE (RFC 7636) support for manual and automated flows. Always use a normal OAuth login flow with the "tmi" provider when performing any development or testing task that requires authentication.
 
-- **Start**: `make start-oauth-stub` | **Stop**: `make oauth-stub-stop`
+- **Start**: `make start-oauth-stub` | **Stop**: `make stop-oauth-stub`
 - **Location**: `scripts/oauth-client-callback-stub.py`
 - **Logs**: `/tmp/oauth-stub.log`
 
@@ -278,6 +283,10 @@ curl -X POST http://localhost:8080/oauth2/token \
 
 **Security**: Client ID format `tmi_cc_*`, bcrypt-hashed secrets, 1-hour token lifetime, JWT subject `sa:{id}:{owner}`.
 
+## Bump Exclusions
+
+- `github.com/golang/protobuf` — deprecated transitive dependency, cannot pin in go.mod (go mod tidy removes it), ignored in Dependabot
+
 ## Development Guidelines
 
 **MANDATORY: Always use Make targets - NEVER run commands directly**
@@ -327,10 +336,28 @@ When completing any task involving code changes, follow this checklist:
    - Run `make test-unit` and fix any test failures
    - For API functionality, also run `make test-integration`
 4. Build and test steps are NOT required when only non-Go files are modified
-5. Suggest a conventional commit message
-6. If the task is associated with a GitHub issue, the task is NOT complete until:
+5. **If any database-touching code was modified** (migrations, GORM models/tags, `*_repository.go`, `*_store_gorm.go`, raw SQL, transaction/locking patterns, FKs/cascades, JSON/CLOB handling, retry logic, `internal/dberrors/`, schema-affecting config), invoke the `oracle-db-admin` skill and dispatch the subagent. Address every BLOCKING finding before proceeding; fold APPROVED WITH NOTES items into the change or file follow-up issues.
+6. Database utilities (cmd/dbtool/) MUST be updated whenever there is a schema change, to align with the new schema
+7. Suggest a conventional commit message
+8. If the task is associated with a GitHub issue, the task is NOT complete until:
    - The commit that resolves the issue references the issue (e.g., `Fixes #123` or `Closes #123` in the commit message body)
-   - The issue is closed as "done"
+   - The issue is closed as "done". This requires manually closing the issue if the commit was not directly to main.
+
+### Oracle Database Compatibility Review
+
+TMI runs against PostgreSQL in development and Oracle Autonomous Database (ADB) in production. The two databases diverge in many subtle ways (cascade semantics, identifier limits, type system, error codes, isolation behavior, upsert syntax, etc.) and bugs that only show up on Oracle are expensive to find and expensive to fix.
+
+To prevent that, any change that can affect Oracle must be reviewed by the **`oracle-db-admin` subagent** before the task is marked complete. The subagent is a deep Oracle subject-matter expert that walks the change against an Oracle-vs-PG checklist and returns one of three verdicts: `APPROVED`, `APPROVED WITH NOTES`, or `BLOCKING ISSUES`.
+
+- **Trigger skill:** `oracle-db-admin` — invoke this skill when DB code changes; it explains when and how to dispatch the subagent.
+- **Subagent definition:** `.claude/agents/oracle-db-admin.md` — the deep expertise lives here.
+- **What counts as a DB change:** see the trigger skill's "When to dispatch" table. When in doubt, dispatch — the cost is low and the cost of a missed Oracle bug is high.
+- **How to act on the verdict:**
+  - `APPROVED`: proceed; note the verdict in the end-of-task summary.
+  - `APPROVED WITH NOTES`: read the notes; fix what's easy now, file follow-ups for the rest.
+  - `BLOCKING ISSUES`: fix every blocking item (or get the user to explicitly waive it with reasoning) before completing the task. Do not argue with findings in your own head — the subagent is the Oracle expert; if a finding seems wrong, ask the user to adjudicate.
+
+We will eventually have to fix any Oracle bug we ship. Listening to the subagent's feedback the first time is the cheap path.
 
 ### Go Style Guidelines
 
@@ -354,6 +381,38 @@ When completing any task involving code changes, follow this checklist:
 - JSON Patch for partial updates
 - WebSocket for real-time collaboration
 - Pagination with limit/offset parameters
+
+### URL Pattern Guidelines
+
+TMI uses five URL pattern categories. When adding a new API resource, apply these criteria in order:
+
+| Pattern                   | Authorization Model                      | Example                                       | When to Use                                                   |
+| ------------------------- | ---------------------------------------- | --------------------------------------------- | ------------------------------------------------------------- |
+| **Resource-hierarchical** | Ownership-based (readers/writers/owners) | `/threat_models/{id}/assets/{id}`             | Access controlled by parent resource ownership                |
+| **Domain-segregated**     | Workflow-stage-based                     | `/admin/surveys/{id}`, `/intake/surveys/{id}` | Same resource needs different capabilities per workflow stage |
+| **User-scoped**           | Current authenticated user               | `/me/preferences`                             | Personal resources for the requesting user                    |
+| **Cross-cutting**         | Mixed (ownership + admin)                | `/projects/{id}`, `/addons/{id}`              | Top-level resources not nested under threat models            |
+| **Protocol**              | Per RFC specification                    | `/oauth2/token`, `/.well-known/jwks.json`     | Auth/identity endpoints defined by external standards         |
+
+**Selection criteria (apply in order):**
+
+1. Auth/identity protocol endpoint? → **Protocol** (follow RFC for URL structure)
+2. Personal resource scoped to current user? → **User-scoped** under `/me/`
+3. Resource has a parent that controls access? → **Resource-hierarchical** (nest under parent)
+4. Multi-stage workflow with different role capabilities? → **Domain-segregated** (default to `/admin/`, `/intake/`, `/triage/`; new prefix only when workflow doesn't fit)
+5. Top-level resource with own access control? → **Cross-cutting** at root level
+
+**Key question:** Does authorization flow from a parent entity (resource-hierarchical) or from the workflow context (domain-segregated)?
+
+**Naming conventions:**
+
+- TMI-defined path segments: `snake_case` (e.g., `threat_models`, `audit_trail`)
+- RFC-mandated path segments: `kebab-case` (e.g., `openid-configuration`) — under `/.well-known/` only
+- Schema names: `PascalCase`
+- JSON properties: `snake_case`
+- Operation IDs: `camelCase`
+- Path/query parameters: `snake_case`
+- Tag names: `Title Case`
 
 ### Logging Requirements
 
@@ -406,7 +465,7 @@ TMI uses automatic semantic versioning (0.MINOR.PATCH) based on conventional com
 - **Version file**: `.version` (JSON) tracks current state
 - **Script**: `scripts/update-version.sh --commit` (automatically called by post-commit hook)
 
-Version updates are fully automated. All feature development occurs in release/<semver-rc.0>/<feature-name> branches; those branches are not auto-versioned so that new features don't bump the semantic version multiple times during development of a single feature or release. The main branch only gets direct commits for patching, security fixes, and merging of release branches.
+Version updates are fully automated. All feature development occurs in dev/<semver>/<feature-name> branches or in feature/<feature-name> branches that are children of dev/<semver> branches; those branches are not auto-versioned so that new features don't bump the semantic version multiple times during development of a single feature or release. The main branch only gets direct commits for patching, security fixes, and merging of release branches.
 
 ## Custom Tools
 
@@ -430,12 +489,12 @@ When working with JSON files **larger than 100KB**, use streaming approaches wit
 
 ## Development Environment
 
-- Copy `.env.example` to `.env.dev` for local development
+- Local dev config lives in `.env.dev` (env vars) and `config-development.yaml`; `config-example.yml` (generated by `cmd/genconfig`) is the annotated template
 - Uses PostgreSQL and Redis Docker containers
 - Development scripts handle container management automatically
 - Server runs on port 8080 by default with configurable TLS support
 - Logs: In development and test, logs are written to `logs/tmi.log` in the project directory
-- **Local dev database credentials**: Connection info (including database URL with user, password, host, port, and database name) is in `config-development.yml` in the project root under the `database.url` key
+- **Local dev database credentials**: Postgres connection info is in `config-development.yaml` under `database.postgres.{host,port,user,password,database}` (also mirrored as `POSTGRES_*` in `.env.dev`)
 
 ## Documentation
 
