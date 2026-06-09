@@ -73,6 +73,7 @@ type Server struct {
 	extractionNATS *worker.Conn
 	extractionJobs *ExtractionJobStore
 	resultConsumer *ResultConsumer
+	dlqProducer    *DLQProducer
 	// Provider registry for cache invalidation from settings handlers
 	providerRegistry auth.ProviderRegistry
 	// Ticket store for WebSocket authentication
@@ -311,6 +312,18 @@ func (s *Server) SetResultConsumer(rc *ResultConsumer) { s.resultConsumer = rc }
 func (s *Server) StopResultConsumer() {
 	if s.resultConsumer != nil {
 		s.resultConsumer.Stop()
+	}
+}
+
+// SetDLQProducer injects the dead-letter producer for orderly shutdown. The
+// producer must already have been started.
+func (s *Server) SetDLQProducer(p *DLQProducer) { s.dlqProducer = p }
+
+// StopDLQProducer gracefully stops the DLQ producer if one is wired. Safe to
+// call when none is set (no-op). Call before CloseExtractionNATS.
+func (s *Server) StopDLQProducer() {
+	if s.dlqProducer != nil {
+		s.dlqProducer.Stop()
 	}
 }
 

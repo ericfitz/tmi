@@ -1016,6 +1016,17 @@ func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) *api.ExtractionP
 	apiServer.SetExtractionJobStore(jobStore)
 	logger.Info("async extraction pipeline connected to NATS")
 
+	// Start the DLQ producer first so the TMI_DLQ stream exists before the
+	// result-consumer binds it. Non-fatal on failure: dead-lettering is simply
+	// unavailable, and stuck rows still get the access-poller timeout backstop.
+	dlqProducer := api.NewDLQProducer(conn)
+	if dlqErr := dlqProducer.Start(context.Background()); dlqErr != nil {
+		logger.Warn("dlq-producer failed to start (non-fatal): %v", dlqErr)
+	} else {
+		apiServer.SetDLQProducer(dlqProducer)
+		logger.Info("dlq-producer started")
+	}
+
 	// Start the result-consumer. It uses context.Background() as its root;
 	// shutdown is handled by an explicit Stop() call before the NATS conn
 	// is closed. A missing TMI_RESULTS stream (stream not yet created by any
@@ -1996,6 +2007,9 @@ func runServer(cfg *config.Config) int {
 
 	// Stop the result-consumer before closing NATS so in-flight acks complete.
 	apiServer.StopResultConsumer()
+
+	// Stop the DLQ producer before closing NATS so in-flight acks complete.
+	apiServer.StopDLQProducer()
 
 	// Close the async extraction NATS connection (no-op when NATS was not configured).
 	apiServer.CloseExtractionNATS()
