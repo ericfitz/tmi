@@ -79,3 +79,19 @@ func TestHeartbeatSubject(t *testing.T) {
 		t.Errorf("HeartbeatSubject(%q) = %q; want %q", "tmi-extractor", got, want)
 	}
 }
+
+func TestDLQConstants(t *testing.T) {
+	if DLQStream != "TMI_DLQ" {
+		t.Errorf("DLQStream = %q; want %q", DLQStream, "TMI_DLQ")
+	}
+	if DLQAdvisoryStream != "TMI_DLQ_ADVISORY" {
+		t.Errorf("DLQAdvisoryStream = %q; want %q", DLQAdvisoryStream, "TMI_DLQ_ADVISORY")
+	}
+	if SubjectMaxDeliverAdvisory != "$JS.EVENT.ADVISORY.CONSUMER.MAX_DELIVERIES.>" {
+		t.Errorf("SubjectMaxDeliverAdvisory = %q; want %q",
+			SubjectMaxDeliverAdvisory, "$JS.EVENT.ADVISORY.CONSUMER.MAX_DELIVERIES.>")
+	}
+	if SubjectDLQ != "jobs.dlq" {
+		t.Errorf("SubjectDLQ = %q; want %q", SubjectDLQ, "jobs.dlq")
+	}
+}

@@ -24,6 +24,19 @@ const PayloadBucket = "TMI_PAYLOADS"
 // stream; the monolith result-consumer (Plan 3) and the workers both bind it.
 const ResultStream = "TMI_RESULTS"
 
+// DLQStream is the dead-letter JetStream stream bound to SubjectDLQ
+// ("jobs.dlq"). The monolith creates it, publishes dead-lettered Job
+// envelopes to it, and consumes from it (see api/dlq_producer.go and the
+// ResultConsumer DLQ subscription). It is not owned by any per-component
+// stream.
+const DLQStream = "TMI_DLQ"
+
+// DLQAdvisoryStream is the JetStream stream that durably captures
+// MAX_DELIVERIES consumer advisories so the monolith's DLQ producer survives
+// restarts (a plain core-NATS subscription would miss advisories fired while
+// the monolith is down).
+const DLQAdvisoryStream = "TMI_DLQ_ADVISORY"
+
 const (
 	// SubjectExtractPrefix is the NATS subject prefix for extraction job messages
 	// (e.g., "jobs.extract.<jobID>").
@@ -40,6 +53,12 @@ const (
 	// SubjectDLQ is the NATS subject for dead-letter-queue messages: jobs that
 	// have exhausted all delivery retries.
 	SubjectDLQ = "jobs.dlq"
+
+	// SubjectMaxDeliverAdvisory is the wildcard subject on which JetStream
+	// publishes a MAX_DELIVERIES advisory when a message exhausts a consumer's
+	// MaxDeliver. The concrete subject is
+	// "$JS.EVENT.ADVISORY.CONSUMER.MAX_DELIVERIES.<stream>.<consumer>".
+	SubjectMaxDeliverAdvisory = "$JS.EVENT.ADVISORY.CONSUMER.MAX_DELIVERIES.>"
 
 	// SubjectHeartbeatPrefix is the NATS subject prefix for component heartbeat
 	// messages (e.g., "components.heartbeat.<componentName>").
