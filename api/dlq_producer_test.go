@@ -38,6 +38,9 @@ func TestIsSelfReferentialStream(t *testing.T) {
 	if !isSelfReferentialStream(worker.DLQStream) {
 		t.Error("TMI_DLQ should be self-referential (skip)")
 	}
+	if !isSelfReferentialStream(worker.DLQAdvisoryStream) {
+		t.Error("TMI_DLQ_ADVISORY should be self-referential (skip)")
+	}
 	if isSelfReferentialStream("TMI_TMI_EXTRACTOR") {
 		t.Error("a per-component stream must not be self-referential")
 	}

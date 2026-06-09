@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -34,10 +35,13 @@ func parseMaxDeliverAdvisory(data []byte) (maxDeliverAdvisory, error) {
 }
 
 // isSelfReferentialStream reports whether advisories for the given source
-// stream must be ignored to avoid dead-letter loops: the result stream and
-// the DLQ stream are consumed by the monolith itself, never dead-lettered.
+// stream must be ignored to avoid dead-letter loops and wasted work: the
+// result stream, the DLQ stream, and the advisory-capture stream are all
+// consumed by the monolith itself and must never be dead-lettered.
 func isSelfReferentialStream(stream string) bool {
-	return stream == worker.ResultStream || stream == worker.DLQStream
+	return stream == worker.ResultStream ||
+		stream == worker.DLQStream ||
+		stream == worker.DLQAdvisoryStream
 }
 
 // decodeJobForDLQ decodes recovered source bytes as a Job envelope and returns
@@ -81,8 +85,13 @@ func (p *DLQProducer) ensureStreams(ctx context.Context) error {
 		Retention: jetstream.WorkQueuePolicy,
 		Storage:   jetstream.FileStorage,
 	}); err != nil {
-		return err
+		return fmt.Errorf("dlq-producer: ensure %s stream: %w", worker.DLQStream, err)
 	}
+	// NOTE: capturing $JS.EVENT.ADVISORY.* into a user stream works in
+	// single-account NATS (TMI's dev/default topology). In a multi-account
+	// (operator/JWT) NATS deployment, the system account must export these
+	// advisory subjects and the application account must import them, or this
+	// stream captures nothing. This is a production NATS operator precondition.
 	if _, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
 		Name:      worker.DLQAdvisoryStream,
 		Subjects:  []string{worker.SubjectMaxDeliverAdvisory},
@@ -90,7 +99,7 @@ func (p *DLQProducer) ensureStreams(ctx context.Context) error {
 		Storage:   jetstream.FileStorage,
 		MaxAge:    24 * time.Hour,
 	}); err != nil {
-		return err
+		return fmt.Errorf("dlq-producer: ensure %s stream: %w", worker.DLQAdvisoryStream, err)
 	}
 	return nil
 }
@@ -100,16 +109,18 @@ func (p *DLQProducer) ensureStreams(ctx context.Context) error {
 // It returns after the consumer is created. Call Stop to release resources.
 func (p *DLQProducer) Start(ctx context.Context) error {
 	logger := slogging.Get()
-	ctx, p.cancel = context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx)
 
 	if err := p.ensureStreams(ctx); err != nil {
+		cancel()
 		return err
 	}
 
 	js := p.conn.JetStream()
 	advStream, err := js.Stream(ctx, worker.DLQAdvisoryStream)
 	if err != nil {
-		return err
+		cancel()
+		return fmt.Errorf("dlq-producer: lookup advisory stream: %w", err)
 	}
 	cons, err := advStream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 		Durable:       "monolith-dlq-producer",
@@ -119,13 +130,16 @@ func (p *DLQProducer) Start(ctx context.Context) error {
 		MaxDeliver:    5,
 	})
 	if err != nil {
-		return err
+		cancel()
+		return fmt.Errorf("dlq-producer: create advisory consumer: %w", err)
 	}
 
 	cc, err := cons.Consume(p.makeCallback(ctx))
 	if err != nil {
-		return err
+		cancel()
+		return fmt.Errorf("dlq-producer: consume advisory stream: %w", err)
 	}
+	p.cancel = cancel
 	go func() {
 		<-ctx.Done()
 		cc.Stop()
