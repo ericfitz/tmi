@@ -776,11 +776,19 @@ stage-worker-docker-deps:  ## Stage tmi-client dependency for worker container b
 	cp -R "$$src" .docker-deps/tmi-client; \
 	echo "Staged tmi-client dependency: $$src -> .docker-deps/tmi-client"
 
-build-extractor-container: stage-worker-docker-deps  ## Build the tmi-extractor container image
+# Each container build stages the tmi-client dependency itself (as a recipe
+# step, NOT a shared prerequisite) so that building both in one `make`
+# invocation works: a prerequisite is satisfied only once per run, but each
+# recipe ends by removing .docker-deps, so a shared prerequisite would leave
+# the second build without its staged dependency. Staging per-recipe keeps
+# each target independent whether run alone or together.
+build-extractor-container:  ## Build the tmi-extractor container image
+	$(MAKE) stage-worker-docker-deps
 	docker build -f Dockerfile.extractor -t tmi-extractor:dev .
 	@rm -rf .docker-deps
 
-build-chunkembed-container: stage-worker-docker-deps  ## Build the tmi-chunk-embed container image
+build-chunkembed-container:  ## Build the tmi-chunk-embed container image
+	$(MAKE) stage-worker-docker-deps
 	docker build -f Dockerfile.chunkembed -t tmi-chunk-embed:dev .
 	@rm -rf .docker-deps
 
@@ -811,4 +819,34 @@ test-e2e-workers:  ## Build worker images, load into kind, deploy CRs, run the w
 			kill $$PF_PID 2>/dev/null; exit 1; \
 		fi; \
 		go test -tags e2e ./test/e2e/platform/ -run TestWorkersE2E -v; \
+		rc=$$?; kill $$PF_PID 2>/dev/null; exit $$rc
+
+.PHONY: test-e2e-build load-probe-image test-e2e-acceptance
+
+test-e2e-build:  ## Compile the e2e tests without running them (fast tag-build check)
+	go test -tags e2e -run xxxNONExxx -count=1 ./test/e2e/platform/ -o /dev/null -c
+
+load-probe-image:  ## Pull busybox and load it into kind for the egress/OOM probe pods
+	docker pull busybox:1.36
+	kind load docker-image busybox:1.36 --name tmi-platform
+
+test-e2e-acceptance: load-probe-image  ## Run the #347 Plan 4 acceptance suite (requires e2e-platform-up + controller + workers deployed)
+	@echo ">> assumes 'make e2e-platform-up', the controller, and 'make test-e2e-workers' (CRs deployed) have run"
+	kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/components/
+	@echo ">> port-forwarding NATS to localhost:4222 for the acceptance tests"
+	kubectl --context kind-tmi-platform -n tmi-platform port-forward svc/nats 4222:4222 & \
+		PF_PID=$$!; \
+		for i in $$(seq 1 60); do \
+			nc -z 127.0.0.1 4222 2>/dev/null && break; \
+			if ! kill -0 $$PF_PID 2>/dev/null; then \
+				echo "ERROR: port-forward exited before NATS became reachable" >&2; \
+				exit 1; \
+			fi; \
+			sleep 0.5; \
+		done; \
+		if ! nc -z 127.0.0.1 4222 2>/dev/null; then \
+			echo "ERROR: NATS not reachable on localhost:4222 after 30s" >&2; \
+			kill $$PF_PID 2>/dev/null; exit 1; \
+		fi; \
+		go test -tags e2e ./test/e2e/platform/ -run TestAcceptance -v -timeout 20m; \
 		rc=$$?; kill $$PF_PID 2>/dev/null; exit $$rc

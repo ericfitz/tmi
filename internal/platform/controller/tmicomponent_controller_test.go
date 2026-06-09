@@ -20,15 +20,38 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
-func TestReconcile_CreatesChildObjects(t *testing.T) {
-	// Locate the control-plane binaries fetched by setup-envtest.
-	if os.Getenv("KUBEBUILDER_ASSETS") == "" {
-		assets, _ := filepath.Abs("../../../bin/k8s")
-		entries, err := os.ReadDir(assets)
-		if err != nil || len(entries) == 0 {
-			t.Skip("envtest assets not found; run: setup-envtest use 1.30.0 --bin-dir ./bin/k8s")
+// findEnvtestAssetDir walks root and returns the directory containing the
+// `etcd` control-plane binary (the value KUBEBUILDER_ASSETS must point at), or
+// "" if no such binary is present under root.
+func findEnvtestAssetDir(root string) string {
+	var found string
+	_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || found != "" {
+			return nil //nolint:nilerr // skip unreadable entries; stop once found
 		}
-		if err := os.Setenv("KUBEBUILDER_ASSETS", filepath.Join(assets, entries[0].Name())); err != nil {
+		if !info.IsDir() && info.Name() == "etcd" {
+			found = filepath.Dir(path)
+		}
+		return nil
+	})
+	return found
+}
+
+func TestReconcile_CreatesChildObjects(t *testing.T) {
+	// Locate the control-plane binaries fetched by setup-envtest. `make
+	// test-platform` sets KUBEBUILDER_ASSETS directly; under `make test-unit`
+	// it is unset, so we search ./bin/k8s for the directory that actually
+	// contains the `etcd` binary (setup-envtest nests it under a
+	// version-os-arch subdir). If it cannot be located, skip — an envtest test
+	// without its control plane must skip, not hard-fail, or `make test-unit`
+	// breaks on every machine that has not run `make test-platform`.
+	if os.Getenv("KUBEBUILDER_ASSETS") == "" {
+		root, _ := filepath.Abs("../../../bin/k8s")
+		assets := findEnvtestAssetDir(root)
+		if assets == "" {
+			t.Skip("envtest assets not found; run `make test-platform` to fetch them via setup-envtest")
+		}
+		if err := os.Setenv("KUBEBUILDER_ASSETS", assets); err != nil {
 			t.Fatalf("set KUBEBUILDER_ASSETS: %v", err)
 		}
 	}
