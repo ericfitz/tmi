@@ -422,7 +422,9 @@ spec:
     - name: stub
       image: %s
       command: ["sh", "-c"]
-      args: ["while true; do printf 'HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok' | nc -l -p 8443 -q 1; done"]
+      # busybox httpd is a reliable persistent listener; a "nc -l" loop has a
+      # respawn gap that intermittently refuses the probe's connect.
+      args: ["echo ok > /tmp/index.html; httpd -f -p 8443 -h /tmp"]
 `, platformNS, stubLabelKey, stubLabelVal, probeImage)
 	applyStdin(t, stub)
 	defer func() {
