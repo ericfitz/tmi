@@ -40,14 +40,11 @@ type emitFunc func(ctx context.Context, eventType, documentID, threatModelID, ow
 // blob. It is safe to use concurrently; the JetStream callback is invoked
 // serially (single goroutine) by the nats.go library.
 //
-// DLQ note: SubjectDLQ ("jobs.dlq") is not bound to the TMI_RESULTS stream
-// (which only covers "jobs.result.>"). A separate DLQ JetStream stream and
-// consumer would be required to handle dead-lettered job envelopes. This is
-// tracked as a follow-up for a future plan iteration; in the meantime, any
-// message that exhausts redeliveries on the per-component stream will be
-// dropped by NATS (no DLQ stream yet) and the extraction_jobs row will remain
-// in "queued" state, which the access-poller's timeout logic can eventually
-// clean up.
+// DLQ note: the dead-letter path is now wired. The DLQ producer
+// (api/dlq_producer.go) republishes the original Job envelope of any job that
+// exhausted redelivery to SubjectDLQ ("jobs.dlq"); this consumer binds the
+// TMI_DLQ stream (see makeDLQCallback) and turns each dead-lettered Job into a
+// failed terminal transition.
 type ResultConsumer struct {
 	conn           *worker.Conn
 	jobs           terminalMarker
@@ -113,6 +110,19 @@ func (rc *ResultConsumer) handleResult(ctx context.Context, res jobenvelope.Resu
 	return nil
 }
 
+// synthesizeDLQResult builds the failed Result for a dead-lettered job. A
+// dead-lettered job is one whose worker exhausted redelivery without ever
+// publishing a result (e.g. it crashed mid-job), so we manufacture the
+// terminal failure here.
+func synthesizeDLQResult(job jobenvelope.Job) jobenvelope.Result {
+	return jobenvelope.Result{
+		JobID:        job.JobID,
+		Status:       jobenvelope.StatusFailed,
+		ReasonCode:   ReasonExtractionDeadLettered,
+		ReasonDetail: "worker exhausted redelivery (dead-letter)",
+	}
+}
+
 // Start subscribes to the TMI_RESULTS stream and begins processing result
 // messages in the background. It returns nil immediately after the JetStream
 // consumer is created; actual message processing happens in the consume
@@ -144,8 +154,8 @@ func (rc *ResultConsumer) Start(ctx context.Context) error {
 	}
 
 	// Create (or bind to) a durable consumer that filters to jobs.result.>
-	// only. The DLQ subject (jobs.dlq) is not bound to this stream; see the
-	// type-level comment for the follow-up note.
+	// only. The dead-letter subject is handled by a separate consumer on the
+	// TMI_DLQ stream, added below.
 	cons, err := stream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 		Durable:       "monolith-result-consumer",
 		FilterSubject: worker.SubjectResultPrefix + ">",
@@ -168,6 +178,38 @@ func (rc *ResultConsumer) Start(ctx context.Context) error {
 		cc.Stop()
 		logger.Info("result-consumer: shut down")
 	}()
+
+	// Also consume the dead-letter stream. Each message there is the original
+	// Job envelope (republished by the DLQ producer), not a Result; the DLQ
+	// callback synthesizes a failed Result and reuses handleResult. Bind
+	// skip-if-absent, mirroring the TMI_RESULTS handling above.
+	if dlqStream, derr := js.Stream(ctx, worker.DLQStream); derr != nil {
+		if errors.Is(derr, jetstream.ErrStreamNotFound) {
+			logger.Warn("result-consumer: stream %s not found; dead-letter processing unavailable until the DLQ producer creates it", worker.DLQStream)
+		} else {
+			return derr
+		}
+	} else {
+		dlqCons, derr := dlqStream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
+			Durable:       "monolith-dlq-consumer",
+			FilterSubject: worker.SubjectDLQ,
+			AckPolicy:     jetstream.AckExplicitPolicy,
+			AckWait:       30 * time.Second,
+			MaxDeliver:    5,
+		})
+		if derr != nil {
+			return derr
+		}
+		dcc, derr := dlqCons.Consume(rc.makeDLQCallback(ctx))
+		if derr != nil {
+			return derr
+		}
+		go func() {
+			<-ctx.Done()
+			dcc.Stop()
+		}()
+		logger.Info("result-consumer: subscribed to %s/%s", worker.DLQStream, worker.SubjectDLQ)
+	}
 
 	logger.Info("result-consumer: subscribed to %s/%s", worker.ResultStream, worker.SubjectResultPrefix+">")
 	return nil
@@ -199,6 +241,46 @@ func (rc *ResultConsumer) makeCallback(ctx context.Context) func(jetstream.Msg) 
 			logger.Warn("result-consumer: transient failure for job %s: %v — redelivering", res.JobID, err)
 			_ = msg.Nak()
 			return
+		}
+
+		_ = msg.Ack()
+	}
+}
+
+// makeDLQCallback returns the handler for dead-letter messages. The payload is
+// the original Job envelope; the handler synthesizes a failed Result, runs the
+// shared handleResult, and additionally deletes the crashed job's orphaned
+// input blob (handleResult only cleans Output.ResultRef, which is empty for a
+// synthesized DLQ result). It MUST NOT panic.
+func (rc *ResultConsumer) makeDLQCallback(ctx context.Context) func(jetstream.Msg) {
+	logger := slogging.Get()
+
+	return func(msg jetstream.Msg) {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error("result-consumer(dlq): panic on %s: %v — terminating", msg.Subject(), r)
+				_ = msg.Term()
+			}
+		}()
+
+		var job jobenvelope.Job
+		if err := json.Unmarshal(msg.Data(), &job); err != nil {
+			logger.Error("result-consumer(dlq): undecodable job on %s: %v — terminating", msg.Subject(), err)
+			_ = msg.Term()
+			return
+		}
+
+		if err := rc.handleResult(ctx, synthesizeDLQResult(job)); err != nil {
+			logger.Warn("result-consumer(dlq): transient failure for job %s: %v — redelivering", job.JobID, err)
+			_ = msg.Nak()
+			return
+		}
+
+		// Clean up the crashed job's orphaned input payload blob (best-effort).
+		if rc.blobs != nil && job.Input.ObjectRef != "" {
+			if err := rc.blobs.DeletePayload(ctx, job.Input.ObjectRef); err != nil {
+				logger.Warn("result-consumer(dlq): input blob cleanup for job %s failed: %v", job.JobID, err)
+			}
 		}
 
 		_ = msg.Ack()
