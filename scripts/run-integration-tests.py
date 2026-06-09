@@ -226,7 +226,31 @@ def run_oci(project_root: Path, log_path: str) -> int:
             check=False,
             cwd=str(project_root),
         )
-    return result.returncode
+    http_exit = result.returncode
+
+    # Oracle driver-level store tests (#441) open a direct gorm-oracle connection
+    # rather than talking to the running server over HTTP, so they need the
+    # gorm-oracle driver compiled in — the `oracle` build tag, CGO, and the
+    # Oracle Instant Client. The HTTP suite above is intentionally CGO-free, so
+    # run these in a dedicated invocation (matched by name suffix
+    # "OracleIntegration") instead of widening the whole suite's build tags.
+    log_info("Running oracle-tagged driver-level store tests against OCI ADB")
+    oracle_cmd = (
+        f"source '{oci_env_file}' && "
+        "LOGGING_IS_TEST=true "
+        "CGO_ENABLED=1 "
+        "go test -v -timeout=10m -tags oracle ./api/... -run OracleIntegration"
+    )
+    with open(log_path, "a") as fh:
+        oracle_result = subprocess.run(
+            ["bash", "-c", oracle_cmd],
+            stdout=fh,
+            stderr=subprocess.STDOUT,
+            check=False,
+            cwd=str(project_root),
+        )
+
+    return http_exit if http_exit != 0 else oracle_result.returncode
 
 
 def main() -> int:
