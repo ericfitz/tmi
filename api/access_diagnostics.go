@@ -36,6 +36,11 @@ const (
 	ReasonExtractionMalformed             = "extraction_malformed"
 	ReasonExtractionUnsupported           = "extraction_unsupported"
 	ReasonExtractionInternal              = "extraction_internal"
+	// ReasonExtractionDeadLettered is emitted when an extraction job's worker
+	// exhausted redelivery without ever publishing a result (e.g. the worker
+	// crashed/OOMed mid-job). The job was dead-lettered to jobs.dlq and the
+	// monolith marked it failed. Retry may succeed.
+	ReasonExtractionDeadLettered = "extraction_dead_lettered"
 )
 
 // Remediation actions for DocumentAccessDiagnostics.remediations[].action.
@@ -126,7 +131,7 @@ func BuildAccessDiagnostics(ctx BuilderContext) *AccessDiagnosticsDiag {
 			Action: RemediationRelinkAccount,
 			Params: map[string]interface{}{"provider_id": ctx.ProviderID},
 		})
-	case ReasonTokenTransientFailure, ReasonFetchError:
+	case ReasonTokenTransientFailure, ReasonFetchError, ReasonExtractionDeadLettered:
 		d.Remediations = append(d.Remediations, AccessRemediationDiag{
 			Action: RemediationRetry,
 			Params: map[string]interface{}{},
