@@ -8,12 +8,25 @@ spec:
   jobSubjects:
     - jobs.chunkembed.>
   inputMode: content-ref
-  # egress: allowlist — the worker reaches NATS and the embedding API host
-  # only. Replace the host below with the real embedding endpoint host.
   egress: allowlist
   allowlist:
-    hosts:
-      - api.openai.com
+    # DEFAULT: openInternet delegates host-exactness to your cloud egress
+    # firewall (AWS Network Firewall / Azure Firewall / GCP Cloud NGFW) or a
+    # managed-CNI FQDN policy. Metadata (169.254.169.254) is always denied and
+    # RFC1918 ranges are excepted (no in-cluster lateral movement).
+    #
+    # Note: openInternet renders an IPv4 0.0.0.0/0 rule only. Because the policy
+    # sets policyTypes: [Egress], all IPv6 egress is denied (fail-closed) — fine
+    # for IPv4 endpoints; an IPv6-only endpoint needs an explicit cidrs entry.
+    #
+    # HARDEN for production — replace openInternet with ONE of:
+    #   cidrs: ["<private-endpoint-subnet-CIDR>"]   # cloud MaaS via PrivateLink/PSC
+    #   clusterPeers: [{ podSelector: { app: <in-cluster-embedder> } }]
+    # and ensure a private DNS override resolves the endpoint host to the
+    # private IP (otherwise it resolves to the public IP and bypasses the
+    # private path).
+    openInternet: true
+    ports: [443]
   config:
     TMI_COMPONENT_NAME: tmi-chunk-embed
     TMI_NATS_URL: nats://nats.tmi-platform.svc:4222
