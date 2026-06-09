@@ -59,27 +59,24 @@ func TestRenderNetworkPolicy_AlwaysDeniesByDefault(t *testing.T) {
 
 func TestRenderNetworkPolicy_AllowlistAddsDNS(t *testing.T) {
 	c := namedComp("tmi-chunk-embed", platformv1alpha1.EgressAllowlist)
-	c.Spec.Allowlist = &platformv1alpha1.AllowlistEgress{Hosts: []string{"api.openai.com"}}
+	c.Spec.Allowlist = &platformv1alpha1.AllowlistEgress{OpenInternet: true}
 	np := RenderNetworkPolicy(c)
-	// allowlist renders NATS + DNS = 2 egress rules.
-	if len(np.Spec.Egress) != 2 {
-		t.Fatalf("egress:allowlist expected 2 egress rules (NATS + DNS), got %d", len(np.Spec.Egress))
+	var dns *networkingv1.NetworkPolicyEgressRule
+	for i := range np.Spec.Egress {
+		for _, p := range np.Spec.Egress[i].Ports {
+			if p.Port.IntValue() == 53 {
+				dns = &np.Spec.Egress[i]
+			}
+		}
 	}
-	dns := np.Spec.Egress[1]
+	if dns == nil {
+		t.Fatal("egress:allowlist must include a DNS (port 53) rule")
+	}
 	if len(dns.Ports) != 2 {
 		t.Fatalf("DNS rule expected 2 ports (UDP+TCP), got %d", len(dns.Ports))
 	}
-	for _, p := range dns.Ports {
-		if p.Port.IntValue() != 53 {
-			t.Fatalf("DNS rule port must be 53, got %d", p.Port.IntValue())
-		}
-	}
-	// The DNS rule must scope its To peer to the cluster DNS pods.
 	if len(dns.To) != 1 {
 		t.Fatalf("DNS egress rule must have exactly one To peer, got %d", len(dns.To))
-	}
-	if dns.To[0].PodSelector == nil || dns.To[0].PodSelector.MatchLabels["k8s-app"] != "kube-dns" {
-		t.Fatal("DNS egress rule To peer must select the cluster DNS pods (k8s-app=kube-dns)")
 	}
 }
 

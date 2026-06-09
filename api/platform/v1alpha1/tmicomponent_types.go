@@ -44,11 +44,47 @@ type SecretRef struct {
 	SecretKey string `json:"secretKey"`
 }
 
-// AllowlistEgress lists hosts a component with egress: allowlist may reach.
+// AllowlistEgress declares the server-side-enforceable egress targets for a
+// component with egress: allowlist. At least one of CIDRs, ClusterPeers, or
+// OpenInternet must be set (enforced by ValidateComponent). The cloud metadata
+// IP (169.254.169.254) is never reachable regardless of what is declared here.
 type AllowlistEgress struct {
-	// Hosts is the set of DNS names allowed for outbound traffic.
+	// CIDRs are stable destination ranges rendered as NetworkPolicy ipBlock
+	// egress rules. Use for an in-cluster VM, a cloud private-endpoint subnet,
+	// or a known API VIP. Validation rejects 0.0.0.0/0 and any range covering
+	// the metadata IP.
 	// +optional
-	Hosts []string `json:"hosts,omitempty"`
+	CIDRs []string `json:"cidrs,omitempty"`
+	// ClusterPeers are in-cluster destinations rendered as namespace/pod-selector
+	// egress rules (e.g. an in-cluster embedder Service's pods).
+	// +optional
+	ClusterPeers []ClusterPeer `json:"clusterPeers,omitempty"`
+	// OpenInternet, when true, renders broad egress (0.0.0.0/0 minus RFC1918 and
+	// minus the metadata IP) on the declared ports. Host-exactness is DELEGATED
+	// to operator infrastructure (cloud egress firewall / managed-CNI FQDN
+	// policy). The explicit escape hatch for a target that cannot be reduced to
+	// a CIDR (public-SaaS model APIs).
+	// +optional
+	OpenInternet bool `json:"openInternet,omitempty"`
+	// Ports the egress rules apply to. Defaults to TCP/443 when empty.
+	// +optional
+	Ports []int32 `json:"ports,omitempty"`
+}
+
+// ClusterPeer selects an in-cluster egress destination by namespace and pod
+// labels. At least one of NamespaceSelector / PodSelector must be set.
+type ClusterPeer struct {
+	// NamespaceSelector matches destination namespaces by label. When empty,
+	// the rule is not namespace-scoped (matches pods in any namespace by the
+	// PodSelector).
+	// +optional
+	NamespaceSelector map[string]string `json:"namespaceSelector,omitempty"`
+	// PodSelector matches destination pods by label.
+	// +optional
+	PodSelector map[string]string `json:"podSelector,omitempty"`
+	// Ports the rule applies to. Defaults to TCP/443 when empty.
+	// +optional
+	Ports []int32 `json:"ports,omitempty"`
 }
 
 // ScalingSpec configures the KEDA ScaledObject.

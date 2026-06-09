@@ -18,9 +18,17 @@ func ValidateComponent(c *platformv1alpha1.TMIComponent) error {
 			"a worker that fetches its own input requires egress")
 	}
 	if c.Spec.Egress == platformv1alpha1.EgressAllowlist {
-		if c.Spec.Allowlist == nil || len(c.Spec.Allowlist.Hosts) == 0 {
-			return fmt.Errorf("egress=allowlist requires spec.allowlist.hosts to be non-empty")
+		if err := validateAllowlist(c.Spec.Allowlist); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+// validateAllowlist is fully implemented in a later task.
+func validateAllowlist(a *platformv1alpha1.AllowlistEgress) error {
+	if a == nil || (len(a.CIDRs) == 0 && len(a.ClusterPeers) == 0 && !a.OpenInternet) {
+		return fmt.Errorf("egress=allowlist requires at least one of spec.allowlist.cidrs, clusterPeers, or openInternet")
 	}
 	return nil
 }

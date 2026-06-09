@@ -28,7 +28,7 @@ func TestValidateComponent_ContentRefWithNoneIsValid(t *testing.T) {
 	}
 }
 
-func TestValidateComponent_AllowlistRequiresHosts(t *testing.T) {
+func TestValidateComponent_AllowlistRequiresTarget(t *testing.T) {
 	c := comp(platformv1alpha1.EgressAllowlist, platformv1alpha1.InputContentRef)
 	err := ValidateComponent(c)
 	if err == nil {
@@ -40,16 +40,16 @@ func TestValidateComponent_SourceLocatorWithAllowlistIsValid(t *testing.T) {
 	// source-locator IS valid when egress is not "none" — a fetching
 	// worker with allowlist egress can reach its source.
 	c := comp(platformv1alpha1.EgressAllowlist, platformv1alpha1.InputSourceLocator)
-	c.Spec.Allowlist = &platformv1alpha1.AllowlistEgress{Hosts: []string{"git.example.com"}}
+	c.Spec.Allowlist = &platformv1alpha1.AllowlistEgress{OpenInternet: true}
 	if err := ValidateComponent(c); err != nil {
-		t.Fatalf("expected source-locator + egress:allowlist (with hosts) to be valid, got %v", err)
+		t.Fatalf("expected source-locator + egress:allowlist (with openInternet) to be valid, got %v", err)
 	}
 }
 
-func TestValidateComponent_AllowlistWithHostsIsValid(t *testing.T) {
+func TestValidateComponent_AllowlistWithOpenInternetIsValid(t *testing.T) {
 	c := comp(platformv1alpha1.EgressAllowlist, platformv1alpha1.InputContentRef)
-	c.Spec.Allowlist = &platformv1alpha1.AllowlistEgress{Hosts: []string{"api.openai.com"}}
+	c.Spec.Allowlist = &platformv1alpha1.AllowlistEgress{OpenInternet: true}
 	if err := ValidateComponent(c); err != nil {
-		t.Fatalf("expected egress:allowlist with hosts to be valid, got %v", err)
+		t.Fatalf("expected egress:allowlist with openInternet to be valid, got %v", err)
 	}
 }

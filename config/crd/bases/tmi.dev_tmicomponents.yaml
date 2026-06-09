@@ -52,11 +52,60 @@ spec:
                 description: Allowlist is required when Egress is "allowlist", ignored
                   otherwise.
                 properties:
-                  hosts:
-                    description: Hosts is the set of DNS names allowed for outbound
-                      traffic.
+                  cidrs:
+                    description: |-
+                      CIDRs are stable destination ranges rendered as NetworkPolicy ipBlock
+                      egress rules. Use for an in-cluster VM, a cloud private-endpoint subnet,
+                      or a known API VIP. Validation rejects 0.0.0.0/0 and any range covering
+                      the metadata IP.
                     items:
                       type: string
+                    type: array
+                  clusterPeers:
+                    description: |-
+                      ClusterPeers are in-cluster destinations rendered as namespace/pod-selector
+                      egress rules (e.g. an in-cluster embedder Service's pods).
+                    items:
+                      description: |-
+                        ClusterPeer selects an in-cluster egress destination by namespace and pod
+                        labels. At least one of NamespaceSelector / PodSelector must be set.
+                      properties:
+                        namespaceSelector:
+                          additionalProperties:
+                            type: string
+                          description: |-
+                            NamespaceSelector matches destination namespaces by label. When empty,
+                            the rule is not namespace-scoped (matches pods in any namespace by the
+                            PodSelector).
+                          type: object
+                        podSelector:
+                          additionalProperties:
+                            type: string
+                          description: PodSelector matches destination pods by label.
+                          type: object
+                        ports:
+                          description: Ports the rule applies to. Defaults to TCP/443
+                            when empty.
+                          items:
+                            format: int32
+                            type: integer
+                          type: array
+                      type: object
+                    type: array
+                  openInternet:
+                    description: |-
+                      OpenInternet, when true, renders broad egress (0.0.0.0/0 minus RFC1918 and
+                      minus the metadata IP) on the declared ports. Host-exactness is DELEGATED
+                      to operator infrastructure (cloud egress firewall / managed-CNI FQDN
+                      policy). The explicit escape hatch for a target that cannot be reduced to
+                      a CIDR (public-SaaS model APIs).
+                    type: boolean
+                  ports:
+                    description: Ports the egress rules apply to. Defaults to TCP/443
+                      when empty.
+                    items:
+                      format: int32
+                      type: integer
                     type: array
                 type: object
               config:
@@ -98,7 +147,7 @@ spec:
                       Claims lists the names of resources, defined in spec.resourceClaims,
                       that are used by this container.
 
-                      This is an alpha field and requires enabling the
+                      This field depends on the
                       DynamicResourceAllocation feature gate.
 
                       This field is immutable. It can only be set for containers.
@@ -110,6 +159,12 @@ spec:
                             Name must match the name of one entry in pod.spec.resourceClaims of
                             the Pod where this field is used. It makes that resource available
                             inside a container.
+                          type: string
+                        request:
+                          description: |-
+                            Request is the name chosen for a request in the referenced claim.
+                            If empty, everything from the claim is made available, otherwise
+                            only the result of this request.
                           type: string
                       required:
                       - name
