@@ -76,9 +76,8 @@ func RenderNetworkPolicy(c *platformv1alpha1.TMIComponent) *networkingv1.Network
 	np.Spec.Egress = []networkingv1.NetworkPolicyEgressRule{natsRule}
 
 	if c.Spec.Egress == platformv1alpha1.EgressAllowlist {
-		// allowlist adds DNS (port 53) so hostnames resolve; host-level
-		// allowlisting itself is enforced in-worker. The DNS rule is
-		// scoped to the cluster DNS pods, not all destinations.
+		// DNS (port 53) so the worker can resolve its endpoint hostname. The
+		// DNS rule is scoped to the cluster DNS pods, not all destinations.
 		np.Spec.Egress = append(np.Spec.Egress, networkingv1.NetworkPolicyEgressRule{
 			To: []networkingv1.NetworkPolicyPeer{dnsPeer()},
 			Ports: []networkingv1.NetworkPolicyPort{
@@ -86,10 +85,73 @@ func RenderNetworkPolicy(c *platformv1alpha1.TMIComponent) *networkingv1.Network
 				{Port: intOrStringPtr(intstr.FromInt(53)), Protocol: protoPtr(corev1.ProtocolTCP)},
 			},
 		})
+
+		al := c.Spec.Allowlist
+		if al != nil {
+			defaultPorts := resolveEgressPorts(al.Ports)
+
+			// One ipBlock egress rule per declared CIDR (in-cluster VM, cloud
+			// private-endpoint subnet, or known VIP).
+			for _, cidr := range al.CIDRs {
+				np.Spec.Egress = append(np.Spec.Egress, networkingv1.NetworkPolicyEgressRule{
+					To:    []networkingv1.NetworkPolicyPeer{{IPBlock: &networkingv1.IPBlock{CIDR: cidr}}},
+					Ports: defaultPorts,
+				})
+			}
+
+			// One selector egress rule per declared in-cluster peer.
+			for _, p := range al.ClusterPeers {
+				peer := networkingv1.NetworkPolicyPeer{}
+				if len(p.NamespaceSelector) > 0 {
+					peer.NamespaceSelector = &metav1.LabelSelector{MatchLabels: p.NamespaceSelector}
+				}
+				if len(p.PodSelector) > 0 {
+					peer.PodSelector = &metav1.LabelSelector{MatchLabels: p.PodSelector}
+				}
+				ports := defaultPorts
+				if len(p.Ports) > 0 {
+					ports = resolveEgressPorts(p.Ports)
+				}
+				np.Spec.Egress = append(np.Spec.Egress, networkingv1.NetworkPolicyEgressRule{
+					To:    []networkingv1.NetworkPolicyPeer{peer},
+					Ports: ports,
+				})
+			}
+
+			// Broad egress minus private ranges and the metadata IP. Host
+			// exactness is delegated to operator infrastructure.
+			if al.OpenInternet {
+				np.Spec.Egress = append(np.Spec.Egress, networkingv1.NetworkPolicyEgressRule{
+					To: []networkingv1.NetworkPolicyPeer{{IPBlock: &networkingv1.IPBlock{
+						CIDR:   "0.0.0.0/0",
+						Except: []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16"},
+					}}},
+					Ports: defaultPorts,
+				})
+			}
+		}
 	}
 	// EgressFetchControlled is RESERVED. Until the T3 egress library lands
 	// (a later issue) the controller renders the same NATS-only policy as
 	// egress:none; the in-code guard is what relaxes it. No L3 widening here.
 
 	return np
+}
+
+// resolveEgressPorts maps declared port numbers to NetworkPolicyPort entries,
+// defaulting to TCP/443 when none are declared.
+func resolveEgressPorts(ports []int32) []networkingv1.NetworkPolicyPort {
+	if len(ports) == 0 {
+		return []networkingv1.NetworkPolicyPort{
+			{Port: intOrStringPtr(intstr.FromInt(443)), Protocol: protoPtr(corev1.ProtocolTCP)},
+		}
+	}
+	out := make([]networkingv1.NetworkPolicyPort, 0, len(ports))
+	for _, p := range ports {
+		out = append(out, networkingv1.NetworkPolicyPort{
+			Port:     intOrStringPtr(intstr.FromInt(int(p))),
+			Protocol: protoPtr(corev1.ProtocolTCP),
+		})
+	}
+	return out
 }
