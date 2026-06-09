@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"strings"
 	"testing"
 
 	platformv1alpha1 "github.com/ericfitz/tmi/api/platform/v1alpha1"
@@ -72,5 +73,16 @@ func TestRenderScaledObject_TriggerMetadataValues(t *testing.T) {
 	}
 	if meta["stream"] != "TMI_TMI_EXTRACTOR" {
 		t.Fatalf("stream = %v, want TMI_TMI_EXTRACTOR", meta["stream"])
+	}
+	// The monitoring endpoint must be a bare host:port. KEDA's nats-jetstream
+	// scaler prepends the scheme itself; a scheme here yields a doubled
+	// "http://http://..." URL that never resolves, leaving the queue-depth
+	// metric unavailable and autoscaling silently broken.
+	endpoint, _ := meta["natsServerMonitoringEndpoint"].(string)
+	if strings.Contains(endpoint, "://") {
+		t.Fatalf("natsServerMonitoringEndpoint = %q, must not include a scheme (KEDA adds it)", endpoint)
+	}
+	if endpoint != "nats.tmi-platform.svc:8222" {
+		t.Fatalf("natsServerMonitoringEndpoint = %q, want nats.tmi-platform.svc:8222", endpoint)
 	}
 }

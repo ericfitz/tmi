@@ -16,7 +16,14 @@ spec:
   egress: none
   config:
     TMI_COMPONENT_NAME: tmi-extractor
-    TMI_NATS_URL: nats://nats.tmi-platform.svc:4222
+    # An egress:none sandbox has NO DNS (the NetworkPolicy denies port 53),
+    # so the NATS service name cannot be resolved. Reach NATS by ClusterIP
+    # via the Kubernetes-injected service env var instead: $(NATS_SERVICE_HOST)
+    # expands to the nats Service ClusterIP at pod start (same namespace).
+    # kube-proxy DNATs the ClusterIP to the nats pod, which the egress policy
+    # permits. This preserves true "no DNS" — opening DNS egress would create a
+    # DNS-exfiltration channel for a parser exploit, defeating the sandbox.
+    TMI_NATS_URL: nats://$(NATS_SERVICE_HOST):4222
     TMI_CONTENT_EXTRACTORS_WALL_CLOCK_BUDGET: 30s
     TMI_JOB_ACK_WAIT: 90s
   resources:

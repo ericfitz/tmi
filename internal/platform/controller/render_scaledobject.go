@@ -7,9 +7,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// natsMonitoringEndpoint is the in-cluster NATS monitoring URL KEDA's
-// nats-jetstream scaler queries for stream/consumer pending counts.
-const natsMonitoringEndpoint = "http://nats.tmi-platform.svc:8222"
+// natsMonitoringEndpoint is the in-cluster NATS monitoring host:port KEDA's
+// nats-jetstream scaler queries for stream/consumer pending counts. It must
+// NOT include a scheme: KEDA's scaler prepends "http://" (or "https://" when
+// useHttps is set) itself, so a scheme here produces a doubled
+// "http://http://..." URL whose host fails DNS resolution and leaves the
+// queue-depth metric perpetually unavailable (HPA shows <unknown>).
+const natsMonitoringEndpoint = "nats.tmi-platform.svc:8222"
 
 // RenderScaledObject builds the KEDA ScaledObject for a component as an
 // unstructured object, avoiding a KEDA Go-module dependency. KEDA scales
