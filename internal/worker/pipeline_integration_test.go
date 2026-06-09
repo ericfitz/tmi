@@ -23,6 +23,33 @@ func testNATSURL() string {
 	return "nats://127.0.0.1:4222"
 }
 
+// cleanupNATSStreams registers a t.Cleanup that deletes the named JetStream
+// streams (and, transitively, their consumers) using a FRESH NATS connection.
+//
+// A fresh connection is required: t.Cleanup callbacks run AFTER the test
+// function's deferred calls, so the test's own `defer conn.Close()` has already
+// closed the shared connection by the time cleanup runs — reusing it fails with
+// "nats: connection closed" and silently leaks the streams. Leftover durable
+// consumers on the shared WorkQueue streams then collide across packages and
+// reruns ("filtered consumer not unique on workqueue stream"); see GitHub
+// issue #440.
+func cleanupNATSStreams(t *testing.T, natsURL string, names ...string) {
+	t.Helper()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		c, err := worker.Connect(ctx, worker.Config{NATSURL: natsURL, ComponentName: "itest-cleanup"})
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		js := c.JetStream()
+		for _, n := range names {
+			_ = js.DeleteStream(ctx, n)
+		}
+	})
+}
+
 // wirePipeline starts the two inline stage handlers (extract, chunkembed) on
 // the test's ctx via worker.RunConsumer, sets up a JetStream consumer on the
 // result stream, and returns a channel that delivers the result envelope for
@@ -105,6 +132,19 @@ func wirePipeline(ctx context.Context, t *testing.T, conn *worker.Conn, jobID st
 	if err != nil {
 		t.Fatalf("create result consumer: %v", err)
 	}
+
+	// Delete the streams this test creates so it leaves no durable consumers or
+	// subject bindings on the shared NATS server. TMI_RESULTS is a WorkQueue
+	// stream; a leftover consumer with a narrow jobs.result.<id> filter collides
+	// with the monolith result-consumer's jobs.result.> wildcard when a later
+	// package's tests run against the same NATS. The per-stage streams bind
+	// jobs.extract.> / jobs.chunkembed.>, whose subject space cannot be re-bound
+	// by another stream. Deleting a stream removes its consumers too.
+	cleanupNATSStreams(t, testNATSURL(),
+		worker.ResultStream,
+		worker.StreamNameFor("itest-extract"),
+		worker.StreamNameFor("itest-chunkembed"),
+	)
 
 	results := make(chan jobenvelope.Result, 1)
 	cc, err := resultCons.Consume(func(msg jetstream.Msg) {

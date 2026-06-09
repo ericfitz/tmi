@@ -28,6 +28,33 @@ func testNATSURLAsync() string {
 	return "nats://127.0.0.1:4222"
 }
 
+// cleanupNATSStreams registers a t.Cleanup that deletes the named JetStream
+// streams (and, transitively, their consumers) using a FRESH NATS connection.
+//
+// A fresh connection is required: t.Cleanup callbacks run AFTER the test
+// function's deferred calls, so the test's own `defer conn.Close()` has already
+// closed the shared connection by the time cleanup runs — reusing it fails with
+// "nats: connection closed" and silently leaks the streams. Leftover durable
+// consumers on the shared WorkQueue streams (TMI_RESULTS, TMI_DLQ) then collide
+// across packages and reruns ("filtered consumer not unique on workqueue
+// stream"); see GitHub issue #440.
+func cleanupNATSStreams(t *testing.T, natsURL string, names ...string) {
+	t.Helper()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		c, err := worker.Connect(ctx, worker.Config{NATSURL: natsURL, ComponentName: "itest-cleanup"})
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		js := c.JetStream()
+		for _, n := range names {
+			_ = js.DeleteStream(ctx, n)
+		}
+	})
+}
+
 // setupExtractionJobTestDBAsync creates a fresh in-memory SQLite DB with the
 // ExtractionJob schema migrated. Separate from setupExtractionJobTestDB in
 // extraction_job_store_test.go to avoid duplicate declaration when both files
@@ -143,6 +170,17 @@ func wirePipelineForMonolith(ctx context.Context, t *testing.T, conn *worker.Con
 		Storage:   jetstream.FileStorage,
 	})
 	require.NoError(t, err, "create TMI_RESULTS stream")
+
+	// Delete the streams this test creates so it leaves no durable consumers or
+	// subject bindings on the shared NATS server (see cleanupNATSStreams and
+	// GitHub issue #440). Without this, a rerun — or another package run against
+	// the same NATS — collides on the TMI_RESULTS WorkQueue stream or the
+	// jobs.extract.> / jobs.chunkembed.> subject space.
+	cleanupNATSStreams(t, testNATSURLAsync(),
+		worker.ResultStream,
+		worker.StreamNameFor("monolith-itest-extract"),
+		worker.StreamNameFor("monolith-itest-chunkembed"),
+	)
 
 	go func() {
 		_ = worker.RunConsumer(ctx, conn, worker.ConsumerConfig{

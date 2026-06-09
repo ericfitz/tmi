@@ -54,7 +54,12 @@ func TestDLQProducer_DeadLettersCrashedJob(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create source stream: %v", err)
 	}
-	t.Cleanup(func() { _ = js.DeleteStream(context.Background(), srcStream) })
+	// Delete this test's source stream plus the DLQ and advisory streams the
+	// producer creates. TMI_DLQ is a WorkQueue stream; leaving the dlq-it-observer
+	// consumer behind would collide with the monolith DLQ consumer that the
+	// round-trip test's ResultConsumer.Start creates on the same stream. Uses a
+	// fresh connection; see cleanupNATSStreams (#440).
+	cleanupNATSStreams(t, dlqTestNATSURL(), worker.DLQStream, worker.DLQAdvisoryStream, srcStream)
 
 	// Subscribe to jobs.dlq so we can observe the dead-lettered message.
 	dlqStream, err := js.Stream(ctx, worker.DLQStream)
