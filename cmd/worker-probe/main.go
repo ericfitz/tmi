@@ -22,7 +22,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"time"
 
@@ -55,11 +57,74 @@ const probeSubject = "jobs.probe"
 // receiveTimeout is how long the probe waits for a message before giving up.
 const receiveTimeout = 30 * time.Second
 
+// embedStubAddr is the listen address for the --embed-stub HTTP server.
+const embedStubAddr = ":8443"
+
+// embedStubVectorLen is the fixed embedding dimension the stub returns. It does
+// not need to match TMI_EMBEDDING_MODEL — the chunk-embed worker stores the
+// vector verbatim — but a realistic length keeps the canned response sane.
+const embedStubVectorLen = 1536
+
 func main() {
+	embedStub := flag.Bool("embed-stub", false,
+		"run as an in-cluster stub OpenAI-compatible embedding server on "+embedStubAddr+" (e2e fixture)")
+	flag.Parse()
+
+	if *embedStub {
+		if err := runEmbedStub(); err != nil {
+			slogging.Get().Error("worker-probe: embed-stub: %v", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if err := run(); err != nil {
 		slogging.Get().Error("worker-probe: %v", err)
 		os.Exit(1)
 	}
+}
+
+// runEmbedStub serves a canned OpenAI-shaped /v1/embeddings response forever so
+// an in-cluster chunk-embed worker (egress: allowlist) can reach a real
+// embedding endpoint in the e2e tier. It is a test fixture, not production code.
+func runEmbedStub() error {
+	logger := slogging.Get()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/embeddings", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		vec := make([]float64, embedStubVectorLen)
+		resp := map[string]any{
+			"object": "list",
+			"model":  "stub",
+			"data": []any{
+				map[string]any{
+					"object":    "embedding",
+					"index":     0,
+					"embedding": vec,
+				},
+			},
+			"usage": map[string]any{
+				"prompt_tokens": 0,
+				"total_tokens":  0,
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			logger.Warn("worker-probe: embed-stub: encode response failed: %v", err)
+		}
+	})
+
+	srv := &http.Server{
+		Addr:              embedStubAddr,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+	logger.Info("worker-probe: embed-stub listening addr=%s vector_len=%d", embedStubAddr, embedStubVectorLen)
+	return srv.ListenAndServe()
 }
 
 // run is the real entry point. Separating it from main allows defers to
