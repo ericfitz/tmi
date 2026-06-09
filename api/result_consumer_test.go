@@ -10,11 +10,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type recordingJobStore struct{ terminalJobID, terminalStatus, terminalReason string }
+type recordingJobStore struct {
+	terminalJobID, terminalStatus, terminalReason string
+	markCalls                                     int
+	// notFirst makes MarkTerminal report a non-first-transition (already
+	// terminal). The zero value reports the first transition (true), so existing
+	// tests that expect the webhook to fire keep working without changes.
+	notFirst bool
+}
 
-func (r *recordingJobStore) MarkTerminal(_ context.Context, jobID, status, reasonCode string) error {
+func (r *recordingJobStore) MarkTerminal(_ context.Context, jobID, status, reasonCode string) (bool, error) {
 	r.terminalJobID, r.terminalStatus, r.terminalReason = jobID, status, reasonCode
-	return nil
+	r.markCalls++
+	return !r.notFirst, nil
 }
 
 type recordingDocUpdater struct {
@@ -27,10 +35,14 @@ func (r *recordingDocUpdater) UpdateAccessStatusWithDiagnostics(_ context.Contex
 	return nil
 }
 
-type recordingEmitter struct{ eventType, objectID string }
+type recordingEmitter struct {
+	eventType, objectID string
+	calls               int
+}
 
 func (r *recordingEmitter) emit(_ context.Context, eventType, documentID, _, _ string) {
 	r.eventType, r.objectID = eventType, documentID
+	r.calls++
 }
 
 type recordingBlobDeleter struct{ deleted []string }
@@ -107,4 +119,49 @@ func TestResultConsumer_DeletedDocument_DropsGracefully(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.False(t, docs.called)
+}
+
+// TestResultConsumer_EmitOnce_OnRedelivery asserts the #438 contract: when
+// MarkTerminal reports the row is already terminal (a JetStream redelivery of a
+// result that was fully processed before), the consumer still performs the
+// idempotent access-status update but does NOT re-emit the webhook.
+func TestResultConsumer_EmitOnce_OnRedelivery(t *testing.T) {
+	jobs := &recordingJobStore{notFirst: true} // already terminal → not the first transition
+	docs := &recordingDocUpdater{}
+	em := &recordingEmitter{}
+	blobs := &recordingBlobDeleter{}
+	rc := newTestResultConsumer(jobs, docs, em, blobs)
+
+	err := rc.handleResult(context.Background(), jobenvelope.Result{
+		JobID:  "job-10",
+		Status: jobenvelope.StatusCompleted,
+		Output: jobenvelope.Output{ResultRef: "TMI_PAYLOADS/job-10-result"},
+	})
+	require.NoError(t, err)
+
+	// Terminal state was still recorded and access status still updated
+	// (idempotent), but the webhook was suppressed on the redelivery.
+	assert.Equal(t, 1, jobs.markCalls)
+	assert.True(t, docs.called, "access-status update must still run on redelivery")
+	assert.Equal(t, 0, em.calls, "webhook must not be re-emitted on redelivery")
+	// Blob cleanup remains best-effort and idempotent — still attempted.
+	assert.NotEmpty(t, blobs.deleted)
+}
+
+// TestResultConsumer_FirstTransition_Emits is the positive counterpart: the
+// first terminal transition emits exactly one webhook.
+func TestResultConsumer_FirstTransition_Emits(t *testing.T) {
+	jobs := &recordingJobStore{} // notFirst=false → first transition
+	docs := &recordingDocUpdater{}
+	em := &recordingEmitter{}
+	blobs := &recordingBlobDeleter{}
+	rc := newTestResultConsumer(jobs, docs, em, blobs)
+
+	err := rc.handleResult(context.Background(), jobenvelope.Result{
+		JobID:  "job-11",
+		Status: jobenvelope.StatusCompleted,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, em.calls)
+	assert.Equal(t, EventDocumentExtractionCompleted, em.eventType)
 }

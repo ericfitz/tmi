@@ -78,18 +78,39 @@ func (s *ExtractionJobStore) GetDocumentRef(ctx context.Context, jobID string) (
 // dialects.
 const unknownDocumentRef = "__unknown__"
 
-// MarkTerminal upserts the terminal state for job_id. If the queued row is
-// missing it is created. OnConflict on job_id updates status, reason_code,
-// completed_at, updated_at. Portable across PG and Oracle.
-// Uses Col()/ColumnName() so the Oracle GORM driver receives uppercase column
-// identifiers when emitting MERGE INTO.
+// MarkTerminal records the terminal state for job_id and reports whether this
+// call performed the *first* terminal transition (true) or hit a row that was
+// already terminal (false). The boolean is the durable, restart-safe emit-once
+// signal the result-consumer uses to fire the document.extraction_* webhook
+// exactly once under JetStream at-least-once redelivery (#438).
 //
-// When no prior queued row exists (bare-upsert-insert path), document_ref is
-// set to the unknownDocumentRef sentinel (NOT empty string; see the constant
-// doc for the Oracle ORA-01400 rationale). The DoUpdates list omits
-// document_ref, so an existing queued row keeps its real document_ref.
-// An empty reasonCode string is stored as SQL NULL (NullableDBVarchar{Valid: false}).
-func (s *ExtractionJobStore) MarkTerminal(ctx context.Context, jobID, status, reasonCode string) error {
+// It is implemented as a guarded UPDATE followed, only when that matches no
+// row, by an OnConflict-DoNothing insert:
+//
+//  1. UPDATE ... WHERE job_id = ? AND status NOT IN ('completed','failed').
+//     A plain UPDATE reports reliable RowsAffected on PG, Oracle, and SQLite
+//     (unlike MERGE/RETURNING). RowsAffected == 1 means we moved an existing
+//     non-terminal row to terminal — the first transition → return true.
+//     Under READ COMMITTED on both PG and Oracle the WHERE is re-evaluated
+//     after the row lock is taken, so two concurrent deliveries cannot both
+//     match: the second sees the now-terminal status and matches 0 rows.
+//  2. RowsAffected == 0 means the row is absent (a terminal result arrived with
+//     no prior queued row — possible under at-least-once delivery) OR it is
+//     already terminal (a redelivery). Attempt a bare insert with the
+//     unknownDocumentRef sentinel; OnConflict DoNothing makes a concurrent
+//     insert or an existing terminal row a no-op. Insert RowsAffected == 1
+//     means we created the terminal row → first transition (true); == 0 means a
+//     row already existed and, per step 1, is already terminal → false.
+//
+// document_ref is only ever written on the bare-insert path and is set to the
+// unknownDocumentRef sentinel (NOT empty string; see the constant doc for the
+// Oracle ORA-01400 rationale). The guarded UPDATE never touches document_ref,
+// so an existing queued row keeps its real document_ref. An empty reasonCode
+// string is stored as SQL NULL (NullableDBVarchar{Valid: false}).
+//
+// Portable across PG, Oracle, and SQLite. Uses Col()/ColumnName()/AssignmentMap
+// so the Oracle GORM driver receives uppercase column identifiers.
+func (s *ExtractionJobStore) MarkTerminal(ctx context.Context, jobID, status, reasonCode string) (bool, error) {
 	dialect := s.db.Name()
 	now := time.Now().UTC()
 
@@ -98,26 +119,42 @@ func (s *ExtractionJobStore) MarkTerminal(ctx context.Context, jobID, status, re
 		reasonCodeVal = models.NullableDBVarchar{String: reasonCode, Valid: true}
 	}
 
+	// Step 1: guarded UPDATE — transition only a row that is not already terminal.
+	assignments := AssignmentMap(dialect, map[string]any{
+		"status":       status,
+		"reason_code":  reasonCodeVal,
+		"completed_at": &now,
+		"updated_at":   now,
+	})
+	upd := s.db.WithContext(ctx).
+		Model(&models.ExtractionJob{}).
+		Where("job_id = ?", jobID).
+		Where("status NOT IN (?, ?)", models.ExtractionStatusCompleted, models.ExtractionStatusFailed).
+		Updates(assignments)
+	if upd.Error != nil {
+		return false, fmt.Errorf("extraction job store: mark terminal (update) %s: %w", jobID, upd.Error)
+	}
+	if upd.RowsAffected > 0 {
+		return true, nil
+	}
+
+	// Step 2: no non-terminal row matched — insert a bare terminal row, racing
+	// safely against any concurrent insert via OnConflict DoNothing.
 	row := models.ExtractionJob{
 		JobID:       models.DBVarchar(jobID),
-		DocumentRef: models.DBVarchar(unknownDocumentRef), // bare-insert path only; existing rows keep their value (omitted from DoUpdates)
+		DocumentRef: models.DBVarchar(unknownDocumentRef), // bare-insert path only
 		Status:      models.DBVarchar(status),
 		ReasonCode:  reasonCodeVal,
 		CompletedAt: &now,
 	}
-	err := s.db.WithContext(ctx).
+	ins := s.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
-			Columns: []clause.Column{Col(dialect, "job_id")},
-			DoUpdates: clause.AssignmentColumns([]string{
-				ColumnName(dialect, "status"),
-				ColumnName(dialect, "reason_code"),
-				ColumnName(dialect, "completed_at"),
-				ColumnName(dialect, "updated_at"),
-			}),
+			Columns:   []clause.Column{Col(dialect, "job_id")},
+			DoNothing: true,
 		}).
-		Create(&row).Error
-	if err != nil {
-		return fmt.Errorf("extraction job store: mark terminal %s: %w", jobID, err)
+		Create(&row)
+	if ins.Error != nil {
+		return false, fmt.Errorf("extraction job store: mark terminal (insert) %s: %w", jobID, ins.Error)
 	}
-	return nil
+	return ins.RowsAffected > 0, nil
 }

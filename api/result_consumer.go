@@ -13,9 +13,11 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-// terminalMarker can persist the terminal state of an extraction job.
+// terminalMarker can persist the terminal state of an extraction job. It
+// returns whether this call performed the first terminal transition, which the
+// consumer uses to emit the webhook exactly once under at-least-once redelivery.
 type terminalMarker interface {
-	MarkTerminal(ctx context.Context, jobID, status, reasonCode string) error
+	MarkTerminal(ctx context.Context, jobID, status, reasonCode string) (bool, error)
 }
 
 // docAccessUpdater can update a document's access status with diagnostic fields.
@@ -77,27 +79,39 @@ func (rc *ResultConsumer) handleResult(ctx context.Context, res jobenvelope.Resu
 		reasonDetail = res.ReasonDetail
 	}
 
-	// Upsert the terminal state (transient failure → redeliver).
-	if err := rc.jobs.MarkTerminal(ctx, res.JobID, status, reasonCode); err != nil {
-		return err
-	}
-
-	// Look up the document associated with this job.
+	// Look up the document associated with this job. Done before the terminal
+	// flip so the idempotent access-status update below can fail and redeliver
+	// without having consumed the one-shot emit signal (see MarkTerminal note).
 	docRef, tmID, ownerID, ok := rc.lookupDocument(ctx, res.JobID)
 	if !ok {
-		// Document was deleted before the result arrived; nothing more to do.
+		// Document was deleted before the result arrived; no document to update
+		// and no webhook to emit, but we still record the terminal state below.
 		logger.Warn("result-consumer: document for job %s no longer exists; dropping", res.JobID)
 	} else {
 		// Update document access status (transient failure → redeliver).
+		// Idempotent, so a redelivery re-running it is harmless.
 		if err := rc.docs.UpdateAccessStatusWithDiagnostics(
 			ctx, docRef, accessStatus, "", reasonCode, reasonDetail,
 		); err != nil {
 			return err
 		}
-		// Emit webhook event (best-effort; never block on failure).
-		if rc.emit != nil {
-			rc.emit(ctx, eventType, docRef, tmID, ownerID)
-		}
+	}
+
+	// Flip the durable terminal state. transitioned is true only on the first
+	// delivery that moves the row from non-terminal to terminal — the emit-once
+	// signal (#438). A transient failure redelivers without emitting.
+	transitioned, err := rc.jobs.MarkTerminal(ctx, res.JobID, status, reasonCode)
+	if err != nil {
+		return err
+	}
+
+	// Emit the webhook exactly once, on the first terminal transition only.
+	// Nothing between MarkTerminal and here can error or redeliver (emit is
+	// best-effort and never Naks), so a transition always reaches this emit in
+	// the same delivery — the only residual loss window is a process crash in
+	// this sub-millisecond gap, far smaller than the prior at-least-once dupes.
+	if transitioned && ok && rc.emit != nil {
+		rc.emit(ctx, eventType, docRef, tmID, ownerID)
 	}
 
 	// Delete the result blob from the Object Store (best-effort; log on failure).
