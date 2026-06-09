@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -158,6 +159,49 @@ func strongProviderConfig() OAuthProviderConfig {
 	}
 }
 
+// startStubGoogleOIDCDiscovery stands up a local httptest server that serves a
+// minimal OIDC discovery document (and an empty JWKS), so the step-up tests
+// never reach the live https://accounts.google.com/.well-known/openid-configuration.
+// On hosts whose IPv6 egress to Google is broken that live fetch hangs ~31s and
+// the provider falls back to "not configured", flaking the strong-provider
+// tests (issue #434). The returned URL is the issuer the test provider points
+// at.
+//
+// The discovery doc's `issuer` is the local server URL (go-oidc requires it to
+// match the issuer passed to oidc.NewProvider), but `authorization_endpoint`
+// deliberately stays the real Google URL: the step-up strong path only builds a
+// redirect Location from it and never fetches it, so the existing
+// "Location contains accounts.google.com" assertion stays valid and
+// production-faithful. The JWKS is never fetched on the redirect path (no ID
+// token is verified), but a valid empty key set is served for completeness.
+func startStubGoogleOIDCDiscovery(t *testing.T) string {
+	t.Helper()
+
+	var issuer string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{
+  "issuer": %q,
+  "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+  "token_endpoint": "https://oauth2.googleapis.com/token",
+  "jwks_uri": %q,
+  "response_types_supported": ["code"],
+  "subject_types_supported": ["public"],
+  "id_token_signing_alg_values_supported": ["RS256"]
+}`, issuer, issuer+"/jwks")
+	})
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"keys":[]}`)
+	})
+
+	srv := httptest.NewServer(mux)
+	issuer = srv.URL // discovery handler reads this at request time
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
 func weakProviderConfig() OAuthProviderConfig {
 	return OAuthProviderConfig{
 		ID:               "github",
@@ -188,6 +232,24 @@ func newStepUpTestHarness(t *testing.T, opts ...stepUpHarnessOpt) *stepUpTestHar
 	for _, o := range opts {
 		o(cfg)
 	}
+
+	// Redirect any strong (Google) provider's OIDC discovery to a local httptest
+	// server so no test ever reaches the live accounts.google.com discovery
+	// document (issue #434 — it hangs ~31s and flakes on IPv6-broken hosts).
+	// The strongProviderConfig() marker issuer is rewritten transparently, so
+	// tests that build strong providers need no changes.
+	oidcDiscoveryURL := startStubGoogleOIDCDiscovery(t)
+	rewriteGoogleIssuer := func(m map[string]OAuthProviderConfig) {
+		for id, pc := range m {
+			if pc.Issuer == "https://accounts.google.com" {
+				pc.Issuer = oidcDiscoveryURL
+				pc.JWKSURL = oidcDiscoveryURL + "/jwks"
+				m[id] = pc
+			}
+		}
+	}
+	rewriteGoogleIssuer(cfg.providers)
+	rewriteGoogleIssuer(cfg.registryOnlyProviders)
 
 	mr, err := miniredis.Run()
 	require.NoError(t, err)
