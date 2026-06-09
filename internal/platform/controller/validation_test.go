@@ -53,3 +53,63 @@ func TestValidateComponent_AllowlistWithOpenInternetIsValid(t *testing.T) {
 		t.Fatalf("expected egress:allowlist with openInternet to be valid, got %v", err)
 	}
 }
+
+func allowlistComp(a *platformv1alpha1.AllowlistEgress) *platformv1alpha1.TMIComponent {
+	c := comp(platformv1alpha1.EgressAllowlist, platformv1alpha1.InputContentRef)
+	c.Spec.Allowlist = a
+	return c
+}
+
+func TestValidateAllowlist_CIDRTargetIsValid(t *testing.T) {
+	err := ValidateComponent(allowlistComp(&platformv1alpha1.AllowlistEgress{CIDRs: []string{"10.1.2.0/24"}}))
+	if err != nil {
+		t.Fatalf("expected valid CIDR target, got %v", err)
+	}
+}
+
+func TestValidateAllowlist_ClusterPeerTargetIsValid(t *testing.T) {
+	err := ValidateComponent(allowlistComp(&platformv1alpha1.AllowlistEgress{
+		ClusterPeers: []platformv1alpha1.ClusterPeer{{PodSelector: map[string]string{"app": "embedder"}}},
+	}))
+	if err != nil {
+		t.Fatalf("expected valid clusterPeer target, got %v", err)
+	}
+}
+
+func TestValidateAllowlist_NoTargetRejected(t *testing.T) {
+	if err := ValidateComponent(allowlistComp(&platformv1alpha1.AllowlistEgress{})); err == nil {
+		t.Fatal("expected error for allowlist with no target")
+	}
+}
+
+func TestValidateAllowlist_BadCIDRRejected(t *testing.T) {
+	if err := ValidateComponent(allowlistComp(&platformv1alpha1.AllowlistEgress{CIDRs: []string{"not-a-cidr"}})); err == nil {
+		t.Fatal("expected error for unparseable CIDR")
+	}
+}
+
+func TestValidateAllowlist_DefaultRouteRejected(t *testing.T) {
+	if err := ValidateComponent(allowlistComp(&platformv1alpha1.AllowlistEgress{CIDRs: []string{"0.0.0.0/0"}})); err == nil {
+		t.Fatal("expected error for 0.0.0.0/0 (use openInternet instead)")
+	}
+}
+
+func TestValidateAllowlist_MetadataCIDRRejected(t *testing.T) {
+	if err := ValidateComponent(allowlistComp(&platformv1alpha1.AllowlistEgress{CIDRs: []string{"169.254.0.0/16"}})); err == nil {
+		t.Fatal("expected error for a CIDR covering the metadata IP")
+	}
+}
+
+func TestValidateAllowlist_BadPortRejected(t *testing.T) {
+	if err := ValidateComponent(allowlistComp(&platformv1alpha1.AllowlistEgress{OpenInternet: true, Ports: []int32{0}})); err == nil {
+		t.Fatal("expected error for out-of-range port")
+	}
+}
+
+func TestValidateAllowlist_EmptyClusterPeerRejected(t *testing.T) {
+	if err := ValidateComponent(allowlistComp(&platformv1alpha1.AllowlistEgress{
+		ClusterPeers: []platformv1alpha1.ClusterPeer{{}},
+	})); err == nil {
+		t.Fatal("expected error for a clusterPeer with no selector")
+	}
+}
