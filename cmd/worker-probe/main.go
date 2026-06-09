@@ -96,17 +96,33 @@ func runEmbedStub() error {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		vec := make([]float64, embedStubVectorLen)
+		// The OpenAI embeddings API returns one embedding per input element,
+		// index-aligned. langchaingo's EmbedDocuments batches all chunks into
+		// one request and requires len(data) == len(input); returning a single
+		// embedding for a multi-input request makes the client error. Decode
+		// the request's "input" (string or []string) and emit a matching count.
+		n := 1
+		var req struct {
+			Input json.RawMessage `json:"input"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil && len(req.Input) > 0 {
+			var arr []string
+			if json.Unmarshal(req.Input, &arr) == nil && len(arr) > 0 {
+				n = len(arr)
+			}
+		}
+		data := make([]any, n)
+		for i := range data {
+			data[i] = map[string]any{
+				"object":    "embedding",
+				"index":     i,
+				"embedding": make([]float64, embedStubVectorLen),
+			}
+		}
 		resp := map[string]any{
 			"object": "list",
 			"model":  "stub",
-			"data": []any{
-				map[string]any{
-					"object":    "embedding",
-					"index":     0,
-					"embedding": vec,
-				},
-			},
+			"data":   data,
 			"usage": map[string]any{
 				"prompt_tokens": 0,
 				"total_tokens":  0,
