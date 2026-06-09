@@ -331,14 +331,36 @@ spec:
 // component label (which the extractor ReplicaSet selects on).
 func deriveEgressProbePolicy(t *testing.T, npName, labelKey, labelVal string) {
 	t.Helper()
-	raw := kubectl(t, "-n", platformNS, "get", "networkpolicy", "tmi-extractor", "-o", "json")
+	deriveEgressProbePolicyFrom(t, "tmi-extractor", npName, labelKey, labelVal)
+}
+
+// podIP returns the pod IP of a pod in the platform namespace, failing the
+// test if it is empty (pod not yet scheduled/assigned an IP).
+func podIP(t *testing.T, name string) string {
+	t.Helper()
+	ip := strings.TrimSpace(kubectl(t, "-n", platformNS, "get", "pod", name, "-o", "jsonpath={.status.podIP}"))
+	if ip == "" {
+		t.Fatalf("pod %s has no IP", name)
+	}
+	return ip
+}
+
+// deriveEgressProbePolicyFrom creates a NetworkPolicy named npName that reuses
+// the live srcPolicyName policy's egress rules and policyTypes verbatim,
+// retargeted to a probe-only pod label. This verifies Calico enforces the exact
+// controller-rendered egress rules (egress:none for tmi-extractor, or the
+// allowlist rules for an egress:allowlist component) against a probe pod that
+// does not share the source component's label.
+func deriveEgressProbePolicyFrom(t *testing.T, srcPolicyName, npName, labelKey, labelVal string) {
+	t.Helper()
+	raw := kubectl(t, "-n", platformNS, "get", "networkpolicy", srcPolicyName, "-o", "json")
 	var src map[string]any
 	if err := json.Unmarshal([]byte(raw), &src); err != nil {
-		t.Fatalf("unmarshal live tmi-extractor NetworkPolicy: %v", err)
+		t.Fatalf("unmarshal live %s NetworkPolicy: %v", srcPolicyName, err)
 	}
 	srcSpec, _ := src["spec"].(map[string]any)
 	if srcSpec == nil {
-		t.Fatalf("live tmi-extractor NetworkPolicy has no spec")
+		t.Fatalf("live %s NetworkPolicy has no spec", srcPolicyName)
 	}
 	np := map[string]any{
 		"apiVersion": "networking.k8s.io/v1",
@@ -366,6 +388,153 @@ func parseProbeLines(logs string) map[string]string {
 		}
 	}
 	return m
+}
+
+// -----------------------------------------------------------------------------
+// 2b. Allowlist egress (verified against the real Calico CNI) — issue #443
+// -----------------------------------------------------------------------------
+
+// TestAcceptance_AllowlistEgress proves the egress:allowlist posture enforces
+// real, server-side L3 egress: a worker governed by a controller-rendered
+// allowlist NetworkPolicy can reach ONLY its declared in-cluster target (a stub
+// pod selected via clusterPeers) plus NATS, while the cloud metadata IP and an
+// unrelated external host stay denied. This satisfies issue #443 acceptance
+// criterion 1 (amended): reach the declared selector target and nothing else,
+// metadata always denied, verified against Calico.
+func TestAcceptance_AllowlistEgress(t *testing.T) {
+	natsIP := clusterIP(t, "nats")
+
+	// 1. In-cluster stub the allowlist will target: a busybox pod with a
+	//    long-lived nc HTTP listener on 8443. We only need it reachable at L3,
+	//    so a canned HTTP/1.1 200 is sufficient (the probe uses nc -z).
+	const stubLabelKey, stubLabelVal = "tmi.dev/role", "embed-stub"
+	stub := fmt.Sprintf(`
+apiVersion: v1
+kind: Pod
+metadata:
+  name: embed-stub
+  namespace: %s
+  labels:
+    %s: %s
+spec:
+  restartPolicy: Never
+  containers:
+    - name: stub
+      image: %s
+      command: ["sh", "-c"]
+      args: ["while true; do printf 'HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok' | nc -l -p 8443 -q 1; done"]
+`, platformNS, stubLabelKey, stubLabelVal, probeImage)
+	applyStdin(t, stub)
+	defer func() {
+		cmd := exec.Command("kubectl", "--context", "kind-tmi-platform",
+			"-n", platformNS, "delete", "pod", "embed-stub", "--grace-period=0", "--force", "--ignore-not-found")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Logf("cleanup warning: delete embed-stub: %v\n%s", err, out)
+		}
+	}()
+	kubectl(t, "-n", platformNS, "wait", "--for=condition=Ready", "pod/embed-stub", "--timeout=90s")
+	stubIP := podIP(t, "embed-stub")
+
+	// 2. A live allowlist component whose NetworkPolicy targets the stub pods.
+	//    We apply a real TMIComponent CR so the test exercises the actual
+	//    controller-rendered output, not a hand-written stand-in.
+	cr := fmt.Sprintf(`
+apiVersion: tmi.dev/v1alpha1
+kind: TMIComponent
+metadata:
+  name: allowlist-acc
+  namespace: %s
+spec:
+  image: %s
+  jobSubjects: ["jobs.acc.>"]
+  inputMode: content-ref
+  egress: allowlist
+  allowlist:
+    clusterPeers:
+      - podSelector: { %s: %s }
+        ports: [8443]
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 100m, memory: 128Mi }
+  scaling: { minReplicas: 0, maxReplicas: 1, queueDepthTarget: 1 }
+`, platformNS, probeImage, stubLabelKey, stubLabelVal)
+	applyStdin(t, cr)
+	defer func() {
+		cmd := exec.Command("kubectl", "--context", "kind-tmi-platform",
+			"-n", platformNS, "delete", "tmicomponent", "allowlist-acc", "--ignore-not-found")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Logf("cleanup warning: delete allowlist-acc: %v\n%s", err, out)
+		}
+	}()
+	// Wait for the controller to render the NetworkPolicy.
+	kubectl(t, "-n", platformNS, "wait",
+		"--for=jsonpath={.metadata.name}=allowlist-acc",
+		"networkpolicy/allowlist-acc", "--timeout=60s")
+
+	// 3. Clone the rendered allowlist policy onto a probe-only label so the probe
+	//    pod is governed by the exact controller output without sharing the
+	//    component's selector label.
+	const probeLabelKey, probeLabelVal = "tmi.dev/role", "allowlist-probe"
+	deriveEgressProbePolicyFrom(t, "allowlist-acc", "allowlist-probe-np", probeLabelKey, probeLabelVal)
+	defer func() {
+		cmd := exec.Command("kubectl", "--context", "kind-tmi-platform",
+			"-n", platformNS, "delete", "networkpolicy", "allowlist-probe-np", "--ignore-not-found")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Logf("cleanup warning: delete allowlist-probe-np: %v\n%s", err, out)
+		}
+	}()
+
+	// 4. Probe: stub reachable, NATS reachable, metadata + unrelated external
+	//    blocked. -w 3 bounds each attempt so a dropped packet times out fast.
+	script := fmt.Sprintf(`
+echo "stub: $(nc -w 3 -z %s 8443 >/dev/null 2>&1 && echo REACHABLE || echo blocked)"
+echo "nats: $(nc -w 3 -z %s 4222 >/dev/null 2>&1 && echo REACHABLE || echo blocked)"
+echo "metadata: $(nc -w 3 -z 169.254.169.254 80 >/dev/null 2>&1 && echo REACHABLE || echo blocked)"
+echo "external: $(nc -w 3 -z 1.1.1.1 443 >/dev/null 2>&1 && echo REACHABLE || echo blocked)"
+echo "done"
+`, stubIP, natsIP)
+	manifest := fmt.Sprintf(`
+apiVersion: v1
+kind: Pod
+metadata:
+  name: allowlist-probe
+  namespace: %s
+  labels:
+    %s: %s
+spec:
+  restartPolicy: Never
+  containers:
+    - name: probe
+      image: %s
+      command: ["sh", "-c"]
+      args: [%q]
+`, platformNS, probeLabelKey, probeLabelVal, probeImage, script)
+	applyStdin(t, manifest)
+	defer func() {
+		cmd := exec.Command("kubectl", "--context", "kind-tmi-platform",
+			"-n", platformNS, "delete", "pod", "allowlist-probe", "--grace-period=0", "--force", "--ignore-not-found")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Logf("cleanup warning: delete allowlist-probe: %v\n%s", err, out)
+		}
+	}()
+
+	kubectl(t, "-n", platformNS, "wait", "--for=jsonpath={.status.phase}=Succeeded",
+		"pod/allowlist-probe", "--timeout=90s")
+	logs := kubectl(t, "-n", platformNS, "logs", "allowlist-probe")
+	t.Logf("allowlist-probe results:\n%s", logs)
+
+	got := parseProbeLines(logs)
+	if got["stub"] != "REACHABLE" {
+		t.Errorf("allowlist target (stub) must be reachable, got %q", got["stub"])
+	}
+	if got["nats"] != "REACHABLE" {
+		t.Errorf("NATS must stay reachable, got %q", got["nats"])
+	}
+	for _, k := range []string{"metadata", "external"} {
+		if got[k] != "blocked" {
+			t.Errorf("%q must be blocked under egress:allowlist (clusterPeer-only), got %q", k, got[k])
+		}
+	}
 }
 
 // -----------------------------------------------------------------------------
