@@ -167,6 +167,21 @@ func TestRenderNetworkPolicy_AllowlistCustomPorts(t *testing.T) {
 	}
 }
 
+func TestRenderNetworkPolicy_AllowlistEmptyClusterPeerSkipped(t *testing.T) {
+	c := namedComp("tmi-chunk-embed", platformv1alpha1.EgressAllowlist)
+	c.Spec.Allowlist = &platformv1alpha1.AllowlistEgress{
+		ClusterPeers: []platformv1alpha1.ClusterPeer{{}}, // both selectors empty
+	}
+	np := RenderNetworkPolicy(c)
+	for _, r := range np.Spec.Egress {
+		for _, peer := range r.To {
+			if peer.IPBlock == nil && peer.PodSelector == nil && peer.NamespaceSelector == nil {
+				t.Fatal("render must not emit an all-destinations peer for an empty clusterPeer")
+			}
+		}
+	}
+}
+
 func TestRenderNetworkPolicy_AllowlistNeverRendersMetadataReachable(t *testing.T) {
 	c := namedComp("tmi-chunk-embed", platformv1alpha1.EgressAllowlist)
 	c.Spec.Allowlist = &platformv1alpha1.AllowlistEgress{OpenInternet: true, CIDRs: []string{"10.1.2.0/24"}}

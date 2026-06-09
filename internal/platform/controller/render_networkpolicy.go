@@ -88,19 +88,24 @@ func RenderNetworkPolicy(c *platformv1alpha1.TMIComponent) *networkingv1.Network
 
 		al := c.Spec.Allowlist
 		if al != nil {
-			defaultPorts := resolveEgressPorts(al.Ports)
-
 			// One ipBlock egress rule per declared CIDR (in-cluster VM, cloud
-			// private-endpoint subnet, or known VIP).
+			// private-endpoint subnet, or known VIP). Each rule gets its own
+			// ports slice (no shared backing array).
 			for _, cidr := range al.CIDRs {
 				np.Spec.Egress = append(np.Spec.Egress, networkingv1.NetworkPolicyEgressRule{
 					To:    []networkingv1.NetworkPolicyPeer{{IPBlock: &networkingv1.IPBlock{CIDR: cidr}}},
-					Ports: defaultPorts,
+					Ports: resolveEgressPorts(al.Ports),
 				})
 			}
 
 			// One selector egress rule per declared in-cluster peer.
 			for _, p := range al.ClusterPeers {
+				// Validation rejects a peer with no selector, but be defensive:
+				// a NetworkPolicyPeer with nil namespace+pod selectors and no
+				// IPBlock matches ALL pods in ALL namespaces — never emit that.
+				if len(p.NamespaceSelector) == 0 && len(p.PodSelector) == 0 {
+					continue
+				}
 				peer := networkingv1.NetworkPolicyPeer{}
 				if len(p.NamespaceSelector) > 0 {
 					peer.NamespaceSelector = &metav1.LabelSelector{MatchLabels: p.NamespaceSelector}
@@ -108,7 +113,8 @@ func RenderNetworkPolicy(c *platformv1alpha1.TMIComponent) *networkingv1.Network
 				if len(p.PodSelector) > 0 {
 					peer.PodSelector = &metav1.LabelSelector{MatchLabels: p.PodSelector}
 				}
-				ports := defaultPorts
+				// Each rule gets its own ports slice (no shared backing array).
+				ports := resolveEgressPorts(al.Ports)
 				if len(p.Ports) > 0 {
 					ports = resolveEgressPorts(p.Ports)
 				}
@@ -126,7 +132,7 @@ func RenderNetworkPolicy(c *platformv1alpha1.TMIComponent) *networkingv1.Network
 						CIDR:   "0.0.0.0/0",
 						Except: []string{"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16"},
 					}}},
-					Ports: defaultPorts,
+					Ports: resolveEgressPorts(al.Ports),
 				})
 			}
 		}

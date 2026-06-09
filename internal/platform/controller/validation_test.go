@@ -113,3 +113,11 @@ func TestValidateAllowlist_EmptyClusterPeerRejected(t *testing.T) {
 		t.Fatal("expected error for a clusterPeer with no selector")
 	}
 }
+
+func TestValidateAllowlist_ClusterPeerBadPortRejected(t *testing.T) {
+	if err := ValidateComponent(allowlistComp(&platformv1alpha1.AllowlistEgress{
+		ClusterPeers: []platformv1alpha1.ClusterPeer{{PodSelector: map[string]string{"app": "x"}, Ports: []int32{70000}}},
+	})); err == nil {
+		t.Fatal("expected error for out-of-range port inside a clusterPeer")
+	}
+}
