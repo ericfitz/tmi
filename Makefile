@@ -238,7 +238,7 @@ clean-everything:
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-cluster-up dev-cluster-down
 
 # Dev-environment Python helpers unit tests
 test-dev-scripts:  ## Run unit tests for the dev-environment Python helpers
@@ -332,6 +332,14 @@ probe-oracle-clob-like:
 # Development Environment - Restart (stop server, rebuild, clean logs, start dev)
 restart-dev:
 	@uv run scripts/start-dev.py --restart
+
+# Local kind cluster - Create a local kind cluster wired to the dev registry (laptop path)
+dev-cluster-up:  ## Create a local kind cluster wired to the dev registry (laptop path)
+	@uv run scripts/dev-cluster.py up
+
+# Local kind cluster - Delete the local kind dev cluster
+dev-cluster-down:  ## Delete the local kind dev cluster
+	@uv run scripts/dev-cluster.py down
 
 # Coverage Report Generation - Comprehensive testing with coverage
 test-coverage:
