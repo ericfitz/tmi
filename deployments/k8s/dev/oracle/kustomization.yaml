@@ -1,0 +1,25 @@
+# Oracle dev overlay: identical to ../kustomization.yaml but swaps server.yml ->
+# server-oracle.yml (Oracle image + wallet mount). Selected by `make start-dev DB=oracle`.
+# Keep resources/patches in sync with the parent overlay when either changes.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tmi-platform
+resources:
+  - ../controller.yml
+  - ../redis.yml
+  - ../server-oracle.yml
+  - ../../platform/components/tmi-extractor.yml
+  - ../../platform/components/tmi-chunk-embed.yml
+patches:
+  - path: ../patches/extractor-image.yaml
+    target:
+      group: tmi.dev
+      version: v1alpha1
+      kind: TMIComponent
+      name: tmi-extractor
+  - path: ../patches/chunkembed-image.yaml
+    target:
+      group: tmi.dev
+      version: v1alpha1
+      kind: TMIComponent
+      name: tmi-chunk-embed
