@@ -1,0 +1,75 @@
+# NOTE: config-development.yml is delivered to this Deployment as a ConfigMap
+# (not a Secret). This is intended for LOCAL dev clusters only. Never put real
+# production secrets in config-development.yml — the prod-context guard in
+# start-dev.py blocks deploying to non-local contexts, but treat this as plaintext.
+#
+# Oracle variant: uses localhost:5000/tmi-server-oracle:dev and mounts the
+# tmi-oracle-wallet Secret at /wallet (read-only). The Oracle container entrypoint
+# reads /wallet/wallet.zip, extracts it to /tmp/wallet, and sets TNS_ADMIN and
+# TMI_ORACLE_WALLET_LOCATION automatically — do NOT set those env vars here.
+# The DB DSN comes from config-development.yml (database.url) via the ConfigMap.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tmi-server
+  namespace: tmi-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: tmi-server }
+  template:
+    metadata:
+      labels: { app: tmi-server }
+    spec:
+      containers:
+        - name: server
+          image: localhost:5000/tmi-server-oracle:dev
+          args: ["--config=/etc/tmi/config.yml"]
+          ports:
+            - containerPort: 8080
+          env:
+            - { name: TMI_SERVER_INTERFACE, value: "0.0.0.0" }
+            - { name: TMI_SERVER_PORT, value: "8080" }
+            - { name: TMI_REDIS_HOST, value: "redis" }
+            - { name: TMI_NATS_URL, value: "nats://nats.tmi-platform.svc:4222" }
+            - { name: TMI_LOG_DIR, value: "/tmp/logs" }
+            # Enable the built-in TMI OAuth provider for local dev authentication.
+            # The tmi provider is a dev/test-only identity provider that supports
+            # login_hint-based user creation without external OAuth credentials.
+            - { name: OAUTH_PROVIDERS_TMI_ENABLED, value: "true" }
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tmi
+              readOnly: true
+            - name: wallet
+              mountPath: /wallet
+              readOnly: true
+          readinessProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 1000m, memory: 512Mi }
+      volumes:
+        - name: config
+          configMap:
+            name: tmi-server-config
+        - name: wallet
+          secret:
+            secretName: tmi-oracle-wallet
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tmi-server
+  namespace: tmi-platform
+spec:
+  selector: { app: tmi-server }
+  ports:
+    - port: 8080
+      targetPort: 8080
