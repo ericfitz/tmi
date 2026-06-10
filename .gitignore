@@ -12,6 +12,7 @@
 !go.mod
 !license.txt
 !Makefile
+!Tiltfile
 !oapi-codegen-config.yml
 !.golangci.yml
 !pyrightconfig.json
