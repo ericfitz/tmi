@@ -750,7 +750,8 @@ test-workers:  ## Run worker + extract + envelope + async-extraction tests (star
 	@docker run -d --rm --name tmi-nats-test -p 4222:4222 nats:2.10-alpine -js >/dev/null
 	@sleep 2
 	@TMI_RUN_NATS_TESTS=1 TMI_TEST_NATS_URL=nats://127.0.0.1:4222 \
-		go test -p 1 ./internal/worker/... ./pkg/extract/... ./pkg/jobenvelope/... \
+		go test -p 1 ./internal/worker/... ./internal/platform/controller/... \
+		./pkg/extract/... ./pkg/jobenvelope/... \
 		./cmd/extractor/... ./cmd/chunkembed/... ./api/...; \
 		rc=$$?; docker stop tmi-nats-test >/dev/null; exit $$rc
 

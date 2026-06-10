@@ -62,8 +62,11 @@ func run() error {
 
 	logger.Info("tmi-chunk-embed: starting consumer, component=%s", cfg.ComponentName)
 	if err = worker.RunConsumer(ctx, conn, worker.ConsumerConfig{
-		StreamName:    worker.StreamNameFor(cfg.ComponentName),
-		Durable:       "tmi-chunk-embed",
+		StreamName: worker.StreamNameFor(cfg.ComponentName),
+		// Durable MUST equal the consumer name the controller pre-creates and
+		// the KEDA ScaledObject watches (ConsumerNameFor) — otherwise KEDA
+		// cannot observe queue depth and never scales this worker from zero.
+		Durable:       worker.ConsumerNameFor(cfg.ComponentName),
 		FilterSubject: worker.SubjectChunkEmbedPrefix + ">",
 		AckWait:       worker.EnvDuration("TMI_JOB_ACK_WAIT", 120*time.Second),
 		MaxDeliver:    3,

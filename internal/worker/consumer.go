@@ -128,15 +128,25 @@ func RunConsumer(ctx context.Context, conn *Conn, cfg ConsumerConfig, handle Job
 	if err != nil {
 		return err
 	}
-	cons, err := stream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
-		Durable:       cfg.Durable,
-		FilterSubject: cfg.FilterSubject,
-		AckPolicy:     jetstream.AckExplicitPolicy,
-		AckWait:       cfg.AckWait,
-		MaxDeliver:    cfg.MaxDeliver,
-	})
+	// Bind the durable consumer the controller pre-created (it must already
+	// exist for KEDA to have scaled this worker up from zero). Only create it
+	// as a fallback when absent — e.g. the process-mode integration tests run
+	// without a controller. Binding (rather than CreateOrUpdate) avoids a
+	// filter-subject conflict: the controller-created consumer has no filter
+	// (the per-component stream is single-purpose), whereas the fallback below
+	// sets one for the controller-less path.
+	cons, err := stream.Consumer(ctx, cfg.Durable)
+	if errors.Is(err, jetstream.ErrConsumerNotFound) {
+		cons, err = stream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
+			Durable:       cfg.Durable,
+			FilterSubject: cfg.FilterSubject,
+			AckPolicy:     jetstream.AckExplicitPolicy,
+			AckWait:       cfg.AckWait,
+			MaxDeliver:    cfg.MaxDeliver,
+		})
+	}
 	if err != nil {
-		return fmt.Errorf("worker: create consumer: %w", err)
+		return fmt.Errorf("worker: bind/create consumer %s: %w", cfg.Durable, err)
 	}
 	idem := newIdempotency()
 

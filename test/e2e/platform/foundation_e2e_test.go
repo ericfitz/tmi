@@ -26,8 +26,12 @@ func TestFoundation_ReconcilesChildObjects(t *testing.T) {
 	// Calico, NATS, KEDA, and the TMIComponent CRD. The component-controller
 	// must ALSO be running against that cluster — Plan 1 has no in-cluster
 	// controller Deployment yet (tracked as a follow-up), so run it
-	// out-of-cluster first, e.g.:
-	//   KUBECONFIG=$(kind get kubeconfig --name tmi-platform) ./bin/component-controller &
+	// out-of-cluster first. Set TMI_NATS_URL to the host port-forward so the
+	// controller pre-creates each component's JetStream stream + durable
+	// consumer (required for KEDA scale-from-zero, #444):
+	//   kubectl --context kind-tmi-platform -n tmi-platform port-forward svc/nats 4222:4222 &
+	//   KUBECONFIG=$(kind get kubeconfig --name tmi-platform) \
+	//     TMI_NATS_URL=nats://127.0.0.1:4222 ./bin/component-controller &
 	const cr = `
 apiVersion: tmi.dev/v1alpha1
 kind: TMIComponent

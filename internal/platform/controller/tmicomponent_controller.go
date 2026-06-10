@@ -16,12 +16,18 @@ import (
 )
 
 // TMIComponentReconciler reconciles a TMIComponent into its child objects:
-// a Deployment, a NetworkPolicy, and a KEDA ScaledObject. JetStream stream
-// creation is handled at component startup against a live NATS and is not
-// part of object reconciliation.
+// a Deployment, a NetworkPolicy, a KEDA ScaledObject, and (when Streams is
+// set) the JetStream stream + durable consumer the ScaledObject watches.
+// Pre-creating the stream and consumer is required for KEDA scale-from-zero:
+// KEDA reads the consumer's pending depth to decide when to scale the worker
+// up from zero, so the consumer must exist before any worker pod runs.
 type TMIComponentReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	// Streams provisions the JetStream stream and durable consumer for each
+	// component. It is optional: envtest unit tests have no NATS and leave it
+	// nil, which skips provisioning.
+	Streams StreamProvisioner
 }
 
 // Reconcile is the controller-runtime entrypoint.
@@ -66,6 +72,17 @@ func (r *TMIComponentReconciler) ReconcileComponent(ctx context.Context, key typ
 	}
 	if err := r.apply(ctx, so); err != nil {
 		return ctrl.Result{}, fmt.Errorf("apply ScaledObject: %w", err)
+	}
+
+	// Pre-create the JetStream stream and durable consumer the ScaledObject
+	// above watches. Without this, KEDA cannot observe queue depth on a
+	// consumer that does not exist yet, so it never scales the worker from
+	// zero and published jobs are never delivered. Returning the error
+	// requeues the component until NATS is reachable.
+	if r.Streams != nil {
+		if err := r.Streams.EnsureStreamAndConsumer(ctx, &comp); err != nil {
+			return ctrl.Result{}, fmt.Errorf("provision JetStream: %w", err)
+		}
 	}
 
 	return ctrl.Result{}, nil
