@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tmi-server
+  namespace: tmi-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: tmi-server }
+  template:
+    metadata:
+      labels: { app: tmi-server }
+    spec:
+      containers:
+        - name: server
+          image: localhost:5000/tmi-server:dev
+          args: ["--config=/etc/tmi/config.yml"]
+          ports:
+            - containerPort: 8080
+          env:
+            - { name: TMI_SERVER_INTERFACE, value: "0.0.0.0" }
+            - { name: TMI_SERVER_PORT, value: "8080" }
+            - { name: TMI_REDIS_HOST, value: "redis" }
+            - { name: TMI_NATS_URL, value: "nats://nats.tmi-platform.svc:4222" }
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tmi
+              readOnly: true
+          readinessProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 1000m, memory: 512Mi }
+      volumes:
+        - name: config
+          configMap:
+            name: tmi-server-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tmi-server
+  namespace: tmi-platform
+spec:
+  selector: { app: tmi-server }
+  ports:
+    - port: 8080
+      targetPort: 8080
