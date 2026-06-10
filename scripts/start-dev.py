@@ -34,15 +34,13 @@ CONFIG_FILE = "config-development.yml"
 CONFIGMAP_NAME = "tmi-server-config"
 PORT_FORWARD_PID = "/tmp/tmi-dev-portforward.pid"
 
-# (name, dockerfile, build_args, needs_client_stage)
-# needs_client_stage=True  -> always stage
-# needs_client_stage=False -> never stage (no COPY .docker-deps/tmi-client/ in Dockerfile)
+# (name, dockerfile, build_args)
 # All four Dockerfiles have COPY .docker-deps/tmi-client/, so all need staging.
 IMAGE_BUILDS = [
-    ("tmi-server",               "Dockerfile.server",    {"BUILD_TAGS": "dev"}, True),
-    ("tmi-component-controller", "Dockerfile.controller", {},                   True),
-    ("tmi-extractor",            "Dockerfile.extractor",  {},                   True),
-    ("tmi-chunk-embed",          "Dockerfile.chunkembed", {},                   True),
+    ("tmi-server",               "Dockerfile.server",    {"BUILD_TAGS": "dev"}),
+    ("tmi-component-controller", "Dockerfile.controller", {}),
+    ("tmi-extractor",            "Dockerfile.extractor",  {}),
+    ("tmi-chunk-embed",          "Dockerfile.chunkembed", {}),
 ]
 
 
@@ -164,12 +162,24 @@ def _resolve_client_version(project_root: Path) -> str:
     sys.exit(1)
 
 
-def stage_tmi_client() -> Path:
-    """Copy the tmi-client Go module into .docker-deps/tmi-client/.
+def stage_tmi_client() -> bool:
+    """Copy the tmi-client Go module into .docker-deps/tmi-client/ if not already present.
 
-    Returns the staged directory path.
+    If .docker-deps/tmi-client/ already exists the developer is assumed to have
+    intentionally staged it; this function leaves it untouched and returns False
+    so the caller knows NOT to clean it up later.
+
+    Returns True if this call created .docker-deps/tmi-client/ (caller must
+    call unstage_tmi_client() to clean up), False if it was pre-existing (leave
+    it alone).
     """
     project_root = get_project_root()
+    dest = project_root / ".docker-deps" / "tmi-client"
+
+    if dest.exists():
+        log_info(f"Pre-existing .docker-deps/tmi-client/ found — using as-is: {dest}")
+        return False
+
     client_root = _resolve_client_path(project_root)
     client_version = _resolve_client_version(project_root)
 
@@ -183,22 +193,27 @@ def stage_tmi_client() -> Path:
         )
         sys.exit(1)
 
-    dest = project_root / ".docker-deps" / "tmi-client"
-    if dest.exists():
-        shutil.rmtree(dest)
+    # Create only the .docker-deps/ parent if needed; never touch other contents.
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     log_info(f"Staging tmi-client: {src} -> {dest}")
     shutil.copytree(src, dest)
-    return dest
+    return True
 
 
-def unstage_tmi_client() -> None:
-    """Remove the .docker-deps staging directory."""
-    deps_dir = get_project_root() / ".docker-deps"
-    if deps_dir.exists():
-        shutil.rmtree(deps_dir)
-        log_info("Cleaned up staged dependencies (.docker-deps/)")
+def unstage_tmi_client(created: bool) -> None:
+    """Remove .docker-deps/tmi-client/ — but only if this run created it.
+
+    Never removes the parent .docker-deps/ directory or any other content
+    inside it; that would destroy a developer's intentionally staged files.
+    """
+    if not created:
+        return
+    project_root = get_project_root()
+    dest = project_root / ".docker-deps" / "tmi-client"
+    if dest.exists():
+        shutil.rmtree(dest)
+        log_info("Cleaned up staged tmi-client (.docker-deps/tmi-client/)")
 
 
 # ---------------------------------------------------------------------------
@@ -210,14 +225,15 @@ def build_and_push() -> None:
 
     All four Dockerfiles require the tmi-client staged in .docker-deps/.
     Stage once before the first build and clean up in a try/finally block
-    so the staging dir is always removed even if a build fails.
+    so the staging dir is always removed even if a build fails — but only
+    when this run created it (pre-existing dirs are left untouched).
     """
     project_root = get_project_root()
 
-    # All four images need the client — stage once.
-    stage_tmi_client()
+    # All four images need the client — stage once (no-op if pre-existing).
+    created = stage_tmi_client()
     try:
-        for name, dockerfile, build_args_map, _needs_stage in IMAGE_BUILDS:
+        for name, dockerfile, build_args_map in IMAGE_BUILDS:
             ref = devenv.local_image_ref(name)
             log_info(f"Building {name}  ({dockerfile}) -> {ref}")
 
@@ -233,7 +249,7 @@ def build_and_push() -> None:
 
         log_success("All images built and pushed to local registry")
     finally:
-        unstage_tmi_client()
+        unstage_tmi_client(created)
 
 
 # ---------------------------------------------------------------------------
