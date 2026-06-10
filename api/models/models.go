@@ -143,10 +143,10 @@ type ThreatModel struct {
 	// threat-model handlers) so in-memory values match what the DB persists and
 	// conform to the OpenAPI timestamp schema (max 6 fractional digits). If these
 	// columns are ever pinned to a different precision, revisit that truncation.
-	CreatedAt                    time.Time         `gorm:"not null;autoCreateTime;index:idx_tm_owner_created,priority:2"`
-	ModifiedAt                   time.Time         `gorm:"not null;autoUpdateTime"`
-	DeletedAt                    *time.Time        `gorm:"index:idx_tm_deleted_at"`
-	LastAccessedAt               *time.Time        `gorm:"index:idx_tm_last_accessed_at"`
+	CreatedAt      time.Time  `gorm:"not null;autoCreateTime;index:idx_tm_owner_created,priority:2"`
+	ModifiedAt     time.Time  `gorm:"not null;autoUpdateTime"`
+	DeletedAt      *time.Time `gorm:"index:idx_tm_deleted_at"`
+	LastAccessedAt *time.Time `gorm:"index:idx_tm_last_accessed_at"`
 	// Version is incremented on every successful update (T14 / #385).
 	// Clients pass the expected value via If-Match (or version body field) on
 	// PUT/PATCH; mismatches return 409 Conflict.
