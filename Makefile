@@ -19,6 +19,9 @@ export PATH := /usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:$(
 # Default server port
 SERVER_PORT ?= 8080
 
+# Default database backend for dev environment (postgres|oracle)
+DB ?= postgres
+
 # ============================================================================
 # ATOMIC COMPONENTS - Infrastructure Management
 # ============================================================================
@@ -304,8 +307,8 @@ test-db-cleanup:
 	@uv run scripts/delete-test-users.py $(ARGS)
 
 # Development Environment - Deploy the TMI dev environment into the current kubectl context
-start-dev:  ## Deploy the TMI dev environment into the current kubectl context
-	@uv run scripts/start-dev.py
+start-dev:  ## Deploy the TMI dev environment into the current kubectl context (DB=postgres|oracle)
+	@uv run scripts/start-dev.py --db $(DB)
 
 # Development Environment - Oracle Cloud Infrastructure (OCI) Autonomous Database
 # Prerequisites:
@@ -330,12 +333,12 @@ probe-oracle-clob-like:
 	@bash -c "source scripts/oci-env.sh && go run -tags oracle ./scripts/oracle-clob-like-probe/..."
 
 # Development Environment - Rebuild+push the server, redeliver config, roll the server pod
-restart-dev:  ## Rebuild+push the server, redeliver config, roll the server pod
-	@uv run scripts/start-dev.py --restart
+restart-dev:  ## Rebuild+push the server, redeliver config, roll the server pod (DB=postgres|oracle)
+	@uv run scripts/start-dev.py --restart --db $(DB)
 
 # Development Environment - Tear down everything start-dev deployed (leaves a dedicated cluster intact)
 stop-dev:  ## Tear down everything start-dev deployed (leaves a dedicated cluster intact)
-	@uv run scripts/start-dev.py --stop
+	@uv run scripts/start-dev.py --stop --db $(DB)
 
 # Local kind cluster - Create a local kind cluster wired to the dev registry (laptop path)
 dev-cluster-up:  ## Create a local kind cluster wired to the dev registry (laptop path)
