@@ -4,12 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 )
+
+// jitterSource is the RNG used to decorrelate retry backoff. math/rand is
+// intentional and sufficient here — backoff jitter has no security
+// requirement, only a statistical-decorrelation one.
+// #nosec G404 - non-cryptographic jitter, not used for any security decision.
+func jitterRandN(n int64) int64 { return rand.Int63n(n) }
 
 // RetryConfig holds configuration for retry behavior
 type RetryConfig struct {
@@ -30,15 +37,18 @@ func DefaultRetryConfig() RetryConfig {
 // WithRetryableTransaction executes a function within a transaction with retry logic.
 // It automatically retries on connection errors and other transient failures.
 // The transaction is rolled back on error and committed on success.
-func WithRetryableTransaction(ctx context.Context, db *sql.DB, cfg RetryConfig, fn func(*sql.Tx) error) error {
+func WithRetryableTransaction(ctx context.Context, db *sql.DB, cfg RetryConfig, fn func(*sql.Tx) error, opts ...*sql.TxOptions) error {
 	logger := slogging.Get()
 	var lastErr error
 
+	txOpts, err := resolveTxOptions(opts)
+	if err != nil {
+		return err
+	}
+
 	for attempt := 0; attempt < cfg.MaxRetries; attempt++ {
 		if attempt > 0 {
-			// Exponential backoff with cap
-			// #nosec G115 - attempt is always in range [1, maxRetries-1] so no overflow possible
-			delay := min(cfg.BaseDelay*time.Duration(1<<uint(attempt-1)), cfg.MaxDelay)
+			delay := jitteredBackoff(cfg, attempt, jitterRandN)
 			logger.Debug("Retrying transaction in %v (attempt %d/%d)", delay, attempt+1, cfg.MaxRetries)
 
 			select {
@@ -48,8 +58,8 @@ func WithRetryableTransaction(ctx context.Context, db *sql.DB, cfg RetryConfig, 
 			}
 		}
 
-		// Begin transaction
-		tx, err := db.BeginTx(ctx, nil)
+		// Begin transaction at the resolved isolation level (default: SERIALIZABLE).
+		tx, err := db.BeginTx(ctx, txOpts)
 		if err != nil {
 			if IsRetryableError(err) {
 				lastErr = err
@@ -111,14 +121,18 @@ func IsConnectionError(err error) bool {
 // WithRetryableGormTransaction executes a function within a GORM transaction with retry logic.
 // It automatically retries on connection errors and other transient failures.
 // The transaction is managed by GORM (auto-commit on nil return, auto-rollback on error).
-func WithRetryableGormTransaction(ctx context.Context, gormDB *gorm.DB, cfg RetryConfig, fn func(tx *gorm.DB) error) error {
+func WithRetryableGormTransaction(ctx context.Context, gormDB *gorm.DB, cfg RetryConfig, fn func(tx *gorm.DB) error, opts ...*sql.TxOptions) error {
 	logger := slogging.Get()
 	var lastErr error
 
+	txOpts, err := resolveTxOptions(opts)
+	if err != nil {
+		return err
+	}
+
 	for attempt := 0; attempt < cfg.MaxRetries; attempt++ {
 		if attempt > 0 {
-			// #nosec G115 - attempt is always in range [1, maxRetries-1] so no overflow possible
-			delay := min(cfg.BaseDelay*time.Duration(1<<uint(attempt-1)), cfg.MaxDelay)
+			delay := jitteredBackoff(cfg, attempt, jitterRandN)
 			logger.Debug("Retrying GORM transaction in %v (attempt %d/%d)", delay, attempt+1, cfg.MaxRetries)
 
 			select {
@@ -128,9 +142,10 @@ func WithRetryableGormTransaction(ctx context.Context, gormDB *gorm.DB, cfg Retr
 			}
 		}
 
+		// GORM forwards txOpts to BeginTx -> SERIALIZABLE by default.
 		err := gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			return fn(tx)
-		})
+		}, txOpts)
 
 		if err == nil {
 			return nil
