@@ -34,14 +34,27 @@ CONFIG_FILE = "config-development.yml"
 CONFIGMAP_NAME = "tmi-server-config"
 PORT_FORWARD_PID = "/tmp/tmi-dev-portforward.pid"
 
-# (name, dockerfile, build_args)
-# All four Dockerfiles have COPY .docker-deps/tmi-client/, so all need staging.
-IMAGE_BUILDS = [
-    ("tmi-server",               "Dockerfile.server",    {"BUILD_TAGS": "dev"}),
-    ("tmi-component-controller", "Dockerfile.controller", {}),
-    ("tmi-extractor",            "Dockerfile.extractor",  {}),
-    ("tmi-chunk-embed",          "Dockerfile.chunkembed", {}),
-]
+
+def image_builds_for(db: str) -> list[tuple[str, str, dict]]:
+    """Return the (name, dockerfile, build_args) tuples for the chosen DB flavor.
+
+    The controller and the two workers are identical across DB flavors; only the
+    server image differs (static Postgres image vs. Oracle CGO image).
+    """
+    if db == "oracle":
+        server = ("tmi-server-oracle", "Dockerfile.server-oracle", {"EXTRA_TAGS": "dev"})
+    else:
+        server = ("tmi-server", "Dockerfile.server", {"BUILD_TAGS": "dev"})
+    return [
+        server,
+        ("tmi-component-controller", "Dockerfile.controller", {}),
+        ("tmi-extractor",            "Dockerfile.extractor",  {}),
+        ("tmi-chunk-embed",          "Dockerfile.chunkembed", {}),
+    ]
+
+
+def overlay_dir_for(db: str) -> str:
+    return f"{DEV_DIR}/oracle" if db == "oracle" else DEV_DIR
 
 
 def parse_args() -> argparse.Namespace:
@@ -52,6 +65,8 @@ def parse_args() -> argparse.Namespace:
     g.add_argument("--stop", action="store_true")
     p.add_argument("--yes", action="store_true", help="Skip the local-context safety check")
     p.add_argument("--no-workers", action="store_true", help="Do not apply the component CRs")
+    p.add_argument("--db", choices=["postgres", "oracle"], default="postgres",
+                   help="Which database flavor to deploy (selects the server image + overlay)")
     return p.parse_args()
 
 
@@ -220,7 +235,7 @@ def unstage_tmi_client(created: bool) -> None:
 # Image build + push
 # ---------------------------------------------------------------------------
 
-def build_and_push() -> None:
+def build_and_push(db: str) -> None:
     """Build all images and push them to the local registry.
 
     All four Dockerfiles require the tmi-client staged in .docker-deps/.
@@ -233,7 +248,7 @@ def build_and_push() -> None:
     # All four images need the client — stage once (no-op if pre-existing).
     created = stage_tmi_client()
     try:
-        for name, dockerfile, build_args_map in IMAGE_BUILDS:
+        for name, dockerfile, build_args_map in image_builds_for(db):
             ref = devenv.local_image_ref(name)
             log_info(f"Building {name}  ({dockerfile}) -> {ref}")
 
@@ -289,7 +304,40 @@ def create_embedding_secret() -> None:
     devenv.kubectl(["apply", "-f", "-"], input_text=rendered)
 
 
-def apply_overlay(no_workers: bool) -> None:
+def _no_workers_files(db: str) -> tuple[str, ...]:
+    """Return the per-file manifest list for --no-workers mode.
+
+    controller.yml and redis.yml are shared across DB flavors; only the server
+    manifest filename differs (server.yml for postgres, server-oracle.yml for oracle).
+    All files physically live in DEV_DIR.
+    """
+    server_file = "server-oracle.yml" if db == "oracle" else "server.yml"
+    return ("controller.yml", "redis.yml", server_file)
+
+
+def create_oracle_wallet_secret() -> None:
+    """Create the tmi-oracle-wallet Secret from the developer's wallet zip.
+
+    Path comes from TMI_ORACLE_WALLET_ZIP (a path to the OCI ADB wallet .zip).
+    The Oracle image entrypoint reads /wallet/wallet.zip and extracts it.
+    (There is no existing wallet-*zip* env var to reuse: scripts/oci-env.sh's
+    TNS_ADMIN points to an extracted wallet *directory* for host-process tests,
+    not a zip, so this introduces TMI_ORACLE_WALLET_ZIP for the k8s path.)
+    """
+    wallet = os.environ.get("TMI_ORACLE_WALLET_ZIP", "")
+    if not wallet or not Path(wallet).is_file():
+        log_error("DB=oracle requires TMI_ORACLE_WALLET_ZIP to point at your ADB wallet .zip")
+        sys.exit(1)
+    rendered = run_cmd(
+        ["kubectl", "create", "secret", "generic", "tmi-oracle-wallet", "-n", NS,
+         f"--from-file=wallet.zip={wallet}", "--dry-run=client", "-o", "yaml"],
+        capture=True,
+    ).stdout
+    devenv.kubectl(["apply", "-f", "-"], input_text=rendered)
+    log_success("oracle wallet delivered as Secret/tmi-oracle-wallet")
+
+
+def apply_overlay(no_workers: bool, db: str) -> None:
     """Apply the dev overlay.
 
     When --no-workers: apply the three core manifests individually to avoid
@@ -298,16 +346,18 @@ def apply_overlay(no_workers: bool) -> None:
 
     Otherwise: render the full kustomize overlay with --load-restrictor
     LoadRestrictionsNone (needed because the overlay references files outside
-    its own directory tree, i.e. ../platform/components/).
+    its own directory tree, i.e. ../platform/components/; the oracle overlay at
+    deployments/k8s/dev/oracle references ../../platform/components/ so the flag
+    is equally required for both flavors).
     """
     project_root = get_project_root()
     if no_workers:
-        for f in ("controller.yml", "redis.yml", "server.yml"):
+        for f in _no_workers_files(db):
             devenv.kubectl(["apply", "-f", str(project_root / DEV_DIR / f)])
     else:
         rendered = run_cmd(
             ["kubectl", "kustomize", "--load-restrictor", "LoadRestrictionsNone",
-             str(project_root / DEV_DIR)],
+             str(project_root / overlay_dir_for(db))],
             capture=True,
         ).stdout
         devenv.kubectl(["apply", "-f", "-"], input_text=rendered)
@@ -351,12 +401,14 @@ def do_start(args) -> None:
     preflight()
     guard_context(args.yes)
     ensure_registry()
-    build_and_push()
+    build_and_push(args.db)
     ensure_namespace()
     apply_platform_base()
     deliver_config()
     create_embedding_secret()
-    apply_overlay(args.no_workers)
+    if args.db == "oracle":
+        create_oracle_wallet_secret()
+    apply_overlay(args.no_workers, args.db)
     wait_and_forward()
 
 
@@ -364,9 +416,11 @@ def do_restart(args) -> None:
     preflight()
     guard_context(args.yes)
     ensure_registry()
-    build_and_push()
+    build_and_push(args.db)
     deliver_config()
-    apply_overlay(args.no_workers)
+    if args.db == "oracle":
+        create_oracle_wallet_secret()
+    apply_overlay(args.no_workers, args.db)
     devenv.kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
     devenv.kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", "--timeout=180s"])
     start_port_forward()
@@ -384,6 +438,7 @@ def do_stop(args) -> None:
     - TMIComponent CRs (tmi-extractor, tmi-chunk-embed)
     - ConfigMap tmi-server-config
     - Secret tmi-embedding
+    - Secret tmi-oracle-wallet (defensive; no-op if never created)
     - local registry container (docker stop)
     """
     stop_port_forward()
@@ -417,13 +472,17 @@ def do_stop(args) -> None:
         check=False,
     )
 
-    # ConfigMap and Secret
+    # ConfigMap and Secrets
     devenv.kubectl(
         ["-n", NS, "delete", "configmap", CONFIGMAP_NAME, "--ignore-not-found"],
         check=False,
     )
     devenv.kubectl(
         ["-n", NS, "delete", "secret", "tmi-embedding", "--ignore-not-found"],
+        check=False,
+    )
+    devenv.kubectl(
+        ["-n", NS, "delete", "secret", "tmi-oracle-wallet", "--ignore-not-found"],
         check=False,
     )
 
