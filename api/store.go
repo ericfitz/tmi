@@ -23,7 +23,12 @@ type WithTimestamps interface {
 
 // UpdateTimestamps updates the timestamps on an entity
 func UpdateTimestamps[T WithTimestamps](entity T, isNew bool) T {
-	now := time.Now().UTC()
+	// Truncate to microseconds so the in-memory value matches what the database
+	// persists (PostgreSQL and Oracle store microsecond precision) and conforms
+	// to the OpenAPI timestamp schema, which permits at most 6 fractional
+	// digits. Without this, a create response returns the Go nanosecond value
+	// while a later GET returns the truncated DB value, so they appear to differ.
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	if isNew {
 		entity.SetCreatedAt(now)
 	}

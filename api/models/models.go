@@ -136,6 +136,13 @@ type ThreatModel struct {
 	IsConfidential               DBBool            `gorm:"default:0"`                                                                      // Immutable after creation
 	SecurityReviewerInternalUUID NullableDBVarchar `gorm:"size:36;index:idx_tm_security_reviewer"`
 	ProjectID                    NullableDBVarchar `gorm:"size:36;index:idx_tm_project"`
+	// Timestamp columns map to precision-6 TIMESTAMP WITH TIME ZONE on both
+	// PostgreSQL and Oracle (the gorm-oracle dialector emits bare TIMESTAMP WITH
+	// TIME ZONE = microsecond). The application truncates created_at/modified_at
+	// to microseconds at generation (see api/store.go UpdateTimestamps and the
+	// threat-model handlers) so in-memory values match what the DB persists and
+	// conform to the OpenAPI timestamp schema (max 6 fractional digits). If these
+	// columns are ever pinned to a different precision, revisit that truncation.
 	CreatedAt                    time.Time         `gorm:"not null;autoCreateTime;index:idx_tm_owner_created,priority:2"`
 	ModifiedAt                   time.Time         `gorm:"not null;autoUpdateTime"`
 	DeletedAt                    *time.Time        `gorm:"index:idx_tm_deleted_at"`

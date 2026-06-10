@@ -155,8 +155,11 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		userDisplayName = user.Email // Fallback to email
 	}
 
-	// Create new threat model
-	now := time.Now().UTC()
+	// Create new threat model. Truncate to microseconds so the value returned in
+	// the create response matches what the database persists (microsecond
+	// precision) and conforms to the OpenAPI timestamp schema (max 6 fractional
+	// digits); otherwise a later GET appears to change created_at.
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	threatIDs := []Threat{}
 
 	// Strip response-only fields from authorization entries before validation
@@ -453,7 +456,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		Metadata:             request.Metadata,       // nil means cleared
 		// Preserve server-controlled fields
 		CreatedAt:  tm.CreatedAt,
-		ModifiedAt: func() *time.Time { now := time.Now().UTC(); return &now }(),
+		ModifiedAt: func() *time.Time { now := time.Now().UTC().Truncate(time.Microsecond); return &now }(),
 		CreatedBy:  tm.CreatedBy,
 		// Preserve sub-entity arrays (managed separately)
 		Diagrams:     tm.Diagrams,
@@ -732,8 +735,9 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	// Capture pre-mutation state for audit
 	preState, _ := SerializeForAudit(existingTM)
 
-	// Final update of timestamps
-	now := time.Now().UTC()
+	// Final update of timestamps (microsecond precision to match the DB and the
+	// OpenAPI timestamp schema).
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	modifiedTM.ModifiedAt = &now
 
 	// Update in store

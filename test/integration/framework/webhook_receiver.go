@@ -2,13 +2,29 @@ package framework
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sync"
 	"testing"
 	"time"
 )
+
+// webhookAdvertiseHost returns the host the TMI server should use to reach this
+// receiver. In the k8s dev environment the server runs inside a cluster pod and
+// reaches host services via host.docker.internal (the same way it reaches the
+// host PostgreSQL). Override with TEST_WEBHOOK_ADVERTISE_HOST for other
+// topologies (e.g. a k3s node IP). Whatever value is used must also be present
+// in the server's TMI_SSRF_WEBHOOK_ALLOWLIST so delivery is not SSRF-blocked.
+func webhookAdvertiseHost() string {
+	if h := os.Getenv("TEST_WEBHOOK_ADVERTISE_HOST"); h != "" {
+		return h
+	}
+	return "host.docker.internal"
+}
 
 // ChallengeMode controls how the webhook receiver responds to challenge requests.
 type ChallengeMode int
@@ -46,6 +62,7 @@ type WebhookReceiver struct {
 	failCount     int           // return error status for first N deliveries, then 200
 	deliveryCount int           // tracks total delivery attempts (for failCount logic)
 	responseDelay time.Duration // sleep before responding (for timeout testing)
+	advertisedURL string        // URL the TMI server uses to reach this receiver
 }
 
 // ReceiverOption is a functional option for configuring a WebhookReceiver.
@@ -100,7 +117,21 @@ func NewWebhookReceiver(opts ...ReceiverOption) *WebhookReceiver {
 		opt(r)
 	}
 
-	r.Server = httptest.NewServer(http.HandlerFunc(r.handler))
+	// Bind to all interfaces (not just loopback) so the TMI server — which runs
+	// inside a cluster pod in the k8s dev environment — can reach this receiver
+	// on the host. httptest.NewServer binds to 127.0.0.1, which is unreachable
+	// from a pod.
+	r.Server = httptest.NewUnstartedServer(http.HandlerFunc(r.handler))
+	listener, err := net.Listen("tcp", "0.0.0.0:0")
+	if err != nil {
+		panic(fmt.Sprintf("webhook receiver: failed to listen on 0.0.0.0: %v", err))
+	}
+	_ = r.Server.Listener.Close()
+	r.Server.Listener = listener
+	r.Server.Start()
+
+	_, port, _ := net.SplitHostPort(listener.Addr().String())
+	r.advertisedURL = fmt.Sprintf("http://%s:%s", webhookAdvertiseHost(), port)
 	return r
 }
 
@@ -195,9 +226,12 @@ func (r *WebhookReceiver) handler(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(responseCode)
 }
 
-// URL returns the base URL of the test server (http://127.0.0.1:PORT).
+// URL returns the base URL the TMI server should use to reach this receiver
+// (http://<advertise-host>:PORT, default host.docker.internal). This is the URL
+// to register as a webhook target — not r.Server.URL, which is loopback-bound
+// and unreachable from a cluster pod.
 func (r *WebhookReceiver) URL() string {
-	return r.Server.URL
+	return r.advertisedURL
 }
 
 // WaitForDelivery blocks until at least 1 delivery is received, then returns it.

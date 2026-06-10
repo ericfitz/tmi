@@ -33,6 +33,11 @@ PLATFORM_DIR = "deployments/k8s/platform"
 CONFIG_FILE = "config-development.yml"
 CONFIGMAP_NAME = "tmi-server-config"
 PORT_FORWARD_PID = "/tmp/tmi-dev-portforward.pid"
+# Redis is an in-cluster ClusterIP service; the server reaches it as redis:6379.
+# Integration tests that seed Redis directly (e.g. the step-up legacy refresh
+# token round-trip) connect to TEST_REDIS_HOST:TEST_REDIS_PORT, defaulting to
+# localhost:6379 — so forward the in-cluster Redis to the host as well.
+REDIS_PORT_FORWARD_PID = "/tmp/tmi-dev-redis-portforward.pid"
 
 
 def image_builds_for(db: str) -> list[tuple[str, str, dict]]:
@@ -380,9 +385,17 @@ def start_port_forward() -> None:
     Path(PORT_FORWARD_PID).write_text(str(proc.pid))
     log_info(f"Port-forward started (PID {proc.pid}): localhost:8080 -> svc/tmi-server:8080")
 
+    redis_proc = subprocess.Popen(
+        ["kubectl", "-n", NS, "port-forward", "svc/redis", "6379:6379"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    Path(REDIS_PORT_FORWARD_PID).write_text(str(redis_proc.pid))
+    log_info(f"Port-forward started (PID {redis_proc.pid}): localhost:6379 -> svc/redis:6379")
 
-def stop_port_forward() -> None:
-    p = Path(PORT_FORWARD_PID)
+
+def _stop_port_forward_pidfile(pid_path: str) -> None:
+    p = Path(pid_path)
     if p.exists():
         try:
             pid = int(p.read_text().strip())
@@ -391,6 +404,11 @@ def stop_port_forward() -> None:
         except (ProcessLookupError, ValueError):
             pass
         p.unlink(missing_ok=True)
+
+
+def stop_port_forward() -> None:
+    _stop_port_forward_pidfile(PORT_FORWARD_PID)
+    _stop_port_forward_pidfile(REDIS_PORT_FORWARD_PID)
 
 
 # ---------------------------------------------------------------------------

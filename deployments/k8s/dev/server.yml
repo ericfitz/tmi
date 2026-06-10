@@ -18,6 +18,10 @@ spec:
       containers:
         - name: server
           image: localhost:5000/tmi-server:dev
+          # The dev image always uses the :dev tag, so the default IfNotPresent
+          # would keep running the node-cached image after `make restart-dev`
+          # pushes new code. Always pull so a rebuild actually deploys.
+          imagePullPolicy: Always
           args: ["--config=/etc/tmi/config.yml"]
           ports:
             - containerPort: 8080
@@ -31,6 +35,20 @@ spec:
             # The tmi provider is a dev/test-only identity provider that supports
             # login_hint-based user creation without external OAuth credentials.
             - { name: OAUTH_PROVIDERS_TMI_ENABLED, value: "true" }
+            # Allow http:// webhook target URLs in local dev. The integration
+            # webhook tests register loopback receivers served over http; the
+            # default (https-only) rejects them. Dev/local only — never set in prod.
+            - { name: TMI_WEBHOOK_ALLOW_HTTP_TARGETS, value: "true" }
+            # SSRF allowlist for webhook delivery. The integration webhook
+            # receiver runs on the host; the server pod reaches it via
+            # host.docker.internal. Allowlisting that host lets challenge/
+            # delivery bypass the private-IP SSRF block. Dev/local only.
+            - { name: TMI_SSRF_WEBHOOK_ALLOWLIST, value: "host.docker.internal" }
+            # Auto-promote the first authenticated user to administrator when the
+            # Administrators group is empty. Gives a local dev a working admin
+            # without manual seeding, and the admin-promotion integration test
+            # exercises this path. Dev/local convenience — default-off in prod.
+            - { name: TMI_AUTH_AUTO_PROMOTE_FIRST_USER, value: "true" }
           volumeMounts:
             - name: config
               mountPath: /etc/tmi

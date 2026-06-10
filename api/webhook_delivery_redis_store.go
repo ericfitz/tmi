@@ -120,6 +120,24 @@ func ttlForStatus(status string) time.Duration {
 	}
 }
 
+// truncateDeliveryTimestamps rounds every timestamp on the record down to
+// microsecond precision. Delivery records live in Redis (not the database), so
+// they are never truncated by a DB driver; without this the Go nanosecond
+// values returned by the delivery API would violate the OpenAPI timestamp
+// schema, which permits at most 6 fractional digits.
+func truncateDeliveryTimestamps(record *WebhookDeliveryRecord) {
+	record.CreatedAt = record.CreatedAt.Truncate(time.Microsecond)
+	record.LastActivityAt = record.LastActivityAt.Truncate(time.Microsecond)
+	if record.DeliveredAt != nil {
+		t := record.DeliveredAt.Truncate(time.Microsecond)
+		record.DeliveredAt = &t
+	}
+	if record.NextRetryAt != nil {
+		t := record.NextRetryAt.Truncate(time.Microsecond)
+		record.NextRetryAt = &t
+	}
+}
+
 // Create creates a new delivery record in Redis
 func (s *WebhookDeliveryRedisStore) Create(ctx context.Context, record *WebhookDeliveryRecord) error {
 	logger := slogging.Get()
@@ -147,6 +165,8 @@ func (s *WebhookDeliveryRedisStore) Create(ctx context.Context, record *WebhookD
 	if record.Status == "" {
 		record.Status = DeliveryStatusPending
 	}
+
+	truncateDeliveryTimestamps(record)
 
 	// Serialize to JSON
 	data, err := json.Marshal(record)
@@ -200,6 +220,8 @@ func (s *WebhookDeliveryRedisStore) Update(ctx context.Context, record *WebhookD
 
 	// Update activity timestamp
 	record.LastActivityAt = time.Now().UTC()
+
+	truncateDeliveryTimestamps(record)
 
 	// Serialize to JSON
 	data, err := json.Marshal(record)

@@ -39,9 +39,13 @@ func (s *Service) GenerateDeletionChallenge(ctx context.Context, userEmail strin
 		userEmail, token,
 	)
 
-	// Store challenge in Redis with 3-minute expiration
+	// Store challenge in Redis with 3-minute expiration.
+	// Truncate to microseconds: this value is returned directly in the response
+	// (never round-tripped through the database), and the OpenAPI timestamp
+	// schema permits at most 6 fractional digits, so the raw nanosecond value
+	// from time.Now() would fail response validation.
 	challengeKey := fmt.Sprintf("user_deletion_challenge:%s", userEmail)
-	expiresAt := time.Now().Add(3 * time.Minute)
+	expiresAt := time.Now().Add(3 * time.Minute).Truncate(time.Microsecond)
 
 	err := s.dbManager.Redis().Set(ctx, challengeKey, token, 3*time.Minute)
 	if err != nil {
