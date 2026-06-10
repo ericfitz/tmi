@@ -238,7 +238,7 @@ clean-everything:
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-cluster-up dev-cluster-down
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-cluster-up dev-cluster-down
 
 # Dev-environment Python helpers unit tests
 test-dev-scripts:  ## Run unit tests for the dev-environment Python helpers
@@ -303,8 +303,8 @@ test-api-list:
 test-db-cleanup:
 	@uv run scripts/delete-test-users.py $(ARGS)
 
-# Development Environment - Start local dev environment
-start-dev:
+# Development Environment - Deploy the TMI dev environment into the current kubectl context
+start-dev:  ## Deploy the TMI dev environment into the current kubectl context
 	@uv run scripts/start-dev.py
 
 # Development Environment - Oracle Cloud Infrastructure (OCI) Autonomous Database
@@ -329,9 +329,13 @@ reset-db-oci:
 probe-oracle-clob-like:
 	@bash -c "source scripts/oci-env.sh && go run -tags oracle ./scripts/oracle-clob-like-probe/..."
 
-# Development Environment - Restart (stop server, rebuild, clean logs, start dev)
-restart-dev:
+# Development Environment - Rebuild+push the server, redeliver config, roll the server pod
+restart-dev:  ## Rebuild+push the server, redeliver config, roll the server pod
 	@uv run scripts/start-dev.py --restart
+
+# Development Environment - Tear down everything start-dev deployed (leaves a dedicated cluster intact)
+stop-dev:  ## Tear down everything start-dev deployed (leaves a dedicated cluster intact)
+	@uv run scripts/start-dev.py --stop
 
 # Local kind cluster - Create a local kind cluster wired to the dev registry (laptop path)
 dev-cluster-up:  ## Create a local kind cluster wired to the dev registry (laptop path)

@@ -22,6 +22,7 @@ spec:
             - { name: TMI_SERVER_PORT, value: "8080" }
             - { name: TMI_REDIS_HOST, value: "redis" }
             - { name: TMI_NATS_URL, value: "nats://nats.tmi-platform.svc:4222" }
+            - { name: TMI_LOG_DIR, value: "/tmp/logs" }
           volumeMounts:
             - name: config
               mountPath: /etc/tmi

@@ -62,6 +62,7 @@ spec:
           image: localhost:5000/tmi-component-controller:dev
           securityContext:
             runAsNonRoot: true
+            runAsUser: 65532
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
             capabilities:
