@@ -8,6 +8,10 @@
 # reads /wallet/wallet.zip, extracts it to /tmp/wallet, and sets TNS_ADMIN and
 # TMI_ORACLE_WALLET_LOCATION automatically — do NOT set those env vars here.
 # The DB DSN comes from config-development.yml (database.url) via the ConfigMap.
+#
+# KEEP IN SYNC with server.yml (the Postgres counterpart): the two differ ONLY
+# in the image ref and the wallet volume/mount. Mirror any change to the shared
+# fields (env, probes, resources, config mount) into both manifests.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

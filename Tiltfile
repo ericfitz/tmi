@@ -10,6 +10,12 @@
 # `tilt down` removes Tilt's tmi-server; `make tilt-down` then re-applies the
 # canonical server.yml to restore the prod-shaped server.
 #
+# SCOPE: Postgres path only (by design — see the #442 design spec). This loop
+# always builds/restores the Postgres server.yml; the Oracle CGO image
+# (DB=oracle) is out of fast-loop scope. If you brought the env up with
+# DB=oracle, `make tilt-down` will restore the Postgres server — re-run
+# `make start-dev DB=oracle` to get the Oracle server back.
+#
 # WHY NOT in-place live_update + restart_process (the sub-second ideal)?
 #   The prod runtime base is cgr.dev/chainguard/static (distroless: no shell,
 #   no coreutils). The restart_process extension builds a helper layer that runs
