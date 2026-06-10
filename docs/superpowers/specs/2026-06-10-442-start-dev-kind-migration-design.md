@@ -176,6 +176,22 @@ untouched.
 No dev-specific NetworkPolicy is required (Calico-style policies the controller
 renders select only component pods; server/redis are unselected).
 
+### Controller — in-cluster (full prod shape)
+
+The `component-controller` runs as a pod (not the out-of-cluster process the e2e
+suite uses). It already calls `ctrl.GetConfigOrDie()`, which auto-selects the
+in-cluster config when a ServiceAccount is mounted — **no Go change needed**.
+New artifacts:
+- **`Dockerfile.controller`** — builds `cmd/component-controller` on
+  `cgr.dev/chainguard/static` (CGO-free), tagged `localhost:5000/tmi-component-controller:dev`.
+- **`deployments/k8s/dev/controller.yml`** — a `ServiceAccount`, a
+  `ClusterRole` (hand-written; no kubebuilder RBAC markers exist), a
+  `ClusterRoleBinding`, and a `Deployment` in `tmi-platform`. The ClusterRole
+  grants the verbs the controller actually uses: `get/list/watch/update/patch`
+  on `tmicomponents` (+ `/status`) in `tmi.dev`; full CRUD on `deployments`
+  (`apps`), `services` (core), `networkpolicies` (`networking.k8s.io`), and
+  `scaledobjects` (`keda.sh`); and `create/patch` on `events`.
+
 ## Tilt fast inner loop (optional)
 
 `make tilt-up` assumes `start-dev` has populated the current context and **takes
@@ -198,8 +214,10 @@ the prod-protection guard). It accepts `DB=postgres|oracle` (default `postgres`)
    `--yes`).
 2. Start the local registry container if absent.
 3. Build, tag (`localhost:5000/...`), and push the server image for the chosen
-   `DB` (static or Oracle) + the two worker images.
-4. Apply the platform base into the context (NATS, KEDA, CRD, controller).
+   `DB` (static or Oracle), the controller image, and the two worker images.
+4. Apply the platform base into the context (NATS, KEDA, CRD) and the in-cluster
+   controller (ServiceAccount + RBAC + Deployment); wait for the controller
+   rollout before applying component CRs.
 5. Generate the config ConfigMap from the current `config-development.yml`; for
    `DB=oracle`, create the `tmi-oracle-wallet` Secret. Apply the dev overlay
    (Redis, server), the image-patched component CRs, and the `tmi-embedding`
