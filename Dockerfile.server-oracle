@@ -99,8 +99,10 @@ COPY . .
 # Build the application with Oracle support enabled (CGO required)
 # TARGETARCH is automatically set by Docker buildx
 ARG TARGETARCH
+# Extra Go build tags appended to "oracle" (e.g. "dev" for login_hint + the test OAuth provider)
+ARG EXTRA_TAGS=""
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} go build \
-    -tags oracle \
+    -tags "oracle ${EXTRA_TAGS}" \
     -ldflags "-s -w \
         -X github.com/ericfitz/tmi/api.VersionMajor=${VERSION_MAJOR} \
         -X github.com/ericfitz/tmi/api.VersionMinor=${VERSION_MINOR} \
