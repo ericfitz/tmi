@@ -180,6 +180,7 @@ def run_cmd(
     cwd: str | Path | None = None,
     env: dict | None = None,
     verbose: bool = False,
+    input_text: str | None = None,
 ) -> subprocess.CompletedProcess:
     """Run a subprocess command.
 
@@ -190,6 +191,7 @@ def run_cmd(
         cwd: Working directory for the command.
         env: Additional environment variables (merged with os.environ).
         verbose: If True, log the command before running.
+        input_text: Optional text to pass to the subprocess via stdin.
 
     Returns:
         CompletedProcess instance.
@@ -208,6 +210,7 @@ def run_cmd(
         text=True,
         cwd=cwd,
         env=merged_env,
+        input=input_text,
     )
 
 

@@ -238,7 +238,11 @@ clean-everything:
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev test-coverage test-manual-google-workspace test-corpus-ooxml
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts
+
+# Dev-environment Python helpers unit tests
+test-dev-scripts:  ## Run unit tests for the dev-environment Python helpers
+	@uv run --python ">=3.11" python -m unittest discover -s scripts/lib/tests -v
 
 # Unit Testing - Fast tests with no external dependencies
 # Output is summarized: failures show full verbose detail, passes show only counts.
