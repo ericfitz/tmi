@@ -1,5 +1,12 @@
 # Build artifacts
 bin/
+# Exception: a manual `docker build -f Dockerfile.server-devloop .` copies the
+# host-compiled binary in; without this negation that COPY would fail. (Tilt
+# itself uses docker_build(only=['./bin/tmiserver']) and does NOT depend on this.)
+# When bin/tmiserver exists it also lands in other images' throwaway builder
+# layers via COPY . . — harmless like the .docker-deps note below; the final
+# multi-stage images are unaffected.
+!bin/tmiserver
 *.exe
 *.exe~
 *.dll

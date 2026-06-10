@@ -1,0 +1,11 @@
+# Tilt fast-loop image. The dev binary is compiled on the HOST (see Tiltfile);
+# this is a one-COPY image on the same runtime base as the prod server image, so
+# the fast-loop pod stays close to prod shape. Tilt live-update syncs the binary
+# and restarts the process in place (via the restart_process extension).
+FROM cgr.dev/chainguard/static:latest
+COPY bin/tmiserver /tmiserver
+# Intentionally NO `USER nonroot` (unlike the prod Dockerfile.server): Tilt's
+# live_update syncs the rebuilt binary onto /tmiserver and restart_process
+# re-execs it in place, which needs a writable target — so this dev-only image
+# (never shipped) runs as root. Do not "fix" this to match prod.
+ENTRYPOINT ["/tmiserver"]
