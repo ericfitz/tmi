@@ -366,6 +366,7 @@ def do_restart(args) -> None:
     ensure_registry()
     build_and_push()
     deliver_config()
+    apply_overlay(args.no_workers)
     devenv.kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
     devenv.kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", "--timeout=180s"])
     start_port_forward()
