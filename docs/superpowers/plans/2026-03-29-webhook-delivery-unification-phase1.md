@@ -586,14 +586,14 @@ EOF
 ### Task 7: Update Wiki
 
 **Files:**
-- Modify: `/Users/efitz/Projects/tmi.wiki/Extending-TMI.md`
-- Modify: `/Users/efitz/Projects/tmi.wiki/Addon-System.md`
-- Modify: `/Users/efitz/Projects/tmi.wiki/REST-API-Reference.md`
-- Modify: `/Users/efitz/Projects/tmi.wiki/API-Rate-Limiting.md`
+- Modify: `/Users/efitz/Projects/tmi-wiki/Extending-TMI.md`
+- Modify: `/Users/efitz/Projects/tmi-wiki/Addon-System.md`
+- Modify: `/Users/efitz/Projects/tmi-wiki/REST-API-Reference.md`
+- Modify: `/Users/efitz/Projects/tmi-wiki/API-Rate-Limiting.md`
 
 - [ ] **Step 1: Update Extending-TMI.md**
 
-Apply these replacements throughout `/Users/efitz/Projects/tmi.wiki/Extending-TMI.md`:
+Apply these replacements throughout `/Users/efitz/Projects/tmi-wiki/Extending-TMI.md`:
 - `X-Invocation-Id` → `X-Webhook-Delivery-Id`
 - `X-Addon-Id` header lines → remove
 - `User-Agent: TMI-Addon-Worker/1.0` → `User-Agent: TMI-Webhook/1.0`
@@ -606,7 +606,7 @@ Apply these replacements throughout `/Users/efitz/Projects/tmi.wiki/Extending-TM
 
 - [ ] **Step 2: Update Addon-System.md**
 
-Apply the same set of replacements throughout `/Users/efitz/Projects/tmi.wiki/Addon-System.md`:
+Apply the same set of replacements throughout `/Users/efitz/Projects/tmi-wiki/Addon-System.md`:
 - `X-Invocation-Id` → `X-Webhook-Delivery-Id`
 - `X-Addon-Id` header lines → remove
 - `User-Agent: TMI-Addon-Worker/1.0` → `User-Agent: TMI-Webhook/1.0`
@@ -617,19 +617,19 @@ Apply the same set of replacements throughout `/Users/efitz/Projects/tmi.wiki/Ad
 
 - [ ] **Step 3: Update REST-API-Reference.md**
 
-In `/Users/efitz/Projects/tmi.wiki/REST-API-Reference.md`:
+In `/Users/efitz/Projects/tmi-wiki/REST-API-Reference.md`:
 - `invocation_id` → `delivery_id`
 - `GET /invocations/{invocation_id}` → `GET /webhook-deliveries/{delivery_id}`
 
 - [ ] **Step 4: Update API-Rate-Limiting.md**
 
-In `/Users/efitz/Projects/tmi.wiki/API-Rate-Limiting.md`:
+In `/Users/efitz/Projects/tmi-wiki/API-Rate-Limiting.md`:
 - `/addons/invocations/{invocation_id}` → `/webhook-deliveries/{delivery_id}`
 
 - [ ] **Step 5: Commit wiki changes**
 
 ```bash
-cd /Users/efitz/Projects/tmi.wiki
+cd /Users/efitz/Projects/tmi-wiki
 git add Extending-TMI.md Addon-System.md REST-API-Reference.md API-Rate-Limiting.md
 git commit -m "$(cat <<'EOF'
 docs: rename invocation_id to delivery_id and update webhook headers (#194)

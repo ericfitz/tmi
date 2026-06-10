@@ -1113,8 +1113,8 @@ git commit -m "test(timmy): add reranker and decomposer integration tests"
 ### Task 7: Wiki Updates and Architecture Diagram
 
 **Files:**
-- Modify: `/Users/efitz/Projects/tmi.wiki/Configuration-Reference.md`
-- Modify: `/Users/efitz/Projects/tmi.wiki/Timmy-AI-Assistant.md`
+- Modify: `/Users/efitz/Projects/tmi-wiki/Configuration-Reference.md`
+- Modify: `/Users/efitz/Projects/tmi-wiki/Timmy-AI-Assistant.md`
 
 - [ ] **Step 1: Update Configuration-Reference.md**
 
@@ -1211,7 +1211,7 @@ Remove #241 from "In Progress" and move it to "Completed" in the implementation 
 - [ ] **Step 5: Commit and push wiki**
 
 ```bash
-cd /Users/efitz/Projects/tmi.wiki
+cd /Users/efitz/Projects/tmi-wiki
 git add Configuration-Reference.md Timmy-AI-Assistant.md
 git commit -m "docs: add query decomposition and reranking config, pipeline diagram"
 git push

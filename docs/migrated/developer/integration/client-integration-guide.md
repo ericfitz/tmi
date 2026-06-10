@@ -1627,7 +1627,7 @@ This guide provides everything you need to build a production-ready TMI client a
 
 ### Wiki Migration
 
-Content migrated to: `/Users/efitz/Projects/tmi.wiki/API-Integration.md`
+Content migrated to: `/Users/efitz/Projects/tmi-wiki/API-Integration.md`
 
 - Added TypeScript type definitions section
 - Most content was already present in wiki's comprehensive API-Integration.md

@@ -512,7 +512,7 @@ All wiki tasks operate in `/Users/efitz/Projects/tmi.wiki` (a separate git repo)
 ### Task 8: `Configuration-Model.md` (concept hub)
 
 **Files:**
-- Create: `/Users/efitz/Projects/tmi.wiki/Configuration-Model.md`
+- Create: `/Users/efitz/Projects/tmi-wiki/Configuration-Model.md`
 
 - [ ] **Step 1: Verify the model claims against code**
 
@@ -537,14 +537,14 @@ Cross-link to `[[Configuring-Local-Development]]`, `[[Bootstrapping-Production]]
 
 - [ ] **Step 3: Verify links resolve to real page names**
 
-Run: `ls /Users/efitz/Projects/tmi.wiki/*.md | xargs -n1 basename` and confirm every `[[...]]` target maps to a page that exists now or is created in this plan.
+Run: `ls /Users/efitz/Projects/tmi-wiki/*.md | xargs -n1 basename` and confirm every `[[...]]` target maps to a page that exists now or is created in this plan.
 
 ---
 
 ### Task 9: `Configuring-Local-Development.md`
 
 **Files:**
-- Create: `/Users/efitz/Projects/tmi.wiki/Configuring-Local-Development.md`
+- Create: `/Users/efitz/Projects/tmi-wiki/Configuring-Local-Development.md`
 
 - [ ] **Step 1: Verify make targets + CLI behavior**
 
@@ -561,7 +561,7 @@ Content per spec: copy `config-example.yml` → `config-development.yml` and pop
 ### Task 10: `Bootstrapping-Production.md`
 
 **Files:**
-- Create: `/Users/efitz/Projects/tmi.wiki/Bootstrapping-Production.md`
+- Create: `/Users/efitz/Projects/tmi-wiki/Bootstrapping-Production.md`
 
 - [ ] **Step 1: Verify the production claims against code**
 
@@ -580,7 +580,7 @@ Content per spec: bootstrap-only `config-production.yml`; required-at-startup va
 ### Task 11: `Managing-Operational-Settings.md` (rewrite of Configuration-Management)
 
 **Files:**
-- Create: `/Users/efitz/Projects/tmi.wiki/Managing-Operational-Settings.md`
+- Create: `/Users/efitz/Projects/tmi-wiki/Managing-Operational-Settings.md`
 
 - [ ] **Step 1: Verify endpoints + dbtool flags**
 
@@ -597,18 +597,18 @@ Content per spec: `/admin/settings` CRUD + `reencrypt`; the `source` field; secr
 ### Task 12: `Configuration-Reference.md` (generated)
 
 **Files:**
-- Rewrite: `/Users/efitz/Projects/tmi.wiki/Configuration-Reference.md`
+- Rewrite: `/Users/efitz/Projects/tmi-wiki/Configuration-Reference.md`
 
 - [ ] **Step 1: Regenerate the artifact**
 
 Run (from `/Users/efitz/Projects/tmi`): `make generate-config-docs`
 Then copy `config-reference.md` body into the wiki page:
 
-Run: `cp /Users/efitz/Projects/tmi/config-reference.md /Users/efitz/Projects/tmi.wiki/Configuration-Reference.md`
+Run: `cp /Users/efitz/Projects/tmi/config-reference.md /Users/efitz/Projects/tmi-wiki/Configuration-Reference.md`
 
 - [ ] **Step 2: Verify the page renders the two tables**
 
-Run: `head -30 /Users/efitz/Projects/tmi.wiki/Configuration-Reference.md`
+Run: `head -30 /Users/efitz/Projects/tmi-wiki/Configuration-Reference.md`
 Expected: `# Configuration Reference`, the GENERATED comment, `## Bootstrap settings`, a `server.port` row with `TMI_SERVER_PORT`.
 
 ---
@@ -616,10 +616,10 @@ Expected: `# Configuration Reference`, the GENERATED comment, `## Bootstrap sett
 ### Task 13: Redirect stubs + sidebar + cross-link
 
 **Files:**
-- Rewrite as stub: `/Users/efitz/Projects/tmi.wiki/Configuration-Management.md`
-- Rewrite as stub: `/Users/efitz/Projects/tmi.wiki/Config-Migration-Guide.md`
-- Modify: `/Users/efitz/Projects/tmi.wiki/_Sidebar.md`
-- Modify: `/Users/efitz/Projects/tmi.wiki/Content-Extractors-Limits-and-Overrides.md`
+- Rewrite as stub: `/Users/efitz/Projects/tmi-wiki/Configuration-Management.md`
+- Rewrite as stub: `/Users/efitz/Projects/tmi-wiki/Config-Migration-Guide.md`
+- Modify: `/Users/efitz/Projects/tmi-wiki/_Sidebar.md`
+- Modify: `/Users/efitz/Projects/tmi-wiki/Content-Extractors-Limits-and-Overrides.md`
 
 - [ ] **Step 1: Write the stubs**
 
@@ -652,7 +652,7 @@ Near the top of `Content-Extractors-Limits-and-Overrides.md`, add a line: `> Con
 
 - [ ] **Step 4: Verify no dangling wiki links**
 
-Run: `rg -o '\[\[[^]]+\]\]' /Users/efitz/Projects/tmi.wiki/*.md | sort -u` and confirm every target page exists in the wiki dir.
+Run: `rg -o '\[\[[^]]+\]\]' /Users/efitz/Projects/tmi-wiki/*.md | sort -u` and confirm every target page exists in the wiki dir.
 
 ---
 
@@ -668,7 +668,7 @@ Confirm only the intended pages changed.
 - [ ] **Step 2: Commit and push the wiki repo**
 
 ```bash
-cd /Users/efitz/Projects/tmi.wiki
+cd /Users/efitz/Projects/tmi-wiki
 git add Configuration-Model.md Configuring-Local-Development.md Bootstrapping-Production.md \
         Managing-Operational-Settings.md Configuration-Reference.md \
         Configuration-Management.md Config-Migration-Guide.md _Sidebar.md \

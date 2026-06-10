@@ -53,6 +53,6 @@ The diagrams and flows here complement the implementation guides in the develope
 - None - all substantive claims verified against source code
 
 ### Migration Details
-- Content migrated to: `/Users/efitz/Projects/tmi.wiki/Contributing.md` (AI-Assisted Development section)
+- Content migrated to: `/Users/efitz/Projects/tmi-wiki/Contributing.md` (AI-Assisted Development section)
 - Original location: `/Users/efitz/Projects/tmi/docs/agent/README.md`
 - Migrated location: `/Users/efitz/Projects/tmi/docs/migrated/agent/README.md`

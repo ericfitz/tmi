@@ -732,12 +732,12 @@ Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>"
 ### Task 6: Update Wiki Documentation
 
 **Files:**
-- Modify: `/Users/efitz/Projects/tmi.wiki/Configuration-Reference.md`
-- Modify: `/Users/efitz/Projects/tmi.wiki/API-Rate-Limiting.md`
+- Modify: `/Users/efitz/Projects/tmi-wiki/Configuration-Reference.md`
+- Modify: `/Users/efitz/Projects/tmi-wiki/API-Rate-Limiting.md`
 
 - [ ] **Step 1: Add Rate Limiting section to Configuration-Reference.md**
 
-In `/Users/efitz/Projects/tmi.wiki/Configuration-Reference.md`, after the "### Server Settings" table (which ends around the `TMI_SERVER_INTERFACE` row), add a new subsection:
+In `/Users/efitz/Projects/tmi-wiki/Configuration-Reference.md`, after the "### Server Settings" table (which ends around the `TMI_SERVER_INTERFACE` row), add a new subsection:
 
 ```markdown
 ### Rate Limiting
@@ -771,7 +771,7 @@ TMI_RATELIMIT_PUBLIC_RPM=20
 
 - [ ] **Step 2: Update API-Rate-Limiting.md Tier 1 section**
 
-In `/Users/efitz/Projects/tmi.wiki/API-Rate-Limiting.md`, find the Tier 1 rate limit configuration block (around line 63) and update `configurable: false` to `configurable: true`:
+In `/Users/efitz/Projects/tmi-wiki/API-Rate-Limiting.md`, find the Tier 1 rate limit configuration block (around line 63) and update `configurable: false` to `configurable: true`:
 
 ```yaml
 scope: ip
@@ -826,7 +826,7 @@ TMI supports configurable trusted proxies for accurate client IP extraction when
 - [ ] **Step 4: Commit wiki changes**
 
 ```bash
-cd /Users/efitz/Projects/tmi.wiki
+cd /Users/efitz/Projects/tmi-wiki
 git add Configuration-Reference.md API-Rate-Limiting.md
 git commit -m "docs: add trusted proxy and configurable rate limit documentation
 
@@ -880,7 +880,7 @@ Expected: All tests pass including new IP rate limit tests.
 cd /Users/efitz/Projects/tmi
 git push
 
-cd /Users/efitz/Projects/tmi.wiki
+cd /Users/efitz/Projects/tmi-wiki
 git push
 ```
 

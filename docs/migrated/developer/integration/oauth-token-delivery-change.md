@@ -284,4 +284,4 @@ https://github.com/ericfitz/tmi/issues
 
 - **Original Location**: `docs/developer/integration/oauth-token-delivery-change.md`
 - **Migrated To**: `docs/migrated/developer/integration/oauth-token-delivery-change.md`
-- **Wiki Integration**: Content integrated into `/Users/efitz/Projects/tmi.wiki/API-Integration.md` under "OAuth Token Delivery via URL Fragments" section
+- **Wiki Integration**: Content integrated into `/Users/efitz/Projects/tmi-wiki/API-Integration.md` under "OAuth Token Delivery via URL Fragments" section

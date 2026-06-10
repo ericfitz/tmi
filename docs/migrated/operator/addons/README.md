@@ -43,5 +43,5 @@ FILE REFERENCES VERIFIED:
 - webhook-configuration.md exists at docs/migrated/operator/webhook-configuration.md
 - oauth-environment-configuration.md exists at docs/migrated/operator/oauth-environment-configuration.md
 - client-integration-guide.md exists at docs/migrated/developer/integration/client-integration-guide.md
-- Wiki page Addon-System.md exists at /Users/efitz/Projects/tmi.wiki/Addon-System.md
+- Wiki page Addon-System.md exists at /Users/efitz/Projects/tmi-wiki/Addon-System.md
 -->

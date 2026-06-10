@@ -1447,9 +1447,9 @@ Refs #251"
 ## Task 10: Wiki Documentation
 
 **Files:**
-- Create: `/Users/efitz/Projects/tmi.wiki/Database-Security-Strategies.md`
-- Modify: `/Users/efitz/Projects/tmi.wiki/Seed-Tool-Reference.md` (rename + update)
-- Modify: `/Users/efitz/Projects/tmi.wiki/_Sidebar.md`
+- Create: `/Users/efitz/Projects/tmi-wiki/Database-Security-Strategies.md`
+- Modify: `/Users/efitz/Projects/tmi-wiki/Seed-Tool-Reference.md` (rename + update)
+- Modify: `/Users/efitz/Projects/tmi-wiki/_Sidebar.md`
 
 - [ ] **Step 1: Create Database-Security-Strategies.md**
 
@@ -1464,7 +1464,7 @@ Content per the spec:
 - [ ] **Step 2: Rename and update Seed-Tool-Reference.md**
 
 ```bash
-cd /Users/efitz/Projects/tmi.wiki
+cd /Users/efitz/Projects/tmi-wiki
 git mv Seed-Tool-Reference.md Database-Tool-Reference.md
 ```
 
@@ -1485,7 +1485,7 @@ In the Tools section, rename:
 - [ ] **Step 4: Commit and push wiki**
 
 ```bash
-cd /Users/efitz/Projects/tmi.wiki
+cd /Users/efitz/Projects/tmi-wiki
 git add -A
 git commit -m "docs: add database security strategies, rename seed tool to dbtool
 

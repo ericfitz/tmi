@@ -210,7 +210,7 @@ For questions about reference documentation or to contribute improvements, pleas
 2. Removed reference to `docs/agent/` - directory exists but contains no .md documentation files
 
 **Wiki pages updated:**
-- `/Users/efitz/Projects/tmi.wiki/Architecture-and-Design.md` - Added "Source Repository Reference Materials" section with directory structure and key reference files
+- `/Users/efitz/Projects/tmi-wiki/Architecture-and-Design.md` - Added "Source Repository Reference Materials" section with directory structure and key reference files
 
 **Migration details:**
 - Original location: `docs/reference/README.md`
