@@ -241,7 +241,7 @@ clean-everything:
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-cluster-up dev-cluster-down
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev tilt-up tilt-down test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-cluster-up dev-cluster-down
 
 # Dev-environment Python helpers unit tests
 test-dev-scripts:  ## Run unit tests for the dev-environment Python helpers
@@ -339,6 +339,21 @@ restart-dev:  ## Rebuild+push the server, redeliver config, roll the server pod 
 # Development Environment - Tear down everything start-dev deployed (leaves a dedicated cluster intact)
 stop-dev:  ## Tear down everything start-dev deployed (leaves a dedicated cluster intact)
 	@uv run scripts/start-dev.py --stop --db $(DB)
+
+# Development Environment - Optional Tilt fast server-only loop
+# Requires: tilt installed (https://docs.tilt.dev/install.html) + a running start-dev cluster
+# Usage: make tilt-up   - start the Tilt fast loop (runs in foreground; Ctrl-C to stop)
+#        make tilt-down - stop Tilt and restore the prod-shaped server
+tilt-up:  ## Optional fast server-only loop (requires tilt + a running start-dev cluster)
+	@command -v tilt >/dev/null 2>&1 || { echo "tilt not installed — see https://docs.tilt.dev/install.html"; exit 1; }
+	@kubectl cluster-info >/dev/null 2>&1 || { echo "no reachable cluster — run 'make start-dev' first"; exit 1; }
+	@tilt up --stream=true
+
+tilt-down:  ## Stop Tilt and restore the prod-shaped server
+	@command -v tilt >/dev/null 2>&1 && tilt down || true
+	@kubectl apply -f deployments/k8s/dev/server.yml
+	@kubectl -n tmi-platform rollout status deploy/tmi-server --timeout=180s
+	@echo "prod-shaped server restored"
 
 # Local kind cluster - Create a local kind cluster wired to the dev registry (laptop path)
 dev-cluster-up:  ## Create a local kind cluster wired to the dev registry (laptop path)
