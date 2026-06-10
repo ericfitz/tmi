@@ -7,6 +7,9 @@ LABEL security.scan-date="AUTO_GENERATED"
 LABEL security.patch-level="high-critical"
 LABEL maintainer="TMI Security Team"
 
+# Optional Go build tags (e.g. "dev" to enable login_hint + the test OAuth provider)
+ARG BUILD_TAGS=""
+
 # Set working directory
 WORKDIR /app
 
@@ -33,6 +36,7 @@ RUN MAJOR=$(cat .version | grep '"major"' | grep -o '[0-9]*') && \
     PATCH=$(cat .version | grep '"patch"' | grep -o '[0-9]*') && \
     PRERELEASE=$(cat .version | grep '"prerelease"' | sed 's/.*: *"\(.*\)".*/\1/') && \
     CGO_ENABLED=0 GOOS=linux go build \
+    -tags "${BUILD_TAGS}" \
     -ldflags "-s -w -X github.com/ericfitz/tmi/api.VersionMajor=${MAJOR} -X github.com/ericfitz/tmi/api.VersionMinor=${MINOR} -X github.com/ericfitz/tmi/api.VersionPatch=${PATCH} -X github.com/ericfitz/tmi/api.VersionPreRelease=${PRERELEASE} -X github.com/ericfitz/tmi/api.GitCommit=$(git rev-parse --short HEAD 2>/dev/null || echo 'development') -X github.com/ericfitz/tmi/api.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -trimpath \
     -buildmode=exe \
