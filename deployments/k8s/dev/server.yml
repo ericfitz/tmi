@@ -23,6 +23,10 @@ spec:
             - { name: TMI_REDIS_HOST, value: "redis" }
             - { name: TMI_NATS_URL, value: "nats://nats.tmi-platform.svc:4222" }
             - { name: TMI_LOG_DIR, value: "/tmp/logs" }
+            # Enable the built-in TMI OAuth provider for local dev authentication.
+            # The tmi provider is a dev/test-only identity provider that supports
+            # login_hint-based user creation without external OAuth credentials.
+            - { name: OAUTH_PROVIDERS_TMI_ENABLED, value: "true" }
           volumeMounts:
             - name: config
               mountPath: /etc/tmi
