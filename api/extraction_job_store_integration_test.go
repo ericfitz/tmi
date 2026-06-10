@@ -66,8 +66,22 @@ func TestExtractionJobStore_MarkTerminal_EmitOnce_Integration(t *testing.T) {
 	store := NewExtractionJobStore(db)
 	ctx := context.Background()
 
+	// `make test-integration` may run against a persistent dev database, and the
+	// SQLite fallback is fresh each run, but the PostgreSQL path is not: leftover
+	// rows from a prior run would collide on the job_id primary key (InsertQueued)
+	// or leave a terminal row that makes the *first* MarkTerminal report false.
+	// Hard-delete each job_id before and after its subtest (ExtractionJob has no
+	// soft-delete column, so a plain Delete is a hard delete) so the test is
+	// idempotently re-runnable without a DB reset. Mirrors the Oracle sibling.
+	cleanup := func(jobID string) {
+		require.NoError(t, db.Where("job_id = ?", jobID).Delete(&models.ExtractionJob{}).Error)
+	}
+
 	t.Run("queued row transitions once", func(t *testing.T) {
 		const jobID = "it-emit-once-queued"
+		cleanup(jobID)
+		t.Cleanup(func() { cleanup(jobID) })
+
 		require.NoError(t, store.InsertQueued(ctx, jobID, "doc-emit-once-1"))
 
 		first, err := store.MarkTerminal(ctx, jobID, models.ExtractionStatusCompleted, "")
@@ -86,6 +100,8 @@ func TestExtractionJobStore_MarkTerminal_EmitOnce_Integration(t *testing.T) {
 
 	t.Run("bare insert transitions once", func(t *testing.T) {
 		const jobID = "it-emit-once-bare"
+		cleanup(jobID)
+		t.Cleanup(func() { cleanup(jobID) })
 
 		first, err := store.MarkTerminal(ctx, jobID, models.ExtractionStatusFailed, "extraction_limit:timeout")
 		require.NoError(t, err)
