@@ -45,6 +45,7 @@ def render_configmap_yaml(*, name: str, namespace: str, file_key: str, content: 
 
     Uses a block scalar with 4-space indentation; annotates the content hash.
     """
+    # name/namespace/file_key are dev-internal identifiers, not user input — not escaped.
     indented = "\n".join("    " + line for line in content.splitlines())
     return (
         "apiVersion: v1\n"
@@ -70,7 +71,7 @@ def current_kube_context() -> str:
             capture_output=True, text=True, check=True,
         )
         return out.stdout.strip()
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         return ""
 
 
