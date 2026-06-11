@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 )
@@ -58,7 +59,7 @@ func getEnvInt(key string, defaultVal int) int {
 
 // RecordMutation records a mutation in the audit trail and creates a version snapshot.
 func (s *GormAuditService) RecordMutation(ctx context.Context, params AuditParams) error {
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Assign next version number for this object
 		var maxVersion *int
 		err := tx.Model(&models.AuditEntry{}).
@@ -322,7 +323,7 @@ func (s *GormAuditService) reconstructFromCheckpoint(ctx context.Context, object
 // DeleteThreatModelAudit deletes all audit entries and version snapshots for a threat model,
 // except the "threat model deleted" entry.
 func (s *GormAuditService) DeleteThreatModelAudit(ctx context.Context, threatModelID string) error {
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Get IDs of audit entries to delete (all except TM deletion record)
 		var entryIDs []string
 		err := tx.Model(&models.AuditEntry{}).
@@ -369,7 +370,7 @@ func (s *GormAuditService) PruneAuditEntries(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Where("audit_entry_id IN ?", entryIDs).Delete(&models.VersionSnapshot{}).Error; err != nil {
 			return fmt.Errorf("failed to delete version snapshots during audit prune: %w", err)
 		}
@@ -488,7 +489,7 @@ func (s *GormAuditService) pruneObjectVersions(ctx context.Context, objectType, 
 func (s *GormAuditService) executePrune(ctx context.Context, objectType, objectID string, boundary int) (int, error) {
 	var pruned int
 
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Get IDs of snapshots to delete
 		var snapshotIDs []string
 		err := tx.Model(&models.VersionSnapshot{}).

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/api/validation"
+	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
@@ -35,7 +36,7 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 		UserEmail: userEmail,
 	}
 
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		var user models.User
 		if err := tx.Where("email = ?", userEmail).First(&user).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -63,7 +64,7 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 func (r *GormDeletionRepository) DeleteUserByInternalUUID(ctx context.Context, internalUUID string) (*DeletionResult, error) {
 	result := &DeletionResult{}
 
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		var user models.User
 		if err := tx.Where("internal_uuid = ?", internalUUID).First(&user).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -186,7 +187,7 @@ func (r *GormDeletionRepository) deleteUserCore(tx *gorm.DB, user *models.User, 
 func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, internalUUID string) (*GroupDeletionResult, error) {
 	result := &GroupDeletionResult{}
 
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Get group by internal_uuid
 		var group models.Group
 		if err := tx.Where("internal_uuid = ?", internalUUID).First(&group).Error; err != nil {
@@ -819,7 +820,7 @@ func ensureSecurityReviewersGroupForDeletion(tx *gorm.DB) (string, error) {
 func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUserUUID, targetUserUUID string) (*TransferResult, error) {
 	result := &TransferResult{}
 
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Validate target user exists
 		var targetUser models.User
 		if err := tx.Where("internal_uuid = ?", targetUserUUID).First(&targetUser).Error; err != nil {

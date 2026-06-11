@@ -745,139 +745,129 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// Begin transaction
-	tx := s.db.Begin()
-	if tx.Error != nil {
-		return item, dberrors.Classify(tx.Error)
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	// Generate ID if not set
+	// Generate ID if not set. Done once, outside the retry closure, so the ID is
+	// stable if the serializable transaction aborts (40001 / ORA-08177) and the
+	// whole closure re-runs.
 	id := uuid.New().String()
 	if idSetter != nil {
 		item = idSetter(item, id)
 	}
 
-	// Resolve owner identifier to internal_uuid
-	ownerUUID, err := s.resolveUserIdentifierToUUID(tx, item.Owner.ProviderId)
-	if err != nil {
-		tx.Rollback()
-		return item, fmt.Errorf("failed to resolve owner identifier %s: %w", item.Owner.ProviderId, err)
-	}
-
-	// Resolve created_by identifier to internal_uuid
-	createdByUUID, err := s.resolveUserIdentifierToUUID(tx, item.CreatedBy.ProviderId)
-	if err != nil {
-		tx.Rollback()
-		return item, fmt.Errorf("failed to resolve created_by identifier %s: %w", item.CreatedBy.ProviderId, err)
-	}
-
-	// Resolve security_reviewer identifier to internal_uuid (if provided)
-	var securityReviewerUUID *string
-	if item.SecurityReviewer != nil && item.SecurityReviewer.ProviderId != "" {
-		srUUID, err := s.resolveUserIdentifierToUUID(tx, item.SecurityReviewer.ProviderId)
+	// Run the entire create as one serializable, retryable transaction. A
+	// serialization failure retries the whole closure instead of surfacing as a
+	// 500. s.db is the root handle (never an in-progress tx), as the wrapper
+	// requires.
+	err := authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Resolve owner identifier to internal_uuid
+		ownerUUID, err := s.resolveUserIdentifierToUUID(tx, item.Owner.ProviderId)
 		if err != nil {
-			tx.Rollback()
-			return item, fmt.Errorf("failed to resolve security_reviewer: %w", err)
+			return fmt.Errorf("failed to resolve owner identifier %s: %w", item.Owner.ProviderId, err)
 		}
-		securityReviewerUUID = &srUUID
-	}
 
-	// Get framework value
-	framework := item.ThreatModelFramework
-	if framework == "" {
-		framework = DefaultThreatModelFramework
-	}
+		// Resolve created_by identifier to internal_uuid
+		createdByUUID, err := s.resolveUserIdentifierToUUID(tx, item.CreatedBy.ProviderId)
+		if err != nil {
+			return fmt.Errorf("failed to resolve created_by identifier %s: %w", item.CreatedBy.ProviderId, err)
+		}
 
-	// Status defaults to "not_started" when unset — it's non-null in the DB and
-	// feeds dashboard filters that list active threat models (Issue #282).
-	status := DefaultThreatModelStatus
-	if item.Status != nil && *item.Status != "" {
-		status = *item.Status
-	}
-	statusUpdated := time.Now().UTC()
+		// Resolve security_reviewer identifier to internal_uuid (if provided)
+		var securityReviewerUUID *string
+		if item.SecurityReviewer != nil && item.SecurityReviewer.ProviderId != "" {
+			srUUID, err := s.resolveUserIdentifierToUUID(tx, item.SecurityReviewer.ProviderId)
+			if err != nil {
+				return fmt.Errorf("failed to resolve security_reviewer: %w", err)
+			}
+			securityReviewerUUID = &srUUID
+		}
 
-	// Create GORM model
-	isConfidential := models.DBBool(false)
-	if item.IsConfidential != nil {
-		isConfidential = models.DBBool(*item.IsConfidential)
-	}
+		// Get framework value
+		framework := item.ThreatModelFramework
+		if framework == "" {
+			framework = DefaultThreatModelFramework
+		}
 
-	// Convert project_id if present
-	var projectID *string
-	if item.ProjectId != nil {
-		s := item.ProjectId.String()
-		projectID = &s
-	}
+		// Status defaults to "not_started" when unset — it's non-null in the DB and
+		// feeds dashboard filters that list active threat models (Issue #282).
+		status := DefaultThreatModelStatus
+		if item.Status != nil && *item.Status != "" {
+			status = *item.Status
+		}
+		statusUpdated := time.Now().UTC()
 
-	tm := models.ThreatModel{
-		ID:                           models.DBVarchar(id),
-		Name:                         models.DBVarchar(item.Name),
-		Description:                  models.NewNullableDBText(item.Description),
-		OwnerInternalUUID:            models.DBVarchar(ownerUUID),
-		CreatedByInternalUUID:        models.DBVarchar(createdByUUID),
-		SecurityReviewerInternalUUID: models.NewNullableDBVarchar(securityReviewerUUID),
-		ThreatModelFramework:         models.DBVarchar(framework),
-		IssueURI:                     models.NewNullableDBText(item.IssueUri),
-		IsConfidential:               isConfidential,
-		Status:                       models.DBVarchar(status),
-		StatusUpdated:                statusUpdated,
-		ProjectID:                    models.NewNullableDBVarchar(projectID),
-	}
+		// Create GORM model
+		isConfidential := models.DBBool(false)
+		if item.IsConfidential != nil {
+			isConfidential = models.DBBool(*item.IsConfidential)
+		}
 
-	// Set timestamps
-	if item.CreatedAt != nil {
-		tm.CreatedAt = *item.CreatedAt
-	}
-	if item.ModifiedAt != nil {
-		tm.ModifiedAt = *item.ModifiedAt
-	}
+		// Convert project_id if present
+		var projectID *string
+		if item.ProjectId != nil {
+			pid := item.ProjectId.String()
+			projectID = &pid
+		}
 
-	// Allocate alias before inserting
-	tmAlias, err := AllocateNextAlias(context.Background(), tx, "__global__", "threat_model")
+		tm := models.ThreatModel{
+			ID:                           models.DBVarchar(id),
+			Name:                         models.DBVarchar(item.Name),
+			Description:                  models.NewNullableDBText(item.Description),
+			OwnerInternalUUID:            models.DBVarchar(ownerUUID),
+			CreatedByInternalUUID:        models.DBVarchar(createdByUUID),
+			SecurityReviewerInternalUUID: models.NewNullableDBVarchar(securityReviewerUUID),
+			ThreatModelFramework:         models.DBVarchar(framework),
+			IssueURI:                     models.NewNullableDBText(item.IssueUri),
+			IsConfidential:               isConfidential,
+			Status:                       models.DBVarchar(status),
+			StatusUpdated:                statusUpdated,
+			ProjectID:                    models.NewNullableDBVarchar(projectID),
+		}
+
+		// Set timestamps
+		if item.CreatedAt != nil {
+			tm.CreatedAt = *item.CreatedAt
+		}
+		if item.ModifiedAt != nil {
+			tm.ModifiedAt = *item.ModifiedAt
+		}
+
+		// Allocate alias before inserting
+		tmAlias, err := AllocateNextAlias(context.Background(), tx, "__global__", "threat_model")
+		if err != nil {
+			return fmt.Errorf("allocate threat_model alias: %w", err)
+		}
+		tm.Alias = tmAlias
+
+		// Insert threat model
+		if err := tx.Create(&tm).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+
+		// Mirror server-defaulted fields back into the returned API value so callers
+		// see what was actually persisted (Issue #282).
+		item.Status = &status
+		item.StatusUpdated = &statusUpdated
+		item.Alias = &tmAlias
+
+		// Insert authorization entries
+		var authSlice []Authorization
+		if item.Authorization != nil {
+			authSlice = *item.Authorization
+		}
+		if err := s.saveAuthorizationTx(tx, id, authSlice); err != nil {
+			return dberrors.Classify(err)
+		}
+
+		// Insert metadata if present
+		if item.Metadata != nil && len(*item.Metadata) > 0 {
+			if err := s.saveMetadataTx(tx, id, *item.Metadata); err != nil {
+				return dberrors.Classify(err)
+			}
+		}
+
+		return nil
+	})
 	if err != nil {
-		tx.Rollback()
-		return item, fmt.Errorf("allocate threat_model alias: %w", err)
-	}
-	tm.Alias = tmAlias
-
-	// Insert threat model
-	if err := tx.Create(&tm).Error; err != nil {
-		tx.Rollback()
-		return item, dberrors.Classify(err)
-	}
-
-	// Mirror server-defaulted fields back into the returned API value so callers
-	// see what was actually persisted (Issue #282).
-	item.Status = &status
-	item.StatusUpdated = &statusUpdated
-	item.Alias = &tmAlias
-
-	// Insert authorization entries
-	var authSlice []Authorization
-	if item.Authorization != nil {
-		authSlice = *item.Authorization
-	}
-	if err := s.saveAuthorizationTx(tx, id, authSlice); err != nil {
-		tx.Rollback()
-		return item, dberrors.Classify(err)
-	}
-
-	// Insert metadata if present
-	if item.Metadata != nil && len(*item.Metadata) > 0 {
-		if err := s.saveMetadataTx(tx, id, *item.Metadata); err != nil {
-			tx.Rollback()
-			return item, dberrors.Classify(err)
-		}
-	}
-
-	// Commit transaction
-	if err := tx.Commit().Error; err != nil {
-		return item, dberrors.Classify(err)
+		return item, err
 	}
 
 	return item, nil
@@ -1799,7 +1789,7 @@ func (s *GormDiagramStore) hardDeleteDiagram(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// 1. Nullify diagram_id and cell_id on threats referencing this diagram
 		if err := tx.Model(&models.Threat{}).
 			Where("diagram_id = ?", id).

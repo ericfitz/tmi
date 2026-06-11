@@ -180,9 +180,11 @@ func (s *GormThreatModelStore) HardDelete(id string) error {
 	return s.hardDeleteTx(s.db, id)
 }
 
-// hardDeleteTx performs the hard delete within a given transaction or DB handle
+// hardDeleteTx performs the hard delete within a single serializable, retryable
+// transaction. The only caller passes the root *gorm.DB handle (never an
+// in-progress tx), which the retry wrapper requires.
 func (s *GormThreatModelStore) hardDeleteTx(db *gorm.DB, id string) error {
-	return db.Transaction(func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(context.Background(), db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// 1. Get all child entity IDs for metadata cleanup
 		var threatIDs, diagramIDs, documentIDs, assetIDs, noteIDs, repositoryIDs []string
 

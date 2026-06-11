@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -187,7 +188,7 @@ func (r *GormContentTokenRepository) Delete(ctx context.Context, id string) erro
 // returns the deleted token.
 func (r *GormContentTokenRepository) DeleteByUserAndProvider(ctx context.Context, userID, providerID string) (*ContentToken, error) {
 	var deleted *ContentToken
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		var row models.UserContentToken
 		if err := tx.Where("user_id = ? AND provider_id = ?", userID, providerID).First(&row).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -215,9 +216,16 @@ func (r *GormContentTokenRepository) DeleteByUserAndProvider(ctx context.Context
 // invokes fn with the decrypted token, and persists the token returned by fn.
 // On SQLite (unit tests) the locking clause is a no-op; real serialization
 // is verified against PostgreSQL in integration tests.
+//
+// The transaction runs SERIALIZABLE with serialization-failure retries, so the
+// closure can re-run. The FOR UPDATE lock is taken as the FIRST statement, so any
+// serialization conflict (ORA-08177 / 40001) surfaces on the locking read, before
+// fn is ever invoked — fn therefore runs at most once per successful call and a
+// non-idempotent fn (e.g. a one-time OAuth refresh) is not double-fired on retry.
+// Do not reorder fn ahead of the locking read.
 func (r *GormContentTokenRepository) RefreshWithLock(ctx context.Context, id string, fn func(current *ContentToken) (*ContentToken, error)) (*ContentToken, error) {
 	var updated *ContentToken
-	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		var row models.UserContentToken
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", id).First(&row).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {

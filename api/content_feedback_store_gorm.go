@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
@@ -48,7 +49,7 @@ func (r *GormContentFeedbackRepository) CreateWithTargetCheck(ctx context.Contex
 	if fb.CreatedAt.IsZero() {
 		fb.CreatedAt = time.Now().UTC()
 	}
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		type idRow struct{ ID string }
 		var got idRow
 		err := tx.Table(target.Table).

@@ -121,6 +121,17 @@ func IsConnectionError(err error) bool {
 // WithRetryableGormTransaction executes a function within a GORM transaction with retry logic.
 // It automatically retries on connection errors and other transient failures.
 // The transaction is managed by GORM (auto-commit on nil return, auto-rollback on error).
+//
+// The caller MUST pass a ROOT *gorm.DB, never an in-progress transaction handle.
+// GORM's Transaction only forwards txOpts (the SERIALIZABLE isolation) to BeginTx
+// when the handle is a root pool; if handed an in-progress tx it silently opens a
+// SavePoint and DROPS the isolation level — reintroducing the weak-isolation Oracle
+// bug this wrapper exists to prevent, with no error to signal it.
+//
+// fn may run more than once: on a serialization failure (40001 / ORA-08177) the
+// whole closure is retried. fn must therefore be idempotent — keep any
+// non-idempotent side effect (outbound calls, one-time-token consumption) out of
+// the closure, or guard it so a replay is harmless.
 func WithRetryableGormTransaction(ctx context.Context, gormDB *gorm.DB, cfg RetryConfig, fn func(tx *gorm.DB) error, opts ...*sql.TxOptions) error {
 	logger := slogging.Get()
 	var lastErr error

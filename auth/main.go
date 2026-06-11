@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -157,8 +158,12 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 	gormDB := dbManager.Gorm().DB()
 	redisClient := dbManager.Redis().GetClient()
 
-	// Use GORM transaction for consistent reads
-	return gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	// Use GORM transaction for consistent reads. This is a read-only path (all
+	// writes go to Redis); a serializable, read-only transaction gives the
+	// consistent cross-statement snapshot the cache rebuild needs. ReadOnly is
+	// declared explicitly so Oracle can optimize and DML is forbidden — it cannot
+	// raise ORA-08177 since it issues no DML.
+	return db.WithRetryableGormTransaction(ctx, gormDB, db.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Rebuild threat model authorization cache
 		if err := rebuildThreatModelAuthCache(ctx, tx, redisClient); err != nil {
 			return err
@@ -175,7 +180,7 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 		}
 
 		return nil
-	})
+	}, &sql.TxOptions{ReadOnly: true})
 }
 
 // threatModelWithOwner is a helper struct for the join query result
