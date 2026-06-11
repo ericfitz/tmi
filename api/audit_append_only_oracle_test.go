@@ -55,7 +55,7 @@ func openAuditAppendOnlyOracleDB(t *testing.T) *gorm.DB {
 	return gormDB.DB()
 }
 
-// dropOracleAuditTriggers drops the two audit triggers on Oracle, ignoring
+// dropOracleAuditTriggers drops all three audit triggers on Oracle, ignoring
 // ORA-04080 (trigger does not exist). Wrapped in anonymous PL/SQL so that the
 // caller can call this before trigger installation (for clean-slate seeding).
 func dropOracleAuditTriggers(t *testing.T, db *gorm.DB) {
@@ -63,6 +63,7 @@ func dropOracleAuditTriggers(t *testing.T, db *gorm.DB) {
 	for _, name := range []string{
 		"tmi_audit_entries_no_mutate",
 		"tmi_version_snapshots_no_mutate",
+		"tmi_system_audit_entries_no_mutate",
 	} {
 		sql := `BEGIN EXECUTE IMMEDIATE 'DROP TRIGGER ` + name + `'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -4080 THEN RAISE; END IF; END;`
 		require.NoError(t, db.Exec(sql).Error, "drop trigger %s (ignoring ORA-04080)", name)
@@ -215,4 +216,80 @@ func TestPruneAuditEntriesChunkedOracleIntegration(t *testing.T) {
 	require.NoError(t, err, "PruneAuditEntries must succeed through age-floored trigger on Oracle (chunked IN-list)")
 	assert.GreaterOrEqual(t, pruned, batchCount,
 		"all %d seeded backdated entries should have been pruned (got %d)", batchCount, pruned)
+}
+
+// seedOracleSystemAuditEntry inserts a SystemAuditEntry and then backdates
+// CREATED_AT by raw UPDATE. Must run BEFORE trigger installation (the backdate
+// is an UPDATE). On Oracle, table and column identifiers are uppercase.
+func seedOracleSystemAuditEntry(t *testing.T, db *gorm.DB, ageDays int) string {
+	t.Helper()
+	entry := models.SystemAuditEntry{
+		ID:               models.DBVarchar(uuid.New().String()),
+		ActorEmail:       models.DBVarchar("charlie@tmi.local"),
+		ActorProvider:    models.DBVarchar("tmi"),
+		ActorProviderID:  models.DBVarchar("charlie"),
+		ActorDisplayName: models.DBVarchar("Charlie"),
+		HTTPMethod:       models.DBVarchar("PUT"),
+		HTTPPath:         models.DBText("/admin/settings/test"),
+		FieldPath:        models.DBVarchar("test"),
+	}
+	require.NoError(t, db.Create(&entry).Error)
+	backdated := time.Now().UTC().AddDate(0, 0, -ageDays)
+	// Oracle naming strategy uppercases column and table identifiers.
+	require.NoError(t, db.Exec("UPDATE SYSTEM_AUDIT_ENTRIES SET CREATED_AT = ? WHERE ID = ?", backdated, entry.ID).Error)
+	return string(entry.ID)
+}
+
+// TestSystemAuditAppendOnlyOracleIntegration is the Oracle-gated counterpart
+// to TestSystemAuditAppendOnlyAgeFloorIntegration (PG). It verifies:
+//   - DELETE of a row aged past the 90-day hard-min floor succeeds.
+//   - DELETE of a young row is blocked → ErrAppendOnlyViolation (ORA-20001).
+//   - UPDATE is blocked regardless of row age.
+//
+// Run via `make test-integration-oci`.
+func TestSystemAuditAppendOnlyOracleIntegration(t *testing.T) {
+	db := openAuditAppendOnlyOracleDB(t)
+	ctx := context.Background()
+
+	require.NoError(t, db.AutoMigrate(&models.SystemAuditEntry{}))
+
+	// Drop all three audit triggers so backdate UPDATEs are unblocked.
+	dropOracleAuditTriggers(t, db)
+
+	oldID := seedOracleSystemAuditEntry(t, db, 100)  // older than the 90-day hard-min floor
+	youngID := seedOracleSystemAuditEntry(t, db, 10) // younger than the floor
+
+	// Install with SystemAuditRetentionDays=91 → floor=90 (retention-1).
+	require.NoError(t, dbschema.InstallAuditAppendOnlyTriggers(ctx, db, dbschema.AuditFloorConfig{
+		AuditRetentionDays:       365,
+		VersionRetentionDays:     90,
+		TombstoneRetentionDays:   30,
+		SystemAuditRetentionDays: 91,
+	}))
+
+	t.Cleanup(func() {
+		// Drop triggers first so cleanup DELETEs are not blocked.
+		dropOracleAuditTriggers(t, db)
+		_ = db.Exec("DELETE FROM SYSTEM_AUDIT_ENTRIES WHERE ID = ?", youngID).Error
+	})
+
+	t.Run("delete of aged row succeeds", func(t *testing.T) {
+		res := db.Exec("DELETE FROM SYSTEM_AUDIT_ENTRIES WHERE ID = ?", oldID)
+		require.NoError(t, res.Error)
+		assert.Equal(t, int64(1), res.RowsAffected)
+	})
+
+	t.Run("delete of young row is blocked and classifies", func(t *testing.T) {
+		err := db.Exec("DELETE FROM SYSTEM_AUDIT_ENTRIES WHERE ID = ?", youngID).Error
+		require.Error(t, err)
+		assert.True(t, errors.Is(dberrors.Classify(err), dberrors.ErrAppendOnlyViolation),
+			"expected ErrAppendOnlyViolation (ORA-20001), got: %v", err)
+	})
+
+	t.Run("update is blocked regardless of age", func(t *testing.T) {
+		err := db.Exec("UPDATE SYSTEM_AUDIT_ENTRIES SET ACTOR_EMAIL = 'evil@tmi.local' WHERE ID = ?", youngID).Error
+		require.Error(t, err)
+		assert.True(t, errors.Is(dberrors.Classify(err), dberrors.ErrAppendOnlyViolation),
+			"expected ErrAppendOnlyViolation (ORA-20001), got: %v", err)
+	})
 }
