@@ -70,17 +70,14 @@ type AuditServiceInterface interface {
 	// Returns an error if the version snapshot has been pruned.
 	GetSnapshot(ctx context.Context, entryID string) ([]byte, error)
 
-	// DeleteThreatModelAudit deletes all audit entries and version snapshots for a threat model,
-	// except the "threat model deleted" entry itself.
-	DeleteThreatModelAudit(ctx context.Context, threatModelID string) error
-
 	// PruneAuditEntries removes audit entries older than the configured retention period.
 	// Returns the number of entries pruned.
 	PruneAuditEntries(ctx context.Context) (int, error)
 
 	// PruneVersionSnapshots removes version snapshots outside the configured retention window.
 	// Always stops at checkpoint boundaries to ensure remaining diffs can be reconstructed.
-	// Sets version=NULL on corresponding audit entries.
+	// Audit entries are immutable and keep their version numbers; rollback to a pruned
+	// version returns an error (the handler maps it to 410 Gone).
 	// Returns the number of snapshots pruned.
 	PruneVersionSnapshots(ctx context.Context) (int, error)
 

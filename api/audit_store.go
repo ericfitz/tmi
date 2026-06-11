@@ -340,38 +340,6 @@ func (s *GormAuditService) reconstructFromCheckpoint(ctx context.Context, object
 	return state, nil
 }
 
-// DeleteThreatModelAudit deletes all audit entries and version snapshots for a threat model,
-// except the "threat model deleted" entry.
-func (s *GormAuditService) DeleteThreatModelAudit(ctx context.Context, threatModelID string) error {
-	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		// Get IDs of audit entries to delete (all except TM deletion record)
-		var entryIDs []string
-		err := tx.Model(&models.AuditEntry{}).
-			Where("threat_model_id = ? AND NOT (change_type = ? AND object_type = ?)",
-				threatModelID, models.ChangeTypeDeleted, models.ObjectTypeThreatModel).
-			Pluck("id", &entryIDs).Error
-		if err != nil {
-			return fmt.Errorf("failed to find audit entries for deletion: %w", err)
-		}
-
-		if len(entryIDs) == 0 {
-			return nil
-		}
-
-		// Delete version snapshots for these entries
-		if err := tx.Where("audit_entry_id IN ?", entryIDs).Delete(&models.VersionSnapshot{}).Error; err != nil {
-			return fmt.Errorf("failed to delete version snapshots: %w", err)
-		}
-
-		// Delete the audit entries themselves
-		if err := tx.Where("id IN ?", entryIDs).Delete(&models.AuditEntry{}).Error; err != nil {
-			return fmt.Errorf("failed to delete audit entries: %w", err)
-		}
-
-		return nil
-	})
-}
-
 // PruneAuditEntries removes audit entries older than the configured retention period.
 func (s *GormAuditService) PruneAuditEntries(ctx context.Context) (int, error) {
 	cutoff := time.Now().UTC().AddDate(0, 0, -s.auditRetentionDays)
@@ -505,7 +473,9 @@ func (s *GormAuditService) pruneObjectVersions(ctx context.Context, objectType, 
 	return s.executePrune(ctx, objectType, objectID, actualBoundary)
 }
 
-// executePrune deletes version snapshots below the boundary and nulls audit entry versions.
+// executePrune deletes version snapshots below the boundary. The parent
+// audit entries are immutable and keep their version numbers; a missing
+// snapshot means the content was pruned and rollback returns 410 Gone.
 func (s *GormAuditService) executePrune(ctx context.Context, objectType, objectID string, boundary int) (int, error) {
 	var pruned int
 
@@ -523,27 +493,9 @@ func (s *GormAuditService) executePrune(ctx context.Context, objectType, objectI
 			return nil
 		}
 
-		// Get associated audit entry IDs
-		var auditEntryIDs []string
-		err = tx.Model(&models.VersionSnapshot{}).
-			Where("id IN ?", snapshotIDs).
-			Pluck("audit_entry_id", &auditEntryIDs).Error
-		if err != nil {
-			return err
-		}
-
 		// Delete version snapshots
 		if err := tx.Where("id IN ?", snapshotIDs).Delete(&models.VersionSnapshot{}).Error; err != nil {
 			return err
-		}
-
-		// Null out version on corresponding audit entries
-		if len(auditEntryIDs) > 0 {
-			if err := tx.Model(&models.AuditEntry{}).
-				Where("id IN ?", auditEntryIDs).
-				Update("version", nil).Error; err != nil {
-				return err
-			}
 		}
 
 		pruned = len(snapshotIDs)

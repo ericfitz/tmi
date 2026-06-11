@@ -49,10 +49,6 @@ func (m *mockAuditService) GetSnapshot(_ context.Context, _ string) ([]byte, err
 	return nil, nil
 }
 
-func (m *mockAuditService) DeleteThreatModelAudit(_ context.Context, _ string) error {
-	return nil
-}
-
 func (m *mockAuditService) PruneAuditEntries(_ context.Context) (int, error) {
 	return 0, nil
 }
