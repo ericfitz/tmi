@@ -603,9 +603,11 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 	}
 
 	// 4. Delete webhook subscriptions owned by user (and their deliveries)
-	// Note: Threat-model-scoped webhooks were already deleted with the threat model
+	// Note: Threat-model-scoped webhooks were already deleted with the threat model.
+	// operator_pinned=false ensures the operator-pinned audit sink is never deleted
+	// even if the synthetic operator system user UUID matches the deleted user's UUID.
 	var webhooks []models.WebhookSubscription
-	if err := tx.Where("owner_internal_uuid = ?", userInternalUUID).Find(&webhooks).Error; err != nil {
+	if err := tx.Where("owner_internal_uuid = ? AND operator_pinned = false", userInternalUUID).Find(&webhooks).Error; err != nil {
 		return fmt.Errorf("failed to find user webhook subscriptions: %w", dberrors.Classify(err))
 	}
 	for _, webhook := range webhooks {
@@ -615,7 +617,7 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 		}
 		// Note: webhook deliveries are stored in Redis, not Postgres (table dropped in migration).
 	}
-	if err := tx.Where("owner_internal_uuid = ?", userInternalUUID).Delete(&models.WebhookSubscription{}).Error; err != nil {
+	if err := tx.Where("owner_internal_uuid = ? AND operator_pinned = false", userInternalUUID).Delete(&models.WebhookSubscription{}).Error; err != nil {
 		return fmt.Errorf("failed to delete user webhook subscriptions: %w", dberrors.Classify(err))
 	}
 

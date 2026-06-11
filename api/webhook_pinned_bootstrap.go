@@ -9,6 +9,16 @@ import (
 	"github.com/google/uuid"
 )
 
+// Boot-race note: there is no unique constraint on operator_pinned=true in the
+// webhook_subscriptions table. On concurrent first-boots (e.g. multi-replica
+// deployments where all replicas start simultaneously with no pre-existing pinned
+// row), multiple instances may each call EnsurePinnedAlertSubscription and each
+// create a pinned row. The result is a brief window of duplicate alert sinks,
+// reconciled on the next boot cycle when List() returns the first row and the
+// others are ignored (Update path). This produces duplicate alert deliveries —
+// harmless noise — and never suppresses alerts. A future migration may add a
+// partial unique index (operator_pinned=true) to eliminate the race.
+
 // AlertingBootstrap holds the alerting configuration values needed to upsert
 // the operator-pinned audit alert sink webhook subscription (#395).
 type AlertingBootstrap struct {

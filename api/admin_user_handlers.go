@@ -300,6 +300,16 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 		return
 	}
 
+	// Operator system user guard: the operator system user is synthetic and cannot be deleted
+	if internalUuid.String() == OperatorSystemUserUUID {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusConflict,
+			Code:    "protected_user",
+			Message: "the operator system user is managed by server configuration and cannot be deleted",
+		})
+		return
+	}
+
 	// Pre-flight check: verify user exists before attempting cascade deletion.
 	// Note: TOCTOU gap is acceptable — Delete() also handles not-found.
 	_, err := GlobalUserStore.Get(c.Request.Context(), internalUuid)

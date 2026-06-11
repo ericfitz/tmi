@@ -289,6 +289,12 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 		return
 	}
 
+	// Operator-pinned subscriptions cannot be test-triggered through the API.
+	if subscription.OperatorPinned {
+		c.JSON(http.StatusForbidden, Error{Error: "operator-pinned subscription is managed by server configuration and cannot be modified through the API"})
+		return
+	}
+
 	// Determine event type - use provided or first from subscription
 	eventType := "webhook.test"
 	if input.EventType != nil {
@@ -399,10 +405,24 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 		}
 	}
 
-	// Convert to API response types
+	// Convert to API response types.
+	// Use a lazy cache map to fetch subscriptions for pinned-URL redaction without
+	// issuing a query per delivery record.
+	subCache := make(map[string]*DBWebhookSubscription)
 	items := make([]WebhookDelivery, 0, len(records))
 	for i := range records {
-		items = append(items, deliveryRecordToWebhookDelivery(&records[i]))
+		subIDStr := records[i].SubscriptionID.String()
+		var sub *DBWebhookSubscription
+		if cached, ok := subCache[subIDStr]; ok {
+			sub = cached
+		} else {
+			fetched, fetchErr := GlobalWebhookSubscriptionStore.Get(ctx, subIDStr)
+			if fetchErr == nil {
+				subCache[subIDStr] = &fetched
+				sub = &fetched
+			}
+		}
+		items = append(items, deliveryRecordToWebhookDelivery(&records[i], sub))
 	}
 
 	c.JSON(http.StatusOK, ListWebhookDeliveriesResponse{
@@ -431,8 +451,8 @@ func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUI
 		return
 	}
 
-	// Convert to API response type
-	response := deliveryRecordToWebhookDelivery(record)
+	// Convert to API response type (pass nil for sub — fail-open)
+	response := deliveryRecordToWebhookDelivery(record, nil)
 
 	c.JSON(http.StatusOK, response)
 }

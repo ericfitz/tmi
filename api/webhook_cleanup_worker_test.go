@@ -185,3 +185,101 @@ func TestDeletePendingSubscriptions_WorksWithNilStores(t *testing.T) {
 	_, getErr := subStore.Get(context.Background(), subID.String())
 	assert.Error(t, getErr, "subscription should be deleted")
 }
+
+func TestMarkIdleSubscriptions_SkipsPinned(t *testing.T) {
+	origSubStore := GlobalWebhookSubscriptionStore
+	defer func() { GlobalWebhookSubscriptionStore = origSubStore }()
+
+	subStore := newMockWebhookSubscriptionStore()
+	GlobalWebhookSubscriptionStore = subStore
+
+	// Pinned subscription — should survive
+	pinnedID := uuid.New()
+	subStore.subscriptions[pinnedID.String()] = DBWebhookSubscription{
+		Id:             pinnedID,
+		OwnerId:        uuid.New(),
+		Name:           "Pinned Alert Sink",
+		Url:            "https://alert.example.com/hook",
+		Events:         []string{"system_audit.admin_write"},
+		Status:         string(WebhookSubscriptionStatusActive),
+		OperatorPinned: true,
+	}
+
+	// Non-pinned subscription — should be marked
+	normalID := uuid.New()
+	subStore.subscriptions[normalID.String()] = DBWebhookSubscription{
+		Id:             normalID,
+		OwnerId:        uuid.New(),
+		Name:           "Normal Webhook",
+		Url:            "https://example.com/hook",
+		Events:         []string{"threat.created"},
+		Status:         string(WebhookSubscriptionStatusActive),
+		OperatorPinned: false,
+	}
+
+	worker := NewWebhookCleanupWorker()
+	// markIdleSubscriptions calls ListIdle — the mock now excludes pinned rows
+	count, err := worker.markIdleSubscriptions(context.Background(), 0) // 0 days = everything is idle
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "only one (non-pinned) subscription should be marked")
+
+	// Pinned still active
+	pinned, err := subStore.Get(context.Background(), pinnedID.String())
+	require.NoError(t, err)
+	assert.Equal(t, string(WebhookSubscriptionStatusActive), pinned.Status, "pinned subscription must stay active")
+
+	// Normal subscription is now pending_delete
+	normal, err := subStore.Get(context.Background(), normalID.String())
+	require.NoError(t, err)
+	assert.Equal(t, "pending_delete", normal.Status)
+}
+
+func TestDeletePendingSubscriptions_SkipsPinnedRows(t *testing.T) {
+	origSubStore := GlobalWebhookSubscriptionStore
+	origAddonStore := GlobalAddonStore
+	defer func() {
+		GlobalWebhookSubscriptionStore = origSubStore
+		GlobalAddonStore = origAddonStore
+	}()
+
+	subStore := newMockWebhookSubscriptionStore()
+	GlobalWebhookSubscriptionStore = subStore
+	GlobalAddonStore = nil
+
+	// A pinned row that somehow has pending_delete status (should not happen but test the guard)
+	pinnedID := uuid.New()
+	subStore.subscriptions[pinnedID.String()] = DBWebhookSubscription{
+		Id:             pinnedID,
+		OwnerId:        uuid.New(),
+		Name:           "Pinned Alert Sink",
+		Url:            "https://alert.example.com/hook",
+		Events:         []string{"system_audit.admin_write"},
+		Status:         "pending_delete",
+		OperatorPinned: true,
+	}
+
+	// A normal pending_delete row
+	normalID := uuid.New()
+	subStore.subscriptions[normalID.String()] = DBWebhookSubscription{
+		Id:             normalID,
+		OwnerId:        uuid.New(),
+		Name:           "Normal Webhook",
+		Url:            "https://example.com/hook",
+		Events:         []string{"threat.created"},
+		Status:         "pending_delete",
+		OperatorPinned: false,
+	}
+
+	worker := NewWebhookCleanupWorker()
+	count, err := worker.deletePendingSubscriptions(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "only non-pinned subscription should be deleted")
+
+	// Pinned row must still exist
+	_, getErr := subStore.Get(context.Background(), pinnedID.String())
+	assert.NoError(t, getErr, "pinned subscription must not be deleted")
+
+	// Normal row must be gone
+	_, getErr = subStore.Get(context.Background(), normalID.String())
+	assert.Error(t, getErr, "normal pending_delete subscription must be deleted")
+}

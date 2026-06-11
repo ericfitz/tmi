@@ -1554,6 +1554,28 @@ func TestDeleteAdminUser(t *testing.T) {
 		_, err := mockStore.Get(context.Background(), adminUser.InternalUuid)
 		assert.NoError(t, err)
 	})
+
+	t.Run("Error_OperatorSystemUserDeletion_409", func(t *testing.T) {
+		mockStore := newMockUserStore()
+		GlobalUserStore = mockStore
+
+		// The operator system user UUID is a well-known constant, not in the store
+		// (synthetic user). The guard fires before the pre-flight Get, so it doesn't
+		// need to be in the store.
+
+		// Use a different admin UUID so self-deletion guard does not fire first
+		adminUUID := uuid.New()
+		r, _ := setupAdminUserRouter("admin@example.com", adminUUID.String())
+
+		operatorUUID := uuid.MustParse(OperatorSystemUserUUID)
+		req, _ := http.NewRequest("DELETE", fmt.Sprintf("/admin/users/%s", operatorUUID.String()), nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), "protected_user")
+		assert.Contains(t, w.Body.String(), "operator system user")
+	})
 }
 
 // trackingMockUserStore extends mockUserStore to track Delete call arguments

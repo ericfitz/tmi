@@ -226,7 +226,8 @@ func (s *GormWebhookSubscriptionStore) ListIdle(ctx context.Context, daysIdle in
 	var subs []models.WebhookSubscription
 	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
 	// Complex OR condition: (last_successful_use IS NOT NULL AND last_successful_use < cutoff) OR (last_successful_use IS NULL AND created_at < cutoff)
-	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "active"}).
+	// operator_pinned=false ensures the pinned audit sink is never marked idle.
+	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "active", "operator_pinned": false}).
 		Where(
 			s.db.Where(clause.Expr{SQL: "? IS NOT NULL", Vars: []any{Col(s.db.Name(), "last_successful_use")}}).
 				Where(clause.Expr{SQL: "? < ?", Vars: []any{Col(s.db.Name(), "last_successful_use"), cutoff}}).
@@ -255,8 +256,9 @@ func (s *GormWebhookSubscriptionStore) ListBroken(ctx context.Context, minFailur
 
 	var subs []models.WebhookSubscription
 	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
-	// Condition: status = active AND publication_failures >= minFailures AND (last_successful_use IS NULL OR last_successful_use < cutoff)
-	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "active"}).
+	// Condition: status = active AND operator_pinned = false AND publication_failures >= minFailures AND (last_successful_use IS NULL OR last_successful_use < cutoff)
+	// operator_pinned=false ensures the pinned audit sink is never marked broken.
+	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "active", "operator_pinned": false}).
 		Where(clause.Expr{SQL: "? >= ?", Vars: []any{Col(s.db.Name(), "publication_failures"), minFailures}}).
 		Where(
 			s.db.Where(clause.Expr{SQL: "? IS NULL", Vars: []any{Col(s.db.Name(), "last_successful_use")}}).

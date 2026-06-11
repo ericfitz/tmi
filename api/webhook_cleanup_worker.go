@@ -170,6 +170,15 @@ func (w *WebhookCleanupWorker) deletePendingSubscriptions(ctx context.Context) (
 
 	count := 0
 	for _, sub := range subscriptions {
+		// Safety guard: operator-pinned subscriptions must never be auto-deleted.
+		// ListPendingDelete fetches by status=pending_delete without filtering on
+		// operator_pinned, so a pinned row that somehow acquired that status (e.g.
+		// a direct DB edit or a future bug) would otherwise be silently deleted.
+		if sub.OperatorPinned {
+			logger.Error("BUG: operator-pinned subscription %s reached deletePendingSubscriptions — skipping", sub.Id)
+			continue
+		}
+
 		logger.Debug("deleting subscription %s (status: %s)", sub.Id, sub.Status)
 
 		// Delete associated addons (foreign key constraint)

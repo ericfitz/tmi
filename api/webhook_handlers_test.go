@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -245,14 +246,26 @@ func (m *mockWebhookSubscriptionStore) ListIdle(_ context.Context, daysIdle int)
 	if m.err != nil {
 		return nil, m.err
 	}
-	return []DBWebhookSubscription{}, nil
+	var result []DBWebhookSubscription
+	for _, sub := range m.subscriptions {
+		if !sub.OperatorPinned {
+			result = append(result, sub)
+		}
+	}
+	return result, nil
 }
 
 func (m *mockWebhookSubscriptionStore) ListBroken(_ context.Context, minFailures, daysSinceSuccess int) ([]DBWebhookSubscription, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
-	return []DBWebhookSubscription{}, nil
+	var result []DBWebhookSubscription
+	for _, sub := range m.subscriptions {
+		if !sub.OperatorPinned {
+			result = append(result, sub)
+		}
+	}
+	return result, nil
 }
 
 func (m *mockWebhookSubscriptionStore) ListPendingDelete(_ context.Context) ([]DBWebhookSubscription, error) {
@@ -1301,7 +1314,7 @@ func TestDeliveryRecordToWebhookDelivery(t *testing.T) {
 			LastActivityAt: now,
 		}
 
-		result := deliveryRecordToWebhookDelivery(record)
+		result := deliveryRecordToWebhookDelivery(record, nil)
 		assert.Equal(t, deliveryID, result.Id)
 		assert.Equal(t, subID, result.SubscriptionId)
 		assert.Equal(t, WebhookEventType("threat.created"), result.EventType)
@@ -1324,9 +1337,110 @@ func TestDeliveryRecordToWebhookDelivery(t *testing.T) {
 			LastActivityAt: now,
 		}
 
-		result := deliveryRecordToWebhookDelivery(record)
+		result := deliveryRecordToWebhookDelivery(record, nil)
 		assert.Equal(t, WebhookDeliveryStatus("failed"), result.Status)
 		assert.NotNil(t, result.LastError)
 		assert.Equal(t, "connection refused", *result.LastError)
 	})
+}
+
+// =============================================================================
+// Pinned Subscription Security Tests
+// =============================================================================
+
+func TestDeliveryRecordToWebhookDelivery_PinnedLastErrorRedacted(t *testing.T) {
+	now := time.Now().UTC()
+	deliveryID := uuid.New()
+	subID := uuid.New()
+	pinnedURL := "https://real-sink.internal/alert"
+
+	record := &WebhookDeliveryRecord{
+		ID:             deliveryID,
+		SubscriptionID: subID,
+		EventType:      "system_audit.admin_write",
+		Payload:        `{}`,
+		Status:         "failed",
+		Attempts:       1,
+		CreatedAt:      now,
+		LastActivityAt: now,
+		LastError:      fmt.Sprintf(`Post "%s": dial tcp: no such host`, pinnedURL),
+	}
+
+	pinnedSub := &DBWebhookSubscription{
+		Id:             subID,
+		OperatorPinned: true,
+		Url:            pinnedURL,
+	}
+
+	result := deliveryRecordToWebhookDelivery(record, pinnedSub)
+	require.NotNil(t, result.LastError)
+	assert.NotContains(t, *result.LastError, pinnedURL, "pinned URL must be redacted from LastError")
+	assert.NotContains(t, *result.LastError, "https://", "no URL scheme should remain in LastError for pinned sub")
+}
+
+func TestDeliveryRecordToWebhookDelivery_NonPinnedLastErrorUnchanged(t *testing.T) {
+	now := time.Now().UTC()
+	deliveryID := uuid.New()
+	subID := uuid.New()
+
+	record := &WebhookDeliveryRecord{
+		ID:             deliveryID,
+		SubscriptionID: subID,
+		EventType:      "threat.created",
+		Payload:        `{}`,
+		Status:         "failed",
+		Attempts:       1,
+		CreatedAt:      now,
+		LastActivityAt: now,
+		LastError:      "connection refused",
+	}
+
+	normalSub := &DBWebhookSubscription{
+		Id:             subID,
+		OperatorPinned: false,
+		Url:            "https://example.com/hook",
+	}
+
+	result := deliveryRecordToWebhookDelivery(record, normalSub)
+	require.NotNil(t, result.LastError)
+	assert.Equal(t, "connection refused", *result.LastError, "non-pinned last error must be unchanged")
+}
+
+func TestTestWebhookSubscription_PinnedReturns403(t *testing.T) {
+	origSubStore := GlobalWebhookSubscriptionStore
+	origRedisDelStore := GlobalWebhookDeliveryRedisStore
+	origQuotaStore := GlobalWebhookQuotaStore
+	origAdminStore := GlobalGroupMemberRepository
+	defer func() {
+		GlobalWebhookSubscriptionStore = origSubStore
+		GlobalWebhookDeliveryRedisStore = origRedisDelStore
+		GlobalWebhookQuotaStore = origQuotaStore
+		GlobalGroupMemberRepository = origAdminStore
+	}()
+
+	mockSubStore := newMockWebhookSubscriptionStore()
+	mockRedisStore := newMockDeliveryRedisStore()
+	GlobalWebhookSubscriptionStore = mockSubStore
+	GlobalWebhookDeliveryRedisStore = mockRedisStore
+	GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
+
+	pinnedID := uuid.New()
+	mockSubStore.subscriptions[pinnedID.String()] = DBWebhookSubscription{
+		Id:             pinnedID,
+		OwnerId:        uuid.MustParse(OperatorSystemUserUUID),
+		Name:           "Operator Audit Alert Sink",
+		Url:            "https://alert.internal/hook",
+		Events:         []string{"system_audit.admin_write"},
+		Status:         string(WebhookSubscriptionStatusActive),
+		OperatorPinned: true,
+	}
+
+	adminUUID := uuid.New()
+	r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
+
+	req, _ := http.NewRequest("POST", "/admin/webhooks/subscriptions/"+pinnedID.String()+"/test", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
 }

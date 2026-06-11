@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/crypto"
@@ -92,8 +94,9 @@ func GetWebhookDeliveryStatus(c *gin.Context) {
 		}
 	}
 
-	// Return response
-	response := deliveryRecordToWebhookDelivery(record)
+	// Return response (pass nil for sub — fail-open; URL leakage here is low-risk
+	// because the caller already authenticated via HMAC against the subscription secret)
+	response := deliveryRecordToWebhookDelivery(record, nil)
 	c.JSON(http.StatusOK, response)
 }
 
@@ -423,8 +426,24 @@ func verifyDeliveryJWTAccess(c *gin.Context, record *WebhookDeliveryRecord) erro
 	}
 }
 
+// sanitizePinnedLastError removes URL substrings from LastError for operator-pinned subscriptions.
+// The pinned URL (if known) is replaced first, then any remaining https?://\S+ patterns are
+// replaced with "(operator-pinned)" so url.Error format strings cannot leak the address.
+func sanitizePinnedLastError(lastError, pinnedURL string) string {
+	result := lastError
+	if pinnedURL != "" {
+		result = strings.ReplaceAll(result, pinnedURL, "(operator-pinned)")
+	}
+	// Also redact any remaining URL-shaped substrings
+	urlPattern := regexp.MustCompile(`https?://\S+`)
+	result = urlPattern.ReplaceAllString(result, "(operator-pinned)")
+	return result
+}
+
 // deliveryRecordToWebhookDelivery converts a WebhookDeliveryRecord to the API response type.
-func deliveryRecordToWebhookDelivery(r *WebhookDeliveryRecord) WebhookDelivery {
+// sub is the owning subscription, used to redact the LastError field for operator-pinned
+// subscriptions. Pass nil to skip redaction (fail-open).
+func deliveryRecordToWebhookDelivery(r *WebhookDeliveryRecord, sub *DBWebhookSubscription) WebhookDelivery {
 	delivery := WebhookDelivery{
 		Id:             r.ID,
 		SubscriptionId: r.SubscriptionID,
@@ -443,7 +462,11 @@ func deliveryRecordToWebhookDelivery(r *WebhookDeliveryRecord) WebhookDelivery {
 		delivery.StatusMessage = strPtr(r.StatusMessage)
 	}
 	if r.LastError != "" {
-		delivery.LastError = strPtr(r.LastError)
+		lastErr := r.LastError
+		if sub != nil && sub.OperatorPinned {
+			lastErr = sanitizePinnedLastError(r.LastError, sub.Url)
+		}
+		delivery.LastError = strPtr(lastErr)
 	}
 
 	// Parse payload JSON back to map
