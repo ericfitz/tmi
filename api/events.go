@@ -80,6 +80,10 @@ const (
 	// Document extraction outcome events (async pipeline, #347)
 	EventDocumentExtractionCompleted = "document.extraction_completed"
 	EventDocumentExtractionFailed    = "document.extraction_failed"
+
+	// System audit events (T7, #395): emitted for every system_audit_entries
+	// write (admin-write middleware and step-up adapter paths).
+	EventSystemAuditAdminWrite = "system_audit.admin_write"
 )
 
 // EventPayload represents the structure of an event emitted to Redis

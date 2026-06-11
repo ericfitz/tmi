@@ -4463,7 +4463,8 @@
               "threat.deleted",
               "metadata.created",
               "metadata.updated",
-              "metadata.deleted"
+              "metadata.deleted",
+              "system_audit.admin_write"
             ],
             "description": "Webhook event type following {resource}.{action} pattern",
             "maxLength": 1000
@@ -5517,7 +5518,8 @@
           "survey.deleted",
           "survey_response.created",
           "survey_response.updated",
-          "survey_response.deleted"
+          "survey_response.deleted",
+          "system_audit.admin_write"
         ],
         "description": "Webhook event type following {resource}.{action} pattern. CRUD events are emitted for resource lifecycle changes (created, updated, deleted). The addon.invoked event is emitted when an add-on is invoked.",
         "maxLength": 1000,
@@ -5576,6 +5578,9 @@
             "survey_response.created",
             "survey_response.updated",
             "survey_response.deleted"
+          ],
+          "system_audit": [
+            "system_audit.admin_write"
           ]
         },
         "example": "threat_model.created"
