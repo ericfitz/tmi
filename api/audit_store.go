@@ -36,11 +36,31 @@ type GormAuditService struct {
 func NewGormAuditService(db *gorm.DB) *GormAuditService {
 	return &GormAuditService{
 		db:                     db,
-		auditRetentionDays:     getEnvInt("AUDIT_RETENTION_DAYS", defaultAuditRetentionDays),
+		auditRetentionDays:     AuditRetentionDays(),
 		versionRetentionCount:  getEnvInt("VERSION_RETENTION_COUNT", defaultVersionRetentionCount),
-		versionRetentionDays:   getEnvInt("VERSION_RETENTION_DAYS", defaultVersionRetentionDays),
-		tombstoneRetentionDays: getEnvInt("TOMBSTONE_RETENTION_DAYS", defaultTombstoneRetentionDays),
+		versionRetentionDays:   VersionRetentionDays(),
+		tombstoneRetentionDays: TombstoneRetentionDays(),
 	}
+}
+
+// AuditRetentionDays returns the configured audit-entry retention in days
+// (AUDIT_RETENTION_DAYS, default 365). Exported because the append-only
+// trigger installation derives its delete age floor from the same value,
+// so the pruner cutoff and the trigger floor cannot drift (#453).
+func AuditRetentionDays() int {
+	return getEnvInt("AUDIT_RETENTION_DAYS", defaultAuditRetentionDays)
+}
+
+// VersionRetentionDays returns the configured version-snapshot retention in
+// days (VERSION_RETENTION_DAYS, default 90). See AuditRetentionDays.
+func VersionRetentionDays() int {
+	return getEnvInt("VERSION_RETENTION_DAYS", defaultVersionRetentionDays)
+}
+
+// TombstoneRetentionDays returns the configured tombstone retention in days
+// (TOMBSTONE_RETENTION_DAYS, default 30). See AuditRetentionDays.
+func TombstoneRetentionDays() int {
+	return getEnvInt("TOMBSTONE_RETENTION_DAYS", defaultTombstoneRetentionDays)
 }
 
 // getEnvInt reads an integer from an environment variable with a default fallback.

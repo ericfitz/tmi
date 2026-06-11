@@ -79,7 +79,11 @@ func TestInstallAuditAppendOnlyTriggers_SqliteSkipsCleanly(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, db.AutoMigrate(&auditEntryRow{}))
-	require.NoError(t, InstallAuditAppendOnlyTriggers(context.Background(), db))
+	require.NoError(t, InstallAuditAppendOnlyTriggers(context.Background(), db, AuditFloorConfig{
+		AuditRetentionDays:     365,
+		VersionRetentionDays:   90,
+		TombstoneRetentionDays: 30,
+	}))
 
 	row := auditEntryRow{
 		ID:            uuid.New().String(),

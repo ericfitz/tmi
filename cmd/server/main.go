@@ -406,7 +406,11 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 	// hasn't been granted DDL trigger permission yet — the absence of the
 	// trigger is loggable but the application-level audit-emit instrumentation
 	// is still in effect.
-	if err := dbschema.InstallAuditAppendOnlyTriggers(ctx, gormDB.DB()); err != nil {
+	if err := dbschema.InstallAuditAppendOnlyTriggers(ctx, gormDB.DB(), dbschema.AuditFloorConfig{
+		AuditRetentionDays:     api.AuditRetentionDays(),
+		VersionRetentionDays:   api.VersionRetentionDays(),
+		TombstoneRetentionDays: api.TombstoneRetentionDays(),
+	}); err != nil {
 		logger.Warn("InstallAuditAppendOnlyTriggers failed (non-fatal; T19 protection NOT in effect): %v", err)
 	}
 	return nil
