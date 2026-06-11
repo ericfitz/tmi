@@ -18,12 +18,12 @@ type AuditEntry struct {
 	ObjectID         DBVarchar      `gorm:"size:36;not null;index:idx_audit_object,priority:2;index:idx_audit_object_version,priority:2"`
 	Version          *int           `gorm:"index:idx_audit_object_version,priority:3"` // nullable: NULL means version snapshot has been pruned
 	ChangeType       DBVarchar      `gorm:"size:20;not null;index:idx_audit_change_type"`
-	ActorEmail       DBVarchar      `gorm:"size:320;not null"`
+	ActorEmail       DBVarchar      `gorm:"size:320;not null;index:idx_audit_actor,priority:1"`
 	ActorProvider    DBVarchar      `gorm:"size:100;not null"`
 	ActorProviderID  DBVarchar      `gorm:"size:500;not null"`
 	ActorDisplayName DBVarchar      `gorm:"size:256;not null"`
 	ChangeSummary    NullableDBText `gorm:""`
-	CreatedAt        time.Time      `gorm:"not null;autoCreateTime;index:idx_audit_tm_created,priority:2"`
+	CreatedAt        time.Time      `gorm:"not null;autoCreateTime;index:idx_audit_tm_created,priority:2;index:idx_audit_actor,priority:2"`
 }
 
 // TableName specifies the table name for AuditEntry
