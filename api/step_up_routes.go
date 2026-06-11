@@ -33,7 +33,8 @@ func ginPathToOpenAPI(p string) string {
 //
 // Default policy: any /admin/* operation with a write method (POST/PUT/PATCH/
 // DELETE) requires step-up. Opt-out via x-tmi-authz-step-up: optional on the
-// operation.
+// operation. Opt-in for any path/method: set x-tmi-authz-step-up: "required"
+// on the operation.
 type StepUpRouteTable struct {
 	required map[stepUpRouteKey]bool
 }
@@ -54,23 +55,53 @@ func (t StepUpRouteTable) Required(method, path string) bool {
 
 // BuildStepUpRouteTable walks the OpenAPI spec and constructs the resolution
 // table. Safe to call with a nil spec (returns an empty table).
+//
+// Two mechanisms register a route:
+//  1. Opt-in (any path/method): operation carries x-tmi-authz-step-up: "required".
+//  2. Default (admin write methods): any /admin/* POST/PUT/PATCH/DELETE is
+//     required unless opted out via x-tmi-authz-step-up: "optional".
 func BuildStepUpRouteTable(spec *openapi3.T) StepUpRouteTable {
 	table := StepUpRouteTable{required: map[stepUpRouteKey]bool{}}
 	if spec == nil || spec.Paths == nil {
 		return table
 	}
 	for path, item := range spec.Paths.Map() {
-		if !strings.HasPrefix(path, "/admin/") {
-			continue
-		}
-		ops := map[string]*openapi3.Operation{
+		// Pass 1: opt-in via x-tmi-authz-step-up: "required" on ANY method/path.
+		allOps := map[string]*openapi3.Operation{
+			"GET":    item.Get,
 			"POST":   item.Post,
 			"PUT":    item.Put,
 			"PATCH":  item.Patch,
 			"DELETE": item.Delete,
 		}
-		for method, op := range ops {
+		for method, op := range allOps {
 			if op == nil {
+				continue
+			}
+			if v, ok := op.Extensions["x-tmi-authz-step-up"]; ok {
+				if s, ok := v.(string); ok && s == "required" {
+					table.required[stepUpRouteKey{method: method, path: path}] = true
+				}
+			}
+		}
+
+		// Pass 2: /admin/* write-method default — required unless opted out.
+		if !strings.HasPrefix(path, "/admin/") {
+			continue
+		}
+		writeOps := map[string]*openapi3.Operation{
+			"POST":   item.Post,
+			"PUT":    item.Put,
+			"PATCH":  item.Patch,
+			"DELETE": item.Delete,
+		}
+		for method, op := range writeOps {
+			if op == nil {
+				continue
+			}
+			key := stepUpRouteKey{method: method, path: path}
+			// Don't override an already-set required=true from pass 1.
+			if _, alreadySet := table.required[key]; alreadySet {
 				continue
 			}
 			required := true
@@ -79,7 +110,7 @@ func BuildStepUpRouteTable(spec *openapi3.T) StepUpRouteTable {
 					required = false
 				}
 			}
-			table.required[stepUpRouteKey{method: method, path: path}] = required
+			table.required[key] = required
 		}
 	}
 	return table

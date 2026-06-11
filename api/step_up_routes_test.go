@@ -83,3 +83,45 @@ func TestBuildStepUpRouteTable_EmptySpec(t *testing.T) {
 		t.Errorf("empty/nil spec should produce empty table")
 	}
 }
+
+func TestBuildStepUpRouteTable_NonAdminWithRequiredExtension(t *testing.T) {
+	spec := &openapi3.T{
+		Paths: openapi3.NewPaths(),
+	}
+	// POST on /me/identities/link/start with x-tmi-authz-step-up: required
+	post := &openapi3.Operation{
+		Extensions: map[string]any{
+			"x-tmi-authz-step-up": "required",
+		},
+	}
+	// POST on /me/identities without the extension — must NOT be in table
+	postNoExt := &openapi3.Operation{}
+	spec.Paths.Set("/me/identities/link/start", &openapi3.PathItem{Post: post})
+	spec.Paths.Set("/me/identities", &openapi3.PathItem{Post: postNoExt})
+
+	table := BuildStepUpRouteTable(spec)
+	if !table.Required("POST", "/me/identities/link/start") {
+		t.Errorf("POST /me/identities/link/start with x-tmi-authz-step-up=required should be in table")
+	}
+	if table.Required("POST", "/me/identities") {
+		t.Errorf("POST /me/identities without extension should NOT be in table")
+	}
+}
+
+func TestBuildStepUpRouteTable_RequiredExtensionAlsoWorksOnAdminRoute(t *testing.T) {
+	spec := &openapi3.T{
+		Paths: openapi3.NewPaths(),
+	}
+	// GET on /admin/something with required extension (GET is not a default write method)
+	get := &openapi3.Operation{
+		Extensions: map[string]any{
+			"x-tmi-authz-step-up": "required",
+		},
+	}
+	spec.Paths.Set("/admin/special", &openapi3.PathItem{Get: get})
+
+	table := BuildStepUpRouteTable(spec)
+	if !table.Required("GET", "/admin/special") {
+		t.Errorf("GET /admin/special with required extension should be in table")
+	}
+}
