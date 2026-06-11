@@ -21,6 +21,12 @@ const (
 	defaultVersionRetentionCount  = 50
 	defaultVersionRetentionDays   = 90
 	defaultTombstoneRetentionDays = 30
+
+	defaultSystemAuditRetentionDays = 365
+	// minSystemAuditRetentionDays is the documented evidence minimum: system
+	// audit rows are T7 evidence and accidentally-aggressive pruning destroys
+	// investigative value (#400).
+	minSystemAuditRetentionDays = 90
 )
 
 // oracleMaxInListSize is Oracle's hard cap on IN expression lists
@@ -45,21 +51,23 @@ func chunkIDs(ids []string, size int) [][]string {
 
 // GormAuditService implements AuditServiceInterface using GORM.
 type GormAuditService struct {
-	db                     *gorm.DB
-	auditRetentionDays     int
-	versionRetentionCount  int
-	versionRetentionDays   int
-	tombstoneRetentionDays int
+	db                       *gorm.DB
+	auditRetentionDays       int
+	versionRetentionCount    int
+	versionRetentionDays     int
+	tombstoneRetentionDays   int
+	systemAuditRetentionDays int
 }
 
 // NewGormAuditService creates a new GormAuditService with configuration from environment.
 func NewGormAuditService(db *gorm.DB) *GormAuditService {
 	return &GormAuditService{
-		db:                     db,
-		auditRetentionDays:     AuditRetentionDays(),
-		versionRetentionCount:  getEnvInt("VERSION_RETENTION_COUNT", defaultVersionRetentionCount),
-		versionRetentionDays:   VersionRetentionDays(),
-		tombstoneRetentionDays: TombstoneRetentionDays(),
+		db:                       db,
+		auditRetentionDays:       AuditRetentionDays(),
+		versionRetentionCount:    getEnvInt("VERSION_RETENTION_COUNT", defaultVersionRetentionCount),
+		versionRetentionDays:     VersionRetentionDays(),
+		tombstoneRetentionDays:   TombstoneRetentionDays(),
+		systemAuditRetentionDays: SystemAuditRetentionDays(),
 	}
 }
 
@@ -81,6 +89,20 @@ func VersionRetentionDays() int {
 // (TOMBSTONE_RETENTION_DAYS, default 30). See AuditRetentionDays.
 func TombstoneRetentionDays() int {
 	return getEnvInt("TOMBSTONE_RETENTION_DAYS", defaultTombstoneRetentionDays)
+}
+
+// SystemAuditRetentionDays returns the configured system-audit retention in
+// days (SYSTEM_AUDIT_RETENTION_DAYS, default 365), clamped to a 90-day
+// minimum. Exported because the append-only trigger installation derives its
+// delete age floor from the same value (#400).
+func SystemAuditRetentionDays() int {
+	days := getEnvInt("SYSTEM_AUDIT_RETENTION_DAYS", defaultSystemAuditRetentionDays)
+	if days < minSystemAuditRetentionDays {
+		slogging.Get().Warn("SYSTEM_AUDIT_RETENTION_DAYS=%d is below the %d-day evidence minimum; using %d",
+			days, minSystemAuditRetentionDays, minSystemAuditRetentionDays)
+		return minSystemAuditRetentionDays
+	}
+	return days
 }
 
 // getEnvInt reads an integer from an environment variable with a default fallback.
