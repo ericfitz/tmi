@@ -13024,7 +13024,7 @@
           "type": "string",
           "format": "date-time"
         },
-        "description": "Filter users created after this timestamp (RFC3339)"
+        "description": "Return only records created after this RFC 3339 timestamp."
       },
       "CreatedBeforeQueryParam": {
         "name": "created_before",
@@ -13033,7 +13033,7 @@
           "type": "string",
           "format": "date-time"
         },
-        "description": "Filter users created before this timestamp (RFC3339)"
+        "description": "Return only records created before this RFC 3339 timestamp."
       },
       "LastLoginAfterQueryParam": {
         "name": "last_login_after",

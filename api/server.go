@@ -98,7 +98,7 @@ type Server struct {
 	credentialDeleter credentialDeleter
 	// systemAuditRepo is used by the admin audit query endpoints (#398).
 	// Injected from main.go so the same instance used by the admin audit middleware
-	// (and step-up auditor) is reused here. When nil the handlers return 503.
+	// (and step-up auditor) is reused here. When nil the handlers return 500.
 	systemAuditRepo SystemAuditRepository
 	// contentOAuth holds the handler for the /me/content_tokens/*,
 	// /admin/users/{internal_uuid}/content_tokens/*, and /oauth2/content_callback
