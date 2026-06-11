@@ -32,6 +32,14 @@ func (f *fakeSystemAuditRepo) ListByActor(ctx context.Context, actor string, fro
 	return f.rows, nil
 }
 
+func (f *fakeSystemAuditRepo) List(_ context.Context, _ SystemAuditFilter) ([]models.SystemAuditEntry, int, *string, error) {
+	return f.rows, len(f.rows), nil, nil
+}
+
+func (f *fakeSystemAuditRepo) GetByID(_ context.Context, _ string) (*models.SystemAuditEntry, error) {
+	return nil, nil
+}
+
 type fakeSystemSettingReader struct{ value string }
 
 func (r *fakeSystemSettingReader) Read(c *gin.Context, key string) string { return r.value }
