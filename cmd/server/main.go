@@ -712,6 +712,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		authHandlers.Service().SetClaimsEnricher(claimsEnricher)
 		logger.Info("Claims enricher configured for JWT token generation")
 
+		// Wire linked-identity store for Tier 1b OAuth login resolution (#383)
+		authHandlers.Service().SetLinkedIdentityStore(auth.NewGormLinkedIdentityStore(authHandlers.Service().GormDB()))
+		logger.Info("Linked identity store wired for Tier 1b OAuth login resolution")
+
 		// Set up user groups fetcher for /me endpoint
 		userGroupsFetcher := api.NewGormUserGroupsFetcher(api.GlobalGroupMemberRepository)
 		authHandlers.SetUserGroupsFetcher(userGroupsFetcher)

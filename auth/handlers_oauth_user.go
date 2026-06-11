@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -18,6 +19,10 @@ type userResolver interface {
 	GetUserByProviderAndEmail(ctx context.Context, provider, email string) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	CreateUser(ctx context.Context, user User) (User, error)
+	// Tier 1b: linked identity lookups
+	GetLinkedIdentityByProviderSub(ctx context.Context, provider, providerUserID string) (models.LinkedIdentity, error)
+	GetUserByInternalUUID(ctx context.Context, uuid string) (User, error)
+	TouchLinkedIdentityLastUsed(ctx context.Context, id string) error
 }
 
 // errCrossProviderConflict is returned by findOrCreateUser when a login
@@ -74,6 +79,7 @@ type userMatchType int
 const (
 	userMatchNone                  userMatchType = iota // No match found, need to create new user
 	userMatchProviderID                                 // Matched by provider + provider_user_id (strongest)
+	userMatchLinkedIdentity                             // Matched via linked identity table
 	userMatchProviderEmail                              // Matched by provider + email
 	userMatchEmailOnly                                  // Matched by email only (sparse record)
 	userMatchCrossProviderConflict                      // Email matched but bound to a different provider — must reject
@@ -105,6 +111,25 @@ func findOrCreateUserWithResolver(ctx context.Context, c *gin.Context, r userRes
 		logger.Debug("User matched by provider+provider_id: provider=%s, provider_id=%s, email=%s",
 			providerID, providerUserID, user.Email)
 		return user, userMatchProviderID, nil
+	}
+
+	// Tier 1b: Try to match by linked identity (provider + provider_user_id)
+	li, liErr := r.GetLinkedIdentityByProviderSub(ctx, providerID, providerUserID)
+	if liErr == nil {
+		// Found a linked identity — resolve to the owning user
+		owner, ownerErr := r.GetUserByInternalUUID(ctx, string(li.UserInternalUUID))
+		if ownerErr == nil {
+			logger.Debug("User matched via linked identity: provider=%s, provider_id=%s, owner_uuid=%s",
+				providerID, providerUserID, string(li.UserInternalUUID))
+			// Touch last_used_at non-fatally
+			if touchErr := r.TouchLinkedIdentityLastUsed(ctx, string(li.ID)); touchErr != nil {
+				logger.Warn("Failed to touch linked identity last_used_at: id=%s, err=%v", string(li.ID), touchErr)
+			}
+			return owner, userMatchLinkedIdentity, nil
+		}
+		// Owner not found — orphaned linked identity, fall through
+		logger.Warn("Linked identity owner not found: linked_identity_id=%s, user_uuid=%s",
+			string(li.ID), string(li.UserInternalUUID))
 	}
 
 	// Tier 2: Try to match by provider + email

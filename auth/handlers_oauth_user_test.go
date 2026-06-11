@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -20,6 +21,8 @@ type fakeUserResolver struct {
 	byProviderID       *User
 	byProviderAndEmail *User
 	byEmail            *User
+	byLinkedIdentity   *models.LinkedIdentity // new: Tier 1b linked identity lookup
+	byInternalUUID     *User                  // new: owner lookup for linked identity
 
 	createdUser User
 	createErr   error
@@ -61,6 +64,24 @@ func (f *fakeUserResolver) CreateUser(_ context.Context, u User) (User, error) {
 		created.InternalUUID = uuid.NewString()
 	}
 	return created, nil
+}
+
+func (f *fakeUserResolver) GetLinkedIdentityByProviderSub(_ context.Context, _, _ string) (models.LinkedIdentity, error) {
+	if f.byLinkedIdentity == nil {
+		return models.LinkedIdentity{}, ErrLinkedIdentityNotFound
+	}
+	return *f.byLinkedIdentity, nil
+}
+
+func (f *fakeUserResolver) GetUserByInternalUUID(_ context.Context, _ string) (User, error) {
+	if f.byInternalUUID == nil {
+		return User{}, errFakeUserNotFound
+	}
+	return *f.byInternalUUID, nil
+}
+
+func (f *fakeUserResolver) TouchLinkedIdentityLastUsed(_ context.Context, _ string) error {
+	return nil
 }
 
 func newTestGinContext() *gin.Context {
@@ -172,6 +193,34 @@ func TestFindOrCreateUser_UnverifiedEmailMatchRejected(t *testing.T) {
 		"expected errUnverifiedEmailMatch, got %v", err)
 	assert.Equal(t, userMatchNone, match)
 	assert.Empty(t, user.InternalUUID, "must not return sparse record without verified email")
+	assert.Equal(t, 0, resolver.createCalls)
+}
+
+// Tier 1b — linked identity: resolves to owning user without creating a new record.
+func TestFindOrCreateUser_ResolvesLinkedIdentity(t *testing.T) {
+	owner := User{
+		InternalUUID:   "uuid-alice-primary",
+		Provider:       "google",
+		ProviderUserID: "google-alice",
+		Email:          "alice@example.com",
+		EmailVerified:  true,
+	}
+	li := models.LinkedIdentity{
+		ID:               models.DBVarchar("li-id-1"),
+		UserInternalUUID: models.DBVarchar("uuid-alice-primary"),
+		Provider:         models.DBVarchar("github"),
+		ProviderUserID:   models.DBVarchar("gh-alice"),
+	}
+	// Primary lookup misses, linked identity hits
+	resolver := &fakeUserResolver{
+		byLinkedIdentity: &li,
+		byInternalUUID:   &owner,
+	}
+	user, match, err := findOrCreateUserWithResolver(context.Background(), newTestGinContext(), resolver,
+		"github", "gh-alice", "alice@github.com", "Alice", true)
+	require.NoError(t, err)
+	assert.Equal(t, userMatchLinkedIdentity, match)
+	assert.Equal(t, owner.InternalUUID, user.InternalUUID)
 	assert.Equal(t, 0, resolver.createCalls)
 }
 

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 
 	"github.com/ericfitz/tmi/auth/db"
@@ -46,17 +47,18 @@ type UserContentTokenRevoker interface {
 
 // Service provides authentication and authorization functionality
 type Service struct {
-	dbManager         *db.Manager
-	config            Config
-	keyManager        *JWTKeyManager
-	samlManager       *SAMLManager
-	stateStore        StateStore
-	userRepo          repository.UserRepository
-	credRepo          repository.ClientCredentialRepository
-	deletionRepo      repository.DeletionRepository
-	claimsEnricher    ClaimsEnricher
-	registry          ProviderRegistry
-	preUserDeleteHook UserContentTokenRevoker
+	dbManager           *db.Manager
+	config              Config
+	keyManager          *JWTKeyManager
+	samlManager         *SAMLManager
+	stateStore          StateStore
+	userRepo            repository.UserRepository
+	credRepo            repository.ClientCredentialRepository
+	deletionRepo        repository.DeletionRepository
+	claimsEnricher      ClaimsEnricher
+	registry            ProviderRegistry
+	preUserDeleteHook   UserContentTokenRevoker
+	linkedIdentityStore LinkedIdentityStore
 }
 
 // SetClaimsEnricher sets the claims enricher for JWT token generation
@@ -76,6 +78,12 @@ func (s *Service) SetProviderRegistry(registry ProviderRegistry) {
 // token data. Pass nil to clear the hook.
 func (s *Service) SetPreUserDeleteHook(h UserContentTokenRevoker) {
 	s.preUserDeleteHook = h
+}
+
+// SetLinkedIdentityStore wires a LinkedIdentityStore into the service, enabling
+// Tier 1b linked-identity resolution during OAuth login.
+func (s *Service) SetLinkedIdentityStore(store LinkedIdentityStore) {
+	s.linkedIdentityStore = store
 }
 
 // NewService creates a new authentication service
@@ -752,6 +760,28 @@ func (s *Service) GetUserByProviderAndEmail(ctx context.Context, provider, email
 	}
 
 	return convertRepoUserToServiceUser(repoUser), nil
+}
+
+// GetLinkedIdentityByProviderSub looks up a linked identity by provider and provider-user-id.
+// Returns ErrLinkedIdentityNotFound if no row matches or the store is not wired.
+func (s *Service) GetLinkedIdentityByProviderSub(ctx context.Context, provider, providerUserID string) (models.LinkedIdentity, error) {
+	if s.linkedIdentityStore == nil {
+		return models.LinkedIdentity{}, ErrLinkedIdentityNotFound
+	}
+	return s.linkedIdentityStore.GetByProviderSub(ctx, provider, providerUserID)
+}
+
+// GetUserByInternalUUID gets a user by their internal UUID.
+func (s *Service) GetUserByInternalUUID(ctx context.Context, uuid string) (User, error) {
+	return s.GetUserByID(ctx, uuid)
+}
+
+// TouchLinkedIdentityLastUsed updates last_used_at for the linked identity with the given id.
+func (s *Service) TouchLinkedIdentityLastUsed(ctx context.Context, id string) error {
+	if s.linkedIdentityStore == nil {
+		return nil
+	}
+	return s.linkedIdentityStore.TouchLastUsed(ctx, id)
 }
 
 // GetUserByAnyProviderID gets a user by provider ID across all providers
