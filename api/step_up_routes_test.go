@@ -6,6 +6,36 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
+// TestStepUpRouteTable_IdentityLinkRoutesPresent is the load-bearing spec-pin:
+// the three identity-link step-up routes declared with x-tmi-authz-step-up: required
+// in the embedded production spec MUST remain present and required after any spec edit.
+// This test fails at build time if a future spec change accidentally drops the extension,
+// making the link flow silently bypassable.
+func TestStepUpRouteTable_IdentityLinkRoutesPresent(t *testing.T) {
+	swagger, err := GetSwagger()
+	if err != nil {
+		t.Fatalf("GetSwagger: %v", err)
+	}
+	table := BuildStepUpRouteTable(swagger)
+
+	required := []struct {
+		method string
+		path   string
+	}{
+		{"POST", "/me/identities/link/start"},
+		{"POST", "/me/identities/link/confirm"},
+		{"DELETE", "/me/identities/{id}"},
+	}
+	for _, r := range required {
+		if !table.Required(r.method, r.path) {
+			t.Errorf(
+				"%s %s must be step-up-required in the OpenAPI spec "+
+					"(x-tmi-authz-step-up: required); a spec edit removed it — restore the extension",
+				r.method, r.path)
+		}
+	}
+}
+
 func TestBuildStepUpRouteTable_DefaultsToRequiredForAdminWrites(t *testing.T) {
 	spec := &openapi3.T{
 		Paths: openapi3.NewPaths(),

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"html"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -47,10 +48,13 @@ func DetailedRequestLoggingMiddleware() gin.HandlerFunc {
 
 		logger := slogging.GetContextLogger(c)
 
-		// Log incoming request with redacted headers
+		// Log incoming request with redacted headers and path.
+		// Redact the token segment from pending-link paths to avoid logging high-entropy
+		// one-time tokens that are equivalent to credentials.
 		redactedHeaders := slogging.RedactHeaders(c.Request.Header)
+		logPath := redactPendingLinkPath(c.Request.URL.Path)
 		logger.Info("INCOMING_REQUEST [%s] %s %s - Headers: %v",
-			requestID, c.Request.Method, c.Request.URL.Path, redactedHeaders)
+			requestID, c.Request.Method, logPath, redactedHeaders)
 
 		// Read and log request body if present
 		if c.Request.Body != nil {
@@ -68,7 +72,7 @@ func DetailedRequestLoggingMiddleware() gin.HandlerFunc {
 		// Log response
 		duration := time.Since(start)
 		logger.Info("REQUEST_COMPLETE [%s] %s %s -> %d (%v)",
-			requestID, c.Request.Method, c.Request.URL.Path, c.Writer.Status(), duration)
+			requestID, c.Request.Method, logPath, c.Writer.Status(), duration)
 
 		// Log any errors
 		if len(c.Errors) > 0 {
@@ -95,6 +99,17 @@ func RouteMatchingMiddleware() gin.HandlerFunc {
 			logger.Debug("ROUTE_NO_MATCH [%s] No handler found", requestID)
 		}
 	}
+}
+
+// redactPendingLinkPath replaces the token segment in
+// /me/identities/link/pending/{token} with "(redacted)" so that
+// high-entropy one-time link tokens never appear in log output.
+func redactPendingLinkPath(path string) string {
+	const prefix = "/me/identities/link/pending/"
+	if strings.HasPrefix(path, prefix) {
+		return prefix + "(redacted)"
+	}
+	return path
 }
 
 // generateRequestID creates a unique request ID

@@ -148,35 +148,15 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 		return
 	}
 
-	// 6. Validate PKCE parameters.
-	codeChallenge := c.Query("code_challenge")
-	if codeChallenge == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "code_challenge parameter is required",
-		})
-		return
-	}
-	if err := ValidateCodeChallengeFormat(codeChallenge); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": fmt.Sprintf("Invalid code_challenge format: %v", err),
-		})
-		return
-	}
-	codeChallengeMethod := c.Query("code_challenge_method")
-	if codeChallengeMethod == "" {
-		codeChallengeMethod = pkceMethodS256
-	}
-	if codeChallengeMethod != pkceMethodS256 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "Only S256 code_challenge_method is supported",
-		})
-		return
-	}
-
-	// 7. Generate state and store in Redis with identity_link marker.
+	// 6. Generate state and store in Redis with identity_link marker.
+	// NOTE: PKCE is intentionally absent from this flow. PKCE (RFC 7636) protects
+	// a public-client authorization-code exchange where the verifier proves the
+	// same client that started the flow is the one redeeming the code. In the link
+	// flow there is no public client exchanging a code — the server exchanges the
+	// code confidentially in HandleIdentityLinkCallback. The binding mechanism is
+	// the pending-token (delivered only to the allowlisted client_callback) plus
+	// the UUID-matched step-up-fresh JWT required by ConfirmIdentityLink. PKCE
+	// here added friction without adding security.
 	state, err := generateRandomState()
 	if err != nil {
 		logger.Error("StartIdentityLink: state generation failed: %v", err)
@@ -203,14 +183,8 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "temporarily_unavailable"})
 		return
 	}
-	if err := h.service.stateStore.StorePKCEChallenge(ctx, state, codeChallenge, codeChallengeMethod, identityLinkStateTTL); err != nil {
-		logger.Error("StartIdentityLink: PKCE store failed: %v", err)
-		c.Header("Retry-After", "30")
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "temporarily_unavailable"})
-		return
-	}
 
-	// 8. Build the authorization URL with prompt=select_account (and prompt=consent
+	// 7. Build the authorization URL with prompt=select_account (and prompt=consent
 	// for strong providers that honor it).
 	cfg, err := h.providerConfig(idp)
 	if err != nil {
@@ -382,6 +356,15 @@ func (h *Handlers) GetPendingIdentityLink(c *gin.Context) {
 		return
 	}
 
+	// Reject service accounts — consistent with the four sibling endpoints.
+	if strings.HasPrefix(claims.Subject, "sa:") {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":             "forbidden",
+			"error_description": "Service accounts cannot link identities",
+		})
+		return
+	}
+
 	// Get link_id from path param.
 	linkID := c.Param("link_id")
 	if linkID == "" {
@@ -525,25 +508,9 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 		UserUUID:       user.InternalUUID,
 	}
 
-	// Re-check binding (race guard): ensure (provider, sub) is not already bound.
-	if h.identityLinkStore != nil {
-		_, errLink := h.identityLinkStore.GetByProviderSub(ctx, pending.Provider, pending.ProviderUserID)
-		if errLink == nil {
-			// Already exists in linked_identities.
-			_ = h.identityLinkAud().LogRejected(ctx, actor, "identity_already_bound", map[string]string{
-				"provider": pending.Provider,
-				"sub":      redactSub(pending.ProviderUserID),
-			})
-			c.JSON(http.StatusConflict, gin.H{
-				"error":             "conflict",
-				"error_code":        "identity_already_bound",
-				"error_description": "This identity is already linked to a TMI account",
-			})
-			return
-		}
-	}
-
-	// Also re-check the users table (primary identity).
+	// Re-check primary identity (users table). This is a pre-flight guard; the
+	// authoritative duplicate check inside CreateExclusive (below) covers the
+	// linked_identities table in a serializable transaction.
 	_, errUser := h.service.GetUserByProviderID(ctx, pending.Provider, pending.ProviderUserID)
 	if errUser == nil {
 		_ = h.identityLinkAud().LogRejected(ctx, actor, "identity_already_bound", map[string]string{
@@ -558,14 +525,19 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 		return
 	}
 
-	// Insert the linked identity.
+	// Insert the linked identity. CreateExclusive performs the linked_identities
+	// re-check AND the insert inside a single serializable transaction, closing
+	// the TOCTOU race that existed when the check and the insert were separate
+	// statements. The unique index is the final backstop; CreateExclusive
+	// surfaces both the read-caught and the constraint-caught paths as
+	// dberrors.ErrDuplicate so the 409 branch below handles both.
 	if h.identityLinkStore == nil {
 		logger.Error("ConfirmIdentityLink: identityLinkStore not wired")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
 		return
 	}
 
-	created, err := h.identityLinkStore.Create(ctx, LinkedIdentityInput{
+	created, err := h.identityLinkStore.CreateExclusive(ctx, LinkedIdentityInput{
 		UserInternalUUID: user.InternalUUID,
 		Provider:         pending.Provider,
 		ProviderUserID:   pending.ProviderUserID,

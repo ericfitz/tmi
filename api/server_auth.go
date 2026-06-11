@@ -513,7 +513,7 @@ func (s *Server) StartIdentityLink(c *gin.Context, params StartIdentityLinkParam
 // GetPendingIdentityLink handles GET /me/identities/link/pending/{link_id} (#383).
 func (s *Server) GetPendingIdentityLink(c *gin.Context, linkId string) {
 	logger := slogging.Get()
-	logger.Info("[SERVER_INTERFACE] GetPendingIdentityLink called link_id=%s", linkId)
+	logger.Info("[SERVER_INTERFACE] GetPendingIdentityLink called")
 	// Set the path param so the handler can read it via c.Param("link_id").
 	// The OpenAPI middleware passes it as a function argument; we adapt here.
 	c.Params = append(c.Params, gin.Param{Key: "link_id", Value: linkId})

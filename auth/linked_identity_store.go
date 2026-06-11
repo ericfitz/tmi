@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"gorm.io/gorm"
 )
@@ -28,6 +29,16 @@ type LinkedIdentityStore interface {
 	// Create inserts a new linked identity row. Returns a dberrors.ErrDuplicate-
 	// wrapped error if the (provider, provider_user_id) pair already exists.
 	Create(ctx context.Context, input LinkedIdentityInput) (models.LinkedIdentity, error)
+
+	// CreateExclusive checks for an existing binding (in linked_identities) and
+	// creates the row inside a single serializable transaction, eliminating the
+	// check-then-act race between concurrent confirm calls. The caller is
+	// responsible for checking the users (primary identity) table before calling
+	// this method — that cross-table check is performed by the handler using the
+	// same serializable transaction indirectly via the retry wrapper.
+	// Returns dberrors.ErrDuplicate if the (provider, provider_user_id) pair is
+	// already present in linked_identities.
+	CreateExclusive(ctx context.Context, input LinkedIdentityInput) (models.LinkedIdentity, error)
 
 	// GetByProviderSub looks up a linked identity by provider and provider-user-id.
 	// Returns ErrLinkedIdentityNotFound if no row matches.
@@ -68,6 +79,53 @@ func (s *GormLinkedIdentityStore) Create(ctx context.Context, input LinkedIdenti
 		return models.LinkedIdentity{}, dberrors.Classify(err)
 	}
 	return row, nil
+}
+
+// CreateExclusive performs a check-then-create inside a single serializable
+// transaction, eliminating the TOCTOU race that exists when the re-check and
+// the insert run in separate statements. The unique index remains the final
+// backstop; this method surfaces the conflict as dberrors.ErrDuplicate before
+// reaching the constraint so that callers get a typed error in both the
+// serializable-read-caught and the constraint-caught paths.
+//
+// PKCE protects a public-client code exchange that does not exist in the link
+// flow; the pending-token + UUID-matched step-up-fresh confirm is the binding
+// mechanism. A serializable transaction here is the correct concurrency guard.
+func (s *GormLinkedIdentityStore) CreateExclusive(ctx context.Context, input LinkedIdentityInput) (models.LinkedIdentity, error) {
+	var created models.LinkedIdentity
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Re-check binding inside the transaction: a SERIALIZABLE snapshot
+		// ensures no concurrent inserter can slip in between this read and the
+		// write below.
+		var existing models.LinkedIdentity
+		lookupErr := tx.Where("provider = ? AND provider_user_id = ?", input.Provider, input.ProviderUserID).
+			First(&existing).Error
+		if lookupErr == nil {
+			// Row already exists — surface as a typed duplicate error.
+			return dberrors.ErrDuplicate
+		}
+		if !errors.Is(lookupErr, gorm.ErrRecordNotFound) {
+			return dberrors.Classify(lookupErr)
+		}
+
+		// Safe to insert.
+		row := models.LinkedIdentity{
+			UserInternalUUID: models.DBVarchar(input.UserInternalUUID),
+			Provider:         models.DBVarchar(input.Provider),
+			ProviderUserID:   models.DBVarchar(input.ProviderUserID),
+			Email:            models.DBVarchar(input.Email),
+			Name:             models.DBVarchar(input.Name),
+		}
+		if err := tx.Create(&row).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		created = row
+		return nil
+	})
+	if err != nil {
+		return models.LinkedIdentity{}, err
+	}
+	return created, nil
 }
 
 // GetByProviderSub looks up a linked identity by provider and provider-user-id.

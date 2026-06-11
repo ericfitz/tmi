@@ -73,6 +73,29 @@ func (s *stubLinkedIdentityStore) ListByUser(_ context.Context, userInternalUUID
 	return out, nil
 }
 
+// CreateExclusive performs check-then-create atomically in the stub
+// (single-threaded test context; the mu lock makes it safe for concurrent tests).
+func (s *stubLinkedIdentityStore) CreateExclusive(_ context.Context, input LinkedIdentityInput) (models.LinkedIdentity, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, row := range s.rows {
+		if string(row.Provider) == input.Provider && string(row.ProviderUserID) == input.ProviderUserID {
+			return models.LinkedIdentity{}, dberrors.Wrap(errors.New("duplicate"), dberrors.ErrDuplicate)
+		}
+	}
+	row := models.LinkedIdentity{
+		ID:               models.DBVarchar(uuid.New().String()),
+		UserInternalUUID: models.DBVarchar(input.UserInternalUUID),
+		Provider:         models.DBVarchar(input.Provider),
+		ProviderUserID:   models.DBVarchar(input.ProviderUserID),
+		Email:            models.DBVarchar(input.Email),
+		Name:             models.DBVarchar(input.Name),
+		LinkedAt:         time.Now().UTC(),
+	}
+	s.rows = append(s.rows, row)
+	return row, nil
+}
+
 func (s *stubLinkedIdentityStore) TouchLastUsed(_ context.Context, _ string) error { return nil }
 
 func (s *stubLinkedIdentityStore) Delete(_ context.Context, id, ownerUUID string) error {
@@ -262,7 +285,7 @@ func TestIdentityLinkStart_StoresStateAndReturnsURL(t *testing.T) {
 	h := newIdentityLinkTestHarness(t)
 	defer h.cleanup()
 
-	c, w := ginTestContext("POST", "/me/identities/link/start?idp=google&client_callback=http://localhost:4200/callback&code_challenge=abc123def456abc123def456abc123def456abc123d&code_challenge_method=S256", "")
+	c, w := ginTestContext("POST", "/me/identities/link/start?idp=google&client_callback=http://localhost:4200/callback", "")
 	c.Request.Header.Set("Authorization", "Bearer "+h.testJWT)
 
 	h.handlers.StartIdentityLink(c)
@@ -298,7 +321,7 @@ func TestIdentityLinkStart_RejectsServiceAccount(t *testing.T) {
 
 	saJWT := newServiceAccountJWT(t, h)
 
-	c, w := ginTestContext("POST", "/me/identities/link/start?idp=google&client_callback=http://localhost:4200/callback&code_challenge=abc123def456abc123def456abc123def456abc123d&code_challenge_method=S256", "")
+	c, w := ginTestContext("POST", "/me/identities/link/start?idp=google&client_callback=http://localhost:4200/callback", "")
 	c.Request.Header.Set("Authorization", "Bearer "+saJWT)
 
 	h.handlers.StartIdentityLink(c)
@@ -310,7 +333,7 @@ func TestIdentityLinkStart_RejectsUnknownProvider(t *testing.T) {
 	h := newIdentityLinkTestHarness(t)
 	defer h.cleanup()
 
-	c, w := ginTestContext("POST", "/me/identities/link/start?idp=unknown-provider&client_callback=http://localhost:4200/callback&code_challenge=abc123def456abc123def456abc123def456abc123d&code_challenge_method=S256", "")
+	c, w := ginTestContext("POST", "/me/identities/link/start?idp=unknown-provider&client_callback=http://localhost:4200/callback", "")
 	c.Request.Header.Set("Authorization", "Bearer "+h.testJWT)
 
 	h.handlers.StartIdentityLink(c)

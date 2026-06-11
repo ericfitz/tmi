@@ -61,7 +61,7 @@ A user may link multiple identities, including several from one provider. Schema
 
 | Operation | Auth | Purpose |
 |---|---|---|
-| `POST /me/identities/link/start?idp={provider}` | JWT + step-up fresh; service accounts denied | Create `oauth_state:{state}` (Redis, 10-min TTL) with `identity_link: true` + user UUID; store PKCE challenge via existing `StateStore`; return authorize URL (with `prompt=select_account`/`consent` per provider classification) + expiry |
+| `POST /me/identities/link/start?idp={provider}` | JWT + step-up fresh; service accounts denied | Create `oauth_state:{state}` (Redis, 10-min TTL) with `identity_link: true` + user UUID; return authorize URL (with `prompt=select_account`/`consent` per provider classification) + expiry. PKCE is absent — the server exchanges the code confidentially; the binding mechanism is the pending-token + UUID-matched step-up-fresh confirm. |
 | `/oauth2/callback` (existing, new branch) | none (browser GET) | On `identity_link` marker: exchange code, discard IdP tokens, keep `(provider, sub, email, name)`; preliminary 409 check; stage **pending link** in Redis (5-min TTL, one-time token, bound to user UUID from state); redirect to allowlisted `client_callback` with the pending token |
 | `GET /me/identities/link/pending/{token}` | JWT; UUID must match pending link | Both sides for the confirmation screen: B's `(provider, sub-suffix, email, name)` + A's primary identity |
 | `POST /me/identities/link/confirm` | JWT + step-up fresh; UUID match; token consumed one-time | Commit the bind (insert `linked_identities`, re-check 409 inside the transaction), audit |
@@ -76,10 +76,13 @@ extension `x-tmi-authz-step-up: "required"` honored on non-admin routes by
 ## Login resolution change — `auth/handlers_oauth_user.go`
 
 Tier 1 extends: exact `(provider, provider_user_id)` match against `users`, **then against
-`linked_identities`** → resolve to the owning user (touch `last_used_at`; mint JWT with `idp`
-= the provider actually used). Tiers 2/3 and the #290/#346 rejections are untouched — a
-GitHub login with a matching email but no link is still rejected; the link flow is the only
-path to multi-IdP.
+`linked_identities`** → resolve to the owning user (touch `last_used_at`; mint JWT carrying
+the owner's **primary identity** claims — the JWT is scoped to the account owner, not the
+login identity used). Rationale: JWTs represent the authenticated user, not the credential
+used to authenticate; the used identity is resolved to the owner at login time and needs no
+separate JWT claim. Tiers 2/3 and the #290/#346 rejections are untouched — a GitHub login
+with a matching email but no link is still rejected; the link flow is the only path to
+multi-IdP.
 
 **Token/session impact: none.** Claims carry the IdP used at login; linking changes no
 claims; no rotation or cache invalidation (verified against `auth/service.go` Claims).
