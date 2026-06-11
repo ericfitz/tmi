@@ -25,6 +25,7 @@ type DBWebhookSubscription struct {
 	LastSuccessfulUse   *time.Time `json:"last_successful_use,omitempty"`
 	PublicationFailures int        `json:"publication_failures"`
 	TimeoutCount        int        `json:"timeout_count"` // Count of consecutive addon invocation timeouts
+	OperatorPinned      bool       `json:"operator_pinned"`
 }
 
 // SetCreatedAt implements WithTimestamps

@@ -464,6 +464,7 @@ func (s *GormWebhookSubscriptionStore) toDBModel(sub *models.WebhookSubscription
 		ModifiedAt:          sub.ModifiedAt,
 		PublicationFailures: sub.PublicationFailures,
 		TimeoutCount:        sub.TimeoutCount,
+		OperatorPinned:      sub.OperatorPinned,
 	}
 
 	if sub.ThreatModelID.Valid && sub.ThreatModelID.String != "" {
@@ -497,6 +498,7 @@ func (s *GormWebhookSubscriptionStore) toGormModel(sub *DBWebhookSubscription) *
 		ModifiedAt:          sub.ModifiedAt,
 		PublicationFailures: sub.PublicationFailures,
 		TimeoutCount:        sub.TimeoutCount,
+		OperatorPinned:      sub.OperatorPinned,
 	}
 
 	if sub.ThreatModelId != nil {
