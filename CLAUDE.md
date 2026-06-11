@@ -264,7 +264,7 @@ curl "http://localhost:8080/oauth2/authorize?idp=tmi&login_hint=alice&client_cal
 
 OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4) for webhooks, addons, and automation.
 
-**Pattern**: Like GitHub PATs - secret only shown once at creation, full API access as creating user.
+**Pattern**: Like GitHub PATs - secret only shown once at creation, full API access as the creating user **except `/admin/*`**: service-account tokens are categorically denied (403) on all admin routes; administrative operations require interactive (PKCE) authentication. See #399.
 
 **API Endpoints**:
 | Endpoint | Purpose |

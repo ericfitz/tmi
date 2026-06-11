@@ -1066,10 +1066,11 @@ func (s *Service) HandleClientCredentialsGrant(ctx context.Context, clientID, cl
 		Name:             fmt.Sprintf("[Service Account] %s", creds.Name),
 		IdentityProvider: owner.Provider,
 		Groups:           owner.Groups,
-		// CC grants set auth_time = now per #355 (Part 1 design): each token mint
-		// counts as fresh authentication. The long-term mechanism for CC step-up
-		// is tracked in #399 — we deliberately don't break existing admin-bound
-		// automation here.
+		// CC grants set auth_time = now: each token mint counts as fresh
+		// authentication. This is harmless for admin step-up because
+		// service-account tokens are categorically denied on /admin/* by
+		// RequireAdministrator before step-up runs (#399 investigation);
+		// step-up only gates /admin/* routes.
 		AuthTime: jwt.NewNumericDate(time.Now()),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   subject,
