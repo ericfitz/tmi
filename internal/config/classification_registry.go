@@ -205,6 +205,16 @@ var exactClassifications = map[string]ConfigClass{
 	"logging.redact_auth_tokens":            bootstrapClass(false, VisibilityInternal, false),
 	"logging.suppress_unauthenticated_logs": bootstrapClass(false, VisibilityInternal, false),
 
+	// --- Bootstrap: alerting / audit-alert sink (#395) ---
+	// These keys are read once at startup by EnsurePinnedAlertSubscription to
+	// upsert the operator-pinned webhook subscription. They are CategoryBootstrap
+	// because their values must be known before any HTTP request is served and
+	// changing them requires a restart (the subscription is not re-evaluated
+	// after startup). webhook_secret is a secret so the API layer masks it.
+	"alerting.enabled":        bootstrapClass(false, VisibilityInternal, false),
+	"alerting.webhook_url":    bootstrapClass(false, VisibilityInternal, false),
+	"alerting.webhook_secret": bootstrapClass(false, VisibilityInternal, true),
+
 	// --- Bootstrap: secrets provider ---
 	"secrets.provider":           bootstrapClass(false, VisibilityInternal, false),
 	"secrets.vault_address":      bootstrapClass(false, VisibilityInternal, false),

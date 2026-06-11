@@ -68,6 +68,11 @@ func SeedDatabase(db *gorm.DB) error {
 		return err
 	}
 
+	if err := seedOperatorSystemUser(db); err != nil {
+		log.Error("Failed to seed operator system user: %v", err)
+		return err
+	}
+
 	log.Info("Database seeding completed successfully")
 	return nil
 }
@@ -428,4 +433,40 @@ func seedWebhookDenyList(db *gorm.DB) error {
 // Useful for testing and validation.
 func GetWebhookDenyListCount() int {
 	return len(webhookDenyList)
+}
+
+// operatorSystemUserUUID is the well-known UUID for the synthetic Operator System user.
+// Must stay in sync with api.OperatorSystemUserUUID — kept as a local constant to
+// avoid a circular import from seed -> api.
+const operatorSystemUserUUID = "00000000-0000-0000-0000-000000000001"
+
+// seedOperatorSystemUser ensures the synthetic "operator@tmi.system" user record exists.
+// This user owns the operator-pinned audit alert sink webhook subscription (#395).
+// It is never surfaced via the API and cannot log in.
+func seedOperatorSystemUser(db *gorm.DB) error {
+	log := slogging.Get()
+
+	user := models.User{
+		InternalUUID: models.DBVarchar(operatorSystemUserUUID),
+		Provider:     models.DBVarchar(builtInProvider),
+		Email:        models.DBVarchar("operator@tmi.system"),
+		Name:         models.DBVarchar("Operator System"),
+	}
+
+	result := db.Where(&models.User{
+		Provider: models.DBVarchar(builtInProvider),
+		Email:    models.DBVarchar("operator@tmi.system"),
+	}).FirstOrCreate(&user)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected > 0 {
+		log.Info("Created operator system user")
+	} else {
+		log.Debug("Operator system user already exists")
+	}
+
+	return nil
 }

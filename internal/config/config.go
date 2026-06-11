@@ -46,6 +46,7 @@ type Config struct {
 	ContentExtractors         ContentExtractorsConfig `yaml:"content_extractors"`
 	ContentOAuth              ContentOAuthConfig      `yaml:"content_oauth"`
 	ContentTokenEncryptionKey string                  `yaml:"content_token_encryption_key" env:"TMI_CONTENT_TOKEN_ENCRYPTION_KEY"`
+	Alerting                  AlertingConfig          `yaml:"alerting"`
 }
 
 // ObservabilityConfig holds OpenTelemetry configuration
@@ -283,6 +284,18 @@ type OperatorConfig struct {
 	Name         string `yaml:"name" env:"TMI_OPERATOR_NAME"`
 	Contact      string `yaml:"contact" env:"TMI_OPERATOR_CONTACT"`
 	Jurisdiction string `yaml:"jurisdiction" env:"TMI_OPERATOR_JURISDICTION"`
+}
+
+// AlertingConfig holds configuration for the operator-pinned audit alert sink (#395).
+// When Enabled is true, EnsurePinnedAlertSubscription upserts a single
+// operator-owned webhook subscription that delivers system_audit.admin_write
+// events to WebhookURL. WebhookSecret is the HMAC signing secret for that
+// subscription; it may be an env:// or vault:// reference resolved at startup
+// by ResolveSecretReferences.
+type AlertingConfig struct {
+	Enabled       bool   `yaml:"enabled" env:"TMI_ALERTING_ENABLED"`
+	WebhookURL    string `yaml:"webhook_url" env:"TMI_ALERTING_WEBHOOK_URL"`
+	WebhookSecret string `yaml:"webhook_secret" env:"TMI_ALERTING_WEBHOOK_SECRET"`
 }
 
 // SecretsConfig holds configuration for external secret providers
@@ -946,6 +959,7 @@ func (c *Config) ResolveSecretReferences(ctx context.Context, vault SecretResolv
 		{"timmy.text_embedding_api_key", &c.Timmy.TextEmbeddingAPIKey},
 		{"timmy.code_embedding_api_key", &c.Timmy.CodeEmbeddingAPIKey},
 		{"timmy.rerank_api_key", &c.Timmy.RerankAPIKey},
+		{"alerting.webhook_secret", &c.Alerting.WebhookSecret},
 	}
 	for _, f := range fields {
 		resolved, err := ResolveSecretValue(ctx, *f.ptr, vault)

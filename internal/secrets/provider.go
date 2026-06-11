@@ -112,6 +112,7 @@ var SecretKeys = struct {
 	SettingsEncryptionKey         string
 	SettingsEncryptionPreviousKey string
 	SettingsEncryptionContextID   string
+	AlertWebhookSecret            string
 }{
 	JWTSecret:        "jwt_secret",
 	DatabasePassword: "database_password",
@@ -140,4 +141,5 @@ var SecretKeys = struct {
 	SettingsEncryptionKey:         "settings_encryption_key",
 	SettingsEncryptionPreviousKey: "settings_encryption_previous_key",
 	SettingsEncryptionContextID:   "settings_encryption_context_id",
+	AlertWebhookSecret:            "alerting_webhook_secret",
 }

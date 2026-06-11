@@ -419,6 +419,15 @@ const (
 	EveryonePseudoGroupUUID = "00000000-0000-0000-0000-000000000000"
 )
 
+// System user constants
+const (
+	// OperatorSystemUserUUID is the well-known UUID for the synthetic Operator System
+	// user record. This user owns the operator-pinned audit alert sink webhook
+	// subscription (#395). It is seeded by seedOperatorSystemUser on every startup
+	// and is never exposed via the API.
+	OperatorSystemUserUUID = "00000000-0000-0000-0000-000000000001"
+)
+
 // Built-in group constants
 const (
 	// SecurityReviewersGroup is a built-in group for security engineers who triage survey responses and threat models.

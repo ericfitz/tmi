@@ -48,6 +48,7 @@ func (c *Config) GetMigratableSettings() []MigratableSetting {
 	settings = append(settings, c.getMigratableContentExtractorsSettings()...)
 	settings = append(settings, c.getMigratableContentOAuthSettings()...)
 	settings = append(settings, c.getMigratableContentSourcesSettings()...)
+	settings = append(settings, c.getMigratableAlertingSettings()...)
 
 	for i := range settings {
 		settings[i].Class = classificationFor(settings[i].Key)
@@ -741,5 +742,21 @@ func (c *Config) getMigratableContentSourcesSettings() []MigratableSetting {
 		settings = append(settings, MigratableSetting{Key: "content_sources.microsoft.picker_origin", Value: ms.PickerOrigin, Type: "string", Description: "Microsoft Picker allowed origin URL", Source: settingSource("TMI_CONTENT_SOURCE_MICROSOFT_PICKER_ORIGIN"), EnvVar: "TMI_CONTENT_SOURCE_MICROSOFT_PICKER_ORIGIN"})
 	}
 
+	return settings
+}
+
+// getMigratableAlertingSettings returns alerting / audit-alert-sink settings (#395).
+// These are CategoryBootstrap because they are consumed at startup time by
+// EnsurePinnedAlertSubscription, before the DB settings service is available.
+func (c *Config) getMigratableAlertingSettings() []MigratableSetting {
+	settings := []MigratableSetting{
+		{Key: "alerting.enabled", Value: strconv.FormatBool(c.Alerting.Enabled), Type: "bool", Description: "Enable the operator-pinned audit alert sink webhook subscription (#395)", Source: settingSource("TMI_ALERTING_ENABLED"), EnvVar: "TMI_ALERTING_ENABLED"},
+	}
+	if c.Alerting.WebhookURL != "" {
+		settings = append(settings, MigratableSetting{Key: "alerting.webhook_url", Value: c.Alerting.WebhookURL, Type: "string", Description: "URL of the audit alert sink webhook endpoint (#395)", Source: settingSource("TMI_ALERTING_WEBHOOK_URL"), EnvVar: "TMI_ALERTING_WEBHOOK_URL"})
+	}
+	if c.Alerting.WebhookSecret != "" {
+		settings = append(settings, MigratableSetting{Key: "alerting.webhook_secret", Value: c.Alerting.WebhookSecret, Type: "string", Secret: true, Description: "HMAC signing secret for the audit alert sink webhook (#395)", Source: settingSource("TMI_ALERTING_WEBHOOK_SECRET"), EnvVar: "TMI_ALERTING_WEBHOOK_SECRET"})
+	}
 	return settings
 }

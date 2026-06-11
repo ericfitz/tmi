@@ -1888,6 +1888,22 @@ func runServer(cfg *config.Config) int {
 	// Start audit pruner for background cleanup of old audit entries and version snapshots
 	apiServer.StartAuditPruner()
 
+	// Bootstrap the operator-pinned audit alert sink subscription (#395).
+	// Must run after stores are initialized (via setupRouter) and before webhook
+	// workers start so the subscription is visible to the delivery worker.
+	if _, err := api.EnsurePinnedAlertSubscription(
+		ctx,
+		api.GlobalWebhookSubscriptionStore,
+		api.GlobalWebhookUrlDenyListStore,
+		api.AlertingBootstrap{
+			Enabled: cfg.Alerting.Enabled,
+			URL:     cfg.Alerting.WebhookURL,
+			Secret:  cfg.Alerting.WebhookSecret,
+		},
+	); err != nil {
+		logger.Error("audit alert sink bootstrap failed (T7 out-of-band alerting NOT active): %v", err)
+	}
+
 	// Initialize and start webhook workers
 	webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker := startWebhookWorkers(ctx, cfg)
 
