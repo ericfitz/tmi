@@ -235,7 +235,13 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 		c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
 		return
 	}
-	_ = subscription // Used for logging below
+
+	// Operator-pinned subscriptions are managed by server configuration and may
+	// not be mutated through the API.
+	if subscription.OperatorPinned {
+		c.JSON(http.StatusForbidden, Error{Error: "operator-pinned subscription is managed by server configuration and cannot be modified through the API"})
+		return
+	}
 
 	// First, delete any addons associated with this webhook subscription
 	// This is required because addons have a foreign key constraint to webhook_subscriptions
@@ -433,7 +439,9 @@ func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUI
 
 // Helper functions for type conversion
 
-// dbWebhookSubscriptionToAPI converts a database webhook subscription to API response type
+// dbWebhookSubscriptionToAPI converts a database webhook subscription to API response type.
+// For operator-pinned subscriptions the destination URL is redacted so that admins can
+// see the control exists without learning or targeting the internal alert-sink address.
 func dbWebhookSubscriptionToAPI(db DBWebhookSubscription, includeSecret bool) WebhookSubscription {
 	// Convert []string to []WebhookEventType
 	events := make([]WebhookEventType, len(db.Events))
@@ -441,11 +449,17 @@ func dbWebhookSubscriptionToAPI(db DBWebhookSubscription, includeSecret bool) We
 		events[i] = WebhookEventType(event)
 	}
 
+	// Redact the destination URL for operator-pinned subscriptions.
+	url := db.Url
+	if db.OperatorPinned {
+		url = "(operator-pinned)"
+	}
+
 	response := WebhookSubscription{
 		Id:                  db.Id,
 		OwnerId:             db.OwnerId,
 		Name:                db.Name,
-		Url:                 db.Url,
+		Url:                 url,
 		Events:              events,
 		Status:              WebhookSubscriptionStatus(db.Status),
 		CreatedAt:           db.CreatedAt,
@@ -454,8 +468,8 @@ func dbWebhookSubscriptionToAPI(db DBWebhookSubscription, includeSecret bool) We
 		PublicationFailures: &db.PublicationFailures,
 	}
 
-	// Include secret only for creation response
-	if includeSecret && db.Secret != "" {
+	// Include secret only for creation response, never for pinned rows.
+	if includeSecret && !db.OperatorPinned && db.Secret != "" {
 		response.Secret = &db.Secret
 	}
 
