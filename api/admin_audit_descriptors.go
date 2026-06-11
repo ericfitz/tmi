@@ -221,6 +221,34 @@ func adminAuditDescriptors(reader SystemSettingReader) []auditDescriptor {
 			NewValueFn:  func(c *gin.Context, body []byte) string { return "" },
 			SummaryFn:   func(c *gin.Context) string { return "DELETE addon quota override " + c.Param("user_id") },
 		},
+		// /me/identities/link/* — identity-link flow (#383). Step-up-required; the
+		// actual audit row is written by IdentityLinkAuditor inside the handler, so
+		// these descriptors produce empty old/new values (the AdminAuditMiddleware
+		// captures the outer request, the richer event is in system_audit_entries).
+		{
+			Method:      "POST",
+			PathTpl:     "/me/identities/link/start",
+			FieldPathFn: func(c *gin.Context) string { return "identity_link.start" },
+			OldValueFn:  func(c *gin.Context) string { return "" },
+			NewValueFn:  func(c *gin.Context, body []byte) string { return "" },
+			SummaryFn:   func(c *gin.Context) string { return "POST identity link start" },
+		},
+		{
+			Method:      "POST",
+			PathTpl:     "/me/identities/link/confirm",
+			FieldPathFn: func(c *gin.Context) string { return "identity_link.confirm" },
+			OldValueFn:  func(c *gin.Context) string { return "" },
+			NewValueFn:  func(c *gin.Context, body []byte) string { return "" },
+			SummaryFn:   func(c *gin.Context) string { return "POST identity link confirm" },
+		},
+		{
+			Method:      "DELETE",
+			PathTpl:     "/me/identities/{id}",
+			FieldPathFn: func(c *gin.Context) string { return "identity_link.unlink." + c.Param("id") },
+			OldValueFn:  func(c *gin.Context) string { return "" },
+			NewValueFn:  func(c *gin.Context, body []byte) string { return "" },
+			SummaryFn:   func(c *gin.Context) string { return "DELETE linked identity " + c.Param("id") },
+		},
 	}
 }
 

@@ -496,3 +496,41 @@ func (s *Server) ExchangeOAuthCode(c *gin.Context, params ExchangeOAuthCodeParam
 		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
 	}
 }
+
+// StartIdentityLink handles POST /me/identities/link/start (#383).
+// Delegates to the auth.Handlers.StartIdentityLink method via the AuthServiceAdapter.
+func (s *Server) StartIdentityLink(c *gin.Context, params StartIdentityLinkParams) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] StartIdentityLink called")
+	_ = params // query params are read directly from c.Request.URL.Query() by the handler
+	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
+		authAdapter.handlers.StartIdentityLink(c)
+	} else {
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
+	}
+}
+
+// GetPendingIdentityLink handles GET /me/identities/link/pending/{link_id} (#383).
+func (s *Server) GetPendingIdentityLink(c *gin.Context, linkId string) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] GetPendingIdentityLink called link_id=%s", linkId)
+	// Set the path param so the handler can read it via c.Param("link_id").
+	// The OpenAPI middleware passes it as a function argument; we adapt here.
+	c.Params = append(c.Params, gin.Param{Key: "link_id", Value: linkId})
+	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
+		authAdapter.handlers.GetPendingIdentityLink(c)
+	} else {
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
+	}
+}
+
+// ConfirmIdentityLink handles POST /me/identities/link/confirm (#383).
+func (s *Server) ConfirmIdentityLink(c *gin.Context) {
+	logger := slogging.Get()
+	logger.Info("[SERVER_INTERFACE] ConfirmIdentityLink called")
+	if authAdapter, ok := s.authService.(*AuthServiceAdapter); ok {
+		authAdapter.handlers.ConfirmIdentityLink(c)
+	} else {
+		HandleRequestError(c, ServiceUnavailableError("Authentication service not configured"))
+	}
+}

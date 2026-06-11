@@ -713,8 +713,16 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		logger.Info("Claims enricher configured for JWT token generation")
 
 		// Wire linked-identity store for Tier 1b OAuth login resolution (#383)
-		authHandlers.Service().SetLinkedIdentityStore(auth.NewGormLinkedIdentityStore(authHandlers.Service().GormDB()))
+		gormLinkedIdentityStore := auth.NewGormLinkedIdentityStore(authHandlers.Service().GormDB())
+		authHandlers.Service().SetLinkedIdentityStore(gormLinkedIdentityStore)
 		logger.Info("Linked identity store wired for Tier 1b OAuth login resolution")
+
+		// Wire linked-identity store and auditor into auth handlers for /me/identities/link/* (#383).
+		// The auditor is wired later (inside the admin-audit block) once systemAuditRepo is ready;
+		// store is available now.
+		authHandlers.SetIdentityLinkStore(gormLinkedIdentityStore)
+		apiServer.SetLinkedIdentityStore(gormLinkedIdentityStore)
+		logger.Info("Linked identity store wired into auth handlers and API server for identity-link flow (#383)")
 
 		// Set up user groups fetcher for /me endpoint
 		userGroupsFetcher := api.NewGormUserGroupsFetcher(api.GlobalGroupMemberRepository)
@@ -946,6 +954,13 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		// rows are silently dropped via the nil-writer no-op in StepUpAuditor.
 		// Documented intent — see spec "Audit row shapes / Fail-open" §.
 		authHandlers.SetStepUpAuditor(auth.NewStepUpAuditor(api.NewStepUpAuditAdapter(systemAuditRepo)))
+
+		// #383 — identity-link auditor uses the same system_audit_entries table.
+		// Fail-open: when this block is skipped, audit rows are silently dropped.
+		identityLinkAuditor := auth.NewIdentityLinkAuditor(api.NewStepUpAuditAdapter(systemAuditRepo))
+		authHandlers.SetIdentityLinkAuditor(identityLinkAuditor)
+		apiServer.SetIdentityLinkAuditor(identityLinkAuditor)
+		logger.Info("Identity-link auditor wired into auth handlers and API server (#383)")
 
 		// #398 — admin audit query endpoints reuse the same repo instance.
 		apiServer.SetSystemAuditRepo(systemAuditRepo)

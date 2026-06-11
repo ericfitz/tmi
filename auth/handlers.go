@@ -75,15 +75,17 @@ type UserGroupsFetcher interface {
 
 // Handlers provides HTTP handlers for authentication
 type Handlers struct {
-	service           *Service
-	config            Config
-	adminChecker      AdminChecker
-	userGroupsFetcher UserGroupsFetcher
-	cookieOpts        CookieOptions
-	registry          ProviderRegistry
-	tokenLockoutImpl  *OAuthTokenLockout
-	stepUpAuditor     *StepUpAuditor      // #397
-	runtimeCfg        RuntimeConfigReader // #419 — DB-backed operational config
+	service             *Service
+	config              Config
+	adminChecker        AdminChecker
+	userGroupsFetcher   UserGroupsFetcher
+	cookieOpts          CookieOptions
+	registry            ProviderRegistry
+	tokenLockoutImpl    *OAuthTokenLockout
+	stepUpAuditor       *StepUpAuditor       // #397
+	runtimeCfg          RuntimeConfigReader  // #419 — DB-backed operational config
+	identityLinkStore   LinkedIdentityStore  // #383 — linked identity store for link handlers
+	identityLinkAuditor *IdentityLinkAuditor // #383
 }
 
 // tokenLockout returns the per-client_id /oauth2/token brute-force lockout.
@@ -119,6 +121,26 @@ func (h *Handlers) stepUpAud() *StepUpAuditor {
 		return h.stepUpAuditor
 	}
 	return NewStepUpAuditor(nil)
+}
+
+// SetIdentityLinkStore wires the linked identity store. Safe to call multiple
+// times; nil disables server-side identity lookups during link operations. #383.
+func (h *Handlers) SetIdentityLinkStore(store LinkedIdentityStore) {
+	h.identityLinkStore = store
+}
+
+// SetIdentityLinkAuditor wires the identity-link audit writer. Safe to call
+// multiple times; nil disables identity-link auditing. #383.
+func (h *Handlers) SetIdentityLinkAuditor(a *IdentityLinkAuditor) {
+	h.identityLinkAuditor = a
+}
+
+// identityLinkAud returns the wired auditor or a no-op auditor if none is set.
+func (h *Handlers) identityLinkAud() *IdentityLinkAuditor {
+	if h.identityLinkAuditor != nil {
+		return h.identityLinkAuditor
+	}
+	return NewIdentityLinkAuditor(nil)
 }
 
 // NewHandlers creates new authentication handlers

@@ -96,6 +96,12 @@ type Server struct {
 	// credentialDeleter is used by DeleteAdminUserClientCredential. When nil the handler
 	// constructs a real ClientCredentialService from the auth service; set only in tests.
 	credentialDeleter credentialDeleter
+	// linkedIdentityStore is used by the /me/identities/* endpoints (#383).
+	// Injected from main.go or tests. When nil the handlers return 500.
+	linkedIdentityStore auth.LinkedIdentityStore
+	// identityLinkAuditor is used by DeleteMyIdentity to audit unlink events (#383).
+	// When nil unlink events are not audited (fail-open).
+	identityLinkAuditor *auth.IdentityLinkAuditor
 	// systemAuditRepo is used by the admin audit query endpoints (#398).
 	// Injected from main.go so the same instance used by the admin audit middleware
 	// (and step-up auditor) is reused here. When nil the handlers return 500.
@@ -290,6 +296,19 @@ func (s *Server) SetSettingsService(settingsService SettingsServiceInterface) {
 // NewAdminAuditMiddleware to avoid duplicate DB handles.
 func (s *Server) SetSystemAuditRepo(repo SystemAuditRepository) {
 	s.systemAuditRepo = repo
+}
+
+// SetLinkedIdentityStore injects the linked-identity store used by the
+// /me/identities/* endpoints (#383). A nil store leaves those endpoints
+// returning 500.
+func (s *Server) SetLinkedIdentityStore(store auth.LinkedIdentityStore) {
+	s.linkedIdentityStore = store
+}
+
+// SetIdentityLinkAuditor injects the identity-link audit writer used to record
+// unlink events from /me/identities/{id} (#383). Nil disables auditing (fail-open).
+func (s *Server) SetIdentityLinkAuditor(a *auth.IdentityLinkAuditor) {
+	s.identityLinkAuditor = a
 }
 
 // SetExtractionNATS injects the monolith's NATS connection used to publish

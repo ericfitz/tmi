@@ -88,3 +88,27 @@ func BuildStepUpAuthorizationURL(provider Provider, cfg OAuthProviderConfig, sta
 	u.RawQuery = q.Encode()
 	return u.String(), nil
 }
+
+// BuildIdentityLinkAuthorizationURL builds the upstream authorize URL for an
+// identity-link round-trip. Appends prompt=select_account to force account
+// selection at the provider. Strong providers (those that honor prompt=consent)
+// also get prompt="select_account consent" so the user explicitly re-authorizes
+// scope grants. SAML providers are not supported for identity-link.
+func BuildIdentityLinkAuthorizationURL(provider Provider, cfg OAuthProviderConfig, state string) (string, error) {
+	raw := provider.GetAuthorizationURL(state)
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("invalid upstream authorize URL: %w", err)
+	}
+	q := u.Query()
+	// Default: force account selection so the user can pick a different account.
+	promptValue := "select_account"
+	// Strong providers (OIDC-conformant) honor prompt=consent; add it so the
+	// user gets an explicit consent screen and we confirm scope grants.
+	if ClassifyStepUpStrength(cfg) == StepUpStrong {
+		promptValue = "select_account consent"
+	}
+	q.Set("prompt", promptValue)
+	u.RawQuery = q.Encode()
+	return u.String(), nil
+}

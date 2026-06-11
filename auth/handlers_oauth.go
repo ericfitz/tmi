@@ -272,6 +272,8 @@ type callbackStateData struct {
 	OriginalUserUUID string // #397 — set when StepUp is true
 	OriginalEmail    string // #397
 	StepUpStrength   string // #397 — "strong" | "weak"
+	IdentityLink     bool   // #383 — true when state came from /me/identities/link/start
+	LinkUserUUID     string // #383 — the initiating user's InternalUUID
 }
 
 // Callback handles the OAuth callback
@@ -282,18 +284,32 @@ func (h *Handlers) Callback(c *gin.Context) {
 	if upErr := c.Query("error"); upErr != "" {
 		state := c.Query("state")
 		if state != "" {
-			if sd, perr := h.parseCallbackState(c, state); perr == nil && sd.StepUp {
-				actor := StepUpActor{Email: sd.OriginalEmail, Provider: sd.ProviderID}
-				_ = h.stepUpAud().LogFailed(c.Request.Context(), actor, upErr, nil)
-				if sd.ClientCallback != "" {
-					redirectURL := fmt.Sprintf("%s?error=%s&state=%s",
-						sd.ClientCallback, url.QueryEscape(upErr), url.QueryEscape(state))
-					c.Redirect(http.StatusFound, redirectURL)
-					return
+			if sd, perr := h.parseCallbackState(c, state); perr == nil {
+				if sd.StepUp {
+					actor := StepUpActor{Email: sd.OriginalEmail, Provider: sd.ProviderID}
+					_ = h.stepUpAud().LogFailed(c.Request.Context(), actor, upErr, nil)
+					if sd.ClientCallback != "" {
+						redirectURL := fmt.Sprintf("%s?error=%s&state=%s",
+							sd.ClientCallback, url.QueryEscape(upErr), url.QueryEscape(state))
+						c.Redirect(http.StatusFound, redirectURL)
+						return
+					}
+				} else if sd.IdentityLink {
+					// #383 — identity-link upstream error: audit and redirect.
+					actor := IdentityLinkActor{
+						Provider: sd.ProviderID,
+						UserUUID: sd.LinkUserUUID,
+					}
+					_ = h.identityLinkAud().LogFailed(c.Request.Context(), actor, upErr, nil)
+					if sd.ClientCallback != "" {
+						redirectURL := fmt.Sprintf("%s?error=%s", sd.ClientCallback, url.QueryEscape(upErr))
+						c.Redirect(http.StatusFound, redirectURL)
+						return
+					}
 				}
 			}
 		}
-		// Non-step-up upstream error.
+		// Non-step-up, non-identity-link upstream error.
 		c.JSON(http.StatusBadRequest, gin.H{"error": upErr})
 		return
 	}
@@ -356,8 +372,13 @@ func (h *Handlers) parseCallbackState(c *gin.Context, state string) (*callbackSt
 		result.StepUpStrength = stateMap["step_up_strength"]
 	}
 
-	slogging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, client_callback=%s, login_hint=%s, step_up=%v",
-		result.ProviderID, result.ClientCallback, result.UserHint, result.StepUp)
+	result.IdentityLink = stateMap["identity_link"] == literalTrue
+	if result.IdentityLink {
+		result.LinkUserUUID = stateMap["link_user_uuid"]
+	}
+
+	slogging.Get().WithContext(c).Debug("Retrieved state data: provider=%s, client_callback=%s, login_hint=%s, step_up=%v, identity_link=%v",
+		result.ProviderID, result.ClientCallback, result.UserHint, result.StepUp, result.IdentityLink)
 
 	return result, nil
 }
@@ -365,6 +386,12 @@ func (h *Handlers) parseCallbackState(c *gin.Context, state string) (*callbackSt
 // processOAuthCallback handles the core OAuth callback flow for PKCE
 // Returns authorization code to client without exchanging it
 func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *callbackStateData) error {
+	// #383 — identity-link branch: exchange the code server-side to get provider
+	// user info, stage a pending link, and redirect the client with link_pending=.
+	if stateData.IdentityLink {
+		return h.HandleIdentityLinkCallback(c, code, stateData)
+	}
+
 	// PKCE flow: Return authorization code to client for token exchange
 	// Client will call /oauth2/token with code and code_verifier
 
