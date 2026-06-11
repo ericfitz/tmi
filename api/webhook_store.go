@@ -81,6 +81,7 @@ type WebhookSubscriptionStoreInterface interface {
 	ListByOwner(ctx context.Context, ownerID string, offset, limit int) ([]DBWebhookSubscription, error)
 	ListByThreatModel(ctx context.Context, threatModelID string, offset, limit int) ([]DBWebhookSubscription, error)
 	ListActiveByOwner(ctx context.Context, ownerID string) ([]DBWebhookSubscription, error)
+	ListActiveByEventType(ctx context.Context, eventType string) ([]DBWebhookSubscription, error)
 	ListPendingVerification(ctx context.Context) ([]DBWebhookSubscription, error)
 	ListPendingDelete(ctx context.Context) ([]DBWebhookSubscription, error)
 	ListIdle(ctx context.Context, daysIdle int) ([]DBWebhookSubscription, error)

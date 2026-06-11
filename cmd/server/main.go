@@ -447,6 +447,19 @@ func configureTrustedProxies(r *gin.Engine, proxies []string) {
 	slogging.Get().Info("Trusted proxies configured: %v", proxies)
 }
 
+// newSystemAuditRepo creates a SystemAuditRepository and, when the global
+// EventEmitter is non-nil (Redis available), wraps it with the alerting
+// decorator that emits system_audit.admin_write webhook events (#395).
+// A nil GlobalEventEmitter (Redis-less boot) must not be wrapped: a typed-nil
+// interface value would panic in EmitEvent on every admin write.
+func newSystemAuditRepo(db *gorm.DB, operatorName string) api.SystemAuditRepository {
+	repo := api.NewSystemAuditRepository(db)
+	if api.GlobalEventEmitter != nil {
+		repo = api.NewAlertingSystemAuditRepository(repo, api.GlobalEventEmitter, operatorName)
+	}
+	return repo
+}
+
 func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.EmbeddingCleaner) {
 	// Create a gin router without default middleware
 	r := gin.New()
@@ -919,14 +932,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		stepUpWindow := time.Duration(stepUpWindowSeconds) * time.Second
 		r.Use(api.StepUpMiddleware(stepUpWindow, stepUpTable))
 
-		systemAuditRepo := api.NewSystemAuditRepository(gormDB.DB())
-		// #395 — wrap with the alerting decorator so every successful
-		// audit write also emits a system_audit.admin_write webhook event.
-		// Wrapped unconditionally: emission is harmless when no subscriptions
-		// exist and GlobalEventEmitter handles nil Redis gracefully.
-		systemAuditRepo = api.NewAlertingSystemAuditRepository(
-			systemAuditRepo, api.GlobalEventEmitter, config.Operator.Name,
-		)
+		systemAuditRepo := newSystemAuditRepo(gormDB.DB(), config.Operator.Name)
 		redactor := api.NewRedactor()
 		reader := newSystemSettingReader(gormDB.DB())
 		r.Use(api.NewAdminAuditMiddleware(systemAuditRepo, redactor, reader))

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -136,6 +137,13 @@ func (c *WebhookEventConsumer) processMessage(ctx context.Context, message redis
 		return nil
 	}
 
+	// system_audit.* events are ownerless: fan-out to every active subscription
+	// that declares the event type, across all owners. OwnerID is intentionally
+	// empty in the emitted payload; routing is by event type only.
+	if strings.HasPrefix(eventType, "system_audit.") {
+		return c.processSystemAuditEvent(ctx, eventType, message)
+	}
+
 	resourceID, ok := message.Values["object_id"].(string)
 	if !ok {
 		return fmt.Errorf("invalid object_id in message")
@@ -179,6 +187,39 @@ func (c *WebhookEventConsumer) processMessage(ctx context.Context, message redis
 		if err := c.createDelivery(ctx, sub, eventType, payloadStr); err != nil {
 			logger.Error("failed to create delivery for subscription %s: %v", sub.Id, err)
 			// Continue with other subscriptions
+		}
+	}
+
+	return nil
+}
+
+// processSystemAuditEvent handles system_audit.* events, which are ownerless.
+// It matches every active subscription across all owners that declares the
+// event type and creates a delivery record for each. The message is considered
+// successfully handled (and will be XAck'd by the caller) even when no
+// subscriptions match, so the PEL is never poisoned by ownerless events.
+func (c *WebhookEventConsumer) processSystemAuditEvent(ctx context.Context, eventType string, message redis.XMessage) error {
+	logger := slogging.Get()
+
+	payloadStr, ok := message.Values["payload"].(string)
+	if !ok {
+		return fmt.Errorf("invalid payload in system_audit message")
+	}
+
+	logger.Debug("processing system_audit webhook event: %s (broadcast to all matching subscriptions)", eventType)
+
+	subscriptions, err := GlobalWebhookSubscriptionStore.ListActiveByEventType(ctx, eventType)
+	if err != nil {
+		return fmt.Errorf("failed to list subscriptions for system_audit event: %w", err)
+	}
+
+	logger.Debug("found %d matching subscriptions for system_audit event %s", len(subscriptions), eventType)
+
+	for _, sub := range subscriptions {
+		if err := c.createDelivery(ctx, sub, eventType, payloadStr); err != nil {
+			logger.Error("failed to create delivery for subscription %s (system_audit): %v", sub.Id, err)
+			// Continue with other subscriptions; individual failures do not
+			// block the XAck — the event was processed.
 		}
 	}
 

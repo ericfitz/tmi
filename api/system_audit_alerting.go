@@ -6,6 +6,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/google/uuid"
 )
 
 // auditAlertEmitter is a narrow interface over EventEmitter.EmitEvent so the
@@ -41,7 +42,20 @@ func NewAlertingSystemAuditRepository(
 // Create persists the entry via the inner repository and, on success, emits a
 // system_audit.admin_write webhook event. Emit errors are logged but never
 // propagate — the in-band audit row is the durable record.
+//
+// The entry ID is generated here (if absent) before delegation so that the
+// emitted payload carries the same UUID the inner repo will persist.
+// models.SystemAuditEntry.BeforeCreate also generates the ID, but only on
+// the pointer receiver inside the GORM transaction — the decorator's copy
+// would remain empty, breaking deep-links and the emitter dedup key
+// (EventType + ObjectID + 1 s window).
 func (r *alertingSystemAuditRepository) Create(ctx context.Context, entry models.SystemAuditEntry) error {
+	// Pre-assign the ID so the emitted payload matches what the inner repo
+	// will persist. BeforeCreate only sets it when empty, so this is safe.
+	if entry.ID == "" {
+		entry.ID = models.DBVarchar(uuid.New().String())
+	}
+
 	if err := r.SystemAuditRepository.Create(ctx, entry); err != nil {
 		return err
 	}
@@ -50,9 +64,9 @@ func (r *alertingSystemAuditRepository) Create(ctx context.Context, entry models
 		EventType:  EventSystemAuditAdminWrite,
 		ObjectID:   string(entry.ID),
 		ObjectType: "system_audit_entry",
-		// OwnerID: system audit events are not owned by a threat-model owner;
-		// follow the same convention as addon.invoked and leave empty — the
-		// webhook consumer matches subscriptions by event type, not owner.
+		// OwnerID is intentionally empty: system_audit.* events are
+		// broadcast-matched by event type in the webhook consumer — there is
+		// no single owner for a system-level audit event.
 		Timestamp: time.Now().UTC(),
 		Data: map[string]any{
 			"entry_id":           string(entry.ID),

@@ -145,6 +145,35 @@ func (s *GormWebhookSubscriptionStore) ListActiveByOwner(ctx context.Context, ow
 	return result, nil
 }
 
+// ListActiveByEventType retrieves all active subscriptions that declare the
+// given event type (used to fan-out ownerless events such as system_audit.*).
+// Event matching is performed in Go after fetching active rows because the
+// Events column is stored as a serialised string array; this mirrors the
+// approach used by the consumer's filterSubscriptions helper.
+func (s *GormWebhookSubscriptionStore) ListActiveByEventType(ctx context.Context, eventType string) ([]DBWebhookSubscription, error) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	var subs []models.WebhookSubscription
+	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "active"}).
+		Order("created_at DESC").Find(&subs).Error; err != nil {
+		return nil, dberrors.Classify(err)
+	}
+
+	var result []DBWebhookSubscription
+	for _, sub := range subs {
+		dbSub := s.toDBModel(&sub)
+		for _, e := range dbSub.Events {
+			if e == eventType || e == "*" {
+				result = append(result, dbSub)
+				break
+			}
+		}
+	}
+
+	return result, nil
+}
+
 // ListPendingVerification retrieves subscriptions pending verification using GORM
 func (s *GormWebhookSubscriptionStore) ListPendingVerification(ctx context.Context) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()

@@ -114,6 +114,25 @@ func (m *mockWebhookSubscriptionStore) ListActiveByOwner(_ context.Context, owne
 	return result, nil
 }
 
+func (m *mockWebhookSubscriptionStore) ListActiveByEventType(_ context.Context, eventType string) ([]DBWebhookSubscription, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	var result []DBWebhookSubscription
+	for _, sub := range m.subscriptions {
+		if sub.Status != "active" {
+			continue
+		}
+		for _, e := range sub.Events {
+			if e == eventType || e == "*" {
+				result = append(result, sub)
+				break
+			}
+		}
+	}
+	return result, nil
+}
+
 func (m *mockWebhookSubscriptionStore) Create(_ context.Context, sub DBWebhookSubscription, idSetter func(DBWebhookSubscription, string) DBWebhookSubscription) (DBWebhookSubscription, error) {
 	if m.err != nil {
 		return DBWebhookSubscription{}, m.err

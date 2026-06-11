@@ -195,6 +195,10 @@ func (m *mockSubscriptionStore) ListActiveByOwner(_ context.Context, ownerID str
 	return []DBWebhookSubscription{}, nil
 }
 
+func (m *mockSubscriptionStore) ListActiveByEventType(_ context.Context, eventType string) ([]DBWebhookSubscription, error) {
+	return []DBWebhookSubscription{}, nil
+}
+
 func (m *mockSubscriptionStore) ListPendingVerification(_ context.Context) ([]DBWebhookSubscription, error) {
 	return []DBWebhookSubscription{}, nil
 }
