@@ -707,6 +707,25 @@ func (s *GormAuditService) PurgeTombstones(ctx context.Context) (int, error) {
 	return totalPurged, nil
 }
 
+// PruneSystemAuditEntries removes system audit entries older than the
+// configured retention period. Unlike threat-model audit, there are no
+// tombstone rows to preserve — every row past retention is deleted.
+func (s *GormAuditService) PruneSystemAuditEntries(ctx context.Context) (int, error) {
+	cutoff := time.Now().UTC().AddDate(0, 0, -s.systemAuditRetentionDays)
+
+	var pruned int
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		res := tx.Where("created_at < ?", cutoff).Delete(&models.SystemAuditEntry{})
+		if res.Error != nil {
+			return fmt.Errorf("failed to prune system audit entries: %w", res.Error)
+		}
+		pruned = int(res.RowsAffected)
+		return nil
+	})
+
+	return pruned, err
+}
+
 // Ensure GormAuditService implements AuditServiceInterface at compile time
 var _ AuditServiceInterface = (*GormAuditService)(nil)
 

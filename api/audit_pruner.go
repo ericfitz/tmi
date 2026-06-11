@@ -95,6 +95,14 @@ func (p *AuditPruner) prune(ctx context.Context) {
 		logger.Info("pruned %d audit entries", entriesPruned)
 	}
 
+	// Prune system audit entries (admin-write evidence, #400)
+	systemPruned, err := p.auditService.PruneSystemAuditEntries(ctx)
+	if err != nil {
+		logger.Error("%s", pruneFailureMessage("system audit entries", err))
+	} else if systemPruned > 0 {
+		logger.Info("pruned %d system audit entries", systemPruned)
+	}
+
 	// Purge expired tombstones (soft-deleted entities past retention period)
 	tombstonesPurged, err := p.auditService.PurgeTombstones(ctx)
 	if err != nil {

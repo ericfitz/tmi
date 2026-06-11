@@ -86,4 +86,9 @@ type AuditServiceInterface interface {
 	// Audit entries are append-only and are never deleted.
 	// Returns the number of entities purged.
 	PurgeTombstones(ctx context.Context) (int, error)
+
+	// PruneSystemAuditEntries removes system audit entries older than the
+	// configured retention period (SYSTEM_AUDIT_RETENTION_DAYS, default 365,
+	// minimum 90). Returns the number of entries pruned.
+	PruneSystemAuditEntries(ctx context.Context) (int, error)
 }
