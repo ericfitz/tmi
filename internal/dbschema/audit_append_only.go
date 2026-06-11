@@ -170,14 +170,19 @@ func installOracleAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.
 	// Oracle CREATE OR REPLACE TRIGGER is atomic — no DROP/CREATE pair.
 	// RAISE_APPLICATION_ERROR(-20001, ...) bubbles up as ORA-20001;
 	// dberrors.classifyOracleCode maps 20001 to ErrAppendOnlyViolation.
-	// created_at values are written in UTC, so the floor comparison uses
-	// SYS_EXTRACT_UTC(SYSTIMESTAMP).
+	//
+	// Both sides of the floor comparison must be plain UTC TIMESTAMP:
+	// SYS_EXTRACT_UTC(:OLD.created_at) strips the time-zone offset from the
+	// TIMESTAMP WITH TIME ZONE column, and SYS_EXTRACT_UTC(SYSTIMESTAMP)
+	// does the same for the DB clock. Without wrapping :OLD.created_at,
+	// Oracle promotes the comparison using SESSIONTIMEZONE, which pooled ADB
+	// connections do not reliably set to UTC, producing incorrect results.
 	statements := []string{
 		fmt.Sprintf(`CREATE OR REPLACE TRIGGER tmi_audit_entries_no_mutate
 		 BEFORE UPDATE OR DELETE ON audit_entries
 		 FOR EACH ROW
 		 BEGIN
-		   IF DELETING AND :OLD.created_at < SYS_EXTRACT_UTC(SYSTIMESTAMP) - NUMTODSINTERVAL(%d, 'DAY') THEN
+		   IF DELETING AND SYS_EXTRACT_UTC(:OLD.created_at) < SYS_EXTRACT_UTC(SYSTIMESTAMP) - NUMTODSINTERVAL(%d, 'DAY') THEN
 		     NULL;
 		   ELSE
 		     RAISE_APPLICATION_ERROR(-20001, 'audit history is append-only: ' || (CASE WHEN UPDATING THEN 'UPDATE' ELSE 'DELETE' END) || ' on audit_entries blocked by tmi_audit_entries_no_mutate (DELETE allowed only for rows older than %d days)');
@@ -187,7 +192,7 @@ func installOracleAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.
 		 BEFORE UPDATE OR DELETE ON version_snapshots
 		 FOR EACH ROW
 		 BEGIN
-		   IF DELETING AND :OLD.created_at < SYS_EXTRACT_UTC(SYSTIMESTAMP) - NUMTODSINTERVAL(%d, 'DAY') THEN
+		   IF DELETING AND SYS_EXTRACT_UTC(:OLD.created_at) < SYS_EXTRACT_UTC(SYSTIMESTAMP) - NUMTODSINTERVAL(%d, 'DAY') THEN
 		     NULL;
 		   ELSE
 		     RAISE_APPLICATION_ERROR(-20001, 'version snapshots are append-only: ' || (CASE WHEN UPDATING THEN 'UPDATE' ELSE 'DELETE' END) || ' on version_snapshots blocked by tmi_version_snapshots_no_mutate (DELETE allowed only for rows older than %d days)');

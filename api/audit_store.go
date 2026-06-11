@@ -23,6 +23,26 @@ const (
 	defaultTombstoneRetentionDays = 30
 )
 
+// oracleMaxInListSize is Oracle's hard cap on IN expression lists
+// (ORA-01795); all bulk deletes chunk their ID slices to stay under it.
+const oracleMaxInListSize = 1000
+
+// chunkIDs splits ids into slices of at most size elements.
+func chunkIDs(ids []string, size int) [][]string {
+	if len(ids) == 0 {
+		return nil
+	}
+	chunks := make([][]string, 0, (len(ids)+size-1)/size)
+	for start := 0; start < len(ids); start += size {
+		end := start + size
+		if end > len(ids) {
+			end = len(ids)
+		}
+		chunks = append(chunks, ids[start:end])
+	}
+	return chunks
+}
+
 // GormAuditService implements AuditServiceInterface using GORM.
 type GormAuditService struct {
 	db                     *gorm.DB
@@ -359,12 +379,16 @@ func (s *GormAuditService) PruneAuditEntries(ctx context.Context) (int, error) {
 	}
 
 	err = authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		if err := tx.Where("audit_entry_id IN ?", entryIDs).Delete(&models.VersionSnapshot{}).Error; err != nil {
-			return fmt.Errorf("failed to delete version snapshots during audit prune: %w", err)
+		for _, chunk := range chunkIDs(entryIDs, oracleMaxInListSize) {
+			if err := tx.Where("audit_entry_id IN ?", chunk).Delete(&models.VersionSnapshot{}).Error; err != nil {
+				return fmt.Errorf("failed to delete version snapshots during audit prune: %w", err)
+			}
 		}
 
-		if err := tx.Where("id IN ?", entryIDs).Delete(&models.AuditEntry{}).Error; err != nil {
-			return fmt.Errorf("failed to prune audit entries: %w", err)
+		for _, chunk := range chunkIDs(entryIDs, oracleMaxInListSize) {
+			if err := tx.Where("id IN ?", chunk).Delete(&models.AuditEntry{}).Error; err != nil {
+				return fmt.Errorf("failed to prune audit entries: %w", err)
+			}
 		}
 		return nil
 	})
@@ -493,9 +517,11 @@ func (s *GormAuditService) executePrune(ctx context.Context, objectType, objectI
 			return nil
 		}
 
-		// Delete version snapshots
-		if err := tx.Where("id IN ?", snapshotIDs).Delete(&models.VersionSnapshot{}).Error; err != nil {
-			return err
+		// Delete version snapshots in chunks to stay under Oracle's 1000-element IN-list cap (ORA-01795).
+		for _, chunk := range chunkIDs(snapshotIDs, oracleMaxInListSize) {
+			if err := tx.Where("id IN ?", chunk).Delete(&models.VersionSnapshot{}).Error; err != nil {
+				return err
+			}
 		}
 
 		pruned = len(snapshotIDs)
@@ -616,29 +642,43 @@ func (s *GormAuditService) PurgeTombstones(ctx context.Context) (int, error) {
 			continue
 		}
 
-		// Clean up metadata for these sub-resources
-		if metaResult := s.db.WithContext(ctx).
-			Exec("DELETE FROM metadata WHERE entity_type = ? AND entity_id IN ?", sr.name, expiredIDs); metaResult.Error != nil {
-			logger.Error("failed to clean up metadata for expired %s tombstones: %v", sr.name, metaResult.Error)
+		// Clean up metadata for these sub-resources.
+		// Chunk ID slices to stay under Oracle's 1000-element IN-list cap (ORA-01795).
+		for _, chunk := range chunkIDs(expiredIDs, oracleMaxInListSize) {
+			if metaResult := s.db.WithContext(ctx).
+				Exec("DELETE FROM metadata WHERE entity_type = ? AND entity_id IN ?", sr.name, chunk); metaResult.Error != nil {
+				logger.Error("%s", pruneFailureMessage("metadata for expired "+sr.name+" tombstones", metaResult.Error))
+			}
 		}
 
-		// Clean up version snapshots for these sub-resources
-		// Note: audit entries are append-only and are never deleted
-		if vsResult := s.db.WithContext(ctx).
-			Exec("DELETE FROM version_snapshots WHERE object_type = ? AND object_id IN ?", sr.name, expiredIDs); vsResult.Error != nil {
-			logger.Error("failed to clean up version snapshots for expired %s tombstones: %v", sr.name, vsResult.Error)
+		// Clean up version snapshots for these sub-resources.
+		// Note: audit entries are append-only and are never deleted.
+		for _, chunk := range chunkIDs(expiredIDs, oracleMaxInListSize) {
+			if vsResult := s.db.WithContext(ctx).
+				Exec("DELETE FROM version_snapshots WHERE object_type = ? AND object_id IN ?", sr.name, chunk); vsResult.Error != nil {
+				logger.Error("%s", pruneFailureMessage("version snapshots for expired "+sr.name+" tombstones", vsResult.Error))
+			}
 		}
 
-		// Delete the sub-resources themselves
-		result := s.db.WithContext(ctx).
-			Exec(fmt.Sprintf("DELETE FROM %s WHERE id IN ?", sr.table), expiredIDs)
-		if result.Error != nil {
-			logger.Error("failed to purge expired %s tombstones: %v", sr.name, result.Error)
+		// Delete the sub-resources themselves, accumulating rows affected across chunks.
+		var subResourceRowsAffected int64
+		var subResourceErr error
+		for _, chunk := range chunkIDs(expiredIDs, oracleMaxInListSize) {
+			result := s.db.WithContext(ctx).
+				Exec(fmt.Sprintf("DELETE FROM %s WHERE id IN ?", sr.table), chunk)
+			if result.Error != nil {
+				subResourceErr = result.Error
+				break
+			}
+			subResourceRowsAffected += result.RowsAffected
+		}
+		if subResourceErr != nil {
+			logger.Error("failed to purge expired %s tombstones: %v", sr.name, subResourceErr)
 			continue
 		}
-		if result.RowsAffected > 0 {
-			logger.Info("purged %d expired %s tombstones (with metadata and version snapshots)", result.RowsAffected, sr.name)
-			totalPurged += int(result.RowsAffected)
+		if subResourceRowsAffected > 0 {
+			logger.Info("purged %d expired %s tombstones (with metadata and version snapshots)", subResourceRowsAffected, sr.name)
+			totalPurged += int(subResourceRowsAffected)
 		}
 	}
 
