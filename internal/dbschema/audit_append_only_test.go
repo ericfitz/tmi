@@ -6,10 +6,51 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+func TestAuditFloorConfig_Floors(t *testing.T) {
+	tests := []struct {
+		name              string
+		cfg               AuditFloorConfig
+		wantAuditFloor    int
+		wantSnapshotFloor int
+	}{
+		{
+			name:              "defaults",
+			cfg:               AuditFloorConfig{AuditRetentionDays: 365, VersionRetentionDays: 90, TombstoneRetentionDays: 30},
+			wantAuditFloor:    364,
+			wantSnapshotFloor: 29,
+		},
+		{
+			name:              "audit retention below hard minimum clamps to 30",
+			cfg:               AuditFloorConfig{AuditRetentionDays: 10, VersionRetentionDays: 90, TombstoneRetentionDays: 30},
+			wantAuditFloor:    30,
+			wantSnapshotFloor: 29,
+		},
+		{
+			name:              "snapshot floor uses the smaller of version and tombstone retention",
+			cfg:               AuditFloorConfig{AuditRetentionDays: 365, VersionRetentionDays: 20, TombstoneRetentionDays: 30},
+			wantAuditFloor:    364,
+			wantSnapshotFloor: 19,
+		},
+		{
+			name:              "snapshot floor clamps to hard minimum 7",
+			cfg:               AuditFloorConfig{AuditRetentionDays: 365, VersionRetentionDays: 90, TombstoneRetentionDays: 3},
+			wantAuditFloor:    364,
+			wantSnapshotFloor: 7,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.wantAuditFloor, tt.cfg.auditEntriesFloorDays())
+			assert.Equal(t, tt.wantSnapshotFloor, tt.cfg.versionSnapshotsFloorDays())
+		})
+	}
+}
 
 // auditEntryRow mirrors api/models.AuditEntry's column shape closely enough
 // to test the trigger in isolation. We don't import the real model to avoid

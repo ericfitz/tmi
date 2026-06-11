@@ -9,10 +9,11 @@
 //     alter history.
 //
 // The fix is a DB-level trigger on audit_entries and version_snapshots that
-// raises an exception on UPDATE or DELETE. The trigger is the last-line
-// defense — if it fires, something at the application or operator layer is
-// trying to mutate immutable history, and the right behavior is to refuse
-// the operation.
+// raises an exception on any UPDATE, and on DELETE of rows younger than a
+// per-table age floor derived from retention config (#453). The trigger is
+// the last-line defense — if it fires, something at the application or
+// operator layer is trying to mutate immutable history, and the right
+// behavior is to refuse the operation.
 //
 // The triggers are installed idempotently via CREATE OR REPLACE; the two
 // dialects (PostgreSQL and Oracle ADB) need slightly different syntax.
@@ -29,6 +30,53 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 )
+
+// AuditFloorConfig carries the retention configuration used to derive the
+// per-table delete age floors baked into the append-only triggers at install
+// time. The values come from the same env config the audit pruner reads
+// (AUDIT_RETENTION_DAYS, VERSION_RETENTION_DAYS, TOMBSTONE_RETENTION_DAYS),
+// so the trigger floor and the pruner cutoff cannot drift within one boot.
+type AuditFloorConfig struct {
+	AuditRetentionDays     int
+	VersionRetentionDays   int
+	TombstoneRetentionDays int
+}
+
+const (
+	// auditFloorHardMinDays is the lowest delete age floor that may be
+	// installed on audit_entries regardless of configuration — a
+	// misconfigured retention must not gut T19 tamper resistance.
+	auditFloorHardMinDays = 30
+	// snapshotFloorHardMinDays is the equivalent for version_snapshots.
+	// It is lower because snapshots are rollback payloads, not the
+	// tamper-evident record, and PurgeTombstones legitimately deletes
+	// them TOMBSTONE_RETENTION_DAYS after soft-deletion.
+	snapshotFloorHardMinDays = 7
+)
+
+// clampFloor converts a configured retention into an installed trigger
+// floor: one day of clock-skew margin below the retention (the pruner
+// compares app-side time, the trigger DB-side time), but never below the
+// hard minimum.
+func clampFloor(configuredDays, hardMinDays int) int {
+	floor := configuredDays - 1
+	if floor < hardMinDays {
+		return hardMinDays
+	}
+	return floor
+}
+
+func (c AuditFloorConfig) auditEntriesFloorDays() int {
+	return clampFloor(c.AuditRetentionDays, auditFloorHardMinDays)
+}
+
+func (c AuditFloorConfig) versionSnapshotsFloorDays() int {
+	v := c.VersionRetentionDays
+	if c.TombstoneRetentionDays < v {
+		v = c.TombstoneRetentionDays
+	}
+	return clampFloor(v, snapshotFloorHardMinDays)
+}
 
 // InstallAuditAppendOnlyTriggers installs UPDATE/DELETE-blocking triggers
 // on audit_entries and version_snapshots. Idempotent across re-runs.
