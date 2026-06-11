@@ -94,9 +94,25 @@ func GetWebhookDeliveryStatus(c *gin.Context) {
 		}
 	}
 
-	// Return response (pass nil for sub — fail-open; URL leakage here is low-risk
-	// because the caller already authenticated via HMAC against the subscription secret)
-	response := deliveryRecordToWebhookDelivery(record, nil)
+	// Fetch the owning subscription so pinned LastError is sanitized on this path
+	// too. This endpoint accepts JWT auth (admin, subscription owner, or addon
+	// invoker) in addition to HMAC, so callers do NOT necessarily know the
+	// subscription secret or its destination URL — an admin must not be able to
+	// recover an operator-pinned sink URL from an unsanitized LastError. Pass nil
+	// only when the subscription no longer exists (deleted after the delivery was
+	// recorded); the record then carries no pinned URL context to redact against,
+	// and the generic URL-pattern redaction is unavailable without the sub anyway.
+	var sub *DBWebhookSubscription
+	if GlobalWebhookSubscriptionStore != nil {
+		if fetched, subErr := GlobalWebhookSubscriptionStore.Get(c.Request.Context(), record.SubscriptionID.String()); subErr == nil {
+			sub = &fetched
+		} else {
+			logger.Warn("Subscription %s not found for delivery %s; returning delivery without pinned-URL redaction context: %v",
+				record.SubscriptionID, record.ID, subErr)
+		}
+	}
+
+	response := deliveryRecordToWebhookDelivery(record, sub)
 	c.JSON(http.StatusOK, response)
 }
 

@@ -321,6 +321,48 @@ func TestGetWebhookDeliveryStatus(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
+
+	t.Run("Pinned_LastErrorSanitized_AdminJWT", func(t *testing.T) {
+		// Regression test: this endpoint accepts JWT auth in addition to HMAC.
+		// A JWT-authenticated admin must not be able to recover the
+		// operator-pinned sink URL from an unsanitized LastError.
+		adminUUID := uuid.New()
+		subID := uuid.New()
+		pinnedURL := "https://real-sink.internal/alert"
+
+		deliveryStore := newMockDeliveryRedisStore()
+		record := createTestDeliveryRecord(subID, DeliveryStatusFailed)
+		record.LastError = fmt.Sprintf(`Post "%s": dial tcp: no such host`, pinnedURL)
+		deliveryStore.records[record.ID] = record
+		GlobalWebhookDeliveryRedisStore = deliveryStore
+
+		subStore := newMockWebhookSubscriptionStore()
+		subStore.subscriptions[subID.String()] = DBWebhookSubscription{
+			Id:             subID,
+			OwnerId:        uuid.New(),
+			Url:            pinnedURL,
+			Status:         "active",
+			OperatorPinned: true,
+		}
+		GlobalWebhookSubscriptionStore = subStore
+
+		// Admin via JWT, no X-Webhook-Signature header
+		r := setupDeliveryHandlerTest(true, adminUUID)
+
+		req := httptest.NewRequest("GET", "/webhook_deliveries/"+record.ID.String(), nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var resp WebhookDelivery
+		err := json.Unmarshal(w.Body.Bytes(), &resp)
+		require.NoError(t, err)
+		require.NotNil(t, resp.LastError)
+		assert.NotContains(t, *resp.LastError, pinnedURL, "pinned URL must not leak via the JWT-authenticated status endpoint")
+		assert.NotContains(t, *resp.LastError, "https://", "no URL should remain in LastError for a pinned subscription")
+		assert.Contains(t, *resp.LastError, "(operator-pinned)")
+	})
 }
 
 // =============================================================================
