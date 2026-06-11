@@ -407,9 +407,10 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 	// trigger is loggable but the application-level audit-emit instrumentation
 	// is still in effect.
 	if err := dbschema.InstallAuditAppendOnlyTriggers(ctx, gormDB.DB(), dbschema.AuditFloorConfig{
-		AuditRetentionDays:     api.AuditRetentionDays(),
-		VersionRetentionDays:   api.VersionRetentionDays(),
-		TombstoneRetentionDays: api.TombstoneRetentionDays(),
+		AuditRetentionDays:       api.AuditRetentionDays(),
+		VersionRetentionDays:     api.VersionRetentionDays(),
+		TombstoneRetentionDays:   api.TombstoneRetentionDays(),
+		SystemAuditRetentionDays: api.SystemAuditRetentionDays(),
 	}); err != nil {
 		logger.Warn("InstallAuditAppendOnlyTriggers failed (non-fatal; T19 protection NOT in effect): %v", err)
 	}

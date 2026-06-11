@@ -14,40 +14,60 @@ import (
 
 func TestAuditFloorConfig_Floors(t *testing.T) {
 	tests := []struct {
-		name              string
-		cfg               AuditFloorConfig
-		wantAuditFloor    int
-		wantSnapshotFloor int
+		name                 string
+		cfg                  AuditFloorConfig
+		wantAuditFloor       int
+		wantSnapshotFloor    int
+		wantSystemAuditFloor int
 	}{
 		{
-			name:              "defaults",
-			cfg:               AuditFloorConfig{AuditRetentionDays: 365, VersionRetentionDays: 90, TombstoneRetentionDays: 30},
-			wantAuditFloor:    364,
-			wantSnapshotFloor: 29,
+			name:                 "defaults",
+			cfg:                  AuditFloorConfig{AuditRetentionDays: 365, VersionRetentionDays: 90, TombstoneRetentionDays: 30, SystemAuditRetentionDays: 365},
+			wantAuditFloor:       364,
+			wantSnapshotFloor:    29,
+			wantSystemAuditFloor: 364,
 		},
 		{
-			name:              "audit retention below hard minimum clamps to 30",
-			cfg:               AuditFloorConfig{AuditRetentionDays: 10, VersionRetentionDays: 90, TombstoneRetentionDays: 30},
-			wantAuditFloor:    30,
-			wantSnapshotFloor: 29,
+			name:                 "audit retention below hard minimum clamps to 30",
+			cfg:                  AuditFloorConfig{AuditRetentionDays: 10, VersionRetentionDays: 90, TombstoneRetentionDays: 30, SystemAuditRetentionDays: 365},
+			wantAuditFloor:       30,
+			wantSnapshotFloor:    29,
+			wantSystemAuditFloor: 364,
 		},
 		{
-			name:              "snapshot floor uses the smaller of version and tombstone retention",
-			cfg:               AuditFloorConfig{AuditRetentionDays: 365, VersionRetentionDays: 20, TombstoneRetentionDays: 30},
-			wantAuditFloor:    364,
-			wantSnapshotFloor: 19,
+			name:                 "snapshot floor uses the smaller of version and tombstone retention",
+			cfg:                  AuditFloorConfig{AuditRetentionDays: 365, VersionRetentionDays: 20, TombstoneRetentionDays: 30, SystemAuditRetentionDays: 365},
+			wantAuditFloor:       364,
+			wantSnapshotFloor:    19,
+			wantSystemAuditFloor: 364,
 		},
 		{
-			name:              "snapshot floor clamps to hard minimum 7",
-			cfg:               AuditFloorConfig{AuditRetentionDays: 365, VersionRetentionDays: 90, TombstoneRetentionDays: 3},
-			wantAuditFloor:    364,
-			wantSnapshotFloor: 7,
+			name:                 "snapshot floor clamps to hard minimum 7",
+			cfg:                  AuditFloorConfig{AuditRetentionDays: 365, VersionRetentionDays: 90, TombstoneRetentionDays: 3, SystemAuditRetentionDays: 365},
+			wantAuditFloor:       364,
+			wantSnapshotFloor:    7,
+			wantSystemAuditFloor: 364,
+		},
+		{
+			name:                 "system audit default",
+			cfg:                  AuditFloorConfig{AuditRetentionDays: 365, VersionRetentionDays: 90, TombstoneRetentionDays: 30, SystemAuditRetentionDays: 365},
+			wantAuditFloor:       364,
+			wantSnapshotFloor:    29,
+			wantSystemAuditFloor: 364,
+		},
+		{
+			name:                 "system audit clamps to 90-day hard minimum",
+			cfg:                  AuditFloorConfig{AuditRetentionDays: 365, VersionRetentionDays: 90, TombstoneRetentionDays: 30, SystemAuditRetentionDays: 30},
+			wantAuditFloor:       364,
+			wantSnapshotFloor:    29,
+			wantSystemAuditFloor: 90,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.wantAuditFloor, tt.cfg.auditEntriesFloorDays())
 			assert.Equal(t, tt.wantSnapshotFloor, tt.cfg.versionSnapshotsFloorDays())
+			assert.Equal(t, tt.wantSystemAuditFloor, tt.cfg.systemAuditEntriesFloorDays())
 		})
 	}
 }

@@ -34,12 +34,14 @@ import (
 // AuditFloorConfig carries the retention configuration used to derive the
 // per-table delete age floors baked into the append-only triggers at install
 // time. The values come from the same env config the audit pruner reads
-// (AUDIT_RETENTION_DAYS, VERSION_RETENTION_DAYS, TOMBSTONE_RETENTION_DAYS),
-// so the trigger floor and the pruner cutoff cannot drift within one boot.
+// (AUDIT_RETENTION_DAYS, VERSION_RETENTION_DAYS, TOMBSTONE_RETENTION_DAYS,
+// SYSTEM_AUDIT_RETENTION_DAYS), so the trigger floor and the pruner cutoff
+// cannot drift within one boot.
 type AuditFloorConfig struct {
-	AuditRetentionDays     int
-	VersionRetentionDays   int
-	TombstoneRetentionDays int
+	AuditRetentionDays       int
+	VersionRetentionDays     int
+	TombstoneRetentionDays   int
+	SystemAuditRetentionDays int
 }
 
 const (
@@ -52,6 +54,10 @@ const (
 	// tamper-evident record, and PurgeTombstones legitimately deletes
 	// them TOMBSTONE_RETENTION_DAYS after soft-deletion.
 	snapshotFloorHardMinDays = 7
+	// systemAuditFloorHardMinDays matches the 90-day evidence minimum on
+	// SYSTEM_AUDIT_RETENTION_DAYS: system_audit_entries is pure T7 evidence
+	// and nothing legitimate ever deletes young rows from it (#400).
+	systemAuditFloorHardMinDays = 90
 )
 
 // clampFloor converts a configured retention into an installed trigger
@@ -78,13 +84,17 @@ func (c AuditFloorConfig) versionSnapshotsFloorDays() int {
 	return clampFloor(v, snapshotFloorHardMinDays)
 }
 
-// InstallAuditAppendOnlyTriggers installs triggers on audit_entries and
-// version_snapshots that block all UPDATEs and block DELETEs of rows
-// younger than a per-table age floor. Idempotent across re-runs (the
-// server reinstalls on every boot, so floor changes take effect on
-// restart).
+func (c AuditFloorConfig) systemAuditEntriesFloorDays() int {
+	return clampFloor(c.SystemAuditRetentionDays, systemAuditFloorHardMinDays)
+}
+
+// InstallAuditAppendOnlyTriggers installs triggers on audit_entries,
+// version_snapshots, and system_audit_entries that block all UPDATEs and
+// block DELETEs of rows younger than a per-table age floor. Idempotent
+// across re-runs (the server reinstalls on every boot, so floor changes
+// take effect on restart).
 //
-// Retention policy (#453): aged-out pruning is a supported, in-app
+// Retention policy (#453, #400): aged-out pruning is a supported, in-app
 // operation — the scheduled AuditPruner deletes rows older than the
 // configured retention, and the trigger's age floor (retention minus a
 // 1-day clock-skew margin, never below a hard minimum) permits exactly
@@ -103,6 +113,7 @@ func InstallAuditAppendOnlyTriggers(ctx context.Context, db *gorm.DB, floors Aud
 
 	auditFloor := floors.auditEntriesFloorDays()
 	snapshotFloor := floors.versionSnapshotsFloorDays()
+	systemAuditFloor := floors.systemAuditEntriesFloorDays()
 	if floors.AuditRetentionDays-1 < auditFloorHardMinDays {
 		logger.Warn("InstallAuditAppendOnlyTriggers: configured AUDIT_RETENTION_DAYS=%d is below the %d-day immutability floor; pruning of audit_entries younger than %d days will be blocked",
 			floors.AuditRetentionDays, auditFloorHardMinDays, auditFloorHardMinDays)
@@ -111,12 +122,16 @@ func InstallAuditAppendOnlyTriggers(ctx context.Context, db *gorm.DB, floors Aud
 		logger.Warn("InstallAuditAppendOnlyTriggers: configured snapshot retention (min of VERSION_RETENTION_DAYS=%d, TOMBSTONE_RETENTION_DAYS=%d) is below the %d-day immutability floor; snapshot deletion younger than %d days will be blocked",
 			floors.VersionRetentionDays, floors.TombstoneRetentionDays, snapshotFloorHardMinDays, snapshotFloorHardMinDays)
 	}
+	if floors.SystemAuditRetentionDays-1 < systemAuditFloorHardMinDays {
+		logger.Warn("InstallAuditAppendOnlyTriggers: configured SYSTEM_AUDIT_RETENTION_DAYS=%d is below the %d-day evidence floor; pruning of system_audit_entries younger than %d days will be blocked",
+			floors.SystemAuditRetentionDays, systemAuditFloorHardMinDays, systemAuditFloorHardMinDays)
+	}
 
 	switch dialect {
 	case "postgres":
-		return installPostgresAppendOnly(ctx, db, logger, auditFloor, snapshotFloor)
+		return installPostgresAppendOnly(ctx, db, logger, auditFloor, snapshotFloor, systemAuditFloor)
 	case "oracle":
-		return installOracleAppendOnly(ctx, db, logger, auditFloor, snapshotFloor)
+		return installOracleAppendOnly(ctx, db, logger, auditFloor, snapshotFloor, systemAuditFloor)
 	case "sqlite":
 		logger.Info("InstallAuditAppendOnlyTriggers: skipping on dialect %q (single-process SQLite is single-writer)", dialect)
 		return nil
@@ -126,7 +141,7 @@ func InstallAuditAppendOnlyTriggers(ctx context.Context, db *gorm.DB, floors Aud
 	}
 }
 
-func installPostgresAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.Logger, auditFloorDays, snapshotFloorDays int) error {
+func installPostgresAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.Logger, auditFloorDays, snapshotFloorDays, systemAuditFloorDays int) error {
 	statements := []string{
 		// Guard function. The delete age floor arrives as a trigger
 		// argument (TG_ARGV[0], days). RAISE EXCEPTION surfaces a clean
@@ -155,6 +170,12 @@ func installPostgresAppendOnly(ctx context.Context, db *gorm.DB, logger *sloggin
 		fmt.Sprintf(`CREATE TRIGGER tmi_version_snapshots_no_mutate
 		 BEFORE UPDATE OR DELETE ON version_snapshots
 		 FOR EACH ROW EXECUTE FUNCTION tmi_audit_append_only_guard('%d');`, snapshotFloorDays),
+
+		// system_audit_entries trigger (#400)
+		`DROP TRIGGER IF EXISTS tmi_system_audit_entries_no_mutate ON system_audit_entries;`,
+		fmt.Sprintf(`CREATE TRIGGER tmi_system_audit_entries_no_mutate
+		 BEFORE UPDATE OR DELETE ON system_audit_entries
+		 FOR EACH ROW EXECUTE FUNCTION tmi_audit_append_only_guard('%d');`, systemAuditFloorDays),
 	}
 
 	for _, sql := range statements {
@@ -162,11 +183,11 @@ func installPostgresAppendOnly(ctx context.Context, db *gorm.DB, logger *sloggin
 			return fmt.Errorf("postgres install: %w (sql: %s)", err, sql)
 		}
 	}
-	logger.Info("InstallAuditAppendOnlyTriggers: postgres triggers installed (audit_entries floor=%dd, version_snapshots floor=%dd)", auditFloorDays, snapshotFloorDays)
+	logger.Info("InstallAuditAppendOnlyTriggers: postgres triggers installed (audit_entries floor=%dd, version_snapshots floor=%dd, system_audit_entries floor=%dd)", auditFloorDays, snapshotFloorDays, systemAuditFloorDays)
 	return nil
 }
 
-func installOracleAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.Logger, auditFloorDays, snapshotFloorDays int) error {
+func installOracleAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.Logger, auditFloorDays, snapshotFloorDays, systemAuditFloorDays int) error {
 	// Oracle CREATE OR REPLACE TRIGGER is atomic — no DROP/CREATE pair.
 	// RAISE_APPLICATION_ERROR(-20001, ...) bubbles up as ORA-20001;
 	// dberrors.classifyOracleCode maps 20001 to ErrAppendOnlyViolation.
@@ -198,6 +219,16 @@ func installOracleAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.
 		     RAISE_APPLICATION_ERROR(-20001, 'version snapshots are append-only: ' || (CASE WHEN UPDATING THEN 'UPDATE' ELSE 'DELETE' END) || ' on version_snapshots blocked by tmi_version_snapshots_no_mutate (DELETE allowed only for rows older than %d days)');
 		   END IF;
 		 END;`, snapshotFloorDays, snapshotFloorDays),
+		fmt.Sprintf(`CREATE OR REPLACE TRIGGER tmi_system_audit_entries_no_mutate
+		 BEFORE UPDATE OR DELETE ON system_audit_entries
+		 FOR EACH ROW
+		 BEGIN
+		   IF DELETING AND SYS_EXTRACT_UTC(:OLD.created_at) < SYS_EXTRACT_UTC(SYSTIMESTAMP) - NUMTODSINTERVAL(%d, 'DAY') THEN
+		     NULL;
+		   ELSE
+		     RAISE_APPLICATION_ERROR(-20001, 'system audit history is append-only: ' || (CASE WHEN UPDATING THEN 'UPDATE' ELSE 'DELETE' END) || ' on system_audit_entries blocked by tmi_system_audit_entries_no_mutate (DELETE allowed only for rows older than %d days)');
+		   END IF;
+		 END;`, systemAuditFloorDays, systemAuditFloorDays),
 	}
 
 	for _, sql := range statements {
@@ -205,6 +236,6 @@ func installOracleAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.
 			return fmt.Errorf("oracle install: %w (sql: %s)", err, sql)
 		}
 	}
-	logger.Info("InstallAuditAppendOnlyTriggers: oracle triggers installed (audit_entries floor=%dd, version_snapshots floor=%dd)", auditFloorDays, snapshotFloorDays)
+	logger.Info("InstallAuditAppendOnlyTriggers: oracle triggers installed (audit_entries floor=%dd, version_snapshots floor=%dd, system_audit_entries floor=%dd)", auditFloorDays, snapshotFloorDays, systemAuditFloorDays)
 	return nil
 }
