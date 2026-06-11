@@ -2,7 +2,11 @@ package workflows
 
 import (
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -453,4 +457,138 @@ func TestClientCredentialsCrossUserIsolation(t *testing.T) {
 		}
 	}
 	t.Log("✓ Bob's credential list does not include Alice's credential (subject-scoped query)")
+}
+
+// TestClientCredentialsDeniedOnAdminRoutes pins the #399 invariant end to
+// end: a service-account (client-credentials) token is categorically denied
+// on /admin/* with 403, even when the credential's owner is an
+// administrator. Covers all five /admin/settings operations plus one write
+// per remaining /admin sub-area.
+func TestClientCredentialsDeniedOnAdminRoutes(t *testing.T) {
+	if os.Getenv("INTEGRATION_TESTS") != "true" {
+		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")
+	}
+
+	serverURL := os.Getenv("TMI_SERVER_URL")
+	if serverURL == "" {
+		serverURL = "http://localhost:8080"
+	}
+
+	if err := framework.EnsureOAuthStubRunning(); err != nil {
+		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
+	}
+
+	// Owner is an administrator (charlie) — the denial must hold anyway.
+	tokens, err := framework.AuthenticateAdmin()
+	framework.AssertNoError(t, err, "Admin authentication failed")
+	adminClient, err := framework.NewClient(serverURL, tokens)
+	framework.AssertNoError(t, err, "Failed to create integration client")
+
+	// 1. Create a client credential as the admin.
+	createResp, err := adminClient.Do(framework.Request{
+		Method: "POST",
+		Path:   "/me/client_credentials",
+		Body: map[string]interface{}{
+			"name": "cc-admin-denial-test",
+		},
+	})
+	framework.AssertNoError(t, err, "create client credential")
+	if createResp.StatusCode != 201 {
+		t.Fatalf("create credential: got %d, want 201: %s", createResp.StatusCode, string(createResp.Body))
+	}
+	var cred struct {
+		ID           string `json:"id"`
+		ClientID     string `json:"client_id"`
+		ClientSecret string `json:"client_secret"`
+	}
+	framework.AssertNoError(t, json.Unmarshal(createResp.Body, &cred), "parse credential")
+	t.Cleanup(func() {
+		_, _ = adminClient.Do(framework.Request{Method: "DELETE", Path: "/me/client_credentials/" + cred.ID})
+	})
+
+	// 2. Exchange for a service-account access token.
+	form := url.Values{}
+	form.Set("grant_type", "client_credentials")
+	form.Set("client_id", cred.ClientID)
+	form.Set("client_secret", cred.ClientSecret)
+	resp, err := http.Post(serverURL+"/oauth2/token",
+		"application/x-www-form-urlencoded", strings.NewReader(form.Encode()))
+	framework.AssertNoError(t, err, "POST /oauth2/token")
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		t.Fatalf("token exchange: got %d, want 200: %s", resp.StatusCode, string(body))
+	}
+	var tok struct {
+		AccessToken string `json:"access_token"`
+	}
+	framework.AssertNoError(t, json.Unmarshal(body, &tok), "parse token response")
+
+	// 3. Every admin call with the CC token must return 403 (not 401, not 404).
+	// All request bodies must be schema-valid: OpenAPI request validation runs
+	// before the authz middleware, so a malformed body would be rejected with
+	// 400 before authz can return 403. Bodies do not need to be semantically
+	// valid (e.g., a group that already exists is fine — authz denies first).
+	adminCalls := []struct {
+		method string
+		path   string
+		body   map[string]interface{}
+	}{
+		// all five /admin/settings operations
+		{"GET", "/admin/settings", nil},
+		{"GET", "/admin/settings/test.key", nil},
+		// SystemSettingUpdate: field is "type", not "setting_type"
+		{"PUT", "/admin/settings/test.key", map[string]interface{}{"value": "x", "type": "string"}},
+		{"DELETE", "/admin/settings/test.key", nil},
+		{"POST", "/admin/settings/reencrypt", nil},
+		// one representative write per remaining sub-area
+		// CreateAdminGroupRequest requires both "group_name" (identifier) and "name" (display)
+		{"POST", "/admin/groups", map[string]interface{}{"group_name": "cc-denial-test", "name": "CC Denial Test"}},
+		{"DELETE", "/admin/users/00000000-0000-0000-0000-000000000000", nil},
+		// UserQuotaUpdate requires max_requests_per_minute
+		{"PUT", "/admin/quotas/users/00000000-0000-0000-0000-000000000000", map[string]interface{}{"max_requests_per_minute": 60}},
+		// Correct path is /admin/webhooks/subscriptions; WebhookSubscriptionInput requires name, url, events
+		{"POST", "/admin/webhooks/subscriptions", map[string]interface{}{
+			"name":   "cc-denial-test-webhook",
+			"url":    "https://example.com/webhook",
+			"events": []string{"threat_model.created"},
+		}},
+		// SurveyBase (via SurveyInput allOf) requires name, version, survey_json
+		{"POST", "/admin/surveys", map[string]interface{}{
+			"name":    "cc-denial-test-survey",
+			"version": "v1.0-cc-test",
+			"survey_json": map[string]interface{}{
+				"pages": []interface{}{
+					map[string]interface{}{
+						"name":     "page1",
+						"elements": []interface{}{},
+					},
+				},
+			},
+		}},
+	}
+
+	// Disable OpenAPI response validation: the validator would reject 403 error
+	// bodies for endpoints that define success-only response schemas, causing
+	// framework.Do to return an error before we can assert the status code.
+	ccClient, err := framework.NewClient(serverURL,
+		&framework.OAuthTokens{AccessToken: tok.AccessToken},
+		framework.WithValidation(false))
+	framework.AssertNoError(t, err, "create CC client")
+
+	for _, call := range adminCalls {
+		call := call // capture loop variable
+		t.Run(call.method+" "+call.path, func(t *testing.T) {
+			resp, err := ccClient.Do(framework.Request{
+				Method: call.method,
+				Path:   call.path,
+				Body:   call.body,
+			})
+			framework.AssertNoError(t, err, "request failed")
+			if resp.StatusCode != 403 {
+				t.Errorf("got %d, want 403 (categorical service-account denial); body: %s",
+					resp.StatusCode, string(resp.Body))
+			}
+		})
+	}
 }
