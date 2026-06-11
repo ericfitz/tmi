@@ -478,7 +478,8 @@ func TestClientCredentialsDeniedOnAdminRoutes(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
 	}
 
-	// Owner is an administrator (charlie) — the denial must hold anyway.
+	// Owner is an administrator (framework.AuthenticateAdmin authenticates with
+	// login hint "test-admin" and promotes that user) — the denial must hold anyway.
 	tokens, err := framework.AuthenticateAdmin()
 	framework.AssertNoError(t, err, "Admin authentication failed")
 	adminClient, err := framework.NewClient(serverURL, tokens)
@@ -568,9 +569,10 @@ func TestClientCredentialsDeniedOnAdminRoutes(t *testing.T) {
 		}},
 	}
 
-	// Disable OpenAPI response validation: the validator would reject 403 error
-	// bodies for endpoints that define success-only response schemas, causing
-	// framework.Do to return an error before we can assert the status code.
+	// Disable OpenAPI response validation: these endpoints do declare 403 Error
+	// response schemas, but this test asserts status codes only — response-body
+	// validation adds nothing here and a validator error from any spec/body
+	// mismatch would mask the status-code assertion we actually care about.
 	ccClient, err := framework.NewClient(serverURL,
 		&framework.OAuthTokens{AccessToken: tok.AccessToken},
 		framework.WithValidation(false))
