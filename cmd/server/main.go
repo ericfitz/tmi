@@ -920,6 +920,13 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		r.Use(api.StepUpMiddleware(stepUpWindow, stepUpTable))
 
 		systemAuditRepo := api.NewSystemAuditRepository(gormDB.DB())
+		// #395 — wrap with the alerting decorator so every successful
+		// audit write also emits a system_audit.admin_write webhook event.
+		// Wrapped unconditionally: emission is harmless when no subscriptions
+		// exist and GlobalEventEmitter handles nil Redis gracefully.
+		systemAuditRepo = api.NewAlertingSystemAuditRepository(
+			systemAuditRepo, api.GlobalEventEmitter, config.Operator.Name,
+		)
 		redactor := api.NewRedactor()
 		reader := newSystemSettingReader(gormDB.DB())
 		r.Use(api.NewAdminAuditMiddleware(systemAuditRepo, redactor, reader))
