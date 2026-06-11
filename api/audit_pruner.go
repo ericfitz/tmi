@@ -2,8 +2,11 @@ package api
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
@@ -59,6 +62,19 @@ func (p *AuditPruner) run(ctx context.Context) {
 	}
 }
 
+// pruneFailureMessage builds an operator-actionable log message for a prune
+// failure. Append-only trigger violations get a specific message: they mean
+// the retention config was lowered after boot (the trigger floor is baked in
+// at install time) or the floor's hard minimum is above the configured
+// retention — both fixed by aligning config and restarting.
+func pruneFailureMessage(what string, err error) string {
+	classified := dberrors.Classify(err)
+	if errors.Is(classified, dberrors.ErrAppendOnlyViolation) || errors.Is(err, dberrors.ErrAppendOnlyViolation) {
+		return fmt.Sprintf("failed to prune %s: blocked by the append-only trigger's delete age floor; the configured retention is below the floor installed at boot — align retention config and restart the server to reinstall triggers: %v", what, err)
+	}
+	return fmt.Sprintf("failed to prune %s: %v", what, err)
+}
+
 // prune executes one pruning cycle.
 func (p *AuditPruner) prune(ctx context.Context) {
 	logger := slogging.Get()
@@ -66,7 +82,7 @@ func (p *AuditPruner) prune(ctx context.Context) {
 	// Prune version snapshots first (they reference audit entries)
 	snapshotsPruned, err := p.auditService.PruneVersionSnapshots(ctx)
 	if err != nil {
-		logger.Error("failed to prune version snapshots: %v", err)
+		logger.Error("%s", pruneFailureMessage("version snapshots", err))
 	} else if snapshotsPruned > 0 {
 		logger.Info("pruned %d version snapshots", snapshotsPruned)
 	}
@@ -74,7 +90,7 @@ func (p *AuditPruner) prune(ctx context.Context) {
 	// Then prune audit entries
 	entriesPruned, err := p.auditService.PruneAuditEntries(ctx)
 	if err != nil {
-		logger.Error("failed to prune audit entries: %v", err)
+		logger.Error("%s", pruneFailureMessage("audit entries", err))
 	} else if entriesPruned > 0 {
 		logger.Info("pruned %d audit entries", entriesPruned)
 	}
@@ -82,7 +98,7 @@ func (p *AuditPruner) prune(ctx context.Context) {
 	// Purge expired tombstones (soft-deleted entities past retention period)
 	tombstonesPurged, err := p.auditService.PurgeTombstones(ctx)
 	if err != nil {
-		logger.Error("failed to purge tombstones: %v", err)
+		logger.Error("%s", pruneFailureMessage("expired tombstones", err))
 	} else if tombstonesPurged > 0 {
 		logger.Info("purged %d expired tombstones", tombstonesPurged)
 	}
