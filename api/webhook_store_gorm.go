@@ -227,7 +227,8 @@ func (s *GormWebhookSubscriptionStore) ListIdle(ctx context.Context, daysIdle in
 	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
 	// Complex OR condition: (last_successful_use IS NOT NULL AND last_successful_use < cutoff) OR (last_successful_use IS NULL AND created_at < cutoff)
 	// operator_pinned=false ensures the pinned audit sink is never marked idle.
-	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "active", "operator_pinned": false}).
+	// Use models.DBBool(false) so the driver.Valuer path fires on Oracle (NUMBER(1)).
+	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "active", "operator_pinned": models.DBBool(false)}).
 		Where(
 			s.db.Where(clause.Expr{SQL: "? IS NOT NULL", Vars: []any{Col(s.db.Name(), "last_successful_use")}}).
 				Where(clause.Expr{SQL: "? < ?", Vars: []any{Col(s.db.Name(), "last_successful_use"), cutoff}}).
@@ -258,7 +259,8 @@ func (s *GormWebhookSubscriptionStore) ListBroken(ctx context.Context, minFailur
 	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
 	// Condition: status = active AND operator_pinned = false AND publication_failures >= minFailures AND (last_successful_use IS NULL OR last_successful_use < cutoff)
 	// operator_pinned=false ensures the pinned audit sink is never marked broken.
-	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "active", "operator_pinned": false}).
+	// Use models.DBBool(false) so the driver.Valuer path fires on Oracle (NUMBER(1)).
+	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "active", "operator_pinned": models.DBBool(false)}).
 		Where(clause.Expr{SQL: "? >= ?", Vars: []any{Col(s.db.Name(), "publication_failures"), minFailures}}).
 		Where(
 			s.db.Where(clause.Expr{SQL: "? IS NULL", Vars: []any{Col(s.db.Name(), "last_successful_use")}}).
@@ -495,7 +497,7 @@ func (s *GormWebhookSubscriptionStore) toDBModel(sub *models.WebhookSubscription
 		ModifiedAt:          sub.ModifiedAt,
 		PublicationFailures: sub.PublicationFailures,
 		TimeoutCount:        sub.TimeoutCount,
-		OperatorPinned:      sub.OperatorPinned,
+		OperatorPinned:      bool(sub.OperatorPinned),
 	}
 
 	if sub.ThreatModelID.Valid && sub.ThreatModelID.String != "" {
@@ -529,7 +531,7 @@ func (s *GormWebhookSubscriptionStore) toGormModel(sub *DBWebhookSubscription) *
 		ModifiedAt:          sub.ModifiedAt,
 		PublicationFailures: sub.PublicationFailures,
 		TimeoutCount:        sub.TimeoutCount,
-		OperatorPinned:      sub.OperatorPinned,
+		OperatorPinned:      models.DBBool(sub.OperatorPinned),
 	}
 
 	if sub.ThreatModelId != nil {

@@ -604,7 +604,8 @@ type WebhookSubscription struct {
 	// OperatorPinned marks the subscription as materialized from operator
 	// config (alerting block, #395). Pinned rows cannot be modified or
 	// deleted through /admin/webhooks and their URL is redacted in reads.
-	OperatorPinned bool `gorm:"not null;default:false" json:"operator_pinned"`
+	// DBBool is required for Oracle compatibility (NUMBER(1) column).
+	OperatorPinned DBBool `gorm:"not null;default:false" json:"operator_pinned"`
 
 	// Relationships
 	Owner       User         `gorm:"foreignKey:OwnerInternalUUID;references:InternalUUID"`
