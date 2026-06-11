@@ -1238,6 +1238,61 @@ func TestGetWebhookDelivery(t *testing.T) {
 
 		assert.Equal(t, http.StatusForbidden, w.Code)
 	})
+
+	t.Run("Pinned_LastErrorSanitized_AdminJWT", func(t *testing.T) {
+		// Regression test: an admin reading a single delivery for an
+		// operator-pinned subscription must not be able to recover the pinned
+		// sink URL from an unsanitized LastError.
+		mockSubStore := newMockWebhookSubscriptionStore()
+		mockRedisStore := newMockDeliveryRedisStore()
+		GlobalWebhookSubscriptionStore = mockSubStore
+		GlobalWebhookDeliveryRedisStore = mockRedisStore
+		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
+
+		subID := uuid.New()
+		pinnedURL := "https://real-sink.internal/alert"
+		mockSubStore.subscriptions[subID.String()] = DBWebhookSubscription{
+			Id:             subID,
+			OwnerId:        uuid.New(),
+			Name:           "Operator Audit Alert Sink",
+			Url:            pinnedURL,
+			Events:         []string{"system_audit.admin_write"},
+			Status:         "active",
+			OperatorPinned: true,
+		}
+
+		now := time.Now().UTC()
+		deliveryID := uuid.New()
+		record := &WebhookDeliveryRecord{
+			ID:             deliveryID,
+			SubscriptionID: subID,
+			EventType:      "system_audit.admin_write",
+			Payload:        `{}`,
+			Status:         DeliveryStatusFailed,
+			Attempts:       1,
+			CreatedAt:      now,
+			LastActivityAt: now,
+			LastError:      fmt.Sprintf(`Post "%s": dial tcp: no such host`, pinnedURL),
+		}
+		mockRedisStore.records[deliveryID] = record
+
+		adminUUID := uuid.New()
+		r, _ := setupWebhookRouter("admin@example.com", adminUUID.String(), true)
+
+		req, _ := http.NewRequest("GET", "/admin/webhooks/deliveries/"+deliveryID.String(), nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response WebhookDelivery
+		err := json.Unmarshal(w.Body.Bytes(), &response)
+		require.NoError(t, err)
+		require.NotNil(t, response.LastError)
+		assert.NotContains(t, *response.LastError, pinnedURL, "pinned URL must not leak via the admin single-delivery endpoint")
+		assert.NotContains(t, *response.LastError, "https://", "no URL should remain in LastError for a pinned subscription")
+		assert.Contains(t, *response.LastError, "(operator-pinned)")
+	})
 }
 
 // =============================================================================

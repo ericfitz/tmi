@@ -451,8 +451,24 @@ func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUI
 		return
 	}
 
-	// Convert to API response type (pass nil for sub — fail-open)
-	response := deliveryRecordToWebhookDelivery(record, nil)
+	// Fetch the owning subscription so pinned LastError is sanitized on this
+	// admin endpoint too — an admin must not be able to recover an
+	// operator-pinned sink URL from an unsanitized LastError. Pass nil only
+	// when the subscription no longer exists (deleted after the delivery was
+	// recorded); the record then carries no pinned URL context to redact
+	// against, and the generic URL-pattern redaction is unavailable without
+	// the sub anyway.
+	var sub *DBWebhookSubscription
+	if GlobalWebhookSubscriptionStore != nil {
+		if fetched, subErr := GlobalWebhookSubscriptionStore.Get(c.Request.Context(), record.SubscriptionID.String()); subErr == nil {
+			sub = &fetched
+		} else {
+			logger.Warn("Subscription %s not found for delivery %s; returning delivery without pinned-URL redaction context: %v",
+				record.SubscriptionID, record.ID, subErr)
+		}
+	}
+
+	response := deliveryRecordToWebhookDelivery(record, sub)
 
 	c.JSON(http.StatusOK, response)
 }
