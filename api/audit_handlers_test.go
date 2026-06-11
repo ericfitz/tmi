@@ -30,7 +30,7 @@ func TestBuildAuditFilters_WithObjectType(t *testing.T) {
 }
 
 func TestBuildAuditFilters_WithChangeType(t *testing.T) {
-	changeType := Created
+	changeType := GetThreatModelAuditTrailParamsChangeTypeCreated
 	filters := buildAuditFilters(nil, &changeType, nil, nil, nil)
 	require.NotNil(t, filters)
 	require.NotNil(t, filters.ChangeType)
@@ -71,7 +71,7 @@ func TestBuildAuditFilters_EmptyStringIgnored(t *testing.T) {
 
 func TestBuildAuditFilters_AllParams(t *testing.T) {
 	objectType := GetThreatModelAuditTrailParamsObjectTypeDiagram
-	changeType := Updated
+	changeType := GetThreatModelAuditTrailParamsChangeTypeUpdated
 	email := AuditActorEmail("bob@example.com")
 	after := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
 	before := time.Date(2025, 6, 30, 0, 0, 0, 0, time.UTC)

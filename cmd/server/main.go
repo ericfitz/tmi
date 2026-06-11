@@ -901,7 +901,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	// records every successful /admin/* write to system_audit_entries.
 	// Both run AFTER AuthzMiddleware so non-admins still get 403 (not 401).
 	{
-		swagger, swaggerErr := api.GetSwagger()
+		swagger, swaggerErr := api.GetSpec()
 		if swaggerErr != nil {
 			logger.Error("Failed to load OpenAPI spec for step-up route table: %v", swaggerErr)
 			os.Exit(1)
@@ -929,6 +929,9 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		// rows are silently dropped via the nil-writer no-op in StepUpAuditor.
 		// Documented intent — see spec "Audit row shapes / Fail-open" §.
 		authHandlers.SetStepUpAuditor(auth.NewStepUpAuditor(api.NewStepUpAuditAdapter(systemAuditRepo)))
+
+		// #398 — admin audit query endpoints reuse the same repo instance.
+		apiServer.SetSystemAuditRepo(systemAuditRepo)
 	}
 
 	// Apply entity-specific middleware

@@ -156,8 +156,8 @@ func SanitizeDiagramCellMetadata(cells []DfdDiagram_Cells_Item) error {
 		if disc == string(EdgeShapeFlow) {
 			// Edge cell
 			if edge, err := cells[i].AsEdge(); err == nil {
-				if edge.Data != nil && edge.Data.Metadata != nil {
-					if sanitizeErr := SanitizeMetadataSlice(edge.Data.Metadata); sanitizeErr != nil {
+				if edge.Data != nil && edge.Data.UnderscoreMetadata != nil {
+					if sanitizeErr := SanitizeMetadataSlice(edge.Data.UnderscoreMetadata); sanitizeErr != nil {
 						return sanitizeErr
 					}
 					_ = SafeFromEdge(&cells[i], edge)
@@ -166,8 +166,8 @@ func SanitizeDiagramCellMetadata(cells []DfdDiagram_Cells_Item) error {
 		} else {
 			// Node cell (actor, process, store, security-boundary, text-box)
 			if node, err := cells[i].AsNode(); err == nil {
-				if node.Data != nil && node.Data.Metadata != nil {
-					if sanitizeErr := SanitizeMetadataSlice(node.Data.Metadata); sanitizeErr != nil {
+				if node.Data != nil && node.Data.UnderscoreMetadata != nil {
+					if sanitizeErr := SanitizeMetadataSlice(node.Data.UnderscoreMetadata); sanitizeErr != nil {
 						return sanitizeErr
 					}
 					_ = SafeFromNode(&cells[i], node)

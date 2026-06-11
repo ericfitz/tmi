@@ -96,6 +96,10 @@ type Server struct {
 	// credentialDeleter is used by DeleteAdminUserClientCredential. When nil the handler
 	// constructs a real ClientCredentialService from the auth service; set only in tests.
 	credentialDeleter credentialDeleter
+	// systemAuditRepo is used by the admin audit query endpoints (#398).
+	// Injected from main.go so the same instance used by the admin audit middleware
+	// (and step-up auditor) is reused here. When nil the handlers return 503.
+	systemAuditRepo SystemAuditRepository
 	// contentOAuth holds the handler for the /me/content_tokens/*,
 	// /admin/users/{internal_uuid}/content_tokens/*, and /oauth2/content_callback
 	// endpoints. When nil, the delegated content provider subsystem is not
@@ -279,6 +283,13 @@ func (s *Server) SetRateLimitingDisabled(disabled bool) {
 // SetSettingsService sets the settings service for database-stored configuration
 func (s *Server) SetSettingsService(settingsService SettingsServiceInterface) {
 	s.settingsService = settingsService
+}
+
+// SetSystemAuditRepo injects the system audit repository used by the admin
+// audit query endpoints (#398). Pass the same instance used by
+// NewAdminAuditMiddleware to avoid duplicate DB handles.
+func (s *Server) SetSystemAuditRepo(repo SystemAuditRepository) {
+	s.systemAuditRepo = repo
 }
 
 // SetExtractionNATS injects the monolith's NATS connection used to publish

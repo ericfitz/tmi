@@ -47,12 +47,11 @@ func TestSafeFromNode_PreservesAllShapes(t *testing.T) {
 }
 
 func TestSafeFromNode_VsFromNode_ShapeCorruption(t *testing.T) {
-	// Demonstrate that the generated FromNode corrupts shape: it hardcodes a
-	// single discriminator value regardless of the input. The exact hardcoded
-	// value depends on oapi-codegen's discriminator iteration order, so we
-	// don't pick a specific "wrong" shape — instead we feed FromNode two
-	// different inputs and assert that the output Shape is identical for
-	// both, which proves it's hardcoded regardless of the input.
+	// Historical note: earlier versions of oapi-codegen generated a FromNode
+	// that hardcoded a fixed discriminator shape (a bug). The current generator
+	// marshals the full Node struct, so shape is now preserved by FromNode too.
+	// SafeFromNode remains the required API per CLAUDE.md — its correctness is
+	// tested below regardless of what the generated method does.
 	id := uuid.New()
 	makeNode := func(shape NodeShape) Node {
 		return Node{
@@ -69,8 +68,7 @@ func TestSafeFromNode_VsFromNode_ShapeCorruption(t *testing.T) {
 		}
 	}
 
-	// Generated FromNode produces the same Shape regardless of input — that's
-	// the bug.
+	// Generated FromNode now preserves shape (generator bug fixed).
 	var item1, item2 DfdDiagram_Cells_Item
 	require.NoError(t, item1.FromNode(makeNode(NodeShapeActor)))
 	require.NoError(t, item2.FromNode(makeNode(NodeShapeStore)))
@@ -79,14 +77,11 @@ func TestSafeFromNode_VsFromNode_ShapeCorruption(t *testing.T) {
 	require.NoError(t, err)
 	out2, err := item2.AsNode()
 	require.NoError(t, err)
-	assert.Equal(t, out1.Shape, out2.Shape,
-		"generated FromNode should hardcode shape (this test documents the bug)")
-	// And at least one of the inputs is corrupted: the input shapes differ
-	// but at most one of them can match the hardcoded output.
-	assert.False(t, out1.Shape == NodeShapeActor && out2.Shape == NodeShapeStore,
-		"generated FromNode cannot preserve both distinct input shapes")
+	// Both inputs are preserved with the current generator.
+	assert.Equal(t, NodeShapeActor, out1.Shape, "generated FromNode should preserve actor shape")
+	assert.Equal(t, NodeShapeStore, out2.Shape, "generated FromNode should preserve store shape")
 
-	// SafeFromNode preserves shape for any input.
+	// SafeFromNode continues to preserve shape for any input (required API per CLAUDE.md).
 	for _, shape := range []NodeShape{NodeShapeActor, NodeShapeStore, NodeShapeProcess} {
 		var safeItem DfdDiagram_Cells_Item
 		require.NoError(t, SafeFromNode(&safeItem, makeNode(shape)))
@@ -150,7 +145,7 @@ func TestSafeFromNode_PreservesAllNodeFields(t *testing.T) {
 				Rx              *float32                  `json:"rx,omitempty"`
 				Ry              *float32                  `json:"ry,omitempty"`
 				Stroke          *string                   `json:"stroke,omitempty"`
-				StrokeDasharray *string                   `json:"strokeDasharray"`
+				StrokeDasharray *string                   `json:"strokeDasharray,omitempty"`
 				StrokeWidth     *float32                  `json:"strokeWidth,omitempty"`
 			}{
 				Fill:   &fillColor,
@@ -249,7 +244,7 @@ func TestSanitizeDiagramCellMetadata_PreservesShape(t *testing.T) {
 			Width  float32 `json:"width"`
 		}{Height: 60, Width: 120},
 		Data: &Node_Data{
-			Metadata: metadata,
+			UnderscoreMetadata: metadata,
 		},
 	}
 
@@ -351,12 +346,12 @@ func TestSanitizeDiagramCellMetadata_AllNodeShapes(t *testing.T) {
 						Rx              *float32                  `json:"rx,omitempty"`
 						Ry              *float32                  `json:"ry,omitempty"`
 						Stroke          *string                   `json:"stroke,omitempty"`
-						StrokeDasharray *string                   `json:"strokeDasharray"`
+						StrokeDasharray *string                   `json:"strokeDasharray,omitempty"`
 						StrokeWidth     *float32                  `json:"strokeWidth,omitempty"`
 					}{},
 				},
 				Data: &Node_Data{
-					Metadata: &[]Metadata{{Key: "test", Value: "value"}},
+					UnderscoreMetadata: &[]Metadata{{Key: "test", Value: "value"}},
 				},
 			}
 

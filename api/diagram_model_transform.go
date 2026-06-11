@@ -213,8 +213,8 @@ func transformNodeToMinimal(node Node, childrenMap map[string][]openapi_types.UU
 
 	// Extract and flatten metadata from node.Data._metadata
 	var metadata map[string]string
-	if node.Data != nil && node.Data.Metadata != nil {
-		metadata = flattenMetadata(node.Data.Metadata)
+	if node.Data != nil && node.Data.UnderscoreMetadata != nil {
+		metadata = flattenMetadata(node.Data.UnderscoreMetadata)
 	} else {
 		metadata = make(map[string]string)
 	}
@@ -323,8 +323,8 @@ func transformEdgeToMinimal(edge Edge) MinimalEdge {
 
 	// Extract and flatten metadata from edge.Data._metadata
 	var metadata map[string]string
-	if edge.Data != nil && edge.Data.Metadata != nil {
-		metadata = flattenMetadata(edge.Data.Metadata)
+	if edge.Data != nil && edge.Data.UnderscoreMetadata != nil {
+		metadata = flattenMetadata(edge.Data.UnderscoreMetadata)
 	} else {
 		metadata = make(map[string]string)
 	}
