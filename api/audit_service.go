@@ -29,12 +29,14 @@ type AuditParams struct {
 
 // AuditFilters defines filtering criteria for querying audit entries.
 type AuditFilters struct {
-	ObjectType *string
-	ObjectID   *string
-	ChangeType *string
-	ActorEmail *string
-	After      *time.Time
-	Before     *time.Time
+	ObjectType    *string
+	ObjectID      *string
+	ChangeType    *string
+	ActorEmail    *string
+	ActorProvider *string // admin cross-TM queries (#398)
+	ThreatModelID *string // admin cross-TM queries (#398); per-TM reads still pass the scoped WHERE
+	After         *time.Time
+	Before        *time.Time
 }
 
 // AuditEntryResponse represents an audit entry as returned by the service layer.
@@ -91,4 +93,10 @@ type AuditServiceInterface interface {
 	// configured retention period (SYSTEM_AUDIT_RETENTION_DAYS, default 365,
 	// minimum 90). Returns the number of entries pruned.
 	PruneSystemAuditEntries(ctx context.Context) (int, error)
+
+	// ListAuditEntriesAdmin lists audit entries across ALL threat models for
+	// admin investigation (#398). Keyset pagination: pass the decoded cursor
+	// of the previous page (nil for the first page); returns the next-page
+	// cursor (nil when exhausted), encoded for the wire.
+	ListAuditEntriesAdmin(ctx context.Context, limit int, cursor *auditCursor, filters *AuditFilters) ([]AuditEntryResponse, int, *string, error)
 }

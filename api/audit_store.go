@@ -271,6 +271,36 @@ func (s *GormAuditService) GetAuditEntry(ctx context.Context, entryID string) (*
 	return &resp, nil
 }
 
+// ListAuditEntriesAdmin lists audit entries across all threat models with
+// keyset pagination ordered (created_at DESC, id DESC). The cursor predicate
+// uses the expanded comparison form because Oracle has no row-value
+// comparison.
+func (s *GormAuditService) ListAuditEntriesAdmin(ctx context.Context, limit int, cursor *auditCursor, filters *AuditFilters) ([]AuditEntryResponse, int, *string, error) {
+	count := applyAuditFilters(s.db.WithContext(ctx).Model(&models.AuditEntry{}), filters)
+	var total int64
+	if err := count.Count(&total).Error; err != nil {
+		return nil, 0, nil, fmt.Errorf("failed to count audit entries: %w", err)
+	}
+
+	q := applyAuditFilters(s.db.WithContext(ctx).Model(&models.AuditEntry{}), filters)
+	if cursor != nil {
+		q = q.Where("created_at < ? OR (created_at = ? AND id < ?)",
+			cursor.CreatedAt, cursor.CreatedAt, cursor.ID)
+	}
+	var entries []models.AuditEntry
+	if err := q.Order("created_at DESC, id DESC").Limit(limit).Find(&entries).Error; err != nil {
+		return nil, 0, nil, fmt.Errorf("failed to list audit entries: %w", err)
+	}
+
+	var next *string
+	if len(entries) == limit && limit > 0 {
+		last := entries[len(entries)-1]
+		enc := encodeAuditCursor(last.CreatedAt, string(last.ID))
+		next = &enc
+	}
+	return toAuditEntryResponses(entries), int(total), next, nil
+}
+
 // GetSnapshot reconstructs the full entity state at a given audit entry's version.
 // It finds the nearest checkpoint and applies reverse diffs to reconstruct the state.
 func (s *GormAuditService) GetSnapshot(ctx context.Context, entryID string) ([]byte, error) {
@@ -569,6 +599,12 @@ func applyAuditFilters(query *gorm.DB, filters *AuditFilters) *gorm.DB {
 	}
 	if filters.ActorEmail != nil {
 		query = query.Where("actor_email = ?", *filters.ActorEmail)
+	}
+	if filters.ActorProvider != nil {
+		query = query.Where("actor_provider = ?", *filters.ActorProvider)
+	}
+	if filters.ThreatModelID != nil {
+		query = query.Where("threat_model_id = ?", *filters.ThreatModelID)
 	}
 	if filters.After != nil {
 		query = query.Where("created_at >= ?", *filters.After)
