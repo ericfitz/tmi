@@ -71,15 +71,23 @@ review).
 
 Floor values:
 
-| Table | Floor source | Default |
-|---|---|---|
-| `audit_entries` | `AUDIT_RETENTION_DAYS` | 365 |
-| `version_snapshots` | `VERSION_RETENTION_DAYS` | 90 |
+| Table | Floor source | Default config | Installed floor (default) |
+|---|---|---|---|
+| `audit_entries` | `AUDIT_RETENTION_DAYS` | 365 | 364 |
+| `version_snapshots` | `min(VERSION_RETENTION_DAYS, TOMBSTONE_RETENTION_DAYS)` | min(90, 30) = 30 | 29 |
+
+The `version_snapshots` floor must not exceed the tombstone retention because `PurgeTombstones`
+(`api/audit_store.go`) legitimately deletes snapshots of sub-resources purged
+`TOMBSTONE_RETENTION_DAYS` (30) days after soft-deletion; mutations stop at soft-delete, so
+those snapshots are at least 30 days old but can be far younger than `VERSION_RETENTION_DAYS`.
+Snapshots are rollback payloads, not the tamper-evident record — `audit_entries` carries the
+evidence and keeps the long floor.
 
 Two guards on the configured value:
 
-- **Hard minimum: 30 days.** If configured retention is lower, install a 30-day floor and log a
-  warning. Misconfiguration cannot gut tamper resistance.
+- **Hard minimum.** 30 days for `audit_entries`, 7 days for `version_snapshots`. If configured
+  retention is lower, install the minimum floor and log a warning. Misconfiguration cannot gut
+  tamper resistance.
 - **Skew margin: 1 day.** Installed floor = configured days − 1, so app-clock vs DB-clock
   disagreement at the cutoff boundary cannot block a legitimate prune.
 
@@ -106,6 +114,9 @@ the only supported path" comment is rewritten to describe the age-floor policy.
   #400's design, which reuses this age-floor pattern.
 - Partitioning (`DROP PARTITION`-style pruning) is considered in #400; unnecessary for these
   two tables at current write rates.
+- Pre-existing orphan leak: the threat-model hard-delete cascade (`api/tombstone_store.go`)
+  never deletes the children's `version_snapshots`, so they accumulate forever; only the
+  sub-resource purge path cleans up. File a follow-up issue; not fixed here.
 
 ## Testing
 
