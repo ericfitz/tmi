@@ -885,6 +885,24 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "alias_counters_pkey", Columns: []string{"parent_id", "object_type"}, IsUnique: true},
 			},
 		},
+		{
+			Name: "linked_identities",
+			Columns: []ColumnSchema{
+				{Name: "id", DataType: "uuid", IsNullable: false, IsPrimaryKey: true},
+				{Name: "user_internal_uuid", DataType: "uuid", IsNullable: false},
+				{Name: "provider", DataType: "character varying", IsNullable: false},
+				{Name: "provider_user_id", DataType: "character varying", IsNullable: false},
+				{Name: "email", DataType: "character varying", IsNullable: true},
+				{Name: "name", DataType: "character varying", IsNullable: true},
+				{Name: "linked_at", DataType: "timestamp with time zone", IsNullable: false},
+				{Name: "last_used_at", DataType: "timestamp with time zone", IsNullable: true},
+			},
+			Indexes: []IndexSchema{
+				{Name: "linked_identities_pkey", Columns: []string{"id"}, IsUnique: true},
+				{Name: "uniq_linked_provider_sub", Columns: []string{"provider", "provider_user_id"}, IsUnique: true},
+				{Name: "idx_linked_user", Columns: []string{"user_internal_uuid"}, IsUnique: false},
+			},
+		},
 	}
 	schema = append(schema, GetTimmySchema()...)
 	return schema

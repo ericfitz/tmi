@@ -557,6 +557,41 @@ func (r *GormDeletionRepository) deleteUserTimmyEntities(tx *gorm.DB, userIntern
 	return nil
 }
 
+// nullifyTriageNoteRefs sets created_by_internal_uuid and modified_by_internal_uuid
+// to NULL on triage notes that reference the deleted user.
+func (r *GormDeletionRepository) nullifyTriageNoteRefs(tx *gorm.DB, userInternalUUID string) error {
+	if err := tx.Model(&models.TriageNote{}).
+		Where("created_by_internal_uuid = ?", userInternalUUID).
+		Update("created_by_internal_uuid", nil).Error; err != nil {
+		return fmt.Errorf("failed to nullify triage note created_by: %w", dberrors.Classify(err))
+	}
+	if err := tx.Model(&models.TriageNote{}).
+		Where("modified_by_internal_uuid = ?", userInternalUUID).
+		Update("modified_by_internal_uuid", nil).Error; err != nil {
+		return fmt.Errorf("failed to nullify triage note modified_by: %w", dberrors.Classify(err))
+	}
+	return nil
+}
+
+// deleteUserLinkedIdentities deletes all linked identity rows owned by the user.
+func (r *GormDeletionRepository) deleteUserLinkedIdentities(tx *gorm.DB, userInternalUUID string) error {
+	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.LinkedIdentity{}).Error; err != nil {
+		return fmt.Errorf("failed to delete linked identities: %w", dberrors.Classify(err))
+	}
+	return nil
+}
+
+// deleteUserUsabilityFeedback deletes usability feedback rows created by the user.
+// The model declares constraint:- to suppress GORM-managed FKs, but databases that were
+// AutoMigrated before that tag was added retain fk_usability_feedback_created_by;
+// usability_feedback.created_by is also NOT NULL, so deletion is the only path.
+func (r *GormDeletionRepository) deleteUserUsabilityFeedback(tx *gorm.DB, userInternalUUID string) error {
+	if err := tx.Where("created_by = ?", userInternalUUID).Delete(&models.UsabilityFeedback{}).Error; err != nil {
+		return fmt.Errorf("failed to delete usability feedback: %w", dberrors.Classify(err))
+	}
+	return nil
+}
+
 // deleteUserTeamProjectAndGrantRefs deletes team_members,
 // team_responsible_parties, and project_responsible_parties rows for the user,
 // and SETs threat_model_access.granted_by_internal_uuid to NULL where the
@@ -656,8 +691,8 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 	// constraint:- to suppress GORM-managed FKs, but databases that were
 	// AutoMigrated before that tag was added retain fk_usability_feedback_created_by;
 	// usability_feedback.created_by is also NOT NULL, so deletion is the only path.
-	if err := tx.Where("created_by = ?", userInternalUUID).Delete(&models.UsabilityFeedback{}).Error; err != nil {
-		return fmt.Errorf("failed to delete usability feedback: %w", dberrors.Classify(err))
+	if err := r.deleteUserUsabilityFeedback(tx, userInternalUUID); err != nil {
+		return err
 	}
 
 	// 10c. Clean up team/project memberships and grant audit refs.
@@ -665,16 +700,15 @@ func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInte
 		return err
 	}
 
-	// 11. SET NULL on triage notes created/modified by this user
-	if err := tx.Model(&models.TriageNote{}).
-		Where("created_by_internal_uuid = ?", userInternalUUID).
-		Update("created_by_internal_uuid", nil).Error; err != nil {
-		return fmt.Errorf("failed to nullify triage note created_by: %w", dberrors.Classify(err))
+	// 11. SET NULL on triage notes created/modified by this user;
+	// then delete linked identities owned by the user.
+	if err := r.nullifyTriageNoteRefs(tx, userInternalUUID); err != nil {
+		return err
 	}
-	if err := tx.Model(&models.TriageNote{}).
-		Where("modified_by_internal_uuid = ?", userInternalUUID).
-		Update("modified_by_internal_uuid", nil).Error; err != nil {
-		return fmt.Errorf("failed to nullify triage note modified_by: %w", dberrors.Classify(err))
+
+	// 11a. Delete linked identities owned by the user
+	if err := r.deleteUserLinkedIdentities(tx, userInternalUUID); err != nil {
+		return err
 	}
 
 	// 12. SET NULL on threat model security_reviewer where deleted user was the reviewer

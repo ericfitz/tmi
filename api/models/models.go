@@ -942,6 +942,7 @@ func AllModels() []any {
 		&UserAPIQuota{},
 		&GroupMember{},
 		&UserPreference{},
+		&LinkedIdentity{},
 		&SystemSetting{},
 		&SurveyTemplate{},
 		&SurveyTemplateVersion{},

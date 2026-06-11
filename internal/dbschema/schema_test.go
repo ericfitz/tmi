@@ -39,6 +39,7 @@ func TestGetExpectedSchema(t *testing.T) {
 		"usability_feedback",
 		"content_feedback",
 		"alias_counters",
+		"linked_identities",
 	}
 
 	if len(schemas) != len(expectedTables) {
