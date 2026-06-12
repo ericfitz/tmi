@@ -60,9 +60,10 @@ func (s *Server) ListMyIdentities(c *gin.Context) {
 	rows, err := s.linkedIdentityStore.ListByUser(ctx, userUUID)
 	if err != nil {
 		logger.Error("ListMyIdentities: store error: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to retrieve linked identities",
+		reqErr := StoreErrorToRequestError(err, "linked identities not found", "Failed to retrieve linked identities")
+		c.JSON(reqErr.Status, Error{
+			Error:            reqErr.Code,
+			ErrorDescription: reqErr.Message,
 		})
 		return
 	}
@@ -177,9 +178,10 @@ func (s *Server) DeleteMyIdentity(c *gin.Context, id openapi_types.UUID) {
 			return
 		}
 		logger.Error("DeleteMyIdentity: delete failed: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to delete linked identity",
+		reqErr := StoreErrorToRequestError(err, "linked identity not found", "Failed to delete linked identity")
+		c.JSON(reqErr.Status, Error{
+			Error:            reqErr.Code,
+			ErrorDescription: reqErr.Message,
 		})
 		return
 	}

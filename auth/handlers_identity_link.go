@@ -272,6 +272,39 @@ func (h *Handlers) HandleIdentityLinkCallback(c *gin.Context, code string, state
 		return fmt.Errorf("empty subject from provider")
 	}
 
+	// Boundary-validate IdP-supplied fields against column limits before staging.
+	//
+	// provider_user_id is an identity key: truncating it would silently map two
+	// distinct identities to the same row, which is a security error. Reject it
+	// and redirect with error=invalid_identity instead.
+	const maxProviderUserIDLen = 500
+	if len(providerUserID) > maxProviderUserIDLen {
+		actor := IdentityLinkActor{Provider: stateData.ProviderID, UserUUID: stateData.LinkUserUUID}
+		_ = h.identityLinkAud().LogFailed(ctx, actor, "identity_link_failed", map[string]string{
+			"reason": "provider_user_id_too_long",
+		})
+		redirectURL := fmt.Sprintf("%s?error=%s", stateData.ClientCallback, url.QueryEscape("invalid_identity"))
+		c.Redirect(http.StatusFound, redirectURL)
+		return fmt.Errorf("provider_user_id exceeds maximum length %d", maxProviderUserIDLen)
+	}
+
+	// email and name are display-cache fields: truncating is safe because they are
+	// never used as identity keys. Column sizes are 320 (email) and 256 (name).
+	const maxEmailLen = 320
+	const maxNameLen = 256
+	idpEmail := userInfo.Email
+	if len(idpEmail) > maxEmailLen {
+		logger.Warn("HandleIdentityLinkCallback: IdP email truncated from %d to %d chars for provider=%s",
+			len(idpEmail), maxEmailLen, stateData.ProviderID)
+		idpEmail = idpEmail[:maxEmailLen]
+	}
+	idpName := userInfo.Name
+	if len(idpName) > maxNameLen {
+		logger.Warn("HandleIdentityLinkCallback: IdP name truncated from %d to %d chars for provider=%s",
+			len(idpName), maxNameLen, stateData.ProviderID)
+		idpName = idpName[:maxNameLen]
+	}
+
 	actor := IdentityLinkActor{
 		Provider:       stateData.ProviderID,
 		ProviderUserID: providerUserID,
@@ -307,8 +340,8 @@ func (h *Handlers) HandleIdentityLinkCallback(c *gin.Context, code string, state
 		UserUUID:       stateData.LinkUserUUID,
 		Provider:       stateData.ProviderID,
 		ProviderUserID: providerUserID,
-		Email:          userInfo.Email,
-		Name:           userInfo.Name,
+		Email:          idpEmail,
+		Name:           idpName,
 	}
 	pendingJSON, err := json.Marshal(pending)
 	if err != nil {
@@ -554,6 +587,17 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 				"error":             "conflict",
 				"error_code":        "identity_already_bound",
 				"error_description": "This identity is already linked to a TMI account",
+			})
+			return
+		}
+		// Constraint or FK violations indicate invalid input (e.g. referential
+		// integrity failure); surface as 400 rather than 500. The package auth
+		// cannot import api's StoreErrorToRequestError, so we classify inline.
+		if errors.Is(err, dberrors.ErrConstraint) || errors.Is(err, dberrors.ErrForeignKey) {
+			logger.Warn("ConfirmIdentityLink: constraint error: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             "invalid_input",
+				"error_description": "Identity data violates a database constraint",
 			})
 			return
 		}
