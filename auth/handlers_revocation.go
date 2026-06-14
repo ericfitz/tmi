@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -218,13 +219,50 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 
 	// Method 2: Check for client credentials in request body
 	if !isAuthenticated && req.ClientID != "" && req.ClientSecret != "" {
+		// /oauth2/revoke is an alternate brute-force oracle for client
+		// secrets, so it must share the T15 (#350) per-client_id lockout used
+		// on /oauth2/token — otherwise an attacker rotating IPs can guess
+		// secrets here without tripping the /oauth2/token lockout. Check
+		// before any bcrypt work and return 429 with Retry-After when locked.
+		ctx := c.Request.Context()
+		lockout := h.tokenLockout()
+		if d := lockout.Check(ctx, "client:"+req.ClientID); d.Locked {
+			logger.Warn(
+				"OAuth token lockout (revoke): client_id=%s, count=%d, retry_after=%s, ip=%s",
+				req.ClientID, d.Count, d.RetryAfter, c.ClientIP(),
+			)
+			c.Header("Retry-After", strconv.Itoa(int(d.RetryAfter.Seconds())))
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error":             "too_many_requests",
+				"error_description": "Too many failed authentication attempts; retry later",
+			})
+			return
+		}
+
 		// Validate client credentials using existing service method
-		_, err := h.service.HandleClientCredentialsGrant(c.Request.Context(), req.ClientID, req.ClientSecret)
+		_, err := h.service.HandleClientCredentialsGrant(ctx, req.ClientID, req.ClientSecret)
 		if err == nil {
 			isAuthenticated = true
+			// Successful auth resets the lockout counter so legitimate
+			// clients regain a clean slate.
+			lockout.Reset(ctx, "client:"+req.ClientID)
 			logger.Debug("Revocation request authenticated via client credentials")
 		} else {
 			logger.Debug("Client credentials validation failed: %v", err)
+			if err.Error() == "invalid_client" {
+				if d, recordErr := lockout.RecordFailure(ctx, "client:"+req.ClientID); recordErr == nil && d.Locked {
+					logger.Warn(
+						"OAuth token lockout engaged (revoke): client_id=%s, count=%d, retry_after=%s, ip=%s",
+						req.ClientID, d.Count, d.RetryAfter, c.ClientIP(),
+					)
+					c.Header("Retry-After", strconv.Itoa(int(d.RetryAfter.Seconds())))
+					c.JSON(http.StatusTooManyRequests, gin.H{
+						"error":             "too_many_requests",
+						"error_description": "Too many failed authentication attempts; retry later",
+					})
+					return
+				}
+			}
 		}
 	}
 

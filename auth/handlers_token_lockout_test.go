@@ -61,6 +61,52 @@ func TestToken_ClientCredentials_LockoutReturns429(t *testing.T) {
 	assert.Greater(t, secs, 0, "Retry-After must be positive")
 }
 
+// TestRevoke_ClientCredentials_LockoutReturns429 pins that /oauth2/revoke
+// shares the T15 per-client_id lockout (#462). /oauth2/revoke authenticates
+// client credentials too, so without this wiring it is an alternate
+// brute-force oracle for client secrets that bypasses the /oauth2/token
+// lockout. When the failure counter crosses the hard-lock threshold, the
+// revoke handler must return 429 with a numeric Retry-After BEFORE the
+// secret is checked — exactly like /oauth2/token.
+func TestRevoke_ClientCredentials_LockoutReturns429(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = client.Close() })
+
+	// Pre-populate the lockout counter to a hard-lock count.
+	lockout := NewOAuthTokenLockout(client)
+	for i := 0; i < 50; i++ {
+		_, err := lockout.RecordFailure(context.Background(), "client:tmi_cc_locked")
+		require.NoError(t, err)
+	}
+
+	h := &Handlers{}
+	h.SetTokenLockout(lockout)
+	router.POST("/oauth2/revoke", h.RevokeToken)
+
+	form := url.Values{}
+	form.Set("token", "some-opaque-token")
+	form.Set("client_id", "tmi_cc_locked")
+	form.Set("client_secret", "any-value")
+
+	req := httptest.NewRequest(http.MethodPost, "/oauth2/revoke", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusTooManyRequests, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "too_many_requests")
+
+	retryAfter := w.Header().Get("Retry-After")
+	require.NotEmpty(t, retryAfter, "Retry-After header must be present")
+	secs, err := strconv.Atoi(retryAfter)
+	require.NoError(t, err, "Retry-After must be an integer (seconds)")
+	assert.Greater(t, secs, 0, "Retry-After must be positive")
+}
+
 // TestToken_ClientCredentials_BelowThresholdNotLocked is the unit-level
 // guard that a sub-threshold counter does not trip the lockout response.
 // The full handler integration would require a real auth service; this

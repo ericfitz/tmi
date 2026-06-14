@@ -447,8 +447,9 @@ Backoff schedule (don't change without a security review):
 
 - **rg pattern (block):** `rg -nP 'HandleClientCredentialsGrant\(' --type go -- auth/ api/ | rg -v '_test\.go|tokenLockout|lockout\.'` — fires when the grant is invoked without a surrounding lockout call.
 - **rg pattern (block):** `rg -nP '"client_credentials"' --type go -- auth/handlers_token.go | rg -v 'tokenLockout|lockout\.'` — fires if the `client_credentials` switch arm loses its lockout wiring.
+- **rg pattern (block):** `rg -nP 'HandleClientCredentialsGrant\(' --type go -- auth/handlers_revocation.go | rg -v 'tokenLockout|lockout\.'` — fires if `/oauth2/revoke` (#462) loses its lockout wiring. `/oauth2/revoke` authenticates client credentials too, so it is a second brute-force oracle for client secrets and MUST share the same `client:{client_id}` lockout as `/oauth2/token`.
 - **rg pattern (review):** `rg -n 'invalid_client' --type go -- auth/` — every match should be near a `RecordFailure` call.
-- **Files of interest:** `auth/handlers_token.go` (`Token` handler `client_credentials` branch), `auth/oauth_token_lockout.go`, `auth/handlers.go` (`tokenLockout` accessor).
+- **Files of interest:** `auth/handlers_token.go` (`Token` handler `client_credentials` branch), `auth/handlers_revocation.go` (`RevokeToken` client-credentials auth path, #462), `auth/oauth_token_lockout.go`, `auth/handlers.go` (`tokenLockout` accessor).
 
 #### Tests that pin the fix
 
@@ -457,6 +458,7 @@ Backoff schedule (don't change without a security review):
 - `auth/oauth_token_lockout_test.go::TestOAuthTokenLockout_ResetClearsCounter` — pins the AC: success resets.
 - `auth/oauth_token_lockout_test.go::TestOAuthTokenLockout_PerClientIsolation` — pins that the counter is per-client_id.
 - `auth/handlers_token_lockout_test.go::TestToken_ClientCredentials_LockoutReturns429` — pins the end-to-end handler behavior: locked client gets 429 + numeric Retry-After.
+- `auth/handlers_token_lockout_test.go::TestRevoke_ClientCredentials_LockoutReturns429` — pins that `/oauth2/revoke` (#462) shares the lockout: locked client gets 429 + numeric Retry-After before the secret is checked.
 
 #### Notes
 
