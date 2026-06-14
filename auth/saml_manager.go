@@ -254,23 +254,85 @@ func (m *SAMLManager) ProcessSAMLResponse(ctx context.Context, providerID string
 	return user, &tokenPair, nil
 }
 
+// samlUserResolver is the subset of *Service operations needed by processUser.
+// It embeds the OAuth path's userResolver (handlers_oauth_user.go) so SAML
+// user matching mirrors the tiered strategy in findOrCreateUserWithResolver,
+// and adds UpdateUser for the profile refresh on a successful match. The
+// indirection exists so the matching logic can be unit-tested with a fake.
+type samlUserResolver interface {
+	userResolver
+	UpdateUser(ctx context.Context, user User) error
+}
+
 // processUser creates or updates a user from SAML assertion
 func (m *SAMLManager) processUser(ctx context.Context, userInfo *saml.UserInfo, providerID string) (*User, error) {
-	// Check if user exists
-	existingUser, err := m.service.GetUserByEmail(ctx, userInfo.Email)
-	if err == nil {
-		// User exists, update their info
-		existingUser.Name = userInfo.Name
-		existingUser.ModifiedAt = time.Now()
+	return processSAMLUser(ctx, m.service, userInfo, providerID)
+}
 
-		if err := m.service.UpdateUser(ctx, existingUser); err != nil {
-			return nil, fmt.Errorf("failed to update user: %w", err)
+// processSAMLUser implements the same tiered matching strategy as the OAuth
+// path (findOrCreateUserWithResolver):
+//
+//  1. Provider + provider_user_id (strongest)
+//     1b. Linked identity (provider + provider_user_id)
+//  2. Provider + email
+//  3. Email only — sparse records only. A record already bound to a
+//     provider is rejected with errCrossProviderConflict (#290): email is
+//     not a trust boundary across providers, and returning the matched user
+//     would mint tokens for the victim's account.
+func processSAMLUser(ctx context.Context, r samlUserResolver, userInfo *saml.UserInfo, providerID string) (*User, error) {
+	logger := slogging.Get()
+
+	if userInfo.ID != "" {
+		// Tier 1: provider + provider_user_id (strongest match)
+		if user, err := r.GetUserByProviderID(ctx, providerID, userInfo.ID); err == nil {
+			return updateSAMLUserOnLogin(ctx, r, user, userInfo)
 		}
 
-		return &existingUser, nil
+		// Tier 1b: linked identity (provider + provider_user_id)
+		if li, err := r.GetLinkedIdentityByProviderSub(ctx, providerID, userInfo.ID); err == nil {
+			owner, ownerErr := r.GetUserByInternalUUID(ctx, string(li.UserInternalUUID))
+			if ownerErr == nil {
+				if touchErr := r.TouchLinkedIdentityLastUsed(ctx, string(li.ID)); touchErr != nil {
+					logger.Warn("Failed to touch linked identity last_used_at: id=%s, err=%v", string(li.ID), touchErr)
+				}
+				return updateSAMLUserOnLogin(ctx, r, owner, userInfo)
+			}
+			logger.Warn("Linked identity owner not found: linked_identity_id=%s, user_uuid=%s",
+				string(li.ID), string(li.UserInternalUUID))
+		}
 	}
 
-	// Create new user
+	// Tier 2: provider + email
+	if user, err := r.GetUserByProviderAndEmail(ctx, providerID, userInfo.Email); err == nil {
+		if user.ProviderUserID == "" && userInfo.ID != "" {
+			user.ProviderUserID = userInfo.ID
+		}
+		return updateSAMLUserOnLogin(ctx, r, user, userInfo)
+	}
+
+	// Tier 3: email only (sparse records only). If the matched record is
+	// bound to any provider — a different SAML provider, an OAuth provider,
+	// or this provider under a different email casing — tiers 1–2 would have
+	// matched it, so reject instead of returning the existing account.
+	if user, err := r.GetUserByEmail(ctx, userInfo.Email); err == nil {
+		if user.Provider != "" {
+			logger.Warn("SAML cross-provider email match rejected: email=%s, existing_provider=%s, attempted_provider=%s",
+				userInfo.Email, user.Provider, providerID)
+			return nil, errCrossProviderConflict
+		}
+
+		// Sparse record: complete it with the asserting provider's identity.
+		// SAML assertions are IdP-signed, so the email is considered verified
+		// (matches the new-user path below).
+		user.Provider = providerID
+		if user.ProviderUserID == "" && userInfo.ID != "" {
+			user.ProviderUserID = userInfo.ID
+		}
+		user.EmailVerified = true
+		return updateSAMLUserOnLogin(ctx, r, user, userInfo)
+	}
+
+	// No match found — create new user
 	newUser := User{
 		InternalUUID:   uuid.New().String(),
 		Provider:       providerID,
@@ -282,12 +344,25 @@ func (m *SAMLManager) processUser(ctx context.Context, userInfo *saml.UserInfo, 
 		ModifiedAt:     time.Now(),
 	}
 
-	createdUser, err := m.service.CreateUser(ctx, newUser)
+	createdUser, err := r.CreateUser(ctx, newUser)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
 	return &createdUser, nil
+}
+
+// updateSAMLUserOnLogin refreshes mutable profile fields on a matched user and
+// persists the record.
+func updateSAMLUserOnLogin(ctx context.Context, r samlUserResolver, user User, userInfo *saml.UserInfo) (*User, error) {
+	user.Name = userInfo.Name
+	user.ModifiedAt = time.Now()
+
+	if err := r.UpdateUser(ctx, user); err != nil {
+		return nil, fmt.Errorf("failed to update user: %w", err)
+	}
+
+	return &user, nil
 }
 
 // extractGroups extracts group memberships from SAML assertion
