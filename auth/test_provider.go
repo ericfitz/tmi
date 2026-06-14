@@ -42,7 +42,7 @@ func NewTestProvider(config OAuthProviderConfig, callbackURL string) *TestProvid
 		},
 	}
 
-	httpClient := &http.Client{Timeout: 10 * time.Second}
+	httpClient := &http.Client{Timeout: 10 * time.Second, CheckRedirect: refuseRedirects}
 
 	return &TestProvider{
 		BaseProvider: &BaseProvider{

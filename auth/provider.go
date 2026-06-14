@@ -111,6 +111,15 @@ type BaseProvider struct {
 	httpClient   *http.Client
 }
 
+// refuseRedirects is a CheckRedirect policy that blocks all HTTP redirects.
+// Provider token/userinfo URLs are runtime-mutable settings; following a
+// redirect (Go re-sends the request body on 307/308) would let a hostile or
+// compromised provider endpoint bounce a client_secret-bearing request to an
+// internal or attacker-chosen target (SSRF).
+func refuseRedirects(req *http.Request, _ []*http.Request) error {
+	return fmt.Errorf("refusing to follow redirect to %s: provider endpoints must not redirect", req.URL.Redacted())
+}
+
 // NewBaseProvider creates a new base OAuth provider
 func NewBaseProvider(config OAuthProviderConfig, callbackURL string) (*BaseProvider, error) {
 	logger := slogging.Get()
@@ -128,8 +137,9 @@ func NewBaseProvider(config OAuthProviderConfig, callbackURL string) (*BaseProvi
 	}
 
 	httpClient := &http.Client{
-		Timeout:   10 * time.Second,
-		Transport: otelhttp.NewTransport(http.DefaultTransport),
+		Timeout:       10 * time.Second,
+		Transport:     otelhttp.NewTransport(http.DefaultTransport),
+		CheckRedirect: refuseRedirects,
 	}
 
 	logger.Info("Base OAuth provider initialized successfully provider_id=%v scopes=%v", config.ID, config.Scopes)
@@ -164,6 +174,10 @@ func (p *BaseProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 
 	// Standard OAuth2 token exchange
 	logger.Debug("Using standard OAuth2 token exchange provider_id=%v", p.config.ID)
+	// Pin the oauth2 package to the hardened provider client; without this it
+	// falls back to http.DefaultClient (no timeout, follows up to 10
+	// redirects).
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, p.httpClient)
 	token, err := p.oauth2Config.Exchange(ctx, code)
 	if err != nil {
 		logger.Error("Failed to exchange authorization code provider_id=%v error=%v", p.config.ID, err)
@@ -388,6 +402,9 @@ func NewGenericOIDCProvider(config OAuthProviderConfig, callbackURL string) (*Ge
 
 	// Create an OIDC provider
 	ctx := context.Background()
+	// Pin discovery (and the JWKS keyset the provider retains for ID token
+	// verification) to the hardened client; otherwise http.DefaultClient is used.
+	ctx = oidc.ClientContext(ctx, baseProvider.httpClient)
 	provider, err := oidc.NewProvider(ctx, config.Issuer)
 	if err != nil {
 		// For providers like Microsoft with issuer validation issues, fall back to base provider

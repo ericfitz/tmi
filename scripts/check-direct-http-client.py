@@ -3,13 +3,13 @@
 # /// script
 # requires-python = ">=3.11"
 # ///
-"""Check that non-helper Go code in api/ does not construct its own outbound HTTP clients.
+"""Check that non-helper Go code in api/ and auth/ does not construct its own outbound HTTP clients.
 
 All server-originated outbound HTTP MUST go through SafeHTTPClient
 (api/safe_http_client.go) so that scheme allowlist, SSRF blocklist, DNS-pinning,
 header-size cap, body-size cap, and ResponseHeaderTimeout are enforced uniformly.
 
-This check fails if any non-test, non-helper file under api/ either constructs
+This check fails if any non-test, non-helper file under api/ or auth/ either constructs
 &http.Client{...} or references http.DefaultClient. The exception list below
 documents pre-existing legacy callers that have not yet been migrated; they are
 tracked by a follow-up issue. New violations should be fixed by routing through
@@ -38,6 +38,18 @@ from tmi_common import (  # noqa: E402
 # SafeHTTPClient instead of being added here.
 LEGACY_EXCEPTIONS: set[str] = set()
 
+# auth/ cannot import api/ (api already imports auth), so these files construct
+# their own hardened http.Client in-package: an explicit timeout plus a
+# CheckRedirect policy (refuseRedirects in auth/provider.go) that refuses all
+# redirects. They are the only allowed constructor sites in auth/; new outbound
+# HTTP in auth/ should reuse BaseProvider.httpClient or DiscoveryClient instead
+# of being added here. Keys are project-root-relative paths.
+HARDENED_AUTH_EXCEPTIONS = {
+    "auth/oidc_discovery.go",
+    "auth/provider.go",
+    "auth/test_provider.go",
+}
+
 # The helper itself is allowed to construct an http.Client; that is its job.
 HELPER_FILES = {
     "safe_http_client.go",
@@ -54,27 +66,31 @@ PATTERN = re.compile(r"&http\.Client\{|http\.DefaultClient\b")
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Check that non-helper code in api/ routes outbound HTTP through "
-            "SafeHTTPClient instead of constructing its own http.Client."
+            "Check that non-helper code in api/ and auth/ routes outbound HTTP "
+            "through SafeHTTPClient (or an allowlisted hardened in-package "
+            "client) instead of constructing its own http.Client."
         )
     )
     parser.parse_args()
 
     project_root = get_project_root()
-    api_dir = project_root / "api"
 
-    go_files = sorted(p for p in api_dir.glob("*.go") if not p.name.endswith("_test.go"))
+    go_files: list[Path] = []
+    for dir_name in ("api", "auth"):
+        scan_dir = project_root / dir_name
+        go_files.extend(sorted(p for p in scan_dir.glob("*.go") if not p.name.endswith("_test.go")))
     if not go_files:
-        log_error(f"No Go files found in {api_dir}")
+        log_error(f"No Go files found under {project_root}/api or {project_root}/auth")
         return 1
 
-    log_info("Checking for direct http.Client / http.DefaultClient use in api/...")
+    log_info("Checking for direct http.Client / http.DefaultClient use in api/ and auth/...")
 
     violations: list[str] = []
     for go_file in go_files:
+        rel_path = go_file.relative_to(project_root).as_posix()
         if go_file.name in HELPER_FILES or go_file.name in GENERATED_FILES:
             continue
-        if go_file.name in LEGACY_EXCEPTIONS:
+        if go_file.name in LEGACY_EXCEPTIONS or rel_path in HARDENED_AUTH_EXCEPTIONS:
             continue
 
         lines = go_file.read_text(encoding="utf-8").splitlines()
