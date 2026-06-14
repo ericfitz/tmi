@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -852,4 +853,87 @@ func TestProcessPresenterCursor_OnlyPresenterCanSend(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "Current presenter's cursor updates should be broadcast to other clients")
+}
+
+// --- Mid-session revocation: WritePump heartbeat read re-check ---
+
+func TestCheckReadPermission_RevokedUserDenied(t *testing.T) {
+	InitTestFixtures()
+
+	ownerEmail := "revoke-owner@example.com"
+	readerEmail := "revoke-reader@example.com"
+
+	tm := ThreatModel{
+		Name: "Test TM for Mid-Session Read Revocation",
+		Owner: User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      "test-idp",
+			ProviderId:    ownerEmail,
+			Email:         openapi_types.Email(ownerEmail),
+		},
+		Authorization: &[]Authorization{
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test-idp", ProviderId: ownerEmail, Role: "owner"},
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test-idp", ProviderId: readerEmail, Role: "reader"},
+		},
+		CreatedAt:  func() *time.Time { now := time.Now().UTC(); return &now }(),
+		ModifiedAt: func() *time.Time { now := time.Now().UTC(); return &now }(),
+	}
+
+	created, err := ThreatModelStore.Create(tm, func(tm ThreatModel, id string) ThreatModel {
+		uid, _ := ParseUUID(id)
+		tm.Id = &uid
+		return tm
+	})
+	require.NoError(t, err)
+	tmID := created.Id.String()
+
+	session, _ := createTestSession(t, tmID)
+	readerClient := addClientToSession(t, session, readerEmail, readerEmail, "Reader", "test-idp")
+
+	// While the reader grant exists, the heartbeat re-check passes
+	assert.True(t, session.checkReadPermission(readerClient),
+		"Reader with an active grant should pass the heartbeat read re-check")
+
+	// Revoke the reader's role mid-session (ACL now owner-only)
+	revoked := created
+	revoked.Authorization = &[]Authorization{
+		{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test-idp", ProviderId: ownerEmail, Role: "owner"},
+	}
+	require.NoError(t, ThreatModelStore.Update(context.Background(), tmID, revoked))
+
+	// The next heartbeat tick must deny — WritePump then closes the socket with 4403
+	assert.False(t, session.checkReadPermission(readerClient),
+		"Reader whose role was revoked mid-session must fail the heartbeat read re-check")
+}
+
+func TestCheckReadPermission_EdgeCases(t *testing.T) {
+	InitTestFixtures()
+
+	t.Run("nil_client_denied", func(t *testing.T) {
+		session, _ := createTestSession(t, "")
+		assert.False(t, session.checkReadPermission(nil), "Nil client should be denied")
+	})
+
+	t.Run("anonymous_client_denied", func(t *testing.T) {
+		session, _ := createTestSession(t, "")
+		anonClient := &WebSocketClient{
+			UserID: "", // No user ID — anonymous
+			Send:   make(chan []byte, 256),
+		}
+		assert.False(t, session.checkReadPermission(anonClient), "Anonymous client should be denied")
+	})
+
+	t.Run("empty_threat_model_id_allows", func(t *testing.T) {
+		session, _ := createTestSession(t, "") // Empty ThreatModelID
+		client := addClientToSession(t, session, "random-user", "random@example.com", "Random", "test-idp")
+		assert.True(t, session.checkReadPermission(client),
+			"Empty ThreatModelID allows reads for backward compatibility — matches checkMutationPermission")
+	})
+
+	t.Run("missing_threat_model_denied", func(t *testing.T) {
+		session, _ := createTestSession(t, uuid.New().String()) // TM not in store
+		client := addClientToSession(t, session, "random-user", "random@example.com", "Random", "test-idp")
+		assert.False(t, session.checkReadPermission(client),
+			"Store error / missing threat model must fail closed")
+	})
 }

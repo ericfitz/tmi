@@ -23,10 +23,22 @@ const secretMaskConfigured = "<configured>"
 // secretMaskNotConfigured is the masked value displayed when a secret setting has no value.
 const secretMaskNotConfigured = "<not configured>"
 
-// providerKeyPrefixes are the settings key prefixes for auth providers.
+// providerKeyPrefixes are the settings key prefixes for auth providers. Used
+// for provider-registry cache invalidation; API-response masking uses
+// secretMaskKeyPrefixes, a superset.
 var providerKeyPrefixes = []string{
 	"auth.oauth.providers.",
 	"auth.saml.providers.",
+}
+
+// secretMaskKeyPrefixes are the dynamic-cardinality provider-family key
+// prefixes whose secret-suffixed keys are masked in API responses. A superset
+// of providerKeyPrefixes: content_oauth providers store client secrets too,
+// but they do not feed the auth provider-registry cache.
+var secretMaskKeyPrefixes = []string{
+	"auth.oauth.providers.",
+	"auth.saml.providers.",
+	"content_oauth.providers.",
 }
 
 // providerSecretSuffixes are the settings key suffixes for provider secrets.
@@ -51,10 +63,18 @@ func (s *Server) invalidateProviderCacheIfNeeded(key string) {
 	}
 }
 
-// isProviderSecretKey returns true if the key is a provider secret that should be masked.
+// isProviderSecretKey returns true if the key is a provider secret that should
+// be masked.
+//
+// Provider subtrees are dynamic-cardinality, so the classification registry
+// classifies them by prefix with Secret:false — per-key secrecy lives on the
+// migratable setting, not in the registry (see prefixClassifications in
+// internal/config/classification_registry.go). This prefix+suffix heuristic
+// supplies the per-key judgment the registry cannot express; registry-driven
+// masking lives in shouldMaskSettingValue.
 func isProviderSecretKey(key string) bool {
 	isProviderKey := false
-	for _, prefix := range providerKeyPrefixes {
+	for _, prefix := range secretMaskKeyPrefixes {
 		if strings.HasPrefix(key, prefix) {
 			isProviderKey = true
 			break
@@ -69,6 +89,18 @@ func isProviderSecretKey(key string) bool {
 		}
 	}
 	return false
+}
+
+// shouldMaskSettingValue reports whether a DB-sourced setting's value must be
+// masked in API responses. The classification registry's Secret flag is the
+// primary source of truth ("The Secret flag drives API-response masking" —
+// classification_registry.go); the provider prefix+suffix heuristic is
+// unioned in — not used as a mere fallback — because provider subtrees are
+// prefix-classified with Secret:false (see isProviderSecretKey), so a
+// registry-only check would unmask every auth-provider secret this file
+// already masks.
+func shouldMaskSettingValue(key string) bool {
+	return config.ClassificationFor(key).Secret || isProviderSecretKey(key)
 }
 
 // extractProviderID extracts the provider ID from a settings key of the form
@@ -419,7 +451,7 @@ func (s *Server) mergeSettingsWithConfig(dbSettings []models.SystemSetting) []Sy
 			apiSetting.Source = &source
 			readOnly := false
 			apiSetting.ReadOnly = &readOnly
-			if isProviderSecretKey(key) {
+			if shouldMaskSettingValue(key) {
 				if apiSetting.Value != "" {
 					apiSetting.Value = secretMaskConfigured
 				} else {
@@ -546,7 +578,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 	apiSetting.Source = &source
 	readOnly := false
 	apiSetting.ReadOnly = &readOnly
-	if isProviderSecretKey(key) {
+	if shouldMaskSettingValue(key) {
 		if apiSetting.Value != "" {
 			apiSetting.Value = secretMaskConfigured
 		} else {

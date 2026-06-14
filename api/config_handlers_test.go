@@ -890,6 +890,8 @@ func TestIsProviderSecretKey(t *testing.T) {
 		{"auth.saml.providers.entra.entity_id", false},
 		{"rate_limit.requests_per_minute", false},
 		{"auth.jwt.secret", false},
+		{"content_oauth.providers.github.client_secret", true},
+		{"content_oauth.providers.github.client_id", false},
 	}
 
 	for _, tt := range tests {
@@ -897,6 +899,80 @@ func TestIsProviderSecretKey(t *testing.T) {
 			assert.Equal(t, tt.expected, isProviderSecretKey(tt.key))
 		})
 	}
+}
+
+func TestShouldMaskSettingValue(t *testing.T) {
+	tests := []struct {
+		key      string
+		expected bool
+	}{
+		// f023: DB-stored content OAuth client secrets must be masked. The
+		// registry's content_oauth.providers.* prefix class is Secret:false
+		// (per-key secrecy is on the migratable setting), so the
+		// prefix+suffix union has to catch it.
+		{"content_oauth.providers.github.client_secret", true},
+		{"content_oauth.providers.github.client_id", false},
+		// Exact-classified registry secrets are masked even though they
+		// match no provider prefix.
+		{"timmy.llm_api_key", true},
+		// Keys the old heuristic masked stay masked (no regression from the
+		// registry's Secret:false prefix classes).
+		{"auth.oauth.providers.azure.client_secret", true},
+		{"auth.saml.providers.entra.sp_certificate", true},
+		// Non-secrets stay plaintext.
+		{"auth.oauth.providers.azure.client_id", false},
+		{"rate_limit.requests_per_minute", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.key, func(t *testing.T) {
+			assert.Equal(t, tt.expected, shouldMaskSettingValue(tt.key))
+		})
+	}
+}
+
+// TestGetSystemSetting_DBContentOAuthSecretMasked verifies the single-GET DB
+// path masks a DB-stored content OAuth client secret (f023). The key is
+// VisibilityAdminOnly via the content_oauth.providers.* prefix class, so it
+// passes the visibility gate and must be masked by shouldMaskSettingValue.
+func TestGetSystemSetting_DBContentOAuthSecretMasked(t *testing.T) {
+	originalAdminStore := GlobalGroupMemberRepository
+	defer restoreConfigStores(originalAdminStore)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	mockService := NewMockSettingsService()
+	mockService.AddSetting("content_oauth.providers.github.client_secret", "super-secret", "string")
+
+	server := &Server{
+		settingsService: mockService,
+	}
+
+	GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+	userUUID := uuid.New()
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", userUUID.String())
+		c.Set("userProvider", "test")
+		c.Next()
+	})
+	r.GET("/admin/settings/:key", func(c *gin.Context) {
+		server.GetSystemSetting(c, c.Param("key"))
+	})
+
+	req, _ := http.NewRequest("GET", "/admin/settings/content_oauth.providers.github.client_secret", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var setting map[string]interface{}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &setting))
+	assert.Equal(t, "<configured>", setting["value"],
+		"DB-stored content OAuth client secret must not be returned in plaintext")
+	assert.NotContains(t, w.Body.String(), "super-secret")
 }
 
 // mockProviderRegistry tracks InvalidateCache calls

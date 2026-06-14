@@ -114,9 +114,14 @@ func (rc *ResultConsumer) handleResult(ctx context.Context, res jobenvelope.Resu
 		rc.emit(ctx, eventType, docRef, tmID, ownerID)
 	}
 
-	// Delete the result blob from the Object Store (best-effort; log on failure).
+	// Delete the result blob from the Object Store (best-effort; log on
+	// failure). The ref is worker-supplied, so it is honored only when it
+	// names a blob bound to this job's ID — a forged result must never be
+	// able to delete another job's blobs (see worker.PayloadRefForJob).
 	if rc.blobs != nil && res.Output.ResultRef != "" {
-		if err := rc.blobs.DeletePayload(ctx, res.Output.ResultRef); err != nil {
+		if !worker.PayloadRefForJob(res.Output.ResultRef, res.JobID) {
+			logger.Warn("result-consumer: result_ref %q is not bound to job %s — skipping blob cleanup", res.Output.ResultRef, res.JobID)
+		} else if err := rc.blobs.DeletePayload(ctx, res.Output.ResultRef); err != nil {
 			logger.Warn("result-consumer: blob cleanup for job %s failed: %v", res.JobID, err)
 		}
 	}
@@ -251,6 +256,29 @@ func (rc *ResultConsumer) makeCallback(ctx context.Context) func(jetstream.Msg) 
 			return
 		}
 
+		// Bind the message subject to the payload's claimed job ID. Results
+		// are published to jobs.result.<job_id>; a payload whose job_id does
+		// not match the subject it arrived on is forged or corrupt and must
+		// never be processed as the claimed job. (An empty job_id also fails
+		// here: the jobs.result.> filter guarantees a non-empty suffix.)
+		if msg.Subject() != worker.ResultSubject(res.JobID) {
+			logger.Error("result-consumer: payload job_id %q does not match subject %s — terminating forged/corrupt result", res.JobID, msg.Subject())
+			_ = msg.Term()
+			return
+		}
+
+		// Validate the envelope at the trust boundary: results are
+		// worker-published and must not be trusted as-is. Term — not Nak —
+		// so an invalid envelope is dropped instead of redelivering forever.
+		if err := jobenvelope.ValidateResult(res); err != nil {
+			logger.Error("result-consumer: invalid result envelope on %s: %v — terminating", msg.Subject(), err)
+			_ = msg.Term()
+			return
+		}
+		// Bound and clean the free-text reason_detail before it is persisted
+		// (documents.access_reason_detail) and later served to clients.
+		res = jobenvelope.SanitizeResult(res)
+
 		if err := rc.handleResult(ctx, res); err != nil {
 			logger.Warn("result-consumer: transient failure for job %s: %v — redelivering", res.JobID, err)
 			_ = msg.Nak()
@@ -284,6 +312,17 @@ func (rc *ResultConsumer) makeDLQCallback(ctx context.Context) func(jetstream.Ms
 			return
 		}
 
+		// Same trust boundary as makeCallback: the DLQ payload also arrives
+		// over NATS. A genuinely dead-lettered job already passed forward-path
+		// validation when it was first published (and the DLQ producer only
+		// re-publishes valid Job envelopes), so anything failing here — empty
+		// job_id included — is forged or corrupt: Term, don't redeliver.
+		if err := jobenvelope.Validate(job); err != nil {
+			logger.Error("result-consumer(dlq): invalid job envelope on %s: %v — terminating", msg.Subject(), err)
+			_ = msg.Term()
+			return
+		}
+
 		if err := rc.handleResult(ctx, synthesizeDLQResult(job)); err != nil {
 			logger.Warn("result-consumer(dlq): transient failure for job %s: %v — redelivering", job.JobID, err)
 			_ = msg.Nak()
@@ -291,8 +330,12 @@ func (rc *ResultConsumer) makeDLQCallback(ctx context.Context) func(jetstream.Ms
 		}
 
 		// Clean up the crashed job's orphaned input payload blob (best-effort).
+		// As with result refs, the envelope-supplied ref is honored only when
+		// it is bound to this job's ID.
 		if rc.blobs != nil && job.Input.ObjectRef != "" {
-			if err := rc.blobs.DeletePayload(ctx, job.Input.ObjectRef); err != nil {
+			if !worker.PayloadRefForJob(job.Input.ObjectRef, job.JobID) {
+				logger.Warn("result-consumer(dlq): input object_ref %q is not bound to job %s — skipping blob cleanup", job.Input.ObjectRef, job.JobID)
+			} else if err := rc.blobs.DeletePayload(ctx, job.Input.ObjectRef); err != nil {
 				logger.Warn("result-consumer(dlq): input blob cleanup for job %s failed: %v", job.JobID, err)
 			}
 		}

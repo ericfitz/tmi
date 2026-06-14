@@ -2,8 +2,10 @@ package jobenvelope
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestJobRoundTrip(t *testing.T) {
@@ -87,5 +89,95 @@ func TestValidateRejectsBothInputModes(t *testing.T) {
 		Input: Input{ObjectRef: "b/k", SourceURL: "https://x"}}
 	if err := Validate(j); err == nil {
 		t.Fatal("expected error: content-ref and source-locator both set")
+	}
+}
+
+func TestValidateResult(t *testing.T) {
+	valid := Result{
+		JobID:        "job-abc-123",
+		Status:       StatusFailed,
+		ReasonCode:   "extraction_malformed",
+		ReasonDetail: "slide #42",
+	}
+	cases := []struct {
+		name    string
+		mutate  func(r *Result)
+		wantErr bool
+	}{
+		{"valid failed result", func(r *Result) {}, false},
+		{"valid completed result", func(r *Result) {
+			r.Status = StatusCompleted
+			r.ReasonCode = ""
+			r.ReasonDetail = ""
+			r.Output.ResultRef = "TMI_PAYLOADS/job-abc-123/result"
+		}, false},
+		{"missing job_id", func(r *Result) { r.JobID = "" }, true},
+		{"unknown status", func(r *Result) { r.Status = Status("definitely-done") }, true},
+		{"empty status", func(r *Result) { r.Status = "" }, true},
+		{"reason_code at length limit", func(r *Result) {
+			r.ReasonCode = strings.Repeat("a", MaxReasonCodeLen)
+		}, false},
+		{"oversize reason_code", func(r *Result) {
+			r.ReasonCode = strings.Repeat("a", MaxReasonCodeLen+1)
+		}, true},
+		{"reason_code with escape sequence", func(r *Result) {
+			r.ReasonCode = "other\x1b[31m"
+		}, true},
+		{"reason_code with uppercase", func(r *Result) { r.ReasonCode = "Other" }, true},
+		{"oversize result_ref", func(r *Result) {
+			r.Output.ResultRef = strings.Repeat("x", MaxResultRefLen+1)
+		}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := valid
+			tc.mutate(&r)
+			err := ValidateResult(r)
+			if tc.wantErr && err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("expected valid, got %v", err)
+			}
+		})
+	}
+}
+
+func TestSanitizeResultTruncatesOversizeDetail(t *testing.T) {
+	r := Result{JobID: "j1", Status: StatusFailed, ReasonCode: "extraction_internal",
+		ReasonDetail: strings.Repeat("a", MaxReasonDetailLen+100)}
+	out := SanitizeResult(r)
+	if len(out.ReasonDetail) != MaxReasonDetailLen {
+		t.Fatalf("expected detail truncated to %d bytes, got %d",
+			MaxReasonDetailLen, len(out.ReasonDetail))
+	}
+}
+
+func TestSanitizeResultTruncatesOnRuneBoundary(t *testing.T) {
+	// 3-byte runes straddling the byte cap must not be split mid-rune.
+	r := Result{ReasonDetail: strings.Repeat("€", MaxReasonDetailLen/3+10)}
+	out := SanitizeResult(r)
+	if len(out.ReasonDetail) > MaxReasonDetailLen {
+		t.Fatalf("detail exceeds cap: %d bytes", len(out.ReasonDetail))
+	}
+	if !utf8.ValidString(out.ReasonDetail) {
+		t.Fatal("truncation produced invalid UTF-8")
+	}
+}
+
+func TestSanitizeResultStripsControlChars(t *testing.T) {
+	r := Result{ReasonDetail: "line1\nline2\tok\x1b[2Jx\x00x\rx"}
+	out := SanitizeResult(r)
+	want := "line1\nline2\tok[2Jxxx"
+	if out.ReasonDetail != want {
+		t.Fatalf("got %q want %q", out.ReasonDetail, want)
+	}
+}
+
+func TestSanitizeResultCoercesInvalidUTF8(t *testing.T) {
+	r := Result{ReasonDetail: "ok\xff\xfeok"}
+	out := SanitizeResult(r)
+	if !utf8.ValidString(out.ReasonDetail) {
+		t.Fatalf("detail still invalid UTF-8: %q", out.ReasonDetail)
 	}
 }

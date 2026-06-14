@@ -85,3 +85,33 @@ func TestPayloadName(t *testing.T) {
 		t.Fatal("payloadName: expected !ok for a ref with empty name")
 	}
 }
+
+// TestPayloadRefForJob pins the ref-to-job binding used by the result
+// consumer: only the shipped naming patterns bound to the exact job ID are
+// accepted, and adversarial job IDs cannot alias another job's blobs.
+func TestPayloadRefForJob(t *testing.T) {
+	cases := []struct {
+		ref, jobID string
+		want       bool
+	}{
+		// Shipped naming patterns belong to their job.
+		{PayloadBucket + "/job-abc-source", "abc", true},
+		{PayloadBucket + "/abc/extracted", "abc", true},
+		{PayloadBucket + "/abc/result", "abc", true},
+		// Foreign refs are rejected.
+		{PayloadBucket + "/other/result", "abc", false},
+		{PayloadBucket + "/job-other-source", "abc", false},
+		// Adversarial job IDs cannot alias another job's blobs.
+		{PayloadBucket + "/job-victim-source", "job", false},
+		{PayloadBucket + "/victim/result", "result", false},
+		{PayloadBucket + "/victim/result", "", false},
+		// Malformed refs are rejected outright.
+		{"no-prefix/abc/result", "abc", false},
+		{PayloadBucket + "/", "abc", false},
+	}
+	for _, c := range cases {
+		if got := PayloadRefForJob(c.ref, c.jobID); got != c.want {
+			t.Errorf("PayloadRefForJob(%q, %q) = %v, want %v", c.ref, c.jobID, got, c.want)
+		}
+	}
+}

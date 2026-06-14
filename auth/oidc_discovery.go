@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -136,7 +137,7 @@ func (c *DiscoveryClient) fetchAndCache(ctx context.Context, issuerURL string) (
 	}
 
 	var doc OIDCDiscoveryDoc
-	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxOAuthResponseBytes)).Decode(&doc); err != nil {
 		c.storeCache(issuerURL, nil)
 		return nil, nil // invalid JSON -> not OIDC
 	}

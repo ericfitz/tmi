@@ -2653,6 +2653,53 @@ func (s *DiagramSession) checkMutationPermission(client *WebSocketClient) bool {
 	return hasWriteAccess
 }
 
+// checkReadPermission checks whether the client still holds at least reader
+// access to the session's threat model. It mirrors checkMutationPermission
+// (same store lookup, same group-aware check) but at RoleReader, and is
+// called from the WritePump heartbeat so that a user whose role is revoked
+// mid-session stops receiving broadcast diagram content instead of keeping
+// read access until disconnect or JWT expiry.
+func (s *DiagramSession) checkReadPermission(client *WebSocketClient) bool {
+	// Anonymous users cannot hold read access
+	if client == nil || client.UserID == "" {
+		return false
+	}
+
+	// If no threat model ID, allow (for backward compatibility with direct
+	// diagram access — matches checkMutationPermission)
+	if s.ThreatModelID == "" {
+		return true
+	}
+
+	// Safety check: if ThreatModelStore is not initialized (e.g., in tests),
+	// fail closed — matches validateWebSocketDiagramAccessWithFlexibleMatching
+	if ThreatModelStore == nil {
+		return false
+	}
+
+	// Fresh store lookup so mid-session ACL changes are observed
+	tm, err := ThreatModelStore.Get(s.ThreatModelID)
+	if err != nil {
+		// If we can't get the threat model, deny access for safety
+		return false
+	}
+
+	// Full resolved identity (includes InternalUUID) for SamePrincipal matching
+	clientUser := ResolvedUserFromWebSocketClient(client)
+	hasReadAccess, err := CheckResourceAccessWithGroups(
+		clientUser, // user
+		nil,        // groups (not available in WebSocket context; same as the connect-time check)
+		tm,         // resource
+		RoleReader, // requiredRole
+	)
+	if err != nil {
+		// If there's an error checking access, deny for safety
+		return false
+	}
+
+	return hasReadAccess
+}
+
 // sendAuthorizationDenied sends authorization denied message to client
 func (s *DiagramSession) sendAuthorizationDenied(client *WebSocketClient, operationID, reason string) {
 	msg := AuthorizationDeniedMessage{
@@ -3545,6 +3592,20 @@ func (c *WebSocketClient) WritePump() {
 				slogging.Get().Info("Closing WebSocket — JWT expired for user %s (exp=%s)",
 					c.UserID, c.JWTExpiry.Format(time.RFC3339))
 				closeMsg := websocket.FormatCloseMessage(4401, "token expired")
+				_ = c.Conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second))
+				return
+			}
+			// Re-validate threat-model read access on the same cadence.
+			// Authorization is otherwise checked only at connection
+			// establishment; without this, a user whose role is revoked
+			// mid-session keeps receiving broadcast diagram content until
+			// disconnect or JWT expiry. 4403 mirrors the 4401 idiom above:
+			// application-level "access revoked" — clients must re-check
+			// their access before reconnecting.
+			if c.Session != nil && !c.Session.checkReadPermission(c) {
+				slogging.Get().Info("Closing WebSocket — read access revoked for user %s (session %s)",
+					c.UserID, c.Session.ID)
+				closeMsg := websocket.FormatCloseMessage(4403, "access revoked")
 				_ = c.Conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second))
 				return
 			}

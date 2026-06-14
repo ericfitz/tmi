@@ -224,13 +224,14 @@ func (p *BaseProvider) customTokenExchange(ctx context.Context, code string) (*T
 	defer closeBody(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		logger.Error("Token exchange returned error status provider_id=%v status_code=%v response_body=%v", p.config.ID, resp.StatusCode, string(body))
-		return nil, fmt.Errorf("failed to exchange code: %s", body)
+		body, truncated, _ := readCappedBody(resp.Body, maxLoggedBodyBytes)
+		bodyStr := logBodyString(body, truncated)
+		logger.Error("Token exchange returned error status provider_id=%v status_code=%v response_body=%v", p.config.ID, resp.StatusCode, bodyStr)
+		return nil, fmt.Errorf("failed to exchange code: %s", bodyStr)
 	}
 
 	var tokenResp TokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxOAuthResponseBytes)).Decode(&tokenResp); err != nil {
 		logger.Error("Failed to decode token response provider_id=%v error=%v", p.config.ID, err)
 		return nil, fmt.Errorf("failed to decode token response: %w", err)
 	}
@@ -324,13 +325,14 @@ func (p *BaseProvider) fetchEndpoint(ctx context.Context, url, accessToken, auth
 	defer closeBody(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		logger.Error("Endpoint returned error status provider_id=%v url=%v status_code=%v response_body=%v", p.config.ID, url, resp.StatusCode, string(body))
-		return nil, fmt.Errorf("failed to fetch endpoint (status %d): %s", resp.StatusCode, body)
+		body, truncated, _ := readCappedBody(resp.Body, maxLoggedBodyBytes)
+		bodyStr := logBodyString(body, truncated)
+		logger.Error("Endpoint returned error status provider_id=%v url=%v status_code=%v response_body=%v", p.config.ID, url, resp.StatusCode, bodyStr)
+		return nil, fmt.Errorf("failed to fetch endpoint (status %d): %s", resp.StatusCode, bodyStr)
 	}
 
 	var data map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxOAuthResponseBytes)).Decode(&data); err != nil {
 		// Try to decode as array
 		_ = resp.Body.Close()
 		logger.Debug("Retrying endpoint as array provider_id=%v url=%v", p.config.ID, url)
@@ -344,7 +346,7 @@ func (p *BaseProvider) fetchEndpoint(ctx context.Context, url, accessToken, auth
 		defer closeBody(resp2.Body)
 
 		var arrData []any
-		if err := json.NewDecoder(resp2.Body).Decode(&arrData); err != nil {
+		if err := json.NewDecoder(io.LimitReader(resp2.Body, maxOAuthResponseBytes)).Decode(&arrData); err != nil {
 			logger.Error("Failed to decode array response provider_id=%v url=%v error=%v", p.config.ID, url, err)
 			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}

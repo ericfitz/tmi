@@ -78,8 +78,11 @@ func extractTextFromHTML(htmlContent string) string {
 		return htmlContent
 	}
 	var sb strings.Builder
-	var extractText func(*html.Node)
-	extractText = func(n *html.Node) {
+	// Iterative pre-order traversal using the tree's own parent/sibling
+	// links (O(1) extra memory). A recursive walk here is remotely
+	// triggerable stack exhaustion: nesting depth is attacker-controlled
+	// and a Go stack overflow is an unrecoverable fatal error.
+	for n := doc; n != nil; {
 		if n.Type == html.TextNode {
 			text := strings.TrimSpace(n.Data)
 			if text != "" {
@@ -88,13 +91,20 @@ func extractTextFromHTML(htmlContent string) string {
 			}
 		}
 		// Skip the children of script and style elements
-		if n.Type == html.ElementNode && (n.Data == "script" || n.Data == "style") {
-			return
+		skipChildren := n.Type == html.ElementNode && (n.Data == "script" || n.Data == "style")
+		if !skipChildren && n.FirstChild != nil {
+			n = n.FirstChild
+			continue
 		}
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			extractText(c)
+		// Subtree finished: advance to the next sibling, climbing back
+		// toward the root as ancestors complete. Never ascend above doc.
+		for n != doc && n.NextSibling == nil {
+			n = n.Parent
 		}
+		if n == doc {
+			break
+		}
+		n = n.NextSibling
 	}
-	extractText(doc)
 	return strings.TrimSpace(sb.String())
 }
