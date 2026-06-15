@@ -11330,17 +11330,17 @@
           },
           "developer_key": {
             "type": "string",
-            "description": "Google Picker developer key. Deprecated \u2014 prefer provider_config.developer_key. Populated only for provider_id=google_workspace.",
+            "description": "Google Picker developer key. Deprecated — prefer provider_config.developer_key. Populated only for provider_id=google_workspace.",
             "example": "AIzaSyB-1234example"
           },
           "app_id": {
             "type": "string",
-            "description": "Google Cloud app id. Deprecated \u2014 prefer provider_config.app_id. Populated only for provider_id=google_workspace.",
+            "description": "Google Cloud app id. Deprecated — prefer provider_config.app_id. Populated only for provider_id=google_workspace.",
             "example": "123456789012"
           },
           "provider_config": {
             "type": "object",
-            "description": "Provider-specific public configuration values for picker initialization. Keys vary by provider \u2014 see provider documentation. For google_workspace: developer_key, app_id. For microsoft: client_id, tenant_id, picker_origin.",
+            "description": "Provider-specific public configuration values for picker initialization. Keys vary by provider — see provider documentation. For google_workspace: developer_key, app_id. For microsoft: client_id, tenant_id, picker_origin.",
             "additionalProperties": {
               "type": "string"
             }
@@ -11560,7 +11560,7 @@
           "user_agent_data": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Optional NavigatorUAData payload (\u2264 4 KB serialized)"
+            "description": "Optional NavigatorUAData payload (≤ 4 KB serialized)"
           },
           "viewport": {
             "type": "string",
@@ -11734,6 +11734,11 @@
             "type": "string",
             "nullable": true,
             "description": "Cursor for the next page; absent or null when exhausted."
+          },
+          "prev_cursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Cursor for the previous (newer) page; absent or null when at the newest end."
           }
         }
       },
@@ -11764,6 +11769,11 @@
             "type": "string",
             "nullable": true,
             "description": "Cursor for the next page; absent or null when exhausted."
+          },
+          "prev_cursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Cursor for the previous (newer) page; absent or null when at the newest end."
           }
         }
       },
@@ -12434,7 +12444,7 @@
         }
       },
       "Conflict": {
-        "description": "Conflict \u2014 the supplied version does not match the resource's current version. Refetch and retry.",
+        "description": "Conflict — the supplied version does not match the resource's current version. Refetch and retry.",
         "content": {
           "application/json": {
             "schema": {
@@ -12467,7 +12477,7 @@
         }
       },
       "PreconditionRequired": {
-        "description": "Precondition Required \u2014 the request did not include an If-Match header. This response is returned only when the server has flipped the RequireIfMatch config flag (planned for a future release).",
+        "description": "Precondition Required — the request did not include an If-Match header. This response is returned only when the server has flipped the RequireIfMatch config flag (planned for a future release).",
         "content": {
           "application/json": {
             "schema": {
@@ -12796,7 +12806,7 @@
         "required": true,
         "schema": {
           "type": "string",
-          "description": "RFC 6749 \u00a7A.11 authorization-code = 1*VSCHAR; VSCHAR = %x20-7E. Microsoft codes can exceed 1500 chars and contain *, !, $.",
+          "description": "RFC 6749 §A.11 authorization-code = 1*VSCHAR; VSCHAR = %x20-7E. Microsoft codes can exceed 1500 chars and contain *, !, $.",
           "pattern": "^[ -~]+$",
           "minLength": 1,
           "maxLength": 4096
@@ -13624,6 +13634,29 @@
         "schema": {
           "type": "string",
           "format": "uuid"
+        }
+      },
+      "AuditAround": {
+        "name": "around",
+        "in": "query",
+        "required": false,
+        "description": "Return a page centered on this entry id (~half newer, ~half older, entry included). Mutually exclusive with cursor.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "AuditExportFormat": {
+        "name": "format",
+        "in": "query",
+        "required": false,
+        "description": "When set, stream the entire filtered set as an attachment instead of a JSON page. Honors all active filters; ignores cursor/limit/around.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "csv",
+            "ndjson"
+          ]
         }
       }
     }
@@ -45644,7 +45677,7 @@
             "$ref": "#/components/responses/Error"
           },
           "422": {
-            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements \u2014 for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
+            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements — for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -46319,7 +46352,7 @@
             "$ref": "#/components/responses/Error"
           },
           "422": {
-            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements \u2014 for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
+            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements — for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -63612,7 +63645,7 @@
           "Timmy Chat"
         ],
         "summary": "Send a message to Timmy",
-        "description": "Sends a user message to the Timmy AI assistant and returns an SSE stream of the assistant response.\n\n**SSE event types emitted by this endpoint:**\n\n- `status` (zero or more) \u2014 Phase-transition events fired BEFORE `message_start` so clients can show \"Timmy is \u2026\" affordances during the often-multi-second pre-token latency. Payload: `{\"phase\": \"<snake_case>\", \"entity_type\": \"<optional>\", \"entity_name\": \"<optional>\", \"detail\": \"<optional>\"}`. `phase` is a stable identifier the client can map to localized strings; the server is free to add or rename phases as the pipeline evolves, so unknown phases should be treated as opaque labels. Current phases include `building_context`, `loading_history`, `querying_embeddings`, `waiting_for_llm`. Once tokens begin streaming, no further `status` events are emitted.\n- `message_start` (exactly one, after any `status` events) \u2014 Signals that the server is about to (or has just begun) streaming tokens. Payload: `{\"status\": \"processing\"}`.\n- `token` (zero or more) \u2014 Individual tokens streamed from the LLM. Payload: token text.\n- `message_end` (exactly one, terminal) \u2014 The full persisted assistant message. Payload: `TimmyChatMessage` object.\n- `error` (terminal in the failure case) \u2014 Emitted instead of `message_end` if the request fails after the SSE stream has begun.\n\n**Auto-generated session title.** After the first user message in a fresh session is processed successfully, the server may asynchronously generate a short title (\u2264 60 characters) from that message and persist it to the session's `title` field. This only happens when the existing title is empty or matches the client's default placeholder (e.g. `Chat \u2014 <date>, <time>`); a user-set title is never overwritten. Title generation runs out-of-band and never blocks or fails the message response \u2014 clients see the new title on the next `getTimmyChatSession` / `listTimmyChatSessions` call.",
+        "description": "Sends a user message to the Timmy AI assistant and returns an SSE stream of the assistant response.\n\n**SSE event types emitted by this endpoint:**\n\n- `status` (zero or more) — Phase-transition events fired BEFORE `message_start` so clients can show \"Timmy is …\" affordances during the often-multi-second pre-token latency. Payload: `{\"phase\": \"<snake_case>\", \"entity_type\": \"<optional>\", \"entity_name\": \"<optional>\", \"detail\": \"<optional>\"}`. `phase` is a stable identifier the client can map to localized strings; the server is free to add or rename phases as the pipeline evolves, so unknown phases should be treated as opaque labels. Current phases include `building_context`, `loading_history`, `querying_embeddings`, `waiting_for_llm`. Once tokens begin streaming, no further `status` events are emitted.\n- `message_start` (exactly one, after any `status` events) — Signals that the server is about to (or has just begun) streaming tokens. Payload: `{\"status\": \"processing\"}`.\n- `token` (zero or more) — Individual tokens streamed from the LLM. Payload: token text.\n- `message_end` (exactly one, terminal) — The full persisted assistant message. Payload: `TimmyChatMessage` object.\n- `error` (terminal in the failure case) — Emitted instead of `message_end` if the request fails after the SSE stream has begun.\n\n**Auto-generated session title.** After the first user message in a fresh session is processed successfully, the server may asynchronously generate a short title (≤ 60 characters) from that message and persist it to the session's `title` field. This only happens when the existing title is empty or matches the client's default placeholder (e.g. `Chat — <date>, <time>`); a user-set title is never overwritten. Title generation runs out-of-band and never blocks or fails the message response — clients see the new title on the next `getTimmyChatSession` / `listTimmyChatSessions` call.",
         "operationId": "createTimmyChatMessage",
         "security": [
           {
@@ -66301,7 +66334,7 @@
             }
           },
           "400": {
-            "description": "Validation or pre-flight rejection (RFC 6749 \u00a74.1.2.1-aligned error codes).",
+            "description": "Validation or pre-flight rejection (RFC 6749 §4.1.2.1-aligned error codes).",
             "content": {
               "application/json": {
                 "schema": {
@@ -66547,6 +66580,12 @@
           },
           {
             "$ref": "#/components/parameters/AuditCursor"
+          },
+          {
+            "$ref": "#/components/parameters/AuditAround"
+          },
+          {
+            "$ref": "#/components/parameters/AuditExportFormat"
           }
         ],
         "responses": {
@@ -66556,6 +66595,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListSystemAuditEntriesResponse"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/x-ndjson": {
+                "schema": {
+                  "type": "string"
                 }
               }
             },
@@ -66579,6 +66628,12 @@
                 "schema": {
                   "type": "integer",
                   "example": 1735689600
+                }
+              },
+              "Content-Disposition": {
+                "description": "Set to attachment with a filename when format=csv|ndjson.",
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -66743,6 +66798,39 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - the around entry id does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
                 }
               }
             }
@@ -67063,6 +67151,9 @@
           },
           {
             "$ref": "#/components/parameters/AuditCursor"
+          },
+          {
+            "$ref": "#/components/parameters/AuditAround"
           }
         ],
         "responses": {
@@ -67259,6 +67350,39 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - the around entry id does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
                 }
               }
             }

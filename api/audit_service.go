@@ -94,9 +94,10 @@ type AuditServiceInterface interface {
 	// minimum 90). Returns the number of entries pruned.
 	PruneSystemAuditEntries(ctx context.Context) (int, error)
 
-	// ListAuditEntriesAdmin lists audit entries across ALL threat models for
-	// admin investigation (#398). Keyset pagination: pass the decoded cursor
-	// of the previous page (nil for the first page); returns the next-page
-	// cursor (nil when exhausted), encoded for the wire.
-	ListAuditEntriesAdmin(ctx context.Context, limit int, cursor *auditCursor, filters *AuditFilters) ([]AuditEntryResponse, int, *string, error)
+	// ListAuditEntriesAdmin lists audit entries across ALL threat models with
+	// bidirectional keyset pagination. Returns (rows, total, prev, next) (#464).
+	ListAuditEntriesAdmin(ctx context.Context, limit int, cursor *auditCursor, filters *AuditFilters) ([]AuditEntryResponse, int, *string, *string, error)
+	// AroundAuditEntriesAdmin returns a page of `limit` entries centered on
+	// anchorID. Returns errAuditAnchorNotFound for an unknown id (#464).
+	AroundAuditEntriesAdmin(ctx context.Context, limit int, anchorID string, filters *AuditFilters) ([]AuditEntryResponse, int, *string, *string, error)
 }

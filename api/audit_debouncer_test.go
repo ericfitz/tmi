@@ -65,8 +65,12 @@ func (m *mockAuditService) PruneSystemAuditEntries(_ context.Context) (int, erro
 	return 0, nil
 }
 
-func (m *mockAuditService) ListAuditEntriesAdmin(_ context.Context, _ int, _ *auditCursor, _ *AuditFilters) ([]AuditEntryResponse, int, *string, error) {
-	return nil, 0, nil, nil
+func (m *mockAuditService) ListAuditEntriesAdmin(_ context.Context, _ int, _ *auditCursor, _ *AuditFilters) ([]AuditEntryResponse, int, *string, *string, error) {
+	return nil, 0, nil, nil, nil
+}
+
+func (m *mockAuditService) AroundAuditEntriesAdmin(_ context.Context, _ int, _ string, _ *AuditFilters) ([]AuditEntryResponse, int, *string, *string, error) {
+	return nil, 0, nil, nil, nil
 }
 
 func newTestDebouncer(svc *mockAuditService) *AuditDebouncer {

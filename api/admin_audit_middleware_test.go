@@ -32,8 +32,16 @@ func (f *fakeSystemAuditRepo) ListByActor(ctx context.Context, actor string, fro
 	return f.rows, nil
 }
 
-func (f *fakeSystemAuditRepo) List(_ context.Context, _ SystemAuditFilter) ([]models.SystemAuditEntry, int, *string, error) {
-	return f.rows, len(f.rows), nil, nil
+func (f *fakeSystemAuditRepo) List(_ context.Context, _ SystemAuditFilter) ([]models.SystemAuditEntry, int, *string, *string, error) {
+	return nil, 0, nil, nil, f.err
+}
+
+func (f *fakeSystemAuditRepo) Around(_ context.Context, _ SystemAuditFilter, _ string) ([]models.SystemAuditEntry, int, *string, *string, error) {
+	return nil, 0, nil, nil, f.err
+}
+
+func (f *fakeSystemAuditRepo) StreamFiltered(_ context.Context, _ SystemAuditFilter, _ int, _ func([]models.SystemAuditEntry) error) error {
+	return f.err
 }
 
 func (f *fakeSystemAuditRepo) GetByID(_ context.Context, _ string) (*models.SystemAuditEntry, error) {
