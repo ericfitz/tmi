@@ -12,7 +12,7 @@ import (
 // Actor fields are denormalized (not FKs) so audit entries persist after user deletion.
 // threat_model_id is not a FK so the "threat model deleted" entry persists after TM deletion.
 type AuditEntry struct {
-	ID               DBVarchar      `gorm:"primaryKey;not null;size:36"`
+	ID               DBVarchar      `gorm:"primaryKey;not null;size:36;index:idx_audit_created_id,priority:2"`
 	ThreatModelID    DBVarchar      `gorm:"size:36;not null;index:idx_audit_tm;index:idx_audit_tm_created,priority:1"`
 	ObjectType       DBVarchar      `gorm:"size:50;not null;index:idx_audit_object,priority:1;index:idx_audit_object_version,priority:1"`
 	ObjectID         DBVarchar      `gorm:"size:36;not null;index:idx_audit_object,priority:2;index:idx_audit_object_version,priority:2"`
@@ -23,7 +23,10 @@ type AuditEntry struct {
 	ActorProviderID  DBVarchar      `gorm:"size:500;not null"`
 	ActorDisplayName DBVarchar      `gorm:"size:256;not null"`
 	ChangeSummary    NullableDBText `gorm:""`
-	CreatedAt        time.Time      `gorm:"not null;autoCreateTime;index:idx_audit_tm_created,priority:2;index:idx_audit_actor,priority:2"`
+	// Composite (created_at, id) index serves the unfiltered admin audit keyset
+	// scans and full-table export in both directions (#473). idx_audit_tm_created
+	// already covers the filtered-by-threat-model path.
+	CreatedAt time.Time `gorm:"not null;autoCreateTime;index:idx_audit_tm_created,priority:2;index:idx_audit_actor,priority:2;index:idx_audit_created_id,priority:1"`
 }
 
 // TableName specifies the table name for AuditEntry

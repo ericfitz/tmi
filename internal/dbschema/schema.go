@@ -777,6 +777,7 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_audit_object_version", Columns: []string{"object_type", "object_id", "version"}, IsUnique: false},
 				{Name: "idx_audit_change_type", Columns: []string{"change_type"}, IsUnique: false},
 				{Name: "idx_audit_actor", Columns: []string{"actor_email", "created_at"}, IsUnique: false},
+				{Name: "idx_audit_created_id", Columns: []string{"created_at", "id"}, IsUnique: false},
 			},
 		},
 		// Version snapshots (prunable rollback storage)

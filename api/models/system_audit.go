@@ -16,7 +16,7 @@ import (
 // persist after user deletion. No FKs by design — investigators rely on the
 // row content, not on join integrity.
 type SystemAuditEntry struct {
-	ID DBVarchar `gorm:"primaryKey;not null;size:36"`
+	ID DBVarchar `gorm:"primaryKey;not null;size:36;index:idx_sysaudit_created_id,priority:2"`
 
 	// Actor identity (denormalized)
 	ActorEmail       DBVarchar `gorm:"size:320;not null;index:idx_sysaudit_actor,priority:1"`
@@ -34,7 +34,11 @@ type SystemAuditEntry struct {
 	NewValueRedacted NullableDBText `gorm:""`
 	ChangeSummary    NullableDBText `gorm:""`
 
-	CreatedAt time.Time `gorm:"not null;autoCreateTime;index:idx_sysaudit_actor,priority:2;index:idx_sysaudit_created"`
+	// Composite (created_at, id) index serves the bidirectional keyset scans and
+	// the unfiltered full-table export in both ASC and DESC directions (#473). It
+	// also covers single-column created_at lookups by prefix, so the former
+	// single-column idx_sysaudit_created has been dropped from fresh schemas.
+	CreatedAt time.Time `gorm:"not null;autoCreateTime;index:idx_sysaudit_actor,priority:2;index:idx_sysaudit_created_id,priority:1"`
 }
 
 // TableName returns the table name, casing-aware for Oracle compatibility.
