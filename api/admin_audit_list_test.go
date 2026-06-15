@@ -2,10 +2,13 @@ package api
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -146,4 +149,16 @@ func TestAroundAuditEntriesAdmin(t *testing.T) {
 
 	_, _, _, _, err = svc.AroundAuditEntriesAdmin(ctx, 5, uuid.New().String(), nil)
 	require.ErrorIs(t, err, errAuditAnchorNotFound)
+}
+
+func TestListSystemAudit_CursorAndAroundConflict(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	s := &Server{systemAuditRepo: &fakeSystemAuditRepo{}}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/admin/audit/system", nil)
+	around := uuid.New()
+	realCur := encodeAuditCursor(time.Now().UTC(), uuid.New().String(), dirForward)
+	s.ListSystemAuditEntries(c, ListSystemAuditEntriesParams{Around: &around, Cursor: &realCur})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
