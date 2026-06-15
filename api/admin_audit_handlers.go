@@ -103,7 +103,7 @@ func (s *Server) ListSystemAuditEntries(c *gin.Context, params ListSystemAuditEn
 		Cursor:        cursor,
 	}
 
-	rows, total, next, err := s.systemAuditRepo.List(c.Request.Context(), filter)
+	rows, total, _, next, err := s.systemAuditRepo.List(c.Request.Context(), filter)
 	if err != nil {
 		logger.Error("Failed to list system audit entries: %v", err)
 		HandleRequestError(c, ServerError("Failed to list system audit entries"))
