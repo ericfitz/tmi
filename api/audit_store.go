@@ -502,6 +502,74 @@ func (s *GormAuditService) PruneVersionSnapshots(ctx context.Context) (int, erro
 	return totalPruned, nil
 }
 
+// orphanSnapshotEntityTables maps each version_snapshots.object_type that
+// belongs to a hard-deletable entity to the table that entity lives in. A
+// snapshot whose object_id is absent from the mapped table is orphaned: its
+// entity was hard-deleted (the threat-model hard-delete cascade removes child
+// rows but not their snapshots, #458), so PruneVersionSnapshots — which always
+// keeps at least the version-1 checkpoint per object — would otherwise retain
+// that checkpoint forever. object_types not listed here (e.g. project, team,
+// addon) are left untouched. Soft-deleted entities still have a row, so they
+// are NOT treated as orphans; PurgeTombstones cleans their snapshots when the
+// tombstone expires.
+var orphanSnapshotEntityTables = []struct {
+	objectType string
+	table      string
+}{
+	{models.ObjectTypeThreatModel, "threat_models"},
+	{models.ObjectTypeDiagram, "diagrams"},
+	{models.ObjectTypeThreat, "threats"},
+	{models.ObjectTypeAsset, "assets"},
+	{models.ObjectTypeDocument, "documents"},
+	{models.ObjectTypeNote, "notes"},
+	{models.ObjectTypeRepository, "repositories"},
+}
+
+// PruneOrphanedVersionSnapshots removes version snapshots whose referenced
+// entity no longer exists in its table.
+//
+// The delete is filtered to snapshots older than versionRetentionDays, which
+// drives the installed append-only delete floor (floor = retention-1, hard-min
+// 7 days), so every targeted row is guaranteed to clear the floor — identical
+// safety margin to PruneVersionSnapshots. Orphans younger than the cutoff are
+// left for a later cycle once they age past the floor; this keeps the delete
+// from ever tripping the trigger and aborting, and is why orphan cleanup lives
+// here rather than inside the hard-delete transaction.
+//
+// NOT EXISTS against the raw table (not GORM's soft-delete-scoped query) means
+// a soft-deleted-but-present row counts as existing, so only truly
+// hard-deleted entities are swept. The correlated subquery is portable across
+// PostgreSQL and Oracle, and the age predicate keeps each statement set small,
+// avoiding the ORA-01795 IN-list cap entirely.
+func (s *GormAuditService) PruneOrphanedVersionSnapshots(ctx context.Context) (int, error) {
+	cutoff := time.Now().UTC().AddDate(0, 0, -s.versionRetentionDays)
+	totalDeleted := 0
+
+	for _, e := range orphanSnapshotEntityTables {
+		// #nosec G201 -- e.table is a hardcoded constant from
+		// orphanSnapshotEntityTables, never user input.
+		query := fmt.Sprintf(
+			"DELETE FROM version_snapshots WHERE object_type = ? AND created_at < ? "+
+				"AND NOT EXISTS (SELECT 1 FROM %s WHERE %s.id = version_snapshots.object_id)",
+			e.table, e.table,
+		)
+		err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+			result := tx.Exec(query, e.objectType, cutoff)
+			if result.Error != nil {
+				return result.Error
+			}
+			totalDeleted += int(result.RowsAffected)
+			return nil
+		})
+		if err != nil {
+			slogging.Get().Error("%s", pruneFailureMessage("orphaned version snapshots for "+e.objectType, err))
+			continue
+		}
+	}
+
+	return totalDeleted, nil
+}
+
 // pruneObjectVersions prunes version snapshots for a single object.
 func (s *GormAuditService) pruneObjectVersions(ctx context.Context, objectType, objectID string, timeCutoff time.Time) (int, error) {
 	// Get all version snapshots for this object, ordered by version

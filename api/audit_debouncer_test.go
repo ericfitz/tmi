@@ -57,6 +57,10 @@ func (m *mockAuditService) PruneVersionSnapshots(_ context.Context) (int, error)
 	return 0, nil
 }
 
+func (m *mockAuditService) PruneOrphanedVersionSnapshots(_ context.Context) (int, error) {
+	return 0, nil
+}
+
 func (m *mockAuditService) PurgeTombstones(_ context.Context) (int, error) {
 	return 0, nil
 }

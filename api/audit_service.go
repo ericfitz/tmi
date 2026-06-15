@@ -83,6 +83,13 @@ type AuditServiceInterface interface {
 	// Returns the number of snapshots pruned.
 	PruneVersionSnapshots(ctx context.Context) (int, error)
 
+	// PruneOrphanedVersionSnapshots removes version snapshots whose referenced
+	// entity no longer exists (e.g. children orphaned by the threat-model
+	// hard-delete cascade, which removes the rows but not their snapshots, #458).
+	// Only snapshots aged past the append-only delete floor are removed; younger
+	// orphans are left for a later cycle. Returns the number of snapshots removed.
+	PruneOrphanedVersionSnapshots(ctx context.Context) (int, error)
+
 	// PurgeTombstones hard-deletes entities that have been soft-deleted for longer than
 	// the tombstone retention period. Also cleans up associated metadata and version snapshots.
 	// Audit entries are append-only and are never deleted.

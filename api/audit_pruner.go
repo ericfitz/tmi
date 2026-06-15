@@ -87,6 +87,15 @@ func (p *AuditPruner) prune(ctx context.Context) {
 		logger.Info("pruned %d version snapshots", snapshotsPruned)
 	}
 
+	// Sweep snapshots orphaned by hard-deleted entities (e.g. the threat-model
+	// hard-delete cascade removes child rows but not their snapshots, #458).
+	orphansPruned, err := p.auditService.PruneOrphanedVersionSnapshots(ctx)
+	if err != nil {
+		logger.Error("%s", pruneFailureMessage("orphaned version snapshots", err))
+	} else if orphansPruned > 0 {
+		logger.Info("pruned %d orphaned version snapshots", orphansPruned)
+	}
+
 	// Then prune audit entries
 	entriesPruned, err := p.auditService.PruneAuditEntries(ctx)
 	if err != nil {
