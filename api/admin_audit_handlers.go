@@ -216,7 +216,7 @@ func (s *Server) ListAdminThreatModelAuditEntries(c *gin.Context, params ListAdm
 		filters.ThreatModelID = &tm
 	}
 
-	rows, total, next, err := GlobalAuditService.ListAuditEntriesAdmin(c.Request.Context(), limit, cursor, filters)
+	rows, total, _, next, err := GlobalAuditService.ListAuditEntriesAdmin(c.Request.Context(), limit, cursor, filters)
 	if err != nil {
 		logger.Error("Failed to list audit entries: %v", err)
 		HandleRequestError(c, ServerError("Failed to list audit entries"))

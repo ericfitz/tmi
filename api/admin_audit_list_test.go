@@ -52,7 +52,7 @@ func TestListAuditEntriesAdmin_CursorIteration(t *testing.T) {
 	}
 
 	svc := NewGormAuditService(db)
-	page1, total, next, err := svc.ListAuditEntriesAdmin(context.Background(), 2, nil, nil)
+	page1, total, _, next, err := svc.ListAuditEntriesAdmin(context.Background(), 2, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, 5, total)
 	require.Len(t, page1, 2)
@@ -60,14 +60,14 @@ func TestListAuditEntriesAdmin_CursorIteration(t *testing.T) {
 
 	cur, err := decodeAuditCursor(*next)
 	require.NoError(t, err)
-	page2, _, next2, err := svc.ListAuditEntriesAdmin(context.Background(), 2, cur, nil)
+	page2, _, _, next2, err := svc.ListAuditEntriesAdmin(context.Background(), 2, cur, nil)
 	require.NoError(t, err)
 	require.Len(t, page2, 2)
 	require.NotNil(t, next2)
 
 	cur2, err := decodeAuditCursor(*next2)
 	require.NoError(t, err)
-	page3, _, next3, err := svc.ListAuditEntriesAdmin(context.Background(), 2, cur2, nil)
+	page3, _, _, next3, err := svc.ListAuditEntriesAdmin(context.Background(), 2, cur2, nil)
 	require.NoError(t, err)
 	require.Len(t, page3, 1)
 	assert.Nil(t, next3, "short page must not yield a next cursor")
@@ -92,15 +92,58 @@ func TestListAuditEntriesAdmin_Filters(t *testing.T) {
 	svc := NewGormAuditService(db)
 
 	provider := "google"
-	rows, total, _, err := svc.ListAuditEntriesAdmin(context.Background(), 50, nil,
+	rows, total, _, _, err := svc.ListAuditEntriesAdmin(context.Background(), 50, nil,
 		&AuditFilters{ActorProvider: &provider})
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
 	require.Len(t, rows, 1)
 
-	rows, total, _, err = svc.ListAuditEntriesAdmin(context.Background(), 50, nil,
+	rows, total, _, _, err = svc.ListAuditEntriesAdmin(context.Background(), 50, nil,
 		&AuditFilters{ThreatModelID: &tmA})
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
 	require.Len(t, rows, 1)
+}
+
+func TestListAuditEntriesAdmin_Bidirectional(t *testing.T) {
+	db := setupAdminAuditListDB(t)
+	svc := NewGormAuditService(db)
+	ctx := context.Background()
+	tm := uuid.New().String()
+	for i := 0; i < 5; i++ {
+		seedAdminAuditEntry(t, db, "c@tmi.local", "tmi", tm, (i+1)*10)
+	}
+	p1, _, prev1, next1, err := svc.ListAuditEntriesAdmin(ctx, 2, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, p1, 2)
+	require.Nil(t, prev1)
+	require.NotNil(t, next1)
+	c2, _ := decodeAuditCursor(*next1)
+	_, _, prev2, _, err := svc.ListAuditEntriesAdmin(ctx, 2, c2, nil)
+	require.NoError(t, err)
+	require.NotNil(t, prev2)
+}
+
+func TestAroundAuditEntriesAdmin(t *testing.T) {
+	db := setupAdminAuditListDB(t)
+	svc := NewGormAuditService(db)
+	ctx := context.Background()
+	tm := uuid.New().String()
+	var mid string
+	for i := 0; i < 7; i++ {
+		id := seedAdminAuditEntry(t, db, "c@tmi.local", "tmi", tm, (7-i)*10) // newest..oldest
+		if i == 3 {
+			mid = id
+		}
+	}
+	page, total, prev, next, err := svc.AroundAuditEntriesAdmin(ctx, 5, mid, nil)
+	require.NoError(t, err)
+	require.Equal(t, 7, total)
+	require.Len(t, page, 5)
+	require.Equal(t, mid, page[2].ID)
+	require.NotNil(t, prev)
+	require.NotNil(t, next)
+
+	_, _, _, _, err = svc.AroundAuditEntriesAdmin(ctx, 5, uuid.New().String(), nil)
+	require.ErrorIs(t, err, errAuditAnchorNotFound)
 }

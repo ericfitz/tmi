@@ -271,34 +271,55 @@ func (s *GormAuditService) GetAuditEntry(ctx context.Context, entryID string) (*
 	return &resp, nil
 }
 
+func adminAuditKeyOf(e models.AuditEntry) (time.Time, string) {
+	return e.CreatedAt, string(e.ID)
+}
+
 // ListAuditEntriesAdmin lists audit entries across all threat models with
-// keyset pagination ordered (created_at DESC, id DESC). The cursor predicate
-// uses the expanded comparison form because Oracle has no row-value
-// comparison.
-func (s *GormAuditService) ListAuditEntriesAdmin(ctx context.Context, limit int, cursor *auditCursor, filters *AuditFilters) ([]AuditEntryResponse, int, *string, error) {
-	count := applyAuditFilters(s.db.WithContext(ctx).Model(&models.AuditEntry{}), filters)
+// bidirectional keyset pagination ordered (created_at DESC, id DESC).
+func (s *GormAuditService) ListAuditEntriesAdmin(ctx context.Context, limit int, cursor *auditCursor, filters *AuditFilters) ([]AuditEntryResponse, int, *string, *string, error) {
 	var total int64
-	if err := count.Count(&total).Error; err != nil {
-		return nil, 0, nil, fmt.Errorf("failed to count audit entries: %w", err)
+	if err := applyAuditFilters(s.db.WithContext(ctx).Model(&models.AuditEntry{}), filters).Count(&total).Error; err != nil {
+		return nil, 0, nil, nil, fmt.Errorf("failed to count audit entries: %w", err)
 	}
+	newQuery := func() *gorm.DB {
+		return applyAuditFilters(s.db.WithContext(ctx).Model(&models.AuditEntry{}), filters)
+	}
+	rows, prev, next, err := fetchKeysetPage(newQuery, cursor, limit, adminAuditKeyOf)
+	if err != nil {
+		return nil, 0, nil, nil, fmt.Errorf("failed to list audit entries: %w", err)
+	}
+	return toAuditEntryResponses(rows), int(total), prev, next, nil
+}
 
-	q := applyAuditFilters(s.db.WithContext(ctx).Model(&models.AuditEntry{}), filters)
-	if cursor != nil {
-		q = q.Where("created_at < ? OR (created_at = ? AND id < ?)",
-			cursor.CreatedAt, cursor.CreatedAt, cursor.ID)
+// AroundAuditEntriesAdmin returns a page centered on anchorID.
+func (s *GormAuditService) AroundAuditEntriesAdmin(ctx context.Context, limit int, anchorID string, filters *AuditFilters) ([]AuditEntryResponse, int, *string, *string, error) {
+	var total int64
+	if err := applyAuditFilters(s.db.WithContext(ctx).Model(&models.AuditEntry{}), filters).Count(&total).Error; err != nil {
+		return nil, 0, nil, nil, fmt.Errorf("failed to count audit entries: %w", err)
 	}
-	var entries []models.AuditEntry
-	if err := q.Order("created_at DESC, id DESC").Limit(limit).Find(&entries).Error; err != nil {
-		return nil, 0, nil, fmt.Errorf("failed to list audit entries: %w", err)
+	newQuery := func() *gorm.DB {
+		return applyAuditFilters(s.db.WithContext(ctx).Model(&models.AuditEntry{}), filters)
 	}
-
-	var next *string
-	if len(entries) == limit && limit > 0 {
-		last := entries[len(entries)-1]
-		enc := encodeAuditCursor(last.CreatedAt, string(last.ID), dirForward)
-		next = &enc
+	fetchAnchor := func() (*models.AuditEntry, error) {
+		var entry models.AuditEntry
+		err := s.db.WithContext(ctx).Where("id = ?", anchorID).First(&entry).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		return &entry, nil
 	}
-	return toAuditEntryResponses(entries), int(total), next, nil
+	rows, prev, next, err := fetchAroundPage(newQuery, fetchAnchor, limit, adminAuditKeyOf)
+	if err != nil {
+		if errors.Is(err, errAuditAnchorNotFound) {
+			return nil, 0, nil, nil, err
+		}
+		return nil, 0, nil, nil, fmt.Errorf("failed to fetch audit entries around anchor: %w", err)
+	}
+	return toAuditEntryResponses(rows), int(total), prev, next, nil
 }
 
 // GetSnapshot reconstructs the full entity state at a given audit entry's version.
