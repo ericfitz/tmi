@@ -31,6 +31,7 @@ func TestGetExpectedSchema(t *testing.T) {
 		"project_relationships",
 		"audit_entries",
 		"version_snapshots",
+		"system_audit_entries",
 		"timmy_sessions",
 		"timmy_messages",
 		"timmy_embeddings",
@@ -96,6 +97,63 @@ func TestGetExpectedSchema(t *testing.T) {
 
 	if idCol.IsNullable {
 		t.Error("Expected ID column to be not nullable")
+	}
+}
+
+// TestGetExpectedSchema_SystemAuditEntries verifies the system_audit_entries
+// table (#355) is registered in the expected schema with the columns and
+// indexes the validator must detect drift against (#461). The composite
+// idx_sysaudit_created_id supersedes the dropped single-column
+// idx_sysaudit_created, so the latter must NOT be expected.
+func TestGetExpectedSchema_SystemAuditEntries(t *testing.T) {
+	schemas := GetExpectedSchema()
+
+	var table *TableSchema
+	for i := range schemas {
+		if schemas[i].Name == "system_audit_entries" {
+			table = &schemas[i]
+			break
+		}
+	}
+	if table == nil {
+		t.Fatal("system_audit_entries table not found in expected schema")
+	}
+
+	expectedColumns := []string{
+		"id", "actor_email", "actor_provider", "actor_provider_id",
+		"actor_display_name", "http_method", "http_path", "field_path",
+		"old_value_redacted", "new_value_redacted", "change_summary", "created_at",
+	}
+	columnMap := make(map[string]ColumnSchema)
+	for _, col := range table.Columns {
+		columnMap[col.Name] = col
+	}
+	for _, name := range expectedColumns {
+		if _, ok := columnMap[name]; !ok {
+			t.Errorf("Expected column '%s' not found in system_audit_entries", name)
+		}
+	}
+	if idCol, ok := columnMap["id"]; !ok || !idCol.IsPrimaryKey {
+		t.Error("Expected id column to be the primary key of system_audit_entries")
+	}
+
+	expectedIndexes := []string{
+		"system_audit_entries_pkey",
+		"idx_sysaudit_actor",
+		"idx_sysaudit_field",
+		"idx_sysaudit_created_id",
+	}
+	indexMap := make(map[string]IndexSchema)
+	for _, idx := range table.Indexes {
+		indexMap[idx.Name] = idx
+	}
+	for _, name := range expectedIndexes {
+		if _, ok := indexMap[name]; !ok {
+			t.Errorf("Expected index '%s' not found in system_audit_entries", name)
+		}
+	}
+	if _, ok := indexMap["idx_sysaudit_created"]; ok {
+		t.Error("Dropped single-column idx_sysaudit_created must not be in the expected schema")
 	}
 }
 

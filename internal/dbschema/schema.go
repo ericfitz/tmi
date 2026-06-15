@@ -800,6 +800,32 @@ func GetExpectedSchema() []TableSchema {
 				{Name: "idx_vs_object_snapshot", Columns: []string{"object_type", "object_id", "snapshot_type"}, IsUnique: false},
 			},
 		},
+		// System audit trail (append-only record of every /admin/* write, #355).
+		// The composite idx_sysaudit_created_id supersedes the former
+		// single-column idx_sysaudit_created (see api/models/system_audit.go).
+		{
+			Name: "system_audit_entries",
+			Columns: []ColumnSchema{
+				{Name: "id", DataType: "character varying", IsNullable: false, IsPrimaryKey: true},
+				{Name: "actor_email", DataType: "character varying", IsNullable: false},
+				{Name: "actor_provider", DataType: "character varying", IsNullable: false},
+				{Name: "actor_provider_id", DataType: "character varying", IsNullable: false},
+				{Name: "actor_display_name", DataType: "character varying", IsNullable: false},
+				{Name: "http_method", DataType: "character varying", IsNullable: false},
+				{Name: "http_path", DataType: "text", IsNullable: false},
+				{Name: "field_path", DataType: "character varying", IsNullable: false},
+				{Name: "old_value_redacted", DataType: "text", IsNullable: true},
+				{Name: "new_value_redacted", DataType: "text", IsNullable: true},
+				{Name: "change_summary", DataType: "text", IsNullable: true},
+				{Name: "created_at", DataType: "timestamp with time zone", IsNullable: false},
+			},
+			Indexes: []IndexSchema{
+				{Name: "system_audit_entries_pkey", Columns: []string{"id"}, IsUnique: true},
+				{Name: "idx_sysaudit_actor", Columns: []string{"actor_email", "created_at"}, IsUnique: false},
+				{Name: "idx_sysaudit_field", Columns: []string{"field_path"}, IsUnique: false},
+				{Name: "idx_sysaudit_created_id", Columns: []string{"created_at", "id"}, IsUnique: false},
+			},
+		},
 		{
 			Name: "notes",
 			Columns: []ColumnSchema{
