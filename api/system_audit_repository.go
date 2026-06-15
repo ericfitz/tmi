@@ -123,7 +123,7 @@ func (r *systemAuditRepoGORM) List(ctx context.Context, f SystemAuditFilter) ([]
 	var next *string
 	if f.Limit > 0 && len(rows) == f.Limit {
 		last := rows[len(rows)-1]
-		enc := encodeAuditCursor(last.CreatedAt, string(last.ID))
+		enc := encodeAuditCursor(last.CreatedAt, string(last.ID), dirForward)
 		next = &enc
 	}
 	return rows, int(total), next, nil

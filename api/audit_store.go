@@ -295,7 +295,7 @@ func (s *GormAuditService) ListAuditEntriesAdmin(ctx context.Context, limit int,
 	var next *string
 	if len(entries) == limit && limit > 0 {
 		last := entries[len(entries)-1]
-		enc := encodeAuditCursor(last.CreatedAt, string(last.ID))
+		enc := encodeAuditCursor(last.CreatedAt, string(last.ID), dirForward)
 		next = &enc
 	}
 	return toAuditEntryResponses(entries), int(total), next, nil
