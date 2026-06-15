@@ -162,3 +162,33 @@ func TestListSystemAudit_CursorAndAroundConflict(t *testing.T) {
 	s.ListSystemAuditEntries(c, ListSystemAuditEntriesParams{Around: &around, Cursor: &realCur})
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
+
+// TestListSystemAudit_MalformedCursorReturns400 pins the Zero-500 contract for a
+// malformed cursor query param at the handler boundary.
+func TestListSystemAudit_MalformedCursorReturns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	s := &Server{systemAuditRepo: &fakeSystemAuditRepo{}}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/admin/audit/system", nil)
+	bad := "!!!not-a-valid-cursor!!!"
+	s.ListSystemAuditEntries(c, ListSystemAuditEntriesParams{Cursor: &bad})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// TestListAdminThreatModelAudit_CursorAndAroundConflict pins the 400 conflict on
+// the threat-model endpoint (parity with the system-audit conflict test).
+func TestListAdminThreatModelAudit_CursorAndAroundConflict(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	prev := GlobalAuditService
+	GlobalAuditService = &mockAuditService{}
+	defer func() { GlobalAuditService = prev }()
+	s := &Server{}
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET", "/admin/audit/threat_models", nil)
+	around := uuid.New()
+	realCur := encodeAuditCursor(time.Now().UTC(), uuid.New().String(), dirForward)
+	s.ListAdminThreatModelAuditEntries(c, ListAdminThreatModelAuditEntriesParams{Around: &around, Cursor: &realCur})
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
