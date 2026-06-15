@@ -439,6 +439,9 @@ func (s *Server) streamSystemAuditExport(c *gin.Context, logger *slogging.Contex
 		}
 		if format == "csv" {
 			csvW.Flush()
+			if err := csvW.Error(); err != nil {
+				logger.Error("Failed to flush empty system audit CSV: %v", err)
+			}
 		}
 	}
 }
