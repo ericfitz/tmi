@@ -350,7 +350,10 @@ func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequ
 		return
 	}
 
-	// Process and validate logout request (includes signature verification)
+	// Process and validate the logout request. ProcessLogoutRequest verifies
+	// the IdP's enveloped XML signature against the metadata signing certs
+	// and checks issuer, IssueInstant freshness, and Destination; unsigned
+	// requests are rejected before any session invalidation occurs.
 	logoutReq, err := provider.ProcessLogoutRequest(samlRequest)
 	if err != nil {
 		logger.Error("Failed to process SAML logout: %v", err)

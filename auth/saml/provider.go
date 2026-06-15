@@ -13,12 +13,15 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"errors"
 
+	"github.com/beevik/etree"
 	"github.com/crewjam/saml"
 	"github.com/crewjam/saml/samlsp"
+	dsig "github.com/russellhaering/goxmldsig"
 	"golang.org/x/oauth2"
 
 	"github.com/ericfitz/tmi/internal/safehttp"
@@ -255,7 +258,27 @@ func (p *SAMLProvider) InitiateLogin(clientCallback *string) (string, string, er
 	return authURL, state, nil
 }
 
-// ProcessLogoutRequest handles a SAML logout request from the IdP
+// Freshness bounds for an inbound LogoutRequest's IssueInstant. Together
+// these bound the replay window for a captured (validly signed) logout
+// request to roughly +/-5 minutes.
+const (
+	maxLogoutRequestAge       = 5 * time.Minute
+	maxLogoutRequestClockSkew = 5 * time.Minute
+)
+
+// ProcessLogoutRequest handles a SAML logout request from the IdP.
+//
+// Binding note: this accepts the HTTP-POST binding form of the request --
+// base64-encoded LogoutRequest XML carrying an enveloped XML signature. The
+// HTTP-Redirect binding carries a DEFLATE-compressed payload whose signature
+// lives in the SigAlg/Signature query parameters rather than inside the XML;
+// that form is not supported by this method and is rejected (it fails XML
+// parsing, or signature validation if inflated XML without an embedded
+// signature is supplied).
+//
+// SECURITY: the request is only trusted after its enveloped XML signature has
+// been verified against the IdP signing certificate(s) from metadata.
+// Unsigned requests are rejected outright.
 func (p *SAMLProvider) ProcessLogoutRequest(samlRequest string) (*saml.LogoutRequest, error) {
 	// Decode base64-encoded SAML logout request
 	decodedRequest, err := base64.StdEncoding.DecodeString(samlRequest)
@@ -263,13 +286,55 @@ func (p *SAMLProvider) ProcessLogoutRequest(samlRequest string) (*saml.LogoutReq
 		return nil, fmt.Errorf("failed to decode base64 SAML logout request: %w", err)
 	}
 
-	// Parse the logout request
+	// SECURITY: bound input size before XML parsing (mirrors fetchIDPMetadata)
+	const maxLogoutRequestSize = 102400 // 100KB
+	if len(decodedRequest) > maxLogoutRequestSize {
+		return nil, fmt.Errorf("logout request exceeds maximum size of %d bytes", maxLogoutRequestSize)
+	}
+
+	// Parse into an etree document so the XML signature can be verified
+	// against the exact element that was signed.
+	doc := etree.NewDocument()
+	if err := doc.ReadFromBytes(decodedRequest); err != nil {
+		return nil, fmt.Errorf("failed to parse SAML logout request XML: %w", err)
+	}
+	root := doc.Root()
+	if root == nil || root.Tag != "LogoutRequest" {
+		return nil, fmt.Errorf("unexpected root element in SAML logout request")
+	}
+
+	// SECURITY: verify the enveloped XML signature against the IdP signing
+	// certificates from metadata before trusting any field of the request.
+	// goxmldsig's Validate requires the Signature's Reference URI to resolve
+	// to the element being validated and returns only the signed subtree,
+	// which rejects both signature stripping (no signature -> error) and XML
+	// signature wrapping (signature over a different element -> error).
+	certs, err := p.idpSigningCerts()
+	if err != nil {
+		return nil, fmt.Errorf("cannot validate logout request signature: %w", err)
+	}
+	validationContext := dsig.NewDefaultValidationContext(&dsig.MemoryX509CertificateStore{
+		Roots: certs,
+	})
+	validationContext.IdAttribute = "ID"
+	signedRoot, err := validationContext.Validate(root)
+	if err != nil {
+		return nil, fmt.Errorf("SAML logout request signature validation failed (unsigned requests are rejected): %w", err)
+	}
+
+	// Unmarshal only the signature-verified subtree.
+	signedDoc := etree.NewDocument()
+	signedDoc.SetRoot(signedRoot)
+	verifiedXML, err := signedDoc.WriteToBytes()
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize verified logout request: %w", err)
+	}
 	logoutRequest := &saml.LogoutRequest{}
-	if err := xml.Unmarshal(decodedRequest, logoutRequest); err != nil {
+	if err := xml.Unmarshal(verifiedXML, logoutRequest); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal SAML logout request: %w", err)
 	}
 
-	// Validate basic structure
+	// Validate the issuer is the IdP we trust
 	if logoutRequest.Issuer == nil || logoutRequest.Issuer.Value != p.idpMetadata.EntityID {
 		return nil, fmt.Errorf("invalid or missing issuer in logout request")
 	}
@@ -278,11 +343,83 @@ func (p *SAMLProvider) ProcessLogoutRequest(samlRequest string) (*saml.LogoutReq
 		return nil, fmt.Errorf("missing NameID in logout request")
 	}
 
-	// Return the parsed and validated logout request
+	// SECURITY: IssueInstant freshness bounds the replay window for a
+	// captured signed request.
+	now := time.Now()
+	if logoutRequest.IssueInstant.IsZero() {
+		return nil, fmt.Errorf("missing IssueInstant in logout request")
+	}
+	if logoutRequest.IssueInstant.After(now.Add(maxLogoutRequestClockSkew)) {
+		return nil, fmt.Errorf("logout request IssueInstant is in the future")
+	}
+	if now.Sub(logoutRequest.IssueInstant) > maxLogoutRequestAge+maxLogoutRequestClockSkew {
+		return nil, fmt.Errorf("logout request IssueInstant is too old")
+	}
+
+	// SECURITY: a validly signed LogoutRequest destined for a different SP
+	// must not be accepted here.
+	if logoutRequest.Destination != "" && p.config.SLOURL != "" && logoutRequest.Destination != p.config.SLOURL {
+		return nil, fmt.Errorf("logout request Destination does not match configured SLO URL")
+	}
+
+	// Return the parsed and signature-verified logout request
 	// The caller should:
 	// 1. Invalidate the user's session based on NameID
 	// 2. Send a LogoutResponse back to the IdP
 	return logoutRequest, nil
+}
+
+// idpSigningCerts extracts the IdP signing certificates from the IdP
+// metadata (mirrors crewjam/saml's unexported getIDPSigningCerts).
+// Certificates marked use="signing" are preferred; if none are marked,
+// certificates with no use attribute are accepted, per the metadata spec.
+func (p *SAMLProvider) idpSigningCerts() ([]*x509.Certificate, error) {
+	var certStrs []string
+	for _, idpSSODescriptor := range p.idpMetadata.IDPSSODescriptors {
+		for _, keyDescriptor := range idpSSODescriptor.KeyDescriptors {
+			if keyDescriptor.Use == "signing" {
+				for _, cert := range keyDescriptor.KeyInfo.X509Data.X509Certificates {
+					certStrs = append(certStrs, cert.Data)
+				}
+			}
+		}
+	}
+	if len(certStrs) == 0 {
+		for _, idpSSODescriptor := range p.idpMetadata.IDPSSODescriptors {
+			for _, keyDescriptor := range idpSSODescriptor.KeyDescriptors {
+				if keyDescriptor.Use == "" {
+					for _, cert := range keyDescriptor.KeyInfo.X509Data.X509Certificates {
+						certStrs = append(certStrs, cert.Data)
+					}
+				}
+			}
+		}
+	}
+	if len(certStrs) == 0 {
+		return nil, fmt.Errorf("no IdP signing certificates found in metadata")
+	}
+
+	certs := make([]*x509.Certificate, 0, len(certStrs))
+	for _, certStr := range certStrs {
+		// Metadata certificates are base64 DER, frequently wrapped/indented.
+		cleaned := strings.Map(func(r rune) rune {
+			switch r {
+			case ' ', '\t', '\n', '\r':
+				return -1
+			}
+			return r
+		}, certStr)
+		certBytes, err := base64.StdEncoding.DecodeString(cleaned)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode IdP certificate from metadata: %w", err)
+		}
+		parsed, err := x509.ParseCertificate(certBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse IdP certificate from metadata: %w", err)
+		}
+		certs = append(certs, parsed)
+	}
+	return certs, nil
 }
 
 // MakeLogoutResponse creates a SAML logout response
