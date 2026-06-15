@@ -16,8 +16,10 @@ var errAuditAnchorNotFound = errors.New("audit anchor entry not found")
 // order/limit/cursor) — it is called multiple times (page query + two EXISTS
 // probes). Returned rows are always in display order: created_at DESC, id DESC.
 // keyOf extracts (created_at, id) from a row. The expanded comparison form and
-// explicit ASC/DESC are Oracle-safe; the (created_at, id) index serves both
-// scan directions (#464).
+// explicit ASC/DESC are Oracle-safe. NOTE: there is currently no composite
+// (created_at, id) index on the audit tables, so the reverse-direction scan and
+// the unfiltered full-table export fall back to a sort; adding such an index is
+// tracked as a follow-up (#464 Oracle review). (#464)
 func fetchKeysetPage[T any](
 	newQuery func() *gorm.DB,
 	cursor *auditCursor,
