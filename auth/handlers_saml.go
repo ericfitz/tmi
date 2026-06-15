@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -132,8 +133,12 @@ func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCa
 }
 
 // redirectWithError attempts to redirect to client callback URL with error, or returns JSON error if no callback
-// For SAML: uses relayState to retrieve callback URL from state store
-func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayState string, statusCode int, errorMsg string) {
+// For SAML: uses relayState to retrieve callback URL from state store.
+// errorCode is the OAuth 2.0-style machine-readable code (e.g. "saml_error",
+// "account_conflict") so clients can branch on the failure without parsing the
+// human-readable errorMsg; both the redirect fragment and the JSON fallback
+// carry error + error_description.
+func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayState string, statusCode int, errorCode string, errorMsg string) {
 	logger := slogging.Get()
 
 	// Try to get callback URL - even if state validation failed, we might have stored it
@@ -145,14 +150,15 @@ func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayS
 		if err != nil {
 			logger.Error("Invalid callback URL during error redirect: %v", err)
 			c.JSON(statusCode, gin.H{
-				"error": errorMsg,
+				"error":             errorCode,
+				"error_description": errorMsg,
 			})
 			c.Abort()
 			return
 		}
 
 		// Add error to fragment using OAuth 2.0 error format
-		fragment := fmt.Sprintf("error=saml_error&error_description=%s", url.QueryEscape(errorMsg))
+		fragment := fmt.Sprintf("error=%s&error_description=%s", url.QueryEscape(errorCode), url.QueryEscape(errorMsg))
 		redirectURL.Fragment = fragment
 
 		c.Redirect(http.StatusFound, redirectURL.String())
@@ -162,9 +168,29 @@ func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayS
 
 	// No callback URL, return JSON error
 	c.JSON(statusCode, gin.H{
-		"error": errorMsg,
+		"error":             errorCode,
+		"error_description": errorMsg,
 	})
 	c.Abort()
+}
+
+// classifySAMLProcessError maps an error returned by ProcessSAMLResponse to the
+// HTTP status, OAuth 2.0-style error code, and user-facing message surfaced at
+// the /saml/acs boundary.
+//
+// A cross-provider email conflict (#465/#469) is surfaced as a distinct,
+// actionable 409 — mirroring the OAuth path (handlers_token.go) which returns
+// account_conflict — so a user in an OAuth↔SAML migration or multi-IdP setup is
+// told to use their original provider or link the account, instead of seeing an
+// opaque "Authentication failed". Every other failure stays a generic 401 and
+// does not disclose detail. ProcessSAMLResponse wraps processUser's error with
+// %w, so errors.Is sees through the wrapping.
+func classifySAMLProcessError(err error) (statusCode int, errorCode string, errorMsg string) {
+	if errors.Is(err, errCrossProviderConflict) {
+		return http.StatusConflict, "account_conflict",
+			"This email is already registered with a different sign-in provider. Please sign in with that provider, or link this provider to your account."
+	}
+	return http.StatusUnauthorized, "saml_error", fmt.Sprintf("Authentication failed: %v", err)
 }
 
 // redirectWithErrorOAuth redirects to client callback URL with error for OAuth flows
@@ -206,14 +232,14 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 
 	// Check if SAML is enabled
 	if !h.samlEnabled(c.Request.Context()) {
-		h.redirectWithError(c, ctx, relayState, http.StatusNotFound, "SAML authentication is not enabled")
+		h.redirectWithError(c, ctx, relayState, http.StatusNotFound, "saml_error", "SAML authentication is not enabled")
 		return
 	}
 
 	// Get SAML manager
 	samlManager := h.service.GetSAMLManager()
 	if samlManager == nil {
-		h.redirectWithError(c, ctx, relayState, http.StatusInternalServerError, "SAML manager not initialized")
+		h.redirectWithError(c, ctx, relayState, http.StatusInternalServerError, "saml_error", "SAML manager not initialized")
 		return
 	}
 
@@ -222,7 +248,7 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 		storedProviderID, err := h.service.stateStore.ValidateState(ctx, relayState)
 		if err != nil {
 			logger.Error("Invalid SAML relay state: %v", err)
-			h.redirectWithError(c, ctx, relayState, http.StatusBadRequest, "Invalid or expired state")
+			h.redirectWithError(c, ctx, relayState, http.StatusBadRequest, "saml_error", "Invalid or expired state")
 			return
 		}
 		// Use the provider ID from the state if not specified
@@ -239,8 +265,15 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 	// Process SAML response
 	_, tokenPair, err := samlManager.ProcessSAMLResponse(ctx, providerID, samlResponse, relayState)
 	if err != nil {
-		logger.Error("Failed to process SAML response: %v", err)
-		h.redirectWithError(c, ctx, relayState, http.StatusUnauthorized, fmt.Sprintf("Authentication failed: %v", err))
+		statusCode, errorCode, errorMsg := classifySAMLProcessError(err)
+		if errors.Is(err, errCrossProviderConflict) {
+			// Expected user condition (already logged at Warn in processSAMLUser),
+			// not a server fault — surface the actionable conflict response.
+			logger.WithContext(c).Warn("SAML login rejected at ACS: cross-provider email conflict provider_id=%s", providerID)
+		} else {
+			logger.Error("Failed to process SAML response: %v", err)
+		}
+		h.redirectWithError(c, ctx, relayState, statusCode, errorCode, errorMsg)
 		return
 	}
 
@@ -251,7 +284,7 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 		redirectURL, err := url.Parse(callbackURL)
 		if err != nil {
 			logger.Error("Invalid callback URL: %v", err)
-			h.redirectWithError(c, ctx, relayState, http.StatusInternalServerError, "Invalid callback URL")
+			h.redirectWithError(c, ctx, relayState, http.StatusInternalServerError, "saml_error", "Invalid callback URL")
 			return
 		}
 
