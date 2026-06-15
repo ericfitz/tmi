@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/safehttp"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
@@ -180,8 +181,7 @@ func (v *URIValidator) Validate(rawURL string) error {
 	// No allowlist — apply SSRF protections
 
 	// Block localhost variants
-	lower := strings.ToLower(hostname)
-	if lower == "localhost" || lower == "ip6-localhost" || lower == "ip6-loopback" {
+	if safehttp.IsBlockedLocalhostName(hostname) {
 		return fmt.Errorf("blocked: localhost is not allowed")
 	}
 
@@ -211,21 +211,8 @@ func (v *URIValidator) Validate(rawURL string) error {
 }
 
 // checkIP verifies an IP address is not in a blocked range (loopback, private,
-// link-local, or cloud metadata endpoint).
+// link-local, or cloud metadata endpoint). It delegates to the shared
+// safehttp.CheckIP so api/ and auth/ enforce one SSRF blocklist.
 func (v *URIValidator) checkIP(ip net.IP) error {
-	if ip.IsLoopback() {
-		return fmt.Errorf("blocked: loopback address %s", ip)
-	}
-	if ip.IsPrivate() {
-		return fmt.Errorf("blocked: private address %s", ip)
-	}
-	// Cloud metadata endpoint (AWS, GCP, Azure) — check before link-local
-	// since 169.254.169.254 is in the link-local range but deserves a specific error
-	if ip.Equal(net.ParseIP("169.254.169.254")) {
-		return fmt.Errorf("blocked: cloud metadata endpoint %s", ip)
-	}
-	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-		return fmt.Errorf("blocked: link-local address %s", ip)
-	}
-	return nil
+	return safehttp.CheckIP(ip)
 }

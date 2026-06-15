@@ -59,8 +59,9 @@ type DiscoveryClient struct {
 func NewDiscoveryClient(timeout, cacheTTL time.Duration) *DiscoveryClient {
 	return &DiscoveryClient{
 		// A redirecting issuer is classified as "not OIDC" (the fetch fails)
-		// rather than followed to an arbitrary host. See refuseRedirects.
-		httpClient: &http.Client{Timeout: timeout, CheckRedirect: refuseRedirects},
+		// rather than followed to an arbitrary host (safehttp.RefuseRedirects),
+		// and an internal/private issuer URL is blocked at dial time.
+		httpClient: newProviderHTTPClient(timeout),
 		cacheTTL:   cacheTTL,
 		cache:      make(map[string]cachedEntry),
 	}

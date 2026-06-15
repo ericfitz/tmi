@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/ericfitz/tmi/internal/safehttp"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/oauth2"
@@ -111,13 +112,26 @@ type BaseProvider struct {
 	httpClient   *http.Client
 }
 
-// refuseRedirects is a CheckRedirect policy that blocks all HTTP redirects.
-// Provider token/userinfo URLs are runtime-mutable settings; following a
-// redirect (Go re-sends the request body on 307/308) would let a hostile or
-// compromised provider endpoint bounce a client_secret-bearing request to an
-// internal or attacker-chosen target (SSRF).
-func refuseRedirects(req *http.Request, _ []*http.Request) error {
-	return fmt.Errorf("refusing to follow redirect to %s: provider endpoints must not redirect", req.URL.Redacted())
+// dialAllowHost is a test seam. In production it is nil, so provider HTTP
+// clients enforce the full SSRF blocklist (loopback/private/link-local/
+// cloud-metadata) at dial time. Tests that must reach a loopback httptest
+// server assign a predicate here (see ssrf_test_seam_test.go); it is never set
+// in production builds.
+var dialAllowHost func(host string) bool
+
+// newProviderHTTPClient builds the hardened outbound client used by all auth
+// provider clients. It pins the dialed IP for every request so an admin-set
+// internal token_url/userinfo/issuer is blocked at dial time, refuses
+// redirects, and is instrumented with otelhttp. token/userinfo URLs are
+// runtime-mutable settings, so this is the single egress chokepoint for them.
+func newProviderHTTPClient(timeout time.Duration) *http.Client {
+	return safehttp.NewHardenedClient(safehttp.HardenedClientOptions{
+		Timeout: timeout,
+		TransportWrap: func(rt http.RoundTripper) http.RoundTripper {
+			return otelhttp.NewTransport(rt)
+		},
+		AllowHost: dialAllowHost,
+	})
 }
 
 // NewBaseProvider creates a new base OAuth provider
@@ -136,11 +150,7 @@ func NewBaseProvider(config OAuthProviderConfig, callbackURL string) (*BaseProvi
 		Scopes: config.Scopes,
 	}
 
-	httpClient := &http.Client{
-		Timeout:       10 * time.Second,
-		Transport:     otelhttp.NewTransport(http.DefaultTransport),
-		CheckRedirect: refuseRedirects,
-	}
+	httpClient := newProviderHTTPClient(10 * time.Second)
 
 	logger.Info("Base OAuth provider initialized successfully provider_id=%v scopes=%v", config.ID, config.Scopes)
 	return &BaseProvider{

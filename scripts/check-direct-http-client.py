@@ -5,15 +5,17 @@
 # ///
 """Check that non-helper Go code in api/ and auth/ does not construct its own outbound HTTP clients.
 
-All server-originated outbound HTTP MUST go through SafeHTTPClient
-(api/safe_http_client.go) so that scheme allowlist, SSRF blocklist, DNS-pinning,
-header-size cap, body-size cap, and ResponseHeaderTimeout are enforced uniformly.
+All server-originated outbound HTTP MUST go through a hardened client
+(api/safe_http_client.go for api/, or the shared internal/safehttp core via
+auth's newProviderHTTPClient / safehttp.NewHardenedClient for auth/) so that
+scheme allowlist, SSRF blocklist, DNS/dial-time IP-pinning, header-size cap,
+body-size cap, and ResponseHeaderTimeout are enforced uniformly.
 
-This check fails if any non-test, non-helper file under api/ or auth/ either constructs
-&http.Client{...} or references http.DefaultClient. The exception list below
-documents pre-existing legacy callers that have not yet been migrated; they are
-tracked by a follow-up issue. New violations should be fixed by routing through
-SafeHTTPClient instead of being added to the exception list.
+This check scans api/ and auth/ RECURSIVELY (so subpackages such as auth/saml/
+are covered) and fails if any non-test, non-helper file either constructs
+&http.Client{...} or references http.DefaultClient. New violations should be
+fixed by routing through the hardened client instead of being added to an
+exception list.
 
 Usage:
     uv run scripts/check-direct-http-client.py
@@ -38,17 +40,13 @@ from tmi_common import (  # noqa: E402
 # SafeHTTPClient instead of being added here.
 LEGACY_EXCEPTIONS: set[str] = set()
 
-# auth/ cannot import api/ (api already imports auth), so these files construct
-# their own hardened http.Client in-package: an explicit timeout plus a
-# CheckRedirect policy (refuseRedirects in auth/provider.go) that refuses all
-# redirects. They are the only allowed constructor sites in auth/; new outbound
-# HTTP in auth/ should reuse BaseProvider.httpClient or DiscoveryClient instead
-# of being added here. Keys are project-root-relative paths.
-HARDENED_AUTH_EXCEPTIONS = {
-    "auth/oidc_discovery.go",
-    "auth/provider.go",
-    "auth/test_provider.go",
-}
+# auth/ now routes all outbound HTTP through the shared internal/safehttp core
+# (auth's newProviderHTTPClient and safehttp.NewHardenedClient), which pins the
+# dialed IP and refuses redirects. No auth/ file constructs its own http.Client
+# anymore, so this exception list is empty (issue #470/#471). New outbound HTTP
+# in auth/ should reuse newProviderHTTPClient or safehttp.NewHardenedClient.
+# Keys are project-root-relative paths.
+HARDENED_AUTH_EXCEPTIONS: set[str] = set()
 
 # The helper itself is allowed to construct an http.Client; that is its job.
 HELPER_FILES = {
@@ -78,7 +76,7 @@ def main() -> int:
     go_files: list[Path] = []
     for dir_name in ("api", "auth"):
         scan_dir = project_root / dir_name
-        go_files.extend(sorted(p for p in scan_dir.glob("*.go") if not p.name.endswith("_test.go")))
+        go_files.extend(sorted(p for p in scan_dir.rglob("*.go") if not p.name.endswith("_test.go")))
     if not go_files:
         log_error(f"No Go files found under {project_root}/api or {project_root}/auth")
         return 1

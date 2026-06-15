@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rsa"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -22,6 +21,7 @@ import (
 	"github.com/crewjam/saml/samlsp"
 	"golang.org/x/oauth2"
 
+	"github.com/ericfitz/tmi/internal/safehttp"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
@@ -433,18 +433,17 @@ func fetchIDPMetadata(config *SAMLConfig) (*saml.EntityDescriptor, error) {
 	return metadata, nil
 }
 
-// fetchMetadataFromURL fetches metadata from a URL
+// fetchMetadataFromURL fetches metadata from a URL.
+//
+// IDP_METADATA_URL is an admin-set, runtime-mutable setting, so the fetch goes
+// through the hardened client: it pins the dialed IP and refuses redirects,
+// blocking an internal/private metadata URL (e.g. 169.254.169.254, RFC1918,
+// loopback) at dial time (SSRF). TLS 1.2 minimum is enforced by the hardened
+// client.
 func fetchMetadataFromURL(metadataURL string) ([]byte, error) {
-	// Create HTTP client with timeout
-	client := &http.Client{
+	client := safehttp.NewHardenedClient(safehttp.HardenedClientOptions{
 		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				MinVersion:         tls.VersionTLS12, // Require TLS 1.2 minimum
-				InsecureSkipVerify: false,            // Set to true only for development
-			},
-		},
-	}
+	})
 
 	resp, err := client.Get(metadataURL)
 	if err != nil {

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"net/http"
 	"net/url"
 	"os"
 	"regexp"
@@ -42,7 +41,7 @@ func NewTestProvider(config OAuthProviderConfig, callbackURL string) *TestProvid
 		},
 	}
 
-	httpClient := &http.Client{Timeout: 10 * time.Second, CheckRedirect: refuseRedirects}
+	httpClient := newProviderHTTPClient(10 * time.Second)
 
 	return &TestProvider{
 		BaseProvider: &BaseProvider{

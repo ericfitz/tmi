@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/ericfitz/tmi/internal/safehttp"
 )
 
 // HostResolver looks up the IPs for a hostname. Implementations must be
@@ -307,7 +309,7 @@ func (c *SafeHTTPClient) resolveAndPin(ctx context.Context, rawURL string) (pinn
 	}
 
 	if !c.validator.hasAllowlist {
-		if hostnameLower == "localhost" || hostnameLower == "ip6-localhost" || hostnameLower == "ip6-loopback" {
+		if safehttp.IsBlockedLocalhostName(hostnameLower) {
 			return "", "", "", fmt.Errorf("blocked: localhost is not allowed")
 		}
 	}
