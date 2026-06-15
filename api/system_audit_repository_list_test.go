@@ -144,9 +144,12 @@ func TestSystemAuditList_Around(t *testing.T) {
 	require.ErrorIs(t, err, errAuditAnchorNotFound)
 }
 
-// TestSystemAuditList_AroundBackfill exercises the backfill branch: anchor is the
-// NEWEST row, so there are no newer rows and the page must fill entirely from
-// older rows (still returning a full page of `limit`).
+// TestSystemAuditList_AroundBackfill covers the simpler one-sided case: anchor
+// is the NEWEST row, so the newer side is empty, olderWant absorbs the full
+// budget, and the page fills entirely from older rows. The backfill re-fetch
+// branch in fetchAroundPage is NOT triggered here because the older side
+// already satisfies the limit on its own. See TestSystemAuditList_AroundBackfillNewer
+// for the branch that does trigger the backfill re-fetch.
 func TestSystemAuditList_AroundBackfill(t *testing.T) {
 	db := setupSysAuditListDB(t)
 	repo := NewSystemAuditRepository(db)
@@ -164,6 +167,38 @@ func TestSystemAuditList_AroundBackfill(t *testing.T) {
 	require.Equal(t, newest, string(page[0].ID)) // anchor at the top (newest)
 	require.Nil(t, prev)                         // nothing newer than the newest row
 	require.NotNil(t, next)
+}
+
+// TestSystemAuditList_AroundBackfillNewer exercises the backfill re-fetch branch
+// in fetchAroundPage (audit_keyset.go ~lines 98-105): the anchor is the OLDEST
+// row, so the older side is empty and total=newer+0+1 < limit, causing the
+// code to re-fetch the newer side with a larger limit to fill the page.
+//
+// Math with limit=5, 6 rows (ages 10..60), anchor=oldest (age 60):
+//
+//	newerWant  = (5-1)/2 = 2   → newer = [age50, age40]  (2 rows)
+//	olderWant  = 5-1-2   = 2   → older = []              (0 rows, none exist)
+//	total      = 2+0+1   = 3 < 5  → backfill triggers
+//	newerWant2 = 5-1-0   = 4   → newer re-fetched = [age50, age40, age30, age20]
+//	page       = [age20, age30, age40, age50, anchor(age60)]
+//	anchor sits at page[4] (bottom); prev is not nil; next is nil.
+func TestSystemAuditList_AroundBackfillNewer(t *testing.T) {
+	db := setupSysAuditListDB(t)
+	repo := NewSystemAuditRepository(db)
+	ctx := context.Background()
+	var oldest string
+	for age := 10; age <= 60; age += 10 { // 6 rows, age 60 = oldest
+		id := seedSysAuditRow(t, db, "c@tmi.local", "tmi", "PUT", "/admin/x", "f", age)
+		if age == 60 {
+			oldest = id
+		}
+	}
+	page, _, prev, next, err := repo.Around(ctx, SystemAuditFilter{Limit: 5}, oldest)
+	require.NoError(t, err)
+	require.Len(t, page, 5)                                // full page despite no older rows
+	require.Equal(t, oldest, string(page[len(page)-1].ID)) // anchor at the bottom (oldest)
+	require.NotNil(t, prev)                                // newer rows exist above the page
+	require.Nil(t, next)                                   // nothing older than the oldest row
 }
 
 func TestSystemAuditStreamFiltered_Batches(t *testing.T) {
