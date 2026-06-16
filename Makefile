@@ -241,7 +241,7 @@ clean-everything:
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev tilt-up tilt-down test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-cluster-up dev-cluster-down
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev tilt-up tilt-down test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-cluster-up dev-cluster-stop dev-cluster-down
 
 # Dev-environment Python helpers unit tests
 test-dev-scripts:  ## Run unit tests for the dev-environment Python helpers
@@ -359,6 +359,10 @@ tilt-down:  ## Stop Tilt and restore the prod-shaped server
 dev-cluster-up:  ## Create a local kind cluster wired to the dev registry (laptop path)
 	@uv run scripts/dev-cluster.py up
 
+# Local kind cluster - Stop the dev registry + kind node containers (revivable)
+dev-cluster-stop:  ## Stop the dev registry + kind node containers without deleting the cluster
+	@uv run scripts/dev-cluster.py stop
+
 # Local kind cluster - Delete the local kind dev cluster
 dev-cluster-down:  ## Delete the local kind dev cluster
 	@uv run scripts/dev-cluster.py down
@@ -416,7 +420,7 @@ kill-oauth-stub:
 check-oauth-stub:
 	@uv run scripts/manage-oauth-stub.py status
 
-stop-all: stop-server stop-workers stop-nats stop-database stop-redis stop-oauth-stub
+stop-all: stop-server stop-workers stop-nats stop-database stop-redis stop-oauth-stub dev-cluster-stop  ## Stop all dev components incl. the kind cluster + registry containers
 
 
 # ============================================================================
