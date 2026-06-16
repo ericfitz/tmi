@@ -222,22 +222,32 @@ func (s *GormAuditService) createVersionSnapshot(tx *gorm.DB, entry models.Audit
 	return tx.Create(&snapshot).Error
 }
 
-// GetThreatModelAuditTrail retrieves all audit entries for a threat model.
-func (s *GormAuditService) GetThreatModelAuditTrail(ctx context.Context, threatModelID string, offset, limit int, filters *AuditFilters) ([]AuditEntryResponse, int, error) {
-	query := s.db.WithContext(ctx).Model(&models.AuditEntry{}).Where("threat_model_id = ?", threatModelID)
-	query = applyAuditFilters(query, filters)
+// GetThreatModelAuditTrailKeyset retrieves audit entries for a threat model and
+// its sub-objects using bidirectional keyset pagination ordered
+// (created_at DESC, id DESC). The total is the filtered count ignoring the
+// cursor, mirroring the admin path. The composite index
+// idx_audit_tm_created (threat_model_id, created_at) backs the threat_model_id
+// equality scope and the leading created_at ordering; the id tiebreaker is
+// resolved by a bounded micro-sort over rows sharing an identical created_at
+// (typically 0-1 within a page), so no full sort is needed (#457).
+func (s *GormAuditService) GetThreatModelAuditTrailKeyset(ctx context.Context, threatModelID string, limit int, cursor *auditCursor, filters *AuditFilters) ([]AuditEntryResponse, int, *string, *string, error) {
+	newQuery := func() *gorm.DB {
+		return applyAuditFilters(
+			s.db.WithContext(ctx).Model(&models.AuditEntry{}).Where("threat_model_id = ?", threatModelID),
+			filters,
+		)
+	}
 
 	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, fmt.Errorf("failed to count audit entries: %w", err)
+	if err := newQuery().Count(&total).Error; err != nil {
+		return nil, 0, nil, nil, fmt.Errorf("failed to count audit entries: %w", err)
 	}
 
-	var entries []models.AuditEntry
-	if err := query.Order("created_at DESC").Offset(offset).Limit(limit).Find(&entries).Error; err != nil {
-		return nil, 0, fmt.Errorf("failed to list audit entries: %w", err)
+	rows, prev, next, err := fetchKeysetPage(newQuery, cursor, limit, adminAuditKeyOf)
+	if err != nil {
+		return nil, 0, nil, nil, fmt.Errorf("failed to list audit entries: %w", err)
 	}
-
-	return toAuditEntryResponses(entries), int(total), nil
+	return toAuditEntryResponses(rows), int(total), prev, next, nil
 }
 
 // GetObjectAuditTrail retrieves audit entries for a specific object.

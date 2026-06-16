@@ -33,8 +33,8 @@ func (m *mockAuditService) getCalls() []AuditParams {
 	return result
 }
 
-func (m *mockAuditService) GetThreatModelAuditTrail(_ context.Context, _ string, _, _ int, _ *AuditFilters) ([]AuditEntryResponse, int, error) {
-	return nil, 0, nil
+func (m *mockAuditService) GetThreatModelAuditTrailKeyset(_ context.Context, _ string, _ int, _ *auditCursor, _ *AuditFilters) ([]AuditEntryResponse, int, *string, *string, error) {
+	return nil, 0, nil, nil, nil
 }
 
 func (m *mockAuditService) GetObjectAuditTrail(_ context.Context, _, _ string, _, _ int) ([]AuditEntryResponse, int, error) {

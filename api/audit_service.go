@@ -58,8 +58,11 @@ type AuditServiceInterface interface {
 	// The service internally computes reverse diffs and determines checkpoint intervals.
 	RecordMutation(ctx context.Context, params AuditParams) error
 
-	// GetThreatModelAuditTrail retrieves all audit entries for a threat model and its sub-objects.
-	GetThreatModelAuditTrail(ctx context.Context, threatModelID string, offset, limit int, filters *AuditFilters) ([]AuditEntryResponse, int, error)
+	// GetThreatModelAuditTrailKeyset retrieves audit entries for a threat model and
+	// its sub-objects using bidirectional keyset pagination ordered
+	// (created_at DESC, id DESC). Returns (rows, total, prev, next) where total is
+	// the filtered count ignoring the cursor (#457).
+	GetThreatModelAuditTrailKeyset(ctx context.Context, threatModelID string, limit int, cursor *auditCursor, filters *AuditFilters) ([]AuditEntryResponse, int, *string, *string, error)
 
 	// GetObjectAuditTrail retrieves audit entries for a specific object.
 	GetObjectAuditTrail(ctx context.Context, objectType, objectID string, offset, limit int) ([]AuditEntryResponse, int, error)

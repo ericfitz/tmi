@@ -58,11 +58,21 @@ func (h *AuditHandler) GetThreatModelAuditTrail(c *gin.Context, threatModelId Th
 		return
 	}
 
-	limit, offset := parsePaginationParams(params.Limit, params.Offset)
+	var cursor *auditCursor
+	if params.Cursor != nil {
+		decoded, err := decodeAuditCursor(*params.Cursor)
+		if err != nil {
+			HandleRequestError(c, InvalidInputError("Invalid pagination cursor"))
+			return
+		}
+		cursor = decoded
+	}
 
-	filters := buildAuditFilters(params.ObjectType, params.ChangeType, params.ActorEmail, params.After, params.Before)
+	limit := adminAuditPageLimit(params.Limit)
 
-	entries, total, err := h.auditService.GetThreatModelAuditTrail(c.Request.Context(), threatModelId.String(), offset, limit, filters)
+	filters := buildAuditFilters(params.ObjectType, params.ChangeType, params.ActorEmail, params.CreatedAfter, params.CreatedBefore)
+
+	entries, total, prev, next, err := h.auditService.GetThreatModelAuditTrailKeyset(c.Request.Context(), threatModelId.String(), limit, cursor, filters)
 	if err != nil {
 		HandleRequestError(c, ServerError(fmt.Sprintf("Failed to get audit trail: %v", err)))
 		return
@@ -73,11 +83,12 @@ func (h *AuditHandler) GetThreatModelAuditTrail(c *gin.Context, threatModelId Th
 		apiEntries = []AuditEntry{}
 	}
 
-	c.JSON(http.StatusOK, ListAuditTrailResponse{
+	c.JSON(http.StatusOK, ListThreatModelAuditTrailResponse{
 		AuditEntries: apiEntries,
 		Total:        total,
 		Limit:        limit,
-		Offset:       offset,
+		NextCursor:   next,
+		PrevCursor:   prev,
 	})
 }
 
@@ -461,7 +472,7 @@ func parsePaginationParams(limitParam *PaginationLimit, offsetParam *PaginationO
 // returns an empty filter struct (all fields nil), which means "no filtering" — the
 // audit trail query returns all entries for the threat model. Empty string values from
 // query parameters are treated as absent (no filter for that field).
-func buildAuditFilters(objectType *GetThreatModelAuditTrailParamsObjectType, changeType *GetThreatModelAuditTrailParamsChangeType, actorEmail *AuditActorEmail, after *AuditAfter, before *AuditBefore) *AuditFilters {
+func buildAuditFilters(objectType *GetThreatModelAuditTrailParamsObjectType, changeType *GetThreatModelAuditTrailParamsChangeType, actorEmail *AuditActorEmail, after *CreatedAfterQueryParam, before *CreatedBeforeQueryParam) *AuditFilters {
 	filters := &AuditFilters{}
 
 	if objectType != nil {
