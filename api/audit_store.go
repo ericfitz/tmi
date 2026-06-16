@@ -832,23 +832,66 @@ func (s *GormAuditService) PurgeTombstones(ctx context.Context) (int, error) {
 	return totalPurged, nil
 }
 
+// systemAuditPruneBatchSize bounds how many rows PruneSystemAuditEntries
+// deletes per transaction. Keeping each batch small — and at/below
+// oracleMaxInListSize, the ORA-01795 IN-list cap — keeps every prune
+// transaction short. That matters under SERIALIZABLE (#451): a single
+// unbounded DELETE sweeping a large backlog (volume growth, or a sharply
+// lowered retention) inflates undo/redo and serializable-abort exposure on
+// Oracle ADB. The age-floored append-only trigger permits these repeated
+// bounded deletes, since every targeted row is older than the floor (#460).
+const systemAuditPruneBatchSize = 1000
+
 // PruneSystemAuditEntries removes system audit entries older than the
-// configured retention period. Unlike threat-model audit, there are no
-// tombstone rows to preserve — every row past retention is deleted.
+// configured retention period, in bounded per-transaction batches. Unlike
+// threat-model audit, there are no tombstone rows to preserve — every row
+// past retention is deleted.
 func (s *GormAuditService) PruneSystemAuditEntries(ctx context.Context) (int, error) {
 	cutoff := time.Now().UTC().AddDate(0, 0, -s.systemAuditRetentionDays)
 
 	var pruned int
-	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		res := tx.Where("created_at < ?", cutoff).Delete(&models.SystemAuditEntry{})
-		if res.Error != nil {
-			return fmt.Errorf("failed to prune system audit entries: %w", res.Error)
+	for {
+		if err := ctx.Err(); err != nil {
+			return pruned, err
 		}
-		pruned = int(res.RowsAffected)
-		return nil
-	})
 
-	return pruned, err
+		// Select the oldest batch of expired rows. The composite
+		// (created_at, id) index backs both the predicate and the ordering;
+		// Limit maps to FETCH FIRST n ROWS ONLY on Oracle and LIMIT n on PG.
+		var ids []string
+		if err := s.db.WithContext(ctx).
+			Model(&models.SystemAuditEntry{}).
+			Where("created_at < ?", cutoff).
+			Order("created_at").
+			Limit(systemAuditPruneBatchSize).
+			Pluck("id", &ids).Error; err != nil {
+			return pruned, fmt.Errorf("failed to find prunable system audit entries: %w", err)
+		}
+		if len(ids) == 0 {
+			break
+		}
+
+		var batchPruned int
+		err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+			res := tx.Where("id IN ?", ids).Delete(&models.SystemAuditEntry{})
+			if res.Error != nil {
+				return fmt.Errorf("failed to prune system audit entries: %w", res.Error)
+			}
+			batchPruned = int(res.RowsAffected)
+			return nil
+		})
+		if err != nil {
+			return pruned, err
+		}
+		pruned += batchPruned
+
+		// A short final batch means the backlog is drained.
+		if len(ids) < systemAuditPruneBatchSize {
+			break
+		}
+	}
+
+	return pruned, nil
 }
 
 // Ensure GormAuditService implements AuditServiceInterface at compile time

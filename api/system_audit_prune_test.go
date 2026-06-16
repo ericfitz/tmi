@@ -58,6 +58,34 @@ func TestPruneSystemAuditEntries(t *testing.T) {
 	assert.Equal(t, int64(1), count, "young entry must survive")
 }
 
+// TestPruneSystemAuditEntries_ManyRows exercises the bounded per-transaction
+// batch loop (#460): it seeds more than one batch worth of expired rows plus a
+// few young rows, and verifies the loop drains every expired row across
+// multiple batches while leaving young rows untouched.
+func TestPruneSystemAuditEntries_ManyRows(t *testing.T) {
+	db := setupSystemAuditPruneDB(t)
+	t.Setenv("SYSTEM_AUDIT_RETENTION_DAYS", "100")
+
+	// 2.3 batches of expired rows -> forces three iterations (1000, 1000, 300).
+	const oldCount = systemAuditPruneBatchSize*2 + 300
+	const youngCount = 5
+	for i := 0; i < oldCount; i++ {
+		seedSystemAuditEntry(t, db, 150)
+	}
+	for i := 0; i < youngCount; i++ {
+		seedSystemAuditEntry(t, db, 50)
+	}
+
+	svc := NewGormAuditService(db)
+	pruned, err := svc.PruneSystemAuditEntries(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, oldCount, pruned, "every expired row should be pruned across batches")
+
+	var remaining int64
+	require.NoError(t, db.Model(&models.SystemAuditEntry{}).Count(&remaining).Error)
+	assert.Equal(t, int64(youngCount), remaining, "only young rows should remain")
+}
+
 func TestPruneSystemAuditEntries_NothingToPrune(t *testing.T) {
 	db := setupSystemAuditPruneDB(t)
 	t.Setenv("SYSTEM_AUDIT_RETENTION_DAYS", "100")
