@@ -1,4 +1,5 @@
 {
+  "packageManager": "pnpm@10.12.1",
   "devDependencies": {
     "@redocly/cli": "^2.31.6",
     "@stoplight/spectral-cli": "^6.16.0"
