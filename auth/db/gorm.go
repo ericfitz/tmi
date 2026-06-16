@@ -669,25 +669,21 @@ func (l *gormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 // configureSessionTimezone sets the session timezone to UTC for databases that require it.
 // This ensures consistent timestamp handling regardless of the database server's timezone.
 //
-// Note on connection pooling: This function runs once at connection initialization.
-// For Oracle, the session timezone is set per-session, so new connections from the pool
-// will inherit the server's default timezone. However, since GORM's NowFunc is configured
-// to use UTC and Go's time.Time is timezone-aware, timestamps are handled correctly
-// at the application level. The session timezone setting primarily affects:
-// - SYSDATE/SYSTIMESTAMP functions in Oracle
-// - CURRENT_TIMESTAMP in SQL Server
-// - Any database-side date arithmetic
+// Note on connection pooling: a one-shot ALTER SESSION here would only affect a single
+// connection from the pool, leaving every other pooled session on the server's default
+// timezone (issue #459). Per-pool enforcement is therefore done in the DSN, not here:
+//   - Oracle: godror's onInit runs "ALTER SESSION SET TIME_ZONE = '+00:00'" on every new
+//     pooled session (see oracleSessionInitParams in gorm_oracle.go).
+//   - PostgreSQL/MySQL: TimeZone/loc=UTC is set in the DSN connection string.
+//
+// This function now only handles the per-connection cases that have no DSN-level lever.
 func configureSessionTimezone(db *gorm.DB, dbType DatabaseType, log *slogging.Logger) error {
 	switch dbType {
 	case DatabaseTypeOracle:
-		// Set Oracle session timezone to UTC
-		// This affects SYSDATE, SYSTIMESTAMP, and date arithmetic in Oracle
-		// Note: This only affects the current session; new pooled connections may need reconfiguration
-		log.Debug("Setting Oracle session timezone to UTC")
-		if err := db.Exec("ALTER SESSION SET TIME_ZONE = '+00:00'").Error; err != nil {
-			return fmt.Errorf("failed to set Oracle session timezone: %w", err)
-		}
-		log.Debug("Oracle session timezone set to UTC successfully")
+		// Oracle session timezone is enforced for every pooled connection via the
+		// godror onInit DSN parameter (oracleSessionInitParams). Doing it here would
+		// only cover one pooled session, so this is intentionally a no-op.
+		log.Debug("Oracle session timezone enforced per-pool via DSN onInit (issue #459); no per-connection ALTER needed")
 
 	case DatabaseTypeSQLServer:
 		// SQL Server doesn't have a session timezone setting like other databases.
