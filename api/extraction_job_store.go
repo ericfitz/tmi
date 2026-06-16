@@ -120,11 +120,17 @@ func (s *ExtractionJobStore) MarkTerminal(ctx context.Context, jobID, status, re
 	}
 
 	// Step 1: guarded UPDATE — transition only a row that is not already terminal.
+	// Do NOT include updated_at here: it is an autoUpdateTime column, and GORM
+	// injects it automatically when neither the field name nor DB name is
+	// present in the map. On Oracle, AssignmentMap upper-cases the key to
+	// UPDATED_AT, which does not match the field's lower-case DBName, so GORM's
+	// "already set?" check (callbacks/update.go) misses it and injects a SECOND
+	// updated_at — yielding ORA-00957 (duplicate column). Letting GORM own the
+	// autoUpdateTime assignment sets it exactly once on every dialect.
 	assignments := AssignmentMap(dialect, map[string]any{
 		"status":       status,
 		"reason_code":  reasonCodeVal,
 		"completed_at": &now,
-		"updated_at":   now,
 	})
 	upd := s.db.WithContext(ctx).
 		Model(&models.ExtractionJob{}).
