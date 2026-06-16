@@ -426,6 +426,14 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 	} else {
 		api.EnableThreatModelAliasSequence()
 	}
+
+	// #450: pin the PostgreSQL role default_transaction_isolation to
+	// 'serializable' as defense-in-depth behind the per-transaction wrapper
+	// (#448/#449). No-op on Oracle/SQLite; non-fatal — the wrapper remains the
+	// authoritative mechanism if this fails.
+	if err := dbschema.InstallPostgresDefaultIsolation(ctx, gormDB.DB()); err != nil {
+		logger.Warn("InstallPostgresDefaultIsolation failed (non-fatal; per-transaction wrapper still enforces SERIALIZABLE): %v", err)
+	}
 	return nil
 }
 
