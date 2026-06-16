@@ -414,6 +414,18 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 	}); err != nil {
 		logger.Warn("InstallAuditAppendOnlyTriggers failed (non-fatal; T19 protection NOT in effect): %v", err)
 	}
+
+	// #452: install the global ThreatModel alias sequence (postgres/oracle) so
+	// concurrent threat-model creates no longer serialize on the single
+	// alias_counters '__global__' row under SERIALIZABLE. Only switch
+	// AllocateNextAlias to the sequence after the install succeeds — otherwise
+	// every create would fail on a missing sequence, so on failure we log and
+	// keep the row-counter allocator (the prior, contended-but-correct path).
+	if err := dbschema.InstallThreatModelAliasSequence(ctx, gormDB.DB()); err != nil {
+		logger.Warn("InstallThreatModelAliasSequence failed (non-fatal; using row-counter alias allocation): %v", err)
+	} else {
+		api.EnableThreatModelAliasSequence()
+	}
 	return nil
 }
 

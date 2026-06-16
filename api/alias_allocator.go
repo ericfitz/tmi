@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"sync/atomic"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -11,21 +13,89 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+const (
+	// globalAliasParent / threatModelAliasObjectType identify the single
+	// global ThreatModel alias scope. It is the only scope every create
+	// contends on, so on PostgreSQL and Oracle it is allocated from a
+	// non-transactional sequence instead of the per-scope FOR UPDATE row,
+	// eliminating the SERIALIZABLE serialization hot spot (#452).
+	globalAliasParent          = "__global__"
+	threatModelAliasObjectType = "threat_model"
+	// threatModelAliasSeqName must match dbschema.ThreatModelAliasSequenceName.
+	threatModelAliasSeqName = "tmi_threat_model_alias_seq"
+)
+
+// useAliasSequence gates the sequence-backed global ThreatModel alias path. It
+// is turned on by EnableThreatModelAliasSequence only after the server has
+// successfully installed the sequence; until then (and in unit tests, which
+// never install it) AllocateNextAlias uses the row-counter path. Without this
+// gate, a failed or absent sequence install would make every threat-model
+// create fail on a missing sequence.
+var useAliasSequence atomic.Bool
+
+// EnableThreatModelAliasSequence signals that the global ThreatModel alias
+// sequence exists and AllocateNextAlias may draw the global alias from it. The
+// server calls this once, after dbschema.InstallThreatModelAliasSequence
+// succeeds on PostgreSQL or Oracle.
+func EnableThreatModelAliasSequence() { useAliasSequence.Store(true) }
+
 // AllocateNextAlias atomically reserves the next alias value for the given
-// (parentID, objectType) scope. MUST be called inside a transaction; the
-// caller's transaction holds the lock until commit. The returned value is
-// guaranteed unique within the scope so long as the calling transaction
-// commits successfully.
+// (parentID, objectType) scope. MUST be called inside a transaction. The
+// returned value is guaranteed unique within the scope so long as the calling
+// transaction commits successfully.
 //
 // For the ThreatModel global counter, pass parentID="__global__" and
 // objectType="threat_model". For sub-objects, parentID is the parent
 // ThreatModel UUID and objectType is one of "diagram", "threat", "asset",
 // "repository", "note", "document".
 //
-// Note: if the calling transaction rolls back, the counter UPDATE rolls back
-// too — the alias is "released" and reused by the next caller. High-water-mark
-// semantics apply only to committed inserts.
+// The global ThreatModel scope is served from a DB sequence on PostgreSQL and
+// Oracle (see #452); every other scope — and SQLite — uses the row-counter
+// path below. Per-scope sub-object counters are naturally partitioned by their
+// parent threat model and never became a global hot spot.
+//
+// Note: on the row-counter path, if the calling transaction rolls back the
+// counter UPDATE rolls back too — the alias is "released" and reused. On the
+// sequence path the drawn value is gone (gap) whether or not the create
+// commits. Both paths only ever yield committed, unique aliases.
 func AllocateNextAlias(ctx context.Context, tx *gorm.DB, parentID, objectType string) (int32, error) {
+	if useAliasSequence.Load() && parentID == globalAliasParent && objectType == threatModelAliasObjectType {
+		switch tx.Name() {
+		case "postgres", "oracle":
+			return allocateAliasFromSequence(ctx, tx)
+		}
+	}
+	return allocateNextAliasRowLocked(ctx, tx, parentID, objectType)
+}
+
+// allocateAliasFromSequence draws the next global ThreatModel alias from the DB
+// sequence. NEXTVAL is non-transactional: it never participates in the caller's
+// serializable snapshot (so it cannot raise ORA-08177 / 40001) and is not
+// rolled back.
+func allocateAliasFromSequence(ctx context.Context, tx *gorm.DB) (int32, error) {
+	var query string
+	switch tx.Name() {
+	case "postgres":
+		query = fmt.Sprintf("SELECT nextval('%s')", threatModelAliasSeqName)
+	case "oracle":
+		query = fmt.Sprintf("SELECT %s.NEXTVAL FROM dual", threatModelAliasSeqName)
+	default:
+		return 0, fmt.Errorf("sequence alias allocation unsupported on dialect %q", tx.Name())
+	}
+
+	var next int64
+	if err := tx.WithContext(ctx).Raw(query).Scan(&next).Error; err != nil {
+		return 0, fmt.Errorf("threat_model alias sequence nextval: %w", err)
+	}
+	if next < 1 || next > math.MaxInt32 {
+		return 0, fmt.Errorf("threat_model alias sequence value %d out of int32 range", next)
+	}
+	return int32(next), nil
+}
+
+// allocateNextAliasRowLocked is the original SELECT ... FOR UPDATE row-counter
+// allocator, retained for per-scope sub-object aliases and for SQLite.
+func allocateNextAliasRowLocked(ctx context.Context, tx *gorm.DB, parentID, objectType string) (int32, error) {
 	logger := slogging.Get()
 
 	// Insert counter row if missing. ON CONFLICT DO NOTHING is idempotent.
