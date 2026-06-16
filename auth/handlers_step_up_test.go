@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -416,6 +417,61 @@ func TestStepUp_StrongProvider_Returns302WithPromptLogin(t *testing.T) {
 	if !strings.Contains(loc, "accounts.google.com") {
 		t.Errorf("Location should be absolute upstream URL: %s", loc)
 	}
+}
+
+// TestStepUp_StrongProvider_JSONAccept_Returns200RedirectURL verifies the
+// #455 content-negotiation path: an XHR/fetch caller sending
+// Accept: application/json on the strong path receives a 200 JSON envelope
+// carrying the upstream authorize URL instead of a 302.
+func TestStepUp_StrongProvider_JSONAccept_Returns200RedirectURL(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newStepUpTestHarness(t)
+	defer h.cleanup()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET",
+		"/oauth2/step_up?client_callback=http%3A%2F%2Flocalhost%3A4200%2Fcallback&code_challenge=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk&code_challenge_method=S256",
+		nil)
+	c.Request.Header.Set("Authorization", "Bearer "+h.testJWT)
+	c.Request.Header.Set("Accept", "application/json")
+
+	h.handlers.StepUp(c)
+
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	require.Empty(t, w.Header().Get("Location"), "JSON path must not emit a Location redirect")
+
+	var body struct {
+		Result      string `json:"result"`
+		RedirectURL string `json:"redirect_url"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Equal(t, "step_up_redirect", body.Result)
+	require.Contains(t, body.RedirectURL, "prompt=login")
+	require.Contains(t, body.RedirectURL, "max_age=0")
+	require.Contains(t, body.RedirectURL, "accounts.google.com")
+}
+
+// TestStepUp_StrongProvider_WildcardAccept_Still302 confirms that a bare */*
+// Accept (browser top-level navigation) keeps receiving the 302 redirect and
+// does NOT trigger the JSON envelope.
+func TestStepUp_StrongProvider_WildcardAccept_Still302(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newStepUpTestHarness(t)
+	defer h.cleanup()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET",
+		"/oauth2/step_up?client_callback=http%3A%2F%2Flocalhost%3A4200%2Fcallback&code_challenge=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk&code_challenge_method=S256",
+		nil)
+	c.Request.Header.Set("Authorization", "Bearer "+h.testJWT)
+	c.Request.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+
+	h.handlers.StepUp(c)
+
+	require.Equal(t, http.StatusFound, w.Code, "body=%s", w.Body.String())
+	require.Contains(t, w.Header().Get("Location"), "prompt=login")
 }
 
 // TestStepUp_RegistryOnlyProvider_NoFalse500 is the regression test for the

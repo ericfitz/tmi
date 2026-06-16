@@ -66257,41 +66257,60 @@
         ],
         "responses": {
           "200": {
-            "description": "Weak-provider short-circuit: tokens rotated in-place. Set-Cookie headers carry new HttpOnly access and refresh tokens. Returned only when the JWT-bound provider is classified as 'weak' (e.g., github).",
+            "description": "JSON outcome of the step-up call. Two shapes, distinguished by the 'result' field:\n- 'step_up_weak_complete' — weak-provider short-circuit: tokens rotated in-place; Set-Cookie headers carry new HttpOnly access and refresh tokens. Returned only when the JWT-bound provider is classified as 'weak' (e.g., github).\n- 'step_up_redirect' — strong-provider path negotiated to JSON: returned in place of the 302 when the caller sends 'Accept: application/json' (XHR/fetch). 'redirect_url' carries the upstream IdP authorize URL the client must top-level navigate to; server-side state and PKCE are already stored, so the redirect proceeds exactly as the 302 path. A bare '*/*' Accept does not trigger this — browser top-level navigations still receive the 302.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "required": [
-                    "result",
-                    "provider",
-                    "auth_time",
-                    "message"
+                    "result"
                   ],
                   "properties": {
                     "result": {
                       "type": "string",
                       "enum": [
-                        "step_up_weak_complete"
+                        "step_up_weak_complete",
+                        "step_up_redirect"
                       ]
                     },
+                    "redirect_url": {
+                      "type": "string",
+                      "format": "uri",
+                      "maxLength": 2000,
+                      "description": "Upstream IdP authorization URL (with fresh-prompt parameters appended) the client must top-level navigate to. Present only when result='step_up_redirect'."
+                    },
                     "provider": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Present only when result='step_up_weak_complete'."
                     },
                     "auth_time": {
                       "type": "integer",
-                      "format": "int64"
+                      "format": "int64",
+                      "description": "Present only when result='step_up_weak_complete'."
                     },
                     "message": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Present only when result='step_up_weak_complete'."
                     }
                   }
                 },
-                "example": {
-                  "result": "step_up_weak_complete",
-                  "provider": "github",
-                  "auth_time": 1715357321,
-                  "message": "Provider does not support guaranteed fresh re-auth; tokens rotated and step-up window reset. Audit log records this as a weak step-up."
+                "examples": {
+                  "step_up_weak_complete": {
+                    "summary": "Weak provider — tokens rotated in-place",
+                    "value": {
+                      "result": "step_up_weak_complete",
+                      "provider": "github",
+                      "auth_time": 1715357321,
+                      "message": "Provider does not support guaranteed fresh re-auth; tokens rotated and step-up window reset. Audit log records this as a weak step-up."
+                    }
+                  },
+                  "step_up_redirect": {
+                    "summary": "Strong provider negotiated to JSON (Accept: application/json)",
+                    "value": {
+                      "result": "step_up_redirect",
+                      "redirect_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&response_type=code&prompt=login&max_age=0&state=..."
+                    }
+                  }
                 }
               }
             },
@@ -66320,7 +66339,7 @@
             }
           },
           "302": {
-            "description": "Strong-provider path: redirect to upstream IdP with prompt=login&max_age=0 (OAuth/OIDC) or ForceAuthn=true (SAML).",
+            "description": "Strong-provider path (default): redirect to upstream IdP with prompt=login&max_age=0 (OAuth/OIDC) or ForceAuthn=true (SAML). Returned unless the caller sends 'Accept: application/json', in which case the same upstream URL is delivered as a 200 'step_up_redirect' JSON envelope instead.",
             "headers": {
               "Location": {
                 "description": "Upstream IdP authorization URL with fresh-prompt parameters appended.",

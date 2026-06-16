@@ -131,6 +131,9 @@ func CORS(allowedOrigins []string, isDev bool) gin.HandlerFunc {
 
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, Authorization, Accept, Origin, Cache-Control, Pragma, X-Requested-With")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
+		// Expose WWW-Authenticate so browser SPAs can read the step-up challenge
+		// (insufficient_user_authentication, max_age) on a 401 cross-origin (#455).
+		c.Writer.Header().Set("Access-Control-Expose-Headers", "WWW-Authenticate")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(http.StatusNoContent)

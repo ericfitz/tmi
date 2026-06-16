@@ -302,6 +302,41 @@ func (h *Handlers) stepUpStrongRedirect(c *gin.Context, provider Provider, cfg O
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
 		return
 	}
+	// Content negotiation (#455): XHR/fetch callers that send
+	// Accept: application/json receive the upstream authorize URL in a JSON
+	// envelope instead of a 302. A cross-origin fetch cannot read the Location
+	// of an auto-followed 302 (CORS) and `redirect: 'manual'` yields an opaque
+	// response, so a browser SPA needs the URL in the body to perform a
+	// deterministic top-level navigation. Browser top-level navigations
+	// (Accept: text/html,...) still receive the 302 — state and PKCE were
+	// already stored above, so both transports drive the identical upstream flow.
+	if clientPrefersJSON(c) {
+		logger.Debug("step-up strong JSON: provider=%s state=%s", actor.Provider, state)
+		c.JSON(http.StatusOK, gin.H{
+			"result":       "step_up_redirect",
+			"redirect_url": authURL,
+		})
+		return
+	}
+
 	logger.Debug("step-up strong redirect: provider=%s state=%s", actor.Provider, state)
 	c.Redirect(http.StatusFound, authURL)
+}
+
+// clientPrefersJSON reports whether the caller explicitly listed
+// application/json in its Accept header. A bare wildcard (*/*) does NOT count:
+// browser top-level navigations send Accept: text/html,...,*/* and must keep
+// receiving the 302 redirect, while an XHR/fetch step-up call sends an explicit
+// Accept: application/json and opts into the JSON envelope.
+func clientPrefersJSON(c *gin.Context) bool {
+	for _, part := range strings.Split(c.GetHeader("Accept"), ",") {
+		media := strings.TrimSpace(part)
+		if i := strings.IndexByte(media, ';'); i >= 0 {
+			media = strings.TrimSpace(media[:i])
+		}
+		if strings.EqualFold(media, "application/json") {
+			return true
+		}
+	}
+	return false
 }
