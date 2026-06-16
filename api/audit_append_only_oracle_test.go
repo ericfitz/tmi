@@ -251,7 +251,12 @@ func TestSystemAuditAppendOnlyOracleIntegration(t *testing.T) {
 	db := openAuditAppendOnlyOracleDB(t)
 	ctx := context.Background()
 
-	require.NoError(t, db.AutoMigrate(&models.SystemAuditEntry{}))
+	// system_audit_entries already exists on the shared ADB; gorm-oracle
+	// AutoMigrate is not idempotent for it (ORA-01442 on the existing NOT NULL
+	// columns), so only create it when genuinely absent.
+	if !db.Migrator().HasTable(&models.SystemAuditEntry{}) {
+		require.NoError(t, db.AutoMigrate(&models.SystemAuditEntry{}))
+	}
 
 	// Drop all three audit triggers so backdate UPDATEs are unblocked.
 	dropOracleAuditTriggers(t, db)

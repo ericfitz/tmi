@@ -55,7 +55,12 @@ func openExtractionJobOracleDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err, "open Oracle ADB connection")
 	t.Cleanup(func() { _ = gormDB.Close() })
 
-	require.NoError(t, gormDB.AutoMigrate(&models.ExtractionJob{}))
+	// extraction_jobs already exists on the shared ADB; gorm-oracle AutoMigrate
+	// is not idempotent for it (ORA-01430 re-adding an existing column), so only
+	// create it when genuinely absent.
+	if !gormDB.DB().Migrator().HasTable(&models.ExtractionJob{}) {
+		require.NoError(t, gormDB.AutoMigrate(&models.ExtractionJob{}))
+	}
 	return gormDB.DB()
 }
 
