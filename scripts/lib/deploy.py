@@ -449,6 +449,7 @@ def start(*, db: str, no_workers: bool = False, skip_context_guard: bool = False
     _preflight()
     _guard_context(skip_context_guard)
     cluster.ensure_registry()
+    cluster.connect_registry_to_kind()
     build_and_push(db)
     ensure_namespace()
     apply_platform_base()
@@ -474,6 +475,7 @@ def restart(*, db: str, no_workers: bool = False, skip_context_guard: bool = Fal
     _preflight()
     _guard_context(skip_context_guard)
     cluster.ensure_registry()
+    cluster.connect_registry_to_kind()
     build_and_push(db)
     deliver_config()
     if db == "oracle":
