@@ -345,7 +345,7 @@ restart-dev:  ## DEPRECATED alias for dev-restart
 	@echo "note: 'make restart-dev' is renamed to 'make dev-restart'"; $(MAKE) dev-restart DB=$(DB)
 
 start-dev-oci:  ## DEPRECATED — Oracle now runs in-cluster: use 'make dev-up DB=oracle'
-	@echo "note: 'make start-dev-oci' is removed; use 'make dev-up DB=oracle'"; $(MAKE) dev-up DB=oracle
+	@echo "note: 'make start-dev-oci' is deprecated; use 'make dev-up DB=oracle'"; $(MAKE) dev-up DB=oracle
 
 # Coverage Report Generation - Comprehensive testing with coverage
 test-coverage:

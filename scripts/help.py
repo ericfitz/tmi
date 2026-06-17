@@ -13,9 +13,21 @@ TMI Makefile
 Usage: make <target> [VARIABLE=value ...]
 
 Development Environment:
-  start-dev              - Start local dev environment (PostgreSQL + Redis + server)
-  start-dev-oci          - Start dev environment with OCI Autonomous Database
-  restart-dev            - Stop server, rebuild, clean logs, restart dev
+  dev-up                 - Bring up the full kind dev environment (cluster + db + deploy). DB=postgres|oracle
+  dev-down               - Tear down the kind dev environment; keep db data
+  dev-restart            - Rebuild the server image + roll the server pod
+  dev-reset              - Soft known-state: redeploy the stack with fresh images; keep db data
+  dev-nuke               - Hard known-state: destroy everything incl. db data + images, rebuild
+  dev-status             - kind-aware dev environment status dashboard
+  dev-logs               - Stream the tmi-server pod logs
+  dev-deploy             - (Re)apply manifests + rollout without recreating cluster/db
+  dev-cluster-up         - Create the local kind cluster only
+  dev-cluster-down       - Delete the local kind cluster only
+  dev-db-up              - Start the postgres dev container only
+  dev-db-down            - Stop the postgres dev container only (keep data)
+  start-dev              - (deprecated, use dev-up)
+  start-dev-oci          - (deprecated, use dev-up DB=oracle)
+  restart-dev            - (deprecated, use dev-restart)
   status                 - Check status of all services
   start-oauth-stub       - Start OAuth callback stub for testing
   stop-oauth-stub        - Stop OAuth callback stub
@@ -140,10 +152,6 @@ Test Infrastructure:
   clean-test-outputs     - Clean all test output files
 
 Process Management:
-  start-server           - Start TMI server
-  stop-server            - Stop TMI server
-  stop-process           - Kill process on server port
-  wait-process           - Wait for server to be ready
 
 OCI Functions (Certificate Manager):
   fn-build-certmgr      - Build the certificate manager function
@@ -191,7 +199,7 @@ Backward Compatibility Aliases:
   build-containers       - Alias for build-all
   test                   - Alias for test-unit
   clean                  - Alias for clean-everything
-  dev                    - Alias for start-dev
+  dev                    - Alias for dev-up
 
 Utilities:
   help                   - Show this help message
