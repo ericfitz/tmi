@@ -12,6 +12,7 @@ import (
 	"github.com/ericfitz/tmi/api/models"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/dbschema"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -757,7 +758,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	// serialization failure retries the whole closure instead of surfacing as a
 	// 500. s.db is the root handle (never an in-progress tx), as the wrapper
 	// requires.
-	err := authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	createTx := func(tx *gorm.DB) error {
 		// Resolve owner identifier to internal_uuid
 		ownerUUID, err := s.resolveUserIdentifierToUUID(tx, item.Owner.ProviderId)
 		if err != nil {
@@ -865,7 +866,31 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		}
 
 		return nil
-	})
+	}
+
+	runCreate := func() error {
+		return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), createTx)
+	}
+
+	err := runCreate()
+	if err != nil && errors.Is(err, ErrAliasSequenceMissing) {
+		// Schema drift: the global alias sequence existed at startup (so the
+		// per-process gate is on) but has since been dropped out from under the
+		// running server — e.g. a DB reset/re-migration that recreated tables but
+		// not sequences. The failed transaction has already rolled back. Reinstall
+		// the sequence on the root handle (InstallThreatModelAliasSequence is
+		// idempotent and seeds it above the current max alias, so the retry's
+		// NEXTVAL cannot collide with the unique threat_models.alias index), then
+		// retry the create once. This keeps the create off the 500 path without
+		// regressing the global scope to the row-counter hot spot removed in #452.
+		logger := slogging.Get()
+		logger.Warn("threat_model alias sequence missing at create time; reinstalling and retrying once: %v", err)
+		if reinstallErr := dbschema.InstallThreatModelAliasSequence(context.Background(), s.db); reinstallErr != nil {
+			logger.Error("failed to reinstall threat_model alias sequence: %v", reinstallErr)
+			return item, err // surface the original alias-sequence error
+		}
+		err = runCreate()
+	}
 	if err != nil {
 		return item, err
 	}

@@ -43,3 +43,19 @@ func TestClassifyPgError_UniqueViolation(t *testing.T) {
 	assert.True(t, errors.Is(got, ErrDuplicate), "23505 should map to ErrDuplicate")
 	assert.True(t, errors.Is(got, ErrConstraint), "ErrDuplicate wraps ErrConstraint")
 }
+
+// TestClassifyPgError_UndefinedObject verifies that SQLSTATE 42P01
+// (undefined_table — which PostgreSQL also raises for nextval() on a dropped
+// sequence) maps to ErrUndefinedObject and is NOT treated as transient or a
+// constraint violation. This is the signal the alias-sequence self-heal relies
+// on to distinguish schema drift from a retryable error.
+func TestClassifyPgError_UndefinedObject(t *testing.T) {
+	pgErr := &pgconn.PgError{
+		Code:    "42P01",
+		Message: `relation "tmi_threat_model_alias_seq" does not exist`,
+	}
+	got := classifyPgError(pgErr)
+	assert.True(t, errors.Is(got, ErrUndefinedObject), "42P01 should map to ErrUndefinedObject")
+	assert.False(t, errors.Is(got, ErrTransient), "a missing object must not be classified transient")
+	assert.False(t, errors.Is(got, ErrConstraint), "a missing object is not a constraint violation")
+}

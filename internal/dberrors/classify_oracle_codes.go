@@ -40,6 +40,15 @@ func classifyOracleCode(err error, code int) error {
 	case 2291, 2292: // ORA-02291 (parent key not found), ORA-02292 (child record found)
 		return Wrap(err, ErrForeignKey)
 
+	// Undefined schema object (PG 42P01 analogue). ORA-02289 fires when a
+	// referenced sequence does not exist (e.g. NEXTVAL on a dropped sequence);
+	// ORA-00942 when a table or view does not exist. Classified distinctly so
+	// callers that can repair the object (e.g. reinstall the alias sequence)
+	// can do so instead of returning 500. Not transient — a bare retry fails
+	// identically until the object is recreated.
+	case 2289, 942: // ORA-02289 (sequence does not exist), ORA-00942 (table or view does not exist)
+		return Wrap(err, ErrUndefinedObject)
+
 	// Constraint violations
 	case 12899: // ORA-12899 (value too large for column)
 		return Wrap(err, ErrConstraint)

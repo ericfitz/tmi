@@ -4,12 +4,16 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/dbschema"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -113,4 +117,93 @@ func TestThreatModelAliasSequence_Integration(t *testing.T) {
 	}))
 	afterRollback := alloc()
 	require.Greater(t, afterRollback, rolledBack, "rolled-back NEXTVAL must leave a gap, not be reused")
+}
+
+// TestThreatModelAliasSequence_SelfHealsOnMissingSequence pins the Zero-500 fix:
+// when the global alias sequence is dropped out from under a running server
+// (schema drift / a DB reset that recreated tables but not sequences) while the
+// per-process gate is still on, AllocateNextAlias must classify the failure as
+// ErrAliasSequenceMissing (not a generic 500), and GormThreatModelStore.Create
+// must reinstall the sequence and retry instead of returning 500.
+func TestThreatModelAliasSequence_SelfHealsOnMissingSequenceIntegration(t *testing.T) {
+	ctx := context.Background()
+	db := openAliasSeqIntegrationDB(t)
+
+	// Create needs the user table (FK target) and the access table.
+	require.NoError(t, db.AutoMigrate(&models.User{}, &models.ThreatModelAccess{}))
+
+	require.NoError(t, db.Exec("DROP SEQUENCE IF EXISTS "+dbschema.ThreatModelAliasSequenceName).Error)
+	t.Cleanup(func() {
+		_ = db.Exec("DROP SEQUENCE IF EXISTS " + dbschema.ThreatModelAliasSequenceName).Error
+	})
+
+	// Unique owner so the shared integration DB is left clean.
+	providerID := "alias-selfheal-" + uuid.New().String()[:8]
+	owner := &models.User{
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
+		Provider:       "test",
+		ProviderUserID: models.NewNullableDBVarchar(&providerID),
+		Email:          models.DBVarchar(providerID + "@example.com"),
+		Name:           models.DBVarchar("Self Heal Owner"),
+	}
+	require.NoError(t, db.Create(owner).Error)
+
+	createdIDs := []string{}
+	t.Cleanup(func() {
+		for _, id := range createdIDs {
+			_ = db.Exec("DELETE FROM threat_models WHERE id = ?", id).Error
+		}
+		_ = db.Exec("DELETE FROM users WHERE internal_uuid = ?", string(owner.InternalUUID)).Error
+	})
+
+	require.NoError(t, dbschema.InstallThreatModelAliasSequence(ctx, db))
+	prev := useAliasSequence.Load()
+	EnableThreatModelAliasSequence()
+	t.Cleanup(func() { useAliasSequence.Store(prev) })
+
+	store := NewGormThreatModelStore(db)
+	emptyAuth := []Authorization{}
+	idSetter := func(item ThreatModel, id string) ThreatModel {
+		uid, _ := uuid.Parse(id)
+		item.Id = &uid
+		return item
+	}
+	newTM := func(name string) ThreatModel {
+		return ThreatModel{
+			Name:          name,
+			Owner:         User{PrincipalType: UserPrincipalTypeUser, Provider: "test", ProviderId: providerID},
+			CreatedBy:     &User{PrincipalType: UserPrincipalTypeUser, Provider: "test", ProviderId: providerID},
+			Authorization: &emptyAuth,
+		}
+	}
+
+	// Baseline: create succeeds on the sequence path.
+	first, err := store.Create(newTM("alias self-heal baseline"), idSetter)
+	require.NoError(t, err)
+	require.NotNil(t, first.Id)
+	require.NotNil(t, first.Alias)
+	createdIDs = append(createdIDs, first.Id.String())
+
+	// Simulate schema drift: drop the sequence while the gate stays on.
+	require.NoError(t, db.Exec("DROP SEQUENCE "+dbschema.ThreatModelAliasSequenceName).Error)
+
+	// Allocator-level: a direct NEXTVAL against the dropped sequence is
+	// classified as the recoverable sentinel, not a generic error.
+	directErr := db.Transaction(func(tx *gorm.DB) error {
+		_, e := AllocateNextAlias(ctx, tx, "__global__", "threat_model")
+		return e
+	})
+	require.Error(t, directErr)
+	assert.True(t, errors.Is(directErr, ErrAliasSequenceMissing), "dropped sequence must surface ErrAliasSequenceMissing")
+	assert.True(t, errors.Is(directErr, dberrors.ErrUndefinedObject), "and chain to dberrors.ErrUndefinedObject")
+
+	// End-to-end: Create self-heals (reinstall + retry) instead of 500-ing, and
+	// the reinstall seeds above the max alias so the new alias does not collide
+	// with the unique threat_models.alias index.
+	second, err := store.Create(newTM("alias self-heal recovered"), idSetter)
+	require.NoError(t, err, "Create must self-heal a dropped alias sequence, not return a 500")
+	require.NotNil(t, second.Id)
+	require.NotNil(t, second.Alias)
+	createdIDs = append(createdIDs, second.Id.String())
+	assert.Greater(t, *second.Alias, *first.Alias, "reinstalled sequence must seed above the existing max alias")
 }

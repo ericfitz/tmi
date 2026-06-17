@@ -8,10 +8,20 @@ import (
 	"sync/atomic"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+// ErrAliasSequenceMissing indicates the global ThreatModel alias sequence does
+// not exist at NEXTVAL time — it was installed at startup (so useAliasSequence
+// is on) but has since been dropped (schema drift / a DB reset under a running
+// server). It is recoverable: GormThreatModelStore.Create reinstalls the
+// sequence (idempotent, seeded above the current max alias) and retries the
+// create once. The error chain also satisfies errors.Is(err,
+// dberrors.ErrUndefinedObject).
+var ErrAliasSequenceMissing = errors.New("threat_model alias sequence missing")
 
 const (
 	// globalAliasParent / threatModelAliasObjectType identify the single
@@ -85,7 +95,14 @@ func allocateAliasFromSequence(ctx context.Context, tx *gorm.DB) (int32, error) 
 
 	var next int64
 	if err := tx.WithContext(ctx).Raw(query).Scan(&next).Error; err != nil {
-		return 0, fmt.Errorf("threat_model alias sequence nextval: %w", err)
+		// A dropped sequence surfaces as PG 42P01 / ORA-02289. Classify it so the
+		// caller can distinguish recoverable schema drift (reinstall + retry) from
+		// a genuine failure, instead of returning a 500 either way.
+		classified := dberrors.Classify(err)
+		if errors.Is(classified, dberrors.ErrUndefinedObject) {
+			return 0, fmt.Errorf("%w: %w", ErrAliasSequenceMissing, classified)
+		}
+		return 0, fmt.Errorf("threat_model alias sequence nextval: %w", classified)
 	}
 	if next < 1 || next > math.MaxInt32 {
 		return 0, fmt.Errorf("threat_model alias sequence value %d out of int32 range", next)

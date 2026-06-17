@@ -16,6 +16,16 @@ var (
 	ErrTransient   = errors.New("transient database error")
 	ErrPermission  = errors.New("permission denied")
 	ErrContextDone = errors.New("context cancelled")
+
+	// ErrUndefinedObject fires when a referenced schema object (table, view, or
+	// sequence) does not exist — PostgreSQL SQLSTATE 42P01, Oracle ORA-02289
+	// (sequence does not exist) / ORA-00942 (table or view does not exist). It
+	// indicates schema drift (an object dropped out from under a running
+	// server), not a user-input error, and is NOT transient: a bare retry
+	// without repairing the object will fail identically. Callers that can
+	// recreate the object (e.g. reinstall a missing sequence) may use this to
+	// trigger a repair-and-retry; otherwise it should surface as a 500.
+	ErrUndefinedObject = errors.New("undefined database object")
 )
 
 // Constraint sub-categories (wrap ErrConstraint so errors.Is works for both)

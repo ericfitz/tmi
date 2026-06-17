@@ -120,6 +120,12 @@ func installOracleAliasSequence(ctx context.Context, db *gorm.DB, logger *sloggi
 	// The + aliasSeedDeployBuffer term must match aliasSeedStart on the PG side
 	// so both dialects keep the sequence range clear of the legacy row counter
 	// during a rolling deploy.
+	// The inner EXCEPTION handler swallows ORA-00955 (name already used by an
+	// existing object): the check-then-CREATE is not atomic across sessions, so
+	// when several pods self-heal a dropped sequence concurrently the losers
+	// would otherwise get ORA-00955 and surface a 500. Swallowing it makes the
+	// install converge like PostgreSQL's CREATE SEQUENCE IF NOT EXISTS. Mirrors
+	// the ORA-00955 swallow used for additive AutoMigrate (#474).
 	block := fmt.Sprintf(`DECLARE
 	  v_count NUMBER;
 	  v_start NUMBER;
@@ -131,7 +137,11 @@ func installOracleAliasSequence(ctx context.Context, db *gorm.DB, logger *sloggi
 	             NVL((SELECT MAX(next_alias) - 1 FROM alias_counters WHERE parent_id = '__global__' AND object_type = 'threat_model'), 0)
 	           ) + 1 + %d
 	      INTO v_start FROM dual;
-	    EXECUTE IMMEDIATE 'CREATE SEQUENCE tmi_threat_model_alias_seq START WITH ' || v_start || ' INCREMENT BY 1 NOCYCLE';
+	    BEGIN
+	      EXECUTE IMMEDIATE 'CREATE SEQUENCE tmi_threat_model_alias_seq START WITH ' || v_start || ' INCREMENT BY 1 NOCYCLE';
+	    EXCEPTION WHEN OTHERS THEN
+	      IF SQLCODE != -955 THEN RAISE; END IF;
+	    END;
 	  END IF;
 	END;`, aliasSeedDeployBuffer)
 	if err := db.WithContext(ctx).Exec(block).Error; err != nil {

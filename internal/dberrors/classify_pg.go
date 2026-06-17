@@ -65,6 +65,15 @@ func classifyPgError(err error) error {
 		return Wrap(err, ErrTransient)
 	}
 
+	// Class 42 — Syntax Error or Access Rule Violation: undefined object.
+	// 42P01 (undefined_table) also covers a missing sequence — in PostgreSQL a
+	// sequence is a relation, so nextval() on a dropped sequence raises 42P01.
+	// Classified distinctly so callers that can repair the object (e.g.
+	// reinstall the alias sequence) can do so instead of returning 500.
+	if code == "42P01" { // undefined_table / undefined sequence relation
+		return Wrap(err, ErrUndefinedObject)
+	}
+
 	// Privilege errors
 	switch code {
 	case "42501": // insufficient_privilege

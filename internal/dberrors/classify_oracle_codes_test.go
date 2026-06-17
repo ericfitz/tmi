@@ -149,6 +149,20 @@ func TestClassifyOracleCode_SnapshotTooOldCounter(t *testing.T) {
 	assert.Equal(t, before+3, SnapshotTooOldCount(), "counter should increment exactly once per ORA-01555 occurrence")
 }
 
+// TestClassifyOracleCode_UndefinedObject verifies ORA-02289 (sequence does not
+// exist) and ORA-00942 (table or view does not exist) map to ErrUndefinedObject
+// and are not treated as transient or constraint violations — the signal the
+// alias-sequence self-heal relies on to distinguish schema drift on Oracle.
+func TestClassifyOracleCode_UndefinedObject(t *testing.T) {
+	seq := classifyOracleCode(fmt.Errorf("ORA-02289: sequence does not exist"), 2289)
+	assert.True(t, errors.Is(seq, ErrUndefinedObject), "ORA-02289 should map to ErrUndefinedObject")
+	assert.False(t, errors.Is(seq, ErrTransient), "a missing sequence must not be transient")
+	assert.False(t, errors.Is(seq, ErrConstraint), "a missing sequence is not a constraint violation")
+
+	tbl := classifyOracleCode(fmt.Errorf("ORA-00942: table or view does not exist"), 942)
+	assert.True(t, errors.Is(tbl, ErrUndefinedObject), "ORA-00942 should map to ErrUndefinedObject")
+}
+
 func TestClassifyOracleCode_UnknownCode(t *testing.T) {
 	src := fmt.Errorf("ORA-99999: synthetic test code")
 	err := classifyOracleCode(src, 99999)

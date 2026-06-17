@@ -25,7 +25,7 @@ func Classify(err error) error {
 	// Already classified — don't double-wrap
 	if errors.Is(err, ErrNotFound) || errors.Is(err, ErrConstraint) ||
 		errors.Is(err, ErrTransient) || errors.Is(err, ErrPermission) ||
-		errors.Is(err, ErrContextDone) {
+		errors.Is(err, ErrContextDone) || errors.Is(err, ErrUndefinedObject) {
 		return err
 	}
 
