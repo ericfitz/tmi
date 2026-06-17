@@ -10,7 +10,6 @@ Supports both dev (persistent volume) and test (ephemeral) containers.
 import argparse
 import sys
 from pathlib import Path
-from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 import database  # noqa: E402
@@ -18,103 +17,13 @@ from tmi_common import (  # noqa: E402
     add_config_arg,
     add_verbosity_args,
     apply_verbosity,
-    config_get,
     docker_exec,
     get_project_root,
-    load_config,
     log_info,
     log_success,
     log_warn,
     run_cmd,
 )
-
-# ---------------------------------------------------------------------------
-# Defaults
-# ---------------------------------------------------------------------------
-
-DEV_DEFAULTS = {
-    "container": "tmi-postgresql",
-    "port": 5432,
-    "user": "tmi_dev",
-    "password": "dev123",
-    "database": "tmi_dev",
-    "image": "tmi/tmi-postgresql:latest",
-    "volume": "tmi-postgres-data",
-}
-
-TEST_DEFAULTS = {
-    "container": "tmi-postgresql",
-    "port": 5432,
-    "user": "tmi_dev",
-    "password": "dev123",
-    "database": "tmi_dev",
-    "image": "tmi/tmi-postgresql:latest",
-    "volume": "tmi-postgres-data",
-}
-
-# ---------------------------------------------------------------------------
-# Config resolution
-# ---------------------------------------------------------------------------
-
-
-def _parse_db_url(url: str) -> dict:
-    """Extract connection details from a postgres:// URL.
-
-    Returns a dict with keys: user, password, port, database.
-    Missing components return None.
-    """
-    try:
-        parsed = urlparse(url)
-        result = {}
-        if parsed.username:
-            result["user"] = parsed.username
-        if parsed.password:
-            result["password"] = parsed.password
-        if parsed.port:
-            result["port"] = parsed.port
-        if parsed.path and parsed.path.lstrip("/"):
-            result["database"] = parsed.path.lstrip("/").split("?")[0]
-        return result
-    except Exception:
-        return {}
-
-
-def resolve_config(args: argparse.Namespace) -> dict:
-    """Build the effective configuration by layering defaults, config file, and CLI flags.
-
-    Priority (highest wins): CLI flags > config file > mode defaults.
-    """
-    mode_defaults = TEST_DEFAULTS if args.test else DEV_DEFAULTS
-    cfg = dict(mode_defaults)
-
-    # Load config file and extract DB URL fields
-    config_path = Path(args.config)
-    raw = load_config(config_path)
-    db_url = config_get(raw, "database.url")
-    if db_url:
-        from_url = _parse_db_url(db_url)
-        cfg.update(from_url)
-
-    # CLI overrides
-    if args.container:
-        cfg["container"] = args.container
-    if args.port is not None:
-        cfg["port"] = args.port
-    if args.user_name:
-        cfg["user"] = args.user_name
-    if args.database:
-        cfg["database"] = args.database
-    if args.image:
-        cfg["image"] = args.image
-
-    # In test mode, always use test container and no volume unless overridden
-    if args.test and not args.container:
-        cfg["container"] = TEST_DEFAULTS["container"]
-    if args.test:
-        cfg["volume"] = None
-
-    return cfg
-
 
 # ---------------------------------------------------------------------------
 # Profile helper
@@ -124,11 +33,23 @@ def resolve_config(args: argparse.Namespace) -> dict:
 def _profile(args: argparse.Namespace) -> database.DBProfile:
     """Build a DBProfile from parsed CLI args.
 
-    Selects dev or test profile based on args.test, then applies any explicit
-    --config override to config_path.
+    Derives connection settings from the config file's database.url field.
+    CLI flags (--container, --port, --user-name, --database, --image) are
+    applied as overrides on top of the config-derived values.
     """
-    cfg_path = args.config or ("config-test.yml" if args.test else "config-development.yml")
-    return database.test_profile(cfg_path) if args.test else database.dev_profile(cfg_path)
+    cfg_path = args.config or "config-development.yml"
+    overrides = {
+        "container": getattr(args, "container", None),
+        "port": getattr(args, "port", None),
+        "user": getattr(args, "user_name", None),
+        "database": getattr(args, "database", None),
+        "image": getattr(args, "image", None),
+    }
+    return database.profile_from_config(
+        cfg_path,
+        ephemeral=args.test,
+        overrides=overrides,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -163,18 +84,19 @@ def cmd_migrate(cfg: dict, args: argparse.Namespace) -> None:
 
 def cmd_reset(cfg: dict, args: argparse.Namespace) -> None:
     """Drop and recreate the database, then run migrations."""
-    log_warn(f"Dropping and recreating database '{cfg['database']}' (DESTRUCTIVE)...")
+    profile = _profile(args)
+    log_warn(f"Dropping and recreating database '{profile.database}' (DESTRUCTIVE)...")
     log_warn("This will delete all data in the database.")
 
     docker_exec(
-        cfg["container"],
-        ["psql", "-U", cfg["user"], "-d", "postgres", "-c",
-         f"DROP DATABASE IF EXISTS {cfg['database']};"],
+        profile.container,
+        ["psql", "-U", profile.user, "-d", "postgres", "-c",
+         f"DROP DATABASE IF EXISTS {profile.database};"],
     )
     docker_exec(
-        cfg["container"],
-        ["psql", "-U", cfg["user"], "-d", "postgres", "-c",
-         f"CREATE DATABASE {cfg['database']};"],
+        profile.container,
+        ["psql", "-U", profile.user, "-d", "postgres", "-c",
+         f"CREATE DATABASE {profile.database};"],
     )
     log_success("Database dropped and recreated")
     cmd_migrate(cfg, args)
@@ -294,10 +216,8 @@ def main() -> None:
     args = parser.parse_args()
     apply_verbosity(args)
 
-    cfg = resolve_config(args)
-
     fn, _ = SUBCOMMANDS[args.subcommand]
-    fn(cfg, args)
+    fn({}, args)
 
 
 if __name__ == "__main__":

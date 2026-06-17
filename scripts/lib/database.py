@@ -2,14 +2,19 @@
 scripts/devenv.py (dev) and scripts/manage-database.py (dev + --test)."""
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 from tmi_common import (
+    config_get,
     container_is_running,
     ensure_container,
     ensure_volume,
     get_project_root,
+    load_config,
+    log_error,
     log_info,
     log_success,
     log_warn,
@@ -25,10 +30,9 @@ _POSTGRES_CONTAINER_PORT = 5432
 # Docker image shared by dev and test
 _POSTGRES_IMAGE = "tmi/tmi-postgresql:latest"
 
-# Default DB credentials (same for dev and test)
-_DEFAULT_USER = "tmi_dev"
-_DEFAULT_PASSWORD = "dev123"
-_DEFAULT_DATABASE = "tmi_dev"
+# Container and volume names
+DEV_CONTAINER = "tmi-postgresql"
+DEV_VOLUME = "tmi-postgres-data"
 
 
 @dataclass(frozen=True)
@@ -40,9 +44,9 @@ class DBProfile:
         volume:      Named Docker volume for persistent data, or "" for ephemeral (test).
         port:        Host port the container is bound to (127.0.0.1).
         config_path: Path to the YAML config file used by migrations.
-        user:        PostgreSQL user.
-        password:    PostgreSQL password.
-        database:    PostgreSQL database name.
+        user:        PostgreSQL user (derived from config file database.url).
+        password:    PostgreSQL password (derived from config file database.url).
+        database:    PostgreSQL database name (derived from config file database.url).
         image:       Docker image reference.
     """
 
@@ -50,40 +54,145 @@ class DBProfile:
     volume: str          # "" means ephemeral — no volume mount
     port: int
     config_path: str
-    user: str = _DEFAULT_USER
-    password: str = _DEFAULT_PASSWORD
-    database: str = _DEFAULT_DATABASE
+    user: str
+    password: str
+    database: str
     image: str = _POSTGRES_IMAGE
+
+
+def _parse_db_url(url: str) -> dict:
+    """Extract connection details from a postgres:// URL.
+
+    Returns a dict with keys: user, password, port, database.
+    Missing components are omitted from the returned dict.
+    """
+    try:
+        parsed = urlparse(url)
+        result = {}
+        if parsed.username:
+            result["user"] = parsed.username
+        if parsed.password:
+            result["password"] = parsed.password
+        if parsed.port:
+            result["port"] = parsed.port
+        if parsed.path and parsed.path.lstrip("/"):
+            result["database"] = parsed.path.lstrip("/").split("?")[0]
+        return result
+    except Exception:
+        return {}
+
+
+def _connection_from_config(config_path: str | Path) -> dict:
+    """Load PostgreSQL connection settings from a config file's database.url field.
+
+    Reads the YAML config at config_path, extracts database.url, and parses it
+    into a dict with keys: user, password, port, database.
+
+    Exits with a clear error message if the url is missing or any required
+    field cannot be extracted. No hardcoded fallback values are used.
+
+    Args:
+        config_path: Path to the YAML config file.
+
+    Returns:
+        Dict with keys: user, password, port, database.
+    """
+    raw = load_config(config_path)
+    db_url = config_get(raw, "database.url")
+    if not db_url:
+        log_error(
+            f"Config file '{config_path}' does not contain 'database.url'. "
+            "Cannot determine PostgreSQL connection settings."
+        )
+        sys.exit(1)
+
+    parsed = _parse_db_url(db_url)
+    missing = [k for k in ("user", "password", "port", "database") if k not in parsed]
+    if missing:
+        log_error(
+            f"Could not extract {missing} from database.url in '{config_path}'. "
+            f"URL was: {db_url!r}"
+        )
+        sys.exit(1)
+
+    return parsed
+
+
+def profile_from_config(
+    config_path: str | Path,
+    *,
+    ephemeral: bool,
+    container: str = DEV_CONTAINER,
+    volume: str | None = None,
+    overrides: dict | None = None,
+) -> "DBProfile":
+    """Build a DBProfile from a config file and optional overrides.
+
+    Connection settings (user, password, port, database) are derived from
+    config_path's database.url field. No hardcoded credential defaults are used.
+
+    Args:
+        config_path: Path to the YAML config file.
+        ephemeral:   If True, the container uses no persistent volume.
+        container:   Docker container name (default: DEV_CONTAINER).
+        volume:      Named Docker volume for persistent data; ignored when
+                     ephemeral=True (defaults to DEV_VOLUME when None and
+                     ephemeral=False).
+        overrides:   Optional dict of field overrides applied last
+                     (keys: container, port, user, password, database, image).
+
+    Returns:
+        Immutable DBProfile.
+    """
+    conn = _connection_from_config(config_path)
+
+    effective_volume = "" if ephemeral else (volume if volume is not None else DEV_VOLUME)
+
+    kwargs: dict = {
+        "container": container,
+        "volume": effective_volume,
+        "port": conn["port"],
+        "config_path": str(config_path),
+        "user": conn["user"],
+        "password": conn["password"],
+        "database": conn["database"],
+    }
+
+    if overrides:
+        for key, val in overrides.items():
+            if val is not None:
+                kwargs[key] = val
+
+    return DBProfile(**kwargs)
 
 
 def dev_profile(config_path: str = "config-development.yml") -> DBProfile:
     """Return the profile for the persistent dev PostgreSQL container.
 
+    Connection settings are derived from config_path's database.url field.
     Container name matches scripts/lib/devstatus.py expectations
-    (name=tmi-postgresql).  Volume name copied verbatim from manage-database.py
-    DEV_DEFAULTS["volume"] = "tmi-postgres-data".
+    (name=tmi-postgresql).  Volume name is tmi-postgres-data.
     """
-    return DBProfile(
-        container="tmi-postgresql",
-        volume="tmi-postgres-data",
-        port=5432,
-        config_path=config_path,
+    return profile_from_config(
+        config_path,
+        ephemeral=False,
+        container=DEV_CONTAINER,
+        volume=DEV_VOLUME,
     )
 
 
-def test_profile(config_path: str = "config-test.yml") -> DBProfile:
+def test_profile(config_path: str = "config-development.yml") -> DBProfile:
     """Return the ephemeral test PostgreSQL profile.
 
+    Connection settings are derived from config_path's database.url field.
     Faithful to the original manage-database.py TEST behavior: shares the same
     container name as dev (``tmi-postgresql``) and uses NO volume (ephemeral —
-    container data is discarded when the container stops).  This mirrors the
-    original ``resolve_config`` logic where ``volume = None`` for the test mode.
+    container data is discarded when the container stops).
     """
-    return DBProfile(
-        container="tmi-postgresql",
-        volume="",       # ephemeral — no persistent volume
-        port=5432,
-        config_path=config_path,
+    return profile_from_config(
+        config_path,
+        ephemeral=True,
+        container=DEV_CONTAINER,
     )
 
 
