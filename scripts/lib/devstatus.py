@@ -73,4 +73,4 @@ def print_dashboard() -> None:
     oauth = run_cmd(["uv", "run", str(scripts_dir / "manage-oauth-stub.py"), "status"],
                     check=False, capture=True)
     print(f"\nOAuth stub: {'running' if oauth.returncode == 0 else 'not running'} "
-          f"(make oauth-stub-up to start)")
+          f"(make start-oauth-stub to start)")

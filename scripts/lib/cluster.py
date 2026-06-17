@@ -135,26 +135,6 @@ def up() -> None:
     log_success(f"kind cluster '{CLUSTER_NAME}' ready; context kind-{CLUSTER_NAME}")
 
 
-def stop() -> None:
-    """Stop the kind node containers and the dev registry without deleting them.
-
-    Unlike `down` (which `kind delete cluster`s and discards all cluster state),
-    `stop` just halts the Docker containers so the whole dev footprint comes to
-    rest while staying revivable via `devenv.py cluster up` / `make dev-up`.
-    Used by `make stop-all`.
-    """
-    check_tool("docker")
-    targets = _kind_node_containers(running_only=True)
-    if container_is_running(REGISTRY_CONTAINER):
-        targets.append(REGISTRY_CONTAINER)
-    if not targets:
-        log_info("No running dev-cluster containers to stop")
-        return
-    log_info(f"Stopping dev-cluster containers: {', '.join(targets)}")
-    run_cmd(["docker", "stop", *targets], check=False)
-    log_success("Dev-cluster containers stopped (cluster state preserved)")
-
-
 def down() -> None:
     """Delete the kind cluster entirely."""
     check_tool("kind")
