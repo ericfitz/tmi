@@ -427,6 +427,15 @@ def do_start(args) -> None:
     if args.db == "oracle":
         create_oracle_wallet_secret()
     apply_overlay(args.no_workers, args.db)
+    # `kubectl apply` of an unchanged Deployment spec does not roll a new pod, so
+    # a freshly-built :dev image (same tag) would not be picked up, and a pod
+    # stuck in CrashLoopBackOff from a prior transient outage (e.g. the host DB
+    # being down on an earlier start) would never be reset — leaving the rollout
+    # wait below to time out on a pod that will not recover within its window.
+    # Force a fresh rollout so `start` always runs the just-built images on new,
+    # backoff-cleared pods. imagePullPolicy:Always ensures the new image is pulled.
+    devenv.kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-component-controller"])
+    devenv.kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
     wait_and_forward()
 
 
