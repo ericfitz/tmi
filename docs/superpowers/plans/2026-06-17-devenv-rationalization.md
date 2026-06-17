@@ -6,7 +6,7 @@
 
 **Architecture:** All dev-lifecycle logic lives in three importable library modules — `lib/cluster.py` (kind cluster + local registry), `lib/deploy.py` (image build/push + kubectl apply/rollout/port-forward + teardown), `lib/database.py` (postgres container lifecycle, shared with the test path) — plus `lib/devstatus.py` (kind-aware status dashboard). `scripts/devenv.py` is a thin argparse dispatcher over these modules. Make targets are 1:1 wrappers (`make dev-up` → `devenv.py up`). The kind cluster is the only dev path; the database is an external postgres container (dev) or external ADB (oracle).
 
-**Tech Stack:** Python 3.11+ run via `uv` (PEP 723 inline script metadata), `kind`, `kubectl`, `kustomize`, `docker`, GNU Make. Existing shared helpers in `scripts/lib/tmi_common.py`. Unit tests under `scripts/lib/tests/` (pytest-style, run via `uv run`).
+**Tech Stack:** Python 3.11+ run via `uv` (PEP 723 inline script metadata), `kind`, `kubectl`, `kustomize`, `docker`, GNU Make. Existing shared helpers in `scripts/lib/tmi_common.py`. Unit tests under `scripts/lib/tests/` (`unittest.TestCase`, run via `make test-dev-scripts`).
 
 ## Global Constraints
 
@@ -17,7 +17,8 @@
 - **Namespace / names (verbatim):** kind cluster `tmi-dev`; kube context `kind-tmi-dev`; platform namespace `tmi-platform`; registry container `tmi-dev-registry`; local registry `localhost:5000`; kind config `deployments/k8s/dev/kind-cluster.yml`; dev config file `config-development.yml`.
 - **DB flavor parameter:** `DB=postgres|oracle`, default `postgres`. Oracle uses the `deployments/k8s/dev/oracle` overlay + `server-oracle.yml` and requires `TMI_ORACLE_WALLET_ZIP`.
 - **Capability-preserving Oracle gate:** do NOT delete `start-dev-oci.sh` until `devenv.py up --db oracle` is proven to deploy in-cluster and reach the database (Task 9).
-- **Testing make-target rule (CLAUDE.md):** never run `go test` directly; use `make test-unit`. The dev-script unit tests here are Python and run via `uv run` / the existing `make test-dev-scripts` target.
+- **Testing make-target rule (CLAUDE.md):** never run `go test` directly; use `make test-unit`. The dev-script unit tests here are Python and run via the existing `make test-dev-scripts` target.
+- **Unit-test convention (BINDING):** the repo runs dev-script tests with `python -m unittest discover -s scripts/lib/tests` (via `make test-dev-scripts`), NOT pytest. Every test in this plan MUST be written as `unittest.TestCase` subclasses with `self.assertEqual`/`self.assertTrue`/etc., modeled exactly on the existing `scripts/lib/tests/test_devenv.py`. The `assert`-style snippets shown in the tasks below are the *assertions to make* — translate each into a `TestCase` method (`assert a == b` → `self.assertEqual(a, b)`). Bare `def test_*` functions will NOT be discovered and do not count. Run tests with `make test-dev-scripts` (targeted single-file run: `uv run --python ">=3.11" python -m unittest discover -s scripts/lib/tests -p test_<name>.py -v`).
 - **Tooling fix order (CLAUDE.md task-completion):** after any change run `make lint`; if Go changed, `make build-server` + `make test-unit`. (Only Python/Make/docs change here, so lint + the Python script tests are the gates.)
 
 ---
@@ -96,7 +97,7 @@ def test_is_local_kube_context_empty_false():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd scripts/lib && uv run --with pytest -m pytest tests/test_cluster.py -v`
+Run: `uv run --python ">=3.11" python -m unittest discover -s scripts/lib/tests -p test_cluster.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'cluster'`.
 
 - [ ] **Step 3: Create `lib/cluster.py`**
@@ -146,7 +147,7 @@ Replace every `devenv.REGISTRY_CONTAINER` reference in the moved `dev-cluster.py
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd scripts/lib && uv run --with pytest -m pytest tests/test_cluster.py -v`
+Run: `uv run --python ">=3.11" python -m unittest discover -s scripts/lib/tests -p test_cluster.py -v`
 Expected: PASS (6 passed).
 
 - [ ] **Step 5: Commit**
@@ -222,7 +223,7 @@ def test_render_configmap_embeds_content_and_hash():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd scripts/lib && uv run --with pytest -m pytest tests/test_deploy.py -v`
+Run: `uv run --python ">=3.11" python -m unittest discover -s scripts/lib/tests -p test_deploy.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'deploy'`.
 
 - [ ] **Step 3: Create `lib/deploy.py`**
@@ -300,7 +301,7 @@ NS = cluster.PLATFORM_NAMESPACE if hasattr(cluster, "PLATFORM_NAMESPACE") else "
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd scripts/lib && uv run --with pytest -m pytest tests/test_deploy.py -v`
+Run: `uv run --python ">=3.11" python -m unittest discover -s scripts/lib/tests -p test_deploy.py -v`
 Expected: PASS (7 passed).
 
 - [ ] **Step 5: Commit**
@@ -350,7 +351,7 @@ def test_test_profile_distinct_from_dev():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd scripts/lib && uv run --with pytest -m pytest tests/test_database.py -v`
+Run: `uv run --python ">=3.11" python -m unittest discover -s scripts/lib/tests -p test_database.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'database'`.
 
 - [ ] **Step 3: Create `lib/database.py`**
@@ -420,7 +421,7 @@ Leave `cmd_reset`, `cmd_dedup`, `cmd_check` as-is (they are dev/admin one-offs, 
 
 - [ ] **Step 5: Run unit tests + smoke the delegation**
 
-Run: `cd scripts/lib && uv run --with pytest -m pytest tests/test_database.py -v`
+Run: `uv run --python ">=3.11" python -m unittest discover -s scripts/lib/tests -p test_database.py -v`
 Expected: PASS (2 passed).
 
 Run (verifies the refactored CLI still parses + starts the dev container):
@@ -479,7 +480,7 @@ def test_deployment_readiness_empty():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd scripts/lib && uv run --with pytest -m pytest tests/test_devstatus.py -v`
+Run: `uv run --python ">=3.11" python -m unittest discover -s scripts/lib/tests -p test_devstatus.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'devstatus'`.
 
 - [ ] **Step 3: Create `lib/devstatus.py`**
@@ -565,7 +566,7 @@ def print_dashboard() -> None:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd scripts/lib && uv run --with pytest -m pytest tests/test_devstatus.py -v`
+Run: `uv run --python ">=3.11" python -m unittest discover -s scripts/lib/tests -p test_devstatus.py -v`
 Expected: PASS (2 passed).
 
 - [ ] **Step 5: Commit**
@@ -620,7 +621,7 @@ def test_parse_up_oracle():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd scripts/lib && uv run --with pytest -m pytest tests/test_devenv_cli.py -v`
+Run: `uv run --python ">=3.11" python -m unittest discover -s scripts/lib/tests -p test_devenv_cli.py -v`
 Expected: FAIL (file `scripts/devenv.py` does not exist).
 
 - [ ] **Step 3: Create `scripts/devenv.py`**
@@ -776,7 +777,7 @@ NOTE: argparse places global options (`--db`, `--no-workers`, `--yes`) *before* 
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd scripts/lib && uv run --with pytest -m pytest tests/test_devenv_cli.py -v`
+Run: `uv run --python ">=3.11" python -m unittest discover -s scripts/lib/tests -p test_devenv_cli.py -v`
 Expected: PASS (3 passed). Adjust the parser/test for option order per the NOTE if needed.
 
 - [ ] **Step 5: Smoke the orchestrator end to end (live cluster)**
