@@ -72,15 +72,15 @@ def dev_profile(config_path: str = "config-development.yml") -> DBProfile:
 
 
 def test_profile(config_path: str = "config-test.yml") -> DBProfile:
-    """Return the profile for the ephemeral test PostgreSQL container.
+    """Return the ephemeral test PostgreSQL profile.
 
-    Uses a distinct container name so it can coexist with the dev container.
-    No volume is used (data is ephemeral).  Port matches current test defaults
-    (5432) but is hosted on a separate named container so dev and test can run
-    simultaneously if needed.
+    Faithful to the original manage-database.py TEST behavior: shares the same
+    container name as dev (``tmi-postgresql``) and uses NO volume (ephemeral —
+    container data is discarded when the container stops).  This mirrors the
+    original ``resolve_config`` logic where ``volume = None`` for the test mode.
     """
     return DBProfile(
-        container="tmi-postgresql-test",
+        container="tmi-postgresql",
         volume="",       # ephemeral — no persistent volume
         port=5432,
         config_path=config_path,
