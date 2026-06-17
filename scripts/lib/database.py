@@ -59,7 +59,7 @@ class DBProfile:
 def dev_profile(config_path: str = "config-development.yml") -> DBProfile:
     """Return the profile for the persistent dev PostgreSQL container.
 
-    Container name matches scripts/status.py and manage-workers.py expectations
+    Container name matches scripts/lib/devstatus.py expectations
     (name=tmi-postgresql).  Volume name copied verbatim from manage-database.py
     DEV_DEFAULTS["volume"] = "tmi-postgres-data".
     """

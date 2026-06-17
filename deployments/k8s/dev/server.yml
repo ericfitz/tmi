@@ -1,7 +1,8 @@
 # NOTE: config-development.yml is delivered to this Deployment as a ConfigMap
 # (not a Secret). This is intended for LOCAL dev clusters only. Never put real
 # production secrets in config-development.yml — the prod-context guard in
-# start-dev.py blocks deploying to non-local contexts, but treat this as plaintext.
+# scripts/lib/deploy.py (via devenv.py) blocks deploying to non-local contexts,
+# but treat this as plaintext.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

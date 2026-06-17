@@ -98,7 +98,7 @@ def start_stopped_nodes() -> None:
     """Start any kind node containers that exist but are stopped (idempotent).
 
     `kind create cluster` is a no-op once the cluster exists, but it will not
-    restart node containers that were halted by `dev-cluster.py stop` (or a host
+    restart node containers that were halted by `devenv.py cluster down` (or a host
     reboot). Bring them back so `up` reliably yields a running cluster.
     """
     running = set(_kind_node_containers(running_only=True))
@@ -140,7 +140,7 @@ def stop() -> None:
 
     Unlike `down` (which `kind delete cluster`s and discards all cluster state),
     `stop` just halts the Docker containers so the whole dev footprint comes to
-    rest while staying revivable via `dev-cluster.py up` / `make start-dev`.
+    rest while staying revivable via `devenv.py cluster up` / `make dev-up`.
     Used by `make stop-all`.
     """
     check_tool("docker")
