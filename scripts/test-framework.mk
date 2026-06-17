@@ -105,7 +105,7 @@ test-integration-quick:
 
 # Full integration test setup (containers + oauth-stub + tests)
 # Uses isolated test containers to avoid affecting dev environment
-# Requires: TMI server already running (make start-dev)
+# Requires: TMI server already running (make dev-up)
 test-integration-full:
 	$(call log_info,"Starting full integration test suite...")
 	@trap '$(MAKE) -f $(MAKEFILE_LIST) clean-test-infrastructure' EXIT; \
@@ -150,7 +150,7 @@ check-test-framework:
 	fi
 	@echo -e "$(BLUE)[INFO]$(NC) Checking server..."
 	@if ! curl -s http://localhost:8080/ > /dev/null 2>&1; then \
-		echo -e "$(YELLOW)[WARNING]$(NC) Server not running (run 'make start-dev')"; \
+		echo -e "$(YELLOW)[WARNING]$(NC) Server not running (run 'make dev-up')"; \
 	else \
 		echo -e "$(GREEN)[OK]$(NC) Server is running"; \
 	fi

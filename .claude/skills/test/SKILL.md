@@ -34,10 +34,10 @@ The test suite runs in the following order, with each stage only running if the 
 Stop any running server and clean up, then rebuild and start fresh:
 
 ```bash
-make stop-server
+make dev-down
 make clean-everything
 make build-server
-make start-dev
+make dev-up
 ```
 
 **Note**: Database reset is NOT performed by default. Only reset the database if explicitly instructed by the user.
@@ -200,7 +200,7 @@ If any stage fails:
 
 - **OAuth false positives**: CATS will flag 401/403 responses as "errors" but these are expected for auth testing. The `is_oauth_false_positive` flag identifies these.
 - **CATS duration**: The fuzzing stage takes ~9 minutes - this is normal
-- **Server must be running**: All tests except unit tests require the dev server (`make start-dev`)
+- **Server must be running**: All tests except unit tests require the dev server (`make dev-up`)
 - **Database required**: Integration and API tests require PostgreSQL (`make start-database`)
 - **Clean state**: Starting with `make clean-everything` ensures no stale state affects results
 

@@ -174,7 +174,7 @@ def add_to_administrators(token: str, user_uuid: str) -> None:
 def main():
     # Verify TMI server is running
     if not wait_for_service(f"{TMI_BASE}/", "TMI server"):
-        print("\nTMI server is not running. Start it with: make start-dev")
+        print("\nTMI server is not running. Start it with: make dev-up")
         sys.exit(1)
 
     # Start OAuth stub

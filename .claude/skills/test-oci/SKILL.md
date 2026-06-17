@@ -32,7 +32,7 @@ The test suite runs in the following order, with each stage only running if the 
 First, stop any running server and clean up, then rebuild with Oracle support and start fresh:
 
 ```bash
-make stop-server
+make dev-down
 make clean-everything
 ```
 
@@ -43,7 +43,7 @@ Build the server with Oracle support:
 
 Start the development environment with OCI:
 ```bash
-make start-dev-oci
+make dev-up DB=oracle
 ```
 
 Wait for the server to be fully ready before proceeding. You can verify with:
@@ -188,12 +188,12 @@ If any stage fails:
 
 ## Important Notes
 
-- **Oracle Support**: The server must be built with `-tags oracle` for OCI support. The `make start-dev-oci` target handles this automatically.
+- **Oracle Support**: The server must be built with `-tags oracle` for OCI support. The `make dev-up DB=oracle` target handles this automatically.
 - **CATS Seeding Tool**: The CATS seeding tool (`bin/cats-seed`) must also be built with Oracle support. Use `make build-cats-seed-oci` or let `make cats-seed-oci` (called by `make cats-fuzz-oci`) build it automatically.
 - **OAuth false positives**: CATS will flag 401/403 responses as "errors" but these are expected for auth testing. The `is_oauth_false_positive` flag identifies these.
 - **CATS duration**: The fuzzing stage takes ~9 minutes - this is normal
-- **Server must be running**: All tests except unit tests require the dev server (`make start-dev-oci`)
-- **Redis required**: API and CATS tests require Redis (`make start-redis` - started automatically by `start-dev-oci`)
+- **Server must be running**: All tests except unit tests require the dev server (`make dev-up DB=oracle`)
+- **Redis required**: API and CATS tests require Redis (`make start-redis` - started automatically by `dev-up DB=oracle`)
 - **No server restart during tests**: The API tests and CATS fuzzing run against the already-running server; they do not restart it
 
 ## Database Schema Reference

@@ -58,7 +58,7 @@ if ! curl -s http://127.0.0.1:8080/ >/dev/null 2>&1; then
     if [ "$START_SERVER" = "true" ]; then
         echo "[INFO] Starting development server..."
         cd "$PROJECT_ROOT"
-        make start-dev
+        make dev-up
         sleep 5
 
         # Verify server started
@@ -71,7 +71,7 @@ if ! curl -s http://127.0.0.1:8080/ >/dev/null 2>&1; then
         echo "[ERROR] TMI server is not running on port 8080"
         echo ""
         echo "Options:"
-        echo "  1. Start manually: make start-dev"
+        echo "  1. Start manually: make dev-up"
         echo "  2. Auto-start: make test-api START_SERVER=true"
         echo ""
         exit 1

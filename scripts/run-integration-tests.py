@@ -18,7 +18,7 @@ Targets:
          Server started with config-test.yml + TMI_DATABASE_URL=oracle://...
          (TMI_DATABASE_URL set by scripts/oci-env.sh via ORACLE_CONNECT_STRING)
 
-Both targets require `make start-dev` (or `start-dev-oci`) to be running.
+Both targets require `make dev-up` (or `dev-up DB=oracle`) to be running.
 """
 
 from __future__ import annotations
@@ -132,7 +132,7 @@ def run_pg(project_root: Path, log_path: str) -> int:
     server_url = "http://localhost:8080"
     if not server_is_running(f"{server_url}/"):
         log_error(f"TMI server is not running on {server_url}")
-        log_info("Start the server first with: make start-dev")
+        log_info("Start the server first with: make dev-up")
         return 2
 
     log_info("Server is ready")
@@ -197,7 +197,7 @@ def run_oci(project_root: Path, log_path: str) -> int:
     server_url = "http://localhost:8080"
     if not server_is_running(f"{server_url}/"):
         log_error(f"TMI server is not running on {server_url}")
-        log_info("Start the server first with: make start-dev-oci")
+        log_info("Start the server first with: make dev-up DB=oracle")
         return 2
 
     log_info("Server is ready")

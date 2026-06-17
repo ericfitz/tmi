@@ -154,7 +154,7 @@ def check_prerequisites(server: str) -> None:
         urllib.request.urlopen(f"{server}/", timeout=5)  # noqa: S310
     except (urllib.error.URLError, OSError):
         log_error(f"TMI server is not running at {server}")
-        log_error("Start the server first with 'make start-dev' or 'make start-dev-oci'")
+        log_error("Start the server first with 'make dev-up' or 'make dev-up DB=oracle'")
         sys.exit(1)
 
     log_success("Prerequisites check completed")

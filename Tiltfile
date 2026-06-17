@@ -1,11 +1,11 @@
 # Tilt fast inner loop for the TMI server ONLY.
 #
-# Prereq: `make start-dev` has already deployed the full dev environment
+# Prereq: `make dev-up` has already deployed the full dev environment
 # (cluster + infra + workers + a prod-shaped tmi-server). `tilt up` takes over
 # deploy/tmi-server, swapping it for a fast-rebuild image: editing the Go
 # sources recompiles the binary on the host, Tilt rebuilds a one-COPY image on
 # the prod static base and rolls the server in ~seconds — vs. minutes for
-# `make restart-dev`, which rebuilds all four images.
+# `make dev-restart`, which rebuilds all four images.
 #
 # `tilt down` removes Tilt's tmi-server; `make tilt-down` then re-applies the
 # canonical server.yml to restore the prod-shaped server.
@@ -14,7 +14,7 @@
 # always builds/restores the Postgres server.yml; the Oracle CGO image
 # (DB=oracle) is out of fast-loop scope. If you brought the env up with
 # DB=oracle, `make tilt-down` will restore the Postgres server — re-run
-# `make start-dev DB=oracle` to get the Oracle server back.
+# `make dev-up DB=oracle` to get the Oracle server back.
 #
 # WHY NOT in-place live_update + restart_process (the sub-second ideal)?
 #   The prod runtime base is cgr.dev/chainguard/static (distroless: no shell,

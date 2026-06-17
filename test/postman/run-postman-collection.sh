@@ -43,7 +43,7 @@ echo "OAuth stub is ready"
 # Check if TMI server is running
 if ! curl -s http://127.0.0.1:8080/ >/dev/null 2>&1; then
     echo "ERROR: TMI server is not running on port 8080"
-    echo "Please run: make start-dev"
+    echo "Please run: make dev-up"
     exit 1
 fi
 echo "✅ TMI server is ready"
