@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -96,6 +97,18 @@ func (s *SettingsService) SetConfigProvider(provider ConfigProvider) {
 // When set, values are encrypted before writing to the database and decrypted after reading.
 func (s *SettingsService) SetEncryptor(enc *crypto.SettingsEncryptor) {
 	s.encryptor = enc
+}
+
+// isProductionMode reports whether the server is running a production build.
+// It prefers the resolved auth.build_mode value from the config provider (the
+// same cfg.Auth.BuildMode that warnIfPlaintextSecretsAtRest consults) and
+// falls back to the TMI_BUILD_MODE environment variable, the existing idiom in
+// this package (see auth_flow_rate_limiter.go).
+func (s *SettingsService) isProductionMode() bool {
+	if ms, ok := s.getConfigSetting("auth.build_mode"); ok {
+		return ms.Value == "production"
+	}
+	return os.Getenv("TMI_BUILD_MODE") == "production"
 }
 
 // getConfigSetting retrieves a setting from the config provider if available.
@@ -341,9 +354,28 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 		return err
 	}
 
+	// Enforce the secret => encrypted invariant at write time. The Secret
+	// classification is not masking-only: the set of keys we refuse to persist
+	// in plaintext here is exactly the set shouldMaskSettingValue redacts from
+	// API responses. If encryption is unavailable (no encryptor wired, or a
+	// disabled passthrough), refuse to persist a secret-classified value in
+	// production builds; outside production warn and allow, mirroring the
+	// dev/production severity scaling of warnIfPlaintextSecretsAtRest in
+	// cmd/server/startup_checks.go.
+	encryptionEnabled := s.encryptor != nil && s.encryptor.IsEnabled()
+	if !encryptionEnabled && shouldMaskSettingValue(string(setting.SettingKey)) {
+		if s.isProductionMode() {
+			return fmt.Errorf(
+				"refusing to store secret-classified setting %s in plaintext: settings encryption is not configured; "+
+					"configure the settings encryption key, restart, then retry (POST /admin/settings/reencrypt encrypts existing values)",
+				setting.SettingKey)
+		}
+		logger.Warn("Storing secret-classified setting %s in plaintext: settings encryption is not configured (allowed outside production builds)", setting.SettingKey)
+	}
+
 	// Encrypt value before saving to database
 	dbSetting := *setting
-	if s.encryptor != nil && s.encryptor.IsEnabled() {
+	if encryptionEnabled {
 		encrypted, err := s.encryptor.Encrypt(string(setting.Value))
 		if err != nil {
 			return fmt.Errorf("failed to encrypt setting %s: %w", setting.SettingKey, err)

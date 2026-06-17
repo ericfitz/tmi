@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -524,5 +525,83 @@ func TestSettingsService_BootstrapGuardScope(t *testing.T) {
 			assert.NotContains(t, err.Error(), "bootstrap key",
 				"an operational key must not trigger the bootstrap guard")
 		}
+	})
+}
+
+func TestSettingsService_SetRefusesPlaintextSecretInProduction(t *testing.T) {
+	t.Setenv("TMI_BUILD_MODE", "production")
+
+	// No DB, no Redis, no encryptor. If the gate fails to short-circuit, the
+	// write path panics on the nil *gorm.DB — so a returned error proves the
+	// row was never written.
+	svc := NewSettingsService(nil, nil)
+
+	setting := &models.SystemSetting{
+		SettingKey:  "timmy.llm_api_key", // operational, Secret:true in the classification registry
+		Value:       "sk-super-secret",
+		SettingType: models.SystemSettingTypeString,
+	}
+	err := svc.Set(context.Background(), setting)
+	require.Error(t, err, "Set of a secret-classified key with no encryptor must fail in production")
+	assert.Contains(t, err.Error(), "secret-classified")
+
+	t.Run("disabled passthrough encryptor is also rejected", func(t *testing.T) {
+		svc := NewSettingsService(nil, nil)
+		svc.SetEncryptor(&crypto.SettingsEncryptor{}) // zero value: IsEnabled() == false
+		err := svc.Set(context.Background(), setting)
+		require.Error(t, err, "a non-nil but disabled encryptor must not satisfy the gate")
+		assert.Contains(t, err.Error(), "secret-classified")
+	})
+
+	t.Run("provider secret sub-keys are covered", func(t *testing.T) {
+		for _, key := range []string{
+			"auth.oauth.providers.google.client_secret",
+			"auth.saml.providers.okta.sp_private_key",
+			"content_oauth.providers.github.client_secret",
+		} {
+			svc := NewSettingsService(nil, nil)
+			err := svc.Set(context.Background(), &models.SystemSetting{
+				SettingKey:  models.DBVarchar(key),
+				Value:       "hunter2",
+				SettingType: models.SystemSettingTypeString,
+			})
+			require.Error(t, err, "Set(%s) must fail: provider secrets must not be stored plaintext", key)
+			assert.Contains(t, err.Error(), "secret-classified")
+		}
+	})
+
+	t.Run("non-secret keys still reach the write path", func(t *testing.T) {
+		defer func() {
+			// With the gate not firing and a nil DB, the write path panics on
+			// the nil *gorm.DB. Recovering proves the gate did NOT block a
+			// non-secret key in production.
+			if r := recover(); r == nil {
+				t.Fatal("expected the non-secret key to reach the DB write path (nil-DB panic)")
+			}
+		}()
+		svc := NewSettingsService(nil, nil)
+		_ = svc.Set(context.Background(), &models.SystemSetting{
+			SettingKey:  "websocket.inactivity_timeout_seconds",
+			Value:       "300",
+			SettingType: models.SystemSettingTypeInt,
+		})
+	})
+}
+
+func TestSettingsService_SetAllowsPlaintextSecretOutsideProduction(t *testing.T) {
+	t.Setenv("TMI_BUILD_MODE", "dev")
+
+	// In dev the gate warns but allows: the write proceeds to the nil *gorm.DB
+	// and panics. Recovering proves the gate did not block.
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("expected the dev-mode write to reach the DB write path (nil-DB panic)")
+		}
+	}()
+	svc := NewSettingsService(nil, nil)
+	_ = svc.Set(context.Background(), &models.SystemSetting{
+		SettingKey:  "timmy.llm_api_key",
+		Value:       "sk-dev-secret",
+		SettingType: models.SystemSettingTypeString,
 	})
 }
