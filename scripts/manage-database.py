@@ -13,23 +13,19 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import database  # noqa: E402
 from tmi_common import (  # noqa: E402
     add_config_arg,
     add_verbosity_args,
     apply_verbosity,
     config_get,
     docker_exec,
-    ensure_container,
-    ensure_volume,
     get_project_root,
     load_config,
     log_info,
     log_success,
     log_warn,
-    remove_container,
     run_cmd,
-    stop_container,
-    wait_for_container_ready,
 )
 
 # ---------------------------------------------------------------------------
@@ -55,9 +51,6 @@ TEST_DEFAULTS = {
     "image": "tmi/tmi-postgresql:latest",
     "volume": "tmi-postgres-data",
 }
-
-POSTGRES_CONTAINER_PORT = 5432
-
 
 # ---------------------------------------------------------------------------
 # Config resolution
@@ -124,75 +117,48 @@ def resolve_config(args: argparse.Namespace) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Profile helper
+# ---------------------------------------------------------------------------
+
+
+def _profile(args: argparse.Namespace) -> database.DBProfile:
+    """Build a DBProfile from parsed CLI args.
+
+    Selects dev or test profile based on args.test, then applies any explicit
+    --config override to config_path.
+    """
+    cfg_path = args.config or ("config-test.yml" if args.test else "config-development.yml")
+    return database.test_profile(cfg_path) if args.test else database.dev_profile(cfg_path)
+
+
+# ---------------------------------------------------------------------------
 # Subcommand implementations
 # ---------------------------------------------------------------------------
 
 
 def cmd_start(cfg: dict, args: argparse.Namespace) -> None:
     """Start the PostgreSQL container (create if needed)."""
-    volume = cfg.get("volume")
-
-    if volume:
-        ensure_volume(volume)
-
-    volumes = {}
-    if volume:
-        volumes[volume] = "/var/lib/postgresql/data"
-
-    ensure_container(
-        name=cfg["container"],
-        host_port=cfg["port"],
-        container_port=POSTGRES_CONTAINER_PORT,
-        image=cfg["image"],
-        env_vars={
-            "POSTGRES_USER": cfg["user"],
-            "POSTGRES_PASSWORD": cfg["password"],
-            "POSTGRES_DB": cfg["database"],
-        },
-        volumes=volumes if volumes else None,
-    )
-    log_success(f"PostgreSQL container is running on port {cfg['port']}")
+    database.up(_profile(args))
 
 
 def cmd_stop(cfg: dict, args: argparse.Namespace) -> None:
     """Stop the PostgreSQL container."""
-    log_info(f"Stopping PostgreSQL container: {cfg['container']}")
-    stop_container(cfg["container"])
-    log_success("PostgreSQL container stopped")
+    database.down(_profile(args))
 
 
 def cmd_clean(cfg: dict, args: argparse.Namespace) -> None:
     """Remove the PostgreSQL container and volume (if dev)."""
-    volume = cfg.get("volume")
-    log_warn(f"Removing PostgreSQL container: {cfg['container']}" +
-             (f" and volume: {volume}" if volume else ""))
-    remove_container(cfg["container"], volumes=[volume] if volume else None)
-    log_success("PostgreSQL container" + (" and data" if volume else "") + " removed")
+    database.destroy(_profile(args))
 
 
 def cmd_wait(cfg: dict, args: argparse.Namespace) -> None:
     """Wait until the PostgreSQL container is ready to accept connections."""
-    timeout = args.timeout
-    health_cmd = ["docker", "exec", cfg["container"], "pg_isready", "-U", cfg["user"]]
-    wait_for_container_ready(
-        health_cmd=health_cmd,
-        timeout=timeout,
-        label=f"PostgreSQL ({cfg['container']})",
-    )
+    database.wait(_profile(args), timeout=args.timeout)
 
 
 def cmd_migrate(cfg: dict, args: argparse.Namespace) -> None:
     """Run database migrations."""
-    log_info("Running database migrations...")
-    project_root = get_project_root()
-    config_path = Path(args.config).resolve()
-    migrate_dir = project_root / "cmd" / "migrate"
-    run_cmd(
-        ["go", "run", "main.go", "--config", str(config_path)],
-        cwd=migrate_dir,
-        verbose=getattr(args, "verbose", False),
-    )
-    log_success("Database migrations completed")
+    database.migrate(_profile(args), verbose=getattr(args, "verbose", False))
 
 
 def cmd_reset(cfg: dict, args: argparse.Namespace) -> None:
