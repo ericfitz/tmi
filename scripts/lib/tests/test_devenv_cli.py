@@ -67,6 +67,10 @@ class TestParserDbOption(unittest.TestCase):
         args = devenv_cli.build_parser().parse_args(["up", "--no-workers"])
         self.assertTrue(args.no_workers)
 
+    def test_no_workers_before_verb(self):
+        args = devenv_cli.build_parser().parse_args(["--no-workers", "up"])
+        self.assertTrue(args.no_workers)
+
     def test_parse_yes_after_verb(self):
         args = devenv_cli.build_parser().parse_args(["up", "--yes"])
         self.assertTrue(args.yes)

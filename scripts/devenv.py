@@ -108,6 +108,9 @@ def cmd_cluster(args) -> None:
 
 
 def cmd_db(args) -> None:
+    if args.db != "postgres":
+        log_info(f"db verb is a no-op for --db {args.db} (external database)")
+        return
     if args.action == "up":
         database.up(_db_profile())
     else:
