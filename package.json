@@ -1,7 +1,7 @@
 {
   "packageManager": "pnpm@10.12.1",
   "devDependencies": {
-    "@redocly/cli": "^2.31.6",
+    "@redocly/cli": "^2.33.2",
     "@stoplight/spectral-cli": "^6.16.0"
   },
   "pnpm": {
@@ -10,8 +10,8 @@
       "rollup@<2.80.0": "2.80.0",
       "undici@<6.24.1": "6.24.1",
       "lodash@<=4.17.23": "4.18.1",
-      "protobufjs": "7.5.8",
-      "dompurify@<3.4.0": "3.4.0",
+      "protobufjs": "7.6.4",
+      "js-yaml@<4.2.0": "4.2.0",
       "postcss@<8.5.10": "8.5.10",
       "fast-xml-parser@<5.7.0": "5.7.3"
     }
