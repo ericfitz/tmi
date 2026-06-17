@@ -1,0 +1,550 @@
+"""TMI dev image build/push + in-cluster deploy + teardown.
+
+Pure helpers are unit-tested in scripts/lib/tests/test_deploy.py; orchestration
+functions (start/restart/teardown) are exercised against a live cluster by
+scripts/devenv.py. Depends on lib/cluster.py for registry + image refs.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+from pathlib import Path
+
+import cluster
+from tmi_common import (
+    check_tool, container_exists, container_is_running, get_project_root,
+    log_error, log_info, log_success, run_cmd,
+)
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+NS = "tmi-platform"
+DEV_DIR = "deployments/k8s/dev"
+PLATFORM_DIR = "deployments/k8s/platform"
+CONFIG_FILE = "config-development.yml"
+CONFIGMAP_NAME = "tmi-server-config"
+PORT_FORWARD_PID = "/tmp/tmi-dev-portforward.pid"
+# Redis is an in-cluster ClusterIP service; the server reaches it as redis:6379.
+# Integration tests that seed Redis directly (e.g. the step-up legacy refresh
+# token round-trip) connect to TEST_REDIS_HOST:TEST_REDIS_PORT, defaulting to
+# localhost:6379 — so forward the in-cluster Redis to the host as well.
+REDIS_PORT_FORWARD_PID = "/tmp/tmi-dev-redis-portforward.pid"
+
+
+# ---------------------------------------------------------------------------
+# Pure helpers
+# ---------------------------------------------------------------------------
+
+def image_builds_for(db: str) -> list[tuple[str, str, dict]]:
+    """Return the (name, dockerfile, build_args) tuples for the chosen DB flavor.
+
+    The controller and the two workers are identical across DB flavors; only the
+    server image differs (static Postgres image vs. Oracle CGO image).
+    """
+    if db == "oracle":
+        server = ("tmi-server-oracle", "Dockerfile.server-oracle", {"EXTRA_TAGS": "dev"})
+    else:
+        server = ("tmi-server", "Dockerfile.server", {"BUILD_TAGS": "dev"})
+    return [
+        server,
+        ("tmi-component-controller", "Dockerfile.controller", {}),
+        ("tmi-extractor",            "Dockerfile.extractor",  {}),
+        ("tmi-chunk-embed",          "Dockerfile.chunkembed", {}),
+    ]
+
+
+def overlay_dir_for(db: str) -> str:
+    """Return the kustomize overlay directory path for the chosen DB flavor."""
+    return f"{DEV_DIR}/oracle" if db == "oracle" else DEV_DIR
+
+
+def _no_workers_files(db: str) -> tuple[str, ...]:
+    """Return the per-file manifest list for --no-workers mode.
+
+    controller.yml and redis.yml are shared across DB flavors; only the server
+    manifest filename differs (server.yml for postgres, server-oracle.yml for oracle).
+    All files physically live in DEV_DIR.
+    """
+    server_file = "server-oracle.yml" if db == "oracle" else "server.yml"
+    return ("controller.yml", "redis.yml", server_file)
+
+
+def content_hash(text: str) -> str:
+    """Stable 12-char hex digest of text (for config-change annotations)."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+
+def render_configmap_yaml(*, name: str, namespace: str, file_key: str, content: str) -> str:
+    """Render a ConfigMap manifest embedding `content` under `file_key`.
+
+    Uses a block scalar with 4-space indentation; annotates the content hash.
+    """
+    # name/namespace/file_key are dev-internal identifiers, not user input — not escaped.
+    indented = "\n".join("    " + line for line in content.splitlines())
+    return (
+        "apiVersion: v1\n"
+        "kind: ConfigMap\n"
+        "metadata:\n"
+        f"  name: {name}\n"
+        f"  namespace: {namespace}\n"
+        "  annotations:\n"
+        f"    tmi.dev/config-hash: \"{content_hash(content)}\"\n"
+        "data:\n"
+        f"  {file_key}: |\n"
+        f"{indented}\n"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Shell wrappers (not unit-tested; exercised against a live cluster)
+# ---------------------------------------------------------------------------
+
+def current_kube_context() -> str:
+    """Return the active kubectl context name (empty string if none)."""
+    try:
+        out = subprocess.run(
+            ["kubectl", "config", "current-context"],
+            capture_output=True, text=True, check=True,
+        )
+        return out.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return ""
+
+
+def kubectl(args: list[str], *, check: bool = True, input_text: str | None = None):
+    """Run kubectl with the given args."""
+    return run_cmd(["kubectl", *args], check=check, input_text=input_text)
+
+
+# ---------------------------------------------------------------------------
+# Preflight + context guard
+# ---------------------------------------------------------------------------
+
+def _preflight() -> None:
+    for tool in ("docker", "kubectl"):
+        check_tool(tool)
+    if run_cmd(["kubectl", "cluster-info"], check=False).returncode != 0:
+        log_error("No reachable cluster. Run 'make dev-cluster-up' (kind) or start your k3s cluster.")
+        sys.exit(1)
+
+
+def _guard_context(skip: bool) -> str:
+    ctx = current_kube_context()
+    log_info(f"kubectl context: {ctx or '(none)'}  namespace: {NS}")
+    if not ctx:
+        log_error("No kubectl context set. Run 'make dev-cluster-up'")
+        sys.exit(1)
+    if not skip and not cluster.is_local_kube_context(ctx):
+        log_error(f"Context '{ctx}' is not a recognized local dev cluster. Re-run with --yes to override.")
+        sys.exit(1)
+    return ctx
+
+
+# ---------------------------------------------------------------------------
+# tmi-client staging
+# ---------------------------------------------------------------------------
+
+def _resolve_client_path(project_root: Path) -> str:
+    """Resolve the tmi-clients root directory.
+
+    Checks (in order):
+    1. TMI_CLIENT_PATH environment variable
+    2. .local-projects.json entry for tmi-clients
+    3. Default sibling directory ../tmi-clients
+    """
+    env_path = os.environ.get("TMI_CLIENT_PATH", "")
+    if env_path:
+        return env_path
+
+    local_projects_file = project_root / ".local-projects.json"
+    if local_projects_file.exists():
+        try:
+            data = json.loads(local_projects_file.read_text())
+            for proj in data.get("projects", []):
+                if proj.get("name") == "tmi-clients":
+                    return proj["path"]
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    return str(project_root.parent / "tmi-clients")
+
+
+def _resolve_client_version(project_root: Path) -> str:
+    """Derive the tmi-clients version directory from go.mod's replace directive."""
+    env_version = os.environ.get("TMI_CLIENT_VERSION", "")
+    if env_version:
+        return env_version
+
+    go_mod = (project_root / "go.mod").read_text()
+    # e.g. "=> ../tmi-clients/go-client-generated/v1_4_0"
+    m = re.search(r"tmi-clients/go-client-generated/(\S+)", go_mod)
+    if m:
+        return m.group(1)
+
+    log_error(
+        "Cannot derive tmi-client version from go.mod replace directive. "
+        "Set TMI_CLIENT_VERSION (e.g. 'v1_4_0')."
+    )
+    sys.exit(1)
+
+
+def stage_tmi_client() -> bool:
+    """Copy the tmi-client Go module into .docker-deps/tmi-client/ if not already present.
+
+    If .docker-deps/tmi-client/ already exists the developer is assumed to have
+    intentionally staged it; this function leaves it untouched and returns False
+    so the caller knows NOT to clean it up later.
+
+    Returns True if this call created .docker-deps/tmi-client/ (caller must
+    call unstage_tmi_client() to clean up), False if it was pre-existing (leave
+    it alone).
+    """
+    project_root = get_project_root()
+    dest = project_root / ".docker-deps" / "tmi-client"
+
+    if dest.exists():
+        log_info(f"Pre-existing .docker-deps/tmi-client/ found — using as-is: {dest}")
+        return False
+
+    client_root = _resolve_client_path(project_root)
+    client_version = _resolve_client_version(project_root)
+
+    src = Path(client_root) / "go-client-generated" / client_version
+    if not src.is_dir():
+        log_error(
+            f"TMI client source not found: {src}\n"
+            f"  TMI_CLIENT_PATH={client_root}\n"
+            f"  TMI_CLIENT_VERSION={client_version}\n"
+            "Ensure the tmi-clients repo is checked out and the version directory exists."
+        )
+        sys.exit(1)
+
+    # Create only the .docker-deps/ parent if needed; never touch other contents.
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    log_info(f"Staging tmi-client: {src} -> {dest}")
+    shutil.copytree(src, dest)
+    return True
+
+
+def unstage_tmi_client(created: bool) -> None:
+    """Remove .docker-deps/tmi-client/ — but only if this run created it.
+
+    Never removes the parent .docker-deps/ directory or any other content
+    inside it; that would destroy a developer's intentionally staged files.
+    """
+    if not created:
+        return
+    project_root = get_project_root()
+    dest = project_root / ".docker-deps" / "tmi-client"
+    if dest.exists():
+        shutil.rmtree(dest)
+        log_info("Cleaned up staged tmi-client (.docker-deps/tmi-client/)")
+
+
+# ---------------------------------------------------------------------------
+# Image build + push
+# ---------------------------------------------------------------------------
+
+def build_and_push(db: str) -> None:
+    """Build all images and push them to the local registry.
+
+    All four Dockerfiles require the tmi-client staged in .docker-deps/.
+    Stage once before the first build and clean up in a try/finally block
+    so the staging dir is always removed even if a build fails — but only
+    when this run created it (pre-existing dirs are left untouched).
+    """
+    project_root = get_project_root()
+
+    # All four images need the client — stage once (no-op if pre-existing).
+    created = stage_tmi_client()
+    try:
+        for name, dockerfile, build_args_map in image_builds_for(db):
+            ref = cluster.local_image_ref(name)
+            log_info(f"Building {name}  ({dockerfile}) -> {ref}")
+
+            cmd = ["docker", "build", "-f", str(project_root / dockerfile)]
+            for k, v in build_args_map.items():
+                cmd += ["--build-arg", f"{k}={v}"]
+            cmd += ["-t", ref, str(project_root)]
+
+            run_cmd(cmd)
+
+            log_info(f"Pushing {ref}")
+            run_cmd(["docker", "push", ref])
+
+        log_success("All images built and pushed to local registry")
+    finally:
+        unstage_tmi_client(created)
+
+
+# ---------------------------------------------------------------------------
+# Kubernetes helpers
+# ---------------------------------------------------------------------------
+
+def apply_platform_base() -> None:
+    project_root = get_project_root()
+    kubectl(["apply", "-f", str(project_root / PLATFORM_DIR / "nats.yml")])
+    kubectl(["apply", "--server-side", "-f", str(project_root / PLATFORM_DIR / "keda.yml")])
+    kubectl(["apply", "-f", str(project_root / "config/crd/bases/tmi.dev_tmicomponents.yaml")])
+
+
+def ensure_namespace() -> None:
+    kubectl(
+        ["apply", "-f", "-"],
+        input_text=f"apiVersion: v1\nkind: Namespace\nmetadata:\n  name: {NS}\n",
+    )
+
+
+def deliver_config() -> None:
+    content = (get_project_root() / CONFIG_FILE).read_text()
+    manifest = render_configmap_yaml(
+        name=CONFIGMAP_NAME, namespace=NS, file_key="config.yml", content=content,
+    )
+    kubectl(["apply", "-f", "-"], input_text=manifest)
+    log_success(f"Config delivered as ConfigMap/{CONFIGMAP_NAME}")
+
+
+def create_embedding_secret() -> None:
+    key = os.environ.get("TMI_EMBEDDING_API_KEY", "sk-e2e-placeholder")
+    rendered = run_cmd(
+        ["kubectl", "create", "secret", "generic", "tmi-embedding", "-n", NS,
+         f"--from-literal=api-key={key}", "--dry-run=client", "-o", "yaml"],
+        capture=True,
+    ).stdout
+    kubectl(["apply", "-f", "-"], input_text=rendered)
+
+
+def create_oracle_wallet_secret() -> None:
+    """Create the tmi-oracle-wallet Secret from the developer's wallet zip.
+
+    Path comes from TMI_ORACLE_WALLET_ZIP (a path to the OCI ADB wallet .zip).
+    The Oracle image entrypoint reads /wallet/wallet.zip and extracts it.
+    (There is no existing wallet-*zip* env var to reuse: scripts/oci-env.sh's
+    TNS_ADMIN points to an extracted wallet *directory* for host-process tests,
+    not a zip, so this introduces TMI_ORACLE_WALLET_ZIP for the k8s path.)
+    """
+    wallet = os.environ.get("TMI_ORACLE_WALLET_ZIP", "")
+    if not wallet or not Path(wallet).is_file():
+        log_error("DB=oracle requires TMI_ORACLE_WALLET_ZIP to point at your ADB wallet .zip")
+        sys.exit(1)
+    rendered = run_cmd(
+        ["kubectl", "create", "secret", "generic", "tmi-oracle-wallet", "-n", NS,
+         f"--from-file=wallet.zip={wallet}", "--dry-run=client", "-o", "yaml"],
+        capture=True,
+    ).stdout
+    kubectl(["apply", "-f", "-"], input_text=rendered)
+    log_success("oracle wallet delivered as Secret/tmi-oracle-wallet")
+
+
+def apply_overlay(no_workers: bool, db: str) -> None:
+    """Apply the dev overlay.
+
+    When --no-workers: apply the three core manifests individually to avoid
+    kustomize referencing the component CR files (which include TMIComponent
+    resources from ../platform/components/).
+
+    Otherwise: render the full kustomize overlay with --load-restrictor
+    LoadRestrictionsNone (needed because the overlay references files outside
+    its own directory tree, i.e. ../platform/components/; the oracle overlay at
+    deployments/k8s/dev/oracle references ../../platform/components/ so the flag
+    is equally required for both flavors).
+    """
+    project_root = get_project_root()
+    if no_workers:
+        for f in _no_workers_files(db):
+            kubectl(["apply", "-f", str(project_root / DEV_DIR / f)])
+    else:
+        rendered = run_cmd(
+            ["kubectl", "kustomize", "--load-restrictor", "LoadRestrictionsNone",
+             str(project_root / overlay_dir_for(db))],
+            capture=True,
+        ).stdout
+        kubectl(["apply", "-f", "-"], input_text=rendered)
+
+
+def wait_and_forward() -> None:
+    kubectl(["-n", NS, "rollout", "status", "deploy/tmi-component-controller", "--timeout=120s"])
+    kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", "--timeout=180s"])
+    start_port_forward()
+    log_success("Dev environment ready at http://localhost:8080")
+
+
+def start_port_forward() -> None:
+    stop_port_forward()
+    proc = subprocess.Popen(
+        ["kubectl", "-n", NS, "port-forward", "svc/tmi-server", "8080:8080"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    Path(PORT_FORWARD_PID).write_text(str(proc.pid))
+    log_info(f"Port-forward started (PID {proc.pid}): localhost:8080 -> svc/tmi-server:8080")
+
+    redis_proc = subprocess.Popen(
+        ["kubectl", "-n", NS, "port-forward", "svc/redis", "6379:6379"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    Path(REDIS_PORT_FORWARD_PID).write_text(str(redis_proc.pid))
+    log_info(f"Port-forward started (PID {redis_proc.pid}): localhost:6379 -> svc/redis:6379")
+
+
+def _stop_port_forward_pidfile(pid_path: str) -> None:
+    p = Path(pid_path)
+    if p.exists():
+        try:
+            pid = int(p.read_text().strip())
+            os.kill(pid, signal.SIGTERM)
+            log_info(f"Stopped port-forward (PID {pid})")
+        except (ProcessLookupError, ValueError):
+            pass
+        p.unlink(missing_ok=True)
+
+
+def stop_port_forward() -> None:
+    _stop_port_forward_pidfile(PORT_FORWARD_PID)
+    _stop_port_forward_pidfile(REDIS_PORT_FORWARD_PID)
+
+
+# ---------------------------------------------------------------------------
+# New helpers (consumed by devstatus / devenv nuke)
+# ---------------------------------------------------------------------------
+
+def tail_server_logs() -> None:
+    """Stream the tmi-server pod logs (Ctrl-C to stop)."""
+    kubectl(["-n", NS, "logs", "-f", "deploy/tmi-server", "--tail=200"], check=False)
+
+
+def remove_local_images(db: str) -> None:
+    """Remove the locally-built dev images (used by `devenv.py nuke`)."""
+    for name, _df, _args in image_builds_for(db):
+        run_cmd(["docker", "rmi", "-f", cluster.local_image_ref(name)], check=False)
+
+
+def server_http_status() -> tuple[bool, str]:
+    """Return (reachable, http_code) for http://localhost:8080 via the port-forward."""
+    r = subprocess.run(
+        ["curl", "-s", "--connect-timeout", "2", "--max-time", "5",
+         "-o", "/dev/null", "-w", "%{http_code}", "http://localhost:8080"],
+        capture_output=True, text=True,
+    )
+    code = r.stdout.strip() or "000"
+    return (code in ("200", "429"), code)
+
+
+# ---------------------------------------------------------------------------
+# Orchestration entry points
+# ---------------------------------------------------------------------------
+
+def start(*, db: str, no_workers: bool = False, skip_context_guard: bool = False) -> None:
+    """Build images, deploy all components, wait for readiness, and start port-forwards."""
+    _preflight()
+    _guard_context(skip_context_guard)
+    cluster.ensure_registry()
+    build_and_push(db)
+    ensure_namespace()
+    apply_platform_base()
+    deliver_config()
+    create_embedding_secret()
+    if db == "oracle":
+        create_oracle_wallet_secret()
+    apply_overlay(no_workers, db)
+    # `kubectl apply` of an unchanged Deployment spec does not roll a new pod, so
+    # a freshly-built :dev image (same tag) would not be picked up, and a pod
+    # stuck in CrashLoopBackOff from a prior transient outage (e.g. the host DB
+    # being down on an earlier start) would never be reset — leaving the rollout
+    # wait below to time out on a pod that will not recover within its window.
+    # Force a fresh rollout so `start` always runs the just-built images on new,
+    # backoff-cleared pods. imagePullPolicy:Always ensures the new image is pulled.
+    kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-component-controller"])
+    kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
+    wait_and_forward()
+
+
+def restart(*, db: str, no_workers: bool = False, skip_context_guard: bool = False) -> None:
+    """Rebuild the server image, re-deliver config, and roll the server deployment."""
+    _preflight()
+    _guard_context(skip_context_guard)
+    cluster.ensure_registry()
+    build_and_push(db)
+    deliver_config()
+    if db == "oracle":
+        create_oracle_wallet_secret()
+    apply_overlay(no_workers, db)
+    kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
+    kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", "--timeout=180s"])
+    start_port_forward()
+    log_success("Server restarted; http://localhost:8080")
+
+
+def teardown(*, db: str = "postgres") -> None:
+    """Tear down everything that start() deployed.
+
+    Removes (tolerating absence for all):
+    - port-forward process
+    - server Deployment + Service
+    - redis Deployment + Service
+    - controller Deployment + RBAC (ServiceAccount, ClusterRole, ClusterRoleBinding)
+    - TMIComponent CRs (tmi-extractor, tmi-chunk-embed)
+    - ConfigMap tmi-server-config
+    - Secret tmi-embedding
+    - Secret tmi-oracle-wallet (defensive; no-op if never created)
+    - local registry container (docker stop)
+    """
+    stop_port_forward()
+
+    # TMIComponent CRs (worker component definitions)
+    kubectl(
+        ["-n", NS, "delete", "tmicomponents.tmi.dev", "tmi-extractor", "tmi-chunk-embed",
+         "--ignore-not-found"],
+        check=False,
+    )
+
+    # Server and Redis Deployments + Services
+    kubectl(
+        ["-n", NS, "delete", "deploy,svc", "tmi-server", "redis", "--ignore-not-found"],
+        check=False,
+    )
+
+    # Controller Deployment
+    kubectl(
+        ["-n", NS, "delete", "deploy", "tmi-component-controller", "--ignore-not-found"],
+        check=False,
+    )
+
+    # Controller RBAC
+    kubectl(
+        ["delete", "clusterrolebinding,clusterrole", "tmi-controller", "--ignore-not-found"],
+        check=False,
+    )
+    kubectl(
+        ["-n", NS, "delete", "serviceaccount", "tmi-controller", "--ignore-not-found"],
+        check=False,
+    )
+
+    # ConfigMap and Secrets
+    kubectl(
+        ["-n", NS, "delete", "configmap", CONFIGMAP_NAME, "--ignore-not-found"],
+        check=False,
+    )
+    kubectl(
+        ["-n", NS, "delete", "secret", "tmi-embedding", "--ignore-not-found"],
+        check=False,
+    )
+    kubectl(
+        ["-n", NS, "delete", "secret", "tmi-oracle-wallet", "--ignore-not-found"],
+        check=False,
+    )
+
+    # Stop the local registry container
+    run_cmd(["docker", "stop", cluster.REGISTRY_CONTAINER], check=False)
+
+    log_success("Dev environment torn down (cluster left intact)")
