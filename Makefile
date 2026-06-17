@@ -26,7 +26,7 @@ DB ?= postgres
 # ATOMIC COMPONENTS - Infrastructure Management
 # ============================================================================
 
-.PHONY: start-database stop-database clean-database start-redis stop-redis clean-redis start-db stop-db start-nats stop-nats clean-nats start-workers stop-workers
+.PHONY: start-database stop-database clean-database start-redis stop-redis clean-redis start-db stop-db start-nats stop-nats clean-nats
 
 start-database:
 	@uv run scripts/manage-database.py start
@@ -58,12 +58,6 @@ stop-nats:  ## Stop the NATS JetStream container
 
 clean-nats:  ## Remove the NATS JetStream container
 	@uv run scripts/manage-nats.py clean
-
-start-workers:  ## Start async-extraction worker processes (tmi-extractor, tmi-chunk-embed)
-	@uv run scripts/manage-workers.py start
-
-stop-workers:  ## Stop async-extraction worker processes
-	@uv run scripts/manage-workers.py stop
 
 # Test Infrastructure - Ephemeral containers for integration tests (isolated from dev)
 .PHONY: start-test-database stop-test-database clean-test-database start-test-redis stop-test-redis clean-test-redis clean-test-infrastructure
@@ -183,40 +177,6 @@ migrate-test-database:
 	@uv run scripts/manage-database.py --config config-test.yml migrate
 
 # ============================================================================
-# ATOMIC COMPONENTS - Process Management
-# ============================================================================
-
-.PHONY: stop-process wait-process start-server start-service stop-server stop-service
-
-stop-process:
-	@uv run scripts/manage-server.py --port $(SERVER_PORT) kill-port
-
-start-server:
-	@uv run scripts/manage-server.py \
-		$(if $(SERVER_CONFIG_FILE),--config $(SERVER_CONFIG_FILE),) \
-		$(if $(SERVER_PORT),--port $(SERVER_PORT),) \
-		$(if $(SERVER_BINARY),--binary $(SERVER_BINARY),) \
-		$(if $(SERVER_LOG_FILE),--log-file $(SERVER_LOG_FILE),) \
-		$(if $(SERVER_TAGS),--tags $(SERVER_TAGS),) \
-		start
-
-stop-server:
-	@uv run scripts/manage-server.py \
-		$(if $(SERVER_PORT),--port $(SERVER_PORT),) \
-		stop
-
-start-service: start-server
-
-stop-service: stop-server
-
-wait-process:
-	@uv run scripts/manage-server.py \
-		$(if $(SERVER_PORT),--port $(SERVER_PORT),) \
-		$(if $(TIMEOUTS_SERVER_READY),--timeout $(TIMEOUTS_SERVER_READY),) \
-		wait
-
-
-# ============================================================================
 # ATOMIC COMPONENTS - Cleanup Operations
 # ============================================================================
 
@@ -241,7 +201,7 @@ clean-everything:
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev tilt-up tilt-down test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-cluster-up dev-cluster-stop dev-cluster-down
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev tilt-up tilt-down test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-up dev-down dev-restart dev-reset dev-nuke dev-status dev-logs dev-deploy dev-cluster-up dev-cluster-down dev-db-up dev-db-down
 
 # Dev-environment Python helpers unit tests
 test-dev-scripts:  ## Run unit tests for the dev-environment Python helpers
@@ -306,21 +266,8 @@ test-api-list:
 test-db-cleanup:
 	@uv run scripts/delete-test-users.py $(ARGS)
 
-# Development Environment - Deploy the TMI dev environment into the current kubectl context
-start-dev:  ## Deploy the TMI dev environment into the current kubectl context (DB=postgres|oracle)
-	@uv run scripts/start-dev.py --db $(DB)
-
-# Development Environment - Oracle Cloud Infrastructure (OCI) Autonomous Database
-# Prerequisites:
-#   1. Oracle Instant Client installed
-#   2. Wallet extracted to ./wallet directory
-#   3. Database user created in OCI ADB
-#   4. scripts/start-dev-oci.sh configured with your credentials (gitignored)
-start-dev-oci:
-	@./scripts/start-dev-oci.sh
-
 # OCI ADB Utility - Drop all tables in OCI Autonomous Database
-# Prerequisites: Same as start-dev-oci (Oracle Instant Client, wallet, credentials)
+# Prerequisites: Oracle Instant Client, wallet, credentials
 # WARNING: This is destructive and will delete all data in the OCI database
 reset-db-oci:
 	@./scripts/drop-oracle-tables.sh
@@ -332,21 +279,13 @@ reset-db-oci:
 probe-oracle-clob-like:
 	@bash -c "source scripts/oci-env.sh && go run -tags oracle ./scripts/oracle-clob-like-probe/..."
 
-# Development Environment - Rebuild+push the server, redeliver config, roll the server pod
-restart-dev:  ## Rebuild+push the server, redeliver config, roll the server pod (DB=postgres|oracle)
-	@uv run scripts/start-dev.py --restart --db $(DB)
-
-# Development Environment - Tear down everything start-dev deployed (leaves a dedicated cluster intact)
-stop-dev:  ## Tear down everything start-dev deployed (leaves a dedicated cluster intact)
-	@uv run scripts/start-dev.py --stop --db $(DB)
-
 # Development Environment - Optional Tilt fast server-only loop
-# Requires: tilt installed (https://docs.tilt.dev/install.html) + a running start-dev cluster
+# Requires: tilt installed (https://docs.tilt.dev/install.html) + a running dev-up cluster
 # Usage: make tilt-up   - start the Tilt fast loop (runs in foreground; Ctrl-C to stop)
 #        make tilt-down - stop Tilt and restore the prod-shaped server
-tilt-up:  ## Optional fast server-only loop (requires tilt + a running start-dev cluster)
+tilt-up:  ## Optional fast server-only loop (requires tilt + a running dev-up cluster)
 	@command -v tilt >/dev/null 2>&1 || { echo "tilt not installed — see https://docs.tilt.dev/install.html"; exit 1; }
-	@kubectl cluster-info >/dev/null 2>&1 || { echo "no reachable cluster — run 'make start-dev' first"; exit 1; }
+	@kubectl cluster-info >/dev/null 2>&1 || { echo "no reachable cluster — run 'make dev-up' first"; exit 1; }
 	@tilt up --stream=true
 
 tilt-down:  ## Stop Tilt and restore the prod-shaped server
@@ -355,17 +294,58 @@ tilt-down:  ## Stop Tilt and restore the prod-shaped server
 	@kubectl -n tmi-platform rollout status deploy/tmi-server --timeout=180s
 	@echo "prod-shaped server restored"
 
-# Local kind cluster - Create a local kind cluster wired to the dev registry (laptop path)
-dev-cluster-up:  ## Create a local kind cluster wired to the dev registry (laptop path)
-	@uv run scripts/dev-cluster.py up
+# ============================================================================
+# DEV ENVIRONMENT — single orchestrator (scripts/devenv.py). DB=postgres|oracle
+# ============================================================================
 
-# Local kind cluster - Stop the dev registry + kind node containers (revivable)
-dev-cluster-stop:  ## Stop the dev registry + kind node containers without deleting the cluster
-	@uv run scripts/dev-cluster.py stop
+dev-up:  ## Bring up the full kind dev environment (cluster + db + deploy). DB=postgres|oracle
+	@uv run scripts/devenv.py --db $(DB) up
 
-# Local kind cluster - Delete the local kind dev cluster
-dev-cluster-down:  ## Delete the local kind dev cluster
-	@uv run scripts/dev-cluster.py down
+dev-down:  ## Tear down the kind dev environment; KEEP db data
+	@uv run scripts/devenv.py --db $(DB) down
+
+dev-restart:  ## Rebuild the server image + roll the server pod (cluster + db untouched)
+	@uv run scripts/devenv.py --db $(DB) restart
+
+dev-reset:  ## Soft known-state: redeploy the stack with fresh images; KEEP db data
+	@uv run scripts/devenv.py --db $(DB) reset
+
+dev-nuke:  ## Hard known-state: destroy everything incl. db data + images, rebuild
+	@uv run scripts/devenv.py --db $(DB) nuke
+
+dev-status:  ## kind-aware dev environment status dashboard
+	@uv run scripts/devenv.py status
+
+dev-logs:  ## Stream the tmi-server pod logs
+	@uv run scripts/devenv.py logs
+
+dev-deploy:  ## (Re)apply manifests + rollout without recreating cluster/db
+	@uv run scripts/devenv.py --db $(DB) deploy
+
+dev-cluster-up:  ## Create the local kind cluster + registry only
+	@uv run scripts/devenv.py cluster up
+
+dev-cluster-down:  ## Delete the local kind cluster only
+	@uv run scripts/devenv.py cluster down
+
+dev-db-up:  ## Start the postgres dev container only
+	@uv run scripts/devenv.py db up
+
+dev-db-down:  ## Stop the postgres dev container only (keep data)
+	@uv run scripts/devenv.py db down
+
+# --- deprecated aliases (removable next release) ---
+start-dev:  ## DEPRECATED alias for dev-up
+	@echo "note: 'make start-dev' is renamed to 'make dev-up'"; $(MAKE) dev-up DB=$(DB)
+
+stop-dev:  ## DEPRECATED alias for dev-down
+	@echo "note: 'make stop-dev' is renamed to 'make dev-down'"; $(MAKE) dev-down DB=$(DB)
+
+restart-dev:  ## DEPRECATED alias for dev-restart
+	@echo "note: 'make restart-dev' is renamed to 'make dev-restart'"; $(MAKE) dev-restart DB=$(DB)
+
+start-dev-oci:  ## DEPRECATED — Oracle now runs in-cluster: use 'make dev-up DB=oracle'
+	@echo "note: 'make start-dev-oci' is removed; use 'make dev-up DB=oracle'"; $(MAKE) dev-up DB=oracle
 
 # Coverage Report Generation - Comprehensive testing with coverage
 test-coverage:
@@ -420,7 +400,7 @@ kill-oauth-stub:
 check-oauth-stub:
 	@uv run scripts/manage-oauth-stub.py status
 
-stop-all: stop-server stop-workers stop-nats stop-database stop-redis stop-oauth-stub dev-cluster-stop  ## Stop all dev components incl. the kind cluster + registry containers
+stop-all: stop-oauth-stub dev-down  ## Stop the OAuth stub and tear down the kind dev environment
 
 
 # ============================================================================
@@ -598,7 +578,7 @@ test: test-unit
 lint:
 	@uv run scripts/lint.py
 clean: clean-everything
-dev: start-dev
+dev: dev-up
 
 # ============================================================================
 # Heroku Configuration
@@ -721,8 +701,8 @@ validate-asyncapi:
 
 .PHONY: status
 
-status:
-	@uv run scripts/status.py
+status:  ## DEPRECATED alias for dev-status
+	@uv run scripts/devenv.py status
 
 # ============================================================================
 # HELP AND UTILITIES
