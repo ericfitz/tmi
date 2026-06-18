@@ -500,10 +500,11 @@ When working with JSON files **larger than 100KB**, use streaming approaches wit
 
 **IMPORTANT**: All project documentation is maintained in the GitHub Wiki. Do NOT update markdown files in the `docs/` directory - they are deprecated and will be removed.
 
-Do not update or add any content to the docs/ directory. Instead, update or add the content to the appropriate page on the tmi wiki.
+Do not update or add any content to the docs/ directory (except the `docs/superpowers/` subtree — see exception below). Instead, update or add the content to the appropriate page on the tmi wiki.
 
 - **Authoritative documentation**: GitHub Wiki (https://github.com/ericfitz/tmi/wiki)
 - **Local `docs/` directory**: Deprecated, do not update
+- **Exception — `docs/superpowers/`**: Superpowers skills (brainstorming, writing-plans, etc.) legitimately write specs and plans under `docs/superpowers/` (e.g., `docs/superpowers/specs/`). This subtree is allowed and is NOT covered by the "do not update docs/" rule. It is only for superpowers-generated artifacts — do not put hand-authored project documentation here (that still belongs in the wiki).
 
 ## Python Development
 
