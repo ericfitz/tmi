@@ -1,0 +1,82 @@
+name: Dependency Bump (Claude)
+
+on:
+  # Iteration trigger only. workflow_dispatch & schedule fire only from the
+  # default branch, so while developing on this feature branch we trigger on
+  # pushes to it. This block is replaced by workflow_dispatch + schedule
+  # (Task 5) before the workflow is merged to main.
+  push:
+    branches: [feature/deps-bump-automation]
+
+permissions:
+  contents: read   # spike only reads + commits locally in the runner; no push yet
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9   # pnpm-lock.yaml is lockfileVersion 9.0; package.json has no packageManager field
+          run_install: false
+
+      - name: Install Go quality tools
+        run: |
+          set -euo pipefail
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          # golangci-lint via goinstall, pinned to the version tmi's security.yml uses
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Vendor the bump skill into the runner
+        env:
+          # Pin ericfitz/skills to a reviewed commit so the high-privilege agent
+          # run below cannot execute an unreviewed change to the skill. Bump this
+          # SHA deliberately when adopting skill updates.
+          SKILL_SHA: "804ee39f7d594e896f6dab8501b59cb92556b8df"
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          git clone --filter=blob:none https://github.com/ericfitz/skills "$tmp/skills"
+          git -C "$tmp/skills" checkout -q "$SKILL_SHA"
+          mkdir -p .claude/skills/bump
+          cp -R "$tmp/skills/deps/skills/bump/." .claude/skills/bump/
+          test -f .claude/skills/bump/SKILL.md && echo "skill vendored @ $SKILL_SHA"
+
+      - name: Run headless bump (commit only, no push)
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+            echo "::error::CLAUDE_CODE_OAUTH_TOKEN is empty (secret missing on this ref)."
+            exit 1
+          fi
+          git config user.name "deps-bot"
+          git config user.email "deps-bot@users.noreply.github.com"
+          claude -p "/bump — run the dependency bump skill on the CURRENT checked-out branch only. Do NOT switch branches and do NOT ask me anything; you are running unattended in CI. Apply only safe patch/minor updates, run build/test/lint, bisect on failure, commit the safe subset, and print the manual-review plan. If there are no safe updates, make no commit and say so." \
+            --dangerously-skip-permissions \
+            --allowedTools "Bash,Read,Write,Edit,Glob,Grep"
+
+      - name: Show result
+        run: |
+          git log --oneline -3
+          git status -sb

@@ -82,12 +82,11 @@ Prove the headless skill run works end-to-end on `dev/1.4.0` with a minimal, man
 name: Dependency Bump (Claude)
 
 on:
-  workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch to bump'
-        default: 'dev/1.4.0'
-        type: string
+  # Iteration trigger: workflow_dispatch & schedule only fire from the default
+  # branch, so during development we trigger on pushes to the feature branch.
+  # Replaced by workflow_dispatch + schedule in Task 5 before merging to main.
+  push:
+    branches: [feature/deps-bump-automation]
 
 permissions:
   contents: read   # spike only reads + commits locally; no push yet
@@ -98,7 +97,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.branch }}
           fetch-depth: 0
 
       - name: Set up Go
