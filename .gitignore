@@ -26,7 +26,6 @@
 !Dockerfile*
 !.dockerignore
 !config-example.yml
-!.claude/settings.local.json
 !package.json
 !pnpm-lock.yaml
 
@@ -61,6 +60,8 @@
 !testdata/**
 !.claude/
 !.claude/**
+# Re-ignore machine-local Claude settings (must come after the .claude/** include above)
+.claude/settings.local.json
 !.github/
 !.github/**
 !.dosu.yml
