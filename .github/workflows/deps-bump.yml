@@ -9,8 +9,8 @@ on:
     branches: [feature/deps-bump-automation]
 
 permissions:
-  contents: write          # push the working branch
-  pull-requests: write     # open the PR
+  contents: read   # the job's own GITHUB_TOKEN only reads (checkout). All writes
+                   # go through the ephemeral GitHub App token minted after the agent step.
 
 jobs:
   bump:
@@ -94,9 +94,19 @@ jobs:
             --dangerously-skip-permissions \
             --allowedTools "Bash,Read,Write,Edit,Glob,Grep" | tee /tmp/bump-plan.txt
 
+      # Minted AFTER the agent step so the write-capable token never exists while
+      # the --dangerously-skip-permissions agent is running. Ephemeral (~1h),
+      # scoped to this App's Contents + Pull-requests permissions on this repo.
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.DEPS_BOT_APP_ID }}
+          private-key: ${{ secrets.DEPS_BOT_APP_PRIVATE_KEY }}
+
       - name: Open PR if there are changes
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
           BASE: ${{ steps.wb.outputs.base }}
           WB: ${{ steps.wb.outputs.wb }}
           REPO: ${{ github.repository }}
