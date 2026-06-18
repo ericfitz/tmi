@@ -60,6 +60,26 @@ spec:
             # without manual seeding, and the admin-promotion integration test
             # exercises this path. Dev/local convenience — default-off in prod.
             - { name: TMI_AUTH_AUTO_PROMOTE_FIRST_USER, value: "true" }
+            # Oracle ADB connection. In-cluster the pod cannot see the host's
+            # scripts/oci-env.sh, so devenv.py packs TMI_DATABASE_URL + ORACLE_PASSWORD
+            # into the tmi-oracle-db Secret (deploy.py create_oracle_db_secret) and we
+            # surface them here. TMI_DATABASE_URL (oracle://...) 12-factor-overrides the
+            # postgres database.url in config-development.yml; ORACLE_PASSWORD is the ADB
+            # user password (auth/db/gorm.go). Without these the pod would dial postgres.
+            # NOTE: the tmi-oracle-db Secret carries a LIVE ADB credential
+            # (database URL + ORACLE_PASSWORD). Local kind dev only; never apply
+            # to a non-local context (deploy.py _guard_context blocks that), and
+            # avoid dumping it via `kubectl get secret -o yaml` in shared output.
+            - name: TMI_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tmi-oracle-db
+                  key: database-url
+            - name: ORACLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tmi-oracle-db
+                  key: oracle-password
           volumeMounts:
             - name: config
               mountPath: /etc/tmi

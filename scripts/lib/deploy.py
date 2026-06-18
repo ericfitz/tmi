@@ -345,6 +345,36 @@ def create_oracle_wallet_secret() -> None:
     log_success("oracle wallet delivered as Secret/tmi-oracle-wallet")
 
 
+def create_oracle_db_secret() -> None:
+    """Create the tmi-oracle-db Secret carrying the ADB connection settings.
+
+    In-cluster the server pod cannot see the host's scripts/oci-env.sh, so the
+    Oracle DB URL and password (which live there for the host-process path) must
+    be delivered as a Secret and surfaced to the pod as env vars. server-oracle.yml
+    pulls them in via secretKeyRef. The server reads TMI_DATABASE_URL (12-factor
+    override of database.url — see internal/config/config.go) and ORACLE_PASSWORD
+    (the ADB user password — see auth/db/gorm.go); config-development.yml carries a
+    postgres URL, so without this the oracle pod would dial postgres and crash.
+    """
+    url = os.environ.get("TMI_DATABASE_URL", "")
+    password = os.environ.get("ORACLE_PASSWORD", "")
+    if not url.startswith("oracle://"):
+        log_error("DB=oracle requires TMI_DATABASE_URL=oracle://... (run: source scripts/oci-env.sh)")
+        sys.exit(1)
+    if not password:
+        log_error("DB=oracle requires ORACLE_PASSWORD to be set (run: source scripts/oci-env.sh)")
+        sys.exit(1)
+    rendered = run_cmd(
+        ["kubectl", "create", "secret", "generic", "tmi-oracle-db", "-n", NS,
+         f"--from-literal=database-url={url}",
+         f"--from-literal=oracle-password={password}",
+         "--dry-run=client", "-o", "yaml"],
+        capture=True,
+    ).stdout
+    kubectl(["apply", "-f", "-"], input_text=rendered)
+    log_success("oracle DB connection delivered as Secret/tmi-oracle-db")
+
+
 def apply_overlay(no_workers: bool, db: str) -> None:
     """Apply the dev overlay.
 
@@ -457,6 +487,7 @@ def start(*, db: str, no_workers: bool = False, skip_context_guard: bool = False
     create_embedding_secret()
     if db == "oracle":
         create_oracle_wallet_secret()
+        create_oracle_db_secret()
     apply_overlay(no_workers, db)
     # `kubectl apply` of an unchanged Deployment spec does not roll a new pod, so
     # a freshly-built :dev image (same tag) would not be picked up, and a pod
@@ -480,6 +511,7 @@ def restart(*, db: str, no_workers: bool = False, skip_context_guard: bool = Fal
     deliver_config()
     if db == "oracle":
         create_oracle_wallet_secret()
+        create_oracle_db_secret()
     apply_overlay(no_workers, db)
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", "--timeout=180s"])
@@ -499,6 +531,7 @@ def teardown(*, db: str = "postgres") -> None:
     - ConfigMap tmi-server-config
     - Secret tmi-embedding
     - Secret tmi-oracle-wallet (defensive; no-op if never created)
+    - Secret tmi-oracle-db (defensive; no-op if never created)
     - local registry container (docker stop)
     """
     stop_port_forward()
@@ -543,6 +576,10 @@ def teardown(*, db: str = "postgres") -> None:
     )
     kubectl(
         ["-n", NS, "delete", "secret", "tmi-oracle-wallet", "--ignore-not-found"],
+        check=False,
+    )
+    kubectl(
+        ["-n", NS, "delete", "secret", "tmi-oracle-db", "--ignore-not-found"],
         check=False,
     )
 
