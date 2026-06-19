@@ -1,6 +1,6 @@
 {
   "devDependencies": {
-    "@redocly/cli": "^2.33.2",
+    "@redocly/cli": "^2.34.0",
     "@stoplight/spectral-cli": "^6.16.0"
   },
   "pnpm": {
