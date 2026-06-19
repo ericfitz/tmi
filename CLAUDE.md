@@ -227,7 +227,7 @@ curl "http://localhost:8079/creds?userid=alice" | jq '.access_token'
 
 Standalone Go application for testing WebSocket collaborative features.
 
-- **Build**: `make build-wstest` | **Run**: `make wstest` | **Clean**: `make wstest-clean`
+- **Run**: `make wstest` | **Monitor**: `make monitor-wstest`
 - **Location**: `wstest/` directory
 
 ```bash
@@ -544,3 +544,32 @@ git status  # MUST show "up to date with origin"
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 - NEVER attempt to manipulate or otherwise interact with ssh keys or ssh-agent. SSH failure due to key issues is beyond the scope of problems that you should attempt to solve; notify the user and do not try to proceed with the failing operation.
+
+<!-- sem-markers -->
+## SEM markers
+
+This project uses `SEM@<sha>` intent markers: a one-line comment directly above each
+function/method/class describing **what it does** (intent, not mechanism), plus the commit
+its body last changed at. Example:
+
+    // SEM@4abcf04: validate a JWT and return its claims; reject if expired (pure)
+
+**Why they matter:** the descriptions are the signal the `dedupe` tool uses to find duplicate
+code, and they make the codebase easier for both humans and `sem` to navigate. Keeping them
+accurate is load-bearing — a stale description is worse than none.
+
+**The rule:** when you add a new function/method/class, or change one's behavior, add or update
+its `SEM@` marker. Run `/sem-annotate --update <changed files>` to (re)generate markers for the
+files you touched, or `/sem-annotate <path>` to cover a whole scope. Only entities that are new
+or whose logic changed get rewritten — unchanged siblings keep their markers.
+
+**Writing the description** (so duplicates cluster reliably): one line, ≤ ~12 words, intent not
+mechanism; lead with a canonical verb (validate, parse, fetch, store, build, convert, serialize,
+register, handle, authenticate, …) and a canonical domain noun; abstract incidental
+identifiers; don't restate the entity name; tag a strong side-effect when it discriminates
+(`(pure)`, `(reads DB)`).
+
+**Drift is handled for you:** the `@<sha>` lets `/sem-annotate` tell whether a marker is stale
+via `sem diff` (formatting/reformatting never marks it stale), so you don't need to touch a
+marker whose entity didn't logically change.
+<!-- /sem-markers -->
