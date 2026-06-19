@@ -13,12 +13,14 @@ import (
 // auth.RuntimeConfigReader so the auth package can read DB-backed
 // operational config at request time without importing api or
 // internal/config (#419).
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: adapter bridging SettingsService to the auth package's RuntimeConfigReader interface (pure)
 type RuntimeConfigReaderAdapter struct {
 	settings SettingsServiceInterface
 }
 
 // NewRuntimeConfigReaderAdapter constructs an adapter over the given
 // SettingsService.
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: build a RuntimeConfigReaderAdapter over the given settings service (pure)
 func NewRuntimeConfigReaderAdapter(settings SettingsServiceInterface) *RuntimeConfigReaderAdapter {
 	return &RuntimeConfigReaderAdapter{settings: settings}
 }
@@ -31,6 +33,7 @@ func NewRuntimeConfigReaderAdapter(settings SettingsServiceInterface) *RuntimeCo
 //   - exists=true, err==nil: parsed allowlist returned.
 //   - exists=true, err!=nil: DB row present but unusable → caller MUST
 //     fail-closed to prevent open-redirect against a corrupt row.
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: fetch the OAuth client callback allowlist from DB settings; fail-closed on corrupt or missing row (reads DB)
 func (a *RuntimeConfigReaderAdapter) GetClientCallbackAllowList(ctx context.Context) ([]string, bool, error) {
 	raw, err := a.settings.GetString(ctx, "auth.oauth.client_callback_allowlist")
 	if err != nil {
@@ -52,6 +55,7 @@ func (a *RuntimeConfigReaderAdapter) GetClientCallbackAllowList(ctx context.Cont
 
 // IsSAMLEnabled reads features.saml_enabled. A read error or missing row
 // returns false (fail-closed).
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: fetch the SAML-enabled feature flag from DB settings; fail-closed on error (reads DB)
 func (a *RuntimeConfigReaderAdapter) IsSAMLEnabled(ctx context.Context) bool {
 	raw, err := a.settings.GetString(ctx, "features.saml_enabled")
 	if err != nil || raw == "" {
@@ -68,6 +72,7 @@ func (a *RuntimeConfigReaderAdapter) IsSAMLEnabled(ctx context.Context) bool {
 // GetOAuthCallbackURL reads auth.oauth_callback_url. An empty string is
 // returned on error/missing row; the caller falls back to the YAML
 // snapshot in h.config.OAuth.CallbackURL.
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: fetch the OAuth callback URL from DB settings; return empty string on error (reads DB)
 func (a *RuntimeConfigReaderAdapter) GetOAuthCallbackURL(ctx context.Context) string {
 	raw, err := a.settings.GetString(ctx, "auth.oauth_callback_url")
 	if err != nil {

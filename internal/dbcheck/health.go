@@ -9,6 +9,7 @@ import (
 )
 
 // SchemaHealthResult reports the state of the database schema.
+// SEM@e93cc27eac1d842461899300fefcaebc977cb3db: report of expected vs present database tables and the database version (pure)
 type SchemaHealthResult struct {
 	DatabaseType    string   `json:"database_type"`
 	DatabaseVersion string   `json:"database_version"`
@@ -18,6 +19,7 @@ type SchemaHealthResult struct {
 }
 
 // IsCurrent returns true if all expected tables are present.
+// SEM@e93cc27eac1d842461899300fefcaebc977cb3db: report whether all expected schema tables are present (pure)
 func (r *SchemaHealthResult) IsCurrent() bool {
 	return len(r.MissingTables) == 0
 }
@@ -26,6 +28,7 @@ func (r *SchemaHealthResult) IsCurrent() bool {
 // This is a hardcoded list derived from api/models — kept in sync manually.
 // Using a hardcoded list avoids importing the models package (which pulls in GORM)
 // and makes this package lightweight for use in both the server and dbtool.
+// SEM@e93cc27eac1d842461899300fefcaebc977cb3db: return the hardcoded list of table names the application schema requires (pure)
 func ExpectedTableNames() []string {
 	return []string{
 		// Core infrastructure
@@ -56,6 +59,7 @@ func ExpectedTableNames() []string {
 
 // CheckSchemaHealth queries the database to determine which expected tables exist.
 // Works across PostgreSQL, Oracle, MySQL, SQL Server, and SQLite.
+// SEM@e93cc27eac1d842461899300fefcaebc977cb3db: query the database to identify missing schema tables and return a health report (reads DB)
 func CheckSchemaHealth(sqlDB *sql.DB, dbType string) (*SchemaHealthResult, error) {
 	log := slogging.Get()
 
@@ -93,6 +97,7 @@ func CheckSchemaHealth(sqlDB *sql.DB, dbType string) (*SchemaHealthResult, error
 }
 
 // getDatabaseVersion returns a human-readable database version string.
+// SEM@e93cc27eac1d842461899300fefcaebc977cb3db: fetch the database server version string using a dialect-appropriate query (reads DB)
 func getDatabaseVersion(db *sql.DB, dbType string) (string, error) {
 	var query string
 	switch dbType {
@@ -118,6 +123,7 @@ func getDatabaseVersion(db *sql.DB, dbType string) (string, error) {
 }
 
 // tableExistsForType checks if a table exists, handling different DB dialects.
+// SEM@e93cc27eac1d842461899300fefcaebc977cb3db: check whether a named table exists in the database, handling multiple SQL dialects (reads DB)
 func tableExistsForType(db *sql.DB, dbType, tableName string) (bool, error) {
 	var query string
 	var args []any

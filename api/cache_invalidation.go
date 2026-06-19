@@ -10,6 +10,7 @@ import (
 )
 
 // CacheInvalidator handles complex cache invalidation scenarios
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: Redis-backed cache invalidation coordinator for entity and paginated-list caches
 type CacheInvalidator struct {
 	redis   *db.RedisDB
 	builder *db.RedisKeyBuilder
@@ -17,6 +18,7 @@ type CacheInvalidator struct {
 }
 
 // NewCacheInvalidator creates a new cache invalidator
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: build a CacheInvalidator wired to Redis and a CacheService (pure)
 func NewCacheInvalidator(redis *db.RedisDB, cache *CacheService) *CacheInvalidator {
 	return &CacheInvalidator{
 		redis:   redis,
@@ -26,6 +28,7 @@ func NewCacheInvalidator(redis *db.RedisDB, cache *CacheService) *CacheInvalidat
 }
 
 // InvalidationStrategy defines different cache invalidation approaches
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: enum of cache invalidation timing strategies: immediate, async, or delayed (pure)
 type InvalidationStrategy int
 
 const (
@@ -38,6 +41,7 @@ const (
 )
 
 // InvalidationEvent represents a cache invalidation event
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: descriptor for a cache invalidation event including entity, parent, operation, and strategy (pure)
 type InvalidationEvent struct {
 	EntityType    string
 	EntityID      string
@@ -48,6 +52,7 @@ type InvalidationEvent struct {
 }
 
 // InvalidateSubResourceChange handles cache invalidation when a sub-resource changes
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: dispatch a cache invalidation event according to its strategy (mutates shared state)
 func (ci *CacheInvalidator) InvalidateSubResourceChange(ctx context.Context, event InvalidationEvent) error {
 	logger := slogging.Get()
 	logger.Debug("Processing cache invalidation event: %s %s:%s (parent: %s:%s)",
@@ -73,6 +78,7 @@ func (ci *CacheInvalidator) InvalidateSubResourceChange(ctx context.Context, eve
 }
 
 // invalidateImmediately performs immediate cache invalidation
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: evict entity and related caches synchronously by entity type routing (mutates shared state)
 func (ci *CacheInvalidator) invalidateImmediately(ctx context.Context, event InvalidationEvent) error {
 	logger := slogging.Get()
 
@@ -119,6 +125,7 @@ func (ci *CacheInvalidator) invalidateImmediately(ctx context.Context, event Inv
 }
 
 // invalidateThreatRelatedCaches handles threat-specific cache invalidation
+// SEM@b226389b316426e5d229ed94aa3a29dff80e46b1: evict threat model, auth, and paginated threat-list caches after a threat change (mutates shared state)
 func (ci *CacheInvalidator) invalidateThreatRelatedCaches(ctx context.Context, event InvalidationEvent) error {
 	logger := slogging.Get()
 
@@ -152,6 +159,7 @@ func (ci *CacheInvalidator) invalidateThreatRelatedCaches(ctx context.Context, e
 }
 
 // invalidateDocumentRelatedCaches handles document-specific cache invalidation
+// SEM@b226389b316426e5d229ed94aa3a29dff80e46b1: evict threat model and paginated document-list caches after a document change (mutates shared state)
 func (ci *CacheInvalidator) invalidateDocumentRelatedCaches(ctx context.Context, event InvalidationEvent) error {
 	logger := slogging.Get()
 
@@ -179,6 +187,7 @@ func (ci *CacheInvalidator) invalidateDocumentRelatedCaches(ctx context.Context,
 }
 
 // invalidateSourceRelatedCaches handles source code-specific cache invalidation
+// SEM@b226389b316426e5d229ed94aa3a29dff80e46b1: evict threat model and paginated source-list caches after a source change (mutates shared state)
 func (ci *CacheInvalidator) invalidateSourceRelatedCaches(ctx context.Context, event InvalidationEvent) error {
 	logger := slogging.Get()
 
@@ -206,6 +215,7 @@ func (ci *CacheInvalidator) invalidateSourceRelatedCaches(ctx context.Context, e
 }
 
 // invalidateCellRelatedCaches handles cell-specific cache invalidation
+// SEM@cdbe48c974fb76e1161972733b30bb0d1c02c3b1: evict parent diagram and cells-collection caches after a diagram cell change (mutates shared state)
 func (ci *CacheInvalidator) invalidateCellRelatedCaches(ctx context.Context, event InvalidationEvent) error {
 	logger := slogging.Get()
 
@@ -236,6 +246,7 @@ func (ci *CacheInvalidator) invalidateCellRelatedCaches(ctx context.Context, eve
 }
 
 // invalidateMetadataRelatedCaches handles metadata-specific cache invalidation
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: evict the parent entity's metadata and entity caches after a metadata change (mutates shared state)
 func (ci *CacheInvalidator) invalidateMetadataRelatedCaches(ctx context.Context, event InvalidationEvent) error {
 	logger := slogging.Get()
 
@@ -264,6 +275,7 @@ func (ci *CacheInvalidator) invalidateMetadataRelatedCaches(ctx context.Context,
 }
 
 // invalidateAssetRelatedCaches handles asset-specific cache invalidation
+// SEM@b226389b316426e5d229ed94aa3a29dff80e46b1: evict threat model and paginated asset-list caches after an asset change (mutates shared state)
 func (ci *CacheInvalidator) invalidateAssetRelatedCaches(ctx context.Context, event InvalidationEvent) error {
 	logger := slogging.Get()
 
@@ -288,6 +300,7 @@ func (ci *CacheInvalidator) invalidateAssetRelatedCaches(ctx context.Context, ev
 }
 
 // invalidateNoteRelatedCaches handles note-specific cache invalidation
+// SEM@b226389b316426e5d229ed94aa3a29dff80e46b1: evict threat model and paginated note-list caches after a note change (mutates shared state)
 func (ci *CacheInvalidator) invalidateNoteRelatedCaches(ctx context.Context, event InvalidationEvent) error {
 	logger := slogging.Get()
 
@@ -312,6 +325,7 @@ func (ci *CacheInvalidator) invalidateNoteRelatedCaches(ctx context.Context, eve
 }
 
 // invalidateRepositoryRelatedCaches handles repository-specific cache invalidation
+// SEM@b226389b316426e5d229ed94aa3a29dff80e46b1: evict threat model and paginated repository-list caches after a repository change (mutates shared state)
 func (ci *CacheInvalidator) invalidateRepositoryRelatedCaches(ctx context.Context, event InvalidationEvent) error {
 	logger := slogging.Get()
 
@@ -336,6 +350,7 @@ func (ci *CacheInvalidator) invalidateRepositoryRelatedCaches(ctx context.Contex
 }
 
 // invalidatePaginatedLists invalidates all paginated list caches for a given entity type and parent
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: delete all paginated-list Redis keys matching an entity type and parent via SCAN (mutates shared state)
 func (ci *CacheInvalidator) invalidatePaginatedLists(ctx context.Context, entityType, parentID string) error {
 	logger := slogging.Get()
 
@@ -375,6 +390,7 @@ func (ci *CacheInvalidator) invalidatePaginatedLists(ctx context.Context, entity
 }
 
 // InvalidateAllRelatedCaches performs comprehensive cache invalidation for a threat model
+// SEM@b226389b316426e5d229ed94aa3a29dff80e46b1: evict all caches for a threat model and its sub-resource lists (mutates shared state)
 func (ci *CacheInvalidator) InvalidateAllRelatedCaches(ctx context.Context, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Performing comprehensive cache invalidation for threat model %s", threatModelID)
@@ -413,6 +429,7 @@ func (ci *CacheInvalidator) InvalidateAllRelatedCaches(ctx context.Context, thre
 }
 
 // InvalidatePermissionRelatedCaches invalidates caches when permissions change
+// SEM@b226389b316426e5d229ed94aa3a29dff80e46b1: evict auth data and threat model caches when threat model permissions change (mutates shared state)
 func (ci *CacheInvalidator) InvalidatePermissionRelatedCaches(ctx context.Context, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Invalidating permission-related caches for threat model %s", threatModelID)
@@ -443,6 +460,7 @@ func (ci *CacheInvalidator) InvalidatePermissionRelatedCaches(ctx context.Contex
 }
 
 // BulkInvalidate handles bulk cache invalidation for multiple entities
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: process a batch of invalidation events grouped by strategy (mutates shared state)
 func (ci *CacheInvalidator) BulkInvalidate(ctx context.Context, events []InvalidationEvent) error {
 	logger := slogging.Get()
 	logger.Debug("Processing bulk cache invalidation for %d events", len(events))
@@ -487,6 +505,7 @@ func (ci *CacheInvalidator) BulkInvalidate(ctx context.Context, events []Invalid
 }
 
 // GetInvalidationPattern returns cache key patterns that would be affected by an entity change
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: return Redis key patterns affected by a change to the given entity and parent (pure)
 func (ci *CacheInvalidator) GetInvalidationPattern(entityType, entityID, parentType, parentID string) []string {
 	var patterns []string
 

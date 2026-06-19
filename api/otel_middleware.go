@@ -8,6 +8,7 @@ import (
 
 // OTelSpanEnrichmentMiddleware adds TMI-specific attributes to the active OTel span.
 // Must be placed after auth middleware so user context is available.
+// SEM@71920f2fde60dd337c0e9ed3597bc6bb8194ef36: attach TMI-specific user, threat model, diagram, and request ID attributes to the active OTel span
 func OTelSpanEnrichmentMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()

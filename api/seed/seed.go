@@ -17,6 +17,7 @@ const builtInProvider = "tmi"
 
 // SeedDatabase ensures all required seed data exists.
 // This function is idempotent - safe to call multiple times.
+// SEM@13c4215bf8e204da342579717f97f7393bb5fe2f: idempotently seed all required built-in groups and deny list entries into the DB (reads DB)
 func SeedDatabase(db *gorm.DB) error {
 	log := slogging.Get()
 
@@ -80,6 +81,7 @@ func SeedDatabase(db *gorm.DB) error {
 // cleanupOrphanedSurveyResponses deletes survey responses with null owner_internal_uuid.
 // These can occur when a user is deleted and their responses are orphaned.
 // All dependent rows (access, answers, triage notes) must be deleted first to satisfy FK constraints.
+// SEM@38de886e95aba0752ccd144f72b8466eb653ea18: delete survey responses with no owner and their dependent rows to satisfy FK constraints (reads DB)
 func cleanupOrphanedSurveyResponses(db *gorm.DB) error {
 	log := slogging.Get()
 
@@ -120,6 +122,7 @@ func cleanupOrphanedSurveyResponses(db *gorm.DB) error {
 
 // seedEveryoneGroup ensures the "everyone" pseudo-group exists.
 // This group represents all authenticated users and cannot be deleted or have members added.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: ensure the built-in everyone pseudo-group exists in the DB (reads DB)
 func seedEveryoneGroup(db *gorm.DB) error {
 	log := slogging.Get()
 
@@ -153,6 +156,7 @@ func seedEveryoneGroup(db *gorm.DB) error {
 
 // seedSecurityReviewersGroup ensures the "security-reviewers" built-in group exists.
 // This group is used for security engineers who triage survey responses.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: ensure the built-in security-reviewers group exists in the DB (reads DB)
 func seedSecurityReviewersGroup(db *gorm.DB) error {
 	log := slogging.Get()
 
@@ -186,6 +190,7 @@ func seedSecurityReviewersGroup(db *gorm.DB) error {
 
 // seedAdministratorsGroup ensures the "administrators" built-in group exists.
 // This group controls administrative access to the system.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: ensure the built-in administrators group exists in the DB (reads DB)
 func seedAdministratorsGroup(db *gorm.DB) error {
 	log := slogging.Get()
 
@@ -219,6 +224,7 @@ func seedAdministratorsGroup(db *gorm.DB) error {
 
 // seedConfidentialProjectReviewersGroup ensures the "confidential-project-reviewers" built-in group exists.
 // This group is used for reviewers with access to confidential survey responses and threat models.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: ensure the built-in confidential-project-reviewers group exists in the DB (reads DB)
 func seedConfidentialProjectReviewersGroup(db *gorm.DB) error {
 	log := slogging.Get()
 
@@ -252,6 +258,7 @@ func seedConfidentialProjectReviewersGroup(db *gorm.DB) error {
 
 // seedEmbeddingAutomationGroup ensures the "embedding-automation" built-in group exists.
 // Members of this group can push pre-computed embeddings and read embedding provider config (including API keys).
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: ensure the built-in embedding-automation group exists in the DB (reads DB)
 func seedEmbeddingAutomationGroup(db *gorm.DB) error {
 	log := slogging.Get()
 
@@ -285,6 +292,7 @@ func seedEmbeddingAutomationGroup(db *gorm.DB) error {
 // seedTMIAutomationGroup ensures the "tmi-automation" built-in group exists.
 // This group is auto-added with writer permissions to all new threat models and survey responses,
 // enabling automation/service accounts to access TMI objects.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: store the built-in tmi-automation group if absent, idempotent (writes DB)
 func seedTMIAutomationGroup(db *gorm.DB) error {
 	log := slogging.Get()
 
@@ -318,6 +326,7 @@ func seedTMIAutomationGroup(db *gorm.DB) error {
 
 // migrateWildcardProviderToTMI updates built-in groups from the legacy "*"
 // wildcard provider to the standard "tmi" provider. Idempotent.
+// SEM@192fb026aa596416ded7413d23092ccd1733ad90: update legacy wildcard provider groups to the canonical built-in provider, idempotent (writes DB)
 func migrateWildcardProviderToTMI(db *gorm.DB) error {
 	log := slogging.Get()
 
@@ -335,6 +344,7 @@ func migrateWildcardProviderToTMI(db *gorm.DB) error {
 }
 
 // webhookDenyEntry represents a single webhook URL deny list entry
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: data record for a single SSRF-prevention webhook URL deny-list pattern (pure)
 type webhookDenyEntry struct {
 	Pattern     string
 	PatternType string
@@ -395,6 +405,7 @@ var webhookDenyList = []webhookDenyEntry{
 }
 
 // seedWebhookDenyList ensures all SSRF prevention patterns exist.
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: store all SSRF-prevention webhook deny-list patterns if absent, idempotent (writes DB)
 func seedWebhookDenyList(db *gorm.DB) error {
 	log := slogging.Get()
 
@@ -431,6 +442,7 @@ func seedWebhookDenyList(db *gorm.DB) error {
 
 // GetWebhookDenyListCount returns the expected number of deny list entries.
 // Useful for testing and validation.
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: return the expected number of seeded webhook deny-list entries (pure)
 func GetWebhookDenyListCount() int {
 	return len(webhookDenyList)
 }
@@ -443,6 +455,7 @@ const operatorSystemUserUUID = "00000000-0000-0000-0000-000000000001"
 // seedOperatorSystemUser ensures the synthetic "operator@tmi.system" user record exists.
 // This user owns the operator-pinned audit alert sink webhook subscription (#395).
 // It is never surfaced via the API and cannot log in.
+// SEM@13c4215bf8e204da342579717f97f7393bb5fe2f: store the synthetic operator system user if absent, idempotent (writes DB)
 func seedOperatorSystemUser(db *gorm.DB) error {
 	log := slogging.Get()
 

@@ -16,12 +16,14 @@ import (
 // Returns an error if not authorized (and sends HTTP response)
 //
 // Deprecated: Use RequireAdministrator from auth_helpers.go instead
+// SEM@a5548be4c61d9f98ed2f3edd998abd909cd5f4ab: authorize the current user as an administrator, returning an error if denied
 func requireAdministrator(c *gin.Context) error {
 	_, err := RequireAdministrator(c)
 	return err
 }
 
 // CreateAddon creates a new add-on (admin only)
+// SEM@15af4eb93978e65654702a2b47f0ebe20df650dc: handle POST /addons: validate and store a new addon, restricted to administrators (reads DB)
 func CreateAddon(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -112,6 +114,7 @@ func CreateAddon(c *gin.Context) {
 }
 
 // GetAddon retrieves a single add-on by ID
+// SEM@c9781319675ccc8efddf4bcf30faed097d0c028a: handle GET /addons/{id}: fetch and return a single addon by ID (reads DB)
 func GetAddon(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -147,6 +150,7 @@ func GetAddon(c *gin.Context) {
 }
 
 // ListAddons retrieves add-ons with pagination
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: handle GET /addons: list addons with pagination and optional threat model filter (reads DB)
 func ListAddons(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -213,6 +217,7 @@ func ListAddons(c *gin.Context) {
 }
 
 // DeleteAddon deletes an add-on (admin only)
+// SEM@c9781319675ccc8efddf4bcf30faed097d0c028a: handle DELETE /addons/{id}: delete an addon, rejecting if active invocations exist (reads DB)
 func DeleteAddon(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 

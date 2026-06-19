@@ -9,6 +9,7 @@ import (
 )
 
 // HealthMonitor provides background connection pool health monitoring
+// SEM@b6e227d0511f3e7d38d29e5059408fe7b2cd56eb: background monitor that periodically pings the DB connection pool and refreshes stale connections (mutates shared state)
 type HealthMonitor struct {
 	db       *sql.DB
 	interval time.Duration
@@ -16,6 +17,7 @@ type HealthMonitor struct {
 }
 
 // NewHealthMonitor creates a new health monitor for the given database connection pool
+// SEM@b6e227d0511f3e7d38d29e5059408fe7b2cd56eb: build a health monitor for a database connection pool at a given interval (pure)
 func NewHealthMonitor(db *sql.DB, interval time.Duration) *HealthMonitor {
 	return &HealthMonitor{
 		db:       db,
@@ -26,6 +28,7 @@ func NewHealthMonitor(db *sql.DB, interval time.Duration) *HealthMonitor {
 // Start begins the background health monitoring goroutine.
 // It periodically pings the database to keep connections warm and detect issues early.
 // If a ping fails, it refreshes the connection pool to clear stale connections.
+// SEM@b6e227d0511f3e7d38d29e5059408fe7b2cd56eb: start the background health-check goroutine for the connection pool (mutates shared state)
 func (h *HealthMonitor) Start(ctx context.Context) {
 	logger := slogging.Get()
 
@@ -52,6 +55,7 @@ func (h *HealthMonitor) Start(ctx context.Context) {
 }
 
 // Stop stops the health monitor
+// SEM@b6e227d0511f3e7d38d29e5059408fe7b2cd56eb: stop the background health-check goroutine (mutates shared state)
 func (h *HealthMonitor) Stop() {
 	if h.cancel != nil {
 		h.cancel()
@@ -59,6 +63,7 @@ func (h *HealthMonitor) Stop() {
 }
 
 // performHealthCheck runs a single health check cycle
+// SEM@b6e227d0511f3e7d38d29e5059408fe7b2cd56eb: ping the DB and refresh the connection pool if the ping fails (mutates shared state)
 func (h *HealthMonitor) performHealthCheck(ctx context.Context) {
 	logger := slogging.Get()
 
@@ -88,6 +93,7 @@ func (h *HealthMonitor) performHealthCheck(ctx context.Context) {
 // StartHealthMonitor is a convenience function that starts a health monitor
 // with the given interval and returns the monitor for later stopping.
 // Recommended interval for Heroku: 25 seconds (under Heroku's ~30s idle timeout)
+// SEM@b6e227d0511f3e7d38d29e5059408fe7b2cd56eb: build and start a DB connection pool health monitor, returning it for later stopping
 func StartHealthMonitor(ctx context.Context, db *sql.DB, interval time.Duration) *HealthMonitor {
 	monitor := NewHealthMonitor(db, interval)
 	monitor.Start(ctx)

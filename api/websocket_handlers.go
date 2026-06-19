@@ -8,17 +8,20 @@ import (
 )
 
 // MessageHandler defines the interface for handling WebSocket messages
+// SEM@90b176688ca38f0b04e4e70a233b332f1c28218e: interface contract for handling a typed WebSocket message (pure)
 type MessageHandler interface {
 	HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error
 	MessageType() string
 }
 
 // MessageRouter handles routing of WebSocket messages to appropriate handlers
+// SEM@90b176688ca38f0b04e4e70a233b332f1c28218e: registry that routes WebSocket messages to registered handlers by type (pure)
 type MessageRouter struct {
 	handlers map[string]MessageHandler
 }
 
 // NewMessageRouter creates a new message router with default handlers
+// SEM@d791c9a859555ac908a93f4bd6d49574103f13b9: build a message router pre-registered with all default WebSocket message handlers (pure)
 func NewMessageRouter() *MessageRouter {
 	router := &MessageRouter{
 		handlers: make(map[string]MessageHandler),
@@ -41,11 +44,13 @@ func NewMessageRouter() *MessageRouter {
 }
 
 // RegisterHandler registers a message handler for a specific message type
+// SEM@90b176688ca38f0b04e4e70a233b332f1c28218e: register a message handler for its declared message type (mutates shared state)
 func (r *MessageRouter) RegisterHandler(handler MessageHandler) {
 	r.handlers[handler.MessageType()] = handler
 }
 
 // RouteMessage routes a message to the appropriate handler
+// SEM@33253c50ca23589f6b0c77b5d12d8b653ac725e5: dispatch a raw WebSocket message to the appropriate handler, rejecting server-only types
 func (r *MessageRouter) RouteMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
 	// Add panic recovery for message routing
 	defer func() {

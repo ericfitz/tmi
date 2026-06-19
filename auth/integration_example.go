@@ -6,6 +6,7 @@ import (
 )
 
 // printExample is a helper function to print code examples without triggering linter warnings
+// SEM@c94efddda17fc5e306e3f4ec21ff2fe092472d98: write a code example string to stdout (pure)
 func printExample(s string) {
 	_, err := os.Stdout.WriteString(s + "\n")
 	if err != nil {
@@ -14,6 +15,7 @@ func printExample(s string) {
 }
 
 // IntegrationExample shows how to integrate the authentication system with the main application
+// SEM@5bee0ccf713bf421a1f87a8a81f7ce423e3ef627: print developer guidance for wiring the auth system into the main server (pure)
 func IntegrationExample() {
 	fmt.Println("This is an example of how to integrate the authentication system with the main application.")
 	fmt.Println("To integrate the authentication system, make the following changes to cmd/server/main.go:")

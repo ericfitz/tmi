@@ -12,6 +12,7 @@ import (
 )
 
 // RedisKeyPattern defines a pattern for Redis keys
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: schema for a Redis key namespace: its regex, expected data type, and max TTL (pure)
 type RedisKeyPattern struct {
 	Pattern     string
 	Regex       *regexp.Regexp
@@ -21,12 +22,14 @@ type RedisKeyPattern struct {
 }
 
 // RedisKeyValidator validates Redis keys against defined patterns
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: validate Redis keys against registered namespace patterns with TTL and type checks (reads DB)
 type RedisKeyValidator struct {
 	patterns map[string]RedisKeyPattern
 	logger   *slogging.Logger
 }
 
 // NewRedisKeyValidator creates a new Redis key validator
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: build a RedisKeyValidator pre-loaded with all known key namespace patterns (pure)
 func NewRedisKeyValidator() *RedisKeyValidator {
 	validator := &RedisKeyValidator{
 		patterns: make(map[string]RedisKeyPattern),
@@ -37,6 +40,7 @@ func NewRedisKeyValidator() *RedisKeyValidator {
 }
 
 // initializePatterns sets up all the key patterns
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: register all known Redis key namespace patterns into the validator (mutates shared state)
 func (v *RedisKeyValidator) initializePatterns() {
 	// Session keys
 	v.addPattern("session", RedisKeyPattern{
@@ -160,11 +164,13 @@ func (v *RedisKeyValidator) initializePatterns() {
 }
 
 // addPattern adds a pattern to the validator
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: register a single Redis key pattern by name into the validator (mutates shared state)
 func (v *RedisKeyValidator) addPattern(name string, pattern RedisKeyPattern) {
 	v.patterns[name] = pattern
 }
 
 // ValidateKey validates a Redis key against defined patterns
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: validate a Redis key against all registered namespace patterns; error if unrecognized (pure)
 func (v *RedisKeyValidator) ValidateKey(key string) error {
 	for _, pattern := range v.patterns {
 		if pattern.Regex.MatchString(key) {
@@ -175,6 +181,7 @@ func (v *RedisKeyValidator) ValidateKey(key string) error {
 }
 
 // GetPatternForKey returns the pattern that matches the given key
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: fetch the registered pattern that matches a Redis key; error if none match (pure)
 func (v *RedisKeyValidator) GetPatternForKey(key string) (*RedisKeyPattern, error) {
 	for _, pattern := range v.patterns {
 		if pattern.Regex.MatchString(key) {
@@ -185,6 +192,7 @@ func (v *RedisKeyValidator) GetPatternForKey(key string) (*RedisKeyPattern, erro
 }
 
 // ValidateKeyWithTTL validates a key and checks if TTL is within limits
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: validate a Redis key's pattern and assert its TTL is set and within the allowed maximum (reads DB)
 func (v *RedisKeyValidator) ValidateKeyWithTTL(ctx context.Context, client *redis.Client, key string) error {
 	pattern, err := v.GetPatternForKey(key)
 	if err != nil {
@@ -212,6 +220,7 @@ func (v *RedisKeyValidator) ValidateKeyWithTTL(ctx context.Context, client *redi
 }
 
 // ValidateDataType validates that a key has the expected data type
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: validate that a Redis key's stored data type matches the expected type for its pattern (reads DB)
 func (v *RedisKeyValidator) ValidateDataType(ctx context.Context, client *redis.Client, key string) error {
 	pattern, err := v.GetPatternForKey(key)
 	if err != nil {
@@ -232,6 +241,7 @@ func (v *RedisKeyValidator) ValidateDataType(ctx context.Context, client *redis.
 }
 
 // ScanAndValidate scans all keys and validates them
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: scan all Redis keys and validate each against pattern, data type, and TTL rules (reads DB)
 func (v *RedisKeyValidator) ScanAndValidate(ctx context.Context, client *redis.Client) ([]ValidationResult, error) {
 	var results []ValidationResult
 	var cursor uint64
@@ -257,6 +267,7 @@ func (v *RedisKeyValidator) ScanAndValidate(ctx context.Context, client *redis.C
 }
 
 // validateSingleKey validates a single key
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: validate a single Redis key for pattern, data type, and TTL compliance (reads DB)
 func (v *RedisKeyValidator) validateSingleKey(ctx context.Context, client *redis.Client, key string) ValidationResult {
 	result := ValidationResult{
 		Key:    key,
@@ -287,6 +298,7 @@ func (v *RedisKeyValidator) validateSingleKey(ctx context.Context, client *redis
 }
 
 // ValidationResult represents the result of validating a Redis key
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: outcome of validating a single Redis key including any error messages (pure)
 type ValidationResult struct {
 	Key    string
 	Valid  bool
@@ -294,6 +306,7 @@ type ValidationResult struct {
 }
 
 // LogValidationResults logs the validation results
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: log a summary of Redis key validation outcomes at appropriate severity levels (pure)
 func (v *RedisKeyValidator) LogValidationResults(results []ValidationResult) {
 	validCount := 0
 	invalidCount := 0
@@ -313,6 +326,7 @@ func (v *RedisKeyValidator) LogValidationResults(results []ValidationResult) {
 }
 
 // GetPatternDocumentation returns documentation for all patterns
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: list human-readable documentation for all registered Redis key patterns (pure)
 func (v *RedisKeyValidator) GetPatternDocumentation() []PatternDoc {
 	var docs []PatternDoc
 	for name, pattern := range v.patterns {
@@ -328,6 +342,7 @@ func (v *RedisKeyValidator) GetPatternDocumentation() []PatternDoc {
 }
 
 // PatternDoc represents documentation for a key pattern
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: human-readable documentation entry for a Redis key namespace pattern (pure)
 type PatternDoc struct {
 	Name        string
 	Pattern     string

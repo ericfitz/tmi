@@ -13,6 +13,7 @@ import (
 )
 
 // addWebhookRateLimitHeaders adds rate limit headers to webhook responses
+// SEM@c9e35649a1646f1c8eef600df7a69b674a98b675: attach rate-limit headers to a webhook API response for the current user
 func (s *Server) addWebhookRateLimitHeaders(c *gin.Context, userID string) {
 	if s.webhookRateLimiter != nil {
 		limit, remaining, resetAt, err := s.webhookRateLimiter.GetSubscriptionRateLimitInfo(c.Request.Context(), userID)
@@ -25,6 +26,7 @@ func (s *Server) addWebhookRateLimitHeaders(c *gin.Context, userID string) {
 }
 
 // ListWebhookSubscriptions lists webhook subscriptions (admin only)
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: list all webhook subscriptions with pagination, optionally filtered by threat model (reads DB)
 func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubscriptionsParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -75,6 +77,7 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 }
 
 // CreateWebhookSubscription creates a new webhook subscription (admin only)
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: validate and store a new webhook subscription, enforcing rate limits and URL safety (reads DB)
 func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -207,6 +210,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 }
 
 // GetWebhookSubscription gets a specific webhook subscription (admin only)
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: fetch a single webhook subscription by ID, redacting the URL if operator-pinned (reads DB)
 func (s *Server) GetWebhookSubscription(c *gin.Context, webhookId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -225,6 +229,7 @@ func (s *Server) GetWebhookSubscription(c *gin.Context, webhookId openapi_types.
 }
 
 // DeleteWebhookSubscription deletes a webhook subscription (admin only)
+// SEM@4c446bfacf6eb966a03bc2a174728d73b8a6d41e: delete a webhook subscription and cascade-delete its addons, blocking pinned rows (reads DB)
 func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -271,6 +276,7 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 }
 
 // TestWebhookSubscription sends a test event to the webhook (admin only)
+// SEM@a870b93778753735e380098f91f8c25076bbb50a: enqueue a test delivery for a webhook subscription and return its delivery ID (reads DB)
 func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -353,6 +359,7 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 }
 
 // ListWebhookDeliveries lists webhook deliveries (admin only)
+// SEM@a870b93778753735e380098f91f8c25076bbb50a: list delivery records with pagination, optionally filtered by subscription (reads DB)
 func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliveriesParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -434,6 +441,7 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 }
 
 // GetWebhookDelivery gets a specific webhook delivery (admin only)
+// SEM@5ab9bc35c2a66a8d16c0ac1b58f3d345958c9c34: fetch a single delivery record by ID with pinned-URL redaction applied (reads DB)
 func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -478,6 +486,7 @@ func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUI
 // dbWebhookSubscriptionToAPI converts a database webhook subscription to API response type.
 // For operator-pinned subscriptions the destination URL is redacted so that admins can
 // see the control exists without learning or targeting the internal alert-sink address.
+// SEM@4c446bfacf6eb966a03bc2a174728d73b8a6d41e: convert a DB webhook subscription to its API DTO, redacting URL and secret for pinned rows (pure)
 func dbWebhookSubscriptionToAPI(db DBWebhookSubscription, includeSecret bool) WebhookSubscription {
 	// Convert []string to []WebhookEventType
 	events := make([]WebhookEventType, len(db.Events))

@@ -22,17 +22,20 @@ var validFalsePositiveSubreasons = map[string][]string{
 }
 
 // ContentFeedbackHandler bundles the three /threat_models/{id}/feedback endpoints.
+// SEM@7c8a034d9bad3f82041f085b04149f654fb31db3: handler bundle for create, fetch, and list content feedback endpoints on a threat model
 type ContentFeedbackHandler struct {
 	repo ContentFeedbackRepository
 	db   *gorm.DB // used for target-existence checks
 }
 
 // NewContentFeedbackHandler constructs the handler.
+// SEM@7c8a034d9bad3f82041f085b04149f654fb31db3: build a ContentFeedbackHandler wiring together a feedback repository and DB (pure)
 func NewContentFeedbackHandler(repo ContentFeedbackRepository, db *gorm.DB) *ContentFeedbackHandler {
 	return &ContentFeedbackHandler{repo: repo, db: db}
 }
 
 // Create handles POST /threat_models/{threat_model_id}/feedback.
+// SEM@1c63bfe9bdfd225380a2a4e2960fef14b3437996: store user feedback for a threat model target, validating input and checking target existence (reads DB)
 func (h *ContentFeedbackHandler) Create(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -84,6 +87,7 @@ func (h *ContentFeedbackHandler) Create(c *gin.Context) {
 }
 
 // Get handles GET /threat_models/{threat_model_id}/feedback/{feedback_id}.
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: fetch a single content feedback entry scoped to a threat model (reads DB)
 func (h *ContentFeedbackHandler) Get(c *gin.Context) {
 	tmID := c.Param("threat_model_id")
 	if _, err := uuid.Parse(tmID); err != nil {
@@ -110,6 +114,7 @@ func (h *ContentFeedbackHandler) Get(c *gin.Context) {
 }
 
 // List handles GET /threat_models/{threat_model_id}/feedback.
+// SEM@7c8a034d9bad3f82041f085b04149f654fb31db3: list paginated content feedback entries for a threat model with optional filters (reads DB)
 func (h *ContentFeedbackHandler) List(c *gin.Context) {
 	tmID := c.Param("threat_model_id")
 	if _, err := uuid.Parse(tmID); err != nil {
@@ -153,6 +158,7 @@ func (h *ContentFeedbackHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": items, "total": total})
 }
 
+// SEM@7a37ede92fcea149df69a3f3e95d1b6f9c58d526: validate content feedback input fields including sentiment, target type, and false-positive constraints (pure)
 func validateContentFeedbackInput(in *ContentFeedbackInput) error {
 	if in.Sentiment != ContentFeedbackInputSentimentUp && in.Sentiment != ContentFeedbackInputSentimentDown {
 		return InvalidInputError("sentiment must be 'up' or 'down'")
@@ -218,6 +224,7 @@ func validateContentFeedbackInput(in *ContentFeedbackInput) error {
 	return nil
 }
 
+// SEM@7c8a034d9bad3f82041f085b04149f654fb31db3: report whether a false-positive reason is valid but has no allowed subreasons (pure)
 func isReasonWithoutSubreasons(reason string) bool {
 	switch reason {
 	case "real_but_mitigated", "real_but_not_exploitable", "duplicate", "already_remediated":
@@ -226,6 +233,7 @@ func isReasonWithoutSubreasons(reason string) bool {
 	return false
 }
 
+// SEM@7c8a034d9bad3f82041f085b04149f654fb31db3: search a string slice for a given value and return whether it exists (pure)
 func containsStr(haystack []string, needle string) bool {
 	for _, s := range haystack {
 		if s == needle {
@@ -238,6 +246,7 @@ func containsStr(haystack []string, needle string) bool {
 // resolveContentFeedbackTarget maps the input's target_type to the GORM table
 // name and returns the ref the repository uses to perform the locked
 // existence check inside the create transaction.
+// SEM@1c63bfe9bdfd225380a2a4e2960fef14b3437996: map a feedback target type to its DB table reference for locked existence checks (pure)
 func resolveContentFeedbackTarget(tmID string, in *ContentFeedbackInput) (ContentFeedbackTargetRef, error) {
 	var table string
 	switch in.TargetType {
@@ -258,6 +267,7 @@ func resolveContentFeedbackTarget(tmID string, in *ContentFeedbackInput) (Conten
 	}, nil
 }
 
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert feedback input and user identity into a ContentFeedback DB model (pure)
 func buildContentFeedbackModel(in *ContentFeedbackInput, tmID, userInternalUUID string) *models.ContentFeedback {
 	row := &models.ContentFeedback{
 		ThreatModelID: models.DBVarchar(tmID),
@@ -282,6 +292,7 @@ func buildContentFeedbackModel(in *ContentFeedbackInput, tmID, userInternalUUID 
 	return row
 }
 
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a ContentFeedback DB model to its API DTO (pure)
 func modelToContentFeedback(row *models.ContentFeedback) ContentFeedback {
 	out := ContentFeedback{
 		Id:            uuidMustParse(string(row.ID)),

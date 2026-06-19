@@ -34,6 +34,7 @@ var confluencePagePathRegex = regexp.MustCompile(`/wiki/spaces/[^/]+/pages/([0-9
 //
 // Construct via NewDelegatedConfluenceSource. A zero-value struct has no
 // Delegated helper and will panic on Fetch.
+// SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: content source that fetches Confluence pages via delegated OAuth tokens
 type DelegatedConfluenceSource struct {
 	// Delegated is the shared DelegatedSource helper that handles token
 	// lookup, lazy refresh, and status transitions.
@@ -52,6 +53,7 @@ type DelegatedConfluenceSource struct {
 // to the given token repository and OAuth provider registry. validator MUST
 // be non-nil; in production it is built from the operator's content-source
 // allowlist (typically containing api.atlassian.com).
+// SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: build a DelegatedConfluenceSource with a hardened HTTP client and token store (pure)
 func NewDelegatedConfluenceSource(
 	tokens ContentTokenRepository,
 	registry *ContentOAuthProviderRegistry,
@@ -74,10 +76,12 @@ func NewDelegatedConfluenceSource(
 }
 
 // Name returns the provider id "confluence".
+// SEM@6199f1bebeb0a5e637b7c38588d721ac36b525f4: return the canonical provider name for this source (pure)
 func (s *DelegatedConfluenceSource) Name() string { return ProviderConfluence }
 
 // CanHandle returns true for Confluence Cloud page URLs of the form
 // https://*.atlassian.net/wiki/...
+// SEM@6199f1bebeb0a5e637b7c38588d721ac36b525f4: validate that a URI is a supported Atlassian Cloud Confluence page URL (pure)
 func (s *DelegatedConfluenceSource) CanHandle(_ context.Context, uri string) bool {
 	host, ok := parseConfluenceHost(uri)
 	if !ok {
@@ -93,6 +97,7 @@ func (s *DelegatedConfluenceSource) CanHandle(_ context.Context, uri string) boo
 // Fetch returns the page's view-format HTML for the user in ctx. Requires
 // UserIDFromContext to return a non-empty user id; delegated sources cannot
 // run without user context.
+// SEM@6199f1bebeb0a5e637b7c38588d721ac36b525f4: fetch Confluence page content for the authenticated user via OAuth token
 func (s *DelegatedConfluenceSource) Fetch(ctx context.Context, uri string) ([]byte, string, error) {
 	userID, ok := UserIDFromContext(ctx)
 	if !ok {
@@ -112,6 +117,7 @@ func (s *DelegatedConfluenceSource) Fetch(ctx context.Context, uri string) ([]by
 //   - (false, nil): page is not reachable for this user (4xx) or URL is
 //     malformed; treated as "not accessible" rather than systemic.
 //   - (true, nil): metadata probe succeeded.
+// SEM@6199f1bebeb0a5e637b7c38588d721ac36b525f4: validate that the user's OAuth token can access the given Confluence page URL
 func (s *DelegatedConfluenceSource) ValidateAccess(ctx context.Context, uri string) (bool, error) {
 	userID, ok := UserIDFromContext(ctx)
 	if !ok {
@@ -145,6 +151,7 @@ func (s *DelegatedConfluenceSource) ValidateAccess(ctx context.Context, uri stri
 // access-request equivalent; the user-facing remediation is surfaced via
 // access_diagnostics at the pipeline/handler level (re-link the account or
 // ask a Confluence space admin for view permissions).
+// SEM@6199f1bebeb0a5e637b7c38588d721ac36b525f4: notify that Confluence access is unavailable; user must re-link (pure)
 func (s *DelegatedConfluenceSource) RequestAccess(_ context.Context, uri string) error {
 	slogging.Get().Info("DelegatedConfluenceSource: access not available for %s; user may need to re-link or request space access", uri)
 	return nil
@@ -158,6 +165,7 @@ func (s *DelegatedConfluenceSource) RequestAccess(_ context.Context, uri string)
 //     matching the URI host against each resource's url.
 //  3. GET /ex/confluence/{cloud_id}/wiki/api/v2/pages/{id}?body-format=view.
 //  4. Return body.view.value as bytes with content-type "text/html".
+// SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: fetch the rendered HTML view body of a Confluence page via the v2 REST API
 func (s *DelegatedConfluenceSource) doFetchPageView(ctx context.Context, accessToken, uri string) ([]byte, string, error) {
 	host, pageID, err := parseConfluencePageURL(uri)
 	if err != nil {
@@ -206,6 +214,7 @@ func (s *DelegatedConfluenceSource) doFetchPageView(ctx context.Context, accessT
 // probeMetadata issues a metadata-only GET against the page endpoint
 // (no body-format) to determine accessibility without downloading the body.
 // Returns (true, nil) on 200, (false, nil) on 4xx, error on 5xx/network/parse.
+// SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: validate that an OAuth token can reach a specific Confluence page (probe-only)
 func (s *DelegatedConfluenceSource) probeMetadata(ctx context.Context, accessToken, uri string) (bool, error) {
 	host, pageID, err := parseConfluencePageURL(uri)
 	if err != nil {
@@ -246,6 +255,7 @@ func (s *DelegatedConfluenceSource) probeMetadata(ctx context.Context, accessTok
 // Returning an error (rather than e.g. returning the first resource) when
 // the host does not match is intentional: we never want to fetch from a
 // different tenant than the user requested.
+// SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: fetch the Atlassian cloud ID matching a given Confluence host from accessible resources
 func (s *DelegatedConfluenceSource) resolveCloudID(ctx context.Context, accessToken, wantHost string) (string, error) {
 	endpoint := s.apiBase + "/oauth/token/accessible-resources"
 	headers := http.Header{}
@@ -289,6 +299,7 @@ func (s *DelegatedConfluenceSource) resolveCloudID(ctx context.Context, accessTo
 // Legacy forms (/wiki/display/, /wiki/x/short links, REST URLs) and other
 // non-page Confluence URLs are rejected — they return a clear error rather
 // than triggering an extra round-trip to resolve them.
+// SEM@6199f1bebeb0a5e637b7c38588d721ac36b525f4: parse a Confluence page URL into its host and numeric page ID (pure)
 func parseConfluencePageURL(uri string) (host, pageID string, err error) {
 	host, ok := parseConfluenceHost(uri)
 	if !ok {
@@ -310,6 +321,7 @@ func parseConfluencePageURL(uri string) (host, pageID string, err error) {
 
 // parseConfluenceHost returns the lowercased host of an http(s) URL, or
 // ("", false) if the URL is not parseable or has no host.
+// SEM@6199f1bebeb0a5e637b7c38588d721ac36b525f4: parse and normalize the hostname from a Confluence URL, stripping port (pure)
 func parseConfluenceHost(uri string) (string, bool) {
 	if uri == "" {
 		return "", false

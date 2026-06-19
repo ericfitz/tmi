@@ -17,6 +17,7 @@ import (
 //
 // This is the strong-provider path only. The weak-provider short-circuit
 // (rotate-in-place) is implemented in Task 6.
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: handle step-up authentication request, routing to weak or strong re-auth path
 func (h *Handlers) StepUp(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -158,6 +159,7 @@ func (h *Handlers) StepUp(c *gin.Context) {
 // (currently github). Instead of a useless upstream round-trip, this rotates
 // the user's tokens in-place and writes a step_up_complete row marked
 // strength=weak, mode=short_circuit. See design spec §3.5.
+// SEM@d5fb16fc8487e59524ab63468836f050fd972731: complete a weak step-up by rotating tokens in place without upstream redirect (mutates shared state)
 func (h *Handlers) stepUpWeakShortCircuit(c *gin.Context, actor StepUpActor) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
@@ -207,6 +209,7 @@ func (h *Handlers) stepUpWeakShortCircuit(c *gin.Context, actor StepUpActor) {
 // the JWTMiddleware in cmd/server/jwt_auth.go (Priority 1: Authorization;
 // Priority 2: HttpOnly cookie). We do not reuse that function because it lives
 // in package main; the priority logic is small enough to inline.
+// SEM@e3abca5a18ebb1c482126bc626ffda566518f79f: extract the bearer JWT from the Authorization header or access-token cookie (pure)
 func (h *Handlers) readStepUpJWT(c *gin.Context) (string, bool) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader != "" {
@@ -228,6 +231,7 @@ func (h *Handlers) readStepUpJWT(c *gin.Context) (string, bool) {
 // to the YAML snapshot otherwise — so a provider that getProviderWithContext
 // accepted is not then falsely rejected here (which previously surfaced as a
 // 500 on /oauth2/step_up, e.g. for the runtime-registered "tmi" dev provider).
+// SEM@5b2abe3e40f300aa145684c82ce8b25bdb93ec2e: fetch the OAuth provider config by provider ID from registry or static config (pure)
 func (h *Handlers) providerConfig(providerID string) (OAuthProviderConfig, error) {
 	if h.registry != nil {
 		if cfg, ok := h.registry.GetOAuthProvider(providerID); ok {
@@ -243,6 +247,7 @@ func (h *Handlers) providerConfig(providerID string) (OAuthProviderConfig, error
 
 // stepUpStrongRedirect implements the strong-provider path: store state, store
 // PKCE, build the upstream URL with prompt=login&max_age=0, and redirect.
+// SEM@5d36fbba264b6e4f105d4eb316e4f509c58d7300: store step-up state and PKCE challenge, then redirect the user to the upstream provider (mutates shared state)
 func (h *Handlers) stepUpStrongRedirect(c *gin.Context, provider Provider, cfg OAuthProviderConfig, actor StepUpActor, clientCallback, codeChallenge, codeChallengeMethod string) {
 	logger := slogging.Get().WithContext(c)
 
@@ -328,6 +333,7 @@ func (h *Handlers) stepUpStrongRedirect(c *gin.Context, provider Provider, cfg O
 // browser top-level navigations send Accept: text/html,...,*/* and must keep
 // receiving the 302 redirect, while an XHR/fetch step-up call sends an explicit
 // Accept: application/json and opts into the JSON envelope.
+// SEM@5d36fbba264b6e4f105d4eb316e4f509c58d7300: detect whether the request Accept header prefers JSON over HTML (pure)
 func clientPrefersJSON(c *gin.Context) bool {
 	for _, part := range strings.Split(c.GetHeader("Accept"), ",") {
 		media := strings.TrimSpace(part)

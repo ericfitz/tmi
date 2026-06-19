@@ -12,6 +12,7 @@ import (
 // embedConfig is tmi-chunk-embed's embedding configuration, read from env.
 // In Plan 3 / #415 this is replaced by the projected shared-config object so
 // the worker and the monolith's Timmy query path cannot diverge.
+// SEM@ef969bb79ad525fa5038847af0fb0be1038ae961: embedding model configuration struct holding model name, base URL, and API key (pure)
 type embedConfig struct {
 	Model   string
 	BaseURL string
@@ -20,6 +21,7 @@ type embedConfig struct {
 
 // embedConfigFromEnv reads the embedding config. Model and BaseURL come from
 // the CR spec.config; APIKey comes from a secretRef-injected env var.
+// SEM@ef969bb79ad525fa5038847af0fb0be1038ae961: build embedding configuration from required environment variables (pure)
 func embedConfigFromEnv() (embedConfig, error) {
 	model, err := worker.MustEnv("TMI_EMBEDDING_MODEL")
 	if err != nil {
@@ -37,6 +39,7 @@ func embedConfigFromEnv() (embedConfig, error) {
 }
 
 // newEmbedder builds an OpenAI-compatible langchaingo embedder.
+// SEM@ef969bb79ad525fa5038847af0fb0be1038ae961: build an OpenAI-compatible langchaingo embedder from the given config (pure)
 func newEmbedder(cfg embedConfig) (embeddings.Embedder, error) {
 	llm, err := openai.New(
 		openai.WithModel(cfg.Model),
@@ -55,6 +58,7 @@ func newEmbedder(cfg embedConfig) (embeddings.Embedder, error) {
 }
 
 // embedChunks embeds every chunk, returning one vector per chunk in order.
+// SEM@ef969bb79ad525fa5038847af0fb0be1038ae961: compute embedding vectors for a slice of text chunks in order (reads DB)
 func embedChunks(ctx context.Context, emb embeddings.Embedder, chunks []string) ([][]float32, error) {
 	if len(chunks) == 0 {
 		return nil, nil

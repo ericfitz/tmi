@@ -14,6 +14,7 @@ import (
 
 // WebhookChallengeWorker handles webhook subscription verification challenges.
 // All outbound requests go through SafeHTTPClient (DNS-pinned, SSRF-checked).
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: background worker that sends challenge requests to pending webhook subscriptions
 type WebhookChallengeWorker struct {
 	baseWorker
 	client *SafeHTTPClient
@@ -21,6 +22,7 @@ type WebhookChallengeWorker struct {
 
 // NewWebhookChallengeWorker creates a new challenge verification worker.
 // The validator controls the SSRF blocklist and URL schemes used for outbound calls.
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: build a WebhookChallengeWorker with a safe HTTP client and a 30-second polling interval (pure)
 func NewWebhookChallengeWorker(validator *URIValidator) *WebhookChallengeWorker {
 	w := &WebhookChallengeWorker{
 		client: NewSafeHTTPClient(
@@ -37,6 +39,7 @@ func NewWebhookChallengeWorker(validator *URIValidator) *WebhookChallengeWorker 
 }
 
 // processPendingVerifications processes all subscriptions pending verification
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: fetch and dispatch challenge verification for all pending webhook subscriptions (reads DB)
 func (w *WebhookChallengeWorker) processPendingVerifications(ctx context.Context) error {
 	logger := slogging.Get()
 
@@ -66,6 +69,7 @@ func (w *WebhookChallengeWorker) processPendingVerifications(ctx context.Context
 }
 
 // verifySubscription sends a challenge to a webhook URL and verifies the response
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: send an HTTP challenge to a webhook subscription endpoint and record the result or mark for deletion (reads DB)
 func (w *WebhookChallengeWorker) verifySubscription(ctx context.Context, sub DBWebhookSubscription) error {
 	logger := slogging.Get()
 

@@ -28,6 +28,7 @@ const redisNilError = "redis: nil"
 
 // ClaimsEnricher enriches JWT claims with application-specific data (e.g., group membership)
 // that cannot be directly accessed from the auth package without creating circular dependencies.
+// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: interface for enriching JWT claims with TMI group membership and role flags
 type ClaimsEnricher interface {
 	// EnrichClaims checks built-in group membership and resolves TMI-managed group names for a user.
 	// Returns whether the user is an administrator, security reviewer, and the user's TMI group names.
@@ -39,6 +40,7 @@ type ClaimsEnricher interface {
 // best-effort: revocation failures must be logged but must never block user
 // deletion. The interface lives in the auth package to avoid a circular
 // import with the api package (which provides the concrete implementation).
+// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: interface for revoking all provider-side OAuth tokens before a user is deleted
 type UserContentTokenRevoker interface {
 	// RevokeUserTokens attempts to revoke all content tokens belonging to
 	// userID at their respective providers. It never returns an error.
@@ -46,6 +48,7 @@ type UserContentTokenRevoker interface {
 }
 
 // Service provides authentication and authorization functionality
+// SEM@1eb7997add7b39214eac29d20050d7968745a98d: core auth service struct holding JWT, SAML, user repo, and caching dependencies
 type Service struct {
 	dbManager           *db.Manager
 	config              Config
@@ -62,11 +65,13 @@ type Service struct {
 }
 
 // SetClaimsEnricher sets the claims enricher for JWT token generation
+// SEM@a0040890dd7b1940f542d4211d4338cd0e713cbc: register the claims enricher used during JWT token generation (mutates shared state)
 func (s *Service) SetClaimsEnricher(enricher ClaimsEnricher) {
 	s.claimsEnricher = enricher
 }
 
 // SetProviderRegistry sets the provider registry for unified provider lookup.
+// SEM@d526a06f3040d3424d4deb08071cd87ae770937f: register the provider registry for unified OAuth provider lookup (mutates shared state)
 func (s *Service) SetProviderRegistry(registry ProviderRegistry) {
 	s.registry = registry
 }
@@ -76,17 +81,20 @@ func (s *Service) SetProviderRegistry(registry ProviderRegistry) {
 // The hook is called with the user's internal UUID before the DB row (and its
 // FK-cascaded child rows) is removed, giving the implementation access to the
 // token data. Pass nil to clear the hook.
+// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: register a hook to revoke provider tokens before user deletion (mutates shared state)
 func (s *Service) SetPreUserDeleteHook(h UserContentTokenRevoker) {
 	s.preUserDeleteHook = h
 }
 
 // SetLinkedIdentityStore wires a LinkedIdentityStore into the service, enabling
 // Tier 1b linked-identity resolution during OAuth login.
+// SEM@1eb7997add7b39214eac29d20050d7968745a98d: wire a linked identity store enabling Tier 1b login resolution (mutates shared state)
 func (s *Service) SetLinkedIdentityStore(store LinkedIdentityStore) {
 	s.linkedIdentityStore = store
 }
 
 // NewService creates a new authentication service
+// SEM@8af03cfea628820f921f3922831bbb27c7aa2b02: build and initialize the auth service with JWT key manager, SAML, and user repos (reads DB)
 func NewService(dbManager *db.Manager, config Config) (*Service, error) {
 	if dbManager == nil {
 		return nil, errors.New("database manager is required")
@@ -143,23 +151,27 @@ func NewService(dbManager *db.Manager, config Config) (*Service, error) {
 }
 
 // GetKeyManager returns the JWT key manager (getter for unexported field)
+// SEM@41fea1c48a3526015f75a5e401ec4970c6c9dfcf: return the JWT key manager (pure)
 func (s *Service) GetKeyManager() *JWTKeyManager {
 	return s.keyManager
 }
 
 // GetSAMLManager returns the SAML manager (getter for unexported field)
+// SEM@2fbab585a899780eb5d718ec784b7c730c732113: return the SAML manager (pure)
 func (s *Service) GetSAMLManager() *SAMLManager {
 	return s.samlManager
 }
 
 // GormDB returns the underlying GORM database connection.
 // Used by services that need to wrap operations in retryable transactions.
+// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: return the underlying GORM database connection (pure)
 func (s *Service) GormDB() *gorm.DB {
 	return s.dbManager.Gorm().DB()
 }
 
 // BlacklistToken adds a JWT token to the blacklist so it can no longer be used.
 // This should be called when a user is deleted or logs out to invalidate their tokens.
+// SEM@0538436fe19e71299239f10214d737a09cf94961: add a JWT to the Redis token blacklist to invalidate it immediately (reads DB)
 func (s *Service) BlacklistToken(ctx context.Context, tokenString string) error {
 	if s.dbManager == nil || s.dbManager.Redis() == nil {
 		slogging.Get().Warn("Token blacklisting skipped: Redis not available")
@@ -171,6 +183,7 @@ func (s *Service) BlacklistToken(ctx context.Context, tokenString string) error 
 }
 
 // User represents a user in the system
+// SEM@24dcbaf59ea6bfe4e66c3f1fbc4863c809cfdc0e: domain user struct with provider identity, roles, and OAuth token fields
 type User struct {
 	InternalUUID       string     `json:"internal_uuid"`    // Internal system UUID (cached but excluded from API responses via convertUserToAPIResponse)
 	Provider           string     `json:"provider"`         // OAuth provider: "tmi", "google", "github", "microsoft", "azure"
@@ -191,6 +204,7 @@ type User struct {
 }
 
 // TokenPair contains an access token and a refresh token
+// SEM@65af9b7db2850b6e18076df15ed522c8df4bb64c: access and refresh token response returned after successful authentication (pure)
 type TokenPair struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -199,6 +213,7 @@ type TokenPair struct {
 }
 
 // Claims represents the JWT claims
+// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: JWT claims struct carrying email, groups, role flags, delegation context, and auth_time (pure)
 type Claims struct {
 	Email              string             `json:"email"`
 	EmailVerified      bool               `json:"email_verified,omitempty"`
@@ -229,6 +244,7 @@ type Claims struct {
 // claims (email, name, provider, groups, tmi_is_security_reviewer) are
 // copied from the invoker so existing handler code reads the invoker's
 // identity transparently.
+// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: scoped addon-invocation context embedded in delegation JWTs to limit token authority (pure)
 type DelegationContext struct {
 	// AddonID is the addon being invoked.
 	AddonID string `json:"addon_id"`
@@ -247,12 +263,14 @@ type DelegationContext struct {
 // GenerateTokens generates a new JWT token pair for a user with auth_time = now.
 // Use this for fresh interactive logins; use GenerateTokensWithAuthTime to
 // preserve auth_time across refresh-token rotation.
+// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: mint a JWT token pair for a fresh interactive login with auth_time = now (reads DB)
 func (s *Service) GenerateTokens(ctx context.Context, user User) (TokenPair, error) {
 	return s.GenerateTokensWithAuthTime(ctx, user, nil, time.Now())
 }
 
 // GenerateTokensWithUserInfo generates a new JWT token pair for a user with
 // optional provider UserInfo and auth_time = now.
+// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: mint a JWT token pair enriched with provider UserInfo, auth_time = now (reads DB)
 func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, userInfo *UserInfo) (TokenPair, error) {
 	return s.GenerateTokensWithAuthTime(ctx, user, userInfo, time.Now())
 }
@@ -261,6 +279,7 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 // authTime parameter is the timestamp of the user's last interactive IdP
 // authentication. For fresh logins, pass time.Now(). For refresh-token
 // rotation, pass the preserved auth_time from the previous JWT.
+// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: mint a JWT access/refresh token pair preserving a caller-supplied auth_time (reads DB)
 func (s *Service) GenerateTokensWithAuthTime(ctx context.Context, user User, userInfo *UserInfo, authTime time.Time) (TokenPair, error) {
 	// If UserInfo is provided, update the user with fresh provider data
 	if userInfo != nil {
@@ -373,6 +392,7 @@ func (s *Service) GenerateTokensWithAuthTime(ctx context.Context, user User, use
 }
 
 // mergeGroups combines two group name slices, deduplicating entries.
+// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: combine two group name slices, deduplicating entries (pure)
 func mergeGroups(existing, additional []string) []string {
 	merged := make([]string, len(existing))
 	copy(merged, existing)
@@ -385,6 +405,7 @@ func mergeGroups(existing, additional []string) []string {
 }
 
 // ValidateToken validates a JWT token
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate a JWT signature, issuer, and audience; return its claims (pure)
 func (s *Service) ValidateToken(tokenString string) (*Claims, error) {
 	// Use the key manager to verify the token
 	claims := &Claims{}
@@ -421,6 +442,7 @@ func (s *Service) ValidateToken(tokenString string) (*Claims, error) {
 
 // RefreshToken refreshes an access token using a refresh token.
 // Implements single-use rotation (old token deleted) and absolute session expiration.
+// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: rotate a refresh token and issue a new token pair, enforcing absolute session expiration (reads DB)
 func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenPair, error) {
 	logger := slogging.Get()
 
@@ -517,12 +539,14 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (TokenP
 }
 
 // RevokeToken revokes a refresh token
+// SEM@d885c7955d5a30affb8ddde84ee1cf757aab2a6b: delete a refresh token from Redis to revoke the session (reads DB)
 func (s *Service) RevokeToken(ctx context.Context, refreshToken string) error {
 	refreshKey := fmt.Sprintf("refresh_token:%s", refreshToken)
 	return s.dbManager.Redis().Del(ctx, refreshKey)
 }
 
 // InvalidateUserSessions invalidates all sessions for a user
+// SEM@cdd711a5407558ac89d03c4548a877007b74e7cd: delete all Redis session keys for a user, terminating all active sessions (reads DB)
 func (s *Service) InvalidateUserSessions(ctx context.Context, userID string) error {
 	logger := slogging.Get()
 	redisDB := s.dbManager.Redis()
@@ -549,6 +573,7 @@ func (s *Service) InvalidateUserSessions(ctx context.Context, userID string) err
 }
 
 // GetUserByEmail gets a user by email
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: fetch a user by email, checking Redis cache before the DB (reads DB)
 func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	// Try cache first
 	cachedUser, err := s.GetCachedUserByEmail(ctx, email)
@@ -577,6 +602,7 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 // GetUserByID gets a user by internal UUID
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: fetch a user by internal UUID, checking Redis cache before the DB (reads DB)
 func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 	// Try cache first
 	cachedUser, err := s.GetCachedUserByID(ctx, id)
@@ -605,6 +631,7 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 }
 
 // CreateUser creates a new user
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: store a new user and populate the Redis cache entry (reads DB)
 func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 	// Provider and ProviderUserID must be set by caller
 	if user.Provider == "" || user.ProviderUserID == "" {
@@ -630,6 +657,7 @@ func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 }
 
 // UpdateUser updates an existing user
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: persist user profile changes and invalidate the Redis cache (reads DB)
 func (s *Service) UpdateUser(ctx context.Context, user User) error {
 	repoUser := convertServiceUserToRepoUser(&user)
 	err := s.userRepo.Update(ctx, repoUser)
@@ -651,6 +679,7 @@ func (s *Service) UpdateUser(ctx context.Context, user User) error {
 }
 
 // DeleteUser deletes a user by internal UUID
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: delete a user by internal UUID and invalidate all Redis cache keys (reads DB)
 func (s *Service) DeleteUser(ctx context.Context, id string) error {
 	// Get user before deletion for cache invalidation
 	user, err := s.GetUserByID(ctx, id)
@@ -677,6 +706,7 @@ func (s *Service) DeleteUser(ctx context.Context, id string) error {
 }
 
 // UserProvider represents a user's OAuth provider
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: OAuth provider binding record linking a user to a provider identity (pure)
 type UserProvider struct {
 	ID             string    `json:"id"`
 	UserID         string    `json:"user_id"`
@@ -690,6 +720,7 @@ type UserProvider struct {
 
 // GetUserProviders gets the OAuth provider for a user
 // Note: In the new architecture, each user has exactly one provider
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: list OAuth provider bindings for a user (reads DB)
 func (s *Service) GetUserProviders(ctx context.Context, userID string) ([]UserProvider, error) {
 	repoProviders, err := s.userRepo.GetProviders(ctx, userID)
 	if err != nil {
@@ -716,11 +747,13 @@ func (s *Service) GetUserProviders(ctx context.Context, userID string) ([]UserPr
 
 // GetPrimaryProviderID gets the provider user ID for a user
 // Note: In the new architecture, each user has exactly one provider stored directly on the users table
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: fetch the primary provider user ID stored on the user record (reads DB)
 func (s *Service) GetPrimaryProviderID(ctx context.Context, userID string) (string, error) {
 	return s.userRepo.GetPrimaryProviderID(ctx, userID)
 }
 
 // GetUserByProviderID gets a user by provider and provider user ID
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: fetch a user by provider and provider user ID, checking Redis cache first (reads DB)
 func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUserID string) (User, error) {
 	// Try cache first
 	cachedUser, err := s.GetCachedUserByProvider(ctx, provider, providerUserID)
@@ -750,6 +783,7 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 
 // GetUserByProviderAndEmail gets a user by provider and email address
 // This is used as a fallback when provider_user_id doesn't match but same provider + email does
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: fetch a user by provider and email as a fallback to provider user ID lookup (reads DB)
 func (s *Service) GetUserByProviderAndEmail(ctx context.Context, provider, email string) (User, error) {
 	repoUser, err := s.userRepo.GetByProviderAndEmail(ctx, provider, email)
 	if err != nil {
@@ -764,6 +798,7 @@ func (s *Service) GetUserByProviderAndEmail(ctx context.Context, provider, email
 
 // GetLinkedIdentityByProviderSub looks up a linked identity by provider and provider-user-id.
 // Returns ErrLinkedIdentityNotFound if no row matches or the store is not wired.
+// SEM@1eb7997add7b39214eac29d20050d7968745a98d: look up a linked identity by provider and provider user ID (reads DB)
 func (s *Service) GetLinkedIdentityByProviderSub(ctx context.Context, provider, providerUserID string) (models.LinkedIdentity, error) {
 	if s.linkedIdentityStore == nil {
 		return models.LinkedIdentity{}, ErrLinkedIdentityNotFound
@@ -772,11 +807,13 @@ func (s *Service) GetLinkedIdentityByProviderSub(ctx context.Context, provider, 
 }
 
 // GetUserByInternalUUID gets a user by their internal UUID.
+// SEM@1eb7997add7b39214eac29d20050d7968745a98d: fetch a user by internal UUID; delegates to GetUserByID (reads DB)
 func (s *Service) GetUserByInternalUUID(ctx context.Context, uuid string) (User, error) {
 	return s.GetUserByID(ctx, uuid)
 }
 
 // TouchLinkedIdentityLastUsed updates last_used_at for the linked identity with the given id.
+// SEM@1eb7997add7b39214eac29d20050d7968745a98d: update the last_used_at timestamp on a linked identity record (reads DB)
 func (s *Service) TouchLinkedIdentityLastUsed(ctx context.Context, id string) error {
 	if s.linkedIdentityStore == nil {
 		return nil
@@ -787,6 +824,7 @@ func (s *Service) TouchLinkedIdentityLastUsed(ctx context.Context, id string) er
 // GetUserByAnyProviderID gets a user by provider ID across all providers
 // This allows provider-independent authorization using IdP user IDs
 // NOTE: This can return ambiguous results if the same provider_user_id exists for multiple providers
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: fetch a user by provider user ID across all providers (reads DB)
 func (s *Service) GetUserByAnyProviderID(ctx context.Context, providerUserID string) (User, error) {
 	repoUser, err := s.userRepo.GetByAnyProviderID(ctx, providerUserID)
 	if err != nil {
@@ -807,6 +845,7 @@ const (
 )
 
 // CacheUser stores a user in Redis cache with multiple lookup keys
+// SEM@89d554e793900a75b5703e1d10c9d58f57ceadc6: store a user in Redis under ID, email, and provider lookup keys (reads DB)
 func (s *Service) CacheUser(ctx context.Context, user User) error {
 	logger := slogging.Get()
 	redis := s.dbManager.Redis()
@@ -845,6 +884,7 @@ func (s *Service) CacheUser(ctx context.Context, user User) error {
 }
 
 // GetCachedUserByID retrieves a user from cache by internal UUID
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: fetch a cached user from Redis by internal UUID (reads DB)
 func (s *Service) GetCachedUserByID(ctx context.Context, userID string) (*User, error) {
 	logger := slogging.Get()
 	redis := s.dbManager.Redis()
@@ -872,6 +912,7 @@ func (s *Service) GetCachedUserByID(ctx context.Context, userID string) (*User, 
 }
 
 // GetCachedUserByEmail retrieves a user from cache by email
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: fetch a cached user from Redis by email address (reads DB)
 func (s *Service) GetCachedUserByEmail(ctx context.Context, email string) (*User, error) {
 	logger := slogging.Get()
 	redis := s.dbManager.Redis()
@@ -899,6 +940,7 @@ func (s *Service) GetCachedUserByEmail(ctx context.Context, email string) (*User
 }
 
 // GetCachedUserByProvider retrieves a user from cache by provider and provider user ID
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: fetch a cached user from Redis by provider and provider user ID (reads DB)
 func (s *Service) GetCachedUserByProvider(ctx context.Context, provider, providerUserID string) (*User, error) {
 	logger := slogging.Get()
 	redis := s.dbManager.Redis()
@@ -926,6 +968,7 @@ func (s *Service) GetCachedUserByProvider(ctx context.Context, provider, provide
 }
 
 // InvalidateUserCache removes a user from all cache keys
+// SEM@89d554e793900a75b5703e1d10c9d58f57ceadc6: delete all Redis cache keys for a user (ID, email, provider) (reads DB)
 func (s *Service) InvalidateUserCache(ctx context.Context, user User) error {
 	logger := slogging.Get()
 	redis := s.dbManager.Redis()
@@ -950,6 +993,7 @@ func (s *Service) InvalidateUserCache(ctx context.Context, user User) error {
 }
 
 // deriveIssuer derives the issuer URL from the OAuth callback URL
+// SEM@83248bf8b4162186950592395d4c056d02394d4c: compute the JWT issuer URL from the configured OAuth callback URL (pure)
 func (s *Service) deriveIssuer() string {
 	// Parse the OAuth callback URL to extract the base URL
 	callbackURL := s.config.OAuth.CallbackURL
@@ -970,6 +1014,7 @@ func (s *Service) deriveIssuer() string {
 }
 
 // CacheUserGroups caches user groups in Redis for the session duration
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: store user group membership in Redis for the JWT session duration (reads DB)
 func (s *Service) CacheUserGroups(ctx context.Context, email, idp string, groups []string) error {
 	redis := s.dbManager.Redis()
 	if redis == nil {
@@ -1001,6 +1046,7 @@ func (s *Service) CacheUserGroups(ctx context.Context, email, idp string, groups
 }
 
 // GetCachedGroups retrieves cached user groups from Redis
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: retrieve cached group membership and IdP name for a user from Redis (reads DB)
 func (s *Service) GetCachedGroups(ctx context.Context, email string) (string, []string, error) {
 	redis := s.dbManager.Redis()
 	if redis == nil {
@@ -1035,6 +1081,7 @@ func (s *Service) GetCachedGroups(ctx context.Context, email string) (string, []
 }
 
 // ClearUserGroups clears cached user groups from Redis (used on logout)
+// SEM@85ed60a219cd0aba38e90907408068f8235d4cc1: delete cached group membership for a user from Redis on logout (reads DB)
 func (s *Service) ClearUserGroups(ctx context.Context, email string) error {
 	redis := s.dbManager.Redis()
 	if redis == nil {
@@ -1053,6 +1100,7 @@ func (s *Service) ClearUserGroups(ctx context.Context, email string) error {
 
 // HandleClientCredentialsGrant processes OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4)
 // Returns an access token for machine-to-machine authentication
+// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: validate client credentials and mint a service-account JWT without refresh token (reads DB)
 func (s *Service) HandleClientCredentialsGrant(ctx context.Context, clientID, clientSecret string) (*TokenPair, error) {
 	logger := slogging.Get()
 
@@ -1162,6 +1210,7 @@ func (s *Service) HandleClientCredentialsGrant(ctx context.Context, clientID, cl
 }
 
 // getIssuer returns the JWT issuer URL
+// SEM@99c8cc4c042f4729b89e24981a18dba21b40be17: return the JWT issuer URL derived from the OAuth callback URL (pure)
 func (s *Service) getIssuer() string {
 	// Use the callback URL base as the issuer
 	if s.config.OAuth.CallbackURL != "" {
@@ -1174,6 +1223,7 @@ func (s *Service) getIssuer() string {
 }
 
 // convertRepoUserToServiceUser converts a repository User to a service User
+// SEM@24dcbaf59ea6bfe4e66c3f1fbc4863c809cfdc0e: convert a repository User to the service-layer User domain type (pure)
 func convertRepoUserToServiceUser(repoUser *repository.User) User {
 	return User{
 		InternalUUID:   repoUser.InternalUUID,
@@ -1193,6 +1243,7 @@ func convertRepoUserToServiceUser(repoUser *repository.User) User {
 }
 
 // convertServiceUserToRepoUser converts a service User to a repository User
+// SEM@24dcbaf59ea6bfe4e66c3f1fbc4863c809cfdc0e: convert a service-layer User to the repository User type (pure)
 func convertServiceUserToRepoUser(user *User) *repository.User {
 	return &repository.User{
 		InternalUUID:   user.InternalUUID,

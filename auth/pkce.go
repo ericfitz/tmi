@@ -28,6 +28,7 @@ var (
 
 // GenerateCodeVerifier generates a cryptographically secure random code verifier
 // Returns a 43-character base64url-encoded string (32 random bytes)
+// SEM@cdbe48c974fb76e1161972733b30bb0d1c02c3b1: generate a cryptographically random PKCE code verifier per RFC 7636 (pure)
 func GenerateCodeVerifier() (string, error) {
 	// Generate 32 random bytes
 	verifierBytes := make([]byte, VerifierByteLength)
@@ -44,6 +45,7 @@ func GenerateCodeVerifier() (string, error) {
 
 // ComputeS256Challenge computes the S256 code challenge from a code verifier
 // Returns base64url(SHA256(codeVerifier))
+// SEM@7f2e891b97d9b875349295375fb64355109504b5: compute the S256 PKCE code challenge from a code verifier (pure)
 func ComputeS256Challenge(codeVerifier string) string {
 	hash := sha256.Sum256([]byte(codeVerifier))
 	challenge := base64.RawURLEncoding.EncodeToString(hash[:])
@@ -52,6 +54,7 @@ func ComputeS256Challenge(codeVerifier string) string {
 
 // ValidateCodeChallenge validates that a code verifier matches the code challenge
 // Uses constant-time comparison to prevent timing attacks
+// SEM@7f2e891b97d9b875349295375fb64355109504b5: validate that a code verifier matches a code challenge using constant-time S256 comparison (pure)
 func ValidateCodeChallenge(codeVerifier, codeChallenge, method string) error {
 	// Only S256 method is supported
 	if method != "S256" {
@@ -70,6 +73,7 @@ func ValidateCodeChallenge(codeVerifier, codeChallenge, method string) error {
 }
 
 // ValidateCodeChallengeFormat validates the format of a code challenge
+// SEM@7f2e891b97d9b875349295375fb64355109504b5: validate a PKCE code challenge meets length and character requirements (pure)
 func ValidateCodeChallengeFormat(challenge string) error {
 	if challenge == "" {
 		return fmt.Errorf("code_challenge cannot be empty")
@@ -87,6 +91,7 @@ func ValidateCodeChallengeFormat(challenge string) error {
 }
 
 // ValidateCodeVerifierFormat validates the format of a code verifier
+// SEM@7f2e891b97d9b875349295375fb64355109504b5: validate a PKCE code verifier meets RFC 7636 length and character requirements (pure)
 func ValidateCodeVerifierFormat(verifier string) error {
 	if verifier == "" {
 		return fmt.Errorf("code_verifier cannot be empty")

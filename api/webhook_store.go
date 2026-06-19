@@ -8,6 +8,7 @@ import (
 )
 
 // DBWebhookSubscription represents a webhook subscription in the database
+// SEM@a19a29138f4caaab0d2efe0d5b6f54106b447672: DB model for a webhook subscription with lifecycle and delivery-tracking fields
 type DBWebhookSubscription struct {
 	Id            uuid.UUID  `json:"id"`
 	OwnerId       uuid.UUID  `json:"owner_id"`
@@ -29,17 +30,20 @@ type DBWebhookSubscription struct {
 }
 
 // SetCreatedAt implements WithTimestamps
+// SEM@9ea792b9df3b1ab947a5ab9a404a0fbccd779d21: set the created_at timestamp on a webhook subscription (mutates shared state)
 func (w *DBWebhookSubscription) SetCreatedAt(t time.Time) {
 	w.CreatedAt = t
 }
 
 // SetModifiedAt implements WithTimestamps
+// SEM@9ea792b9df3b1ab947a5ab9a404a0fbccd779d21: set the modified_at timestamp on a webhook subscription (mutates shared state)
 func (w *DBWebhookSubscription) SetModifiedAt(t time.Time) {
 	w.ModifiedAt = t
 }
 
 // DBWebhookQuota represents per-owner rate limits with database timestamps
 // This is the internal database model; the API uses the generated WebhookQuota type
+// SEM@9ea792b9df3b1ab947a5ab9a404a0fbccd779d21: DB model for per-owner webhook rate limits with subscription and event caps
 type DBWebhookQuota struct {
 	OwnerId                          uuid.UUID `json:"owner_id"`
 	MaxSubscriptions                 int       `json:"max_subscriptions"`
@@ -51,16 +55,19 @@ type DBWebhookQuota struct {
 }
 
 // SetCreatedAt implements WithTimestamps for DBWebhookQuota
+// SEM@9ea792b9df3b1ab947a5ab9a404a0fbccd779d21: set the created_at timestamp on a webhook quota record (mutates shared state)
 func (w *DBWebhookQuota) SetCreatedAt(t time.Time) {
 	w.CreatedAt = t
 }
 
 // SetModifiedAt implements WithTimestamps for DBWebhookQuota
+// SEM@9ea792b9df3b1ab947a5ab9a404a0fbccd779d21: set the modified_at timestamp on a webhook quota record (mutates shared state)
 func (w *DBWebhookQuota) SetModifiedAt(t time.Time) {
 	w.ModifiedAt = t
 }
 
 // WebhookUrlDenyListEntry represents a URL pattern to block
+// SEM@9ea792b9df3b1ab947a5ab9a404a0fbccd779d21: DB model for a URL pattern that blocks webhook registrations
 type WebhookUrlDenyListEntry struct {
 	Id          uuid.UUID `json:"id"`
 	Pattern     string    `json:"pattern"`
@@ -75,6 +82,7 @@ type WebhookUrlDenyListEntry struct {
 // instead of falling back to context.Background(). This makes Oracle
 // ORA-08177/ORA-00060 retry chains cancellable when the originating HTTP
 // request is cancelled.
+// SEM@c13f85301f7c723dfb20f687cb8fddc4ed77e703: store contract for CRUD and lifecycle queries on webhook subscriptions (reads DB)
 type WebhookSubscriptionStoreInterface interface {
 	Get(ctx context.Context, id string) (DBWebhookSubscription, error)
 	List(ctx context.Context, offset, limit int, filter func(DBWebhookSubscription) bool) []DBWebhookSubscription
@@ -100,6 +108,7 @@ type WebhookSubscriptionStoreInterface interface {
 
 // WebhookQuotaStoreInterface defines operations for webhook quotas.
 // See WebhookSubscriptionStoreInterface for ctx threading rationale.
+// SEM@a19a29138f4caaab0d2efe0d5b6f54106b447672: store contract for CRUD on per-owner webhook quota records (reads DB)
 type WebhookQuotaStoreInterface interface {
 	Get(ctx context.Context, ownerID string) (DBWebhookQuota, error)
 	GetOrDefault(ctx context.Context, ownerID string) DBWebhookQuota
@@ -112,6 +121,7 @@ type WebhookQuotaStoreInterface interface {
 
 // WebhookUrlDenyListStoreInterface defines operations for URL deny list.
 // See WebhookSubscriptionStoreInterface for ctx threading rationale.
+// SEM@a19a29138f4caaab0d2efe0d5b6f54106b447672: store contract for listing, creating, and deleting webhook URL deny list entries (reads DB)
 type WebhookUrlDenyListStoreInterface interface {
 	List(ctx context.Context) ([]WebhookUrlDenyListEntry, error)
 	Create(ctx context.Context, item WebhookUrlDenyListEntry) (WebhookUrlDenyListEntry, error)

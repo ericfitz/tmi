@@ -27,6 +27,7 @@ const MaxParticipantsPerSession = 50
 // UserID matches the argument. Excluding the empty string is
 // intentional — anonymous / pre-auth slots must not collapse into a
 // single bucket.
+// SEM@a9626140ff4ccb3bf8ae4b474024684bd7063b72: count active WebSocket connections for a given user across all hub sessions (reads shared state)
 func (h *WebSocketHub) CountUserConnections(userID string) int {
 	if userID == "" {
 		return 0
@@ -49,6 +50,7 @@ func (h *WebSocketHub) CountUserConnections(userID string) int {
 // CountSessionParticipants returns the number of currently-registered
 // clients on the session for the given diagram, or 0 if no session
 // exists yet.
+// SEM@a9626140ff4ccb3bf8ae4b474024684bd7063b72: count clients currently in a diagram WebSocket session (reads shared state)
 func (h *WebSocketHub) CountSessionParticipants(diagramID string) int {
 	h.mu.RLock()
 	session, ok := h.Diagrams[diagramID]

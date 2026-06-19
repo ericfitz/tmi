@@ -20,6 +20,7 @@ var errAuditAnchorNotFound = errors.New("audit anchor entry not found")
 // audit table (idx_sysaudit_created_id, idx_audit_created_id) serves both scan
 // directions and the unfiltered full-table export without a separate sort step
 // (#473). (#464)
+// SEM@11dcb0b70b9f3c44dea71d422da11ebe39a116f6: fetch an audit page with bidirectional keyset cursor and compute prev/next cursors (reads DB)
 func fetchKeysetPage[T any](
 	newQuery func() *gorm.DB,
 	cursor *auditCursor,
@@ -70,6 +71,7 @@ func fetchKeysetPage[T any](
 // with ~half newer and ~half older. fetchAnchor loads the anchor by id ignoring
 // filters; a nil anchor yields errAuditAnchorNotFound. Surrounding rows respect
 // the filters baked into newQuery. The anchor is always included and centered.
+// SEM@11dcb0b70b9f3c44dea71d422da11ebe39a116f6: fetch an audit page centered on an anchor entry with surrounding rows and cursors (reads DB)
 func fetchAroundPage[T any](
 	newQuery func() *gorm.DB,
 	fetchAnchor func() (*T, error),
@@ -128,6 +130,7 @@ func fetchAroundPage[T any](
 
 // fetchSide returns up to n rows on one side of the anchor, ordered
 // closest-to-anchor first. dirBackward = newer rows; dirForward = older rows.
+// SEM@11dcb0b70b9f3c44dea71d422da11ebe39a116f6: fetch up to n audit rows on one side of an anchor ordered closest-first (reads DB)
 func fetchSide[T any](q *gorm.DB, t time.Time, id, dir string, n int) ([]T, error) {
 	if n <= 0 {
 		return nil, nil
@@ -149,6 +152,7 @@ func fetchSide[T any](q *gorm.DB, t time.Time, id, dir string, n int) ([]T, erro
 // keysetCursorIfExists returns an encoded cursor anchored at (t, id) in the
 // given direction, or nil when no row exists beyond that boundary. Uses an
 // indexed SELECT id ... LIMIT 1 probe.
+// SEM@11dcb0b70b9f3c44dea71d422da11ebe39a116f6: return an encoded keyset cursor if rows exist beyond the given boundary, else nil (reads DB)
 func keysetCursorIfExists(q *gorm.DB, t time.Time, id, dir string) (*string, error) {
 	var cmp string
 	if dir == dirBackward {
@@ -168,6 +172,7 @@ func keysetCursorIfExists(q *gorm.DB, t time.Time, id, dir string) (*string, err
 }
 
 // reverse reverses a slice in place.
+// SEM@11dcb0b70b9f3c44dea71d422da11ebe39a116f6: reverse a slice in place (pure)
 func reverse[T any](s []T) {
 	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
 		s[i], s[j] = s[j], s[i]

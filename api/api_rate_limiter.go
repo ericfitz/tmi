@@ -10,12 +10,14 @@ import (
 )
 
 // APIRateLimiter implements rate limiting for general API operations using Redis
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: sliding-window API rate limiter backed by Redis and a per-user quota store
 type APIRateLimiter struct {
 	SlidingWindowRateLimiter
 	quotaStore UserAPIQuotaStoreInterface
 }
 
 // NewAPIRateLimiter creates a new API rate limiter
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: build an API rate limiter from a Redis client and quota store (pure)
 func NewAPIRateLimiter(redisClient *redis.Client, quotaStore UserAPIQuotaStoreInterface) *APIRateLimiter {
 	return &APIRateLimiter{
 		SlidingWindowRateLimiter: SlidingWindowRateLimiter{RedisClient: redisClient},
@@ -25,6 +27,7 @@ func NewAPIRateLimiter(redisClient *redis.Client, quotaStore UserAPIQuotaStoreIn
 
 // CheckRateLimit checks if a user has exceeded their rate limit
 // Returns allowed (bool), retryAfter (seconds), and error
+// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: validate a user's per-minute and per-hour request quotas against Redis sliding windows (reads DB)
 func (r *APIRateLimiter) CheckRateLimit(ctx context.Context, userID string) (bool, int, error) {
 	logger := slogging.Get()
 
@@ -69,6 +72,7 @@ func (r *APIRateLimiter) CheckRateLimit(ctx context.Context, userID string) (boo
 }
 
 // GetRateLimitInfo returns current rate limit status for a user
+// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: fetch the current rate limit, remaining requests, and reset time for a user (reads DB)
 func (r *APIRateLimiter) GetRateLimitInfo(ctx context.Context, userID string) (limit int, remaining int, resetAt int64, err error) {
 	logger := slogging.Get()
 

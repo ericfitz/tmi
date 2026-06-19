@@ -20,6 +20,7 @@ import (
 // tree rather than round-tripping through map[string]any.
 //
 // Returns the size of the rewritten file in bytes for the operator log.
+// SEM@e7880ae29f527fb2d814f6d7b7c13280082fa033: rewrite a YAML config file in place, removing all operational-category keys (reads DB)
 func stripOperationalKeys(path string) (int64, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // operator-supplied config path
 	if err != nil {
@@ -59,6 +60,7 @@ func stripOperationalKeys(path string) (int64, error) {
 // the parent pair is also removed.
 //
 // The mapping node's Content alternates: [key0, val0, key1, val1, ...].
+// SEM@e7880ae29f527fb2d814f6d7b7c13280082fa033: recursively remove operational-category entries from a YAML mapping node (pure)
 func pruneOperationalFromMapping(m *yaml.Node, prefix string) {
 	if m.Kind != yaml.MappingNode {
 		return
@@ -93,6 +95,7 @@ func pruneOperationalFromMapping(m *yaml.Node, prefix string) {
 
 // backupConfigFile writes a timestamped copy of path alongside it, returning
 // the backup path. Format: <path>.<YYYYMMDD-HHMMSS>.bak.
+// SEM@e7880ae29f527fb2d814f6d7b7c13280082fa033: write a timestamped backup copy of a config file alongside the original (reads DB)
 func backupConfigFile(path string) (string, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // operator-supplied config path
 	if err != nil {
@@ -114,6 +117,7 @@ func backupConfigFile(path string) (string, error) {
 // looksLikeYAMLPath returns true when the given path has a YAML extension.
 // The in-place rewrite path is only safe for YAML; the legacy --output
 // fallback handles JSON-extension inputs.
+// SEM@e7880ae29f527fb2d814f6d7b7c13280082fa033: report whether a file path has a YAML extension (pure)
 func looksLikeYAMLPath(path string) bool {
 	lower := strings.ToLower(path)
 	return strings.HasSuffix(lower, ".yml") || strings.HasSuffix(lower, ".yaml")

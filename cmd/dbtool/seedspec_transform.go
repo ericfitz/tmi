@@ -12,6 +12,7 @@ const (
 )
 
 // userInfo caches user details for building Principal objects.
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: cache user identity fields needed to build principal objects (pure)
 type userInfo struct {
 	ID          string
 	Email       string
@@ -21,6 +22,7 @@ type userInfo struct {
 
 // transformSeedSpec converts a SeedSpecFile into the internal SeedFile format.
 // It emits SeedEntry items in strict dependency order so that RefMap resolution works.
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert a SeedSpecFile to an ordered SeedFile with dependency-safe seed entries (pure)
 func transformSeedSpec(spec *SeedSpecFile) (*SeedFile, error) {
 	users := buildUserLookup(spec.Users)
 	var seeds []SeedEntry
@@ -58,6 +60,7 @@ func transformSeedSpec(spec *SeedSpecFile) (*SeedFile, error) {
 	}, nil
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a user-ID-to-userInfo index from the seed spec user list (pure)
 func buildUserLookup(users []SeedSpecUser) map[string]userInfo {
 	m := make(map[string]userInfo, len(users))
 	for _, u := range users {
@@ -75,6 +78,7 @@ func buildUserLookup(users []SeedSpecUser) map[string]userInfo {
 	return m
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert seed spec users to user seed entries with provider and quota fields (pure)
 func transformUsers(users []SeedSpecUser) []SeedEntry {
 	var seeds []SeedEntry
 	for _, u := range users {
@@ -108,6 +112,7 @@ func transformUsers(users []SeedSpecUser) []SeedEntry {
 	return seeds
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert admin settings and per-user API quotas to seed entries (pure)
 func transformAdminSettingsAndQuotas(admin *SeedSpecAdmin, users map[string]userInfo) []SeedEntry {
 	if admin == nil {
 		return nil
@@ -150,6 +155,7 @@ func transformAdminSettingsAndQuotas(admin *SeedSpecAdmin, users map[string]user
 	return seeds
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert admin groups and security-reviewer memberships to seed entries (pure)
 func transformGroupsAndMembers(admin *SeedSpecAdmin, users []SeedSpecUser) []SeedEntry {
 	var seeds []SeedEntry
 
@@ -192,6 +198,7 @@ func transformGroupsAndMembers(admin *SeedSpecAdmin, users []SeedSpecUser) []See
 	return seeds
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert seed spec teams with members and roles to team seed entries (pure)
 func transformTeams(teams []SeedSpecTeam) []SeedEntry {
 	var seeds []SeedEntry
 	for _, t := range teams {
@@ -218,6 +225,7 @@ func transformTeams(teams []SeedSpecTeam) []SeedEntry {
 	return seeds
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert seed spec projects with optional team and status to project seed entries (pure)
 func transformProjects(projects []SeedSpecProject) []SeedEntry {
 	var seeds []SeedEntry
 	for _, p := range projects {
@@ -239,6 +247,7 @@ func transformProjects(projects []SeedSpecProject) []SeedEntry {
 	return seeds
 }
 
+// SEM@7a8bf8de72c6d39387df00ec0eb9901653555db8: convert seed spec threat models with all sub-resources to ordered seed entries (pure)
 func transformThreatModels(tms []SeedSpecThreatModel, users map[string]userInfo, _ []SeedSpecProject) ([]SeedEntry, error) {
 	var seeds []SeedEntry
 	for _, tm := range tms {
@@ -272,6 +281,7 @@ func transformThreatModels(tms []SeedSpecThreatModel, users map[string]userInfo,
 	return seeds, nil
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build the initial threat model creation seed entry from a spec record (pure)
 func transformTMCreate(tm SeedSpecThreatModel, ref string, users map[string]userInfo) SeedEntry {
 	tmData := map[string]any{
 		"name": tm.Name,
@@ -301,6 +311,7 @@ func transformTMCreate(tm SeedSpecThreatModel, ref string, users map[string]user
 	return SeedEntry{Kind: kindThreatModel, Ref: ref, Data: tmData}
 }
 
+// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: convert seed spec threats to threat seed entries linked to a threat model (pure)
 func transformThreats(threats []SeedSpecThreat, ref, tmName string) []SeedEntry {
 	var seeds []SeedEntry
 	for _, t := range threats {
@@ -361,6 +372,7 @@ func transformThreats(threats []SeedSpecThreat, ref, tmName string) []SeedEntry 
 	return seeds
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert seed spec assets to asset seed entries linked to a threat model (pure)
 func transformAssets(assets []SeedSpecAsset, ref, tmName string) []SeedEntry {
 	var seeds []SeedEntry
 	for _, a := range assets {
@@ -395,6 +407,7 @@ func transformAssets(assets []SeedSpecAsset, ref, tmName string) []SeedEntry {
 	return seeds
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert seed spec documents to document seed entries linked to a threat model (pure)
 func transformDocuments(docs []SeedSpecDocument, ref, tmName string) []SeedEntry {
 	var seeds []SeedEntry
 	for _, d := range docs {
@@ -420,6 +433,7 @@ func transformDocuments(docs []SeedSpecDocument, ref, tmName string) []SeedEntry
 	return seeds
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert seed spec notes to note seed entries linked to a threat model (pure)
 func transformNotes(notes []SeedSpecNote, ref, tmName string) []SeedEntry {
 	var seeds []SeedEntry
 	for _, n := range notes {
@@ -445,6 +459,7 @@ func transformNotes(notes []SeedSpecNote, ref, tmName string) []SeedEntry {
 	return seeds
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert seed spec repositories to repository seed entries linked to a threat model (pure)
 func transformRepositories(repos []SeedSpecRepository, ref, tmName string) []SeedEntry {
 	var seeds []SeedEntry
 	for _, r := range repos {
@@ -472,6 +487,7 @@ func transformRepositories(repos []SeedSpecRepository, ref, tmName string) []See
 	return seeds
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert seed spec diagrams with cells to diagram and diagram-update seed entries (pure)
 func transformDiagrams(diagrams []SeedSpecDiagram, ref, tmName string) ([]SeedEntry, error) {
 	var seeds []SeedEntry
 	for _, d := range diagrams {
@@ -515,6 +531,7 @@ func transformDiagrams(diagrams []SeedSpecDiagram, ref, tmName string) ([]SeedEn
 	return seeds, nil
 }
 
+// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: convert seed spec surveys to survey seed entries with JSON content (pure)
 func transformSurveys(surveys []SeedSpecSurvey) []SeedEntry {
 	var seeds []SeedEntry
 	for _, s := range surveys {
@@ -545,6 +562,7 @@ func transformSurveys(surveys []SeedSpecSurvey) []SeedEntry {
 	return seeds
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert seed spec survey responses with owner authorization to seed entries (pure)
 func transformSurveyResponses(responses []SeedSpecSurveyResp, users map[string]userInfo) []SeedEntry {
 	var seeds []SeedEntry
 	for i, sr := range responses {
@@ -582,6 +600,7 @@ func transformSurveyResponses(responses []SeedSpecSurveyResp, users map[string]u
 	return seeds
 }
 
+// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: convert admin webhooks, test deliveries, addons, and client credentials to seed entries (pure)
 func transformAdminWebhooksAndAddons(admin *SeedSpecAdmin) []SeedEntry {
 	if admin == nil {
 		return nil
@@ -648,6 +667,7 @@ func transformAdminWebhooksAndAddons(admin *SeedSpecAdmin) []SeedEntry {
 	return seeds
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert standalone metadata entries to metadata seed entries (pure)
 func transformStandaloneMetadata(metadata []SeedSpecMetadataEntry) []SeedEntry {
 	var seeds []SeedEntry
 	for _, m := range metadata {
@@ -666,6 +686,7 @@ func transformStandaloneMetadata(metadata []SeedSpecMetadataEntry) []SeedEntry {
 
 // buildTMPatches creates JSON Patch operations for ThreatModel fields
 // not settable via ThreatModelInput (owner, status, security_reviewer, project_id, alias).
+// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: build JSON Patch operations for threat model fields not settable at creation time (pure)
 func buildTMPatches(users map[string]userInfo, tm SeedSpecThreatModel) []map[string]any {
 	var patches []map[string]any
 
@@ -711,6 +732,7 @@ func buildTMPatches(users map[string]userInfo, tm SeedSpecThreatModel) []map[str
 }
 
 // buildPrincipal creates an Authorization/Principal map for a user.
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a principal authorization map for a user with provider and display fields (pure)
 func buildPrincipal(users map[string]userInfo, userID, role string) map[string]any {
 	u, ok := users[userID]
 	provider := defaultProvider
@@ -741,6 +763,7 @@ func buildPrincipal(users map[string]userInfo, userID, role string) map[string]a
 	return p
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert key-value spec entries to a list of key/value maps (pure)
 func kvToMaps(kvs []SeedSpecKV) []map[string]any {
 	result := make([]map[string]any, 0, len(kvs))
 	for _, kv := range kvs {
@@ -752,6 +775,7 @@ func kvToMaps(kvs []SeedSpecKV) []map[string]any {
 	return result
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: fetch the OAuth provider for a user ID, defaulting to the built-in provider (pure)
 func userProvider(users map[string]userInfo, userID string) string {
 	if u, ok := users[userID]; ok && u.Provider != "" {
 		return u.Provider
@@ -759,6 +783,7 @@ func userProvider(users map[string]userInfo, userID string) string {
 	return defaultProvider
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: normalize a team role string to its canonical internal form (pure)
 func mapTeamRole(role string) string {
 	switch strings.ToLower(role) {
 	case "lead", "engineering_lead":
@@ -780,6 +805,7 @@ func mapTeamRole(role string) string {
 }
 
 // Ref name helpers — deterministic, sanitized names for RefMap.
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert a display name to a lowercase hyphenated ref-safe identifier (pure)
 func sanitizeName(name string) string {
 	s := strings.ToLower(name)
 	s = strings.ReplaceAll(s, " ", "-")
@@ -792,14 +818,22 @@ func sanitizeName(name string) string {
 	return s
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a deterministic seed ref key for a user ID (pure)
 func userRef(id string) string      { return "user:" + id }
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a deterministic seed ref key for a team name (pure)
 func teamRef(name string) string    { return "team:" + sanitizeName(name) }
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a deterministic seed ref key for a project name (pure)
 func projectRef(name string) string { return "project:" + sanitizeName(name) }
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a deterministic seed ref key for a threat model name (pure)
 func tmRef(name string) string      { return "tm:" + sanitizeName(name) }
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a deterministic seed ref key for a group name (pure)
 func groupRef(name string) string   { return "group:" + sanitizeName(name) }
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a deterministic seed ref key for a survey name (pure)
 func surveyRef(name string) string  { return "survey:" + sanitizeName(name) }
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a stable lookup key for a webhook by sanitized name (pure)
 func webhookRef(name string) string { return "webhook:" + sanitizeName(name) }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a scoped lookup key for a threat-model child entity by kind, threat model, and child name (pure)
 func childRef(kind, tmName, childName string) string {
 	return fmt.Sprintf("%s:%s:%s", kind, sanitizeName(tmName), sanitizeName(childName))
 }

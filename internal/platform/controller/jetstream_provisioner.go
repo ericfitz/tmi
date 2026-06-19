@@ -18,6 +18,7 @@ import (
 //
 // The reconciler holds this as an interface so envtest unit tests (which have
 // no NATS) can leave it nil and skip provisioning.
+// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: interface for idempotently ensuring a JetStream stream and consumer exist for a component (pure)
 type StreamProvisioner interface {
 	EnsureStreamAndConsumer(ctx context.Context, c *platformv1alpha1.TMIComponent) error
 }
@@ -28,6 +29,7 @@ type StreamProvisioner interface {
 // controller ships as an in-cluster Deployment it will use the in-cluster
 // service DNS (nats://nats.tmi-platform.svc:4222). Either way the URL is
 // supplied via the TMI_NATS_URL env var.
+// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: live StreamProvisioner backed by a NATS JetStream connection (pure)
 type NATSProvisioner struct {
 	nc *nats.Conn
 	js nats.JetStreamContext
@@ -37,6 +39,7 @@ type NATSProvisioner struct {
 // RetryOnFailedConnect so the controller can start before the port-forward (or
 // the NATS pod) is reachable: JetStream calls then fail until the connection
 // establishes, which surfaces as a reconcile error and a requeue.
+// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: connect to NATS with retry and return a provisioner with a JetStream context
 func NewNATSProvisioner(url string) (*NATSProvisioner, error) {
 	nc, err := nats.Connect(url,
 		nats.Name("tmi-component-controller"),
@@ -56,6 +59,7 @@ func NewNATSProvisioner(url string) (*NATSProvisioner, error) {
 }
 
 // Close closes the underlying NATS connection.
+// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: close the underlying NATS connection (mutates shared state)
 func (p *NATSProvisioner) Close() {
 	if p.nc != nil {
 		p.nc.Close()
@@ -68,6 +72,7 @@ func (p *NATSProvisioner) Close() {
 // call on every reconcile. Creation is gated on a NotFound lookup rather than
 // blind AddStream/AddConsumer so a transient connectivity error is returned as
 // an error (triggering requeue) instead of being mistaken for "already exists".
+// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: idempotently create a JetStream stream and durable consumer for a component if absent
 func (p *NATSProvisioner) EnsureStreamAndConsumer(ctx context.Context, c *platformv1alpha1.TMIComponent) error {
 	streamCfg := StreamConfigFor(c)
 	if _, err := p.js.StreamInfo(streamCfg.Name, nats.Context(ctx)); err != nil {

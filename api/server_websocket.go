@@ -12,6 +12,7 @@ import (
 )
 
 // ServerInfo provides information about the server configuration
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: struct carrying TLS and WebSocket base URL configuration for clients (pure)
 type ServerInfo struct {
 	// Whether TLS is enabled
 	TLSEnabled bool `json:"tls_enabled"`
@@ -22,6 +23,7 @@ type ServerInfo struct {
 }
 
 // RegisterHandlers registers custom API handlers with the router
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: register custom WebSocket and server-info routes outside the OpenAPI spec (mutates shared state)
 func (s *Server) RegisterHandlers(r *gin.Engine) {
 	logger := slogging.Get()
 	logger.Info("[API_SERVER] Starting custom route registration")
@@ -42,6 +44,7 @@ func (s *Server) RegisterHandlers(r *gin.Engine) {
 }
 
 // HandleWebSocket handles WebSocket connections
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: authenticate and upgrade an HTTP request to a diagram collaboration WebSocket connection
 func (s *Server) HandleWebSocket(c *gin.Context) {
 	// Pass user ID from context to WebSocket handler
 	if userID, exists := c.Get("userID"); exists {
@@ -69,6 +72,7 @@ func (s *Server) HandleWebSocket(c *gin.Context) {
 }
 
 // StartWebSocketHub starts the WebSocket hub cleanup timer
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: initialize and start the WebSocket hub cleanup timer on server startup (mutates shared state)
 func (s *Server) StartWebSocketHub(ctx context.Context) {
 	// Clean up any existing sessions from previous server runs
 	s.wsHub.CleanupAllSessions()
@@ -81,11 +85,13 @@ func (s *Server) StartWebSocketHub(ctx context.Context) {
 }
 
 // GetWebSocketHub returns the WebSocket hub instance
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: fetch the server's WebSocket hub instance (pure)
 func (s *Server) GetWebSocketHub() *WebSocketHub {
 	return s.wsHub
 }
 
 // GetCurrentUserSessions returns all active collaboration sessions that the user has access to
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: list active collaboration sessions visible to the authenticated user
 func (s *Server) GetCurrentUserSessions(c *gin.Context) {
 	// Get username from JWT claim
 	user, err := GetAuthenticatedUser(c)
@@ -101,6 +107,7 @@ func (s *Server) GetCurrentUserSessions(c *gin.Context) {
 }
 
 // buildWebSocketURL constructs the WebSocket base URL from request context
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: compute the WebSocket base URL from TLS and host request context (pure)
 func (s *Server) buildWebSocketURL(c *gin.Context) string {
 	// Get config information from the context
 	tlsEnabled := false
@@ -148,6 +155,7 @@ func (s *Server) buildWebSocketURL(c *gin.Context) string {
 }
 
 // HandleServerInfo provides server configuration information to clients
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: return server TLS and WebSocket configuration to clients
 func (s *Server) HandleServerInfo(c *gin.Context) {
 	// Get config information from the context
 	tlsEnabled := false
@@ -180,6 +188,7 @@ func (s *Server) HandleServerInfo(c *gin.Context) {
 // Collaboration Session API Methods - implementing GinServerInterface
 
 // GetDiagramCollaborationSession retrieves the current collaboration session for a diagram
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: fetch the active collaboration session for a diagram
 func (s *Server) GetDiagramCollaborationSession(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
 	// Create handler with websocket hub
 	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}
@@ -189,6 +198,7 @@ func (s *Server) GetDiagramCollaborationSession(c *gin.Context, threatModelId op
 }
 
 // CreateDiagramCollaborationSession creates a new collaboration session for a diagram
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: create a collaboration session for a diagram
 func (s *Server) CreateDiagramCollaborationSession(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
 	// Create handler with websocket hub
 	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}
@@ -198,6 +208,7 @@ func (s *Server) CreateDiagramCollaborationSession(c *gin.Context, threatModelId
 }
 
 // EndDiagramCollaborationSession ends a collaboration session for a diagram
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: end and delete a diagram's active collaboration session
 func (s *Server) EndDiagramCollaborationSession(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
 	// Create handler with websocket hub
 	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}

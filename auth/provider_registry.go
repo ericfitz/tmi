@@ -17,11 +17,13 @@ var providerIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 // ProviderSettingsReader is a minimal interface defined in the auth package
 // to avoid a circular dependency on the api package. The api.SettingsService
 // satisfies this interface via the ProviderSettingsReaderAdapter.
+// SEM@fbd0dc5c450a6a5b20010ce4f5ee16e3e49ca16e: interface for fetching provider settings key-value pairs by key prefix (reads DB)
 type ProviderSettingsReader interface {
 	ListByPrefix(ctx context.Context, prefix string) ([]ProviderSetting, error)
 }
 
 // ProviderSetting is a minimal representation of a setting key/value pair.
+// SEM@fbd0dc5c450a6a5b20010ce4f5ee16e3e49ca16e: key-value pair representing a single provider configuration setting (pure)
 type ProviderSetting struct {
 	Key   string
 	Value string
@@ -29,6 +31,7 @@ type ProviderSetting struct {
 
 // ProviderRegistry provides unified access to OAuth and SAML provider
 // configurations from all sources (config, environment, database).
+// SEM@fbd0dc5c450a6a5b20010ce4f5ee16e3e49ca16e: interface for fetching and listing OAuth and SAML provider configurations (pure)
 type ProviderRegistry interface {
 	GetOAuthProvider(id string) (OAuthProviderConfig, bool)
 	GetEnabledOAuthProviders() map[string]OAuthProviderConfig
@@ -39,6 +42,7 @@ type ProviderRegistry interface {
 
 // DefaultProviderRegistry merges immutable config/env providers with
 // mutable database-sourced providers assembled from system_settings rows.
+// SEM@fbd0dc5c450a6a5b20010ce4f5ee16e3e49ca16e: TTL-cached registry merging config-file and database OAuth and SAML provider configs (reads DB)
 type DefaultProviderRegistry struct {
 	configOAuth map[string]OAuthProviderConfig
 	configSAML  map[string]SAMLProviderConfig
@@ -56,6 +60,7 @@ const DefaultProviderCacheTTL = 60 * time.Second
 
 // NewDefaultProviderRegistry creates a new DefaultProviderRegistry with the given
 // config/env providers and a settings reader for database-sourced providers.
+// SEM@fbd0dc5c450a6a5b20010ce4f5ee16e3e49ca16e: build a DefaultProviderRegistry from static config maps and a database settings reader (pure)
 func NewDefaultProviderRegistry(
 	configOAuth map[string]OAuthProviderConfig,
 	configSAML map[string]SAMLProviderConfig,
@@ -83,6 +88,7 @@ func NewDefaultProviderRegistry(
 
 // GetOAuthProvider returns the OAuth provider configuration for the given ID.
 // Config/env providers take precedence over database-sourced providers.
+// SEM@fbd0dc5c450a6a5b20010ce4f5ee16e3e49ca16e: fetch an OAuth provider config by ID; config-file entries shadow database entries (reads DB)
 func (r *DefaultProviderRegistry) GetOAuthProvider(id string) (OAuthProviderConfig, bool) {
 	if p, ok := r.configOAuth[id]; ok {
 		return p, true
@@ -96,6 +102,7 @@ func (r *DefaultProviderRegistry) GetOAuthProvider(id string) (OAuthProviderConf
 
 // GetEnabledOAuthProviders returns all enabled OAuth providers from all sources.
 // Config/env providers shadow database-sourced providers with the same ID.
+// SEM@fbd0dc5c450a6a5b20010ce4f5ee16e3e49ca16e: list all enabled OAuth provider configs from config and database sources (reads DB)
 func (r *DefaultProviderRegistry) GetEnabledOAuthProviders() map[string]OAuthProviderConfig {
 	r.ensureDBCacheFresh()
 	result := make(map[string]OAuthProviderConfig)
@@ -119,6 +126,7 @@ func (r *DefaultProviderRegistry) GetEnabledOAuthProviders() map[string]OAuthPro
 
 // GetSAMLProvider returns the SAML provider configuration for the given ID.
 // Config/env providers take precedence over database-sourced providers.
+// SEM@fbd0dc5c450a6a5b20010ce4f5ee16e3e49ca16e: fetch a SAML provider config by ID; config-file entries shadow database entries (reads DB)
 func (r *DefaultProviderRegistry) GetSAMLProvider(id string) (SAMLProviderConfig, bool) {
 	if p, ok := r.configSAML[id]; ok {
 		return p, true
@@ -132,6 +140,7 @@ func (r *DefaultProviderRegistry) GetSAMLProvider(id string) (SAMLProviderConfig
 
 // GetEnabledSAMLProviders returns all enabled SAML providers from all sources.
 // Config/env providers shadow database-sourced providers with the same ID.
+// SEM@fbd0dc5c450a6a5b20010ce4f5ee16e3e49ca16e: list all enabled SAML provider configs from config and database sources (reads DB)
 func (r *DefaultProviderRegistry) GetEnabledSAMLProviders() map[string]SAMLProviderConfig {
 	r.ensureDBCacheFresh()
 	result := make(map[string]SAMLProviderConfig)
@@ -155,12 +164,14 @@ func (r *DefaultProviderRegistry) GetEnabledSAMLProviders() map[string]SAMLProvi
 
 // InvalidateCache marks the database provider cache as dirty so it will be
 // refreshed on the next access.
+// SEM@fbd0dc5c450a6a5b20010ce4f5ee16e3e49ca16e: mark the database provider cache dirty to force refresh on next access (mutates shared state)
 func (r *DefaultProviderRegistry) InvalidateCache() {
 	r.dbCacheMu.Lock()
 	defer r.dbCacheMu.Unlock()
 	r.dirty = true
 }
 
+// SEM@fbd0dc5c450a6a5b20010ce4f5ee16e3e49ca16e: refresh the database provider cache if dirty or TTL-expired (reads DB)
 func (r *DefaultProviderRegistry) ensureDBCacheFresh() {
 	r.dbCacheMu.RLock()
 	needsRefresh := r.dirty || time.Since(r.dbCacheTime) > r.cacheTTL
@@ -176,6 +187,7 @@ func (r *DefaultProviderRegistry) ensureDBCacheFresh() {
 	r.refreshDBProviders()
 }
 
+// SEM@fbd0dc5c450a6a5b20010ce4f5ee16e3e49ca16e: reload OAuth and SAML provider configs from database settings into the cache (reads DB)
 func (r *DefaultProviderRegistry) refreshDBProviders() {
 	logger := slogging.Get()
 	ctx := context.Background()
@@ -210,6 +222,7 @@ const (
 
 // ValidateOAuthProvider checks that required fields are present for an enabled OAuth provider.
 // Returns a list of missing field names, or nil if valid.
+// SEM@35152cade8dd1f51e8debcb763b3aadbb9e5be9e: validate required fields for an OAuth provider config; return missing field names (pure)
 func ValidateOAuthProvider(p OAuthProviderConfig) []string {
 	var missing []string
 	if p.ClientID == "" {
@@ -229,6 +242,7 @@ func ValidateOAuthProvider(p OAuthProviderConfig) []string {
 
 // ValidateSAMLProvider checks that required fields are present for an enabled SAML provider.
 // Returns a list of missing field names, or nil if valid.
+// SEM@35152cade8dd1f51e8debcb763b3aadbb9e5be9e: validate required fields for a SAML provider config; return missing field names (pure)
 func ValidateSAMLProvider(p SAMLProviderConfig) []string {
 	var missing []string
 	if p.EntityID == "" {
@@ -242,6 +256,7 @@ func ValidateSAMLProvider(p SAMLProviderConfig) []string {
 
 // groupSettingsByProvider parses settings keys of the form "<prefix><id>.<field>"
 // and groups them into a map of id -> field -> value.
+// SEM@01c02cfa6ab0177d2afcd8cdcc078f4a59973080: parse flat provider settings into a nested map of provider ID to field-value pairs (pure)
 func groupSettingsByProvider(settings []ProviderSetting, prefix string) map[string]map[string]string {
 	grouped := make(map[string]map[string]string)
 	for _, s := range settings {
@@ -268,6 +283,7 @@ func groupSettingsByProvider(settings []ProviderSetting, prefix string) map[stri
 
 // AssembleOAuthProviders groups settings by provider ID and assembles OAuthProviderConfig structs.
 // Exported so the api package can use it for enable-validation.
+// SEM@01c02cfa6ab0177d2afcd8cdcc078f4a59973080: convert flat provider settings into a map of OAuth provider configs keyed by ID (pure)
 func AssembleOAuthProviders(settings []ProviderSetting) map[string]OAuthProviderConfig {
 	logger := slogging.Get()
 	grouped := groupSettingsByProvider(settings, oauthPrefix)
@@ -334,6 +350,7 @@ func AssembleOAuthProviders(settings []ProviderSetting) map[string]OAuthProvider
 
 // AssembleSAMLProviders groups settings by provider ID and assembles SAMLProviderConfig structs.
 // Exported so the api package can use it for enable-validation.
+// SEM@01c02cfa6ab0177d2afcd8cdcc078f4a59973080: convert flat provider settings into a map of SAML provider configs keyed by ID (pure)
 func AssembleSAMLProviders(settings []ProviderSetting) map[string]SAMLProviderConfig {
 	logger := slogging.Get()
 	grouped := groupSettingsByProvider(settings, samlPrefix)

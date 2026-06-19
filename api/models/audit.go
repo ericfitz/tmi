@@ -11,6 +11,7 @@ import (
 // The audit trail tracks who changed what and when for all entity mutations.
 // Actor fields are denormalized (not FKs) so audit entries persist after user deletion.
 // threat_model_id is not a FK so the "threat model deleted" entry persists after TM deletion.
+// SEM@b7ad72016d91424b5dd7e6ed69ba846a4170f7b5: persistent audit record of who changed which object in a threat model and when (reads DB)
 type AuditEntry struct {
 	ID               DBVarchar      `gorm:"primaryKey;not null;size:36;index:idx_audit_created_id,priority:2"`
 	ThreatModelID    DBVarchar      `gorm:"size:36;not null;index:idx_audit_tm;index:idx_audit_tm_created,priority:1"`
@@ -30,11 +31,13 @@ type AuditEntry struct {
 }
 
 // TableName specifies the table name for AuditEntry
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: return the database table name for AuditEntry (pure)
 func (AuditEntry) TableName() string {
 	return tableName("audit_entries")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: auto-assign a UUID to an AuditEntry before it is inserted into the DB (pure)
 func (a *AuditEntry) BeforeCreate(tx *gorm.DB) error {
 	if a.ID == "" {
 		a.ID = DBVarchar(uuid.New().String())
@@ -46,6 +49,7 @@ func (a *AuditEntry) BeforeCreate(tx *gorm.DB) error {
 // Each snapshot is either a full JSON checkpoint or a reverse JSON Patch diff (RFC 6902).
 // Checkpoints are stored every 10th version; all others are diffs.
 // Snapshots have their own retention policy and can be pruned independently of audit entries.
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: persisted checkpoint or reverse-diff snapshot used to roll back an object to a prior version
 type VersionSnapshot struct {
 	ID           DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	AuditEntryID DBVarchar      `gorm:"size:36;not null;index:idx_vs_audit_entry"`
@@ -58,11 +62,13 @@ type VersionSnapshot struct {
 }
 
 // TableName specifies the table name for VersionSnapshot
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: return the database table name for VersionSnapshot (pure)
 func (VersionSnapshot) TableName() string {
 	return tableName("version_snapshots")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: auto-assign a UUID to a VersionSnapshot before it is inserted into the DB (pure)
 func (v *VersionSnapshot) BeforeCreate(tx *gorm.DB) error {
 	if v.ID == "" {
 		v.ID = DBVarchar(uuid.New().String())

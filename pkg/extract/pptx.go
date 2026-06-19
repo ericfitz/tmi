@@ -24,24 +24,29 @@ const (
 const pptxRoleTextBox = "text-box"
 
 // PPTXExtractor extracts Markdown-flavored text from a PPTX (OOXML) archive.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: extractor for PPTX files that converts slides to Markdown text within configured limits (pure)
 type PPTXExtractor struct {
 	limits Limits
 }
 
 // NewPPTXExtractor returns an extractor configured with the given limits.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: build a PPTXExtractor configured with the given resource limits (pure)
 func NewPPTXExtractor(limits Limits) *PPTXExtractor {
 	return &PPTXExtractor{limits: limits}
 }
 
 // Name returns the extractor name as registered with the registry.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: return the extractor's registry name "pptx" (pure)
 func (e *PPTXExtractor) Name() string { return "pptx" }
 
 // CanHandle returns true iff contentType is the PPTX OOXML MIME type.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: report whether the content type is the PPTX OOXML MIME type (pure)
 func (e *PPTXExtractor) CanHandle(contentType string) bool {
 	return strings.EqualFold(contentType, pptxContentType)
 }
 
 // Bounded marks PPTXExtractor as needing a wall-clock deadline.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: report that this extractor requires a wall-clock deadline (pure)
 func (e *PPTXExtractor) Bounded() bool { return true }
 
 // Extract parses a PPTX archive and produces Markdown-flavored text. This
@@ -49,6 +54,7 @@ func (e *PPTXExtractor) Bounded() bool { return true }
 // background context (no cooperative cancellation).
 //
 // On non-nil error, the returned ExtractedContent is zero and must be discarded.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse a PPTX archive and return Markdown text using a background context (pure)
 func (e *PPTXExtractor) Extract(data []byte, contentType string) (ExtractedContent, error) {
 	return e.ExtractCtx(context.Background(), data, contentType)
 }
@@ -60,6 +66,7 @@ func (e *PPTXExtractor) Extract(data []byte, contentType string) (ExtractedConte
 // wired into the archive so all member-level reads abort on cancellation.
 //
 // On non-nil error, the returned ExtractedContent is zero and must be discarded.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse a PPTX archive into Markdown with slide headings, speaker notes, and cancellation support (pure)
 func (e *PPTXExtractor) ExtractCtx(ctx context.Context, data []byte, contentType string) (ExtractedContent, error) {
 	opener := newOOXMLOpener(e.limits)
 	arch, err := opener.open(data)
@@ -118,6 +125,7 @@ func (e *PPTXExtractor) ExtractCtx(ctx context.Context, data []byte, contentType
 // pptxResolveSlideOrder reads ppt/presentation.xml for the sldIdLst order
 // and ppt/_rels/presentation.xml.rels for r:id -> path mapping. Returns
 // slide paths in document order, prefixed with "ppt/".
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: resolve slide paths in document order by combining presentation.xml ordering with rels mapping (pure)
 func pptxResolveSlideOrder(arch *ooxmlArchive, limits Limits) ([]string, error) {
 	ridOrder, err := pptxReadSlideOrder(arch, limits)
 	if err != nil {
@@ -141,6 +149,7 @@ func pptxResolveSlideOrder(arch *ooxmlArchive, limits Limits) ([]string, error) 
 
 // pptxReadSlideOrder walks ppt/presentation.xml and returns the ordered list
 // of r:id values from <p:sldIdLst><p:sldId/></p:sldIdLst>.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse presentation.xml and return the ordered list of slide relationship IDs (pure)
 func pptxReadSlideOrder(arch *ooxmlArchive, limits Limits) ([]string, error) {
 	rc, err := arch.openMember("ppt/presentation.xml")
 	if err != nil {
@@ -175,6 +184,7 @@ func pptxReadSlideOrder(arch *ooxmlArchive, limits Limits) ([]string, error) {
 
 // pptxReadPresentationRels reads ppt/_rels/presentation.xml.rels and returns
 // a map of relationship Id -> Target for slide relationships.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse presentation.xml.rels and return a map of relationship ID to slide target path (pure)
 func pptxReadPresentationRels(arch *ooxmlArchive, limits Limits) (map[string]string, error) {
 	rc, err := arch.openMember("ppt/_rels/presentation.xml.rels")
 	if err != nil {
@@ -223,12 +233,14 @@ func pptxReadPresentationRels(arch *ooxmlArchive, limits Limits) (map[string]str
 }
 
 // pptxShape carries one shape's role and accumulated text for a single slide.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: per-shape accumulator holding placeholder role and extracted text for one slide shape (pure)
 type pptxShape struct {
 	role string
 	text string
 }
 
 // pptxSlideRender accumulates per-slide rendering state.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: per-slide render state accumulating shapes, title, hidden flag, and tables (pure)
 type pptxSlideRender struct {
 	shapes []pptxShape
 	title  string
@@ -242,6 +254,7 @@ type pptxSlideRender struct {
 // is false and the slide will be emitted, a "\n\n" separator is written
 // before the slide heading so hidden slides do not leave phantom blank
 // lines between surrounding visible slides.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse and write one slide's Markdown including shapes, tables, and speaker notes; skip if hidden (pure)
 func pptxRenderSlide(arch *ooxmlArchive, slidePath string, slideNum int, mb *markdownBuilder, limits Limits, first bool) (bool, string, error) {
 	slide, err := pptxParseSlide(arch, slidePath, limits)
 	if err != nil {
@@ -299,6 +312,7 @@ func pptxRenderSlide(arch *ooxmlArchive, slidePath string, slideNum int, mb *mar
 // when a notesSlide relationship exists, parses the notes part to extract
 // speaker-note body text. Missing rels or missing notes part returns ""
 // silently — speaker notes are optional.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: resolve the notes-slide relationship for a slide and parse its body text, returning empty string if absent (pure)
 func pptxLoadSpeakerNotes(arch *ooxmlArchive, slidePath string, limits Limits) (string, error) {
 	relsPath := pptxSlideRelsPath(slidePath)
 	if relsPath == "" {
@@ -355,6 +369,7 @@ func pptxLoadSpeakerNotes(arch *ooxmlArchive, slidePath string, limits Limits) (
 
 // pptxSlideRelsPath returns the per-slide .rels path for a slide member
 // path. e.g., "ppt/slides/slide1.xml" -> "ppt/slides/_rels/slide1.xml.rels".
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: compute the per-slide .rels file path from a slide member path (pure)
 func pptxSlideRelsPath(slidePath string) string {
 	idx := strings.LastIndex(slidePath, "/")
 	if idx < 0 {
@@ -369,6 +384,7 @@ func pptxSlideRelsPath(slidePath string) string {
 // _rels directory. The rels file lives at <dir>/_rels/<base>.rels, so a
 // target such as "../notesSlides/notesSlide1.xml" resolves relative to
 // <dir>. We walk the path components, applying ".." pops, and rejoin.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: resolve a rels Target path relative to the source slide's directory, collapsing ".." segments (pure)
 func pptxResolveRelTarget(sourcePath, target string) string {
 	idx := strings.LastIndex(sourcePath, "/")
 	if idx < 0 {
@@ -401,6 +417,7 @@ func pptxResolveRelTarget(sourcePath, target string) string {
 // pptxParseNotesText opens a notesSlide part and concatenates body-shape
 // text, skipping slide-number placeholders. Paragraphs within the same
 // shape are joined with spaces; multiple shapes are joined with spaces.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse a notesSlide part and return concatenated body text, skipping slide-number placeholders (pure)
 func pptxParseNotesText(arch *ooxmlArchive, path string, limits Limits) (string, error) {
 	rc, err := arch.openMember(path)
 	if err != nil {
@@ -476,6 +493,7 @@ func pptxParseNotesText(arch *ooxmlArchive, path string, limits Limits) (string,
 
 // pptxParseSlide streams a slide XML part into pptxSlideRender. It captures
 // shape roles + text and table rows/cells.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: stream-parse a slide XML part into a pptxSlideRender capturing shapes and tables (pure)
 func pptxParseSlide(arch *ooxmlArchive, slidePath string, limits Limits) (*pptxSlideRender, error) {
 	rc, err := arch.openMember(slidePath)
 	if err != nil {
@@ -505,6 +523,7 @@ func pptxParseSlide(arch *ooxmlArchive, slidePath string, limits Limits) (*pptxS
 }
 
 // pptxSlideCtx carries the streaming-pass state for parsing one slide.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: streaming parse state for one slide, tracking shape and table accumulation (pure)
 type pptxSlideCtx struct {
 	slide *pptxSlideRender
 	dec   *boundedXMLDecoder
@@ -521,12 +540,14 @@ type pptxSlideCtx struct {
 }
 
 // pptxTableState accumulates rows/cells for an a:tbl in progress.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: accumulator for an in-progress table's rows and current row during slide parsing (pure)
 type pptxTableState struct {
 	rows   [][]string
 	curRow []string
 }
 
 // handleStart dispatches the relevant start elements for slide parsing.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: dispatch XML start elements to presentation or drawing namespace handlers (pure)
 func (c *pptxSlideCtx) handleStart(t xml.StartElement) error {
 	switch t.Name.Space {
 	case pptNS:
@@ -539,6 +560,7 @@ func (c *pptxSlideCtx) handleStart(t xml.StartElement) error {
 
 // handlePresentationStart handles p:* element starts: sld (hidden flag),
 // sp (shape boundary), ph (placeholder role).
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: handle p:* start elements to track hidden flag, shape boundaries, and placeholder roles (pure)
 func (c *pptxSlideCtx) handlePresentationStart(t xml.StartElement) {
 	switch t.Name.Local {
 	case "sld":
@@ -565,6 +587,7 @@ func (c *pptxSlideCtx) handlePresentationStart(t xml.StartElement) {
 
 // handleDrawingStart handles a:* element starts: tbl/tr/tc (table state),
 // p (paragraph break inside text body), t (text run).
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: handle a:* start elements for table state, paragraph breaks, and text runs (pure)
 func (c *pptxSlideCtx) handleDrawingStart(t xml.StartElement) error {
 	switch t.Name.Local {
 	case xmlLocalTbl:
@@ -588,6 +611,7 @@ func (c *pptxSlideCtx) handleDrawingStart(t xml.StartElement) error {
 
 // handleParaStart inserts a space separator inside the current text buffer
 // when a new a:p starts after a previous paragraph emitted text.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: insert a space separator in the active text buffer when a new paragraph begins (pure)
 func (c *pptxSlideCtx) handleParaStart() {
 	switch {
 	case c.inTblCell:
@@ -603,6 +627,7 @@ func (c *pptxSlideCtx) handleParaStart() {
 
 // handleTextRun decodes an a:t element and appends its text to the active
 // buffer (table cell or shape).
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: decode an a:t text run and append it to the active table cell or shape buffer (pure)
 func (c *pptxSlideCtx) handleTextRun(t xml.StartElement) error {
 	var s string
 	if err := c.dec.DecodeElement(&s, &t); err != nil {
@@ -618,6 +643,7 @@ func (c *pptxSlideCtx) handleTextRun(t xml.StartElement) error {
 }
 
 // handleEnd dispatches end-element events for slide parsing.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: finalize shapes and table rows/cells on their respective XML end elements (pure)
 func (c *pptxSlideCtx) handleEnd(t xml.EndElement) {
 	switch {
 	case t.Name.Space == pptNS && t.Name.Local == "sp":
@@ -660,6 +686,7 @@ func (c *pptxSlideCtx) handleEnd(t xml.EndElement) {
 // pptxEmitTable writes a markdown table for the given rows, prefixed with
 // a "\n\n" separator and a "<!-- shape: table -->" comment. Delegates the
 // actual table rendering to the shared renderMarkdownTable helper.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: write a Markdown table with separator prefix to the markdown builder (pure)
 func pptxEmitTable(mb *markdownBuilder, rows [][]string) error {
 	if len(rows) == 0 {
 		return nil

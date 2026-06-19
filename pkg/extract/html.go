@@ -8,21 +8,26 @@ import (
 
 // HTMLExtractor extracts visible text from HTML content,
 // stripping script and style elements.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: extracts visible text from HTML content, excluding script and style elements (pure)
 type HTMLExtractor struct{}
 
 // NewHTMLExtractor creates a new HTMLExtractor.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: build a new HTMLExtractor (pure)
 func NewHTMLExtractor() *HTMLExtractor { return &HTMLExtractor{} }
 
 // Name returns the extractor name.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: return the extractor's identifying name (pure)
 func (e *HTMLExtractor) Name() string { return "html" }
 
 // CanHandle returns true for text/html content types.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: report whether the content type is text/html (pure)
 func (e *HTMLExtractor) CanHandle(contentType string) bool {
 	return strings.Contains(strings.ToLower(contentType), "text/html")
 }
 
 // Extract strips HTML tags and returns the visible text.
 // Script and style element content is excluded.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse HTML bytes and return visible text as extracted content (pure)
 func (e *HTMLExtractor) Extract(data []byte, contentType string) (ExtractedContent, error) {
 	text := extractTextFromHTML(string(data))
 	return ExtractedContent{
@@ -35,6 +40,7 @@ func (e *HTMLExtractor) Extract(data []byte, contentType string) (ExtractedConte
 // skipping content inside <script> and <style> elements.
 // Self-contained copy for pkg/extract; the monolith keeps its own copy in
 // api/timmy_content_provider_http.go for the HTTP provider's use.
+// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: parse an HTML document and concatenate visible text, skipping script and style subtrees (pure)
 func extractTextFromHTML(htmlContent string) string {
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {

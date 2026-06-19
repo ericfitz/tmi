@@ -5,11 +5,13 @@ import (
 )
 
 // FieldErrorRegistry provides contextual error messages for prohibited fields
+// SEM@63189587a90229342bc1d25023ec7a515412fb4f: registry mapping prohibited field names to contextual error messages (pure)
 type FieldErrorRegistry struct {
 	messages map[string]string
 }
 
 // GetFieldErrorMessage returns a contextual error message for a prohibited field
+// SEM@63189587a90229342bc1d25023ec7a515412fb4f: fetch the most-specific error message for a prohibited field and HTTP operation (pure)
 func (r *FieldErrorRegistry) GetMessage(field, operation string) string {
 	// Try operation-specific message first (convert operation to lowercase)
 	operationKey := strings.ToLower(operation)
@@ -50,6 +52,7 @@ var fieldErrorRegistry = &FieldErrorRegistry{
 }
 
 // GetFieldErrorMessage is the global function to get error messages
+// SEM@63189587a90229342bc1d25023ec7a515412fb4f: fetch the contextual error message for a prohibited field from the global registry (pure)
 func GetFieldErrorMessage(field, operation string) string {
 	return fieldErrorRegistry.GetMessage(field, operation)
 }
@@ -471,6 +474,7 @@ var ValidationConfigs = map[string]ValidationConfig{
 }
 
 // GetValidationConfig returns the validation config for an endpoint
+// SEM@63189587a90229342bc1d25023ec7a515412fb4f: fetch the validation config for a named API endpoint (pure)
 func GetValidationConfig(endpoint string) (ValidationConfig, bool) {
 	config, exists := ValidationConfigs[endpoint]
 	return config, exists

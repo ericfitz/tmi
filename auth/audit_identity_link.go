@@ -15,6 +15,7 @@ import (
 // IdentityLinkAuditor wraps a SystemAuditWriter with the field shapes specific
 // to identity-link events. Fail-open: write failures are logged but do not
 // propagate.
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: fail-open auditor that records identity link and unlink events to the system audit log
 type IdentityLinkAuditor struct {
 	writer SystemAuditWriter
 }
@@ -22,6 +23,7 @@ type IdentityLinkAuditor struct {
 // NewIdentityLinkAuditor returns an auditor. writer may be nil (in which case
 // audit calls are no-ops with a debug log; matches the existing fail-open
 // posture).
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: build an IdentityLinkAuditor wrapping the given system audit writer (pure)
 func NewIdentityLinkAuditor(writer SystemAuditWriter) *IdentityLinkAuditor {
 	return &IdentityLinkAuditor{writer: writer}
 }
@@ -29,6 +31,7 @@ func NewIdentityLinkAuditor(writer SystemAuditWriter) *IdentityLinkAuditor {
 // IdentityLinkActor identifies the user performing a link operation. All four
 // identity fields are denormalized into the audit row (matches SystemAuditEntry
 // pattern; rows survive user deletion).
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: denormalized user identity fields for an identity-link audit record (pure)
 type IdentityLinkActor struct {
 	Email          string
 	Provider       string
@@ -39,6 +42,7 @@ type IdentityLinkActor struct {
 
 // LogComplete records a successful identity-link completion. Both sides'
 // (provider, sub) are redacted in the audit payload.
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: record a successful identity link audit event with redacted provider subject IDs
 func (a *IdentityLinkAuditor) LogComplete(
 	ctx context.Context,
 	actor IdentityLinkActor,
@@ -57,6 +61,7 @@ func (a *IdentityLinkAuditor) LogComplete(
 // LogFailed records an identity-link attempt that failed (e.g. upstream error,
 // code-exchange failure). reason is a short stable code. extras are inlined
 // into the payload.
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: record a failed identity-link attempt audit event with reason code
 func (a *IdentityLinkAuditor) LogFailed(
 	ctx context.Context,
 	actor IdentityLinkActor,
@@ -73,6 +78,7 @@ func (a *IdentityLinkAuditor) LogFailed(
 
 // LogRejected records an identity-link attempt that was rejected before any
 // upstream round-trip (e.g. service-account caller, already-bound identity).
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: record a pre-flight-rejected identity-link attempt audit event with reason code
 func (a *IdentityLinkAuditor) LogRejected(
 	ctx context.Context,
 	actor IdentityLinkActor,
@@ -89,6 +95,7 @@ func (a *IdentityLinkAuditor) LogRejected(
 
 // LogUnlink records the removal of a linked identity. Both sides' (provider,
 // sub) are redacted in the audit payload.
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: record an identity unlink audit event with redacted provider subject IDs
 func (a *IdentityLinkAuditor) LogUnlink(
 	ctx context.Context,
 	actor IdentityLinkActor,
@@ -104,6 +111,7 @@ func (a *IdentityLinkAuditor) LogUnlink(
 	return a.write(ctx, actor, "auth.identity_unlink", payload, summary)
 }
 
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: serialize and store an identity-link audit record via the system audit writer (writes DB)
 func (a *IdentityLinkAuditor) write(
 	ctx context.Context,
 	actor IdentityLinkActor,
@@ -145,6 +153,7 @@ func (a *IdentityLinkAuditor) write(
 // redactSub mirrors the Tier-2 redaction shape from redactStepUpAttemptedEmail
 // but is named for generic subject values (provider_user_id, sub) rather than
 // emails. Uses the same SHA-256 prefix pattern.
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: redact an OAuth provider subject value using the SHA-256 prefix pattern (pure)
 func redactSub(v string) string {
 	return redactStepUpAttemptedEmail(v)
 }

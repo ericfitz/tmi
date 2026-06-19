@@ -14,6 +14,7 @@ import (
 // userResolver is the subset of *Service operations needed for tiered OAuth
 // user matching. Defined as an interface so findOrCreateUser can be unit-tested
 // with a fake without standing up a full Service+DB+Redis stack.
+// SEM@1eb7997add7b39214eac29d20050d7968745a98d: interface abstracting user-lookup and creation operations for OAuth user matching
 type userResolver interface {
 	GetUserByProviderID(ctx context.Context, provider, providerUserID string) (User, error)
 	GetUserByProviderAndEmail(ctx context.Context, provider, email string) (User, error)
@@ -39,6 +40,7 @@ var errCrossProviderConflict = errors.New("cross-provider email conflict")
 var errUnverifiedEmailMatch = errors.New("email not verified for sparse-record bind")
 
 // extractEmailWithFallback extracts email from userInfo/claims with fallback to synthetic email
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: extract an OAuth user's email from claims or synthesize one from the provider user ID (pure)
 func (h *Handlers) extractEmailWithFallback(c *gin.Context, providerID string, userInfo *UserInfo, claims *IDTokenClaims) (string, error) {
 	email := userInfo.Email
 	if email == "" && claims != nil {
@@ -74,6 +76,7 @@ func (h *Handlers) extractEmailWithFallback(c *gin.Context, providerID string, u
 }
 
 // userMatchType indicates how a user was matched during login
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: enumeration of OAuth user-matching tiers from strongest to conflict (pure)
 type userMatchType int
 
 const (
@@ -88,6 +91,7 @@ const (
 // findOrCreateUser is a thin wrapper around findOrCreateUserWithResolver that
 // uses *Service as the resolver. The resolver indirection exists so the matching
 // logic can be unit-tested with a fake (see handlers_oauth_user_test.go).
+// SEM@e98ad4a0634283ac8da194a144a505c2b0bb1723: delegate tiered OAuth user matching to findOrCreateUserWithResolver using the live service (reads DB)
 func (h *Handlers) findOrCreateUser(ctx context.Context, c *gin.Context, providerID, providerUserID, email, name string, emailVerified bool) (User, userMatchType, error) {
 	return findOrCreateUserWithResolver(ctx, c, h.service, providerID, providerUserID, email, name, emailVerified)
 }
@@ -102,6 +106,7 @@ func (h *Handlers) findOrCreateUser(ctx context.Context, c *gin.Context, provide
 // Security (#290): tier 3 must reject cross-provider matches and unverified-email
 // matches. Returning the existing user in either case would let an attacker who
 // can prove `email=victim@x` via any provider take over the victim's account.
+// SEM@1eb7997add7b39214eac29d20050d7968745a98d: match or create a user via four-tier OAuth strategy, rejecting cross-provider and unverified binds (reads DB)
 func findOrCreateUserWithResolver(ctx context.Context, c *gin.Context, r userResolver, providerID, providerUserID, email, name string, emailVerified bool) (User, userMatchType, error) {
 	logger := slogging.Get().WithContext(c)
 
@@ -191,6 +196,7 @@ func findOrCreateUserWithResolver(ctx context.Context, c *gin.Context, r userRes
 }
 
 // updateUserOnLogin updates user fields based on match type and OAuth data
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: update user profile fields permitted by the match tier after a successful OAuth login (reads DB)
 func (h *Handlers) updateUserOnLogin(ctx context.Context, c *gin.Context, user *User, matchType userMatchType, providerID, providerUserID, email, name string, emailVerified bool) error {
 	logger := slogging.Get().WithContext(c)
 	updateNeeded := false

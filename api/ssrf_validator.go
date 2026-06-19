@@ -15,6 +15,7 @@ import (
 // URL schemes. When an allowlist is configured, only matching hosts are permitted
 // (and they bypass IP checks). When no allowlist is configured, all hosts are
 // permitted subject to SSRF IP checks.
+// SEM@9918d8cc280289af42fa2ce062596c87c994b704: SSRF-safe URI validator with configurable host allowlist and scheme restrictions (pure)
 type URIValidator struct {
 	exactHosts    map[string]bool // case-insensitive exact domain + single subdomain match
 	wildcardHosts []string        // suffix match for *.domain entries (stored without "*." prefix)
@@ -25,6 +26,7 @@ type URIValidator struct {
 // NewURIValidator creates a new URIValidator with the given allowlist and scheme configuration.
 // Allowlist entries may be exact hostnames ("mycompany.com") or wildcard entries ("*.mycompany.com").
 // Invalid entries are skipped with a warning log. If schemes is nil or empty, defaults to ["https"].
+// SEM@9918d8cc280289af42fa2ce062596c87c994b704: build a URIValidator from allowlist entries and permitted URL schemes (pure)
 func NewURIValidator(allowlist []string, schemes []string) *URIValidator {
 	v := &URIValidator{
 		exactHosts: make(map[string]bool),
@@ -79,6 +81,7 @@ func NewURIValidator(allowlist []string, schemes []string) *URIValidator {
 // For exact entries, matches the domain itself and any single subdomain.
 // For wildcard entries, matches the domain and any depth of subdomains.
 // Hostname comparison is case-insensitive. Port numbers must be stripped before calling.
+// SEM@16448c9907ad0841082fc251937632bfd96ab7da: check a hostname against exact and wildcard allowlist entries (pure)
 func (v *URIValidator) matchHost(hostname string) bool {
 	if !v.hasAllowlist {
 		return true
@@ -120,6 +123,7 @@ func (v *URIValidator) matchHost(hostname string) bool {
 //
 // When an allowlist is configured, the host must still match it. When no
 // allowlist is configured, any host with an allowed scheme is accepted.
+// SEM@f34985e914fe8d55039296cf4302878c88329818: validate a reference URI for scheme and allowlist without SSRF IP checks (pure)
 func (v *URIValidator) ValidateReference(rawURL string) error {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
@@ -148,6 +152,7 @@ func (v *URIValidator) ValidateReference(rawURL string) error {
 // Validate checks whether the given raw URL is safe to access.
 // It enforces scheme restrictions, allowlist matching, localhost blocking,
 // and SSRF protection against private/internal IP addresses.
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: validate a URL is safe to fetch, blocking private IPs and localhost (pure)
 func (v *URIValidator) Validate(rawURL string) error {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
@@ -213,6 +218,7 @@ func (v *URIValidator) Validate(rawURL string) error {
 // checkIP verifies an IP address is not in a blocked range (loopback, private,
 // link-local, or cloud metadata endpoint). It delegates to the shared
 // safehttp.CheckIP so api/ and auth/ enforce one SSRF blocklist.
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: reject an IP address in a blocked SSRF range via shared blocklist (pure)
 func (v *URIValidator) checkIP(ip net.IP) error {
 	return safehttp.CheckIP(ip)
 }

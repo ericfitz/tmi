@@ -18,10 +18,12 @@ import (
 )
 
 // TokenExtractor handles extracting JWT tokens from requests
+// SEM@4544fe064a8e91cf6d4c8a495f43f7f7830f6fe7: component that extracts a JWT or WebSocket ticket from an HTTP request (pure)
 type TokenExtractor struct{}
 
 // ExtractToken extracts the JWT token from the request.
 // Precedence: Bearer header > cookie. For WebSocket paths: ticket query param only.
+// SEM@834ed0d09c836060ae9619f32b156a5d710fd22e: extract a bearer token or WebSocket ticket from the request, preferring header over cookie (pure)
 func (t *TokenExtractor) ExtractToken(c *gin.Context) (string, error) {
 	logger := slogging.GetContextLogger(c)
 
@@ -63,11 +65,13 @@ func (t *TokenExtractor) ExtractToken(c *gin.Context) (string, error) {
 }
 
 // TokenValidator handles JWT token validation
+// SEM@41fea1c48a3526015f75a5e401ec4970c6c9dfcf: component that validates a JWT string against the key manager (pure)
 type TokenValidator struct {
 	authHandlers *auth.Handlers
 }
 
 // NewTokenValidator creates a new token validator
+// SEM@41fea1c48a3526015f75a5e401ec4970c6c9dfcf: build a TokenValidator wired to the auth handlers (pure)
 func NewTokenValidator(authHandlers *auth.Handlers) *TokenValidator {
 	return &TokenValidator{
 		authHandlers: authHandlers,
@@ -75,6 +79,7 @@ func NewTokenValidator(authHandlers *auth.Handlers) *TokenValidator {
 }
 
 // ValidateToken validates a JWT token and returns the parsed token
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: validate a JWT string via the key manager and return the parsed token (pure)
 func (v *TokenValidator) ValidateToken(c *gin.Context, tokenStr string) (*jwt.Token, error) {
 	logger := slogging.GetContextLogger(c)
 
@@ -95,11 +100,13 @@ func (v *TokenValidator) ValidateToken(c *gin.Context, tokenStr string) (*jwt.To
 }
 
 // TokenBlacklistChecker handles checking if a token is blacklisted
+// SEM@4544fe064a8e91cf6d4c8a495f43f7f7830f6fe7: component that checks whether a token has been revoked (reads DB)
 type TokenBlacklistChecker struct {
 	tokenBlacklist *auth.TokenBlacklist
 }
 
 // NewTokenBlacklistChecker creates a new blacklist checker
+// SEM@4544fe064a8e91cf6d4c8a495f43f7f7830f6fe7: build a TokenBlacklistChecker wired to the token blacklist store (pure)
 func NewTokenBlacklistChecker(tokenBlacklist *auth.TokenBlacklist) *TokenBlacklistChecker {
 	return &TokenBlacklistChecker{
 		tokenBlacklist: tokenBlacklist,
@@ -107,6 +114,7 @@ func NewTokenBlacklistChecker(tokenBlacklist *auth.TokenBlacklist) *TokenBlackli
 }
 
 // CheckBlacklist checks if a token is blacklisted
+// SEM@4544fe064a8e91cf6d4c8a495f43f7f7830f6fe7: verify a token string is not on the revocation blacklist; return error if revoked (reads DB)
 func (b *TokenBlacklistChecker) CheckBlacklist(ctx context.Context, tokenStr string) error {
 	if b.tokenBlacklist == nil {
 		return nil
@@ -125,12 +133,14 @@ func (b *TokenBlacklistChecker) CheckBlacklist(ctx context.Context, tokenStr str
 }
 
 // ClaimsExtractor handles extracting and setting claims in the context
+// SEM@4544fe064a8e91cf6d4c8a495f43f7f7830f6fe7: component that reads JWT claims and populates the Gin request context (mutates shared state)
 type ClaimsExtractor struct {
 	authHandlers *auth.Handlers
 	config       *config.Config
 }
 
 // NewClaimsExtractor creates a new claims extractor
+// SEM@4544fe064a8e91cf6d4c8a495f43f7f7830f6fe7: build a ClaimsExtractor wired to auth handlers and config (pure)
 func NewClaimsExtractor(authHandlers *auth.Handlers, cfg *config.Config) *ClaimsExtractor {
 	return &ClaimsExtractor{
 		authHandlers: authHandlers,
@@ -139,6 +149,7 @@ func NewClaimsExtractor(authHandlers *auth.Handlers, cfg *config.Config) *Claims
 }
 
 // ExtractAndSetClaims extracts claims from a valid token and sets them in the context
+// SEM@cd03830752a2340795cda20675039d295961c9a6: parse JWT claims and set user identity fields in the Gin context (mutates shared state)
 func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) error {
 	logger := slogging.GetContextLogger(c)
 
@@ -285,6 +296,7 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 }
 
 // fetchAndSetUserObject fetches the full user object and sets it in context
+// SEM@d510ee7a8017fc630e79a21b9480e4f975482b47: fetch the full user record from DB by provider identity and set it in context (reads DB)
 func (e *ClaimsExtractor) fetchAndSetUserObject(c *gin.Context) error {
 	if e.authHandlers == nil {
 		return fmt.Errorf("auth handlers not available")
@@ -341,12 +353,14 @@ func (e *ClaimsExtractor) fetchAndSetUserObject(c *gin.Context) error {
 }
 
 // TicketValidator handles WebSocket ticket validation
+// SEM@834ed0d09c836060ae9619f32b156a5d710fd22e: component that validates short-lived WebSocket tickets and populates user context (reads DB)
 type TicketValidator struct {
 	ticketStore  api.TicketStore
 	authHandlers *auth.Handlers
 }
 
 // NewTicketValidator creates a new ticket validator
+// SEM@834ed0d09c836060ae9619f32b156a5d710fd22e: build a TicketValidator wired to the ticket store and auth handlers (pure)
 func NewTicketValidator(ticketStore api.TicketStore, authHandlers *auth.Handlers) *TicketValidator {
 	return &TicketValidator{
 		ticketStore:  ticketStore,
@@ -355,6 +369,7 @@ func NewTicketValidator(ticketStore api.TicketStore, authHandlers *auth.Handlers
 }
 
 // ValidateTicket validates a WebSocket ticket and populates user context.
+// SEM@cd03830752a2340795cda20675039d295961c9a6: validate a WebSocket ticket, cross-check session ID, and set user context (reads DB)
 func (v *TicketValidator) ValidateTicket(c *gin.Context, ticketStr string) error {
 	logger := slogging.GetContextLogger(c)
 
@@ -406,6 +421,7 @@ func (v *TicketValidator) ValidateTicket(c *gin.Context, ticketStr string) error
 }
 
 // JWTAuthenticator orchestrates the JWT authentication process
+// SEM@834ed0d09c836060ae9619f32b156a5d710fd22e: orchestrator that coordinates token extraction, validation, blacklist check, and claims population (mutates shared state)
 type JWTAuthenticator struct {
 	config           *config.Config
 	tokenExtractor   *TokenExtractor
@@ -416,6 +432,7 @@ type JWTAuthenticator struct {
 }
 
 // NewJWTAuthenticator creates a new JWT authenticator
+// SEM@834ed0d09c836060ae9619f32b156a5d710fd22e: build a JWTAuthenticator wiring all sub-components together (pure)
 func NewJWTAuthenticator(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, authHandlers *auth.Handlers, ticketValidator *TicketValidator) *JWTAuthenticator {
 	return &JWTAuthenticator{
 		config:           cfg,
@@ -428,6 +445,7 @@ func NewJWTAuthenticator(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist
 }
 
 // AuthenticateRequest performs the complete JWT authentication process
+// SEM@834ed0d09c836060ae9619f32b156a5d710fd22e: authenticate a request end-to-end: extract, validate, blacklist-check, set claims, and auto-promote user (reads DB)
 func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 	logger := slogging.GetContextLogger(c)
 
@@ -522,6 +540,7 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 
 // autoPromoteFirstUser checks if any administrators exist and promotes the current user if none exist.
 // Adds the user to the Administrators and Security Reviewers built-in groups.
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: add the authenticated user to Administrators and Security Reviewers groups when no admins exist (reads DB)
 func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.SimpleLogger) error {
 	// Only check if GlobalGroupMemberRepository is initialized
 	if api.GlobalGroupMemberRepository == nil {
@@ -586,6 +605,7 @@ func (a *JWTAuthenticator) autoPromoteFirstUser(c *gin.Context, logger slogging.
 
 // autoPromoteUserToReviewer adds the current user to the Security Reviewers group
 // if they are not already a member. This implements the everyone_is_a_reviewer config.
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: add the authenticated user to the Security Reviewers group if not already a member (reads DB)
 func (a *JWTAuthenticator) autoPromoteUserToReviewer(c *gin.Context, logger slogging.SimpleLogger) error {
 	if api.GlobalGroupMemberRepository == nil {
 		return fmt.Errorf("GlobalGroupMemberRepository not initialized")
@@ -631,6 +651,7 @@ func (a *JWTAuthenticator) autoPromoteUserToReviewer(c *gin.Context, logger slog
 // (the representation used by the JWT library when parsing into MapClaims).
 // Always returning *time.Time (never untyped nil) lets callers distinguish
 // "claim absent" from "key missing on context" via a single type assertion.
+// SEM@cd03830752a2340795cda20675039d295961c9a6: parse the auth_time claim from JWT MapClaims and return a typed *time.Time (pure)
 func extractAuthTime(claims jwt.MapClaims) *time.Time {
 	if v, ok := claims["auth_time"].(float64); ok {
 		t := time.Unix(int64(v), 0).UTC()
@@ -640,6 +661,7 @@ func extractAuthTime(claims jwt.MapClaims) *time.Time {
 }
 
 // AuthError represents an authentication error
+// SEM@4544fe064a8e91cf6d4c8a495f43f7f7830f6fe7: structured auth error carrying an OAuth error code and HTTP status code (pure)
 type AuthError struct {
 	Code        string
 	Description string
@@ -647,14 +669,17 @@ type AuthError struct {
 }
 
 // Error implements the error interface
+// SEM@4544fe064a8e91cf6d4c8a495f43f7f7830f6fe7: format the auth error as a human-readable string (pure)
 func (e *AuthError) Error() string {
 	return fmt.Sprintf("auth error: %s - %s", e.Code, e.Description)
 }
 
 // PublicPathChecker handles checking if a path is public
+// SEM@4544fe064a8e91cf6d4c8a495f43f7f7830f6fe7: component that determines if a request path is unauthenticated-accessible (pure)
 type PublicPathChecker struct{}
 
 // IsPublicPath checks if the current request is for a public path
+// SEM@cd03830752a2340795cda20675039d295961c9a6: check context flag to determine if the request path is public; set anonymous user if so (mutates shared state)
 func (p *PublicPathChecker) IsPublicPath(c *gin.Context) bool {
 	logger := slogging.GetContextLogger(c)
 

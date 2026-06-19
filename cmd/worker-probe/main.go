@@ -38,12 +38,14 @@ import (
 
 // jobEnvelope is the subset of the #347 job envelope the probe needs: the
 // stamped config block. #347 owns the full schema.
+// SEM@7af169a39c0d9b658b5d5b8cc6f1425a0eca358e: carrier for a worker job's ID and stamped embedding config (pure)
 type jobEnvelope struct {
 	JobID  string               `json:"job_id"`
 	Config config.StampedConfig `json:"config"`
 }
 
 // probeResult is what the probe echoes back, proving each contract leg.
+// SEM@7af169a39c0d9b658b5d5b8cc6f1425a0eca358e: result struct echoing bootstrap, config, and secret contract outcomes for a probe job (pure)
 type probeResult struct {
 	JobID             string `json:"job_id"`
 	BootstrapOK       bool   `json:"bootstrap_ok"`
@@ -65,6 +67,7 @@ const embedStubAddr = ":8443"
 // vector verbatim — but a realistic length keeps the canned response sane.
 const embedStubVectorLen = 1536
 
+// SEM@c96b2f1a4f2875aa62728488157edf756d9d4578: dispatch the worker-probe as an embed stub or a NATS probe run
 func main() {
 	embedStub := flag.Bool("embed-stub", false,
 		"run as an in-cluster stub OpenAI-compatible embedding server on "+embedStubAddr+" (e2e fixture)")
@@ -87,6 +90,7 @@ func main() {
 // runEmbedStub serves a canned OpenAI-shaped /v1/embeddings response forever so
 // an in-cluster chunk-embed worker (egress: allowlist) can reach a real
 // embedding endpoint in the e2e tier. It is a test fixture, not production code.
+// SEM@da3b3c52d378ce3b2e2eb2010bada47c51dbd37f: serve a canned OpenAI-compatible embedding response for in-cluster e2e fixture use
 func runEmbedStub() error {
 	logger := slogging.Get()
 
@@ -145,6 +149,7 @@ func runEmbedStub() error {
 
 // run is the real entry point. Separating it from main allows defers to
 // execute before os.Exit is called by main.
+// SEM@0aba7f3799aed0f98991b3f45a64df18fbb029bd: bootstrap, connect to NATS, receive one probe job, and publish the probe result
 func run() error {
 	logger := slogging.Get()
 

@@ -7,6 +7,7 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
+// SEM@8745e8dc70d45d797efdea06bea563dc07b57029: enumeration of OIDC compliance levels for an OAuth provider
 type ProviderClassification int
 
 const (
@@ -28,6 +29,7 @@ const (
 	ClassificationOIDCCompliant
 )
 
+// SEM@8745e8dc70d45d797efdea06bea563dc07b57029: convert a ProviderClassification to its human-readable name (pure)
 func (c ProviderClassification) String() string {
 	switch c {
 	case ClassificationOIDCCompliant:
@@ -40,6 +42,7 @@ func (c ProviderClassification) String() string {
 	return "Unknown"
 }
 
+// SEM@8745e8dc70d45d797efdea06bea563dc07b57029: pairing of an OAuth provider ID with its OIDC classification and discovery document
 type ClassifiedProvider struct {
 	ProviderID     string
 	Classification ProviderClassification
@@ -50,6 +53,7 @@ type ClassifiedProvider struct {
 // configured userinfo URL. Compares the *primary* userinfo endpoint only
 // (cfg.UserInfo[0]); secondary/additional endpoints are operator extensions
 // and never affect classification.
+// SEM@ca3b728abe3e870c10f19a9fcbf6502559196aa0: probe OIDC discovery for a provider and classify its userinfo compliance level
 func ClassifyProvider(ctx context.Context, client *DiscoveryClient, providerID string, cfg OAuthProviderConfig) ClassifiedProvider {
 	out := ClassifiedProvider{ProviderID: providerID, Classification: ClassificationNonOIDC}
 
@@ -88,6 +92,7 @@ func ClassifyProvider(ctx context.Context, client *DiscoveryClient, providerID s
 // ValidateClassifiedProvider returns a slice of error messages describing
 // reasons the provider config is not safe to enable. An empty slice means
 // the provider is OK.
+// SEM@6348e71f577bd1e4c952467c7bb6ffd800ab73c1: validate a classified provider has required subject_claim config or OIDC compliance (pure)
 func ValidateClassifiedProvider(p ClassifiedProvider, cfg OAuthProviderConfig) []string {
 	if p.Classification == ClassificationOIDCCompliant {
 		return nil
@@ -135,6 +140,7 @@ func ValidateClassifiedProvider(p ClassifiedProvider, cfg OAuthProviderConfig) [
 // the provider's canonical metadata — token signature validation could break
 // if the upstream rotates keys at the canonical URL only. Both are
 // recoverable; we surface them so operators can fix drift before it bites.
+// SEM@ca3b728abe3e870c10f19a9fcbf6502559196aa0: compare discovery document to configured issuer and JWKS URL, returning drift warnings (pure)
 func detectDiscoveryDocDrift(providerID string, cfg OAuthProviderConfig, doc *OIDCDiscoveryDoc) []string {
 	var warns []string
 	if doc == nil {
@@ -157,6 +163,7 @@ func detectDiscoveryDocDrift(providerID string, cfg OAuthProviderConfig, doc *OI
 	return warns
 }
 
+// SEM@738c6e7d8684a6ee559680385fd967bd93314972: convert a provider ID to its uppercase env-var key segment (pure)
 func providerIDToEnvKey(id string) string {
 	out := make([]byte, len(id))
 	for i := 0; i < len(id); i++ {
@@ -177,6 +184,7 @@ func providerIDToEnvKey(id string) string {
 // provider. Returns a slice of human-readable error messages; an empty slice
 // means all enabled providers are safe to start. Disabled providers are
 // skipped.
+// SEM@590a86b0b387cc4227809d93d3f4f0942a8bf915: classify and validate every enabled OAuth provider, returning all config errors
 func ValidateAllOAuthProviders(ctx context.Context, client *DiscoveryClient, providers map[string]OAuthProviderConfig) []string {
 	var errs []string
 	for id, cfg := range providers {

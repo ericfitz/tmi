@@ -9,6 +9,7 @@ import (
 )
 
 // UserInfo represents user information extracted from SAML assertion
+// SEM@030aaa2923161b7c5dfe9639220a91dbf56f07a2: user identity fields extracted from a SAML assertion (pure)
 type UserInfo struct {
 	ID            string
 	IDType        string // Type of identifier: "subject-id", "pairwise-id", "nameid"
@@ -24,6 +25,7 @@ type UserInfo struct {
 }
 
 // buildAttributeMap extracts all attributes from the assertion into a map
+// SEM@9ac96b66b2dc5ce7f86c35a154930a7943750f92: index all SAML assertion attributes by name and FriendlyName into a flat map (pure)
 func buildAttributeMap(assertion *saml.Assertion) map[string][]string {
 	attributeMap := make(map[string][]string)
 	if len(assertion.AttributeStatements) == 0 {
@@ -48,6 +50,7 @@ func buildAttributeMap(assertion *saml.Assertion) map[string][]string {
 
 // extractUserID extracts user ID with hierarchical priority
 // Priority: 1. subject-id, 2. pairwise-id, 3. NameID
+// SEM@9ac96b66b2dc5ce7f86c35a154930a7943750f92: resolve the user's stable identifier from a SAML assertion with subject-id > pairwise-id > NameID priority (pure)
 func extractUserID(assertion *saml.Assertion, attributeMap map[string][]string) (string, string) {
 	// Check for subject-id attribute (persistent identifier)
 	if subjectID := getAttributeValue(attributeMap, "urn:oasis:names:tc:SAML:attribute:subject-id"); subjectID != "" {
@@ -74,6 +77,7 @@ func extractUserID(assertion *saml.Assertion, attributeMap map[string][]string) 
 }
 
 // mapAttribute extracts a single attribute value if configured
+// SEM@9ac96b66b2dc5ce7f86c35a154930a7943750f92: fetch a single attribute value using the operator-configured attribute mapping (pure)
 func mapAttribute(attributeMap map[string][]string, attributeMapping map[string]string, key string) string {
 	if attr, ok := attributeMapping[key]; ok {
 		if values, exists := attributeMap[attr]; exists && len(values) > 0 {
@@ -84,6 +88,7 @@ func mapAttribute(attributeMap map[string][]string, attributeMapping map[string]
 }
 
 // mapUserAttributes maps configured attributes to user info fields
+// SEM@9ac96b66b2dc5ce7f86c35a154930a7943750f92: populate user info fields from SAML attributes using the operator's attribute mapping config (pure)
 func mapUserAttributes(userInfo *UserInfo, attributeMap map[string][]string, config *SAMLConfig) {
 	if config.AttributeMapping == nil {
 		return
@@ -162,6 +167,7 @@ var wellKnownFamilyNameAttributes = []string{
 
 // firstWellKnownValue returns the first non-empty value found in
 // attributeMap for any of the candidate attribute names.
+// SEM@6c25e3ec7f7ed25ea5f9e345de5a65c91aec4567: return the first non-empty attribute value from a list of candidate attribute names (pure)
 func firstWellKnownValue(attributeMap map[string][]string, candidates []string) string {
 	for _, name := range candidates {
 		if v := getAttributeValue(attributeMap, name); v != "" {
@@ -176,6 +182,7 @@ func firstWellKnownValue(attributeMap map[string][]string, candidates []string) 
 // SAML attribute names and FriendlyNames. This is a defensive layer so that
 // a missing or misconfigured AttributeMapping does not silently produce
 // synthetic identifiers (see issue #303).
+// SEM@6c25e3ec7f7ed25ea5f9e345de5a65c91aec4567: fill missing user info fields using a curated list of well-known SAML attribute names (pure)
 func applyWellKnownFallbacks(userInfo *UserInfo, attributeMap map[string][]string) {
 	logger := slogging.Get()
 
@@ -210,6 +217,7 @@ func applyWellKnownFallbacks(userInfo *UserInfo, attributeMap map[string][]strin
 }
 
 // extractGroups attempts to extract groups using configured attribute name
+// SEM@9ac96b66b2dc5ce7f86c35a154930a7943750f92: populate user group membership from the configured SAML group attribute if not already set (pure)
 func extractGroups(userInfo *UserInfo, attributeMap map[string][]string, config *SAMLConfig) {
 	if len(userInfo.Groups) == 0 && config.GroupAttributeName != "" {
 		if values, exists := attributeMap[config.GroupAttributeName]; exists {
@@ -219,6 +227,7 @@ func extractGroups(userInfo *UserInfo, attributeMap map[string][]string, config 
 }
 
 // applyEmailFallback generates email if not present
+// SEM@9ac96b66b2dc5ce7f86c35a154930a7943750f92: derive or synthesize a user email from the identifier if email is absent (pure)
 func applyEmailFallback(userInfo *UserInfo, config *SAMLConfig) {
 	if userInfo.Email != "" || userInfo.ID == "" {
 		return
@@ -234,6 +243,7 @@ func applyEmailFallback(userInfo *UserInfo, config *SAMLConfig) {
 }
 
 // applyNameFallback generates name from email prefix if not present
+// SEM@9ac96b66b2dc5ce7f86c35a154930a7943750f92: derive a display name from the email local-part when no name is available (pure)
 func applyNameFallback(userInfo *UserInfo) {
 	if userInfo.Name == "" && userInfo.Email != "" {
 		parts := strings.Split(userInfo.Email, "@")
@@ -242,6 +252,7 @@ func applyNameFallback(userInfo *UserInfo) {
 }
 
 // ExtractUserInfo extracts user information and groups from SAML assertion
+// SEM@6c25e3ec7f7ed25ea5f9e345de5a65c91aec4567: parse a SAML assertion into a UserInfo struct applying all attribute mappings and fallbacks
 func ExtractUserInfo(assertion *saml.Assertion, config *SAMLConfig) (*UserInfo, error) {
 	if assertion == nil {
 		return nil, fmt.Errorf("assertion is nil")
@@ -295,6 +306,7 @@ func ExtractUserInfo(assertion *saml.Assertion, config *SAMLConfig) (*UserInfo, 
 }
 
 // filterGroups filters groups by optional prefix
+// SEM@0dcfe60d024e5cd95a40b61fc489253e670af6ce: filter a group list to those matching an optional prefix (pure)
 func filterGroups(groups []string, prefix string) []string {
 	if prefix == "" {
 		return groups
@@ -310,6 +322,7 @@ func filterGroups(groups []string, prefix string) []string {
 }
 
 // getAttributeValue safely retrieves an attribute value from the attribute map
+// SEM@030aaa2923161b7c5dfe9639220a91dbf56f07a2: fetch the first value for a named attribute from a flat attribute map (pure)
 func getAttributeValue(attributeMap map[string][]string, attributeName string) string {
 	if values, exists := attributeMap[attributeName]; exists && len(values) > 0 {
 		return values[0]
@@ -318,6 +331,7 @@ func getAttributeValue(attributeMap map[string][]string, attributeName string) s
 }
 
 // GetAttributeValue safely retrieves an attribute value from the assertion
+// SEM@0dcfe60d024e5cd95a40b61fc489253e670af6ce: fetch the first value for a named attribute from a SAML assertion (pure)
 func GetAttributeValue(assertion *saml.Assertion, attributeName string) string {
 	if assertion == nil || len(assertion.AttributeStatements) == 0 {
 		return ""
@@ -336,6 +350,7 @@ func GetAttributeValue(assertion *saml.Assertion, attributeName string) string {
 }
 
 // GetAttributeValues safely retrieves all values for an attribute from the assertion
+// SEM@0dcfe60d024e5cd95a40b61fc489253e670af6ce: fetch all values for a named attribute from a SAML assertion (pure)
 func GetAttributeValues(assertion *saml.Assertion, attributeName string) []string {
 	if assertion == nil || len(assertion.AttributeStatements) == 0 {
 		return nil

@@ -9,6 +9,7 @@ import (
 )
 
 // legacyImportOptions captures every flag that affects --import-legacy.
+// SEM@e7880ae29f527fb2d814f6d7b7c13280082fa033: options controlling legacy config import: paths, overwrite, dry-run, and backup flags (pure)
 type legacyImportOptions struct {
 	inputFile  string
 	outputFile string
@@ -38,6 +39,7 @@ type legacyImportOptions struct {
 //     source untouched (mutually exclusive with --no-rewrite,
 //     enforced by the caller).
 //   - --dry-run         do nothing destructive; print what would happen.
+// SEM@e7880ae29f527fb2d814f6d7b7c13280082fa033: import operational keys from a legacy config file into the DB and optionally rewrite the source file in place
 func runLegacyConfigImport(db *testdb.TestDB, opts legacyImportOptions) error {
 	log := slogging.Get()
 

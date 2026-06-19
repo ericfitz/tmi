@@ -10,8 +10,10 @@ import (
 // UnmarshalJSON implements custom unmarshaling for Node to support both
 // nested format (position/size objects) and flat format (x/y/width/height).
 // This allows the API to accept both AntV/X6 formats.
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: deserialize a Node from either flat or nested position/size JSON formats, validating minimum dimensions (pure)
 func (n *Node) UnmarshalJSON(data []byte) error {
 	// Use a temporary struct that can hold both formats
+	// SEM@49946733e8621ef3f7037468e2464eb2dd5fc0df: intermediate struct holding both flat and nested node coordinate fields during deserialization (pure)
 	type NodeTemp struct {
 		// Flat format fields (Format 2)
 		X      *float32 `json:"x"`
@@ -105,8 +107,10 @@ func (n *Node) UnmarshalJSON(data []byte) error {
 
 // MarshalJSON implements custom marshaling for Node to always output
 // flat format (x, y, width, height) as per AntV/X6 Format 2.
+// SEM@49946733e8621ef3f7037468e2464eb2dd5fc0df: serialize a Node to flat AntV/X6 format with top-level x/y/width/height fields (pure)
 func (n Node) MarshalJSON() ([]byte, error) {
 	// Create a temporary struct for flat format output
+	// SEM@49946733e8621ef3f7037468e2464eb2dd5fc0df: intermediate struct for serializing node geometry as flat coordinate fields (pure)
 	type NodeFlat struct {
 		Angle    *float32              `json:"angle,omitempty"`
 		Attrs    *NodeAttrs            `json:"attrs,omitempty"`

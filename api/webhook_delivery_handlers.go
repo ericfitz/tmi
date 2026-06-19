@@ -17,6 +17,7 @@ import (
 
 // WebhookDeliveryPayload represents the unified payload sent to webhook endpoints.
 // Used for all webhook deliveries (resource-change events and addon invocations).
+// SEM@ca61a567c4babc9270ee913396aaa4fb530505a3: unified webhook event payload sent to subscriber endpoints for all delivery types
 type WebhookDeliveryPayload struct {
 	EventType     string          `json:"event_type"`
 	ThreatModelID uuid.UUID       `json:"threat_model_id"`
@@ -27,6 +28,7 @@ type WebhookDeliveryPayload struct {
 }
 
 // WebhookDeliveryData contains addon-specific fields within the unified payload data.
+// SEM@ca61a567c4babc9270ee913396aaa4fb530505a3: addon-specific fields embedded within a webhook delivery payload
 type WebhookDeliveryData struct {
 	AddonID  *uuid.UUID       `json:"addon_id,omitempty"`
 	UserData *json.RawMessage `json:"user_data,omitempty"`
@@ -34,12 +36,14 @@ type WebhookDeliveryData struct {
 
 // VerifySignature verifies the HMAC signature of a request.
 // Delegates to the consolidated crypto package.
+// SEM@ca61a567c4babc9270ee913396aaa4fb530505a3: validate HMAC signature of a webhook payload against a shared secret (pure)
 func VerifySignature(payload []byte, signature string, secret string) bool {
 	return crypto.VerifyHMACSignature(payload, signature, secret)
 }
 
 // GetWebhookDeliveryStatus retrieves a webhook delivery record.
 // Supports dual auth: JWT (admin, subscription owner, or addon invoker) or HMAC (webhook receiver).
+// SEM@e64d904fcb8ba57e094190bac4395e83cec9abc1: fetch a webhook delivery record with dual HMAC or JWT authorization (reads DB)
 func GetWebhookDeliveryStatus(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -117,6 +121,7 @@ func GetWebhookDeliveryStatus(c *gin.Context) {
 }
 
 // UpdateWebhookDeliveryStatus updates the status of a webhook delivery (HMAC authenticated).
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: update a webhook delivery status via HMAC-authenticated callback, resetting timeouts on success (mutates shared state)
 func UpdateWebhookDeliveryStatus(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -334,6 +339,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 
 // mapCallbackStatus maps callback request status to internal delivery status.
 // The callback uses "completed" but internally we track "delivered".
+// SEM@ca61a567c4babc9270ee913396aaa4fb530505a3: convert callback request status enum to internal delivery status string (pure)
 func mapCallbackStatus(s UpdateWebhookDeliveryStatusRequestStatus) string {
 	switch s {
 	case UpdateWebhookDeliveryStatusRequestStatusCompleted:
@@ -348,6 +354,7 @@ func mapCallbackStatus(s UpdateWebhookDeliveryStatusRequestStatus) string {
 }
 
 // verifyDeliveryHMAC verifies HMAC signature for delivery access
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: authorize delivery access by verifying HMAC signature against subscription secret (reads DB)
 func verifyDeliveryHMAC(c *gin.Context, record *WebhookDeliveryRecord, signature string, deliveryIDStr string) error {
 	logger := slogging.Get().WithContext(c)
 
@@ -395,6 +402,7 @@ func verifyDeliveryHMAC(c *gin.Context, record *WebhookDeliveryRecord, signature
 
 // verifyDeliveryJWTAccess verifies JWT-based access to a delivery record.
 // Allows access for admins, subscription owners, or addon invokers.
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: authorize delivery access for admins, subscription owners, or addon invokers via JWT (reads DB)
 func verifyDeliveryJWTAccess(c *gin.Context, record *WebhookDeliveryRecord) error {
 	logger := slogging.Get().WithContext(c)
 
@@ -445,6 +453,7 @@ func verifyDeliveryJWTAccess(c *gin.Context, record *WebhookDeliveryRecord) erro
 // sanitizePinnedLastError removes URL substrings from LastError for operator-pinned subscriptions.
 // The pinned URL (if known) is replaced first, then any remaining https?://\S+ patterns are
 // replaced with "(operator-pinned)" so url.Error format strings cannot leak the address.
+// SEM@a870b93778753735e380098f91f8c25076bbb50a: redact destination URLs from operator-pinned delivery error strings (pure)
 func sanitizePinnedLastError(lastError, pinnedURL string) string {
 	result := lastError
 	if pinnedURL != "" {
@@ -459,6 +468,7 @@ func sanitizePinnedLastError(lastError, pinnedURL string) string {
 // deliveryRecordToWebhookDelivery converts a WebhookDeliveryRecord to the API response type.
 // sub is the owning subscription, used to redact the LastError field for operator-pinned
 // subscriptions. Pass nil to skip redaction (fail-open).
+// SEM@a870b93778753735e380098f91f8c25076bbb50a: convert a webhook delivery record to the API response DTO, sanitizing pinned URLs (pure)
 func deliveryRecordToWebhookDelivery(r *WebhookDeliveryRecord, sub *DBWebhookSubscription) WebhookDelivery {
 	delivery := WebhookDelivery{
 		Id:             r.ID,
@@ -508,6 +518,7 @@ func deliveryRecordToWebhookDelivery(r *WebhookDeliveryRecord, sub *DBWebhookSub
 }
 
 // intPtr converts an int to a pointer.
+// SEM@ca61a567c4babc9270ee913396aaa4fb530505a3: convert an int to a pointer, returning nil for zero (pure)
 func intPtr(i int) *int {
 	if i == 0 {
 		return nil

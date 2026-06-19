@@ -14,11 +14,13 @@ import (
 // TimmyConfigProvider assembles a live config.TimmyConfig from the settings
 // service. Reads honor config-first precedence (env/config file > database),
 // which SettingsServiceInterface.GetString/GetBool/GetInt already implement.
+// SEM@c7c567dc271187337d2712f95c4866c013093ecf: adapter that assembles a live TimmyConfig from the settings service with config-first precedence (pure)
 type TimmyConfigProvider struct {
 	settings SettingsServiceInterface
 }
 
 // NewTimmyConfigProvider constructs a provider over the given settings service.
+// SEM@c7c567dc271187337d2712f95c4866c013093ecf: build a TimmyConfigProvider over the given settings service (pure)
 func NewTimmyConfigProvider(settings SettingsServiceInterface) *TimmyConfigProvider {
 	return &TimmyConfigProvider{settings: settings}
 }
@@ -26,6 +28,7 @@ func NewTimmyConfigProvider(settings SettingsServiceInterface) *TimmyConfigProvi
 // Current reads all timmy.* keys and returns an assembled TimmyConfig. It
 // starts from DefaultTimmyConfig so unset numeric knobs keep sane defaults,
 // then overlays any value present in settings.
+// SEM@960dc5fa7f13423b7b5dd06ca76a9f2df67be632: fetch all timmy.* settings and return an assembled TimmyConfig with defaults for unset keys (reads DB)
 func (p *TimmyConfigProvider) Current(ctx context.Context) config.TimmyConfig {
 	cfg := config.DefaultTimmyConfig()
 	if p.settings == nil {
@@ -114,6 +117,7 @@ func (p *TimmyConfigProvider) Current(ctx context.Context) config.TimmyConfig {
 // NewTimmyLLMService bakes it into the SafeHTTPClient at construction;
 // OperatorSystemPrompt is INCLUDED because it is baked into the base prompt at
 // construction.
+// SEM@cf89687423b4b2d922619ea8e021c2f13cb32481: compute a stable hash over the config fields that require LLM client rebuild when changed (pure)
 func (p *TimmyConfigProvider) WiringHash(cfg config.TimmyConfig) string {
 	fields := []string{
 		cfg.LLMProvider, cfg.LLMModel, cfg.LLMAPIKey, cfg.LLMBaseURL,

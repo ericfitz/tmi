@@ -12,6 +12,7 @@ import (
 )
 
 // DeletionResult contains statistics about the user deletion operation
+// SEM@bd740ab90ce24a669adc1fa8b8153efbd33bac10: summary of transferred and deleted threat models produced by a user deletion (pure)
 type DeletionResult struct {
 	ThreatModelsTransferred int    `json:"threat_models_transferred"`
 	ThreatModelsDeleted     int    `json:"threat_models_deleted"`
@@ -19,12 +20,14 @@ type DeletionResult struct {
 }
 
 // DeletionChallenge contains challenge information for user deletion
+// SEM@bd740ab90ce24a669adc1fa8b8153efbd33bac10: confirmation challenge text and expiry issued to a user before self-deletion (pure)
 type DeletionChallenge struct {
 	ChallengeText string    `json:"challenge_text"`
 	ExpiresAt     time.Time `json:"expires_at"`
 }
 
 // GenerateDeletionChallenge creates a challenge token for user deletion
+// SEM@a37a0039279be689bb07be2113fe86024a410a4b: generate and store a one-time deletion confirmation challenge for the user (mutates shared state)
 func (s *Service) GenerateDeletionChallenge(ctx context.Context, userEmail string) (*DeletionChallenge, error) {
 	// Generate random challenge token
 	b := make([]byte, 32)
@@ -61,6 +64,7 @@ func (s *Service) GenerateDeletionChallenge(ctx context.Context, userEmail strin
 }
 
 // ValidateDeletionChallenge verifies the challenge string matches the stored token
+// SEM@bd740ab90ce24a669adc1fa8b8153efbd33bac10: validate the user's deletion challenge response against the stored token (reads DB)
 func (s *Service) ValidateDeletionChallenge(ctx context.Context, userEmail, challengeText string) error {
 	// Retrieve stored token from Redis
 	challengeKey := fmt.Sprintf("user_deletion_challenge:%s", userEmail)
@@ -104,6 +108,7 @@ func (s *Service) ValidateDeletionChallenge(ctx context.Context, userEmail, chal
 
 // DeleteUserAndData deletes a user by email and handles ownership transfer for threat models.
 // Used by the self-deletion flow (DELETE /me) where identity comes from JWT email.
+// SEM@cd187b523b66aef0fa87861d3a929c2017787b86: delete a user by email and transfer or remove owned threat models (mutates shared state)
 func (s *Service) DeleteUserAndData(ctx context.Context, userEmail string) (*DeletionResult, error) {
 	// Sweep content-token revocations BEFORE the DB delete so the token rows
 	// are still present for the hook to read. Best-effort — failures are
@@ -132,6 +137,7 @@ func (s *Service) DeleteUserAndData(ctx context.Context, userEmail string) (*Del
 
 // DeleteUserByInternalUUID deletes a user by internal UUID and handles ownership transfer.
 // Used by admin deletion to avoid multi-hop identity resolution that can target the wrong user.
+// SEM@cd187b523b66aef0fa87861d3a929c2017787b86: delete a user by internal UUID and transfer or remove owned threat models (mutates shared state)
 func (s *Service) DeleteUserByInternalUUID(ctx context.Context, internalUUID string) (*DeletionResult, error) {
 	// Sweep content-token revocations BEFORE the DB delete so the token rows
 	// are still present for the hook to read. Best-effort — failures are

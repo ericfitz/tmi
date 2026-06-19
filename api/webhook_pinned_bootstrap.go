@@ -21,6 +21,7 @@ import (
 
 // AlertingBootstrap holds the alerting configuration values needed to upsert
 // the operator-pinned audit alert sink webhook subscription (#395).
+// SEM@13c4215bf8e204da342579717f97f7393bb5fe2f: configuration for the operator-pinned audit alert sink webhook subscription
 type AlertingBootstrap struct {
 	Enabled bool
 	URL     string
@@ -46,6 +47,7 @@ type AlertingBootstrap struct {
 // denyListStore skips URL validation (e.g., in unit tests).
 //
 // Returns the active/updated subscription (zero value if disabled / no-op).
+// SEM@13c4215bf8e204da342579717f97f7393bb5fe2f: upsert or deactivate the operator-pinned audit alert webhook subscription from config (reads DB)
 func EnsurePinnedAlertSubscription(
 	ctx context.Context,
 	store WebhookSubscriptionStoreInterface,

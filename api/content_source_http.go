@@ -16,11 +16,13 @@ const httpSourceMaxBody = 50 * 1024 * 1024 // 50 MiB
 // HTTPSource implements ContentSource for HTTP and HTTPS URIs.
 // Outbound requests go through SafeHTTPClient which pins the validated IP at
 // dial time (DNS-rebinding defense). Response bodies are capped at 50 MiB.
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: ContentSource that fetches HTTP/HTTPS URIs through an SSRF-safe HTTP client
 type HTTPSource struct {
 	client *SafeHTTPClient
 }
 
 // NewHTTPSource creates a new HTTPSource with the given SSRF validator.
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: build an HTTPSource with SSRF validation, OTel instrumentation, and body size cap (pure)
 func NewHTTPSource(ssrfValidator *URIValidator) *HTTPSource {
 	return &HTTPSource{
 		client: NewSafeHTTPClient(
@@ -34,9 +36,11 @@ func NewHTTPSource(ssrfValidator *URIValidator) *HTTPSource {
 }
 
 // Name returns the source name.
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: return the HTTP provider identifier string (pure)
 func (s *HTTPSource) Name() string { return ProviderHTTP }
 
 // CanHandle returns true for URIs with an http:// or https:// scheme.
+// SEM@7057b1db3902cd30e21b88d0e814025eff1c06f8: report whether the URI uses an http or https scheme (pure)
 func (s *HTTPSource) CanHandle(_ context.Context, uri string) bool {
 	return strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://")
 }
@@ -44,6 +48,7 @@ func (s *HTTPSource) CanHandle(_ context.Context, uri string) bool {
 // Fetch validates the URI against SSRF rules, fetches it via the egress helper
 // (DNS-pinned), and returns the raw body bytes along with the Content-Type
 // header value. Returns an error for non-2xx responses.
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: fetch a URI via the SSRF-safe HTTP client and return its body and content type
 func (s *HTTPSource) Fetch(ctx context.Context, uri string) ([]byte, string, error) {
 	resp, err := s.client.FetchStreaming(ctx, uri, SafeFetchOptions{
 		MaxBodyBytes: httpSourceMaxBody,

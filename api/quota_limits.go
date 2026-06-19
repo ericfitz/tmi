@@ -21,6 +21,7 @@ const (
 )
 
 // ValidateQuotaValue validates that a quota value is within acceptable bounds
+// SEM@7cd4e086ca351285b214de56af06e83e3a2a8807: validate a quota integer falls within declared minimum and maximum bounds (pure)
 func ValidateQuotaValue(value int, minVal int, maxVal int, fieldName string) error {
 	if value < minVal {
 		return &RequestError{

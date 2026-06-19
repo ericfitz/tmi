@@ -43,12 +43,14 @@ var (
 
 // IsRetryable returns true if the error represents a transient condition
 // that may succeed on retry (connection errors, serialization failures, deadlocks).
+// SEM@62c90f15b43011216f4ac7ebdd8017b8f96afcbd: report whether a database error is a transient failure safe to retry (pure)
 func IsRetryable(err error) bool {
 	return errors.Is(err, ErrTransient)
 }
 
 // IsFatal returns true if the error indicates the server is fundamentally broken
 // and should shut down (permission denied, invalid credentials).
+// SEM@62c90f15b43011216f4ac7ebdd8017b8f96afcbd: report whether a database error indicates a fatal misconfiguration requiring shutdown (pure)
 func IsFatal(err error) bool {
 	return errors.Is(err, ErrPermission)
 }
@@ -58,6 +60,7 @@ func IsFatal(err error) bool {
 //   - errors.Is(result, ErrDuplicate) == true
 //   - errors.Is(result, ErrConstraint) == true (because ErrDuplicate wraps ErrConstraint)
 //   - errors.Unwrap(result) chain reaches rawErr
+// SEM@62c90f15b43011216f4ac7ebdd8017b8f96afcbd: wrap a raw error with a typed sentinel preserving the full error chain (pure)
 func Wrap(err error, sentinel error) error {
 	if err == nil {
 		return nil

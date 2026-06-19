@@ -6,11 +6,13 @@ import (
 )
 
 // SetCreatedAt implements WithTimestamps for UserAPIQuota
+// SEM@922d880b24abd3da8955ba05fd9038f3ec43e512: set the created_at timestamp on a UserAPIQuota to implement WithTimestamps (pure)
 func (q *UserAPIQuota) SetCreatedAt(t time.Time) {
 	q.CreatedAt = t
 }
 
 // SetModifiedAt implements WithTimestamps for UserAPIQuota
+// SEM@922d880b24abd3da8955ba05fd9038f3ec43e512: set the modified_at timestamp on a UserAPIQuota to implement WithTimestamps (pure)
 func (q *UserAPIQuota) SetModifiedAt(t time.Time) {
 	q.ModifiedAt = t
 }
@@ -19,6 +21,7 @@ func (q *UserAPIQuota) SetModifiedAt(t time.Time) {
 // All methods accept a context.Context so the underlying GORM transaction
 // retry wrapper can use the caller-supplied context for cancellation
 // instead of falling back to context.Background().
+// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: define CRUD and upsert operations for per-user API quota records (reads DB)
 type UserAPIQuotaStoreInterface interface {
 	Get(ctx context.Context, userID string) (UserAPIQuota, error)
 	GetOrDefault(ctx context.Context, userID string) UserAPIQuota

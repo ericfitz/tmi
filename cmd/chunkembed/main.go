@@ -18,6 +18,7 @@ import (
 	"github.com/ericfitz/tmi/internal/worker"
 )
 
+// SEM@cf314f16f2d39c6bba906e3c2dde4f6c7e144e94: entry point for the chunk-embed worker; delegates to run and exits on error
 func main() {
 	if err := run(); err != nil {
 		slogging.Get().Error("tmi-chunk-embed: %v", err)
@@ -27,6 +28,7 @@ func main() {
 
 // run is the real entry point. Separating it from main allows defers to
 // execute before os.Exit is called by main.
+// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: initialize and run the NATS JetStream chunk-embed consumer until shutdown signal
 func run() error {
 	logger := slogging.Get()
 

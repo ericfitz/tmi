@@ -12,11 +12,13 @@ import (
 )
 
 // GormUsabilityFeedbackRepository implements UsabilityFeedbackRepository with GORM.
+// SEM@e6358cd2f50a1221d6e8c0f0fe40c31b27feb5d2: GORM-backed repository for persisting and querying usability feedback records
 type GormUsabilityFeedbackRepository struct {
 	db *gorm.DB
 }
 
 // NewGormUsabilityFeedbackRepository constructs a repository.
+// SEM@e6358cd2f50a1221d6e8c0f0fe40c31b27feb5d2: build a GormUsabilityFeedbackRepository backed by the given DB connection (pure)
 func NewGormUsabilityFeedbackRepository(db *gorm.DB) *GormUsabilityFeedbackRepository {
 	return &GormUsabilityFeedbackRepository{db: db}
 }
@@ -26,6 +28,7 @@ func NewGormUsabilityFeedbackRepository(db *gorm.DB) *GormUsabilityFeedbackRepos
 // autoCreateTime) for Oracle compatibility — the Threat model uses the same
 // pattern to avoid gorm-oracle's RETURNING INTO interaction on high-volume
 // inserts (see #380).
+// SEM@f0dc4a18f547f807534300d1d5683b959965e3ab: store a new usability feedback row, setting created_at explicitly for Oracle compatibility (reads DB)
 func (r *GormUsabilityFeedbackRepository) Create(ctx context.Context, fb *models.UsabilityFeedback) error {
 	if fb.CreatedAt.IsZero() {
 		fb.CreatedAt = time.Now().UTC()
@@ -38,6 +41,7 @@ func (r *GormUsabilityFeedbackRepository) Create(ctx context.Context, fb *models
 }
 
 // Get returns a feedback row by ID, or NotFound if absent.
+// SEM@e6358cd2f50a1221d6e8c0f0fe40c31b27feb5d2: fetch a usability feedback record by ID, returning NotFound if absent (reads DB)
 func (r *GormUsabilityFeedbackRepository) Get(ctx context.Context, id string) (*models.UsabilityFeedback, error) {
 	var fb models.UsabilityFeedback
 	err := r.db.WithContext(ctx).Where("id = ?", id).First(&fb).Error
@@ -51,6 +55,7 @@ func (r *GormUsabilityFeedbackRepository) Get(ctx context.Context, id string) (*
 }
 
 // List returns feedback rows matching the filter, paginated.
+// SEM@e6358cd2f50a1221d6e8c0f0fe40c31b27feb5d2: list usability feedback records matching a filter with pagination, ordered by created_at desc (reads DB)
 func (r *GormUsabilityFeedbackRepository) List(ctx context.Context, filter UsabilityFeedbackListFilter, offset, limit int) ([]models.UsabilityFeedback, error) {
 	q := r.applyFilter(r.db.WithContext(ctx), filter)
 	var rows []models.UsabilityFeedback
@@ -61,6 +66,7 @@ func (r *GormUsabilityFeedbackRepository) List(ctx context.Context, filter Usabi
 }
 
 // Count returns the row count for the filter.
+// SEM@e6358cd2f50a1221d6e8c0f0fe40c31b27feb5d2: count usability feedback records matching a filter (reads DB)
 func (r *GormUsabilityFeedbackRepository) Count(ctx context.Context, filter UsabilityFeedbackListFilter) (int64, error) {
 	q := r.applyFilter(r.db.WithContext(ctx).Model(&models.UsabilityFeedback{}), filter)
 	var n int64
@@ -70,6 +76,7 @@ func (r *GormUsabilityFeedbackRepository) Count(ctx context.Context, filter Usab
 	return n, nil
 }
 
+// SEM@f0dc4a18f547f807534300d1d5683b959965e3ab: apply sentiment, client, surface, and date range constraints to a GORM query (pure)
 func (r *GormUsabilityFeedbackRepository) applyFilter(q *gorm.DB, filter UsabilityFeedbackListFilter) *gorm.DB {
 	if filter.Sentiment != "" {
 		q = q.Where("sentiment = ?", filter.Sentiment)

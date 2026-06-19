@@ -11,6 +11,7 @@ import (
 // AutomationMiddleware creates a middleware that requires the user to be a member of
 // either the tmi-automation or embedding-automation group. This is the outer gate
 // for all /automation/* routes.
+// SEM@46ceafa6fa8deee41cbc5c929e3f60ca14fdd686: authorize requests to /automation/* routes, requiring tmi-automation or embedding-automation group membership
 func AutomationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Only intercept /automation/ paths
@@ -76,6 +77,7 @@ func AutomationMiddleware() gin.HandlerFunc {
 // EmbeddingAutomationMiddleware creates a middleware that requires the user to be a member
 // of the embedding-automation group specifically. This is the inner gate for
 // /automation/embeddings/* routes, layered inside AutomationMiddleware.
+// SEM@46ceafa6fa8deee41cbc5c929e3f60ca14fdd686: authorize requests to /automation/embeddings/* routes, requiring embedding-automation group membership
 func EmbeddingAutomationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Only intercept /automation/embeddings/ paths

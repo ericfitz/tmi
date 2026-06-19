@@ -69,16 +69,19 @@ var (
 )
 
 // ValidationError represents a validation failure
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: structured validation error carrying field name and message (pure)
 type ValidationError struct {
 	Field   string
 	Message string
 }
 
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: format the validation error as a field-prefixed message string (pure)
 func (e *ValidationError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Field, e.Message)
 }
 
 // NewValidationError creates a new validation error
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: build a ValidationError for a named field with a given message (pure)
 func NewValidationError(field, message string) *ValidationError {
 	return &ValidationError{Field: field, Message: message}
 }
@@ -86,6 +89,7 @@ func NewValidationError(field, message string) *ValidationError {
 // --- Enum Validators ---
 
 // ValidateEnum checks if a value is in an allowed list (case-insensitive).
+// SEM@034968fa0e0ba8c15e9af9052b475f4d5dd72d50: validate that a string value belongs to an allowed enum list, case-insensitively (pure)
 func ValidateEnum(field, value string, allowed []string) error {
 	normalized := strings.ToLower(value)
 	for _, a := range allowed {
@@ -97,6 +101,7 @@ func ValidateEnum(field, value string, allowed []string) error {
 }
 
 // ValidateEnumPtr validates an optional enum field
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate an optional enum field, passing nil values (pure)
 func ValidateEnumPtr(field string, value *string, allowed []string) error {
 	if value == nil {
 		return nil
@@ -105,51 +110,61 @@ func ValidateEnumPtr(field string, value *string, allowed []string) error {
 }
 
 // ValidateThreatModelFramework validates the threat model framework field
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate a threat model framework value against allowed frameworks (pure)
 func ValidateThreatModelFramework(framework string) error {
 	return ValidateEnum("threat_model_framework", framework, ValidThreatModelFrameworks)
 }
 
 // ValidateDiagramType validates the diagram type field
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate a diagram type value against allowed diagram types (pure)
 func ValidateDiagramType(diagramType string) error {
 	return ValidateEnum("type", diagramType, ValidDiagramTypes)
 }
 
 // ValidateAssetType validates the asset type field
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate an asset type value against allowed asset types (pure)
 func ValidateAssetType(assetType string) error {
 	return ValidateEnum("type", assetType, ValidAssetTypes)
 }
 
 // ValidateRepositoryType validates the repository type field
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate a repository type value against allowed repository types (pure)
 func ValidateRepositoryType(repoType string) error {
 	return ValidateEnum("type", repoType, ValidRepositoryTypes)
 }
 
 // ValidateRole validates the access role field
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate an access role value against allowed roles (pure)
 func ValidateRole(role string) error {
 	return ValidateEnum("role", role, ValidRoles)
 }
 
 // ValidateSubjectType validates the subject type field
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate a subject type value against allowed subject types (pure)
 func ValidateSubjectType(subjectType string) error {
 	return ValidateEnum("subject_type", subjectType, ValidSubjectTypes)
 }
 
 // ValidateWebhookStatus validates the webhook subscription status field
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate a webhook subscription status value against allowed statuses (pure)
 func ValidateWebhookStatus(status string) error {
 	return ValidateEnum("status", status, ValidWebhookStatuses)
 }
 
 // ValidateWebhookDeliveryStatus validates the webhook delivery status field
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate a webhook delivery status value against allowed delivery statuses (pure)
 func ValidateWebhookDeliveryStatus(status string) error {
 	return ValidateEnum("status", status, ValidWebhookDeliveryStatuses)
 }
 
 // ValidateWebhookPatternType validates the webhook URL deny list pattern type
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate a webhook URL deny-list pattern type against allowed pattern types (pure)
 func ValidateWebhookPatternType(patternType string) error {
 	return ValidateEnum("pattern_type", patternType, ValidWebhookPatternTypes)
 }
 
 // ValidateEntityType validates the metadata entity type field
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate a metadata entity type value against allowed entity types (pure)
 func ValidateEntityType(entityType string) error {
 	return ValidateEnum("entity_type", entityType, ValidEntityTypes)
 }
@@ -157,6 +172,7 @@ func ValidateEntityType(entityType string) error {
 // --- String Validators ---
 
 // ValidateNonEmpty checks that a string is not empty after trimming
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate that a string field is non-empty after trimming whitespace (pure)
 func ValidateNonEmpty(field, value string) error {
 	if strings.TrimSpace(value) == "" {
 		return NewValidationError(field, "cannot be empty")
@@ -165,6 +181,7 @@ func ValidateNonEmpty(field, value string) error {
 }
 
 // ValidateLength checks string length constraints
+// SEM@7cd4e086ca351285b214de56af06e83e3a2a8807: validate that a string field falls within minimum and maximum length bounds (pure)
 func ValidateLength(field, value string, minLen, maxLen int) error {
 	trimmed := strings.TrimSpace(value)
 	if len(trimmed) < minLen {
@@ -177,6 +194,7 @@ func ValidateLength(field, value string, minLen, maxLen int) error {
 }
 
 // ValidateStatusLength validates optional status field length (max 128)
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate an optional status field does not exceed 128 characters (pure)
 func ValidateStatusLength(status *string) error {
 	if status == nil {
 		return nil
@@ -190,6 +208,7 @@ func ValidateStatusLength(status *string) error {
 // --- Metadata Validators ---
 
 // ValidateMetadataKey validates a metadata key
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate a metadata key for non-empty, length, and alphanumeric-plus-hyphen pattern (pure)
 func ValidateMetadataKey(key string) error {
 	trimmed := strings.TrimSpace(key)
 	if len(trimmed) == 0 {
@@ -205,6 +224,7 @@ func ValidateMetadataKey(key string) error {
 }
 
 // ValidateMetadataValue validates a metadata value
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate a metadata value for non-empty and maximum 65535-character length (pure)
 func ValidateMetadataValue(value string) error {
 	trimmed := strings.TrimSpace(value)
 	if len(trimmed) == 0 {
@@ -219,6 +239,7 @@ func ValidateMetadataValue(value string) error {
 // --- Numeric Validators ---
 
 // ValidateScore validates a threat score (0.0 to 10.0)
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate an optional threat score is within the 0.0-10.0 range (pure)
 func ValidateScore(score *float64) error {
 	if score == nil {
 		return nil
@@ -233,6 +254,7 @@ func ValidateScore(score *float64) error {
 
 // ValidateSubjectXOR validates the XOR constraint for subject_type/user_internal_uuid/group_internal_uuid
 // Used by ThreatModelAccess and Administrator models
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate that exactly one of user or group UUID is set consistent with subject type (pure)
 func ValidateSubjectXOR(subjectType string, userUUID, groupUUID *string) error {
 	switch subjectType {
 	case "user":
@@ -258,6 +280,7 @@ func ValidateSubjectXOR(subjectType string, userUUID, groupUUID *string) error {
 // --- Group Protection Validators ---
 
 // ValidateNotEveryoneGroup checks that operations don't target the protected "everyone" group
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: reject operations targeting the protected everyone pseudo-group (pure)
 func ValidateNotEveryoneGroup(groupUUID string) error {
 	if groupUUID == EveryonePseudoGroupUUID {
 		return errors.New("cannot modify the 'everyone' pseudo-group")
@@ -266,6 +289,7 @@ func ValidateNotEveryoneGroup(groupUUID string) error {
 }
 
 // ValidateNotEveryoneGroupMember checks that members aren't added to "everyone" group
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: reject adding members to the protected everyone pseudo-group (pure)
 func ValidateNotEveryoneGroupMember(groupUUID string) error {
 	if groupUUID == EveryonePseudoGroupUUID {
 		return errors.New("cannot add members to the 'everyone' pseudo-group")
@@ -284,6 +308,7 @@ var BuiltInGroupUUIDs = []string{
 }
 
 // IsBuiltInGroup returns true if the given UUID belongs to a built-in group
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: check whether a group UUID belongs to a built-in system group (pure)
 func IsBuiltInGroup(groupUUID string) bool {
 	return slices.Contains(BuiltInGroupUUIDs, groupUUID)
 }
@@ -291,6 +316,7 @@ func IsBuiltInGroup(groupUUID string) bool {
 // --- URI/URL Validators ---
 
 // ValidateURI validates that a URI is not empty
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate that a URI field is non-empty after trimming (pure)
 func ValidateURI(field, uri string) error {
 	if strings.TrimSpace(uri) == "" {
 		return NewValidationError(field, "URI cannot be empty")
@@ -299,6 +325,7 @@ func ValidateURI(field, uri string) error {
 }
 
 // ValidateWebSocketURL validates that a WebSocket URL is not empty
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate that a WebSocket URL is non-empty after trimming (pure)
 func ValidateWebSocketURL(url string) error {
 	if strings.TrimSpace(url) == "" {
 		return NewValidationError("websocket_url", "cannot be empty")

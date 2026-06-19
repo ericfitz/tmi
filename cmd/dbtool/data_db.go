@@ -12,6 +12,7 @@ import (
 
 const administratorsGroupUUID = "00000000-0000-0000-0000-000000000002"
 
+// SEM@7a8bf8de72c6d39387df00ec0eb9901653555db8: dispatch a seed entry to the appropriate DB seeder by kind (reads DB)
 func seedViaDB(db *testdb.TestDB, entry SeedEntry, _ RefMap) (*SeedResult, error) {
 	switch entry.Kind {
 	case kindUser:
@@ -23,6 +24,7 @@ func seedViaDB(db *testdb.TestDB, entry SeedEntry, _ RefMap) (*SeedResult, error
 	}
 }
 
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: upsert a user record and optionally grant admin role and API quotas (reads DB)
 func seedUser(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -88,6 +90,7 @@ func seedUser(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 	}, nil
 }
 
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: add a user to the built-in administrators group, skipping if already a member (reads DB)
 func grantAdmin(db *testdb.TestDB, user *models.User) error {
 	log := slogging.Get()
 
@@ -127,6 +130,7 @@ func grantAdmin(db *testdb.TestDB, user *models.User) error {
 	return nil
 }
 
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: upsert API rate-limit quotas for a user by internal UUID (reads DB)
 func setQuotas(db *testdb.TestDB, userInternalUUID string, quota map[string]any) error {
 	log := slogging.Get()
 
@@ -168,6 +172,7 @@ func setQuotas(db *testdb.TestDB, userInternalUUID string, quota map[string]any)
 	return nil
 }
 
+// SEM@926d7b92ff82030ff3a1c03b2307247302613d38: upsert a system setting key-value pair, skipping empty values (reads DB)
 func seedSetting(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -220,6 +225,7 @@ func seedSetting(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 	return &SeedResult{Ref: entry.Ref, Kind: kindSetting, ID: key}, nil
 }
 
+// SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: convert an untyped numeric value to int with a fallback default (pure)
 func intFromAny(v any, defaultVal int) int {
 	switch n := v.(type) {
 	case float64:
@@ -233,6 +239,7 @@ func intFromAny(v any, defaultVal int) int {
 	}
 }
 
+// SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: uppercase the first letter of a string (pure)
 func capitalize(s string) string {
 	if len(s) == 0 {
 		return s

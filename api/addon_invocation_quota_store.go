@@ -17,6 +17,7 @@ const (
 )
 
 // AddonInvocationQuotaStore defines the interface for quota storage operations
+// SEM@503212a05958ba0c15d423fab4dbceb92b747ed9: interface for CRUD operations on per-user addon invocation quota records (pure)
 type AddonInvocationQuotaStore interface {
 	// Get retrieves quota for a user, returns error if not found
 	Get(ctx context.Context, ownerID uuid.UUID) (*AddonInvocationQuota, error)
@@ -38,16 +39,19 @@ type AddonInvocationQuotaStore interface {
 }
 
 // AddonInvocationQuotaDatabaseStore implements AddonInvocationQuotaStore using PostgreSQL
+// SEM@afdb1506d3879a33daeab641ffec090578a2814b: database-backed implementation of AddonInvocationQuotaStore (pure)
 type AddonInvocationQuotaDatabaseStore struct {
 	db *sql.DB
 }
 
 // NewAddonInvocationQuotaDatabaseStore creates a new database-backed quota store
+// SEM@afdb1506d3879a33daeab641ffec090578a2814b: build a database-backed addon invocation quota store (pure)
 func NewAddonInvocationQuotaDatabaseStore(db *sql.DB) *AddonInvocationQuotaDatabaseStore {
 	return &AddonInvocationQuotaDatabaseStore{db: db}
 }
 
 // Get retrieves quota for a user, returns error if not found
+// SEM@afdb1506d3879a33daeab641ffec090578a2814b: fetch the addon invocation quota for a specific user; error if not found (reads DB)
 func (s *AddonInvocationQuotaDatabaseStore) Get(ctx context.Context, ownerID uuid.UUID) (*AddonInvocationQuota, error) {
 	logger := slogging.Get()
 
@@ -83,6 +87,7 @@ func (s *AddonInvocationQuotaDatabaseStore) Get(ctx context.Context, ownerID uui
 }
 
 // GetOrDefault retrieves quota for a user, or returns defaults if not set
+// SEM@9214f003590204e62d98bd62c10b96602d3ef503: fetch the addon invocation quota for a user, returning system defaults when none is set (reads DB)
 func (s *AddonInvocationQuotaDatabaseStore) GetOrDefault(ctx context.Context, ownerID uuid.UUID) (*AddonInvocationQuota, error) {
 	logger := slogging.Get()
 
@@ -125,6 +130,7 @@ func (s *AddonInvocationQuotaDatabaseStore) GetOrDefault(ctx context.Context, ow
 }
 
 // List retrieves all addon invocation quotas with pagination
+// SEM@c1e5f4b740482faedb4383dcf3a2224c8525dd35: list all custom addon invocation quotas with pagination (reads DB)
 func (s *AddonInvocationQuotaDatabaseStore) List(ctx context.Context, offset, limit int) ([]*AddonInvocationQuota, error) {
 	logger := slogging.Get()
 
@@ -170,6 +176,7 @@ func (s *AddonInvocationQuotaDatabaseStore) List(ctx context.Context, offset, li
 }
 
 // Count returns the total number of addon invocation quotas
+// SEM@df41a3866f5824f0f8fb588edb04475095615bcf: return the total number of custom addon invocation quota records (reads DB)
 func (s *AddonInvocationQuotaDatabaseStore) Count(ctx context.Context) (int, error) {
 	logger := slogging.Get()
 
@@ -186,6 +193,7 @@ func (s *AddonInvocationQuotaDatabaseStore) Count(ctx context.Context) (int, err
 }
 
 // Set creates or updates quota for a user
+// SEM@9214f003590204e62d98bd62c10b96602d3ef503: upsert an addon invocation quota for a user (mutates shared state)
 func (s *AddonInvocationQuotaDatabaseStore) Set(ctx context.Context, quota *AddonInvocationQuota) error {
 	logger := slogging.Get()
 
@@ -219,6 +227,7 @@ func (s *AddonInvocationQuotaDatabaseStore) Set(ctx context.Context, quota *Addo
 }
 
 // Delete removes quota for a user (reverts to defaults)
+// SEM@c1e5f4b740482faedb4383dcf3a2224c8525dd35: delete a user's custom addon invocation quota, reverting them to system defaults (mutates shared state)
 func (s *AddonInvocationQuotaDatabaseStore) Delete(ctx context.Context, ownerID uuid.UUID) error {
 	logger := slogging.Get()
 

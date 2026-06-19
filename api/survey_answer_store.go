@@ -17,6 +17,7 @@ import (
 
 // SurveyAnswerRow is the API-layer representation of a stored survey answer.
 // AnswerValue is nil when the respondent did not answer the question.
+// SEM@851a41a40d0b86e1ef600270d09c44cd95ac25d7: API-layer record holding a single stored survey answer with question metadata (pure)
 type SurveyAnswerRow struct {
 	ID             string
 	ResponseID     string
@@ -31,6 +32,7 @@ type SurveyAnswerRow struct {
 
 // SurveyAnswerStore defines operations for persisting extracted survey answers.
 // Answers are fully replaced on every call to ExtractAndSave (atomic delete+insert).
+// SEM@851a41a40d0b86e1ef600270d09c44cd95ac25d7: interface for atomically persisting and fetching extracted survey answers (reads/writes DB)
 type SurveyAnswerStore interface {
 	// ExtractAndSave extracts questions from surveyJSON using ExtractQuestions,
 	// pairs each with its answer from the answers map, and atomically replaces
@@ -51,6 +53,7 @@ type SurveyAnswerStore interface {
 // buildAnswerRows pairs each extracted SurveyQuestion with its answer value
 // from the answers map, marshalling the value to JSON.  If a question has no
 // corresponding key in answers, AnswerValue is left nil.
+// SEM@851a41a40d0b86e1ef600270d09c44cd95ac25d7: pair extracted survey questions with their response values and build answer rows (pure)
 func buildAnswerRows(responseID string, questions []SurveyQuestion, answers map[string]any, responseStatus string) ([]SurveyAnswerRow, error) {
 	rows := make([]SurveyAnswerRow, 0, len(questions))
 	now := time.Now().UTC()
@@ -84,16 +87,19 @@ func buildAnswerRows(responseID string, questions []SurveyQuestion, answers map[
 // ── GORM implementation ────────────────────────────────────────────────────
 
 // GormSurveyAnswerStore implements SurveyAnswerStore backed by a GORM database.
+// SEM@851a41a40d0b86e1ef600270d09c44cd95ac25d7: GORM-backed implementation of SurveyAnswerStore (reads/writes DB)
 type GormSurveyAnswerStore struct {
 	db *gorm.DB
 }
 
 // NewGormSurveyAnswerStore creates a new GORM-backed SurveyAnswerStore.
+// SEM@851a41a40d0b86e1ef600270d09c44cd95ac25d7: build a GORM-backed SurveyAnswerStore from a database connection (pure)
 func NewGormSurveyAnswerStore(db *gorm.DB) *GormSurveyAnswerStore {
 	return &GormSurveyAnswerStore{db: db}
 }
 
 // ExtractAndSave implements SurveyAnswerStore.
+// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: atomically replace all stored answers for a survey response by extracting questions and pairing answers (writes DB)
 func (s *GormSurveyAnswerStore) ExtractAndSave(ctx context.Context, responseID string, surveyJSON map[string]any, answers map[string]any, responseStatus string) error {
 	logger := slogging.Get()
 	logger.Debug("ExtractAndSave survey answers for response %s", responseID)
@@ -127,6 +133,7 @@ func (s *GormSurveyAnswerStore) ExtractAndSave(ctx context.Context, responseID s
 }
 
 // GetAnswers implements SurveyAnswerStore.
+// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: fetch all answer rows for a survey response in insertion order (reads DB)
 func (s *GormSurveyAnswerStore) GetAnswers(ctx context.Context, responseID string) ([]SurveyAnswerRow, error) {
 	var modelRows []models.SurveyAnswer
 	if err := s.db.WithContext(ctx).
@@ -140,6 +147,7 @@ func (s *GormSurveyAnswerStore) GetAnswers(ctx context.Context, responseID strin
 }
 
 // GetFieldMappings implements SurveyAnswerStore.
+// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: fetch a map of threat-model field name to answer row for a survey response (reads DB)
 func (s *GormSurveyAnswerStore) GetFieldMappings(ctx context.Context, responseID string) (map[string]SurveyAnswerRow, error) {
 	var modelRows []models.SurveyAnswer
 	if err := s.db.WithContext(ctx).
@@ -159,6 +167,7 @@ func (s *GormSurveyAnswerStore) GetFieldMappings(ctx context.Context, responseID
 }
 
 // DeleteByResponseID implements SurveyAnswerStore.
+// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: delete all stored answers for a survey response (writes DB)
 func (s *GormSurveyAnswerStore) DeleteByResponseID(ctx context.Context, responseID string) error {
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.
@@ -171,6 +180,7 @@ func (s *GormSurveyAnswerStore) DeleteByResponseID(ctx context.Context, response
 }
 
 // toModelRow converts a SurveyAnswerRow to a models.SurveyAnswer for persistence.
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert an API SurveyAnswerRow to its database model (pure)
 func toModelRow(row *SurveyAnswerRow) models.SurveyAnswer {
 	m := models.SurveyAnswer{
 		ID:             models.DBVarchar(row.ID),
@@ -189,6 +199,7 @@ func toModelRow(row *SurveyAnswerRow) models.SurveyAnswer {
 }
 
 // toAnswerRows converts a slice of models.SurveyAnswer to []SurveyAnswerRow.
+// SEM@851a41a40d0b86e1ef600270d09c44cd95ac25d7: convert a slice of database survey answer models to API rows (pure)
 func toAnswerRows(modelRows []models.SurveyAnswer) []SurveyAnswerRow {
 	rows := make([]SurveyAnswerRow, 0, len(modelRows))
 	for i := range modelRows {
@@ -198,6 +209,7 @@ func toAnswerRows(modelRows []models.SurveyAnswer) []SurveyAnswerRow {
 }
 
 // toAnswerRow converts a single models.SurveyAnswer to a SurveyAnswerRow.
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a single database survey answer model to an API row (pure)
 func toAnswerRow(m *models.SurveyAnswer) SurveyAnswerRow {
 	row := SurveyAnswerRow{
 		ID:             string(m.ID),
@@ -218,12 +230,14 @@ func toAnswerRow(m *models.SurveyAnswer) SurveyAnswerRow {
 // ── In-memory implementation (for unit tests) ──────────────────────────────
 
 // inMemorySurveyAnswerStore implements SurveyAnswerStore using an in-memory map.
+// SEM@851a41a40d0b86e1ef600270d09c44cd95ac25d7: in-memory SurveyAnswerStore implementation for unit tests (mutates shared state)
 type inMemorySurveyAnswerStore struct {
 	mu   sync.RWMutex
 	data map[string][]SurveyAnswerRow // keyed by responseID
 }
 
 // newInMemorySurveyAnswerStore creates a new in-memory SurveyAnswerStore.
+// SEM@851a41a40d0b86e1ef600270d09c44cd95ac25d7: build an empty in-memory SurveyAnswerStore for testing (pure)
 func newInMemorySurveyAnswerStore() *inMemorySurveyAnswerStore {
 	return &inMemorySurveyAnswerStore{
 		data: make(map[string][]SurveyAnswerRow),
@@ -231,6 +245,7 @@ func newInMemorySurveyAnswerStore() *inMemorySurveyAnswerStore {
 }
 
 // ExtractAndSave implements SurveyAnswerStore.
+// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: atomically replace all in-memory answers for a survey response (mutates shared state)
 func (s *inMemorySurveyAnswerStore) ExtractAndSave(ctx context.Context, responseID string, surveyJSON map[string]any, answers map[string]any, responseStatus string) error {
 	questions, err := ExtractQuestions(surveyJSON, nil)
 	if err != nil {
@@ -249,6 +264,7 @@ func (s *inMemorySurveyAnswerStore) ExtractAndSave(ctx context.Context, response
 }
 
 // GetAnswers implements SurveyAnswerStore.
+// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: fetch a copy of all in-memory answer rows for a survey response (reads shared state)
 func (s *inMemorySurveyAnswerStore) GetAnswers(_ context.Context, responseID string) ([]SurveyAnswerRow, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -260,6 +276,7 @@ func (s *inMemorySurveyAnswerStore) GetAnswers(_ context.Context, responseID str
 }
 
 // GetFieldMappings implements SurveyAnswerStore.
+// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: fetch a map of threat-model field name to answer row from in-memory store (reads shared state)
 func (s *inMemorySurveyAnswerStore) GetFieldMappings(ctx context.Context, responseID string) (map[string]SurveyAnswerRow, error) {
 	rows, err := s.GetAnswers(ctx, responseID)
 	if err != nil {
@@ -276,6 +293,7 @@ func (s *inMemorySurveyAnswerStore) GetFieldMappings(ctx context.Context, respon
 }
 
 // DeleteByResponseID implements SurveyAnswerStore.
+// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: delete all in-memory answers for a survey response (mutates shared state)
 func (s *inMemorySurveyAnswerStore) DeleteByResponseID(_ context.Context, responseID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

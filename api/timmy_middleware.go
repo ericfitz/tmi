@@ -10,6 +10,7 @@ import (
 
 // TimmyConfigReader is the read surface the middleware needs. *TimmyConfigProvider
 // satisfies it; tests inject a stub.
+// SEM@97d90c492e6b6921c50b9c6e84de6ad5ece1dbb2: interface for reading the current Timmy configuration per request (pure)
 type TimmyConfigReader interface {
 	Current(ctx context.Context) config.TimmyConfig
 }
@@ -18,6 +19,7 @@ type TimmyConfigReader interface {
 // to Timmy endpoints. When Timmy is disabled, all /chat/sessions and
 // /admin/timmy/ paths return 404. When enabled but not fully configured, those
 // paths return 503. All other paths pass through unaffected.
+// SEM@97d90c492e6b6921c50b9c6e84de6ad5ece1dbb2: gate Timmy endpoints with 404/503 when Timmy is disabled or misconfigured
 func TimmyEnabledMiddleware(reader TimmyConfigReader) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path

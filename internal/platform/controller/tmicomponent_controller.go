@@ -21,6 +21,7 @@ import (
 // Pre-creating the stream and consumer is required for KEDA scale-from-zero:
 // KEDA reads the consumer's pending depth to decide when to scale the worker
 // up from zero, so the consumer must exist before any worker pod runs.
+// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: Kubernetes reconciler that converges a TMIComponent into its Deployment, NetworkPolicy, and ScaledObject children
 type TMIComponentReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
@@ -31,12 +32,14 @@ type TMIComponentReconciler struct {
 }
 
 // Reconcile is the controller-runtime entrypoint.
+// SEM@50b942b21c528f6a4405c3ce2dccedfdd379012a: controller-runtime entrypoint; delegates to ReconcileComponent
 func (r *TMIComponentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	return r.ReconcileComponent(ctx, req.NamespacedName)
 }
 
 // ReconcileComponent renders and applies the child objects for one component.
 // Split out from Reconcile so tests can drive it directly.
+// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: render and apply all child objects for a TMIComponent, provisioning JetStream if configured
 func (r *TMIComponentReconciler) ReconcileComponent(ctx context.Context, key types.NamespacedName) (ctrl.Result, error) {
 	var comp platformv1alpha1.TMIComponent
 	if err := r.Get(ctx, key, &comp); err != nil {
@@ -92,6 +95,7 @@ func (r *TMIComponentReconciler) ReconcileComponent(ctx context.Context, key typ
 // On update it first fetches the live object to capture its resourceVersion
 // (required by the API server for optimistic concurrency), then carries that
 // resourceVersion onto the freshly-rendered object before the Update call.
+// SEM@edd453e8c1ef926476270a4ae067018900cad001: create a Kubernetes object or update it in place preserving resourceVersion
 func (r *TMIComponentReconciler) apply(ctx context.Context, obj client.Object) error {
 	err := r.Create(ctx, obj)
 	if err == nil {
@@ -115,6 +119,7 @@ func (r *TMIComponentReconciler) apply(ctx context.Context, obj client.Object) e
 }
 
 // SetupWithManager registers the reconciler and its owned child types.
+// SEM@50b942b21c528f6a4405c3ce2dccedfdd379012a: register the reconciler with the controller-runtime manager and declare owned child types
 func (r *TMIComponentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Owns the typed children so the controller re-reconciles on child drift.
 	// The KEDA ScaledObject is unstructured and not watched here; drift

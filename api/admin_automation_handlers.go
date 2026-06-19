@@ -23,6 +23,7 @@ var automationNamePattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9 _.@-]*[a-zA-
 // normalizeAutomationName converts a short name to the SMTP-safe local-part form.
 // Lowercases and replaces characters that are not alphanumeric or hyphens with hyphens.
 // Collapses consecutive hyphens and trims leading/trailing hyphens.
+// SEM@030a92f81836e98290925a775354bb9de0e2680a: convert an automation name to a lowercase slug safe for SMTP local-parts (pure)
 func normalizeAutomationName(name string) string {
 	lower := strings.ToLower(name)
 	var b strings.Builder
@@ -45,6 +46,7 @@ func normalizeAutomationName(name string) string {
 // CreateAutomationAccount handles POST /admin/users/automation
 // Creates an automation (service) account with TMI provider, sets automation=true,
 // adds to TMI Automation group, and creates a client credential.
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: handle POST /admin/users/automation: create a service account with group membership and client credential (reads DB)
 func (s *Server) CreateAutomationAccount(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 

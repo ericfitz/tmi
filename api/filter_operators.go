@@ -6,6 +6,7 @@ import (
 )
 
 // FilterOperator represents the type of filter operation to apply.
+// SEM@40d9903ef472b183a4ed2bcf0478562c757f255d: enum of filter operators supported in query parameter values (pure)
 type FilterOperator int
 
 const (
@@ -18,6 +19,7 @@ const (
 )
 
 // ParsedFilter holds the result of parsing a filter query parameter value.
+// SEM@40d9903ef472b183a4ed2bcf0478562c757f255d: parsed filter holding an operator type and an optional plain value (pure)
 type ParsedFilter struct {
 	Operator FilterOperator
 	Value    string // Empty for is:null/is:notnull, populated for plain values
@@ -35,6 +37,7 @@ var supportedOperatorPrefixes = []string{"is:"}
 // Recognized operators: is:null, is:notnull.
 // Unrecognized operators return a 400 RequestError.
 // Values without a recognized operator prefix are returned as plain values.
+// SEM@40d9903ef472b183a4ed2bcf0478562c757f255d: parse a filter query parameter value into an operator and value, rejecting unknown operators (pure)
 func ParseFilterValue(paramName, rawValue string) (ParsedFilter, error) {
 	if rawValue == "" {
 		return ParsedFilter{Operator: FilterOpNone, Value: ""}, nil
@@ -61,6 +64,7 @@ func ParseFilterValue(paramName, rawValue string) (ParsedFilter, error) {
 }
 
 // isAllAlpha returns true if the string contains only ASCII alphabetic characters.
+// SEM@40d9903ef472b183a4ed2bcf0478562c757f255d: check whether a string contains only lowercase ASCII letters (pure)
 func isAllAlpha(s string) bool {
 	for _, c := range s {
 		if c < 'a' || c > 'z' {
@@ -73,6 +77,7 @@ func isAllAlpha(s string) bool {
 // parseOperator parses the operand after a recognized operator prefix.
 // paramName is used for error messages, rawValue is the original input,
 // prefix is the matched operator prefix (e.g., "is:"), and lower is the lowercased rawValue.
+// SEM@5b38b9a109d5e10e1a9a58a35a692f19c30a0ed5: parse the operand after a recognized filter operator prefix into a ParsedFilter (pure)
 func parseOperator(paramName, rawValue, prefix, lower string) (ParsedFilter, error) {
 	operand := lower[len(prefix):]
 

@@ -23,12 +23,14 @@ const errNoRefreshToken = "no refresh token available"
 // DelegatedSourceDoFetch is the callback concrete delegated sources implement.
 // It receives the plaintext access token and the URI to fetch, and returns the
 // raw bytes and content-type of the fetched resource.
+// SEM@df6661062f48aa17a42442510c452bf0eebc4542: callback type for fetching a URI with an access token, returning bytes and content type (pure)
 type DelegatedSourceDoFetch func(ctx context.Context, accessToken, uri string) (data []byte, contentType string, err error)
 
 // DelegatedSource is a reusable helper that concrete delegated content sources
 // (e.g. Confluence, Google Workspace) embed to handle token lookup, skew-aware
 // expiry detection, lazy refresh with SELECT … FOR UPDATE serialization, status
 // transitions, and error propagation (ErrAuthRequired, ErrTransient).
+// SEM@df6661062f48aa17a42442510c452bf0eebc4542: reusable helper embedding token lookup, expiry detection, and lazy refresh for delegated content sources (struct)
 type DelegatedSource struct {
 	// ProviderID is the OAuth provider identifier (e.g. "confluence").
 	ProviderID string
@@ -52,6 +54,7 @@ type DelegatedSource struct {
 //   - ErrTransient: refresh failed with a transient (5xx/network) error. The
 //     caller may retry.
 //   - Any other error: propagated from DoFetch.
+// SEM@df6661062f48aa17a42442510c452bf0eebc4542: fetch a URI on behalf of a user, refreshing the access token if expired; returns ErrAuthRequired or ErrTransient on failure
 func (d *DelegatedSource) FetchForUser(ctx context.Context, userID, uri string) ([]byte, string, error) {
 	log := slogging.Get()
 
@@ -89,6 +92,7 @@ func (d *DelegatedSource) FetchForUser(ctx context.Context, userID, uri string) 
 // expired returns true when the token has an expiry time that is within the
 // skew window of the current time. If ExpiresAt is nil (no expiry supplied by
 // the provider), the token is treated as valid indefinitely.
+// SEM@df6661062f48aa17a42442510c452bf0eebc4542: report whether a content token is within the skew window of expiry (pure)
 func (d *DelegatedSource) expired(t *ContentToken) bool {
 	if t.ExpiresAt == nil {
 		return false
@@ -110,6 +114,7 @@ func (d *DelegatedSource) expired(t *ContentToken) bool {
 // "return nil-error + mutated token" pattern inside fn: when the refresh is
 // permanently invalid we flip tok.Status to failed_refresh and return (tok,
 // nil) so the row is committed, then return ErrAuthRequired from this function.
+// SEM@7f94f986783cd37704845fd81e9b0f90951a91d1: refresh a content token under a SELECT FOR UPDATE lock, committing permanent failure status on non-retryable errors (mutates shared state)
 func (d *DelegatedSource) refresh(ctx context.Context, tokenID string) (*ContentToken, error) {
 	log := slogging.Get()
 

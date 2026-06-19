@@ -17,6 +17,7 @@ import (
 )
 
 // DocumentSubResourceHandler provides handlers for document sub-resource operations
+// SEM@d994c2f113f9e0997f83a0815018638cc94111f7: handler struct for document sub-resource CRUD with content pipeline and async extraction support
 type DocumentSubResourceHandler struct {
 	documentStore    DocumentRepository
 	db               *sql.DB
@@ -42,11 +43,13 @@ type DocumentSubResourceHandler struct {
 }
 
 // SetDocumentURIValidator sets the URI validator for document uri fields
+// SEM@5eacb6f5fd0d2a1861dafb4d1fc5a18f97ee8e40: register the URI validator used for SSRF protection on document URI fields (mutates shared state)
 func (h *DocumentSubResourceHandler) SetDocumentURIValidator(v *URIValidator) {
 	h.documentURIValidator = v
 }
 
 // SetContentPipeline sets the content pipeline for content source detection and access validation
+// SEM@90539292d25d541a7e322a67f50ecb928268f215: register the content pipeline for provider detection and access validation (mutates shared state)
 func (h *DocumentSubResourceHandler) SetContentPipeline(p *ContentPipeline) {
 	h.contentPipeline = p
 }
@@ -54,12 +57,14 @@ func (h *DocumentSubResourceHandler) SetContentPipeline(p *ContentPipeline) {
 // SetContentTokens sets the content token repository used to look up the caller's linked
 // providers when assembling per-viewer access diagnostics. Optional: when nil, diagnostics
 // are still assembled but with empty linkedProviders.
+// SEM@5fe247aef5f2eedfc42d4adf9058c24de12eb56e: register the content token repository for per-viewer access diagnostics (mutates shared state)
 func (h *DocumentSubResourceHandler) SetContentTokens(r ContentTokenRepository) {
 	h.contentTokens = r
 }
 
 // SetServiceAccountEmail sets the service-account email address included in the
 // share_with_service_account remediation. Optional: when empty, the param is an empty string.
+// SEM@5fe247aef5f2eedfc42d4adf9058c24de12eb56e: store the service account email included in share-with-service-account remediations (mutates shared state)
 func (h *DocumentSubResourceHandler) SetServiceAccountEmail(s string) {
 	h.serviceAccountEmail = s
 }
@@ -67,6 +72,7 @@ func (h *DocumentSubResourceHandler) SetServiceAccountEmail(s string) {
 // SetMicrosoftApplicationObjectID sets the TMI Entra application object id
 // included in the share_with_application remediation for Microsoft documents.
 // Optional: when empty, the param is an empty string.
+// SEM@fe4cf07a3a2b954860a8df90ba211cb0919d71de: store the Entra app object ID used in Microsoft share-with-application remediations (mutates shared state)
 func (h *DocumentSubResourceHandler) SetMicrosoftApplicationObjectID(id string) {
 	h.microsoftApplicationObjectID = id
 }
@@ -74,6 +80,7 @@ func (h *DocumentSubResourceHandler) SetMicrosoftApplicationObjectID(id string) 
 // SetContentOAuthRegistry sets the content-OAuth provider registry used to validate
 // picker_registration payloads at document attach time. Optional: when nil,
 // picker_registration is rejected with 422 (provider_not_registered).
+// SEM@29c52159f07dd40fc350bf7cfe912f7a3a3def4b: register the OAuth provider registry for picker registration validation (mutates shared state)
 func (h *DocumentSubResourceHandler) SetContentOAuthRegistry(r *ContentOAuthProviderRegistry) {
 	h.contentOAuthRegistry = r
 }
@@ -86,6 +93,7 @@ func (h *DocumentSubResourceHandler) SetContentOAuthRegistry(r *ContentOAuthProv
 // silently dropped and 500 is never returned for extraction failures.
 //
 // Pass nil publisher or nil decider to keep the existing 201 path.
+// SEM@d994c2f113f9e0997f83a0815018638cc94111f7: inject the async extraction publisher and decider; falls back to 201 path when absent (mutates shared state)
 func (h *DocumentSubResourceHandler) SetAsyncExtraction(publisher *ExtractionPublisher, decider func(context.Context) bool) {
 	h.publisher = publisher
 	h.asyncDecider = decider
@@ -93,6 +101,7 @@ func (h *DocumentSubResourceHandler) SetAsyncExtraction(publisher *ExtractionPub
 
 // pickerRegistrationSniff is used to extract picker_registration from the raw request
 // body before the typed parse (Document response type doesn't carry that field).
+// SEM@29c52159f07dd40fc350bf7cfe912f7a3a3def4b: struct for sniffing picker_registration fields from a raw request body before typed parse (pure)
 type pickerRegistrationSniff struct {
 	PickerRegistration *struct {
 		ProviderID string `json:"provider_id"`
@@ -105,6 +114,7 @@ type pickerRegistrationSniff struct {
 // the URI, the registered provider list, and the caller's active linked token.
 // Returns true if validation passed (or if no picker_registration was present),
 // false if a response has already been written (error case).
+// SEM@a2db6d159e7859f682bdd332f9a3bfb0b222b7af: validate a picker registration payload against the URI, registered providers, and caller's linked token (reads DB)
 func (h *DocumentSubResourceHandler) validatePickerRegistration(
 	c *gin.Context, uri string, sniff pickerRegistrationSniff, userInternalUUID string,
 ) bool {
@@ -225,6 +235,7 @@ func (h *DocumentSubResourceHandler) validatePickerRegistration(
 }
 
 // NewDocumentSubResourceHandler creates a new document sub-resource handler
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build a document sub-resource handler wired to the given store, DB, cache, and invalidator (pure)
 func NewDocumentSubResourceHandler(documentStore DocumentRepository, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *DocumentSubResourceHandler {
 	return &DocumentSubResourceHandler{
 		documentStore:    documentStore,
@@ -236,6 +247,7 @@ func NewDocumentSubResourceHandler(documentStore DocumentRepository, db *sql.DB,
 
 // GetDocuments retrieves all documents for a threat model with pagination
 // GET /threat_models/{threat_model_id}/documents
+// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: list paginated documents for a threat model (reads DB)
 func (h *DocumentSubResourceHandler) GetDocuments(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetDocuments - retrieving documents for threat model")
@@ -303,6 +315,7 @@ func (h *DocumentSubResourceHandler) GetDocuments(c *gin.Context) {
 
 // GetDocument retrieves a specific document by ID
 // GET /threat_models/{threat_model_id}/documents/{document_id}
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch a single document by ID and attach per-viewer access diagnostics when not accessible (reads DB)
 func (h *DocumentSubResourceHandler) GetDocument(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetDocument - retrieving specific document")
@@ -386,6 +399,7 @@ func (h *DocumentSubResourceHandler) GetDocument(c *gin.Context) {
 // pendingAccessReasonCode returns the diagnostic reason_code to persist when a
 // document transitions to pending_access for the given content source. Returns
 // "" when the status is not pending_access or the source has no specific code.
+// SEM@0df0d2dff7b33c80381c750d43f93a6905304047: map a pending-access document's content source to its diagnostic reason code (pure)
 func pendingAccessReasonCode(status, contentSource string) string {
 	if status != AccessStatusPendingAccess {
 		return ""
@@ -402,6 +416,7 @@ func pendingAccessReasonCode(status, contentSource string) string {
 
 // CreateDocument creates a new document in a threat model
 // POST /threat_models/{threat_model_id}/documents
+// SEM@d994c2f113f9e0997f83a0815018638cc94111f7: store a new document under a threat model, optionally routing to async extraction (reads DB)
 func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateDocument - creating new document")
@@ -537,6 +552,7 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 // created document and reflects the result into the document struct for the
 // response. Extracted from CreateDocument to keep cyclomatic complexity within
 // the project lint budget.
+// SEM@d994c2f113f9e0997f83a0815018638cc94111f7: persist access status, content source, and picker metadata on a newly created document (reads DB)
 func (h *DocumentSubResourceHandler) applyAccessTracking(
 	c *gin.Context,
 	document *Document,
@@ -607,6 +623,7 @@ func (h *DocumentSubResourceHandler) applyAccessTracking(
 // published; (", false) when async is disabled, the URI has no fetchable
 // source, or any fetch/publish error occurs (caller falls back to 201).
 // ZERO-500: all errors are logged as warnings, never surfaced to the caller.
+// SEM@d994c2f113f9e0997f83a0815018638cc94111f7: fetch document content and publish an async extraction job; returns job ID on success (reads DB)
 func (h *DocumentSubResourceHandler) tryAsyncExtraction(ctx context.Context, document *Document) (string, bool) {
 	if h.asyncDecider == nil || !h.asyncDecider(ctx) || h.publisher == nil || h.contentPipeline == nil {
 		return "", false
@@ -635,6 +652,7 @@ func (h *DocumentSubResourceHandler) tryAsyncExtraction(ctx context.Context, doc
 
 // UpdateDocument updates an existing document
 // PUT /threat_models/{threat_model_id}/documents/{document_id}
+// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: replace an existing document's fields with optimistic locking and audit recording (reads DB)
 func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateDocument - updating existing document")
@@ -730,6 +748,7 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 
 // DeleteDocument deletes a document
 // DELETE /threat_models/{threat_model_id}/documents/{document_id}
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: delete a document by ID with pre-deletion audit capture and cache invalidation (reads DB)
 func (h *DocumentSubResourceHandler) DeleteDocument(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteDocument - deleting document")
@@ -780,6 +799,7 @@ func (h *DocumentSubResourceHandler) DeleteDocument(c *gin.Context) {
 
 // BulkCreateDocuments creates multiple documents in a single request
 // POST /threat_models/{threat_model_id}/documents/bulk
+// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: store up to 50 documents under a threat model in a single request (reads DB)
 func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateDocuments - creating multiple documents")
@@ -875,6 +895,7 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 
 // PatchDocument applies JSON patch operations to a document
 // PATCH /threat_models/{threat_model_id}/documents/{document_id}
+// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: apply JSON patch operations to a document with role-based authorization and optimistic locking (reads DB)
 func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchDocument - applying patch operations to document")
@@ -976,6 +997,7 @@ func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 
 // BulkUpdateDocuments updates or creates multiple documents (upsert operation)
 // PUT /threat_models/{threat_model_id}/documents/bulk
+// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: upsert up to 50 documents for a threat model in a single request (reads DB)
 func (h *DocumentSubResourceHandler) BulkUpdateDocuments(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkUpdateDocuments - upserting multiple documents")

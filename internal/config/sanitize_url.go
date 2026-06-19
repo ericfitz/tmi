@@ -8,6 +8,7 @@ import (
 // sanitizeURL parses a URL and replaces the password with "****".
 // Returns the original string for empty input or bare host:port (no scheme).
 // Returns "<invalid URL>" if parsing fails with a scheme present.
+// SEM@9e0b8e67811a2ed9736d048228cfa1dcc198bd12: format a connection URL with its password redacted for safe logging (pure)
 func sanitizeURL(rawURL string) string {
 	if rawURL == "" {
 		return ""

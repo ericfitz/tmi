@@ -15,6 +15,7 @@ import (
 )
 
 // OCICloudWriter implements CloudLogWriter for OCI Logging service.
+// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: buffered log writer that batches structured entries to the OCI Logging service (mutates shared state)
 type OCICloudWriter struct {
 	client       loggingingestion.LoggingClient
 	logID        string
@@ -39,6 +40,7 @@ type OCICloudWriter struct {
 }
 
 // OCICloudWriterConfig configures the OCI cloud writer.
+// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: configuration for the OCI Logging writer, including log OCID, batch size, and flush interval (pure)
 type OCICloudWriterConfig struct {
 	// LogID is the OCID of the OCI Log to write to (required)
 	LogID string
@@ -60,6 +62,7 @@ type OCICloudWriterConfig struct {
 }
 
 // NewOCICloudWriter creates a new OCI Logging writer.
+// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: build an OCI cloud log writer with auto-detected principal auth and start its background flusher
 func NewOCICloudWriter(ctx context.Context, config OCICloudWriterConfig) (*OCICloudWriter, error) {
 	// Set defaults
 	if config.BatchSize <= 0 {
@@ -119,6 +122,7 @@ func NewOCICloudWriter(ctx context.Context, config OCICloudWriterConfig) (*OCICl
 }
 
 // Write implements io.Writer for compatibility.
+// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: dispatch a raw byte payload as an info-level log entry to OCI Logging (mutates shared state)
 func (w *OCICloudWriter) Write(p []byte) (int, error) {
 	// Parse as JSON log entry if possible
 	entry := LogEntry{
@@ -135,6 +139,7 @@ func (w *OCICloudWriter) Write(p []byte) (int, error) {
 }
 
 // WriteLog sends a structured log entry to OCI Logging.
+// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: buffer a structured log entry and flush to OCI Logging when the batch is full (mutates shared state)
 func (w *OCICloudWriter) WriteLog(ctx context.Context, entry LogEntry) error {
 	w.closedMu.RLock()
 	if w.closed {
@@ -162,6 +167,7 @@ func (w *OCICloudWriter) WriteLog(ctx context.Context, entry LogEntry) error {
 }
 
 // toOCIEntry converts a LogEntry to OCI LogEntry format.
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: convert a structured log entry to the OCI LogEntry wire format (pure)
 func (w *OCICloudWriter) toOCIEntry(entry LogEntry) loggingingestion.LogEntry {
 	// Build data map
 	data := make(map[string]any)
@@ -196,6 +202,7 @@ func (w *OCICloudWriter) toOCIEntry(entry LogEntry) loggingingestion.LogEntry {
 }
 
 // Flush forces any buffered logs to be sent immediately.
+// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: send all buffered log entries to OCI Logging immediately (mutates shared state)
 func (w *OCICloudWriter) Flush(ctx context.Context) error {
 	w.bufferMu.Lock()
 	if len(w.buffer) == 0 {
@@ -211,6 +218,7 @@ func (w *OCICloudWriter) Flush(ctx context.Context) error {
 }
 
 // flush sends a batch of entries to OCI Logging.
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: send a batch of log entries to OCI Logging and update health status (mutates shared state)
 func (w *OCICloudWriter) flush(ctx context.Context, entries []loggingingestion.LogEntry) error {
 	if len(entries) == 0 {
 		return nil
@@ -244,6 +252,7 @@ func (w *OCICloudWriter) flush(ctx context.Context, entries []loggingingestion.L
 }
 
 // backgroundFlusher periodically flushes the buffer.
+// SEM@65af9b7db2850b6e18076df15ed522c8df4bb64c: periodically flush buffered log entries to OCI Logging until context is cancelled (mutates shared state)
 func (w *OCICloudWriter) backgroundFlusher(ctx context.Context) {
 	ticker := time.NewTicker(w.flushTimeout)
 	defer ticker.Stop()
@@ -277,6 +286,7 @@ func (w *OCICloudWriter) backgroundFlusher(ctx context.Context) {
 }
 
 // Close releases resources and flushes any remaining logs.
+// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: flush remaining log entries and mark the writer as closed (mutates shared state)
 func (w *OCICloudWriter) Close() error {
 	w.closedMu.Lock()
 	if w.closed {
@@ -294,11 +304,13 @@ func (w *OCICloudWriter) Close() error {
 }
 
 // Name returns the provider name.
+// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: return the provider identifier string for this writer (pure)
 func (w *OCICloudWriter) Name() string {
 	return "oci-logging"
 }
 
 // IsHealthy returns true if OCI Logging is reachable.
+// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: report whether the OCI Logging endpoint was reachable on last flush (pure)
 func (w *OCICloudWriter) IsHealthy(ctx context.Context) bool {
 	w.healthMu.RLock()
 	defer w.healthMu.RUnlock()
@@ -306,6 +318,7 @@ func (w *OCICloudWriter) IsHealthy(ctx context.Context) bool {
 }
 
 // setHealthy updates the health status.
+// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: update the writer's health flag and last-healthy timestamp (mutates shared state)
 func (w *OCICloudWriter) setHealthy(healthy bool) {
 	w.healthMu.Lock()
 	defer w.healthMu.Unlock()
@@ -316,6 +329,7 @@ func (w *OCICloudWriter) setHealthy(healthy bool) {
 }
 
 // LastHealthyTime returns when the writer was last healthy.
+// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: return the timestamp of the most recent successful OCI Logging flush (pure)
 func (w *OCICloudWriter) LastHealthyTime() time.Time {
 	w.healthMu.RLock()
 	defer w.healthMu.RUnlock()

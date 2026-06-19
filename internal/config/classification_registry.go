@@ -6,6 +6,7 @@ import "strings"
 // exact-match table first, then the ordered prefix table. An unknown key
 // returns the zero ConfigClass (CategoryUnclassified), which the validation
 // suite rejects.
+// SEM@55f4f6266d341a39de8f083ec505b31ec3f5d743: resolve the ConfigClass for a setting key via exact match then prefix table (pure)
 func classificationFor(key string) ConfigClass {
 	if c, ok := exactClassifications[key]; ok {
 		return c
@@ -21,22 +22,26 @@ func classificationFor(key string) ConfigClass {
 // ClassificationCategoryFor returns the Category of a setting key. It is the
 // exported entry point for callers outside the config package that need to
 // know whether a key is bootstrap or operational.
+// SEM@290855b441dc47580986878bc40a3cb20d4ea51a: return the lifecycle category (bootstrap vs operational) for a setting key (pure)
 func ClassificationCategoryFor(key string) Category {
 	return classificationFor(key).Category
 }
 
 // ClassificationFor returns the full ConfigClass for a setting key. It is the
 // exported entry point for callers outside the config package.
+// SEM@dcb09b6afcb6a3a78ce7ba3c345e459ba9cf55a2: return the full ConfigClass for a setting key (pure)
 func ClassificationFor(key string) ConfigClass {
 	return classificationFor(key)
 }
 
+// SEM@55f4f6266d341a39de8f083ec505b31ec3f5d743: pair of a config key prefix and the ConfigClass it applies to (pure)
 type prefixClass struct {
 	prefix string
 	class  ConfigClass
 }
 
 // bootstrapClass is a helper for the common bootstrap shape.
+// SEM@55f4f6266d341a39de8f083ec505b31ec3f5d743: build a static, monolith-only bootstrap ConfigClass with given visibility and secret flag (pure)
 func bootstrapClass(required bool, vis Visibility, secret bool) ConfigClass {
 	return ConfigClass{
 		Category:   CategoryBootstrap,
@@ -50,6 +55,7 @@ func bootstrapClass(required bool, vis Visibility, secret bool) ConfigClass {
 }
 
 // operationalClass is a helper for the common monolith-only operational shape.
+// SEM@55f4f6266d341a39de8f083ec505b31ec3f5d743: build a hot-reloadable operational ConfigClass for given consumers (pure)
 func operationalClass(vis Visibility, secret bool, consumers ...Consumer) ConfigClass {
 	if len(consumers) == 0 {
 		consumers = []Consumer{ConsumerMonolith}
@@ -66,6 +72,7 @@ func operationalClass(vis Visibility, secret bool, consumers ...Consumer) Config
 }
 
 // sharedEmbeddingClass is the SharedInvariant shape for the embedding profile.
+// SEM@55f4f6266d341a39de8f083ec505b31ec3f5d743: build a shared operational ConfigClass delivered to monolith and chunk-embed worker (pure)
 func sharedEmbeddingClass(secret bool) ConfigClass {
 	return ConfigClass{
 		Category:   CategoryOperational,
@@ -260,6 +267,7 @@ var exactClassifications = map[string]ConfigClass{
 // operational secrets (Timmy API keys). It is intentionally NOT stamped into
 // any worker envelope — workers receive their own secrets through the
 // SecretMounts bootstrap path.
+// SEM@0987b7f26309b4badb3fee5a55ffd7ae0c48b122: build a hot-reloadable admin-only secret ConfigClass for monolith-only API keys (pure)
 func operationalSecretMonolith() ConfigClass {
 	return ConfigClass{
 		Category:   CategoryOperational,

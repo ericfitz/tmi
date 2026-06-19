@@ -11,6 +11,7 @@ import (
 )
 
 // RateLimitMiddleware creates a middleware that enforces API rate limiting
+// SEM@c70d49ed2d6089c24d05f8bc287ba5711c73abde: enforce per-user API rate limits and set rate limit response headers, skipping public and auth endpoints
 func RateLimitMiddleware(server *Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
@@ -97,6 +98,7 @@ func RateLimitMiddleware(server *Server) gin.HandlerFunc {
 // Note: "/" (health/info) is intentionally excluded — it is hit by ALB health
 // checks, kubelet probes, and frontend status polls, so IP-based rate limiting
 // on it causes spurious 429s in cloud deployments.
+// SEM@ea92ee787f92d4cc95d248683abb5f294c035012: report whether a request path is a public discovery endpoint exempt from rate limiting (pure)
 func isPublicEndpoint(path string) bool {
 	// Prefix matches for public path prefixes
 	prefixes := []string{
@@ -112,6 +114,7 @@ func isPublicEndpoint(path string) bool {
 }
 
 // isAuthFlowEndpoint checks if the path is an OAuth or SAML auth flow endpoint
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: report whether a request path is an OAuth or SAML auth flow endpoint exempt from rate limiting (pure)
 func isAuthFlowEndpoint(path string) bool {
 	authPaths := []string{
 		"/oauth2/authorize",

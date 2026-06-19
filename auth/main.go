@@ -15,6 +15,7 @@ import (
 )
 
 // InitAuth initializes the authentication system
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: initialize the auth subsystem: DB, Redis, migrations, service, and background jobs
 func InitAuth(router *gin.Engine) error {
 	// Load configuration
 	config, err := LoadConfig()
@@ -77,6 +78,7 @@ func InitAuth(router *gin.Engine) error {
 }
 
 // startCacheRebuildJob starts a background job to periodically rebuild the Redis cache
+// SEM@d8df570eb0fcf431602cc34810bdf6bc7d933155: run a hourly background loop that rebuilds the Redis authorization cache (mutates shared state)
 func startCacheRebuildJob(ctx context.Context, dbManager *db.Manager) {
 	ticker := time.NewTicker(1 * time.Hour) // Rebuild cache every hour
 	defer ticker.Stop()
@@ -96,6 +98,7 @@ func startCacheRebuildJob(ctx context.Context, dbManager *db.Manager) {
 }
 
 // rebuildCacheWithRetry attempts to rebuild the cache with exponential backoff retry
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: rebuild the auth cache with connection-pool refresh and exponential-backoff retry (reads DB)
 func rebuildCacheWithRetry(ctx context.Context, dbManager *db.Manager) error {
 	const maxRetries = 3
 	baseDelay := 5 * time.Second
@@ -154,6 +157,7 @@ func rebuildCacheWithRetry(ctx context.Context, dbManager *db.Manager) error {
 }
 
 // rebuildCache rebuilds the Redis cache from the database using GORM
+// SEM@d0742bff5d3b93b3ab7b22df0377398a720a8d9c: repopulate Redis authorization and mapping caches from the DB in a serializable transaction (reads DB)
 func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 	gormDB := dbManager.Gorm().DB()
 	redisClient := dbManager.Redis().GetClient()
@@ -184,12 +188,14 @@ func rebuildCache(ctx context.Context, dbManager *db.Manager) error {
 }
 
 // threatModelWithOwner is a helper struct for the join query result
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: query result struct pairing a threat model ID with its owner's email (pure)
 type threatModelWithOwner struct {
 	ID         string
 	OwnerEmail string
 }
 
 // rebuildThreatModelAuthCache rebuilds authorization data for threat models
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: store per-threat-model role assignments in Redis from a live DB transaction (reads DB)
 func rebuildThreatModelAuthCache(ctx context.Context, tx *gorm.DB, redisClient *redis.Client) error {
 	// Query threat models with owner email via join
 	var results []threatModelWithOwner
@@ -216,12 +222,14 @@ func rebuildThreatModelAuthCache(ctx context.Context, tx *gorm.DB, redisClient *
 }
 
 // accessWithEmail is a helper struct for the access query result
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: query result struct pairing an email with its access role (pure)
 type accessWithEmail struct {
 	Email string
 	Role  string
 }
 
 // getThreatModelRoles retrieves roles for a threat model
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: fetch user role assignments for a threat model via DB join, including the owner (reads DB)
 func getThreatModelRoles(_ context.Context, tx *gorm.DB, threatModelID, ownerEmail string) (map[string]string, error) {
 	// Query access records with user email via join
 	var accessResults []accessWithEmail
@@ -245,6 +253,7 @@ func getThreatModelRoles(_ context.Context, tx *gorm.DB, threatModelID, ownerEma
 }
 
 // storeThreatModelRoles stores authorization roles in Redis
+// SEM@e9624ed5a78358edd81f110113b74d2890b61e73: write a threat model's email-to-role map into Redis with a 24-hour TTL
 func storeThreatModelRoles(ctx context.Context, redis *redis.Client, threatModelID string, roles map[string]string) error {
 	key := fmt.Sprintf("threatmodel:%s:roles", threatModelID)
 	for email, role := range roles {
@@ -261,6 +270,7 @@ func storeThreatModelRoles(ctx context.Context, redis *redis.Client, threatModel
 }
 
 // rebuildThreatMappingCache rebuilds threat-to-threat-model mapping cache
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: store threat-to-threat-model ID mappings in Redis from the DB (reads DB)
 func rebuildThreatMappingCache(ctx context.Context, tx *gorm.DB, redisClient *redis.Client) error {
 	var threats []models.Threat
 	if err := tx.Select("id, threat_model_id").Find(&threats).Error; err != nil {
@@ -278,6 +288,7 @@ func rebuildThreatMappingCache(ctx context.Context, tx *gorm.DB, redisClient *re
 }
 
 // rebuildDiagramMappingCache rebuilds diagram-to-threat-model mapping cache
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: store diagram-to-threat-model ID mappings in Redis from the DB (reads DB)
 func rebuildDiagramMappingCache(ctx context.Context, tx *gorm.DB, redisClient *redis.Client) error {
 	var diagrams []models.Diagram
 	if err := tx.Select("id, threat_model_id").Find(&diagrams).Error; err != nil {
@@ -299,11 +310,13 @@ func rebuildDiagramMappingCache(ctx context.Context, tx *gorm.DB, redisClient *r
 // Deprecated: Use db.GetGlobalManager() instead.
 // This function is retained for backward compatibility with code that uses
 // auth.GetDatabaseManager() after calling auth.InitAuthWithConfig().
+// SEM@3080aafd268e1adeeb4b0e7b35049f3b5e926c7c: fetch the global database manager; deprecated in favor of db.GetGlobalManager (pure)
 func GetDatabaseManager() *db.Manager {
 	return db.GetGlobalManager()
 }
 
 // Shutdown gracefully shuts down the authentication system
+// SEM@3080aafd268e1adeeb4b0e7b35049f3b5e926c7c: close all database and Redis connections held by the global auth manager
 func Shutdown(ctx context.Context) error {
 	if mgr := db.GetGlobalManager(); mgr != nil {
 		return mgr.Close()

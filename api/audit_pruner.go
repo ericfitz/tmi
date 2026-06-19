@@ -14,6 +14,7 @@ import (
 const DefaultPruneInterval = 24 * time.Hour
 
 // AuditPruner runs periodic cleanup of expired audit entries and version snapshots.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: background scheduler that periodically deletes expired audit entries and snapshots
 type AuditPruner struct {
 	auditService AuditServiceInterface
 	interval     time.Duration
@@ -21,6 +22,7 @@ type AuditPruner struct {
 }
 
 // NewAuditPruner creates a new pruner for the given audit service.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: build an AuditPruner for the given audit service with the default 24-hour interval (pure)
 func NewAuditPruner(auditService AuditServiceInterface) *AuditPruner {
 	return &AuditPruner{
 		auditService: auditService,
@@ -29,6 +31,7 @@ func NewAuditPruner(auditService AuditServiceInterface) *AuditPruner {
 }
 
 // Start begins the background pruning goroutine.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: start the background pruning goroutine (mutates shared state)
 func (p *AuditPruner) Start() {
 	ctx, cancel := context.WithCancel(context.Background())
 	p.cancel = cancel
@@ -38,6 +41,7 @@ func (p *AuditPruner) Start() {
 }
 
 // Stop gracefully stops the pruning goroutine.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: cancel the background pruning goroutine (mutates shared state)
 func (p *AuditPruner) Stop() {
 	if p.cancel != nil {
 		p.cancel()
@@ -46,6 +50,7 @@ func (p *AuditPruner) Stop() {
 }
 
 // run is the main pruning loop.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: run the periodic prune loop until context cancellation (mutates shared state)
 func (p *AuditPruner) run(ctx context.Context) {
 	// Run once at startup (with a short delay to let the server finish initializing)
 	timer := time.NewTimer(1 * time.Minute)
@@ -67,6 +72,7 @@ func (p *AuditPruner) run(ctx context.Context) {
 // the retention config was lowered after boot (the trigger floor is baked in
 // at install time) or the floor's hard minimum is above the configured
 // retention — both fixed by aligning config and restarting.
+// SEM@cd37eb35eb85c8f0a0935a9abee43a583b427502: build an operator-actionable log message for a prune failure, with append-only trigger advice (pure)
 func pruneFailureMessage(what string, err error) string {
 	classified := dberrors.Classify(err)
 	if errors.Is(classified, dberrors.ErrAppendOnlyViolation) || errors.Is(err, dberrors.ErrAppendOnlyViolation) {
@@ -76,6 +82,7 @@ func pruneFailureMessage(what string, err error) string {
 }
 
 // prune executes one pruning cycle.
+// SEM@225dee65a650d4cb8241fb5be7bf3c49c84642b5: delete expired audit entries, version snapshots, orphaned snapshots, and tombstones (reads DB)
 func (p *AuditPruner) prune(ctx context.Context) {
 	logger := slogging.Get()
 

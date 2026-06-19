@@ -47,6 +47,7 @@ var useAliasSequence atomic.Bool
 // sequence exists and AllocateNextAlias may draw the global alias from it. The
 // server calls this once, after dbschema.InstallThreatModelAliasSequence
 // succeeds on PostgreSQL or Oracle.
+// SEM@15d1523404ac67830fbe68f72a41c9683aa564b6: enable DB-sequence-backed alias allocation for the global threat model scope (mutates shared state)
 func EnableThreatModelAliasSequence() { useAliasSequence.Store(true) }
 
 // AllocateNextAlias atomically reserves the next alias value for the given
@@ -68,6 +69,7 @@ func EnableThreatModelAliasSequence() { useAliasSequence.Store(true) }
 // counter UPDATE rolls back too — the alias is "released" and reused. On the
 // sequence path the drawn value is gone (gap) whether or not the create
 // commits. Both paths only ever yield committed, unique aliases.
+// SEM@15d1523404ac67830fbe68f72a41c9683aa564b6: atomically reserve the next alias integer for a given parent/object-type scope within a transaction (reads DB)
 func AllocateNextAlias(ctx context.Context, tx *gorm.DB, parentID, objectType string) (int32, error) {
 	if useAliasSequence.Load() && parentID == globalAliasParent && objectType == threatModelAliasObjectType {
 		switch tx.Name() {
@@ -82,6 +84,7 @@ func AllocateNextAlias(ctx context.Context, tx *gorm.DB, parentID, objectType st
 // sequence. NEXTVAL is non-transactional: it never participates in the caller's
 // serializable snapshot (so it cannot raise ORA-08177 / 40001) and is not
 // rolled back.
+// SEM@178dbd0418cfb7e057d4297c7a88c5879cb64c7f: fetch the next value from the DB sequence for global threat model alias allocation (reads DB)
 func allocateAliasFromSequence(ctx context.Context, tx *gorm.DB) (int32, error) {
 	var query string
 	switch tx.Name() {
@@ -112,6 +115,7 @@ func allocateAliasFromSequence(ctx context.Context, tx *gorm.DB) (int32, error) 
 
 // allocateNextAliasRowLocked is the original SELECT ... FOR UPDATE row-counter
 // allocator, retained for per-scope sub-object aliases and for SQLite.
+// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: reserve the next alias by row-locking and incrementing a counter row in a transaction (reads DB)
 func allocateNextAliasRowLocked(ctx context.Context, tx *gorm.DB, parentID, objectType string) (int32, error) {
 	logger := slogging.Get()
 

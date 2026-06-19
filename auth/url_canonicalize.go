@@ -13,6 +13,7 @@ import (
 //   - Strip trailing slash from path (only when path is more than just "/")
 //
 // This does NOT canonicalize across different hosts (e.g. host aliases).
+// SEM@a910bc93154f9b019a19a7c23402b54c7314fe34: normalize a URL for equality comparison by lowercasing scheme/host, stripping default port, and trimming trailing slash (pure)
 func canonicalizeURL(raw string) string {
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" {

@@ -21,10 +21,12 @@ import (
 // Tier 3 (verbatim): everything else — value as-is (with empty-string
 // sentinel "<empty>" so Oracle CLOB and PostgreSQL TEXT round-trip
 // identically; Oracle treats "" as NULL on CLOB insert).
+// SEM@ef5f479de370d769f902d18acce8c504f1db69c1: apply tiered redaction to a field value before storing it in an audit entry (pure)
 type Redactor interface {
 	Redact(fieldPath, value string) string
 }
 
+// SEM@ef5f479de370d769f902d18acce8c504f1db69c1: hold tier-1 and tier-2 field-path pattern lists for audit value redaction (pure)
 type redactorImpl struct {
 	tier1Patterns []string
 	tier2Patterns []string
@@ -32,6 +34,7 @@ type redactorImpl struct {
 
 // NewRedactor returns a Redactor configured with the deny-list from #355's
 // design spec.
+// SEM@9ae68dfcfd72172f631accb154ab99316045e047: build a Redactor pre-loaded with the canonical sensitive-field deny-list (pure)
 func NewRedactor() Redactor {
 	return &redactorImpl{
 		tier1Patterns: []string{
@@ -66,6 +69,7 @@ func NewRedactor() Redactor {
 
 const emptyValueSentinel = "<empty>"
 
+// SEM@ef5f479de370d769f902d18acce8c504f1db69c1: classify a field path and apply the matching redaction tier to its value (pure)
 func (r *redactorImpl) Redact(fieldPath, value string) string {
 	if matchesAny(fieldPath, r.tier1Patterns) {
 		return mustJSON(map[string]any{"redacted": true})
@@ -86,6 +90,7 @@ func (r *redactorImpl) Redact(fieldPath, value string) string {
 	return value
 }
 
+// SEM@ef5f479de370d769f902d18acce8c504f1db69c1: check whether a field path matches any glob or contains pattern in a list (pure)
 func matchesAny(fieldPath string, patterns []string) bool {
 	lower := strings.ToLower(fieldPath)
 	for _, p := range patterns {
@@ -107,11 +112,13 @@ func matchesAny(fieldPath string, patterns []string) bool {
 	return false
 }
 
+// SEM@ef5f479de370d769f902d18acce8c504f1db69c1: compute the first 8 hex characters of a SHA-256 digest of a value (pure)
 func sha256Prefix8(v string) string {
 	sum := sha256.Sum256([]byte(v))
 	return hex.EncodeToString(sum[:4]) // 4 bytes = 8 hex chars
 }
 
+// SEM@ef5f479de370d769f902d18acce8c504f1db69c1: return the last N characters of a string (pure)
 func lastN(v string, n int) string {
 	if len(v) <= n {
 		return v
@@ -119,6 +126,7 @@ func lastN(v string, n int) string {
 	return v[len(v)-n:]
 }
 
+// SEM@ef5f479de370d769f902d18acce8c504f1db69c1: serialize a value to a JSON string, returning an error sentinel on failure (pure)
 func mustJSON(v any) string {
 	b, err := json.Marshal(v)
 	if err != nil {

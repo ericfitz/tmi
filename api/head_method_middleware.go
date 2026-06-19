@@ -19,6 +19,7 @@ import (
 //
 // Excluded paths (OAuth redirects, SAML redirects) are intentionally omitted
 // because their redirect behaviour makes HEAD semantically incorrect.
+// SEM@a729e8ec8c179ca5981e8e9cdc8d4290f627bd93: register HEAD routes for all eligible GET routes on the router (mutates shared state)
 func RegisterHEADRoutes(r *gin.Engine) {
 	// Build a set of paths that already have HEAD routes registered
 	// (e.g., static files registered via r.StaticFile register both GET and HEAD).
@@ -60,6 +61,7 @@ var headExcludedPaths = [][]string{
 // isExcludedFromHead returns true if the given path matches any of the
 // excluded path patterns. Matching is segment-based: each segment must match
 // exactly or the pattern segment must be "*" (which matches any single segment).
+// SEM@24f51bad50c8ca10a1308eb097fbe7cd4449e83a: check whether a path is excluded from HEAD-to-GET conversion (pure)
 func isExcludedFromHead(path string) bool {
 	// Trim leading slash and split into segments
 	trimmed := strings.TrimPrefix(path, "/")
@@ -78,6 +80,7 @@ func isExcludedFromHead(path string) bool {
 
 // matchSegments returns true if the path segments match the pattern segments.
 // A pattern segment of "*" matches any single path segment.
+// SEM@24f51bad50c8ca10a1308eb097fbe7cd4449e83a: check whether path segments match a pattern with wildcard support (pure)
 func matchSegments(pattern, segments []string) bool {
 	if len(pattern) != len(segments) {
 		return false
@@ -93,29 +96,34 @@ func matchSegments(pattern, segments []string) bool {
 // headResponseWriter wraps a gin.ResponseWriter to suppress response body
 // writes while tracking the number of bytes that would have been written.
 // This is used by HeadMethodMiddleware to implement proper HEAD responses.
+// SEM@24f51bad50c8ca10a1308eb097fbe7cd4449e83a: response writer wrapper that counts but suppresses body bytes for HEAD responses (pure)
 type headResponseWriter struct {
 	gin.ResponseWriter
 	bodyBytes int
 }
 
 // Write counts the bytes but does not write them to the underlying writer.
+// SEM@24f51bad50c8ca10a1308eb097fbe7cd4449e83a: count bytes without forwarding them to the underlying writer (pure)
 func (w *headResponseWriter) Write(b []byte) (int, error) {
 	w.bodyBytes += len(b)
 	return len(b), nil
 }
 
 // WriteString counts the string length but does not write to the underlying writer.
+// SEM@24f51bad50c8ca10a1308eb097fbe7cd4449e83a: count string length without forwarding to the underlying writer (pure)
 func (w *headResponseWriter) WriteString(s string) (int, error) {
 	w.bodyBytes += len(s)
 	return len(s), nil
 }
 
 // Size returns the number of body bytes that were suppressed.
+// SEM@24f51bad50c8ca10a1308eb097fbe7cd4449e83a: return the total number of suppressed body bytes (pure)
 func (w *headResponseWriter) Size() int {
 	return w.bodyBytes
 }
 
 // Written returns true if any body bytes were suppressed.
+// SEM@24f51bad50c8ca10a1308eb097fbe7cd4449e83a: report whether any body bytes were suppressed (pure)
 func (w *headResponseWriter) Written() bool {
 	return w.bodyBytes > 0
 }
@@ -128,6 +136,7 @@ func (w *headResponseWriter) Written() bool {
 // Certain protocol endpoints (OAuth authorize/callback, SAML login/SLO) are
 // excluded from conversion because they involve redirects or other behavior
 // that should not be altered.
+// SEM@24f51bad50c8ca10a1308eb097fbe7cd4449e83a: Gin middleware that converts HEAD requests to GET, suppresses the response body, and sets Content-Length
 func HeadMethodMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.Method != http.MethodHead {

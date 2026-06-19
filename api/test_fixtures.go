@@ -17,6 +17,7 @@ const (
 
 // Fixtures provides test data for unit tests
 // CustomDiagram extends Diagram with authorization fields for testing
+// SEM@71c76e4f3ee8185c2e04a7476bacd2537c75d2e4: test-only diagram type extending DfdDiagram with owner and authorization fields (pure)
 type CustomDiagram struct {
 	DfdDiagram
 	Owner         string
@@ -46,6 +47,7 @@ var TestFixtures struct {
 }
 
 // InitTestFixtures initializes test data in stores
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: initialize in-memory stores with canonical test threat model and diagram fixtures (mutates shared state)
 func InitTestFixtures() {
 	// Database stores are initialized by the main application
 
@@ -228,10 +230,12 @@ func InitTestFixtures() {
 }
 
 // Simple mock stores for unit tests
+// SEM@9936be5037906d553ff6e5c579ca9f27d222d149: in-memory threat model store implementation for unit tests (pure)
 type MockThreatModelStore struct {
 	data map[string]ThreatModel
 }
 
+// SEM@e4005658033b63171bdc1130fb523d996fbff9a7: fetch a threat model by ID from the in-memory store, loading diagrams dynamically (pure)
 func (m *MockThreatModelStore) Get(id string) (ThreatModel, error) {
 	if item, exists := m.data[id]; exists {
 		// Filter out soft-deleted entities
@@ -262,6 +266,7 @@ func (m *MockThreatModelStore) Get(id string) (ThreatModel, error) {
 	return ThreatModel{}, fmt.Errorf("threat model not found")
 }
 
+// SEM@9936be5037906d553ff6e5c579ca9f27d222d149: list threat models from in-memory store with optional predicate filter (pure)
 func (m *MockThreatModelStore) List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel {
 	var result []ThreatModel
 	for _, item := range m.data {
@@ -272,6 +277,7 @@ func (m *MockThreatModelStore) List(offset, limit int, filter func(ThreatModel) 
 	return result
 }
 
+// SEM@ce7f0b599ec1a118c3d01ee48ad1e397e9f0c19d: list threat models as list items with query-param filters, pagination, and total count (pure)
 func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int) {
 	var result []TMListItem
 	for _, item := range m.data {
@@ -332,6 +338,7 @@ func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 }
 
 // matchesThreatModelFilters checks if a threat model matches the provided filters
+// SEM@d03a452bc6d7e6be064088c1273b70c59a65a3ff: filter a threat model against all query parameter filters (pure)
 func matchesThreatModelFilters(item ThreatModel, filters *ThreatModelFilters) bool {
 	if !matchesStringFilter(item.Name, filters.Name) {
 		return false
@@ -375,6 +382,7 @@ func matchesThreatModelFilters(item ThreatModel, filters *ThreatModelFilters) bo
 // matchesSecurityReviewerFilter checks if a security reviewer matches the filter.
 // Supports is:null (reviewer must be nil) and is:notnull (reviewer must be non-nil).
 // For plain value filters, performs a case-insensitive partial match against the reviewer's identifiers.
+// SEM@8a0f012a79adaf71c250f15a0a0a7e5857e7ca3e: filter a threat model by security reviewer field with null, not-null, and partial-match operators (pure)
 func matchesSecurityReviewerFilter(reviewer *User, filter *ParsedFilter) bool {
 	if filter == nil {
 		return true
@@ -396,6 +404,7 @@ func matchesSecurityReviewerFilter(reviewer *User, filter *ParsedFilter) bool {
 }
 
 // matchesStringFilter checks if a string field matches a filter (case-insensitive partial match)
+// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: filter a string field by substring match, passing nil filter (pure)
 func matchesStringFilter(value string, filter *string) bool {
 	if filter == nil || *filter == "" {
 		return true
@@ -404,6 +413,7 @@ func matchesStringFilter(value string, filter *string) bool {
 }
 
 // matchesStringPtrFilter checks if a string pointer field matches a filter
+// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: filter an optional string field by substring match, passing nil pointer or filter (pure)
 func matchesStringPtrFilter(value *string, filter *string) bool {
 	if filter == nil || *filter == "" {
 		return true
@@ -412,6 +422,7 @@ func matchesStringPtrFilter(value *string, filter *string) bool {
 }
 
 // matchesStatusFilter checks if the status matches the filter (case-insensitive exact match)
+// SEM@eec953ef2825657d2acb1096511bf77db3ca5bea: filter a status field against an allowed list with case-insensitive exact match (pure)
 func matchesStatusFilter(value *string, filter []string) bool {
 	if len(filter) == 0 {
 		return true
@@ -428,6 +439,7 @@ func matchesStatusFilter(value *string, filter []string) bool {
 }
 
 // matchesOwnerFilter checks if the owner matches the filter
+// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: filter a resource owner by substring match across provider ID, display name, and email (pure)
 func matchesOwnerFilter(owner User, filter *string) bool {
 	if filter == nil || *filter == "" {
 		return true
@@ -438,6 +450,7 @@ func matchesOwnerFilter(owner User, filter *string) bool {
 }
 
 // matchesDateAfterFilter checks if a date is after the filter date
+// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: filter a timestamp to those on or after a cutoff date (pure)
 func matchesDateAfterFilter(date *time.Time, filter *time.Time) bool {
 	if filter == nil {
 		return true
@@ -446,6 +459,7 @@ func matchesDateAfterFilter(date *time.Time, filter *time.Time) bool {
 }
 
 // matchesDateBeforeFilter checks if a date is before the filter date
+// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: filter a timestamp to those on or before a cutoff date (pure)
 func matchesDateBeforeFilter(date *time.Time, filter *time.Time) bool {
 	if filter == nil {
 		return true
@@ -454,10 +468,12 @@ func matchesDateBeforeFilter(date *time.Time, filter *time.Time) bool {
 }
 
 // containsIgnoreCase checks if haystack contains needle (case-insensitive)
+// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: check whether a string contains a substring case-insensitively (pure)
 func containsIgnoreCase(haystack, needle string) bool {
 	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))
 }
 
+// SEM@5981ac53dd2229e2bb211a96f0b495fe72df5f32: store a threat model in the mock store, assigning a UUID and default status if absent
 func (m *MockThreatModelStore) Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
 	var id string
 	if item.Id != nil {
@@ -485,20 +501,24 @@ func (m *MockThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	return item, nil
 }
 
+// SEM@c79f3cd129aecd7cd6562b875b7f02232594d3d1: replace a threat model entry in the mock store by ID
 func (m *MockThreatModelStore) Update(_ context.Context, id string, item ThreatModel) error {
 	m.data[id] = item
 	return nil
 }
 
+// SEM@9936be5037906d553ff6e5c579ca9f27d222d149: remove a threat model from the mock store by ID
 func (m *MockThreatModelStore) Delete(id string) error {
 	delete(m.data, id)
 	return nil
 }
 
+// SEM@9936be5037906d553ff6e5c579ca9f27d222d149: return the number of threat models in the mock store (pure)
 func (m *MockThreatModelStore) Count() int {
 	return len(m.data)
 }
 
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: fetch a threat model from the mock store regardless of soft-delete status
 func (m *MockThreatModelStore) GetIncludingDeleted(id string) (ThreatModel, error) {
 	if item, exists := m.data[id]; exists {
 		return item, nil
@@ -506,6 +526,7 @@ func (m *MockThreatModelStore) GetIncludingDeleted(id string) (ThreatModel, erro
 	return ThreatModel{}, fmt.Errorf("threat model not found")
 }
 
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: fetch the authorization list and owner for a threat model from the mock store
 func (m *MockThreatModelStore) GetAuthorization(id string) ([]Authorization, User, error) {
 	item, err := m.Get(id)
 	if err != nil {
@@ -514,6 +535,7 @@ func (m *MockThreatModelStore) GetAuthorization(id string) ([]Authorization, Use
 	return derefAuthSlice(item.Authorization), item.Owner, nil
 }
 
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: fetch authorization and owner for a threat model including soft-deleted records
 func (m *MockThreatModelStore) GetAuthorizationIncludingDeleted(id string) ([]Authorization, User, error) {
 	item, err := m.GetIncludingDeleted(id)
 	if err != nil {
@@ -522,6 +544,7 @@ func (m *MockThreatModelStore) GetAuthorizationIncludingDeleted(id string) ([]Au
 	return derefAuthSlice(item.Authorization), item.Owner, nil
 }
 
+// SEM@c79f3cd129aecd7cd6562b875b7f02232594d3d1: mark a threat model as deleted by setting its deletion timestamp in the mock store
 func (m *MockThreatModelStore) SoftDelete(_ context.Context, id string) error {
 	if item, exists := m.data[id]; exists {
 		now := time.Now().UTC()
@@ -532,6 +555,7 @@ func (m *MockThreatModelStore) SoftDelete(_ context.Context, id string) error {
 	return fmt.Errorf("threat model not found: %s", id)
 }
 
+// SEM@e4005658033b63171bdc1130fb523d996fbff9a7: clear the deletion timestamp on a soft-deleted threat model in the mock store
 func (m *MockThreatModelStore) Restore(id string) error {
 	if item, exists := m.data[id]; exists {
 		if item.DeletedAt == nil {
@@ -544,15 +568,18 @@ func (m *MockThreatModelStore) Restore(id string) error {
 	return fmt.Errorf("threat model with ID %s not found or not deleted", id)
 }
 
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: permanently remove a threat model from the mock store by ID
 func (m *MockThreatModelStore) HardDelete(id string) error {
 	return m.Delete(id)
 }
 
+// SEM@8fc3d262100f4b47c12ee2155e83e344babb1bd3: in-memory diagram store with threat-model mapping for unit tests
 type MockDiagramStore struct {
 	data               map[string]DfdDiagram
 	threatModelMapping map[string]string // diagram_id -> threat_model_id
 }
 
+// SEM@e4005658033b63171bdc1130fb523d996fbff9a7: fetch a diagram from the mock store by ID
 func (m *MockDiagramStore) Get(id string) (DfdDiagram, error) {
 	if item, exists := m.data[id]; exists {
 		return item, nil
@@ -560,6 +587,7 @@ func (m *MockDiagramStore) Get(id string) (DfdDiagram, error) {
 	return DfdDiagram{}, fmt.Errorf("diagram not found")
 }
 
+// SEM@383547f0bee568a092d84a1f830f227b74f6d723: fetch the parent threat model ID for a diagram from the mock store
 func (m *MockDiagramStore) GetThreatModelID(diagramID string) (string, error) {
 	if tmID, exists := m.threatModelMapping[diagramID]; exists {
 		return tmID, nil
@@ -567,6 +595,7 @@ func (m *MockDiagramStore) GetThreatModelID(diagramID string) (string, error) {
 	return "", fmt.Errorf("diagram not found")
 }
 
+// SEM@9936be5037906d553ff6e5c579ca9f27d222d149: list diagrams from the mock store, optionally filtered by a predicate (pure)
 func (m *MockDiagramStore) List(offset, limit int, filter func(DfdDiagram) bool) []DfdDiagram {
 	var result []DfdDiagram
 	for _, item := range m.data {
@@ -577,6 +606,7 @@ func (m *MockDiagramStore) List(offset, limit int, filter func(DfdDiagram) bool)
 	return result
 }
 
+// SEM@5981ac53dd2229e2bb211a96f0b495fe72df5f32: store a diagram in the mock store, assigning a UUID if absent
 func (m *MockDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
 	var id string
 	if item.Id != nil {
@@ -594,6 +624,7 @@ func (m *MockDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, str
 	return item, nil
 }
 
+// SEM@8fc3d262100f4b47c12ee2155e83e344babb1bd3: store a diagram and record its parent threat model association in the mock store
 func (m *MockDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID string, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
 	diagram, err := m.Create(item, idSetter)
 	if err == nil && diagram.Id != nil {
@@ -602,20 +633,24 @@ func (m *MockDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 	return diagram, err
 }
 
+// SEM@c79f3cd129aecd7cd6562b875b7f02232594d3d1: replace a diagram entry in the mock store by ID
 func (m *MockDiagramStore) Update(_ context.Context, id string, item DfdDiagram) error {
 	m.data[id] = item
 	return nil
 }
 
+// SEM@9936be5037906d553ff6e5c579ca9f27d222d149: remove a diagram from the mock store by ID
 func (m *MockDiagramStore) Delete(id string) error {
 	delete(m.data, id)
 	return nil
 }
 
+// SEM@9936be5037906d553ff6e5c579ca9f27d222d149: return the number of diagrams in the mock store (pure)
 func (m *MockDiagramStore) Count() int {
 	return len(m.data)
 }
 
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: fetch a diagram from the mock store regardless of soft-delete status
 func (m *MockDiagramStore) GetIncludingDeleted(id string) (DfdDiagram, error) {
 	if item, exists := m.data[id]; exists {
 		return item, nil
@@ -623,6 +658,7 @@ func (m *MockDiagramStore) GetIncludingDeleted(id string) (DfdDiagram, error) {
 	return DfdDiagram{}, fmt.Errorf("diagram not found")
 }
 
+// SEM@03d4456b06cc7df1a6c638286c7947c816ebd0e8: fetch multiple diagrams by ID list from the mock store, skipping missing entries
 func (m *MockDiagramStore) GetBatch(ids []string) ([]DfdDiagram, error) {
 	var result []DfdDiagram
 	for _, id := range ids {
@@ -635,19 +671,23 @@ func (m *MockDiagramStore) GetBatch(ids []string) ([]DfdDiagram, error) {
 	return result, nil
 }
 
+// SEM@c79f3cd129aecd7cd6562b875b7f02232594d3d1: remove a diagram from the mock store (no-op soft-delete for tests)
 func (m *MockDiagramStore) SoftDelete(_ context.Context, id string) error {
 	return m.Delete(id)
 }
 
+// SEM@e4005658033b63171bdc1130fb523d996fbff9a7: no-op restore for mock diagram store in unit tests (pure)
 func (m *MockDiagramStore) Restore(id string) error {
 	return nil
 }
 
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: permanently remove a diagram from the mock store by ID
 func (m *MockDiagramStore) HardDelete(id string) error {
 	return m.Delete(id)
 }
 
 // InitializeMockStores creates simple mock stores for unit tests
+// SEM@8fc3d262100f4b47c12ee2155e83e344babb1bd3: initialize global threat model and diagram stores with empty in-memory mocks (mutates shared state)
 func InitializeMockStores() {
 	ThreatModelStore = &MockThreatModelStore{data: make(map[string]ThreatModel)}
 	DiagramStore = &MockDiagramStore{
@@ -657,6 +697,7 @@ func InitializeMockStores() {
 }
 
 // CreateNode creates a Node union item from basic parameters (test helper)
+// SEM@e0319b46956724d532b5b4f64b9f66b006e3a0a9: build a diagram cell union item representing a positioned node with given shape and dimensions (pure)
 func CreateNode(id string, shape NodeShape, x, y, width, height float32) (DfdDiagram_Cells_Item, error) {
 	var item DfdDiagram_Cells_Item
 
@@ -692,6 +733,7 @@ func CreateNode(id string, shape NodeShape, x, y, width, height float32) (DfdDia
 }
 
 // CreateEdge creates an Edge union item from basic parameters (test helper)
+// SEM@e0319b46956724d532b5b4f64b9f66b006e3a0a9: build a diagram cell union item representing a directed edge between two node cells (pure)
 func CreateEdge(id string, shape EdgeShape, sourceId, targetId string) (DfdDiagram_Cells_Item, error) {
 	var item DfdDiagram_Cells_Item
 

@@ -12,6 +12,7 @@ import (
 // xlsxRowFingerprint captures the dominant style attributes of a row, used by
 // the header-detection algorithm. A zero-value fingerprint represents "no
 // styling signal" (e.g., row contained no styled cells).
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: dominant style attributes of a spreadsheet row used by header detection (pure)
 type xlsxRowFingerprint struct {
 	bgColor    string
 	fontSize   float64
@@ -25,6 +26,7 @@ type xlsxRowFingerprint struct {
 
 // xlsxHeaderDecision is the output of header detection over the first ≤5
 // non-empty rows of a sheet.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: result of header detection over the first rows of a sheet (pure)
 type xlsxHeaderDecision struct {
 	hasHeader bool
 }
@@ -40,20 +42,25 @@ const xlsxContentType = "application/vnd.openxmlformats-officedocument.spreadshe
 // (dominant bgColor, fontSize, fontWeight, fontItalic) is computed across the
 // first ≤5 non-empty rows, with a content-heuristic fallback when style
 // fingerprints are uniform across the inspected rows. See xlsxDetectHeader.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: extractor that converts XLSX workbook sheets to Markdown pipe tables within configured limits
 type XLSXExtractor struct{ limits Limits }
 
 // NewXLSXExtractor returns an extractor configured with the given limits.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: build an XLSXExtractor configured with the given extraction limits (pure)
 func NewXLSXExtractor(limits Limits) *XLSXExtractor { return &XLSXExtractor{limits: limits} }
 
 // Name returns the extractor name as registered with the registry.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: return the registered extractor name for XLSX files (pure)
 func (e *XLSXExtractor) Name() string { return "xlsx" }
 
 // CanHandle returns true iff contentType is the XLSX OOXML MIME type.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: report whether the content type matches the XLSX OOXML MIME type (pure)
 func (e *XLSXExtractor) CanHandle(contentType string) bool {
 	return strings.EqualFold(contentType, xlsxContentType)
 }
 
 // Bounded marks XLSXExtractor as needing a wall-clock deadline.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: report that this extractor requires a wall-clock deadline (pure)
 func (e *XLSXExtractor) Bounded() bool { return true }
 
 // Extract opens the workbook, walks visible sheets in tab order, and writes
@@ -62,6 +69,7 @@ func (e *XLSXExtractor) Bounded() bool { return true }
 // context (no cooperative cancellation).
 //
 // On non-nil error, the returned ExtractedContent is zero and must be discarded.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: extract Markdown text from XLSX bytes without cooperative cancellation
 func (e *XLSXExtractor) Extract(data []byte, contentType string) (ExtractedContent, error) {
 	return e.ExtractCtx(context.Background(), data, contentType)
 }
@@ -72,6 +80,7 @@ func (e *XLSXExtractor) Extract(data []byte, contentType string) (ExtractedConte
 // loop so wall-clock cancellation aborts long workbooks promptly.
 //
 // On non-nil error, the returned ExtractedContent is zero and must be discarded.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: extract Markdown pipe tables from all visible XLSX sheets with context cancellation and limit enforcement
 func (e *XLSXExtractor) ExtractCtx(ctx context.Context, data []byte, contentType string) (ExtractedContent, error) {
 	// Up-front compressed-size guard (parity with DOCX/PPTX which get this via
 	// ooxmlOpener.open()). excelize doesn't enforce this at the archive level,
@@ -135,6 +144,7 @@ func (e *XLSXExtractor) ExtractCtx(ctx context.Context, data []byte, contentType
 // cellsTotal is updated in-place; trips part_count when it exceeds limits.XLSXCells.
 // The ctx is checked at the top of every row iteration so wall-clock
 // cancellation breaks out of long sheets promptly.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: render one XLSX sheet as a Markdown pipe table, enforcing cell count and markdown size limits
 func xlsxRenderSheet(ctx context.Context, f *excelize.File, sheet string, mb *markdownBuilder, limits Limits, cellsTotal *int) error {
 	rows, err := f.Rows(sheet)
 	if err != nil {
@@ -244,6 +254,7 @@ func xlsxRenderSheet(ctx context.Context, f *excelize.File, sheet string, mb *ma
 //     non-string cell.
 //
 // xlsxRowRef pairs a physical 1-based row number with the row's cell values.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: pair of a physical row number and its cell values for style-query lookup (pure)
 type xlsxRowRef struct {
 	physRow int
 	cells   []string
@@ -251,6 +262,7 @@ type xlsxRowRef struct {
 
 // xlsxCollectInspectRows returns up to the first 5 non-empty rows from data,
 // pairing each with its physical (1-based) row index for cell-style queries.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: collect up to five non-empty rows with their physical indices for header detection (pure)
 func xlsxCollectInspectRows(data [][]string) []xlsxRowRef {
 	var refs []xlsxRowRef
 	for i, r := range data {
@@ -268,6 +280,7 @@ func xlsxCollectInspectRows(data [][]string) []xlsxRowRef {
 // xlsxApplyStyleRules returns the header decision (and whether any rule fired)
 // based on per-row style fingerprints. fps must have len == n. n is in [3, 5+].
 // The 2-row case is handled by the caller via the content heuristic only.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: apply style-fingerprint rules to decide header presence for 3-5+ inspected rows (pure)
 func xlsxApplyStyleRules(fps []xlsxRowFingerprint) (xlsxHeaderDecision, bool) {
 	n := len(fps)
 	switch {
@@ -315,6 +328,7 @@ func xlsxApplyStyleRules(fps []xlsxRowFingerprint) (xlsxHeaderDecision, bool) {
 // xlsxContentHeuristicHeader returns true iff the row pair (row1, row2)
 // matches the spec's content heuristic: all row-1 non-empty cells are
 // string-typed AND no duplicates AND row 2 has at least one non-string cell.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: detect a header row by content heuristic: all-string unique row-1 cells with a non-string in row-2 (pure)
 func xlsxContentHeuristicHeader(f *excelize.File, sheet string, row1, row2 xlsxRowRef) bool {
 	row1Strings := 0
 	row1Cells := 0
@@ -359,6 +373,7 @@ func xlsxContentHeuristicHeader(f *excelize.File, sheet string, row1, row2 xlsxR
 }
 
 // data is the pre-trim row slice; index i corresponds to physical row i+1.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: detect whether a sheet has a header row using style fingerprints with content heuristic fallback (pure)
 func xlsxDetectHeader(f *excelize.File, sheet string, data [][]string) xlsxHeaderDecision {
 	refs := xlsxCollectInspectRows(data)
 	if len(refs) <= 1 {
@@ -391,7 +406,9 @@ func xlsxDetectHeader(f *excelize.File, sheet string, data [][]string) xlsxHeade
 // a row across its non-empty cells. Empty cells are skipped. If no cell
 // contributes a styled fingerprint, the result is the zero value with
 // hasStyle=false (treated as "uniform unstyled" by xlsxFingerprintEqual).
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: compute the mode style fingerprint across non-empty cells in a row (pure)
 func xlsxRowDominantFingerprint(f *excelize.File, sheet string, physRow int, cells []string) xlsxRowFingerprint {
+	// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: comparable key capturing the four style attributes used for fingerprint mode computation (pure)
 	type fpKey struct {
 		bg     string
 		size   float64
@@ -462,6 +479,7 @@ func xlsxRowDominantFingerprint(f *excelize.File, sheet string, physRow int, cel
 // "no signal" fingerprints (hasStyle==false on both sides) are equal — uniform
 // unstyled rows compare equal so the rule cascade falls through to the
 // content heuristic instead of accidentally matching a style rule.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: report whether two row style fingerprints are equal, including two unstyled rows (pure)
 func xlsxFingerprintEqual(a, b xlsxRowFingerprint) bool {
 	return a == b
 }
@@ -470,6 +488,7 @@ func xlsxFingerprintEqual(a, b xlsxRowFingerprint) bool {
 // content heuristic. Shared strings, inline strings, and the formula "str"
 // type (which excelize maps to CellTypeFormula) are treated as strings.
 // Numbers, booleans, dates, and errors are not.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: report whether an XLSX cell type is a string type for content heuristic purposes (pure)
 func xlsxCellTypeIsString(t excelize.CellType) bool {
 	switch t {
 	case excelize.CellTypeSharedString, excelize.CellTypeInlineString:
@@ -486,6 +505,7 @@ func xlsxCellTypeIsString(t excelize.CellType) bool {
 // the unused leading/trailing columns excelize emits when data starts
 // mid-sheet (e.g., at B3) so the rendered table doesn't carry an empty
 // leading column.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: remove leading and trailing empty rows and columns from a row slice (pure)
 func xlsxTrim(rows [][]string) [][]string {
 	// Trim trailing empty rows.
 	end := len(rows)
@@ -544,6 +564,7 @@ func xlsxTrim(rows [][]string) [][]string {
 }
 
 // xlsxRowEmpty reports whether every cell is empty after TrimSpace.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: report whether every cell in a row is blank after trimming (pure)
 func xlsxRowEmpty(row []string) bool {
 	for _, c := range row {
 		if strings.TrimSpace(c) != "" {
@@ -554,6 +575,7 @@ func xlsxRowEmpty(row []string) bool {
 }
 
 // xlsxWriteRow writes one pipe-delimited row, escaping `|` in cell content.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: write a pipe-delimited Markdown table row with escaped cell content
 func xlsxWriteRow(mb *markdownBuilder, cells []string) error {
 	if _, err := mb.WriteString("| "); err != nil {
 		return err
@@ -577,6 +599,7 @@ func xlsxWriteRow(mb *markdownBuilder, cells []string) error {
 }
 
 // xlsxWriteSeparator writes the markdown table header separator row.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: write the Markdown table header separator row for the given column count
 func xlsxWriteSeparator(mb *markdownBuilder, cols int) error {
 	if _, err := mb.WriteString("|"); err != nil {
 		return err

@@ -20,6 +20,7 @@ import (
 )
 
 // SessionState represents the lifecycle state of a collaboration session
+// SEM@6ad68270b3acd88f9906ed851d58631866a8ce01: enumeration of collaborative diagram session lifecycle states (pure)
 type SessionState string
 
 const (
@@ -39,6 +40,7 @@ const (
 )
 
 // WebSocketHub maintains active connections and broadcasts messages
+// SEM@46c5960fcabe5dcd3f7014239dc4a8ed43579299: central registry managing active diagram collaboration sessions and their WebSocket connections
 type WebSocketHub struct {
 	// Registered connections by diagram ID
 	Diagrams map[string]*DiagramSession
@@ -53,6 +55,7 @@ type WebSocketHub struct {
 }
 
 // DiagramSession represents a collaborative editing session
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: collaborative editing session for one diagram, tracking clients, host, history, and deny list
 type DiagramSession struct {
 	// Session ID
 	ID string
@@ -101,6 +104,7 @@ type DiagramSession struct {
 }
 
 // OperationHistory tracks mutations for conflict resolution and undo/redo
+// SEM@be6cc4edcc9140493267132a7d584481845e0dfe: bounded log of diagram cell mutations supporting undo/redo and conflict detection (pure)
 type OperationHistory struct {
 	// Operations by sequence number
 	Operations map[uint64]*HistoryEntry
@@ -115,6 +119,7 @@ type OperationHistory struct {
 }
 
 // HistoryEntry represents a single operation in history
+// SEM@be6cc4edcc9140493267132a7d584481845e0dfe: single recorded diagram cell operation with pre-state snapshot for undo (pure)
 type HistoryEntry struct {
 	SequenceNumber uint64
 	OperationID    string
@@ -126,6 +131,7 @@ type HistoryEntry struct {
 }
 
 // WebSocketClient represents a connected client
+// SEM@a9626140ff4ccb3bf8ae4b474024684bd7063b72: connected WebSocket participant holding user identity, connection, and outbound message channel
 type WebSocketClient struct {
 	// Hub reference
 	Hub *WebSocketHub
@@ -160,6 +166,7 @@ type WebSocketClient struct {
 }
 
 // toUser converts WebSocketClient user information to a User object for messages
+// SEM@e28c0cfc627a2162c9550e53fb320facb734179e: convert WebSocket client identity to a User message value (pure)
 func (c *WebSocketClient) toUser() User {
 	return User{
 		PrincipalType: UserPrincipalTypeUser,
@@ -173,6 +180,7 @@ func (c *WebSocketClient) toUser() User {
 // closeClientChannel safely closes a client's Send channel with proper locking
 // to prevent "send on closed channel" panics. This MUST be used instead of
 // directly calling close(client.Send) to avoid race conditions.
+// SEM@121da1d17d5493726e31faef8eeb0102f384e8d0: safely close a client's outbound send channel exactly once (mutates shared state)
 func (c *WebSocketClient) closeClientChannel() {
 	c.closingMu.Lock()
 	defer c.closingMu.Unlock()
@@ -189,6 +197,7 @@ func (c *WebSocketClient) closeClientChannel() {
 // This prevents "send on closed channel" panics that can occur during session cleanup.
 // The read lock is held during the entire send operation to prevent the channel
 // from being closed between the check and the send.
+// SEM@a9ea1248550430041c0004d0ce3ca3f6f22bd5c0: non-blocking send to a client's channel; return false if closed or full (pure)
 func (c *WebSocketClient) trySend(msg []byte) bool {
 	c.closingMu.RLock()
 	defer c.closingMu.RUnlock()
@@ -290,6 +299,7 @@ var upgrader = websocket.Upgrader{
 }
 
 // NewWebSocketHub creates a new WebSocket hub
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: build a WebSocket hub with the given logging config and inactivity timeout (pure)
 func NewWebSocketHub(loggingConfig slogging.WebSocketLoggingConfig, inactivityTimeout time.Duration) *WebSocketHub {
 	return &WebSocketHub{
 		Diagrams:          make(map[string]*DiagramSession),
@@ -299,6 +309,7 @@ func NewWebSocketHub(loggingConfig slogging.WebSocketLoggingConfig, inactivityTi
 }
 
 // NewWebSocketHubForTests creates a WebSocket hub with default test configuration
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: build a WebSocket hub with test-safe defaults and short inactivity timeout (pure)
 func NewWebSocketHubForTests() *WebSocketHub {
 	return NewWebSocketHub(slogging.WebSocketLoggingConfig{
 		Enabled:        false, // Disable logging in tests by default
@@ -309,6 +320,7 @@ func NewWebSocketHubForTests() *WebSocketHub {
 }
 
 // FindSessionByID finds a collaboration session by its session ID.
+// SEM@e9c06824054dff110125e003301c169f002e9392: search all diagram sessions to find one matching the given session ID (reads shared state)
 func (h *WebSocketHub) FindSessionByID(sessionID string) *DiagramSession {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -322,6 +334,7 @@ func (h *WebSocketHub) FindSessionByID(sessionID string) *DiagramSession {
 }
 
 // UpdateDiagramResult contains the result of a centralized diagram update
+// SEM@46c5960fcabe5dcd3f7014239dc4a8ed43579299: result of a centralized diagram update carrying the updated diagram and version vector change (pure)
 type UpdateDiagramResult struct {
 	UpdatedDiagram    DfdDiagram
 	PreviousVector    int64
@@ -336,6 +349,7 @@ type UpdateDiagramResult struct {
 // 3. Notifies WebSocket sessions when updates come from REST API
 // 4. Serves as single source of truth for all diagram modifications
 // 5. Provides thread-safe updates with proper locking
+// SEM@c79f3cd129aecd7cd6562b875b7f02232594d3d1: apply an update function to a diagram with version control, persistence, audit, and WebSocket notification (mutates shared state)
 func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagram) (DfdDiagram, bool, error), updateSource string, excludeUserID string) (*UpdateDiagramResult, error) {
 	// Use dedicated update mutex to prevent race conditions on update_vector
 	h.updateMutex.Lock()
@@ -422,6 +436,7 @@ func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagra
 }
 
 // UpdateDiagramCells provides centralized diagram cell updates (convenience wrapper)
+// SEM@be6cc4edcc9140493267132a7d584481845e0dfe: replace a diagram's cell list and increment the update vector (mutates shared state)
 func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []DfdDiagram_Cells_Item, updateSource string, excludeUserID string) (*UpdateDiagramResult, error) {
 	updateFunc := func(diagram DfdDiagram) (DfdDiagram, bool, error) {
 		// No conversion needed - newCells is already the union type
@@ -433,6 +448,7 @@ func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []DfdDiagra
 }
 
 // buildWebSocketURL constructs the absolute WebSocket URL from request context
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: construct the absolute WebSocket URL for a diagram session from request context (pure)
 func (h *WebSocketHub) buildWebSocketURL(c *gin.Context, threatModelId openapi_types.UUID, diagramID string, sessionID string) string {
 	// Get config information from the context
 	tlsEnabled := false
@@ -487,6 +503,7 @@ func (h *WebSocketHub) buildWebSocketURL(c *gin.Context, threatModelId openapi_t
 }
 
 // GetSession returns an existing session or nil if none exists
+// SEM@a4a68f06d4cc47fec791b1d05abbfe61a3b94af7: return the collaboration session for a diagram, or nil if none exists (reads shared state)
 func (h *WebSocketHub) GetSession(diagramID string) *DiagramSession {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -498,6 +515,7 @@ func (h *WebSocketHub) GetSession(diagramID string) *DiagramSession {
 }
 
 // HasActiveSession checks if there is an active collaboration session for a diagram
+// SEM@8559837d482fde8e2f7e1a9ea5e99d2bb2414141: report whether a diagram has an active (non-terminating) collaboration session (reads shared state)
 func (h *WebSocketHub) HasActiveSession(diagramID string) bool {
 	session := h.GetSession(diagramID)
 	if session == nil {
@@ -513,6 +531,7 @@ func (h *WebSocketHub) HasActiveSession(diagramID string) bool {
 }
 
 // CreateSession creates a new collaboration session if none exists, returns error if one already exists
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: create and start a new collaboration session for a diagram; error if one already exists (mutates shared state)
 func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hostUser ResolvedUser) (*DiagramSession, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -561,6 +580,7 @@ func (h *WebSocketHub) CreateSession(diagramID string, threatModelID string, hos
 }
 
 // JoinSession joins an existing collaboration session, returns error if none exists
+// SEM@a4a68f06d4cc47fec791b1d05abbfe61a3b94af7: register a user into an existing diagram collaboration session; error if none exists (mutates shared state)
 func (h *WebSocketHub) JoinSession(diagramID string, userID string) (*DiagramSession, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -575,6 +595,7 @@ func (h *WebSocketHub) JoinSession(diagramID string, userID string) (*DiagramSes
 }
 
 // GetOrCreateSession returns an existing session or creates a new one
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: return an existing diagram collaboration session or create a new one if absent (mutates shared state)
 func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string, hostUser ResolvedUser) *DiagramSession {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -635,6 +656,7 @@ func (h *WebSocketHub) GetOrCreateSession(diagramID string, threatModelID string
 }
 
 // NewOperationHistory creates a new operation history
+// SEM@be6cc4edcc9140493267132a7d584481845e0dfe: build an empty operation history capped at 100 entries (pure)
 func NewOperationHistory() *OperationHistory {
 	return &OperationHistory{
 		Operations:      make(map[uint64]*HistoryEntry),
@@ -645,6 +667,7 @@ func NewOperationHistory() *OperationHistory {
 }
 
 // CanUndo returns true if there are operations to undo
+// SEM@1266bb4768a3bd15fb079e5ce593b5d74f5689a7: report whether any operations are available to undo (pure)
 func (h *OperationHistory) CanUndo() bool {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
@@ -652,6 +675,7 @@ func (h *OperationHistory) CanUndo() bool {
 }
 
 // CanRedo returns true if there are operations to redo
+// SEM@1266bb4768a3bd15fb079e5ce593b5d74f5689a7: report whether any operations are available to redo (pure)
 func (h *OperationHistory) CanRedo() bool {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
@@ -663,6 +687,7 @@ func (h *OperationHistory) CanRedo() bool {
 }
 
 // GetUndoOperation returns the operation to undo and the previous state
+// SEM@be6cc4edcc9140493267132a7d584481845e0dfe: return the current history entry and its pre-state snapshot for undo, or false if none (pure)
 func (h *OperationHistory) GetUndoOperation() (*HistoryEntry, map[string]*DfdDiagram_Cells_Item, bool) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
@@ -680,6 +705,7 @@ func (h *OperationHistory) GetUndoOperation() (*HistoryEntry, map[string]*DfdDia
 }
 
 // GetRedoOperation returns the operation to redo
+// SEM@1266bb4768a3bd15fb079e5ce593b5d74f5689a7: return the next history entry for redo, or false if none (pure)
 func (h *OperationHistory) GetRedoOperation() (*HistoryEntry, bool) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
@@ -690,6 +716,7 @@ func (h *OperationHistory) GetRedoOperation() (*HistoryEntry, bool) {
 }
 
 // MoveToPosition updates the current position in history (for undo/redo)
+// SEM@1266bb4768a3bd15fb079e5ce593b5d74f5689a7: advance or rewind the history cursor to the given sequence position (mutates shared state)
 func (h *OperationHistory) MoveToPosition(newPosition uint64) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
@@ -697,6 +724,7 @@ func (h *OperationHistory) MoveToPosition(newPosition uint64) {
 }
 
 // AddOperation adds a new operation to history and updates current position
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: append a cell operation to history, update current diagram state, and evict old entries (mutates shared state)
 func (h *OperationHistory) AddOperation(entry *HistoryEntry) {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
@@ -727,6 +755,7 @@ func (h *OperationHistory) AddOperation(entry *HistoryEntry) {
 }
 
 // cleanupOldEntries removes old entries to keep history size manageable
+// SEM@1266bb4768a3bd15fb079e5ce593b5d74f5689a7: evict history entries older than half the maximum capacity (mutates shared state)
 func (h *OperationHistory) cleanupOldEntries() {
 	// Find the oldest entry to keep (current position - max entries / 2)
 	keepFrom := uint64(0)
@@ -748,6 +777,7 @@ func (h *OperationHistory) cleanupOldEntries() {
 }
 
 // GetActiveSessions returns all active collaboration sessions
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: list all active collaboration sessions with participants and metadata (reads DB)
 func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -817,6 +847,7 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 }
 
 // convertClientToParticipant converts a WebSocket client to a Participant
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: convert a WebSocket client to a Participant with resolved permissions (reads DB)
 func convertClientToParticipant(c *gin.Context, client *WebSocketClient, _ *DiagramSession, tm *ThreatModel) *Participant {
 	// Get user's session permissions using existing auth system
 	var permissions ParticipantPermissions
@@ -852,6 +883,7 @@ func convertClientToParticipant(c *gin.Context, client *WebSocketClient, _ *Diag
 }
 
 // getSessionPermissionsForUser determines session permissions using the existing auth system.
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: resolve a user's session permissions against a threat model's ACL (reads DB)
 func getSessionPermissionsForUser(c *gin.Context, user ResolvedUser, tm *ThreatModel) *ParticipantPermissions {
 	// Use the existing AccessCheck system to determine permissions
 	// Check for writer/resource owner access first (highest permission)
@@ -888,6 +920,7 @@ func getSessionPermissionsForUser(c *gin.Context, user ResolvedUser, tm *ThreatM
 }
 
 // buildCollaborationSessionFromDiagramSession creates a CollaborationSession struct from a DiagramSession
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: build a CollaborationSession DTO from a live DiagramSession for the current user (reads DB)
 func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Context, diagramID string, session *DiagramSession, currentUser string) (*CollaborationSession, error) {
 
 	session.mu.RLock()
@@ -1003,6 +1036,7 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 }
 
 // GetActiveSessionsForUser returns all active collaboration sessions that the specified user has access to
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: list active collaboration sessions the given user has at least reader access to (reads DB)
 func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, user ResolvedUser) []CollaborationSession {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -1104,6 +1138,7 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, user ResolvedUse
 }
 
 // getThreatModelIdForDiagram finds the threat model that contains a specific diagram
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: fetch the parent threat model UUID for a diagram by searching the store (reads DB)
 func (h *WebSocketHub) getThreatModelIdForDiagram(diagramID string) openapi_types.UUID {
 	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), return empty UUID
 	if ThreatModelStore == nil {
@@ -1143,6 +1178,7 @@ func (h *WebSocketHub) getThreatModelIdForDiagram(diagramID string) openapi_type
 // validateWebSocketDiagramAccessWithFlexibleMatching validates that a user has at least reader access to a diagram
 // using flexible user identifier matching (email, provider_user_id, or internal_uuid)
 // This is critical for WebSocket security to prevent unauthorized access to collaboration sessions
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: authorize WebSocket access to a diagram using flexible identity matching; deny if no reader role (reads DB)
 func (h *WebSocketHub) validateWebSocketDiagramAccessWithFlexibleMatching(userInfo *UserInfo, threatModelID string, diagramID string) bool {
 	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), deny access
 	if ThreatModelStore == nil {
@@ -1202,6 +1238,7 @@ func (h *WebSocketHub) validateWebSocketDiagramAccessWithFlexibleMatching(userIn
 
 // validateWebSocketDiagramAccess validates that a user has at least reader access to a diagram
 // This is critical for WebSocket security to prevent unauthorized access to collaboration sessions
+// SEM@1ad990b8c0407c516e4c4571523996655cb2bb93: authorize WebSocket access to a diagram by username; deny if no reader role (reads DB)
 func (h *WebSocketHub) validateWebSocketDiagramAccess(userName string, diagramID string) bool {
 	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), deny access
 	if ThreatModelStore == nil {
@@ -1234,6 +1271,7 @@ func (h *WebSocketHub) validateWebSocketDiagramAccess(userName string, diagramID
 }
 
 // CloseSession closes a session and removes it
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: terminate a collaboration session immediately and disconnect all clients (mutates shared state)
 func (h *WebSocketHub) CloseSession(diagramID string) {
 	h.mu.Lock()
 	session, ok := h.Diagrams[diagramID]
@@ -1272,6 +1310,7 @@ func (h *WebSocketHub) CloseSession(diagramID string) {
 }
 
 // CleanupInactiveSessions removes sessions that are inactive or empty with grace period
+// SEM@0c5cc661671b64da65ba64a68f6515095be0454b: delete terminated, empty, or timed-out sessions and close their connections (mutates shared state)
 func (h *WebSocketHub) CleanupInactiveSessions() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -1321,6 +1360,7 @@ func (h *WebSocketHub) CleanupInactiveSessions() {
 }
 
 // CleanupEmptySessions performs immediate cleanup of empty sessions
+// SEM@0c5cc661671b64da65ba64a68f6515095be0454b: delete sessions with no connected clients immediately (mutates shared state)
 func (h *WebSocketHub) CleanupEmptySessions() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -1348,6 +1388,7 @@ func (h *WebSocketHub) CleanupEmptySessions() {
 }
 
 // CleanupAllSessions removes all active sessions (used at server startup)
+// SEM@121da1d17d5493726e31faef8eeb0102f384e8d0: terminate all active collaboration sessions, used at server startup (mutates shared state)
 func (h *WebSocketHub) CleanupAllSessions() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -1375,6 +1416,7 @@ func (h *WebSocketHub) CleanupAllSessions() {
 }
 
 // StartCleanupTimer starts a periodic cleanup timer
+// SEM@0d66846bab368d2a0b035f9750caa0c4eb1cb0ff: run periodic inactive-session cleanup until the context is cancelled (mutates shared state)
 func (h *WebSocketHub) StartCleanupTimer(ctx context.Context) {
 	ticker := time.NewTicker(15 * time.Second) // Run every 15 seconds to catch empty sessions
 	defer ticker.Stop()
@@ -1390,6 +1432,7 @@ func (h *WebSocketHub) StartCleanupTimer(ctx context.Context) {
 }
 
 // Run processes messages for a diagram session
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: drive session lifecycle: register/unregister clients and broadcast messages until host departs (mutates shared state)
 func (s *DiagramSession) Run() {
 	// Add panic recovery to prevent session goroutine from crashing
 	defer func() {
@@ -1561,6 +1604,7 @@ func (s *DiagramSession) Run() {
 }
 
 // validateWebSocketRequest validates the basic request parameters and returns user info
+// SEM@7fa07f774e8f6d45ba5fd95cc267d32f11f2e2a4: validate WebSocket path parameters and extract the authenticated user ID from context (pure)
 func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, diagramID, userIDStr string, err error) {
 	// Get threat model ID and diagram ID from path
 	threatModelID = c.Param("threat_model_id")
@@ -1614,6 +1658,7 @@ func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, 
 }
 
 // HandleWS handles WebSocket connections
+// SEM@a9626140ff4ccb3bf8ae4b474024684bd7063b72: handle an incoming WebSocket connection request, authorize, upgrade, and register the client (mutates shared state)
 func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	// Validate request and get parameters
 	threatModelID, diagramID, _, err := h.validateWebSocketRequest(c)
@@ -1745,6 +1790,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 }
 
 // DiagramOperation defines a change to a diagram
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: data type representing a single diagram cell change with operation type and properties (pure)
 type DiagramOperation struct {
 	// Operation type (add, remove, update)
 	Type string `json:"type"`
@@ -1755,6 +1801,7 @@ type DiagramOperation struct {
 }
 
 // ProcessMessage handles enhanced message types for collaborative editing
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: route an incoming WebSocket message to the appropriate handler via the message router (mutates shared state)
 func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte) {
 	if err := s.MessageRouter.RouteMessage(s, client, message); err != nil {
 		slogging.Get().Error("Failed to route WebSocket message - Session: %s, User: %s, Error: %v",
@@ -1763,6 +1810,7 @@ func (s *DiagramSession) ProcessMessage(client *WebSocketClient, message []byte)
 }
 
 // processPresenterRequest handles presenter mode requests
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: handle a client's request to become presenter; auto-grant to host or forward to host for approval (mutates shared state)
 func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, message []byte) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1833,6 +1881,7 @@ func (s *DiagramSession) processPresenterRequest(client *WebSocketClient, messag
 }
 
 // processChangePresenter handles host changing presenter
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: allow the host to assign a connected participant as the current presenter (mutates shared state)
 func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message []byte) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1889,6 +1938,7 @@ func (s *DiagramSession) processChangePresenter(client *WebSocketClient, message
 }
 
 // processRemoveParticipant handles host removing a participant from the session
+// SEM@6b85a6fabc237d03c99bf64a10eb26dfeaf09d3b: allow the host to eject and deny-list a participant from the collaboration session (mutates shared state)
 func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, message []byte) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1977,6 +2027,7 @@ func (s *DiagramSession) processRemoveParticipant(client *WebSocketClient, messa
 }
 
 // sendErrorMessage sends an error message to a specific client
+// SEM@2a3b0433314883a121a7713037ccf4aade7f5be2: send a structured error message to a specific WebSocket client (pure)
 func (s *DiagramSession) sendErrorMessage(client *WebSocketClient, errorCode, errorMessage string) {
 	errorMsg := ErrorMessage{
 		MessageType: "error",
@@ -1988,6 +2039,7 @@ func (s *DiagramSession) sendErrorMessage(client *WebSocketClient, errorCode, er
 }
 
 // processPresenterDenied handles host denying presenter requests
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: allow the host to deny a pending presenter request and notify the requesting user (mutates shared state)
 func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message []byte) {
 	var msg PresenterDeniedRequest
 	if err := json.Unmarshal(message, &msg); err != nil {
@@ -2027,6 +2079,7 @@ func (s *DiagramSession) processPresenterDenied(client *WebSocketClient, message
 }
 
 // processPresenterCursor handles cursor position updates
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: broadcast the presenter's cursor position to all other session participants (mutates shared state)
 func (s *DiagramSession) processPresenterCursor(client *WebSocketClient, message []byte) {
 	var msg PresenterCursorMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
@@ -2053,6 +2106,7 @@ func (s *DiagramSession) processPresenterCursor(client *WebSocketClient, message
 }
 
 // processPresenterSelection handles selection updates
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: broadcast the presenter's selection state to all other session participants (mutates shared state)
 func (s *DiagramSession) processPresenterSelection(client *WebSocketClient, message []byte) {
 	var msg PresenterSelectionMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
@@ -2079,6 +2133,7 @@ func (s *DiagramSession) processPresenterSelection(client *WebSocketClient, mess
 }
 
 // processSyncStatusRequest handles client requests for current server update vector
+// SEM@d791c9a859555ac908a93f4bd6d49574103f13b9: return the current diagram update vector to a requesting client (reads DB)
 func (s *DiagramSession) processSyncStatusRequest(client *WebSocketClient, _ []byte) {
 	// Get current update vector from diagram
 	updateVector := int64(0)
@@ -2097,6 +2152,7 @@ func (s *DiagramSession) processSyncStatusRequest(client *WebSocketClient, _ []b
 }
 
 // processSyncRequest handles client requests for full diagram state if stale
+// SEM@0c5cc661671b64da65ba64a68f6515095be0454b: send full diagram state to a stale client or update vector if already current (reads DB)
 func (s *DiagramSession) processSyncRequest(client *WebSocketClient, message []byte) {
 	var msg SyncRequestMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
@@ -2152,6 +2208,7 @@ func (s *DiagramSession) processSyncRequest(client *WebSocketClient, message []b
 }
 
 // processUndoRequest handles undo requests
+// SEM@d791c9a859555ac908a93f4bd6d49574103f13b9: revert the last diagram operation and broadcast the updated state to all clients (mutates shared state)
 func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []byte) {
 	var msg UndoRequestMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
@@ -2232,6 +2289,7 @@ func (s *DiagramSession) processUndoRequest(client *WebSocketClient, message []b
 }
 
 // processRedoRequest handles redo requests
+// SEM@d791c9a859555ac908a93f4bd6d49574103f13b9: re-apply a previously undone diagram operation and broadcast the result to all clients (mutates shared state)
 func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []byte) {
 	var msg RedoRequestMessage
 	if err := json.Unmarshal(message, &msg); err != nil {
@@ -2314,6 +2372,7 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 // Helper methods
 
 // handlePresenterDisconnection handles when the current presenter leaves the session
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: reassign the presenter role when the current presenter disconnects (mutates shared state)
 func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -2374,6 +2433,7 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 
 // handleHostDisconnection handles when the host leaves
 // This method broadcasts session termination messages and prepares for session cleanup
+// SEM@0c5cc661671b64da65ba64a68f6515095be0454b: terminate the session and disconnect all participants when the host leaves (mutates shared state)
 func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 	slogging.Get().Info("Host %s disconnected from session %s, initiating session termination", disconnectedHostID, s.ID)
 
@@ -2429,6 +2489,7 @@ func (s *DiagramSession) handleHostDisconnection(disconnectedHostID string) {
 }
 
 // broadcastSessionTermination sends termination messages to all participants
+// SEM@8cd3581bcf13efcf0a1320711b67b1713d2819b0: notify all session participants that the session has ended with a reason (mutates shared state)
 func (s *DiagramSession) broadcastSessionTermination(reason string) {
 	s.mu.RLock()
 	clients := make([]*WebSocketClient, 0, len(s.Clients))
@@ -2466,6 +2527,7 @@ func (s *DiagramSession) broadcastSessionTermination(reason string) {
 }
 
 // findClientByUserID finds a connected client by their user ID
+// SEM@467bc2bef1c6284afffa24ecd86db7b34c1de8cf: find a connected client by provider user ID; return nil if not found (pure)
 func (s *DiagramSession) findClientByUserID(userID string) *WebSocketClient {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -2481,6 +2543,7 @@ func (s *DiagramSession) findClientByUserID(userID string) *WebSocketClient {
 // validateTargetUserIdentity validates that user identity fields match the actual connected client
 // This prevents clients from providing false information about other users
 // If validation fails, the requesting client is removed and blocked
+// SEM@d5e197b64493957e3886efaafbfff4fb9326fdca: verify a claimed user identity matches the actual connected client; remove and block the requester if spoofing detected (mutates shared state)
 func (s *DiagramSession) validateTargetUserIdentity(requestingClient *WebSocketClient, providedUserInfo User, actualClient *WebSocketClient, messageType string) bool {
 	// Check ProviderId mismatch
 	if providedUserInfo.ProviderId != "" && providedUserInfo.ProviderId != actualClient.UserID {
@@ -2510,6 +2573,7 @@ func (s *DiagramSession) validateTargetUserIdentity(requestingClient *WebSocketC
 }
 
 // removeAndBlockClient removes a client from the session and blocks them (same as host ejection)
+// SEM@57c7fe4675f8c33d1349a00276ae1c9d7deff87b: eject a client from the session, close their connection, and update the participant list (mutates shared state)
 func (s *DiagramSession) removeAndBlockClient(client *WebSocketClient, reason string) {
 	slogging.Get().Info("Removing and blocking client %s from session %s: %s", client.UserID, s.ID, reason)
 
@@ -2540,6 +2604,7 @@ func (s *DiagramSession) removeAndBlockClient(client *WebSocketClient, reason st
 }
 
 // findClientByIdentity finds a connected client matching the given ResolvedUser identity.
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: find a connected client matching a ResolvedUser identity via principal comparison (pure)
 func findClientByIdentity(s *DiagramSession, target ResolvedUser) *WebSocketClient {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -2553,6 +2618,7 @@ func findClientByIdentity(s *DiagramSession, target ResolvedUser) *WebSocketClie
 }
 
 // broadcastParticipantsUpdate sends complete participant list to all clients
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: broadcast the current participant list with host and presenter info to all clients (mutates shared state)
 func (s *DiagramSession) broadcastParticipantsUpdate() {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -2615,6 +2681,7 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 
 // checkMutationPermission checks if user can perform mutations
 // Uses flexible user identifier matching (email, provider_user_id, or internal_uuid)
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: validate that the client holds writer access to the session's threat model (reads DB)
 func (s *DiagramSession) checkMutationPermission(client *WebSocketClient) bool {
 	// Anonymous users cannot perform mutations
 	if client == nil || client.UserID == "" {
@@ -2659,6 +2726,7 @@ func (s *DiagramSession) checkMutationPermission(client *WebSocketClient) bool {
 // called from the WritePump heartbeat so that a user whose role is revoked
 // mid-session stops receiving broadcast diagram content instead of keeping
 // read access until disconnect or JWT expiry.
+// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: validate that the client still holds reader access to the session's threat model (reads DB)
 func (s *DiagramSession) checkReadPermission(client *WebSocketClient) bool {
 	// Anonymous users cannot hold read access
 	if client == nil || client.UserID == "" {
@@ -2701,6 +2769,7 @@ func (s *DiagramSession) checkReadPermission(client *WebSocketClient) bool {
 }
 
 // sendAuthorizationDenied sends authorization denied message to client
+// SEM@0c5cc661671b64da65ba64a68f6515095be0454b: send an authorization_denied message to a client for a rejected operation (pure)
 func (s *DiagramSession) sendAuthorizationDenied(client *WebSocketClient, operationID, reason string) {
 	msg := AuthorizationDeniedMessage{
 		MessageType:         "authorization_denied",
@@ -2712,6 +2781,7 @@ func (s *DiagramSession) sendAuthorizationDenied(client *WebSocketClient, operat
 }
 
 // sendOperationRejected sends an operation_rejected message to the originating client
+// SEM@d791c9a859555ac908a93f4bd6d49574103f13b9: send an operation_rejected message with rejection reason and current update vector to a client (reads DB)
 func (s *DiagramSession) sendOperationRejected(client *WebSocketClient, operationID string, sequenceNumber *uint64, reason string, message string, details *string, affectedCells []string, requiresResync bool) {
 	// Get current update vector from diagram
 	updateVector := int64(0)
@@ -2740,6 +2810,7 @@ func (s *DiagramSession) sendOperationRejected(client *WebSocketClient, operatio
 }
 
 // applyHistoryState applies a historical state to the diagram (for undo)
+// SEM@be6cc4edcc9140493267132a7d584481845e0dfe: restore a diagram to a previous cell snapshot for undo (mutates shared state)
 func (s *DiagramSession) applyHistoryState(state map[string]*DfdDiagram_Cells_Item) error {
 	// Convert state map to slice for centralized update
 	cells := make([]DfdDiagram_Cells_Item, 0, len(state))
@@ -2757,6 +2828,7 @@ func (s *DiagramSession) applyHistoryState(state map[string]*DfdDiagram_Cells_It
 }
 
 // applyHistoryOperation applies a historical operation to the diagram (for redo)
+// SEM@1266bb4768a3bd15fb079e5ce593b5d74f5689a7: re-apply a recorded cell patch operation for redo (mutates shared state)
 func (s *DiagramSession) applyHistoryOperation(operation CellPatchOperation) error {
 	// Use the shared processor to apply the operation
 	processor := NewCellOperationProcessor(DiagramStore)
@@ -2773,6 +2845,7 @@ func (s *DiagramSession) applyHistoryOperation(operation CellPatchOperation) err
 }
 
 // broadcastToAllClients broadcasts a message to all connected clients
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: send a message to every connected client in the session (mutates shared state)
 func (s *DiagramSession) broadcastToAllClients(message any) {
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
@@ -2796,6 +2869,7 @@ func (s *DiagramSession) broadcastToAllClients(message any) {
 }
 
 // sendToClient sends a message to a specific client
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: serialize and enqueue a message to a single WebSocket client (mutates shared state)
 func (s *DiagramSession) sendToClient(client *WebSocketClient, message any) {
 	msgBytes, err := json.Marshal(message)
 	if err != nil {
@@ -2810,6 +2884,7 @@ func (s *DiagramSession) sendToClient(client *WebSocketClient, message any) {
 }
 
 // broadcastToOthers broadcasts a message to all clients except the sender
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: send a message to all session clients except the originating sender (mutates shared state)
 func (s *DiagramSession) broadcastToOthers(sender *WebSocketClient, message any) {
 	slogging.Get().Info("[TRACE-BROADCAST] broadcastToOthers ENTRY - Session: %s, Sender: %s (%p), Message type: %T",
 		s.ID, sender.UserID, sender, message)
@@ -2861,11 +2936,13 @@ func (s *DiagramSession) broadcastToOthers(sender *WebSocketClient, message any)
 }
 
 // CellOperationProcessor processes cell operations with validation and conflict detection
+// SEM@1266bb4768a3bd15fb079e5ce593b5d74f5689a7: data type that validates and applies cell operations against a diagram store (pure)
 type CellOperationProcessor struct {
 	diagramStore DiagramStoreInterface
 }
 
 // NewCellOperationProcessor creates a new cell operation processor
+// SEM@1266bb4768a3bd15fb079e5ce593b5d74f5689a7: build a CellOperationProcessor bound to the given diagram store (pure)
 func NewCellOperationProcessor(store DiagramStoreInterface) *CellOperationProcessor {
 	return &CellOperationProcessor{
 		diagramStore: store,
@@ -2873,6 +2950,7 @@ func NewCellOperationProcessor(store DiagramStoreInterface) *CellOperationProces
 }
 
 // ProcessCellOperations processes a batch of cell operations with full validation
+// SEM@c79f3cd129aecd7cd6562b875b7f02232594d3d1: validate and persist a batch of cell patch operations, saving the diagram if state changed (mutates shared state)
 func (cop *CellOperationProcessor) ProcessCellOperations(diagramID string, operation CellPatchOperation) (*OperationValidationResult, error) {
 	// Get current diagram state
 	diagram, err := cop.diagramStore.Get(diagramID)
@@ -2900,6 +2978,7 @@ func (cop *CellOperationProcessor) ProcessCellOperations(diagramID string, opera
 }
 
 // processAndValidateCellOperations processes and validates cell operations (extracted from DiagramSession)
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: validate and apply a deduplicated set of cell operations against a diagram, returning the result (pure)
 func (cop *CellOperationProcessor) processAndValidateCellOperations(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, operation CellPatchOperation) *OperationValidationResult {
 	result := &OperationValidationResult{
 		Valid:         true,
@@ -2947,6 +3026,7 @@ func (cop *CellOperationProcessor) processAndValidateCellOperations(diagram *Dfd
 }
 
 // validateAndProcessCellOperation validates and processes a single cell operation (extracted from DiagramSession)
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: dispatch a single cell operation to the appropriate add/update/remove validator (pure)
 func (cop *CellOperationProcessor) validateAndProcessCellOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) *OperationValidationResult {
 	result := &OperationValidationResult{Valid: true}
 
@@ -2966,6 +3046,7 @@ func (cop *CellOperationProcessor) validateAndProcessCellOperation(diagram *DfdD
 
 // normalizeCellData ensures consistent structure for cell data
 // Converts flat X/Y/Width/Height properties to nested Position/Size structs
+// SEM@e0319b46956724d532b5b4f64b9f66b006e3a0a9: convert flat x/y/width/height node properties to nested Position/Size structs in place (pure)
 func normalizeCellData(cellItem *DfdDiagram_Cells_Item) {
 	// Try to extract as Node
 	if node, err := cellItem.AsNode(); err == nil {
@@ -3008,6 +3089,7 @@ func normalizeCellData(cellItem *DfdDiagram_Cells_Item) {
 
 // NormalizeDiagramCells normalizes all cells in a diagram
 // This should be called for both REST API and WebSocket operations
+// SEM@047735fbb921a2cd724d2f9af71dca52aeb8798b: normalize position and size fields for all cells in a diagram slice (pure)
 func NormalizeDiagramCells(cells []DfdDiagram_Cells_Item) {
 	for i := range cells {
 		normalizeCellData(&cells[i])
@@ -3016,6 +3098,7 @@ func NormalizeDiagramCells(cells []DfdDiagram_Cells_Item) {
 
 // validateAddOperation validates adding a new cell
 // If the cell already exists, this operation is treated as idempotent and converted to an update
+// SEM@6c2ed16a87725c4d8e764cde607ac1e06704e3ac: validate and apply an add-cell operation, treating duplicates as idempotent updates (pure)
 func (cop *CellOperationProcessor) validateAddOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) *OperationValidationResult {
 	result := &OperationValidationResult{Valid: true}
 
@@ -3063,6 +3146,7 @@ func (cop *CellOperationProcessor) validateAddOperation(diagram *DfdDiagram, cur
 }
 
 // validateUpdateOperation validates updating an existing cell
+// SEM@6c2ed16a87725c4d8e764cde607ac1e06704e3ac: validate and apply an update-cell operation, rejecting updates to non-existent cells (pure)
 func (cop *CellOperationProcessor) validateUpdateOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) *OperationValidationResult {
 	result := &OperationValidationResult{Valid: true}
 
@@ -3108,6 +3192,7 @@ func (cop *CellOperationProcessor) validateUpdateOperation(diagram *DfdDiagram, 
 }
 
 // validateRemoveOperation validates removing a cell
+// SEM@400099b89edfff0887d281885299028db7bd6efd: validate and apply a remove-cell operation; idempotent if cell is already absent (pure)
 func (cop *CellOperationProcessor) validateRemoveOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) *OperationValidationResult {
 	result := &OperationValidationResult{Valid: true}
 
@@ -3126,6 +3211,7 @@ func (cop *CellOperationProcessor) validateRemoveOperation(diagram *DfdDiagram, 
 // validateCellData and detectCellChanges removed - no longer needed with union types
 
 // OperationValidationResult represents the result of operation validation
+// SEM@be6cc4edcc9140493267132a7d584481845e0dfe: data type capturing the outcome of a cell operation validation including conflict and change flags (pure)
 type OperationValidationResult struct {
 	Valid            bool
 	Reason           string
@@ -3137,6 +3223,7 @@ type OperationValidationResult struct {
 }
 
 // processAndValidateCellOperations processes and validates cell operations
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: validate and apply a deduplicated set of cell operations on a DiagramSession, persisting each change (mutates shared state)
 func (s *DiagramSession) processAndValidateCellOperations(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, operation CellPatchOperation) OperationValidationResult {
 	result := OperationValidationResult{
 		Valid:         true,
@@ -3190,6 +3277,7 @@ func (s *DiagramSession) processAndValidateCellOperations(diagram *DfdDiagram, c
 }
 
 // validateAndProcessCellOperation validates and processes a single cell operation
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: dispatch a single cell operation to the DiagramSession add/update/remove handler (mutates shared state)
 func (s *DiagramSession) validateAndProcessCellOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) OperationValidationResult {
 	result := OperationValidationResult{Valid: true}
 
@@ -3208,6 +3296,7 @@ func (s *DiagramSession) validateAndProcessCellOperation(diagram *DfdDiagram, cu
 }
 
 // validateAddOperation validates adding a new cell
+// SEM@6c2ed16a87725c4d8e764cde607ac1e06704e3ac: validate and persist an add-cell operation within a DiagramSession, rejecting duplicates (mutates shared state)
 func (s *DiagramSession) validateAddOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) OperationValidationResult {
 	result := OperationValidationResult{Valid: true}
 
@@ -3246,6 +3335,7 @@ func (s *DiagramSession) validateAddOperation(diagram *DfdDiagram, currentState 
 }
 
 // validateUpdateOperation validates updating an existing cell
+// SEM@6c2ed16a87725c4d8e764cde607ac1e06704e3ac: validate and persist an update-cell operation within a DiagramSession, rejecting missing cells (mutates shared state)
 func (s *DiagramSession) validateUpdateOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) OperationValidationResult {
 	result := OperationValidationResult{Valid: true}
 
@@ -3288,6 +3378,7 @@ func (s *DiagramSession) validateUpdateOperation(diagram *DfdDiagram, currentSta
 }
 
 // validateRemoveOperation validates removing a cell
+// SEM@400099b89edfff0887d281885299028db7bd6efd: validate and persist a remove-cell operation within a DiagramSession; idempotent if cell absent (mutates shared state)
 func (s *DiagramSession) validateRemoveOperation(diagram *DfdDiagram, currentState map[string]*DfdDiagram_Cells_Item, cellOp CellOperation) OperationValidationResult {
 	result := OperationValidationResult{Valid: true}
 
@@ -3315,6 +3406,7 @@ func (s *DiagramSession) validateRemoveOperation(diagram *DfdDiagram, currentSta
 }
 
 // addToHistory adds an operation to the history for conflict resolution
+// SEM@4c26178bb9014e2fcc62e1a29307dad2c36b6ada: append a diagram operation event to the session's undo/redo history (mutates shared state)
 func (s *DiagramSession) addToHistory(event DiagramOperationEvent, userID string, previousState, _ map[string]*DfdDiagram_Cells_Item) {
 	if s.OperationHistory == nil {
 		return
@@ -3341,6 +3433,7 @@ func (s *DiagramSession) addToHistory(event DiagramOperationEvent, userID string
 // History utility methods for operation tracking
 
 // GetHistoryEntry retrieves a specific history entry by sequence number
+// SEM@1266bb4768a3bd15fb079e5ce593b5d74f5689a7: fetch a history entry by sequence number from the session's operation log (pure)
 func (s *DiagramSession) GetHistoryEntry(sequenceNumber uint64) (*HistoryEntry, bool) {
 	if s.OperationHistory == nil {
 		return nil, false
@@ -3354,6 +3447,7 @@ func (s *DiagramSession) GetHistoryEntry(sequenceNumber uint64) (*HistoryEntry, 
 }
 
 // GetHistoryStats returns statistics about the operation history
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: compute count and sequence range of a session's operation history (pure)
 func (s *DiagramSession) GetHistoryStats() map[string]any {
 	if s.OperationHistory == nil {
 		return map[string]any{
@@ -3393,6 +3487,7 @@ func (s *DiagramSession) GetHistoryStats() map[string]any {
 }
 
 // GetRecentOperations returns the most recent N operations
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: fetch the most recent N history entries from a session's operation log (pure)
 func (s *DiagramSession) GetRecentOperations(count int) []*HistoryEntry {
 	if s.OperationHistory == nil || count <= 0 {
 		return []*HistoryEntry{}
@@ -3430,6 +3525,7 @@ func (s *DiagramSession) GetRecentOperations(count int) []*HistoryEntry {
 }
 
 // ReadPump pumps messages from WebSocket to hub
+// SEM@ed2b33cfd26b4cfc2ced06af67d1734a3218e38e: receive inbound WebSocket messages from a client and dispatch them for processing (mutates shared state)
 func (c *WebSocketClient) ReadPump() {
 	defer func() {
 		// Panic recovery
@@ -3511,6 +3607,7 @@ func (c *WebSocketClient) ReadPump() {
 }
 
 // WritePump pumps messages from hub to WebSocket
+// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: deliver outbound messages and pings to a WebSocket client; close on JWT expiry or revoked access (mutates shared state)
 func (c *WebSocketClient) WritePump() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer func() {

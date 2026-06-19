@@ -6,6 +6,7 @@ import (
 )
 
 // DocumentRepository defines the interface for document operations with caching support
+// SEM@117032a3c5523a04e970f76a285e342169d5150c: interface for CRUD, patch, bulk, access-status, picker, and cache operations on documents (reads DB)
 type DocumentRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, document *Document, threatModelID string) error

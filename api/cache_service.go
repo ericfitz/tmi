@@ -22,18 +22,21 @@ var GlobalCacheService *CacheService
 
 // MiddlewareAuthData holds authorization data needed by middleware.
 // Cached separately from full threat model to avoid loading sub-resources.
+// SEM@2ec29b7908cd546e20f3bbf1ad51b2c76e52c70d: lightweight owner and authorization data cached separately for middleware auth checks (pure)
 type MiddlewareAuthData struct {
 	Owner         User            `json:"owner"`
 	Authorization []Authorization `json:"authorization"`
 }
 
 // CacheService provides caching functionality for sub-resources
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: Redis-backed cache for threat model sub-resources and authorization data (pure)
 type CacheService struct {
 	redis   *db.RedisDB
 	builder *db.RedisKeyBuilder
 }
 
 // NewCacheService creates a new cache service instance
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: build a CacheService wired to a Redis connection and key builder (pure)
 func NewCacheService(redis *db.RedisDB) *CacheService {
 	return &CacheService{
 		redis:   redis,
@@ -52,6 +55,7 @@ const (
 )
 
 // CacheThreat caches an individual threat with write-through strategy
+// SEM@98c83c6a9092288eead710533517e486c44239b2: store a threat in Redis with sub-resource TTL (mutates shared state)
 func (cs *CacheService) CacheThreat(ctx context.Context, threat *Threat) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheThreatKey(threat.Id.String())
@@ -73,6 +77,7 @@ func (cs *CacheService) CacheThreat(ctx context.Context, threat *Threat) error {
 }
 
 // GetCachedThreat retrieves a cached threat
+// SEM@1f8a861705b8907dc184e3db47d54cbe24222ef9: fetch a cached threat from Redis, returning nil on cache miss (reads DB)
 func (cs *CacheService) GetCachedThreat(ctx context.Context, threatID string) (*Threat, error) {
 	logger := slogging.Get()
 	key := cs.builder.CacheThreatKey(threatID)
@@ -105,6 +110,7 @@ func (cs *CacheService) GetCachedThreat(ctx context.Context, threatID string) (*
 }
 
 // CacheDocument caches a document
+// SEM@98c83c6a9092288eead710533517e486c44239b2: store a document in Redis with sub-resource TTL (mutates shared state)
 func (cs *CacheService) CacheDocument(ctx context.Context, document *Document) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheDocumentKey(document.Id.String())
@@ -126,6 +132,7 @@ func (cs *CacheService) CacheDocument(ctx context.Context, document *Document) e
 }
 
 // GetCachedDocument retrieves a cached document
+// SEM@1f8a861705b8907dc184e3db47d54cbe24222ef9: fetch a cached document from Redis, returning nil on cache miss (reads DB)
 func (cs *CacheService) GetCachedDocument(ctx context.Context, documentID string) (*Document, error) {
 	logger := slogging.Get()
 	key := cs.builder.CacheDocumentKey(documentID)
@@ -158,6 +165,7 @@ func (cs *CacheService) GetCachedDocument(ctx context.Context, documentID string
 }
 
 // CacheNote caches a note
+// SEM@bc24b01d8fe51390e6178a0cbe35e701f76556ce: store a note in Redis with sub-resource TTL (mutates shared state)
 func (cs *CacheService) CacheNote(ctx context.Context, note *Note) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheNoteKey(note.Id.String())
@@ -179,6 +187,7 @@ func (cs *CacheService) CacheNote(ctx context.Context, note *Note) error {
 }
 
 // GetCachedNote retrieves a cached note
+// SEM@1f8a861705b8907dc184e3db47d54cbe24222ef9: fetch a cached note from Redis, returning nil on cache miss (reads DB)
 func (cs *CacheService) GetCachedNote(ctx context.Context, noteID string) (*Note, error) {
 	logger := slogging.Get()
 	key := cs.builder.CacheNoteKey(noteID)
@@ -211,6 +220,7 @@ func (cs *CacheService) GetCachedNote(ctx context.Context, noteID string) (*Note
 }
 
 // CacheRepository caches a repository code entry
+// SEM@98c83c6a9092288eead710533517e486c44239b2: store a repository entry in Redis with sub-resource TTL (mutates shared state)
 func (cs *CacheService) CacheRepository(ctx context.Context, repository *Repository) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheRepositoryKey(repository.Id.String())
@@ -232,6 +242,7 @@ func (cs *CacheService) CacheRepository(ctx context.Context, repository *Reposit
 }
 
 // GetCachedRepository retrieves a cached repository code entry
+// SEM@1f8a861705b8907dc184e3db47d54cbe24222ef9: fetch a cached repository entry from Redis, returning nil on cache miss (reads DB)
 func (cs *CacheService) GetCachedRepository(ctx context.Context, repositoryID string) (*Repository, error) {
 	logger := slogging.Get()
 	key := cs.builder.CacheRepositoryKey(repositoryID)
@@ -264,6 +275,7 @@ func (cs *CacheService) GetCachedRepository(ctx context.Context, repositoryID st
 }
 
 // CacheAsset caches an asset
+// SEM@f2c738b899d06c4246bd8283b568260c596d5168: store an asset in Redis with sub-resource TTL (mutates shared state)
 func (cs *CacheService) CacheAsset(ctx context.Context, asset *Asset) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheAssetKey(asset.Id.String())
@@ -285,6 +297,7 @@ func (cs *CacheService) CacheAsset(ctx context.Context, asset *Asset) error {
 }
 
 // GetCachedAsset retrieves a cached asset
+// SEM@1f8a861705b8907dc184e3db47d54cbe24222ef9: fetch a cached asset from Redis, returning nil on cache miss (reads DB)
 func (cs *CacheService) GetCachedAsset(ctx context.Context, assetID string) (*Asset, error) {
 	logger := slogging.Get()
 	key := cs.builder.CacheAssetKey(assetID)
@@ -317,6 +330,7 @@ func (cs *CacheService) GetCachedAsset(ctx context.Context, assetID string) (*As
 }
 
 // CacheMetadata caches metadata collection for an entity
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: store a metadata collection for an entity in Redis with metadata TTL (mutates shared state)
 func (cs *CacheService) CacheMetadata(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheMetadataKey(entityType, entityID)
@@ -338,6 +352,7 @@ func (cs *CacheService) CacheMetadata(ctx context.Context, entityType, entityID 
 }
 
 // GetCachedMetadata retrieves cached metadata for an entity
+// SEM@1f8a861705b8907dc184e3db47d54cbe24222ef9: fetch cached metadata for an entity from Redis, returning nil on cache miss (reads DB)
 func (cs *CacheService) GetCachedMetadata(ctx context.Context, entityType, entityID string) ([]Metadata, error) {
 	logger := slogging.Get()
 	key := cs.builder.CacheMetadataKey(entityType, entityID)
@@ -370,6 +385,7 @@ func (cs *CacheService) GetCachedMetadata(ctx context.Context, entityType, entit
 }
 
 // CacheCells caches diagram cells collection
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: store a diagram's cells collection in Redis with diagram TTL (mutates shared state)
 func (cs *CacheService) CacheCells(ctx context.Context, diagramID string, cells []Cell) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheCellsKey(diagramID)
@@ -391,6 +407,7 @@ func (cs *CacheService) CacheCells(ctx context.Context, diagramID string, cells 
 }
 
 // GetCachedCells retrieves cached diagram cells
+// SEM@1f8a861705b8907dc184e3db47d54cbe24222ef9: fetch cached diagram cells from Redis, returning nil on cache miss (reads DB)
 func (cs *CacheService) GetCachedCells(ctx context.Context, diagramID string) ([]Cell, error) {
 	logger := slogging.Get()
 	key := cs.builder.CacheCellsKey(diagramID)
@@ -423,6 +440,7 @@ func (cs *CacheService) GetCachedCells(ctx context.Context, diagramID string) ([
 }
 
 // CacheAuthData caches authorization data for a threat model
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: store authorization data for a threat model in Redis with auth TTL (mutates shared state)
 func (cs *CacheService) CacheAuthData(ctx context.Context, threatModelID string, authData AuthorizationData) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheAuthKey(threatModelID)
@@ -444,6 +462,7 @@ func (cs *CacheService) CacheAuthData(ctx context.Context, threatModelID string,
 }
 
 // GetCachedAuthData retrieves cached authorization data
+// SEM@1f8a861705b8907dc184e3db47d54cbe24222ef9: fetch cached authorization data for a threat model from Redis, returning nil on miss (reads DB)
 func (cs *CacheService) GetCachedAuthData(ctx context.Context, threatModelID string) (*AuthorizationData, error) {
 	logger := slogging.Get()
 	key := cs.builder.CacheAuthKey(threatModelID)
@@ -476,6 +495,7 @@ func (cs *CacheService) GetCachedAuthData(ctx context.Context, threatModelID str
 }
 
 // CacheList caches a paginated list result
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: store a paginated list result in Redis keyed by entity type, parent, and page params (mutates shared state)
 func (cs *CacheService) CacheList(ctx context.Context, entityType, parentID string, offset, limit int, data any) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheListKey(entityType, parentID, offset, limit)
@@ -497,6 +517,7 @@ func (cs *CacheService) CacheList(ctx context.Context, entityType, parentID stri
 }
 
 // GetCachedList retrieves a cached paginated list result
+// SEM@1f8a861705b8907dc184e3db47d54cbe24222ef9: fetch a cached paginated list from Redis, deserializing into result; nil error on miss (reads DB)
 func (cs *CacheService) GetCachedList(ctx context.Context, entityType, parentID string, offset, limit int, result any) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheListKey(entityType, parentID, offset, limit)
@@ -528,6 +549,7 @@ func (cs *CacheService) GetCachedList(ctx context.Context, entityType, parentID 
 }
 
 // InvalidateEntity removes an entity from cache
+// SEM@cdbe48c974fb76e1161972733b30bb0d1c02c3b1: delete a typed entity from Redis cache by entity type and ID (mutates shared state)
 func (cs *CacheService) InvalidateEntity(ctx context.Context, entityType, entityID string) error {
 	logger := slogging.Get()
 
@@ -560,6 +582,7 @@ func (cs *CacheService) InvalidateEntity(ctx context.Context, entityType, entity
 }
 
 // InvalidateMetadata removes metadata cache for an entity
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: delete metadata cache for an entity from Redis (mutates shared state)
 func (cs *CacheService) InvalidateMetadata(ctx context.Context, entityType, entityID string) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheMetadataKey(entityType, entityID)
@@ -575,6 +598,7 @@ func (cs *CacheService) InvalidateMetadata(ctx context.Context, entityType, enti
 }
 
 // InvalidateAuthData removes authorization data cache
+// SEM@2ec29b7908cd546e20f3bbf1ad51b2c76e52c70d: delete authorization and middleware auth cache entries for a threat model from Redis (mutates shared state)
 func (cs *CacheService) InvalidateAuthData(ctx context.Context, threatModelID string) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheAuthKey(threatModelID)
@@ -595,6 +619,7 @@ func (cs *CacheService) InvalidateAuthData(ctx context.Context, threatModelID st
 }
 
 // CacheMiddlewareAuth caches lightweight auth data for middleware
+// SEM@2ec29b7908cd546e20f3bbf1ad51b2c76e52c70d: store lightweight middleware auth data for a threat model in Redis with auth TTL (mutates shared state)
 func (cs *CacheService) CacheMiddlewareAuth(ctx context.Context, threatModelID string, data MiddlewareAuthData) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheAuthKey(threatModelID) + ":mw"
@@ -616,6 +641,7 @@ func (cs *CacheService) CacheMiddlewareAuth(ctx context.Context, threatModelID s
 }
 
 // GetCachedMiddlewareAuth retrieves cached middleware auth data
+// SEM@1f8a861705b8907dc184e3db47d54cbe24222ef9: fetch cached middleware auth data for a threat model from Redis, returning nil on miss (reads DB)
 func (cs *CacheService) GetCachedMiddlewareAuth(ctx context.Context, threatModelID string) (*MiddlewareAuthData, error) {
 	logger := slogging.Get()
 	key := cs.builder.CacheAuthKey(threatModelID) + ":mw"
@@ -644,12 +670,14 @@ func (cs *CacheService) GetCachedMiddlewareAuth(ctx context.Context, threatModel
 }
 
 // InvalidateMiddlewareAuth invalidates middleware auth cache for a threat model
+// SEM@2ec29b7908cd546e20f3bbf1ad51b2c76e52c70d: delete middleware auth cache entry for a threat model from Redis (mutates shared state)
 func (cs *CacheService) InvalidateMiddlewareAuth(ctx context.Context, threatModelID string) error {
 	key := cs.builder.CacheAuthKey(threatModelID) + ":mw"
 	return cs.redis.Del(ctx, key)
 }
 
 // CacheThreatModelResponse caches a full threat model API response
+// SEM@b226389b316426e5d229ed94aa3a29dff80e46b1: store a full threat model API response in Redis with threat-model TTL (mutates shared state)
 func (cs *CacheService) CacheThreatModelResponse(ctx context.Context, id string, tm *ThreatModel) error {
 	logger := slogging.Get()
 	key := cs.builder.CacheThreatModelKey(id) + ":response"
@@ -671,6 +699,7 @@ func (cs *CacheService) CacheThreatModelResponse(ctx context.Context, id string,
 }
 
 // GetCachedThreatModelResponse retrieves a cached threat model response
+// SEM@1f8a861705b8907dc184e3db47d54cbe24222ef9: fetch a cached full threat model response from Redis, returning nil on cache miss (reads DB)
 func (cs *CacheService) GetCachedThreatModelResponse(ctx context.Context, id string) (*ThreatModel, error) {
 	logger := slogging.Get()
 	key := cs.builder.CacheThreatModelKey(id) + ":response"
@@ -699,6 +728,7 @@ func (cs *CacheService) GetCachedThreatModelResponse(ctx context.Context, id str
 }
 
 // InvalidateThreatModelResponse invalidates the response cache for a threat model
+// SEM@b226389b316426e5d229ed94aa3a29dff80e46b1: delete the response cache entry for a threat model from Redis (mutates shared state)
 func (cs *CacheService) InvalidateThreatModelResponse(ctx context.Context, id string) error {
 	key := cs.builder.CacheThreatModelKey(id) + ":response"
 	return cs.redis.Del(ctx, key)

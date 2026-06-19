@@ -12,6 +12,7 @@ import (
 )
 
 // AddonRateLimiter provides rate limiting for add-on invocations
+// SEM@afdb1506d3879a33daeab641ffec090578a2814b: enforce per-user concurrent and hourly invocation quotas for add-on calls via Redis
 type AddonRateLimiter struct {
 	redis      *db.RedisDB
 	builder    *db.RedisKeyBuilder
@@ -19,6 +20,7 @@ type AddonRateLimiter struct {
 }
 
 // NewAddonRateLimiter creates a new rate limiter
+// SEM@afdb1506d3879a33daeab641ffec090578a2814b: build an AddonRateLimiter wired to a Redis client and quota store (pure)
 func NewAddonRateLimiter(redis *db.RedisDB, quotaStore AddonInvocationQuotaStore) *AddonRateLimiter {
 	return &AddonRateLimiter{
 		redis:      redis,
@@ -28,11 +30,13 @@ func NewAddonRateLimiter(redis *db.RedisDB, quotaStore AddonInvocationQuotaStore
 }
 
 // buildRateLimitKey creates the Redis key for hourly rate limit tracking
+// SEM@afdb1506d3879a33daeab641ffec090578a2814b: format the Redis sorted-set key for a user's hourly invocation rate limit (pure)
 func (rl *AddonRateLimiter) buildRateLimitKey(userID uuid.UUID) string {
 	return fmt.Sprintf("addon:ratelimit:hour:%s", userID.String())
 }
 
 // CheckActiveInvocationLimit checks if user has reached their concurrent invocation limit
+// SEM@ca61a567c4babc9270ee913396aaa4fb530505a3: validate that a user has not exceeded their concurrent add-on invocation quota (reads Redis)
 func (rl *AddonRateLimiter) CheckActiveInvocationLimit(ctx context.Context, userID uuid.UUID) error {
 	logger := slogging.Get()
 
@@ -124,6 +128,7 @@ func (rl *AddonRateLimiter) CheckActiveInvocationLimit(ctx context.Context, user
 }
 
 // CheckHourlyRateLimit checks if user has exceeded hourly invocation limit using sliding window
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate that a user has not exceeded their hourly add-on invocation quota using a sliding window (reads Redis)
 func (rl *AddonRateLimiter) CheckHourlyRateLimit(ctx context.Context, userID uuid.UUID) error {
 	logger := slogging.Get()
 
@@ -187,6 +192,7 @@ func (rl *AddonRateLimiter) CheckHourlyRateLimit(ctx context.Context, userID uui
 }
 
 // RecordInvocation records a new invocation in the sliding window
+// SEM@914adca66ed5ce0bcfa6a1233361a298648ccf00: record an add-on invocation in the user's hourly sliding-window rate-limit key (mutates shared state)
 func (rl *AddonRateLimiter) RecordInvocation(ctx context.Context, userID uuid.UUID) error {
 	logger := slogging.Get()
 

@@ -43,6 +43,7 @@ var ErrInvalidTableName = fmt.Errorf("invalid table name")
 
 // ValidateTableName checks if a table name is in the allowed whitelist.
 // Returns ErrInvalidTableName if the table name is not whitelisted.
+// SEM@2bbbcc69cdb6c6b415fb186b43b57e5a2de961d2: validate a table name against the allowed whitelist; reject unknown names (pure)
 func ValidateTableName(tableName string) error {
 	if !ValidTableNames[tableName] {
 		return fmt.Errorf("%w: %s", ErrInvalidTableName, tableName)
@@ -67,6 +68,7 @@ const (
 //	result := s.db.Where("status IN ?", statuses).
 //	    Where(DateSubDays(s.db.Dialector.Name(), "created_at", daysOld)).
 //	    Delete(&SomeModel{})
+// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: build a dialect-specific SQL WHERE clause for column < now minus N days (pure)
 func DateSubDays(dialectName, column string, days int) string {
 	switch dialectName {
 	case DialectPostgres:
@@ -93,6 +95,7 @@ func DateSubDays(dialectName, column string, days int) string {
 //	updates := map[string]interface{}{
 //	    "next_retry_at": gorm.Expr(DateAddDays(s.db.Dialector.Name(), retryDelayDays)),
 //	}
+// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: build a dialect-specific SQL expression for now plus N days (pure)
 func DateAddDays(dialectName string, days int) string {
 	switch dialectName {
 	case DialectPostgres:
@@ -112,6 +115,7 @@ func DateAddDays(dialectName string, days int) string {
 
 // DateAddMinutes returns a dialect-specific expression for "now + N minutes".
 // Useful for setting short-term retry times.
+// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: build a dialect-specific SQL expression for now plus N minutes (pure)
 func DateAddMinutes(dialectName string, minutes int) string {
 	switch dialectName {
 	case DialectPostgres:
@@ -131,6 +135,7 @@ func DateAddMinutes(dialectName string, minutes int) string {
 
 // NowLessThanColumn returns a dialect-specific WHERE clause for "now < column".
 // Useful for checking if a timestamp is in the future (e.g., retry_at > now means not yet ready).
+// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: build a dialect-specific SQL WHERE clause for now <= column (pure)
 func NowLessThanColumn(dialectName, column string) string {
 	switch dialectName {
 	case DialectPostgres:
@@ -150,6 +155,7 @@ func NowLessThanColumn(dialectName, column string) string {
 
 // NowGreaterThanColumn returns a dialect-specific WHERE clause for "now > column".
 // Useful for checking if a timestamp has passed (e.g., retry_at <= now means ready to retry).
+// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: build a dialect-specific SQL WHERE clause for now >= column (pure)
 func NowGreaterThanColumn(dialectName, column string) string {
 	switch dialectName {
 	case DialectPostgres:
@@ -171,6 +177,7 @@ func NowGreaterThanColumn(dialectName, column string) string {
 // Note: This bypasses GORM's soft delete and foreign key checks.
 // Use with caution, primarily for test cleanup.
 // Returns ErrInvalidTableName if the table name is not in the allowed whitelist.
+// SEM@2bbbcc69cdb6c6b415fb186b43b57e5a2de961d2: build a dialect-specific TRUNCATE statement after validating the table name (pure)
 func TruncateTable(dialectName, tableName string) (string, error) {
 	if err := ValidateTableName(tableName); err != nil {
 		return "", err
@@ -193,6 +200,7 @@ func TruncateTable(dialectName, tableName string) (string, error) {
 }
 
 // GetDialectName is a convenience function to get the dialect name from a GORM DB instance.
+// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: fetch the GORM dialect name for a DB instance (pure)
 func GetDialectName(db *gorm.DB) string {
 	return db.Name()
 }
@@ -200,6 +208,7 @@ func GetDialectName(db *gorm.DB) string {
 // ColumnName returns the column name in the correct case for the database dialect.
 // Oracle requires uppercase column names because the oracle-samples/gorm-oracle driver
 // doesn't consistently apply the NamingStrategy to column names in WHERE/ORDER BY clauses.
+// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: convert a column name to the correct case for the active database dialect (pure)
 func ColumnName(dialectName, column string) string {
 	if dialectName == DialectOracle {
 		return toUpperSnakeCase(column)
@@ -209,6 +218,7 @@ func ColumnName(dialectName, column string) string {
 
 // toUpperSnakeCase converts a string to uppercase.
 // Column names are already snake_case, so we just need to uppercase them.
+// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: convert a snake_case string to uppercase for Oracle column names (pure)
 func toUpperSnakeCase(s string) string {
 	result := make([]byte, len(s))
 	for i := 0; i < len(s); i++ {
@@ -225,12 +235,14 @@ func toUpperSnakeCase(s string) string {
 // Col returns a clause.Column with the correct column name for the database dialect.
 // Oracle requires uppercase column names because the oracle-samples/gorm-oracle driver
 // doesn't consistently apply the NamingStrategy to column names in WHERE/ORDER BY clauses.
+// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: build a GORM clause.Column with dialect-correct column name casing (pure)
 func Col(dialectName, column string) clause.Column {
 	return clause.Column{Name: ColumnName(dialectName, column)}
 }
 
 // OrderByCol returns a clause.OrderByColumn for use in ORDER BY clauses.
 // Oracle requires uppercase column names.
+// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: build a GORM ORDER BY column with dialect-correct casing and direction (pure)
 func OrderByCol(dialectName, column string, desc bool) clause.OrderByColumn {
 	return clause.OrderByColumn{
 		Column: Col(dialectName, column),
@@ -241,6 +253,7 @@ func OrderByCol(dialectName, column string, desc bool) clause.OrderByColumn {
 // AssignmentMap rewrites the keys of an OnConflict DoUpdates assignment map
 // to the correct case for the database dialect. Use with clause.Assignments
 // when you need to set explicit values (not just column names) on conflict.
+// SEM@aa6d284f5df5c13ccb0001366a1f228490aba957: rewrite ON CONFLICT assignment map keys to dialect-correct column casing (pure)
 func AssignmentMap(dialectName string, assignments map[string]any) map[string]any {
 	if dialectName != DialectOracle {
 		return assignments

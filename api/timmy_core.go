@@ -9,6 +9,7 @@ import (
 
 // TimmyRuntime bundles the rebuildable Timmy objects served to a request. It is
 // immutable once built; TimmyCore swaps the whole struct on rebuild.
+// SEM@4f3fae9c4ede6c2d157bdc4671d8fa783e7a2899: immutable bundle of Timmy session manager, LLM service, and vector index served per request
 type TimmyRuntime struct {
 	SessionManager *TimmySessionManager
 	LLMService     *TimmyLLMService
@@ -18,10 +19,12 @@ type TimmyRuntime struct {
 // TimmyRuntimeBuilder builds a TimmyRuntime from a resolved config. Injected so
 // tests can substitute a fake builder instead of constructing real LangChainGo
 // clients.
+// SEM@4f3fae9c4ede6c2d157bdc4671d8fa783e7a2899: function type that builds a TimmyRuntime from a resolved Timmy config
 type TimmyRuntimeBuilder func(ctx context.Context, cfg config.TimmyConfig) (*TimmyRuntime, error)
 
 // TimmyCore owns the live TimmyRuntime and rebuilds it lazily when the wiring
 // hash changes. Safe for concurrent use.
+// SEM@4f3fae9c4ede6c2d157bdc4671d8fa783e7a2899: thread-safe holder that lazily rebuilds the TimmyRuntime when the wiring config changes (mutates shared state)
 type TimmyCore struct {
 	provider *TimmyConfigProvider
 	build    TimmyRuntimeBuilder
@@ -32,6 +35,7 @@ type TimmyCore struct {
 }
 
 // NewTimmyCore constructs a core over the given provider and builder.
+// SEM@4f3fae9c4ede6c2d157bdc4671d8fa783e7a2899: build a TimmyCore wired to the given config provider and runtime builder (pure)
 func NewTimmyCore(provider *TimmyConfigProvider, build TimmyRuntimeBuilder) *TimmyCore {
 	return &TimmyCore{provider: provider, build: build}
 }
@@ -45,6 +49,7 @@ func NewTimmyCore(provider *TimmyConfigProvider, build TimmyRuntimeBuilder) *Tim
 // The config is snapshotted before locking; if the config changes again during
 // a build, the result is still published under the snapshot's hash and will be
 // detected as stale on the next Get.
+// SEM@def63b409c24f2ad196af883736040232f69379e: return the live TimmyRuntime, rebuilding it if the wiring config hash has changed (mutates shared state)
 func (c *TimmyCore) Get(ctx context.Context) (*TimmyRuntime, error) {
 	cfg := c.provider.Current(ctx)
 	want := c.provider.WiringHash(cfg)

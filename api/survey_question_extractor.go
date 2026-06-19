@@ -7,6 +7,7 @@ import (
 )
 
 // SurveyQuestion represents a leaf question extracted from SurveyJS JSON.
+// SEM@b77f3240790e1d94ed81a805538c9ba9c334b6c3: leaf question extracted from a SurveyJS survey with its field-mapping metadata (pure)
 type SurveyQuestion struct {
 	Name          string
 	Type          string
@@ -17,6 +18,7 @@ type SurveyQuestion struct {
 // ExtractQuestions recursively extracts leaf questions from a SurveyJS survey_json object.
 // Returns an error if the JSON structure is invalid or duplicate mapsToTmField values are found.
 // Pass nil for logger to suppress warnings about skipped elements.
+// SEM@b77f3240790e1d94ed81a805538c9ba9c334b6c3: parse all leaf questions from a SurveyJS JSON object, rejecting duplicate field mappings (pure)
 func ExtractQuestions(surveyJSON map[string]any, logger *slogging.Logger) ([]SurveyQuestion, error) {
 	pagesRaw, ok := surveyJSON["pages"]
 	if !ok {
@@ -60,6 +62,7 @@ func ExtractQuestions(surveyJSON map[string]any, logger *slogging.Logger) ([]Sur
 }
 
 // extractFromElements recursively extracts questions from a SurveyJS elements array.
+// SEM@b77f3240790e1d94ed81a805538c9ba9c334b6c3: recursively collect leaf questions from a SurveyJS elements array (pure)
 func extractFromElements(elements []any, logger *slogging.Logger) []SurveyQuestion {
 	var questions []SurveyQuestion
 	for _, elemRaw := range elements {
@@ -120,6 +123,7 @@ func extractFromElements(elements []any, logger *slogging.Logger) []SurveyQuesti
 
 // makeQuestion creates a SurveyQuestion from a SurveyJS element map.
 // Callers must ensure elem contains non-empty "name" and "type" string fields.
+// SEM@b77f3240790e1d94ed81a805538c9ba9c334b6c3: build a SurveyQuestion from a single SurveyJS element map (pure)
 func makeQuestion(elem map[string]any) SurveyQuestion {
 	name, _ := elem["name"].(string)
 	elemType, _ := elem["type"].(string)

@@ -7,6 +7,7 @@ import (
 )
 
 // MigratableSetting represents a setting that can be migrated from config to database
+// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: DTO representing a single config setting eligible for database migration (pure)
 type MigratableSetting struct {
 	Key         string
 	Value       string
@@ -19,6 +20,7 @@ type MigratableSetting struct {
 }
 
 // settingSource returns "environment" if the given env var is set, otherwise "config".
+// SEM@ef979cc7527137e0448782341a4ffe8e944571f5: return 'environment' when the given env var is set, otherwise 'config' (pure)
 func settingSource(envVar string) string {
 	if os.Getenv(envVar) != "" {
 		return "environment"
@@ -28,6 +30,7 @@ func settingSource(envVar string) string {
 
 // GetMigratableSettings returns all settings from the config formatted for database storage.
 // Secret fields are included with Secret=true so the API layer can mask their values.
+// SEM@13c4215bf8e204da342579717f97f7393bb5fe2f: list all config settings eligible for database migration with classification applied (pure)
 func (c *Config) GetMigratableSettings() []MigratableSetting {
 	settings := []MigratableSetting{}
 
@@ -62,6 +65,7 @@ func (c *Config) GetMigratableSettings() []MigratableSetting {
 }
 
 // getMigratableServerSettings returns server configuration settings
+// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: list server-section settings eligible for database migration (pure)
 func (c *Config) getMigratableServerSettings() []MigratableSetting {
 	settings := []MigratableSetting{
 		{Key: "server.port", Value: c.Server.Port, Type: "string", Description: "HTTP server port", Source: settingSource("TMI_SERVER_PORT"), EnvVar: "TMI_SERVER_PORT"},
@@ -94,6 +98,7 @@ func (c *Config) getMigratableServerSettings() []MigratableSetting {
 }
 
 // getMigratableAuthSettings returns authentication configuration settings
+// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: list auth-section settings including JWT and cookie fields eligible for database migration (pure)
 func (c *Config) getMigratableAuthSettings() []MigratableSetting {
 	settings := []MigratableSetting{
 		{Key: "auth.build_mode", Value: c.Auth.BuildMode, Type: "string", Description: "Build mode (dev, test, production)", Source: settingSource("TMI_BUILD_MODE"), EnvVar: "TMI_BUILD_MODE"},
@@ -119,6 +124,7 @@ func (c *Config) getMigratableAuthSettings() []MigratableSetting {
 }
 
 // getMigratableDatabaseSettings returns database configuration settings
+// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: list database connection and Redis settings eligible for database migration (pure)
 func (c *Config) getMigratableDatabaseSettings() []MigratableSetting {
 	settings := []MigratableSetting{
 		{Key: "database.url", Value: sanitizeURL(c.Database.URL), Type: "string", Description: "Database connection URL (password redacted)", Source: settingSource("TMI_DATABASE_URL"), EnvVar: "TMI_DATABASE_URL"},
@@ -144,6 +150,7 @@ func (c *Config) getMigratableDatabaseSettings() []MigratableSetting {
 }
 
 // getMigratableFeatureFlags returns feature flag settings
+// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: list feature-flag settings eligible for database migration (pure)
 func (c *Config) getMigratableFeatureFlags() []MigratableSetting {
 	return []MigratableSetting{
 		{
@@ -158,6 +165,7 @@ func (c *Config) getMigratableFeatureFlags() []MigratableSetting {
 }
 
 // getMigratableOAuthSettings returns OAuth provider settings
+// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: build migratable settings list for OAuth callback URL and enabled providers (pure)
 func (c *Config) getMigratableOAuthSettings() []MigratableSetting {
 	settings := []MigratableSetting{}
 
@@ -198,6 +206,7 @@ func (c *Config) getMigratableOAuthSettings() []MigratableSetting {
 }
 
 // getMigratableOAuthProviderSettings returns settings for a single OAuth provider
+// SEM@ef979cc7527137e0448782341a4ffe8e944571f5: build migratable settings list for a single OAuth provider's credentials and metadata (pure)
 func (c *Config) getMigratableOAuthProviderSettings(providerKey string, p OAuthProviderConfig) []MigratableSetting {
 	prefix := "auth.oauth.providers." + providerKey
 	settings := []MigratableSetting{
@@ -267,6 +276,7 @@ func (c *Config) getMigratableOAuthProviderSettings(providerKey string, p OAuthP
 }
 
 // getMigratableSAMLSettings returns SAML provider settings
+// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: build migratable settings list for all enabled SAML providers (pure)
 func (c *Config) getMigratableSAMLSettings() []MigratableSetting {
 	settings := []MigratableSetting{}
 
@@ -285,6 +295,7 @@ func (c *Config) getMigratableSAMLSettings() []MigratableSetting {
 }
 
 // getMigratableSAMLProviderSettings returns settings for a single SAML provider
+// SEM@ef979cc7527137e0448782341a4ffe8e944571f5: build migratable settings list for a single SAML provider's endpoints, flags, and secrets (pure)
 func (c *Config) getMigratableSAMLProviderSettings(providerKey string, p SAMLProviderConfig) []MigratableSetting {
 	prefix := "auth.saml.providers." + providerKey
 	settings := []MigratableSetting{
@@ -345,6 +356,7 @@ func (c *Config) getMigratableSAMLProviderSettings(providerKey string, p SAMLPro
 }
 
 // getMigratableRuntimeSettings returns runtime-configurable settings
+// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: build migratable settings list for WebSocket timeout, JWT expiry, and operator identity (pure)
 func (c *Config) getMigratableRuntimeSettings() []MigratableSetting {
 	settings := []MigratableSetting{}
 
@@ -408,6 +420,7 @@ func (c *Config) getMigratableRuntimeSettings() []MigratableSetting {
 }
 
 // getMigratableLoggingSettings returns logging configuration settings
+// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: build migratable settings list for all logging configuration parameters (pure)
 func (c *Config) getMigratableLoggingSettings() []MigratableSetting {
 	return []MigratableSetting{
 		{Key: "logging.level", Value: c.Logging.Level, Type: "string", Description: "Log level", Source: settingSource("TMI_LOG_LEVEL"), EnvVar: "TMI_LOG_LEVEL"},
@@ -428,6 +441,7 @@ func (c *Config) getMigratableLoggingSettings() []MigratableSetting {
 }
 
 // getMigratableSecretsSettings returns secrets provider configuration settings
+// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: build migratable settings list for secrets provider type and backend coordinates (pure)
 func (c *Config) getMigratableSecretsSettings() []MigratableSetting {
 	settings := []MigratableSetting{
 		{Key: "secrets.provider", Value: c.Secrets.Provider, Type: "string", Description: "Secret provider type", Source: settingSource("TMI_SECRETS_PROVIDER"), EnvVar: "TMI_SECRETS_PROVIDER"},
@@ -455,6 +469,7 @@ func (c *Config) getMigratableSecretsSettings() []MigratableSetting {
 
 // getMigratableTimmySettings returns Timmy AI assistant settings, including
 // the shared embedding profile keys.
+// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: build migratable settings list for Timmy AI assistant LLM, embedding, and session parameters (pure)
 func (c *Config) getMigratableTimmySettings() []MigratableSetting {
 	t := c.Timmy
 	settings := []MigratableSetting{
@@ -502,6 +517,7 @@ func (c *Config) getMigratableTimmySettings() []MigratableSetting {
 // default Config. It is the seed source for the DB-backed settings service.
 // Bootstrap-category settings are intentionally excluded — they are file/env
 // only and must never be written to the database.
+// SEM@ab3b70da0bebdbb7db5fefc97e15036dc3f5c4c5: return operational-category migratable settings from a default config, excluding bootstrap-only settings (pure)
 func DefaultOperationalSettings() []MigratableSetting {
 	all := getDefaultConfig().GetMigratableSettings()
 	out := make([]MigratableSetting, 0, len(all))
@@ -514,6 +530,7 @@ func DefaultOperationalSettings() []MigratableSetting {
 }
 
 // getMigratableAdministratorsSettings returns administrator configuration settings
+// SEM@ef979cc7527137e0448782341a4ffe8e944571f5: build migratable settings list encoding the configured administrators as JSON (pure)
 func (c *Config) getMigratableAdministratorsSettings() []MigratableSetting {
 	if len(c.Administrators) == 0 {
 		return nil
@@ -528,6 +545,7 @@ func (c *Config) getMigratableAdministratorsSettings() []MigratableSetting {
 }
 
 // getMigratableObservabilitySettings returns OpenTelemetry / Prometheus settings.
+// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: build migratable settings list for OpenTelemetry and Prometheus observability parameters (pure)
 func (c *Config) getMigratableObservabilitySettings() []MigratableSetting {
 	return []MigratableSetting{
 		{Key: "observability.enabled", Value: strconv.FormatBool(c.Observability.Enabled), Type: "bool", Description: "OpenTelemetry tracing enabled", Source: settingSource("TMI_OTEL_ENABLED"), EnvVar: "TMI_OTEL_ENABLED"},
@@ -545,7 +563,9 @@ func (c *Config) getMigratableObservabilitySettings() []MigratableSetting {
 // could silently widen the allowlist to all hosts on misconfigured installs).
 // The runtime SSRF validator already defaults to fail-closed when the setting
 // is absent from the DB.
+// SEM@65c1476330c2d49ec6f16949e34340248686bdd4: build migratable settings list for SSRF allowlist and permitted schemes per URI class (pure)
 func (c *Config) getMigratableSSRFSettings() []MigratableSetting {
+	// SEM@65c1476330c2d49ec6f16949e34340248686bdd4: pair an SSRF config key prefix with its URIConfig value for iteration (pure)
 	type ssrfEntry struct {
 		prefix string
 		cfg    SSRFURIConfig
@@ -585,6 +605,7 @@ func (c *Config) getMigratableSSRFSettings() []MigratableSetting {
 }
 
 // getMigratableWebhooksSettings returns webhook configuration settings.
+// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: build migratable settings list for webhook HTTP target policy (pure)
 func (c *Config) getMigratableWebhooksSettings() []MigratableSetting {
 	return []MigratableSetting{
 		{Key: "webhooks.allow_http_targets", Value: strconv.FormatBool(c.Webhooks.AllowHTTPTargets), Type: "bool", Description: "Allow non-HTTPS webhook target URLs (intra-cluster use only)", Source: settingSource("TMI_WEBHOOK_ALLOW_HTTP_TARGETS"), EnvVar: "TMI_WEBHOOK_ALLOW_HTTP_TARGETS"},
@@ -592,6 +613,7 @@ func (c *Config) getMigratableWebhooksSettings() []MigratableSetting {
 }
 
 // getMigratableContentExtractorsSettings returns OOXML extractor pipeline limits.
+// SEM@d34da3918d4a3784077a74aedd722e45c29196cf: build migratable settings list for content extractor size and concurrency limits (pure)
 func (c *Config) getMigratableContentExtractorsSettings() []MigratableSetting {
 	e := c.ContentExtractors
 	return []MigratableSetting{
@@ -613,6 +635,7 @@ func (c *Config) getMigratableContentExtractorsSettings() []MigratableSetting {
 // on Oracle. content_oauth.providers.* are dynamic-cardinality and handled by
 // the prefix classification; individual provider secrets already carry
 // Secret:true in the per-provider helper below.
+// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: build migratable settings list for content OAuth callback URL and enabled provider credentials (pure)
 func (c *Config) getMigratableContentOAuthSettings() []MigratableSetting {
 	settings := []MigratableSetting{}
 	if c.ContentOAuth.CallbackURL != "" {
@@ -636,6 +659,7 @@ func (c *Config) getMigratableContentOAuthSettings() []MigratableSetting {
 }
 
 // getMigratableContentOAuthProviderSettings returns settings for a single content OAuth provider.
+// SEM@926d7b92ff82030ff3a1c03b2307247302613d38: build migratable settings list for a single content OAuth provider's URLs, client credentials, and scopes (pure)
 func getMigratableContentOAuthProviderSettings(providerKey string, p ContentOAuthProviderConfig) []MigratableSetting {
 	prefix := "content_oauth.providers." + providerKey
 	settings := []MigratableSetting{
@@ -682,6 +706,7 @@ func getMigratableContentOAuthProviderSettings(providerKey string, p ContentOAut
 // String fields that are filesystem paths or email addresses are omitted when
 // empty (Oracle empty-CLOB safe). Boolean enabled flags and picker public IDs
 // always emit since they have meaningful zero/sentinel values.
+// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: build migratable settings list for Google Drive, Google Workspace, Confluence, and Microsoft content source configuration (pure)
 func (c *Config) getMigratableContentSourcesSettings() []MigratableSetting {
 	settings := []MigratableSetting{}
 
@@ -748,6 +773,7 @@ func (c *Config) getMigratableContentSourcesSettings() []MigratableSetting {
 // getMigratableAlertingSettings returns alerting / audit-alert-sink settings (#395).
 // These are CategoryBootstrap because they are consumed at startup time by
 // EnsurePinnedAlertSubscription, before the DB settings service is available.
+// SEM@13c4215bf8e204da342579717f97f7393bb5fe2f: build migratable settings list for the audit alert sink webhook URL and HMAC secret (pure)
 func (c *Config) getMigratableAlertingSettings() []MigratableSetting {
 	settings := []MigratableSetting{
 		{Key: "alerting.enabled", Value: strconv.FormatBool(c.Alerting.Enabled), Type: "bool", Description: "Enable the operator-pinned audit alert sink webhook subscription (#395)", Source: settingSource("TMI_ALERTING_ENABLED"), EnvVar: "TMI_ALERTING_ENABLED"},

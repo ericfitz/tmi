@@ -12,11 +12,13 @@ import (
 )
 
 // MiddlewareTestHelper provides utilities for testing middleware functions
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: test fixture holding a Gin engine for middleware unit tests (pure)
 type MiddlewareTestHelper struct {
 	Router *gin.Engine
 }
 
 // NewMiddlewareTestHelper creates a new middleware test helper with a clean router
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: build a MiddlewareTestHelper with a fresh Gin engine in test mode (pure)
 func NewMiddlewareTestHelper() *MiddlewareTestHelper {
 	gin.SetMode(gin.TestMode)
 	return &MiddlewareTestHelper{
@@ -25,6 +27,7 @@ func NewMiddlewareTestHelper() *MiddlewareTestHelper {
 }
 
 // CreateTestGinContext creates a Gin context for testing with the given HTTP method and path
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: build a Gin context and response recorder for a given HTTP method and path (pure)
 func CreateTestGinContext(method, path string) (*gin.Context, *httptest.ResponseRecorder) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -34,6 +37,7 @@ func CreateTestGinContext(method, path string) (*gin.Context, *httptest.Response
 }
 
 // CreateTestGinContextWithBody creates a Gin context with a request body
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: build a Gin context with a request body and content type for testing (pure)
 func CreateTestGinContextWithBody(method, path, contentType string, body []byte) (*gin.Context, *httptest.ResponseRecorder) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -46,6 +50,7 @@ func CreateTestGinContextWithBody(method, path, contentType string, body []byte)
 }
 
 // SetUserContext sets authentication context on a Gin context
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: store email, user ID, and role into a Gin context for testing (mutates shared state)
 func SetUserContext(c *gin.Context, email, userID string, role Role) {
 	c.Set("userEmail", email)
 	c.Set("userID", userID)
@@ -55,6 +60,7 @@ func SetUserContext(c *gin.Context, email, userID string, role Role) {
 }
 
 // SetFullUserContext sets complete user authentication context including groups and IdP
+// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: store full user identity fields including IdP and groups into a Gin context for testing (mutates shared state)
 func SetFullUserContext(c *gin.Context, email, userID, internalUUID, idp string, groups []string) {
 	c.Set("userEmail", email)
 	c.Set("userID", userID)
@@ -71,6 +77,7 @@ func SetFullUserContext(c *gin.Context, email, userID, internalUUID, idp string,
 }
 
 // AssertSecurityHeaders verifies that all expected security headers are present
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: validate that a response includes all required security headers (pure)
 func AssertSecurityHeaders(t *testing.T, headers http.Header) {
 	t.Helper()
 
@@ -92,6 +99,7 @@ func AssertSecurityHeaders(t *testing.T, headers http.Header) {
 }
 
 // AssertHSTSHeader verifies that HSTS header is present and correctly configured
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: validate HSTS response header presence and value in tests (pure)
 func AssertHSTSHeader(t *testing.T, headers http.Header, expectPresent bool) {
 	t.Helper()
 
@@ -106,6 +114,7 @@ func AssertHSTSHeader(t *testing.T, headers http.Header, expectPresent bool) {
 
 // AssertCORSHeaders verifies CORS headers are present when an allowed origin is set.
 // The origin parameter is the expected reflected origin (or empty if no CORS headers expected).
+// SEM@314b7ae8fe586a75ecee2e8fa7103d3193f15f7c: validate CORS response headers reflect the expected origin and required fields (pure)
 func AssertCORSHeaders(t *testing.T, headers http.Header, origin ...string) {
 	t.Helper()
 
@@ -129,6 +138,7 @@ func AssertCORSHeaders(t *testing.T, headers http.Header, origin ...string) {
 }
 
 // AssertRateLimitHeaders verifies rate limit headers are present with expected values
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: validate rate limit response headers match expected limit and remaining counts (pure)
 func AssertRateLimitHeaders(t *testing.T, headers http.Header, remaining, limit int) {
 	t.Helper()
 
@@ -145,6 +155,7 @@ func AssertRateLimitHeaders(t *testing.T, headers http.Header, remaining, limit 
 }
 
 // AssertJSONErrorResponse verifies the response is a JSON error with expected status
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: validate HTTP error response has expected status, JSON content type, and error text (pure)
 func AssertJSONErrorResponse(t *testing.T, w *httptest.ResponseRecorder, expectedStatus int, expectedError string) {
 	t.Helper()
 
@@ -158,6 +169,7 @@ func AssertJSONErrorResponse(t *testing.T, w *httptest.ResponseRecorder, expecte
 }
 
 // RunMiddlewareTest executes middleware and returns the response
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: dispatch a single middleware handler against a synthetic request and return the response (pure)
 func (h *MiddlewareTestHelper) RunMiddlewareTest(middleware gin.HandlerFunc, method, path string, setupContext func(*gin.Context)) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -172,6 +184,7 @@ func (h *MiddlewareTestHelper) RunMiddlewareTest(middleware gin.HandlerFunc, met
 }
 
 // RunMiddlewareChain executes a chain of middleware functions
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: dispatch an ordered chain of middleware handlers, stopping on abort (pure)
 func (h *MiddlewareTestHelper) RunMiddlewareChain(middlewares []gin.HandlerFunc, method, path string, setupContext func(*gin.Context)) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -191,6 +204,7 @@ func (h *MiddlewareTestHelper) RunMiddlewareChain(middlewares []gin.HandlerFunc,
 }
 
 // MiddlewareTestCase represents a test case for middleware testing
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: data container describing a single middleware test scenario and its expected outcomes (pure)
 type MiddlewareTestCase struct {
 	Name           string
 	Method         string
@@ -206,6 +220,7 @@ type MiddlewareTestCase struct {
 }
 
 // RunMiddlewareTestCases executes a slice of test cases against a middleware
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: execute a batch of middleware test cases, asserting status, error text, and custom checks (pure)
 func RunMiddlewareTestCases(t *testing.T, middleware gin.HandlerFunc, testCases []MiddlewareTestCase) {
 	t.Helper()
 
@@ -299,6 +314,7 @@ var TestUsers = struct {
 }
 
 // TestUserIdentity represents a test user with all identity attributes
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: data container holding all identity attributes for a test user principal (pure)
 type TestUserIdentity struct {
 	Email        string
 	ProviderID   string
@@ -308,6 +324,7 @@ type TestUserIdentity struct {
 }
 
 // SetContext sets the user identity in a Gin context
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: store the test user's identity into a Gin request context (mutates shared state)
 func (u TestUserIdentity) SetContext(c *gin.Context) {
 	SetFullUserContext(c, u.Email, u.ProviderID, u.InternalUUID, u.IdP, u.Groups)
 }

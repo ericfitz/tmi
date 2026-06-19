@@ -12,6 +12,7 @@ import (
 )
 
 // RequestResponseLoggingConfig holds configuration for enhanced logging
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: configuration controlling which HTTP request and response details to log (pure)
 type RequestResponseLoggingConfig struct {
 	LogRequests    bool
 	LogResponses   bool
@@ -22,6 +23,7 @@ type RequestResponseLoggingConfig struct {
 }
 
 // RequestResponseLogger creates middleware for detailed request/response logging
+// SEM@3e48a58cb418d2e7a4f04f1288fa11cb942bc99e: build a Gin middleware that logs structured HTTP request and response details per config
 func RequestResponseLogger(config RequestResponseLoggingConfig) gin.HandlerFunc {
 	// Set default max body size if not specified
 	if config.MaxBodySize == 0 {
@@ -87,6 +89,7 @@ func RequestResponseLogger(config RequestResponseLoggingConfig) gin.HandlerFunc 
 }
 
 // responseWriter wraps gin.ResponseWriter to capture response body
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: Gin response writer that tees response body into a buffer for logging (pure)
 type responseWriter struct {
 	gin.ResponseWriter
 	body *bytes.Buffer
@@ -103,6 +106,7 @@ type responseWriter struct {
 // 4. All error response paths are designed to prevent stack trace leakage
 // This architectural approach is safer than filtering all responses at this level,
 // which would add performance overhead and risk corrupting binary/JSON content.
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: write response bytes to both the original writer and the capture buffer (mutates shared state)
 func (w *responseWriter) Write(data []byte) (int, error) {
 	// Write to both the original response and our buffer
 	w.body.Write(data)
@@ -110,6 +114,7 @@ func (w *responseWriter) Write(data []byte) (int, error) {
 }
 
 // logRequestDetails logs detailed request information using structured logging
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: log structured HTTP request details including headers, query, and body at debug level
 func logRequestDetails(c *gin.Context, logger *ContextLogger, config RequestResponseLoggingConfig) {
 	// Build structured attributes for the request
 	attrs := []slog.Attr{
@@ -170,6 +175,7 @@ func logRequestDetails(c *gin.Context, logger *ContextLogger, config RequestResp
 }
 
 // logResponseDetails logs detailed response information using structured logging
+// SEM@9b12ce9141d1c80d82542c68d7e719c0d73f396d: log structured HTTP response details at a severity level matching the status code
 func logResponseDetails(c *gin.Context, logger *ContextLogger, config RequestResponseLoggingConfig, responseBody *bytes.Buffer, duration time.Duration) {
 	// Build structured attributes for the response
 	attrs := []slog.Attr{
@@ -231,6 +237,7 @@ func logResponseDetails(c *gin.Context, logger *ContextLogger, config RequestRes
 // SECURITY: This function is part of the defense-in-depth strategy against stack trace
 // exposure (CWE-209). It ensures that captured response bodies don't contain stack traces
 // that could be inadvertently logged and potentially exposed through log analysis tools.
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: strip stack trace content from a response body string to prevent information disclosure (pure)
 func truncateBeforeStackTraceMarkers(body string) string {
 	if body == "" {
 		return body

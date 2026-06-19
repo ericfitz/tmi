@@ -13,16 +13,19 @@ import (
 )
 
 // GormTriageNoteStore implements TriageNoteStore using GORM
+// SEM@869fcafe6842b187f8cfe8e7cf65ca47021b8418: GORM-backed store for triage notes
 type GormTriageNoteStore struct {
 	db *gorm.DB
 }
 
 // NewGormTriageNoteStore creates a new GORM-backed triage note store
+// SEM@869fcafe6842b187f8cfe8e7cf65ca47021b8418: build a GORM-backed triage note store
 func NewGormTriageNoteStore(db *gorm.DB) *GormTriageNoteStore {
 	return &GormTriageNoteStore{db: db}
 }
 
 // Create creates a new triage note with an auto-assigned sequential ID
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: store a new triage note with sequential ID and populate creator fields (writes DB)
 func (s *GormTriageNoteStore) Create(ctx context.Context, note *TriageNote, surveyResponseID string, creatorInternalUUID string) error {
 	logger := slogging.Get()
 	logger.Debug("Creating triage note in survey response: %s", surveyResponseID)
@@ -69,6 +72,7 @@ func (s *GormTriageNoteStore) Create(ctx context.Context, note *TriageNote, surv
 }
 
 // Get retrieves a specific triage note by survey response ID and note ID
+// SEM@579b4f4aa29012b989445d1a6ef052ac48216b93: fetch a single triage note by survey response and note ID (reads DB)
 func (s *GormTriageNoteStore) Get(ctx context.Context, surveyResponseID string, noteID int) (*TriageNote, error) {
 	logger := slogging.Get()
 	logger.Debug("Getting triage note %d for survey response %s", noteID, surveyResponseID)
@@ -90,6 +94,7 @@ func (s *GormTriageNoteStore) Get(ctx context.Context, surveyResponseID string, 
 }
 
 // List returns triage notes for a survey response with pagination, ordered by ID ascending
+// SEM@579b4f4aa29012b989445d1a6ef052ac48216b93: list paginated triage notes for a survey response ordered by ID (reads DB)
 func (s *GormTriageNoteStore) List(ctx context.Context, surveyResponseID string, offset, limit int) ([]TriageNote, error) {
 	logger := slogging.Get()
 	logger.Debug("Listing triage notes for survey response %s (offset: %d, limit: %d)", surveyResponseID, offset, limit)
@@ -115,6 +120,7 @@ func (s *GormTriageNoteStore) List(ctx context.Context, surveyResponseID string,
 }
 
 // Count returns the total number of triage notes for a survey response
+// SEM@579b4f4aa29012b989445d1a6ef052ac48216b93: count triage notes belonging to a survey response (reads DB)
 func (s *GormTriageNoteStore) Count(ctx context.Context, surveyResponseID string) (int, error) {
 	var count int64
 	err := s.db.WithContext(ctx).
@@ -128,6 +134,7 @@ func (s *GormTriageNoteStore) Count(ctx context.Context, surveyResponseID string
 }
 
 // modelToAPI converts a database TriageNote model to an API TriageNote
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: convert a DB triage note model to its API representation (pure)
 func (s *GormTriageNoteStore) modelToAPI(model *models.TriageNote) *TriageNote {
 	note := &TriageNote{
 		Id:         &model.ID,

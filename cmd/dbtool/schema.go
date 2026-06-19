@@ -16,6 +16,7 @@ import (
 // If run against a non-empty schema that triggers an "object already exists"
 // error, the error surfaces loudly — the operator should drop and recreate
 // the schema first.
+// SEM@6415706e07613a139449e1bff6eef269e3783417: run GORM AutoMigrate and seed system data against the target database (mutates DB)
 func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 	log := slogging.Get()
 
@@ -41,6 +42,7 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 }
 
 // runSchemaDryRun reports what schema changes would be made without writing.
+// SEM@7a8bf8de72c6d39387df00ec0eb9901653555db8: report schema health and missing tables without applying any changes (reads DB)
 func runSchemaDryRun(db *testdb.TestDB, _ bool) error {
 	log := slogging.Get()
 	log.Info("[DRY RUN] Checking schema status...")

@@ -14,17 +14,20 @@ import (
 )
 
 // GormTimmySessionStore implements TimmySessionStore using GORM
+// SEM@3f30cf32cf8bc373eef534adfb1126a7b2018f76: GORM-backed store for Timmy chat sessions with a read-write mutex
 type GormTimmySessionStore struct {
 	db    *gorm.DB
 	mutex sync.RWMutex
 }
 
 // NewGormTimmySessionStore creates a new GORM-backed session store
+// SEM@3f30cf32cf8bc373eef534adfb1126a7b2018f76: build a new GORM-backed Timmy session store (pure)
 func NewGormTimmySessionStore(db *gorm.DB) *GormTimmySessionStore {
 	return &GormTimmySessionStore{db: db}
 }
 
 // Create persists a new session
+// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: persist a new Timmy chat session in a retryable transaction (reads DB)
 func (s *GormTimmySessionStore) Create(ctx context.Context, session *models.TimmySession) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -48,6 +51,7 @@ func (s *GormTimmySessionStore) Create(ctx context.Context, session *models.Timm
 }
 
 // Get retrieves a session by ID, excluding soft-deleted sessions
+// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: fetch a non-deleted Timmy session by ID, returning ErrTimmySessionNotFound if absent (reads DB)
 func (s *GormTimmySessionStore) Get(ctx context.Context, id string) (*models.TimmySession, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -72,6 +76,7 @@ func (s *GormTimmySessionStore) Get(ctx context.Context, id string) (*models.Tim
 
 // ListByUserAndThreatModel returns paginated sessions for a user and threat model
 // Returns the sessions, the total count, and any error
+// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: list paginated non-deleted Timmy sessions for a user and threat model, returning total count (reads DB)
 func (s *GormTimmySessionStore) ListByUserAndThreatModel(ctx context.Context, userID, threatModelID string, offset, limit int) ([]models.TimmySession, int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -113,6 +118,7 @@ func (s *GormTimmySessionStore) ListByUserAndThreatModel(ctx context.Context, us
 }
 
 // SoftDelete marks a session as deleted by setting its deleted_at timestamp
+// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: mark a Timmy session deleted by setting its deleted_at timestamp (writes DB)
 func (s *GormTimmySessionStore) SoftDelete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -139,6 +145,7 @@ func (s *GormTimmySessionStore) SoftDelete(ctx context.Context, id string) error
 }
 
 // UpdateSnapshot updates the source_snapshot JSON column for a session.
+// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: update the source snapshot JSON for an active Timmy session (writes DB)
 func (s *GormTimmySessionStore) UpdateSnapshot(ctx context.Context, id string, snapshot models.JSONRaw) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -164,6 +171,7 @@ func (s *GormTimmySessionStore) UpdateSnapshot(ctx context.Context, id string, s
 }
 
 // UpdateTitle updates the title column for a session.
+// SEM@31f1e9f6c50875c19da05aa43964a24bc7d7d156: update the title of an active Timmy session (writes DB)
 func (s *GormTimmySessionStore) UpdateTitle(ctx context.Context, id, title string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -189,6 +197,7 @@ func (s *GormTimmySessionStore) UpdateTitle(ctx context.Context, id, title strin
 }
 
 // CountActiveByThreatModel returns the number of active sessions for a threat model
+// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: count non-deleted active Timmy sessions for a threat model (reads DB)
 func (s *GormTimmySessionStore) CountActiveByThreatModel(ctx context.Context, threatModelID string) (int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -214,17 +223,20 @@ func (s *GormTimmySessionStore) CountActiveByThreatModel(ctx context.Context, th
 }
 
 // GormTimmyMessageStore implements TimmyMessageStore using GORM
+// SEM@3f30cf32cf8bc373eef534adfb1126a7b2018f76: GORM-backed store for Timmy session messages
 type GormTimmyMessageStore struct {
 	db    *gorm.DB
 	mutex sync.RWMutex
 }
 
 // NewGormTimmyMessageStore creates a new GORM-backed message store
+// SEM@3f30cf32cf8bc373eef534adfb1126a7b2018f76: build a GORM-backed Timmy message store
 func NewGormTimmyMessageStore(db *gorm.DB) *GormTimmyMessageStore {
 	return &GormTimmyMessageStore{db: db}
 }
 
 // Create persists a new message
+// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: persist a new Timmy message to the database (writes DB)
 func (s *GormTimmyMessageStore) Create(ctx context.Context, message *models.TimmyMessage) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -249,6 +261,7 @@ func (s *GormTimmyMessageStore) Create(ctx context.Context, message *models.Timm
 
 // ListBySession returns paginated messages for a session ordered by sequence ascending
 // Returns the messages, the total count, and any error
+// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: fetch paginated Timmy messages for a session ordered by sequence (reads DB)
 func (s *GormTimmyMessageStore) ListBySession(ctx context.Context, sessionID string, offset, limit int) ([]models.TimmyMessage, int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -283,6 +296,7 @@ func (s *GormTimmyMessageStore) ListBySession(ctx context.Context, sessionID str
 }
 
 // GetNextSequence returns the next sequence number for a session (MAX(sequence) + 1, starting at 1)
+// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: compute the next message sequence number for a session (reads DB)
 func (s *GormTimmyMessageStore) GetNextSequence(ctx context.Context, sessionID string) (int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()

@@ -16,6 +16,7 @@ import (
 // Order: this middleware MUST run after StepUpMiddleware and after the
 // JWT-validation middleware that populates userEmail/userIdP/userInternalUUID/
 // userID/userDisplayName on the Gin context.
+// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: Gin middleware that writes a system audit entry for every successful admin write operation (writes DB)
 func AdminAuditMiddleware(repo SystemAuditRepository, redactor Redactor, descriptors []auditDescriptor) gin.HandlerFunc {
 	descByKey := map[string]auditDescriptor{}
 	for _, d := range descriptors {
@@ -78,6 +79,7 @@ func AdminAuditMiddleware(repo SystemAuditRepository, redactor Redactor, descrip
 // descriptor set for all /admin/* write operations (#355).
 // This is the preferred entry point for external callers (e.g. cmd/server/main.go)
 // so that adminAuditDescriptors stays unexported.
+// SEM@f44001bd271fd2fa66f717ac20086e48d444cd07: build AdminAuditMiddleware with the canonical descriptor set for all /admin/* write operations (pure)
 func NewAdminAuditMiddleware(repo SystemAuditRepository, redactor Redactor, reader SystemSettingReader) gin.HandlerFunc {
 	return AdminAuditMiddleware(repo, redactor, adminAuditDescriptors(reader))
 }
@@ -87,6 +89,7 @@ func NewAdminAuditMiddleware(repo SystemAuditRepository, redactor Redactor, read
 // emits an "<empty>" sentinel for empty inputs at the verbatim tier, so a
 // truly empty value should not reach this helper — but if it does, we keep
 // Valid=true so PostgreSQL and Oracle both round-trip the same way).
+// SEM@fc01ac7b16fc0c421136b022c32b5b2690d5dd96: convert a string to a NullableDBText with Valid=true for DB storage (pure)
 func nullableTextFromString(s string) models.NullableDBText {
 	return models.NullableDBText{String: s, Valid: true}
 }

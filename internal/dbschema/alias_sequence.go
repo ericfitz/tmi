@@ -53,6 +53,7 @@ const aliasSeedDeployBuffer = 10000
 // backwards (which could otherwise hand out a value an in-flight create
 // already holds). SQLite and any other dialect keep the row-counter allocator
 // and are no-ops here.
+// SEM@15d1523404ac67830fbe68f72a41c9683aa564b6: install the threat model alias DB sequence for the active dialect, skipping unsupported dialects (reads DB)
 func InstallThreatModelAliasSequence(ctx context.Context, db *gorm.DB) error {
 	logger := slogging.Get()
 	switch db.Name() {
@@ -77,6 +78,7 @@ func InstallThreatModelAliasSequence(ctx context.Context, db *gorm.DB) error {
 // (minimum 1 + buffer on a fresh database). COALESCE keeps the result non-NULL
 // when either source is empty; the legacy counter stores the NEXT value, so
 // one is subtracted to recover the highest already used.
+// SEM@15d1523404ac67830fbe68f72a41c9683aa564b6: compute a safe alias sequence start value above any existing aliases plus a deploy buffer (reads DB)
 func aliasSeedStart(ctx context.Context, db *gorm.DB) (int64, error) {
 	var maxInUse int64
 	q := `SELECT GREATEST(
@@ -89,6 +91,7 @@ func aliasSeedStart(ctx context.Context, db *gorm.DB) (int64, error) {
 	return maxInUse + 1 + aliasSeedDeployBuffer, nil
 }
 
+// SEM@15d1523404ac67830fbe68f72a41c9683aa564b6: create the threat model alias sequence in PostgreSQL if it does not exist, seeded above current data (reads DB)
 func installPostgresAliasSequence(ctx context.Context, db *gorm.DB, logger *slogging.Logger) error {
 	start, err := aliasSeedStart(ctx, db)
 	if err != nil {
@@ -105,6 +108,7 @@ func installPostgresAliasSequence(ctx context.Context, db *gorm.DB, logger *slog
 	return nil
 }
 
+// SEM@178dbd0418cfb7e057d4297c7a88c5879cb64c7f: create the threat model alias sequence in Oracle ADB via PL/SQL if absent, swallowing ORA-00955 (reads DB)
 func installOracleAliasSequence(ctx context.Context, db *gorm.DB, logger *slogging.Logger) error {
 	// Oracle 19c has no CREATE SEQUENCE IF NOT EXISTS, so guard with a PL/SQL
 	// existence check and compute START WITH inside the block, applying the

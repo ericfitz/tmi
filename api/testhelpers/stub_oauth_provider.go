@@ -27,6 +27,7 @@ var codeCounter atomic.Int64
 //   - POST /token      — handles authorization_code and refresh_token grants
 //   - POST /revoke     — records revocation calls
 //   - GET  /userinfo   — returns fake account JSON
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: in-process OAuth 2.0 stub server for testing the authorize/exchange/refresh/revoke flow (pure)
 type StubOAuthProvider struct {
 	Server *httptest.Server
 
@@ -51,6 +52,7 @@ type StubOAuthProvider struct {
 
 // NewStubOAuthProvider creates and starts a stub OAuth HTTP server. The server is
 // automatically shut down when t concludes via t.Cleanup.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: build and start a stub OAuth HTTP server that shuts down when the test concludes
 func NewStubOAuthProvider(t *testing.T) *StubOAuthProvider {
 	t.Helper()
 	s := &StubOAuthProvider{
@@ -76,19 +78,24 @@ func NewStubOAuthProvider(t *testing.T) *StubOAuthProvider {
 }
 
 // AuthURL returns the /authorize endpoint URL on the stub server.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: return the authorization endpoint URL on the stub server (pure)
 func (s *StubOAuthProvider) AuthURL() string { return s.Server.URL + "/authorize" }
 
 // TokenURL returns the /token endpoint URL on the stub server.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: return the token endpoint URL on the stub server (pure)
 func (s *StubOAuthProvider) TokenURL() string { return s.Server.URL + "/token" }
 
 // RevokeURL returns the /revoke endpoint URL on the stub server.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: return the revocation endpoint URL on the stub server (pure)
 func (s *StubOAuthProvider) RevokeURL() string { return s.Server.URL + "/revoke" }
 
 // UserinfoURL returns the /userinfo endpoint URL on the stub server.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: return the userinfo endpoint URL on the stub server (pure)
 func (s *StubOAuthProvider) UserinfoURL() string { return s.Server.URL + "/userinfo" }
 
 // RefreshCalls returns the number of refresh_token grant calls received so far.
 // Safe for concurrent use.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: return the count of refresh_token grant requests received by the stub (pure)
 func (s *StubOAuthProvider) RefreshCalls() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -97,6 +104,7 @@ func (s *StubOAuthProvider) RefreshCalls() int {
 
 // RevokeCalls returns the number of revocation calls received so far.
 // Safe for concurrent use.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: return the count of revocation requests received by the stub (pure)
 func (s *StubOAuthProvider) RevokeCalls() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -105,6 +113,7 @@ func (s *StubOAuthProvider) RevokeCalls() int {
 
 // RevokedTokens returns a copy of the tokens that have been revoked.
 // Safe for concurrent use.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: return a copy of access tokens revoked via the stub (pure)
 func (s *StubOAuthProvider) RevokedTokens() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -116,6 +125,7 @@ func (s *StubOAuthProvider) RevokedTokens() []string {
 // SetNextAccess pre-sets the access token that will be returned by the next
 // successful token exchange or refresh. Useful for asserting on specific
 // token values in tests.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: pre-set the access token the stub will issue on the next exchange or refresh (mutates shared state)
 func (s *StubOAuthProvider) SetNextAccess(tok string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -124,6 +134,7 @@ func (s *StubOAuthProvider) SetNextAccess(tok string) {
 
 // ResetRefreshCalls resets the refresh call counter to zero.
 // Safe for concurrent use.
+// SEM@ffe5c4cfdc2518fd45476d512da0dfc399f901ec: reset the refresh call counter to zero (mutates shared state)
 func (s *StubOAuthProvider) ResetRefreshCalls() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -132,6 +143,7 @@ func (s *StubOAuthProvider) ResetRefreshCalls() {
 
 // LastIssuedAccess returns the most recently issued access token.
 // Safe for concurrent use.
+// SEM@ffe5c4cfdc2518fd45476d512da0dfc399f901ec: return the most recently issued access token from the stub (pure)
 func (s *StubOAuthProvider) LastIssuedAccess() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -139,10 +151,12 @@ func (s *StubOAuthProvider) LastIssuedAccess() string {
 }
 
 // Close shuts down the underlying httptest.Server.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: shut down the stub OAuth HTTP server
 func (s *StubOAuthProvider) Close() { s.Server.Close() }
 
 // handleAuthorize implements GET /authorize. It reads state and redirect_uri,
 // then immediately redirects to redirect_uri with code and state appended.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: handle GET /authorize by redirecting with a unique authorization code and state (pure)
 func (s *StubOAuthProvider) handleAuthorize(w http.ResponseWriter, r *http.Request) {
 	state := r.URL.Query().Get("state")
 	redirectURI := r.URL.Query().Get("redirect_uri")
@@ -168,6 +182,7 @@ func (s *StubOAuthProvider) handleAuthorize(w http.ResponseWriter, r *http.Reque
 }
 
 // handleToken implements POST /token for authorization_code and refresh_token grants.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: dispatch POST /token to exchange or refresh handler based on grant_type (pure)
 func (s *StubOAuthProvider) handleToken(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "cannot parse form", http.StatusBadRequest)
@@ -185,6 +200,7 @@ func (s *StubOAuthProvider) handleToken(w http.ResponseWriter, r *http.Request) 
 }
 
 // handleExchange processes an authorization_code grant.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: handle authorization_code grant, requiring PKCE code_verifier, and return stub tokens (pure)
 func (s *StubOAuthProvider) handleExchange(w http.ResponseWriter, r *http.Request) {
 	// PKCE: code_verifier must be present (we don't validate S256 binding — the
 	// real provider does that; the stub just checks it's non-empty).
@@ -208,6 +224,7 @@ func (s *StubOAuthProvider) handleExchange(w http.ResponseWriter, r *http.Reques
 }
 
 // handleRefresh processes a refresh_token grant.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: handle refresh_token grant with configurable success/failure and token rotation (mutates shared state)
 func (s *StubOAuthProvider) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -242,6 +259,7 @@ func (s *StubOAuthProvider) handleRefresh(w http.ResponseWriter, r *http.Request
 }
 
 // handleRevoke implements POST /revoke.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: handle POST /revoke by recording the revoked token and returning configured success or failure (mutates shared state)
 func (s *StubOAuthProvider) handleRevoke(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "cannot parse form", http.StatusBadRequest)
@@ -262,6 +280,7 @@ func (s *StubOAuthProvider) handleRevoke(w http.ResponseWriter, r *http.Request)
 }
 
 // handleUserinfo implements GET /userinfo.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: handle GET /userinfo and return stub account identity claims (pure)
 func (s *StubOAuthProvider) handleUserinfo(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	userinfoErr := s.UserinfoErr
@@ -284,6 +303,7 @@ func (s *StubOAuthProvider) handleUserinfo(w http.ResponseWriter, r *http.Reques
 
 // currentAccessToken returns the next access token to issue, consuming the
 // override if set. Must be called with s.mu held.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: return the next access token to issue, consuming any pre-set override (mutates shared state)
 func (s *StubOAuthProvider) currentAccessToken() string {
 	if s.nextAccess != "" {
 		at := s.nextAccess
@@ -298,6 +318,7 @@ func (s *StubOAuthProvider) currentAccessToken() string {
 }
 
 // writeJSON writes a JSON response with the given status code.
+// SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: serialize a value to JSON and write it as an HTTP response with the given status (pure)
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

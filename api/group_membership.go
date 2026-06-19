@@ -10,6 +10,7 @@ import (
 )
 
 // BuiltInGroup represents a well-known TMI group used as an authorization fixture.
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: well-known TMI authorization group with a fixed name and UUID (pure)
 type BuiltInGroup struct {
 	Name string
 	UUID uuid.UUID
@@ -33,6 +34,7 @@ var (
 )
 
 // MembershipContext holds the resolved user identity for group membership checks.
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: resolved user identity and group memberships for authorization checks (pure)
 type MembershipContext struct {
 	Email      string
 	UserUUID   uuid.UUID
@@ -43,6 +45,7 @@ type MembershipContext struct {
 
 // ResolveMembershipContext extracts user identity from the Gin context and resolves
 // IdP group names to TMI group UUIDs. Returns nil with error if authentication is missing.
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: extract user identity from a Gin context and resolve IdP group names to TMI group UUIDs (reads DB)
 func ResolveMembershipContext(c *gin.Context) (*MembershipContext, error) {
 	logger := slogging.Get().WithContext(c)
 
@@ -89,6 +92,7 @@ func ResolveMembershipContext(c *gin.Context) (*MembershipContext, error) {
 }
 
 // IsGroupMember checks if the user described by mc is an effective member of the given built-in group.
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: validate effective membership of a user in a built-in group (reads DB)
 func IsGroupMember(ctx context.Context, mc *MembershipContext, group BuiltInGroup) (bool, error) {
 	if GlobalGroupMemberRepository == nil {
 		return false, fmt.Errorf("group member repository not initialized")
@@ -98,6 +102,7 @@ func IsGroupMember(ctx context.Context, mc *MembershipContext, group BuiltInGrou
 
 // IsGroupMemberFromContext is a convenience function that resolves the membership context
 // from a Gin context and checks group membership in a single call.
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: validate effective group membership by resolving membership context from a Gin request (reads DB)
 func IsGroupMemberFromContext(c *gin.Context, group BuiltInGroup) (bool, error) {
 	mc, err := ResolveMembershipContext(c)
 	if err != nil {
@@ -108,6 +113,7 @@ func IsGroupMemberFromContext(c *gin.Context, group BuiltInGroup) (bool, error) 
 
 // IsGroupMemberFromParams checks group membership using explicit parameters.
 // This is used by cross-package adapters (e.g., auth package) that don't have a Gin context.
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: validate effective group membership using explicit user UUID and group names without a Gin context (reads DB)
 func IsGroupMemberFromParams(ctx context.Context, memberStore GroupMemberRepository, userInternalUUID string, provider string, groupNames []string, group BuiltInGroup) (bool, error) {
 	userUUID, err := uuid.Parse(userInternalUUID)
 	if err != nil {
@@ -128,6 +134,7 @@ func IsGroupMemberFromParams(ctx context.Context, memberStore GroupMemberReposit
 
 // checkGroupMembershipFromStrings is a shared helper for GroupBasedAdminChecker methods.
 // It parses string UUIDs and calls IsEffectiveMember on the given repository.
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: validate effective group membership from raw string UUIDs for cross-package callers (reads DB)
 func checkGroupMembershipFromStrings(ctx context.Context, memberStore GroupMemberRepository, userInternalUUID *string, groupUUIDs []string, group BuiltInGroup) (bool, error) {
 	var userUUID uuid.UUID
 	if userInternalUUID != nil {

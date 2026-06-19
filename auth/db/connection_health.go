@@ -15,6 +15,7 @@ const DefaultMaxIdleConns = 2
 // This should be called before long-running batch operations to ensure all connections are healthy.
 // It works by temporarily setting MaxIdleConns to 0 (forcing closure of idle connections),
 // then restoring the original value and warming the pool with multiple pings.
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: evict idle DB connections and warm the pool with fresh validated connections (reads DB)
 func RefreshConnectionPool(db *sql.DB) error {
 	logger := slogging.Get()
 	logger.Debug("Refreshing connection pool - closing idle connections")
@@ -54,6 +55,7 @@ func RefreshConnectionPool(db *sql.DB) error {
 // EnsureHealthyConnection gets a dedicated connection from the pool and validates it.
 // The caller is responsible for closing the returned connection when done.
 // This is useful when you need guaranteed connection health for a specific operation.
+// SEM@b6e227d0511f3e7d38d29e5059408fe7b2cd56eb: fetch a dedicated DB connection and validate it with a ping (reads DB)
 func EnsureHealthyConnection(ctx context.Context, db *sql.DB) (*sql.Conn, error) {
 	logger := slogging.Get()
 

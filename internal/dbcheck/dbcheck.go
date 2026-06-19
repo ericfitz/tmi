@@ -18,6 +18,7 @@ const (
 //
 // This is used by the server startup to distinguish "schema needs migration
 // but user lacks DDL permissions" from other migration errors.
+// SEM@e93cc27eac1d842461899300fefcaebc977cb3db: validate whether a DB error represents insufficient DDL privileges for the given database type (pure)
 func IsPermissionError(err error, dbType string) bool {
 	if err == nil {
 		return false

@@ -13,12 +13,14 @@ import (
 )
 
 // GormUserRepository implements UserRepository using GORM
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: GORM-backed implementation of the user repository interface
 type GormUserRepository struct {
 	db     *gorm.DB
 	logger *slogging.Logger
 }
 
 // NewGormUserRepository creates a new GORM-backed user repository
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: build a GORM user repository bound to the given database connection (pure)
 func NewGormUserRepository(db *gorm.DB) *GormUserRepository {
 	return &GormUserRepository{
 		db:     db,
@@ -27,6 +29,7 @@ func NewGormUserRepository(db *gorm.DB) *GormUserRepository {
 }
 
 // GetByEmail retrieves a user by email address
+// SEM@8077d4387088ee7e6e22cce2171ad54ee850e10b: fetch a user by email address (reads DB)
 func (r *GormUserRepository) GetByEmail(ctx context.Context, email string) (*User, error) {
 	var gormUser models.User
 	result := r.db.WithContext(ctx).Where("email = ?", email).First(&gormUser)
@@ -43,6 +46,7 @@ func (r *GormUserRepository) GetByEmail(ctx context.Context, email string) (*Use
 }
 
 // GetByID retrieves a user by internal UUID
+// SEM@8077d4387088ee7e6e22cce2171ad54ee850e10b: fetch a user by internal UUID (reads DB)
 func (r *GormUserRepository) GetByID(ctx context.Context, id string) (*User, error) {
 	var gormUser models.User
 	result := r.db.WithContext(ctx).Where("internal_uuid = ?", id).First(&gormUser)
@@ -58,6 +62,7 @@ func (r *GormUserRepository) GetByID(ctx context.Context, id string) (*User, err
 }
 
 // GetByProviderID retrieves a user by provider and provider user ID
+// SEM@8077d4387088ee7e6e22cce2171ad54ee850e10b: fetch a user by OAuth provider and provider user ID (reads DB)
 func (r *GormUserRepository) GetByProviderID(ctx context.Context, provider, providerUserID string) (*User, error) {
 	var gormUser models.User
 	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
@@ -76,6 +81,7 @@ func (r *GormUserRepository) GetByProviderID(ctx context.Context, provider, prov
 }
 
 // GetByProviderAndEmail retrieves a user by provider and email address
+// SEM@8077d4387088ee7e6e22cce2171ad54ee850e10b: fetch a user matching both provider name and email address (reads DB)
 func (r *GormUserRepository) GetByProviderAndEmail(ctx context.Context, provider, email string) (*User, error) {
 	var gormUser models.User
 	result := r.db.WithContext(ctx).
@@ -93,6 +99,7 @@ func (r *GormUserRepository) GetByProviderAndEmail(ctx context.Context, provider
 }
 
 // GetByAnyProviderID retrieves a user by provider user ID across all providers
+// SEM@8077d4387088ee7e6e22cce2171ad54ee850e10b: fetch a user by provider user ID across all OAuth providers (reads DB)
 func (r *GormUserRepository) GetByAnyProviderID(ctx context.Context, providerUserID string) (*User, error) {
 	var gormUser models.User
 	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
@@ -112,6 +119,7 @@ func (r *GormUserRepository) GetByAnyProviderID(ctx context.Context, providerUse
 
 // GetProviders returns the OAuth providers for a user
 // Note: In the current architecture, each user has exactly one provider
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: list the OAuth providers associated with a user (reads DB)
 func (r *GormUserRepository) GetProviders(ctx context.Context, userID string) ([]UserProvider, error) {
 	var gormUser models.User
 	result := r.db.WithContext(ctx).
@@ -154,6 +162,7 @@ func (r *GormUserRepository) GetProviders(ctx context.Context, userID string) ([
 }
 
 // GetPrimaryProviderID returns the provider user ID for a user
+// SEM@8077d4387088ee7e6e22cce2171ad54ee850e10b: fetch the primary OAuth provider user ID for a given user (reads DB)
 func (r *GormUserRepository) GetPrimaryProviderID(ctx context.Context, userID string) (string, error) {
 	// Use a struct to scan the result - this works reliably across all databases
 	// (PostgreSQL, Oracle, SQLite) unlike scanning directly into a *string pointer
@@ -180,6 +189,7 @@ func (r *GormUserRepository) GetPrimaryProviderID(ctx context.Context, userID st
 }
 
 // Create creates a new user
+// SEM@8077d4387088ee7e6e22cce2171ad54ee850e10b: store a new user record, generating UUID and timestamps if absent (mutates shared state)
 func (r *GormUserRepository) Create(ctx context.Context, user *User) (*User, error) {
 	// Generate a new internal UUID if not provided
 	if user.InternalUUID == "" {
@@ -207,6 +217,7 @@ func (r *GormUserRepository) Create(ctx context.Context, user *User) (*User, err
 }
 
 // Update updates an existing user
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: update a user's mutable fields, preserving existing provider identity (mutates shared state)
 func (r *GormUserRepository) Update(ctx context.Context, user *User) error {
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	// Do not include it in the Updates map to avoid duplicate column errors on Oracle
@@ -259,6 +270,7 @@ func (r *GormUserRepository) Update(ctx context.Context, user *User) error {
 }
 
 // Delete deletes a user by internal UUID
+// SEM@8077d4387088ee7e6e22cce2171ad54ee850e10b: delete a user by internal UUID, returning an error if not found (mutates shared state)
 func (r *GormUserRepository) Delete(ctx context.Context, id string) error {
 	result := r.db.WithContext(ctx).
 		Where("internal_uuid = ?", id).
@@ -276,6 +288,7 @@ func (r *GormUserRepository) Delete(ctx context.Context, id string) error {
 }
 
 // convertModelToUser converts a GORM User model to a repository User
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: convert a GORM user model to the repository user domain type (pure)
 func convertModelToUser(m *models.User) *User {
 	providerUserID := ""
 	if m.ProviderUserID.Valid {
@@ -300,6 +313,7 @@ func convertModelToUser(m *models.User) *User {
 }
 
 // convertUserToModel converts a repository User to a GORM User model
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: convert a repository user domain type to a GORM user model (pure)
 func convertUserToModel(u *User) *models.User {
 	var providerUserID *string
 	if u.ProviderUserID != "" {

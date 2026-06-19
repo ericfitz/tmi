@@ -16,6 +16,7 @@ import (
 )
 
 // invokerContext holds the authenticated user context for an addon invocation
+// SEM@ca61a567c4babc9270ee913396aaa4fb530505a3: authenticated user identity used when recording an addon invocation
 type invokerContext struct {
 	userEmail string
 	userUUID  uuid.UUID
@@ -24,6 +25,7 @@ type invokerContext struct {
 
 // extractInvokerContext extracts and validates the authenticated user context from a gin context.
 // Returns an error suitable for HandleRequestError if validation fails.
+// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: parse and validate the authenticated user identity from a request context
 func extractInvokerContext(c *gin.Context) (*invokerContext, error) {
 	logger := slogging.Get().WithContext(c)
 
@@ -75,6 +77,7 @@ func extractInvokerContext(c *gin.Context) (*invokerContext, error) {
 
 // validateAddonInvocationRequest validates the request payload and addon configuration.
 // Returns the parsed request, payload string, and addon, or an error.
+// SEM@ca61a567c4babc9270ee913396aaa4fb530505a3: validate an addon invocation request payload, size, and parameter schema against the addon config
 func validateAddonInvocationRequest(c *gin.Context, addonID uuid.UUID) (*InvokeAddonRequest, string, *Addon, error) {
 	logger := slogging.Get().WithContext(c)
 
@@ -135,6 +138,7 @@ func validateAddonInvocationRequest(c *gin.Context, addonID uuid.UUID) (*InvokeA
 
 // InvokeAddon invokes an add-on (authenticated users).
 // Creates a WebhookDeliveryRecord and emits an addon.invoked event.
+// SEM@00add3d4f7dc1c0a9cc072d7e6ca32ace4d03641: handle an addon invocation request, enforce rate limits, and enqueue a webhook delivery record (reads DB)
 func InvokeAddon(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -298,6 +302,7 @@ func InvokeAddon(c *gin.Context) {
 }
 
 // checkInvocationDeduplication checks if the same user has invoked the same addon within the deduplication window
+// SEM@914adca66ed5ce0bcfa6a1233361a298648ccf00: reject a duplicate addon invocation within a 5-second window using a Redis NX key
 func checkInvocationDeduplication(ctx context.Context, addonID uuid.UUID, userID uuid.UUID) error {
 	logger := slogging.Get()
 

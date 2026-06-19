@@ -21,6 +21,7 @@ var defaultNodeSize = map[string][2]float64{
 
 // transformDiagramCells converts seed-spec nodes/edges into DFD cell maps
 // compatible with the DfdDiagramInput cells array.
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert seed-spec nodes and edges into DFD cell maps with stable UUIDs (pure)
 func transformDiagramCells(nodes []SeedSpecNode, edges []SeedSpecEdge) ([]map[string]any, error) {
 	// Build ID mapping: seed-spec node ID -> generated UUID
 	idMap := make(map[string]string, len(nodes))
@@ -114,6 +115,7 @@ func transformDiagramCells(nodes []SeedSpecNode, edges []SeedSpecEdge) ([]map[st
 const shapeProcess = "process"
 
 // mapNodeType maps seed-spec node types to DFD cell shape values.
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert a seed-spec node type string to its DFD cell shape name (pure)
 func mapNodeType(nodeType string) string {
 	switch nodeType {
 	case "actor":

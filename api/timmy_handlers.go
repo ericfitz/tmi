@@ -22,6 +22,7 @@ import (
 )
 
 // CreateTimmyChatSession creates a new chat session and streams preparation progress via SSE.
+// SEM@c309061af96f4db6e2d3a7da1d077b6a6f2f3c75: create a new Timmy chat session and stream preparation progress to the caller via SSE
 func (s *Server) CreateTimmyChatSession(c *gin.Context, threatModelId ThreatModelId) {
 	logger := slogging.Get().WithContext(c)
 
@@ -107,6 +108,7 @@ func (s *Server) CreateTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 }
 
 // ListTimmyChatSessions lists the current user's sessions for a threat model.
+// SEM@773397b4fdff89166751fd8b5643ac59abce3367: list the authenticated user's Timmy chat sessions for a threat model with pagination (reads DB)
 func (s *Server) ListTimmyChatSessions(c *gin.Context, threatModelId ThreatModelId, params ListTimmyChatSessionsParams) {
 	userID, err := getTimmyUserID(c)
 	if err != nil {
@@ -156,6 +158,7 @@ func (s *Server) ListTimmyChatSessions(c *gin.Context, threatModelId ThreatModel
 }
 
 // GetTimmyChatSession retrieves a specific session.
+// SEM@773397b4fdff89166751fd8b5643ac59abce3367: fetch a single Timmy chat session, verifying ownership and threat model match (reads DB)
 func (s *Server) GetTimmyChatSession(c *gin.Context, threatModelId ThreatModelId, sessionId SessionId) {
 	session, err := s.getAndVerifyTimmySession(c, threatModelId, sessionId)
 	if err != nil {
@@ -167,6 +170,7 @@ func (s *Server) GetTimmyChatSession(c *gin.Context, threatModelId ThreatModelId
 }
 
 // DeleteTimmyChatSession soft-deletes a session.
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: soft-delete a Timmy chat session after verifying ownership (reads DB)
 func (s *Server) DeleteTimmyChatSession(c *gin.Context, threatModelId ThreatModelId, sessionId SessionId) {
 	session, err := s.getAndVerifyTimmySession(c, threatModelId, sessionId)
 	if err != nil {
@@ -193,6 +197,7 @@ func (s *Server) DeleteTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 }
 
 // CreateTimmyChatMessage sends a message and streams the assistant's response via SSE.
+// SEM@c309061af96f4db6e2d3a7da1d077b6a6f2f3c75: send a user message to Timmy and stream the assistant response token-by-token via SSE
 func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatModelId, sessionId SessionId) {
 	logger := slogging.Get().WithContext(c)
 
@@ -321,6 +326,7 @@ func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatMode
 }
 
 // ListTimmyChatMessages lists message history for a session.
+// SEM@773397b4fdff89166751fd8b5643ac59abce3367: list paginated message history for a Timmy chat session (reads DB)
 func (s *Server) ListTimmyChatMessages(c *gin.Context, threatModelId ThreatModelId, sessionId SessionId, params ListTimmyChatMessagesParams) {
 	// Verify session ownership
 	_, verifyErr := s.getAndVerifyTimmySession(c, threatModelId, sessionId)
@@ -371,6 +377,7 @@ func (s *Server) ListTimmyChatMessages(c *gin.Context, threatModelId ThreatModel
 }
 
 // GetTimmyUsage returns aggregated usage statistics (admin only).
+// SEM@5b38b9a109d5e10e1a9a58a35a692f19c30a0ed5: fetch aggregated Timmy token usage statistics for an optional user and threat model over a date range (reads DB)
 func (s *Server) GetTimmyUsage(c *gin.Context, params GetTimmyUsageParams) {
 	if GlobalTimmyUsageStore == nil {
 		HandleRequestError(c, ServiceUnavailableError("Timmy usage store is not configured"))
@@ -442,6 +449,7 @@ func (s *Server) GetTimmyUsage(c *gin.Context, params GetTimmyUsageParams) {
 }
 
 // GetTimmyStatus returns current memory and index status (admin only).
+// SEM@c309061af96f4db6e2d3a7da1d077b6a6f2f3c75: return current Timmy vector memory and session status metrics (reads DB)
 func (s *Server) GetTimmyStatus(c *gin.Context) {
 	rt, rtErr := s.getTimmyRuntime(c.Request.Context())
 	if rtErr != nil {
@@ -486,6 +494,7 @@ func (s *Server) GetTimmyStatus(c *gin.Context) {
 
 // RefreshTimmySources re-scans sources for an active session, picking up
 // any documents whose access_status has changed to "accessible".
+// SEM@c309061af96f4db6e2d3a7da1d077b6a6f2f3c75: re-snapshot content sources for a session, updating the stored source snapshot (reads DB)
 func (s *Server) RefreshTimmySources(c *gin.Context, threatModelId ThreatModelId, sessionId SessionId) {
 	logger := slogging.Get().WithContext(c)
 
@@ -534,6 +543,7 @@ func (s *Server) RefreshTimmySources(c *gin.Context, threatModelId ThreatModelId
 }
 
 // RequestDocumentAccess re-sends the access request for a pending_access document.
+// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: re-send an access request for a pending_access document via its content source
 func (s *Server) RequestDocumentAccess(c *gin.Context, threatModelId ThreatModelId, documentId DocumentId) {
 	logger := slogging.Get().WithContext(c)
 
@@ -602,6 +612,7 @@ func (s *Server) RequestDocumentAccess(c *gin.Context, threatModelId ThreatModel
 // --- Helper functions ---
 
 // getTimmyUserID extracts the authenticated user's internal UUID from the gin context.
+// SEM@773397b4fdff89166751fd8b5643ac59abce3367: extract the authenticated user's internal UUID from the Gin context (pure)
 func getTimmyUserID(c *gin.Context) (string, error) {
 	userInternalUUID, exists := c.Get("userInternalUUID")
 	if !exists {
@@ -615,6 +626,7 @@ func getTimmyUserID(c *gin.Context) (string, error) {
 }
 
 // getAndVerifyTimmySession fetches a session and verifies ownership and threat model match.
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: fetch a Timmy session and verify it belongs to the authenticated user and requested threat model (reads DB)
 func (s *Server) getAndVerifyTimmySession(c *gin.Context, threatModelId ThreatModelId, sessionId SessionId) (*models.TimmySession, error) {
 	userID, err := getTimmyUserID(c)
 	if err != nil {
@@ -642,6 +654,7 @@ func (s *Server) getAndVerifyTimmySession(c *gin.Context, threatModelId ThreatMo
 }
 
 // timmySessionToAPI converts a GORM model TimmySession to the generated API type.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: convert a GORM TimmySession model to its API DTO including source snapshot (pure)
 func timmySessionToAPI(s *models.TimmySession) TimmyChatSession {
 	id := openapi_types.UUID{}
 	_ = id.UnmarshalText([]byte(s.ID))
@@ -697,6 +710,7 @@ func timmySessionToAPI(s *models.TimmySession) TimmyChatSession {
 }
 
 // timmyMessageToAPI converts a GORM model TimmyMessage to the generated API type.
+// SEM@773397b4fdff89166751fd8b5643ac59abce3367: convert a GORM TimmyMessage model to its API DTO (pure)
 func timmyMessageToAPI(m *models.TimmyMessage) TimmyChatMessage {
 	id := openapi_types.UUID{}
 	_ = id.UnmarshalText([]byte(m.ID))
@@ -719,6 +733,7 @@ func timmyMessageToAPI(m *models.TimmyMessage) TimmyChatMessage {
 }
 
 // nilIfEmpty returns a pointer to the string if non-empty, or nil.
+// SEM@773397b4fdff89166751fd8b5643ac59abce3367: return a pointer to the string if non-empty, otherwise nil (pure)
 func nilIfEmpty(s string) *string {
 	if s == "" {
 		return nil
@@ -727,6 +742,7 @@ func nilIfEmpty(s string) *string {
 }
 
 // toInt converts an any value to int, handling int64 and int types.
+// SEM@773397b4fdff89166751fd8b5643ac59abce3367: convert an any value to int, handling int, int64, and float64 types (pure)
 func toInt(v any) int {
 	switch val := v.(type) {
 	case int:
@@ -741,6 +757,7 @@ func toInt(v any) int {
 }
 
 // toFloat32 converts an any value to float32.
+// SEM@773397b4fdff89166751fd8b5643ac59abce3367: convert an any value to float32, handling numeric types (pure)
 func toFloat32(v any) float32 {
 	switch val := v.(type) {
 	case float32:

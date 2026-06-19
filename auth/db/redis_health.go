@@ -12,6 +12,7 @@ import (
 )
 
 // RedisHealthChecker performs health checks on Redis
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: Redis health checker holding a client, key validator, and logger (pure)
 type RedisHealthChecker struct {
 	client    *redis.Client
 	validator *RedisKeyValidator
@@ -19,6 +20,7 @@ type RedisHealthChecker struct {
 }
 
 // NewRedisHealthChecker creates a new Redis health checker
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: build a RedisHealthChecker with a default key validator (pure)
 func NewRedisHealthChecker(client *redis.Client) *RedisHealthChecker {
 	return &RedisHealthChecker{
 		client:    client,
@@ -28,6 +30,7 @@ func NewRedisHealthChecker(client *redis.Client) *RedisHealthChecker {
 }
 
 // HealthCheckResult contains the results of a health check
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: aggregated Redis health check outcome with errors, warnings, details, and latency (pure)
 type HealthCheckResult struct {
 	Healthy       bool
 	Message       string
@@ -38,6 +41,7 @@ type HealthCheckResult struct {
 }
 
 // CheckHealth performs a comprehensive health check on Redis
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: run a full Redis health check covering connectivity, memory, key patterns, TTLs, and performance (reads DB)
 func (h *RedisHealthChecker) CheckHealth(ctx context.Context) HealthCheckResult {
 	start := time.Now()
 	result := HealthCheckResult{
@@ -83,6 +87,7 @@ func (h *RedisHealthChecker) CheckHealth(ctx context.Context) HealthCheckResult 
 }
 
 // checkConnectivity verifies Redis is reachable
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: ping Redis and record latency; warn if ping exceeds 100ms (reads DB)
 func (h *RedisHealthChecker) checkConnectivity(ctx context.Context, result *HealthCheckResult) error {
 	pingStart := time.Now()
 	err := h.client.Ping(ctx).Err()
@@ -103,6 +108,7 @@ func (h *RedisHealthChecker) checkConnectivity(ctx context.Context, result *Heal
 }
 
 // checkMemoryUsage checks Redis memory usage
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: fetch Redis memory info and add error or warning when usage exceeds thresholds (reads DB)
 func (h *RedisHealthChecker) checkMemoryUsage(ctx context.Context, result *HealthCheckResult) {
 	info, err := h.client.Info(ctx, "memory").Result()
 	if err != nil {
@@ -134,6 +140,7 @@ func (h *RedisHealthChecker) checkMemoryUsage(ctx context.Context, result *Healt
 }
 
 // checkKeyPatterns validates all keys match expected patterns
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: scan all Redis keys and warn on any that violate the registered key-pattern schema (reads DB)
 func (h *RedisHealthChecker) checkKeyPatterns(ctx context.Context, result *HealthCheckResult) {
 	// Sample keys to check patterns
 	var cursor uint64
@@ -175,6 +182,7 @@ func (h *RedisHealthChecker) checkKeyPatterns(ctx context.Context, result *Healt
 }
 
 // checkTTLs ensures all temporary keys have TTLs
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: scan Redis keys and report those missing a required TTL or exceeding the maximum TTL (reads DB)
 func (h *RedisHealthChecker) checkTTLs(ctx context.Context, result *HealthCheckResult) {
 	var cursor uint64
 	var keysWithoutTTL []string
@@ -239,6 +247,7 @@ func (h *RedisHealthChecker) checkTTLs(ctx context.Context, result *HealthCheckR
 }
 
 // checkPerformance runs basic performance checks
+// SEM@cdbe48c974fb76e1161972733b30bb0d1c02c3b1: measure Redis write and read latency with a probe key and warn when thresholds are exceeded (reads DB)
 func (h *RedisHealthChecker) checkPerformance(ctx context.Context, result *HealthCheckResult) {
 	// Test write performance
 	writeStart := time.Now()
@@ -276,6 +285,7 @@ func (h *RedisHealthChecker) checkPerformance(ctx context.Context, result *Healt
 }
 
 // GetKeyStatistics returns statistics about keys in Redis
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: aggregate Redis key counts by two-segment prefix and return the total DB size (reads DB)
 func (h *RedisHealthChecker) GetKeyStatistics(ctx context.Context) (map[string]int, error) {
 	stats := make(map[string]int)
 	var cursor uint64
@@ -316,6 +326,7 @@ func (h *RedisHealthChecker) GetKeyStatistics(ctx context.Context) (map[string]i
 }
 
 // getKeyPrefix extracts the pattern prefix from a key
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: extract the first two colon-delimited segments of a Redis key as its pattern prefix (pure)
 func getKeyPrefix(key string) string {
 	// Extract first two parts of the key as the pattern prefix
 	parts := strings.Split(key, ":")
@@ -326,6 +337,7 @@ func getKeyPrefix(key string) string {
 }
 
 // LogHealthCheck logs the health check results
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: log a health check result at the appropriate level with all errors, warnings, and details (mutates shared state)
 func (h *RedisHealthChecker) LogHealthCheck(result HealthCheckResult) {
 	if result.Healthy {
 		h.logger.Info("Redis health check passed: %s (duration: %dms)",

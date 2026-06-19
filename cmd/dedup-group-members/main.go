@@ -21,10 +21,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: entry point; runs the deduplication utility and exits with its status code
 func main() {
 	os.Exit(run())
 }
 
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: connect to the database and delete duplicate group membership rows (mutates shared state)
 func run() int {
 	var (
 		configFile = flag.String("config", "config-development.yml", "Path to configuration file")
@@ -104,6 +106,7 @@ func run() int {
 
 // deduplicateGroupMembers finds and removes duplicate (group, user, subject_type)
 // rows in group_members, keeping the earliest row by added_at.
+// SEM@c849919898ec78d8bff15ce75f9fccb040810e4a: delete duplicate group_members rows, keeping the earliest entry per membership (mutates shared state)
 func deduplicateGroupMembers(gormDB *gorm.DB, dryRun bool) (int64, error) {
 	log := slogging.Get()
 
@@ -112,6 +115,7 @@ func deduplicateGroupMembers(gormDB *gorm.DB, dryRun bool) (int64, error) {
 		return 0, fmt.Errorf("group_members table does not exist")
 	}
 
+	// SEM@c849919898ec78d8bff15ce75f9fccb040810e4a: scan result type holding a duplicate group membership key and its row count (pure)
 	type dupGroup struct {
 		GroupInternalUUID string `gorm:"column:group_internal_uuid"`
 		UserInternalUUID  string `gorm:"column:user_internal_uuid"`

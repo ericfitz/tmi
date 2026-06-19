@@ -9,6 +9,7 @@ import (
 
 // classifyPgError extracts a pgconn.PgError and classifies by SQLSTATE code.
 // Returns nil if the error doesn't contain a PgError.
+// SEM@178dbd0418cfb7e057d4297c7a88c5879cb64c7f: classify a PostgreSQL error by SQLSTATE into a canonical domain error (pure)
 func classifyPgError(err error) error {
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) {

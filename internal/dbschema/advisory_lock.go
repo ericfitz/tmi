@@ -27,6 +27,7 @@ const oracleLockTimeoutSeconds = 300
 // DBMS_LOCK.REQUEST. Other dialects return an error.
 //
 // The release function is idempotent and safe to defer.
+// SEM@73235c4c5e292c1a307c5bb6d625a4cb06eb57f2: lock a named schema-migration advisory lock, dispatching to the correct dialect implementation (reads DB)
 func AcquireMigrationLock(ctx context.Context, db *gorm.DB, name string) (release func(), err error) {
 	logger := slogging.Get()
 	dialect := db.Name()
@@ -41,6 +42,7 @@ func AcquireMigrationLock(ctx context.Context, db *gorm.DB, name string) (releas
 	}
 }
 
+// SEM@73235c4c5e292c1a307c5bb6d625a4cb06eb57f2: acquire a PostgreSQL advisory lock by name and return a release function (reads DB)
 func acquirePGLock(ctx context.Context, db *gorm.DB, name string, logger *slogging.Logger) (func(), error) {
 	key := nameToInt64(name)
 	if err := db.WithContext(ctx).Exec("SELECT pg_advisory_lock(?)", key).Error; err != nil {
@@ -67,6 +69,7 @@ func acquirePGLock(ctx context.Context, db *gorm.DB, name string, logger *sloggi
 //
 // All binds are positional (:1, :2, ...). Mixing ? and named binds (:h, :s)
 // is unreliable on godror.
+// SEM@bd0419bec83141eb42e193cdea718eccdf2a5dcf: acquire an Oracle DBMS_LOCK exclusive lock by name and return a release function (reads DB)
 func acquireOracleLock(ctx context.Context, db *gorm.DB, name string, logger *slogging.Logger) (func(), error) {
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -124,6 +127,7 @@ func acquireOracleLock(ctx context.Context, db *gorm.DB, name string, logger *sl
 // nameToInt64 hashes a name string to a deterministic int64 for use as a
 // pg_advisory_lock key. Two different names will produce different keys
 // with overwhelming probability.
+// SEM@73235c4c5e292c1a307c5bb6d625a4cb06eb57f2: convert a lock name to a stable int64 key via SHA-256 for use with pg_advisory_lock (pure)
 func nameToInt64(name string) int64 {
 	h := sha256.Sum256([]byte(name))
 	return int64(binary.BigEndian.Uint64(h[:8])) //nolint:gosec // deterministic-hash; signed wrap is fine

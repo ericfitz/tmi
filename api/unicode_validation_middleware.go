@@ -16,6 +16,7 @@ import (
 )
 
 // UnicodeNormalizationMiddleware normalizes Unicode in request bodies and rejects problematic characters
+// SEM@445f237f7a35ca185cf03ef25426c1a97b1a1917: normalize JSON request bodies to NFC and reject dangerous Unicode characters
 func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
@@ -71,6 +72,7 @@ func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 // hasProblematicUnicode checks for zero-width characters, bidirectional overrides, and other problematic Unicode.
 // Delegates to the consolidated unicodecheck package.
 // Uses context-aware zero-width checking to allow ZWNJ in Indic scripts and ZWJ in emoji sequences.
+// SEM@445f237f7a35ca185cf03ef25426c1a97b1a1917: report whether a string contains dangerous zero-width, bidi, control, or excessive combining Unicode (pure)
 func hasProblematicUnicode(s string) bool {
 	return unicodecheck.ContainsDangerousZeroWidthChars(s) ||
 		unicodecheck.ContainsBidiOverrides(s) ||
@@ -81,6 +83,7 @@ func hasProblematicUnicode(s string) bool {
 }
 
 // ContentTypeValidationMiddleware validates Content-Type header and rejects unsupported types
+// SEM@c3d5e1776058ac335ccda141ec46f5a36de89f9f: validate request Content-Type against per-endpoint OpenAPI accepted types, rejecting unsupported media types
 func ContentTypeValidationMiddleware() gin.HandlerFunc {
 	// Global fallback for endpoints not found in the OpenAPI spec.
 	globalSupportedContentTypes := map[string]bool{
@@ -157,6 +160,7 @@ func ContentTypeValidationMiddleware() gin.HandlerFunc {
 // as a comma-separated list or is a known exception (like Set-Cookie).
 // Duplicate security-critical headers can enable various attacks including request smuggling,
 // authentication bypass, and cache poisoning.
+// SEM@d86c7a3d58999ec91e9d2a8676d972f89424dad4: reject requests that supply duplicate security-critical headers such as Authorization or Content-Type
 func DuplicateHeaderValidationMiddleware() gin.HandlerFunc {
 	// Headers that MUST NOT appear multiple times per RFC 7230 and security best practices
 	criticalHeaders := []string{
@@ -187,6 +191,7 @@ func DuplicateHeaderValidationMiddleware() gin.HandlerFunc {
 }
 
 // AcceptLanguageMiddleware handles Accept-Language headers gracefully
+// SEM@a0b03d5d6a185b962cc24512bc65629f58b659da: parse the Accept-Language header and store the preferred language in context, defaulting to English
 func AcceptLanguageMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		acceptLanguage := c.GetHeader("Accept-Language")
@@ -213,6 +218,7 @@ func AcceptLanguageMiddleware() gin.HandlerFunc {
 }
 
 // BoundaryValueValidationMiddleware enhances validation of boundary values in JSON
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: parse JSON request bodies and log empty strings in likely-required fields without blocking the request
 func BoundaryValueValidationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
@@ -273,6 +279,7 @@ func BoundaryValueValidationMiddleware() gin.HandlerFunc {
 }
 
 // isLikelyRequiredField checks if a field name suggests it's required
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: report whether a JSON field name is in the set of likely-required fields (pure)
 func isLikelyRequiredField(fieldName string) bool {
 	requiredFieldNames := []string{"name", "title", "id", "type", "email"}
 	return slices.Contains(requiredFieldNames, fieldName)
@@ -283,6 +290,7 @@ func isLikelyRequiredField(fieldName string) bool {
 // - Duplicate keys in objects (RFC 8259 recommends unique keys)
 // This ensures all handlers receive well-formed JSON regardless of which
 // binding method they use (ShouldBindJSON vs ParseRequestBody).
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: reject JSON request bodies that contain trailing garbage or duplicate object keys
 func StrictJSONValidationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
@@ -377,12 +385,14 @@ func StrictJSONValidationMiddleware() gin.HandlerFunc {
 
 // validateNoDuplicateKeys checks for duplicate keys in a JSON object
 // RFC 8259 recommends unique keys, and duplicate keys can cause unexpected behavior
+// SEM@bb8e654db48f2967bbf0e224c2f792c508869b8b: validate that a JSON byte slice contains no duplicate object keys (pure)
 func validateNoDuplicateKeys(jsonBytes []byte) error {
 	dec := json.NewDecoder(bytes.NewReader(jsonBytes))
 	return checkDuplicateKeysRecursive(dec, "")
 }
 
 // checkDuplicateKeysRecursive recursively checks for duplicate keys in JSON
+// SEM@bb8e654db48f2967bbf0e224c2f792c508869b8b: recursively scan a JSON token stream and return an error on the first duplicate key (pure)
 func checkDuplicateKeysRecursive(dec *json.Decoder, path string) error {
 	// Read opening token
 	t, err := dec.Token()

@@ -17,6 +17,7 @@ import (
 )
 
 // GormUserStore implements UserStore using GORM for cross-database support
+// SEM@75d52ab3d1f4f71b22b1cef7144254cfdb837491: GORM-backed store for user records with auth service integration
 type GormUserStore struct {
 	db          *gorm.DB
 	authService *auth.Service
@@ -24,6 +25,7 @@ type GormUserStore struct {
 }
 
 // NewGormUserStore creates a new GORM-backed user store
+// SEM@75d52ab3d1f4f71b22b1cef7144254cfdb837491: build a GORM-backed user store wired to the auth service
 func NewGormUserStore(db *gorm.DB, authService *auth.Service) *GormUserStore {
 	return &GormUserStore{
 		db:          db,
@@ -33,6 +35,7 @@ func NewGormUserStore(db *gorm.DB, authService *auth.Service) *GormUserStore {
 }
 
 // List returns users with optional filtering and pagination
+// SEM@6a6c15749391c2817c30c64c8b54f8e0a4082a91: list users with optional filter, sort, and pagination applied (reads DB)
 func (s *GormUserStore) List(ctx context.Context, filter UserFilter) ([]AdminUser, error) {
 	query := s.db.WithContext(ctx).Model(&models.User{})
 
@@ -125,6 +128,7 @@ func (s *GormUserStore) List(ctx context.Context, filter UserFilter) ([]AdminUse
 }
 
 // Get retrieves a user by internal UUID
+// SEM@6a6c15749391c2817c30c64c8b54f8e0a4082a91: fetch a user by internal UUID (reads DB)
 func (s *GormUserStore) Get(ctx context.Context, internalUUID openapi_types.UUID) (*AdminUser, error) {
 	var gormUser models.User
 	result := s.db.WithContext(ctx).Where("internal_uuid = ?", internalUUID.String()).First(&gormUser)
@@ -141,6 +145,7 @@ func (s *GormUserStore) Get(ctx context.Context, internalUUID openapi_types.UUID
 }
 
 // GetByProviderAndID retrieves a user by provider and provider_user_id
+// SEM@6a6c15749391c2817c30c64c8b54f8e0a4082a91: fetch a user by identity provider and provider user ID (reads DB)
 func (s *GormUserStore) GetByProviderAndID(ctx context.Context, provider string, providerUserID string) (*AdminUser, error) {
 	var gormUser models.User
 	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
@@ -160,6 +165,7 @@ func (s *GormUserStore) GetByProviderAndID(ctx context.Context, provider string,
 }
 
 // Update updates user metadata (email, name, email_verified)
+// SEM@6a6c15749391c2817c30c64c8b54f8e0a4082a91: update a user's email, name, and email verification status (writes DB)
 func (s *GormUserStore) Update(ctx context.Context, user AdminUser) error {
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
@@ -182,6 +188,7 @@ func (s *GormUserStore) Update(ctx context.Context, user AdminUser) error {
 
 // Delete deletes a user by internal UUID, using the auth service's direct UUID-based
 // deletion to avoid multi-hop identity resolution bugs.
+// SEM@6a6c15749391c2817c30c64c8b54f8e0a4082a91: delete a user by internal UUID and transfer or remove owned threat models (writes DB)
 func (s *GormUserStore) Delete(ctx context.Context, internalUUID uuid.UUID) (*DeletionStats, error) {
 	result, err := s.authService.DeleteUserByInternalUUID(ctx, internalUUID.String())
 	if err != nil {
@@ -199,6 +206,7 @@ func (s *GormUserStore) Delete(ctx context.Context, internalUUID uuid.UUID) (*De
 }
 
 // Count returns total count of users matching the filter
+// SEM@6a6c15749391c2817c30c64c8b54f8e0a4082a91: count users matching the given filter criteria (reads DB)
 func (s *GormUserStore) Count(ctx context.Context, filter UserFilter) (int, error) {
 	query := s.db.WithContext(ctx).Model(&models.User{})
 
@@ -248,6 +256,7 @@ func (s *GormUserStore) Count(ctx context.Context, filter UserFilter) (int, erro
 }
 
 // EnrichUsers adds related data to users (admin status, groups, threat model counts)
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: attach admin status and threat model counts to a list of users (reads DB)
 func (s *GormUserStore) EnrichUsers(ctx context.Context, users []AdminUser) ([]AdminUser, error) {
 	if len(users) == 0 {
 		return users, nil
@@ -290,6 +299,7 @@ func (s *GormUserStore) EnrichUsers(ctx context.Context, users []AdminUser) ([]A
 }
 
 // convertToAdminUser converts a GORM User model to AdminUser
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: convert a GORM user model to an AdminUser API struct (pure)
 func (s *GormUserStore) convertToAdminUser(gu *models.User) AdminUser {
 	internalUUID, _ := uuid.Parse(string(gu.InternalUUID))
 

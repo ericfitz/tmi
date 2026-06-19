@@ -9,6 +9,7 @@ import (
 )
 
 // AccessPoller periodically checks documents with "pending_access" status.
+// SEM@d994c2f113f9e0997f83a0815018638cc94111f7: background service that periodically checks pending-access documents and transitions them to accessible (mutates shared state)
 type AccessPoller struct {
 	sources       *ContentSourceRegistry
 	documentStore DocumentRepository
@@ -25,6 +26,7 @@ type AccessPoller struct {
 }
 
 // NewAccessPoller creates a new background access poller.
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build an AccessPoller with a polling interval and max document age (pure)
 func NewAccessPoller(
 	sources *ContentSourceRegistry,
 	documentStore DocumentRepository,
@@ -49,6 +51,7 @@ func NewAccessPoller(
 // after Start races with the poll goroutine reading the field; in
 // production wiring (cmd/server/main.go) the checker is configured
 // during init alongside the rest of the poller setup.
+// SEM@d330121ff53e262b1d2c0ff6713294e41f615330: inject a linked provider checker for picker-aware document dispatch (mutates shared state)
 func (p *AccessPoller) SetLinkedProviderChecker(c LinkedProviderChecker) {
 	p.linkedChecker = c
 }
@@ -61,6 +64,7 @@ func (p *AccessPoller) SetLinkedProviderChecker(c LinkedProviderChecker) {
 // extraction (legacy behavior).
 //
 // Lifecycle: same as SetLinkedProviderChecker; must be called BEFORE Start.
+// SEM@a3a8b3e82371d176bbcdfb7444b4ac361b0f8ace: inject a content pipeline to attempt extraction on document access transition (mutates shared state)
 func (p *AccessPoller) SetContentPipeline(pipeline *ContentPipeline) {
 	p.pipeline = pipeline
 }
@@ -73,12 +77,14 @@ func (p *AccessPoller) SetContentPipeline(pipeline *ContentPipeline) {
 //
 // Pass nil publisher or a nil decider to keep the inline path.
 // Lifecycle: must be called BEFORE Start.
+// SEM@d994c2f113f9e0997f83a0815018638cc94111f7: inject an async extraction publisher and decider to route polling through the worker pipeline (mutates shared state)
 func (p *AccessPoller) SetAsyncExtraction(publisher *ExtractionPublisher, decider func(context.Context) bool) {
 	p.publisher = publisher
 	p.asyncDecider = decider
 }
 
 // Start begins the background polling loop.
+// SEM@7f13559c1b4f9930b12898ca3e23b47987cae72c: launch the background polling goroutine (mutates shared state)
 func (p *AccessPoller) Start() {
 	go p.run()
 }
@@ -87,10 +93,12 @@ func (p *AccessPoller) Start() {
 // calls are no-ops. The goroutine exits asynchronously; callers that need
 // synchronous teardown should wait on a done channel (not exposed here
 // because the common pattern is fire-and-forget from the holder).
+// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: signal the polling goroutine to stop; idempotent (mutates shared state)
 func (p *AccessPoller) Stop() {
 	p.stopOnce.Do(func() { close(p.stopCh) })
 }
 
+// SEM@8c931151a5e0874ff74b933545bdb5443a763565: ticker loop that calls pollOnce on each interval until stopped (mutates shared state)
 func (p *AccessPoller) run() {
 	logger := slogging.Get()
 	logger.Info("AccessPoller: started (interval=%s, maxAge=%s)", p.interval, p.maxAge)
@@ -109,6 +117,7 @@ func (p *AccessPoller) run() {
 	}
 }
 
+// SEM@d994c2f113f9e0997f83a0815018638cc94111f7: check each pending-access document for accessibility and trigger inline or async extraction (reads DB)
 func (p *AccessPoller) pollOnce() {
 	logger := slogging.Get()
 	ctx := context.Background()

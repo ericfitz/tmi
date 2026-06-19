@@ -9,6 +9,7 @@ import (
 // internally consistent ConfigClass. It returns a single error listing every
 // violation found. This is the mechanism that makes the classification model
 // self-enforcing: a misclassified setting fails the build.
+// SEM@b4834203783bf0a76ea4b6d187622b91f43a018b: validate that every config setting has a complete and consistent classification (pure)
 func ValidateClassifications(settings []MigratableSetting) error {
 	var problems []string
 	add := func(key, msg string) {
@@ -70,6 +71,7 @@ func ValidateClassifications(settings []MigratableSetting) error {
 }
 
 // hasConsumer reports whether want is present in cs.
+// SEM@d97b146eae9445e2d89d72362bb1cc2c59bf1015: report whether a specific consumer is present in a consumer list (pure)
 func hasConsumer(cs []Consumer, want Consumer) bool {
 	for _, c := range cs {
 		if c == want {
@@ -81,6 +83,7 @@ func hasConsumer(cs []Consumer, want Consumer) bool {
 
 // hasWorkerConsumer reports whether cs includes any worker consumer.
 // Update this if a new ConsumerWorker* constant is added.
+// SEM@d97b146eae9445e2d89d72362bb1cc2c59bf1015: report whether a consumer list includes any worker consumer type (pure)
 func hasWorkerConsumer(cs []Consumer) bool {
 	return hasConsumer(cs, ConsumerWorkerExtractor) || hasConsumer(cs, ConsumerWorkerChunkEmbed)
 }

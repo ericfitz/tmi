@@ -13,6 +13,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
+// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: entry point for the component-controller binary; delegates to run
 func main() {
 	if err := run(); err != nil {
 		slogging.Get().Error("component-controller: %v", err)
@@ -23,6 +24,7 @@ func main() {
 // run is the real entry point. Separating it from main lets deferred cleanup
 // (the NATS provisioner connection) execute before the process exits, instead
 // of being skipped by an os.Exit in main.
+// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: register CRD schemes, wire a NATS provisioner, and start the Kubernetes controller manager
 func run() error {
 	logger := slogging.Get()
 

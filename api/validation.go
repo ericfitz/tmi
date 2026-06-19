@@ -10,6 +10,7 @@ import (
 )
 
 // ValidationConfig defines validation rules for an endpoint
+// SEM@63189587a90229342bc1d25023ec7a515412fb4f: configuration of prohibited fields, custom validators, and operation context for request validation
 type ValidationConfig struct {
 	// ProhibitedFields lists fields that cannot be set for this operation
 	ProhibitedFields []string
@@ -22,9 +23,11 @@ type ValidationConfig struct {
 }
 
 // ValidatorFunc is a function that validates a parsed request
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: function type for a custom per-struct validation rule
 type ValidatorFunc func(any) error
 
 // ValidateAndParseRequest provides unified request validation and parsing
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: parse and validate a JSON request body against prohibited fields, required fields, and custom validators (pure)
 func ValidateAndParseRequest[T any](c *gin.Context, config ValidationConfig) (*T, error) {
 	// Phase 1: Parse raw JSON for prohibited field checking
 	var rawRequest map[string]any
@@ -54,6 +57,7 @@ func ValidateAndParseRequest[T any](c *gin.Context, config ValidationConfig) (*T
 }
 
 // validateProhibitedFields checks for fields that shouldn't be set
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: reject a raw request map that contains any prohibited field names (pure)
 func validateProhibitedFields(rawRequest map[string]any, config ValidationConfig) error {
 	for _, field := range config.ProhibitedFields {
 		// Skip owner field check if explicitly allowed
@@ -73,6 +77,7 @@ func validateProhibitedFields(rawRequest map[string]any, config ValidationConfig
 }
 
 // parseAndValidateStruct converts raw data to typed struct and validates required fields
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: unmarshal raw JSON data into a typed struct and validate required fields via binding tags (pure)
 func parseAndValidateStruct[T any](rawData map[string]any, result *T) error {
 	// Marshal back to JSON to parse into struct
 	jsonData, err := json.Marshal(rawData)
@@ -100,6 +105,7 @@ func parseAndValidateStruct[T any](rawData map[string]any, result *T) error {
 }
 
 // validateRequiredFields uses reflection to check required field binding tags
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: check all struct fields tagged binding:required are non-empty and return a descriptive error if any are missing (pure)
 func validateRequiredFields(s any) error {
 	v := reflect.ValueOf(s)
 	if v.Kind() == reflect.Pointer {
@@ -131,6 +137,7 @@ func validateRequiredFields(s any) error {
 }
 
 // createRequiredFieldError creates contextual error messages for missing required fields
+// SEM@4fa1d37f07fd36467dea01526b97410523474271: build a human-readable error message listing one or more missing required field names (pure)
 func createRequiredFieldError(missingFields []string) error {
 	if len(missingFields) == 1 {
 		fieldName := missingFields[0]
@@ -153,6 +160,7 @@ func createRequiredFieldError(missingFields []string) error {
 }
 
 // getRequiredFieldContext provides contextual help for specific required fields
+// SEM@4fa1d37f07fd36467dea01526b97410523474271: return a contextual hint string for a known required field name (pure)
 func getRequiredFieldContext(fieldName string) string {
 	contextMap := map[string]string{
 		"name":        "This field identifies the resource and must be provided.",
@@ -171,6 +179,7 @@ func getRequiredFieldContext(fieldName string) string {
 }
 
 // isEmptyValue checks if a reflect.Value is empty
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: report whether a reflected value is the zero or nil value for its kind (pure)
 func isEmptyValue(v reflect.Value) bool {
 	switch v.Kind() {
 	case reflect.String:
@@ -194,6 +203,7 @@ func isEmptyValue(v reflect.Value) bool {
 }
 
 // getJSONFieldName extracts the JSON field name from struct field
+// SEM@44e3609f57929c6c53fe68bbc7343fcc11348adb: extract the JSON property name from a struct field's json tag (pure)
 func getJSONFieldName(field reflect.StructField) string {
 	jsonTag := field.Tag.Get("json")
 	if jsonTag == "" {
@@ -212,6 +222,7 @@ func getJSONFieldName(field reflect.StructField) string {
 // Common validator functions
 
 // validateAuthorizationEntries validates authorization array (internal function)
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate the Authorization slice on a struct via reflection, checking entry format (pure)
 func validateAuthorizationEntries(data any) error {
 	// Use reflection to find Authorization field
 	v := reflect.ValueOf(data)
@@ -237,11 +248,13 @@ func validateAuthorizationEntries(data any) error {
 }
 
 // ValidateAuthorizationEntriesFromStruct is the public wrapper for the validator
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: public wrapper that validates authorization entries on an arbitrary struct (pure)
 func ValidateAuthorizationEntriesFromStruct(data any) error {
 	return validateAuthorizationEntries(data)
 }
 
 // ValidateDiagramType validates diagram type field
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate that a struct's Type field equals the only supported diagram type DFD-1.0.0 (pure)
 func ValidateDiagramType(data any) error {
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Pointer {
@@ -260,12 +273,14 @@ func ValidateDiagramType(data any) error {
 }
 
 // ValidationResult provides validation outcome details
+// SEM@63189587a90229342bc1d25023ec7a515412fb4f: outcome of a struct validation run with a validity flag and list of error messages
 type ValidationResult struct {
 	Valid  bool
 	Errors []string
 }
 
 // ValidateStruct performs validation on any struct and returns detailed results
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: run custom validators and required-field checks on a struct and return aggregated validation results (pure)
 func ValidateStruct(s any, config ValidationConfig) ValidationResult {
 	result := ValidationResult{Valid: true, Errors: []string{}}
 

@@ -15,11 +15,13 @@ import (
 
 // PDFEmbeddingSource fetches PDF documents and extracts their text content.
 // It uses SafeHTTPClient (DNS-pinned, SSRF-checked) and caps downloads at 50 MiB.
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: embedding source that fetches and extracts text from remote PDF documents (pure)
 type PDFEmbeddingSource struct {
 	client *SafeHTTPClient
 }
 
 // NewPDFEmbeddingSource creates a new PDFEmbeddingSource with the given SSRF validator.
+// SEM@80346558ce851de593c85a2d5660f92a649b1686: build a PDF embedding source with SSRF-safe HTTP client and 50 MiB download cap (pure)
 func NewPDFEmbeddingSource(ssrfValidator *URIValidator) *PDFEmbeddingSource {
 	return &PDFEmbeddingSource{
 		client: NewSafeHTTPClient(
@@ -30,9 +32,11 @@ func NewPDFEmbeddingSource(ssrfValidator *URIValidator) *PDFEmbeddingSource {
 }
 
 // Name returns the provider name for logging.
+// SEM@80346558ce851de593c85a2d5660f92a649b1686: return the provider name for the PDF embedding source (pure)
 func (p *PDFEmbeddingSource) Name() string { return "pdf" }
 
 // CanHandle returns true for entity references whose URI ends with ".pdf" (case-insensitive).
+// SEM@80346558ce851de593c85a2d5660f92a649b1686: report whether an entity reference URI ends with .pdf (pure)
 func (p *PDFEmbeddingSource) CanHandle(_ context.Context, ref EntityReference) bool {
 	if ref.URI == "" {
 		return false
@@ -43,6 +47,7 @@ func (p *PDFEmbeddingSource) CanHandle(_ context.Context, ref EntityReference) b
 // Extract fetches a PDF from the given URI via the egress helper (DNS-pinned,
 // SSRF-checked), writes it to a temp file, and extracts plain text. The
 // download is limited to 50 MiB.
+// SEM@80346558ce851de593c85a2d5660f92a649b1686: fetch a PDF from a URI via SSRF-checked client and extract its plain text
 func (p *PDFEmbeddingSource) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
 	logger := slogging.Get()
 
@@ -83,6 +88,7 @@ func (p *PDFEmbeddingSource) Extract(ctx context.Context, ref EntityReference) (
 }
 
 // extractTextFromPDF opens a PDF file and extracts plain text page by page.
+// SEM@f481f64fd69f2ddaaf71768f305f9fcdec86ec2d: parse a PDF file and concatenate plain text from all readable pages (pure)
 func extractTextFromPDF(filePath string) (string, error) {
 	f, r, err := pdflib.Open(filePath)
 	if err != nil {

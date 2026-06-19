@@ -19,10 +19,12 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: entry point that runs DB migration and exits with its status code
 func main() {
 	os.Exit(run())
 }
 
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: connect to the database, run GORM AutoMigrate, seed required data, and validate schema (reads DB)
 func run() int {
 	// Command line flags
 	var (
@@ -138,6 +140,7 @@ func run() int {
 }
 
 // validateSchema validates the database schema after migrations (PostgreSQL only)
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: connect to PostgreSQL and verify all migrated tables match expected schema (reads DB)
 func validateSchema(gormConfig db.GormConfig) {
 	logger := slogging.Get()
 

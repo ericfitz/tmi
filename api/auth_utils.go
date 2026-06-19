@@ -38,6 +38,7 @@ import (
 // Note: internal_uuid is never present in API requests/responses, so we cannot use it
 // for duplicate detection. The database ON CONFLICT clauses handle internal_uuid resolution
 // gracefully, allowing the same user to be specified multiple ways without error.
+// SEM@1a54e88429506603e24f26cbaaadfc8a810ec63b: validate that no authorization list contains duplicate principal identifiers (pure)
 func ValidateDuplicateSubjects(authList []Authorization) error {
 	subjectMap := make(map[string]bool)
 
@@ -91,6 +92,7 @@ func ValidateDuplicateSubjects(authList []Authorization) error {
 //
 // When duplicates are found, the LAST occurrence is kept (latest wins), which matches
 // the behavior of applying multiple PATCH operations where the final role should be used.
+// SEM@1a54e88429506603e24f26cbaaadfc8a810ec63b: remove duplicate authorization entries keeping the last occurrence for each principal (pure)
 func DeduplicateAuthorizationList(authList []Authorization) []Authorization {
 	if len(authList) <= 1 {
 		return authList
@@ -142,6 +144,7 @@ func DeduplicateAuthorizationList(authList []Authorization) []Authorization {
 
 // ApplyOwnershipTransferRule applies the business rule that when ownership changes,
 // the original owner should be preserved in the authorization list with owner role
+// SEM@5bacd53eee87984ab4d2aab453afb59913aa79dc: ensure the original owner retains the owner role when ownership is transferred (pure)
 func ApplyOwnershipTransferRule(authList []Authorization, originalOwner, newOwner string) []Authorization {
 	if originalOwner == newOwner {
 		return authList // No ownership change
@@ -174,6 +177,7 @@ func ApplyOwnershipTransferRule(authList []Authorization, originalOwner, newOwne
 // ApplySecurityReviewerRule ensures the security reviewer is in the authorization list with owner role.
 // If the security reviewer is already present, their role is upgraded to owner.
 // If not present, they are appended with owner role.
+// SEM@b11d5634ea0de9c46ce45bd4660b0bb604404f15: ensure the assigned security reviewer holds the owner role in the authorization list (pure)
 func ApplySecurityReviewerRule(authList []Authorization, securityReviewer *User) []Authorization {
 	if securityReviewer == nil || securityReviewer.ProviderId == "" {
 		return authList
@@ -200,6 +204,7 @@ func ApplySecurityReviewerRule(authList []Authorization, securityReviewer *User)
 // ValidateSecurityReviewerProtection checks that the security reviewer still has owner role
 // in the proposed authorization list. Returns an error if the security reviewer's owner
 // access would be removed or downgraded.
+// SEM@b11d5634ea0de9c46ce45bd4660b0bb604404f15: validate that a proposed authorization list preserves the security reviewer's owner role (pure)
 func ValidateSecurityReviewerProtection(proposedAuthList []Authorization, securityReviewer *User) error {
 	if securityReviewer == nil || securityReviewer.ProviderId == "" {
 		return nil
@@ -228,6 +233,7 @@ func ValidateSecurityReviewerProtection(proposedAuthList []Authorization, securi
 
 // securityReviewerEqual compares two *User pointers for security reviewer equality.
 // Two security reviewers are equal if they are both nil, or both non-nil with matching ProviderId.
+// SEM@b11d5634ea0de9c46ce45bd4660b0bb604404f15: compare two optional security reviewer users by provider ID (pure)
 func securityReviewerEqual(a, b *User) bool {
 	if a == nil && b == nil {
 		return true
@@ -239,6 +245,7 @@ func securityReviewerEqual(a, b *User) bool {
 }
 
 // ExtractOwnershipChangesFromOperations extracts owner and authorization changes from patch operations
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: extract owner and authorization changes from a list of JSON Patch operations (pure)
 func ExtractOwnershipChangesFromOperations(operations []PatchOperation) (newOwner string, newAuth []Authorization, hasOwnerChange, hasAuthChange bool) {
 	for _, op := range operations {
 		if op.Op == string(Replace) || op.Op == string(Add) {
@@ -260,6 +267,7 @@ func ExtractOwnershipChangesFromOperations(operations []PatchOperation) (newOwne
 }
 
 // convertInterfaceToAuthList converts []interface{} to []Authorization
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: convert a generic interface slice from a JSON Patch value to a typed authorization list (pure)
 func convertInterfaceToAuthList(authList []any) []Authorization {
 	result := make([]Authorization, 0, len(authList))
 
@@ -288,6 +296,7 @@ func convertInterfaceToAuthList(authList []any) []Authorization {
 // ValidateAuthorizationEntries validates individual authorization entries
 // Note: This function is intended for ENRICHED entries where ProviderId has been populated
 // For sparse/pre-enrichment validation, use ValidateSparseAuthorizationEntries
+// SEM@e28c0cfc627a2162c9550e53fb320facb734179e: validate that all enriched authorization entries have a non-empty provider ID (pure)
 func ValidateAuthorizationEntries(authList []Authorization) error {
 	for _, auth := range authList {
 		if auth.ProviderId == "" {
@@ -304,6 +313,7 @@ func ValidateAuthorizationEntries(authList []Authorization) error {
 // StripResponseOnlyAuthFields strips response-only fields from authorization entries
 // This should be called before validation to allow clients to send back authorization
 // data they received from the server (which includes response-only fields)
+// SEM@49c5b6ee85e3d61e46787ef99d00ad8cbc637806: clear response-only fields from authorization entries before processing client input (pure)
 func StripResponseOnlyAuthFields(authList []Authorization) []Authorization {
 	result := make([]Authorization, len(authList))
 	for i, auth := range authList {
@@ -319,6 +329,7 @@ func StripResponseOnlyAuthFields(authList []Authorization) []Authorization {
 // Does NOT require: display_name (response-only field)
 // Note: Call StripResponseOnlyAuthFields() before this function if the authorization
 // data came from a client that may have included response-only fields
+// SEM@6b85a6fabc237d03c99bf64a10eb26dfeaf09d3b: validate pre-enrichment authorization entries requiring provider and at least one identifier (pure)
 func ValidateSparseAuthorizationEntries(authList []Authorization) error {
 	for i, auth := range authList {
 		// Validate provider is present and not the legacy wildcard
@@ -365,6 +376,7 @@ func ValidateSparseAuthorizationEntries(authList []Authorization) error {
 
 // ValidateAuthorizationEntriesWithFormat validates authorization entries with format checking
 // Note: This function is intended for ENRICHED entries where ProviderId has been populated
+// SEM@e28c0cfc627a2162c9550e53fb320facb734179e: validate enriched authorization entries checking provider ID length and role values (pure)
 func ValidateAuthorizationEntriesWithFormat(authList []Authorization) error {
 	for i, auth := range authList {
 		// Validate subject format
@@ -515,6 +527,7 @@ const UnknownUserIdentity = "user=<unknown>"
 
 // SecurityReviewersAuthorization returns an Authorization entry for the Security Reviewers group
 // with owner role. This is used to auto-add Security Reviewers to non-confidential survey responses and threat models.
+// SEM@192fb026aa596416ded7413d23092ccd1733ad90: build an Authorization entry granting the Security Reviewers group owner role (pure)
 func SecurityReviewersAuthorization() Authorization {
 	return Authorization{
 		PrincipalType: AuthorizationPrincipalTypeGroup,
@@ -525,6 +538,7 @@ func SecurityReviewersAuthorization() Authorization {
 }
 
 // IsSecurityReviewersGroup checks if an authorization entry represents the Security Reviewers group
+// SEM@5998227fb120ee0575a994ea2c0ecb24f0e67109: check whether an authorization entry represents the Security Reviewers built-in group (pure)
 func IsSecurityReviewersGroup(auth Authorization) bool {
 	return auth.PrincipalType == AuthorizationPrincipalTypeGroup &&
 		auth.ProviderId == SecurityReviewersGroup
@@ -533,6 +547,7 @@ func IsSecurityReviewersGroup(auth Authorization) bool {
 // ConfidentialProjectReviewersAuthorization returns an Authorization entry for the
 // Confidential Project Reviewers group with owner role. This is used to auto-add
 // Confidential Project Reviewers to confidential survey responses and threat models.
+// SEM@192fb026aa596416ded7413d23092ccd1733ad90: build an Authorization entry granting the Confidential Project Reviewers group owner role (pure)
 func ConfidentialProjectReviewersAuthorization() Authorization {
 	return Authorization{
 		PrincipalType: AuthorizationPrincipalTypeGroup,
@@ -543,6 +558,7 @@ func ConfidentialProjectReviewersAuthorization() Authorization {
 }
 
 // IsConfidentialProjectReviewersGroup checks if an authorization entry represents the Confidential Project Reviewers group
+// SEM@65c402395f94917b986bab7e1b3f61ae0484c885: check whether an authorization entry represents the Confidential Project Reviewers built-in group (pure)
 func IsConfidentialProjectReviewersGroup(auth Authorization) bool {
 	return auth.PrincipalType == AuthorizationPrincipalTypeGroup &&
 		auth.ProviderId == ConfidentialProjectReviewersGroup
@@ -550,6 +566,7 @@ func IsConfidentialProjectReviewersGroup(auth Authorization) bool {
 
 // TMIAutomationAuthorization returns an Authorization entry for the TMI Automation group
 // with writer role. This is used to auto-add the TMI Automation group to all new threat models and survey responses.
+// SEM@192fb026aa596416ded7413d23092ccd1733ad90: build an Authorization entry granting the TMI Automation group writer role (pure)
 func TMIAutomationAuthorization() Authorization {
 	return Authorization{
 		PrincipalType: AuthorizationPrincipalTypeGroup,
@@ -560,12 +577,14 @@ func TMIAutomationAuthorization() Authorization {
 }
 
 // IsTMIAutomationGroup checks if an authorization entry represents the TMI Automation group
+// SEM@ea27b9d824200a49ef32578459a76c5bca658108: check whether an authorization entry represents the TMI Automation built-in group (pure)
 func IsTMIAutomationGroup(auth Authorization) bool {
 	return auth.PrincipalType == AuthorizationPrincipalTypeGroup &&
 		auth.ProviderId == TMIAutomationGroup
 }
 
 // derefAuthSlice safely dereferences a *[]Authorization pointer, returning nil if the pointer is nil.
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: safely dereference an optional authorization slice pointer, returning nil if absent (pure)
 func derefAuthSlice(p *[]Authorization) []Authorization {
 	if p == nil {
 		return nil
@@ -574,6 +593,7 @@ func derefAuthSlice(p *[]Authorization) []Authorization {
 }
 
 // AuthorizationData represents abstracted authorization data for any resource
+// SEM@e28c0cfc627a2162c9550e53fb320facb734179e: struct holding the owner and authorization list for any access-controlled resource (pure)
 type AuthorizationData struct {
 	Type          string          `json:"type"`
 	Owner         User            `json:"owner"`
@@ -582,6 +602,7 @@ type AuthorizationData struct {
 
 // AccessCheck performs core authorization logic
 // Returns true if the principal has the required role for the given authorization data
+// SEM@e28c0cfc627a2162c9550e53fb320facb734179e: check whether a principal string meets the required role against resource authorization data (pure)
 func AccessCheck(principal string, requiredRole Role, authData AuthorizationData) bool {
 	// Validate authorization type
 	if authData.Type != AuthTypeTMI10 {
@@ -620,12 +641,14 @@ func AccessCheck(principal string, requiredRole Role, authData AuthorizationData
 
 // AccessCheckWithGroups performs authorization check with group support and SamePrincipal matching.
 // Returns true if the user or one of their groups has the required role.
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: check whether a resolved user or their groups meet the required role (pure)
 func AccessCheckWithGroups(user ResolvedUser, groups []string, requiredRole Role, authData AuthorizationData) bool {
 	return AccessCheckWithGroupsAndIdPLookup(user, groups, requiredRole, authData)
 }
 
 // checkGroupMatch checks if an authorization entry matches the user's groups.
 // Returns true if the user is a member of the group, handling special pseudo-groups.
+// SEM@192fb026aa596416ded7413d23092ccd1733ad90: check whether an authorization group entry matches the user or any of their group memberships (pure)
 func checkGroupMatch(auth Authorization, user ResolvedUser, groups []string) bool {
 	// Special handling for "everyone" pseudo-group
 	if auth.ProviderId == EveryonePseudoGroup {
@@ -648,6 +671,7 @@ func checkGroupMatch(auth Authorization, user ResolvedUser, groups []string) boo
 }
 
 // updateHighestRole updates the highest role if the new role is higher
+// SEM@6124bff108947c0b35d793f38a2bff9f438768ce: update the tracked highest role if the new role outranks the current one (pure)
 func updateHighestRole(currentHighest Role, newRole Role, found bool) (Role, bool) {
 	if !found || isHigherRole(newRole, currentHighest) {
 		return newRole, true
@@ -658,6 +682,7 @@ func updateHighestRole(currentHighest Role, newRole Role, found bool) (Role, boo
 // AccessCheckWithGroupsAndIdPLookup performs authorization check with group support
 // and SamePrincipal matching. Returns true if the user or one of their groups has
 // the required role.
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: check whether a resolved user or their groups meet the required role using SamePrincipal matching (pure)
 func AccessCheckWithGroupsAndIdPLookup(user ResolvedUser, groups []string, requiredRole Role, authData AuthorizationData) bool {
 	// Validate authorization type
 	if authData.Type != AuthTypeTMI10 {
@@ -698,6 +723,7 @@ func AccessCheckWithGroupsAndIdPLookup(user ResolvedUser, groups []string, requi
 
 // isHigherRole checks if role1 has higher permissions than role2
 // Role hierarchy: owner > writer > reader
+// SEM@44e3609f57929c6c53fe68bbc7343fcc11348adb: compare two roles by hierarchy and return true if the first outranks the second (pure)
 func isHigherRole(role1, role2 Role) bool {
 	roleHierarchy := map[Role]int{
 		RoleReader: 1,
@@ -718,6 +744,7 @@ func isHigherRole(role1, role2 Role) bool {
 
 // hasRequiredRole checks if the user's role meets the required role
 // Role hierarchy: owner > writer > reader
+// SEM@57080053eb91b658326a5685183893ec51a4df99: check whether a user's role meets or exceeds the required role level (pure)
 func hasRequiredRole(userRole, requiredRole Role) bool {
 	roleHierarchy := map[Role]int{
 		RoleReader: 1,
@@ -739,6 +766,7 @@ func hasRequiredRole(userRole, requiredRole Role) bool {
 
 // ExtractAuthData extracts authorization data from threat models or diagrams
 // This is a generic helper that works with any struct that has Owner and Authorization fields
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: extract normalized AuthorizationData from a threat model or diagram resource (pure)
 func ExtractAuthData(resource any) (AuthorizationData, error) {
 	var authData AuthorizationData
 	authData.Type = AuthTypeTMI10 // Default to current supported type
@@ -784,6 +812,7 @@ func ExtractAuthData(resource any) (AuthorizationData, error) {
 // This function uses the basic AccessCheck and does NOT support group-based authorization.
 // For group support (including "everyone" pseudo-group), use CheckResourceAccessWithGroups instead.
 // Note: subject can be a user email or user ID, but group matching is not supported by this function.
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: check whether a subject string meets the required role for a resource without group support (pure)
 func CheckResourceAccess(subject string, resource any, requiredRole Role) (bool, error) {
 	// Extract authorization data from the resource
 	authData, err := ExtractAuthData(resource)
@@ -798,6 +827,7 @@ func CheckResourceAccess(subject string, resource any, requiredRole Role) (bool,
 
 // CheckResourceAccessWithGroups checks if a user has required access to a resource with group support.
 // This function supports group-based authorization including the "everyone" pseudo-group.
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: authorize a user (with groups) against a resource's auth data for a required role (pure)
 func CheckResourceAccessWithGroups(user ResolvedUser, groups []string, resource any, requiredRole Role) (bool, error) {
 	// Extract authorization data from the resource
 	authData, err := ExtractAuthData(resource)
@@ -813,6 +843,7 @@ func CheckResourceAccessWithGroups(user ResolvedUser, groups []string, resource 
 // CheckResourceAccessFromContext checks resource access using user info from Gin context.
 // This is a convenience function that builds a ResolvedUser from context fields
 // and calls CheckResourceAccessWithGroups for group-aware authorization including "everyone" pseudo-group.
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: authorize a user from Gin context against a resource, resolving groups from context (pure)
 func CheckResourceAccessFromContext(c *gin.Context, user ResolvedUser, resource any, requiredRole Role) (bool, error) {
 	// Get groups from context for group-based authorization
 	_, _, _, groups := GetUserAuthFieldsForAccessCheck(c)
@@ -822,6 +853,7 @@ func CheckResourceAccessFromContext(c *gin.Context, user ResolvedUser, resource 
 }
 
 // ValidateResourceAccess is a Gin middleware-compatible function for authorization checks
+// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: build a Gin middleware that enforces a required role on the request's resource
 func ValidateResourceAccess(requiredRole Role) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get authenticated user
@@ -858,6 +890,7 @@ func ValidateResourceAccess(requiredRole Role) gin.HandlerFunc {
 // GetInheritedAuthData retrieves authorization data for a threat model from the database
 // This function implements authorization inheritance by fetching threat model permissions
 // that apply to all sub-resources within that threat model
+// SEM@d73e23609ca9cefd9ef2feb0e43d87e4286ea6d6: fetch a threat model's owner and access list from the DB as AuthorizationData (reads DB)
 func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string) (*AuthorizationData, error) {
 	logger := slogging.Get()
 	logger.Debug("Retrieving inherited authorization data for threat model %s", threatModelID)
@@ -1011,6 +1044,7 @@ func GetInheritedAuthData(ctx context.Context, db *sql.DB, threatModelID string)
 // CheckSubResourceAccess validates if a user has the required access to a sub-resource.
 // This function implements authorization inheritance with Redis caching for performance.
 // Uses SamePrincipal for identity matching via AccessCheckWithGroups.
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: authorize a user against a threat model's inherited permissions, with Redis cache (reads DB)
 func CheckSubResourceAccess(ctx context.Context, db *sql.DB, cache *CacheService, user ResolvedUser, groups []string, threatModelID string, requiredRole Role) (bool, error) {
 	logger := slogging.Get()
 	logger.Debug("Checking sub-resource access for user %s on threat model %s (required role: %s)",
@@ -1054,6 +1088,7 @@ func CheckSubResourceAccess(ctx context.Context, db *sql.DB, cache *CacheService
 
 // CheckSubResourceAccessWithoutCache validates sub-resource access without caching.
 // This is useful for testing or when caching is not available.
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: authorize a user against a threat model's inherited permissions, bypassing cache (reads DB)
 func CheckSubResourceAccessWithoutCache(ctx context.Context, db *sql.DB, user ResolvedUser, groups []string, threatModelID string, requiredRole Role) (bool, error) {
 	// Note: cache parameter is nil for no caching
 	var cache *CacheService = nil

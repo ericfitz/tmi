@@ -17,6 +17,7 @@ import (
 var testAliasCounter atomic.Int32
 
 // TestDB holds a test database connection and cleanup function
+// SEM@02214aa5ba030b20069f011c02d8be00d1e8c0ff: test fixture holding an in-memory SQLite database and its cleanup function
 type TestDB struct {
 	DB      *gorm.DB
 	Cleanup func()
@@ -24,6 +25,7 @@ type TestDB struct {
 
 // NewTestDB creates a new in-memory SQLite database for testing.
 // It automatically migrates all models and returns a cleanup function.
+// SEM@02214aa5ba030b20069f011c02d8be00d1e8c0ff: build an auto-migrated in-memory SQLite database for tests (mutates shared state)
 func NewTestDB(t *testing.T) (*TestDB, error) {
 	t.Helper()
 
@@ -54,6 +56,7 @@ func NewTestDB(t *testing.T) (*TestDB, error) {
 }
 
 // MustCreateTestDB creates a test DB, failing the test on error.
+// SEM@02214aa5ba030b20069f011c02d8be00d1e8c0ff: build a test database, failing the test immediately on error
 func MustCreateTestDB(t *testing.T) *TestDB {
 	t.Helper()
 
@@ -66,6 +69,7 @@ func MustCreateTestDB(t *testing.T) *TestDB {
 }
 
 // SeedUser creates a test user and returns it.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: insert a test user record into the test database, failing the test on error (mutates shared state)
 func (tdb *TestDB) SeedUser(t *testing.T, email, provider string) *models.User {
 	t.Helper()
 
@@ -87,6 +91,7 @@ func (tdb *TestDB) SeedUser(t *testing.T, email, provider string) *models.User {
 }
 
 // SeedThreatModel creates a test threat model with the given owner and returns it.
+// SEM@79a11352f14300d8a049192847b5c411d1d8166c: insert a test threat model owned by the given user into the test database (mutates shared state)
 func (tdb *TestDB) SeedThreatModel(t *testing.T, ownerUUID, name string) *models.ThreatModel {
 	t.Helper()
 
@@ -107,6 +112,7 @@ func (tdb *TestDB) SeedThreatModel(t *testing.T, ownerUUID, name string) *models
 }
 
 // SeedGroup creates a test group and returns it.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: insert a test group record into the test database (mutates shared state)
 func (tdb *TestDB) SeedGroup(t *testing.T, provider, groupName string) *models.Group {
 	t.Helper()
 
@@ -124,6 +130,7 @@ func (tdb *TestDB) SeedGroup(t *testing.T, provider, groupName string) *models.G
 }
 
 // SeedThreatModelAccess creates a test threat model access record and returns it.
+// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: insert a threat model access control record for a user or group into the test database (mutates shared state)
 func (tdb *TestDB) SeedThreatModelAccess(t *testing.T, threatModelID string, userUUID *string, groupUUID *string, subjectType, role string) *models.ThreatModelAccess {
 	t.Helper()
 
@@ -144,6 +151,7 @@ func (tdb *TestDB) SeedThreatModelAccess(t *testing.T, threatModelID string, use
 }
 
 // SeedSurveyTemplate creates a test survey template and returns it.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: insert a test survey template into the test database (mutates shared state)
 func (tdb *TestDB) SeedSurveyTemplate(t *testing.T, createdByUUID string) *models.SurveyTemplate {
 	t.Helper()
 
@@ -163,6 +171,7 @@ func (tdb *TestDB) SeedSurveyTemplate(t *testing.T, createdByUUID string) *model
 }
 
 // SeedSurveyResponse creates a test survey response and returns it.
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: insert a test survey response into the test database (mutates shared state)
 func (tdb *TestDB) SeedSurveyResponse(t *testing.T, templateID, ownerUUID string, isConfidential bool) *models.SurveyResponse {
 	t.Helper()
 
@@ -183,6 +192,7 @@ func (tdb *TestDB) SeedSurveyResponse(t *testing.T, templateID, ownerUUID string
 }
 
 // SeedSurveyResponseAccess creates a test survey response access record and returns it.
+// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: insert a survey response access control record for a user or group into the test database (mutates shared state)
 func (tdb *TestDB) SeedSurveyResponseAccess(t *testing.T, responseID string, userUUID *string, groupUUID *string, subjectType, role string) *models.SurveyResponseAccess {
 	t.Helper()
 
@@ -203,6 +213,7 @@ func (tdb *TestDB) SeedSurveyResponseAccess(t *testing.T, responseID string, use
 }
 
 // SeedTriageNote creates a test triage note and returns it.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: insert a test triage note linked to a survey response into the test database (mutates shared state)
 func (tdb *TestDB) SeedTriageNote(t *testing.T, responseID, createdByUUID, modifiedByUUID string) *models.TriageNote {
 	t.Helper()
 
@@ -222,6 +233,7 @@ func (tdb *TestDB) SeedTriageNote(t *testing.T, responseID, createdByUUID, modif
 }
 
 // SeedClientCredential creates a test client credential and returns it.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: insert a test client credential record into the test database (mutates shared state)
 func (tdb *TestDB) SeedClientCredential(t *testing.T, ownerUUID, clientID, name string) *models.ClientCredential {
 	t.Helper()
 

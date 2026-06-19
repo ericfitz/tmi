@@ -17,6 +17,7 @@ import (
 // ProviderConfig is the canonical map; DeveloperKey and AppID are kept for
 // backward-compat with the legacy Google-only response shape and are populated
 // by the handler from ProviderConfig at response time when present.
+// SEM@e7e7192ac48f48a91647243aafb7a9117b15e508: public picker OAuth configuration for one provider, including legacy and canonical fields (pure)
 type PickerTokenConfig struct {
 	// ProviderConfig is the provider-specific picker-init payload. Keys vary
 	// per provider — for google_workspace: developer_key, app_id; for
@@ -30,6 +31,7 @@ type PickerTokenConfig struct {
 }
 
 // pickerTokenResponse is the JSON response for a successful picker-token request.
+// SEM@e7e7192ac48f48a91647243aafb7a9117b15e508: JSON response shape for a successful picker access token request (pure)
 type pickerTokenResponse struct {
 	AccessToken    string            `json:"access_token"`
 	ExpiresAt      time.Time         `json:"expires_at"`
@@ -43,6 +45,7 @@ type pickerTokenResponse struct {
 //
 // The route (POST /me/picker_tokens/{provider_id}) is registered in Task 9.1.
 // This handler only validates inputs and delegates to the shared refresh logic.
+// SEM@2ee0dcd2aa9cfc05225090376624012ff16557f2: HTTP handler that mints short-lived OAuth access tokens for browser picker widgets (pure)
 type PickerTokenHandler struct {
 	tokens     ContentTokenRepository
 	registry   *ContentOAuthProviderRegistry
@@ -53,6 +56,7 @@ type PickerTokenHandler struct {
 // NewPickerTokenHandler creates a new PickerTokenHandler.
 // configs maps provider IDs to their picker configuration values.
 // userLookup extracts the authenticated user ID from the Gin context.
+// SEM@2ee0dcd2aa9cfc05225090376624012ff16557f2: build a PickerTokenHandler wired to a token repository, provider registry, and configs (pure)
 func NewPickerTokenHandler(
 	tokens ContentTokenRepository,
 	registry *ContentOAuthProviderRegistry,
@@ -77,6 +81,7 @@ func NewPickerTokenHandler(
 //  5. Token status check → 401 if failed_refresh.
 //  6. refreshIfNeeded → 401/503 on error.
 //  7. 200 with access_token, expires_at, developer_key, app_id.
+// SEM@67569fbeb577336dd278978473f2ea666cf1543f: validate and dispatch a picker token request, refreshing the OAuth token if needed (reads DB)
 func (h *PickerTokenHandler) Handle(c *gin.Context) {
 	log := slogging.Get().WithContext(c)
 	providerID := c.Param("provider_id")
@@ -208,6 +213,7 @@ func (h *PickerTokenHandler) Handle(c *gin.Context) {
 //     refresh token; caller should ask user to re-authorize.
 //   - ErrTransient: transient network/5xx failure; caller may retry.
 //   - Other: unexpected repository or provider error.
+// SEM@7f94f986783cd37704845fd81e9b0f90951a91d1: return a valid OAuth access token, refreshing via provider if expired; lock-safe (reads DB)
 func (h *PickerTokenHandler) refreshIfNeeded(c *gin.Context, tok *ContentToken, providerID string) (string, *time.Time, error) {
 	log := slogging.Get().WithContext(c)
 
@@ -288,6 +294,7 @@ func (h *PickerTokenHandler) refreshIfNeeded(c *gin.Context, tok *ContentToken, 
 
 // pickerTokenExpired returns true when the token has an expiry time that is
 // within 30 seconds of the current time. Mirrors DelegatedSource.expired.
+// SEM@2ee0dcd2aa9cfc05225090376624012ff16557f2: return true when a content token expires within the 30-second refresh skew window (pure)
 func pickerTokenExpired(t *ContentToken) bool {
 	if t.ExpiresAt == nil {
 		return false

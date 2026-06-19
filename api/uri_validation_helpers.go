@@ -6,6 +6,7 @@ import (
 )
 
 // validateURI validates a required URI field. Returns nil if validator is nil or URI is empty.
+// SEM@16448c9907ad0841082fc251937632bfd96ab7da: validate a required URI field, returning an error on invalid input (pure)
 func validateURI(validator *URIValidator, fieldName, uri string) error {
 	if validator == nil || uri == "" {
 		return nil
@@ -17,6 +18,7 @@ func validateURI(validator *URIValidator, fieldName, uri string) error {
 }
 
 // validateOptionalURI validates an optional (*string) URI field. Returns nil if validator is nil, pointer is nil, or string is empty.
+// SEM@16448c9907ad0841082fc251937632bfd96ab7da: validate an optional URI field, skipping nil or empty values (pure)
 func validateOptionalURI(validator *URIValidator, fieldName string, uri *string) error {
 	if validator == nil || uri == nil || *uri == "" {
 		return nil
@@ -28,6 +30,7 @@ func validateOptionalURI(validator *URIValidator, fieldName string, uri *string)
 // stores but never fetches. It checks scheme and (when configured) allowlist
 // only — DNS resolution and private-IP blocking are skipped because there is
 // no SSRF surface for fields the server doesn't dereference.
+// SEM@f34985e914fe8d55039296cf4302878c88329818: validate a stored-only reference URI for scheme and allowlist, skipping DNS/IP checks (pure)
 func validateOptionalReferenceURI(validator *URIValidator, fieldName string, uri *string) error {
 	if validator == nil || uri == nil || *uri == "" {
 		return nil
@@ -41,6 +44,7 @@ func validateOptionalReferenceURI(validator *URIValidator, fieldName string, uri
 // ValidateURIPatchOperations validates URI values in JSON Patch operations.
 // Only "replace" and "add" operations for the specified paths are validated.
 // Returns nil if validator is nil.
+// SEM@f34985e914fe8d55039296cf4302878c88329818: validate URI values in JSON Patch add/replace operations against full URI rules (pure)
 func ValidateURIPatchOperations(validator *URIValidator, operations []PatchOperation, uriPaths []string) error {
 	return validateURIPatchOperationsWith(validator, operations, uriPaths, (*URIValidator).Validate)
 }
@@ -49,10 +53,12 @@ func ValidateURIPatchOperations(validator *URIValidator, operations []PatchOpera
 // ValidateURIPatchOperations: it validates URI values in JSON Patch operations
 // using ValidateReference (no DNS/IP checks). Use for stored-only fields like
 // issue_uri.
+// SEM@f34985e914fe8d55039296cf4302878c88329818: validate URI values in JSON Patch add/replace operations using reference-mode checks (pure)
 func ValidateReferenceURIPatchOperations(validator *URIValidator, operations []PatchOperation, uriPaths []string) error {
 	return validateURIPatchOperationsWith(validator, operations, uriPaths, (*URIValidator).ValidateReference)
 }
 
+// SEM@f34985e914fe8d55039296cf4302878c88329818: validate URI patch operations using a caller-supplied check function (pure)
 func validateURIPatchOperationsWith(validator *URIValidator, operations []PatchOperation, uriPaths []string, check func(*URIValidator, string) error) error {
 	if validator == nil {
 		return nil

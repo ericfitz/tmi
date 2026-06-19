@@ -14,6 +14,7 @@ import (
 )
 
 // RedisConfig holds the configuration for Redis connection
+// SEM@d885c7955d5a30affb8ddde84ee1cf757aab2a6b: Redis connection configuration parameters (pure)
 type RedisConfig struct {
 	Host     string
 	Port     string
@@ -22,6 +23,7 @@ type RedisConfig struct {
 }
 
 // RedisDB represents a Redis database connection
+// SEM@3b4ebaddebcae67845b4c86613b8031f614a4bcc: Redis client wrapper with optional at-rest encryption support
 type RedisDB struct {
 	client    *redis.Client
 	cfg       RedisConfig
@@ -47,6 +49,7 @@ var sensitiveKeyPrefixes = []string{
 
 // shouldEncrypt returns true if the given Redis key matches a sensitive pattern
 // whose value should be encrypted at rest.
+// SEM@3b4ebaddebcae67845b4c86613b8031f614a4bcc: report whether a Redis key matches a sensitive prefix requiring encryption (pure)
 func shouldEncrypt(key string) bool {
 	for _, prefix := range sensitiveKeyPrefixes {
 		if strings.HasPrefix(key, prefix) {
@@ -59,11 +62,13 @@ func shouldEncrypt(key string) bool {
 // SetEncryptor sets the encryptor for at-rest encryption of sensitive Redis values.
 // When set and enabled, values for keys matching sensitive patterns are encrypted
 // before writing and decrypted after reading. If nil or disabled, values pass through unchanged.
+// SEM@3b4ebaddebcae67845b4c86613b8031f614a4bcc: attach an at-rest encryptor to the Redis client (mutates shared state)
 func (db *RedisDB) SetEncryptor(enc *crypto.SettingsEncryptor) {
 	db.encryptor = enc
 }
 
 // NewRedisDB creates a new Redis database connection
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: connect to Redis with OpenTelemetry instrumentation and verify liveness
 func NewRedisDB(cfg RedisConfig) (*RedisDB, error) {
 	logger := slogging.Get()
 	logger.Debug("Initializing Redis connection to %s:%s DB=%d", cfg.Host, cfg.Port, cfg.DB)
@@ -109,6 +114,7 @@ func NewRedisDB(cfg RedisConfig) (*RedisDB, error) {
 }
 
 // Close closes the Redis connection
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: close the Redis client connection
 func (db *RedisDB) Close() error {
 	logger := slogging.Get()
 	logger.Debug("Closing Redis connection to %s:%s DB=%d", db.cfg.Host, db.cfg.Port, db.cfg.DB)
@@ -126,11 +132,13 @@ func (db *RedisDB) Close() error {
 }
 
 // GetClient returns the Redis client
+// SEM@d885c7955d5a30affb8ddde84ee1cf757aab2a6b: return the underlying Redis client (pure)
 func (db *RedisDB) GetClient() *redis.Client {
 	return db.client
 }
 
 // Ping checks if the Redis connection is alive
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: verify Redis connection liveness with a ping
 func (db *RedisDB) Ping(ctx context.Context) error {
 	logger := slogging.Get()
 	logger.Debug("Pinging Redis connection to %s:%s DB=%d", db.cfg.Host, db.cfg.Port, db.cfg.DB)
@@ -145,6 +153,7 @@ func (db *RedisDB) Ping(ctx context.Context) error {
 }
 
 // LogStats logs statistics about the Redis connection
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: log Redis connection pool statistics at debug level
 func (db *RedisDB) LogStats(ctx context.Context) {
 	logger := slogging.Get()
 
@@ -163,6 +172,7 @@ func (db *RedisDB) LogStats(ctx context.Context) {
 // Set sets a key-value pair with expiration.
 // If an encryptor is configured and the key matches a sensitive pattern,
 // the value is encrypted before writing to Redis.
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: store a key-value pair in Redis, encrypting sensitive keys at rest
 func (db *RedisDB) Set(ctx context.Context, key string, value any, expiration time.Duration) error {
 	if db.encryptor != nil && db.encryptor.IsEnabled() && shouldEncrypt(key) {
 		strValue := fmt.Sprintf("%v", value)
@@ -184,6 +194,7 @@ func (db *RedisDB) Set(ctx context.Context, key string, value any, expiration ti
 // Get gets a value by key.
 // If an encryptor is configured and the stored value has the ENC: prefix,
 // it is decrypted before being returned. Plaintext values pass through unchanged.
+// SEM@3b4ebaddebcae67845b4c86613b8031f614a4bcc: fetch a value from Redis, decrypting it if stored encrypted
 func (db *RedisDB) Get(ctx context.Context, key string) (string, error) {
 	result, err := db.client.Get(ctx, key).Result()
 	if err != nil {
@@ -202,6 +213,7 @@ func (db *RedisDB) Get(ctx context.Context, key string) (string, error) {
 }
 
 // Del deletes a key
+// SEM@d885c7955d5a30affb8ddde84ee1cf757aab2a6b: delete a key from Redis
 func (db *RedisDB) Del(ctx context.Context, key string) error {
 	return db.client.Del(ctx, key).Err()
 }
@@ -209,6 +221,7 @@ func (db *RedisDB) Del(ctx context.Context, key string) error {
 // HSet sets a hash field.
 // If an encryptor is configured and the key matches a sensitive pattern,
 // the field value is encrypted before writing to Redis.
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: store a hash field in Redis, encrypting sensitive keys at rest
 func (db *RedisDB) HSet(ctx context.Context, key, field string, value any) error {
 	if db.encryptor != nil && db.encryptor.IsEnabled() && shouldEncrypt(key) {
 		strValue := fmt.Sprintf("%v", value)
@@ -230,6 +243,7 @@ func (db *RedisDB) HSet(ctx context.Context, key, field string, value any) error
 // HGet gets a hash field.
 // If an encryptor is configured and the stored value has the ENC: prefix,
 // it is decrypted before being returned. Plaintext values pass through unchanged.
+// SEM@3b4ebaddebcae67845b4c86613b8031f614a4bcc: fetch a single hash field from Redis, decrypting it if stored encrypted
 func (db *RedisDB) HGet(ctx context.Context, key, field string) (string, error) {
 	result, err := db.client.HGet(ctx, key, field).Result()
 	if err != nil {
@@ -250,6 +264,7 @@ func (db *RedisDB) HGet(ctx context.Context, key, field string) (string, error) 
 // HGetAll gets all fields in a hash.
 // If an encryptor is configured, any field values with the ENC: prefix
 // are decrypted before being returned. Plaintext values pass through unchanged.
+// SEM@3b4ebaddebcae67845b4c86613b8031f614a4bcc: fetch all hash fields from Redis, decrypting any encrypted values
 func (db *RedisDB) HGetAll(ctx context.Context, key string) (map[string]string, error) {
 	result, err := db.client.HGetAll(ctx, key).Result()
 	if err != nil {
@@ -272,11 +287,13 @@ func (db *RedisDB) HGetAll(ctx context.Context, key string) (map[string]string, 
 }
 
 // HDel deletes a hash field
+// SEM@d885c7955d5a30affb8ddde84ee1cf757aab2a6b: delete one or more hash fields from Redis
 func (db *RedisDB) HDel(ctx context.Context, key string, fields ...string) error {
 	return db.client.HDel(ctx, key, fields...).Err()
 }
 
 // Expire sets an expiration on a key
+// SEM@d885c7955d5a30affb8ddde84ee1cf757aab2a6b: set a TTL expiration on a Redis key
 func (db *RedisDB) Expire(ctx context.Context, key string, expiration time.Duration) error {
 	return db.client.Expire(ctx, key, expiration).Err()
 }

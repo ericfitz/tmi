@@ -6,6 +6,7 @@ import (
 )
 
 // parseInt converts a string to an integer with a fallback value
+// SEM@386eea01f3b66c35027bf3ca762efbc291419e20: parse a string as an integer, returning a fallback value when the string is empty (pure)
 func parseInt(val string, fallback int) (int, error) {
 	if val == "" {
 		return fallback, nil
@@ -21,6 +22,7 @@ func parseInt(val string, fallback int) (int, error) {
 
 // applyJsonPatch applies JSON Patch operations to a value
 // This is a simplified implementation
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: apply JSON Patch operations to a document and return the patched result (pure)
 func applyJsonPatch(doc any, operations []PatchOperation) (any, error) {
 	// Convert document to JSON
 	docJson, err := json.Marshal(doc)

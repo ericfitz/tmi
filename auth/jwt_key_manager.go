@@ -14,6 +14,7 @@ import (
 )
 
 // JWTKeyManager manages JWT signing and verification keys
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: holder for JWT signing and verification keys and the configured signing method (pure)
 type JWTKeyManager struct {
 	config        JWTConfig
 	signingKey    any // Private key for signing ([]byte, *rsa.PrivateKey, or *ecdsa.PrivateKey)
@@ -22,6 +23,7 @@ type JWTKeyManager struct {
 }
 
 // NewJWTKeyManager creates a new JWT key manager
+// SEM@70ff47b7829f38ef04399520210ae8765d39495d: build and initialize a JWT key manager by loading keys for the configured signing method
 func NewJWTKeyManager(config JWTConfig) (*JWTKeyManager, error) {
 	logger := slogging.Get()
 	logger.Info("Initializing JWT key manager signing_method=%v key_id=%v", config.SigningMethod, config.KeyID)
@@ -40,6 +42,7 @@ func NewJWTKeyManager(config JWTConfig) (*JWTKeyManager, error) {
 }
 
 // loadKeys loads the appropriate keys based on the signing method
+// SEM@e03fc554584eab95175850a0591c019a25ec0d56: dispatch key loading to the handler for the configured signing algorithm (pure)
 func (m *JWTKeyManager) loadKeys() error {
 	logger := slogging.Get()
 	logger.Debug("Loading JWT keys signing_method=%v", m.config.SigningMethod)
@@ -58,6 +61,7 @@ func (m *JWTKeyManager) loadKeys() error {
 }
 
 // loadHMACKeys loads HMAC secret
+// SEM@70ff47b7829f38ef04399520210ae8765d39495d: load an HMAC secret for HS256 signing and verification (mutates shared state)
 func (m *JWTKeyManager) loadHMACKeys() error {
 	logger := slogging.Get()
 	logger.Debug("Loading HMAC keys for HS256")
@@ -75,6 +79,7 @@ func (m *JWTKeyManager) loadHMACKeys() error {
 }
 
 // loadRSAKeys loads RSA private and public keys
+// SEM@70ff47b7829f38ef04399520210ae8765d39495d: load RSA private and public keys for RS256 signing and verification (mutates shared state)
 func (m *JWTKeyManager) loadRSAKeys() error {
 	logger := slogging.Get()
 	logger.Debug("Loading RSA keys for RS256")
@@ -114,6 +119,7 @@ func (m *JWTKeyManager) loadRSAKeys() error {
 }
 
 // loadECDSAKeys loads ECDSA private and public keys
+// SEM@70ff47b7829f38ef04399520210ae8765d39495d: load ECDSA private and public keys for ES256 signing and verification (mutates shared state)
 func (m *JWTKeyManager) loadECDSAKeys() error {
 	logger := slogging.Get()
 	logger.Debug("Loading ECDSA keys for ES256")
@@ -153,6 +159,7 @@ func (m *JWTKeyManager) loadECDSAKeys() error {
 }
 
 // getKeyData retrieves key data from file path or direct content
+// SEM@70ff47b7829f38ef04399520210ae8765d39495d: fetch raw key bytes from inline config content or a sanitized file path (reads DB)
 func (m *JWTKeyManager) getKeyData(keyPath, keyContent string) ([]byte, error) {
 	logger := slogging.Get()
 
@@ -179,6 +186,7 @@ func (m *JWTKeyManager) getKeyData(keyPath, keyContent string) ([]byte, error) {
 }
 
 // CreateToken creates a new JWT token with the configured signing method
+// SEM@70ff47b7829f38ef04399520210ae8765d39495d: sign a JWT with the configured signing key and return the token string (pure)
 func (m *JWTKeyManager) CreateToken(claims jwt.Claims) (string, error) {
 	logger := slogging.Get()
 	logger.Debug("Creating JWT token signing_method=%v", m.signingMethod.Alg())
@@ -195,6 +203,7 @@ func (m *JWTKeyManager) CreateToken(claims jwt.Claims) (string, error) {
 }
 
 // VerifyToken verifies a JWT token using the configured verification key
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate a JWT signature and claims, returning the parsed token; reject if invalid (pure)
 func (m *JWTKeyManager) VerifyToken(tokenString string, claims jwt.Claims) (*jwt.Token, error) {
 	logger := slogging.Get()
 	logger.Debug("Verifying JWT token expected_signing_method=%v", m.signingMethod.Alg())
@@ -223,6 +232,7 @@ func (m *JWTKeyManager) VerifyToken(tokenString string, claims jwt.Claims) (*jwt
 }
 
 // GetPublicKey returns the public key for JWKS endpoint (for asymmetric methods)
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: return the public key for asymmetric algorithms, for use by the JWKS endpoint (pure)
 func (m *JWTKeyManager) GetPublicKey() any {
 	switch m.config.SigningMethod {
 	case "RS256", "ES256":
@@ -233,12 +243,14 @@ func (m *JWTKeyManager) GetPublicKey() any {
 }
 
 // GetSigningMethod returns the current signing method
+// SEM@41fea1c48a3526015f75a5e401ec4970c6c9dfcf: return the configured JWT signing algorithm name (pure)
 func (m *JWTKeyManager) GetSigningMethod() string {
 	return m.config.SigningMethod
 }
 
 // Key parsing utility functions
 
+// SEM@41fea1c48a3526015f75a5e401ec4970c6c9dfcf: parse a PEM-encoded RSA private key in PKCS1 or PKCS8 format (pure)
 func parseRSAPrivateKey(keyData []byte) (*rsa.PrivateKey, error) {
 	block, _ := pem.Decode(keyData)
 	if block == nil {
@@ -263,6 +275,7 @@ func parseRSAPrivateKey(keyData []byte) (*rsa.PrivateKey, error) {
 	}
 }
 
+// SEM@41fea1c48a3526015f75a5e401ec4970c6c9dfcf: parse a PEM-encoded RSA public key in PKCS1 or PKIX format (pure)
 func parseRSAPublicKey(keyData []byte) (*rsa.PublicKey, error) {
 	block, _ := pem.Decode(keyData)
 	if block == nil {
@@ -287,6 +300,7 @@ func parseRSAPublicKey(keyData []byte) (*rsa.PublicKey, error) {
 	}
 }
 
+// SEM@41fea1c48a3526015f75a5e401ec4970c6c9dfcf: parse a PEM-encoded ECDSA private key in SEC1 or PKCS8 format (pure)
 func parseECDSAPrivateKey(keyData []byte) (*ecdsa.PrivateKey, error) {
 	block, _ := pem.Decode(keyData)
 	if block == nil {
@@ -311,6 +325,7 @@ func parseECDSAPrivateKey(keyData []byte) (*ecdsa.PrivateKey, error) {
 	}
 }
 
+// SEM@41fea1c48a3526015f75a5e401ec4970c6c9dfcf: parse a PEM-encoded ECDSA public key in PKIX format (pure)
 func parseECDSAPublicKey(keyData []byte) (*ecdsa.PublicKey, error) {
 	block, _ := pem.Decode(keyData)
 	if block == nil {

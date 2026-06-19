@@ -19,6 +19,7 @@ import (
 )
 
 // GormMetadataRepository implements MetadataRepository using GORM
+// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: GORM-backed repository for entity metadata key-value pairs with cache and invalidation support
 type GormMetadataRepository struct {
 	db               *gorm.DB
 	cache            *CacheService
@@ -28,6 +29,7 @@ type GormMetadataRepository struct {
 }
 
 // NewGormMetadataRepository creates a new GORM-backed metadata repository
+// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: build a GormMetadataRepository with the given DB, cache, and invalidator (pure)
 func NewGormMetadataRepository(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormMetadataRepository {
 	return &GormMetadataRepository{
 		db:               db,
@@ -40,11 +42,13 @@ func NewGormMetadataRepository(db *gorm.DB, cache *CacheService, invalidator *Ca
 // validateEntityType checks if the entity type is supported.
 // Delegates to the canonical validation.ValidEntityTypes list to ensure consistency
 // with the GORM BeforeSave hook in models/hooks.go.
+// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: validate that the entity type is in the canonical allowed list (pure)
 func (r *GormMetadataRepository) validateEntityType(entityType string) error {
 	return validation.ValidateEntityType(entityType)
 }
 
 // Create creates a new metadata entry
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: store a single metadata entry for an entity, rejecting duplicate keys (mutates shared state)
 func (r *GormMetadataRepository) Create(ctx context.Context, entityType, entityID string, metadata *Metadata) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -105,6 +109,7 @@ func (r *GormMetadataRepository) Create(ctx context.Context, entityType, entityI
 }
 
 // Get retrieves a specific metadata entry by key
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch a metadata entry by key, using the cache when available (reads DB)
 func (r *GormMetadataRepository) Get(ctx context.Context, entityType, entityID, key string) (*Metadata, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
@@ -158,6 +163,7 @@ func (r *GormMetadataRepository) Get(ctx context.Context, entityType, entityID, 
 }
 
 // Update updates an existing metadata entry
+// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: update the value of an existing metadata entry by key (mutates shared state)
 func (r *GormMetadataRepository) Update(ctx context.Context, entityType, entityID string, metadata *Metadata) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -215,6 +221,7 @@ func (r *GormMetadataRepository) Update(ctx context.Context, entityType, entityI
 }
 
 // Delete removes a metadata entry
+// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: delete a metadata entry by key and invalidate related caches (mutates shared state)
 func (r *GormMetadataRepository) Delete(ctx context.Context, entityType, entityID, key string) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -267,6 +274,7 @@ func (r *GormMetadataRepository) Delete(ctx context.Context, entityType, entityI
 }
 
 // List retrieves all metadata for an entity
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: list all metadata entries for an entity, using the cache when available (reads DB)
 func (r *GormMetadataRepository) List(ctx context.Context, entityType, entityID string) ([]Metadata, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
@@ -323,6 +331,7 @@ func (r *GormMetadataRepository) List(ctx context.Context, entityType, entityID 
 }
 
 // Post creates a new metadata entry using POST semantics
+// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: create a metadata entry using POST semantics, delegating to Create (mutates shared state)
 func (r *GormMetadataRepository) Post(ctx context.Context, entityType, entityID string, metadata *Metadata) error {
 	r.logger.Debug("Posting metadata: %s=%s for %s:%s", metadata.Key, metadata.Value, entityType, entityID)
 
@@ -331,6 +340,7 @@ func (r *GormMetadataRepository) Post(ctx context.Context, entityType, entityID 
 }
 
 // BulkCreate creates multiple metadata entries in a single transaction
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: store multiple metadata entries in one transaction, rejecting any duplicate keys (mutates shared state)
 func (r *GormMetadataRepository) BulkCreate(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -415,6 +425,7 @@ func (r *GormMetadataRepository) BulkCreate(ctx context.Context, entityType, ent
 // BulkUpdate upserts multiple metadata entries in a single transaction.
 // Keys present in the request are created or updated; keys not present are left untouched.
 // This implements PATCH (merge/upsert) semantics.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: upsert multiple metadata entries in one transaction using PATCH merge semantics (mutates shared state)
 func (r *GormMetadataRepository) BulkUpdate(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -489,6 +500,7 @@ func (r *GormMetadataRepository) BulkUpdate(ctx context.Context, entityType, ent
 // All existing metadata is deleted, then the provided entries are inserted.
 // An empty metadata slice clears all metadata for the entity.
 // This implements PUT (full replace) semantics.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: atomically replace all metadata for an entity with a new set using PUT semantics (mutates shared state)
 func (r *GormMetadataRepository) BulkReplace(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -549,6 +561,7 @@ func (r *GormMetadataRepository) BulkReplace(ctx context.Context, entityType, en
 }
 
 // BulkDelete deletes multiple metadata entries by key in a single transaction
+// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: delete multiple metadata entries by key in one transaction and invalidate caches (mutates shared state)
 func (r *GormMetadataRepository) BulkDelete(ctx context.Context, entityType, entityID string, keys []string) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -595,6 +608,7 @@ func (r *GormMetadataRepository) BulkDelete(ctx context.Context, entityType, ent
 }
 
 // GetByKey retrieves all metadata entries with a specific key across all entities
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch all metadata entries with a given key across all entities (reads DB)
 func (r *GormMetadataRepository) GetByKey(ctx context.Context, key string) ([]Metadata, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
@@ -625,6 +639,7 @@ func (r *GormMetadataRepository) GetByKey(ctx context.Context, key string) ([]Me
 }
 
 // ListKeys retrieves all metadata keys for an entity
+// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: list all distinct metadata keys for an entity (reads DB)
 func (r *GormMetadataRepository) ListKeys(ctx context.Context, entityType, entityID string) ([]string, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
@@ -659,6 +674,7 @@ func (r *GormMetadataRepository) ListKeys(ctx context.Context, entityType, entit
 }
 
 // InvalidateCache removes metadata-related cache entries
+// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: remove cached metadata for an entity from the cache store (mutates shared state)
 func (r *GormMetadataRepository) InvalidateCache(ctx context.Context, entityType, entityID string) error {
 	if r.cache == nil {
 		return nil
@@ -667,6 +683,7 @@ func (r *GormMetadataRepository) InvalidateCache(ctx context.Context, entityType
 }
 
 // WarmCache preloads metadata for an entity into cache
+// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: preload an entity's metadata into the cache by listing it (reads DB)
 func (r *GormMetadataRepository) WarmCache(ctx context.Context, entityType, entityID string) error {
 	r.logger.Debug("Warming cache for %s:%s metadata", entityType, entityID)
 

@@ -18,6 +18,7 @@ import (
 // The counter is stored as a plain integer at key
 // `oauth_token_failures:{key}` with a 1h TTL. A successful grant deletes
 // the key; a quiet period also expires it.
+// SEM@a3245d875ac2cfb50e40e8e8ffcceb6c913a13f0: Redis-backed exponential-backoff lockout tracker for OAuth token grant failures (mutates shared state)
 type OAuthTokenLockout struct {
 	client *redis.Client
 	now    func() time.Time // injected for tests
@@ -25,11 +26,13 @@ type OAuthTokenLockout struct {
 
 // NewOAuthTokenLockout constructs a lockout backed by the given Redis
 // client. A nil client returns a no-op lockout.
+// SEM@a3245d875ac2cfb50e40e8e8ffcceb6c913a13f0: build a Redis-backed OAuth token lockout tracker (pure)
 func NewOAuthTokenLockout(client *redis.Client) *OAuthTokenLockout {
 	return &OAuthTokenLockout{client: client, now: time.Now}
 }
 
 // LockoutDecision is the result of a Check call.
+// SEM@a3245d875ac2cfb50e40e8e8ffcceb6c913a13f0: result of a lockout check: locked status, Retry-After duration, and failure count (pure)
 type LockoutDecision struct {
 	Locked     bool          // true when the caller should be rejected with 429
 	RetryAfter time.Duration // Retry-After hint to surface in HTTP headers
@@ -37,6 +40,7 @@ type LockoutDecision struct {
 }
 
 // counterKey builds the Redis key for the given lockout subject.
+// SEM@a3245d875ac2cfb50e40e8e8ffcceb6c913a13f0: build the Redis key for a lockout subject's failure counter (pure)
 func counterKey(key string) string {
 	return "oauth_token_failures:" + key
 }
@@ -48,6 +52,7 @@ const failureTTL = time.Hour
 // retryAfterFor returns the Retry-After hint for the given failure count.
 // Mirrors the schedule from #350: 0–4 → 0; 5 → 1s; 10 → 30s; 20 → 5min;
 // 50+ → 1h (hard lock, surfaces 429 until the counter expires).
+// SEM@a3245d875ac2cfb50e40e8e8ffcceb6c913a13f0: compute the exponential Retry-After backoff duration for a given failure count (pure)
 func retryAfterFor(count int64) time.Duration {
 	switch {
 	case count >= 50:
@@ -66,6 +71,7 @@ func retryAfterFor(count int64) time.Duration {
 // Check returns the current lockout state for the given subject. Returns
 // {Locked: false} if Redis is unavailable — failing open is safer than
 // rejecting valid clients during a Redis outage.
+// SEM@a3245d875ac2cfb50e40e8e8ffcceb6c913a13f0: fetch the current lockout state for a subject; fails open when Redis is unavailable (reads DB)
 func (l *OAuthTokenLockout) Check(ctx context.Context, key string) LockoutDecision {
 	if l == nil || l.client == nil || key == "" {
 		return LockoutDecision{}
@@ -88,6 +94,7 @@ func (l *OAuthTokenLockout) Check(ctx context.Context, key string) LockoutDecisi
 // RecordFailure increments the counter and (re)applies the TTL. Returns
 // the post-increment count and the new lockout decision so the caller can
 // surface the updated Retry-After to the client.
+// SEM@a3245d875ac2cfb50e40e8e8ffcceb6c913a13f0: increment the failure counter and refresh its TTL; return the updated lockout decision (mutates shared state)
 func (l *OAuthTokenLockout) RecordFailure(ctx context.Context, key string) (LockoutDecision, error) {
 	if l == nil || l.client == nil || key == "" {
 		return LockoutDecision{}, nil
@@ -112,6 +119,7 @@ func (l *OAuthTokenLockout) RecordFailure(ctx context.Context, key string) (Lock
 
 // Reset clears the failure counter for the given subject. Called on a
 // successful grant.
+// SEM@a3245d875ac2cfb50e40e8e8ffcceb6c913a13f0: delete the failure counter for a subject on successful grant (mutates shared state)
 func (l *OAuthTokenLockout) Reset(ctx context.Context, key string) {
 	if l == nil || l.client == nil || key == "" {
 		return

@@ -10,6 +10,7 @@ import (
 // TransferEncodingValidationMiddleware rejects requests with Transfer-Encoding header
 // Transfer-Encoding (especially chunked) is not supported by this API
 // Returns 400 Bad Request instead of 501 Not Implemented for better HTTP semantics
+// SEM@16ece52d11c25cd6671ef7ab6e426844f1fdb35a: reject requests that include a Transfer-Encoding header with 400
 func TransferEncodingValidationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.GetContextLogger(c)

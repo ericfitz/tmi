@@ -14,11 +14,13 @@ import (
 )
 
 // OwnershipTransferHandler handles ownership transfer operations
+// SEM@36c1f84217ecf3f5087ad65186cd974b9b4df275: handler that transfers resource ownership between users via the auth service
 type OwnershipTransferHandler struct {
 	authService *auth.Service
 }
 
 // NewOwnershipTransferHandler creates a new ownership transfer handler
+// SEM@36c1f84217ecf3f5087ad65186cd974b9b4df275: build an OwnershipTransferHandler backed by the given auth service
 func NewOwnershipTransferHandler(authService *auth.Service) *OwnershipTransferHandler {
 	return &OwnershipTransferHandler{
 		authService: authService,
@@ -26,6 +28,7 @@ func NewOwnershipTransferHandler(authService *auth.Service) *OwnershipTransferHa
 }
 
 // TransferCurrentUserOwnership handles POST /me/transfer
+// SEM@36c1f84217ecf3f5087ad65186cd974b9b4df275: transfer the authenticated user's owned resources to a target user (reads DB)
 func (h *OwnershipTransferHandler) TransferCurrentUserOwnership(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -75,6 +78,7 @@ func (h *OwnershipTransferHandler) TransferCurrentUserOwnership(c *gin.Context) 
 }
 
 // TransferAdminUserOwnership handles POST /admin/users/{internal_uuid}/transfer
+// SEM@36c1f84217ecf3f5087ad65186cd974b9b4df275: transfer a specified user's owned resources to a target user on behalf of an admin (reads DB)
 func (h *OwnershipTransferHandler) TransferAdminUserOwnership(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -123,6 +127,7 @@ func (h *OwnershipTransferHandler) TransferAdminUserOwnership(c *gin.Context, in
 }
 
 // buildTransferResponse converts the auth.TransferResult to the OpenAPI TransferOwnershipResult
+// SEM@36c1f84217ecf3f5087ad65186cd974b9b4df275: convert an auth TransferResult to the OpenAPI TransferOwnershipResult DTO (pure)
 func buildTransferResponse(result *auth.TransferResult) TransferOwnershipResult {
 	tmIDs := make([]openapi_types.UUID, len(result.ThreatModelIDs))
 	for i, id := range result.ThreatModelIDs {

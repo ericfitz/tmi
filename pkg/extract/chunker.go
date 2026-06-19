@@ -6,12 +6,14 @@ import (
 )
 
 // TextChunker splits text into chunks suitable for embedding
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: splits text into overlapping chunks sized for embedding (pure)
 type TextChunker struct {
 	maxChunkSize int // Target max characters per chunk
 	overlap      int // Characters of overlap between chunks
 }
 
 // NewTextChunker creates a chunker with the given size and overlap (in characters)
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: build a TextChunker with a given max chunk size and overlap in characters (pure)
 func NewTextChunker(maxChunkSize, overlap int) *TextChunker {
 	return &TextChunker{
 		maxChunkSize: maxChunkSize,
@@ -20,6 +22,7 @@ func NewTextChunker(maxChunkSize, overlap int) *TextChunker {
 }
 
 // Chunk splits text into chunks at sentence boundaries
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: split text into sentence-boundary-aligned chunks with optional overlap (pure)
 func (tc *TextChunker) Chunk(text string) []string {
 	text = strings.TrimSpace(text)
 	if text == "" {
@@ -84,6 +87,7 @@ func (tc *TextChunker) Chunk(text string) []string {
 }
 
 // splitSentences splits text into sentences at period, question mark, or exclamation boundaries
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: split text into sentences at punctuation boundaries (pure)
 func splitSentences(text string) []string {
 	var sentences []string
 	var current strings.Builder

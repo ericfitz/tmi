@@ -24,6 +24,7 @@ var serverManagedFields = map[string]bool{
 
 // ExtractAuditActor extracts denormalized user information from the Gin context
 // for recording in audit entries. Uses the same context keys set by JWT middleware.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: extract denormalized user identity from Gin context for audit entries (pure)
 func ExtractAuditActor(c *gin.Context) InternalAuditActor {
 	email := getContextString(c, "userEmail")
 	providerID := getContextString(c, "userID")
@@ -39,6 +40,7 @@ func ExtractAuditActor(c *gin.Context) InternalAuditActor {
 }
 
 // getContextString safely extracts a string value from gin context
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: safely fetch a string value from the Gin context by key (pure)
 func getContextString(c *gin.Context, key string) string {
 	val, exists := c.Get(key)
 	if !exists {
@@ -53,6 +55,7 @@ func getContextString(c *gin.Context, key string) string {
 
 // SerializeForAudit marshals an entity to JSON, stripping server-managed and
 // bulky derived fields (like SVG images) from the snapshot.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: serialize an entity to JSON, stripping server-managed fields for audit snapshots (pure)
 func SerializeForAudit(entity any) ([]byte, error) {
 	data, err := json.Marshal(entity)
 	if err != nil {
@@ -66,6 +69,7 @@ func SerializeForAudit(entity any) ([]byte, error) {
 
 // stripServerManagedFields removes server-managed fields from JSON data.
 // If data is not a JSON object, it is returned unchanged.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: remove server-managed fields from a JSON object, returning unchanged if not an object (pure)
 func stripServerManagedFields(data []byte) []byte {
 	var m map[string]any
 	if err := json.Unmarshal(data, &m); err != nil {
@@ -86,6 +90,7 @@ func stripServerManagedFields(data []byte) []byte {
 // ShouldAudit returns true if the change between original and modified JSON
 // includes changes to non-server-managed fields. Returns false if the only
 // differences are in server-managed fields (id, timestamps, etc.).
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: report whether two JSON states differ on non-server-managed fields (pure)
 func ShouldAudit(originalJSON, modifiedJSON []byte) bool {
 	var original, modified map[string]any
 	if err := json.Unmarshal(originalJSON, &original); err != nil {
@@ -125,6 +130,7 @@ func ShouldAudit(originalJSON, modifiedJSON []byte) bool {
 
 // GenerateChangeSummary produces a human-readable summary of changes between
 // two JSON states. Format: "field1: 'old' -> 'new', field2: added, field3: removed"
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: compute a human-readable field-level change summary between two JSON states (pure)
 func GenerateChangeSummary(originalJSON, modifiedJSON []byte) string {
 	var original, modified map[string]any
 	if err := json.Unmarshal(originalJSON, &original); err != nil {
@@ -185,6 +191,7 @@ func GenerateChangeSummary(originalJSON, modifiedJSON []byte) string {
 }
 
 // truncateValue truncates a string to maxLen, adding "..." if truncated
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: truncate a string to a max length with ellipsis if needed (pure)
 func truncateValue(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
@@ -195,6 +202,7 @@ func truncateValue(s string, maxLen int) string {
 // ComputeReverseDiff computes a JSON Merge Patch (RFC 7396) that transforms
 // the 'after' state back to the 'before' state. This is the reverse diff
 // stored in version snapshots for space efficiency.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: compute a JSON Merge Patch that reverts the after state back to before (pure)
 func ComputeReverseDiff(before, after []byte) ([]byte, error) {
 	// CreateMergePatch(original, modified) returns a patch that transforms original -> modified.
 	// We want the reverse: a patch that transforms after -> before.
@@ -208,6 +216,7 @@ func ComputeReverseDiff(before, after []byte) ([]byte, error) {
 
 // ApplyDiff applies a JSON Merge Patch (RFC 7396) to a state,
 // producing a new state.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: apply a JSON Merge Patch to a state and return the resulting state (pure)
 func ApplyDiff(state, diff []byte) ([]byte, error) {
 	result, err := jsonpatch.MergePatch(state, diff)
 	if err != nil {
@@ -218,6 +227,7 @@ func ApplyDiff(state, diff []byte) ([]byte, error) {
 
 // RecordAuditCreate records a "created" audit entry for a newly created entity.
 // Call after the entity has been successfully created in the store.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: record a created audit entry for a newly created entity (mutates shared state)
 func RecordAuditCreate(c *gin.Context, threatModelID, objectType, objectID string, entity any) {
 	if GlobalAuditDebouncer == nil {
 		return
@@ -245,6 +255,7 @@ func RecordAuditCreate(c *gin.Context, threatModelID, objectType, objectID strin
 // RecordAuditUpdate records an "updated" or "patched" audit entry for a modified entity.
 // preState should be obtained via SerializeForAudit before the mutation.
 // Call after the entity has been successfully updated in the store.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: record an updated or patched audit entry when non-server fields change (mutates shared state)
 func RecordAuditUpdate(c *gin.Context, changeType, threatModelID, objectType, objectID string, preState []byte, entity any) {
 	if GlobalAuditDebouncer == nil {
 		return
@@ -276,6 +287,7 @@ func RecordAuditUpdate(c *gin.Context, changeType, threatModelID, objectType, ob
 // RecordAuditDelete records a "deleted" audit entry for a deleted entity.
 // preState should be obtained via SerializeForAudit before the deletion.
 // Call after the entity has been successfully deleted from the store.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: record a deleted audit entry for a removed entity (mutates shared state)
 func RecordAuditDelete(c *gin.Context, threatModelID, objectType, objectID string, preState []byte) {
 	if GlobalAuditDebouncer == nil {
 		return

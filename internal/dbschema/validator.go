@@ -11,6 +11,7 @@ import (
 )
 
 // SchemaValidationResult represents the result of schema validation
+// SEM@b27f2faa569c2df7076488c50b0a808fe812a34d: aggregate result of a database schema validation check, including errors and table counts (pure)
 type SchemaValidationResult struct {
 	Valid               bool
 	Errors              []string
@@ -23,12 +24,14 @@ type SchemaValidationResult struct {
 
 // ValidateSchema validates the actual database schema against expected tables.
 // This is a PostgreSQL-specific validation that checks essential tables exist.
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate that required database tables exist (reads DB)
 func ValidateSchema(db *sql.DB) (*SchemaValidationResult, error) {
 	return ValidateSchemaWithTables(db)
 }
 
 // ValidateSchemaWithTables validates schema by checking that essential tables exist.
 // This replaces the migration-based validation now that TMI uses GORM AutoMigrate.
+// SEM@073a204f272e91f38206995db7daac899361ce87: validate database schema by checking all essential tables exist (reads DB)
 func ValidateSchemaWithTables(db *sql.DB) (*SchemaValidationResult, error) {
 	logger := slogging.Get()
 	logger.Debug("Starting GORM-based schema validation")
@@ -110,6 +113,7 @@ func ValidateSchemaWithTables(db *sql.DB) (*SchemaValidationResult, error) {
 }
 
 // tableExists checks if a table exists in the PostgreSQL database
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: check whether a named table exists in the public schema (reads DB)
 func tableExists(db *sql.DB, tableName string) (bool, error) {
 	query := `
 		SELECT EXISTS (
@@ -128,6 +132,7 @@ func tableExists(db *sql.DB, tableName string) (bool, error) {
 // Use ValidateSchema instead which validates against GORM models.
 //
 // Deprecated: This function references legacy SQL migrations that are no longer used.
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: deprecated: validate schema using GORM table checks instead of legacy migrations (reads DB)
 func ValidateSchemaWithMigrations(db *sql.DB, migrationPath string) (*SchemaValidationResult, error) {
 	logger := slogging.Get()
 	logger.Warn("ValidateSchemaWithMigrations is deprecated - using GORM-based validation instead")

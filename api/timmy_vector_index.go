@@ -7,6 +7,7 @@ import (
 )
 
 // VectorSearchResult represents a search result with similarity score
+// SEM@83f445fe5f41f248da5bfb60c60326e7d7c65d0a: result from a vector similarity search, pairing chunk text with its relevance score (pure)
 type VectorSearchResult struct {
 	ID         string
 	ChunkText  string
@@ -14,6 +15,7 @@ type VectorSearchResult struct {
 }
 
 // vectorEntry stores a single vector in the index
+// SEM@83f445fe5f41f248da5bfb60c60326e7d7c65d0a: internal storage record for a single vector and its associated chunk text (pure)
 type vectorEntry struct {
 	id        string
 	vector    []float32
@@ -22,6 +24,7 @@ type vectorEntry struct {
 
 // VectorIndex is an in-memory vector index using brute-force cosine similarity.
 // This is adequate for threat-model scale (hundreds of vectors).
+// SEM@83f445fe5f41f248da5bfb60c60326e7d7c65d0a: in-memory vector index supporting cosine-similarity search with concurrent access (mutates shared state)
 type VectorIndex struct {
 	mu        sync.RWMutex
 	entries   []vectorEntry
@@ -29,6 +32,7 @@ type VectorIndex struct {
 }
 
 // NewVectorIndex creates a new vector index for vectors of the given dimension
+// SEM@83f445fe5f41f248da5bfb60c60326e7d7c65d0a: build an empty vector index for the specified embedding dimension (pure)
 func NewVectorIndex(dimension int) *VectorIndex {
 	return &VectorIndex{
 		dimension: dimension,
@@ -36,6 +40,7 @@ func NewVectorIndex(dimension int) *VectorIndex {
 }
 
 // Add inserts a vector into the index
+// SEM@83f445fe5f41f248da5bfb60c60326e7d7c65d0a: store a vector and its chunk text in the index (mutates shared state)
 func (vi *VectorIndex) Add(id string, vector []float32, chunkText string) {
 	vi.mu.Lock()
 	defer vi.mu.Unlock()
@@ -47,6 +52,7 @@ func (vi *VectorIndex) Add(id string, vector []float32, chunkText string) {
 }
 
 // Delete removes a vector by ID
+// SEM@83f445fe5f41f248da5bfb60c60326e7d7c65d0a: remove a vector entry by ID from the index (mutates shared state)
 func (vi *VectorIndex) Delete(id string) {
 	vi.mu.Lock()
 	defer vi.mu.Unlock()
@@ -59,6 +65,7 @@ func (vi *VectorIndex) Delete(id string) {
 }
 
 // Search returns the top-K most similar vectors to the query
+// SEM@83f445fe5f41f248da5bfb60c60326e7d7c65d0a: return the top-K most similar vectors to a query using cosine similarity (pure)
 func (vi *VectorIndex) Search(query []float32, topK int) []VectorSearchResult {
 	vi.mu.RLock()
 	defer vi.mu.RUnlock()
@@ -67,6 +74,7 @@ func (vi *VectorIndex) Search(query []float32, topK int) []VectorSearchResult {
 		return nil
 	}
 
+	// SEM@83f445fe5f41f248da5bfb60c60326e7d7c65d0a: internal pairing of a vector entry with its computed similarity score (pure)
 	type scored struct {
 		entry      vectorEntry
 		similarity float32
@@ -98,6 +106,7 @@ func (vi *VectorIndex) Search(query []float32, topK int) []VectorSearchResult {
 }
 
 // Count returns the number of vectors in the index
+// SEM@83f445fe5f41f248da5bfb60c60326e7d7c65d0a: return the number of vectors currently stored in the index (pure)
 func (vi *VectorIndex) Count() int {
 	vi.mu.RLock()
 	defer vi.mu.RUnlock()
@@ -105,6 +114,7 @@ func (vi *VectorIndex) Count() int {
 }
 
 // MemorySize estimates the memory used by this index in bytes
+// SEM@83f445fe5f41f248da5bfb60c60326e7d7c65d0a: estimate total memory consumed by all vectors and chunk text in the index in bytes (pure)
 func (vi *VectorIndex) MemorySize() int64 {
 	vi.mu.RLock()
 	defer vi.mu.RUnlock()
@@ -119,6 +129,7 @@ func (vi *VectorIndex) MemorySize() int64 {
 }
 
 // cosineSimilarity computes cosine similarity between two vectors
+// SEM@83f445fe5f41f248da5bfb60c60326e7d7c65d0a: compute cosine similarity between two float32 vectors, returning 0 for zero-norm inputs (pure)
 func cosineSimilarity(a, b []float32) float32 {
 	if len(a) != len(b) {
 		return 0

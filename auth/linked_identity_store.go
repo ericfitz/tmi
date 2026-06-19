@@ -16,6 +16,7 @@ import (
 var ErrLinkedIdentityNotFound = errors.New("linked identity not found")
 
 // LinkedIdentityInput holds the fields needed to create a new linked identity.
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: input fields required to create a new linked identity record (pure)
 type LinkedIdentityInput struct {
 	UserInternalUUID string
 	Provider         string
@@ -25,6 +26,7 @@ type LinkedIdentityInput struct {
 }
 
 // LinkedIdentityStore is the persistence interface for the linked_identities table.
+// SEM@053baa340d412aa135be32953dfcb6133af89b4d: persistence interface for linked OAuth identity records (reads DB)
 type LinkedIdentityStore interface {
 	// Create inserts a new linked identity row. Returns a dberrors.ErrDuplicate-
 	// wrapped error if the (provider, provider_user_id) pair already exists.
@@ -57,16 +59,19 @@ type LinkedIdentityStore interface {
 }
 
 // GormLinkedIdentityStore is the GORM-backed implementation of LinkedIdentityStore.
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: GORM-backed store for linked OAuth identity records (reads DB)
 type GormLinkedIdentityStore struct {
 	db *gorm.DB
 }
 
 // NewGormLinkedIdentityStore returns a new GormLinkedIdentityStore.
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: build a GORM-backed linked identity store from a db handle (pure)
 func NewGormLinkedIdentityStore(db *gorm.DB) *GormLinkedIdentityStore {
 	return &GormLinkedIdentityStore{db: db}
 }
 
 // Create inserts a new linked identity row.
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: store a new linked identity record; return typed duplicate error on constraint violation (reads DB)
 func (s *GormLinkedIdentityStore) Create(ctx context.Context, input LinkedIdentityInput) (models.LinkedIdentity, error) {
 	row := models.LinkedIdentity{
 		UserInternalUUID: models.DBVarchar(input.UserInternalUUID),
@@ -91,6 +96,7 @@ func (s *GormLinkedIdentityStore) Create(ctx context.Context, input LinkedIdenti
 // PKCE protects a public-client code exchange that does not exist in the link
 // flow; the pending-token + UUID-matched step-up-fresh confirm is the binding
 // mechanism. A serializable transaction here is the correct concurrency guard.
+// SEM@053baa340d412aa135be32953dfcb6133af89b4d: create a linked identity inside a serializable transaction to prevent TOCTOU race on duplicate binding (reads DB)
 func (s *GormLinkedIdentityStore) CreateExclusive(ctx context.Context, input LinkedIdentityInput) (models.LinkedIdentity, error) {
 	var created models.LinkedIdentity
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
@@ -129,6 +135,7 @@ func (s *GormLinkedIdentityStore) CreateExclusive(ctx context.Context, input Lin
 }
 
 // GetByProviderSub looks up a linked identity by provider and provider-user-id.
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: fetch a linked identity by OAuth provider and provider user ID (reads DB)
 func (s *GormLinkedIdentityStore) GetByProviderSub(ctx context.Context, provider, providerUserID string) (models.LinkedIdentity, error) {
 	var row models.LinkedIdentity
 	err := s.db.WithContext(ctx).
@@ -144,6 +151,7 @@ func (s *GormLinkedIdentityStore) GetByProviderSub(ctx context.Context, provider
 }
 
 // ListByUser returns all linked identities owned by userInternalUUID.
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: list all linked identities owned by a user UUID (reads DB)
 func (s *GormLinkedIdentityStore) ListByUser(ctx context.Context, userInternalUUID string) ([]models.LinkedIdentity, error) {
 	var rows []models.LinkedIdentity
 	if err := s.db.WithContext(ctx).
@@ -155,6 +163,7 @@ func (s *GormLinkedIdentityStore) ListByUser(ctx context.Context, userInternalUU
 }
 
 // TouchLastUsed updates last_used_at to now for the given identity id.
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: update last_used_at timestamp to now for the given linked identity (reads DB)
 func (s *GormLinkedIdentityStore) TouchLastUsed(ctx context.Context, id string) error {
 	now := time.Now().UTC()
 	if err := s.db.WithContext(ctx).
@@ -167,6 +176,7 @@ func (s *GormLinkedIdentityStore) TouchLastUsed(ctx context.Context, id string) 
 }
 
 // Delete removes the linked identity identified by id, scoped to ownerUUID.
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: delete a linked identity scoped to an owner UUID; return not-found if no row matches (reads DB)
 func (s *GormLinkedIdentityStore) Delete(ctx context.Context, id, ownerUUID string) error {
 	result := s.db.WithContext(ctx).
 		Where("id = ? AND user_internal_uuid = ?", id, ownerUUID).

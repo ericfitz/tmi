@@ -5,6 +5,7 @@ import (
 )
 
 // ContentOAuthConfig holds configuration for delegated content OAuth providers.
+// SEM@13e72c114e339424dba2382d2756380036c57166: top-level config struct for content OAuth providers and allowed callbacks (pure)
 type ContentOAuthConfig struct {
 	CallbackURL            string                                `yaml:"callback_url" env:"TMI_CONTENT_OAUTH_CALLBACK_URL"`
 	AllowedClientCallbacks []string                              `yaml:"allowed_client_callbacks"`
@@ -18,6 +19,7 @@ type ContentOAuthConfig struct {
 // OAuth 2.0 + PKCE set (e.g. Atlassian's audience=api.atlassian.com). yaml-only
 // for now; if env-var support is needed later it can be added without breaking
 // existing configs.
+// SEM@aed9318ad317c1a2668a12e84c4d9d773b83d4cc: config struct for a single content OAuth provider including endpoints and scopes (pure)
 type ContentOAuthProviderConfig struct {
 	Enabled              bool              `yaml:"enabled"`
 	Name                 string            `yaml:"name"`
@@ -34,6 +36,7 @@ type ContentOAuthProviderConfig struct {
 
 // Validate returns an error if any enabled provider is missing required fields,
 // or if at least one provider is enabled but the encryption key is empty/invalid.
+// SEM@13e72c114e339424dba2382d2756380036c57166: validate that all enabled content OAuth providers have required fields and an encryption key (pure)
 func (c *ContentOAuthConfig) Validate(encryptionKey string) error {
 	anyEnabled := false
 	for id, p := range c.Providers {

@@ -15,6 +15,7 @@ import (
 )
 
 // GormAssetRepository implements AssetRepository with GORM for database persistence and Redis caching
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: GORM-backed asset repository struct with Redis cache and cache invalidator (reads DB)
 type GormAssetRepository struct {
 	db               *gorm.DB
 	cache            *CacheService
@@ -22,6 +23,7 @@ type GormAssetRepository struct {
 }
 
 // NewGormAssetRepository creates a new GORM-backed asset repository with caching
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build a GormAssetRepository wired to a DB, cache service, and invalidator (pure)
 func NewGormAssetRepository(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormAssetRepository {
 	return &GormAssetRepository{
 		db:               db,
@@ -31,6 +33,7 @@ func NewGormAssetRepository(db *gorm.DB, cache *CacheService, invalidator *Cache
 }
 
 // Create creates a new asset with write-through caching using GORM
+// SEM@76be6ab76e896b646e29868be2ffc9503d184cad: store a new asset under a threat model, allocate its alias, and warm the cache (mutates shared state)
 func (s *GormAssetRepository) Create(ctx context.Context, asset *Asset, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Creating asset: %s in threat model: %s", asset.Name, threatModelID)
@@ -114,6 +117,7 @@ func (s *GormAssetRepository) Create(ctx context.Context, asset *Asset, threatMo
 }
 
 // Get retrieves an asset by ID with cache-first strategy using GORM
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch an asset by ID, using cache-first then DB fallback (reads DB)
 func (s *GormAssetRepository) Get(ctx context.Context, id string) (*Asset, error) {
 	logger := slogging.Get()
 	logger.Debug("Getting asset: %s", id)
@@ -164,6 +168,7 @@ func (s *GormAssetRepository) Get(ctx context.Context, id string) (*Asset, error
 }
 
 // Update updates an existing asset with write-through caching using GORM
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: update all asset fields in the DB and refresh the cache entry (mutates shared state)
 func (s *GormAssetRepository) Update(ctx context.Context, asset *Asset, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Updating asset: %s", asset.Id)
@@ -265,11 +270,13 @@ func (s *GormAssetRepository) Update(ctx context.Context, asset *Asset, threatMo
 }
 
 // Delete soft-deletes an asset by setting deleted_at
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: soft-delete an asset by delegating to SoftDelete (mutates shared state)
 func (s *GormAssetRepository) Delete(ctx context.Context, id string) error {
 	return s.SoftDelete(ctx, id)
 }
 
 // hardDeleteAsset permanently removes an asset and invalidates related caches using GORM
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: permanently delete an asset from the DB and invalidate its cache entries (mutates shared state)
 func (s *GormAssetRepository) hardDeleteAsset(ctx context.Context, id string) error {
 	logger := slogging.Get()
 	logger.Debug("Deleting asset: %s", id)
@@ -329,6 +336,7 @@ func (s *GormAssetRepository) hardDeleteAsset(ctx context.Context, id string) er
 }
 
 // List retrieves assets for a threat model with pagination and caching using GORM
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: list paginated assets for a threat model with cache-first strategy (reads DB)
 func (s *GormAssetRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Asset, error) {
 	logger := slogging.Get()
 	logger.Debug("Listing assets for threat model %s (offset: %d, limit: %d)", threatModelID, offset, limit)
@@ -403,6 +411,7 @@ func (s *GormAssetRepository) List(ctx context.Context, threatModelID string, of
 }
 
 // BulkCreate creates multiple assets in a single transaction using GORM
+// SEM@2a92752bd40820690b955370428f08e99f122b5e: store multiple assets in a single transaction with alias allocation and cache warming (mutates shared state)
 func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk creating %d assets", len(assets))
@@ -492,6 +501,7 @@ func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, th
 }
 
 // Patch applies JSON patch operations to an asset using GORM
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply JSON patch operations to an asset and persist the result (mutates shared state)
 func (s *GormAssetRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Asset, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching asset %s with %d operations", id, len(operations))
@@ -525,6 +535,7 @@ func (s *GormAssetRepository) Patch(ctx context.Context, id string, operations [
 }
 
 // applyPatchOperation applies a single patch operation to an asset
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply a single JSON patch operation to an in-memory asset struct (pure)
 func (s *GormAssetRepository) applyPatchOperation(asset *Asset, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:
@@ -602,6 +613,7 @@ func (s *GormAssetRepository) applyPatchOperation(asset *Asset, op PatchOperatio
 }
 
 // getAssetThreatModelID retrieves the threat model ID for an asset using GORM
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: fetch the parent threat model ID for an asset by asset ID (reads DB)
 func (s *GormAssetRepository) getAssetThreatModelID(ctx context.Context, assetID string) (string, error) {
 	var gormAsset models.Asset
 	if err := s.db.WithContext(ctx).Select("threat_model_id").First(&gormAsset, "id = ?", assetID).Error; err != nil {
@@ -614,6 +626,7 @@ func (s *GormAssetRepository) getAssetThreatModelID(ctx context.Context, assetID
 }
 
 // Count returns the total number of assets for a threat model
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: count non-deleted assets belonging to a threat model (reads DB)
 func (s *GormAssetRepository) Count(ctx context.Context, threatModelID string) (int, error) {
 	logger := slogging.Get()
 	logger.Debug("Counting assets for threat model %s", threatModelID)
@@ -636,6 +649,7 @@ func (s *GormAssetRepository) Count(ctx context.Context, threatModelID string) (
 }
 
 // InvalidateCache invalidates the cache for a specific asset
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: evict a single asset's cache entry by ID (mutates shared state)
 func (s *GormAssetRepository) InvalidateCache(ctx context.Context, id string) error {
 	if s.cache == nil {
 		return nil
@@ -644,6 +658,7 @@ func (s *GormAssetRepository) InvalidateCache(ctx context.Context, id string) er
 }
 
 // WarmCache pre-loads assets for a threat model into the cache
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: pre-load the first page of assets for a threat model into the cache (mutates shared state)
 func (s *GormAssetRepository) WarmCache(ctx context.Context, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Warming cache for assets in threat model: %s", threatModelID)
@@ -663,11 +678,13 @@ func (s *GormAssetRepository) WarmCache(ctx context.Context, threatModelID strin
 }
 
 // loadMetadata loads metadata for an asset using GORM
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch metadata rows for an asset from the DB (reads DB)
 func (s *GormAssetRepository) loadMetadata(ctx context.Context, assetID string) ([]Metadata, error) {
 	return loadEntityMetadata(s.db.WithContext(ctx), "asset", assetID)
 }
 
 // saveMetadata saves metadata for an asset using GORM (delete-first pattern)
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: replace all metadata for an asset using a delete-then-insert pattern (mutates shared state)
 func (s *GormAssetRepository) saveMetadata(ctx context.Context, assetID string, metadata *[]Metadata) error {
 	if metadata == nil {
 		return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "asset", assetID, nil)
@@ -678,6 +695,7 @@ func (s *GormAssetRepository) saveMetadata(ctx context.Context, assetID string, 
 // Helper functions for model conversion
 
 // toGormModel converts an API Asset to a GORM model
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert an API Asset to its GORM DB model (pure)
 func (s *GormAssetRepository) toGormModel(asset *Asset, threatModelID string) *models.Asset {
 	gm := &models.Asset{
 		ThreatModelID: models.DBVarchar(threatModelID),
@@ -711,6 +729,7 @@ func (s *GormAssetRepository) toGormModel(asset *Asset, threatModelID string) *m
 }
 
 // toAPIModel converts a GORM Asset model to an API model
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a GORM Asset DB model to the API response struct (pure)
 func (s *GormAssetRepository) toAPIModel(gm *models.Asset) *Asset {
 	alias := gm.Alias
 	asset := &Asset{

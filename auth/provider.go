@@ -19,6 +19,7 @@ import (
 )
 
 // Provider is the interface for OAuth providers
+// SEM@b14a829fd98bc22eaf2939ee51854649b9620cb0: interface for OAuth identity providers covering authorization, token exchange, and user info
 type Provider interface {
 	// GetOAuth2Config returns the OAuth2 configuration
 	GetOAuth2Config() *oauth2.Config
@@ -37,6 +38,7 @@ type Provider interface {
 }
 
 // TokenResponse contains the response from the token endpoint
+// SEM@b14a829fd98bc22eaf2939ee51854649b9620cb0: OAuth token endpoint response containing access, refresh, and ID tokens
 type TokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	TokenType    string `json:"token_type"`
@@ -46,6 +48,7 @@ type TokenResponse struct {
 }
 
 // UserInfo contains user information from the provider
+// SEM@0dcfe60d024e5cd95a40b61fc489253e670af6ce: user identity and group membership returned from an OAuth provider's userinfo endpoint
 type UserInfo struct {
 	ID            string   `json:"id,omitempty"`
 	Email         string   `json:"email,omitempty"`
@@ -60,6 +63,7 @@ type UserInfo struct {
 }
 
 // IDTokenClaims contains the claims from an ID token
+// SEM@b14a829fd98bc22eaf2939ee51854649b9620cb0: standard OIDC ID token claims including subject, email, and expiry
 type IDTokenClaims struct {
 	Subject       string `json:"sub"`
 	Email         string `json:"email,omitempty"`
@@ -76,6 +80,7 @@ type IDTokenClaims struct {
 }
 
 // NewProvider creates a new OAuth provider based on the provider ID
+// SEM@5bacd53eee87984ab4d2aab453afb59913aa79dc: build an OAuth Provider instance for the given provider config, selecting TMI, OIDC, or base OAuth2 implementation
 func NewProvider(config OAuthProviderConfig, callbackURL string) (Provider, error) {
 	logger := slogging.Get()
 	logger.Debug("Creating OAuth provider: %s (%s)", config.ID, config.Name)
@@ -106,6 +111,7 @@ func NewProvider(config OAuthProviderConfig, callbackURL string) (Provider, erro
 }
 
 // BaseProvider provides common functionality for all providers
+// SEM@b14a829fd98bc22eaf2939ee51854649b9620cb0: concrete OAuth 2.0 provider with SSRF-hardened HTTP client and configurable endpoints
 type BaseProvider struct {
 	config       OAuthProviderConfig
 	oauth2Config *oauth2.Config
@@ -124,6 +130,7 @@ var dialAllowHost func(host string) bool
 // internal token_url/userinfo/issuer is blocked at dial time, refuses
 // redirects, and is instrumented with otelhttp. token/userinfo URLs are
 // runtime-mutable settings, so this is the single egress chokepoint for them.
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: build a hardened outbound HTTP client with SSRF blocking, no-redirect policy, and OTel instrumentation (pure)
 func newProviderHTTPClient(timeout time.Duration) *http.Client {
 	return safehttp.NewHardenedClient(safehttp.HardenedClientOptions{
 		Timeout: timeout,
@@ -135,6 +142,7 @@ func newProviderHTTPClient(timeout time.Duration) *http.Client {
 }
 
 // NewBaseProvider creates a new base OAuth provider
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: build a BaseProvider from config, wiring an OAuth2 config and hardened HTTP client
 func NewBaseProvider(config OAuthProviderConfig, callbackURL string) (*BaseProvider, error) {
 	logger := slogging.Get()
 	logger.Info("Initializing base OAuth provider provider_id=%v provider_name=%v", config.ID, config.Name)
@@ -161,16 +169,19 @@ func NewBaseProvider(config OAuthProviderConfig, callbackURL string) (*BaseProvi
 }
 
 // GetOAuth2Config returns the OAuth2 configuration
+// SEM@b14a829fd98bc22eaf2939ee51854649b9620cb0: return the provider's OAuth2 configuration (pure)
 func (p *BaseProvider) GetOAuth2Config() *oauth2.Config {
 	return p.oauth2Config
 }
 
 // GetAuthorizationURL returns the authorization URL with the given state
+// SEM@b14a829fd98bc22eaf2939ee51854649b9620cb0: build the OAuth2 authorization URL for a given state parameter (pure)
 func (p *BaseProvider) GetAuthorizationURL(state string) string {
 	return p.oauth2Config.AuthCodeURL(state)
 }
 
 // ExchangeCode exchanges an authorization code for tokens
+// SEM@1e2b7727631da52c28fed17143510d6ce64bfe65: exchange an OAuth2 authorization code for access, refresh, and ID tokens
 func (p *BaseProvider) ExchangeCode(ctx context.Context, code string) (*TokenResponse, error) {
 	logger := slogging.Get()
 	logger.Debug("Exchanging authorization code for tokens provider_id=%v", p.config.ID)
@@ -218,6 +229,7 @@ func (p *BaseProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 }
 
 // customTokenExchange handles token exchange for providers that need special headers
+// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: exchange an authorization code using a custom HTTP POST for providers requiring special request headers
 func (p *BaseProvider) customTokenExchange(ctx context.Context, code string) (*TokenResponse, error) {
 	logger := slogging.Get()
 	logger.Debug("Performing custom token exchange provider_id=%v", p.config.ID)
@@ -271,6 +283,7 @@ func (p *BaseProvider) customTokenExchange(ctx context.Context, code string) (*T
 }
 
 // GetUserInfo gets user information from the provider
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: fetch user profile claims from all configured userinfo endpoints using an access token (reads network)
 func (p *BaseProvider) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
 	logger := slogging.Get()
 	logger.Debug("Fetching user information provider_id=%v endpoints_count=%v", p.config.ID, len(p.config.UserInfo))
@@ -328,6 +341,7 @@ func (p *BaseProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 }
 
 // fetchEndpoint fetches JSON data from an endpoint
+// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: fetch and decode a JSON or JSON-array OAuth endpoint response using a bearer access token (reads network)
 func (p *BaseProvider) fetchEndpoint(ctx context.Context, url, accessToken, authHeaderFormat, acceptHeader string) (map[string]any, error) {
 	logger := slogging.Get()
 	logger.Debug("Fetching endpoint data provider_id=%v url=%v", p.config.ID, url)
@@ -386,12 +400,14 @@ func (p *BaseProvider) fetchEndpoint(ctx context.Context, url, accessToken, auth
 }
 
 // ValidateIDToken validates an ID token
+// SEM@b14a829fd98bc22eaf2939ee51854649b9620cb0: reject ID token validation; base provider does not support ID tokens (pure)
 func (p *BaseProvider) ValidateIDToken(ctx context.Context, idToken string) (*IDTokenClaims, error) {
 	// Base provider doesn't support ID token validation
 	return nil, fmt.Errorf("ID token validation not implemented for this provider")
 }
 
 // GenericOIDCProvider is a generic OIDC provider
+// SEM@b14a829fd98bc22eaf2939ee51854649b9620cb0: OIDC provider extending BaseProvider with discovery-backed ID token verification (pure)
 type GenericOIDCProvider struct {
 	BaseProvider
 	provider *oidc.Provider
@@ -399,6 +415,7 @@ type GenericOIDCProvider struct {
 }
 
 // NewGenericOIDCProvider creates a new generic OIDC provider
+// SEM@1e2b7727631da52c28fed17143510d6ce64bfe65: build a GenericOIDCProvider via OIDC discovery, falling back gracefully on issuer mismatch (reads network)
 func NewGenericOIDCProvider(config OAuthProviderConfig, callbackURL string) (*GenericOIDCProvider, error) {
 	logger := slogging.Get()
 	logger.Info("Initializing generic OIDC provider provider_id=%v issuer=%v", config.ID, config.Issuer)
@@ -456,6 +473,7 @@ func NewGenericOIDCProvider(config OAuthProviderConfig, callbackURL string) (*Ge
 }
 
 // ValidateIDToken validates an ID token
+// SEM@b14a829fd98bc22eaf2939ee51854649b9620cb0: validate an OIDC ID token using the provider verifier and return its claims (pure)
 func (p *GenericOIDCProvider) ValidateIDToken(ctx context.Context, idToken string) (*IDTokenClaims, error) {
 	logger := slogging.Get()
 	logger.Debug("Validating ID token provider_id=%v", p.config.ID)

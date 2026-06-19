@@ -17,6 +17,7 @@ import (
 // It can operate in two modes:
 // 1. Single secret mode: secretName points to a JSON secret containing key-value pairs
 // 2. Multi-secret mode: secretName is empty, and each key maps to a separate secret in the vault
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: OCI Vault secret provider with local cache supporting single-JSON or multi-secret modes (pure)
 type OCIProvider struct {
 	secretsClient secrets.SecretsClient
 	vaultClient   vault.VaultsClient
@@ -31,6 +32,7 @@ type OCIProvider struct {
 }
 
 // NewOCIProvider creates a new OCI Vault secrets provider
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: build an OCI Vault secrets provider connected to a given compartment and vault
 func NewOCIProvider(ctx context.Context, compartmentID, vaultID, secretName string) (*OCIProvider, error) {
 	logger := slogging.Get()
 
@@ -62,6 +64,7 @@ func NewOCIProvider(ctx context.Context, compartmentID, vaultID, secretName stri
 }
 
 // GetSecret retrieves a secret value by key
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: fetch a secret value by key from OCI Vault, dispatching to JSON or individual mode
 func (p *OCIProvider) GetSecret(ctx context.Context, key string) (string, error) {
 	// If using single JSON secret mode
 	if p.secretName != "" {
@@ -73,6 +76,7 @@ func (p *OCIProvider) GetSecret(ctx context.Context, key string) (string, error)
 }
 
 // getFromJSONSecret retrieves a key from a JSON-formatted secret
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: fetch a key from the cached JSON-format OCI Vault secret, loading it if needed
 func (p *OCIProvider) getFromJSONSecret(ctx context.Context, key string) (string, error) {
 	logger := slogging.Get()
 
@@ -108,6 +112,7 @@ func (p *OCIProvider) getFromJSONSecret(ctx context.Context, key string) (string
 }
 
 // getIndividualSecret retrieves a secret by its name from the vault
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: fetch a named secret value directly from OCI Vault in multi-secret mode
 func (p *OCIProvider) getIndividualSecret(ctx context.Context, key string) (string, error) {
 	logger := slogging.Get()
 
@@ -145,6 +150,7 @@ func (p *OCIProvider) getIndividualSecret(ctx context.Context, key string) (stri
 }
 
 // findSecretByName finds a secret summary by name in the vault
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: search OCI Vault for a secret summary matching the given name
 func (p *OCIProvider) findSecretByName(ctx context.Context, name string) (*vault.SecretSummary, error) {
 	request := vault.ListSecretsRequest{
 		CompartmentId: new(p.compartmentID),
@@ -165,6 +171,7 @@ func (p *OCIProvider) findSecretByName(ctx context.Context, name string) (*vault
 }
 
 // loadJSONSecret fetches and parses the main JSON secret
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: fetch and parse the JSON OCI Vault secret bundle into the provider cache (mutates shared state)
 func (p *OCIProvider) loadJSONSecret(ctx context.Context) error {
 	logger := slogging.Get()
 
@@ -207,6 +214,7 @@ func (p *OCIProvider) loadJSONSecret(ctx context.Context) error {
 }
 
 // ListSecrets returns all secret keys available in the vault
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: list all secret keys available in the OCI Vault, paginating in multi-secret mode
 func (p *OCIProvider) ListSecrets(ctx context.Context) ([]string, error) {
 	// If using single JSON secret mode
 	if p.secretName != "" {
@@ -256,17 +264,20 @@ func (p *OCIProvider) ListSecrets(ctx context.Context) ([]string, error) {
 }
 
 // Name returns the provider name
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: return the canonical provider type name for this OCI Vault provider (pure)
 func (p *OCIProvider) Name() string {
 	return string(ProviderTypeOCI)
 }
 
 // Close releases resources
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: release OCI Vault provider resources (no-op; OCI SDK has no close) (pure)
 func (p *OCIProvider) Close() error {
 	// OCI SDK clients don't have explicit close methods
 	return nil
 }
 
 // InvalidateCache clears the cached secrets
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: clear the cached secret values so the next fetch re-reads from OCI Vault (mutates shared state)
 func (p *OCIProvider) InvalidateCache() {
 	p.cacheMu.Lock()
 	defer p.cacheMu.Unlock()

@@ -10,12 +10,14 @@ import (
 
 // SlidingWindowRateLimiter provides shared sliding window rate limiting using Redis sorted sets.
 // Domain-specific rate limiters embed this struct and add their own key-building and quota logic.
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: shared Redis-backed sliding window rate limiter embeddable by domain limiters (mutates shared state)
 type SlidingWindowRateLimiter struct {
 	RedisClient *redis.Client
 }
 
 // CheckSlidingWindow implements sliding window rate limiting using Redis sorted sets.
 // Returns allowed (bool), retryAfter (seconds), and error.
+// SEM@914adca66ed5ce0bcfa6a1233361a298648ccf00: enforce a sliding window rate limit and return allowed status with retry-after seconds (mutates shared state)
 func (sw *SlidingWindowRateLimiter) CheckSlidingWindow(ctx context.Context, key string, limit int, windowSeconds int) (bool, int, error) {
 	now := time.Now().Unix()
 	windowStart := now - int64(windowSeconds)
@@ -69,6 +71,7 @@ func (sw *SlidingWindowRateLimiter) CheckSlidingWindow(ctx context.Context, key 
 
 // CheckSlidingWindowSimple is a simplified variant that only returns allowed/not-allowed without retryAfter.
 // Used by webhook rate limiting where retry-after info is not needed in the check itself.
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: check a sliding window rate limit returning only allowed/denied without retry-after (mutates shared state)
 func (sw *SlidingWindowRateLimiter) CheckSlidingWindowSimple(ctx context.Context, key string, limit int, windowSeconds int) (bool, error) {
 	allowed, _, err := sw.CheckSlidingWindow(ctx, key, limit, windowSeconds)
 	return allowed, err
@@ -76,6 +79,7 @@ func (sw *SlidingWindowRateLimiter) CheckSlidingWindowSimple(ctx context.Context
 
 // GetRateLimitInfo returns current rate limit status for a key.
 // Returns remaining count, resetAt timestamp, and error.
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: fetch remaining quota and window reset timestamp for a rate limit key (reads DB)
 func (sw *SlidingWindowRateLimiter) GetRateLimitInfo(ctx context.Context, key string, limit int, windowSeconds int) (int, int64, error) {
 	now := time.Now().Unix()
 	windowStart := now - int64(windowSeconds)
@@ -98,6 +102,7 @@ func (sw *SlidingWindowRateLimiter) GetRateLimitInfo(ctx context.Context, key st
 }
 
 // RecordInWindow records a timestamp in a sliding window without checking limits.
+// SEM@914adca66ed5ce0bcfa6a1233361a298648ccf00: record a timestamped event in a sliding window without enforcing limits (mutates shared state)
 func (sw *SlidingWindowRateLimiter) RecordInWindow(ctx context.Context, key string, timestamp int64, ttlSeconds int) error {
 	pipe := sw.RedisClient.Pipeline()
 

@@ -11,6 +11,7 @@ import (
 
 // loadEntityMetadata loads metadata for any entity type from the database.
 // The db parameter can be s.db.WithContext(ctx) or a transaction.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch all metadata entries for an entity type and ID, ordered by key (reads DB)
 func loadEntityMetadata(db *gorm.DB, entityType, entityID string) ([]Metadata, error) {
 	var metadataEntries []models.Metadata
 	result := db.
@@ -35,6 +36,7 @@ func loadEntityMetadata(db *gorm.DB, entityType, entityID string) ([]Metadata, e
 
 // saveEntityMetadata saves metadata using upsert (OnConflict) without deleting existing entries.
 // The db parameter can be s.db.WithContext(ctx) or a transaction.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: upsert metadata entries for an entity, updating value and modified_at on conflict (reads DB)
 func saveEntityMetadata(db *gorm.DB, entityType, entityID string, metadata []Metadata) error {
 	if len(metadata) == 0 {
 		return nil
@@ -78,6 +80,7 @@ func saveEntityMetadata(db *gorm.DB, entityType, entityID string, metadata []Met
 // deleteAndSaveEntityMetadata deletes existing metadata then inserts new entries.
 // Used by stores that need to replace all metadata atomically.
 // The db parameter can be s.db.WithContext(ctx) or a transaction.
+// SEM@22b222cb8680df2700e22f0e8538874669789920: atomically replace all metadata for an entity by deleting then reinserting (reads DB)
 func deleteAndSaveEntityMetadata(db *gorm.DB, entityType, entityID string, metadata []Metadata) error {
 	// Delete existing metadata
 	if err := db.

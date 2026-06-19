@@ -13,6 +13,7 @@ import (
 )
 
 // WorkerBootstrap is the complete startup configuration of a worker.
+// SEM@7b63ecf38ff4d7eac724b5c8b36efc784b466c6f: configuration struct holding worker startup settings from environment (pure)
 type WorkerBootstrap struct {
 	// NATSURL is the JetStream connection URL. Required — a worker cannot
 	// receive a job without it.
@@ -35,6 +36,7 @@ const secretMountEnvPrefix = "TMI_WORKER_SECRET_MOUNT_" //nolint:gosec // this i
 
 // LoadWorker builds a WorkerBootstrap from environment variables only.
 // It reads no YAML and touches no database.
+// SEM@7b63ecf38ff4d7eac724b5c8b36efc784b466c6f: build worker startup config from environment variables only, no YAML or DB (pure)
 func LoadWorker() (*WorkerBootstrap, error) {
 	natsURL := os.Getenv("TMI_WORKER_NATS_URL")
 	if natsURL == "" {
@@ -72,6 +74,7 @@ func LoadWorker() (*WorkerBootstrap, error) {
 }
 
 // ReadSecret reads the secret value for a logical name from its mounted path.
+// SEM@7b63ecf38ff4d7eac724b5c8b36efc784b466c6f: fetch a mounted Kubernetes secret value by logical name from the filesystem
 func (wb *WorkerBootstrap) ReadSecret(logicalName string) (string, error) {
 	path, ok := wb.SecretMounts[logicalName]
 	if !ok {

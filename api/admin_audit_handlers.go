@@ -15,6 +15,7 @@ import (
 )
 
 // adminAuditPageLimit applies the AuditPageLimit parameter defaults/bounds.
+// SEM@7bac1ed632ff8929eff543daec4372c53d51283a: compute a validated page-size limit from the AuditPageLimit parameter, clamped to 1-100 (pure)
 func adminAuditPageLimit(p *AuditPageLimit) int {
 	if p == nil {
 		return 50
@@ -29,6 +30,7 @@ func adminAuditPageLimit(p *AuditPageLimit) int {
 }
 
 // ListSystemAuditEntries handles GET /admin/audit/system (#398).
+// SEM@2c1d4cb3d8cc963743f568bc4f17a46154cb2c43: handle GET /admin/audit/system, listing or exporting system audit entries with filters and keyset pagination (reads DB)
 func (s *Server) ListSystemAuditEntries(c *gin.Context, params ListSystemAuditEntriesParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -142,6 +144,7 @@ func (s *Server) ListSystemAuditEntries(c *gin.Context, params ListSystemAuditEn
 }
 
 // GetSystemAuditEntry handles GET /admin/audit/system/{entry_id} (#398).
+// SEM@7bac1ed632ff8929eff543daec4372c53d51283a: handle GET /admin/audit/system/{entry_id}, fetching a single system audit entry by ID (reads DB)
 func (s *Server) GetSystemAuditEntry(c *gin.Context, entryId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -165,6 +168,7 @@ func (s *Server) GetSystemAuditEntry(c *gin.Context, entryId openapi_types.UUID)
 }
 
 // ListAdminThreatModelAuditEntries handles GET /admin/audit/threat_models (#398).
+// SEM@2c1d4cb3d8cc963743f568bc4f17a46154cb2c43: handle GET /admin/audit/threat_models, listing threat-model audit entries with filters and keyset pagination (reads DB)
 func (s *Server) ListAdminThreatModelAuditEntries(c *gin.Context, params ListAdminThreatModelAuditEntriesParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -276,6 +280,7 @@ func (s *Server) ListAdminThreatModelAuditEntries(c *gin.Context, params ListAdm
 }
 
 // GetAdminThreatModelAuditEntry handles GET /admin/audit/threat_models/{entry_id} (#398).
+// SEM@7bac1ed632ff8929eff543daec4372c53d51283a: handle GET /admin/audit/threat_models/{entry_id}, fetching a single threat-model audit entry by ID (reads DB)
 func (s *Server) GetAdminThreatModelAuditEntry(c *gin.Context, entryId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -300,6 +305,7 @@ func (s *Server) GetAdminThreatModelAuditEntry(c *gin.Context, entryId openapi_t
 
 // writeAdminAuditJSON marshals explicitly so serialization errors return 500
 // instead of a silent empty 200 (same rationale as ListAdminUsers).
+// SEM@7bac1ed632ff8929eff543daec4372c53d51283a: serialize an audit payload to JSON and write it to the HTTP response, returning 500 on marshal error
 func writeAdminAuditJSON(c *gin.Context, logger *slogging.ContextLogger, payload any) {
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -312,6 +318,7 @@ func writeAdminAuditJSON(c *gin.Context, logger *slogging.ContextLogger, payload
 
 // systemAuditEntryToAPI converts a models.SystemAuditEntry to the API wire shape.
 // NullableDBText fields are marshaled as JSON string or null via MarshalJSON.
+// SEM@7bac1ed632ff8929eff543daec4372c53d51283a: convert a SystemAuditEntry model to its API wire shape as a gin.H map (pure)
 func systemAuditEntryToAPI(e models.SystemAuditEntry) gin.H {
 	return gin.H{
 		"id": string(e.ID),
@@ -338,6 +345,7 @@ var systemAuditCSVHeader = []string{
 	"old_value_redacted", "new_value_redacted", "change_summary",
 }
 
+// SEM@2c1d4cb3d8cc963743f568bc4f17a46154cb2c43: convert a NullableDBText to its string value or empty string (pure)
 func nullableText(n models.NullableDBText) string {
 	if n.Valid {
 		return n.String
@@ -345,6 +353,7 @@ func nullableText(n models.NullableDBText) string {
 	return ""
 }
 
+// SEM@2c1d4cb3d8cc963743f568bc4f17a46154cb2c43: convert a SystemAuditEntry to a flat CSV field slice for export (pure)
 func systemAuditCSVRecord(e models.SystemAuditEntry) []string {
 	return []string{
 		string(e.ID),
@@ -366,6 +375,7 @@ func systemAuditCSVRecord(e models.SystemAuditEntry) []string {
 // written lazily on the first batch (or on a zero-row success) so a failure
 // before the first byte can still return 500. A mid-stream failure (headers
 // already sent) is logged and truncates the response.
+// SEM@e22ca72974972d2c092d03856649537d3dd2e7d4: stream the filtered system audit set as CSV or NDJSON download, writing headers lazily on first batch
 func (s *Server) streamSystemAuditExport(c *gin.Context, logger *slogging.ContextLogger, f SystemAuditFilter, format string) {
 	ext := format
 	contentType := "text/csv; charset=utf-8"
@@ -447,6 +457,7 @@ func (s *Server) streamSystemAuditExport(c *gin.Context, logger *slogging.Contex
 }
 
 // writeSystemAuditPage serializes a paginated system audit response.
+// SEM@2c1d4cb3d8cc963743f568bc4f17a46154cb2c43: serialize a paginated system audit response page with cursors to the HTTP response
 func (s *Server) writeSystemAuditPage(c *gin.Context, logger *slogging.ContextLogger, rows []models.SystemAuditEntry, total, limit int, prev, next *string) {
 	entries := make([]gin.H, 0, len(rows))
 	for _, r := range rows {

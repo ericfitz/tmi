@@ -9,6 +9,7 @@ import (
 )
 
 // ListSAMLUsers handles GET /saml/providers/{idp}/users
+// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: list SAML users from the caller's own identity provider with pagination and email filter (reads DB)
 func (s *Server) ListSAMLUsers(c *gin.Context, idp string) {
 	logger := slogging.Get().WithContext(c)
 
@@ -93,6 +94,7 @@ func (s *Server) ListSAMLUsers(c *gin.Context, idp string) {
 	}
 
 	// Build lightweight response for UI autocomplete
+	// SEM@fb03bf4ae62f9d2e9e38b6a31882e902b0673586: lightweight DTO for a SAML user identity returned by the list endpoint (pure)
 	type SAMLUser struct {
 		InternalUUID string  `json:"internal_uuid"`
 		Email        string  `json:"email"`

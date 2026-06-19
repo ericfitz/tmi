@@ -14,6 +14,7 @@ import (
 
 // ContentOAuthHandlers holds the dependencies for the /me/content_tokens/* and
 // /oauth2/content_callback endpoints.
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: handler dependencies for content-token OAuth endpoints (struct)
 type ContentOAuthHandlers struct {
 	Cfg           config.ContentOAuthConfig
 	Registry      *ContentOAuthProviderRegistry
@@ -31,11 +32,13 @@ type ContentOAuthHandlers struct {
 }
 
 // authorizeRequest is the JSON body for POST /me/content_tokens/{provider_id}/authorize.
+// SEM@462c9c5f31b3e00796bfbcea980a74ada200f7f7: request body for initiating a content-provider OAuth authorization (pure)
 type authorizeRequest struct {
 	ClientCallback string `json:"client_callback"`
 }
 
 // authorizeResponse is the JSON response for a successful authorize request.
+// SEM@462c9c5f31b3e00796bfbcea980a74ada200f7f7: response body returning the authorization URL and its expiry (pure)
 type authorizeResponse struct {
 	AuthorizationURL string    `json:"authorization_url"`
 	ExpiresAt        time.Time `json:"expires_at"`
@@ -43,6 +46,7 @@ type authorizeResponse struct {
 
 // contentTokenInfo is the read-only view of a content token returned to callers.
 // It deliberately omits access_token and refresh_token.
+// SEM@462c9c5f31b3e00796bfbcea980a74ada200f7f7: read-only API view of a content token, omitting credential fields (pure)
 type contentTokenInfo struct {
 	ProviderID           string     `json:"provider_id"`
 	ProviderAccountID    string     `json:"provider_account_id,omitempty"`
@@ -55,6 +59,7 @@ type contentTokenInfo struct {
 }
 
 // toContentTokenInfo converts a ContentToken domain value to the read-only API view.
+// SEM@462c9c5f31b3e00796bfbcea980a74ada200f7f7: convert a ContentToken domain value to its read-only API DTO (pure)
 func toContentTokenInfo(t ContentToken) contentTokenInfo {
 	scopes := strings.Fields(t.Scopes)
 	if scopes == nil {
@@ -74,6 +79,7 @@ func toContentTokenInfo(t ContentToken) contentTokenInfo {
 
 // List handles GET /me/content_tokens.
 // Returns 200 with {"content_tokens": [ContentTokenInfo]} or 401 if not authenticated.
+// SEM@462c9c5f31b3e00796bfbcea980a74ada200f7f7: list all content tokens for the authenticated user (reads DB)
 func (h *ContentOAuthHandlers) List(c *gin.Context) {
 	userID, ok := h.UserLookup(c)
 	if !ok {
@@ -96,6 +102,7 @@ func (h *ContentOAuthHandlers) List(c *gin.Context) {
 // Authorize handles POST /me/content_tokens/:provider_id/authorize.
 // Validates the provider and client_callback, generates PKCE, stores state in Redis,
 // and returns {authorization_url, expires_at}.
+// SEM@462c9c5f31b3e00796bfbcea980a74ada200f7f7: initiate a PKCE OAuth flow for a content provider and return the authorization URL (mutates shared state)
 func (h *ContentOAuthHandlers) Authorize(c *gin.Context) {
 	userID, ok := h.UserLookup(c)
 	if !ok {
@@ -157,6 +164,7 @@ func (h *ContentOAuthHandlers) Authorize(c *gin.Context) {
 // Delete handles DELETE /me/content_tokens/:provider_id.
 // Deletes the token and attempts provider-side revocation (best-effort).
 // Returns 204 whether or not the row existed (idempotent).
+// SEM@f80dc196a824e779553730fd0cdca2eeaebef4d7: delete a content token and best-effort revoke it at the provider, with picker un-link cascade (mutates shared state)
 func (h *ContentOAuthHandlers) Delete(c *gin.Context) {
 	userID, ok := h.UserLookup(c)
 	if !ok {
@@ -198,6 +206,7 @@ func (h *ContentOAuthHandlers) Delete(c *gin.Context) {
 // This is a public endpoint (no auth middleware).
 // It completes the OAuth authorization code flow, stores the resulting token,
 // and redirects to the client_callback URL with status=success or status=error.
+// SEM@462c9c5f31b3e00796bfbcea980a74ada200f7f7: complete the OAuth code exchange, persist the content token, and redirect to the client callback
 func (h *ContentOAuthHandlers) Callback(c *gin.Context) {
 	ctx := c.Request.Context()
 	logger := slogging.Get().WithContext(c)
@@ -265,6 +274,7 @@ func (h *ContentOAuthHandlers) Callback(c *gin.Context) {
 
 // renderCallbackError writes a minimal HTML error page with 400 status.
 // This is used when we cannot redirect to a client_callback URL (e.g., missing or expired state).
+// SEM@462c9c5f31b3e00796bfbcea980a74ada200f7f7: render an HTML error page when no client callback URL is available (pure)
 func renderCallbackError(c *gin.Context, code string) {
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(http.StatusBadRequest,
@@ -274,6 +284,7 @@ func renderCallbackError(c *gin.Context, code string) {
 
 // redirectClientCallback builds a redirect URL by appending status/error/provider_id query params
 // to cb and issues a 302 redirect. It correctly handles cb URLs that already contain query params.
+// SEM@462c9c5f31b3e00796bfbcea980a74ada200f7f7: redirect the browser to the client callback URL with status and error query params (pure)
 func redirectClientCallback(c *gin.Context, cb, providerID, status, errCode string) {
 	q := url.Values{}
 	q.Set("status", status)

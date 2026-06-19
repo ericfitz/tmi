@@ -55,6 +55,7 @@ const (
 )
 
 // ValidateIcon validates an icon string against Material Symbols or FontAwesome formats
+// SEM@5c62a84f1cb794382a7efdc627ec1fc36d86af7c: validate an icon string against Material Symbols and FontAwesome formats (pure)
 func ValidateIcon(icon string) error {
 	if icon == "" {
 		// Empty icon is allowed (optional field)
@@ -103,6 +104,7 @@ func ValidateIcon(icon string) error {
 }
 
 // ValidateObjects validates that all object types are in the TMI taxonomy
+// SEM@e890b588ef2cb844c92f6ddd0d56e797bb39b7e2: validate that all object type strings belong to the TMI taxonomy (pure)
 func ValidateObjects(objects []string) error {
 	if len(objects) == 0 {
 		// Empty objects array is allowed
@@ -146,16 +148,19 @@ func ValidateObjects(objects []string) error {
 }
 
 // ValidateAddonName validates the add-on name for XSS and length
+// SEM@c3818ab211091946cfe831b51f278e1a29914219: validate an add-on name for length and XSS content (pure)
 func ValidateAddonName(name string) error {
 	return validateTextField(name, "Add-on name", 255, true)
 }
 
 // ValidateAddonDescription validates the add-on description for XSS and length
+// SEM@c3818ab211091946cfe831b51f278e1a29914219: validate an add-on description for length and XSS content (pure)
 func ValidateAddonDescription(description string) error {
 	return validateTextField(description, "description", MaxAddonDescriptionLength, false)
 }
 
 // checkHTMLInjection delegates to the unified HTML/XSS injection checker.
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: validate a field value for HTML/XSS injection attempts (pure)
 func checkHTMLInjection(value, fieldName string) error {
 	return CheckHTMLInjection(value, fieldName)
 }
@@ -164,6 +169,7 @@ func checkHTMLInjection(value, fieldName string) error {
 // Delegates to the consolidated unicodecheck package for consistent character detection.
 // Uses context-aware zero-width checking and threshold-based combining mark detection
 // to support international text while blocking attacks.
+// SEM@445f237f7a35ca185cf03ef25426c1a97b1a1917: validate a field value for dangerous Unicode: zero-width chars, bidi overrides, and Zalgo marks (pure)
 func ValidateUnicodeContent(value, fieldName string) error {
 	if value == "" {
 		return nil
@@ -240,6 +246,7 @@ var addonParameterNamePattern = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]*$`)
 var metadataKeyPattern = regexp.MustCompile(`^[a-zA-Z0-9_./:-]+$`)
 
 // ValidateAddonParameters validates parameter definitions at addon creation time
+// SEM@15af4eb93978e65654702a2b47f0ebe20df650dc: validate the full add-on parameter definitions list for duplicates and type constraints (pure)
 func ValidateAddonParameters(params []AddonParameter) error {
 	if len(params) == 0 {
 		return nil
@@ -275,6 +282,7 @@ func ValidateAddonParameters(params []AddonParameter) error {
 }
 
 // validateAddonParameter validates a single parameter definition
+// SEM@15af4eb93978e65654702a2b47f0ebe20df650dc: validate a single add-on parameter definition for name, text, and type-specific constraints (pure)
 func validateAddonParameter(p AddonParameter) error {
 	// Validate name
 	if p.Name == "" {
@@ -332,6 +340,7 @@ func validateAddonParameter(p AddonParameter) error {
 
 // rejectConstraintFields rejects number_min, number_max, string_max_length, and string_validation_regex
 // on parameter types where they don't apply (everything except number and string respectively)
+// SEM@15af4eb93978e65654702a2b47f0ebe20df650dc: reject inapplicable numeric/string constraint fields on non-matching parameter types (pure)
 func rejectConstraintFields(p AddonParameter, typeName string) error {
 	if p.NumberMin != nil {
 		return &RequestError{
@@ -364,6 +373,7 @@ func rejectConstraintFields(p AddonParameter, typeName string) error {
 	return nil
 }
 
+// SEM@15af4eb93978e65654702a2b47f0ebe20df650dc: validate an enum parameter definition including enum_values and default_value membership (pure)
 func validateEnumParameter(p AddonParameter) error {
 	if p.EnumValues == nil || len(*p.EnumValues) == 0 {
 		return &RequestError{
@@ -428,6 +438,7 @@ func validateEnumParameter(p AddonParameter) error {
 	return nil
 }
 
+// SEM@15af4eb93978e65654702a2b47f0ebe20df650dc: validate a boolean parameter definition for incompatible fields and default value format (pure)
 func validateBooleanParameter(p AddonParameter) error {
 	if p.EnumValues != nil && len(*p.EnumValues) > 0 {
 		return &RequestError{
@@ -458,6 +469,7 @@ func validateBooleanParameter(p AddonParameter) error {
 	return nil
 }
 
+// SEM@15af4eb93978e65654702a2b47f0ebe20df650dc: validate a string parameter definition for length, regex, and default value consistency (pure)
 func validateStringParameter(p AddonParameter) error {
 	if p.EnumValues != nil && len(*p.EnumValues) > 0 {
 		return &RequestError{
@@ -544,6 +556,7 @@ func validateStringParameter(p AddonParameter) error {
 	return nil
 }
 
+// SEM@15af4eb93978e65654702a2b47f0ebe20df650dc: validate a number parameter definition for min/max ordering and default value bounds (pure)
 func validateNumberParameter(p AddonParameter) error {
 	if p.EnumValues != nil && len(*p.EnumValues) > 0 {
 		return &RequestError{
@@ -609,6 +622,7 @@ func validateNumberParameter(p AddonParameter) error {
 	return nil
 }
 
+// SEM@15af4eb93978e65654702a2b47f0ebe20df650dc: validate a metadata_key parameter definition for required key field and format (pure)
 func validateMetadataKeyParameter(p AddonParameter) error {
 	if p.MetadataKey == nil || *p.MetadataKey == "" {
 		return &RequestError{
@@ -645,6 +659,7 @@ func validateMetadataKeyParameter(p AddonParameter) error {
 }
 
 // ValidateInvocationData validates invocation data against declared addon parameters
+// SEM@15af4eb93978e65654702a2b47f0ebe20df650dc: validate add-on invocation data map against declared parameter definitions (pure)
 func ValidateInvocationData(data map[string]interface{}, params []AddonParameter) error {
 	if len(params) == 0 {
 		return nil
@@ -699,6 +714,7 @@ func ValidateInvocationData(data map[string]interface{}, params []AddonParameter
 }
 
 // validateInvocationValue validates a single invocation data value against its parameter definition
+// SEM@15af4eb93978e65654702a2b47f0ebe20df650dc: validate a single invocation value against its parameter type and constraints (pure)
 func validateInvocationValue(p AddonParameter, value interface{}) error {
 	switch p.Type {
 	case AddonParameterTypeEnum:
@@ -758,6 +774,7 @@ func validateInvocationValue(p AddonParameter, value interface{}) error {
 }
 
 // validateInvocationStringValue validates a string invocation value against constraints
+// SEM@15af4eb93978e65654702a2b47f0ebe20df650dc: validate a string invocation value against length and regex constraints (pure)
 func validateInvocationStringValue(p AddonParameter, value interface{}) error {
 	strVal, ok := value.(string)
 	if !ok {
@@ -788,6 +805,7 @@ func validateInvocationStringValue(p AddonParameter, value interface{}) error {
 }
 
 // validateInvocationNumberValue validates a numeric invocation value against constraints
+// SEM@15af4eb93978e65654702a2b47f0ebe20df650dc: validate a numeric invocation value against min/max bounds, accepting multiple numeric types (pure)
 func validateInvocationNumberValue(p AddonParameter, value interface{}) error {
 	var numVal float64
 	switch v := value.(type) {

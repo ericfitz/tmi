@@ -15,16 +15,19 @@ import (
 )
 
 // GormAddonInvocationQuotaStore implements AddonInvocationQuotaStore using GORM
+// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: GORM-backed store for per-user addon invocation quota records (reads DB)
 type GormAddonInvocationQuotaStore struct {
 	db *gorm.DB
 }
 
 // NewGormAddonInvocationQuotaStore creates a new GORM-backed quota store
+// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: build a GormAddonInvocationQuotaStore backed by the given database connection (pure)
 func NewGormAddonInvocationQuotaStore(db *gorm.DB) *GormAddonInvocationQuotaStore {
 	return &GormAddonInvocationQuotaStore{db: db}
 }
 
 // Get retrieves quota for a user, returns error if not found
+// SEM@263482d75164f5d9cc6ecfbf63ecc20515b79b0d: fetch the addon invocation quota record for an owner, returning not-found when absent (reads DB)
 func (s *GormAddonInvocationQuotaStore) Get(ctx context.Context, ownerID uuid.UUID) (*AddonInvocationQuota, error) {
 	logger := slogging.Get()
 
@@ -48,6 +51,7 @@ func (s *GormAddonInvocationQuotaStore) Get(ctx context.Context, ownerID uuid.UU
 }
 
 // GetOrDefault retrieves quota for a user, or returns defaults if not set
+// SEM@263482d75164f5d9cc6ecfbf63ecc20515b79b0d: fetch the addon invocation quota for an owner, falling back to system defaults when absent (reads DB)
 func (s *GormAddonInvocationQuotaStore) GetOrDefault(ctx context.Context, ownerID uuid.UUID) (*AddonInvocationQuota, error) {
 	logger := slogging.Get()
 
@@ -78,6 +82,7 @@ func (s *GormAddonInvocationQuotaStore) GetOrDefault(ctx context.Context, ownerI
 }
 
 // List retrieves all addon invocation quotas with pagination
+// SEM@263482d75164f5d9cc6ecfbf63ecc20515b79b0d: list all addon invocation quota records with offset/limit pagination (reads DB)
 func (s *GormAddonInvocationQuotaStore) List(ctx context.Context, offset, limit int) ([]*AddonInvocationQuota, error) {
 	logger := slogging.Get()
 
@@ -105,6 +110,7 @@ func (s *GormAddonInvocationQuotaStore) List(ctx context.Context, offset, limit 
 }
 
 // Count returns the total number of addon invocation quotas
+// SEM@263482d75164f5d9cc6ecfbf63ecc20515b79b0d: count total addon invocation quota records in the store (reads DB)
 func (s *GormAddonInvocationQuotaStore) Count(ctx context.Context) (int, error) {
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.AddonInvocationQuota{}).Count(&count).Error; err != nil {
@@ -114,6 +120,7 @@ func (s *GormAddonInvocationQuotaStore) Count(ctx context.Context) (int, error) 
 }
 
 // Set creates or updates quota for a user using GORM's OnConflict clause
+// SEM@aa6d284f5df5c13ccb0001366a1f228490aba957: upsert an addon invocation quota record for an owner using conflict resolution (reads DB)
 func (s *GormAddonInvocationQuotaStore) Set(ctx context.Context, quota *AddonInvocationQuota) error {
 	logger := slogging.Get()
 
@@ -157,6 +164,7 @@ func (s *GormAddonInvocationQuotaStore) Set(ctx context.Context, quota *AddonInv
 }
 
 // Delete removes quota for a user (reverts to defaults)
+// SEM@263482d75164f5d9cc6ecfbf63ecc20515b79b0d: delete the addon invocation quota for an owner, reverting to system defaults (reads DB)
 func (s *GormAddonInvocationQuotaStore) Delete(ctx context.Context, ownerID uuid.UUID) error {
 	logger := slogging.Get()
 
@@ -182,6 +190,7 @@ func (s *GormAddonInvocationQuotaStore) Delete(ctx context.Context, ownerID uuid
 }
 
 // modelToAPI converts a GORM model to the API type
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: convert a GORM addon invocation quota model to the API domain type (pure)
 func (s *GormAddonInvocationQuotaStore) modelToAPI(model models.AddonInvocationQuota) AddonInvocationQuota {
 	ownerUUID, _ := uuid.Parse(string(model.OwnerInternalUUID))
 	return AddonInvocationQuota{
@@ -194,6 +203,7 @@ func (s *GormAddonInvocationQuotaStore) modelToAPI(model models.AddonInvocationQ
 }
 
 // apiToModel converts an API type to a GORM model
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: convert an API addon invocation quota to the GORM model for persistence (pure)
 func (s *GormAddonInvocationQuotaStore) apiToModel(quota AddonInvocationQuota) models.AddonInvocationQuota {
 	return models.AddonInvocationQuota{
 		OwnerInternalUUID:     models.DBVarchar(quota.OwnerId.String()),

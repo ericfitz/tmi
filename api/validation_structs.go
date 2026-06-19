@@ -3,12 +3,14 @@ package api
 // validation_structs.go - Consolidated request structs with consistent binding tags for validation
 
 // Enhanced Metadata Request Structs (for migration example)
+// SEM@4fa1d37f07fd36467dea01526b97410523474271: request struct for a metadata key-value pair with required binding and length constraints
 type ValidatedMetadataRequest struct {
 	Key   string `json:"key" binding:"required" maxlength:"100"`
 	Value string `json:"value" binding:"required" maxlength:"1000"`
 }
 
 // Additional validation struct examples for metadata (avoiding conflicts with existing types)
+// SEM@4fa1d37f07fd36467dea01526b97410523474271: request struct for creating a metadata key-value pair with required binding and length constraints
 type EnhancedMetadataCreateRequest struct {
 	Key   string `json:"key" binding:"required" maxlength:"100"`
 	Value string `json:"value" binding:"required" maxlength:"1000"`

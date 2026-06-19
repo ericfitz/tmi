@@ -11,6 +11,7 @@ import (
 )
 
 // ListUserAPIQuotas retrieves all custom user API quotas (admin only)
+// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: list all custom per-user API rate quotas with pagination (reads DB)
 func (s *Server) ListUserAPIQuotas(c *gin.Context, params ListUserAPIQuotasParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -54,6 +55,7 @@ func (s *Server) ListUserAPIQuotas(c *gin.Context, params ListUserAPIQuotasParam
 }
 
 // GetUserAPIQuota retrieves the API quota for a specific user (admin only)
+// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: fetch the custom API rate quota for a specific user (reads DB)
 func (s *Server) GetUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -79,6 +81,7 @@ func (s *Server) GetUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 }
 
 // UpdateUserAPIQuota creates or updates the API quota for a specific user (admin only)
+// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: upsert the API rate quota for a user and invalidate its cache entry (mutates shared state)
 func (s *Server) UpdateUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -157,6 +160,7 @@ func (s *Server) UpdateUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 }
 
 // DeleteUserAPIQuota deletes the API quota for a specific user, reverting to defaults (admin only)
+// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: delete the custom API rate quota for a user, reverting to system defaults (mutates shared state)
 func (s *Server) DeleteUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -179,6 +183,7 @@ func (s *Server) DeleteUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 }
 
 // ListWebhookQuotas retrieves all custom webhook quotas (admin only)
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: list all custom per-user webhook quotas with pagination (reads DB)
 func (s *Server) ListWebhookQuotas(c *gin.Context, params ListWebhookQuotasParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -236,6 +241,7 @@ func (s *Server) ListWebhookQuotas(c *gin.Context, params ListWebhookQuotasParam
 }
 
 // GetWebhookQuota retrieves the webhook quota for a specific user (admin only)
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: fetch the custom webhook quota for a specific user (reads DB)
 func (s *Server) GetWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -261,6 +267,7 @@ func (s *Server) GetWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 }
 
 // UpdateWebhookQuota creates or updates the webhook quota for a specific user (admin only)
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: upsert the webhook quota for a user and invalidate its cache entry (mutates shared state)
 func (s *Server) UpdateWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -351,6 +358,7 @@ func (s *Server) UpdateWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 }
 
 // DeleteWebhookQuota deletes the webhook quota for a specific user, reverting to defaults (admin only)
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: delete the custom webhook quota for a user, reverting to system defaults (mutates shared state)
 func (s *Server) DeleteWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -373,6 +381,7 @@ func (s *Server) DeleteWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 }
 
 // ListAddonInvocationQuotas retrieves all custom addon invocation quotas (admin only)
+// SEM@503212a05958ba0c15d423fab4dbceb92b747ed9: list all custom per-user addon invocation quotas with pagination (reads DB)
 func (s *Server) ListAddonInvocationQuotas(c *gin.Context, params ListAddonInvocationQuotasParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -422,6 +431,7 @@ func (s *Server) ListAddonInvocationQuotas(c *gin.Context, params ListAddonInvoc
 }
 
 // GetAddonInvocationQuota retrieves the addon invocation quota for a specific user (admin only)
+// SEM@84c7489e38c8e3adddcd6cfc1a87d93077d0e98f: fetch the custom addon invocation quota for a specific user (reads DB)
 func (s *Server) GetAddonInvocationQuota(c *gin.Context, userId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -447,6 +457,7 @@ func (s *Server) GetAddonInvocationQuota(c *gin.Context, userId openapi_types.UU
 }
 
 // UpdateAddonInvocationQuota creates or updates the addon invocation quota for a specific user (admin only)
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: upsert the addon invocation quota for a user, returning 201 on creation (mutates shared state)
 func (s *Server) UpdateAddonInvocationQuota(c *gin.Context, userId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -519,6 +530,7 @@ func (s *Server) UpdateAddonInvocationQuota(c *gin.Context, userId openapi_types
 }
 
 // DeleteAddonInvocationQuota deletes the addon invocation quota for a specific user, reverting to defaults (admin only)
+// SEM@9214f003590204e62d98bd62c10b96602d3ef503: delete the custom addon invocation quota for a user, reverting to system defaults (mutates shared state)
 func (s *Server) DeleteAddonInvocationQuota(c *gin.Context, userId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 

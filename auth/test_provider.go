@@ -20,12 +20,14 @@ import (
 // TestProvider implements the TMI internal OAuth provider
 // In dev/test builds (TMI_BUILD_MODE=dev|test): supports Authorization Code flow with ephemeral user creation
 // In production builds: Only supports Client Credentials Grant for machine-to-machine authentication
+// SEM@4798263136c0951661870727f56effca70bb94bb: internal OAuth provider for dev/test builds supporting authorization code flow with ephemeral users
 type TestProvider struct {
 	*BaseProvider
 	clientSecret string
 }
 
 // NewTestProvider creates a new test OAuth provider
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: build a TestProvider configured with a well-known test secret and the given OAuth config (pure)
 func NewTestProvider(config OAuthProviderConfig, callbackURL string) *TestProvider {
 	// Use a fixed well-known secret for testing
 	testSecret := "test-oauth-secret-12345" // #nosec G101 -- This is intentionally a well-known test secret
@@ -55,6 +57,7 @@ func NewTestProvider(config OAuthProviderConfig, callbackURL string) *TestProvid
 
 // GetAuthorizationURL returns the test authorization URL
 // For the test provider, we'll create a direct callback URL instead of an external redirect
+// SEM@0a07a7223c986c6b65b4c7eaad0d824831641173: build a test callback URL encoding a fake auth code and state parameter (pure)
 func (p *TestProvider) GetAuthorizationURL(state string) string {
 	// For test provider, generate a fake auth code and redirect directly to callback
 	authCode := fmt.Sprintf("test_auth_code_%d", time.Now().Unix())
@@ -79,6 +82,7 @@ func (p *TestProvider) GetAuthorizationURL(state string) string {
 }
 
 // ExchangeCode validates the authorization code and returns tokens only for valid codes
+// SEM@8173e355a916d49598c943a5c7218a708f032f81: validate a test authorization code and return a fake token response embedding any login_hint (pure)
 func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenResponse, error) {
 	// Check if this is a production build - authorization code flow (ephemeral user creation) is disabled in production
 	// Client Credentials Grant is allowed in all builds (production + dev/test)
@@ -154,6 +158,7 @@ func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 }
 
 // GetUserInfo returns fake user information
+// SEM@3e48a58cb418d2e7a4f04f1288fa11cb942bc99e: return user info for a test access token, using login_hint identity or generating a random test user (pure)
 func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
 	logger := slogging.Get()
 	logger.Debug("[TEST_PROVIDER] GetUserInfo: Called with access token: %s", accessToken)
@@ -202,6 +207,7 @@ func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 }
 
 // ValidateIDToken validates the test ID token (always succeeds)
+// SEM@3e48a58cb418d2e7a4f04f1288fa11cb942bc99e: validate a test ID token and return claims for the login_hint user or a random test user (pure)
 func (p *TestProvider) ValidateIDToken(ctx context.Context, idToken string) (*IDTokenClaims, error) {
 	// Check if login_hint is available in context (for consistency with other methods)
 	if userHint, ok := ctx.Value(userHintContextKey).(string); ok && userHint != "" {
@@ -243,6 +249,7 @@ func (p *TestProvider) ValidateIDToken(ctx context.Context, idToken string) (*ID
 }
 
 // generateTestIDToken creates a simple JWT-like token for testing
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: build a minimal hex-encoded JWT-like test ID token for testing (pure)
 func (p *TestProvider) generateTestIDToken() string {
 	header := map[string]any{
 		"alg": "HS256",
@@ -265,6 +272,7 @@ func (p *TestProvider) generateTestIDToken() string {
 }
 
 // validateUserHint validates and sanitizes a login_hint
+// SEM@d9b7276f43106db4f65f8333db6fdedae15b56bd: sanitize and validate a login_hint to alphanumeric-hyphen format between 3-20 chars (pure)
 func (p *TestProvider) validateUserHint(hint string) string {
 	if hint == "" {
 		return ""
@@ -293,6 +301,7 @@ func (p *TestProvider) validateUserHint(hint string) string {
 }
 
 // extractUserHintFromToken extracts login_hint from access token if present
+// SEM@d9b7276f43106db4f65f8333db6fdedae15b56bd: decode and return the base64-encoded login_hint embedded in a test access token (pure)
 func (p *TestProvider) extractUserHintFromToken(accessToken string) string {
 	// Check if token contains hint pattern: test_access_token_{timestamp}_hint_{encoded_hint}
 	if !strings.Contains(accessToken, "_hint_") {
@@ -315,6 +324,7 @@ func (p *TestProvider) extractUserHintFromToken(accessToken string) string {
 }
 
 // extractUserHintFromAuthCode extracts login_hint from authorization code if present
+// SEM@757275d37d1787ee4b9491c289b46e00bf7512af: decode and return the base64-encoded login_hint embedded in a test authorization code (pure)
 func (p *TestProvider) extractUserHintFromAuthCode(authCode string) string {
 	// Check if auth code contains hint pattern: test_auth_code_{timestamp}_hint_{encoded_hint}
 	if !strings.Contains(authCode, "_hint_") {
@@ -337,6 +347,7 @@ func (p *TestProvider) extractUserHintFromAuthCode(authCode string) string {
 }
 
 // generateDisplayName creates a human-readable display name from username
+// SEM@f61409f5a075256147e289bd78059fcd6be5886e: convert a hyphen-separated username into a title-case display name with a TMI User suffix (pure)
 func (p *TestProvider) generateDisplayName(username string) string {
 	// Convert username to title case for display
 	words := strings.Split(username, "-")
@@ -354,6 +365,7 @@ func (p *TestProvider) generateDisplayName(username string) string {
 // isDevOrTestBuild checks if the current build mode allows ephemeral user creation
 // Returns true if TMI_BUILD_MODE environment variable is set to "dev" or "test"
 // Returns false for production builds (where TMI_BUILD_MODE is unset or set to other values)
+// SEM@2e1e229947d57021bf27a7c51c052e3e2a18c98e: report whether the TMI_BUILD_MODE environment variable indicates a dev or test build (pure)
 func isDevOrTestBuild() bool {
 	buildMode := os.Getenv("TMI_BUILD_MODE")
 	return buildMode == "dev" || buildMode == "test"

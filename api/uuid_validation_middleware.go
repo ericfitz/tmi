@@ -26,6 +26,7 @@ var uuidParams = []string{
 }
 
 // UUIDValidationMiddleware validates UUID path parameters
+// SEM@a0b03d5d6a185b962cc24512bc65629f58b659da: validate UUID-typed path parameters and abort with 400 on malformed values
 func UUIDValidationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
@@ -52,11 +53,13 @@ func UUIDValidationMiddleware() gin.HandlerFunc {
 }
 
 // shouldValidateAsUUID checks if a parameter name should be validated as UUID
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: report whether a path parameter name is in the UUID validation allowlist (pure)
 func shouldValidateAsUUID(paramName string) bool {
 	return slices.Contains(uuidParams, paramName)
 }
 
 // PathParameterValidationMiddleware validates all path parameters for common issues
+// SEM@a0b03d5d6a185b962cc24512bc65629f58b659da: validate all path parameters against injection, traversal, length, and null-byte attacks
 func PathParameterValidationMiddleware() gin.HandlerFunc {
 	// Regex patterns for validation
 	sqlInjectionPattern := regexp.MustCompile(`(?i)(union|select|insert|update|delete|drop|create|alter|exec|execute|script|javascript|<|>)`)
@@ -121,6 +124,7 @@ func PathParameterValidationMiddleware() gin.HandlerFunc {
 // with r.NoMethod() so Gin calls it when HandleMethodNotAllowed is true and
 // the path exists but the requested HTTP method is not registered. Gin
 // automatically sets the Allow header before invoking NoMethod handlers.
+// SEM@81952f598eaf9b1599471d778c9fb82e7d2f2d7a: return 405 in TMI JSON error format when no route matches the requested HTTP method
 func MethodNotAllowedJSONHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		allowHeader := c.Writer.Header().Get("Allow")
@@ -140,6 +144,7 @@ func MethodNotAllowedJSONHandler() gin.HandlerFunc {
 }
 
 // MethodNotAllowedHandler returns 405 for unsupported HTTP methods
+// SEM@d86c7a3d58999ec91e9d2a8676d972f89424dad4: reject non-standard HTTP methods with 405 before routing proceeds
 func MethodNotAllowedHandler() gin.HandlerFunc {
 	validMethods := map[string]bool{
 		http.MethodGet:     true,

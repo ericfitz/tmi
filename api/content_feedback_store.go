@@ -14,6 +14,7 @@ var ErrContentFeedbackTargetNotFound = errors.New("content feedback target not f
 
 // ContentFeedbackListFilter controls ContentFeedbackRepository.List.
 // Zero/empty fields are ignored.
+// SEM@87c89d0c54dceab6486f4f612415b28f2d4b30db: filter parameters for listing content feedback entries (pure)
 type ContentFeedbackListFilter struct {
 	TargetType          string
 	TargetID            string
@@ -23,6 +24,7 @@ type ContentFeedbackListFilter struct {
 
 // ContentFeedbackTargetRef identifies the row that a feedback entry refers to.
 // Table is the GORM table name (e.g., "threats", "notes", "diagrams").
+// SEM@1c63bfe9bdfd225380a2a4e2960fef14b3437996: identify the target row a feedback entry refers to by table, ID, and threat model (pure)
 type ContentFeedbackTargetRef struct {
 	Table         string
 	TargetID      string
@@ -30,6 +32,7 @@ type ContentFeedbackTargetRef struct {
 }
 
 // ContentFeedbackRepository defines persistence for content_feedback rows.
+// SEM@1c63bfe9bdfd225380a2a4e2960fef14b3437996: persistence interface for creating, fetching, listing, and counting content feedback rows
 type ContentFeedbackRepository interface {
 	// Create inserts a feedback row without verifying target existence.
 	// Prefer CreateWithTargetCheck for handler paths that take user input.

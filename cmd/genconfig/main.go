@@ -8,6 +8,7 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
+// SEM@a60b4f430769f6d36f0e3753a429ea699ba8b1a0: generate and write the annotated config-example.yml file to disk
 func main() {
 	logger := slogging.Get()
 	out, err := config.GenerateExampleConfig()

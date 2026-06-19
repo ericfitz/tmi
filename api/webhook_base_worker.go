@@ -14,6 +14,7 @@ import (
 // baseWorker provides shared lifecycle management for ticker-based background workers.
 // It handles Start/Stop/processLoop and fixes the data race on the running field
 // by using atomic.Bool instead of a bare bool.
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: shared lifecycle state for ticker-based background workers with atomic run flag (pure)
 type baseWorker struct {
 	name       string
 	running    atomic.Bool
@@ -24,6 +25,7 @@ type baseWorker struct {
 }
 
 // newBaseWorker creates a new base worker with the given configuration.
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: build a baseWorker with the given name, interval, run-on-start flag, and work function (pure)
 func newBaseWorker(name string, interval time.Duration, runOnStart bool, work func(ctx context.Context) error) baseWorker {
 	return baseWorker{
 		name:       name,
@@ -35,6 +37,7 @@ func newBaseWorker(name string, interval time.Duration, runOnStart bool, work fu
 }
 
 // Start begins the worker's processing loop.
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: start the background worker processing loop in a goroutine (mutates shared state)
 func (bw *baseWorker) Start(ctx context.Context) error {
 	logger := slogging.Get()
 
@@ -47,6 +50,7 @@ func (bw *baseWorker) Start(ctx context.Context) error {
 }
 
 // Stop gracefully stops the worker.
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: gracefully stop the background worker by signaling the stop channel (mutates shared state)
 func (bw *baseWorker) Stop() {
 	logger := slogging.Get()
 	if bw.running.CompareAndSwap(true, false) {
@@ -56,6 +60,7 @@ func (bw *baseWorker) Stop() {
 }
 
 // processLoop continuously runs the work function on a ticker.
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: dispatch the worker's task on a ticker, stopping on context cancellation or stop signal (mutates shared state)
 func (bw *baseWorker) processLoop(ctx context.Context) {
 	logger := slogging.Get()
 	ticker := time.NewTicker(bw.interval)
@@ -86,6 +91,7 @@ func (bw *baseWorker) processLoop(ctx context.Context) {
 
 // generateRandomHex generates n random bytes and returns them as a hex string.
 // Falls back to a timestamp-based value on error.
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: generate a cryptographically random hex string of n bytes (pure)
 func generateRandomHex(n int) string {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {

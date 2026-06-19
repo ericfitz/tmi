@@ -13,12 +13,14 @@ import (
 )
 
 // WebhookUrlValidator validates webhook URLs against security rules
+// SEM@baf9ecb79a22da23c9922e1df63b14cb07d01523: validator for webhook URLs enforcing scheme, DNS hostname, and deny-list rules
 type WebhookUrlValidator struct {
 	denyListStore WebhookUrlDenyListStoreInterface
 	allowHTTP     bool
 }
 
 // NewWebhookUrlValidator creates a new URL validator
+// SEM@9ea792b9df3b1ab947a5ab9a404a0fbccd779d21: build a webhook URL validator that requires HTTPS only
 func NewWebhookUrlValidator(denyListStore WebhookUrlDenyListStoreInterface) *WebhookUrlValidator {
 	return &WebhookUrlValidator{
 		denyListStore: denyListStore,
@@ -26,6 +28,7 @@ func NewWebhookUrlValidator(denyListStore WebhookUrlDenyListStoreInterface) *Web
 }
 
 // NewWebhookUrlValidatorWithHTTP creates a new URL validator that optionally allows HTTP URLs
+// SEM@baf9ecb79a22da23c9922e1df63b14cb07d01523: build a webhook URL validator with configurable HTTP/HTTPS scheme allowance
 func NewWebhookUrlValidatorWithHTTP(denyListStore WebhookUrlDenyListStoreInterface, allowHTTP bool) *WebhookUrlValidator {
 	return &WebhookUrlValidator{
 		denyListStore: denyListStore,
@@ -34,6 +37,7 @@ func NewWebhookUrlValidatorWithHTTP(denyListStore WebhookUrlDenyListStoreInterfa
 }
 
 // ValidateWebhookURL validates a webhook URL according to security requirements
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: validate a webhook URL for scheme, DNS hostname, and deny-list compliance (reads DB)
 func (v *WebhookUrlValidator) ValidateWebhookURL(ctx context.Context, rawURL string) error {
 	// 1. Check URL scheme
 	if v.allowHTTP {
@@ -83,6 +87,7 @@ func (v *WebhookUrlValidator) ValidateWebhookURL(ctx context.Context, rawURL str
 }
 
 // validateDNSHostname validates a hostname according to RFC 1035, RFC 1123, and RFC 5890
+// SEM@9ea792b9df3b1ab947a5ab9a404a0fbccd779d21: validate a hostname against RFC 1035/1123/5890 DNS rules including IDN normalization (pure)
 func (v *WebhookUrlValidator) validateDNSHostname(hostname string) error {
 	// Handle IDN (Internationalized Domain Names) per RFC 5890
 	// Convert to ASCII (punycode) for validation
@@ -113,6 +118,7 @@ func (v *WebhookUrlValidator) validateDNSHostname(hostname string) error {
 }
 
 // validateDNSLabel validates a single DNS label according to RFC 1035 and RFC 1123
+// SEM@2211c4a58f7aa0b2de38f88778c03926960e7445: validate a single DNS label for length and character rules per RFC 1123 (pure)
 func (v *WebhookUrlValidator) validateDNSLabel(label string, _ bool) error {
 	// Label length check (RFC 1035: 1-63 characters)
 	if len(label) < 1 || len(label) > 63 {
@@ -147,11 +153,13 @@ func (v *WebhookUrlValidator) validateDNSLabel(label string, _ bool) error {
 }
 
 // isAlphanumeric checks if a character is alphanumeric (a-z, A-Z, 0-9)
+// SEM@9ea792b9df3b1ab947a5ab9a404a0fbccd779d21: check that a rune is an ASCII alphanumeric character (pure)
 func isAlphanumeric(ch rune) bool {
 	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')
 }
 
 // checkDenyList checks if the hostname matches any deny list pattern
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: check a hostname against stored glob and regex deny-list patterns; fail closed on load error (reads DB)
 func (v *WebhookUrlValidator) checkDenyList(ctx context.Context, hostname string) error {
 	// Load deny list entries
 	entries, err := v.denyListStore.List(ctx)
@@ -195,6 +203,7 @@ func (v *WebhookUrlValidator) checkDenyList(ctx context.Context, hostname string
 }
 
 // matchGlob performs glob pattern matching
+// SEM@9ea792b9df3b1ab947a5ab9a404a0fbccd779d21: match a hostname against a glob pattern using filepath semantics (pure)
 func (v *WebhookUrlValidator) matchGlob(hostname, pattern string) (bool, error) {
 	// Use filepath.Match for glob matching
 	// This supports * and ? wildcards
@@ -206,6 +215,7 @@ func (v *WebhookUrlValidator) matchGlob(hostname, pattern string) (bool, error) 
 }
 
 // matchRegex performs regex pattern matching
+// SEM@9ea792b9df3b1ab947a5ab9a404a0fbccd779d21: match a hostname against a compiled regex pattern (pure)
 func (v *WebhookUrlValidator) matchRegex(hostname, pattern string) (bool, error) {
 	// Compile and match regex
 	re, err := regexp.Compile(pattern)
@@ -216,6 +226,7 @@ func (v *WebhookUrlValidator) matchRegex(hostname, pattern string) (bool, error)
 }
 
 // IsIPv4 checks if a string is an IPv4 address
+// SEM@9ea792b9df3b1ab947a5ab9a404a0fbccd779d21: check whether a string is a dotted-decimal IPv4 address (pure)
 func IsIPv4(hostname string) bool {
 	parts := strings.Split(hostname, ".")
 	if len(parts) != 4 {
@@ -236,6 +247,7 @@ func IsIPv4(hostname string) bool {
 }
 
 // IsIPv6 checks if a string is an IPv6 address
+// SEM@9ea792b9df3b1ab947a5ab9a404a0fbccd779d21: check whether a string is an IPv6 address by presence of colons (pure)
 func IsIPv6(hostname string) bool {
 	// Basic check: contains colons and hex digits
 	if !strings.Contains(hostname, ":") {

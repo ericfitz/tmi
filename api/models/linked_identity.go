@@ -15,6 +15,7 @@ import (
 // Referential integrity to the users table is enforced by application code; no
 // DB-level FK is declared so that users can be deleted without a cascade
 // constraint ordering concern.
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: GORM model representing an external identity provider credential linked to a user account
 type LinkedIdentity struct {
 	ID               DBVarchar `gorm:"primaryKey;not null;size:36"`
 	UserInternalUUID DBVarchar `gorm:"size:36;not null;index:idx_linked_user"`
@@ -27,11 +28,13 @@ type LinkedIdentity struct {
 }
 
 // TableName returns the dialect-aware table name.
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: return the dialect-aware database table name for linked identities (pure)
 func (LinkedIdentity) TableName() string {
 	return tableName("linked_identities")
 }
 
 // BeforeCreate generates a UUID if ID is empty.
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: generate a UUID for a linked identity record if none is set before insert
 func (l *LinkedIdentity) BeforeCreate(tx *gorm.DB) error {
 	if l.ID == "" {
 		l.ID = DBVarchar(uuid.New().String())

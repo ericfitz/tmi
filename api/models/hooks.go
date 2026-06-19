@@ -13,6 +13,7 @@ import (
 // --- ThreatModel Hooks ---
 
 // BeforeUpdate validates ThreatModel before update
+// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: validate ThreatModel framework and status before a GORM update (pure)
 func (t *ThreatModel) BeforeUpdate(tx *gorm.DB) error {
 	// Only validate framework if it's being updated (non-empty)
 	// Empty framework means the field wasn't included in the update
@@ -31,6 +32,7 @@ func (t *ThreatModel) BeforeUpdate(tx *gorm.DB) error {
 // --- Diagram Hooks ---
 
 // BeforeUpdate validates Diagram before update
+// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: validate Diagram type before a GORM update (pure)
 func (d *Diagram) BeforeUpdate(tx *gorm.DB) error {
 	if d.Type.Valid {
 		if err := validation.ValidateDiagramType(d.Type.String); err != nil {
@@ -50,6 +52,7 @@ func (d *Diagram) BeforeUpdate(tx *gorm.DB) error {
 // --- Threat Hooks ---
 
 // BeforeSave validates Threat before create or update
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: validate Threat score before a GORM create or update (pure)
 func (t *Threat) BeforeSave(tx *gorm.DB) error {
 	if err := validation.ValidateScore(t.Score); err != nil {
 		return err
@@ -60,6 +63,7 @@ func (t *Threat) BeforeSave(tx *gorm.DB) error {
 // --- ThreatModelAccess Hooks ---
 
 // BeforeSave validates ThreatModelAccess before create or update
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: validate access control entry subject type, role, and user/group exclusivity before DB write (pure)
 func (t *ThreatModelAccess) BeforeSave(tx *gorm.DB) error {
 	if err := validation.ValidateSubjectType(string(t.SubjectType)); err != nil {
 		return err
@@ -76,6 +80,7 @@ func (t *ThreatModelAccess) BeforeSave(tx *gorm.DB) error {
 // --- Document Hooks ---
 
 // BeforeSave validates Document before create or update
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: validate document name and URI are non-empty before DB write (pure)
 func (d *Document) BeforeSave(tx *gorm.DB) error {
 	if err := validation.ValidateNonEmpty("name", string(d.Name)); err != nil {
 		return err
@@ -95,6 +100,7 @@ func (d *Document) BeforeSave(tx *gorm.DB) error {
 // --- Repository Hooks ---
 
 // BeforeSave validates Repository before create or update
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: validate repository URI and optional type enum before DB write (pure)
 func (r *Repository) BeforeSave(tx *gorm.DB) error {
 	if err := validation.ValidateURI("uri", string(r.URI)); err != nil {
 		return err
@@ -110,6 +116,7 @@ func (r *Repository) BeforeSave(tx *gorm.DB) error {
 // --- Metadata Hooks ---
 
 // BeforeSave validates Metadata before create or update
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: validate metadata entity type, key, and value fields before DB write (pure)
 func (m *Metadata) BeforeSave(tx *gorm.DB) error {
 	if err := validation.ValidateEntityType(string(m.EntityType)); err != nil {
 		return err
@@ -126,6 +133,7 @@ func (m *Metadata) BeforeSave(tx *gorm.DB) error {
 // --- CollaborationSession Hooks ---
 
 // BeforeSave validates CollaborationSession before create or update
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: validate collaboration session WebSocket URL before DB write (pure)
 func (c *CollaborationSession) BeforeSave(tx *gorm.DB) error {
 	if err := validation.ValidateWebSocketURL(string(c.WebsocketURL)); err != nil {
 		return err
@@ -136,6 +144,7 @@ func (c *CollaborationSession) BeforeSave(tx *gorm.DB) error {
 // --- WebhookSubscription Hooks ---
 
 // BeforeSave validates WebhookSubscription before create or update
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: validate webhook subscription status enum when non-empty before DB write (pure)
 func (w *WebhookSubscription) BeforeSave(tx *gorm.DB) error {
 	// Only validate status if it's non-empty (allows partial updates via map-based Updates)
 	if w.Status != "" {
@@ -149,6 +158,7 @@ func (w *WebhookSubscription) BeforeSave(tx *gorm.DB) error {
 // --- WebhookURLDenyList Hooks ---
 
 // BeforeSave validates WebhookURLDenyList before create or update
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: validate webhook deny-list entry pattern type before DB write (pure)
 func (w *WebhookURLDenyList) BeforeSave(tx *gorm.DB) error {
 	if err := validation.ValidateWebhookPatternType(string(w.PatternType)); err != nil {
 		return err
@@ -159,6 +169,7 @@ func (w *WebhookURLDenyList) BeforeSave(tx *gorm.DB) error {
 // --- Group Protection Hooks ---
 
 // BeforeDelete prevents deletion of built-in groups (everyone, security-reviewers, administrators)
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: prevent deletion of built-in system groups (pure)
 func (g *Group) BeforeDelete(tx *gorm.DB) error {
 	if validation.IsBuiltInGroup(string(g.InternalUUID)) {
 		return fmt.Errorf("cannot delete built-in group %q: %w", g.GroupName, ErrBuiltInGroupProtected)
@@ -167,6 +178,7 @@ func (g *Group) BeforeDelete(tx *gorm.DB) error {
 }
 
 // BeforeUpdate prevents renaming or changing the description of built-in groups
+// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: prevent renaming or redescribing built-in groups; allow other field updates (reads DB)
 func (g *Group) BeforeUpdate(tx *gorm.DB) error {
 	if !validation.IsBuiltInGroup(string(g.InternalUUID)) {
 		return nil
@@ -208,6 +220,7 @@ func (g *Group) BeforeUpdate(tx *gorm.DB) error {
 // --- GroupMember Protection Hooks ---
 
 // BeforeSave validates GroupMember and prevents adding to "everyone" group
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: validate group membership subject type, exclusivity, and block direct adds to the everyone group (pure)
 func (gm *GroupMember) BeforeSave(tx *gorm.DB) error {
 	if err := validation.ValidateNotEveryoneGroupMember(string(gm.GroupInternalUUID)); err != nil {
 		return err

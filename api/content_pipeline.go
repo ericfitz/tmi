@@ -49,11 +49,13 @@ const (
 
 // URLPatternMatcher maps URIs to provider names.
 // Always active — even for disabled providers — to enable clear 422 errors.
+// SEM@d98d9d1c0d122ade355ea522b49b132e523ebf52: maps URL patterns to content provider identifiers (pure)
 type URLPatternMatcher struct {
 	knownProviders map[string]bool
 }
 
 // NewURLPatternMatcher creates a matcher with all known provider patterns.
+// SEM@8b53645247cdf13cbfc2a73ad553fde880a9c3bd: build a URLPatternMatcher with all supported content providers registered (pure)
 func NewURLPatternMatcher() *URLPatternMatcher {
 	return &URLPatternMatcher{
 		knownProviders: map[string]bool{
@@ -66,6 +68,7 @@ func NewURLPatternMatcher() *URLPatternMatcher {
 }
 
 // Identify returns the provider name for a URI, or "" if unrecognized.
+// SEM@a2db6d159e7859f682bdd332f9a3bfb0b222b7af: map a URL to its canonical content provider name (pure)
 func (m *URLPatternMatcher) Identify(uri string) string {
 	if uri == "" {
 		return ""
@@ -99,11 +102,13 @@ func (m *URLPatternMatcher) Identify(uri string) string {
 }
 
 // IsKnownProvider returns true if the provider name is recognized.
+// SEM@d98d9d1c0d122ade355ea522b49b132e523ebf52: validate that a provider name is registered in the matcher (pure)
 func (m *URLPatternMatcher) IsKnownProvider(name string) bool {
 	return m.knownProviders[name]
 }
 
 // extractHost extracts the hostname from a lowercased URL string.
+// SEM@d98d9d1c0d122ade355ea522b49b132e523ebf52: parse the hostname from a lowercase URL string, stripping port and path (pure)
 func extractHost(lower string) string {
 	idx := strings.Index(lower, "://")
 	if idx < 0 {
@@ -119,16 +124,19 @@ func extractHost(lower string) string {
 // PipelineLimits is the subset of ContentExtractorsConfig the pipeline needs
 // directly (not just the registered extractors). Today this is just the
 // wall-clock budget; bringing in others as needed.
+// SEM@d3cdf19de7c031cfdc661e3c7549c0c38a5ed523: configures wall-clock budget for content extraction (pure)
 type PipelineLimits struct {
 	WallClockBudget time.Duration
 }
 
 // DefaultPipelineLimits returns the design-spec default budget; used by tests.
+// SEM@d3cdf19de7c031cfdc661e3c7549c0c38a5ed523: build PipelineLimits with a 30-second wall-clock budget (pure)
 func DefaultPipelineLimits() PipelineLimits {
 	return PipelineLimits{WallClockBudget: 30 * time.Second}
 }
 
 // ContentPipeline orchestrates Source -> Extractor for URI-based content.
+// SEM@117032a3c5523a04e970f76a285e342169d5150c: orchestrates fetching and text extraction from external content sources
 type ContentPipeline struct {
 	sources    *ContentSourceRegistry
 	extractors *ContentExtractorRegistry
@@ -139,6 +147,7 @@ type ContentPipeline struct {
 }
 
 // NewContentPipeline creates a new pipeline.
+// SEM@d98d9d1c0d122ade355ea522b49b132e523ebf52: build a ContentPipeline without concurrency limiting (pure)
 func NewContentPipeline(
 	sources *ContentSourceRegistry,
 	extractors *ContentExtractorRegistry,
@@ -154,6 +163,7 @@ func NewContentPipeline(
 // NewContentPipelineWithLimiter wires a per-user concurrency limiter and a
 // pipeline-level wall-clock budget into the existing pipeline. The legacy
 // NewContentPipeline constructor remains for callers that don't need either.
+// SEM@9d853db42745838f38cf03567f0d9e14a212c576: build a ContentPipeline with concurrency limiting and wall-clock budget (pure)
 func NewContentPipelineWithLimiter(
 	sources *ContentSourceRegistry,
 	extractors *ContentExtractorRegistry,
@@ -172,6 +182,7 @@ func NewContentPipelineWithLimiter(
 // caller is responsible for verifying that the build mode permits the hook;
 // passing a non-nil dumper in production builds is a programming error and
 // should be prevented at config-validation time. Pass nil to disable.
+// SEM@117032a3c5523a04e970f76a285e342169d5150c: register a dev-mode hook to persist extracted text as notes (mutates shared state)
 func (p *ContentPipeline) SetExtractedTextNoteDumper(d *extractedTextNoteDumper) {
 	p.dumper = d
 }
@@ -182,6 +193,7 @@ func (p *ContentPipeline) SetExtractedTextNoteDumper(d *extractedTextNoteDumper)
 // content source registry. This is used by ContentSourceHolder to build a
 // fresh pipeline whenever the source registry is rebuilt at runtime, without
 // reconstructing the extractor stack.
+// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: build a new ContentPipeline reusing base settings but with a different source registry (pure)
 func RebuildPipelineWithSources(base *ContentPipeline, sources *ContentSourceRegistry) *ContentPipeline {
 	p := &ContentPipeline{
 		sources:    sources,
@@ -195,6 +207,7 @@ func RebuildPipelineWithSources(base *ContentPipeline, sources *ContentSourceReg
 }
 
 // Extract fetches bytes from the appropriate source and extracts text.
+// SEM@d1fd850907490887fd11a6ccd4a691326ede6e4e: fetch and extract text from a URI using the matching source and extractor
 func (p *ContentPipeline) Extract(ctx context.Context, uri string) (ExtractedContent, error) {
 	logger := slogging.Get()
 
@@ -251,6 +264,7 @@ func (p *ContentPipeline) Extract(ctx context.Context, uri string) (ExtractedCon
 // ExtractionClassification describes how a typed extractor error maps to
 // access_status + access_reason_code. The reason code comes from
 // extract.ClassifyError; access_status is the monolith-owned overlay.
+// SEM@3de5c96824ab56d75179c1213960ce962da87ec7: structured result describing the outcome or failure reason of a content extraction (pure)
 type ExtractionClassification struct {
 	Status       string
 	ReasonCode   string
@@ -261,6 +275,7 @@ type ExtractionClassification struct {
 // the monolith-owned access_status. The reason-code classification is
 // delegated to extract.ClassifyError (the relocated library logic); a
 // non-empty reason code maps to AccessStatusExtractionFailed.
+// SEM@d1fd850907490887fd11a6ccd4a691326ede6e4e: convert an extraction error into a structured ExtractionClassification (pure)
 func ClassifyExtractionError(err error) ExtractionClassification {
 	c := extract.ClassifyError(err)
 	out := ExtractionClassification{ReasonCode: c.ReasonCode, ReasonDetail: c.ReasonDetail}
@@ -277,6 +292,7 @@ func ClassifyExtractionError(err error) ExtractionClassification {
 // do not affect the returned ExtractedContent or error: the dump hook is
 // strictly an inspection aid and must not change the production behavior of
 // the pipeline.
+// SEM@117032a3c5523a04e970f76a285e342169d5150c: extract content for a document and optionally dump the result as a note
 func (p *ContentPipeline) ExtractForDocument(ctx context.Context, doc Document) (ExtractedContent, error) {
 	out, err := p.Extract(ctx, doc.Uri)
 	if err != nil {
@@ -291,16 +307,19 @@ func (p *ContentPipeline) ExtractForDocument(ctx context.Context, doc Document) 
 // extractedTextNoteDumper persists the markdown produced by a successful
 // extraction as a Note on the parent threat model. Strictly a dev/test
 // inspection aid — see TimmyConfig.DumpExtractedTextToNote.
+// SEM@117032a3c5523a04e970f76a285e342169d5150c: dev-mode hook that persists extracted text as threat-model notes (reads DB)
 type extractedTextNoteDumper struct {
 	notes     NoteRepository
 	documents DocumentRepository
 }
 
 // NewExtractedTextNoteDumper builds a dumper. notes/documents must be non-nil.
+// SEM@117032a3c5523a04e970f76a285e342169d5150c: build an extractedTextNoteDumper backed by note and document repositories (pure)
 func NewExtractedTextNoteDumper(notes NoteRepository, documents DocumentRepository) *extractedTextNoteDumper {
 	return &extractedTextNoteDumper{notes: notes, documents: documents}
 }
 
+// SEM@117032a3c5523a04e970f76a285e342169d5150c: store extracted document text as a new note under the parent threat model (reads DB)
 func (d *extractedTextNoteDumper) dump(ctx context.Context, doc Document, out ExtractedContent) {
 	if d == nil || d.notes == nil || d.documents == nil {
 		return
@@ -338,6 +357,7 @@ func (d *extractedTextNoteDumper) dump(ctx context.Context, doc Document, out Ex
 // extraction. The same per-user concurrency limiter that guards Extract is
 // also applied here so that concurrent fetch-for-publish calls are subject to
 // the same cap.
+// SEM@d994c2f113f9e0997f83a0815018638cc94111f7: fetch raw content bytes and content type for a URI without text extraction
 func (p *ContentPipeline) FetchForPublish(ctx context.Context, uri string) ([]byte, string, error) {
 	logger := slogging.Get()
 
@@ -364,11 +384,13 @@ func (p *ContentPipeline) FetchForPublish(ctx context.Context, uri string) ([]by
 }
 
 // Matcher returns the pipeline's URL pattern matcher.
+// SEM@d98d9d1c0d122ade355ea522b49b132e523ebf52: fetch the pipeline's URL pattern matcher (pure)
 func (p *ContentPipeline) Matcher() *URLPatternMatcher {
 	return p.matcher
 }
 
 // Sources returns the pipeline's source registry.
+// SEM@d98d9d1c0d122ade355ea522b49b132e523ebf52: fetch the pipeline's content source registry (pure)
 func (p *ContentPipeline) Sources() *ContentSourceRegistry {
 	return p.sources
 }

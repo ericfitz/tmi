@@ -14,6 +14,7 @@ import (
 // signature: the oracle-tagged variant in gorm_oracle.go consumes it, and the
 // shared caller in gorm.go passes it. The blank name documents that it is
 // intentionally unused here.
+// SEM@2ee8f019dfbe33d87f3059a36defca778b721453: return nil Oracle GORM dialector when built without oracle tag (pure)
 func getOracleDialector(_ GormConfig) (gorm.Dialector, string) {
 	return nil, ""
 }

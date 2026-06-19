@@ -16,11 +16,13 @@ import (
 )
 
 // Reranker reorders a list of documents by relevance to a query.
+// SEM@907448abd6162d78125a4d628a7b26110fe7939d: interface for reordering documents by relevance to a query (pure)
 type Reranker interface {
 	Rerank(ctx context.Context, query string, documents []string) ([]RerankResult, error)
 }
 
 // RerankResult holds a single document's reranking outcome.
+// SEM@907448abd6162d78125a4d628a7b26110fe7939d: holds a document's original index, relevance score, and text after reranking (pure)
 type RerankResult struct {
 	Index    int     // original index in the documents slice
 	Score    float64 // relevance score (higher = more relevant)
@@ -28,6 +30,7 @@ type RerankResult struct {
 }
 
 // APIReranker calls an HTTP reranker endpoint compatible with Cohere/Jina/vLLM.
+// SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: HTTP reranker client compatible with Cohere/Jina/vLLM rerank endpoints (pure)
 type APIReranker struct {
 	client  *SafeHTTPClient
 	baseURL string
@@ -40,6 +43,7 @@ type APIReranker struct {
 // NewAPIReranker creates an APIReranker. validator MUST be non-nil and is used
 // to validate the reranker endpoint URL against scheme/SSRF allowlist rules
 // before each call. timeout sets the per-request overall timeout (0 → 120s).
+// SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: build an APIReranker with SSRF-safe HTTP client and configurable timeout (pure)
 func NewAPIReranker(baseURL, model, apiKey string, topK int, validator *URIValidator, timeout time.Duration) *APIReranker {
 	if timeout <= 0 {
 		timeout = 120 * time.Second
@@ -58,6 +62,7 @@ func NewAPIReranker(baseURL, model, apiKey string, topK int, validator *URIValid
 }
 
 // rerankRequest is the JSON body sent to the rerank endpoint.
+// SEM@907448abd6162d78125a4d628a7b26110fe7939d: JSON request body sent to the external rerank API endpoint (pure)
 type rerankRequest struct {
 	Model     string   `json:"model"`
 	Query     string   `json:"query"`
@@ -66,18 +71,21 @@ type rerankRequest struct {
 }
 
 // rerankResponseItem is one entry in the API response results array.
+// SEM@907448abd6162d78125a4d628a7b26110fe7939d: single entry in the rerank API response results array (pure)
 type rerankResponseItem struct {
 	Index          int     `json:"index"`
 	RelevanceScore float64 `json:"relevance_score"`
 }
 
 // rerankResponse is the full API response body.
+// SEM@907448abd6162d78125a4d628a7b26110fe7939d: full JSON response body from the external rerank API (pure)
 type rerankResponse struct {
 	Results []rerankResponseItem `json:"results"`
 }
 
 // Rerank sends documents to the reranker API and returns them ordered by relevance.
 // Returns nil, nil when documents is empty.
+// SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: fetch document relevance scores from the reranker API and return results sorted by score descending
 func (r *APIReranker) Rerank(ctx context.Context, query string, documents []string) ([]RerankResult, error) {
 	if len(documents) == 0 {
 		return nil, nil

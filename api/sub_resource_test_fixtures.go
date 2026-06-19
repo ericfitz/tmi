@@ -9,6 +9,7 @@ import (
 )
 
 // SubResourceTestFixtures provides comprehensive test data for sub-resource testing
+// SEM@98c83c6a9092288eead710533517e486c44239b2: data container holding all pre-built entities and authorization data for sub-resource tests (pure)
 type SubResourceTestFixtures struct {
 	// Test users for authorization
 	OwnerUser    string
@@ -81,6 +82,7 @@ const (
 var SubResourceFixtures SubResourceTestFixtures
 
 // InitSubResourceTestFixtures initializes comprehensive test fixtures for sub-resource testing
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: build and store the global sub-resource test fixtures including threat models, threats, documents, and diagrams (mutates shared state)
 func InitSubResourceTestFixtures() {
 	// Set up test users
 	SubResourceFixtures.OwnerUser = testOwnerEmail
@@ -274,12 +276,14 @@ func InitSubResourceTestFixtures() {
 }
 
 // ResetSubResourceStores clears all sub-resource stores for testing
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: clear all sub-resource stores to a clean state between tests (mutates shared state)
 func ResetSubResourceStores() {
 	// This function would reset stores if they were global
 	// Implementation depends on store initialization patterns
 }
 
 // CreateTestThreatWithMetadata creates a threat with associated metadata for testing
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: build a Threat with attached metadata for use in unit tests (pure)
 func CreateTestThreatWithMetadata(threatModelID string, metadata []Metadata) Threat {
 	threatUUID := uuid.New()
 	threatModelTypedUUID, _ := uuid.Parse(threatModelID)
@@ -302,6 +306,7 @@ func CreateTestThreatWithMetadata(threatModelID string, metadata []Metadata) Thr
 }
 
 // CreateTestDocumentWithMetadata creates a document with associated metadata for testing
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: build a Document with attached metadata for use in unit tests (pure)
 func CreateTestDocumentWithMetadata(metadata []Metadata) Document {
 	docUUID := uuid.New()
 
@@ -315,6 +320,7 @@ func CreateTestDocumentWithMetadata(metadata []Metadata) Document {
 }
 
 // CreateTestRepositoryWithMetadata creates a repository with associated metadata for testing
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: build a Repository with attached metadata for use in unit tests (pure)
 func CreateTestRepositoryWithMetadata(metadata []Metadata) Repository {
 	repositoryUUID := uuid.New()
 
@@ -330,6 +336,7 @@ func CreateTestRepositoryWithMetadata(metadata []Metadata) Repository {
 }
 
 // SetupStoresWithFixtures initializes stores with test fixtures
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: initialize stores with pre-built test fixtures, running fixture setup if not yet done (mutates shared state)
 func SetupStoresWithFixtures(ctx context.Context) error {
 	if !SubResourceFixtures.Initialized {
 		InitSubResourceTestFixtures()
@@ -341,6 +348,7 @@ func SetupStoresWithFixtures(ctx context.Context) error {
 }
 
 // CleanupTestFixtures removes all test data from stores
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: remove all test data from stores after a test run (mutates shared state)
 func CleanupTestFixtures(ctx context.Context) error {
 	// This would clean up test data from stores
 	// Implementation depends on store interfaces
@@ -348,6 +356,7 @@ func CleanupTestFixtures(ctx context.Context) error {
 }
 
 // AssertThreatEqual compares two threats for testing equality
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: compare two threats by key fields for test equality (pure)
 func AssertThreatEqual(t1, t2 Threat) bool {
 	return t1.Name == t2.Name &&
 		compareStringPointers(t1.Description, t2.Description) &&
@@ -357,6 +366,7 @@ func AssertThreatEqual(t1, t2 Threat) bool {
 }
 
 // AssertDocumentEqual compares two documents for testing equality
+// SEM@d89d1545c4d3d1fc1bd631ae95995c7f60828240: compare two documents by name, description, and URI for test equality (pure)
 func AssertDocumentEqual(d1, d2 Document) bool {
 	return d1.Name == d2.Name &&
 		compareStringPointers(d1.Description, d2.Description) &&
@@ -364,6 +374,7 @@ func AssertDocumentEqual(d1, d2 Document) bool {
 }
 
 // AssertRepositoryEqual compares two repositories for testing equality
+// SEM@d89d1545c4d3d1fc1bd631ae95995c7f60828240: compare two repositories by name, description, URI, and type for test equality (pure)
 func AssertRepositoryEqual(r1, r2 Repository) bool {
 	return compareStringPointers(r1.Name, r2.Name) &&
 		compareStringPointers(r1.Description, r2.Description) &&
@@ -372,6 +383,7 @@ func AssertRepositoryEqual(r1, r2 Repository) bool {
 }
 
 // compareRepositoryTypes compares two RepositoryType pointers
+// SEM@98c83c6a9092288eead710533517e486c44239b2: compare two nullable RepositoryType pointers for equality (pure)
 func compareRepositoryTypes(t1, t2 *RepositoryType) bool {
 	if t1 == nil && t2 == nil {
 		return true
@@ -383,11 +395,13 @@ func compareRepositoryTypes(t1, t2 *RepositoryType) bool {
 }
 
 // AssertMetadataEqual compares two metadata items for testing equality
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: compare two metadata items by key and value for test equality (pure)
 func AssertMetadataEqual(m1, m2 Metadata) bool {
 	return m1.Key == m2.Key && m1.Value == m2.Value
 }
 
 // compareStringPointers compares two string pointers, handling nil cases
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: compare two nullable string pointers for equality, treating nil as equal (pure)
 func compareStringPointers(s1, s2 *string) bool {
 	if s1 == nil && s2 == nil {
 		return true
@@ -399,6 +413,7 @@ func compareStringPointers(s1, s2 *string) bool {
 }
 
 // GetTestUsers returns a map of test users with their roles
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: fetch a map of test user emails to their assigned roles (pure)
 func GetTestUsers() map[string]string {
 	return map[string]string{
 		SubResourceFixtures.OwnerUser:    "owner",
@@ -409,6 +424,7 @@ func GetTestUsers() map[string]string {
 }
 
 // GetTestUserRole returns the role for a given test user
+// SEM@dff4dd105825de9e0bddf30a1b4cfc72f3acc18d: fetch the assigned role for a named test user, defaulting to unknown (pure)
 func GetTestUserRole(user string) string {
 	users := GetTestUsers()
 	if role, exists := users[user]; exists {

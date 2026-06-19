@@ -12,6 +12,7 @@ import (
 
 // secretKeyGetter is the subset of SettingsServiceInterface needed by the startup check.
 // Using a minimal interface makes warnIfPlaintextSecretsAtRest unit-testable without a real DB.
+// SEM@99c7bf92a70c0288330ba2861b823dbda8ce3aa2: fetch a single system setting by key (reads DB)
 type secretKeyGetter interface {
 	Get(ctx context.Context, key string) (*models.SystemSetting, error)
 }
@@ -25,6 +26,7 @@ type secretKeyGetter interface {
 //
 // The function NEVER returns an error; a warning is informational only and must not
 // abort startup. Call this after both the settings service and its encryptor are ready.
+// SEM@99c7bf92a70c0288330ba2861b823dbda8ce3aa2: warn when secret-classified settings are stored as plaintext while encryption is disabled (reads DB)
 func warnIfPlaintextSecretsAtRest(
 	ctx context.Context,
 	encryptor *crypto.SettingsEncryptor,
@@ -77,6 +79,7 @@ func warnIfPlaintextSecretsAtRest(
 
 // secretClassifiedKeys returns the list of setting keys that are marked Secret in the
 // migratable settings registry derived from the current configuration.
+// SEM@99c7bf92a70c0288330ba2861b823dbda8ce3aa2: list config keys classified as secret from the migratable settings registry (pure)
 func secretClassifiedKeys(cfg *config.Config) []string {
 	all := cfg.GetMigratableSettings()
 	keys := make([]string, 0, len(all))

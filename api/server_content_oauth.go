@@ -20,6 +20,7 @@ import (
 // target resource" — the appropriate signal for a feature that simply isn't
 // configured here. 503 + Retry-After (the previous behavior) misled clients
 // into retrying a permanent configuration absence.
+// SEM@81952f598eaf9b1599471d778c9fb82e7d2f2d7a: respond 404 when the delegated content provider feature is not configured on this deployment
 func contentOAuthUnavailable(c *gin.Context) {
 	c.JSON(http.StatusNotFound, Error{
 		Error:            "feature_not_available",
@@ -32,6 +33,7 @@ func contentOAuthUnavailable(c *gin.Context) {
 // underlying handler (which reads via c.Param) observes the provider id even
 // when it arrived through the generated typed parameter. This avoids
 // duplicating the path-param extraction logic in the handler.
+// SEM@74d36522781dcfd28cfc8f5f32ed5cd9dd62a25e: inject the provider ID into the Gin context path params for downstream handler access (mutates shared state)
 func setProviderIDParam(c *gin.Context, providerID string) {
 	// Gin's Params is a slice; rewrite the existing entry if present,
 	// otherwise append.
@@ -45,6 +47,7 @@ func setProviderIDParam(c *gin.Context, providerID string) {
 }
 
 // setUserIDParam is the admin-endpoint analogue of setProviderIDParam.
+// SEM@74d36522781dcfd28cfc8f5f32ed5cd9dd62a25e: inject the user ID into the Gin context path params for downstream handler access (mutates shared state)
 func setUserIDParam(c *gin.Context, userID string) {
 	for i, p := range c.Params {
 		if p.Key == "user_id" {
@@ -56,6 +59,7 @@ func setUserIDParam(c *gin.Context, userID string) {
 }
 
 // ListMyContentTokens implements ServerInterface.ListMyContentTokens.
+// SEM@74d36522781dcfd28cfc8f5f32ed5cd9dd62a25e: list the current user's content provider OAuth tokens, or 404 if the feature is disabled
 func (s *Server) ListMyContentTokens(c *gin.Context) {
 	if s.contentOAuth == nil {
 		contentOAuthUnavailable(c)
@@ -65,6 +69,7 @@ func (s *Server) ListMyContentTokens(c *gin.Context) {
 }
 
 // AuthorizeContentToken implements ServerInterface.AuthorizeContentToken.
+// SEM@74d36522781dcfd28cfc8f5f32ed5cd9dd62a25e: initiate the OAuth authorization flow for a content provider token, or 404 if the feature is disabled
 func (s *Server) AuthorizeContentToken(c *gin.Context, providerId string) {
 	if s.contentOAuth == nil {
 		contentOAuthUnavailable(c)
@@ -75,6 +80,7 @@ func (s *Server) AuthorizeContentToken(c *gin.Context, providerId string) {
 }
 
 // DeleteMyContentToken implements ServerInterface.DeleteMyContentToken.
+// SEM@74d36522781dcfd28cfc8f5f32ed5cd9dd62a25e: delete the current user's content provider OAuth token, or 404 if the feature is disabled
 func (s *Server) DeleteMyContentToken(c *gin.Context, providerId string) {
 	if s.contentOAuth == nil {
 		contentOAuthUnavailable(c)
@@ -87,6 +93,7 @@ func (s *Server) DeleteMyContentToken(c *gin.Context, providerId string) {
 // ContentOAuthCallback implements ServerInterface.ContentOAuthCallback.
 // The generated typed params are unused here because the underlying handler
 // reads the query string directly via c.Query.
+// SEM@74d36522781dcfd28cfc8f5f32ed5cd9dd62a25e: handle the OAuth callback from a content provider, or 404 if the feature is disabled
 func (s *Server) ContentOAuthCallback(c *gin.Context, _ ContentOAuthCallbackParams) {
 	if s.contentOAuth == nil {
 		contentOAuthUnavailable(c)
@@ -96,6 +103,7 @@ func (s *Server) ContentOAuthCallback(c *gin.Context, _ ContentOAuthCallbackPara
 }
 
 // AdminListUserContentTokens implements ServerInterface.AdminListUserContentTokens.
+// SEM@e1c025d7bed50b42c0eaa2b0deee98f338e4353a: list a user's content provider OAuth tokens as an admin, or 404 if the feature is disabled
 func (s *Server) AdminListUserContentTokens(c *gin.Context, internalUuid openapi_types.UUID) {
 	if s.contentOAuth == nil {
 		contentOAuthUnavailable(c)
@@ -106,6 +114,7 @@ func (s *Server) AdminListUserContentTokens(c *gin.Context, internalUuid openapi
 }
 
 // AdminDeleteUserContentToken implements ServerInterface.AdminDeleteUserContentToken.
+// SEM@e1c025d7bed50b42c0eaa2b0deee98f338e4353a: delete a user's content provider OAuth token as an admin, or 404 if the feature is disabled
 func (s *Server) AdminDeleteUserContentToken(c *gin.Context, internalUuid openapi_types.UUID, providerId string) {
 	if s.contentOAuth == nil {
 		contentOAuthUnavailable(c)

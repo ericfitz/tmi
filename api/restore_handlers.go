@@ -12,6 +12,7 @@ import (
 )
 
 // HandleRestoreThreatModel restores a soft-deleted threat model and all its children.
+// SEM@b226389b316426e5d229ed94aa3a29dff80e46b1: restore a soft-deleted threat model and all its children, then emit audit record (mutates shared state)
 func HandleRestoreThreatModel(c *gin.Context, threatModelId string) {
 	logger := slogging.Get().WithContext(c)
 
@@ -61,6 +62,7 @@ func HandleRestoreThreatModel(c *gin.Context, threatModelId string) {
 
 // restoreSubEntity is a helper for restoring sub-entities within a threat model.
 // It checks that the parent threat model is not deleted before allowing the restore.
+// SEM@c3d5e1776058ac335ccda141ec46f5a36de89f9f: restore a soft-deleted sub-entity after verifying its parent threat model is not deleted (mutates shared state)
 func restoreSubEntity(c *gin.Context, threatModelId, entityId, entityType string, restoreFn func() error, getFn func() (any, error)) {
 	logger := slogging.Get().WithContext(c)
 
@@ -116,6 +118,7 @@ func restoreSubEntity(c *gin.Context, threatModelId, entityId, entityType string
 // or is not in a soft-deleted state. ErrTombstoneNotFound wraps dberrors.ErrNotFound,
 // so a single sentinel check covers both cases for migrated stores. The string
 // fallback handles un-migrated stores.
+// SEM@579b4f4aa29012b989445d1a6ef052ac48216b93: report whether an error means the entity was not found or is not in a soft-deleted state (pure)
 func isNotFoundOrNotDeleted(err error) bool {
 	if err == nil {
 		return false
@@ -129,6 +132,7 @@ func isNotFoundOrNotDeleted(err error) bool {
 }
 
 // RestoreDiagram restores a soft-deleted diagram.
+// SEM@e4005658033b63171bdc1130fb523d996fbff9a7: restore a soft-deleted diagram within its parent threat model (mutates shared state)
 func HandleRestoreDiagram(c *gin.Context, threatModelId, diagramId string) {
 	ctx := c.Request.Context()
 	restoreSubEntity(c, threatModelId, diagramId, "diagram",
@@ -145,6 +149,7 @@ func HandleRestoreDiagram(c *gin.Context, threatModelId, diagramId string) {
 }
 
 // RestoreThreat restores a soft-deleted threat.
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: restore a soft-deleted threat within its parent threat model (mutates shared state)
 func HandleRestoreThreat(c *gin.Context, threatModelId, threatId string) {
 	ctx := c.Request.Context()
 	restoreSubEntity(c, threatModelId, threatId, "threat",
@@ -154,6 +159,7 @@ func HandleRestoreThreat(c *gin.Context, threatModelId, threatId string) {
 }
 
 // RestoreAsset restores a soft-deleted asset.
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: restore a soft-deleted asset within its parent threat model (mutates shared state)
 func HandleRestoreAsset(c *gin.Context, threatModelId, assetId string) {
 	ctx := c.Request.Context()
 	restoreSubEntity(c, threatModelId, assetId, "asset",
@@ -163,6 +169,7 @@ func HandleRestoreAsset(c *gin.Context, threatModelId, assetId string) {
 }
 
 // RestoreDocument restores a soft-deleted document.
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: restore a soft-deleted document within its parent threat model (mutates shared state)
 func HandleRestoreDocument(c *gin.Context, threatModelId, documentId string) {
 	ctx := c.Request.Context()
 	restoreSubEntity(c, threatModelId, documentId, "document",
@@ -172,6 +179,7 @@ func HandleRestoreDocument(c *gin.Context, threatModelId, documentId string) {
 }
 
 // RestoreNote restores a soft-deleted note.
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: restore a soft-deleted note within its parent threat model (mutates shared state)
 func HandleRestoreNote(c *gin.Context, threatModelId, noteId string) {
 	ctx := c.Request.Context()
 	restoreSubEntity(c, threatModelId, noteId, "note",
@@ -181,6 +189,7 @@ func HandleRestoreNote(c *gin.Context, threatModelId, noteId string) {
 }
 
 // RestoreRepository restores a soft-deleted repository.
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: restore a soft-deleted repository within its parent threat model (mutates shared state)
 func HandleRestoreRepository(c *gin.Context, threatModelId, repositoryId string) {
 	ctx := c.Request.Context()
 	restoreSubEntity(c, threatModelId, repositoryId, "repository",

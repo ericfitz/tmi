@@ -18,6 +18,7 @@ const natsMonitoringEndpoint = "nats.tmi-platform.svc:8222"
 // RenderScaledObject builds the KEDA ScaledObject for a component as an
 // unstructured object, avoiding a KEDA Go-module dependency. KEDA scales
 // the worker Deployment on JetStream pending-message depth.
+// SEM@f3ef9e21c1105bdf75b7cf13c31001603e713458: build a KEDA ScaledObject for a TMI component targeting a NATS JetStream consumer (pure)
 func RenderScaledObject(c *platformv1alpha1.TMIComponent) *unstructured.Unstructured {
 	// One subject -> one stream/consumer pair (see render_jetstream.go).
 	streamName := streamNameFor(c)

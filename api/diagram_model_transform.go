@@ -17,6 +17,7 @@ import (
 // buildMinimalDiagramModel transforms full threat model and diagram into minimal model representation.
 // Extracts threat model context and transforms cells to minimal format without visual properties.
 // Fetches referenced assets from the asset store to include in the model.
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build a minimal diagram model by combining threat model metadata, cells, and resolved assets (reads DB)
 func buildMinimalDiagramModel(ctx context.Context, tm ThreatModel, diagram DfdDiagram, assetStore AssetRepository) MinimalDiagramModel {
 	// Flatten threat model metadata from array to map
 	tmMetadata := flattenMetadata(tm.Metadata)
@@ -45,6 +46,7 @@ func buildMinimalDiagramModel(ctx context.Context, tm ThreatModel, diagram DfdDi
 
 // collectReferencedAssets extracts unique asset IDs from cells and fetches the corresponding Asset objects.
 // Returns only the assets that are successfully retrieved; missing assets are logged but not included.
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch all unique assets referenced by diagram cells from the asset store (reads DB)
 func collectReferencedAssets(ctx context.Context, cells []MinimalCell, assetStore AssetRepository) []Asset {
 	if assetStore == nil {
 		return []Asset{}
@@ -92,6 +94,7 @@ func collectReferencedAssets(ctx context.Context, cells []MinimalCell, assetStor
 // Used for both threat model metadata and cell metadata.
 //
 // Example: [{"key": "env", "value": "prod"}] → {"env": "prod"}
+// SEM@6e3a086017c90a6a018fd799308443eb877dd8a5: convert a metadata key-value array to a flat string map (pure)
 func flattenMetadata(metadata *[]Metadata) map[string]string {
 	result := make(map[string]string)
 	if metadata == nil {
@@ -113,6 +116,7 @@ func flattenMetadata(metadata *[]Metadata) map[string]string {
 //  4. For edges: Extract labels from labels array
 //
 // Returns slice of MinimalCell union types (can be MinimalNode or MinimalEdge).
+// SEM@30604730ee54403d31d30e94debd8c9646ab3356: convert full diagram cells to their minimal node and edge representations (pure)
 func transformCellsToMinimal(cells []DfdDiagram_Cells_Item) []MinimalCell {
 	// Initialize as empty slice (not nil) to ensure JSON serialization produces []
 	// instead of null, which is required by the OpenAPI schema
@@ -164,6 +168,7 @@ func transformCellsToMinimal(cells []DfdDiagram_Cells_Item) []MinimalCell {
 //
 // Note: This builds the reverse direction of the parent relationship.
 // Example: If node A has parent=B, this adds A to childrenMap[B].
+// SEM@6e3a086017c90a6a018fd799308443eb877dd8a5: build a parent-to-children ID index from a list of diagram cells (pure)
 func buildChildrenMap(cells []DfdDiagram_Cells_Item) map[string][]openapi_types.UUID {
 	childrenMap := make(map[string][]openapi_types.UUID)
 
@@ -188,6 +193,7 @@ func buildChildrenMap(cells []DfdDiagram_Cells_Item) map[string][]openapi_types.
 //   - Metadata: from node.Data._metadata (flattened to map)
 //
 // All visual properties (attrs styling, ports, markup, position, size, etc.) are excluded.
+// SEM@7bac1ed632ff8929eff543daec4372c53d51283a: convert a full diagram node to its minimal representation with labels and metadata (pure)
 func transformNodeToMinimal(node Node, childrenMap map[string][]openapi_types.UUID, cells []DfdDiagram_Cells_Item) MinimalNode {
 	// Extract labels from node's own text attribute
 	labels := extractNodeLabels(node)
@@ -247,6 +253,7 @@ func transformNodeToMinimal(node Node, childrenMap map[string][]openapi_types.UU
 //   - Empty array if attrs, text, or text value is nil
 //
 // Gracefully handles missing fields (no panics).
+// SEM@6e3a086017c90a6a018fd799308443eb877dd8a5: extract visible text labels from a diagram node's attributes (pure)
 func extractNodeLabels(node Node) []string {
 	labels := []string{}
 
@@ -271,6 +278,7 @@ func extractNodeLabels(node Node) []string {
 // Returns: Array of text strings from text-box children (empty if no text-boxes found).
 //
 // Performance: O(children * cells) - acceptable for typical diagrams (<1000 cells).
+// SEM@cdbe48c974fb76e1161972733b30bb0d1c02c3b1: extract text labels from text-box child cells of a parent node (pure)
 func extractTextBoxChildLabels(parentID string, childrenMap map[string][]openapi_types.UUID, cells []DfdDiagram_Cells_Item) []string {
 	labels := []string{}
 
@@ -311,6 +319,7 @@ func extractTextBoxChildLabels(parentID string, childrenMap map[string][]openapi
 //   - Metadata: from edge.Data._metadata (flattened to map)
 //
 // All visual properties (attrs styling, router, connector, vertices, etc.) are excluded.
+// SEM@7bac1ed632ff8929eff543daec4372c53d51283a: convert a full diagram edge to its minimal representation with labels and metadata (pure)
 func transformEdgeToMinimal(edge Edge) MinimalEdge {
 	// Extract labels from edge's labels array
 	labels := extractEdgeLabels(edge)
@@ -347,6 +356,7 @@ func transformEdgeToMinimal(edge Edge) MinimalEdge {
 //   - Empty array if labels is nil or no text found
 //
 // Gracefully handles nil fields at each level.
+// SEM@6e3a086017c90a6a018fd799308443eb877dd8a5: extract visible text labels from a diagram edge's labels array (pure)
 func extractEdgeLabels(edge Edge) []string {
 	labels := []string{}
 
@@ -367,6 +377,7 @@ func extractEdgeLabels(edge Edge) []string {
 // serializeAsYAML converts MinimalDiagramModel to YAML format.
 // First serializes to JSON to properly handle union types, then converts to YAML.
 // Returns YAML bytes and any error encountered during marshaling.
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: serialize a minimal diagram model to YAML via JSON intermediate form (pure)
 func serializeAsYAML(model MinimalDiagramModel) ([]byte, error) {
 	// First marshal to JSON to properly handle the MinimalCell union types
 	// (MinimalCell uses json.RawMessage internally which yaml.Marshal doesn't handle)
@@ -389,6 +400,7 @@ func serializeAsYAML(model MinimalDiagramModel) ([]byte, error) {
 // GraphML is a standard graph format supported by tools like yEd, Gephi, and NetworkX.
 //
 // Returns GraphML XML bytes and any error encountered during generation.
+// SEM@6e3a086017c90a6a018fd799308443eb877dd8a5: serialize a minimal diagram model to GraphML XML format (pure)
 func serializeAsGraphML(model MinimalDiagramModel) ([]byte, error) {
 	// Build GraphML structure
 	graphml := GraphML{
@@ -414,6 +426,7 @@ func serializeAsGraphML(model MinimalDiagramModel) ([]byte, error) {
 
 // GraphML structure definitions for XML marshaling
 
+// SEM@6e3a086017c90a6a018fd799308443eb877dd8a5: XML root element struct for a GraphML document (pure)
 type GraphML struct {
 	XMLName        xml.Name     `xml:"graphml"`
 	XMLNS          string       `xml:"xmlns,attr"`
@@ -423,6 +436,7 @@ type GraphML struct {
 	Graph          GraphMLGraph `xml:"graph"`
 }
 
+// SEM@6e3a086017c90a6a018fd799308443eb877dd8a5: GraphML key declaration describing an attribute schema for nodes, edges, or graphs (pure)
 type GraphKey struct {
 	ID       string `xml:"id,attr"`
 	For      string `xml:"for,attr"`
@@ -430,6 +444,7 @@ type GraphKey struct {
 	AttrType string `xml:"attr.type,attr"`
 }
 
+// SEM@6e3a086017c90a6a018fd799308443eb877dd8a5: GraphML graph element containing nodes, edges, and graph-level data attributes (pure)
 type GraphMLGraph struct {
 	ID          string        `xml:"id,attr"`
 	EdgeDefault string        `xml:"edgedefault,attr"`
@@ -438,11 +453,13 @@ type GraphMLGraph struct {
 	Edges       []GraphMLEdge `xml:"edge"`
 }
 
+// SEM@6e3a086017c90a6a018fd799308443eb877dd8a5: GraphML node element with id and associated data attributes (pure)
 type GraphMLNode struct {
 	ID   string      `xml:"id,attr"`
 	Data []GraphData `xml:"data"`
 }
 
+// SEM@6e3a086017c90a6a018fd799308443eb877dd8a5: GraphML edge element with source, target, and associated data attributes (pure)
 type GraphMLEdge struct {
 	ID     string      `xml:"id,attr"`
 	Source string      `xml:"source,attr"`
@@ -450,12 +467,14 @@ type GraphMLEdge struct {
 	Data   []GraphData `xml:"data"`
 }
 
+// SEM@6e3a086017c90a6a018fd799308443eb877dd8a5: GraphML data element holding a keyed string value for a graph, node, or edge (pure)
 type GraphData struct {
 	Key   string `xml:"key,attr"`
 	Value string `xml:",chardata"`
 }
 
 // buildGraphMLKeys defines the schema for custom attributes in GraphML
+// SEM@91af4833f48bf86029c557aceb77e3ad9fe3b2d8: build the standard GraphML key declarations for threat model, node, and edge attributes (pure)
 func buildGraphMLKeys() []GraphKey {
 	return []GraphKey{
 		// Threat model graph-level keys
@@ -481,6 +500,7 @@ func buildGraphMLKeys() []GraphKey {
 }
 
 // buildGraphMLGraph constructs the graph element with threat model context and all cells
+// SEM@06614a5c21526df142f90d2848fa7ba794a8f8d2: build a GraphML graph element from a minimal diagram model (pure)
 func buildGraphMLGraph(model MinimalDiagramModel) GraphMLGraph {
 	graph := GraphMLGraph{
 		ID:          "G",
@@ -517,6 +537,7 @@ func buildGraphMLGraph(model MinimalDiagramModel) GraphMLGraph {
 }
 
 // buildThreatModelData creates graph-level data elements for threat model context
+// SEM@6e3a086017c90a6a018fd799308443eb877dd8a5: build graph-level GraphML data elements for threat model identity and metadata (pure)
 func buildThreatModelData(model MinimalDiagramModel) []GraphData {
 	metaJSON, _ := json.Marshal(model.Metadata)
 	return []GraphData{
@@ -528,6 +549,7 @@ func buildThreatModelData(model MinimalDiagramModel) []GraphData {
 }
 
 // buildGraphMLNode converts MinimalNode to GraphML node element
+// SEM@015620d2448a93ae93203eb25a08967e816b1a74: build a GraphML node element from a minimal node with shape, labels, and metadata (pure)
 func buildGraphMLNode(node MinimalNode) GraphMLNode {
 	data := []GraphData{
 		{Key: "shape", Value: string(node.Shape)},
@@ -576,6 +598,7 @@ func buildGraphMLNode(node MinimalNode) GraphMLNode {
 }
 
 // buildGraphMLEdge converts MinimalEdge to GraphML edge element
+// SEM@015620d2448a93ae93203eb25a08967e816b1a74: build a GraphML edge element from a minimal edge with labels and metadata (pure)
 func buildGraphMLEdge(edge MinimalEdge) GraphMLEdge {
 	data := []GraphData{}
 
@@ -612,6 +635,7 @@ func buildGraphMLEdge(edge MinimalEdge) GraphMLEdge {
 // negotiateFormat determines the output format using content negotiation.
 // Priority: 1) ?format query param (legacy), 2) Accept header, 3) default to JSON.
 // Returns normalized format string ("json", "yaml", or "graphml") or error if unsupported.
+// SEM@cdbe48c974fb76e1161972733b30bb0d1c02c3b1: resolve the response format from a query parameter or Accept header, defaulting to JSON (pure)
 func negotiateFormat(c *gin.Context, formatParam *GetDiagramModelParamsFormat) (string, error) {
 	// If query parameter is specified, it takes precedence (backwards compatibility)
 	if formatParam != nil {

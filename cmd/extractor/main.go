@@ -18,6 +18,7 @@ import (
 	"github.com/ericfitz/tmi/pkg/extract"
 )
 
+// SEM@cf314f16f2d39c6bba906e3c2dde4f6c7e144e94: entry point for the tmi-extractor worker process; exits non-zero on error
 func main() {
 	if err := run(); err != nil {
 		slogging.Get().Error("tmi-extractor: %v", err)
@@ -27,6 +28,7 @@ func main() {
 
 // run is the real entry point. Separating it from main allows defers to
 // execute before os.Exit is called by main.
+// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: connect to NATS, start heartbeat, and consume extraction jobs until shutdown signal (mutates shared state)
 func run() error {
 	logger := slogging.Get()
 
@@ -73,6 +75,7 @@ func run() error {
 // supplies. Only the wall-clock budget is wired here — it is the cap a CR
 // commonly tunes; the cgroup CPU/RAM caps come from the CR resources field,
 // not env vars.
+// SEM@96c758fac56cb6e1328f08732133173431189412: build extraction limits from environment, overriding the wall-clock budget if set (pure)
 func limitsFromEnv() extract.Limits {
 	l := extract.DefaultLimits()
 	if v := worker.EnvDuration("TMI_CONTENT_EXTRACTORS_WALL_CLOCK_BUDGET", 0); v > 0 {

@@ -16,11 +16,13 @@ import (
 // terminalMarker can persist the terminal state of an extraction job. It
 // returns whether this call performed the first terminal transition, which the
 // consumer uses to emit the webhook exactly once under at-least-once redelivery.
+// SEM@f723e6004f2cfa6bfe26f91fcd01a56dbf80b00a: persist the terminal state of an extraction job exactly once (pure)
 type terminalMarker interface {
 	MarkTerminal(ctx context.Context, jobID, status, reasonCode string) (bool, error)
 }
 
 // docAccessUpdater can update a document's access status with diagnostic fields.
+// SEM@28a744a1501431680450f9ab9c4d57cdf9bebd2d: update a document's access status with diagnostic reason fields (reads DB)
 type docAccessUpdater interface {
 	UpdateAccessStatusWithDiagnostics(
 		ctx context.Context,
@@ -29,11 +31,13 @@ type docAccessUpdater interface {
 }
 
 // blobDeleter can delete a payload blob from the Object Store by object_ref.
+// SEM@28a744a1501431680450f9ab9c4d57cdf9bebd2d: delete a payload blob from the object store by reference (pure)
 type blobDeleter interface {
 	DeletePayload(ctx context.Context, ref string) error
 }
 
 // emitFunc is the signature of the event-emission closure used by ResultConsumer.
+// SEM@28a744a1501431680450f9ab9c4d57cdf9bebd2d: dispatch a webhook event for a document extraction outcome (pure)
 type emitFunc func(ctx context.Context, eventType, documentID, threatModelID, ownerID string)
 
 // ResultConsumer subscribes to the TMI_RESULTS JetStream stream and, per
@@ -47,6 +51,7 @@ type emitFunc func(ctx context.Context, eventType, documentID, threatModelID, ow
 // exhausted redelivery to SubjectDLQ ("jobs.dlq"); this consumer binds the
 // TMI_DLQ stream (see makeDLQCallback) and turns each dead-lettered Job into a
 // failed terminal transition.
+// SEM@28a744a1501431680450f9ab9c4d57cdf9bebd2d: consume JetStream extraction results and DLQ messages, updating job state and emitting webhooks (mutates shared state)
 type ResultConsumer struct {
 	conn           *worker.Conn
 	jobs           terminalMarker
@@ -62,6 +67,7 @@ type ResultConsumer struct {
 // the document's access_status, emits a webhook event, and cleans up blobs.
 // Returning a non-nil error signals a transient failure; the caller should Nak
 // the message for redelivery.
+// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: classify an extraction result, mark terminal state, update document access status, emit webhook, and clean up blob (mutates DB)
 func (rc *ResultConsumer) handleResult(ctx context.Context, res jobenvelope.Result) error {
 	logger := slogging.Get()
 
@@ -133,6 +139,7 @@ func (rc *ResultConsumer) handleResult(ctx context.Context, res jobenvelope.Resu
 // dead-lettered job is one whose worker exhausted redelivery without ever
 // publishing a result (e.g. it crashed mid-job), so we manufacture the
 // terminal failure here.
+// SEM@1d6cb26c4ce932c84cd95e891bc5cc5dfc019186: build a synthetic failed result for a dead-lettered job that never published a result (pure)
 func synthesizeDLQResult(job jobenvelope.Job) jobenvelope.Result {
 	return jobenvelope.Result{
 		JobID:        job.JobID,
@@ -153,6 +160,7 @@ func synthesizeDLQResult(job jobenvelope.Job) jobenvelope.Result {
 //
 // The provided ctx controls the lifetime of the consumer; call Stop() to
 // release resources explicitly.
+// SEM@1d6cb26c4ce932c84cd95e891bc5cc5dfc019186: subscribe to TMI_RESULTS and TMI_DLQ JetStream streams and begin background result processing (mutates shared state)
 func (rc *ResultConsumer) Start(ctx context.Context) error {
 	logger := slogging.Get()
 
@@ -237,6 +245,7 @@ func (rc *ResultConsumer) Start(ctx context.Context) error {
 // makeCallback returns the JetStream message handler. It is extracted from
 // Start so the recover() guard and the decode/dispatch logic are easy to read.
 // The callback MUST NOT panic — a panic here would crash the monolith.
+// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: build the JetStream message handler that validates, decodes, and dispatches extraction result messages (pure)
 func (rc *ResultConsumer) makeCallback(ctx context.Context) func(jetstream.Msg) {
 	logger := slogging.Get()
 
@@ -294,6 +303,7 @@ func (rc *ResultConsumer) makeCallback(ctx context.Context) func(jetstream.Msg) 
 // shared handleResult, and additionally deletes the crashed job's orphaned
 // input blob (handleResult only cleans Output.ResultRef, which is empty for a
 // synthesized DLQ result). It MUST NOT panic.
+// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: build the dead-letter JetStream handler that synthesizes a failed result and cleans up orphaned input blobs (pure)
 func (rc *ResultConsumer) makeDLQCallback(ctx context.Context) func(jetstream.Msg) {
 	logger := slogging.Get()
 
@@ -347,6 +357,7 @@ func (rc *ResultConsumer) makeDLQCallback(ctx context.Context) func(jetstream.Ms
 // Stop cancels the consumer's context, which causes the background goroutine
 // to call cc.Stop() and release JetStream resources. Safe to call when Start
 // was never called or when the stream was not found (no-op).
+// SEM@28a744a1501431680450f9ab9c4d57cdf9bebd2d: cancel the consumer context and release JetStream resources (mutates shared state)
 func (rc *ResultConsumer) Stop() {
 	if rc.cancel != nil {
 		rc.cancel()
@@ -364,6 +375,7 @@ func (rc *ResultConsumer) Stop() {
 // function degrades gracefully: the access_status update (which only needs
 // document_ref) still proceeds; the webhook's threat_model_id / owner_id
 // fields are left empty.
+// SEM@1ae01f28fb1a539b36294e7e11378fe6eb89ebcc: build a ResultConsumer wired to the job store, document repository, and event emitter (pure)
 func NewResultConsumer(
 	conn *worker.Conn,
 	jobStore *ExtractionJobStore,

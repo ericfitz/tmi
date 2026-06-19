@@ -17,6 +17,7 @@ import (
 // Returns the UUID string and true if successful, or an empty string and false if
 // the value is missing or not a string. On failure, it writes an appropriate
 // error response to the Gin context.
+// SEM@a1d7f44f9fbf44b654abfc81c5b3770eb540ecb0: fetch the authenticated user's internal UUID from request context; reject if missing (pure)
 func getUserUUID(c *gin.Context) (string, bool) {
 	val, exists := c.Get("userInternalUUID")
 	if !exists {
@@ -67,6 +68,7 @@ const (
 
 // ListAdminSurveys returns a paginated list of all surveys.
 // GET /admin/surveys
+// SEM@0bd9c0e0e0c0649294d164b9dc945b801cfd507c: list all surveys with pagination and optional status filter (reads DB)
 func (s *Server) ListAdminSurveys(c *gin.Context, params ListAdminSurveysParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -107,6 +109,7 @@ func (s *Server) ListAdminSurveys(c *gin.Context, params ListAdminSurveysParams)
 
 // CreateAdminSurvey creates a new survey.
 // POST /admin/surveys
+// SEM@00add3d4f7dc1c0a9cc072d7e6ca32ace4d03641: store a new survey template and emit a webhook event (mutates shared state)
 func (s *Server) CreateAdminSurvey(c *gin.Context) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -188,6 +191,7 @@ func (s *Server) CreateAdminSurvey(c *gin.Context) {
 
 // GetAdminSurvey returns a specific survey.
 // GET /admin/surveys/{survey_id}
+// SEM@0bd9c0e0e0c0649294d164b9dc945b801cfd507c: fetch a survey template by ID (reads DB)
 func (s *Server) GetAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -215,6 +219,7 @@ func (s *Server) GetAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 // UpdateAdminSurvey fully updates a survey.
 // PUT /admin/surveys/{survey_id}
+// SEM@00add3d4f7dc1c0a9cc072d7e6ca32ace4d03641: fully replace a non-archived survey and emit a webhook event (mutates shared state)
 func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -321,6 +326,7 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 // PatchAdminSurvey partially updates a survey.
 // PATCH /admin/surveys/{survey_id}
+// SEM@d79355f5eb3a2b2254ea6aa04da1cd81a55a4297: partially update a non-archived survey via JSON Patch and emit a webhook event (mutates shared state)
 func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -438,6 +444,7 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 // DeleteAdminSurvey deletes a survey.
 // DELETE /admin/surveys/{survey_id}
+// SEM@00add3d4f7dc1c0a9cc072d7e6ca32ace4d03641: delete a survey that has no responses and emit a webhook event (mutates shared state)
 func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -509,6 +516,7 @@ func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 // ListIntakeSurveys returns a list of active surveys.
 // GET /intake/surveys
+// SEM@bd26290d65c881980433c4a4b599847bb68193d1: list active surveys available for intake with pagination (reads DB)
 func (s *Server) ListIntakeSurveys(c *gin.Context, params ListIntakeSurveysParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -543,6 +551,7 @@ func (s *Server) ListIntakeSurveys(c *gin.Context, params ListIntakeSurveysParam
 
 // GetIntakeSurvey returns a specific active survey for filling.
 // GET /intake/surveys/{survey_id}
+// SEM@0bd9c0e0e0c0649294d164b9dc945b801cfd507c: fetch an active survey by ID for intake; 404 if inactive (reads DB)
 func (s *Server) GetIntakeSurvey(c *gin.Context, surveyId SurveyId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -579,6 +588,7 @@ func (s *Server) GetIntakeSurvey(c *gin.Context, surveyId SurveyId) {
 
 // ListIntakeSurveyResponses returns the current user's survey responses.
 // GET /intake/survey_responses
+// SEM@a1d7f44f9fbf44b654abfc81c5b3770eb540ecb0: list the authenticated user's own survey responses with pagination (reads DB)
 func (s *Server) ListIntakeSurveyResponses(c *gin.Context, params ListIntakeSurveyResponsesParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -619,6 +629,7 @@ func (s *Server) ListIntakeSurveyResponses(c *gin.Context, params ListIntakeSurv
 
 // CreateIntakeSurveyResponse creates a new survey response in draft status.
 // POST /intake/survey_responses
+// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: store a new draft survey response and extract answers (mutates shared state)
 func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -693,6 +704,7 @@ func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 
 // GetIntakeSurveyResponse returns a specific survey response.
 // GET /intake/survey_responses/{response_id}
+// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: fetch an authorized survey response for the requesting user (reads DB)
 func (s *Server) GetIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	response, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleReader)
 	if !ok {
@@ -703,6 +715,7 @@ func (s *Server) GetIntakeSurveyResponse(c *gin.Context, surveyResponseId Survey
 
 // UpdateIntakeSurveyResponse fully updates a survey response.
 // PUT /intake/survey_responses/{response_id}
+// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: fully replace a draft or needs-revision survey response with optimistic locking (mutates shared state)
 func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId, _ UpdateIntakeSurveyResponseParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -802,6 +815,7 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 // PatchIntakeSurveyResponse partially updates a survey response.
 // PATCH /intake/survey_responses/{response_id}
 // Supports status transitions: draft->submitted, needs_revision->submitted
+// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: partially update a draft or needs-revision survey response and handle status transitions (mutates shared state)
 func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId, _ PatchIntakeSurveyResponseParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -933,6 +947,7 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 
 // DeleteIntakeSurveyResponse deletes a survey response.
 // DELETE /intake/survey_responses/{response_id}
+// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: delete an owned survey response and emit a webhook event (mutates shared state)
 func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -971,6 +986,7 @@ func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 
 // ListTriageSurveyResponses returns survey responses for triage.
 // GET /triage/survey_responses
+// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: list survey responses visible to the triage reviewer, filtered by per-row ACL (reads DB)
 func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurveyResponsesParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1055,6 +1071,7 @@ func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurv
 
 // GetTriageSurveyResponse returns a specific survey response for triage.
 // GET /triage/survey_responses/{response_id}
+// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: fetch an authorized survey response for triage review (reads DB)
 func (s *Server) GetTriageSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	response, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleReader)
 	if !ok {
@@ -1066,6 +1083,7 @@ func (s *Server) GetTriageSurveyResponse(c *gin.Context, surveyResponseId Survey
 // PatchTriageSurveyResponse partially updates a survey response for triage.
 // PATCH /triage/survey_responses/{response_id}
 // Supports status transitions: submitted->ready_for_review, submitted->needs_revision, ready_for_review->needs_revision
+// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: partially update a survey response status in triage via JSON Patch (mutates shared state)
 func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1167,6 +1185,7 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 
 // mappedAnswerResult holds the processed results of mapping survey answers
 // to threat model fields.
+// SEM@8679624fa2f6a61cc7830475a06be901a06e6dd2: value type holding survey answers mapped to threat model fields (pure)
 type mappedAnswerResult struct {
 	name         *string
 	description  *string
@@ -1179,6 +1198,7 @@ type mappedAnswerResult struct {
 
 // buildThreatModelName returns the TM name from the mapped name field, or
 // constructs a fallback from template name, project name, and current date.
+// SEM@fa02d4029a95cdd2a214891255b6b1bfcc4fb2d6: build a threat model name from mapped answer or template and project name fallback (pure)
 func buildThreatModelName(mappedName *string, templateName, projectName string) string {
 	if mappedName != nil && *mappedName != "" {
 		return *mappedName
@@ -1193,6 +1213,7 @@ func buildThreatModelName(mappedName *string, templateName, projectName string) 
 
 // processMappedAnswers iterates all answer rows and dispatches them to the
 // appropriate TM field based on mapsToTmField. Unmapped answers become metadata.
+// SEM@8679624fa2f6a61cc7830475a06be901a06e6dd2: map survey answer rows to threat model fields, routing unmapped answers to metadata (pure)
 func processMappedAnswers(answers []SurveyAnswerRow) mappedAnswerResult {
 	logger := slogging.Get()
 	var result mappedAnswerResult
@@ -1254,6 +1275,7 @@ func processMappedAnswers(answers []SurveyAnswerRow) mappedAnswerResult {
 
 // createThreatModelFromResponse builds and creates a ThreatModel from a survey
 // response's answers, mapping fields according to mapsToTmField directives.
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build and store a threat model from a survey response's mapped answers (mutates shared state)
 func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse) (*ThreatModel, error) {
 	logger := slogging.Get()
 
@@ -1411,6 +1433,7 @@ func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse
 
 // CreateThreatModelFromSurveyResponse creates a threat model from an approved survey response.
 // POST /triage/survey_responses/{response_id}/create_threat_model
+// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: create a threat model from a ready-for-review survey response and emit webhooks (mutates shared state)
 func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1512,6 +1535,7 @@ func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyRespo
 // templates table at the handler boundary so that fuzzer-induced inputs
 // produce a clean 400 instead of bouncing off the database as 500.
 // Mirrors gorm tags on api/models/survey_models.go: SurveyTemplate.
+// SEM@d79355f5eb3a2b2254ea6aa04da1cd81a55a4297: validate a patched survey against column-level constraints; return 400-class error (pure)
 func validatePatchedSurvey(s *Survey) *RequestError {
 	if s == nil {
 		return InvalidInputError("survey is required")
@@ -1552,6 +1576,7 @@ func validatePatchedSurvey(s *Survey) *RequestError {
 // isDuplicateConstraintError checks if an error is a database unique constraint violation.
 // Prefers the typed dberrors sentinel; falls back to string matching for stores not yet
 // wrapping with dberrors.Classify.
+// SEM@386b3a402e4ffd8a8df62b8f6b752103b4dc1f4e: detect a unique constraint violation from a DB error across PG and Oracle (pure)
 func isDuplicateConstraintError(err error) bool {
 	if err == nil {
 		return false
@@ -1567,6 +1592,7 @@ func isDuplicateConstraintError(err error) bool {
 
 // extractSurveyAnswers extracts answers from a survey response into the survey_answers table.
 // This is non-fatal: errors are logged but do not fail the response save.
+// SEM@59a26530773021671de439c6ba7d8edfaa42e8f8: extract and persist survey answers from a response; errors are non-fatal (mutates shared state)
 func extractSurveyAnswers(ctx context.Context, response *SurveyResponse) {
 	if GlobalSurveyAnswerStore == nil {
 		return
@@ -1593,6 +1619,7 @@ func extractSurveyAnswers(ctx context.Context, response *SurveyResponse) {
 
 // validateSurveyJSON validates that survey_json is a non-null object containing a pages array
 // and that no two questions share the same mapsToTmField annotation.
+// SEM@cfa0f1f81f58bd9a9283394b2ad4e24f0bb361ba: validate survey_json has a pages array and no duplicate mapsToTmField annotations (pure)
 func validateSurveyJSON(surveyJSON map[string]any) error {
 	if surveyJSON == nil {
 		return fmt.Errorf("survey_json is required")

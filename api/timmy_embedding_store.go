@@ -7,6 +7,7 @@ import (
 )
 
 // TimmyEmbeddingStore defines operations for persisting vector embeddings
+// SEM@85c2885c496b7031495d6d6c1aa09ecb6d3d45a2: interface for persisting, fetching, and deleting vector embeddings for threat model entities (reads DB)
 type TimmyEmbeddingStore interface {
 	ListByThreatModelAndIndexType(ctx context.Context, threatModelID, indexType string) ([]models.TimmyEmbedding, error)
 	CreateBatch(ctx context.Context, embeddings []models.TimmyEmbedding) error

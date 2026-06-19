@@ -3,6 +3,7 @@ package extract
 import "context"
 
 // ExtractedContent holds the text extracted from a source entity.
+// SEM@f7dfe970572e2574027691de97c695d5ae39d5b7: holds plain text and metadata produced by a content extractor (pure)
 type ExtractedContent struct {
 	Text        string            // Extracted plain text
 	Title       string            // Document title if available
@@ -14,6 +15,7 @@ type ExtractedContent struct {
 // For DB-resident content (notes, assets), URI is empty and the provider
 // reads directly from the database using EntityType + EntityID.
 // For external content (documents with URLs), URI is the fetch target.
+// SEM@f7dfe970572e2574027691de97c695d5ae39d5b7: identifies a source entity for content extraction by type, ID, and optional URI (pure)
 type EntityReference struct {
 	EntityType string // "asset", "threat", "document", "note", "diagram", "repository"
 	EntityID   string // UUID of the source entity
@@ -22,6 +24,7 @@ type EntityReference struct {
 }
 
 // ContentExtractor converts raw bytes into plain text.
+// SEM@f7dfe970572e2574027691de97c695d5ae39d5b7: interface for converting raw bytes of a known content type into extracted text (pure)
 type ContentExtractor interface {
 	Name() string
 	CanHandle(contentType string) bool
@@ -43,6 +46,7 @@ type ContentExtractor interface {
 //
 // Extract should remain implemented as the legacy entry point and
 // typically delegates to ExtractCtx with a context.Background().
+// SEM@f7dfe970572e2574027691de97c695d5ae39d5b7: interface for extractors that accept a context for cooperative cancellation (pure)
 type ContextAwareExtractor interface {
 	ExtractCtx(ctx context.Context, data []byte, contentType string) (ExtractedContent, error)
 }
@@ -52,6 +56,7 @@ type ContextAwareExtractor interface {
 // run indefinitely on adversarial input). The pipeline calls Bounded() to
 // detect the requirement; the value is informational and always true for
 // types that implement it.
+// SEM@f7dfe970572e2574027691de97c695d5ae39d5b7: interface marking extractors that require a wall-clock deadline for safety (pure)
 type BoundedExtractor interface {
 	Bounded() bool
 }

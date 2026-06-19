@@ -16,6 +16,7 @@ import (
 var ErrContentOAuthStateNotFound = errors.New("content oauth state not found or expired")
 
 // ContentOAuthStatePayload holds the data associated with a pending OAuth authorization flow.
+// SEM@0ee4fc6b79c5a6c5a7dade501546a8eec4509aed: data held in a pending content OAuth authorization state nonce (pure)
 type ContentOAuthStatePayload struct {
 	UserID           string    `json:"user_id"`
 	ProviderID       string    `json:"provider_id"`
@@ -25,18 +26,21 @@ type ContentOAuthStatePayload struct {
 }
 
 // ContentOAuthStateStore stores short-lived OAuth state nonces in Redis.
+// SEM@0ee4fc6b79c5a6c5a7dade501546a8eec4509aed: Redis-backed store for short-lived content OAuth state nonces
 type ContentOAuthStateStore struct {
 	rdb       redis.UniversalClient
 	keyPrefix string
 }
 
 // NewContentOAuthStateStore creates a new ContentOAuthStateStore backed by the given Redis client.
+// SEM@0ee4fc6b79c5a6c5a7dade501546a8eec4509aed: build a ContentOAuthStateStore backed by the given Redis client (pure)
 func NewContentOAuthStateStore(rdb redis.UniversalClient) *ContentOAuthStateStore {
 	return &ContentOAuthStateStore{rdb: rdb, keyPrefix: "content_oauth_state:"}
 }
 
 // Put stores the payload under a freshly generated nonce and returns the nonce.
 // The entry expires after ttl.
+// SEM@0ee4fc6b79c5a6c5a7dade501546a8eec4509aed: store an OAuth state payload under a new random nonce with a TTL; return the nonce (reads DB)
 func (s *ContentOAuthStateStore) Put(ctx context.Context, p ContentOAuthStatePayload, ttl time.Duration) (string, error) {
 	var buf [32]byte
 	if _, err := rand.Read(buf[:]); err != nil {
@@ -55,6 +59,7 @@ func (s *ContentOAuthStateStore) Put(ctx context.Context, p ContentOAuthStatePay
 
 // Consume retrieves and atomically deletes the payload for the given nonce.
 // Returns ErrContentOAuthStateNotFound if the nonce does not exist or has expired.
+// SEM@0ee4fc6b79c5a6c5a7dade501546a8eec4509aed: atomically fetch and delete an OAuth state payload by nonce; error if absent or expired (reads DB)
 func (s *ContentOAuthStateStore) Consume(ctx context.Context, nonce string) (*ContentOAuthStatePayload, error) {
 	key := s.keyPrefix + nonce
 	val, err := s.rdb.GetDel(ctx, key).Bytes()

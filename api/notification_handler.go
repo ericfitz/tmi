@@ -15,6 +15,7 @@ import (
 var notificationHub *NotificationHub
 
 // InitNotificationHub initializes the global notification hub
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: initialize and start the global notification hub if not already running (mutates shared state)
 func InitNotificationHub() {
 	if notificationHub == nil {
 		notificationHub = NewNotificationHub()
@@ -24,11 +25,13 @@ func InitNotificationHub() {
 }
 
 // GetNotificationHub returns the global notification hub instance
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: return the global notification hub instance (pure)
 func GetNotificationHub() *NotificationHub {
 	return notificationHub
 }
 
 // HandleNotificationWebSocket handles WebSocket connections for notifications
+// SEM@212287c6c02d99be7f8071b21a50666223646bec: upgrade an authenticated HTTP connection to a notification WebSocket and register the client (mutates shared state)
 func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 	logger := slogging.Get()
 
@@ -100,6 +103,7 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 }
 
 // readPump handles incoming messages from the client
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: receive and dispatch incoming WebSocket messages for a notification client (mutates shared state)
 func (c *NotificationClient) readPump() {
 	defer func() {
 		c.Hub.unregister <- c
@@ -136,6 +140,7 @@ func (c *NotificationClient) readPump() {
 }
 
 // writePump handles sending messages to the client
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: send queued notifications and keepalive pings over a client WebSocket connection (mutates shared state)
 func (c *NotificationClient) writePump() {
 	ticker := time.NewTicker(54 * time.Second)
 	defer func() {
@@ -180,6 +185,7 @@ func (c *NotificationClient) writePump() {
 }
 
 // handleSubscriptionUpdate processes subscription update messages from the client
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: update the client's notification subscription filters and send a confirmation (mutates shared state)
 func (c *NotificationClient) handleSubscriptionUpdate(msg map[string]any) {
 	logger := slogging.Get()
 
@@ -237,6 +243,7 @@ func (c *NotificationClient) handleSubscriptionUpdate(msg map[string]any) {
 }
 
 // BroadcastThreatModelCreated notifies all connected clients about a new threat model
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: notify all connected clients that a threat model was created (mutates shared state)
 func BroadcastThreatModelCreated(userID, threatModelID, threatModelName string) {
 	if notificationHub != nil {
 		notificationHub.BroadcastThreatModelEvent(
@@ -250,6 +257,7 @@ func BroadcastThreatModelCreated(userID, threatModelID, threatModelName string) 
 }
 
 // BroadcastThreatModelUpdated notifies all connected clients about an updated threat model
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: notify all connected clients that a threat model was updated (mutates shared state)
 func BroadcastThreatModelUpdated(userID, threatModelID, threatModelName string) {
 	if notificationHub != nil {
 		notificationHub.BroadcastThreatModelEvent(
@@ -263,6 +271,7 @@ func BroadcastThreatModelUpdated(userID, threatModelID, threatModelName string) 
 }
 
 // BroadcastThreatModelDeleted notifies all connected clients about a deleted threat model
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: notify all connected clients that a threat model was deleted (mutates shared state)
 func BroadcastThreatModelDeleted(userID, threatModelID, threatModelName string) {
 	if notificationHub != nil {
 		notificationHub.BroadcastThreatModelEvent(
@@ -276,6 +285,7 @@ func BroadcastThreatModelDeleted(userID, threatModelID, threatModelName string) 
 }
 
 // BroadcastCollaborationStarted notifies about a new collaboration session
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: notify all connected clients that a diagram collaboration session started (mutates shared state)
 func BroadcastCollaborationStarted(userID, diagramID, diagramName, threatModelID, threatModelName, sessionID string) {
 	if notificationHub != nil {
 		notificationHub.BroadcastCollaborationEvent(
@@ -291,6 +301,7 @@ func BroadcastCollaborationStarted(userID, diagramID, diagramName, threatModelID
 }
 
 // BroadcastSystemAnnouncement sends a system-wide announcement
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: dispatch a system-wide announcement to all connected notification clients (mutates shared state)
 func BroadcastSystemAnnouncement(message string, severity string, actionRequired bool, actionURL string) {
 	if notificationHub != nil {
 		notificationHub.BroadcastSystemNotification(severity, message, actionRequired, actionURL)

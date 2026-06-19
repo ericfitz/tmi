@@ -20,6 +20,7 @@ import (
 )
 
 // identityLinkPendingKey returns the Redis key for a pending identity link token.
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: build the Redis key for a pending identity link token (pure)
 func identityLinkPendingKey(token string) string {
 	return fmt.Sprintf("identity_link_pending:%s", token)
 }
@@ -31,6 +32,7 @@ const identityLinkPendingTTL = 5 * time.Minute
 const identityLinkStateTTL = 10 * time.Minute
 
 // identityLinkPendingData holds the staged second-identity info before confirm.
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: staged second-identity info held in Redis before link confirmation
 type identityLinkPendingData struct {
 	UserUUID       string `json:"user_uuid"`
 	Provider       string `json:"provider"`
@@ -41,6 +43,7 @@ type identityLinkPendingData struct {
 
 // generateLinkToken generates a 32-byte crypto-random token encoded as base64url.
 // This produces 43 characters of high-entropy output suitable as a one-time token.
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: generate a 32-byte cryptographically random one-time link token (pure)
 func generateLinkToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, b); err != nil {
@@ -52,6 +55,7 @@ func generateLinkToken() (string, error) {
 // StartIdentityLink handles POST /me/identities/link/start.
 // It validates the request, builds OAuth state, stores it in Redis, and returns
 // the authorization URL + state token for the client to use.
+// SEM@053baa340d412aa135be32953dfcb6133af89b4d: initiate OAuth flow to link a second identity; return authorization URL and state
 func (h *Handlers) StartIdentityLink(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -213,6 +217,7 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 // obtain the provider's user info (provider, sub, email, name) WITHOUT storing
 // the IdP tokens. It stages a pending link record in Redis and redirects to the
 // client_callback with link_pending={token}.
+// SEM@fc8e2c83f6aaba09d10a2ed6f6e78a5075d278ba: exchange OAuth code for provider user info and stage a pending identity link in Redis
 func (h *Handlers) HandleIdentityLinkCallback(c *gin.Context, code string, stateData *callbackStateData) error {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
@@ -372,6 +377,7 @@ func (h *Handlers) HandleIdentityLinkCallback(c *gin.Context, code string, state
 // GetPendingIdentityLink handles GET /me/identities/link/pending/{link_id}.
 // Returns the pending link details (both sides) if the token exists and belongs
 // to the authenticated user. Returns 404 on any mismatch.
+// SEM@053baa340d412aa135be32953dfcb6133af89b4d: fetch pending identity link details for the authenticated user by link token
 func (h *Handlers) GetPendingIdentityLink(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -460,6 +466,7 @@ func (h *Handlers) GetPendingIdentityLink(c *gin.Context) {
 // ConfirmIdentityLink handles POST /me/identities/link/confirm.
 // Consumes the one-time pending link token and inserts the linked identity row.
 // Returns 201 with the new LinkedIdentity on success.
+// SEM@fc8e2c83f6aaba09d10a2ed6f6e78a5075d278ba: consume a one-time link token and persist the linked identity for the current user (writes DB)
 func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -640,6 +647,7 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 // isProviderSubAlreadyBound returns true if the (provider, providerUserID) pair
 // is already owned by any TMI user — either as a primary identity in the users
 // table or as a linked identity in the linked_identities table.
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: check whether a provider subject is already bound to any user identity (reads DB)
 func (h *Handlers) isProviderSubAlreadyBound(ctx context.Context, provider, providerUserID string) bool {
 	// Check the users (primary identities) table first.
 	_, err := h.service.GetUserByProviderID(ctx, provider, providerUserID)

@@ -15,6 +15,7 @@ const (
 )
 
 // ClientCredentialQuotaStore defines the interface for client credential quota operations
+// SEM@99c8cc4c042f4729b89e24981a18dba21b40be17: interface for fetching and enforcing per-user client credential quota limits (pure)
 type ClientCredentialQuotaStore interface {
 	// GetClientCredentialQuota retrieves the maximum number of credentials allowed for a user
 	GetClientCredentialQuota(ctx context.Context, userUUID uuid.UUID) (int, error)
@@ -27,6 +28,7 @@ type ClientCredentialQuotaStore interface {
 }
 
 // DatabaseClientCredentialQuotaStore implements ClientCredentialQuotaStore using auth service and global quota store
+// SEM@99c8cc4c042f4729b89e24981a18dba21b40be17: database-backed implementation of ClientCredentialQuotaStore with configurable default quota (pure)
 type DatabaseClientCredentialQuotaStore struct {
 	authService      *auth.Service
 	defaultQuota     int
@@ -34,6 +36,7 @@ type DatabaseClientCredentialQuotaStore struct {
 }
 
 // NewDatabaseClientCredentialQuotaStore creates a new client credential quota store
+// SEM@99c8cc4c042f4729b89e24981a18dba21b40be17: build a DatabaseClientCredentialQuotaStore with a default quota floor (pure)
 func NewDatabaseClientCredentialQuotaStore(authService *auth.Service, defaultQuota int, globalStore UserAPIQuotaStoreInterface) *DatabaseClientCredentialQuotaStore {
 	if defaultQuota <= 0 {
 		defaultQuota = DefaultClientCredentialQuota
@@ -46,6 +49,7 @@ func NewDatabaseClientCredentialQuotaStore(authService *auth.Service, defaultQuo
 }
 
 // GetClientCredentialQuota retrieves the maximum number of credentials allowed for a user
+// SEM@99c8cc4c042f4729b89e24981a18dba21b40be17: fetch the maximum number of client credentials allowed for a user (pure)
 func (s *DatabaseClientCredentialQuotaStore) GetClientCredentialQuota(ctx context.Context, userUUID uuid.UUID) (int, error) {
 	logger := slogging.Get()
 
@@ -56,6 +60,7 @@ func (s *DatabaseClientCredentialQuotaStore) GetClientCredentialQuota(ctx contex
 }
 
 // GetClientCredentialCount retrieves the current number of active credentials for a user
+// SEM@99c8cc4c042f4729b89e24981a18dba21b40be17: count the active client credentials owned by a user (reads DB)
 func (s *DatabaseClientCredentialQuotaStore) GetClientCredentialCount(ctx context.Context, userUUID uuid.UUID) (int, error) {
 	logger := slogging.Get()
 
@@ -78,6 +83,7 @@ func (s *DatabaseClientCredentialQuotaStore) GetClientCredentialCount(ctx contex
 }
 
 // CheckClientCredentialQuota verifies if a user can create a new credential
+// SEM@99c8cc4c042f4729b89e24981a18dba21b40be17: validate that a user has not exceeded their client credential quota (reads DB)
 func (s *DatabaseClientCredentialQuotaStore) CheckClientCredentialQuota(ctx context.Context, userUUID uuid.UUID) error {
 	logger := slogging.Get()
 

@@ -1,6 +1,7 @@
 package config
 
 // TimmyConfig holds configuration for the Timmy AI assistant feature
+// SEM@07385154fa2286de1a8805dbf00575c0f52ce941: configuration struct for the Timmy AI assistant feature (pure)
 type TimmyConfig struct {
 	Enabled                         bool   `yaml:"enabled" env:"TMI_TIMMY_ENABLED"`
 	LLMProvider                     string `yaml:"llm_provider" env:"TMI_TIMMY_LLM_PROVIDER"`
@@ -46,6 +47,7 @@ type TimmyConfig struct {
 }
 
 // DefaultTimmyConfig returns configuration with sensible defaults
+// SEM@e2a2db17eb103a24591f87c9d0932532a5750588: build a TimmyConfig populated with sensible operational defaults (pure)
 func DefaultTimmyConfig() TimmyConfig {
 	return TimmyConfig{
 		Enabled:                         false,
@@ -68,17 +70,20 @@ func DefaultTimmyConfig() TimmyConfig {
 }
 
 // IsConfigured returns true if the required LLM and text embedding providers are configured
+// SEM@37a05c9c7bcde023781ade490d31e55313f5a793: validate that LLM and text embedding providers are configured (pure)
 func (tc TimmyConfig) IsConfigured() bool {
 	return tc.LLMProvider != "" && tc.LLMModel != "" &&
 		tc.TextEmbeddingProvider != "" && tc.TextEmbeddingModel != ""
 }
 
 // IsCodeIndexConfigured returns true if the code embedding provider and model are configured
+// SEM@37a05c9c7bcde023781ade490d31e55313f5a793: validate that code embedding provider and model are configured (pure)
 func (tc TimmyConfig) IsCodeIndexConfigured() bool {
 	return tc.CodeEmbeddingProvider != "" && tc.CodeEmbeddingModel != ""
 }
 
 // IsRerankConfigured returns true if the reranker provider and model are configured
+// SEM@cd3e5390e6efba1b5a645e4a00ef2a5b842d39ff: validate that reranker provider and model are configured (pure)
 func (tc TimmyConfig) IsRerankConfigured() bool {
 	return tc.RerankProvider != "" && tc.RerankModel != ""
 }

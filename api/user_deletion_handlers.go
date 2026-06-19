@@ -10,11 +10,13 @@ import (
 )
 
 // UserDeletionHandler handles user self-deletion operations
+// SEM@bd740ab90ce24a669adc1fa8b8153efbd33bac10: HTTP handler struct for the two-step user self-deletion flow
 type UserDeletionHandler struct {
 	authService *auth.Service
 }
 
 // NewUserDeletionHandler creates a new user deletion handler
+// SEM@bd740ab90ce24a669adc1fa8b8153efbd33bac10: build a UserDeletionHandler wired to the given auth service (pure)
 func NewUserDeletionHandler(authService *auth.Service) *UserDeletionHandler {
 	return &UserDeletionHandler{
 		authService: authService,
@@ -24,6 +26,7 @@ func NewUserDeletionHandler(authService *auth.Service) *UserDeletionHandler {
 // DeleteUserAccount handles the two-step user deletion process
 // Step 1: No challenge parameter -> Generate and return challenge
 // Step 2: With challenge parameter -> Validate and delete user
+// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: handle the two-step user self-deletion: issue a challenge or validate one and delete the account
 func (h *UserDeletionHandler) DeleteUserAccount(c *gin.Context) {
 	// Get authenticated user from context
 	user, err := GetAuthenticatedUser(c)
@@ -45,6 +48,7 @@ func (h *UserDeletionHandler) DeleteUserAccount(c *gin.Context) {
 }
 
 // generateChallenge creates and returns a deletion challenge for the user
+// SEM@bd740ab90ce24a669adc1fa8b8153efbd33bac10: generate and return a deletion challenge token for the authenticated user (reads DB)
 func (h *UserDeletionHandler) generateChallenge(c *gin.Context, userEmail string) {
 	challenge, err := h.authService.GenerateDeletionChallenge(c.Request.Context(), userEmail)
 	if err != nil {
@@ -57,6 +61,7 @@ func (h *UserDeletionHandler) generateChallenge(c *gin.Context, userEmail string
 }
 
 // deleteWithChallenge validates the challenge and performs user deletion
+// SEM@0538436fe19e71299239f10214d737a09cf94961: validate a deletion challenge, delete the user account and data, then blacklist the JWT (reads DB)
 func (h *UserDeletionHandler) deleteWithChallenge(c *gin.Context, userEmail, challengeText string) {
 	// Validate challenge
 	err := h.authService.ValidateDeletionChallenge(c.Request.Context(), userEmail, challengeText)
@@ -101,6 +106,7 @@ func (h *UserDeletionHandler) deleteWithChallenge(c *gin.Context, userEmail, cha
 }
 
 // extractBearerToken extracts the token from an Authorization header (case-insensitive prefix)
+// SEM@034968fa0e0ba8c15e9af9052b475f4d5dd72d50: extract the bearer token string from an Authorization header value (pure)
 func extractBearerToken(authHeader string) string {
 	const prefix = "Bearer "
 	if len(authHeader) > len(prefix) && strings.EqualFold(authHeader[:len(prefix)], prefix) {

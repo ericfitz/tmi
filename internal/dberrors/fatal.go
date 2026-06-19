@@ -20,6 +20,7 @@ var (
 // SetFatalHandler installs a handler invoked on the first HandleFatal call.
 // Intended for the server to initiate graceful shutdown on fatal conditions.
 // Subsequent HandleFatal calls bypass the handler and exit immediately.
+// SEM@a15ce488928229a669359dcd63fc1e9a3866e2aa: register a process-level fatal-error callback for graceful shutdown (mutates shared state)
 func SetFatalHandler(h func(error)) {
 	fatalHandlerMu.Lock()
 	defer fatalHandlerMu.Unlock()
@@ -37,6 +38,7 @@ func SetFatalHandler(h func(error)) {
 //
 // If no handler is installed, or if HandleFatal has already been called once,
 // the process exits immediately with code 1.
+// SEM@a15ce488928229a669359dcd63fc1e9a3866e2aa: dispatch a fatal DB error to the registered handler, then block; exit immediately on re-entrant call
 func HandleFatal(err error) {
 	slogging.Get().Error("Fatal error, shutting down: %v", err)
 

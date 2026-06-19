@@ -11,6 +11,7 @@ import (
 )
 
 // NotificationClient represents a client connected to the notification hub
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: represents a connected WebSocket notification subscriber with its user info and subscription
 type NotificationClient struct {
 	// Unique identifier for the client
 	ID string
@@ -37,6 +38,7 @@ type NotificationClient struct {
 }
 
 // NotificationHub manages all notification WebSocket connections
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: central broker that routes notification messages to subscribed WebSocket clients (mutates shared state)
 type NotificationHub struct {
 	// Registered clients by client ID
 	clients map[string]*NotificationClient
@@ -61,6 +63,7 @@ type NotificationHub struct {
 }
 
 // NewNotificationHub creates a new notification hub
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: build an empty NotificationHub ready to dispatch messages
 func NewNotificationHub() *NotificationHub {
 	return &NotificationHub{
 		clients:     make(map[string]*NotificationClient),
@@ -73,6 +76,7 @@ func NewNotificationHub() *NotificationHub {
 }
 
 // Run starts the notification hub
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: process client registration, unregistration, broadcasts, and periodic heartbeats in a loop (mutates shared state)
 func (h *NotificationHub) Run() {
 	ticker := time.NewTicker(30 * time.Second) // Heartbeat every 30 seconds
 	defer ticker.Stop()
@@ -95,6 +99,7 @@ func (h *NotificationHub) Run() {
 }
 
 // registerClient adds a new client to the hub
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: add a client to the hub and broadcast a user-joined event (mutates shared state)
 func (h *NotificationHub) registerClient(client *NotificationClient) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -124,6 +129,7 @@ func (h *NotificationHub) registerClient(client *NotificationClient) {
 }
 
 // unregisterClient removes a client from the hub
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: remove a client from the hub and broadcast a user-left event if no connections remain (mutates shared state)
 func (h *NotificationHub) unregisterClient(client *NotificationClient) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -161,6 +167,7 @@ func (h *NotificationHub) unregisterClient(client *NotificationClient) {
 }
 
 // broadcastMessage sends a message to all eligible clients
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: dispatch a message to every eligible subscribed client, dropping slow ones (mutates shared state)
 func (h *NotificationHub) broadcastMessage(message *NotificationMessage) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -188,6 +195,7 @@ func (h *NotificationHub) broadcastMessage(message *NotificationMessage) {
 }
 
 // shouldReceiveMessage checks if a client should receive a specific message
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: check whether a client's subscription includes a given message type and filters (pure)
 func (h *NotificationHub) shouldReceiveMessage(client *NotificationClient, message *NotificationMessage) bool {
 	// Everyone gets heartbeats
 	if message.MessageType == NotificationHeartbeat {
@@ -236,6 +244,7 @@ func (h *NotificationHub) shouldReceiveMessage(client *NotificationClient, messa
 }
 
 // sendHeartbeat sends a heartbeat message to all connected clients
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: broadcast a heartbeat message to all connected notification clients (mutates shared state)
 func (h *NotificationHub) sendHeartbeat() {
 	heartbeat := &NotificationMessage{
 		MessageType: NotificationHeartbeat,
@@ -246,6 +255,7 @@ func (h *NotificationHub) sendHeartbeat() {
 }
 
 // BroadcastThreatModelEvent broadcasts a threat model event to all connected clients
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: dispatch a threat model lifecycle event to all subscribed notification clients
 func (h *NotificationHub) BroadcastThreatModelEvent(eventType NotificationMessageType, userID string, tmID, tmName, action string) {
 	notification := &NotificationMessage{
 		MessageType: eventType,
@@ -261,6 +271,7 @@ func (h *NotificationHub) BroadcastThreatModelEvent(eventType NotificationMessag
 }
 
 // BroadcastCollaborationEvent broadcasts a collaboration event to all connected clients
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: dispatch a diagram collaboration event to all subscribed notification clients
 func (h *NotificationHub) BroadcastCollaborationEvent(eventType NotificationMessageType, userID, diagramID, diagramName, tmID, tmName, sessionID string) {
 	notification := &NotificationMessage{
 		MessageType: eventType,
@@ -278,6 +289,7 @@ func (h *NotificationHub) BroadcastCollaborationEvent(eventType NotificationMess
 }
 
 // BroadcastSystemNotification broadcasts a system notification to all connected clients
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: dispatch a system-level announcement to all connected notification clients
 func (h *NotificationHub) BroadcastSystemNotification(severity, message string, actionRequired bool, actionURL string) {
 	notification := &NotificationMessage{
 		MessageType: NotificationSystemAnnouncement,
@@ -294,6 +306,7 @@ func (h *NotificationHub) BroadcastSystemNotification(severity, message string, 
 }
 
 // GetConnectedUsers returns a list of currently connected user IDs
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: list user IDs that have at least one active notification connection (reads DB)
 func (h *NotificationHub) GetConnectedUsers() []string {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -306,6 +319,7 @@ func (h *NotificationHub) GetConnectedUsers() []string {
 }
 
 // GetConnectionCount returns the total number of active connections
+// SEM@66b1e1515b82356913c8625edc8616772c3c70d3: return the total number of active notification client connections (pure)
 func (h *NotificationHub) GetConnectionCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

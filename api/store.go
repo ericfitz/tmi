@@ -11,17 +11,20 @@ import (
 )
 
 // AuthServiceGetter defines an interface for getting the auth service
+// SEM@35d3e17459ee0834e412739eaa604652b815d559: interface for retrieving the auth service instance (pure)
 type AuthServiceGetter interface {
 	GetService() *auth.Service
 }
 
 // WithTimestamps is a mixin interface for entities with timestamps
+// SEM@386eea01f3b66c35027bf3ca762efbc291419e20: mixin interface for entities that expose created_at and modified_at timestamp setters (pure)
 type WithTimestamps interface {
 	SetCreatedAt(time.Time)
 	SetModifiedAt(time.Time)
 }
 
 // UpdateTimestamps updates the timestamps on an entity
+// SEM@a37a0039279be689bb07be2113fe86024a410a4b: set created_at and modified_at to a microsecond-truncated UTC now on an entity (pure)
 func UpdateTimestamps[T WithTimestamps](entity T, isNew bool) T {
 	// Truncate to microseconds so the in-memory value matches what the database
 	// persists (PostgreSQL and Oracle store microsecond precision) and conforms
@@ -39,6 +42,7 @@ func UpdateTimestamps[T WithTimestamps](entity T, isNew bool) T {
 // Store interfaces to allow switching between in-memory and database implementations
 
 // ThreatModelFilters defines filtering criteria for listing threat models
+// SEM@cd5f8ed4949685a202f3e973e6cddb10850f0f15: value type holding optional filter criteria for listing threat models (pure)
 type ThreatModelFilters struct {
 	Owner               *string       // Filter by owner email or display name (partial match)
 	Name                *string       // Filter by name (partial match)
@@ -55,6 +59,7 @@ type ThreatModelFilters struct {
 	IncludeDeleted      bool          // Include soft-deleted (tombstoned) entities
 }
 
+// SEM@c79f3cd129aecd7cd6562b875b7f02232594d3d1: interface for CRUD, soft-delete, list, count, and authorization operations on threat models
 type ThreatModelStoreInterface interface {
 	Get(id string) (ThreatModel, error)
 	GetIncludingDeleted(id string) (ThreatModel, error)
@@ -75,6 +80,7 @@ type ThreatModelStoreInterface interface {
 	Count() int
 }
 
+// SEM@c79f3cd129aecd7cd6562b875b7f02232594d3d1: interface for CRUD, batch fetch, soft-delete, and count operations on DFD diagrams
 type DiagramStoreInterface interface {
 	Get(id string) (DfdDiagram, error)
 	GetIncludingDeleted(id string) (DfdDiagram, error)
@@ -132,6 +138,7 @@ var globalAuthService interface {
 
 // InitializeGormStores initializes all stores with GORM implementations
 // This is the only store initialization function - all databases use GORM
+// SEM@cd6b617fb7aaaeb6491d79c87b09839f94b0fc3e: initialize all global GORM-backed stores and repositories using the provided DB, auth service, and cache (mutates shared state)
 func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, invalidator *CacheInvalidator) {
 	// Set global cache service for middleware and other nil-guarded callers
 	GlobalCacheService = cache
@@ -198,6 +205,7 @@ func InitializeGormStores(db *gorm.DB, authService any, cache *CacheService, inv
 }
 
 // ParseUUIDOrNil parses a UUID string, returning a nil UUID on error
+// SEM@09b9acb42bb2ed2bd519ff1f962213011e015b62: parse a UUID string and return uuid.Nil on parse failure (pure)
 func ParseUUIDOrNil(s string) uuid.UUID {
 	if u, err := uuid.Parse(s); err == nil {
 		return u
@@ -207,6 +215,7 @@ func ParseUUIDOrNil(s string) uuid.UUID {
 
 // GetAllModels returns all GORM models for AutoMigrate
 // This function is used by the server to run database migrations for non-postgres databases
+// SEM@45a055dc8bd72a23aefc3c2edcf48d64d511ff36: return all GORM model instances for AutoMigrate (pure)
 func GetAllModels() []any {
 	return models.AllModels()
 }

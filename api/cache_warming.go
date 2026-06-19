@@ -11,6 +11,7 @@ import (
 )
 
 // CacheWarmer handles proactive cache warming for frequently accessed data
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: proactively populate the cache with frequently accessed threat model data on a schedule (mutates shared state)
 type CacheWarmer struct {
 	db                *sql.DB
 	cache             *CacheService
@@ -26,6 +27,7 @@ type CacheWarmer struct {
 }
 
 // WarmingStrategy defines different cache warming approaches
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: enumerate cache warming trigger strategies: on-access, proactive, or on-demand (pure)
 type WarmingStrategy int
 
 const (
@@ -38,6 +40,7 @@ const (
 )
 
 // WarmingPriority defines priority levels for cache warming
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: enumerate priority levels for cache warming requests (pure)
 type WarmingPriority int
 
 const (
@@ -50,6 +53,7 @@ const (
 )
 
 // WarmingRequest represents a request to warm specific cache data
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: specify which entity to warm, at what priority and strategy (pure)
 type WarmingRequest struct {
 	EntityType    string
 	EntityID      string
@@ -61,6 +65,7 @@ type WarmingRequest struct {
 }
 
 // WarmingStats tracks cache warming performance
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: aggregate counts and timing for a cache warming run (pure)
 type WarmingStats struct {
 	TotalWarmed       int
 	ThreatsWarmed     int
@@ -74,6 +79,7 @@ type WarmingStats struct {
 }
 
 // NewCacheWarmer creates a new cache warmer instance
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build a CacheWarmer wired to the given cache service and entity repositories (pure)
 func NewCacheWarmer(
 	db *sql.DB,
 	cache *CacheService,
@@ -96,6 +102,7 @@ func NewCacheWarmer(
 }
 
 // StartProactiveWarming starts the proactive cache warming process
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: start the background cache warming loop on a configured interval (mutates shared state)
 func (cw *CacheWarmer) StartProactiveWarming(ctx context.Context) error {
 	cw.mutex.Lock()
 	defer cw.mutex.Unlock()
@@ -112,6 +119,7 @@ func (cw *CacheWarmer) StartProactiveWarming(ctx context.Context) error {
 }
 
 // StopProactiveWarming stops the proactive cache warming process
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: stop the background cache warming goroutine and disable warming (mutates shared state)
 func (cw *CacheWarmer) StopProactiveWarming() {
 	cw.mutex.Lock()
 	defer cw.mutex.Unlock()
@@ -124,6 +132,7 @@ func (cw *CacheWarmer) StopProactiveWarming() {
 }
 
 // warmingLoop runs the continuous cache warming process
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: continuously trigger cache warming runs at the configured interval until stopped (mutates shared state)
 func (cw *CacheWarmer) warmingLoop(ctx context.Context) {
 	logger := slogging.Get()
 	ticker := time.NewTicker(cw.warmingInterval)
@@ -150,6 +159,7 @@ func (cw *CacheWarmer) warmingLoop(ctx context.Context) {
 }
 
 // WarmFrequentlyAccessedData warms cache with frequently accessed data
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: warm cache with recent threat models, auth data, and metadata in one pass (reads DB)
 func (cw *CacheWarmer) WarmFrequentlyAccessedData(ctx context.Context) error {
 	cw.setWarmingInProgress(true)
 	defer cw.setWarmingInProgress(false)
@@ -188,6 +198,7 @@ func (cw *CacheWarmer) WarmFrequentlyAccessedData(ctx context.Context) error {
 }
 
 // warmRecentThreatModels warms cache with recently accessed threat models
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: fetch threat models modified in the last 24 hours and warm all their sub-resources (reads DB)
 func (cw *CacheWarmer) warmRecentThreatModels(ctx context.Context, stats *WarmingStats) error {
 	logger := slogging.Get()
 
@@ -227,6 +238,7 @@ func (cw *CacheWarmer) warmRecentThreatModels(ctx context.Context, stats *Warmin
 }
 
 // WarmThreatModelData warms cache with all data for a specific threat model
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: concurrently warm threats, documents, sources, and auth data for a threat model (reads DB)
 func (cw *CacheWarmer) WarmThreatModelData(ctx context.Context, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Warming cache for threat model %s", threatModelID)
@@ -279,6 +291,7 @@ func (cw *CacheWarmer) WarmThreatModelData(ctx context.Context, threatModelID st
 }
 
 // warmThreatsForThreatModel warms cache with threats for a threat model
+// SEM@503212a05958ba0c15d423fab4dbceb92b747ed9: cache the first page of threats belonging to a threat model (reads DB)
 func (cw *CacheWarmer) warmThreatsForThreatModel(ctx context.Context, threatModelID string) error {
 	// Check if cache service is available
 	if cw.cache == nil {
@@ -303,6 +316,7 @@ func (cw *CacheWarmer) warmThreatsForThreatModel(ctx context.Context, threatMode
 }
 
 // warmDocumentsForThreatModel warms cache with documents for a threat model
+// SEM@77448830f3bcb88b69cff5dae3dd78fb0d8ef04f: cache the first page of documents belonging to a threat model (reads DB)
 func (cw *CacheWarmer) warmDocumentsForThreatModel(ctx context.Context, threatModelID string) error {
 	// Check if cache service is available
 	if cw.cache == nil {
@@ -326,6 +340,7 @@ func (cw *CacheWarmer) warmDocumentsForThreatModel(ctx context.Context, threatMo
 }
 
 // warmSourcesForThreatModel warms cache with sources for a threat model
+// SEM@98c83c6a9092288eead710533517e486c44239b2: cache the first page of repositories belonging to a threat model (reads DB)
 func (cw *CacheWarmer) warmSourcesForThreatModel(ctx context.Context, threatModelID string) error {
 	// Check if cache service is available
 	if cw.cache == nil {
@@ -349,6 +364,7 @@ func (cw *CacheWarmer) warmSourcesForThreatModel(ctx context.Context, threatMode
 }
 
 // warmAuthDataForThreatModel warms cache with authorization data for a threat model
+// SEM@77448830f3bcb88b69cff5dae3dd78fb0d8ef04f: fetch and cache inherited authorization data for a threat model (reads DB)
 func (cw *CacheWarmer) warmAuthDataForThreatModel(ctx context.Context, threatModelID string) error {
 	// Check if cache service is available
 	if cw.cache == nil {
@@ -368,6 +384,7 @@ func (cw *CacheWarmer) warmAuthDataForThreatModel(ctx context.Context, threatMod
 }
 
 // warmPopularAuthData warms cache with frequently accessed authorization data
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: cache auth data for the most-accessed threat models in the last 7 days (reads DB)
 func (cw *CacheWarmer) warmPopularAuthData(ctx context.Context, stats *WarmingStats) error {
 	// Query for threat models with recent access patterns
 	query := `
@@ -404,6 +421,7 @@ func (cw *CacheWarmer) warmPopularAuthData(ctx context.Context, stats *WarmingSt
 }
 
 // warmPopularMetadata warms cache with frequently accessed metadata
+// SEM@9059d30fc4dd069e93320ca29353b6bbac1f4914: cache recently modified metadata entries from the last 7 days (reads DB)
 func (cw *CacheWarmer) warmPopularMetadata(ctx context.Context, stats *WarmingStats) error {
 	// Check if cache service is available
 	if cw.cache == nil {
@@ -443,6 +461,7 @@ func (cw *CacheWarmer) warmPopularMetadata(ctx context.Context, stats *WarmingSt
 }
 
 // WarmOnDemandRequest handles on-demand cache warming requests
+// SEM@cdbe48c974fb76e1161972733b30bb0d1c02c3b1: dispatch a targeted cache warm for a specific entity based on request type (reads DB)
 func (cw *CacheWarmer) WarmOnDemandRequest(ctx context.Context, request WarmingRequest) error {
 	logger := slogging.Get()
 	logger.Debug("Processing on-demand warming request for %s:%s", request.EntityType, request.EntityID)
@@ -464,6 +483,7 @@ func (cw *CacheWarmer) WarmOnDemandRequest(ctx context.Context, request WarmingR
 }
 
 // warmSpecificThreat warms cache with a specific threat
+// SEM@77448830f3bcb88b69cff5dae3dd78fb0d8ef04f: fetch and cache a single threat by ID (reads DB)
 func (cw *CacheWarmer) warmSpecificThreat(ctx context.Context, threatID string) error {
 	// Check if cache service is available
 	if cw.cache == nil {
@@ -479,6 +499,7 @@ func (cw *CacheWarmer) warmSpecificThreat(ctx context.Context, threatID string) 
 }
 
 // warmSpecificDocument warms cache with a specific document
+// SEM@77448830f3bcb88b69cff5dae3dd78fb0d8ef04f: fetch and cache a single document by ID (reads DB)
 func (cw *CacheWarmer) warmSpecificDocument(ctx context.Context, documentID string) error {
 	// Check if cache service is available
 	if cw.cache == nil {
@@ -494,6 +515,7 @@ func (cw *CacheWarmer) warmSpecificDocument(ctx context.Context, documentID stri
 }
 
 // warmSpecificRepository warms cache with a specific repository
+// SEM@98c83c6a9092288eead710533517e486c44239b2: fetch and cache a single repository by ID (reads DB)
 func (cw *CacheWarmer) warmSpecificRepository(ctx context.Context, repositoryID string) error {
 	// Check if cache service is available
 	if cw.cache == nil {
@@ -509,6 +531,7 @@ func (cw *CacheWarmer) warmSpecificRepository(ctx context.Context, repositoryID 
 }
 
 // SetWarmingInterval configures the proactive warming interval
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: update the proactive cache warming interval (mutates shared state)
 func (cw *CacheWarmer) SetWarmingInterval(interval time.Duration) {
 	cw.mutex.Lock()
 	defer cw.mutex.Unlock()
@@ -516,6 +539,7 @@ func (cw *CacheWarmer) SetWarmingInterval(interval time.Duration) {
 }
 
 // EnableWarming enables cache warming
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: enable proactive cache warming (mutates shared state)
 func (cw *CacheWarmer) EnableWarming() {
 	cw.mutex.Lock()
 	defer cw.mutex.Unlock()
@@ -523,6 +547,7 @@ func (cw *CacheWarmer) EnableWarming() {
 }
 
 // DisableWarming disables cache warming
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: disable proactive cache warming (mutates shared state)
 func (cw *CacheWarmer) DisableWarming() {
 	cw.mutex.Lock()
 	defer cw.mutex.Unlock()
@@ -530,6 +555,7 @@ func (cw *CacheWarmer) DisableWarming() {
 }
 
 // IsWarmingEnabled returns whether cache warming is enabled
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: report whether proactive cache warming is currently enabled (pure)
 func (cw *CacheWarmer) IsWarmingEnabled() bool {
 	cw.mutex.RLock()
 	defer cw.mutex.RUnlock()
@@ -537,6 +563,7 @@ func (cw *CacheWarmer) IsWarmingEnabled() bool {
 }
 
 // isWarmingInProgress returns whether warming is currently in progress
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: report whether a cache warming run is currently active (pure)
 func (cw *CacheWarmer) isWarmingInProgress() bool {
 	cw.mutex.RLock()
 	defer cw.mutex.RUnlock()
@@ -544,6 +571,7 @@ func (cw *CacheWarmer) isWarmingInProgress() bool {
 }
 
 // setWarmingInProgress sets the warming in progress flag
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: set the in-progress flag for cache warming (mutates shared state)
 func (cw *CacheWarmer) setWarmingInProgress(inProgress bool) {
 	cw.mutex.Lock()
 	defer cw.mutex.Unlock()
@@ -551,6 +579,7 @@ func (cw *CacheWarmer) setWarmingInProgress(inProgress bool) {
 }
 
 // GetWarmingStats returns current warming statistics
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: return a snapshot of cache warming statistics (pure)
 func (cw *CacheWarmer) GetWarmingStats() WarmingStats {
 	cw.mutex.RLock()
 	defer cw.mutex.RUnlock()

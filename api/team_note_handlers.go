@@ -9,6 +9,7 @@ import (
 )
 
 // isPrivilegedUser checks if the user is an administrator or security reviewer.
+// SEM@1ce00faf902914340ca54f7376e355c547163dda: check whether the current user is an administrator or security reviewer (pure)
 func isPrivilegedUser(c *gin.Context) bool {
 	isAdmin, _ := IsUserAdministrator(c)
 	if isAdmin {
@@ -20,6 +21,7 @@ func isPrivilegedUser(c *gin.Context) bool {
 
 // ListTeamNotes returns a paginated list of notes for a team.
 // GET /teams/{team_id}/notes
+// SEM@1ce00faf902914340ca54f7376e355c547163dda: list paginated team notes, filtering non-sharable notes for unprivileged users (reads DB)
 func (s *Server) ListTeamNotes(c *gin.Context, teamId openapi_types.UUID, params ListTeamNotesParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -88,6 +90,7 @@ func (s *Server) ListTeamNotes(c *gin.Context, teamId openapi_types.UUID, params
 
 // CreateTeamNote creates a new note for a team.
 // POST /teams/{team_id}/notes
+// SEM@1ce00faf902914340ca54f7376e355c547163dda: create a team note, enforcing sharable-field privilege rules (mutates shared state)
 func (s *Server) CreateTeamNote(c *gin.Context, teamId openapi_types.UUID) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -161,6 +164,7 @@ func (s *Server) CreateTeamNote(c *gin.Context, teamId openapi_types.UUID) {
 
 // GetTeamNote returns a specific team note.
 // GET /teams/{team_id}/notes/{team_note_id}
+// SEM@1ce00faf902914340ca54f7376e355c547163dda: fetch a team note, hiding non-sharable notes from unprivileged users (reads DB)
 func (s *Server) GetTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNoteId TeamNoteId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -205,6 +209,7 @@ func (s *Server) GetTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNote
 
 // UpdateTeamNote replaces a team note.
 // PUT /teams/{team_id}/notes/{team_note_id}
+// SEM@1ce00faf902914340ca54f7376e355c547163dda: replace a team note, enforcing sharable-field and visibility privilege rules (mutates shared state)
 func (s *Server) UpdateTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNoteId TeamNoteId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -293,6 +298,7 @@ func (s *Server) UpdateTeamNote(c *gin.Context, teamId openapi_types.UUID, teamN
 
 // PatchTeamNote partially updates a team note using JSON Patch.
 // PATCH /teams/{team_id}/notes/{team_note_id}
+// SEM@1ce00faf902914340ca54f7376e355c547163dda: apply JSON Patch to a team note, enforcing sharable-field and visibility privilege rules (mutates shared state)
 func (s *Server) PatchTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNoteId TeamNoteId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -366,6 +372,7 @@ func (s *Server) PatchTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNo
 
 // DeleteTeamNote deletes a team note.
 // DELETE /teams/{team_id}/notes/{team_note_id}
+// SEM@1ce00faf902914340ca54f7376e355c547163dda: delete a team note, hiding non-sharable notes from unprivileged users (mutates shared state)
 func (s *Server) DeleteTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNoteId TeamNoteId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()

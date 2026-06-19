@@ -17,6 +17,7 @@ var markdownPolicy *bluemonday.Policy
 // metadata values that should never contain HTML.
 var strictPolicy *bluemonday.Policy
 
+// SEM@6c2ed16a87725c4d8e764cde607ac1e06704e3ac: initialize singleton markdown and strict HTML sanitization policies at package load (mutates shared state)
 func init() {
 	markdownPolicy = createMarkdownSanitizationPolicy()
 	strictPolicy = bluemonday.StrictPolicy()
@@ -24,6 +25,7 @@ func init() {
 
 // createMarkdownSanitizationPolicy builds a bluemonday policy matching the client's
 // DOMPurify ALLOWED_TAGS and ALLOWED_ATTR configuration.
+// SEM@d6557548645ee87e8fe5910b447499fc633fbe6b: build a bluemonday allowlist policy matching the client DOMPurify configuration (pure)
 func createMarkdownSanitizationPolicy() *bluemonday.Policy {
 	p := bluemonday.NewPolicy()
 
@@ -87,6 +89,7 @@ func createMarkdownSanitizationPolicy() *bluemonday.Policy {
 // SanitizeMarkdownContent applies the bluemonday HTML sanitization policy
 // to a markdown content string. Safe HTML (per the allowlist) is preserved;
 // dangerous elements and attributes are stripped.
+// SEM@d6557548645ee87e8fe5910b447499fc633fbe6b: sanitize a markdown string by stripping disallowed HTML elements and attributes (pure)
 func SanitizeMarkdownContent(content string) string {
 	if content == "" {
 		return content
@@ -101,6 +104,7 @@ func SanitizeMarkdownContent(content string) string {
 // become real tags before sanitization strips them. The result is then unescaped
 // again so that legitimate text like "0.0.0.0/0 -> NAT" is stored verbatim rather
 // than as "0.0.0.0/0 -&gt; NAT".
+// SEM@b8c2e635d7ace355cadeed6d3b0b853b2c950f75: strip all HTML from a plain-text field, decoding entities first to prevent bypass (pure)
 func SanitizePlainText(s string) string {
 	if s == "" {
 		return s
@@ -126,6 +130,7 @@ func SanitizePlainText(s string) string {
 
 // SanitizeMetadataSlice sanitizes all values in a metadata slice using SanitizePlainText.
 // Returns an error if any value fails template injection validation after sanitization.
+// SEM@6c2ed16a87725c4d8e764cde607ac1e06704e3ac: sanitize all values in a metadata slice and validate against HTML injection (pure)
 func SanitizeMetadataSlice(metadata *[]Metadata) error {
 	if metadata == nil {
 		return nil
@@ -145,6 +150,7 @@ func SanitizeMetadataSlice(metadata *[]Metadata) error {
 // Uses the shape discriminator to determine cell type, preventing node corruption
 // that can occur when AsNode() fails (e.g., position validation) and the code
 // falls through to AsEdge(), which rewrites nodes with edge-specific fields.
+// SEM@7bac1ed632ff8929eff543daec4372c53d51283a: sanitize metadata values in all diagram cells using the shape discriminator to avoid type corruption (pure)
 func SanitizeDiagramCellMetadata(cells []DfdDiagram_Cells_Item) error {
 	for i := range cells {
 		// Use discriminator to determine cell type rather than try-and-fallthrough
@@ -180,6 +186,7 @@ func SanitizeDiagramCellMetadata(cells []DfdDiagram_Cells_Item) error {
 
 // SanitizeOptionalString sanitizes an optional string field using SanitizePlainText.
 // Returns nil if input is nil. Use for *string fields like Description, IssueUri, Mitigation.
+// SEM@0c74197df2eb6b51a91fa4592766476fdf09f984: sanitize an optional string field, returning nil if input is nil (pure)
 func SanitizeOptionalString(s *string) *string {
 	if s == nil {
 		return nil
@@ -191,6 +198,7 @@ func SanitizeOptionalString(s *string) *string {
 // SanitizePatchOperations sanitizes string values in JSON Patch operations
 // for the specified field paths using SanitizePlainText.
 // Only "replace" and "add" operations are sanitized.
+// SEM@0c74197df2eb6b51a91fa4592766476fdf09f984: sanitize string values in JSON Patch replace and add operations at specified paths (pure)
 func SanitizePatchOperations(operations []PatchOperation, paths []string) {
 	pathSet := make(map[string]bool, len(paths))
 	for _, p := range paths {

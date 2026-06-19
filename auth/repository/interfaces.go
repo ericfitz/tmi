@@ -23,6 +23,7 @@ var (
 )
 
 // User represents a user entity for repository operations
+// SEM@24dcbaf59ea6bfe4e66c3f1fbc4863c809cfdc0e: repository model for a user account with OAuth provider identity and token fields (pure)
 type User struct {
 	InternalUUID   string
 	Provider       string
@@ -40,6 +41,7 @@ type User struct {
 }
 
 // UserProvider represents a user's OAuth provider information
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: OAuth provider linkage record associating a user to a specific provider identity (pure)
 type UserProvider struct {
 	ID             string
 	UserID         string
@@ -52,6 +54,7 @@ type UserProvider struct {
 }
 
 // ClientCredential represents an OAuth 2.0 client credential
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: machine-to-machine OAuth client credential with hashed secret and activity metadata (pure)
 type ClientCredential struct {
 	ID               uuid.UUID
 	OwnerUUID        uuid.UUID
@@ -67,6 +70,7 @@ type ClientCredential struct {
 }
 
 // ClientCredentialCreateParams contains parameters for creating a new client credential
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: parameters for registering a new client credential in the repository (pure)
 type ClientCredentialCreateParams struct {
 	OwnerUUID        uuid.UUID
 	ClientID         string
@@ -77,6 +81,7 @@ type ClientCredentialCreateParams struct {
 }
 
 // DeletionResult contains statistics about user/group deletion operations
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: statistics returned after deleting a user, reporting threat model transfers and deletions (pure)
 type DeletionResult struct {
 	ThreatModelsTransferred int
 	ThreatModelsDeleted     int
@@ -84,6 +89,7 @@ type DeletionResult struct {
 }
 
 // GroupDeletionResult contains statistics about group deletion operations
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: statistics returned after deleting a group, reporting affected threat model counts (pure)
 type GroupDeletionResult struct {
 	ThreatModelsDeleted  int
 	ThreatModelsRetained int
@@ -91,12 +97,14 @@ type GroupDeletionResult struct {
 }
 
 // TransferResult contains statistics about an ownership transfer operation
+// SEM@36c1f84217ecf3f5087ad65186cd974b9b4df275: identifiers of threat models and survey responses transferred during an ownership transfer (pure)
 type TransferResult struct {
 	ThreatModelIDs    []string
 	SurveyResponseIDs []string
 }
 
 // UserRepository handles user CRUD operations
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: interface for user CRUD and provider-lookup operations against the backing store
 type UserRepository interface {
 	// GetByEmail retrieves a user by email address
 	GetByEmail(ctx context.Context, email string) (*User, error)
@@ -130,6 +138,7 @@ type UserRepository interface {
 }
 
 // ClientCredentialRepository handles client credential operations
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: interface for managing OAuth client credentials including creation, lookup, and revocation
 type ClientCredentialRepository interface {
 	// Create creates a new client credential
 	Create(ctx context.Context, params ClientCredentialCreateParams) (*ClientCredential, error)
@@ -151,6 +160,7 @@ type ClientCredentialRepository interface {
 }
 
 // DeletionRepository handles user and group deletion with data cleanup
+// SEM@aaa9664f0ee44fef65807ddde317d73afdfcf8eb: interface for deleting users and groups with cascading ownership transfer (reads DB)
 type DeletionRepository interface {
 	// DeleteUserAndData deletes a user by email and handles ownership transfer for threat models.
 	// Used by the self-deletion flow (DELETE /me) where identity comes from JWT email.

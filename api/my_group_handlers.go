@@ -11,6 +11,7 @@ import (
 
 // ListMyGroups handles GET /me/groups
 // Returns the TMI-managed groups that the authenticated user belongs to.
+// SEM@0734f383e8c73aef4842c88dc88e90d0440f048a: list the built-in groups the authenticated user belongs to (reads DB)
 func (s *Server) ListMyGroups(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -68,6 +69,7 @@ func (s *Server) ListMyGroups(c *gin.Context) {
 // ListMyGroupMembers handles GET /me/groups/{internal_uuid}/members
 // Returns a paginated list of members for a group the authenticated user belongs to.
 // Admin audit fields (added_by, notes) are redacted from the response.
+// SEM@0734f383e8c73aef4842c88dc88e90d0440f048a: list paginated members of a group the authenticated user belongs to, redacting admin audit fields (reads DB)
 func (s *Server) ListMyGroupMembers(c *gin.Context, internalUuid openapi_types.UUID, params ListMyGroupMembersParams) {
 	logger := slogging.Get().WithContext(c)
 

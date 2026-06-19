@@ -8,6 +8,7 @@ import (
 // SystemSetting represents a system-wide configuration setting stored in the database.
 // These settings can be modified at runtime without requiring server restart.
 // Settings are cached with short TTL for performance.
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for a runtime-configurable system setting with key, typed value, and audit fields (reads DB)
 type SystemSetting struct {
 	// SettingKey is the unique identifier for this setting (e.g., "rate_limit.requests_per_minute")
 	// Named SettingKey instead of Key to avoid Oracle reserved word conflict
@@ -28,6 +29,7 @@ type SystemSetting struct {
 }
 
 // TableName specifies the table name for SystemSetting
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: return the database table name for the SystemSetting model (pure)
 func (SystemSetting) TableName() string {
 	return tableName("system_settings")
 }
@@ -43,6 +45,7 @@ const (
 // DefaultSystemSettings returns the default system settings that should be seeded
 // when the database is initialized. These provide sensible defaults that can be
 // overridden by administrators.
+// SEM@8f7b5125fd7a1b5bb10210ba480278708de918b0: build the seed list of default system settings for database initialization (pure)
 func DefaultSystemSettings() []SystemSetting {
 	desc := func(s string) NullableDBText { return NullableDBText{String: s, Valid: true} }
 

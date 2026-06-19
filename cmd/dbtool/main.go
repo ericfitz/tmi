@@ -18,10 +18,12 @@ var (
 	toolBuiltAt = "unknown"
 )
 
+// SEM@e93cc27eac1d842461899300fefcaebc977cb3db: entry point: delegate to run and exit with its return code
 func main() {
 	os.Exit(run())
 }
 
+// SEM@e7880ae29f527fb2d814f6d7b7c13280082fa033: parse flags, connect to the database, and dispatch a schema/seed/import operation (reads DB)
 func run() int {
 	// Define flags
 	schema := flag.Bool("schema", false, "Create/migrate database schema and seed system data")
@@ -190,6 +192,7 @@ func run() int {
 }
 
 // ensureSchema runs AutoMigrate if needed. Non-fatal for import operations.
+// SEM@6415706e07613a139449e1bff6eef269e3783417: run AutoMigrate to bring the database schema up to date (mutates shared state)
 func ensureSchema(db *testdb.TestDB) error {
 	log := slogging.Get()
 	log.Info("Ensuring schema is up to date...")
@@ -197,6 +200,7 @@ func ensureSchema(db *testdb.TestDB) error {
 }
 
 // printExitSummary prints the JSON exit summary to stdout.
+// SEM@e93cc27eac1d842461899300fefcaebc977cb3db: serialize and print a JSON exit summary with tool metadata and status
 func printExitSummary(info ToolInfo, args map[string]any, status, errMsg string) {
 	summary := ExitSummary{
 		Tool:         "tmi-dbtool",
@@ -212,6 +216,7 @@ func printExitSummary(info ToolInfo, args map[string]any, status, errMsg string)
 	fmt.Println(string(data))
 }
 
+// SEM@e7880ae29f527fb2d814f6d7b7c13280082fa033: print CLI usage text for the dbtool command (pure)
 func printUsage() {
 	fmt.Fprintf(os.Stderr, `tmi-dbtool - TMI Database Administration Tool
 
@@ -258,6 +263,7 @@ Examples:
 `)
 }
 
+// SEM@e93cc27eac1d842461899300fefcaebc977cb3db: count the number of true values in a variadic bool list (pure)
 func boolCount(flags ...bool) int {
 	n := 0
 	for _, f := range flags {

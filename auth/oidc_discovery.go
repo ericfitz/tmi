@@ -16,6 +16,7 @@ import (
 // OIDCDiscoveryDoc represents the subset of an OpenID Connect Discovery 1.0
 // metadata document we need to classify an OAuth provider. Field names match
 // the spec; only the fields we consume are declared.
+// SEM@5f9f526cf6b26f69441543993290f8ffaedac64a: subset of an OIDC Discovery 1.0 metadata document used to classify an OAuth provider (pure)
 type OIDCDiscoveryDoc struct {
 	Issuer                 string   `json:"issuer"`
 	AuthorizationEndpoint  string   `json:"authorization_endpoint"`
@@ -29,6 +30,7 @@ type OIDCDiscoveryDoc struct {
 // IsValid reports whether doc has the minimum fields required by the OIDC
 // Discovery 1.0 spec. userinfo_endpoint is RECOMMENDED rather than REQUIRED;
 // callers that need it should check separately.
+// SEM@5f9f526cf6b26f69441543993290f8ffaedac64a: validate that a discovery document has the minimum required OIDC fields (pure)
 func (d *OIDCDiscoveryDoc) IsValid() bool {
 	return d.Issuer != "" &&
 		d.AuthorizationEndpoint != "" &&
@@ -40,11 +42,13 @@ func (d *OIDCDiscoveryDoc) IsValid() bool {
 
 const wellKnownPath = "/.well-known/openid-configuration"
 
+// SEM@2c76a87aa45ddc7300c5f084caf6a460714fab5d: cache record pairing an OIDC discovery document with its fetch timestamp (pure)
 type cachedEntry struct {
 	doc       *OIDCDiscoveryDoc
 	fetchedAt time.Time
 }
 
+// SEM@5c1bcf212b418d73d444551267f29e1025089cb6: HTTP client with TTL cache and singleflight deduplication for OIDC discovery requests (mutates shared state)
 type DiscoveryClient struct {
 	httpClient *http.Client
 	cacheTTL   time.Duration
@@ -56,6 +60,7 @@ type DiscoveryClient struct {
 	sf singleflight.Group
 }
 
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: build an OIDC discovery client with redirect-refusing HTTP transport and a TTL cache (pure)
 func NewDiscoveryClient(timeout, cacheTTL time.Duration) *DiscoveryClient {
 	return &DiscoveryClient{
 		// A redirecting issuer is classified as "not OIDC" (the fetch fails)
@@ -75,6 +80,7 @@ func NewDiscoveryClient(timeout, cacheTTL time.Duration) *DiscoveryClient {
 //
 // Concurrent first-fetches for the same issuer collapse into a single upstream
 // request via singleflight (#292); subsequent calls hit the cache.
+// SEM@5c1bcf212b418d73d444551267f29e1025089cb6: fetch and cache the OIDC discovery document for an issuer, collapsing concurrent requests (mutates shared state)
 func (c *DiscoveryClient) Discover(ctx context.Context, issuerURL string) (*OIDCDiscoveryDoc, error) {
 	if issuerURL == "" {
 		return nil, fmt.Errorf("issuerURL is empty")
@@ -118,6 +124,7 @@ func (c *DiscoveryClient) Discover(ctx context.Context, issuerURL string) (*OIDC
 // fetchAndCache performs the actual HTTP discovery request and stores the
 // result (success or negative) in the cache. Returns (nil, nil) for any
 // "not OIDC" condition; (nil, err) only for programmer errors.
+// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: fetch the OIDC discovery document over HTTP and store the result in the cache (mutates shared state)
 func (c *DiscoveryClient) fetchAndCache(ctx context.Context, issuerURL string) (*OIDCDiscoveryDoc, error) {
 	url := strings.TrimSuffix(issuerURL, "/") + wellKnownPath
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -154,6 +161,7 @@ func (c *DiscoveryClient) fetchAndCache(ctx context.Context, issuerURL string) (
 	return &doc, nil
 }
 
+// SEM@2c76a87aa45ddc7300c5f084caf6a460714fab5d: store an OIDC discovery document in the client cache under the issuer URL (mutates shared state)
 func (c *DiscoveryClient) storeCache(issuerURL string, doc *OIDCDiscoveryDoc) {
 	c.mu.Lock()
 	c.cache[issuerURL] = cachedEntry{doc: doc, fetchedAt: time.Now()}

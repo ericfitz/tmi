@@ -9,11 +9,13 @@ import (
 )
 
 // WebhookCleanupWorker handles cleanup of old deliveries, idle subscriptions, and broken subscriptions
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: background worker that periodically purges stale webhook subscriptions and deliveries
 type WebhookCleanupWorker struct {
 	baseWorker
 }
 
 // NewWebhookCleanupWorker creates a new cleanup worker
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: build a WebhookCleanupWorker configured for hourly cleanup runs
 func NewWebhookCleanupWorker() *WebhookCleanupWorker {
 	w := &WebhookCleanupWorker{}
 	w.baseWorker = newBaseWorker("webhook cleanup worker", 1*time.Hour, true, w.performCleanup)
@@ -21,6 +23,7 @@ func NewWebhookCleanupWorker() *WebhookCleanupWorker {
 }
 
 // performCleanup performs all cleanup operations
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: run all webhook cleanup passes: stale deliveries, idle/broken subscriptions, pending-delete (reads DB)
 func (w *WebhookCleanupWorker) performCleanup(ctx context.Context) error {
 	logger := slogging.Get()
 
@@ -62,6 +65,7 @@ func (w *WebhookCleanupWorker) performCleanup(ctx context.Context) error {
 }
 
 // markIdleSubscriptions marks subscriptions with no recent activity for deletion
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: mark active subscriptions with no recent delivery as pending_delete (reads DB)
 func (w *WebhookCleanupWorker) markIdleSubscriptions(ctx context.Context, daysIdle int) (int, error) {
 	logger := slogging.Get()
 
@@ -87,6 +91,7 @@ func (w *WebhookCleanupWorker) markIdleSubscriptions(ctx context.Context, daysId
 }
 
 // markBrokenSubscriptions marks subscriptions with too many failures for deletion
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: mark active subscriptions exceeding failure thresholds as pending_delete (reads DB)
 func (w *WebhookCleanupWorker) markBrokenSubscriptions(ctx context.Context, minFailures, daysSinceSuccess int) (int, error) {
 	logger := slogging.Get()
 
@@ -114,6 +119,7 @@ func (w *WebhookCleanupWorker) markBrokenSubscriptions(ctx context.Context, minF
 
 // cleanupStaleDeliveries finds in_progress Redis delivery records with no activity
 // for longer than DeliveryStaleTimeout and marks them as failed.
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: transition in-progress Redis delivery records idle past the stale timeout to failed (reads DB)
 func (w *WebhookCleanupWorker) cleanupStaleDeliveries(ctx context.Context) error {
 	logger := slogging.Get()
 
@@ -160,6 +166,7 @@ func (w *WebhookCleanupWorker) cleanupStaleDeliveries(ctx context.Context) error
 
 // deletePendingSubscriptions deletes subscriptions marked for deletion,
 // including associated deliveries and addons that have foreign key constraints.
+// SEM@a870b93778753735e380098f91f8c25076bbb50a: delete pending_delete subscriptions and cascade-delete their addons, skipping pinned rows (reads DB)
 func (w *WebhookCleanupWorker) deletePendingSubscriptions(ctx context.Context) (int, error) {
 	logger := slogging.Get()
 

@@ -13,11 +13,13 @@ import (
 
 // ExtractionJobStore persists ExtractionJob rows. The result-consumer is the
 // sole writer of terminal states; the publish-side callers only InsertQueued.
+// SEM@36aa9fcae21c995e1ea57da44ded6bc1126d1af7: persistent store for extraction job lifecycle records (reads DB)
 type ExtractionJobStore struct {
 	db *gorm.DB
 }
 
 // NewExtractionJobStore constructs the store.
+// SEM@36aa9fcae21c995e1ea57da44ded6bc1126d1af7: build an ExtractionJobStore backed by the given GORM database (pure)
 func NewExtractionJobStore(db *gorm.DB) *ExtractionJobStore {
 	return &ExtractionJobStore{db: db}
 }
@@ -31,6 +33,7 @@ func NewExtractionJobStore(db *gorm.DB) *ExtractionJobStore {
 // INSERT ... RETURNING. RETURNING-from-MERGE is fragile, so the store methods
 // must not rely on struct fields populated by Create after the call — re-read
 // via GetDocumentRef instead.
+// SEM@36aa9fcae21c995e1ea57da44ded6bc1126d1af7: store a queued extraction job row idempotently, skipping on duplicate job ID (reads DB)
 func (s *ExtractionJobStore) InsertQueued(ctx context.Context, jobID, documentRef string) error {
 	dialect := s.db.Name()
 	row := models.ExtractionJob{
@@ -53,6 +56,7 @@ func (s *ExtractionJobStore) InsertQueued(ctx context.Context, jobID, documentRe
 // GetDocumentRef returns the document_ref stored for the given jobID.
 // Returns ("", nil) when the job row does not exist (e.g. the row was never
 // inserted, or the document was hard-deleted before the result arrived).
+// SEM@28a744a1501431680450f9ab9c4d57cdf9bebd2d: fetch the document reference stored for a given job ID, returning empty string if absent (reads DB)
 func (s *ExtractionJobStore) GetDocumentRef(ctx context.Context, jobID string) (string, error) {
 	var row models.ExtractionJob
 	result := s.db.WithContext(ctx).
@@ -110,6 +114,7 @@ const unknownDocumentRef = "__unknown__"
 //
 // Portable across PG, Oracle, and SQLite. Uses Col()/ColumnName()/AssignmentMap
 // so the Oracle GORM driver receives uppercase column identifiers.
+// SEM@b191ea0be150feb4f3aef14c234451872330fcf7: atomically transition an extraction job to a terminal state and report whether this was the first transition (reads DB)
 func (s *ExtractionJobStore) MarkTerminal(ctx context.Context, jobID, status, reasonCode string) (bool, error) {
 	dialect := s.db.Name()
 	now := time.Now().UTC()

@@ -16,17 +16,20 @@ import (
 )
 
 // GormWebhookSubscriptionStore implements WebhookSubscriptionStoreInterface using GORM
+// SEM@75d52ab3d1f4f71b22b1cef7144254cfdb837491: GORM-backed store for webhook subscription persistence with concurrency control
 type GormWebhookSubscriptionStore struct {
 	db    *gorm.DB
 	mutex sync.RWMutex
 }
 
 // NewGormWebhookSubscriptionStore creates a new GORM-backed webhook subscription store
+// SEM@75d52ab3d1f4f71b22b1cef7144254cfdb837491: build a GORM-backed webhook subscription store from a DB handle (pure)
 func NewGormWebhookSubscriptionStore(db *gorm.DB) *GormWebhookSubscriptionStore {
 	return &GormWebhookSubscriptionStore{db: db}
 }
 
 // Get retrieves a webhook subscription by ID using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: fetch a webhook subscription by ID from the DB (reads DB)
 func (s *GormWebhookSubscriptionStore) Get(ctx context.Context, id string) (DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -46,6 +49,7 @@ func (s *GormWebhookSubscriptionStore) Get(ctx context.Context, id string) (DBWe
 }
 
 // List retrieves webhook subscriptions with pagination and filtering using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: list webhook subscriptions with pagination and optional in-memory filter (reads DB)
 func (s *GormWebhookSubscriptionStore) List(ctx context.Context, offset, limit int, filter func(DBWebhookSubscription) bool) []DBWebhookSubscription {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -75,6 +79,7 @@ func (s *GormWebhookSubscriptionStore) List(ctx context.Context, offset, limit i
 }
 
 // ListByOwner retrieves subscriptions for a specific owner using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: list webhook subscriptions for a specific owner with pagination (reads DB)
 func (s *GormWebhookSubscriptionStore) ListByOwner(ctx context.Context, ownerID string, offset, limit int) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -101,6 +106,7 @@ func (s *GormWebhookSubscriptionStore) ListByOwner(ctx context.Context, ownerID 
 }
 
 // ListByThreatModel retrieves subscriptions for a specific threat model using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: list webhook subscriptions scoped to a specific threat model with pagination (reads DB)
 func (s *GormWebhookSubscriptionStore) ListByThreatModel(ctx context.Context, threatModelID string, offset, limit int) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -127,6 +133,7 @@ func (s *GormWebhookSubscriptionStore) ListByThreatModel(ctx context.Context, th
 }
 
 // ListActiveByOwner retrieves active subscriptions for an owner using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: list active webhook subscriptions for a specific owner (reads DB)
 func (s *GormWebhookSubscriptionStore) ListActiveByOwner(ctx context.Context, ownerID string) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -150,6 +157,7 @@ func (s *GormWebhookSubscriptionStore) ListActiveByOwner(ctx context.Context, ow
 // Event matching is performed in Go after fetching active rows because the
 // Events column is stored as a serialised string array; this mirrors the
 // approach used by the consumer's filterSubscriptions helper.
+// SEM@c13f85301f7c723dfb20f687cb8fddc4ed77e703: fetch active webhook subscriptions matching a given event type (reads DB)
 func (s *GormWebhookSubscriptionStore) ListActiveByEventType(ctx context.Context, eventType string) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -175,6 +183,7 @@ func (s *GormWebhookSubscriptionStore) ListActiveByEventType(ctx context.Context
 }
 
 // ListPendingVerification retrieves subscriptions pending verification using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: fetch webhook subscriptions awaiting verification challenge (reads DB)
 func (s *GormWebhookSubscriptionStore) ListPendingVerification(ctx context.Context) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -196,6 +205,7 @@ func (s *GormWebhookSubscriptionStore) ListPendingVerification(ctx context.Conte
 }
 
 // ListPendingDelete retrieves subscriptions pending deletion using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: fetch webhook subscriptions queued for deletion (reads DB)
 func (s *GormWebhookSubscriptionStore) ListPendingDelete(ctx context.Context) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -217,6 +227,7 @@ func (s *GormWebhookSubscriptionStore) ListPendingDelete(ctx context.Context) ([
 }
 
 // ListIdle retrieves subscriptions that have been idle for a certain number of days using GORM
+// SEM@c0d6404284f25e45cfa9076be2c6375c2f93913e: fetch active non-pinned webhook subscriptions unused for at least N days (reads DB)
 func (s *GormWebhookSubscriptionStore) ListIdle(ctx context.Context, daysIdle int) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -249,6 +260,7 @@ func (s *GormWebhookSubscriptionStore) ListIdle(ctx context.Context, daysIdle in
 }
 
 // ListBroken retrieves subscriptions with too many failures using GORM
+// SEM@c0d6404284f25e45cfa9076be2c6375c2f93913e: fetch active non-pinned subscriptions exceeding failure threshold without recent success (reads DB)
 func (s *GormWebhookSubscriptionStore) ListBroken(ctx context.Context, minFailures int, daysSinceSuccess int) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -278,6 +290,7 @@ func (s *GormWebhookSubscriptionStore) ListBroken(ctx context.Context, minFailur
 }
 
 // Create creates a new webhook subscription using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: store a new webhook subscription with generated ID and timestamps (mutates DB)
 func (s *GormWebhookSubscriptionStore) Create(ctx context.Context, item DBWebhookSubscription, idSetter func(DBWebhookSubscription, string) DBWebhookSubscription) (DBWebhookSubscription, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -308,6 +321,7 @@ func (s *GormWebhookSubscriptionStore) Create(ctx context.Context, item DBWebhoo
 }
 
 // Update updates an existing webhook subscription using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: update all fields of an existing webhook subscription by ID (mutates DB)
 func (s *GormWebhookSubscriptionStore) Update(ctx context.Context, id string, item DBWebhookSubscription) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -334,6 +348,7 @@ func (s *GormWebhookSubscriptionStore) Update(ctx context.Context, id string, it
 }
 
 // UpdateStatus updates only the status field using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: update only the status field of a webhook subscription by ID (mutates DB)
 func (s *GormWebhookSubscriptionStore) UpdateStatus(ctx context.Context, id string, status string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -354,6 +369,7 @@ func (s *GormWebhookSubscriptionStore) UpdateStatus(ctx context.Context, id stri
 }
 
 // UpdateChallenge updates challenge-related fields using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: update verification challenge and challenge-sent count for a webhook subscription (mutates DB)
 func (s *GormWebhookSubscriptionStore) UpdateChallenge(ctx context.Context, id string, challenge string, challengesSent int) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -375,6 +391,7 @@ func (s *GormWebhookSubscriptionStore) UpdateChallenge(ctx context.Context, id s
 }
 
 // UpdatePublicationStats updates publication statistics using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: update delivery success timestamp or increment failure count for a webhook subscription (mutates DB)
 func (s *GormWebhookSubscriptionStore) UpdatePublicationStats(ctx context.Context, id string, success bool) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -405,6 +422,7 @@ func (s *GormWebhookSubscriptionStore) UpdatePublicationStats(ctx context.Contex
 }
 
 // IncrementTimeouts increments the timeout count using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: increment the timeout counter for a webhook subscription by ID (mutates DB)
 func (s *GormWebhookSubscriptionStore) IncrementTimeouts(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -425,6 +443,7 @@ func (s *GormWebhookSubscriptionStore) IncrementTimeouts(ctx context.Context, id
 }
 
 // ResetTimeouts resets the timeout count using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: reset the timeout counter to zero for a webhook subscription by ID (mutates DB)
 func (s *GormWebhookSubscriptionStore) ResetTimeouts(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -445,6 +464,7 @@ func (s *GormWebhookSubscriptionStore) ResetTimeouts(ctx context.Context, id str
 }
 
 // Delete deletes a webhook subscription using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: delete a webhook subscription by ID; error if not found (mutates DB)
 func (s *GormWebhookSubscriptionStore) Delete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -462,6 +482,7 @@ func (s *GormWebhookSubscriptionStore) Delete(ctx context.Context, id string) er
 }
 
 // Count returns the total number of webhook subscriptions using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: return total count of webhook subscriptions (reads DB)
 func (s *GormWebhookSubscriptionStore) Count(ctx context.Context) int {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -472,6 +493,7 @@ func (s *GormWebhookSubscriptionStore) Count(ctx context.Context) int {
 }
 
 // CountByOwner returns the number of subscriptions for a specific owner using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: return count of webhook subscriptions belonging to a specific owner (reads DB)
 func (s *GormWebhookSubscriptionStore) CountByOwner(ctx context.Context, ownerID string) (int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -484,6 +506,7 @@ func (s *GormWebhookSubscriptionStore) CountByOwner(ctx context.Context, ownerID
 }
 
 // toDBModel converts a GORM model to DBWebhookSubscription
+// SEM@c0d6404284f25e45cfa9076be2c6375c2f93913e: convert a GORM webhook subscription model to the domain DB struct (pure)
 func (s *GormWebhookSubscriptionStore) toDBModel(sub *models.WebhookSubscription) DBWebhookSubscription {
 	dbSub := DBWebhookSubscription{
 		Id:                  uuid.MustParse(string(sub.ID)),
@@ -518,6 +541,7 @@ func (s *GormWebhookSubscriptionStore) toDBModel(sub *models.WebhookSubscription
 }
 
 // toGormModel converts a DBWebhookSubscription to GORM model
+// SEM@c0d6404284f25e45cfa9076be2c6375c2f93913e: convert a domain webhook subscription DB struct to the GORM model (pure)
 func (s *GormWebhookSubscriptionStore) toGormModel(sub *DBWebhookSubscription) *models.WebhookSubscription {
 	gormSub := &models.WebhookSubscription{
 		ID:                  models.DBVarchar(sub.Id.String()),
@@ -552,17 +576,20 @@ func (s *GormWebhookSubscriptionStore) toGormModel(sub *DBWebhookSubscription) *
 }
 
 // GormWebhookQuotaStore implements WebhookQuotaStoreInterface using GORM
+// SEM@75d52ab3d1f4f71b22b1cef7144254cfdb837491: GORM-backed store holding per-owner webhook quota records
 type GormWebhookQuotaStore struct {
 	db    *gorm.DB
 	mutex sync.RWMutex
 }
 
 // NewGormWebhookQuotaStore creates a new GORM-backed webhook quota store
+// SEM@75d52ab3d1f4f71b22b1cef7144254cfdb837491: build a GORM-backed webhook quota store wrapping the given DB connection (pure)
 func NewGormWebhookQuotaStore(db *gorm.DB) *GormWebhookQuotaStore {
 	return &GormWebhookQuotaStore{db: db}
 }
 
 // Get retrieves a webhook quota by owner ID using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: fetch a webhook quota record by owner ID; error if not found (reads DB)
 func (s *GormWebhookQuotaStore) Get(ctx context.Context, ownerID string) (DBWebhookQuota, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -587,6 +614,7 @@ func (s *GormWebhookQuotaStore) Get(ctx context.Context, ownerID string) (DBWebh
 // even though the response succeeds with default limits. The historical
 // behavior was to silently swallow all errors; the WARN is the only
 // behavior change.
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: fetch a webhook quota by owner ID or return defaults on any error (reads DB)
 func (s *GormWebhookQuotaStore) GetOrDefault(ctx context.Context, ownerID string) DBWebhookQuota {
 	quota, err := s.Get(ctx, ownerID)
 	if err != nil {
@@ -606,6 +634,7 @@ func (s *GormWebhookQuotaStore) GetOrDefault(ctx context.Context, ownerID string
 }
 
 // List retrieves all webhook quotas with pagination using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: list webhook quota records with pagination (reads DB)
 func (s *GormWebhookQuotaStore) List(ctx context.Context, offset, limit int) ([]DBWebhookQuota, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -632,6 +661,7 @@ func (s *GormWebhookQuotaStore) List(ctx context.Context, offset, limit int) ([]
 }
 
 // Create creates a new webhook quota using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: store a new webhook quota record with timestamps (mutates DB)
 func (s *GormWebhookQuotaStore) Create(ctx context.Context, item DBWebhookQuota) (DBWebhookQuota, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -657,6 +687,7 @@ func (s *GormWebhookQuotaStore) Create(ctx context.Context, item DBWebhookQuota)
 }
 
 // Update updates an existing webhook quota using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: update rate-limit fields of a webhook quota record by owner ID (mutates DB)
 func (s *GormWebhookQuotaStore) Update(ctx context.Context, ownerID string, item DBWebhookQuota) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -681,6 +712,7 @@ func (s *GormWebhookQuotaStore) Update(ctx context.Context, ownerID string, item
 }
 
 // Delete deletes a webhook quota using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: delete a webhook quota record by owner ID; error if not found (mutates DB)
 func (s *GormWebhookQuotaStore) Delete(ctx context.Context, ownerID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -698,6 +730,7 @@ func (s *GormWebhookQuotaStore) Delete(ctx context.Context, ownerID string) erro
 }
 
 // Count returns the total number of webhook quotas using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: return total count of webhook quota records (reads DB)
 func (s *GormWebhookQuotaStore) Count(ctx context.Context) (int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -710,6 +743,7 @@ func (s *GormWebhookQuotaStore) Count(ctx context.Context) (int, error) {
 }
 
 // toDBModel converts a GORM model to DBWebhookQuota
+// SEM@c0d6404284f25e45cfa9076be2c6375c2f93913e: convert a GORM webhook quota model to the domain DB struct (pure)
 func (s *GormWebhookQuotaStore) toDBModel(quota *models.WebhookQuota) DBWebhookQuota {
 	return DBWebhookQuota{
 		OwnerId:                          uuid.MustParse(string(quota.OwnerID)),
@@ -723,6 +757,7 @@ func (s *GormWebhookQuotaStore) toDBModel(quota *models.WebhookQuota) DBWebhookQ
 }
 
 // toGormModel converts a DBWebhookQuota to GORM model
+// SEM@c0d6404284f25e45cfa9076be2c6375c2f93913e: convert a domain webhook quota DB struct to the GORM model (pure)
 func (s *GormWebhookQuotaStore) toGormModel(quota *DBWebhookQuota) *models.WebhookQuota {
 	return &models.WebhookQuota{
 		OwnerID:                          models.DBVarchar(quota.OwnerId.String()),
@@ -736,17 +771,20 @@ func (s *GormWebhookQuotaStore) toGormModel(quota *DBWebhookQuota) *models.Webho
 }
 
 // GormWebhookUrlDenyListStore implements WebhookUrlDenyListStoreInterface using GORM
+// SEM@75d52ab3d1f4f71b22b1cef7144254cfdb837491: GORM-backed store holding webhook URL deny-list pattern entries
 type GormWebhookUrlDenyListStore struct {
 	db    *gorm.DB
 	mutex sync.RWMutex
 }
 
 // NewGormWebhookUrlDenyListStore creates a new GORM-backed store
+// SEM@75d52ab3d1f4f71b22b1cef7144254cfdb837491: build a GORM-backed webhook URL deny-list store wrapping the given DB connection (pure)
 func NewGormWebhookUrlDenyListStore(db *gorm.DB) *GormWebhookUrlDenyListStore {
 	return &GormWebhookUrlDenyListStore{db: db}
 }
 
 // List retrieves all deny list entries using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: list all webhook URL deny-list entries ordered by pattern (reads DB)
 func (s *GormWebhookUrlDenyListStore) List(ctx context.Context) ([]WebhookUrlDenyListEntry, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -765,6 +803,7 @@ func (s *GormWebhookUrlDenyListStore) List(ctx context.Context) ([]WebhookUrlDen
 }
 
 // Create creates a new deny list entry using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: store a new webhook URL deny-list pattern entry with generated ID (mutates DB)
 func (s *GormWebhookUrlDenyListStore) Create(ctx context.Context, item WebhookUrlDenyListEntry) (WebhookUrlDenyListEntry, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -796,6 +835,7 @@ func (s *GormWebhookUrlDenyListStore) Create(ctx context.Context, item WebhookUr
 }
 
 // Delete deletes a deny list entry using GORM
+// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: delete a webhook URL deny-list entry by ID; error if not found (mutates DB)
 func (s *GormWebhookUrlDenyListStore) Delete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -813,6 +853,7 @@ func (s *GormWebhookUrlDenyListStore) Delete(ctx context.Context, id string) err
 }
 
 // toDBModel converts a GORM model to WebhookUrlDenyListEntry
+// SEM@c0d6404284f25e45cfa9076be2c6375c2f93913e: convert a GORM webhook URL deny-list model to the domain struct (pure)
 func (s *GormWebhookUrlDenyListStore) toDBModel(entry *models.WebhookURLDenyList) WebhookUrlDenyListEntry {
 	result := WebhookUrlDenyListEntry{
 		Id:          uuid.MustParse(string(entry.ID)),
@@ -827,6 +868,7 @@ func (s *GormWebhookUrlDenyListStore) toDBModel(entry *models.WebhookURLDenyList
 }
 
 // toGormModel converts a WebhookUrlDenyListEntry to GORM model
+// SEM@c0d6404284f25e45cfa9076be2c6375c2f93913e: convert a domain webhook URL deny-list struct to the GORM model (pure)
 func (s *GormWebhookUrlDenyListStore) toGormModel(entry *WebhookUrlDenyListEntry) *models.WebhookURLDenyList {
 	gormEntry := &models.WebhookURLDenyList{
 		ID:          models.DBVarchar(entry.Id.String()),

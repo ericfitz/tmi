@@ -16,6 +16,7 @@ const platformNamespace = "tmi-platform"
 
 // componentPodLabels are the pod labels the controller stamps on worker pods
 // and selects on in the NetworkPolicy.
+// SEM@97035335ed24e52017f6407f24d6793e13058644: return the pod label map used to select worker pods for a component (pure)
 func componentPodLabels(c *platformv1alpha1.TMIComponent) map[string]string {
 	return map[string]string{"tmi.dev/component": c.Name}
 }
@@ -23,6 +24,7 @@ func componentPodLabels(c *platformv1alpha1.TMIComponent) map[string]string {
 // natsPeer selects the NATS server pod (app=nats in the platform namespace).
 // Egress rules scope their To peer to this so "NATS only" actually means
 // NATS only — not "port 4222 to any destination".
+// SEM@e88d50ddb0cfd0332d971ad3d4290c85cec26597: build a NetworkPolicyPeer that selects the NATS server pod in the platform namespace (pure)
 func natsPeer() networkingv1.NetworkPolicyPeer {
 	return networkingv1.NetworkPolicyPeer{
 		NamespaceSelector: &metav1.LabelSelector{
@@ -37,6 +39,7 @@ func natsPeer() networkingv1.NetworkPolicyPeer {
 // dnsPeer selects the cluster DNS pods (CoreDNS: k8s-app=kube-dns in
 // kube-system). Without this scope a DNS egress rule would permit port 53
 // to every destination.
+// SEM@e88d50ddb0cfd0332d971ad3d4290c85cec26597: build a NetworkPolicyPeer that selects CoreDNS pods in kube-system (pure)
 func dnsPeer() networkingv1.NetworkPolicyPeer {
 	return networkingv1.NetworkPolicyPeer{
 		NamespaceSelector: &metav1.LabelSelector{
@@ -55,6 +58,7 @@ func dnsPeer() networkingv1.NetworkPolicyPeer {
 // scoping the peers is what makes "egress: none" mean "NATS only". The
 // controller always renders this as a cluster-layer backstop, independent
 // of any in-code egress guarding.
+// SEM@b606b1e53cb73ed3007ef11a16d7867e87b3f130: build a Kubernetes NetworkPolicy for a component enforcing egress posture (pure)
 func RenderNetworkPolicy(c *platformv1alpha1.TMIComponent) *networkingv1.NetworkPolicy {
 	np := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: c.Name, Namespace: c.Namespace},
@@ -146,6 +150,7 @@ func RenderNetworkPolicy(c *platformv1alpha1.TMIComponent) *networkingv1.Network
 
 // resolveEgressPorts maps declared port numbers to NetworkPolicyPort entries,
 // defaulting to TCP/443 when none are declared.
+// SEM@b9fc4e89bc1113f28e56af611b311b90cff43fcc: convert declared port list to NetworkPolicyPort entries, defaulting to TCP/443 (pure)
 func resolveEgressPorts(ports []int32) []networkingv1.NetworkPolicyPort {
 	if len(ports) == 0 {
 		return []networkingv1.NetworkPolicyPort{

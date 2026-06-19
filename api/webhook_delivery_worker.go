@@ -33,6 +33,7 @@ const DelegationTokenHeader = "X-TMI-Delegation-Token"
 // All outbound requests go through SafeHTTPClient which pins the validated IP at
 // dial time, defending against DNS rebinding between subscription validation and
 // per-delivery dispatch.
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: background worker that dispatches pending webhook deliveries via SSRF-safe HTTP
 type WebhookDeliveryWorker struct {
 	baseWorker
 	client  *SafeHTTPClient
@@ -41,6 +42,7 @@ type WebhookDeliveryWorker struct {
 
 // NewWebhookDeliveryWorker creates a new delivery worker. The validator
 // controls the SSRF blocklist and URL schemes used for outbound calls.
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: build a WebhookDeliveryWorker with circuit breaker and SSRF-safe HTTP client
 func NewWebhookDeliveryWorker(validator *URIValidator) *WebhookDeliveryWorker {
 	w := &WebhookDeliveryWorker{
 		client: NewSafeHTTPClient(
@@ -64,6 +66,7 @@ func NewWebhookDeliveryWorker(validator *URIValidator) *WebhookDeliveryWorker {
 const hardResponseBodyCap = 1 * 1024 * 1024
 
 // processPendingDeliveries processes all pending deliveries
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: fetch and dispatch all pending and retry-ready webhook deliveries in one batch (reads DB)
 func (w *WebhookDeliveryWorker) processPendingDeliveries(ctx context.Context) error {
 	logger := slogging.Get()
 
@@ -103,6 +106,7 @@ func (w *WebhookDeliveryWorker) processPendingDeliveries(ctx context.Context) er
 }
 
 // deliverWebhook attempts to deliver a webhook to its endpoint
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: dispatch a single webhook delivery, handling circuit-breaker, HMAC signing, and async callback (reads DB)
 func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery WebhookDeliveryRecord) error {
 	logger := slogging.Get()
 
@@ -210,6 +214,7 @@ func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery Web
 // recordTransportFailureMetrics classifies a transport-level error and
 // increments the matching counter so operators can distinguish hostile
 // targets (oversize body, slowloris on headers) from generic failures.
+// SEM@0aee687bf1c2b4e1819bf1c183575104459a14d4: increment OTel counters for oversized-body and header-timeout transport errors
 func (w *WebhookDeliveryWorker) recordTransportFailureMetrics(ctx context.Context, target string, err error) {
 	m := tmiotel.GlobalMetrics
 	if m == nil {
@@ -225,6 +230,7 @@ func (w *WebhookDeliveryWorker) recordTransportFailureMetrics(ctx context.Contex
 
 // isResponseHeaderTimeout reports whether err is the timeout produced
 // by net/http when ResponseHeaderTimeout fires before headers arrive.
+// SEM@0aee687bf1c2b4e1819bf1c183575104459a14d4: report whether an error is a net/http response-header timeout (pure)
 func isResponseHeaderTimeout(err error) bool {
 	if err == nil {
 		return false
@@ -235,6 +241,7 @@ func isResponseHeaderTimeout(err error) bool {
 // truncateForLog returns at most n bytes of body for inclusion in a log
 // or error message. Anything above n is replaced with a marker so we
 // never spill a 1 MiB upstream response into our logs.
+// SEM@0aee687bf1c2b4e1819bf1c183575104459a14d4: limit a response body slice to n bytes for safe log inclusion (pure)
 func truncateForLog(body []byte, n int) string {
 	if len(body) <= n {
 		return string(body)
@@ -249,6 +256,7 @@ func truncateForLog(body []byte, n int) string {
 const logBodyCap = 10 * 1024
 
 // handleDeliveryFailure handles a failed delivery attempt
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: schedule exponential retry or permanently fail a delivery after max attempts (reads DB)
 func (w *WebhookDeliveryWorker) handleDeliveryFailure(ctx context.Context, delivery WebhookDeliveryRecord, errorMsg string) error {
 	logger := slogging.Get()
 
@@ -301,6 +309,7 @@ func (w *WebhookDeliveryWorker) handleDeliveryFailure(ctx context.Context, deliv
 // delegation token can scope to that specific TM; we don't store the TM
 // ID on the WebhookDeliveryRecord directly to avoid a Redis-schema
 // migration of in-flight records during deployment.
+// SEM@e6be8a8f816c564356a656ac18f3693ac7f10369: mint a scoped delegation JWT for addon.invoked deliveries and attach it as an HTTP header
 func attachAddonDelegationToken(
 	ctx context.Context,
 	delivery *WebhookDeliveryRecord,
@@ -354,6 +363,7 @@ func attachAddonDelegationToken(
 // envelope JSON and returns the ThreatModelID, or uuid.Nil on any error.
 // Used by attachAddonDelegationToken; tolerant of additional/missing
 // fields so envelope-shape changes don't break delegation issuance.
+// SEM@e6be8a8f816c564356a656ac18f3693ac7f10369: parse the threat model UUID from a webhook delivery envelope payload (pure)
 func extractThreatModelIDFromEnvelope(payload string) uuid.UUID {
 	if payload == "" {
 		return uuid.Nil

@@ -13,6 +13,7 @@ import (
 )
 
 // GetSAMLMetadata returns SAML service provider metadata
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: serve SP SAML metadata XML for a given provider ID
 func (h *Handlers) GetSAMLMetadata(c *gin.Context, providerID string) {
 	logger := slogging.Get()
 
@@ -63,6 +64,7 @@ func (h *Handlers) GetSAMLMetadata(c *gin.Context, providerID string) {
 }
 
 // InitiateSAMLLogin starts SAML authentication flow
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: start a SAML authentication flow and redirect to the IdP
 func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCallback *string) {
 	logger := slogging.Get()
 
@@ -138,6 +140,7 @@ func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCa
 // "account_conflict") so clients can branch on the failure without parsing the
 // human-readable errorMsg; both the redirect fragment and the JSON fallback
 // carry error + error_description.
+// SEM@bad36697a83ba8606ae7e598eb5fe21f3afebcaa: redirect to a client callback with an OAuth-style error fragment, or return JSON if no callback
 func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayState string, statusCode int, errorCode string, errorMsg string) {
 	logger := slogging.Get()
 
@@ -185,6 +188,7 @@ func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayS
 // opaque "Authentication failed". Every other failure stays a generic 401 and
 // does not disclose detail. ProcessSAMLResponse wraps processUser's error with
 // %w, so errors.Is sees through the wrapping.
+// SEM@bad36697a83ba8606ae7e598eb5fe21f3afebcaa: map a SAML processing error to HTTP status, OAuth error code, and user message (pure)
 func classifySAMLProcessError(err error) (statusCode int, errorCode string, errorMsg string) {
 	if errors.Is(err, errCrossProviderConflict) {
 		return http.StatusConflict, "account_conflict",
@@ -194,6 +198,7 @@ func classifySAMLProcessError(err error) (statusCode int, errorCode string, erro
 }
 
 // redirectWithErrorOAuth redirects to client callback URL with error for OAuth flows
+// SEM@81952f598eaf9b1599471d778c9fb82e7d2f2d7a: redirect to a client callback with an OAuth error fragment, or return JSON if no callback
 func (h *Handlers) redirectWithErrorOAuth(c *gin.Context, callbackURL string, statusCode int, errorMsg string) {
 	logger := slogging.Get()
 
@@ -226,6 +231,7 @@ func (h *Handlers) redirectWithErrorOAuth(c *gin.Context, callbackURL string, st
 }
 
 // ProcessSAMLResponse handles SAML assertion consumer service
+// SEM@bad36697a83ba8606ae7e598eb5fe21f3afebcaa: handle the SAML ACS callback: validate assertion, issue token pair, and redirect or return JSON
 func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlResponse string, relayState string) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -316,6 +322,7 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 }
 
 // ProcessSAMLLogout handles SAML single logout
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: handle an IdP-initiated SAML SLO request, invalidate user sessions, and return a logout response
 func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequest string) {
 	logger := slogging.Get()
 

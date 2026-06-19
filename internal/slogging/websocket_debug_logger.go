@@ -6,6 +6,7 @@ import (
 )
 
 // WebSocketDebugLogger provides toggleable WebSocket message logging for debugging
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: per-session toggleable debug logger for WebSocket messages (pure)
 type WebSocketDebugLogger struct {
 	enabled map[string]bool // sessionID -> enabled
 	logger  *Logger
@@ -13,6 +14,7 @@ type WebSocketDebugLogger struct {
 }
 
 // NewWebSocketDebugLogger creates a new WebSocket debug logger
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: build a WebSocket debug logger backed by the given structured logger (pure)
 func NewWebSocketDebugLogger(logger *Logger) *WebSocketDebugLogger {
 	return &WebSocketDebugLogger{
 		enabled: make(map[string]bool),
@@ -21,6 +23,7 @@ func NewWebSocketDebugLogger(logger *Logger) *WebSocketDebugLogger {
 }
 
 // EnableSessionLogging enables debug logging for a specific session
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: enable WebSocket debug logging for a specific session (mutates shared state)
 func (wsl *WebSocketDebugLogger) EnableSessionLogging(sessionID string) {
 	wsl.mutex.Lock()
 	defer wsl.mutex.Unlock()
@@ -30,6 +33,7 @@ func (wsl *WebSocketDebugLogger) EnableSessionLogging(sessionID string) {
 }
 
 // DisableSessionLogging disables debug logging for a specific session
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: disable WebSocket debug logging for a specific session (mutates shared state)
 func (wsl *WebSocketDebugLogger) DisableSessionLogging(sessionID string) {
 	wsl.mutex.Lock()
 	defer wsl.mutex.Unlock()
@@ -39,6 +43,7 @@ func (wsl *WebSocketDebugLogger) DisableSessionLogging(sessionID string) {
 }
 
 // IsSessionLoggingEnabled checks if logging is enabled for a session
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: check whether WebSocket debug logging is active for a session (pure)
 func (wsl *WebSocketDebugLogger) IsSessionLoggingEnabled(sessionID string) bool {
 	wsl.mutex.RLock()
 	defer wsl.mutex.RUnlock()
@@ -46,6 +51,7 @@ func (wsl *WebSocketDebugLogger) IsSessionLoggingEnabled(sessionID string) bool 
 }
 
 // LogMessage logs a WebSocket message if debug logging is enabled for the session
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: emit a structured WebSocket message log entry if the session has debug logging enabled
 func (wsl *WebSocketDebugLogger) LogMessage(sessionID, userID, direction string, message []byte) {
 	wsl.mutex.RLock()
 	enabled := wsl.enabled[sessionID]
@@ -66,6 +72,7 @@ func (wsl *WebSocketDebugLogger) LogMessage(sessionID, userID, direction string,
 }
 
 // GetEnabledSessions returns a list of sessions with debug logging enabled
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: list all session IDs that currently have WebSocket debug logging enabled (pure)
 func (wsl *WebSocketDebugLogger) GetEnabledSessions() []string {
 	wsl.mutex.RLock()
 	defer wsl.mutex.RUnlock()
@@ -78,6 +85,7 @@ func (wsl *WebSocketDebugLogger) GetEnabledSessions() []string {
 }
 
 // DisableAllSessions disables debug logging for all sessions
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: disable WebSocket debug logging for every active session (mutates shared state)
 func (wsl *WebSocketDebugLogger) DisableAllSessions() {
 	wsl.mutex.Lock()
 	defer wsl.mutex.Unlock()
@@ -90,6 +98,7 @@ func (wsl *WebSocketDebugLogger) DisableAllSessions() {
 }
 
 // ClearAllSessions is an alias for DisableAllSessions (compatibility)
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: alias for DisableAllSessions; disable WebSocket debug logging for all sessions (mutates shared state)
 func (wsl *WebSocketDebugLogger) ClearAllSessions() {
 	wsl.DisableAllSessions()
 }
@@ -98,6 +107,7 @@ func (wsl *WebSocketDebugLogger) ClearAllSessions() {
 var globalWebSocketDebugLogger *WebSocketDebugLogger
 
 // GetWebSocketDebugLogger returns the global WebSocket debug logger
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: return the global WebSocket debug logger singleton, initializing it if needed
 func GetWebSocketDebugLogger() *WebSocketDebugLogger {
 	if globalWebSocketDebugLogger == nil {
 		globalWebSocketDebugLogger = NewWebSocketDebugLogger(Get())

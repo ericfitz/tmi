@@ -36,6 +36,7 @@ const DelegationTokenTTL = 60 * time.Second
 // attempt — the previous attempt's token will have expired by the time a
 // retry fires, and minting fresh tokens keeps the invoker's revocation /
 // group-membership state current.
+// SEM@a227ace8f890d3c768cb52f4b2b1c1817699c88e: build and sign a scoped delegation JWT for an addon webhook invocation, stripping admin privileges
 func (s *Service) IssueAddonDelegationToken(
 	ctx context.Context,
 	invoker *User,
@@ -123,6 +124,7 @@ const administratorsGroupName = "administrators"
 // mergeGroupsForDelegation deduplicates two group slices and additionally
 // strips the administrators marker. Mirrors mergeGroups in service.go but
 // with the admin-floor enforced.
+// SEM@e6be8a8f816c564356a656ac18f3693ac7f10369: merge two group lists into a deduplicated set, excluding the administrators group (pure)
 func mergeGroupsForDelegation(existing, additional []string) []string {
 	merged := make([]string, 0, len(existing)+len(additional))
 	for _, g := range existing {

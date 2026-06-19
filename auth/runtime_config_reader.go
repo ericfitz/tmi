@@ -20,6 +20,7 @@ import (
 // auth package has been moved here, the YAML snapshot fallback can be
 // removed and h.config.OAuth.* / h.config.SAML.* trimmed to bootstrap-only
 // fields.
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: interface for reading live auth configuration from the DB at request time (reads DB)
 type RuntimeConfigReader interface {
 	// GetClientCallbackAllowList returns the configured allowlist for the
 	// /oauth2/authorize and /oauth2/step_up client_callback parameter.

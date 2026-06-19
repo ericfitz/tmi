@@ -8,6 +8,7 @@ import (
 // InternalAuditActor holds denormalized user information for audit entries
 // in the internal service layer. Uses plain strings (not openapi_types).
 // The generated AuditActor type from the OpenAPI spec is used for API responses.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: denormalized user identity for internal audit entries, avoiding generated API types (pure)
 type InternalAuditActor struct {
 	Email       string `json:"email"`
 	Provider    string `json:"provider"`
@@ -16,6 +17,7 @@ type InternalAuditActor struct {
 }
 
 // AuditParams contains the parameters for recording an audit entry.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: parameters for recording a single mutation in the audit trail (pure)
 type AuditParams struct {
 	ThreatModelID string
 	ObjectType    string
@@ -28,6 +30,7 @@ type AuditParams struct {
 }
 
 // AuditFilters defines filtering criteria for querying audit entries.
+// SEM@b7db260b5211c371fc74a10f72dfcd61bf7d1090: filtering criteria for querying audit entries by object, actor, or time range (pure)
 type AuditFilters struct {
 	ObjectType    *string
 	ObjectID      *string
@@ -40,6 +43,7 @@ type AuditFilters struct {
 }
 
 // AuditEntryResponse represents an audit entry as returned by the service layer.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: audit trail entry returned by the service layer, including actor and change metadata (pure)
 type AuditEntryResponse struct {
 	ID            string             `json:"id"`
 	ThreatModelID string             `json:"threat_model_id"`
@@ -53,6 +57,7 @@ type AuditEntryResponse struct {
 }
 
 // AuditServiceInterface defines operations for audit trail and version management.
+// SEM@24454e2885191ae61007ef13d2194c563ebe6d37: contract for recording mutations, querying audit trails, and pruning version snapshots
 type AuditServiceInterface interface {
 	// RecordMutation records a mutation in the audit trail and creates a version snapshot.
 	// The service internally computes reverse diffs and determines checkpoint intervals.

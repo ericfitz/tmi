@@ -17,6 +17,7 @@ import (
 )
 
 // ptrOrNil returns a pointer to the string if non-empty, nil otherwise
+// SEM@75d52ab3d1f4f71b22b1cef7144254cfdb837491: return a pointer to a string if non-empty, nil otherwise (pure)
 func ptrOrNil(s string) *string {
 	if s == "" {
 		return nil
@@ -25,12 +26,14 @@ func ptrOrNil(s string) *string {
 }
 
 // GormGroupRepository implements GroupRepository using GORM for cross-database support
+// SEM@c82b74e37eeb6c562c203628ab2aacb25bccdb04: GORM-backed group repository providing cross-database CRUD for identity provider groups (reads DB)
 type GormGroupRepository struct {
 	db     *gorm.DB
 	logger *slogging.Logger
 }
 
 // NewGormGroupRepository creates a new GORM-backed group repository
+// SEM@c82b74e37eeb6c562c203628ab2aacb25bccdb04: build a GormGroupRepository wiring a GORM DB connection (pure)
 func NewGormGroupRepository(db *gorm.DB) *GormGroupRepository {
 	return &GormGroupRepository{
 		db:     db,
@@ -39,6 +42,7 @@ func NewGormGroupRepository(db *gorm.DB) *GormGroupRepository {
 }
 
 // List returns groups with optional filtering and pagination
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: list groups with optional provider, name, authorization-usage filters, sorting, and pagination (reads DB)
 func (r *GormGroupRepository) List(ctx context.Context, filter GroupFilter) ([]Group, error) {
 	query := r.db.WithContext(ctx).Model(&models.Group{})
 
@@ -115,6 +119,7 @@ func (r *GormGroupRepository) List(ctx context.Context, filter GroupFilter) ([]G
 }
 
 // Get retrieves a group by internal UUID
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: fetch a group by its internal UUID (reads DB)
 func (r *GormGroupRepository) Get(ctx context.Context, internalUUID uuid.UUID) (*Group, error) {
 	var gormGroup models.Group
 	result := r.db.WithContext(ctx).Where("internal_uuid = ?", internalUUID.String()).First(&gormGroup)
@@ -131,6 +136,7 @@ func (r *GormGroupRepository) Get(ctx context.Context, internalUUID uuid.UUID) (
 }
 
 // GetByProviderAndName retrieves a group by provider and group_name
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch a group by identity provider and group name (reads DB)
 func (r *GormGroupRepository) GetByProviderAndName(ctx context.Context, provider string, groupName string) (*Group, error) {
 	var gormGroup models.Group
 	// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
@@ -150,6 +156,7 @@ func (r *GormGroupRepository) GetByProviderAndName(ctx context.Context, provider
 }
 
 // Create creates a new group (primarily for provider-independent groups)
+// SEM@75d52ab3d1f4f71b22b1cef7144254cfdb837491: store a new group with default usage tracking fields (reads DB)
 func (r *GormGroupRepository) Create(ctx context.Context, group Group) error {
 	// Set default values if not provided
 	if group.InternalUUID == uuid.Nil {
@@ -181,6 +188,7 @@ func (r *GormGroupRepository) Create(ctx context.Context, group Group) error {
 }
 
 // Update updates group metadata (name, description)
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: update group display name and description, refreshing last_used timestamp (reads DB)
 func (r *GormGroupRepository) Update(ctx context.Context, group Group) error {
 	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.Group{}).
@@ -204,6 +212,7 @@ func (r *GormGroupRepository) Update(ctx context.Context, group Group) error {
 }
 
 // Count returns total count of groups matching the filter
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: count groups matching provider, name, and authorization-usage filters (reads DB)
 func (r *GormGroupRepository) Count(ctx context.Context, filter GroupFilter) (int, error) {
 	query := r.db.WithContext(ctx).Model(&models.Group{})
 
@@ -239,6 +248,7 @@ func (r *GormGroupRepository) Count(ctx context.Context, filter GroupFilter) (in
 }
 
 // EnrichGroups adds related data to groups (usage in authorizations/admin grants)
+// SEM@402df88179fdf587dd628ea930a569f4f72e7ac8: augment groups with authorization and admin-grant membership flags (reads DB)
 func (r *GormGroupRepository) EnrichGroups(ctx context.Context, groups []Group) ([]Group, error) {
 	if len(groups) == 0 {
 		return groups, nil
@@ -281,6 +291,7 @@ func (r *GormGroupRepository) EnrichGroups(ctx context.Context, groups []Group) 
 }
 
 // GetGroupsForProvider returns all groups for a specific provider (for UI autocomplete)
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: list up to 500 groups for a provider sorted by last used, for autocomplete (reads DB)
 func (r *GormGroupRepository) GetGroupsForProvider(ctx context.Context, provider string) ([]Group, error) {
 	filter := GroupFilter{
 		Provider:  provider,
@@ -293,6 +304,7 @@ func (r *GormGroupRepository) GetGroupsForProvider(ctx context.Context, provider
 
 // UpsertGroup creates or updates a group (used during JWT group sync)
 // This is a concrete method not on the GroupRepository interface — kept for future JWT group sync use.
+// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: create or update a group by provider+name conflict key, refreshing usage fields (reads DB)
 func (r *GormGroupRepository) UpsertGroup(ctx context.Context, group Group) error {
 	gormGroup := r.convertFromGroup(&group)
 
@@ -310,6 +322,7 @@ func (r *GormGroupRepository) UpsertGroup(ctx context.Context, group Group) erro
 }
 
 // convertToGroup converts a GORM Group model to API Group
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a GORM Group model to the API Group DTO (pure)
 func (r *GormGroupRepository) convertToGroup(gg *models.Group) Group {
 	internalUUID, _ := uuid.Parse(string(gg.InternalUUID))
 
@@ -326,6 +339,7 @@ func (r *GormGroupRepository) convertToGroup(gg *models.Group) Group {
 }
 
 // convertFromGroup converts an API Group to GORM Group model
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert an API Group DTO to its GORM Group model (pure)
 func (r *GormGroupRepository) convertFromGroup(g *Group) *models.Group {
 	return &models.Group{
 		InternalUUID: models.DBVarchar(g.InternalUUID.String()),

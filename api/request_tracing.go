@@ -12,6 +12,7 @@ import (
 )
 
 // RequestTracingMiddleware provides comprehensive request tracing
+// SEM@dff4dd105825de9e0bddf30a1b4cfc72f3acc18d: log method, path, status, latency, and request ID for every HTTP request
 func RequestTracingMiddleware() gin.HandlerFunc {
 	return gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
 		logger := slogging.Get()
@@ -40,6 +41,7 @@ func RequestTracingMiddleware() gin.HandlerFunc {
 }
 
 // DetailedRequestLoggingMiddleware logs request details at each stage
+// SEM@053baa340d412aa135be32953dfcb6133af89b4d: log incoming request headers, body, and completion status with a unique request ID
 func DetailedRequestLoggingMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -82,6 +84,7 @@ func DetailedRequestLoggingMiddleware() gin.HandlerFunc {
 }
 
 // RouteMatchingMiddleware logs which routes are being matched
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: log which route handler is matched for each incoming request
 func RouteMatchingMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := getRequestID(c)
@@ -104,6 +107,7 @@ func RouteMatchingMiddleware() gin.HandlerFunc {
 // redactPendingLinkPath replaces the token segment in
 // /me/identities/link/pending/{token} with "(redacted)" so that
 // high-entropy one-time link tokens never appear in log output.
+// SEM@053baa340d412aa135be32953dfcb6133af89b4d: replace the one-time token segment in a pending-link URL path with a redacted placeholder (pure)
 func redactPendingLinkPath(path string) string {
 	const prefix = "/me/identities/link/pending/"
 	if strings.HasPrefix(path, prefix) {
@@ -113,11 +117,13 @@ func redactPendingLinkPath(path string) string {
 }
 
 // generateRequestID creates a unique request ID
+// SEM@19582bedf42bd97ae1b96ae801dffb9ef13e920d: build a timestamp-based unique request ID string (pure)
 func generateRequestID() string {
 	return time.Now().Format("20060102-150405.000000")
 }
 
 // getRequestID extracts request ID from context
+// SEM@dff4dd105825de9e0bddf30a1b4cfc72f3acc18d: extract the request ID string from the Gin context (pure)
 func getRequestID(c *gin.Context) string {
 	if id, exists := c.Get("request_id"); exists {
 		if idStr, ok := id.(string); ok {

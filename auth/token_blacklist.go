@@ -13,12 +13,14 @@ import (
 )
 
 // TokenBlacklist manages blacklisted JWT tokens using Redis
+// SEM@41fea1c48a3526015f75a5e401ec4970c6c9dfcf: Redis-backed store for revoked JWT tokens to prevent reuse after logout (reads DB)
 type TokenBlacklist struct {
 	redis      *redis.Client
 	keyManager *JWTKeyManager
 }
 
 // NewTokenBlacklist creates a new token blacklist service
+// SEM@70ff47b7829f38ef04399520210ae8765d39495d: build a Redis-backed token blacklist service (reads DB)
 func NewTokenBlacklist(redisClient *redis.Client, keyManager *JWTKeyManager) *TokenBlacklist {
 	logger := slogging.Get()
 	logger.Info("Initializing token blacklist service")
@@ -29,6 +31,7 @@ func NewTokenBlacklist(redisClient *redis.Client, keyManager *JWTKeyManager) *To
 }
 
 // BlacklistToken adds a JWT token to the blacklist
+// SEM@70ff47b7829f38ef04399520210ae8765d39495d: store a JWT in the revocation list until it expires (reads DB)
 func (tb *TokenBlacklist) BlacklistToken(ctx context.Context, tokenString string) error {
 	logger := slogging.Get()
 	logger.Debug("Attempting to blacklist token")
@@ -87,6 +90,7 @@ func (tb *TokenBlacklist) BlacklistToken(ctx context.Context, tokenString string
 }
 
 // IsTokenBlacklisted checks if a JWT token is blacklisted
+// SEM@70ff47b7829f38ef04399520210ae8765d39495d: check whether a JWT has been revoked (reads DB)
 func (tb *TokenBlacklist) IsTokenBlacklisted(ctx context.Context, tokenString string) (bool, error) {
 	logger := slogging.Get()
 	tokenHash := tb.hashToken(tokenString)
@@ -107,6 +111,7 @@ func (tb *TokenBlacklist) IsTokenBlacklisted(ctx context.Context, tokenString st
 }
 
 // hashToken creates a SHA-256 hash of the token for storage
+// SEM@f5734776629db6dda852abe358113df500f282f0: compute a SHA-256 hex digest of a JWT string (pure)
 func (tb *TokenBlacklist) hashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
@@ -115,6 +120,7 @@ func (tb *TokenBlacklist) hashToken(token string) string {
 // CleanupExpiredTokens removes expired entries from the blacklist
 // This is handled automatically by Redis TTL, but this method can be used
 // for monitoring or manual cleanup if needed
+// SEM@70ff47b7829f38ef04399520210ae8765d39495d: no-op stub; Redis TTL handles blacklist expiry automatically (pure)
 func (tb *TokenBlacklist) CleanupExpiredTokens(ctx context.Context) error {
 	logger := slogging.Get()
 	logger.Debug("Cleanup expired tokens called - Redis handles this automatically via TTL")

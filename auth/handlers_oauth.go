@@ -14,6 +14,7 @@ import (
 )
 
 // Authorize redirects to the OAuth provider's authorization page
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: validate PKCE and scope parameters and redirect the user to the OAuth provider's authorization endpoint
 func (h *Handlers) Authorize(c *gin.Context) {
 	providerID := c.Query("idp")
 	if providerID == "" {
@@ -264,6 +265,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 }
 
 // callbackStateData holds parsed OAuth state information
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: parsed OAuth callback state carrying provider, client callback, step-up, and identity-link context (pure)
 type callbackStateData struct {
 	ProviderID       string
 	ClientCallback   string
@@ -277,6 +279,7 @@ type callbackStateData struct {
 }
 
 // Callback handles the OAuth callback
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: handle the OAuth provider redirect, parse state, and dispatch PKCE or identity-link flow
 func (h *Handlers) Callback(c *gin.Context) {
 	// #397 — Upstream IdP returned an error (RFC 6749 §4.1.2.1). For step-up
 	// flows we audit the failure and redirect with error=<upstream_error>; for
@@ -342,6 +345,7 @@ func (h *Handlers) Callback(c *gin.Context) {
 }
 
 // parseCallbackState retrieves and parses OAuth state data
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: fetch and parse OAuth state from Redis, consuming it atomically (reads DB)
 func (h *Handlers) parseCallbackState(c *gin.Context, state string) (*callbackStateData, error) {
 	stateKey := fmt.Sprintf("oauth_state:%s", state)
 	ctx := c.Request.Context()
@@ -385,6 +389,7 @@ func (h *Handlers) parseCallbackState(c *gin.Context, state string) (*callbackSt
 
 // processOAuthCallback handles the core OAuth callback flow for PKCE
 // Returns authorization code to client without exchanging it
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: bind PKCE challenge to the authorization code and redirect the client for token exchange
 func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *callbackStateData) error {
 	// #383 — identity-link branch: exchange the code server-side to get provider
 	// user info, stage a pending link, and redirect the client with link_pending=.

@@ -7,6 +7,7 @@ import (
 )
 
 // preprocessPatchOperations handles special cases in patch operations before applying them
+// SEM@cdbe48c974fb76e1161972733b30bb0d1c02c3b1: decode base64-encoded SVG values in patch operations targeting /image/svg before application (pure)
 func preprocessPatchOperations(operations []PatchOperation) ([]PatchOperation, error) {
 	processedOps := make([]PatchOperation, len(operations))
 

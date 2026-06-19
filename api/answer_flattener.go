@@ -14,6 +14,7 @@ const jsonNull = "null"
 // Arrays of strings become comma-separated. Booleans and numbers become
 // their string representations. Objects and mixed arrays become JSON strings.
 // Null and nil become empty string.
+// SEM@5b38b9a109d5e10e1a9a58a35a692f19c30a0ed5: convert a JSON survey answer value to a plain string, joining arrays with commas (pure)
 func flattenAnswerValue(value json.RawMessage) string {
 	if len(value) == 0 {
 		return ""
@@ -69,6 +70,7 @@ func flattenAnswerValue(value json.RawMessage) string {
 
 // flattenAndSanitize flattens a JSON answer value to a string and sanitizes
 // it via bluemonday to prevent injection attacks.
+// SEM@9139c72b09b17d8dc2a140ec9acb4123ece1f39e: flatten a JSON answer value to a plain string and sanitize it against injection (pure)
 func flattenAndSanitize(value json.RawMessage) string {
 	flat := flattenAnswerValue(value)
 	return SanitizePlainText(flat)
@@ -77,6 +79,7 @@ func flattenAndSanitize(value json.RawMessage) string {
 // parseCollectionAnswer parses a paneldynamic array-of-objects answer into
 // typed sub-resources (Asset, Document, Repository). Returns the successfully
 // parsed items and any fallback metadata entries for incomplete objects.
+// SEM@aee621ea36239153631f4767610e06dfa364de86: parse a JSON collection answer into typed domain objects, falling back to metadata on invalid entries (pure)
 func parseCollectionAnswer(collectionType string, answer json.RawMessage) (items []any, fallbackMetadata []Metadata) {
 	logger := slogging.Get()
 

@@ -26,6 +26,7 @@ const pollInterval = 500 * time.Millisecond
 //   - fsnotify directory watch: low-latency detection of rename/remove events.
 //   - Periodic poll (pollInterval): fallback for platforms where rapid
 //     create+delete events are coalesced by the OS kernel (e.g. macOS kqueue).
+// SEM@2f80ec5d2bdaa65c830758314bb6b3bc6361d551: background watcher that reopens the log file when it is deleted or renamed (mutates shared state)
 type logFileWatchdog struct {
 	watcher    *fsnotify.Watcher
 	fileLog    *lumberjack.Logger
@@ -38,6 +39,7 @@ type logFileWatchdog struct {
 // newLogFileWatchdog constructs the watchdog and starts its event-loop
 // goroutine. Returns a non-nil watchdog whose Stop method MUST be called to
 // release resources.
+// SEM@2f80ec5d2bdaa65c830758314bb6b3bc6361d551: build and start a log file watchdog for the given lumberjack logger (mutates shared state)
 func newLogFileWatchdog(lj *lumberjack.Logger, slogger *slog.Logger) (*logFileWatchdog, error) {
 	activePath, err := filepath.Abs(lj.Filename)
 	if err != nil {
@@ -68,6 +70,7 @@ func newLogFileWatchdog(lj *lumberjack.Logger, slogger *slog.Logger) (*logFileWa
 // handleMissing is called when the active log file is known to be absent.
 // It calls lumberjack.Rotate() which closes the old (unlinked) FD and opens a
 // fresh file at the same path.
+// SEM@2f80ec5d2bdaa65c830758314bb6b3bc6361d551: trigger a lumberjack Rotate to reopen the log file after it was unlinked (mutates shared state)
 func (w *logFileWatchdog) handleMissing(eventDesc string) {
 	if err := w.fileLog.Rotate(); err != nil {
 		w.slogger.Warn("log file watchdog: reopen failed",
@@ -81,6 +84,7 @@ func (w *logFileWatchdog) handleMissing(eventDesc string) {
 		"event", eventDesc)
 }
 
+// SEM@2f80ec5d2bdaa65c830758314bb6b3bc6361d551: event loop that detects log file removal via fsnotify and polling, and triggers reopen (mutates shared state)
 func (w *logFileWatchdog) run() {
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
@@ -128,6 +132,7 @@ func (w *logFileWatchdog) run() {
 
 // Stop signals the event loop to exit and closes the underlying watcher.
 // Safe to call multiple times.
+// SEM@2f80ec5d2bdaa65c830758314bb6b3bc6361d551: signal the watchdog event loop to exit and close the fsnotify watcher (mutates shared state)
 func (w *logFileWatchdog) Stop() {
 	w.once.Do(func() {
 		close(w.done)

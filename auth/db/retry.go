@@ -16,9 +16,11 @@ import (
 // intentional and sufficient here — backoff jitter has no security
 // requirement, only a statistical-decorrelation one.
 // #nosec G404 - non-cryptographic jitter, not used for any security decision.
+// SEM@e52f9bdea940a3032c58dec83ce3a82fd6b305b7: generate a non-cryptographic random integer for decorrelating retry backoff delays (pure)
 func jitterRandN(n int64) int64 { return rand.Int63n(n) }
 
 // RetryConfig holds configuration for retry behavior
+// SEM@b6e227d0511f3e7d38d29e5059408fe7b2cd56eb: configuration parameters governing retry count and exponential backoff bounds (pure)
 type RetryConfig struct {
 	MaxRetries int
 	BaseDelay  time.Duration
@@ -26,6 +28,7 @@ type RetryConfig struct {
 }
 
 // DefaultRetryConfig returns reasonable defaults for transaction retries
+// SEM@b6e227d0511f3e7d38d29e5059408fe7b2cd56eb: build a RetryConfig with conservative defaults suitable for database transaction retries (pure)
 func DefaultRetryConfig() RetryConfig {
 	return RetryConfig{
 		MaxRetries: 3,
@@ -37,6 +40,7 @@ func DefaultRetryConfig() RetryConfig {
 // WithRetryableTransaction executes a function within a transaction with retry logic.
 // It automatically retries on connection errors and other transient failures.
 // The transaction is rolled back on error and committed on success.
+// SEM@e52f9bdea940a3032c58dec83ce3a82fd6b305b7: execute a function in a serializable SQL transaction, retrying on transient errors with jittered backoff (reads DB)
 func WithRetryableTransaction(ctx context.Context, db *sql.DB, cfg RetryConfig, fn func(*sql.Tx) error, opts ...*sql.TxOptions) error {
 	logger := slogging.Get()
 	var lastErr error
@@ -104,6 +108,7 @@ func WithRetryableTransaction(ctx context.Context, db *sql.DB, cfg RetryConfig, 
 
 // IsRetryableError determines if an error should trigger a retry.
 // Delegates to dberrors.Classify for driver-specific error detection.
+// SEM@0f58823d7b00057541d6c3e806539e674d5773f4: classify a database error as transient and eligible for retry (pure)
 func IsRetryableError(err error) bool {
 	if err == nil {
 		return false
@@ -114,6 +119,7 @@ func IsRetryableError(err error) bool {
 // IsConnectionError is a convenience function that checks specifically for connection errors.
 // This is equivalent to IsRetryableError — both check for transient conditions.
 // Kept for backward compatibility.
+// SEM@0f58823d7b00057541d6c3e806539e674d5773f4: classify a database error as a transient connection failure; alias for IsRetryableError (pure)
 func IsConnectionError(err error) bool {
 	return IsRetryableError(err)
 }
@@ -132,6 +138,7 @@ func IsConnectionError(err error) bool {
 // whole closure is retried. fn must therefore be idempotent — keep any
 // non-idempotent side effect (outbound calls, one-time-token consumption) out of
 // the closure, or guard it so a replay is harmless.
+// SEM@e52f9bdea940a3032c58dec83ce3a82fd6b305b7: execute a function in a serializable GORM transaction, retrying on transient errors with jittered backoff (reads DB)
 func WithRetryableGormTransaction(ctx context.Context, gormDB *gorm.DB, cfg RetryConfig, fn func(tx *gorm.DB) error, opts ...*sql.TxOptions) error {
 	logger := slogging.Get()
 	var lastErr error
@@ -177,6 +184,7 @@ func WithRetryableGormTransaction(ctx context.Context, gormDB *gorm.DB, cfg Retr
 
 // IsPermissionError checks if an error indicates a database permission or privilege failure.
 // These errors are not transient and indicate server misconfiguration.
+// SEM@0f58823d7b00057541d6c3e806539e674d5773f4: classify a database error as a fatal permission or privilege failure, not eligible for retry (pure)
 func IsPermissionError(err error) bool {
 	if err == nil {
 		return false

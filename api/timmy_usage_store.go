@@ -8,6 +8,7 @@ import (
 )
 
 // UsageAggregation holds aggregated usage totals across multiple records
+// SEM@e5e141caabe74e3ce853b6d7b45827bb1864fb32: aggregated LLM token and session usage totals across multiple records (pure)
 type UsageAggregation struct {
 	TotalMessages         int `json:"total_messages"`
 	TotalPromptTokens     int `json:"total_prompt_tokens"`
@@ -17,6 +18,7 @@ type UsageAggregation struct {
 }
 
 // TimmyUsageStore defines operations for recording and querying LLM usage
+// SEM@e5e141caabe74e3ce853b6d7b45827bb1864fb32: store interface for recording and querying LLM usage by user or threat model (pure)
 type TimmyUsageStore interface {
 	Record(ctx context.Context, usage *models.TimmyUsage) error
 	GetByUser(ctx context.Context, userID string, start, end time.Time) ([]models.TimmyUsage, error)

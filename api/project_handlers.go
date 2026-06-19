@@ -15,6 +15,7 @@ import (
 // ListProjects returns a paginated list of projects.
 // Non-admins see only projects from teams they are members of.
 // GET /projects
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: list projects visible to the authenticated user with pagination and optional filters (reads DB)
 func (s *Server) ListProjects(c *gin.Context, params ListProjectsParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -79,6 +80,7 @@ func (s *Server) ListProjects(c *gin.Context, params ListProjectsParams) {
 // CreateProject creates a new project.
 // Requires membership in the referenced team.
 // POST /projects
+// SEM@00add3d4f7dc1c0a9cc072d7e6ca32ace4d03641: create a project under a team the caller is a member of (reads DB)
 func (s *Server) CreateProject(c *gin.Context) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -145,6 +147,7 @@ func (s *Server) CreateProject(c *gin.Context) {
 // GetProject retrieves a project by ID.
 // Requires team membership or admin.
 // GET /projects/{project_id}
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: fetch a project by ID, including its notes, enforcing team-membership authorization (reads DB)
 func (s *Server) GetProject(c *gin.Context, projectId openapi_types.UUID) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -195,6 +198,7 @@ func (s *Server) GetProject(c *gin.Context, projectId openapi_types.UUID) {
 // UpdateProject fully updates a project.
 // Requires team membership or admin.
 // PUT /projects/{project_id}
+// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: fully replace a project's fields with optimistic-locking enforcement (reads DB)
 func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID, _ UpdateProjectParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -281,6 +285,7 @@ func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID, _ U
 // PatchProject partially updates a project via JSON Patch.
 // Requires team membership or admin.
 // PATCH /projects/{project_id}
+// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: partially update a project via JSON Patch with optimistic-locking enforcement (reads DB)
 func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID, _ PatchProjectParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -382,6 +387,7 @@ func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID, _ Pa
 // DeleteProject deletes a project.
 // Requires team owner/creator role or admin. Returns 409 if threat models reference it.
 // DELETE /projects/{project_id}
+// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: delete a project, rejecting with 409 if threat models still reference it (reads DB)
 func (s *Server) DeleteProject(c *gin.Context, projectId openapi_types.UUID) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -440,35 +446,43 @@ func (s *Server) DeleteProject(c *gin.Context, projectId openapi_types.UUID) {
 
 // Project Metadata Methods - delegate to generic handler
 
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: list metadata entries for a project, delegating to the generic metadata handler (reads DB)
 func (s *Server) GetProjectMetadata(c *gin.Context, projectId openapi_types.UUID) {
 	s.projectMetadata.List(c)
 }
 
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: create a metadata entry for a project, delegating to the generic metadata handler (reads DB)
 func (s *Server) CreateProjectMetadata(c *gin.Context, projectId openapi_types.UUID) {
 	s.projectMetadata.Create(c)
 }
 
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: bulk-create metadata entries for a project, delegating to the generic metadata handler (reads DB)
 func (s *Server) BulkCreateProjectMetadata(c *gin.Context, projectId openapi_types.UUID) {
 	s.projectMetadata.BulkCreate(c)
 }
 
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: bulk-replace all metadata entries for a project, delegating to the generic metadata handler (reads DB)
 func (s *Server) BulkReplaceProjectMetadata(c *gin.Context, projectId openapi_types.UUID) {
 	s.projectMetadata.BulkReplace(c)
 }
 
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: bulk-upsert metadata entries for a project, delegating to the generic metadata handler (reads DB)
 func (s *Server) BulkUpsertProjectMetadata(c *gin.Context, projectId openapi_types.UUID) {
 	s.projectMetadata.BulkUpsert(c)
 }
 
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: delete a metadata entry by key for a project, delegating to the generic metadata handler (reads DB)
 func (s *Server) DeleteProjectMetadata(c *gin.Context, projectId openapi_types.UUID, key string) {
 	s.projectMetadata.Delete(c)
 }
 
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: update a metadata entry by key for a project, delegating to the generic metadata handler (reads DB)
 func (s *Server) UpdateProjectMetadata(c *gin.Context, projectId openapi_types.UUID, key string) {
 	s.projectMetadata.Update(c)
 }
 
 // projectExistsFunc is a helper for metadata handler entity existence checks
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: validate that a project exists in the store, returning not-found error if absent (reads DB)
 func projectExistsFunc(ctx context.Context, projectID openapi_types.UUID) error {
 	project, err := GlobalProjectStore.Get(ctx, projectID.String())
 	if err != nil {

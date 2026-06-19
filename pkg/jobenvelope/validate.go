@@ -11,6 +11,7 @@ import (
 // job_id, a missing content_type, an empty Input, and an Input that sets
 // both the content-ref and source-locator modes at once. It does NOT
 // reject source-locator alone — that mode is RESERVED but schema-valid.
+// SEM@29ce3cc7a3143d57faa07f7e0071ce27b53226e0: validate a job envelope for required fields and mutually exclusive input locators (pure)
 func Validate(j Job) error {
 	if j.JobID == "" {
 		return fmt.Errorf("jobenvelope: job_id is required")
@@ -55,6 +56,7 @@ const (
 // so a verbose-but-honest worker is truncated rather than dropped. Callers
 // on the consume side should Term (not Nak) on error: an invalid envelope
 // never becomes valid on redelivery.
+// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: validate a job result envelope for required fields, status, reason code format, and ref length (pure)
 func ValidateResult(r Result) error {
 	if r.JobID == "" {
 		return fmt.Errorf("jobenvelope: job_id is required")
@@ -83,6 +85,7 @@ func ValidateResult(r Result) error {
 // (success results carry no code). The check is syntactic rather than a
 // constant whitelist so a newer worker can introduce a reason code without
 // a lockstep monolith deploy.
+// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: check that a reason code contains only lowercase alphanumeric and safe punctuation characters (pure)
 func validReasonCode(s string) bool {
 	for i := 0; i < len(s); i++ {
 		c := s[i]
@@ -104,11 +107,13 @@ func validReasonCode(s string) bool {
 // bytes on a rune boundary. Call it after ValidateResult on the consume
 // side; truncation instead of rejection keeps an oversize detail from
 // turning into a redelivery loop.
+// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: sanitize the free-text reason detail of a job result and return the cleaned copy (pure)
 func SanitizeResult(r Result) Result {
 	r.ReasonDetail = sanitizeDetail(r.ReasonDetail)
 	return r
 }
 
+// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: strip control characters, coerce invalid UTF-8, and truncate the reason detail to its byte limit (pure)
 func sanitizeDetail(s string) string {
 	s = strings.ToValidUTF8(s, "�")
 	s = strings.Map(func(c rune) rune {

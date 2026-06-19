@@ -26,6 +26,7 @@ const MaxPerUserConcurrency = 16
 // ContentExtractorsConfig holds operator-tunable defaults for the OOXML
 // extractor pipeline. Each value must be > 0 and <= the corresponding
 // hardcoded ceiling.
+// SEM@d34da3918d4a3784077a74aedd722e45c29196cf: operator-tunable limits for the OOXML content extractor pipeline (pure)
 type ContentExtractorsConfig struct {
 	CompressedSizeBytes       int64         `yaml:"compressed_size_bytes" env:"TMI_CONTENT_EXTRACTORS_COMPRESSED_SIZE_BYTES"`
 	DecompressedSizeBytes     int64         `yaml:"decompressed_size_bytes" env:"TMI_CONTENT_EXTRACTORS_DECOMPRESSED_SIZE_BYTES"`
@@ -42,6 +43,7 @@ type ContentExtractorsConfig struct {
 
 // DefaultContentExtractorsConfig returns the project-wide defaults documented
 // in the OOXML design spec.
+// SEM@5c3161aebd21c6f134ca3df11e282514ff6f0518: build the project-default content extractor pipeline limits (pure)
 func DefaultContentExtractorsConfig() ContentExtractorsConfig {
 	return ContentExtractorsConfig{
 		CompressedSizeBytes:       20 * 1024 * 1024,
@@ -56,6 +58,7 @@ func DefaultContentExtractorsConfig() ContentExtractorsConfig {
 }
 
 // Validate enforces > 0 and <= ceiling for every field.
+// SEM@d18c6f98b08a7050e43b60a513bea5be33b09bf4: validate that all extractor config values are positive and within hardcoded ceilings (pure)
 func (c ContentExtractorsConfig) Validate() error {
 	check := func(name string, v, ceiling int64) error {
 		if v <= 0 {

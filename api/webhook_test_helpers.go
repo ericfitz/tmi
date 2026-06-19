@@ -9,6 +9,7 @@ import (
 )
 
 // setupTestRedis creates a miniredis instance and returns a Redis client for testing
+// SEM@60d232adaccc3526d92dfabc62a0aeb78bbe07ae: start a miniredis instance and return a Redis client for use in tests (pure)
 func setupTestRedis(t *testing.T) (*redis.Client, *miniredis.Miniredis) {
 	mr, err := miniredis.Run()
 	require.NoError(t, err)

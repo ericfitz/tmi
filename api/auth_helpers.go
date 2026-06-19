@@ -9,6 +9,7 @@ import (
 )
 
 // AdminContext contains the authenticated administrator's information
+// SEM@a5548be4c61d9f98ed2f3edd998abd909cd5f4ab: carrier for the authenticated administrator's identity and group membership (pure)
 type AdminContext struct {
 	Email        string
 	InternalUUID *uuid.UUID
@@ -21,6 +22,7 @@ type AdminContext struct {
 // Service account tokens (client credentials grant) are always rejected —
 // administrative operations require interactive (PKCE) authentication.
 // Returns an AdminContext if authorized, or nil with error response sent.
+// SEM@1c9f87f1ca746f8b265481c0a196627b2737787a: authorize the current user as an administrator and return their admin context (reads DB)
 func RequireAdministrator(c *gin.Context) (*AdminContext, error) {
 	logger := slogging.Get().WithContext(c)
 

@@ -30,13 +30,16 @@ const dcNS = "http://purl.org/dc/elements/1.1/"
 // push Len() past max returns *extractionLimitError{Kind:"markdown_size"}.
 // The buffer state is left as it was before the failing write — no partial
 // output beyond the cap.
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: size-capped buffer that accumulates markdown output and rejects writes exceeding the limit
 type markdownBuilder struct {
 	buf bytes.Buffer
 	max int64
 }
 
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: build a markdownBuilder with the given byte capacity (pure)
 func newMarkdownBuilder(maxBytes int64) *markdownBuilder { return &markdownBuilder{max: maxBytes} }
 
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: append a string to the markdown buffer, returning an error if the cap would be exceeded (pure)
 func (m *markdownBuilder) WriteString(s string) (int, error) {
 	if int64(m.buf.Len()+len(s)) > m.max {
 		return 0, &extractionLimitError{
@@ -48,6 +51,7 @@ func (m *markdownBuilder) WriteString(s string) (int, error) {
 	return m.buf.WriteString(s)
 }
 
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: append a single byte to the markdown buffer, returning an error if the cap would be exceeded (pure)
 func (m *markdownBuilder) WriteByte(b byte) error {
 	if int64(m.buf.Len()+1) > m.max {
 		return &extractionLimitError{
@@ -59,17 +63,22 @@ func (m *markdownBuilder) WriteByte(b byte) error {
 	return m.buf.WriteByte(b)
 }
 
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: return the current byte length of the markdown buffer (pure)
 func (m *markdownBuilder) Len() int       { return m.buf.Len() }
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: return accumulated markdown content as a string (pure)
 func (m *markdownBuilder) String() string { return m.buf.String() }
 
 // ooxmlOpener wraps archive/zip with limit enforcement and security
 // checks. It refuses oversize inputs up front, rejects path traversal /
 // absolute paths / backslashes, and gates per-member reads through
 // boundedReader so that streaming decoders trip mid-read on overrun.
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: OOXML archive opener that enforces size limits and rejects path traversal before decompression
 type ooxmlOpener struct{ limits Limits }
 
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: build an ooxmlOpener with the given extraction limits (pure)
 func newOOXMLOpener(l Limits) *ooxmlOpener { return &ooxmlOpener{limits: l} }
 
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: open OOXML archive handle tracking cumulative decompressed bytes and extraction context
 type ooxmlArchive struct {
 	zr       *zip.Reader
 	limits   Limits
@@ -82,10 +91,12 @@ type ooxmlArchive struct {
 // ContextAwareExtractor implementations to wire wall-clock cancellation
 // through to in-flight I/O. A nil ctx disables cooperative cancellation
 // (the default).
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: attach a cancellation context to the archive for cooperative read abort (mutates shared state)
 func (a *ooxmlArchive) WithContext(ctx context.Context) { a.ctx = ctx }
 
 // open performs up-front compressed-size + path-shape checks and returns an
 // archive handle. It does not decompress yet — that happens member-by-member.
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: validate and open an OOXML ZIP archive, rejecting oversized or path-unsafe entries (pure)
 func (o *ooxmlOpener) open(data []byte) (*ooxmlArchive, error) {
 	if int64(len(data)) > o.limits.CompressedSizeBytes {
 		return nil, &extractionLimitError{
@@ -117,6 +128,7 @@ func (o *ooxmlOpener) open(data []byte) (*ooxmlArchive, error) {
 // clampToInt64 converts a uint64 to int64, clamping to math.MaxInt64 on
 // overflow. Used only for error-reporting fields where a saturated value is
 // more useful than a negative or panicking conversion.
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: convert a uint64 to int64, saturating at MaxInt64 to avoid overflow (pure)
 func clampToInt64(v uint64) int64 {
 	const maxInt64 = 1<<63 - 1
 	if v > maxInt64 {
@@ -129,6 +141,7 @@ func clampToInt64(v uint64) int64 {
 // enforces per-part + cumulative + ratio limits. Returns ErrMalformed-wrapped
 // error if the member doesn't exist. Returns *extractionLimitError if the
 // member is a nested zip (sniffed by header).
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: open a named ZIP member enforcing per-part size, compression-ratio, and nested-zip limits
 func (a *ooxmlArchive) openMember(name string) (io.ReadCloser, error) {
 	for _, f := range a.zr.File {
 		if f.Name != name {
@@ -188,6 +201,7 @@ func (a *ooxmlArchive) openMember(name string) (io.ReadCloser, error) {
 // cancellation; if the context is done, Read returns ctx.Err() so any
 // streaming consumer (XML decoder, io.ReadAll, etc.) unblocks promptly
 // once the wall-clock deadline fires.
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: streaming reader that enforces per-part and cumulative decompressed size limits with context cancellation
 type boundedReader struct {
 	under         io.Reader
 	closer        io.Closer
@@ -198,6 +212,7 @@ type boundedReader struct {
 	extractionCtx context.Context
 }
 
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: read bytes while enforcing part and archive size caps, aborting on context cancellation (pure)
 func (b *boundedReader) Read(p []byte) (int, error) {
 	n, err := b.under.Read(p)
 	b.partRead += int64(n)
@@ -218,6 +233,7 @@ func (b *boundedReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: close the underlying ZIP member reader (pure)
 func (b *boundedReader) Close() error {
 	if b.closer != nil {
 		return b.closer.Close()
@@ -237,16 +253,19 @@ func (b *boundedReader) Close() error {
 // element a caller would consume via DecodeElement, so this gap is
 // acceptable in practice. Callers needing absolute bounds on adversarial
 // input must avoid DecodeElement entirely and walk via Token().
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: XML decoder that trips an error when nesting depth exceeds a configured maximum
 type boundedXMLDecoder struct {
 	dec      *xml.Decoder
 	depth    int
 	maxDepth int
 }
 
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: build a boundedXMLDecoder with the given nesting depth ceiling (pure)
 func newBoundedXMLDecoder(r io.Reader, maxDepth int) *boundedXMLDecoder {
 	return &boundedXMLDecoder{dec: xml.NewDecoder(r), maxDepth: maxDepth}
 }
 
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: return the next XML token and enforce the depth ceiling on start elements (pure)
 func (b *boundedXMLDecoder) Token() (xml.Token, error) {
 	tok, err := b.dec.Token()
 	if err != nil {
@@ -272,6 +291,7 @@ func (b *boundedXMLDecoder) Token() (xml.Token, error) {
 // without passing through our Token() wrapper. Callers who mix Token() and
 // DecodeElement would otherwise accumulate +1 drift per DecodeElement call,
 // which would falsely trip the depth limit after enough sibling elements.
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: decode an XML element subtree and correct the depth counter for internally consumed end elements (pure)
 func (b *boundedXMLDecoder) DecodeElement(v any, start *xml.StartElement) error {
 	err := b.dec.DecodeElement(v, start)
 	if err == nil {
@@ -292,6 +312,7 @@ func (b *boundedXMLDecoder) DecodeElement(v any, start *xml.StartElement) error 
 //
 // Returns a non-nil error only on streaming-decoder failures (XML parse error,
 // limit trip such as xml_depth or part_size).
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: fetch the dc:title text from docProps/core.xml in an OOXML archive, returning empty string if absent
 func ooxmlLoadCoreTitle(arch *ooxmlArchive, limits Limits) (string, error) {
 	if arch == nil {
 		return "", nil
@@ -350,6 +371,7 @@ func ooxmlLoadCoreTitle(arch *ooxmlArchive, limits Limits) (string, error) {
 //
 // Returns nil and writes nothing when rows is empty or every row is empty
 // (max width == 0).
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: format rows as a GFM pipe table into a markdownBuilder, padding to uniform column count (pure)
 func renderMarkdownTable(mb *markdownBuilder, rows [][]string, shapeComment string) error {
 	if len(rows) == 0 {
 		return nil
@@ -397,9 +419,11 @@ func renderMarkdownTable(mb *markdownBuilder, rows [][]string, shapeComment stri
 // On timeout it returns context.DeadlineExceeded; on parent cancellation it
 // returns ctx.Err(). The wrapped fn receives the deadline-bearing context so
 // cooperative cancellation is possible.
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: run an extractor function under a wall-clock budget, cancelling on timeout or parent context
 func ExtractWithDeadline(ctx context.Context, budget time.Duration, fn func(context.Context) (ExtractedContent, error)) (ExtractedContent, error) {
 	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
+	// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: internal result carrier for ExtractWithDeadline goroutine communication (pure)
 	type result struct {
 		c ExtractedContent
 		e error
@@ -419,13 +443,16 @@ func ExtractWithDeadline(ctx context.Context, budget time.Duration, fn func(cont
 
 // ctxReader wraps an io.Reader so that wall-clock cancellation aborts
 // in-flight reads. Used by extractors when streaming large parts.
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: io.Reader wrapper that aborts reads when the context is cancelled
 type ctxReader struct {
 	r   io.Reader
 	ctx context.Context
 }
 
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: build a context-aware reader wrapping the given io.Reader (pure)
 func newCtxReader(ctx context.Context, r io.Reader) *ctxReader { return &ctxReader{r: r, ctx: ctx} }
 
+// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: read bytes from the underlying reader, returning context error if cancelled (pure)
 func (c *ctxReader) Read(p []byte) (int, error) {
 	if err := c.ctx.Err(); err != nil {
 		return 0, err

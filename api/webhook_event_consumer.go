@@ -14,6 +14,7 @@ import (
 )
 
 // WebhookEventConsumer consumes events from Redis Streams and creates webhook deliveries
+// SEM@00eb592b65c7f67e499ac7e598f6742cd1f5d2a5: Redis Streams consumer that routes domain events to webhook delivery records
 type WebhookEventConsumer struct {
 	redisClient *redis.Client
 	streamKey   string
@@ -24,6 +25,7 @@ type WebhookEventConsumer struct {
 }
 
 // NewWebhookEventConsumer creates a new event consumer
+// SEM@00eb592b65c7f67e499ac7e598f6742cd1f5d2a5: build a WebhookEventConsumer for a specific Redis stream and consumer group
 func NewWebhookEventConsumer(redisClient *redis.Client, streamKey, groupName, consumerID string) *WebhookEventConsumer {
 	return &WebhookEventConsumer{
 		redisClient: redisClient,
@@ -35,6 +37,7 @@ func NewWebhookEventConsumer(redisClient *redis.Client, streamKey, groupName, co
 }
 
 // Start begins consuming events from the Redis Stream
+// SEM@00eb592b65c7f67e499ac7e598f6742cd1f5d2a5: create the consumer group if absent and start the event-consumption goroutine
 func (c *WebhookEventConsumer) Start(ctx context.Context) error {
 	logger := slogging.Get()
 
@@ -60,6 +63,7 @@ func (c *WebhookEventConsumer) Start(ctx context.Context) error {
 }
 
 // Stop gracefully stops the consumer
+// SEM@00eb592b65c7f67e499ac7e598f6742cd1f5d2a5: signal the consume loop to exit and mark the consumer as stopped
 func (c *WebhookEventConsumer) Stop() {
 	logger := slogging.Get()
 	if c.running {
@@ -70,6 +74,7 @@ func (c *WebhookEventConsumer) Stop() {
 }
 
 // consumeLoop continuously reads and processes events
+// SEM@cdbe48c974fb76e1161972733b30bb0d1c02c3b1: continuously read messages from the Redis stream and dispatch each for processing
 func (c *WebhookEventConsumer) consumeLoop(ctx context.Context) {
 	logger := slogging.Get()
 
@@ -120,6 +125,7 @@ func (c *WebhookEventConsumer) consumeLoop(ctx context.Context) {
 }
 
 // processMessage processes a single event message
+// SEM@c13f85301f7c723dfb20f687cb8fddc4ed77e703: route a stream message to matching webhook subscriptions and store delivery records (reads DB)
 func (c *WebhookEventConsumer) processMessage(ctx context.Context, message redis.XMessage) error {
 	logger := slogging.Get()
 
@@ -198,6 +204,7 @@ func (c *WebhookEventConsumer) processMessage(ctx context.Context, message redis
 // event type and creates a delivery record for each. The message is considered
 // successfully handled (and will be XAck'd by the caller) even when no
 // subscriptions match, so the PEL is never poisoned by ownerless events.
+// SEM@c13f85301f7c723dfb20f687cb8fddc4ed77e703: fan out a system_audit event to all active subscriptions across all owners (reads DB)
 func (c *WebhookEventConsumer) processSystemAuditEvent(ctx context.Context, eventType string, message redis.XMessage) error {
 	logger := slogging.Get()
 
@@ -227,6 +234,7 @@ func (c *WebhookEventConsumer) processSystemAuditEvent(ctx context.Context, even
 }
 
 // filterSubscriptions filters subscriptions based on event type and threat model
+// SEM@00eb592b65c7f67e499ac7e598f6742cd1f5d2a5: filter subscriptions to those matching the event type and optional threat model (pure)
 func (c *WebhookEventConsumer) filterSubscriptions(subscriptions []DBWebhookSubscription, eventType, threatModelID string) []DBWebhookSubscription {
 	var filtered []DBWebhookSubscription
 
@@ -260,6 +268,7 @@ func (c *WebhookEventConsumer) filterSubscriptions(subscriptions []DBWebhookSubs
 }
 
 // createDelivery creates a webhook delivery record in Redis
+// SEM@5e02fb78515c077cc72af1c6cfc993eebb44af99: store a pending webhook delivery record in Redis for a matched subscription
 func (c *WebhookEventConsumer) createDelivery(ctx context.Context, subscription DBWebhookSubscription, eventType, payload string) error {
 	logger := slogging.Get()
 

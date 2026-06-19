@@ -12,6 +12,7 @@ import (
 // It checks in order: context errors, GORM errors, driver-specific errors
 // (PostgreSQL pgconn.PgError, Oracle godror.OraErr), then falls back to
 // string matching for errors that don't carry typed driver info.
+// SEM@178dbd0418cfb7e057d4297c7a88c5879cb64c7f: convert a raw database error to a typed sentinel (not-found, duplicate, transient, etc.) (pure)
 func Classify(err error) error {
 	if err == nil {
 		return nil
@@ -50,6 +51,7 @@ func Classify(err error) error {
 // typed driver information (e.g., raw net.OpError, TLS errors).
 // This should handle a minimal set of patterns — driver-specific checks
 // cover the vast majority of cases.
+// SEM@6a279d3dfc40bdd9ee0faa2abb1456f6dc5e003b: classify an untyped database error by matching known error message patterns (pure)
 func classifyByString(err error) error {
 	errStr := strings.ToLower(err.Error())
 

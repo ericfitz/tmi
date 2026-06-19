@@ -20,12 +20,14 @@ const googleDriveMaxExportSize = 10 * 1024 * 1024 // 10 MiB
 var googleDriveDocPathRegex = regexp.MustCompile(`/(?:document|spreadsheets|presentation|file)/d/([^/]+)`)
 
 // GoogleDriveSource fetches content from Google Drive using a service account.
+// SEM@1b4dd947b81f4574ca97fa5898daa7620731ab60: content source that fetches files from Google Drive via service account
 type GoogleDriveSource struct {
 	service             *drive.Service
 	serviceAccountEmail string
 }
 
 // NewGoogleDriveSource creates a new GoogleDriveSource from a credentials JSON file.
+// SEM@1b4dd947b81f4574ca97fa5898daa7620731ab60: build a GoogleDriveSource authenticated from a service account credentials file
 func NewGoogleDriveSource(credentialsFile string, serviceAccountEmail string) (*GoogleDriveSource, error) {
 	ctx := context.Background()
 
@@ -53,9 +55,11 @@ func NewGoogleDriveSource(credentialsFile string, serviceAccountEmail string) (*
 }
 
 // Name returns the source name.
+// SEM@f2e01937e40c91e87ac47a34d11870fde716d093: return the provider name "google-drive" (pure)
 func (s *GoogleDriveSource) Name() string { return ProviderGoogleDrive }
 
 // CanHandle returns true for docs.google.com and drive.google.com URIs.
+// SEM@3d1c365886b95c6bdb2dab7691650f26dd8e27e2: report whether a URI belongs to docs.google.com or drive.google.com (pure)
 func (s *GoogleDriveSource) CanHandle(_ context.Context, uri string) bool {
 	lower := strings.ToLower(uri)
 	host := extractHost(lower)
@@ -67,6 +71,7 @@ func (s *GoogleDriveSource) CanHandle(_ context.Context, uri string) bool {
 // (DOCX, XLSX, PPTX) so the higher-fidelity OOXML extractors can parse
 // structured content (tables, headings, formatting) rather than the lossy
 // text/plain or text/csv export formats. Binary files are downloaded directly.
+// SEM@7231febccdb44b858ff3622e6e6bc81ac0ebb575: fetch a Google Drive file, exporting Workspace documents as OOXML
 func (s *GoogleDriveSource) Fetch(ctx context.Context, uri string) ([]byte, string, error) {
 	logger := slogging.Get()
 
@@ -100,6 +105,7 @@ func (s *GoogleDriveSource) Fetch(ctx context.Context, uri string) ([]byte, stri
 // ValidateAccess checks whether the service account can access the file without downloading it.
 // A Drive API error (e.g., 403 Forbidden, 404 Not Found) is treated as "not accessible"
 // rather than an application error — the caller should check the bool result.
+// SEM@1b4dd947b81f4574ca97fa5898daa7620731ab60: check whether the service account can access a Google Drive file without downloading it
 func (s *GoogleDriveSource) ValidateAccess(ctx context.Context, uri string) (bool, error) {
 	logger := slogging.Get()
 
@@ -120,6 +126,7 @@ func (s *GoogleDriveSource) ValidateAccess(ctx context.Context, uri string) (boo
 }
 
 // RequestAccess logs that the document owner should share the file with the service account.
+// SEM@1b4dd947b81f4574ca97fa5898daa7620731ab60: log that the document owner must share the Drive file with the service account
 func (s *GoogleDriveSource) RequestAccess(ctx context.Context, uri string) error {
 	logger := slogging.Get()
 
@@ -137,6 +144,7 @@ func (s *GoogleDriveSource) RequestAccess(ctx context.Context, uri string) error
 	return nil
 }
 
+// SEM@1b4dd947b81f4574ca97fa5898daa7620731ab60: export a Google Workspace file to the given MIME type and return its bytes
 func (s *GoogleDriveSource) exportFile(ctx context.Context, fileID, exportMIME string) ([]byte, string, error) {
 	resp, err := s.service.Files.Export(fileID, exportMIME).
 		Context(ctx).
@@ -155,6 +163,7 @@ func (s *GoogleDriveSource) exportFile(ctx context.Context, fileID, exportMIME s
 	return data, exportMIME, nil
 }
 
+// SEM@1b4dd947b81f4574ca97fa5898daa7620731ab60: download a binary Google Drive file and return its bytes and MIME type
 func (s *GoogleDriveSource) downloadFile(ctx context.Context, fileID, mimeType string) ([]byte, string, error) {
 	resp, err := s.service.Files.Get(fileID).
 		Context(ctx).
@@ -176,6 +185,7 @@ func (s *GoogleDriveSource) downloadFile(ctx context.Context, fileID, mimeType s
 // extractGoogleDriveFileID extracts the Google Drive file ID from a URL.
 // It handles /document/d/, /spreadsheets/d/, /presentation/d/, /file/d/ paths,
 // as well as drive.google.com/open?id= query parameters.
+// SEM@1b4dd947b81f4574ca97fa5898daa7620731ab60: parse a Google Drive file ID from a Docs, Drive, or sharing URL (pure)
 func extractGoogleDriveFileID(uri string) (string, bool) {
 	if matches := googleDriveDocPathRegex.FindStringSubmatch(uri); len(matches) > 1 {
 		return matches[1], true

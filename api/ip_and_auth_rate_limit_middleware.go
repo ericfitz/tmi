@@ -11,6 +11,7 @@ import (
 )
 
 // IPRateLimitMiddleware creates middleware for IP-based rate limiting (Tier 1 - public discovery)
+// SEM@c70d49ed2d6089c24d05f8bc287ba5711c73abde: enforce per-IP rate limits on public discovery endpoints, adding standard rate-limit response headers
 func IPRateLimitMiddleware(server *Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
@@ -86,6 +87,7 @@ func IPRateLimitMiddleware(server *Server) gin.HandlerFunc {
 }
 
 // AuthFlowRateLimitMiddleware creates middleware for multi-scope auth flow rate limiting (Tier 2)
+// SEM@c70d49ed2d6089c24d05f8bc287ba5711c73abde: enforce multi-scope rate limits on auth flow endpoints, resetting the user limit after a successful token exchange
 func AuthFlowRateLimitMiddleware(server *Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
@@ -165,6 +167,7 @@ func AuthFlowRateLimitMiddleware(server *Server) gin.HandlerFunc {
 }
 
 // isTokenEndpoint checks if the path is the OAuth token exchange endpoint
+// SEM@2ba330fcb59eb085d8f877fe8f75f90af9b69071: report whether a request path is the OAuth token exchange endpoint (pure)
 func isTokenEndpoint(path string) bool {
 	return path == "/oauth2/token"
 }
@@ -172,6 +175,7 @@ func isTokenEndpoint(path string) bool {
 // extractIPAddress extracts the client IP address from the request.
 // When trusted proxies are configured, uses Gin's ClientIP() which validates
 // the X-Forwarded-For chain. Otherwise, extracts from headers directly.
+// SEM@7cb03e52faae718087b1ee56a6023e9f7bddaea0: extract the client IP from the request, using trusted-proxy validation when configured (pure)
 func extractIPAddress(c *gin.Context, trustedProxiesConfigured bool) string {
 	if trustedProxiesConfigured {
 		// Gin's ClientIP() validates X-Forwarded-For against trusted proxy list
@@ -198,6 +202,7 @@ func extractIPAddress(c *gin.Context, trustedProxiesConfigured bool) string {
 }
 
 // extractSessionID extracts session identifier for OAuth/SAML flows
+// SEM@2ba330fcb59eb085d8f877fe8f75f90af9b69071: extract a session identifier from OAuth state, SAML relay state, or auth code parameters (pure)
 func extractSessionID(c *gin.Context) string {
 	// For OAuth, use state parameter
 	if state := c.Query("state"); state != "" {
@@ -225,12 +230,14 @@ func extractSessionID(c *gin.Context) string {
 }
 
 // isLoopbackAddress returns true if the IP is a loopback address (127.0.0.0/8 or ::1)
+// SEM@b56734cae01bac4ef89d33497ff9a8e7a33c7833: report whether an IP address is a loopback address (pure)
 func isLoopbackAddress(ip string) bool {
 	parsed := net.ParseIP(ip)
 	return parsed != nil && parsed.IsLoopback()
 }
 
 // extractUserIdentifier extracts user identifier for account-based rate limiting
+// SEM@2ba330fcb59eb085d8f877fe8f75f90af9b69071: extract a normalized user identifier from login_hint or client_id for account-scoped rate limiting (pure)
 func extractUserIdentifier(c *gin.Context) string {
 	// For OAuth, use login_hint if provided
 	if loginHint := c.Query("login_hint"); loginHint != "" {

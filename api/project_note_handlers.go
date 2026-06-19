@@ -10,6 +10,7 @@ import (
 
 // ListProjectNotes returns a paginated list of notes for a project.
 // GET /projects/{project_id}/notes
+// SEM@8a8c018ad8b1686dd4e43f736f31431743de5393: fetch a paginated list of project notes, filtering non-sharable notes for unprivileged users (reads DB)
 func (s *Server) ListProjectNotes(c *gin.Context, projectId openapi_types.UUID, params ListProjectNotesParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -78,6 +79,7 @@ func (s *Server) ListProjectNotes(c *gin.Context, projectId openapi_types.UUID, 
 
 // CreateProjectNote creates a new note for a project.
 // POST /projects/{project_id}/notes
+// SEM@8a8c018ad8b1686dd4e43f736f31431743de5393: store a new sanitized project note, enforcing sharable field restrictions by role (reads DB)
 func (s *Server) CreateProjectNote(c *gin.Context, projectId openapi_types.UUID) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -151,6 +153,7 @@ func (s *Server) CreateProjectNote(c *gin.Context, projectId openapi_types.UUID)
 
 // GetProjectNote returns a specific project note.
 // GET /projects/{project_id}/notes/{project_note_id}
+// SEM@8a8c018ad8b1686dd4e43f736f31431743de5393: fetch a single project note, hiding non-sharable notes from unprivileged users as 404 (reads DB)
 func (s *Server) GetProjectNote(c *gin.Context, projectId openapi_types.UUID, projectNoteId ProjectNoteId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -195,6 +198,7 @@ func (s *Server) GetProjectNote(c *gin.Context, projectId openapi_types.UUID, pr
 
 // UpdateProjectNote replaces a project note.
 // PUT /projects/{project_id}/notes/{project_note_id}
+// SEM@8a8c018ad8b1686dd4e43f736f31431743de5393: replace a project note, enforcing sharable field and non-sharable visibility restrictions by role (reads DB)
 func (s *Server) UpdateProjectNote(c *gin.Context, projectId openapi_types.UUID, projectNoteId ProjectNoteId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -283,6 +287,7 @@ func (s *Server) UpdateProjectNote(c *gin.Context, projectId openapi_types.UUID,
 
 // PatchProjectNote partially updates a project note using JSON Patch.
 // PATCH /projects/{project_id}/notes/{project_note_id}
+// SEM@8a8c018ad8b1686dd4e43f736f31431743de5393: apply JSON Patch to a project note, blocking sharable field changes for unprivileged users (reads DB)
 func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, projectNoteId ProjectNoteId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -356,6 +361,7 @@ func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, 
 
 // DeleteProjectNote deletes a project note.
 // DELETE /projects/{project_id}/notes/{project_note_id}
+// SEM@8a8c018ad8b1686dd4e43f736f31431743de5393: delete a project note, hiding non-sharable notes from unprivileged users as 404 (reads DB)
 func (s *Server) DeleteProjectNote(c *gin.Context, projectId openapi_types.UUID, projectNoteId ProjectNoteId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()

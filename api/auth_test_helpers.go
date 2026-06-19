@@ -13,6 +13,7 @@ import (
 )
 
 // AuthTestHelper provides utilities for testing authorization functionality with caching
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: test helper struct bundling DB, cache, and invalidator for authorization test scenarios (pure)
 type AuthTestHelper struct {
 	DB               *sql.DB
 	Cache            *CacheService
@@ -21,6 +22,7 @@ type AuthTestHelper struct {
 }
 
 // AuthTestScenario defines a test scenario for authorization testing
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: struct defining expected access, role, and cache behavior for a single authorization test case (pure)
 type AuthTestScenario struct {
 	Description      string
 	User             string
@@ -32,6 +34,7 @@ type AuthTestScenario struct {
 }
 
 // NewAuthTestHelper creates a new authorization test helper
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: build an AuthTestHelper wiring DB, cache, and invalidator for authorization tests (pure)
 func NewAuthTestHelper(db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *AuthTestHelper {
 	return &AuthTestHelper{
 		DB:               db,
@@ -42,6 +45,7 @@ func NewAuthTestHelper(db *sql.DB, cache *CacheService, invalidator *CacheInvali
 }
 
 // SetupTestThreatModel creates a test threat model with authorization for testing
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: register a test threat model with a given owner and authorization list, returning its UUID (pure)
 func (h *AuthTestHelper) SetupTestThreatModel(t *testing.T, owner string, authList []Authorization) string {
 	t.Helper()
 
@@ -59,6 +63,7 @@ func (h *AuthTestHelper) SetupTestThreatModel(t *testing.T, owner string, authLi
 }
 
 // TestGetInheritedAuthData tests the GetInheritedAuthData function with various scenarios
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: run GetInheritedAuthData against a set of scenarios and assert access and cache behavior
 func (h *AuthTestHelper) TestGetInheritedAuthData(t *testing.T, scenarios []AuthTestScenario) {
 	t.Helper()
 
@@ -103,6 +108,7 @@ func (h *AuthTestHelper) TestGetInheritedAuthData(t *testing.T, scenarios []Auth
 }
 
 // TestCheckSubResourceAccess tests the CheckSubResourceAccess function with caching
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: run CheckSubResourceAccess against a set of scenarios and assert expected access outcomes
 func (h *AuthTestHelper) TestCheckSubResourceAccess(t *testing.T, scenarios []AuthTestScenario) {
 	t.Helper()
 
@@ -141,6 +147,7 @@ func (h *AuthTestHelper) TestCheckSubResourceAccess(t *testing.T, scenarios []Au
 }
 
 // CreateTestGinContext creates a Gin context for testing with authentication
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: build a Gin test context pre-populated with user email and threat model ID (pure)
 func (h *AuthTestHelper) CreateTestGinContext(userEmail string, threatModelID string) (*gin.Context, *httptest.ResponseRecorder) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -157,6 +164,7 @@ func (h *AuthTestHelper) CreateTestGinContext(userEmail string, threatModelID st
 }
 
 // TestValidateSubResourceAccess tests the middleware function
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: exercise the sub-resource access middleware against scenarios and assert allow or block behavior
 func (h *AuthTestHelper) TestValidateSubResourceAccess(t *testing.T, scenarios []AuthTestScenario) {
 	t.Helper()
 
@@ -193,6 +201,7 @@ func (h *AuthTestHelper) TestValidateSubResourceAccess(t *testing.T, scenarios [
 }
 
 // SetupTestAuthorizationData creates test authorization data for various scenarios
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: build the canonical set of authorization test scenarios covering owner, writer, reader, and external users (pure)
 func (h *AuthTestHelper) SetupTestAuthorizationData() []AuthTestScenario {
 	if !SubResourceFixtures.Initialized {
 		InitSubResourceTestFixtures()
@@ -257,6 +266,7 @@ func (h *AuthTestHelper) SetupTestAuthorizationData() []AuthTestScenario {
 }
 
 // VerifyAuthorizationInheritance verifies that sub-resource authorization inherits from threat model
+// SEM@9109f507bb812a13798dcd3c74f0dc11531d370e: assert that sub-resource access correctly inherits each authorized user's role from the parent threat model
 func (h *AuthTestHelper) VerifyAuthorizationInheritance(t *testing.T, threatModelID, subResourceID string) {
 	t.Helper()
 
@@ -317,6 +327,7 @@ func (h *AuthTestHelper) VerifyAuthorizationInheritance(t *testing.T, threatMode
 }
 
 // TestCacheInvalidation tests that cache is properly invalidated when authorization changes
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: verify that invalidating the cache clears previously stored authorization data
 func (h *AuthTestHelper) TestCacheInvalidation(t *testing.T, threatModelID string) {
 	t.Helper()
 
@@ -353,6 +364,7 @@ func (h *AuthTestHelper) TestCacheInvalidation(t *testing.T, threatModelID strin
 }
 
 // CleanupTestAuth cleans up test authorization data
+// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: invalidate cache entries for the given threat model IDs to clean up after authorization tests
 func (h *AuthTestHelper) CleanupTestAuth(t *testing.T, threatModelIDs []string) {
 	t.Helper()
 
@@ -368,6 +380,7 @@ func (h *AuthTestHelper) CleanupTestAuth(t *testing.T, threatModelIDs []string) 
 }
 
 // AssertAuthDataEqual compares two AuthorizationData structs for equality
+// SEM@e28c0cfc627a2162c9550e53fb320facb734179e: assert that two AuthorizationData values have the same owner and authorization entries (pure)
 func AssertAuthDataEqual(t *testing.T, expected, actual *AuthorizationData) {
 	t.Helper()
 
@@ -411,6 +424,7 @@ func AssertAuthDataEqual(t *testing.T, expected, actual *AuthorizationData) {
 }
 
 // GetTestAuthorizationData returns test authorization data for a specific scenario
+// SEM@e28c0cfc627a2162c9550e53fb320facb734179e: return a canned AuthorizationData fixture for a named test scenario (pure)
 func GetTestAuthorizationData(scenario string) *AuthorizationData {
 	if !SubResourceFixtures.Initialized {
 		InitSubResourceTestFixtures()

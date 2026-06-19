@@ -17,18 +17,22 @@ import (
 
 // HostResolver looks up the IPs for a hostname. Implementations must be
 // safe for concurrent use.
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: interface for resolving a hostname to IP addresses, safe for concurrent use (pure)
 type HostResolver interface {
 	LookupHost(ctx context.Context, host string) ([]string, error)
 }
 
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: default HostResolver implementation backed by net.DefaultResolver (pure)
 type defaultResolver struct{}
 
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: resolve a hostname to its IP addresses using the system default resolver
 func (defaultResolver) LookupHost(ctx context.Context, host string) ([]string, error) {
 	return net.DefaultResolver.LookupHost(ctx, host)
 }
 
 // SafeFetchOptions controls a single Fetch / FetchStreaming call.
 // Zero values fall back to client-level defaults.
+// SEM@0aee687bf1c2b4e1819bf1c183575104459a14d4: per-request configuration for method, headers, timeouts, body cap, and redirect policy (pure)
 type SafeFetchOptions struct {
 	Method                string
 	Body                  io.Reader
@@ -47,6 +51,7 @@ type SafeFetchOptions struct {
 }
 
 // SafeFetchResult is returned by Fetch.
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: hold the status code, headers, body, and truncation flag from a safe HTTP fetch (pure)
 type SafeFetchResult struct {
 	StatusCode int
 	Header     http.Header
@@ -63,6 +68,7 @@ type SafeFetchResult struct {
 //
 // Callers MUST route all server-originated outbound HTTP through a
 // SafeHTTPClient. A repository-level lint check enforces this.
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: SSRF-safe outbound HTTP client that validates URLs, resolves and pins IPs, and caps response bodies
 type SafeHTTPClient struct {
 	validator         *URIValidator
 	resolver          HostResolver
@@ -76,28 +82,33 @@ type SafeHTTPClient struct {
 }
 
 // SafeHTTPClientOption configures a SafeHTTPClient.
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: functional option type for configuring a SafeHTTPClient (pure)
 type SafeHTTPClientOption func(*SafeHTTPClient)
 
 // WithResolver overrides the host resolver. Used in tests to drive
 // deterministic resolution.
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: override the host resolver on a SafeHTTPClient, for test determinism (pure)
 func WithResolver(r HostResolver) SafeHTTPClientOption {
 	return func(c *SafeHTTPClient) { c.resolver = r }
 }
 
 // WithUserAgent sets a default User-Agent header applied when the request
 // has none.
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: set a default User-Agent header on a SafeHTTPClient (pure)
 func WithUserAgent(ua string) SafeHTTPClientOption {
 	return func(c *SafeHTTPClient) { c.userAgent = ua }
 }
 
 // WithTransportWrapper registers a wrapper around the pinned transport
 // (e.g. otelhttp.NewTransport).
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: register a transport wrapper such as an OTel transport on a SafeHTTPClient (pure)
 func WithTransportWrapper(f func(http.RoundTripper) http.RoundTripper) SafeHTTPClientOption {
 	return func(c *SafeHTTPClient) { c.transportWrap = f }
 }
 
 // WithDefaultTimeouts overrides the per-fetch defaults applied when
 // SafeFetchOptions leaves the corresponding field zero.
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: override the default overall, header-wait, and body-cap limits on a SafeHTTPClient (pure)
 func WithDefaultTimeouts(overall, headerWait time.Duration, maxBody int64) SafeHTTPClientOption {
 	return func(c *SafeHTTPClient) {
 		if overall > 0 {
@@ -115,6 +126,7 @@ func WithDefaultTimeouts(overall, headerWait time.Duration, maxBody int64) SafeH
 // NewSafeHTTPClient builds a SafeHTTPClient backed by the given URIValidator.
 // The validator's scheme and allowlist policy are reused; this client adds
 // the IP-pinning, header timeout, and body-cap controls on top.
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: build a SafeHTTPClient with SSRF protection using the given URI validator and options (pure)
 func NewSafeHTTPClient(validator *URIValidator, opts ...SafeHTTPClientOption) *SafeHTTPClient {
 	c := &SafeHTTPClient{
 		validator:         validator,
@@ -148,6 +160,7 @@ var ErrSafeHTTPBodyTooLarge = errors.New("safe_http: response body exceeds confi
 // When opts.RejectIfBodyExceedsMax is set and the response carries a
 // Content-Length header strictly greater than the configured cap, the
 // body is not read and the call returns ErrSafeHTTPBodyTooLarge.
+// SEM@0aee687bf1c2b4e1819bf1c183575104459a14d4: issue an SSRF-safe HTTP request and return the response body buffered in memory
 func (c *SafeHTTPClient) Fetch(ctx context.Context, rawURL string, opts SafeFetchOptions) (*SafeFetchResult, error) {
 	resp, maxBytes, err := c.do(ctx, rawURL, opts)
 	if err != nil {
@@ -175,6 +188,7 @@ func (c *SafeHTTPClient) Fetch(ctx context.Context, rawURL string, opts SafeFetc
 // FetchStreaming issues the request and returns the open *http.Response.
 // The response body is wrapped so that reads never exceed opts.MaxBodyBytes.
 // The caller MUST close resp.Body.
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: issue an SSRF-safe HTTP request and return the response for streaming; caller must close body
 func (c *SafeHTTPClient) FetchStreaming(ctx context.Context, rawURL string, opts SafeFetchOptions) (*http.Response, error) {
 	resp, maxBytes, err := c.do(ctx, rawURL, opts)
 	if err != nil {
@@ -184,6 +198,7 @@ func (c *SafeHTTPClient) FetchStreaming(ctx context.Context, rawURL string, opts
 	return resp, nil
 }
 
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: execute a validated, IP-pinned outbound HTTP request with timeout and transport controls
 func (c *SafeHTTPClient) do(ctx context.Context, rawURL string, opts SafeFetchOptions) (*http.Response, int64, error) {
 	if opts.Method == "" {
 		opts.Method = http.MethodGet
@@ -262,6 +277,7 @@ func (c *SafeHTTPClient) do(ctx context.Context, rawURL string, opts SafeFetchOp
 // and returns a single IP that the caller MUST dial. Returns the resolved
 // IP, the port, and the original hostname (for callers needing SNI / Host
 // header values). Localhost names are blocked in open mode.
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: validate URL scheme and allowlist, resolve the hostname, block SSRF IPs, and return a pinned IP (pure)
 func (c *SafeHTTPClient) resolveAndPin(ctx context.Context, rawURL string) (pinnedIP, port, host string, err error) {
 	parsed, err := url.Parse(rawURL)
 	if err != nil {
@@ -337,6 +353,7 @@ func (c *SafeHTTPClient) resolveAndPin(ctx context.Context, rawURL string) (pinn
 	return ips[0], port, host, nil
 }
 
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: read a response body up to a byte cap, signaling truncation if exceeded (pure)
 func readCappedBody(r io.Reader, maxBytes int64) ([]byte, bool, error) {
 	if maxBytes <= 0 {
 		body, err := io.ReadAll(r)
@@ -352,11 +369,13 @@ func readCappedBody(r io.Reader, maxBytes int64) ([]byte, bool, error) {
 	return buf, false, nil
 }
 
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: io.ReadCloser that limits reads to a byte cap while delegating Close to the original (pure)
 type cappedReadCloser struct {
 	r  io.Reader
 	rc io.ReadCloser
 }
 
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: wrap a ReadCloser with a byte cap limit, returning the original if cap is non-positive (pure)
 func newCappedReadCloser(rc io.ReadCloser, maxBytes int64) io.ReadCloser {
 	if maxBytes <= 0 {
 		return rc
@@ -364,5 +383,7 @@ func newCappedReadCloser(rc io.ReadCloser, maxBytes int64) io.ReadCloser {
 	return &cappedReadCloser{r: io.LimitReader(rc, maxBytes), rc: rc}
 }
 
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: read bytes from the capped stream up to the configured limit (pure)
 func (c *cappedReadCloser) Read(p []byte) (int, error) { return c.r.Read(p) }
+// SEM@b554bb5371f70e0115912131e032671de29e8c09: close the underlying ReadCloser of the capped stream (pure)
 func (c *cappedReadCloser) Close() error               { return c.rc.Close() }

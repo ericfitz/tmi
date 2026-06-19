@@ -17,6 +17,7 @@ import (
 
 // CreateCurrentUserClientCredential handles POST /me/client_credentials
 // Creates a new OAuth 2.0 client credential for machine-to-machine authentication
+// SEM@469dc723f406bfcd7fd46bc19ba3a1f279f40f25: create a client credential for the authenticated user; enforces admin/reviewer authorization and quota (reads DB)
 func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -189,6 +190,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 
 // ListCurrentUserClientCredentials handles GET /me/client_credentials
 // Retrieves all client credentials owned by the authenticated user (without secrets)
+// SEM@469dc723f406bfcd7fd46bc19ba3a1f279f40f25: list all client credentials owned by the authenticated user with pagination, omitting secrets (reads DB)
 func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCurrentUserClientCredentialsParams) {
 	logger := slogging.Get().WithContext(c)
 	userUUID := c.GetString("userInternalUUID")
@@ -292,6 +294,7 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 
 // DeleteCurrentUserClientCredential handles DELETE /me/client_credentials/{credential_id}
 // Permanently deletes a client credential
+// SEM@469dc723f406bfcd7fd46bc19ba3a1f279f40f25: delete and revoke a client credential owned by the authenticated user (reads DB)
 func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 	userUUID := c.GetString("userInternalUUID")
@@ -362,6 +365,7 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId 
 
 // validateClientCredentialName validates the name field for security issues
 // Returns an error message if validation fails, empty string if valid
+// SEM@c3818ab211091946cfe831b51f278e1a29914219: validate a client credential name: non-empty, no whitespace-only, max 100 chars, safe unicode (pure)
 func validateClientCredentialName(name string) string {
 	// Additional check: whitespace-only names are also rejected
 	if strings.TrimSpace(name) == "" {
@@ -376,6 +380,7 @@ func validateClientCredentialName(name string) string {
 
 // validateClientCredentialDescription validates the description field
 // Returns an error message if validation fails, empty string if valid
+// SEM@c3818ab211091946cfe831b51f278e1a29914219: validate an optional client credential description: max 500 chars, safe unicode (pure)
 func validateClientCredentialDescription(description string) string {
 	if err := validateTextField(description, "description", 500, false); err != nil {
 		return err.Error()
@@ -385,6 +390,7 @@ func validateClientCredentialDescription(description string) string {
 
 // sanitizeForLogging removes potentially dangerous characters from strings before logging.
 // Delegates to the consolidated unicodecheck package.
+// SEM@99fb5e219721394dfd5b0ad63c85d3f01d469306: convert a string to a log-safe form by replacing control and zero-width chars (pure)
 func sanitizeForLogging(s string) string {
 	return unicodecheck.SanitizeForLogging(s)
 }

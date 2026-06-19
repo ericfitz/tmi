@@ -10,6 +10,7 @@ import (
 const redactedPlaceholder = "[REDACTED]"
 
 // WebSocketLoggingConfig holds configuration for WebSocket message logging
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: configuration controlling WebSocket log verbosity, token redaction, and message size limits (pure)
 type WebSocketLoggingConfig struct {
 	Enabled        bool
 	RedactTokens   bool
@@ -18,6 +19,7 @@ type WebSocketLoggingConfig struct {
 }
 
 // WSMessageDirection indicates the direction of the WebSocket message
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: enum type distinguishing inbound from outbound WebSocket messages (pure)
 type WSMessageDirection string
 
 const (
@@ -26,6 +28,7 @@ const (
 )
 
 // LogWebSocketMessage logs WebSocket messages with optional token redaction
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: log a WebSocket message at debug level with optional token redaction and size enforcement (pure)
 func LogWebSocketMessage(direction WSMessageDirection, sessionID, userID string, messageType string, data []byte, config WebSocketLoggingConfig) {
 	if !config.Enabled {
 		return
@@ -86,6 +89,7 @@ func LogWebSocketMessage(direction WSMessageDirection, sessionID, userID string,
 }
 
 // RedactWebSocketMessage applies redaction rules to WebSocket message content
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: redact sensitive fields from a WebSocket message string, parsing as JSON when possible (pure)
 func RedactWebSocketMessage(message string) string {
 	if message == "" {
 		return message
@@ -106,6 +110,7 @@ func RedactWebSocketMessage(message string) string {
 }
 
 // redactJSONData recursively applies redaction rules to JSON data
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: recursively apply redaction rules to a JSON object, omitting or obfuscating matched fields (pure)
 func redactJSONData(data map[string]any) map[string]any {
 	config := DefaultRedactionConfig()
 	if err := config.CompileRules(); err != nil {
@@ -159,6 +164,7 @@ func redactJSONData(data map[string]any) map[string]any {
 }
 
 // redactJSONArray recursively applies redaction rules to JSON arrays
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: recursively apply JSON redaction rules to every element of an array (pure)
 func redactJSONArray(data []any) []any {
 	result := make([]any, len(data))
 
@@ -176,6 +182,7 @@ func redactJSONArray(data []any) []any {
 }
 
 // LogWebSocketConnection logs WebSocket connection events (compatibility with original signature)
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: log a WebSocket connection lifecycle event with session, user, and diagram identifiers (pure)
 func LogWebSocketConnection(event string, sessionID, userID, diagramID string, config WebSocketLoggingConfig) {
 	if !config.Enabled {
 		return
@@ -194,6 +201,7 @@ func LogWebSocketConnection(event string, sessionID, userID, diagramID string, c
 }
 
 // LogWebSocketError logs WebSocket-related errors (compatibility with original signature)
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: log a WebSocket error with type, message, session, and user context (pure)
 func LogWebSocketError(errorType, errorMessage, sessionID, userID string, config WebSocketLoggingConfig) {
 	if !config.Enabled {
 		return
@@ -210,6 +218,7 @@ func LogWebSocketError(errorType, errorMessage, sessionID, userID string, config
 }
 
 // LogWebSocketMetrics logs WebSocket performance metrics
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: log WebSocket performance metrics for a session at debug level (pure)
 func LogWebSocketMetrics(sessionID string, metrics map[string]any) {
 	logger := Get()
 

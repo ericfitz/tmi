@@ -15,6 +15,7 @@ import (
 // accumulatedFailures, failureWarnEmitted) is goroutine-local in run(), so
 // no internal locking is required. Cross-goroutine reads of the cloud
 // handler's counters use ErrorCount(), which handles its own synchronization.
+// SEM@4d51fe4202ca3813e7688fe89107dbcec7d347d1: monitor a cloud log sink for health transitions and write-error bursts (mutates shared state)
 type cloudWatchdog struct {
 	cloudHandler   *CloudLogHandler
 	cloudWriter    CloudLogWriter
@@ -28,6 +29,7 @@ type cloudWatchdog struct {
 // newCloudWatchdog constructs the watchdog and starts its goroutine. The
 // caller MUST call Stop. If errorThreshold <= 0, the failure-rate alarm is
 // disabled but health-check transitions are still observed.
+// SEM@4d51fe4202ca3813e7688fe89107dbcec7d347d1: build and start a cloud log sink watchdog goroutine with configurable poll interval and error threshold
 func newCloudWatchdog(
 	cloudHandler *CloudLogHandler,
 	cloudWriter CloudLogWriter,
@@ -47,6 +49,7 @@ func newCloudWatchdog(
 	return w
 }
 
+// SEM@f34a20e9c3a2b569452c1be9f0207d5cdc78f808: poll the cloud log sink on a ticker, emitting log events on health or error-rate changes (mutates shared state)
 func (w *cloudWatchdog) run() {
 	ticker := time.NewTicker(w.pollInterval)
 	defer ticker.Stop()
@@ -103,6 +106,7 @@ func (w *cloudWatchdog) run() {
 
 // safeIsHealthy calls cloudWriter.IsHealthy with a short timeout and recovers
 // from panics, returning false on any failure mode.
+// SEM@4d51fe4202ca3813e7688fe89107dbcec7d347d1: call the cloud log sink health check with a timeout, recovering from panics (pure)
 func (w *cloudWatchdog) safeIsHealthy() (healthy bool) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -118,6 +122,7 @@ func (w *cloudWatchdog) safeIsHealthy() (healthy bool) {
 }
 
 // Stop signals the goroutine to exit. Safe to call multiple times.
+// SEM@4d51fe4202ca3813e7688fe89107dbcec7d347d1: signal the watchdog goroutine to exit; safe to call multiple times (mutates shared state)
 func (w *cloudWatchdog) Stop() {
 	w.once.Do(func() { close(w.done) })
 }

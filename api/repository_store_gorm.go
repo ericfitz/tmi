@@ -16,6 +16,7 @@ import (
 )
 
 // GormRepositoryRepository implements RepositoryStore using GORM
+// SEM@295362baebc5fe956353b6eb0f33773e00895092: GORM-backed repository store with optional Redis cache and cache invalidation (mutates shared state)
 type GormRepositoryRepository struct {
 	db               *gorm.DB
 	cache            *CacheService
@@ -24,6 +25,7 @@ type GormRepositoryRepository struct {
 }
 
 // NewGormRepositoryRepository creates a new GORM-backed repository store with optional caching
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build a GormRepositoryRepository with optional cache and invalidator (pure)
 func NewGormRepositoryRepository(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormRepositoryRepository {
 	return &GormRepositoryRepository{
 		db:               db,
@@ -33,6 +35,7 @@ func NewGormRepositoryRepository(db *gorm.DB, cache *CacheService, invalidator *
 }
 
 // Create creates a new repository
+// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: store a new repository under a threat model, allocating an alias and updating the cache (reads DB)
 func (s *GormRepositoryRepository) Create(ctx context.Context, repository *Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -138,6 +141,7 @@ func (s *GormRepositoryRepository) Create(ctx context.Context, repository *Repos
 }
 
 // Get retrieves a repository by ID
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch a repository by ID from cache or DB, including its metadata (reads DB)
 func (s *GormRepositoryRepository) Get(ctx context.Context, id string) (*Repository, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -191,6 +195,7 @@ func (s *GormRepositoryRepository) Get(ctx context.Context, id string) (*Reposit
 }
 
 // Update updates an existing repository
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: update an existing repository's fields and metadata, refreshing the cache (reads DB)
 func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -289,11 +294,13 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 }
 
 // Delete soft-deletes a repository by setting deleted_at
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: soft-delete a repository by setting its deleted_at timestamp (reads DB)
 func (s *GormRepositoryRepository) Delete(ctx context.Context, id string) error {
 	return s.SoftDelete(ctx, id)
 }
 
 // hardDeleteRepository permanently removes a repository and its metadata from the database
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: permanently remove a repository and its metadata, evicting related cache entries (reads DB)
 func (s *GormRepositoryRepository) hardDeleteRepository(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -359,6 +366,7 @@ func (s *GormRepositoryRepository) hardDeleteRepository(ctx context.Context, id 
 }
 
 // List retrieves repositories for a threat model with pagination
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: list repositories for a threat model with pagination from cache or DB (reads DB)
 func (s *GormRepositoryRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Repository, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -427,6 +435,7 @@ func (s *GormRepositoryRepository) List(ctx context.Context, threatModelID strin
 }
 
 // BulkCreate creates multiple repositories in a single transaction
+// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: insert multiple repositories under a threat model in a single retryable transaction (reads DB)
 func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories []Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -506,6 +515,7 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 }
 
 // Patch applies JSON patch operations to a repository
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply JSON Patch operations to a repository and persist the result (reads DB)
 func (s *GormRepositoryRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Repository, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching repository %s with %d operations", id, len(operations))
@@ -539,6 +549,7 @@ func (s *GormRepositoryRepository) Patch(ctx context.Context, id string, operati
 }
 
 // Count returns the total number of repositories for a threat model
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: count repositories belonging to a threat model (reads DB)
 func (s *GormRepositoryRepository) Count(ctx context.Context, threatModelID string) (int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -564,6 +575,7 @@ func (s *GormRepositoryRepository) Count(ctx context.Context, threatModelID stri
 }
 
 // InvalidateCache removes repository-related cache entries
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: delete cache entries for a repository by ID (mutates shared state)
 func (s *GormRepositoryRepository) InvalidateCache(ctx context.Context, id string) error {
 	if s.cache == nil {
 		return nil
@@ -572,6 +584,7 @@ func (s *GormRepositoryRepository) InvalidateCache(ctx context.Context, id strin
 }
 
 // WarmCache preloads repositories for a threat model into cache
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: preload the first page of repositories for a threat model into cache (mutates shared state)
 func (s *GormRepositoryRepository) WarmCache(ctx context.Context, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Warming cache for threat model repositories: %s", threatModelID)
@@ -591,6 +604,7 @@ func (s *GormRepositoryRepository) WarmCache(ctx context.Context, threatModelID 
 }
 
 // modelToAPI converts a GORM Repository model to the API Repository type
+// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: convert a GORM Repository model to its API DTO (pure)
 func (s *GormRepositoryRepository) modelToAPI(model *models.Repository) *Repository {
 	id, _ := uuid.Parse(string(model.ID))
 
@@ -638,21 +652,25 @@ func (s *GormRepositoryRepository) modelToAPI(model *models.Repository) *Reposit
 }
 
 // loadMetadata loads metadata for a repository
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch metadata records for a repository from the DB (reads DB)
 func (s *GormRepositoryRepository) loadMetadata(ctx context.Context, repositoryID string) ([]Metadata, error) {
 	return loadEntityMetadata(s.db.WithContext(ctx), "repository", repositoryID)
 }
 
 // saveMetadata saves metadata for a repository
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: store metadata records for a repository to the DB (reads DB)
 func (s *GormRepositoryRepository) saveMetadata(ctx context.Context, repositoryID string, metadata []Metadata) error {
 	return saveEntityMetadata(s.db.WithContext(ctx), "repository", repositoryID, metadata)
 }
 
 // updateMetadata updates metadata for a repository
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: delete and re-save metadata records for a repository (reads DB)
 func (s *GormRepositoryRepository) updateMetadata(ctx context.Context, repositoryID string, metadata []Metadata) error {
 	return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "repository", repositoryID, metadata)
 }
 
 // applyPatchOperation applies a single patch operation to a repository
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply a single JSON Patch operation to a repository's mutable fields (pure)
 func (s *GormRepositoryRepository) applyPatchOperation(repository *Repository, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:
@@ -698,6 +716,7 @@ func (s *GormRepositoryRepository) applyPatchOperation(repository *Repository, o
 }
 
 // getRepositoryThreatModelID retrieves the threat model ID for a repository
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: fetch the parent threat model ID for a repository by ID (reads DB)
 func (s *GormRepositoryRepository) getRepositoryThreatModelID(ctx context.Context, repositoryID string) (string, error) {
 	var model models.Repository
 	err := s.db.WithContext(ctx).Select("threat_model_id").First(&model, "id = ?", repositoryID).Error

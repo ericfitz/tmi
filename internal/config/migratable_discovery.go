@@ -9,6 +9,7 @@ import (
 // It is the input the build-time completeness gate compares against the
 // keys actually emitted by GetMigratableSettings — see
 // TestMigratableSettings_CoverEveryConfigField in migratable_discovery_test.go.
+// SEM@ac5e96c911b24411e0a2143b92aa3725fb7df190: dotted-key and env-var metadata for a single scalar config leaf field (pure)
 type DiscoveredField struct {
 	// DottedKey is the lower-snake-case dotted path produced from yaml
 	// tags (e.g. "auth.cookie.enabled").
@@ -36,12 +37,14 @@ type DiscoveredField struct {
 //
 // The walker recurses into named struct fields. A leaf is anything that is
 // NOT itself a struct (after dereferencing pointers).
+// SEM@ac5e96c911b24411e0a2143b92aa3725fb7df190: list all scalar leaf fields in Config using yaml struct tags via reflection (pure)
 func DiscoverConfigFields() []DiscoveredField {
 	var out []DiscoveredField
 	walkConfigType(reflect.TypeOf(Config{}), "", &out)
 	return out
 }
 
+// SEM@ac5e96c911b24411e0a2143b92aa3725fb7df190: recursively collect scalar yaml-tagged config fields, skipping maps and slices (pure)
 func walkConfigType(t reflect.Type, prefix string, out *[]DiscoveredField) {
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -103,6 +106,7 @@ func walkConfigType(t reflect.Type, prefix string, out *[]DiscoveredField) {
 // justification comment. An entry that says "TODO: migrate later" is a
 // promise to do that work, tracked by the follow-up issue noted in the
 // comment.
+// SEM@d34da3918d4a3784077a74aedd722e45c29196cf: return the allowlist of config fields intentionally excluded from migratable settings, with justification (pure)
 func ExpectedMigratableKeysSkipped() map[string]string {
 	return map[string]string{ //nolint:gosec // G101 false positive — keys here are config field paths, not credentials
 		// --- Bootstrap-by-construction ---

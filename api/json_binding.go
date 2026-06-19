@@ -15,6 +15,7 @@ import (
 // that might be accidentally processed.
 //
 // Returns an error message suitable for the client if binding fails, or empty string on success.
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: parse and bind JSON body to a struct, rejecting unknown fields (pure)
 func StrictJSONBind(c *gin.Context, target any) string {
 	// Read body
 	body, err := io.ReadAll(c.Request.Body)
@@ -49,6 +50,7 @@ func StrictJSONBind(c *gin.Context, target any) string {
 //
 // allowedFields is a map of field names that are permitted.
 // Returns an error message if unknown fields are present, or empty string on success.
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: bind form data to a struct, rejecting fields not in the allowed list (pure)
 func StrictFormBind(c *gin.Context, target any, allowedFields map[string]bool) string {
 	// First do the normal binding
 	if err := c.ShouldBind(target); err != nil {
@@ -70,15 +72,18 @@ func StrictFormBind(c *gin.Context, target any, allowedFields map[string]bool) s
 }
 
 // jsonBytesReader creates an io.Reader from a byte slice
+// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: build an io.Reader backed by a byte slice (pure)
 func jsonBytesReader(data []byte) io.Reader {
 	return &bytesReader{data: data}
 }
 
+// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: io.Reader that reads sequentially from an in-memory byte slice (pure)
 type bytesReader struct {
 	data []byte
 	pos  int
 }
 
+// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: read bytes from the in-memory slice, returning EOF when exhausted (pure)
 func (r *bytesReader) Read(p []byte) (n int, err error) {
 	if r.pos >= len(r.data) {
 		return 0, io.EOF
@@ -93,6 +98,7 @@ func (r *bytesReader) Read(p []byte) (n int, err error) {
 // where Go's json.Unmarshal silently converts e.g. numeric 123 to string "123".
 // The body bytes are read from the gin context and restored for subsequent binding.
 // Returns an error message if any field has the wrong type, or empty string on success.
+// SEM@5b38b9a109d5e10e1a9a58a35a692f19c30a0ed5: validate that named JSON fields are string type, not number or boolean (pure)
 func ValidateJSONStringFields(c *gin.Context, fields ...string) string {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -125,6 +131,7 @@ func ValidateJSONStringFields(c *gin.Context, fields ...string) string {
 }
 
 // jsonTypeName returns a human-readable name for the JSON type of a raw value.
+// SEM@5b38b9a109d5e10e1a9a58a35a692f19c30a0ed5: convert a raw JSON token to a human-readable type name (pure)
 func jsonTypeName(val json.RawMessage) string {
 	if len(val) == 0 {
 		return "null"
@@ -145,6 +152,7 @@ func jsonTypeName(val json.RawMessage) string {
 
 // RespondWithError sends a standardized error response matching the OpenAPI Error schema.
 // Calls c.Abort() so downstream middleware in the chain do not overwrite the status.
+// SEM@81952f598eaf9b1599471d778c9fb82e7d2f2d7a: send a structured JSON error response and abort the middleware chain
 func RespondWithError(c *gin.Context, statusCode int, errorCode, errorDescription string) {
 	c.JSON(statusCode, Error{
 		Error:            errorCode,
@@ -154,6 +162,7 @@ func RespondWithError(c *gin.Context, statusCode int, errorCode, errorDescriptio
 }
 
 // RespondWithBadRequest sends a 400 Bad Request error response
+// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: send a 400 JSON error response with the given description
 func RespondWithBadRequest(c *gin.Context, errorDescription string) {
 	RespondWithError(c, http.StatusBadRequest, "invalid_request", errorDescription)
 }

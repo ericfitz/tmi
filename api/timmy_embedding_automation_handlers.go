@@ -15,6 +15,7 @@ import (
 
 // GetEmbeddingConfig returns the embedding provider configuration for a threat model.
 // GET /automation/embeddings/{threat_model_id}/config
+// SEM@c309061af96f4db6e2d3a7da1d077b6a6f2f3c75: fetch the active embedding provider configuration for a threat model
 func (s *Server) GetEmbeddingConfig(c *gin.Context, threatModelId ThreatModelId) {
 	tmID := threatModelId.String()
 
@@ -73,6 +74,7 @@ func (s *Server) GetEmbeddingConfig(c *gin.Context, threatModelId ThreatModelId)
 
 // IngestEmbeddings accepts a batch of pre-computed embeddings for a threat model.
 // POST /automation/embeddings/{threat_model_id}
+// SEM@12a333f6f1d8bf16f9daa952af09057188c98cdc: store a validated batch of pre-computed embeddings for a threat model and invalidate the vector index (reads DB)
 func (s *Server) IngestEmbeddings(c *gin.Context, threatModelId ThreatModelId) {
 	logger := slogging.Get().WithContext(c)
 	tmID := threatModelId.String()
@@ -192,6 +194,7 @@ func (s *Server) IngestEmbeddings(c *gin.Context, threatModelId ThreatModelId) {
 
 // DeleteEmbeddings deletes embeddings for a threat model, optionally filtered.
 // DELETE /automation/embeddings/{threat_model_id}
+// SEM@12a333f6f1d8bf16f9daa952af09057188c98cdc: delete embeddings for a threat model filtered by entity or index type and invalidate the vector index (reads DB)
 func (s *Server) DeleteEmbeddings(c *gin.Context, threatModelId ThreatModelId, params DeleteEmbeddingsParams) {
 	logger := slogging.Get().WithContext(c)
 	tmID := threatModelId.String()
@@ -282,6 +285,7 @@ func (s *Server) DeleteEmbeddings(c *gin.Context, threatModelId ThreatModelId, p
 }
 
 // itoa converts an int to a decimal string without importing strconv in this file.
+// SEM@f16967b728491ff069bbdf69eba796fa935a9104: convert an integer to its decimal string representation (pure)
 func itoa(n int) string {
 	if n == 0 {
 		return "0"

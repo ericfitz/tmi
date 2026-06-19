@@ -10,6 +10,7 @@ import (
 )
 
 // ValidateUserIdentity validates that a User struct contains at least one valid identifier
+// SEM@e236ac749d0a1d6016793e5992c930397b838d76: validate that a User has at least one identifier and a plausible email format (pure)
 func ValidateUserIdentity(u User) error {
 	hasProviderId := u.ProviderId != ""
 	hasEmail := u.Email != ""
@@ -34,6 +35,7 @@ func ValidateUserIdentity(u User) error {
 // in tmi-asyncapi.yml to provide type safety and validation for WebSocket messages
 
 // MessageType represents the type of WebSocket message
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: typed string discriminator for WebSocket message categories (pure)
 type MessageType string
 
 const (
@@ -71,12 +73,14 @@ const (
 )
 
 // AsyncMessage is the base interface for all WebSocket messages
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: base interface for all WebSocket messages requiring type and validation (pure)
 type AsyncMessage interface {
 	GetMessageType() MessageType
 	Validate() error
 }
 
 // DiagramOperationMessage represents enhanced collaborative editing operations
+// SEM@6b83881f440de9677d8274560c98c1baeb79d8c0: WebSocket message carrying a collaborative cell patch operation with user identity (pure)
 type DiagramOperationMessage struct {
 	MessageType    MessageType        `json:"message_type"`
 	InitiatingUser User               `json:"initiating_user"`
@@ -85,8 +89,10 @@ type DiagramOperationMessage struct {
 	Operation      CellPatchOperation `json:"operation"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for DiagramOperationMessage (pure)
 func (m DiagramOperationMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a DiagramOperationMessage has correct type, UUID operation_id, and valid operation (pure)
 func (m DiagramOperationMessage) Validate() error {
 	if m.MessageType != MessageTypeDiagramOperation {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeDiagramOperation, m.MessageType)
@@ -107,11 +113,13 @@ const cellOperationTypePatch = "patch"
 const cellOperationTypeUpdate = "update"
 
 // CellPatchOperation mirrors REST PATCH operations for cells with batch support
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: batch patch payload for one or more diagram cell operations (pure)
 type CellPatchOperation struct {
 	Type  string          `json:"type"`
 	Cells []CellOperation `json:"cells"`
 }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a CellPatchOperation has patch type and at least one valid cell operation (pure)
 func (op CellPatchOperation) Validate() error {
 	if op.Type != cellOperationTypePatch {
 		return fmt.Errorf("operation type must be '%s', got: %s", cellOperationTypePatch, op.Type)
@@ -128,12 +136,14 @@ func (op CellPatchOperation) Validate() error {
 }
 
 // CellOperation represents a single cell operation (add/update/remove)
+// SEM@be6cc4edcc9140493267132a7d584481845e0dfe: single add/update/remove operation targeting a diagram cell by UUID (pure)
 type CellOperation struct {
 	ID        string                 `json:"id"`
 	Operation string                 `json:"operation"`
 	Data      *DfdDiagram_Cells_Item `json:"data,omitempty"` // Union type: Node | Edge
 }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a CellOperation has UUID id, valid operation type, and consistent cell data (pure)
 func (op CellOperation) Validate() error {
 	if op.ID == "" {
 		return fmt.Errorf("cell id is required")
@@ -174,6 +184,7 @@ func (op CellOperation) Validate() error {
 // New Request Message Types (Client→Server, no initiating_user)
 
 // DiagramOperationRequest is sent by client to perform a diagram operation
+// SEM@d791c9a859555ac908a93f4bd6d49574103f13b9: client-to-server WebSocket request to apply a diagram cell patch operation (pure)
 type DiagramOperationRequest struct {
 	MessageType    MessageType        `json:"message_type"`
 	OperationID    string             `json:"operation_id"`
@@ -182,8 +193,10 @@ type DiagramOperationRequest struct {
 	Operation      CellPatchOperation `json:"operation"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for DiagramOperationRequest (pure)
 func (m DiagramOperationRequest) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a DiagramOperationRequest has correct type, UUID operation_id, and valid operation (pure)
 func (m DiagramOperationRequest) Validate() error {
 	if m.MessageType != MessageTypeDiagramOperationRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s",
@@ -202,13 +215,16 @@ func (m DiagramOperationRequest) Validate() error {
 }
 
 // ChangePresenterRequest is sent by client to change presenter
+// SEM@4c26178bb9014e2fcc62e1a29307dad2c36b6ada: client-to-server WebSocket request to transfer the presenter role to another user (pure)
 type ChangePresenterRequest struct {
 	MessageType  MessageType `json:"message_type"`
 	NewPresenter User        `json:"new_presenter"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for ChangePresenterRequest (pure)
 func (m ChangePresenterRequest) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a ChangePresenterRequest has correct type and identifiable new presenter (pure)
 func (m ChangePresenterRequest) Validate() error {
 	if m.MessageType != MessageTypeChangePresenterRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s",
@@ -221,13 +237,16 @@ func (m ChangePresenterRequest) Validate() error {
 }
 
 // RemoveParticipantRequest is sent by client to remove a participant
+// SEM@6b83881f440de9677d8274560c98c1baeb79d8c0: client-to-server WebSocket request to remove a session participant (pure)
 type RemoveParticipantRequest struct {
 	MessageType MessageType `json:"message_type"`
 	RemovedUser User        `json:"removed_user"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for RemoveParticipantRequest (pure)
 func (m RemoveParticipantRequest) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a RemoveParticipantRequest has correct type and identifiable removed user (pure)
 func (m RemoveParticipantRequest) Validate() error {
 	if m.MessageType != MessageTypeRemoveParticipantRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s",
@@ -242,6 +261,7 @@ func (m RemoveParticipantRequest) Validate() error {
 // New Event Message Types (Server→Client, with initiating_user)
 
 // DiagramOperationEvent is broadcast by server when a diagram operation occurs
+// SEM@d791c9a859555ac908a93f4bd6d49574103f13b9: server-to-client WebSocket event broadcast when a diagram cell operation is applied (pure)
 type DiagramOperationEvent struct {
 	MessageType    MessageType        `json:"message_type"`
 	InitiatingUser User               `json:"initiating_user"`
@@ -251,8 +271,10 @@ type DiagramOperationEvent struct {
 	Operation      CellPatchOperation `json:"operation"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for DiagramOperationEvent (pure)
 func (m DiagramOperationEvent) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a DiagramOperationEvent has correct type, user identity, UUID, and valid operation (pure)
 func (m DiagramOperationEvent) Validate() error {
 	if m.MessageType != MessageTypeDiagramOperationEvent {
 		return fmt.Errorf("invalid message_type: expected %s, got %s",
@@ -275,12 +297,15 @@ func (m DiagramOperationEvent) Validate() error {
 
 // Presenter Mode Messages
 
+// SEM@6b83881f440de9677d8274560c98c1baeb79d8c0: client-to-server WebSocket message requesting presenter role (pure)
 type PresenterRequestMessage struct {
 	MessageType MessageType `json:"message_type"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for PresenterRequestMessage (pure)
 func (m PresenterRequestMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a PresenterRequestMessage has the expected message type (pure)
 func (m PresenterRequestMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterRequest, m.MessageType)
@@ -289,13 +314,16 @@ func (m PresenterRequestMessage) Validate() error {
 }
 
 // PresenterRequestEvent is sent by server to host when a participant requests presenter
+// SEM@3c44b862a22a0ad321ed622392453ad48bae4799: server-to-host WebSocket event notifying of a participant's presenter request (pure)
 type PresenterRequestEvent struct {
 	MessageType    MessageType `json:"message_type"`
 	RequestingUser User        `json:"requesting_user"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for PresenterRequestEvent (pure)
 func (m PresenterRequestEvent) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a PresenterRequestEvent has correct type and identifiable requesting user (pure)
 func (m PresenterRequestEvent) Validate() error {
 	if m.MessageType != MessageTypePresenterRequestEvent {
 		return fmt.Errorf("invalid message_type: expected %s, got %s",
@@ -308,13 +336,16 @@ func (m PresenterRequestEvent) Validate() error {
 }
 
 // PresenterDeniedRequest is sent by host to server to deny a presenter request
+// SEM@15d7086fc0b3014fcf08da9f792833c9550907d0: host-to-server WebSocket message denying a participant's presenter request (pure)
 type PresenterDeniedRequest struct {
 	MessageType MessageType `json:"message_type"`
 	DeniedUser  User        `json:"denied_user"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for PresenterDeniedRequest (pure)
 func (m PresenterDeniedRequest) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a PresenterDeniedRequest has correct type and identifiable denied user (pure)
 func (m PresenterDeniedRequest) Validate() error {
 	if m.MessageType != MessageTypePresenterDeniedRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterDeniedRequest, m.MessageType)
@@ -326,13 +357,16 @@ func (m PresenterDeniedRequest) Validate() error {
 }
 
 // PresenterDeniedEvent is sent by server to the denied user
+// SEM@15d7086fc0b3014fcf08da9f792833c9550907d0: server-to-client WebSocket event informing a user their presenter request was denied (pure)
 type PresenterDeniedEvent struct {
 	MessageType MessageType `json:"message_type"`
 	DeniedUser  User        `json:"denied_user"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for PresenterDeniedEvent (pure)
 func (m PresenterDeniedEvent) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a PresenterDeniedEvent has correct type and identifiable denied user (pure)
 func (m PresenterDeniedEvent) Validate() error {
 	if m.MessageType != MessageTypePresenterDeniedEvent {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterDeniedEvent, m.MessageType)
@@ -343,14 +377,17 @@ func (m PresenterDeniedEvent) Validate() error {
 	return nil
 }
 
+// SEM@6b83881f440de9677d8274560c98c1baeb79d8c0: server-to-client WebSocket event announcing presenter role transfer to all participants (pure)
 type ChangePresenterMessage struct {
 	MessageType    MessageType `json:"message_type"`
 	InitiatingUser User        `json:"initiating_user"`
 	NewPresenter   User        `json:"new_presenter"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for ChangePresenterMessage (pure)
 func (m ChangePresenterMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a ChangePresenterMessage has correct type and provider IDs for both users (pure)
 func (m ChangePresenterMessage) Validate() error {
 	if m.MessageType != MessageTypeChangePresenter {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeChangePresenter, m.MessageType)
@@ -364,13 +401,16 @@ func (m ChangePresenterMessage) Validate() error {
 	return nil
 }
 
+// SEM@6b83881f440de9677d8274560c98c1baeb79d8c0: server-to-client WebSocket event announcing a participant has been removed (pure)
 type RemoveParticipantMessage struct {
 	MessageType MessageType `json:"message_type"`
 	RemovedUser User        `json:"removed_user"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for RemoveParticipantMessage (pure)
 func (m RemoveParticipantMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a RemoveParticipantMessage has correct type and removed user provider ID (pure)
 func (m RemoveParticipantMessage) Validate() error {
 	if m.MessageType != MessageTypeRemoveParticipant {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeRemoveParticipant, m.MessageType)
@@ -382,18 +422,22 @@ func (m RemoveParticipantMessage) Validate() error {
 }
 
 // CursorPosition represents cursor coordinates
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: 2D canvas coordinates for the presenter's cursor location (pure)
 type CursorPosition struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
 }
 
+// SEM@6b83881f440de9677d8274560c98c1baeb79d8c0: WebSocket message broadcasting the presenter's current cursor position (pure)
 type PresenterCursorMessage struct {
 	MessageType    MessageType    `json:"message_type"`
 	CursorPosition CursorPosition `json:"cursor_position"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for PresenterCursorMessage (pure)
 func (m PresenterCursorMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a PresenterCursorMessage has the expected message type (pure)
 func (m PresenterCursorMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterCursor {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterCursor, m.MessageType)
@@ -401,13 +445,16 @@ func (m PresenterCursorMessage) Validate() error {
 	return nil
 }
 
+// SEM@6b83881f440de9677d8274560c98c1baeb79d8c0: WebSocket message broadcasting the presenter's currently selected cell UUIDs (pure)
 type PresenterSelectionMessage struct {
 	MessageType   MessageType `json:"message_type"`
 	SelectedCells []string    `json:"selected_cells"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for PresenterSelectionMessage (pure)
 func (m PresenterSelectionMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a PresenterSelectionMessage has correct type and UUID-formatted cell IDs (pure)
 func (m PresenterSelectionMessage) Validate() error {
 	if m.MessageType != MessageTypePresenterSelection {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypePresenterSelection, m.MessageType)
@@ -423,14 +470,17 @@ func (m PresenterSelectionMessage) Validate() error {
 
 // Authorization and State Messages
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: server-to-client WebSocket message rejecting an operation due to insufficient authorization (pure)
 type AuthorizationDeniedMessage struct {
 	MessageType         MessageType `json:"message_type"`
 	OriginalOperationID string      `json:"original_operation_id"`
 	Reason              string      `json:"reason"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for AuthorizationDeniedMessage (pure)
 func (m AuthorizationDeniedMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate an AuthorizationDeniedMessage has correct type, UUID operation ID, and reason (pure)
 func (m AuthorizationDeniedMessage) Validate() error {
 	if m.MessageType != MessageTypeAuthorizationDenied {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeAuthorizationDenied, m.MessageType)
@@ -450,12 +500,15 @@ func (m AuthorizationDeniedMessage) Validate() error {
 // Sync Protocol Messages
 
 // SyncStatusRequestMessage is sent by client to check server's current update vector
+// SEM@6b83881f440de9677d8274560c98c1baeb79d8c0: client-to-server WebSocket message requesting the server's current update vector (pure)
 type SyncStatusRequestMessage struct {
 	MessageType MessageType `json:"message_type"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for SyncStatusRequestMessage (pure)
 func (m SyncStatusRequestMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a SyncStatusRequestMessage has the expected message type (pure)
 func (m SyncStatusRequestMessage) Validate() error {
 	if m.MessageType != MessageTypeSyncStatusRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeSyncStatusRequest, m.MessageType)
@@ -464,13 +517,16 @@ func (m SyncStatusRequestMessage) Validate() error {
 }
 
 // SyncStatusResponseMessage is sent by server with current update vector
+// SEM@d791c9a859555ac908a93f4bd6d49574103f13b9: server-to-client WebSocket response carrying the current diagram update vector (pure)
 type SyncStatusResponseMessage struct {
 	MessageType  MessageType `json:"message_type"`
 	UpdateVector int64       `json:"update_vector"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for SyncStatusResponseMessage (pure)
 func (m SyncStatusResponseMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a SyncStatusResponseMessage has correct type and non-negative update vector (pure)
 func (m SyncStatusResponseMessage) Validate() error {
 	if m.MessageType != MessageTypeSyncStatusResponse {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeSyncStatusResponse, m.MessageType)
@@ -482,13 +538,16 @@ func (m SyncStatusResponseMessage) Validate() error {
 }
 
 // SyncRequestMessage is sent by client to request full state if stale
+// SEM@d791c9a859555ac908a93f4bd6d49574103f13b9: client-to-server WebSocket message requesting full diagram state when client is stale (pure)
 type SyncRequestMessage struct {
 	MessageType  MessageType `json:"message_type"`
 	UpdateVector *int64      `json:"update_vector,omitempty"` // Client's current vector, nil means "send everything"
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for SyncRequestMessage (pure)
 func (m SyncRequestMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a SyncRequestMessage has correct type and non-negative update vector if set (pure)
 func (m SyncRequestMessage) Validate() error {
 	if m.MessageType != MessageTypeSyncRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeSyncRequest, m.MessageType)
@@ -500,6 +559,7 @@ func (m SyncRequestMessage) Validate() error {
 }
 
 // DiagramStateMessage is sent by server with full diagram state
+// SEM@3178cfdb4d9b95cb34c34db7f16dc14e46867342: server-to-client WebSocket message delivering full diagram cell state for resync (pure)
 type DiagramStateMessage struct {
 	MessageType  MessageType             `json:"message_type"`
 	DiagramID    string                  `json:"diagram_id"`
@@ -508,8 +568,10 @@ type DiagramStateMessage struct {
 	ColorPalette *[]ColorPaletteEntry    `json:"color_palette,omitempty"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for DiagramStateMessage (pure)
 func (m DiagramStateMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a DiagramStateMessage has correct type, UUID diagram ID, non-negative vector, and cells (pure)
 func (m DiagramStateMessage) Validate() error {
 	if m.MessageType != MessageTypeDiagramState {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeDiagramState, m.MessageType)
@@ -531,14 +593,17 @@ func (m DiagramStateMessage) Validate() error {
 
 // History Messages
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: WebSocket message carrying an undo or redo history operation notification (pure)
 type HistoryOperationMessage struct {
 	MessageType   MessageType `json:"message_type"`
 	OperationType string      `json:"operation_type"`
 	Message       string      `json:"message"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for HistoryOperationMessage (pure)
 func (m HistoryOperationMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a HistoryOperationMessage has correct type and undo/redo operation type (pure)
 func (m HistoryOperationMessage) Validate() error {
 	if m.MessageType != MessageTypeHistoryOperation {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeHistoryOperation, m.MessageType)
@@ -549,13 +614,16 @@ func (m HistoryOperationMessage) Validate() error {
 	return nil
 }
 
+// SEM@6b83881f440de9677d8274560c98c1baeb79d8c0: WebSocket message struct carrying the initiating user for an undo request (pure)
 type UndoRequestMessage struct {
 	MessageType    MessageType `json:"message_type"`
 	InitiatingUser User        `json:"initiating_user"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for an undo request message (pure)
 func (m UndoRequestMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate an undo request message; reject if type or user identity is missing (pure)
 func (m UndoRequestMessage) Validate() error {
 	if m.MessageType != MessageTypeUndoRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeUndoRequest, m.MessageType)
@@ -566,13 +634,16 @@ func (m UndoRequestMessage) Validate() error {
 	return nil
 }
 
+// SEM@6b83881f440de9677d8274560c98c1baeb79d8c0: WebSocket message struct carrying the initiating user for a redo request (pure)
 type RedoRequestMessage struct {
 	MessageType    MessageType `json:"message_type"`
 	InitiatingUser User        `json:"initiating_user"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for a redo request message (pure)
 func (m RedoRequestMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a redo request message; reject if type or user identity is missing (pure)
 func (m RedoRequestMessage) Validate() error {
 	if m.MessageType != MessageTypeRedoRequest {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeRedoRequest, m.MessageType)
@@ -584,6 +655,7 @@ func (m RedoRequestMessage) Validate() error {
 }
 
 // AsyncParticipant represents a participant in the AsyncAPI format
+// SEM@df0585645a37c72fb1ecbeafbfd7644df9718c29: struct representing a session participant with role and last-activity timestamp (pure)
 type AsyncParticipant struct {
 	User         User      `json:"user"`
 	Permissions  string    `json:"permissions"`
@@ -591,6 +663,7 @@ type AsyncParticipant struct {
 }
 
 // ParticipantsUpdateMessage provides complete participant list with roles
+// SEM@57c7fe4675f8c33d1349a00276ae1c9d7deff87b: WebSocket message broadcasting the full participant list with host and presenter (pure)
 type ParticipantsUpdateMessage struct {
 	MessageType      MessageType        `json:"message_type"`
 	Participants     []AsyncParticipant `json:"participants"`
@@ -598,8 +671,10 @@ type ParticipantsUpdateMessage struct {
 	CurrentPresenter *User              `json:"current_presenter"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for a participants update message (pure)
 func (m ParticipantsUpdateMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate a participants update message; reject invalid host, presenter, or participant fields (pure)
 func (m ParticipantsUpdateMessage) Validate() error {
 	if m.MessageType != MessageTypeParticipantsUpdate {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeParticipantsUpdate, m.MessageType)
@@ -636,6 +711,7 @@ func (m ParticipantsUpdateMessage) Validate() error {
 }
 
 // parseAndValidate is a helper that unmarshals data into a message and validates it
+// SEM@265a2ce7125adfb13a6f725f996e15fd920be74b: deserialize raw bytes into a typed async message and validate it (pure)
 func parseAndValidate[T AsyncMessage](data []byte, msgType string) (AsyncMessage, error) {
 	var msg T
 	if err := json.Unmarshal(data, &msg); err != nil {
@@ -645,6 +721,7 @@ func parseAndValidate[T AsyncMessage](data []byte, msgType string) (AsyncMessage
 }
 
 // Message Parser utility to parse incoming WebSocket messages
+// SEM@d791c9a859555ac908a93f4bd6d49574103f13b9: parse and validate an incoming WebSocket message into its concrete async message type (pure)
 func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 	// First, parse to determine message type
 	var base struct {
@@ -701,6 +778,7 @@ func ParseAsyncMessage(data []byte) (AsyncMessage, error) {
 }
 
 // ErrorMessage represents an error response
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: WebSocket message struct representing a server error response with code and details (pure)
 type ErrorMessage struct {
 	MessageType MessageType    `json:"message_type"`
 	Error       string         `json:"error"`
@@ -710,8 +788,10 @@ type ErrorMessage struct {
 	Timestamp   time.Time      `json:"timestamp"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for an error message (pure)
 func (m ErrorMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate an error message; reject if type, error field, or message text is missing (pure)
 func (m ErrorMessage) Validate() error {
 	if m.MessageType != MessageTypeError {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeError, m.MessageType)
@@ -727,6 +807,7 @@ func (m ErrorMessage) Validate() error {
 
 // OperationRejectedMessage represents a notification sent exclusively to the
 // operation originator when their diagram operation is rejected
+// SEM@d791c9a859555ac908a93f4bd6d49574103f13b9: WebSocket message sent to the originator when their diagram operation is rejected (pure)
 type OperationRejectedMessage struct {
 	MessageType    MessageType `json:"message_type"`
 	OperationID    string      `json:"operation_id"`
@@ -740,8 +821,10 @@ type OperationRejectedMessage struct {
 	Timestamp      time.Time   `json:"timestamp"`
 }
 
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: return the message type discriminator for an operation-rejected message (pure)
 func (m OperationRejectedMessage) GetMessageType() MessageType { return m.MessageType }
 
+// SEM@892d57cddcb45ff8d7f653d68c1077422974e7b4: validate an operation-rejected message; reject invalid operation ID, reason code, or missing fields (pure)
 func (m OperationRejectedMessage) Validate() error {
 	if m.MessageType != MessageTypeOperationRejected {
 		return fmt.Errorf("invalid message_type: expected %s, got %s", MessageTypeOperationRejected, m.MessageType)
@@ -775,6 +858,7 @@ func (m OperationRejectedMessage) Validate() error {
 }
 
 // Helper function to marshal AsyncMessage to JSON
+// SEM@79bd6821708dbab17a998153f9a0d9ae26399bb5: validate and serialize an async message to JSON bytes (pure)
 func MarshalAsyncMessage(msg AsyncMessage) ([]byte, error) {
 	if err := msg.Validate(); err != nil {
 		return nil, fmt.Errorf("message validation failed: %w", err)

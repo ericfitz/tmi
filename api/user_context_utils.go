@@ -10,6 +10,7 @@ import (
 // GetUserFromContext retrieves the full user object from the Gin context
 // The user object is set by the JWT middleware after authentication
 // Returns RequestError if user is not found or not authenticated
+// SEM@89d554e793900a75b5703e1d10c9d58f57ceadc6: fetch the authenticated user from the Gin request context (pure)
 func GetUserFromContext(c *gin.Context) (*auth.User, error) {
 	userInterface, exists := c.Get(string(auth.UserContextKey))
 	if !exists {
@@ -35,6 +36,7 @@ func GetUserFromContext(c *gin.Context) (*auth.User, error) {
 // GetUserInternalUUID retrieves the user's internal UUID from the context
 // This is the system-generated UUID for internal tracking (never exposed in JWT)
 // Returns error if user is not authenticated or UUID is not available
+// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: fetch the authenticated user's internal system UUID from the Gin request context (pure)
 func GetUserInternalUUID(c *gin.Context) (string, error) {
 	// Try to get from explicit context key first (set by JWT middleware)
 	if internalUUID, exists := c.Get("userInternalUUID"); exists {
@@ -70,6 +72,7 @@ func GetUserInternalUUID(c *gin.Context) (string, error) {
 // GetUserEmail retrieves the user's email from the context
 // This is set by the JWT middleware from the email claim
 // Returns error if user is not authenticated or email is not available
+// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: fetch the authenticated user's email from the Gin request context (pure)
 func GetUserEmail(c *gin.Context) (string, error) {
 	emailInterface, exists := c.Get("userEmail")
 	if !exists {
@@ -96,6 +99,7 @@ func GetUserEmail(c *gin.Context) (string, error) {
 // GetUserProvider retrieves the user's OAuth provider from the context
 // Returns the provider name (e.g., "tmi", "google", "github", "microsoft", "azure")
 // Returns error if user is not authenticated or provider is not available
+// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: fetch the authenticated user's OAuth provider name from the Gin request context (pure)
 func GetUserProvider(c *gin.Context) (string, error) {
 	providerInterface, exists := c.Get("userProvider")
 	if !exists {
@@ -126,6 +130,7 @@ func GetUserProvider(c *gin.Context) (string, error) {
 // GetUserProviderID retrieves the user's provider user ID from the context
 // This is the OAuth provider's user ID (from JWT sub claim)
 // Returns error if user is not authenticated or provider user ID is not available
+// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: fetch the authenticated user's provider subject ID from the Gin request context (pure)
 func GetUserProviderID(c *gin.Context) (string, error) {
 	userIDInterface, exists := c.Get("userID")
 	if !exists {
@@ -152,6 +157,7 @@ func GetUserProviderID(c *gin.Context) (string, error) {
 // GetUserGroups retrieves the user's groups from the context
 // Returns the groups array from the identity provider
 // Returns empty array if no groups are present (not an error)
+// SEM@89d554e793900a75b5703e1d10c9d58f57ceadc6: fetch the authenticated user's group memberships from the Gin request context (pure)
 func GetUserGroups(c *gin.Context) []string {
 	groupsInterface, exists := c.Get("userGroups")
 	if !exists {
@@ -169,6 +175,7 @@ func GetUserGroups(c *gin.Context) []string {
 // GetUserDisplayName retrieves the user's display name from the context
 // Returns the display name from JWT claims
 // Returns empty string if not available (not an error)
+// SEM@89d554e793900a75b5703e1d10c9d58f57ceadc6: fetch the authenticated user's display name from the Gin request context (pure)
 func GetUserDisplayName(c *gin.Context) string {
 	nameInterface, exists := c.Get("userDisplayName")
 	if !exists {
@@ -187,6 +194,7 @@ func GetUserDisplayName(c *gin.Context) string {
 // using soft-failure semantics (empty strings on missing values). This is used by
 // authorization middleware where missing fields don't prevent the access check -
 // the authorization logic itself will deny access based on empty values.
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: extract user identity fields from context with soft-failure semantics for authorization checks (pure)
 func GetUserAuthFieldsForAccessCheck(c *gin.Context) (providerUserID, internalUUID, provider string, groups []string) {
 	if id, exists := c.Get("userID"); exists {
 		providerUserID, _ = id.(string)

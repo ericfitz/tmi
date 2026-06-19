@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// SEM@82a3444e3d58a2e4d97fabaf3b6cbf06d6e7c800: populate git commit hash from runtime env vars when not set at build time (mutates shared state)
 func init() {
 	// If GitCommit wasn't set at build time via ldflags, try environment variables.
 	// Heroku sets SOURCE_VERSION during builds and HEROKU_SLUG_COMMIT at runtime
@@ -33,6 +34,7 @@ func init() {
 }
 
 // Version contains versioning information for the API
+// SEM@6acba406c94a7bc4caaf713a960fd4f28bb3e6a7: structured type holding semantic version, pre-release, commit, build date, and API version (pure)
 type Version struct {
 	Major      int    `json:"major"`
 	Minor      int    `json:"minor"`
@@ -62,6 +64,7 @@ var (
 )
 
 // GetVersion returns the current application version
+// SEM@6acba406c94a7bc4caaf713a960fd4f28bb3e6a7: build and return the current application version from build-time variables (pure)
 func GetVersion() Version {
 	major := parseIntOrZero(VersionMajor)
 	minor := parseIntOrZero(VersionMinor)
@@ -79,6 +82,7 @@ func GetVersion() Version {
 }
 
 // parseIntOrZero parses an integer from a string, returning 0 on failure
+// SEM@386eea01f3b66c35027bf3ca762efbc291419e20: parse a string to int, returning zero on any error (pure)
 func parseIntOrZero(s string) int {
 	i, err := strconv.Atoi(s)
 	if err != nil {
@@ -88,6 +92,7 @@ func parseIntOrZero(s string) int {
 }
 
 // GetVersionString returns the version as a formatted string
+// SEM@6acba406c94a7bc4caaf713a960fd4f28bb3e6a7: format the application version as a human-readable string including commit and build date (pure)
 func GetVersionString() string {
 	v := GetVersion()
 	version := fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
@@ -98,11 +103,13 @@ func GetVersionString() string {
 }
 
 // ApiInfoHandler handles requests to the root endpoint
+// SEM@7193f12546f4e4755ee3b2271543ba2fc6b329f0: HTTP handler type for serving API root endpoint responses
 type ApiInfoHandler struct {
 	server *Server
 }
 
 // NewApiInfoHandler creates a new handler for API info
+// SEM@7193f12546f4e4755ee3b2271543ba2fc6b329f0: build an ApiInfoHandler bound to the given server instance (pure)
 func NewApiInfoHandler(server *Server) *ApiInfoHandler {
 	return &ApiInfoHandler{
 		server: server,
@@ -147,6 +154,7 @@ const rootPageHTML = `<!DOCTYPE html>
 const healthCheckTimeout = 3 * time.Second
 
 // GetApiInfo returns service, API, and operator information
+// SEM@82a3444e3d58a2e4d97fabaf3b6cbf06d6e7c800: handle root endpoint: return service info, version, health status, and operator details as JSON or HTML
 func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 	// Get logger from context
 	logger := slogging.GetContextLogger(c)

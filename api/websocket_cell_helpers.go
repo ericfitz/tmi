@@ -6,6 +6,7 @@ import (
 
 // extractCellID extracts the ID string from a DfdDiagram_Cells_Item union type.
 // Returns the Node or Edge ID as a string, or empty string if neither can be extracted.
+// SEM@400099b89edfff0887d281885299028db7bd6efd: extract the ID string from a diagram cell union item, returning empty if unresolvable (pure)
 func extractCellID(cellItem *DfdDiagram_Cells_Item) string {
 	if node, err := cellItem.AsNode(); err == nil {
 		return node.Id.String()
@@ -19,6 +20,7 @@ func extractCellID(cellItem *DfdDiagram_Cells_Item) string {
 // deduplicateCellOperations filters duplicate cell operations from a slice,
 // keeping only the first operation for each cell ID. The logContext parameter
 // is included in warning/info log messages (e.g., a session ID).
+// SEM@400099b89edfff0887d281885299028db7bd6efd: filter duplicate cell operations from a slice, keeping the first occurrence per cell ID (pure)
 func deduplicateCellOperations(cells []CellOperation, logContext string) []CellOperation {
 	seenCellIDs := make(map[string]bool)
 	deduplicatedCells := make([]CellOperation, 0, len(cells))
@@ -53,6 +55,7 @@ func deduplicateCellOperations(cells []CellOperation, logContext string) []CellO
 
 // findAndReplaceCellInDiagram finds a cell by ID in the diagram and replaces it with newData.
 // Returns true if the cell was found and replaced, false otherwise.
+// SEM@400099b89edfff0887d281885299028db7bd6efd: locate a diagram cell by ID and replace it with new data in-place (mutates shared state)
 func findAndReplaceCellInDiagram(diagram *DfdDiagram, cellID string, newData DfdDiagram_Cells_Item) bool {
 	for i := range diagram.Cells {
 		if extractCellID(&diagram.Cells[i]) == cellID {
@@ -65,6 +68,7 @@ func findAndReplaceCellInDiagram(diagram *DfdDiagram, cellID string, newData Dfd
 
 // removeCellFromDiagram removes a cell by ID from the diagram using swap-remove.
 // Returns true if the cell was found and removed, false otherwise.
+// SEM@400099b89edfff0887d281885299028db7bd6efd: remove a diagram cell by ID using swap-remove (mutates shared state)
 func removeCellFromDiagram(diagram *DfdDiagram, cellID string) bool {
 	for i := range diagram.Cells {
 		if extractCellID(&diagram.Cells[i]) == cellID {
@@ -80,6 +84,7 @@ func removeCellFromDiagram(diagram *DfdDiagram, cellID string) bool {
 }
 
 // buildCellState builds a map of cell ID to cell item pointer for conflict detection.
+// SEM@400099b89edfff0887d281885299028db7bd6efd: build an ID-to-pointer index of diagram cells for conflict detection (pure)
 func buildCellState(cells []DfdDiagram_Cells_Item) map[string]*DfdDiagram_Cells_Item {
 	state := make(map[string]*DfdDiagram_Cells_Item)
 	for i := range cells {
@@ -92,6 +97,7 @@ func buildCellState(cells []DfdDiagram_Cells_Item) map[string]*DfdDiagram_Cells_
 }
 
 // copyPreviousState creates a deep copy of a cell state map for storing as previous state.
+// SEM@400099b89edfff0887d281885299028db7bd6efd: deep-copy a cell state map for use as a prior-state snapshot (pure)
 func copyPreviousState(currentState map[string]*DfdDiagram_Cells_Item) map[string]*DfdDiagram_Cells_Item {
 	previousState := make(map[string]*DfdDiagram_Cells_Item, len(currentState))
 	for k, v := range currentState {

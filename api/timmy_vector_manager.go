@@ -15,6 +15,7 @@ import (
 // stored embedding row in the (threat_model_id, index_type) bucket disagrees
 // with the active embedding model or dimension. The caller is expected to
 // delete the stale rows and re-prepare the index.
+// SEM@dfcd0fbfb9ee063edbd7fe1fcd9795399535a6c8: error indicating stored embeddings disagree with the active embedding model or dimension (pure)
 type ErrEmbeddingModelMismatch struct {
 	ThreatModelID string
 	IndexType     string
@@ -26,6 +27,7 @@ type ErrEmbeddingModelMismatch struct {
 	EntityID      string
 }
 
+// SEM@dfcd0fbfb9ee063edbd7fe1fcd9795399535a6c8: format the embedding model mismatch error as a descriptive string (pure)
 func (e *ErrEmbeddingModelMismatch) Error() string {
 	return fmt.Sprintf(
 		"embedding model mismatch for tm=%s index=%s: stored %s/%d, expected %s/%d (first mismatched entity %s/%s)",
@@ -35,6 +37,7 @@ func (e *ErrEmbeddingModelMismatch) Error() string {
 }
 
 // LoadedIndex represents an in-memory vector index for a threat model
+// SEM@93f3b413fc45194106e4b8c0a3c1705ca53fa822: in-memory vector index entry for a threat model with access tracking and memory accounting (pure)
 type LoadedIndex struct {
 	ThreatModelID  string
 	IndexType      string
@@ -45,6 +48,7 @@ type LoadedIndex struct {
 }
 
 // VectorIndexManager manages in-memory vector indexes per threat model
+// SEM@def63b409c24f2ad196af883736040232f69379e: manages memory-budgeted in-memory vector indexes per threat model with LRU eviction (mutates shared state)
 type VectorIndexManager struct {
 	mu                sync.Mutex
 	indexes           map[string]*LoadedIndex
@@ -63,11 +67,13 @@ type VectorIndexManager struct {
 }
 
 // compositeKey returns the map key for a given threat model ID and index type
+// SEM@93f3b413fc45194106e4b8c0a3c1705ca53fa822: build the map key for a threat model ID and index type pair (pure)
 func compositeKey(threatModelID, indexType string) string {
 	return threatModelID + ":" + indexType
 }
 
 // NewVectorIndexManager creates a new manager with the given memory budget
+// SEM@def63b409c24f2ad196af883736040232f69379e: build a VectorIndexManager with a memory budget and start the background eviction loop (mutates shared state)
 func NewVectorIndexManager(embeddingStore TimmyEmbeddingStore, maxMemoryMB int, inactivityTimeoutSeconds int) *VectorIndexManager {
 	mgr := &VectorIndexManager{
 		indexes:           make(map[string]*LoadedIndex),
@@ -84,6 +90,7 @@ func NewVectorIndexManager(embeddingStore TimmyEmbeddingStore, maxMemoryMB int, 
 // subsequent calls are no-ops. Call this when discarding a VectorIndexManager
 // (e.g. when the Timmy runtime is rebuilt) to avoid leaking the eviction
 // goroutine and its ticker.
+// SEM@def63b409c24f2ad196af883736040232f69379e: signal the background eviction goroutine to terminate; safe to call multiple times (mutates shared state)
 func (m *VectorIndexManager) Stop() {
 	m.stopOnce.Do(func() { close(m.stopCh) })
 }
@@ -91,6 +98,7 @@ func (m *VectorIndexManager) Stop() {
 // IsStopped reports whether Stop has been called on this manager. It does not
 // indicate that the eviction goroutine has fully exited, only that it has been
 // signalled to stop.
+// SEM@def63b409c24f2ad196af883736040232f69379e: report whether Stop has been called on this manager (pure)
 func (m *VectorIndexManager) IsStopped() bool {
 	select {
 	case <-m.stopCh:
@@ -104,6 +112,7 @@ func (m *VectorIndexManager) IsStopped() bool {
 // from DB if needed. expectedModel + dimension are the active embedding model
 // and dimension; if any loaded row disagrees, *ErrEmbeddingModelMismatch is
 // returned and the caller is responsible for cleanup.
+// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: fetch a threat model's vector index from memory or load from DB, rejecting stale embeddings (reads DB)
 func (m *VectorIndexManager) GetOrLoadIndex(
 	ctx context.Context,
 	threatModelID, indexType, expectedModel string,
@@ -173,6 +182,7 @@ func (m *VectorIndexManager) GetOrLoadIndex(
 }
 
 // ReleaseIndex decrements the active session count for the given threat model and index type
+// SEM@93f3b413fc45194106e4b8c0a3c1705ca53fa822: decrement the active session count for a vector index (mutates shared state)
 func (m *VectorIndexManager) ReleaseIndex(threatModelID, indexType string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -187,6 +197,7 @@ func (m *VectorIndexManager) ReleaseIndex(threatModelID, indexType string) {
 
 // InvalidateIndex removes the in-memory index for the given threat model and index type,
 // but only if there are no active sessions. If active sessions exist, it logs and skips.
+// SEM@93f3b413fc45194106e4b8c0a3c1705ca53fa822: remove a vector index from memory if no sessions are active (mutates shared state)
 func (m *VectorIndexManager) InvalidateIndex(threatModelID, indexType string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -205,6 +216,7 @@ func (m *VectorIndexManager) InvalidateIndex(threatModelID, indexType string) {
 }
 
 // GetStatus returns current memory and index status for the admin endpoint
+// SEM@93f3b413fc45194106e4b8c0a3c1705ca53fa822: aggregate memory usage and per-index metrics for the admin status endpoint (pure)
 func (m *VectorIndexManager) GetStatus() map[string]any {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -252,6 +264,7 @@ func (m *VectorIndexManager) GetStatus() map[string]any {
 	}
 }
 
+// SEM@ea56d2a51a2f2ae4a4d2e84306e8fcdea47dee1d: report whether total loaded index memory is below 90% of the configured budget (pure)
 func (m *VectorIndexManager) canAllocate() bool {
 	var total int64
 	for _, loaded := range m.indexes {
@@ -260,6 +273,7 @@ func (m *VectorIndexManager) canAllocate() bool {
 	return total < int64(float64(m.maxMemoryBytes)*0.9)
 }
 
+// SEM@93f3b413fc45194106e4b8c0a3c1705ca53fa822: evict the least-recently-used idle vector index under memory pressure (mutates shared state)
 func (m *VectorIndexManager) evictLRU() {
 	var oldest *LoadedIndex
 	var oldestKey string
@@ -280,6 +294,7 @@ func (m *VectorIndexManager) evictLRU() {
 	}
 }
 
+// SEM@def63b409c24f2ad196af883736040232f69379e: background loop that evicts idle vector indexes past the inactivity timeout (mutates shared state)
 func (m *VectorIndexManager) evictionLoop() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
@@ -303,6 +318,7 @@ func (m *VectorIndexManager) evictionLoop() {
 }
 
 // bytesToFloat32 converts a byte slice to a float32 slice (little-endian)
+// SEM@ea56d2a51a2f2ae4a4d2e84306e8fcdea47dee1d: convert a little-endian byte slice to a float32 vector (pure)
 func bytesToFloat32(data []byte) []float32 {
 	if len(data) == 0 {
 		return nil
@@ -317,6 +333,7 @@ func bytesToFloat32(data []byte) []float32 {
 }
 
 // float32ToBytes converts a float32 slice to a byte slice (little-endian)
+// SEM@ea56d2a51a2f2ae4a4d2e84306e8fcdea47dee1d: convert a float32 vector to a little-endian byte slice (pure)
 func float32ToBytes(data []float32) []byte {
 	result := make([]byte, len(data)*4)
 	for i, v := range data {

@@ -12,6 +12,7 @@ import (
 
 // ValidateComponent checks a TMIComponent spec for internal consistency
 // beyond what the CRD OpenAPI schema can express.
+// SEM@63e2aad01818e6abee8652287d395a8b4f205986: validate a TMIComponent spec for semantic constraints beyond CRD schema (pure)
 func ValidateComponent(c *platformv1alpha1.TMIComponent) error {
 	if c.Spec.InputMode == platformv1alpha1.InputSourceLocator &&
 		c.Spec.Egress == platformv1alpha1.EgressNone {
@@ -33,6 +34,7 @@ var metadataIP = net.ParseIP("169.254.169.254")
 // validateAllowlist enforces that an egress:allowlist component declares at
 // least one server-side-enforceable target and that no target widens egress to
 // the default route or the metadata IP.
+// SEM@14c0bf9eb93764d9f131b849a090520b618ab091: validate an egress allowlist has at least one target and no default-route or metadata-IP CIDRs (pure)
 func validateAllowlist(a *platformv1alpha1.AllowlistEgress) error {
 	if a == nil || (len(a.CIDRs) == 0 && len(a.ClusterPeers) == 0 && !a.OpenInternet) {
 		return fmt.Errorf("egress=allowlist requires at least one of spec.allowlist.cidrs, clusterPeers, or openInternet")
@@ -65,6 +67,7 @@ func validateAllowlist(a *platformv1alpha1.AllowlistEgress) error {
 
 // validatePorts rejects out-of-range port numbers; an empty list is valid
 // (rendering defaults it to TCP/443).
+// SEM@14c0bf9eb93764d9f131b849a090520b618ab091: validate that all port numbers are within the valid 1-65535 range (pure)
 func validatePorts(ports []int32) error {
 	for _, p := range ports {
 		if p < 1 || p > 65535 {

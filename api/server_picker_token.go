@@ -8,6 +8,7 @@ import (
 // to the attached *PickerTokenHandler. When the handler is not wired the
 // picker subsystem is unavailable and a 404 ("feature_not_available") is
 // returned via the shared contentOAuthUnavailable helper.
+// SEM@7d1de945e5ad1f7bf6019e4c44631eb202e3ca54: route a picker token request to the provider-specific handler or return 503 if unconfigured
 func (s *Server) MintPickerToken(c *gin.Context, providerId string) {
 	if s.pickerToken == nil {
 		contentOAuthUnavailable(c)

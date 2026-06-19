@@ -3,6 +3,7 @@ package api
 // contentProviderMeta is the static metadata for a known content source name:
 // its kind (delegated/service/direct), and default user-facing display name
 // and icon when the operator has not supplied overrides.
+// SEM@59912993e836739c5dd536f556970bfca1f5e11f: static metadata record describing a content provider's kind and default display name/icon (pure)
 type contentProviderMeta struct {
 	Kind        ContentProviderKind
 	DefaultName string
@@ -23,6 +24,7 @@ var contentProviderMetaTable = map[string]contentProviderMeta{
 // Unknown ids are treated as "direct" with the id itself as the default name
 // and an empty icon — a safe fallback that future-registered sources can override
 // by adding a row to contentProviderMetaTable.
+// SEM@59912993e836739c5dd536f556970bfca1f5e11f: fetch static metadata for a content provider by ID, falling back to a direct-kind default (pure)
 func lookupContentProviderMeta(id string) contentProviderMeta {
 	if m, ok := contentProviderMetaTable[id]; ok {
 		return m

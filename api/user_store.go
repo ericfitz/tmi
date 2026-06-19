@@ -10,6 +10,7 @@ import (
 // Note: AdminUser type is now generated from OpenAPI spec in api.go
 
 // UserFilter defines filtering options for user queries
+// SEM@24dcbaf59ea6bfe4e66c3f1fbc4863c809cfdc0e: filter and pagination criteria for listing users by provider, email, name, or date range (pure)
 type UserFilter struct {
 	Provider        string
 	Email           string // Case-insensitive ILIKE %email%
@@ -26,6 +27,7 @@ type UserFilter struct {
 }
 
 // UserStore defines the interface for user storage operations
+// SEM@aaa9664f0ee44fef65807ddde317d73afdfcf8eb: store interface for listing, fetching, updating, and deleting user accounts (reads DB)
 type UserStore interface {
 	// List returns users with optional filtering and pagination
 	List(ctx context.Context, filter UserFilter) ([]AdminUser, error)
@@ -51,6 +53,7 @@ type UserStore interface {
 }
 
 // DeletionStats contains statistics about user deletion
+// SEM@fb03bf4ae62f9d2e9e38b6a31882e902b0673586: report of threat model transfers and deletions produced when a user account is removed (pure)
 type DeletionStats struct {
 	ThreatModelsTransferred int    `json:"threat_models_transferred"`
 	ThreatModelsDeleted     int    `json:"threat_models_deleted"`

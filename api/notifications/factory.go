@@ -10,6 +10,7 @@ import (
 )
 
 // DatabaseType represents the type of database
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: enumerate supported database backends for notification routing (pure)
 type DatabaseType string
 
 const (
@@ -20,6 +21,7 @@ const (
 )
 
 // NewNotificationService creates a notification service appropriate for the database type
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: build a notification service appropriate for the given database type
 func NewNotificationService(dbType DatabaseType, postgresConnStr string, db *sql.DB, gormDB *gorm.DB) (NotificationService, error) {
 	logger := slogging.Get()
 	logger.Info("Creating notification service for database type: %s", dbType)
@@ -49,6 +51,7 @@ func NewNotificationService(dbType DatabaseType, postgresConnStr string, db *sql
 }
 
 // NewNotificationServiceFromConfig creates a notification service from configuration
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: build a notification service from a config struct
 func NewNotificationServiceFromConfig(cfg Config, db *sql.DB, gormDB *gorm.DB) (NotificationService, error) {
 	return NewNotificationService(
 		DatabaseType(cfg.DatabaseType),

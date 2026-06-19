@@ -6,6 +6,7 @@ import "github.com/ericfitz/tmi/internal/slogging"
 
 // getDefaultProviderID returns the default OAuth provider ID for non-production builds
 // In dev/test builds, we default to "tmi" provider when no idp parameter is provided
+// SEM@f61409f5a075256147e289bd78059fcd6be5886e: return the hardcoded default OAuth provider ID for dev and test builds (pure)
 func getDefaultProviderID() string {
 	logger := slogging.Get()
 	logger.Debug("Using default TMI provider for dev/test builds default_provider_id=%v", "tmi")

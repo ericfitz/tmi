@@ -15,6 +15,7 @@ import (
 
 // AWSProvider retrieves secrets from AWS Secrets Manager.
 // It expects secrets to be stored as JSON key-value pairs within a single secret.
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: secrets provider that fetches and caches JSON key-value pairs from AWS Secrets Manager
 type AWSProvider struct {
 	client     *secretsmanager.Client
 	secretName string
@@ -27,6 +28,7 @@ type AWSProvider struct {
 }
 
 // NewAWSProvider creates a new AWS Secrets Manager provider
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: connect to AWS Secrets Manager and build a caching AWSProvider for the given secret
 func NewAWSProvider(ctx context.Context, region, secretName string) (*AWSProvider, error) {
 	logger := slogging.Get()
 
@@ -51,6 +53,7 @@ func NewAWSProvider(ctx context.Context, region, secretName string) (*AWSProvide
 
 // GetSecret retrieves a specific key from the AWS secret.
 // The secret is expected to be a JSON object with key-value pairs.
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: fetch a secret value by key from the AWS Secrets Manager cache, loading on first call
 func (p *AWSProvider) GetSecret(ctx context.Context, key string) (string, error) {
 	logger := slogging.Get()
 
@@ -86,6 +89,7 @@ func (p *AWSProvider) GetSecret(ctx context.Context, key string) (string, error)
 }
 
 // ListSecrets returns all keys in the AWS secret
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: list all secret keys available in the cached AWS secret
 func (p *AWSProvider) ListSecrets(ctx context.Context) ([]string, error) {
 	// Ensure cache is loaded
 	if !p.cacheSet {
@@ -106,16 +110,19 @@ func (p *AWSProvider) ListSecrets(ctx context.Context) ([]string, error) {
 }
 
 // Name returns the provider name
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: return the provider type identifier for this AWS provider (pure)
 func (p *AWSProvider) Name() string {
 	return string(ProviderTypeAWS)
 }
 
 // Close releases resources (no-op for AWS provider)
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: release provider resources; no-op for the AWS provider (pure)
 func (p *AWSProvider) Close() error {
 	return nil
 }
 
 // loadSecrets fetches and caches the secret from AWS Secrets Manager
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: fetch and cache the full JSON secret from AWS Secrets Manager (mutates shared state)
 func (p *AWSProvider) loadSecrets(ctx context.Context) error {
 	logger := slogging.Get()
 
@@ -153,6 +160,7 @@ func (p *AWSProvider) loadSecrets(ctx context.Context) error {
 }
 
 // InvalidateCache clears the cached secrets, forcing a reload on next access
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: clear the in-memory secret cache to force a reload on next access (mutates shared state)
 func (p *AWSProvider) InvalidateCache() {
 	p.cacheMu.Lock()
 	defer p.cacheMu.Unlock()
@@ -161,6 +169,7 @@ func (p *AWSProvider) InvalidateCache() {
 }
 
 // isAWSError checks if an error is a specific AWS error type
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: check whether an error matches a specific AWS SDK error type via unwrapping (pure)
 func isAWSError[T error](err error, target *T) bool {
 	var awsErr T
 	if ok := asError(err, &awsErr); ok {
@@ -171,6 +180,7 @@ func isAWSError[T error](err error, target *T) bool {
 }
 
 // asError is a helper that wraps errors.As for generic types
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: unwrap an error chain to find a value assignable to the target type (pure)
 func asError[T any](err error, target *T) bool {
 	for err != nil {
 		if e, ok := err.(T); ok {

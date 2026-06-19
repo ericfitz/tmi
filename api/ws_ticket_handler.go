@@ -12,6 +12,7 @@ import (
 const wsTicketTTL = 30 * time.Second
 
 // GetWsTicket issues a short-lived WebSocket authentication ticket.
+// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: issue a short-lived WebSocket authentication ticket for an authorized collaboration session participant
 func (s *Server) GetWsTicket(c *gin.Context, params GetWsTicketParams) {
 	logger := slogging.GetContextLogger(c)
 

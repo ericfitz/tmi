@@ -7,12 +7,14 @@ package config
 //
 // This struct intentionally has no picker fields — Confluence has no picker
 // UX; users paste page URLs.
+// SEM@6199f1bebeb0a5e637b7c38588d721ac36b525f4: configuration for the Confluence content source integration (pure)
 type ConfluenceConfig struct {
 	Enabled bool `yaml:"enabled" env:"TMI_CONTENT_SOURCE_CONFLUENCE_ENABLED"`
 }
 
 // IsConfigured returns true when the source is enabled. The OAuth provider
 // configuration is validated separately via the content_oauth registry.
+// SEM@6199f1bebeb0a5e637b7c38588d721ac36b525f4: validate that the Confluence integration is enabled (pure)
 func (c ConfluenceConfig) IsConfigured() bool {
 	return c.Enabled
 }

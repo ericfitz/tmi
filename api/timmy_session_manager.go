@@ -25,6 +25,7 @@ import (
 // URI is set only for entities whose content lives at an external URL (today: documents).
 // DB-resident entities (notes, assets, threats, repositories) leave it empty so the embedding
 // registry routes them to DirectTextProvider rather than the URI-driven content pipeline.
+// SEM@bd0bc10d5d1f787df91f432d9ae0dd6313a302c6: represents a threat-model entity included in a Timmy session source snapshot (pure)
 type SourceSnapshotEntry struct {
 	EntityType string `json:"entity_type"`
 	EntityID   string `json:"entity_id"`
@@ -33,6 +34,7 @@ type SourceSnapshotEntry struct {
 }
 
 // SessionProgressCallback reports progress during session creation phases
+// SEM@9ac60db5b7f349b340ab9963342361d7b81db7e2: callback type reporting phase progress during Timmy session creation (pure)
 type SessionProgressCallback func(phase, entityType, entityName string, progress int, detail string)
 
 // MessageStatusCallback reports pre-token-stream phase transitions during
@@ -41,10 +43,12 @@ type SessionProgressCallback func(phase, entityType, entityName string, progress
 // generic spinner. `phase` is a stable snake_case identifier; the rest
 // are optional and may be empty. See OpenAPI `createTimmyChatMessage`
 // for the documented shape.
+// SEM@f904455aae213e6a2855645d19e4aa64e39619e6: callback type reporting pre-stream phase transitions during Timmy message handling (pure)
 type MessageStatusCallback func(phase, entityType, entityName, detail string)
 
 // TimmySessionManager orchestrates Timmy session and message lifecycle,
 // wiring together LLM, vector index, content providers, and rate limiting
+// SEM@63d2546d6591e57d65783c3032d4412409c2b328: orchestrates Timmy session lifecycle, wiring LLM, vector index, embeddings, and rate limiting (mutates shared state)
 type TimmySessionManager struct {
 	config           config.TimmyConfig
 	llmService       *TimmyLLMService
@@ -62,6 +66,7 @@ type TimmySessionManager struct {
 }
 
 // NewTimmySessionManager creates a new session manager with all required dependencies
+// SEM@63d2546d6591e57d65783c3032d4412409c2b328: build a TimmySessionManager with all required LLM, vector, and rate-limit dependencies (pure)
 func NewTimmySessionManager(
 	cfg config.TimmyConfig,
 	llm *TimmyLLMService,
@@ -88,6 +93,7 @@ func NewTimmySessionManager(
 // through the provider so that ingest and query always see the same value.
 // This mirrors the SetSettingsService wiring pattern used elsewhere in the
 // server startup sequence.
+// SEM@534d697cb5ef139c97865f31e32bd7d0b6af458f: wire the shared embedding profile provider so ingest and query use the same model (mutates shared state)
 func (sm *TimmySessionManager) SetStampedConfigProvider(p config.StampedConfigProvider) {
 	sm.stampedConfig = p
 }
@@ -96,6 +102,7 @@ func (sm *TimmySessionManager) SetStampedConfigProvider(p config.StampedConfigPr
 // caps, conversation history, chunk sizes) are read per request from the
 // database instead of the build-time snapshot. When unset, the session
 // manager falls back to its frozen config (used by unit tests).
+// SEM@63d2546d6591e57d65783c3032d4412409c2b328: wire a per-request live config reader for tuning knobs instead of the build-time snapshot (mutates shared state)
 func (sm *TimmySessionManager) SetLiveConfig(read func(ctx context.Context) config.TimmyConfig) {
 	sm.liveConfig = read
 }
@@ -103,6 +110,7 @@ func (sm *TimmySessionManager) SetLiveConfig(read func(ctx context.Context) conf
 // cfgFor returns the live TimmyConfig when a live-config reader is wired,
 // else the build-time snapshot. Used for tuning knobs that may change at
 // runtime without an LLM-client rebuild.
+// SEM@63d2546d6591e57d65783c3032d4412409c2b328: return live TimmyConfig for the request context, falling back to the frozen config (pure)
 func (sm *TimmySessionManager) cfgFor(ctx context.Context) config.TimmyConfig {
 	if sm.liveConfig != nil {
 		return sm.liveConfig(ctx)
@@ -114,6 +122,7 @@ func (sm *TimmySessionManager) cfgFor(ctx context.Context) config.TimmyConfig {
 // for the given index type, read through the stamped config provider.
 // Falls back to the static config when no provider has been wired (e.g. in
 // unit tests that build a TimmySessionManager without a provider).
+// SEM@534d697cb5ef139c97865f31e32bd7d0b6af458f: fetch the expected embedding model name for an index type from the stamped config provider
 func (sm *TimmySessionManager) expectedEmbeddingModel(ctx context.Context, indexType string) (string, error) {
 	if sm.stampedConfig == nil {
 		// Fallback for code paths that have not been wired with a provider
@@ -138,6 +147,7 @@ func (sm *TimmySessionManager) expectedEmbeddingModel(ctx context.Context, index
 // It snapshots timmy-enabled entities, creates the session record, and
 // optionally prepares the vector index (if LLM service is configured).
 // Returns the created session, any skipped sources, and an error.
+// SEM@63d2546d6591e57d65783c3032d4412409c2b328: build a Timmy session: snapshot entities, persist session record, and prepare vector index (reads DB)
 func (sm *TimmySessionManager) CreateSession(
 	ctx context.Context,
 	userID, threatModelID, title string,
@@ -225,6 +235,7 @@ func (sm *TimmySessionManager) CreateSession(
 // The onToken callback receives streaming tokens as they arrive from the LLM.
 // The onStatus callback (optional, may be nil) receives phase transitions
 // ahead of token streaming so clients can surface "Timmy is …" affordances.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: process a user chat message: build context, stream LLM response, persist messages, record usage (reads DB)
 func (sm *TimmySessionManager) HandleMessage(
 	ctx context.Context,
 	sessionID, userID, userMessage string,
@@ -415,6 +426,7 @@ var titlePlaceholderPattern = regexp.MustCompile(`^Chat\s*[—-]\s*`)
 // shouldAutoRenameTitle returns true when the session's current title is
 // considered a default that the auto-rename pipeline may overwrite. Returns
 // false for any user-set title so we never clobber a deliberate name.
+// SEM@31f1e9f6c50875c19da05aa43964a24bc7d7d156: report whether a session title is a placeholder eligible for auto-rename (pure)
 func shouldAutoRenameTitle(current string) bool {
 	trimmed := strings.TrimSpace(current)
 	if trimmed == "" {
@@ -438,6 +450,7 @@ const (
 // sanitizeGeneratedTitle trims the LLM response, strips surrounding quotes
 // and markdown emphasis, removes line breaks, and clamps to titleGenMaxChars
 // runes. Returns an empty string if the result would be unusable.
+// SEM@31f1e9f6c50875c19da05aa43964a24bc7d7d156: strip quotes, markdown emphasis, and excess whitespace from an LLM-generated title, clamped to max runes (pure)
 func sanitizeGeneratedTitle(raw string) string {
 	t := strings.TrimSpace(raw)
 	// Collapse any line breaks the model may emit.
@@ -481,6 +494,7 @@ func sanitizeGeneratedTitle(raw string) string {
 // persists it via UpdateTitle. All failures are logged and swallowed — the
 // placeholder title is left in place rather than surfacing an error to the
 // client.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: generate and persist an LLM-derived session title from the first user message asynchronously (reads DB)
 func (sm *TimmySessionManager) autoRenameSession(sessionID, firstUserMessage string) {
 	logger := slogging.Get()
 
@@ -534,6 +548,7 @@ func (sm *TimmySessionManager) autoRenameSession(sessionID, firstUserMessage str
 // snapshotSources reads all sub-entity stores for the given threat model
 // and returns entries where timmy_enabled is true or nil (defaults to true),
 // along with any sources that were skipped.
+// SEM@d6f3b757d6d206d606880902c0c0be607dfc1ee1: collect timmy-enabled entity entries across all sub-entity types for a threat model (reads DB)
 func (sm *TimmySessionManager) snapshotSources(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, []SkippedSource, error) {
 	var entries []SourceSnapshotEntry
 	var allSkipped []SkippedSource
@@ -565,12 +580,14 @@ func (sm *TimmySessionManager) snapshotSources(ctx context.Context, threatModelI
 }
 
 // SnapshotSources is the public wrapper around snapshotSources for use by the refresh handler.
+// SEM@d6f3b757d6d206d606880902c0c0be607dfc1ee1: public wrapper to collect timmy-enabled source entries for a threat model (reads DB)
 func (sm *TimmySessionManager) SnapshotSources(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, []SkippedSource, error) {
 	return sm.snapshotSources(ctx, threatModelID)
 }
 
 const snapshotMaxItems = 1000
 
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: list timmy-enabled assets for a threat model as snapshot entries (reads DB)
 func (sm *TimmySessionManager) snapshotAssets(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, error) {
 	if GlobalAssetRepository == nil {
 		return nil, nil
@@ -588,6 +605,7 @@ func (sm *TimmySessionManager) snapshotAssets(ctx context.Context, threatModelID
 	return entries, nil
 }
 
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: list timmy-enabled threats for a threat model as snapshot entries (reads DB)
 func (sm *TimmySessionManager) snapshotThreats(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, error) {
 	if GlobalThreatRepository == nil {
 		return nil, nil
@@ -606,6 +624,7 @@ func (sm *TimmySessionManager) snapshotThreats(ctx context.Context, threatModelI
 	return entries, nil
 }
 
+// SEM@bd0bc10d5d1f787df91f432d9ae0dd6313a302c6: list timmy-enabled documents for a threat model as snapshot entries, skipping auth-required documents (reads DB)
 func (sm *TimmySessionManager) snapshotDocuments(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, []SkippedSource, error) {
 	if GlobalDocumentRepository == nil {
 		return nil, nil, nil
@@ -646,6 +665,7 @@ func (sm *TimmySessionManager) snapshotDocuments(ctx context.Context, threatMode
 	return entries, skipped, nil
 }
 
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: list timmy-enabled notes for a threat model as snapshot entries (reads DB)
 func (sm *TimmySessionManager) snapshotNotes(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, error) {
 	if GlobalNoteRepository == nil {
 		return nil, nil
@@ -663,6 +683,7 @@ func (sm *TimmySessionManager) snapshotNotes(ctx context.Context, threatModelID 
 	return entries, nil
 }
 
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: list timmy-enabled repositories for a threat model as snapshot entries (reads DB)
 func (sm *TimmySessionManager) snapshotRepositories(ctx context.Context, threatModelID string) ([]SourceSnapshotEntry, error) {
 	if GlobalRepositoryRepository == nil {
 		return nil, nil
@@ -684,6 +705,7 @@ func (sm *TimmySessionManager) snapshotRepositories(ctx context.Context, threatM
 	return entries, nil
 }
 
+// SEM@9ac60db5b7f349b340ab9963342361d7b81db7e2: list timmy-enabled diagrams from the in-memory store as snapshot entries (pure)
 func (sm *TimmySessionManager) snapshotDiagrams() ([]SourceSnapshotEntry, error) {
 	if DiagramStore == nil {
 		return nil, nil
@@ -701,6 +723,7 @@ func (sm *TimmySessionManager) snapshotDiagrams() ([]SourceSnapshotEntry, error)
 }
 
 // newSnapshotEntry creates a SourceSnapshotEntry with the given values
+// SEM@9ac60db5b7f349b340ab9963342361d7b81db7e2: build a SourceSnapshotEntry from entity type, ID, and name (pure)
 func newSnapshotEntry(entityType, entityID, name string) SourceSnapshotEntry {
 	return SourceSnapshotEntry{
 		EntityType: entityType,
@@ -710,6 +733,7 @@ func newSnapshotEntry(entityType, entityID, name string) SourceSnapshotEntry {
 }
 
 // uuidPtrToString safely converts a UUID pointer to string
+// SEM@9ac60db5b7f349b340ab9963342361d7b81db7e2: convert a UUID pointer to its string representation, returning empty string for nil (pure)
 func uuidPtrToString(id *openapi_types.UUID) string {
 	if id == nil {
 		return ""
@@ -718,11 +742,13 @@ func uuidPtrToString(id *openapi_types.UUID) string {
 }
 
 // isTimmyEnabled returns true if the timmy_enabled flag is nil (default true) or explicitly true
+// SEM@9ac60db5b7f349b340ab9963342361d7b81db7e2: report whether a timmy_enabled flag is true, treating nil as true (pure)
 func isTimmyEnabled(flag *bool) bool {
 	return flag == nil || *flag
 }
 
 // splitSourcesByIndexType partitions source snapshot entries into text and code sources
+// SEM@5fb51be4d5e699f50ff2c061acaf629dade9ada2: partition source snapshot entries into text and code index buckets (pure)
 func splitSourcesByIndexType(sources []SourceSnapshotEntry) (textSources, codeSources []SourceSnapshotEntry) {
 	for _, src := range sources {
 		if EntityTypeToIndexType(src.EntityType) == IndexTypeCode {
@@ -739,6 +765,7 @@ func splitSourcesByIndexType(sources []SourceSnapshotEntry) (textSources, codeSo
 // messages and debug logs. Order is deliberate: dimension before model
 // because dimension is what mathematically breaks similarity, and is the
 // more diagnostic answer when both differ.
+// SEM@a1eba327cad1ac47aa22830ede7f0d2adfcdf78e: return the reason an entity's embeddings are stale, or empty string if fresh (pure)
 func classifyStaleness(present bool, meta EntityEmbeddingMeta, hash, expModel string, expDim int) string {
 	switch {
 	case !present:
@@ -760,6 +787,7 @@ func classifyStaleness(present bool, meta EntityEmbeddingMeta, hash, expModel st
 // embedder, and re-embeds stale or new content. If the in-memory index
 // cannot be loaded because stored embeddings disagree with the active model
 // or dimension, the stale rows are pruned and the load is retried once.
+// SEM@63d2546d6591e57d65783c3032d4412409c2b328: ensure the vector index is current by re-embedding stale or new entities for a threat model (reads DB)
 func (sm *TimmySessionManager) prepareVectorIndex(
 	ctx context.Context,
 	threatModelID, indexType string,
@@ -919,6 +947,7 @@ func (sm *TimmySessionManager) prepareVectorIndex(
 }
 
 // searchIndexRaw embeds the query and performs vector search, returning raw results
+// SEM@534d697cb5ef139c97865f31e32bd7d0b6af458f: embed a query and search the vector index, returning raw similarity results (reads DB)
 func (sm *TimmySessionManager) searchIndexRaw(ctx context.Context, threatModelID, indexType, query string, topK int) []VectorSearchResult {
 	if sm.llmService == nil || sm.vectorManager == nil {
 		return nil
@@ -959,6 +988,7 @@ func (sm *TimmySessionManager) searchIndexRaw(ctx context.Context, threatModelID
 }
 
 // buildTier2Context runs the full query pipeline: decompose -> search -> rerank -> format
+// SEM@63d2546d6591e57d65783c3032d4412409c2b328: run the full query pipeline — decompose, search, rerank, format — for LLM context (reads DB)
 func (sm *TimmySessionManager) buildTier2Context(ctx context.Context, threatModelID, query string) string {
 	if sm.llmService == nil || sm.vectorManager == nil {
 		return ""
@@ -1028,6 +1058,7 @@ func (sm *TimmySessionManager) buildTier2Context(ctx context.Context, threatMode
 }
 
 // buildEntitySummaries converts source snapshot entries into EntitySummary objects for Tier 1 context
+// SEM@9ac60db5b7f349b340ab9963342361d7b81db7e2: convert source snapshot entries to EntitySummary objects for Tier 1 context (pure)
 func (sm *TimmySessionManager) buildEntitySummaries(sources []SourceSnapshotEntry) []EntitySummary {
 	summaries := make([]EntitySummary, 0, len(sources))
 	for _, src := range sources {
@@ -1041,6 +1072,7 @@ func (sm *TimmySessionManager) buildEntitySummaries(sources []SourceSnapshotEntr
 }
 
 // getConversationHistory loads recent messages and converts them to LLM message format
+// SEM@63d2546d6591e57d65783c3032d4412409c2b328: fetch recent session messages and convert them to LLM message content format (reads DB)
 func (sm *TimmySessionManager) getConversationHistory(ctx context.Context, sessionID string) ([]llms.MessageContent, error) {
 	messages, _, err := GlobalTimmyMessageStore.ListBySession(ctx, sessionID, 0, sm.cfgFor(ctx).MaxConversationHistory)
 	if err != nil {

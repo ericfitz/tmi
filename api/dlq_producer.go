@@ -18,6 +18,7 @@ import (
 // nats-server type to avoid a server dependency. The advisory carries the
 // source stream + sequence but NOT the original payload, which is why the
 // producer recovers it via GetMsg.
+// SEM@a2868700a693e2d82ddc9e4c4eb2ea9c2c171f31: struct holding JetStream MAX_DELIVERIES advisory fields needed for dead-lettering (pure)
 type maxDeliverAdvisory struct {
 	Stream     string `json:"stream"`
 	Consumer   string `json:"consumer"`
@@ -26,6 +27,7 @@ type maxDeliverAdvisory struct {
 }
 
 // parseMaxDeliverAdvisory decodes a MAX_DELIVERIES advisory payload.
+// SEM@a2868700a693e2d82ddc9e4c4eb2ea9c2c171f31: deserialize a MAX_DELIVERIES advisory payload into a maxDeliverAdvisory (pure)
 func parseMaxDeliverAdvisory(data []byte) (maxDeliverAdvisory, error) {
 	var adv maxDeliverAdvisory
 	if err := json.Unmarshal(data, &adv); err != nil {
@@ -38,6 +40,7 @@ func parseMaxDeliverAdvisory(data []byte) (maxDeliverAdvisory, error) {
 // stream must be ignored to avoid dead-letter loops and wasted work: the
 // result stream, the DLQ stream, and the advisory-capture stream are all
 // consumed by the monolith itself and must never be dead-lettered.
+// SEM@6d0d434b964452ae1f5422ff7c9367bbc31a56e4: report whether a stream must be excluded from dead-lettering to prevent loops (pure)
 func isSelfReferentialStream(stream string) bool {
 	return stream == worker.ResultStream ||
 		stream == worker.DLQStream ||
@@ -48,6 +51,7 @@ func isSelfReferentialStream(stream string) bool {
 // it only when it is a valid job. This scopes dead-lettering to job streams
 // without hardcoding component names: a Result envelope or any non-job message
 // fails jobenvelope.Validate and is skipped.
+// SEM@a2868700a693e2d82ddc9e4c4eb2ea9c2c171f31: deserialize and validate bytes as a Job envelope, filtering non-job messages (pure)
 func decodeJobForDLQ(data []byte) (jobenvelope.Job, bool) {
 	var job jobenvelope.Job
 	if err := json.Unmarshal(data, &job); err != nil {
@@ -65,18 +69,21 @@ func decodeJobForDLQ(data []byte) (jobenvelope.Job, bool) {
 // the source message (reclaiming the WorkQueue slot). It is the only durable
 // path by which a worker that crashed mid-job (and thus never published a
 // result) reaches a clean terminal state.
+// SEM@9f721ae6fdda8037fd155b0c74eca0cde74fe1ba: routes MAX_DELIVERIES advisories to the dead-letter queue and reclaims source slots (mutates shared state)
 type DLQProducer struct {
 	conn   *worker.Conn
 	cancel context.CancelFunc
 }
 
 // NewDLQProducer constructs a DLQProducer bound to the monolith's NATS conn.
+// SEM@9f721ae6fdda8037fd155b0c74eca0cde74fe1ba: build a DLQProducer bound to the given NATS connection (pure)
 func NewDLQProducer(conn *worker.Conn) *DLQProducer {
 	return &DLQProducer{conn: conn}
 }
 
 // ensureStreams creates (or updates) the DLQ stream and the advisory-capture
 // stream. Idempotent: safe to call on every startup.
+// SEM@6d0d434b964452ae1f5422ff7c9367bbc31a56e4: create or update the DLQ and advisory-capture JetStream streams idempotently (reads DB)
 func (p *DLQProducer) ensureStreams(ctx context.Context) error {
 	js := p.conn.JetStream()
 	if _, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
@@ -107,6 +114,7 @@ func (p *DLQProducer) ensureStreams(ctx context.Context) error {
 // Start ensures the streams exist, creates a durable consumer on the
 // advisory-capture stream, and begins processing advisories in the background.
 // It returns after the consumer is created. Call Stop to release resources.
+// SEM@6d0d434b964452ae1f5422ff7c9367bbc31a56e4: subscribe a durable advisory consumer and begin dead-lettering in the background (mutates shared state)
 func (p *DLQProducer) Start(ctx context.Context) error {
 	logger := slogging.Get()
 	ctx, cancel := context.WithCancel(ctx)
@@ -150,6 +158,7 @@ func (p *DLQProducer) Start(ctx context.Context) error {
 }
 
 // Stop cancels the producer's context. Safe to call when Start was never run.
+// SEM@9f721ae6fdda8037fd155b0c74eca0cde74fe1ba: cancel the producer's background context, halting advisory processing (mutates shared state)
 func (p *DLQProducer) Stop() {
 	if p.cancel != nil {
 		p.cancel()
@@ -158,6 +167,7 @@ func (p *DLQProducer) Stop() {
 
 // makeCallback returns the advisory handler. It must never panic — a panic
 // here would crash the monolith — so it is guarded.
+// SEM@9f721ae6fdda8037fd155b0c74eca0cde74fe1ba: build the JetStream advisory handler that recovers, republishes, and deletes dead jobs (mutates shared state)
 func (p *DLQProducer) makeCallback(ctx context.Context) func(jetstream.Msg) {
 	logger := slogging.Get()
 	js := p.conn.JetStream()

@@ -66,12 +66,14 @@ const (
 )
 
 // ResultSubject returns the NATS subject for the result of a specific job.
+// SEM@6df2ea658f2595a125e17591a26dbca6df6f71ad: build the NATS subject for publishing a job result by job ID (pure)
 func ResultSubject(jobID string) string {
 	return SubjectResultPrefix + jobID
 }
 
 // ChunkEmbedSubject returns the NATS subject for a chunk-and-embed job with
 // the given job ID.
+// SEM@6df2ea658f2595a125e17591a26dbca6df6f71ad: build the NATS subject for dispatching a chunk-embed job by job ID (pure)
 func ChunkEmbedSubject(jobID string) string {
 	return SubjectChunkEmbedPrefix + jobID
 }
@@ -80,6 +82,7 @@ func ChunkEmbedSubject(jobID string) string {
 // messages. The component argument is passed through UNSANITIZED: NATS
 // subjects use "." as a hierarchy delimiter (not an illegal character), so
 // sanitizing would corrupt the subject hierarchy.
+// SEM@6df2ea658f2595a125e17591a26dbca6df6f71ad: build the NATS subject for a worker component heartbeat by component name (pure)
 func HeartbeatSubject(component string) string {
 	return SubjectHeartbeatPrefix + component
 }
@@ -89,6 +92,7 @@ func HeartbeatSubject(component string) string {
 // internal/platform/controller/render_jetstream.go; the two implementations
 // MUST stay in sync so that a worker can derive the same stream and consumer
 // names as the controller.
+// SEM@6df2ea658f2595a125e17591a26dbca6df6f71ad: convert a component name to an uppercase, underscore-safe NATS identifier (pure)
 func SanitizeName(s string) string {
 	up := strings.ToUpper(s)
 	return strings.NewReplacer(".", "_", "-", "_", " ", "_").Replace(up)
@@ -97,6 +101,7 @@ func SanitizeName(s string) string {
 // StreamNameFor returns the JetStream stream name for a component, mirroring
 // the controller's streamNameFor function in render_jetstream.go.
 // Example: "tmi-extractor" → "TMI_TMI_EXTRACTOR".
+// SEM@6df2ea658f2595a125e17591a26dbca6df6f71ad: build the JetStream stream name for a worker component (pure)
 func StreamNameFor(componentName string) string {
 	return JobsStreamPrefix + SanitizeName(componentName)
 }
@@ -104,6 +109,7 @@ func StreamNameFor(componentName string) string {
 // ConsumerNameFor returns the durable JetStream consumer name for a component,
 // mirroring the controller's consumerNameFor function in render_jetstream.go.
 // Example: "tmi-chunk-embed" → "TMI_CHUNK_EMBED_CONSUMER".
+// SEM@6df2ea658f2595a125e17591a26dbca6df6f71ad: build the durable JetStream consumer name for a worker component, matching the KEDA ScaledObject (pure)
 func ConsumerNameFor(componentName string) string {
 	return SanitizeName(componentName) + "_CONSUMER"
 }

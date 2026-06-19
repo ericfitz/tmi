@@ -34,6 +34,7 @@ const (
 const oracleMaxInListSize = 1000
 
 // chunkIDs splits ids into slices of at most size elements.
+// SEM@a1f271c8c84084548552b08828e5325d3255eb2a: partition an ID slice into fixed-size chunks to stay under Oracle IN-list limits (pure)
 func chunkIDs(ids []string, size int) [][]string {
 	if len(ids) == 0 {
 		return nil
@@ -50,6 +51,7 @@ func chunkIDs(ids []string, size int) [][]string {
 }
 
 // GormAuditService implements AuditServiceInterface using GORM.
+// SEM@f01a64c2e8171748ed345be12c73a8e143fd32e3: GORM-backed audit service holding retention configuration and a database handle (reads DB)
 type GormAuditService struct {
 	db                       *gorm.DB
 	auditRetentionDays       int
@@ -60,6 +62,7 @@ type GormAuditService struct {
 }
 
 // NewGormAuditService creates a new GormAuditService with configuration from environment.
+// SEM@f01a64c2e8171748ed345be12c73a8e143fd32e3: build a GormAuditService with retention settings resolved from environment variables (reads DB)
 func NewGormAuditService(db *gorm.DB) *GormAuditService {
 	return &GormAuditService{
 		db:                       db,
@@ -75,18 +78,21 @@ func NewGormAuditService(db *gorm.DB) *GormAuditService {
 // (AUDIT_RETENTION_DAYS, default 365). Exported because the append-only
 // trigger installation derives its delete age floor from the same value,
 // so the pruner cutoff and the trigger floor cannot drift (#453).
+// SEM@bc84c37baf8f28057d9cb166b3a0e7d0cba90425: fetch the configured audit-entry retention period in days from the environment (pure)
 func AuditRetentionDays() int {
 	return getEnvInt("AUDIT_RETENTION_DAYS", defaultAuditRetentionDays)
 }
 
 // VersionRetentionDays returns the configured version-snapshot retention in
 // days (VERSION_RETENTION_DAYS, default 90). See AuditRetentionDays.
+// SEM@bc84c37baf8f28057d9cb166b3a0e7d0cba90425: fetch the configured version-snapshot retention period in days from the environment (pure)
 func VersionRetentionDays() int {
 	return getEnvInt("VERSION_RETENTION_DAYS", defaultVersionRetentionDays)
 }
 
 // TombstoneRetentionDays returns the configured tombstone retention in days
 // (TOMBSTONE_RETENTION_DAYS, default 30). See AuditRetentionDays.
+// SEM@bc84c37baf8f28057d9cb166b3a0e7d0cba90425: fetch the configured tombstone retention period in days from the environment (pure)
 func TombstoneRetentionDays() int {
 	return getEnvInt("TOMBSTONE_RETENTION_DAYS", defaultTombstoneRetentionDays)
 }
@@ -95,6 +101,7 @@ func TombstoneRetentionDays() int {
 // days (SYSTEM_AUDIT_RETENTION_DAYS, default 365), clamped to a 90-day
 // minimum. Exported because the append-only trigger installation derives its
 // delete age floor from the same value (#400).
+// SEM@f01a64c2e8171748ed345be12c73a8e143fd32e3: fetch the configured system-audit retention period in days, clamped to a 90-day evidence minimum (pure)
 func SystemAuditRetentionDays() int {
 	days := getEnvInt("SYSTEM_AUDIT_RETENTION_DAYS", defaultSystemAuditRetentionDays)
 	if days < minSystemAuditRetentionDays {
@@ -106,6 +113,7 @@ func SystemAuditRetentionDays() int {
 }
 
 // getEnvInt reads an integer from an environment variable with a default fallback.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: fetch an integer from an environment variable, returning a default on absence or parse failure (pure)
 func getEnvInt(key string, defaultVal int) int {
 	val := os.Getenv(key)
 	if val == "" {
@@ -120,6 +128,7 @@ func getEnvInt(key string, defaultVal int) int {
 }
 
 // RecordMutation records a mutation in the audit trail and creates a version snapshot.
+// SEM@d0742bff5d3b93b3ab7b22df0377398a720a8d9c: store an audit entry and version snapshot for a mutation within a retryable transaction (mutates DB)
 func (s *GormAuditService) RecordMutation(ctx context.Context, params AuditParams) error {
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Assign next version number for this object
@@ -165,6 +174,7 @@ func (s *GormAuditService) RecordMutation(ctx context.Context, params AuditParam
 }
 
 // createVersionSnapshot creates the appropriate version snapshot (checkpoint or diff).
+// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: store a checkpoint or reverse-diff version snapshot for an audit entry within a transaction (mutates DB)
 func (s *GormAuditService) createVersionSnapshot(tx *gorm.DB, entry models.AuditEntry, params AuditParams, version int) error {
 	snapshot := models.VersionSnapshot{
 		AuditEntryID: entry.ID,
@@ -230,6 +240,7 @@ func (s *GormAuditService) createVersionSnapshot(tx *gorm.DB, entry models.Audit
 // equality scope and the leading created_at ordering; the id tiebreaker is
 // resolved by a bounded micro-sort over rows sharing an identical created_at
 // (typically 0-1 within a page), so no full sort is needed (#457).
+// SEM@24454e2885191ae61007ef13d2194c563ebe6d37: fetch a keyset-paginated audit trail for a threat model and its sub-objects (reads DB)
 func (s *GormAuditService) GetThreatModelAuditTrailKeyset(ctx context.Context, threatModelID string, limit int, cursor *auditCursor, filters *AuditFilters) ([]AuditEntryResponse, int, *string, *string, error) {
 	newQuery := func() *gorm.DB {
 		return applyAuditFilters(
@@ -251,6 +262,7 @@ func (s *GormAuditService) GetThreatModelAuditTrailKeyset(ctx context.Context, t
 }
 
 // GetObjectAuditTrail retrieves audit entries for a specific object.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: fetch a paginated audit trail for a specific object by type and ID (reads DB)
 func (s *GormAuditService) GetObjectAuditTrail(ctx context.Context, objectType, objectID string, offset, limit int) ([]AuditEntryResponse, int, error) {
 	query := s.db.WithContext(ctx).Model(&models.AuditEntry{}).
 		Where("object_type = ? AND object_id = ?", objectType, objectID)
@@ -269,6 +281,7 @@ func (s *GormAuditService) GetObjectAuditTrail(ctx context.Context, objectType, 
 }
 
 // GetAuditEntry retrieves a single audit entry by ID.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: fetch a single audit entry by ID, returning nil if not found (reads DB)
 func (s *GormAuditService) GetAuditEntry(ctx context.Context, entryID string) (*AuditEntryResponse, error) {
 	var entry models.AuditEntry
 	if err := s.db.WithContext(ctx).Where("id = ?", entryID).First(&entry).Error; err != nil {
@@ -281,12 +294,14 @@ func (s *GormAuditService) GetAuditEntry(ctx context.Context, entryID string) (*
 	return &resp, nil
 }
 
+// SEM@308a4c3ecc46e5d5c087e9d885766ea10322b1ba: extract the keyset sort key (created_at, id) from an audit entry for pagination (pure)
 func adminAuditKeyOf(e models.AuditEntry) (time.Time, string) {
 	return e.CreatedAt, string(e.ID)
 }
 
 // ListAuditEntriesAdmin lists audit entries across all threat models with
 // bidirectional keyset pagination ordered (created_at DESC, id DESC).
+// SEM@308a4c3ecc46e5d5c087e9d885766ea10322b1ba: list audit entries across all threat models with bidirectional keyset pagination and filters (reads DB)
 func (s *GormAuditService) ListAuditEntriesAdmin(ctx context.Context, limit int, cursor *auditCursor, filters *AuditFilters) ([]AuditEntryResponse, int, *string, *string, error) {
 	var total int64
 	if err := applyAuditFilters(s.db.WithContext(ctx).Model(&models.AuditEntry{}), filters).Count(&total).Error; err != nil {
@@ -303,6 +318,7 @@ func (s *GormAuditService) ListAuditEntriesAdmin(ctx context.Context, limit int,
 }
 
 // AroundAuditEntriesAdmin returns a page centered on anchorID.
+// SEM@308a4c3ecc46e5d5c087e9d885766ea10322b1ba: fetch a page of audit entries centered on an anchor entry ID with filters (reads DB)
 func (s *GormAuditService) AroundAuditEntriesAdmin(ctx context.Context, limit int, anchorID string, filters *AuditFilters) ([]AuditEntryResponse, int, *string, *string, error) {
 	var total int64
 	if err := applyAuditFilters(s.db.WithContext(ctx).Model(&models.AuditEntry{}), filters).Count(&total).Error; err != nil {
@@ -334,6 +350,7 @@ func (s *GormAuditService) AroundAuditEntriesAdmin(ctx context.Context, limit in
 
 // GetSnapshot reconstructs the full entity state at a given audit entry's version.
 // It finds the nearest checkpoint and applies reverse diffs to reconstruct the state.
+// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: reconstruct the full entity state at an audit entry's version from checkpoint and diffs (reads DB)
 func (s *GormAuditService) GetSnapshot(ctx context.Context, entryID string) ([]byte, error) {
 	// Get the audit entry to find object info and version
 	var entry models.AuditEntry
@@ -368,6 +385,7 @@ func (s *GormAuditService) GetSnapshot(ctx context.Context, entryID string) ([]b
 }
 
 // reconstructFromCheckpoint finds the nearest checkpoint and applies diffs to reach the target version.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: reconstruct entity state at a target version by applying reverse diffs from the nearest checkpoint (reads DB)
 func (s *GormAuditService) reconstructFromCheckpoint(ctx context.Context, objectType, objectID string, targetVersion int) ([]byte, error) {
 	// Find the nearest checkpoint AT or AFTER the target version
 	// (Checkpoints store the state BEFORE a mutation, so we work forward from a later checkpoint)
@@ -444,6 +462,7 @@ func (s *GormAuditService) reconstructFromCheckpoint(ctx context.Context, object
 }
 
 // PruneAuditEntries removes audit entries older than the configured retention period.
+// SEM@a1f271c8c84084548552b08828e5325d3255eb2a: delete audit entries and their version snapshots older than the retention cutoff (mutates DB)
 func (s *GormAuditService) PruneAuditEntries(ctx context.Context) (int, error) {
 	cutoff := time.Now().UTC().AddDate(0, 0, -s.auditRetentionDays)
 
@@ -481,10 +500,12 @@ func (s *GormAuditService) PruneAuditEntries(ctx context.Context) (int, error) {
 
 // PruneVersionSnapshots removes version snapshots outside the retention window.
 // Always stops at a checkpoint boundary so remaining diffs can be reconstructed.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: delete version snapshots outside the retention window, always stopping at a checkpoint boundary (mutates DB)
 func (s *GormAuditService) PruneVersionSnapshots(ctx context.Context) (int, error) {
 	totalPruned := 0
 
 	// Find distinct (object_type, object_id) pairs that have version snapshots
+	// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: local struct grouping object_type and object_id for distinct version-snapshot enumeration (pure)
 	type objectKey struct {
 		ObjectType string
 		ObjectID   string
@@ -551,6 +572,7 @@ var orphanSnapshotEntityTables = []struct {
 // hard-deleted entities are swept. The correlated subquery is portable across
 // PostgreSQL and Oracle, and the age predicate keeps each statement set small,
 // avoiding the ORA-01795 IN-list cap entirely.
+// SEM@225dee65a650d4cb8241fb5be7bf3c49c84642b5: delete version snapshots whose referenced entity no longer exists in its table (mutates DB)
 func (s *GormAuditService) PruneOrphanedVersionSnapshots(ctx context.Context) (int, error) {
 	cutoff := time.Now().UTC().AddDate(0, 0, -s.versionRetentionDays)
 	totalDeleted := 0
@@ -581,6 +603,7 @@ func (s *GormAuditService) PruneOrphanedVersionSnapshots(ctx context.Context) (i
 }
 
 // pruneObjectVersions prunes version snapshots for a single object.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: prune version snapshots for a single object, stopping at the nearest safe checkpoint boundary (mutates DB)
 func (s *GormAuditService) pruneObjectVersions(ctx context.Context, objectType, objectID string, timeCutoff time.Time) (int, error) {
 	// Get all version snapshots for this object, ordered by version
 	var snapshots []models.VersionSnapshot
@@ -651,6 +674,7 @@ func (s *GormAuditService) pruneObjectVersions(ctx context.Context, objectType, 
 // executePrune deletes version snapshots below the boundary. The parent
 // audit entries are immutable and keep their version numbers; a missing
 // snapshot means the content was pruned and rollback returns 410 Gone.
+// SEM@a1f271c8c84084548552b08828e5325d3255eb2a: delete version snapshots below a version boundary in chunked transactions (mutates DB)
 func (s *GormAuditService) executePrune(ctx context.Context, objectType, objectID string, boundary int) (int, error) {
 	var pruned int
 
@@ -683,6 +707,7 @@ func (s *GormAuditService) executePrune(ctx context.Context, objectType, objectI
 }
 
 // applyAuditFilters adds WHERE clauses based on the provided filters.
+// SEM@b7db260b5211c371fc74a10f72dfcd61bf7d1090: add WHERE clauses for audit filter fields to a GORM query (pure)
 func applyAuditFilters(query *gorm.DB, filters *AuditFilters) *gorm.DB {
 	if filters == nil {
 		return query
@@ -715,6 +740,7 @@ func applyAuditFilters(query *gorm.DB, filters *AuditFilters) *gorm.DB {
 }
 
 // toAuditEntryResponse converts a GORM model to an API response.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: convert a GORM audit entry model to its API response DTO (pure)
 func toAuditEntryResponse(entry models.AuditEntry) AuditEntryResponse {
 	resp := AuditEntryResponse{
 		ID:            string(entry.ID),
@@ -738,6 +764,7 @@ func toAuditEntryResponse(entry models.AuditEntry) AuditEntryResponse {
 }
 
 // toAuditEntryResponses converts a slice of GORM models to API responses.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: convert a slice of GORM audit entries to API response DTOs (pure)
 func toAuditEntryResponses(entries []models.AuditEntry) []AuditEntryResponse {
 	responses := make([]AuditEntryResponse, len(entries))
 	for i, e := range entries {
@@ -747,6 +774,7 @@ func toAuditEntryResponses(entries []models.AuditEntry) []AuditEntryResponse {
 }
 
 // PurgeTombstones hard-deletes entities that have been soft-deleted longer than the retention period.
+// SEM@a1f271c8c84084548552b08828e5325d3255eb2a: hard-delete soft-deleted threat models and sub-resources past the tombstone retention period (reads DB)
 func (s *GormAuditService) PurgeTombstones(ctx context.Context) (int, error) {
 	logger := slogging.Get()
 	cutoff := time.Now().UTC().Add(-time.Duration(s.tombstoneRetentionDays) * 24 * time.Hour)
@@ -772,6 +800,7 @@ func (s *GormAuditService) PurgeTombstones(ctx context.Context) (int, error) {
 	}
 
 	// Purge orphaned sub-resources (soft-deleted children of non-deleted parents)
+	// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: internal pair of DB table name and display name for a sub-resource type (pure)
 	type subResource struct {
 		table string
 		name  string
@@ -856,6 +885,7 @@ const systemAuditPruneBatchSize = 1000
 // configured retention period, in bounded per-transaction batches. Unlike
 // threat-model audit, there are no tombstone rows to preserve — every row
 // past retention is deleted.
+// SEM@6f92be9d792efd59c9cb4f7fd595d4e053a3120b: delete system audit entries older than the retention period in bounded batches (reads DB)
 func (s *GormAuditService) PruneSystemAuditEntries(ctx context.Context) (int, error) {
 	cutoff := time.Now().UTC().AddDate(0, 0, -s.systemAuditRetentionDays)
 
@@ -908,6 +938,7 @@ func (s *GormAuditService) PruneSystemAuditEntries(ctx context.Context) (int, er
 var _ AuditServiceInterface = (*GormAuditService)(nil)
 
 // MarshalAuditEntryResponse is a helper to serialize an AuditEntryResponse to JSON.
+// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: serialize an audit entry response to JSON (pure)
 func MarshalAuditEntryResponse(resp AuditEntryResponse) ([]byte, error) {
 	return json.Marshal(resp)
 }

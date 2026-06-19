@@ -9,22 +9,27 @@ import (
 )
 
 // JSONEmbeddingSource extracts semantic text from DFD diagram JSON stored in DiagramStore.
+// SEM@dd5e513aed5486dacac0dd6f321345e68c1b1efe: content provider that extracts semantic text from DFD diagram JSON in DiagramStore (pure)
 type JSONEmbeddingSource struct{}
 
 // NewJSONEmbeddingSource creates a new JSONEmbeddingSource.
+// SEM@80346558ce851de593c85a2d5660f92a649b1686: build a JSONEmbeddingSource content provider (pure)
 func NewJSONEmbeddingSource() *JSONEmbeddingSource {
 	return &JSONEmbeddingSource{}
 }
 
 // Name returns the provider name for logging.
+// SEM@80346558ce851de593c85a2d5660f92a649b1686: return the provider name identifier for logging (pure)
 func (p *JSONEmbeddingSource) Name() string { return "json-dfd" }
 
 // CanHandle returns true when the entity is a diagram with no external URI.
+// SEM@80346558ce851de593c85a2d5660f92a649b1686: return true when the entity reference is a locally-stored diagram with no external URI (pure)
 func (p *JSONEmbeddingSource) CanHandle(_ context.Context, ref EntityReference) bool {
 	return ref.EntityType == "diagram" && ref.URI == ""
 }
 
 // Extract reads the diagram from DiagramStore and converts its cells to human-readable text.
+// SEM@80346558ce851de593c85a2d5660f92a649b1686: convert a diagram's cells to human-readable text for semantic embedding (reads DB)
 func (p *JSONEmbeddingSource) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
 	logger := slogging.Get()
 
@@ -151,6 +156,7 @@ func (p *JSONEmbeddingSource) Extract(ctx context.Context, ref EntityReference) 
 }
 
 // nodeLabel extracts the display label from a Node's Attrs.Text.Text field.
+// SEM@dd5e513aed5486dacac0dd6f321345e68c1b1efe: extract the display label from a node's text attribute (pure)
 func nodeLabel(node Node) string {
 	if node.Attrs == nil {
 		return ""
@@ -165,6 +171,7 @@ func nodeLabel(node Node) string {
 }
 
 // edgeLabel extracts the display label from an Edge's Labels or DefaultLabel field.
+// SEM@dd5e513aed5486dacac0dd6f321345e68c1b1efe: extract the display label from an edge's labels or default label (pure)
 func edgeLabel(edge Edge) string {
 	// Check Labels array first
 	if edge.Labels != nil {

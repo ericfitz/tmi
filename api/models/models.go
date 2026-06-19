@@ -18,6 +18,7 @@ import (
 var UseUppercaseTableNames = false
 
 // tableName returns the table name, converting to uppercase if UseUppercaseTableNames is true.
+// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: return the dialect-appropriate table name, uppercased for Oracle (pure)
 func tableName(name string) string {
 	if UseUppercaseTableNames {
 		return strings.ToUpper(name)
@@ -28,6 +29,7 @@ func tableName(name string) string {
 // User represents an authenticated user in the system
 // Note: Column names are intentionally not specified to allow GORM's NamingStrategy
 // to handle database-specific casing (lowercase for PostgreSQL, UPPERCASE for Oracle)
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for an authenticated user with OAuth identity and token fields
 type User struct {
 	InternalUUID   DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	Provider       DBVarchar         `gorm:"size:100;not null;index:idx_users_provider;index:idx_users_provider_lookup,priority:1"`
@@ -49,11 +51,13 @@ type User struct {
 }
 
 // TableName specifies the table name for User
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware table name for User (pure)
 func (User) TableName() string {
 	return tableName("users")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: generate a UUID primary key for User before insert if not already set
 func (u *User) BeforeCreate(tx *gorm.DB) error {
 	if u.InternalUUID == "" {
 		u.InternalUUID = DBVarchar(uuid.New().String())
@@ -63,6 +67,7 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 
 // RefreshTokenRecord represents a refresh token for a user
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for a persisted OAuth refresh token linked to a user
 type RefreshTokenRecord struct {
 	ID               DBVarchar `gorm:"primaryKey;not null;size:36"`
 	UserInternalUUID DBVarchar `gorm:"size:36;not null;index"`
@@ -75,11 +80,13 @@ type RefreshTokenRecord struct {
 }
 
 // TableName specifies the table name for RefreshTokenRecord
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware table name for RefreshTokenRecord (pure)
 func (RefreshTokenRecord) TableName() string {
 	return tableName("refresh_tokens")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: generate a UUID primary key for RefreshTokenRecord before insert if not already set
 func (r *RefreshTokenRecord) BeforeCreate(tx *gorm.DB) error {
 	if r.ID == "" {
 		r.ID = DBVarchar(uuid.New().String())
@@ -89,6 +96,7 @@ func (r *RefreshTokenRecord) BeforeCreate(tx *gorm.DB) error {
 
 // ClientCredential represents OAuth 2.0 client credentials for machine-to-machine auth
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for an OAuth 2.0 client credential used in machine-to-machine auth
 type ClientCredential struct {
 	ID               DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	OwnerUUID        DBVarchar      `gorm:"size:36;not null;index"`
@@ -107,11 +115,13 @@ type ClientCredential struct {
 }
 
 // TableName specifies the table name for ClientCredential
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware table name for ClientCredential (pure)
 func (ClientCredential) TableName() string {
 	return tableName("client_credentials")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: generate a UUID primary key for ClientCredential before insert if not already set
 func (c *ClientCredential) BeforeCreate(tx *gorm.DB) error {
 	if c.ID == "" {
 		c.ID = DBVarchar(uuid.New().String())
@@ -122,6 +132,7 @@ func (c *ClientCredential) BeforeCreate(tx *gorm.DB) error {
 // ThreatModel represents a threat model in the system
 // Note: Explicit column tags removed for Oracle compatibility (Oracle stores column names as UPPERCASE,
 // and the Oracle GORM driver doesn't handle case-insensitive matching with explicit column tags)
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for a threat model with ownership, status, versioning, and sub-resource relationships
 type ThreatModel struct {
 	ID                           DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	OwnerInternalUUID            DBVarchar         `gorm:"size:36;not null;index:idx_tm_owner;index:idx_tm_owner_created,priority:1"`
@@ -163,11 +174,13 @@ type ThreatModel struct {
 }
 
 // TableName specifies the table name for ThreatModel
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware table name for ThreatModel (pure)
 func (ThreatModel) TableName() string {
 	return tableName("threat_models")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: generate a UUID primary key for ThreatModel before insert if not already set
 func (t *ThreatModel) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == "" {
 		t.ID = DBVarchar(uuid.New().String())
@@ -177,6 +190,7 @@ func (t *ThreatModel) BeforeCreate(tx *gorm.DB) error {
 
 // Diagram represents a diagram within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for a diagram within a threat model, storing cells, SVG, and version state
 type Diagram struct {
 	ID                DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID     DBVarchar         `gorm:"size:36;not null;index:idx_diagrams_tm;index:idx_diagrams_tm_type,priority:1;uniqueIndex:uniq_diagrams_tm_alias,priority:1"`
@@ -204,11 +218,13 @@ type Diagram struct {
 }
 
 // TableName specifies the table name for Diagram
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware table name for Diagram (pure)
 func (Diagram) TableName() string {
 	return tableName("diagrams")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: generate a UUID primary key for Diagram before insert if not already set
 func (d *Diagram) BeforeCreate(tx *gorm.DB) error {
 	if d.ID == "" {
 		d.ID = DBVarchar(uuid.New().String())
@@ -218,6 +234,7 @@ func (d *Diagram) BeforeCreate(tx *gorm.DB) error {
 
 // Asset represents an asset within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for an asset within a threat model with type, criticality, and classification
 type Asset struct {
 	ID              DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_assets_tm;index:idx_assets_tm_created,priority:1;index:idx_assets_tm_modified,priority:1;uniqueIndex:uniq_assets_tm_alias,priority:1"`
@@ -241,6 +258,7 @@ type Asset struct {
 }
 
 // TableName specifies the table name for Asset
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware table name for Asset (pure)
 func (Asset) TableName() string {
 	return tableName("assets")
 }
@@ -248,6 +266,7 @@ func (Asset) TableName() string {
 // BeforeCreate generates a UUID if not set and validates required fields.
 // Validation is in BeforeCreate (not BeforeSave) because GORM map-based updates
 // trigger BeforeSave on the empty model struct, causing false validation errors.
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: generate a UUID, validate name and type for Asset before insert
 func (a *Asset) BeforeCreate(tx *gorm.DB) error {
 	if a.ID == "" {
 		a.ID = DBVarchar(uuid.New().String())
@@ -263,6 +282,7 @@ func (a *Asset) BeforeCreate(tx *gorm.DB) error {
 
 // Threat represents a threat within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for a threat entry with severity, CVSS, SSVC, mitigation, and status fields
 type Threat struct {
 	ID              DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_threats_tm;index:idx_threats_tm_created,priority:1;index:idx_threats_tm_modified,priority:1;uniqueIndex:uniq_threats_tm_alias,priority:1"`
@@ -303,6 +323,7 @@ type Threat struct {
 }
 
 // TableName specifies the table name for Threat
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for Threat (pure)
 func (Threat) TableName() string {
 	return tableName("threats")
 }
@@ -310,6 +331,7 @@ func (Threat) TableName() string {
 // BeforeCreate ensures the ID is set before insert
 // This is required for Oracle compatibility where the driver may not
 // properly handle IDs set after struct initialization
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to Threat if unset before DB insert (mutates shared state)
 func (t *Threat) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == "" {
 		t.ID = DBVarchar(uuid.New().String())
@@ -319,6 +341,7 @@ func (t *Threat) BeforeCreate(tx *gorm.DB) error {
 
 // Group represents an identity provider group
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for an identity-provider group with usage tracking
 type Group struct {
 	InternalUUID DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	Provider     DBVarchar         `gorm:"size:100;not null;index:idx_groups_provider"`
@@ -331,11 +354,13 @@ type Group struct {
 }
 
 // TableName specifies the table name for Group
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for Group (pure)
 func (Group) TableName() string {
 	return tableName("groups")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to Group if unset before DB insert (mutates shared state)
 func (g *Group) BeforeCreate(tx *gorm.DB) error {
 	if g.InternalUUID == "" {
 		g.InternalUUID = DBVarchar(uuid.New().String())
@@ -346,6 +371,7 @@ func (g *Group) BeforeCreate(tx *gorm.DB) error {
 // ThreatModelAccess represents access control for threat models
 // Note: Explicit column tags removed for Oracle compatibility (Oracle stores column names as UPPERCASE,
 // and the Oracle GORM driver doesn't handle case-insensitive matching with explicit column tags)
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for a role-based access-control entry on a threat model
 type ThreatModelAccess struct {
 	ID                    DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID         DBVarchar         `gorm:"size:36;not null;index:idx_tma_tm;index:idx_tma_perf,priority:1"`
@@ -365,11 +391,13 @@ type ThreatModelAccess struct {
 }
 
 // TableName specifies the table name for ThreatModelAccess
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for ThreatModelAccess (pure)
 func (ThreatModelAccess) TableName() string {
 	return tableName("threat_model_access")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to ThreatModelAccess if unset before DB insert (mutates shared state)
 func (t *ThreatModelAccess) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == "" {
 		t.ID = DBVarchar(uuid.New().String())
@@ -379,6 +407,7 @@ func (t *ThreatModelAccess) BeforeCreate(tx *gorm.DB) error {
 
 // Document represents a document attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for a document attached to a threat model, with picker and access diagnostics
 type Document struct {
 	ID              DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_docs_tm;index:idx_docs_tm_created,priority:1;index:idx_docs_tm_modified,priority:1;uniqueIndex:uniq_documents_tm_alias,priority:1"`
@@ -412,11 +441,13 @@ type Document struct {
 }
 
 // TableName specifies the table name for Document
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for Document (pure)
 func (Document) TableName() string {
 	return tableName("documents")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to Document if unset before DB insert (mutates shared state)
 func (d *Document) BeforeCreate(tx *gorm.DB) error {
 	if d.ID == "" {
 		d.ID = DBVarchar(uuid.New().String())
@@ -426,6 +457,7 @@ func (d *Document) BeforeCreate(tx *gorm.DB) error {
 
 // Note represents a note attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for a text note attached to a threat model
 type Note struct {
 	ID              DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID   DBVarchar      `gorm:"size:36;not null;index:idx_notes_tm;index:idx_notes_tm_created,priority:1;index:idx_notes_tm_modified,priority:1;uniqueIndex:uniq_notes_tm_alias,priority:1"`
@@ -445,6 +477,7 @@ type Note struct {
 }
 
 // TableName specifies the table name for Note
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for Note (pure)
 func (Note) TableName() string {
 	return tableName("notes")
 }
@@ -454,6 +487,7 @@ func (Note) TableName() string {
 // because the Update path uses map-based GORM Updates() on an empty model struct.
 // BeforeSave would validate the empty struct's zero-value fields, causing false
 // "cannot be empty" errors. Update-time validation is handled by the API layer.
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to Note and validate required fields before DB insert (mutates shared state)
 func (n *Note) BeforeCreate(tx *gorm.DB) error {
 	if n.ID == "" {
 		n.ID = DBVarchar(uuid.New().String())
@@ -469,6 +503,7 @@ func (n *Note) BeforeCreate(tx *gorm.DB) error {
 
 // Repository represents a repository attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for a source-code repository attached to a threat model
 type Repository struct {
 	ID              DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_repos_tm;index:idx_repos_tm_created,priority:1;index:idx_repos_tm_modified,priority:1;uniqueIndex:uniq_repositories_tm_alias,priority:1"`
@@ -489,11 +524,13 @@ type Repository struct {
 }
 
 // TableName specifies the table name for Repository
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for Repository (pure)
 func (Repository) TableName() string {
 	return tableName("repositories")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to Repository if unset before DB insert (mutates shared state)
 func (r *Repository) BeforeCreate(tx *gorm.DB) error {
 	if r.ID == "" {
 		r.ID = DBVarchar(uuid.New().String())
@@ -503,6 +540,7 @@ func (r *Repository) BeforeCreate(tx *gorm.DB) error {
 
 // Metadata represents key-value metadata for entities
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for arbitrary key-value metadata on any entity
 type Metadata struct {
 	ID         DBVarchar `gorm:"primaryKey;not null;size:36"`
 	EntityType DBVarchar `gorm:"size:50;not null;index:idx_metadata_entity_type_id,priority:1;index:idx_metadata_unique,priority:1,unique;index:idx_metadata_entity_created,priority:1;index:idx_metadata_entity_modified,priority:1"`
@@ -514,11 +552,13 @@ type Metadata struct {
 }
 
 // TableName specifies the table name for Metadata
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for Metadata (pure)
 func (Metadata) TableName() string {
 	return tableName("metadata")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to Metadata if unset before DB insert (mutates shared state)
 func (m *Metadata) BeforeCreate(tx *gorm.DB) error {
 	if m.ID == "" {
 		m.ID = DBVarchar(uuid.New().String())
@@ -528,6 +568,7 @@ func (m *Metadata) BeforeCreate(tx *gorm.DB) error {
 
 // CollaborationSession represents a real-time collaboration session
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for a real-time WebSocket collaboration session on a diagram
 type CollaborationSession struct {
 	ID            DBVarchar `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID DBVarchar `gorm:"size:36;not null;index"`
@@ -543,11 +584,13 @@ type CollaborationSession struct {
 }
 
 // TableName specifies the table name for CollaborationSession
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for CollaborationSession (pure)
 func (CollaborationSession) TableName() string {
 	return tableName("collaboration_sessions")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to CollaborationSession if unset before DB insert (mutates shared state)
 func (c *CollaborationSession) BeforeCreate(tx *gorm.DB) error {
 	if c.ID == "" {
 		c.ID = DBVarchar(uuid.New().String())
@@ -557,6 +600,7 @@ func (c *CollaborationSession) BeforeCreate(tx *gorm.DB) error {
 
 // SessionParticipant represents a participant in a collaboration session
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for a user participating in a collaboration session
 type SessionParticipant struct {
 	ID               DBVarchar `gorm:"primaryKey;not null;size:36"`
 	SessionID        DBVarchar `gorm:"size:36;not null;index"`
@@ -570,11 +614,13 @@ type SessionParticipant struct {
 }
 
 // TableName specifies the table name for SessionParticipant
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for SessionParticipant (pure)
 func (SessionParticipant) TableName() string {
 	return tableName("session_participants")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to SessionParticipant if unset before DB insert (mutates shared state)
 func (s *SessionParticipant) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
 		s.ID = DBVarchar(uuid.New().String())
@@ -584,6 +630,7 @@ func (s *SessionParticipant) BeforeCreate(tx *gorm.DB) error {
 
 // WebhookSubscription represents a webhook subscription
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@c0d6404284f25e45cfa9076be2c6375c2f93913e: DB model for a webhook subscription with delivery tracking and operator-pin support
 type WebhookSubscription struct {
 	ID                  DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	OwnerInternalUUID   DBVarchar         `gorm:"size:36;not null;index"`
@@ -613,11 +660,13 @@ type WebhookSubscription struct {
 }
 
 // TableName specifies the table name for WebhookSubscription
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for WebhookSubscription (pure)
 func (WebhookSubscription) TableName() string {
 	return tableName("webhook_subscriptions")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to WebhookSubscription if unset before DB insert (mutates shared state)
 func (w *WebhookSubscription) BeforeCreate(tx *gorm.DB) error {
 	if w.ID == "" {
 		w.ID = DBVarchar(uuid.New().String())
@@ -627,6 +676,7 @@ func (w *WebhookSubscription) BeforeCreate(tx *gorm.DB) error {
 
 // WebhookQuota represents per-user webhook quotas
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for per-user webhook subscription and delivery rate limits
 type WebhookQuota struct {
 	OwnerID                          DBVarchar `gorm:"primaryKey;not null;size:36"`
 	MaxSubscriptions                 int       `gorm:"default:10"`
@@ -641,12 +691,14 @@ type WebhookQuota struct {
 }
 
 // TableName specifies the table name for WebhookQuota
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for WebhookQuota (pure)
 func (WebhookQuota) TableName() string {
 	return tableName("webhook_quotas")
 }
 
 // WebhookURLDenyList represents URL patterns blocked for webhooks
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for URL patterns that are blocked from webhook delivery targets
 type WebhookURLDenyList struct {
 	ID          DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	Pattern     DBVarchar      `gorm:"size:256;not null;uniqueIndex:idx_webhook_deny_pattern"`
@@ -656,11 +708,13 @@ type WebhookURLDenyList struct {
 }
 
 // TableName specifies the table name for WebhookURLDenyList
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for WebhookURLDenyList (pure)
 func (WebhookURLDenyList) TableName() string {
 	return tableName("webhook_url_deny_list")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to WebhookURLDenyList entry if unset before DB insert (mutates shared state)
 func (w *WebhookURLDenyList) BeforeCreate(tx *gorm.DB) error {
 	if w.ID == "" {
 		w.ID = DBVarchar(uuid.New().String())
@@ -670,6 +724,7 @@ func (w *WebhookURLDenyList) BeforeCreate(tx *gorm.DB) error {
 
 // Addon represents an addon configuration
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for an addon configuration bound to a webhook and optional threat model
 type Addon struct {
 	ID            DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	CreatedAt     time.Time         `gorm:"not null;autoCreateTime"`
@@ -687,11 +742,13 @@ type Addon struct {
 }
 
 // TableName specifies the table name for Addon
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for Addon (pure)
 func (Addon) TableName() string {
 	return tableName("addons")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to Addon if unset before DB insert (mutates shared state)
 func (a *Addon) BeforeCreate(tx *gorm.DB) error {
 	if a.ID == "" {
 		a.ID = DBVarchar(uuid.New().String())
@@ -701,6 +758,7 @@ func (a *Addon) BeforeCreate(tx *gorm.DB) error {
 
 // AddonInvocationQuota represents per-user addon invocation quotas
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for per-user addon concurrency and hourly invocation limits
 type AddonInvocationQuota struct {
 	OwnerInternalUUID     DBVarchar `gorm:"primaryKey;not null;size:36"`
 	MaxActiveInvocations  int       `gorm:"default:1"`
@@ -713,12 +771,14 @@ type AddonInvocationQuota struct {
 }
 
 // TableName specifies the table name for AddonInvocationQuota
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for AddonInvocationQuota (pure)
 func (AddonInvocationQuota) TableName() string {
 	return tableName("addon_invocation_quotas")
 }
 
 // UserAPIQuota represents per-user API rate limits
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for per-user API request rate limits
 type UserAPIQuota struct {
 	UserInternalUUID     DBVarchar `gorm:"primaryKey;not null;size:36"`
 	MaxRequestsPerMinute int       `gorm:"default:100"`
@@ -731,6 +791,7 @@ type UserAPIQuota struct {
 }
 
 // TableName specifies the table name for UserAPIQuota
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for UserAPIQuota (pure)
 func (UserAPIQuota) TableName() string {
 	return tableName("user_api_quotas")
 }
@@ -740,6 +801,7 @@ func (UserAPIQuota) TableName() string {
 // a member of a built-in group (e.g., Administrators), enabling all members of
 // the external group to inherit the built-in group's privileges.
 // Note: Explicit column tags removed for Oracle compatibility
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for a user or nested group membership within a group
 type GroupMember struct {
 	ID                      DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	GroupInternalUUID       DBVarchar         `gorm:"size:36;not null;index;uniqueIndex:idx_gm_group_user_type,priority:1"`
@@ -758,11 +820,13 @@ type GroupMember struct {
 }
 
 // TableName specifies the table name for GroupMember
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for GroupMember (pure)
 func (GroupMember) TableName() string {
 	return tableName("group_members")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to GroupMember if unset before DB insert (mutates shared state)
 func (g *GroupMember) BeforeCreate(tx *gorm.DB) error {
 	if g.ID == "" {
 		g.ID = DBVarchar(uuid.New().String())
@@ -773,6 +837,7 @@ func (g *GroupMember) BeforeCreate(tx *gorm.DB) error {
 // UserPreference stores user preferences as JSON
 // Preferences are keyed by client application identifier (e.g., "tmi-ux", "tmi-cli")
 // Maximum total size: 1KB, maximum 20 client entries
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for per-user, per-client JSON preferences
 type UserPreference struct {
 	ID               DBVarchar `gorm:"primaryKey;not null;size:36"`
 	UserInternalUUID DBVarchar `gorm:"size:36;not null;uniqueIndex"`
@@ -785,11 +850,13 @@ type UserPreference struct {
 }
 
 // TableName specifies the table name for UserPreference
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for UserPreference (pure)
 func (UserPreference) TableName() string {
 	return tableName("user_preferences")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to UserPreference if unset before DB insert (mutates shared state)
 func (u *UserPreference) BeforeCreate(tx *gorm.DB) error {
 	if u.ID == "" {
 		u.ID = DBVarchar(uuid.New().String())
@@ -800,6 +867,7 @@ func (u *UserPreference) BeforeCreate(tx *gorm.DB) error {
 // UsabilityFeedback represents user feedback about UI usability.
 // Issued via POST /usability_feedback by any authenticated user.
 // Listed via GET /usability_feedback (admin only).
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for user-submitted UI usability feedback with client context
 type UsabilityFeedback struct {
 	ID            DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	Sentiment     DBVarchar         `gorm:"size:8;not null;index:idx_usability_feedback_sentiment"`
@@ -826,11 +894,13 @@ type UsabilityFeedback struct {
 }
 
 // TableName returns the dialect-aware table name.
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for UsabilityFeedback (pure)
 func (UsabilityFeedback) TableName() string {
 	return tableName("usability_feedback")
 }
 
 // BeforeCreate generates a UUID if not set.
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to UsabilityFeedback if unset before DB insert (mutates shared state)
 func (u *UsabilityFeedback) BeforeCreate(tx *gorm.DB) error {
 	if u.ID == "" {
 		u.ID = DBVarchar(uuid.New().String())
@@ -841,6 +911,7 @@ func (u *UsabilityFeedback) BeforeCreate(tx *gorm.DB) error {
 // ContentFeedback represents user feedback on AI/automation-generated artifacts
 // (notes, diagrams, threats, threat-classification fields) within a threat model.
 // Issued via POST /threat_models/{id}/feedback by reader+ on the parent TM.
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for user feedback on AI-generated threat-model content artifacts
 type ContentFeedback struct {
 	ID                     DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID          DBVarchar         `gorm:"size:36;not null;index:idx_content_feedback_target,priority:1"`
@@ -869,11 +940,13 @@ type ContentFeedback struct {
 }
 
 // TableName returns the dialect-aware table name.
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for ContentFeedback (pure)
 func (ContentFeedback) TableName() string {
 	return tableName("content_feedback")
 }
 
 // BeforeCreate generates a UUID if not set.
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to ContentFeedback if unset before DB insert (mutates shared state)
 func (c *ContentFeedback) BeforeCreate(tx *gorm.DB) error {
 	if c.ID == "" {
 		c.ID = DBVarchar(uuid.New().String())
@@ -885,6 +958,7 @@ func (c *ContentFeedback) BeforeCreate(tx *gorm.DB) error {
 // scope. ThreatModel global counter uses parent_id="__global__"; sub-object
 // counters use the parent threat-model UUID. Allocation is done via
 // SELECT ... FOR UPDATE inside the calling repository's transaction.
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for the next sequential alias value scoped to a parent and object type
 type AliasCounter struct {
 	ParentID   DBVarchar `gorm:"primaryKey;not null;size:36;column:parent_id"`
 	ObjectType DBVarchar `gorm:"primaryKey;not null;size:16;column:object_type"`
@@ -892,11 +966,13 @@ type AliasCounter struct {
 }
 
 // TableName returns the dialect-aware table name.
+// SEM@7d6e24510cb080b00d72322263caafc04d1d57dc: return the dialect-aware DB table name for AliasCounter (pure)
 func (AliasCounter) TableName() string {
 	return tableName("alias_counters")
 }
 
 // AllModels returns all GORM models for migration
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: list all GORM models in dependency order for schema migration (pure)
 func AllModels() []any {
 	return []any{
 		// Base entities (no FK dependencies)

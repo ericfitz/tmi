@@ -16,6 +16,7 @@ import (
 // API Info Methods
 
 // GetApiInfo returns API information
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route API info request to the API info handler
 func (s *Server) GetApiInfo(c *gin.Context) {
 	// Delegate to ApiInfoHandler for proper OpenAPI-compliant response
 	handler := NewApiInfoHandler(s)
@@ -25,6 +26,7 @@ func (s *Server) GetApiInfo(c *gin.Context) {
 // Authentication Methods (delegate to auth service)
 
 // HandleOAuthCallback handles OAuth callback
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route OAuth callback to the auth service for token exchange
 func (s *Server) HandleOAuthCallback(c *gin.Context, params HandleOAuthCallbackParams) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] HandleOAuthCallback called")
@@ -36,6 +38,7 @@ func (s *Server) HandleOAuthCallback(c *gin.Context, params HandleOAuthCallbackP
 }
 
 // AuthorizeOAuthProvider initiates OAuth flow
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route OAuth authorization request to the auth service to initiate an OAuth flow
 func (s *Server) AuthorizeOAuthProvider(c *gin.Context, params AuthorizeOAuthProviderParams) {
 	logger := slogging.Get()
 	var providerStr string
@@ -59,6 +62,7 @@ func (s *Server) AuthorizeOAuthProvider(c *gin.Context, params AuthorizeOAuthPro
 
 // StepUpAuthenticate handles GET /oauth2/step_up — fresh-prompt step-up
 // re-authentication. Delegates to the auth service. #397.
+// SEM@3b3ce007aac967644943c133123d85a9a1525644: route step-up re-authentication request to the auth service
 func (s *Server) StepUpAuthenticate(c *gin.Context, params StepUpAuthenticateParams) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] StepUpAuthenticate called")
@@ -71,6 +75,7 @@ func (s *Server) StepUpAuthenticate(c *gin.Context, params StepUpAuthenticatePar
 }
 
 // RevokeToken revokes a token per RFC 7009 (POST /oauth2/revoke)
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route token revocation request to the auth service per RFC 7009
 func (s *Server) RevokeToken(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] RevokeToken called")
@@ -82,6 +87,7 @@ func (s *Server) RevokeToken(c *gin.Context) {
 }
 
 // LogoutCurrentUser logs out the current user (POST /me/logout)
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route logout request to the auth service for the current user's session
 func (s *Server) LogoutCurrentUser(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] LogoutCurrentUser called")
@@ -93,6 +99,7 @@ func (s *Server) LogoutCurrentUser(c *gin.Context) {
 }
 
 // GetCurrentUser gets current user information
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route OIDC userinfo request to the auth service for the current user
 func (s *Server) GetCurrentUser(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetCurrentUser called - delegating to authService.Me()")
@@ -106,6 +113,7 @@ func (s *Server) GetCurrentUser(c *gin.Context) {
 }
 
 // GetCurrentUserProfile gets current user profile with groups and admin status (from /me endpoint)
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route /me profile request to the auth service, including admin status
 func (s *Server) GetCurrentUserProfile(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetCurrentUserProfile called (GET /me)")
@@ -123,6 +131,7 @@ func (s *Server) GetCurrentUserProfile(c *gin.Context) {
 }
 
 // DeleteUserAccount handles user account deletion (two-step challenge-response)
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route account deletion request to the user deletion handler via challenge-response
 func (s *Server) DeleteUserAccount(c *gin.Context, params DeleteUserAccountParams) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] DeleteUserAccount called")
@@ -141,6 +150,7 @@ func (s *Server) DeleteUserAccount(c *gin.Context, params DeleteUserAccountParam
 }
 
 // TransferCurrentUserOwnership handles POST /me/transfer
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route ownership transfer request for the current user to the transfer handler
 func (s *Server) TransferCurrentUserOwnership(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] TransferCurrentUserOwnership called")
@@ -154,6 +164,7 @@ func (s *Server) TransferCurrentUserOwnership(c *gin.Context) {
 }
 
 // TransferAdminUserOwnership handles POST /admin/users/{internal_uuid}/transfer
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route admin ownership transfer for a target user to the transfer handler
 func (s *Server) TransferAdminUserOwnership(c *gin.Context, internalUuid InternalUuidPathParam) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] TransferAdminUserOwnership called")
@@ -167,6 +178,7 @@ func (s *Server) TransferAdminUserOwnership(c *gin.Context, internalUuid Interna
 }
 
 // GetAuthProviders lists OAuth providers
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route request listing configured OAuth providers to the auth service
 func (s *Server) GetAuthProviders(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetAuthProviders called")
@@ -178,6 +190,7 @@ func (s *Server) GetAuthProviders(c *gin.Context) {
 }
 
 // GetProviderGroups returns groups available from a specific identity provider
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: fetch cached groups for a given identity provider and annotate which are used in authorizations (reads DB)
 func (s *Server) GetProviderGroups(c *gin.Context, idp string) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetProviderGroups called for IdP: %s", idp)
@@ -207,6 +220,7 @@ func (s *Server) GetProviderGroups(c *gin.Context, idp string) {
 	usedGroups := s.getGroupsUsedInAuthorizations(ctx)
 
 	// Build response
+	// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: hold group name, display name, and authorization-usage flag for a provider group (pure)
 	type GroupInfo struct {
 		Name                 string `json:"name"`
 		DisplayName          string `json:"display_name,omitempty"`
@@ -234,6 +248,7 @@ func (s *Server) GetProviderGroups(c *gin.Context, idp string) {
 }
 
 // getGroupsUsedInAuthorizations returns a list of groups that are used in threat model authorizations
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: list groups referenced in any threat model authorization (reads DB)
 func (s *Server) getGroupsUsedInAuthorizations(_ context.Context) []string {
 	// Query the database for all unique groups used in authorizations
 	// For now, return empty list - this would require querying all Authorization objects
@@ -242,6 +257,7 @@ func (s *Server) getGroupsUsedInAuthorizations(_ context.Context) []string {
 }
 
 // GetSAMLMetadata returns SAML service provider metadata
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route SAML SP metadata request to the auth adapter for a given SAML provider
 func (s *Server) GetSAMLMetadata(c *gin.Context, provider string) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetSAMLMetadata called for provider: %s", provider)
@@ -261,6 +277,7 @@ func (s *Server) GetSAMLMetadata(c *gin.Context, provider string) {
 }
 
 // InitiateSAMLLogin starts SAML authentication flow
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route SAML login initiation to the auth adapter for a given provider
 func (s *Server) InitiateSAMLLogin(c *gin.Context, provider string, params InitiateSAMLLoginParams) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] InitiateSAMLLogin called for provider: %s", provider)
@@ -280,6 +297,7 @@ func (s *Server) InitiateSAMLLogin(c *gin.Context, provider string, params Initi
 }
 
 // ProcessSAMLResponse handles SAML assertion consumer service
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route SAML assertion consumer service POST to the auth adapter for session establishment
 func (s *Server) ProcessSAMLResponse(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] ProcessSAMLResponse called")
@@ -312,6 +330,7 @@ func (s *Server) ProcessSAMLResponse(c *gin.Context) {
 }
 
 // ProcessSAMLLogout handles SAML single logout (GET)
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route SAML single logout GET to the auth adapter for session termination
 func (s *Server) ProcessSAMLLogout(c *gin.Context, params ProcessSAMLLogoutParams) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] ProcessSAMLLogout called (GET)")
@@ -337,6 +356,7 @@ func (s *Server) ProcessSAMLLogout(c *gin.Context, params ProcessSAMLLogoutParam
 }
 
 // ProcessSAMLLogoutPost handles SAML single logout (POST)
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route SAML single logout POST to the auth adapter for session termination
 func (s *Server) ProcessSAMLLogoutPost(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] ProcessSAMLLogoutPost called (POST)")
@@ -372,6 +392,7 @@ func (s *Server) ProcessSAMLLogoutPost(c *gin.Context) {
 }
 
 // GetSAMLProviders implements ServerInterface
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route request listing configured SAML providers to the auth service
 func (s *Server) GetSAMLProviders(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetSAMLProviders called")
@@ -388,6 +409,7 @@ func (s *Server) GetSAMLProviders(c *gin.Context) {
 }
 
 // GetJWKS returns the JSON Web Key Set for JWT signature verification
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route JWKS request to the auth service for JWT signature verification
 func (s *Server) GetJWKS(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetJWKS called")
@@ -404,6 +426,7 @@ func (s *Server) GetJWKS(c *gin.Context) {
 }
 
 // GetOAuthAuthorizationServerMetadata returns OAuth 2.0 Authorization Server Metadata
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route OAuth 2.0 authorization server metadata request to the auth service
 func (s *Server) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetOAuthAuthorizationServerMetadata called")
@@ -420,6 +443,7 @@ func (s *Server) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
 }
 
 // GetOpenIDConfiguration returns OpenID Connect configuration
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route OpenID Connect discovery document request to the auth service
 func (s *Server) GetOpenIDConfiguration(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetOpenIDConfiguration called")
@@ -436,6 +460,7 @@ func (s *Server) GetOpenIDConfiguration(c *gin.Context) {
 }
 
 // GetOAuthProtectedResourceMetadata returns OAuth 2.0 protected resource metadata as per RFC 9728
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route OAuth 2.0 protected resource metadata request to the auth service per RFC 9728
 func (s *Server) GetOAuthProtectedResourceMetadata(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetOAuthProtectedResourceMetadata called")
@@ -452,6 +477,7 @@ func (s *Server) GetOAuthProtectedResourceMetadata(c *gin.Context) {
 }
 
 // IntrospectToken handles token introspection requests per RFC 7662
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route token introspection request to the auth service per RFC 7662
 func (s *Server) IntrospectToken(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] IntrospectToken called")
@@ -468,6 +494,7 @@ func (s *Server) IntrospectToken(c *gin.Context) {
 }
 
 // RefreshToken refreshes JWT token
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route token refresh request to the auth service
 func (s *Server) RefreshToken(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] RefreshToken called")
@@ -479,6 +506,7 @@ func (s *Server) RefreshToken(c *gin.Context) {
 }
 
 // ExchangeOAuthCode exchanges auth code for tokens
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route OAuth token exchange request to the auth service supporting multiple grant types
 func (s *Server) ExchangeOAuthCode(c *gin.Context, params ExchangeOAuthCodeParams) {
 	logger := slogging.Get()
 	var providerStr string
@@ -499,6 +527,7 @@ func (s *Server) ExchangeOAuthCode(c *gin.Context, params ExchangeOAuthCodeParam
 
 // StartIdentityLink handles POST /me/identities/link/start (#383).
 // Delegates to the auth.Handlers.StartIdentityLink method via the AuthServiceAdapter.
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: route identity link initiation request to the auth handler
 func (s *Server) StartIdentityLink(c *gin.Context, params StartIdentityLinkParams) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] StartIdentityLink called")
@@ -511,6 +540,7 @@ func (s *Server) StartIdentityLink(c *gin.Context, params StartIdentityLinkParam
 }
 
 // GetPendingIdentityLink handles GET /me/identities/link/pending/{link_id} (#383).
+// SEM@053baa340d412aa135be32953dfcb6133af89b4d: route fetch-pending-identity-link request to the auth handler by link ID
 func (s *Server) GetPendingIdentityLink(c *gin.Context, linkId string) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] GetPendingIdentityLink called")
@@ -525,6 +555,7 @@ func (s *Server) GetPendingIdentityLink(c *gin.Context, linkId string) {
 }
 
 // ConfirmIdentityLink handles POST /me/identities/link/confirm (#383).
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: route identity link confirmation request to the auth handler
 func (s *Server) ConfirmIdentityLink(c *gin.Context) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] ConfirmIdentityLink called")

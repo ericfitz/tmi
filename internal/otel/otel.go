@@ -22,6 +22,7 @@ import (
 )
 
 // Config holds TMI-side OpenTelemetry configuration.
+// SEM@03edeb4bda4d0f23d973e17c1a0fe428dda94538: configuration struct for OpenTelemetry tracing and metrics setup (pure)
 type Config struct {
 	Enabled        bool
 	SamplingRate   float64
@@ -31,6 +32,7 @@ type Config struct {
 // Setup initializes OpenTelemetry trace and metric providers.
 // Returns a shutdown function that must be called on server stop.
 // When cfg.Enabled is false, registers no-op providers (zero overhead).
+// SEM@ad7cd6a870c6ca3d54d847943b47256a0b5325f2: initialize OTel trace and metric providers and return a shutdown function (mutates shared state)
 func Setup(ctx context.Context, cfg Config) (shutdown func(context.Context) error, err error) {
 	logger := slogging.Get()
 

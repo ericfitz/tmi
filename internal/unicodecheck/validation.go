@@ -39,6 +39,7 @@ var bidiOverrideChars = []rune{
 
 // ContainsZeroWidthChars checks for zero-width Unicode characters that can be used for spoofing.
 // This includes zero-width spaces, joiners, directional marks, and the byte order mark.
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate a string for zero-width spoofing characters including BOM and directional marks (pure)
 func ContainsZeroWidthChars(s string) bool {
 	for _, r := range s {
 		if slices.Contains(zeroWidthChars, r) {
@@ -50,6 +51,7 @@ func ContainsZeroWidthChars(s string) bool {
 
 // isIndicScript returns true if the rune belongs to an Indic script Unicode block
 // where ZWNJ has legitimate use for proper text rendering.
+// SEM@445f237f7a35ca185cf03ef25426c1a97b1a1917: validate a rune as belonging to an Indic script Unicode block (pure)
 func isIndicScript(r rune) bool {
 	return (r >= '\u0900' && r <= '\u097F') || // Devanagari (Hindi, Sanskrit, Marathi)
 		(r >= '\u0980' && r <= '\u09FF') || // Bengali
@@ -67,6 +69,7 @@ func isIndicScript(r rune) bool {
 
 // isEmojiCodepoint returns true if the rune is commonly part of emoji sequences.
 // Covers the main emoji ranges per Unicode Standard Annex #51.
+// SEM@445f237f7a35ca185cf03ef25426c1a97b1a1917: validate a rune as a member of standard emoji Unicode ranges (pure)
 func isEmojiCodepoint(r rune) bool {
 	return (r >= 0x1F600 && r <= 0x1F64F) || // Emoticons
 		(r >= 0x1F300 && r <= 0x1F5FF) || // Misc Symbols and Pictographs
@@ -90,6 +93,7 @@ func isEmojiCodepoint(r rune) bool {
 //   - ZWS (U+200B) — truly invisible, no legitimate use in JSON string values
 //   - BOM (U+FEFF) — no legitimate use mid-string
 //   - LRM (U+200E) and RLM (U+200F) — directional marks
+// SEM@445f237f7a35ca185cf03ef25426c1a97b1a1917: validate a string for dangerous zero-width chars, allowing legitimate ZWNJ in Indic and ZWJ in emoji contexts (pure)
 func ContainsDangerousZeroWidthChars(s string) bool {
 	runes := []rune(s)
 	for i, r := range runes {
@@ -124,6 +128,7 @@ func ContainsDangerousZeroWidthChars(s string) bool {
 
 // ContainsBidiOverrides checks for bidirectional text override characters
 // that can reorder displayed text to disguise malicious content.
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate a string for bidirectional text override characters that can disguise malicious content (pure)
 func ContainsBidiOverrides(s string) bool {
 	for _, r := range s {
 		if slices.Contains(bidiOverrideChars, r) {
@@ -134,6 +139,7 @@ func ContainsBidiOverrides(s string) bool {
 }
 
 // ContainsHangulFillers checks for Hangul filler characters used in fuzzing attacks.
+// SEM@99fb5e219721394dfd5b0ad63c85d3f01d469306: validate a string for Hangul filler characters used in fuzzing attacks (pure)
 func ContainsHangulFillers(s string) bool {
 	for _, r := range s {
 		if r == '\u3164' || r == '\uFFA0' {
@@ -145,6 +151,7 @@ func ContainsHangulFillers(s string) bool {
 
 // ContainsProblematicCategories checks for characters in problematic Unicode categories:
 // Private Use Area, Surrogates, and Non-character codepoints.
+// SEM@99fb5e219721394dfd5b0ad63c85d3f01d469306: validate a string for private-use, surrogate, and non-character Unicode codepoints (pure)
 func ContainsProblematicCategories(s string) bool {
 	for _, r := range s {
 		if unicode.Is(unicode.Co, r) || // Private Use
@@ -158,6 +165,7 @@ func ContainsProblematicCategories(s string) bool {
 }
 
 // ContainsControlChars checks for control characters except common whitespace (\n, \r, \t).
+// SEM@99fb5e219721394dfd5b0ad63c85d3f01d469306: validate a string for control characters excluding common whitespace (pure)
 func ContainsControlChars(s string) bool {
 	for _, r := range s {
 		if unicode.IsControl(r) && r != '\n' && r != '\r' && r != '\t' {
@@ -207,6 +215,7 @@ var combiningMarkRanges = &unicode.RangeTable{
 // IsCombiningMark returns true if the rune is a Unicode combining character.
 // Covers Combining Diacritical Marks (U+0300-U+036F) and extended ranges
 // for Cyrillic, Hebrew, Arabic, Thai, and Indic scripts.
+// SEM@445f237f7a35ca185cf03ef25426c1a97b1a1917: validate a rune as a Unicode combining character across Cyrillic, Hebrew, Arabic, and Indic ranges (pure)
 func IsCombiningMark(r rune) bool {
 	return unicode.Is(combiningMarkRanges, r)
 }
@@ -215,6 +224,7 @@ func IsCombiningMark(r rune) bool {
 // sequences of consecutive combining marks exceeding the given threshold.
 // A threshold of 3 is typical for middleware; use 1 to reject any combining marks
 // in the basic Combining Diacritical Marks range (U+0300-U+036F).
+// SEM@99fb5e219721394dfd5b0ad63c85d3f01d469306: validate a string for Zalgo-style abuse by detecting consecutive combining marks exceeding a threshold (pure)
 func HasExcessiveCombiningMarks(s string, maxConsecutive int) bool {
 	consecutiveCombining := 0
 	for _, r := range s {
@@ -234,6 +244,7 @@ func HasExcessiveCombiningMarks(s string, maxConsecutive int) bool {
 // diacritical marks in the basic range (U+0300-U+036F). This is stricter than
 // HasExcessiveCombiningMarks and is used for fields where combining marks are
 // not expected at all.
+// SEM@99fb5e219721394dfd5b0ad63c85d3f01d469306: validate a string for any combining diacritical marks in the basic Unicode range (pure)
 func ContainsAnyCombiningMarks(s string) bool {
 	for _, r := range s {
 		if r >= '\u0300' && r <= '\u036F' {
@@ -246,6 +257,7 @@ func ContainsAnyCombiningMarks(s string) bool {
 // ContainsFullwidthStructuralChars checks for fullwidth characters that could be
 // used for visual spoofing of JSON structural characters (brackets, quotes, etc.).
 // Fullwidth forms are legitimate in CJK text but not in JSON structure.
+// SEM@99fb5e219721394dfd5b0ad63c85d3f01d469306: validate a string for fullwidth JSON structural characters that could enable visual spoofing (pure)
 func ContainsFullwidthStructuralChars(s string) bool {
 	for _, r := range s {
 		if r >= '\uFF00' && r <= '\uFFEF' {
@@ -259,12 +271,14 @@ func ContainsFullwidthStructuralChars(s string) bool {
 
 // IsNFCNormalized checks whether the string is in NFC (Canonical Composition) form.
 // Non-normalized Unicode can cause storage and comparison issues.
+// SEM@99fb5e219721394dfd5b0ad63c85d3f01d469306: validate that a string is in NFC canonical composition form (pure)
 func IsNFCNormalized(s string) bool {
 	return norm.NFC.String(s) == s
 }
 
 // SanitizeForLogging removes potentially dangerous characters from strings before logging.
 // Replaces control characters with [CTRL] and zero-width characters with [ZW].
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: convert dangerous control and zero-width characters to safe placeholder tokens for log output (pure)
 func SanitizeForLogging(s string) string {
 	var result strings.Builder
 	for _, r := range s {
@@ -281,6 +295,7 @@ func SanitizeForLogging(s string) string {
 }
 
 // isZeroWidthChar checks a single rune against the zero-width character list.
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate a single rune against the zero-width character blocklist (pure)
 func isZeroWidthChar(r rune) bool {
 	return slices.Contains(zeroWidthChars, r)
 }

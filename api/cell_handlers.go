@@ -10,6 +10,7 @@ import (
 )
 
 // CellHandler provides handlers for diagram cell operations with PATCH support and metadata
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: HTTP handler struct for diagram cell operations including metadata and patch support
 type CellHandler struct {
 	metadataStore    MetadataRepository
 	db               *sql.DB
@@ -18,6 +19,7 @@ type CellHandler struct {
 }
 
 // buildWebSocketURL constructs the absolute WebSocket URL from request context
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: build the absolute WebSocket URL for a diagram from request context (pure)
 func (h *CellHandler) buildWebSocketURL(c *gin.Context, diagramID string) string {
 	// Get config information from the context
 	tlsEnabled := false
@@ -65,6 +67,7 @@ func (h *CellHandler) buildWebSocketURL(c *gin.Context, diagramID string) string
 }
 
 // NewCellHandler creates a new cell handler
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: build a CellHandler wired to explicit metadata store, DB, and cache dependencies
 func NewCellHandler(metadataStore MetadataRepository, db *sql.DB, cache *CacheService, invalidator *CacheInvalidator) *CellHandler {
 	return &CellHandler{
 		metadataStore:    metadataStore,
@@ -75,6 +78,7 @@ func NewCellHandler(metadataStore MetadataRepository, db *sql.DB, cache *CacheSe
 }
 
 // NewCellHandlerSimple creates a new cell handler with default dependencies
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: build a CellHandler using the global metadata repository with no cache
 func NewCellHandlerSimple() *CellHandler {
 	// Use the global metadata repository
 	return &CellHandler{
@@ -87,6 +91,7 @@ func NewCellHandlerSimple() *CellHandler {
 
 // GetCellMetadata retrieves all metadata for a diagram cell
 // GET /diagrams/{diagram_id}/cells/{cell_id}/metadata
+// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: fetch all metadata entries for a diagram cell (reads DB)
 func (h *CellHandler) GetCellMetadata(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetCellMetadata - retrieving metadata for cell")
@@ -127,6 +132,7 @@ func (h *CellHandler) GetCellMetadata(c *gin.Context) {
 
 // GetCellMetadataByKey retrieves a specific metadata entry by key
 // GET /diagrams/{diagram_id}/cells/{cell_id}/metadata/{key}
+// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: fetch a single metadata entry for a diagram cell by key (reads DB)
 func (h *CellHandler) GetCellMetadataByKey(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetCellMetadataByKey - retrieving specific metadata entry")
@@ -173,6 +179,7 @@ func (h *CellHandler) GetCellMetadataByKey(c *gin.Context) {
 
 // CreateCellMetadata creates a new metadata entry for a cell
 // POST /diagrams/{diagram_id}/cells/{cell_id}/metadata
+// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: store a new metadata key-value entry on a diagram cell and invalidate cache (reads DB)
 func (h *CellHandler) CreateCellMetadata(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateCellMetadata - creating new metadata entry")
@@ -246,6 +253,7 @@ func (h *CellHandler) CreateCellMetadata(c *gin.Context) {
 
 // UpdateCellMetadata updates an existing metadata entry
 // PUT /diagrams/{diagram_id}/cells/{cell_id}/metadata/{key}
+// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: update an existing metadata entry on a diagram cell and invalidate cache (reads DB)
 func (h *CellHandler) UpdateCellMetadata(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateCellMetadata - updating metadata entry")
@@ -277,6 +285,7 @@ func (h *CellHandler) UpdateCellMetadata(c *gin.Context) {
 	}
 
 	// Define update request structure (only value needed, key comes from URL)
+	// SEM@44e3609f57929c6c53fe68bbc7343fcc11348adb: request body type for updating a cell metadata value (pure)
 	type UpdateCellMetadataRequest struct {
 		Value string `json:"value" binding:"required"`
 	}
@@ -335,6 +344,7 @@ func (h *CellHandler) UpdateCellMetadata(c *gin.Context) {
 
 // DeleteCellMetadata deletes a metadata entry
 // DELETE /diagrams/{diagram_id}/cells/{cell_id}/metadata/{key}
+// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: delete a metadata entry from a diagram cell and invalidate cache (reads DB)
 func (h *CellHandler) DeleteCellMetadata(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("DeleteCellMetadata - deleting metadata entry")
@@ -398,6 +408,7 @@ func (h *CellHandler) DeleteCellMetadata(c *gin.Context) {
 
 // PatchCell applies JSON patch operations to a cell (requires WebSocket connection for real-time updates)
 // PATCH /diagrams/{diagram_id}/cells/{cell_id}
+// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: validate and accept JSON patch operations for a cell, redirecting callers to the WebSocket endpoint
 func (h *CellHandler) PatchCell(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchCell - applying patch operations to cell")
@@ -473,6 +484,7 @@ func (h *CellHandler) PatchCell(c *gin.Context) {
 
 // BatchPatchCells applies patch operations to multiple cells (optimized for collaboration)
 // POST /diagrams/{diagram_id}/cells/batch/patch
+// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: validate and accept batch JSON patch operations for multiple cells, redirecting callers to the WebSocket endpoint
 func (h *CellHandler) BatchPatchCells(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BatchPatchCells - applying patch operations to multiple cells")
@@ -497,6 +509,7 @@ func (h *CellHandler) BatchPatchCells(c *gin.Context) {
 	}
 
 	// Define request structure for batch cell patches
+	// SEM@6a25ed41f4450e7eba44de39fb07a07cac216f26: request body type for a batch of per-cell JSON patch operation sets (pure)
 	type BatchCellPatchRequest struct {
 		Operations []struct {
 			CellID     string           `json:"cell_id" binding:"required"`

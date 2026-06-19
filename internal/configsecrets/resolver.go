@@ -18,17 +18,20 @@ import (
 // ProviderResolver adapts a secrets.Provider to the config.SecretResolver
 // interface so that config.ResolveSecretValue can dereference vault:// secret
 // references at startup.
+// SEM@b583a71af02ca00e2c408d9d52e1e41f514df3ff: adapter that bridges a secrets.Provider to the config.SecretResolver interface (pure)
 type ProviderResolver struct {
 	provider secrets.Provider
 }
 
 // NewProviderResolver wraps a secrets.Provider as a config.SecretResolver.
+// SEM@b583a71af02ca00e2c408d9d52e1e41f514df3ff: build a ProviderResolver wrapping the given secrets provider (pure)
 func NewProviderResolver(provider secrets.Provider) *ProviderResolver {
 	return &ProviderResolver{provider: provider}
 }
 
 // ResolveVault dereferences a vault:// secret locator path through the
 // underlying secrets provider's GetSecret. It satisfies config.SecretResolver.
+// SEM@b583a71af02ca00e2c408d9d52e1e41f514df3ff: fetch a secret value by vault path through the underlying secrets provider
 func (r *ProviderResolver) ResolveVault(ctx context.Context, path string) (string, error) {
 	return r.provider.GetSecret(ctx, path)
 }

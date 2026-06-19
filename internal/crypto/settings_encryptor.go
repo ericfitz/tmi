@@ -27,12 +27,14 @@ const MaxEncryptedValueLength = 4000
 var ErrValueTooLong = errors.New("encrypted value exceeds maximum storage length")
 
 // EncryptionContext tracks key version and cipher metadata.
+// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: carry key version and cipher algorithm metadata for an encrypted setting (pure)
 type EncryptionContext struct {
 	ContextID int
 	Algorithm string
 }
 
 // SettingsEncryptor encrypts and decrypts setting values using AES-256-GCM.
+// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: hold AES-256-GCM keys and state for encrypting and decrypting setting values (pure)
 type SettingsEncryptor struct {
 	currentKey  []byte
 	previousKey []byte // nil if no previous key configured
@@ -42,6 +44,7 @@ type SettingsEncryptor struct {
 
 // NewSettingsEncryptor creates a new encryptor using the secrets provider.
 // If no encryption key is found, returns a disabled encryptor that passes values through.
+// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: build a SettingsEncryptor by fetching encryption keys from the secrets provider
 func NewSettingsEncryptor(ctx context.Context, provider secrets.Provider) (*SettingsEncryptor, error) {
 	logger := slogging.Get()
 
@@ -100,6 +103,7 @@ func NewSettingsEncryptor(ctx context.Context, provider secrets.Provider) (*Sett
 
 // NewSettingsEncryptorFromKeys creates an encryptor directly from key bytes.
 // This is primarily for testing. contextID defaults to 1.
+// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: build a SettingsEncryptor directly from raw key bytes, for testing (pure)
 func NewSettingsEncryptorFromKeys(currentKey, previousKey []byte, contextID int) (*SettingsEncryptor, error) {
 	if len(currentKey) != 32 {
 		return nil, fmt.Errorf("current key must be 32 bytes, got %d", len(currentKey))
@@ -123,6 +127,7 @@ func NewSettingsEncryptorFromKeys(currentKey, previousKey []byte, contextID int)
 
 // Encrypt encrypts a plaintext value using AES-256-GCM with the current key.
 // Returns the original value unchanged if encryption is disabled.
+// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: encrypt a plaintext setting value with AES-256-GCM and return the encoded envelope (pure)
 func (e *SettingsEncryptor) Encrypt(plaintext string) (string, error) {
 	if !e.enabled {
 		return plaintext, nil
@@ -148,6 +153,7 @@ func (e *SettingsEncryptor) Encrypt(plaintext string) (string, error) {
 // Decrypt decrypts an encrypted value. If the value doesn't have the ENC: prefix,
 // it is returned as-is (plaintext passthrough). Tries the current key first,
 // then the previous key if configured and the current key fails.
+// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: decrypt an ENC-prefixed setting value, falling back to the previous key if needed (pure)
 func (e *SettingsEncryptor) Decrypt(value string) (string, error) {
 	if !IsEncrypted(value) {
 		return value, nil
@@ -189,27 +195,32 @@ func (e *SettingsEncryptor) Decrypt(value string) (string, error) {
 }
 
 // IsEncrypted returns true if the value has the ENC: prefix indicating encryption.
+// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: report whether a setting value carries the ENC: encryption prefix (pure)
 func IsEncrypted(value string) bool {
 	return strings.HasPrefix(value, "ENC:")
 }
 
 // IsEnabled returns true if encryption is configured and active.
+// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: report whether encryption is configured and active on the encryptor (pure)
 func (e *SettingsEncryptor) IsEnabled() bool {
 	return e.enabled
 }
 
 // HasPreviousKey returns true if a previous key is configured for key rotation.
+// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: report whether a previous key is loaded for key rotation support (pure)
 func (e *SettingsEncryptor) HasPreviousKey() bool {
 	return e.previousKey != nil
 }
 
 // GetContext returns the current encryption context.
+// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: return the current encryption context containing key version and algorithm (pure)
 func (e *SettingsEncryptor) GetContext() EncryptionContext {
 	return e.context
 }
 
 // encryptAESGCM encrypts plaintext using AES-256-GCM.
 // Returns nonce + ciphertext + tag concatenated.
+// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: encrypt plaintext with AES-256-GCM and return nonce+ciphertext+tag (pure)
 func encryptAESGCM(key, plaintext []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -231,6 +242,7 @@ func encryptAESGCM(key, plaintext []byte) ([]byte, error) {
 }
 
 // decryptAESGCM decrypts data that is nonce + ciphertext + tag concatenated.
+// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: decrypt nonce+ciphertext+tag bytes using AES-256-GCM (pure)
 func decryptAESGCM(key, data []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -252,6 +264,7 @@ func decryptAESGCM(key, data []byte) ([]byte, error) {
 }
 
 // decodeHexKey decodes a hex-encoded encryption key and validates its length.
+// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: decode and validate a hex-encoded 32-byte AES encryption key (pure)
 func decodeHexKey(hexKey string) ([]byte, error) {
 	key, err := hex.DecodeString(strings.TrimSpace(hexKey))
 	if err != nil {

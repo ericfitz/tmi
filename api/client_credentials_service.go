@@ -16,12 +16,14 @@ import (
 )
 
 // ClientCredentialService handles client credential generation and management
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: service for creating, listing, and revoking machine-to-machine client credentials (reads DB)
 type ClientCredentialService struct {
 	authService *auth.Service
 	gormDB      *gorm.DB
 }
 
 // NewClientCredentialService creates a new client credential service
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: build a ClientCredentialService from an auth service (pure)
 func NewClientCredentialService(authService *auth.Service) *ClientCredentialService {
 	return &ClientCredentialService{
 		authService: authService,
@@ -30,6 +32,7 @@ func NewClientCredentialService(authService *auth.Service) *ClientCredentialServ
 }
 
 // CreateClientCredentialRequest contains parameters for creating a new client credential
+// SEM@99c8cc4c042f4729b89e24981a18dba21b40be17: parameters for creating a new client credential, including name and optional expiry (pure)
 type CreateClientCredentialRequest struct {
 	Name        string     `json:"name" binding:"required,min=1,max=100"`
 	Description string     `json:"description" binding:"max=500"`
@@ -38,6 +41,7 @@ type CreateClientCredentialRequest struct {
 
 // CreateClientCredentialResponse contains the response from creating a client credential
 // WARNING: The client_secret is ONLY returned at creation time and cannot be retrieved later
+// SEM@99c8cc4c042f4729b89e24981a18dba21b40be17: response for a new client credential including the plaintext secret shown only once (pure)
 type CreateClientCredentialResponse struct {
 	ID           uuid.UUID  `json:"id"`
 	ClientID     string     `json:"client_id"`
@@ -49,6 +53,7 @@ type CreateClientCredentialResponse struct {
 }
 
 // ClientCredentialInfoInternal represents a client credential without the secret (internal type)
+// SEM@99c8cc4c042f4729b89e24981a18dba21b40be17: client credential metadata without the secret for listing responses (pure)
 type ClientCredentialInfoInternal struct {
 	ID          uuid.UUID  `json:"id"`
 	ClientID    string     `json:"client_id"`
@@ -63,6 +68,7 @@ type ClientCredentialInfoInternal struct {
 
 // Create generates a new client credential for the specified owner
 // The client_secret is only returned once and cannot be retrieved later (GitHub PAT pattern)
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: generate and store a new bcrypt-hashed client credential, returning the plaintext secret once (reads DB)
 func (s *ClientCredentialService) Create(ctx context.Context, ownerUUID uuid.UUID, req CreateClientCredentialRequest) (*CreateClientCredentialResponse, error) {
 	// 1. Generate client_id: tmi_cc_{base64url(16_bytes)}
 	clientIDBytes := make([]byte, 16)
@@ -119,6 +125,7 @@ func (s *ClientCredentialService) Create(ctx context.Context, ownerUUID uuid.UUI
 }
 
 // List retrieves all client credentials for the specified owner (without secrets)
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: list all client credentials for an owner, excluding secrets (reads DB)
 func (s *ClientCredentialService) List(ctx context.Context, ownerUUID uuid.UUID) ([]*ClientCredentialInfoInternal, error) {
 	var creds []*auth.ClientCredential
 	dbErr := authdb.WithRetryableGormTransaction(ctx, s.gormDB, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
@@ -153,6 +160,7 @@ func (s *ClientCredentialService) List(ctx context.Context, ownerUUID uuid.UUID)
 }
 
 // Delete permanently deletes a client credential
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: permanently delete a client credential by ID and owner (reads DB)
 func (s *ClientCredentialService) Delete(ctx context.Context, credID uuid.UUID, ownerUUID uuid.UUID) error {
 	dbErr := authdb.WithRetryableGormTransaction(ctx, s.gormDB, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		return s.authService.DeleteClientCredential(ctx, credID, ownerUUID)
@@ -169,6 +177,7 @@ func (s *ClientCredentialService) Delete(ctx context.Context, credID uuid.UUID, 
 }
 
 // Deactivate soft-deletes a client credential (sets is_active = false)
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: soft-disable a client credential by marking it inactive (reads DB)
 func (s *ClientCredentialService) Deactivate(ctx context.Context, credID uuid.UUID, ownerUUID uuid.UUID) error {
 	if err := s.authService.DeactivateClientCredential(ctx, credID, ownerUUID); err != nil {
 		if dberrors.IsFatal(err) {

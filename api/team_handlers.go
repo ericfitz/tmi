@@ -15,6 +15,7 @@ import (
 // ListTeams returns a paginated list of teams.
 // Non-admins see only teams they are members of.
 // GET /teams
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: list teams visible to the caller with pagination and optional filters (reads DB)
 func (s *Server) ListTeams(c *gin.Context, params ListTeamsParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -79,6 +80,7 @@ func (s *Server) ListTeams(c *gin.Context, params ListTeamsParams) {
 // CreateTeam creates a new team.
 // Any authenticated user can create a team. The creator is auto-added as a member.
 // POST /teams
+// SEM@00add3d4f7dc1c0a9cc072d7e6ca32ace4d03641: store a new team and auto-add the creator as a member (writes DB)
 func (s *Server) CreateTeam(c *gin.Context) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -134,6 +136,7 @@ func (s *Server) CreateTeam(c *gin.Context) {
 // GetTeam retrieves a team by ID.
 // Requires team membership or admin.
 // GET /teams/{team_id}
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: fetch a team by ID, requiring membership or admin role (reads DB)
 func (s *Server) GetTeam(c *gin.Context, teamId openapi_types.UUID) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -184,6 +187,7 @@ func (s *Server) GetTeam(c *gin.Context, teamId openapi_types.UUID) {
 // UpdateTeam fully updates a team.
 // Requires team membership or admin.
 // PUT /teams/{team_id}
+// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: fully replace a team's fields, requiring membership or admin role with optimistic locking (writes DB)
 func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID, _ UpdateTeamParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -271,6 +275,7 @@ func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID, _ UpdateT
 // PatchTeam partially updates a team via JSON Patch.
 // Requires team membership or admin.
 // PATCH /teams/{team_id}
+// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: partially update a team via JSON Patch, requiring membership or admin role with optimistic locking (writes DB)
 func (s *Server) PatchTeam(c *gin.Context, teamId openapi_types.UUID, _ PatchTeamParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -372,6 +377,7 @@ func (s *Server) PatchTeam(c *gin.Context, teamId openapi_types.UUID, _ PatchTea
 // DeleteTeam deletes a team.
 // Requires owner role or admin. Returns 409 if team has projects.
 // DELETE /teams/{team_id}
+// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: delete a team after verifying owner or admin role, emitting a deletion event (reads DB)
 func (s *Server) DeleteTeam(c *gin.Context, teamId openapi_types.UUID) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -423,35 +429,43 @@ func (s *Server) DeleteTeam(c *gin.Context, teamId openapi_types.UUID) {
 
 // Team Metadata Methods - delegate to generic handler
 
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: list metadata entries for a team by delegating to the generic metadata handler
 func (s *Server) GetTeamMetadata(c *gin.Context, teamId openapi_types.UUID) {
 	s.teamMetadata.List(c)
 }
 
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: store a new metadata entry for a team via the generic metadata handler
 func (s *Server) CreateTeamMetadata(c *gin.Context, teamId openapi_types.UUID) {
 	s.teamMetadata.Create(c)
 }
 
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: store multiple new metadata entries for a team via the generic metadata handler
 func (s *Server) BulkCreateTeamMetadata(c *gin.Context, teamId openapi_types.UUID) {
 	s.teamMetadata.BulkCreate(c)
 }
 
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: replace all metadata entries for a team via the generic metadata handler
 func (s *Server) BulkReplaceTeamMetadata(c *gin.Context, teamId openapi_types.UUID) {
 	s.teamMetadata.BulkReplace(c)
 }
 
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: upsert multiple metadata entries for a team via the generic metadata handler
 func (s *Server) BulkUpsertTeamMetadata(c *gin.Context, teamId openapi_types.UUID) {
 	s.teamMetadata.BulkUpsert(c)
 }
 
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: delete a single metadata entry for a team via the generic metadata handler
 func (s *Server) DeleteTeamMetadata(c *gin.Context, teamId openapi_types.UUID, key string) {
 	s.teamMetadata.Delete(c)
 }
 
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: update a single metadata entry for a team via the generic metadata handler
 func (s *Server) UpdateTeamMetadata(c *gin.Context, teamId openapi_types.UUID, key string) {
 	s.teamMetadata.Update(c)
 }
 
 // teamExistsFunc is a helper for metadata handler entity existence checks
+// SEM@8c7929da791c778ff88713684c47aa2a10911bba: validate that a team exists in the store, returning not-found if absent (reads DB)
 func teamExistsFunc(ctx context.Context, teamID openapi_types.UUID) error {
 	team, err := GlobalTeamStore.Get(ctx, teamID.String())
 	if err != nil {

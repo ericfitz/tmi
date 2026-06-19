@@ -13,6 +13,7 @@ import (
 )
 
 // ListGroupMembers handles GET /admin/groups/{internal_uuid}/members
+// SEM@0734f383e8c73aef4842c88dc88e90d0440f048a: list paginated members of a group (reads DB)
 func (s *Server) ListGroupMembers(c *gin.Context, internalUuid openapi_types.UUID, params ListGroupMembersParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -97,6 +98,7 @@ func (s *Server) ListGroupMembers(c *gin.Context, internalUuid openapi_types.UUI
 }
 
 // AddGroupMember handles POST /admin/groups/{internal_uuid}/members
+// SEM@0734f383e8c73aef4842c88dc88e90d0440f048a: add a user or group as a member of an admin group (mutates shared state)
 func (s *Server) AddGroupMember(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -208,6 +210,7 @@ func (s *Server) AddGroupMember(c *gin.Context, internalUuid openapi_types.UUID)
 }
 
 // RemoveGroupMember handles DELETE /admin/groups/{internal_uuid}/members/{member_uuid}
+// SEM@0734f383e8c73aef4842c88dc88e90d0440f048a: delete a user or group membership from an admin group (mutates shared state)
 func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UUID, memberUuid openapi_types.UUID, params RemoveGroupMemberParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -275,6 +278,7 @@ func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UU
 }
 
 // handleGroupMemberError maps group member repository errors to HTTP responses
+// SEM@0734f383e8c73aef4842c88dc88e90d0440f048a: map group member repository errors to structured HTTP responses (pure)
 func (s *Server) handleGroupMemberError(c *gin.Context, logger *slogging.ContextLogger, err error) {
 	switch {
 	case errors.Is(err, ErrGroupNotFound):

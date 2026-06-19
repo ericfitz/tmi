@@ -40,6 +40,7 @@ var templateInjectionPatterns = []struct {
 // CheckHTMLInjection is the unified HTML/XSS and template injection checker.
 // It combines regex precision from the validation registry with broader pattern
 // coverage from addon validation, providing consistent security checking.
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: validate a field value for HTML/XSS and template injection patterns; reject if unsafe (pure)
 func CheckHTMLInjection(value, fieldName string) error {
 	// Check compiled regex patterns for HTML/XSS
 	for _, pattern := range htmlInjectionPatterns {

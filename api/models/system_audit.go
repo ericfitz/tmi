@@ -15,6 +15,7 @@ import (
 // Actor fields are denormalized (matches AuditEntry pattern) so audit rows
 // persist after user deletion. No FKs by design — investigators rely on the
 // row content, not on join integrity.
+// SEM@b7ad72016d91424b5dd7e6ed69ba846a4170f7b5: append-only DB record of a single admin write operation with denormalized actor identity
 type SystemAuditEntry struct {
 	ID DBVarchar `gorm:"primaryKey;not null;size:36;index:idx_sysaudit_created_id,priority:2"`
 
@@ -42,11 +43,13 @@ type SystemAuditEntry struct {
 }
 
 // TableName returns the table name, casing-aware for Oracle compatibility.
+// SEM@40a00bf3590eabf19003103d38311ef4c284f3aa: return the DB table name for system audit entries with Oracle-compatible casing (pure)
 func (SystemAuditEntry) TableName() string {
 	return tableName("system_audit_entries")
 }
 
 // BeforeCreate generates a UUID if not set.
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: generate a UUID for the system audit entry if none is set before DB insert (mutates shared state)
 func (s *SystemAuditEntry) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
 		s.ID = DBVarchar(uuid.New().String())

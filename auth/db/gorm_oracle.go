@@ -41,6 +41,7 @@ const utcSessionInitStmt = "ALTER SESSION SET TIME_ZONE = '+00:00'"
 // Uses SkipQuoteIdentifiers: true so Oracle folds all identifiers to unquoted
 // uppercase, avoiding the driver's inconsistent quoting in WHERE/ORDER BY.
 // See: https://github.com/oracle-samples/gorm-oracle/issues/49
+// SEM@ba7ef88caa84239c54ef87465cd9a14f01f61e3d: build a GORM dialector for Oracle ADB with UTC session pinning and additive-only migrations (pure)
 func getOracleDialector(cfg GormConfig) (gorm.Dialector, string) {
 	// godror "logfmt" connection string. configDir points at the wallet
 	// directory (tnsnames.ora + cwallet.sso) for Oracle ADB. Passwords with
@@ -93,11 +94,13 @@ func getOracleDialector(cfg GormConfig) (gorm.Dialector, string) {
 // oracleAdditiveDialector wraps gorm-oracle's dialector to make schema
 // migration ADDITIVE: it delegates everything except Migrator, which returns a
 // migrator whose MigrateColumn is a no-op. See #474.
+// SEM@ba7ef88caa84239c54ef87465cd9a14f01f61e3d: wrap Oracle GORM dialector to restrict schema migration to additive-only operations (pure)
 type oracleAdditiveDialector struct {
 	*oracle.Dialector
 }
 
 // Migrator returns the additive migrator instead of gorm-oracle's default.
+// SEM@ba7ef88caa84239c54ef87465cd9a14f01f61e3d: build and return the additive Oracle migrator that suppresses column modification (pure)
 func (d oracleAdditiveDialector) Migrator(db *gorm.DB) gorm.Migrator {
 	base := d.Dialector.Migrator(db).(oracle.Migrator)
 	return additiveOracleMigrator{Migrator: base}
@@ -107,6 +110,7 @@ func (d oracleAdditiveDialector) Migrator(db *gorm.DB) gorm.Migrator {
 // extended migrator interface it satisfies (e.g. BuildIndexOptionsInterface,
 // GetTypeAliases, which GORM core type-asserts during AutoMigrate) keeps
 // working — and overrides only MigrateColumn.
+// SEM@ba7ef88caa84239c54ef87465cd9a14f01f61e3d: embed Oracle migrator and override column migration to be a no-op (pure)
 type additiveOracleMigrator struct {
 	oracle.Migrator
 }
@@ -127,6 +131,7 @@ type additiveOracleMigrator struct {
 // nothing functional. Genuinely-new columns still go through AddColumn, and new
 // tables, indexes, and constraints are unaffected. A structural column type
 // change remains a drop-and-recreate operation, as it already was.
+// SEM@ba7ef88caa84239c54ef87465cd9a14f01f61e3d: suppress in-place column ALTER on Oracle to prevent ORA-01442 and schema-drift aborts (pure)
 func (additiveOracleMigrator) MigrateColumn(dst interface{}, field *schema.Field, columnType gorm.ColumnType) error {
 	return nil
 }
@@ -145,18 +150,21 @@ func (additiveOracleMigrator) MigrateColumn(dst interface{}, field *schema.Field
 // field with an explicit lower-case `column:` tag whose DB name Oracle stores
 // upper-case), so AutoMigrate re-issues ADD and Oracle returns ORA-01430
 // ("column being added already exists").
+// SEM@ba7ef88caa84239c54ef87465cd9a14f01f61e3d: add a DB column idempotently, swallowing Oracle ORA-01430 if column already exists
 func (m additiveOracleMigrator) AddColumn(value interface{}, field string) error {
 	return ignoreOracleAlreadyExists(m.Migrator.AddColumn(value, field))
 }
 
 // CreateIndex is idempotent: HasIndex can miss an existing index, so the
 // re-create is swallowed when Oracle returns ORA-00955.
+// SEM@ba7ef88caa84239c54ef87465cd9a14f01f61e3d: create a DB index idempotently, swallowing Oracle ORA-00955 if index already exists
 func (m additiveOracleMigrator) CreateIndex(value interface{}, name string) error {
 	return ignoreOracleAlreadyExists(m.Migrator.CreateIndex(value, name))
 }
 
 // CreateConstraint is idempotent: HasConstraint can miss an existing
 // constraint, so the re-create is swallowed when Oracle returns ORA-00955.
+// SEM@ba7ef88caa84239c54ef87465cd9a14f01f61e3d: create a DB constraint idempotently, swallowing Oracle ORA-00955 if constraint already exists
 func (m additiveOracleMigrator) CreateConstraint(value interface{}, name string) error {
 	return ignoreOracleAlreadyExists(m.Migrator.CreateConstraint(value, name))
 }
@@ -167,6 +175,7 @@ func (m additiveOracleMigrator) CreateConstraint(value interface{}, name string)
 // the object is already in the desired additive end state. Classification is by
 // godror error code (not message substring) to match internal/dberrors and to
 // be robust against message-format changes.
+// SEM@ba7ef88caa84239c54ef87465cd9a14f01f61e3d: convert Oracle ORA-00955 and ORA-01430 already-exists errors into nil (pure)
 func ignoreOracleAlreadyExists(err error) error {
 	if err == nil {
 		return nil

@@ -9,6 +9,7 @@ import (
 //
 // For regular users: returns "user={email}"
 // For service accounts: returns "service_account=[Service Account] {name} (credential_id={id}, owner={email})"
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: format a loggable user identity string distinguishing service accounts from regular users (pure)
 func GetUserIdentityForLogging(c *gin.Context) string {
 	isServiceAccount, _ := c.Get("isServiceAccount")
 	isServiceAccountBool, ok := isServiceAccount.(bool)
@@ -40,6 +41,7 @@ func GetUserIdentityForLogging(c *gin.Context) string {
 }
 
 // IsServiceAccountRequest returns true if the current request is from a service account
+// SEM@b88f8e119b1c65b1b76832e46f22d2ebdb88d0ca: check whether the current request was authenticated as a service account (pure)
 func IsServiceAccountRequest(c *gin.Context) bool {
 	isServiceAccount, exists := c.Get("isServiceAccount")
 	if !exists {

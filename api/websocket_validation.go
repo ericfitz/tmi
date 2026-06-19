@@ -10,9 +10,11 @@ import (
 )
 
 // UserInfoExtractor handles extracting user information from the request context
+// SEM@90b176688ca38f0b04e4e70a233b332f1c28218e: helper that extracts authenticated user identity fields from a Gin request context
 type UserInfoExtractor struct{}
 
 // UserInfo represents extracted user information
+// SEM@a9626140ff4ccb3bf8ae4b474024684bd7063b72: value object holding authenticated user identity and JWT expiry for a WebSocket session
 type UserInfo struct {
 	UserID       string
 	UserName     string
@@ -27,6 +29,7 @@ type UserInfo struct {
 }
 
 // ExtractUserInfo extracts user information from the gin context
+// SEM@a9626140ff4ccb3bf8ae4b474024684bd7063b72: extract and validate user identity fields from the Gin context, returning an error if the user ID is absent (pure)
 func (u *UserInfoExtractor) ExtractUserInfo(c *gin.Context) (*UserInfo, error) {
 	// Get user ID from context (required)
 	userIDStr := ""
@@ -100,10 +103,12 @@ func (u *UserInfoExtractor) ExtractUserInfo(c *gin.Context) (*UserInfo, error) {
 }
 
 // SessionValidator handles session validation logic
+// SEM@90b176688ca38f0b04e4e70a233b332f1c28218e: helper that validates WebSocket session access and state
 type SessionValidator struct{}
 
 // ValidateSessionAccess validates that a user can access a diagram session
 // Uses flexible user identifier matching (email, provider_user_id, or internal_uuid)
+// SEM@489dd32fbe1ec9c985b95318612d6c5434c9f696: validate that the user has permission to collaborate on the diagram session (pure)
 func (v *SessionValidator) ValidateSessionAccess(hub *WebSocketHub, userInfo *UserInfo, threatModelID, diagramID string) error {
 	if !hub.validateWebSocketDiagramAccessWithFlexibleMatching(userInfo, threatModelID, diagramID) {
 		return fmt.Errorf("insufficient permissions to collaborate on diagram %s", diagramID)
@@ -113,6 +118,7 @@ func (v *SessionValidator) ValidateSessionAccess(hub *WebSocketHub, userInfo *Us
 }
 
 // ValidateSessionState validates the session is in the correct state for connection
+// SEM@90b176688ca38f0b04e4e70a233b332f1c28218e: validate that a diagram session is in the active state (pure)
 func (v *SessionValidator) ValidateSessionState(session *DiagramSession) error {
 	session.mu.RLock()
 	sessionState := session.State
@@ -126,6 +132,7 @@ func (v *SessionValidator) ValidateSessionState(session *DiagramSession) error {
 }
 
 // ValidateSessionID validates that the provided session ID matches the actual session
+// SEM@90b176688ca38f0b04e4e70a233b332f1c28218e: validate that a caller-supplied session ID matches the actual session (pure)
 func (v *SessionValidator) ValidateSessionID(session *DiagramSession, providedSessionID string) error {
 	if providedSessionID == "" {
 		return nil // No session ID provided, which is acceptable
@@ -143,9 +150,11 @@ func (v *SessionValidator) ValidateSessionID(session *DiagramSession, providedSe
 }
 
 // WebSocketConnectionManager handles WebSocket connection setup and error handling
+// SEM@90b176688ca38f0b04e4e70a233b332f1c28218e: helper that manages WebSocket connection lifecycle, errors, and client registration
 type WebSocketConnectionManager struct{}
 
 // SendErrorAndClose sends an error message to the WebSocket connection and closes it
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: send a structured error message to a WebSocket connection then close it
 func (m *WebSocketConnectionManager) SendErrorAndClose(conn *websocket.Conn, errorCode, errorMessage string) {
 	errorMsg := ErrorMessage{
 		MessageType: MessageTypeError,
@@ -167,6 +176,7 @@ func (m *WebSocketConnectionManager) SendErrorAndClose(conn *websocket.Conn, err
 }
 
 // SendCloseAndClose sends a close message to the WebSocket connection and closes it
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: send a WebSocket close frame with a code and reason then close the connection
 func (m *WebSocketConnectionManager) SendCloseAndClose(conn *websocket.Conn, closeCode int, closeText string) {
 	closeMsg := websocket.FormatCloseMessage(closeCode, closeText)
 	if err := conn.WriteControl(websocket.CloseMessage, closeMsg, time.Now().Add(time.Second)); err != nil {
@@ -180,6 +190,7 @@ func (m *WebSocketConnectionManager) SendCloseAndClose(conn *websocket.Conn, clo
 }
 
 // RegisterClientWithTimeout registers a client with the session with a timeout to prevent blocking
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: register a WebSocket client with a session, returning an error if registration times out
 func (m *WebSocketConnectionManager) RegisterClientWithTimeout(session *DiagramSession, client *WebSocketClient, timeoutDuration time.Duration) error {
 	select {
 	case session.Register <- client:

@@ -9,6 +9,7 @@ import (
 )
 
 // SameProviderMiddleware ensures the authenticated user is from the same provider as specified in the path
+// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: authorize requests where the user's identity provider matches the path provider parameter (pure)
 func SameProviderMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
@@ -61,6 +62,7 @@ func SameProviderMiddleware() gin.HandlerFunc {
 }
 
 // SAMLProviderOnlyMiddleware ensures the provider is a SAML provider (not OAuth)
+// SEM@fb03bf4ae62f9d2e9e38b6a31882e902b0673586: reject requests whose path provider is not a SAML provider (pure)
 func SAMLProviderOnlyMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)

@@ -12,6 +12,7 @@ import (
 // revokeAtProvider attempts to revoke accessToken at the named provider.
 // It is best-effort: failures are logged at Warn level and the error is
 // returned so callers can decide whether to surface it.
+// SEM@02f6179e32b8858ace90c56dab8a84249a32eef8: best-effort revoke a content access token at its OAuth provider
 func (h *ContentOAuthHandlers) revokeAtProvider(c *gin.Context, providerID, accessToken string) error {
 	provider, ok := h.Registry.Get(providerID)
 	if !ok {
@@ -34,6 +35,7 @@ func (h *ContentOAuthHandlers) revokeAtProvider(c *gin.Context, providerID, acce
 // auth.Service. The sweep MUST happen before the user row (and its
 // FK-cascaded child rows) is deleted so that the token data is still
 // accessible.
+// SEM@cd187b523b66aef0fa87861d3a929c2017787b86: best-effort sweep and revoke all content OAuth tokens for a user before deletion (reads DB)
 func (h *ContentOAuthHandlers) RevokeUserTokens(ctx context.Context, userID string) {
 	logger := slogging.Get()
 
@@ -58,6 +60,7 @@ func (h *ContentOAuthHandlers) RevokeUserTokens(ctx context.Context, userID stri
 // AdminList handles GET /admin/users/:user_id/content_tokens.
 // Returns 200 with {"content_tokens": [...]} for the path user.
 // Admin-role enforcement is applied by middleware at route registration time.
+// SEM@02f6179e32b8858ace90c56dab8a84249a32eef8: list all content OAuth tokens for a given user as an admin (reads DB)
 func (h *ContentOAuthHandlers) AdminList(c *gin.Context) {
 	userID := c.Param("user_id")
 
@@ -79,6 +82,7 @@ func (h *ContentOAuthHandlers) AdminList(c *gin.Context) {
 // Deletes the token and attempts provider-side revocation (best-effort).
 // Returns 204 whether or not the row existed (idempotent).
 // Admin-role enforcement is applied by middleware at route registration time.
+// SEM@02f6179e32b8858ace90c56dab8a84249a32eef8: delete a user's content OAuth token for a provider and attempt provider revocation (reads DB)
 func (h *ContentOAuthHandlers) AdminDelete(c *gin.Context) {
 	userID := c.Param("user_id")
 	providerID := c.Param("provider_id")

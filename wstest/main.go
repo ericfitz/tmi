@@ -23,6 +23,7 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
+// SEM@1c6ea4e22bff98d82e2f3f5de9ea85a789c155e1: runtime configuration for the WebSocket test harness (pure)
 type Config struct {
 	ServerURL    string
 	UserHint     string
@@ -30,6 +31,7 @@ type Config struct {
 	Participants []string
 }
 
+// SEM@1c6ea4e22bff98d82e2f3f5de9ea85a789c155e1: OAuth token set returned after a successful authorization flow (pure)
 type AuthTokens struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -38,6 +40,7 @@ type AuthTokens struct {
 	State        string `json:"state"`
 }
 
+// SEM@f4bb3fba58d1eaed164ccd871d21def02aee5c95: local HTTP server state for receiving OAuth callback tokens (pure)
 type OAuthCallbackHandler struct {
 	tokens      chan AuthTokens
 	errorChan   chan error
@@ -45,12 +48,14 @@ type OAuthCallbackHandler struct {
 	callbackURL string
 }
 
+// SEM@1c6ea4e22bff98d82e2f3f5de9ea85a789c155e1: minimal threat model identity returned by the API (pure)
 type ThreatModel struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 }
 
+// SEM@1c6ea4e22bff98d82e2f3f5de9ea85a789c155e1: minimal diagram identity returned by the API (pure)
 type Diagram struct {
 	ID            string `json:"id"`
 	ThreatModelID string `json:"threat_model_id"`
@@ -59,6 +64,7 @@ type Diagram struct {
 }
 
 // CollaborationSession matches the OpenAPI CollaborationSession schema
+// SEM@5731c44a6441dbc392dc0f2406cdaa4b470be954: active collaboration session metadata including participants and WebSocket URL (pure)
 type CollaborationSession struct {
 	SessionID       string                     `json:"session_id"`
 	Host            string                     `json:"host"`
@@ -72,6 +78,7 @@ type CollaborationSession struct {
 }
 
 // CollaborationParticipant matches the OpenAPI Participant schema
+// SEM@5731c44a6441dbc392dc0f2406cdaa4b470be954: participant entry in a collaboration session with user identity and permissions (pure)
 type CollaborationParticipant struct {
 	User         CollaborationUser `json:"user"`
 	LastActivity string            `json:"last_activity"`
@@ -79,6 +86,7 @@ type CollaborationParticipant struct {
 }
 
 // CollaborationUser matches the OpenAPI User schema
+// SEM@250172d2601fc0b5942af5853849be951a183655: user identity fields for a collaboration session participant (pure)
 type CollaborationUser struct {
 	PrincipalType string `json:"principal_type"`
 	Provider      string `json:"provider"`
@@ -88,11 +96,13 @@ type CollaborationUser struct {
 }
 
 // WebSocketMessage represents the base structure for all AsyncAPI messages
+// SEM@f0ee8da0cb4a4bdbfc7d727047679a10758c7b35: base message envelope carrying only the message type discriminator (pure)
 type WebSocketMessage struct {
 	MessageType string `json:"message_type"`
 }
 
 // User represents user information matching AsyncAPI spec
+// SEM@250172d2601fc0b5942af5853849be951a183655: user identity matching the AsyncAPI spec user schema (pure)
 type User struct {
 	PrincipalType string `json:"principal_type"`
 	Provider      string `json:"provider"`
@@ -102,6 +112,7 @@ type User struct {
 }
 
 // ParticipantsUpdateMessage matches AsyncAPI ParticipantsUpdatePayload
+// SEM@250172d2601fc0b5942af5853849be951a183655: server broadcast updating the participant list and current presenter (pure)
 type ParticipantsUpdateMessage struct {
 	MessageType      string        `json:"message_type"`
 	InitiatingUser   *User         `json:"initiating_user,omitempty"` // Optional - null for system events, populated for user events
@@ -110,6 +121,7 @@ type ParticipantsUpdateMessage struct {
 	CurrentPresenter *User         `json:"current_presenter"` // Can be null if no presenter
 }
 
+// SEM@f0ee8da0cb4a4bdbfc7d727047679a10758c7b35: participant entry with user identity, permissions, and last activity timestamp (pure)
 type Participant struct {
 	User         User   `json:"user"`
 	Permissions  string `json:"permissions"`
@@ -117,6 +129,7 @@ type Participant struct {
 }
 
 // DiagramOperationEventMessage matches AsyncAPI DiagramOperationEventPayload (Server → Client)
+// SEM@250172d2601fc0b5942af5853849be951a183655: server broadcast notifying clients of an applied diagram operation (pure)
 type DiagramOperationEventMessage struct {
 	MessageType    string      `json:"message_type"`
 	InitiatingUser User        `json:"initiating_user"`
@@ -127,6 +140,7 @@ type DiagramOperationEventMessage struct {
 }
 
 // ErrorMessage matches AsyncAPI ErrorPayload
+// SEM@f0ee8da0cb4a4bdbfc7d727047679a10758c7b35: server error message with code and timestamp per AsyncAPI error payload (pure)
 type ErrorMessage struct {
 	MessageType string `json:"message_type"`
 	Error       string `json:"error"`
@@ -136,6 +150,7 @@ type ErrorMessage struct {
 }
 
 // OperationRejectedMessage matches AsyncAPI OperationRejectedPayload
+// SEM@4101dedd09b35a5f57df46bf07f7b42f33958300: server message rejecting a diagram operation with reason and resync flag (pure)
 type OperationRejectedMessage struct {
 	MessageType    string   `json:"message_type"`
 	OperationID    string   `json:"operation_id"`
@@ -150,12 +165,14 @@ type OperationRejectedMessage struct {
 }
 
 // SyncStatusResponseMessage matches the new sync protocol
+// SEM@d791c9a859555ac908a93f4bd6d49574103f13b9: server response carrying the current diagram update vector for sync (pure)
 type SyncStatusResponseMessage struct {
 	MessageType  string `json:"message_type"`
 	UpdateVector int64  `json:"update_vector"`
 }
 
 // DiagramStateMessage matches the new sync protocol
+// SEM@d791c9a859555ac908a93f4bd6d49574103f13b9: server message delivering full diagram state and cells for resync (pure)
 type DiagramStateMessage struct {
 	MessageType  string        `json:"message_type"`
 	DiagramID    string        `json:"diagram_id"`
@@ -164,6 +181,7 @@ type DiagramStateMessage struct {
 }
 
 // PresenterCursorMessage matches AsyncAPI PresenterCursorPayload
+// SEM@827168aa0aa6e3f5a783b3eb429449b1ca20b6c9: WebSocket message carrying the presenter's current cursor position (pure)
 type PresenterCursorMessage struct {
 	MessageType    string `json:"message_type"`
 	CursorPosition struct {
@@ -173,41 +191,48 @@ type PresenterCursorMessage struct {
 }
 
 // PresenterSelectionMessage matches AsyncAPI PresenterSelectionPayload
+// SEM@827168aa0aa6e3f5a783b3eb429449b1ca20b6c9: WebSocket message carrying the presenter's currently selected diagram cells (pure)
 type PresenterSelectionMessage struct {
 	MessageType   string   `json:"message_type"`
 	SelectedCells []string `json:"selected_cells"`
 }
 
 // PresenterRequestMessage matches AsyncAPI PresenterRequestPayload
+// SEM@f0ee8da0cb4a4bdbfc7d727047679a10758c7b35: WebSocket message signaling a participant's request to become presenter (pure)
 type PresenterRequestMessage struct {
 	MessageType string `json:"message_type"`
 }
 
 // PresenterRequestEventMessage matches AsyncAPI PresenterRequestEventPayload (Server → Host)
+// SEM@4101dedd09b35a5f57df46bf07f7b42f33958300: WebSocket server-to-host notification of a pending presenter request from a user (pure)
 type PresenterRequestEventMessage struct {
 	MessageType    string `json:"message_type"`
 	RequestingUser User   `json:"requesting_user"`
 }
 
 // PresenterDeniedRequestMessage matches AsyncAPI PresenterDeniedRequestPayload (Host → Server)
+// SEM@15d7086fc0b3014fcf08da9f792833c9550907d0: WebSocket host-to-server message denying a user's presenter request (pure)
 type PresenterDeniedRequestMessage struct {
 	MessageType string `json:"message_type"`
 	DeniedUser  User   `json:"denied_user"`
 }
 
 // PresenterDeniedEventMessage matches AsyncAPI PresenterDeniedEventPayload (Server → Client)
+// SEM@15d7086fc0b3014fcf08da9f792833c9550907d0: WebSocket server-to-client notification that a presenter request was denied (pure)
 type PresenterDeniedEventMessage struct {
 	MessageType string `json:"message_type"`
 	DeniedUser  User   `json:"denied_user"`
 }
 
 // ChangePresenterRequestMessage matches AsyncAPI ChangePresenterRequestPayload (Client → Server)
+// SEM@4101dedd09b35a5f57df46bf07f7b42f33958300: WebSocket message requesting transfer of the presenter role to another user (pure)
 type ChangePresenterRequestMessage struct {
 	MessageType  string `json:"message_type"`
 	NewPresenter User   `json:"new_presenter"`
 }
 
 // AuthorizationDeniedMessage matches AsyncAPI AuthorizationDeniedPayload
+// SEM@827168aa0aa6e3f5a783b3eb429449b1ca20b6c9: WebSocket message reporting that an operation was rejected due to insufficient authorization (pure)
 type AuthorizationDeniedMessage struct {
 	MessageType         string `json:"message_type"`
 	OriginalOperationID string `json:"original_operation_id"`
@@ -215,33 +240,39 @@ type AuthorizationDeniedMessage struct {
 }
 
 // SyncStatusRequestMessage matches AsyncAPI SyncStatusRequestPayload (Client → Server)
+// SEM@f0ee8da0cb4a4bdbfc7d727047679a10758c7b35: WebSocket client-to-server message requesting the current diagram sync status (pure)
 type SyncStatusRequestMessage struct {
 	MessageType string `json:"message_type"`
 }
 
 // SyncRequestMessage matches AsyncAPI SyncRequestPayload (Client → Server)
+// SEM@4101dedd09b35a5f57df46bf07f7b42f33958300: WebSocket client-to-server message requesting a full diagram state sync from a given update vector (pure)
 type SyncRequestMessage struct {
 	MessageType  string `json:"message_type"`
 	UpdateVector *int64 `json:"update_vector,omitempty"`
 }
 
 // UndoRequestMessage matches AsyncAPI UndoRequestPayload (Client → Server)
+// SEM@f0ee8da0cb4a4bdbfc7d727047679a10758c7b35: WebSocket message requesting an undo of the last diagram operation (pure)
 type UndoRequestMessage struct {
 	MessageType string `json:"message_type"`
 }
 
 // RedoRequestMessage matches AsyncAPI RedoRequestPayload (Client → Server)
+// SEM@f0ee8da0cb4a4bdbfc7d727047679a10758c7b35: WebSocket message requesting a redo of the previously undone diagram operation (pure)
 type RedoRequestMessage struct {
 	MessageType string `json:"message_type"`
 }
 
 // RemoveParticipantRequestMessage matches AsyncAPI RemoveParticipantRequestPayload (Client → Server)
+// SEM@4101dedd09b35a5f57df46bf07f7b42f33958300: WebSocket host-to-server message requesting removal of a participant from the session (pure)
 type RemoveParticipantRequestMessage struct {
 	MessageType string `json:"message_type"`
 	RemovedUser User   `json:"removed_user"`
 }
 
 // DiagramOperationRequestMessage matches AsyncAPI DiagramOperationRequestPayload (Client → Server)
+// SEM@4101dedd09b35a5f57df46bf07f7b42f33958300: WebSocket message submitting a diagram edit operation with a base vector for OT (pure)
 type DiagramOperationRequestMessage struct {
 	MessageType string      `json:"message_type"`
 	OperationID string      `json:"operation_id"`
@@ -250,6 +281,7 @@ type DiagramOperationRequestMessage struct {
 }
 
 
+// SEM@aa3ead9a1af6b5726ff35c6f8eae4fb264b57612: bootstrap the WebSocket test harness: authenticate, ensure user exists, then dispatch host or participant mode
 func main() {
 	config := parseArgs()
 
@@ -304,6 +336,7 @@ func main() {
 	}
 }
 
+// SEM@f8567440279524aac30f90e278854aa6cd1c44a4: parse and validate CLI flags into a harness Config (pure)
 func parseArgs() Config {
 	var serverURL, userHint, participantsStr string
 	var isHost bool
@@ -345,6 +378,7 @@ func parseArgs() Config {
 	return config
 }
 
+// SEM@f4bb3fba58d1eaed164ccd871d21def02aee5c95: execute an OAuth authorization-code flow and return access tokens
 func performOAuthLogin(ctx context.Context, config Config) (*AuthTokens, error) {
 	// Start local callback handler
 	callbackHandler := &OAuthCallbackHandler{
@@ -470,6 +504,7 @@ func performOAuthLogin(ctx context.Context, config Config) (*AuthTokens, error) 
 	}
 }
 
+// SEM@e01a24e0b115a4483cccea13af361c6ede9d62a5: fetch the authenticated user's profile to trigger lazy user creation in the database (reads DB)
 func ensureUserExists(config Config, tokens *AuthTokens) error {
 	// Call /oauth2/userinfo endpoint to trigger user creation in the database
 	// This is necessary because TMI creates users on first authenticated request
@@ -514,6 +549,7 @@ func ensureUserExists(config Config, tokens *AuthTokens) error {
 	return nil
 }
 
+// SEM@f4bb3fba58d1eaed164ccd871d21def02aee5c95: exchange an OAuth authorization code for access and refresh tokens via the token endpoint
 func exchangeCodeForTokens(code string, redirectURI string) (*AuthTokens, error) {
 	// For the TMI OAuth provider, exchange the authorization code for tokens
 	// The TMI provider's /oauth2/token endpoint handles this exchange
@@ -591,6 +627,7 @@ func exchangeCodeForTokens(code string, redirectURI string) (*AuthTokens, error)
 	}, nil
 }
 
+// SEM@f4bb3fba58d1eaed164ccd871d21def02aee5c95: start a local HTTP server on a random port to receive the OAuth callback and deliver tokens
 func startCallbackServer(ctx context.Context, handler *OAuthCallbackHandler) (net.Listener, error) {
 	// Start on a random port
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -704,6 +741,7 @@ func startCallbackServer(ctx context.Context, handler *OAuthCallbackHandler) (ne
 	return listener, nil
 }
 
+// SEM@8a2332cbb75c8a36a64f15ab8844264465384ae7: create a threat model and diagram, start a collaboration session, and connect as WebSocket host
 func runHostMode(ctx context.Context, config Config, tokens *AuthTokens) error {
 	slogging.Get().GetSlogger().Info("Running in Host Mode")
 
@@ -732,6 +770,7 @@ func runHostMode(ctx context.Context, config Config, tokens *AuthTokens) error {
 	return connectToWebSocket(ctx, config, tokens, threatModel.ID, diagram.ID, session.SessionID)
 }
 
+// SEM@8a2332cbb75c8a36a64f15ab8844264465384ae7: poll for available collaboration sessions and join one as a WebSocket participant
 func runParticipantMode(ctx context.Context, config Config, tokens *AuthTokens) error {
 	slogging.Get().GetSlogger().Info("Running in Participant Mode")
 	slogging.Get().GetSlogger().Info("Polling for available collaboration sessions")
@@ -777,6 +816,7 @@ func runParticipantMode(ctx context.Context, config Config, tokens *AuthTokens) 
 	}
 }
 
+// SEM@6309a82918f2db682a2593af1be2514a43f99992: create a new threat model with optional participant authorization via the REST API
 func createThreatModel(config Config, tokens *AuthTokens, participants []string) (*ThreatModel, error) {
 	url := fmt.Sprintf("%s/threat_models", config.ServerURL)
 
@@ -846,6 +886,7 @@ func createThreatModel(config Config, tokens *AuthTokens, participants []string)
 	return &threatModel, nil
 }
 
+// SEM@aa3ead9a1af6b5726ff35c6f8eae4fb264b57612: create a new DFD diagram under a threat model via the REST API
 func createDiagram(config Config, tokens *AuthTokens, threatModelID string) (*Diagram, error) {
 	url := fmt.Sprintf("%s/threat_models/%s/diagrams", config.ServerURL, threatModelID)
 
@@ -892,6 +933,7 @@ func createDiagram(config Config, tokens *AuthTokens, threatModelID string) (*Di
 	return &diagram, nil
 }
 
+// SEM@5731c44a6441dbc392dc0f2406cdaa4b470be954: start a real-time collaboration session for a diagram via the REST API
 func startCollaborationSession(config Config, tokens *AuthTokens, threatModelID, diagramID string) (*CollaborationSession, error) {
 	url := fmt.Sprintf("%s/threat_models/%s/diagrams/%s/collaborate", config.ServerURL, threatModelID, diagramID)
 
@@ -933,6 +975,7 @@ func startCollaborationSession(config Config, tokens *AuthTokens, threatModelID,
 	return &session, nil
 }
 
+// SEM@e01a24e0b115a4483cccea13af361c6ede9d62a5: fetch the current user's active collaboration sessions and return the first available one
 func findAvailableSession(config Config, tokens *AuthTokens) (*CollaborationSession, string, string, error) {
 	// Get list of active collaboration sessions
 	url := fmt.Sprintf("%s/me/sessions", config.ServerURL)
@@ -988,6 +1031,7 @@ func findAvailableSession(config Config, tokens *AuthTokens) (*CollaborationSess
 	return nil, "", "", nil
 }
 
+// SEM@8a2332cbb75c8a36a64f15ab8844264465384ae7: fetch a short-lived WebSocket auth ticket for a collaboration session
 func getWebSocketTicket(config Config, tokens *AuthTokens, sessionID string) (string, error) {
 	url := fmt.Sprintf("%s/ws/ticket?session_id=%s", config.ServerURL, sessionID)
 
@@ -1019,6 +1063,7 @@ func getWebSocketTicket(config Config, tokens *AuthTokens, sessionID string) (st
 	return ticketResp.Ticket, nil
 }
 
+// SEM@8a2332cbb75c8a36a64f15ab8844264465384ae7: connect to the diagram WebSocket and dispatch incoming messages until context is cancelled or connection drops
 func connectToWebSocket(ctx context.Context, config Config, tokens *AuthTokens, threatModelID, diagramID, sessionID string) error {
 	// Get ticket for WebSocket auth
 	ticket, err := getWebSocketTicket(config, tokens, sessionID)

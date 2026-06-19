@@ -16,6 +16,7 @@ import (
 // SetGlobalDelegationTokenIssuer. The implementation lives in
 // auth_service_adapter.go and wraps auth.Service.GetUserByID +
 // auth.Service.IssueAddonDelegationToken.
+// SEM@e6be8a8f816c564356a656ac18f3693ac7f10369: interface for minting a scoped delegation JWT impersonating an invoker for addon write-backs (pure)
 type DelegationTokenIssuer interface {
 	// IssueForInvocation mints a delegation JWT impersonating the invoker
 	// (looked up by invokerInternalUUID) for one addon-invocation
@@ -37,6 +38,7 @@ var GlobalDelegationTokenIssuer DelegationTokenIssuer
 
 // SetGlobalDelegationTokenIssuer sets the global delegation-token issuer.
 // Safe to call once at startup from cmd/server/main.go.
+// SEM@e6be8a8f816c564356a656ac18f3693ac7f10369: register the delegation token issuer at startup (mutates shared state)
 func SetGlobalDelegationTokenIssuer(issuer DelegationTokenIssuer) {
 	GlobalDelegationTokenIssuer = issuer
 }

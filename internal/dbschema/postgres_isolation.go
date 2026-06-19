@@ -37,6 +37,7 @@ import (
 // ALTER ROLE CURRENT_USER is used rather than ALTER DATABASE because it is the
 // portable form — it works on managed PostgreSQL (e.g. Heroku) where the
 // connecting role owns its own settings but may not own the database.
+// SEM@080eef4c36738f6b82a5dddaff40f2580081b8bc: pin the current PostgreSQL role default transaction isolation to serializable; no-op on other dialects (mutates shared state)
 func InstallPostgresDefaultIsolation(ctx context.Context, db *gorm.DB) error {
 	logger := slogging.Get()
 	if db.Name() != "postgres" {

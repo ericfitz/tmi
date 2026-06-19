@@ -29,6 +29,7 @@ import (
 //     handles the in-place source rewrite via stripOperationalKeys, which
 //     preserves comments, key ordering, and value types verbatim — none of
 //     which the *-migrated.yml writer below does.
+// SEM@e7880ae29f527fb2d814f6d7b7c13280082fa033: migrate operational settings from a config file into the database, optionally writing a bootstrap-only YAML (writes DB)
 func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, dryRun, emitLegacyMigratedYAML bool) error {
 	log := slogging.Get()
 
@@ -188,6 +189,7 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 	return nil
 }
 
+// SEM@bfaa16256208766cee3f74f1bf607d852fc877de: serialize bootstrap-only settings into a YAML config file (writes file)
 func writeMigratedConfig(bootstrapSettings []config.MigratableSetting, outputPath string) error {
 	root := make(map[string]any)
 
@@ -225,6 +227,7 @@ func writeMigratedConfig(bootstrapSettings []config.MigratableSetting, outputPat
 	return os.WriteFile(outputPath, output, 0o600)
 }
 
+// SEM@051ce26bea4bf8b114ae2038d2a73912ad3fc3e1: compute the migrated-config output path by appending '-migrated' before the file extension (pure)
 func deriveOutputPath(inputPath string) string {
 	ext := ""
 	base := inputPath

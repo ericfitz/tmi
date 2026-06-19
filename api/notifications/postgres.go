@@ -12,6 +12,7 @@ import (
 )
 
 // PostgresNotifier implements NotificationService using PostgreSQL's LISTEN/NOTIFY
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: NotificationService backed by PostgreSQL LISTEN/NOTIFY with reconnect support
 type PostgresNotifier struct {
 	connStr    string
 	db         *sql.DB
@@ -25,6 +26,7 @@ type PostgresNotifier struct {
 }
 
 // NewPostgresNotifier creates a new PostgreSQL notification service
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: build and start a PostgreSQL LISTEN/NOTIFY notifier (reads DB)
 func NewPostgresNotifier(connStr string, db *sql.DB) (*PostgresNotifier, error) {
 	logger := slogging.Get()
 	logger.Debug("Initializing PostgreSQL notification service")
@@ -51,6 +53,7 @@ func NewPostgresNotifier(connStr string, db *sql.DB) (*PostgresNotifier, error) 
 }
 
 // eventCallback handles listener events
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: handle pq listener connection lifecycle events and trigger channel resubscription
 func (p *PostgresNotifier) eventCallback(ev pq.ListenerEventType, err error) {
 	switch ev {
 	case pq.ListenerEventConnected:
@@ -69,6 +72,7 @@ func (p *PostgresNotifier) eventCallback(ev pq.ListenerEventType, err error) {
 }
 
 // resubscribeAll re-subscribes to all channels after reconnection
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: re-register all active LISTEN subscriptions after a listener reconnect (reads DB)
 func (p *PostgresNotifier) resubscribeAll() {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -83,6 +87,7 @@ func (p *PostgresNotifier) resubscribeAll() {
 }
 
 // listenLoop processes incoming notifications
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: dispatch incoming PostgreSQL notifications and ping to maintain the connection
 func (p *PostgresNotifier) listenLoop() {
 	p.logger.Debug("Starting PostgreSQL notification listener loop")
 
@@ -109,6 +114,7 @@ func (p *PostgresNotifier) listenLoop() {
 }
 
 // handleNotification distributes a notification to subscribers
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: fan out a received PostgreSQL notification to all channel subscribers (mutates shared state)
 func (p *PostgresNotifier) handleNotification(n *pq.Notification) {
 	p.mu.RLock()
 	subscribers, exists := p.channels[n.Channel]
@@ -137,6 +143,7 @@ func (p *PostgresNotifier) handleNotification(n *pq.Notification) {
 }
 
 // Subscribe implements NotificationService.Subscribe
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: register a subscriber channel for a named notification channel, starting LISTEN if first (reads DB)
 func (p *PostgresNotifier) Subscribe(ctx context.Context, channel string) (<-chan Notification, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -170,6 +177,7 @@ func (p *PostgresNotifier) Subscribe(ctx context.Context, channel string) (<-cha
 }
 
 // unsubscribe removes a subscriber from a channel
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: remove a subscriber and UNLISTEN the PostgreSQL channel when no subscribers remain (mutates shared state)
 func (p *PostgresNotifier) unsubscribe(channel string, notifyChan chan Notification) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -196,6 +204,7 @@ func (p *PostgresNotifier) unsubscribe(channel string, notifyChan chan Notificat
 }
 
 // Notify implements NotificationService.Notify
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: dispatch a PostgreSQL LISTEN/NOTIFY message to a named channel (reads DB)
 func (p *PostgresNotifier) Notify(ctx context.Context, channel string, payload string) error {
 	query := `SELECT pg_notify($1, $2)`
 	_, err := p.db.ExecContext(ctx, query, channel, payload)
@@ -208,6 +217,7 @@ func (p *PostgresNotifier) Notify(ctx context.Context, channel string, payload s
 }
 
 // Close implements NotificationService.Close
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: stop the notification service, close all subscriber channels, and release the DB listener (mutates shared state)
 func (p *PostgresNotifier) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()

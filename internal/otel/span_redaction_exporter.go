@@ -22,6 +22,7 @@ const RedactedAttributeValue = "<redacted>"
 // of the sensitive substrings — this catches future instrumentation that
 // uses keys like `http.request.header.authorization` without having to
 // extend the catalog.
+// SEM@ad7cd6a870c6ca3d54d847943b47256a0b5325f2: report whether an OTel span attribute key names a credential or secret that must be redacted (pure)
 func sensitiveAttributeKey(key string) bool {
 	k := strings.ToLower(key)
 	for _, needle := range []string{
@@ -55,13 +56,16 @@ func sensitiveAttributeKey(key string) bool {
 // delegate to the embedded span. This pattern is the only way to filter
 // attributes in OTel Go because ReadOnlySpan's private() method makes the
 // interface unimplementable from outside the SDK.
+// SEM@ad7cd6a870c6ca3d54d847943b47256a0b5325f2: wrap a ReadOnlySpan replacing its attributes with a pre-redacted slice (pure)
 type redactedReadOnlySpan struct {
 	sdktrace.ReadOnlySpan
 	redacted []attribute.KeyValue
 }
 
+// SEM@ad7cd6a870c6ca3d54d847943b47256a0b5325f2: return the pre-redacted attribute slice for the wrapped span (pure)
 func (r redactedReadOnlySpan) Attributes() []attribute.KeyValue { return r.redacted }
 
+// SEM@ad7cd6a870c6ca3d54d847943b47256a0b5325f2: replace sensitive attribute values with a redaction placeholder in a span attribute list (pure)
 func redactAttributes(attrs []attribute.KeyValue) []attribute.KeyValue {
 	if len(attrs) == 0 {
 		return attrs
@@ -83,18 +87,21 @@ func redactAttributes(attrs []attribute.KeyValue) []attribute.KeyValue {
 // defense-in-depth fix for T23 — even if a future instrumentation path
 // sets `attribute.String("authorization", header)` directly, the value
 // never leaves the process.
+// SEM@ad7cd6a870c6ca3d54d847943b47256a0b5325f2: OTel span exporter that strips credential values from attributes before forwarding to a collector
 type RedactingSpanExporter struct {
 	inner sdktrace.SpanExporter
 }
 
 // NewRedactingSpanExporter wraps the given exporter with attribute
 // redaction. Returns inner verbatim if it is nil.
+// SEM@ad7cd6a870c6ca3d54d847943b47256a0b5325f2: build a RedactingSpanExporter wrapping the given span exporter (pure)
 func NewRedactingSpanExporter(inner sdktrace.SpanExporter) *RedactingSpanExporter {
 	return &RedactingSpanExporter{inner: inner}
 }
 
 // ExportSpans redacts sensitive attribute values before forwarding to the
 // wrapped exporter.
+// SEM@ad7cd6a870c6ca3d54d847943b47256a0b5325f2: redact sensitive span attributes then forward the spans to the wrapped exporter
 func (r *RedactingSpanExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
 	if r.inner == nil {
 		return nil
@@ -110,6 +117,7 @@ func (r *RedactingSpanExporter) ExportSpans(ctx context.Context, spans []sdktrac
 }
 
 // Shutdown forwards to the wrapped exporter.
+// SEM@ad7cd6a870c6ca3d54d847943b47256a0b5325f2: forward shutdown to the wrapped span exporter
 func (r *RedactingSpanExporter) Shutdown(ctx context.Context) error {
 	if r.inner == nil {
 		return nil

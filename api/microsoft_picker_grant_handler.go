@@ -33,6 +33,7 @@ import (
 //     permission grantee)
 //   - graphBaseURL: defaults to graphV1Base when ""
 //   - userLookup: extracts the authenticated user id from the Gin context
+// SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: handler that grants the TMI app read permission on a user-picked Microsoft Graph file (pure)
 type MicrosoftPickerGrantHandler struct {
 	tokens              ContentTokenRepository
 	registry            *ContentOAuthProviderRegistry
@@ -47,6 +48,7 @@ type MicrosoftPickerGrantHandler struct {
 // defaults to https://graph.microsoft.com/v1.0 when "". validator MUST be
 // non-nil; in production it is built from the operator's content-source
 // allowlist (typically containing graph.microsoft.com).
+// SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: build a MicrosoftPickerGrantHandler with a 30-second SafeHTTPClient and URI validator (pure)
 func NewMicrosoftPickerGrantHandler(
 	tokens ContentTokenRepository,
 	registry *ContentOAuthProviderRegistry,
@@ -81,6 +83,7 @@ func NewMicrosoftPickerGrantHandler(
 //  5. Short-circuit on failed_refresh → 401 token_refresh_failed.
 //  6. Refresh if expired → 401 (permanent) or 503 (transient) on failure.
 //  7. Call Graph permissions API → 200 / 422 grant_failed / 503 transient_failure.
+// SEM@16390049ed01287835d8186f860dadff9c8c9288: handle a Microsoft File Picker grant request, issuing a Graph permission and returning the permission ID
 func (h *MicrosoftPickerGrantHandler) Handle(c *gin.Context) {
 	log := slogging.Get().WithContext(c)
 
@@ -210,6 +213,7 @@ func (h *MicrosoftPickerGrantHandler) Handle(c *gin.Context) {
 //     refresh token; caller should ask user to re-authorize.
 //   - ErrTransient: transient network/5xx failure; caller may retry.
 //   - Other: unexpected repository or provider error.
+// SEM@7f94f986783cd37704845fd81e9b0f90951a91d1: refresh a Microsoft delegated token if expired, returning ErrAuthRequired or ErrTransient on failure (reads DB)
 func (h *MicrosoftPickerGrantHandler) refreshIfNeeded(c *gin.Context, tok *ContentToken) (string, *time.Time, error) {
 	log := slogging.Get().WithContext(c)
 
@@ -290,6 +294,7 @@ func (h *MicrosoftPickerGrantHandler) refreshIfNeeded(c *gin.Context, tok *Conte
 // callGrantAPI calls Graph's POST /drives/{driveId}/items/{itemId}/permissions.
 // Returns (permissionID, statusCode, error). statusCode is set to the HTTP
 // status on non-2xx responses; on network errors it is 0.
+// SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: call the Microsoft Graph permissions endpoint to grant read access to a specific drive item
 func (h *MicrosoftPickerGrantHandler) callGrantAPI(ctx context.Context, token, driveID, itemID string) (string, int, error) {
 	body := map[string]any{
 		"roles": []string{"read"},
@@ -351,6 +356,7 @@ const consumerPickerScopePermissionID = "consumer-picker-scope"
 // per-file permissions endpoint (#297, Task 7 outcome). The handler short-
 // circuits the grant call for these accounts and relies on the picker SDK's
 // per-file scope, which is already issued on the user's token.
+// SEM@bf57c9bec0c306761021d4483ab62bd6bb907667: return true when an account label belongs to a consumer Microsoft personal account (pure)
 func isConsumerMicrosoftAccount(label string) bool {
 	if label == "" {
 		return false

@@ -19,24 +19,29 @@ const wordMLNS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 const wpMLNS = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
 
 // DOCXExtractor extracts Markdown-flavored text from a DOCX (OOXML) archive.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: extractor that converts DOCX archives to Markdown-flavored text (pure)
 type DOCXExtractor struct {
 	limits Limits
 }
 
 // NewDOCXExtractor returns an extractor configured with the given limits.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: build a DOCXExtractor configured with the given extraction limits (pure)
 func NewDOCXExtractor(limits Limits) *DOCXExtractor {
 	return &DOCXExtractor{limits: limits}
 }
 
 // Name returns the extractor name as registered with the registry.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: return the registered extractor name for DOCX files (pure)
 func (e *DOCXExtractor) Name() string { return "docx" }
 
 // CanHandle returns true iff contentType is the DOCX OOXML MIME type.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: validate that the content type matches the DOCX OOXML MIME type (pure)
 func (e *DOCXExtractor) CanHandle(contentType string) bool {
 	return strings.EqualFold(contentType, docxContentType)
 }
 
 // Bounded marks DOCXExtractor as needing a wall-clock deadline.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: signal that this extractor requires a wall-clock deadline context (pure)
 func (e *DOCXExtractor) Bounded() bool { return true }
 
 // Extract parses a DOCX archive and produces Markdown-flavored text. This
@@ -44,6 +49,7 @@ func (e *DOCXExtractor) Bounded() bool { return true }
 // background context (no cooperative cancellation).
 //
 // On non-nil error, the returned ExtractedContent is zero and must be discarded.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse a DOCX archive and return Markdown text using a background context
 func (e *DOCXExtractor) Extract(data []byte, contentType string) (ExtractedContent, error) {
 	return e.ExtractCtx(context.Background(), data, contentType)
 }
@@ -54,6 +60,7 @@ func (e *DOCXExtractor) Extract(data []byte, contentType string) (ExtractedConte
 // reads on cancellation (wall-clock deadline or parent cancel).
 //
 // On non-nil error, the returned ExtractedContent is zero and must be discarded.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse a DOCX archive with context cancellation and return Markdown text and title
 func (e *DOCXExtractor) ExtractCtx(ctx context.Context, data []byte, contentType string) (ExtractedContent, error) {
 	opener := newOOXMLOpener(e.limits)
 	arch, err := opener.open(data)
@@ -98,6 +105,7 @@ func (e *DOCXExtractor) ExtractCtx(ctx context.Context, data []byte, contentType
 // emits a `### Footnotes` section listing each referenced footnote.
 // Unreferenced footnotes (including the system separator/continuation
 // footnotes typically at id 0 and -1) are skipped.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: load and emit a Footnotes section for all referenced footnotes from the DOCX archive
 func docxRenderFootnotes(st *docxState) error {
 	rc, err := st.archive.openMember("word/footnotes.xml")
 	if err != nil {
@@ -184,6 +192,7 @@ func docxRenderFootnotes(st *docxState) error {
 }
 
 // docxState carries cross-element rendering state through the streaming pass.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: cross-element rendering state for a streaming DOCX-to-Markdown pass (pure)
 type docxState struct {
 	mb           *markdownBuilder
 	title        string
@@ -216,6 +225,7 @@ type docxState struct {
 }
 
 // docxParaState tracks state for a single paragraph being assembled.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: per-paragraph assembly state for heading level, text, and list metadata (pure)
 type docxParaState struct {
 	headingLevel int             // 0 = not a heading, 1-6 = H1-H6
 	runText      strings.Builder // accumulated text for this paragraph
@@ -227,6 +237,7 @@ type docxParaState struct {
 // docxLoadRels loads word/_rels/document.xml.rels into st.rels. Idempotent;
 // on any failure (missing file, parse error) st.rels is left as an empty map.
 // Subsequent calls see st.rels != nil and skip re-loading.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: lazily load hyperlink relationship targets from the DOCX rels file into render state
 func docxLoadRels(st *docxState) {
 	if st.rels != nil {
 		return
@@ -276,6 +287,7 @@ func docxLoadRels(st *docxState) {
 // docxLoadCoreTitle is a thin shim over ooxmlLoadCoreTitle that writes the
 // recovered title back into st.title. Used as a fallback when no in-document
 // heading was promoted to title during the streaming pass.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: fetch the document core title from the DOCX archive as a fallback title source
 func docxLoadCoreTitle(st *docxState) error {
 	title, err := ooxmlLoadCoreTitle(st.archive, st.limits)
 	if err != nil {
@@ -288,6 +300,7 @@ func docxLoadCoreTitle(st *docxState) error {
 }
 
 // docxTableState accumulates rows and cells while inside a w:tbl.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: accumulates table rows and cells during streaming DOCX table parsing (pure)
 type docxTableState struct {
 	rows    [][]string      // completed rows
 	curRow  []string        // current row's cells
@@ -297,6 +310,7 @@ type docxTableState struct {
 
 // docxHyperlinkFrame buffers text inside a w:hyperlink so it can be wrapped
 // as a markdown link on the closing tag.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: buffer for text inside a hyperlink element pending Markdown link wrapping (pure)
 type docxHyperlinkFrame struct {
 	buf    strings.Builder
 	target string
@@ -305,6 +319,7 @@ type docxHyperlinkFrame struct {
 // docxRenderCtx carries the per-walk mutable state for docxRenderBody. Pulled
 // out of the function so that handlers can be split into methods, keeping
 // per-method cyclomatic complexity manageable.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: per-walk mutable context for docxRenderBody streaming handler dispatch (pure)
 type docxRenderCtx struct {
 	d               *boundedXMLDecoder
 	st              *docxState
@@ -320,6 +335,7 @@ type docxRenderCtx struct {
 // lists, tables, hyperlinks, embedded drawings (alt text only), and footnote
 // references. Header/footer/comment parts are not opened, so their text is
 // excluded by construction.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: stream word/document.xml and render paragraphs, lists, tables, and links as Markdown
 func docxRenderBody(d *boundedXMLDecoder, st *docxState) error {
 	c := &docxRenderCtx{d: d, st: st, first: true}
 	for {
@@ -345,6 +361,7 @@ func docxRenderBody(d *boundedXMLDecoder, st *docxState) error {
 
 // writeText routes a text fragment to the right buffer based on the current
 // nesting context (hyperlink > table cell > paragraph).
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: route a text fragment to the active hyperlink, table cell, or paragraph buffer (pure)
 func (c *docxRenderCtx) writeText(s string) {
 	if n := len(c.hyperlinks); n > 0 {
 		c.hyperlinks[n-1].buf.WriteString(s)
@@ -360,6 +377,7 @@ func (c *docxRenderCtx) writeText(s string) {
 }
 
 // emitPara flushes the current paragraph (if any) to the markdown buffer.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: flush the current paragraph to the Markdown buffer with heading or list prefix
 func (c *docxRenderCtx) emitPara() error {
 	if c.p == nil {
 		return nil
@@ -408,6 +426,7 @@ func (c *docxRenderCtx) emitPara() error {
 // maintains a running counter per (numId, ilvl) keyed list. Counters reset when
 // more than one non-list paragraph appears between consecutive items at the
 // same key. Unknown formats and missing numbering.xml fall back to "-".
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: compute the Markdown list prefix for a list-item paragraph, maintaining ordinal counters (pure)
 func docxListMarker(st *docxState, p *docxParaState) string {
 	docxLoadNumbering(st)
 	numID := p.listNumID
@@ -443,6 +462,7 @@ func docxListMarker(st *docxState, p *docxParaState) string {
 
 // docxFormatOrdinal renders n in the requested numFmt style. Unknown formats
 // fall back to decimal.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: convert an ordinal number to a string in the requested DOCX numFmt style (pure)
 func docxFormatOrdinal(fmtName string, n int) string {
 	switch fmtName {
 	case "decimal", "ordinal", "cardinalText", "ordinalText",
@@ -465,6 +485,7 @@ func docxFormatOrdinal(fmtName string, n int) string {
 // docxAlphabetic produces an Excel-style spreadsheet column label using the
 // supplied base letter ('a' or 'A'). 1->a, 2->b, ..., 26->z, 27->aa, 28->ab.
 // Returns "?" when n <= 0 to keep output deterministic.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: convert a positive integer to an Excel-style alphabetic column label (pure)
 func docxAlphabetic(n int, base rune) string {
 	if n <= 0 {
 		return "?"
@@ -480,6 +501,7 @@ func docxAlphabetic(n int, base rune) string {
 
 // docxRoman renders n as upper-case Roman numerals. Falls back to decimal for
 // n <= 0 or n > 3999 (outside classical Roman range).
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: convert a positive integer to upper-case Roman numeral string (pure)
 func docxRoman(n int) string {
 	if n <= 0 || n > 3999 {
 		return itoa(n)
@@ -504,6 +526,7 @@ func docxRoman(n int) string {
 // rendering. Idempotent — only the first call does work.
 // docxAttrLocalName scans a list of XML attributes for the first one whose
 // local name matches; returns the value or "" if not present.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: search XML attributes for a named attribute and return its value (pure)
 func docxAttrLocalName(attrs []xml.Attr, name string) string {
 	for _, a := range attrs {
 		if a.Name.Local == name {
@@ -516,6 +539,7 @@ func docxAttrLocalName(attrs []xml.Attr, name string) string {
 const docxAttrVal = "val"
 
 // docxNumberingState carries the running parser state for word/numbering.xml.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parser state for streaming word/numbering.xml to build list format maps (pure)
 type docxNumberingState struct {
 	curAbstractID string
 	curNumID      string
@@ -525,6 +549,7 @@ type docxNumberingState struct {
 	inLvl         bool
 }
 
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: dispatch a numbering.xml start element to update abstract format and numId maps (pure)
 func docxNumberingHandleStart(st *docxNumberingState, t xml.StartElement, abstractFormats map[string]map[int]string, numToAbstract map[string]string) {
 	switch t.Name.Local {
 	case "abstractNum":
@@ -556,6 +581,7 @@ func docxNumberingHandleStart(st *docxNumberingState, t xml.StartElement, abstra
 	}
 }
 
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: dispatch a numbering.xml end element to reset active abstract/num/level state (pure)
 func docxNumberingHandleEnd(st *docxNumberingState, t xml.EndElement) {
 	switch t.Name.Local {
 	case "abstractNum":
@@ -569,6 +595,7 @@ func docxNumberingHandleEnd(st *docxNumberingState, t xml.EndElement) {
 	}
 }
 
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: lazily parse word/numbering.xml and populate numId-to-format maps in render state
 func docxLoadNumbering(st *docxState) {
 	if st.numberingLoaded {
 		return
@@ -621,6 +648,7 @@ func docxLoadNumbering(st *docxState) {
 
 // parseNonNegInt parses a small non-negative integer. Returns 0 on any parse
 // error or negative input.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse a small non-negative integer string, returning 0 on error (pure)
 func parseNonNegInt(s string) int {
 	n := 0
 	for _, ch := range s {
@@ -637,6 +665,7 @@ func parseNonNegInt(s string) int {
 
 // emitTable renders the accumulated table state as a markdown table. The
 // first row becomes the header row; subsequent rows are body rows.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: render the accumulated table rows as a Markdown table into the output buffer
 func (c *docxRenderCtx) emitTable() error {
 	tbl := c.tbl
 	if tbl == nil || len(tbl.rows) == 0 {
@@ -660,6 +689,7 @@ func (c *docxRenderCtx) emitTable() error {
 // handleStart dispatches start-element events. Only w:* and wp:docPr are
 // handled; everything else is ignored. Returns errors from text decoding or
 // markdown buffer overruns.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: dispatch a DOCX start element event to update rendering context or emit content
 func (c *docxRenderCtx) handleStart(t xml.StartElement) error {
 	if t.Name.Space == wpMLNS && t.Name.Local == "docPr" {
 		c.handleDrawingDocPr(t)
@@ -711,6 +741,7 @@ func (c *docxRenderCtx) handleStart(t xml.StartElement) error {
 }
 
 // handleEnd dispatches end-element events for w:* elements.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: dispatch a DOCX end element event to close paragraphs, cells, rows, or tables
 func (c *docxRenderCtx) handleEnd(t xml.EndElement) error {
 	if t.Name.Space != wordMLNS {
 		return nil
@@ -738,6 +769,7 @@ func (c *docxRenderCtx) handleEnd(t xml.EndElement) error {
 	return nil
 }
 
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: flush a paragraph end, emitting to Markdown or separating table cell paragraphs
 func (c *docxRenderCtx) handleParaEnd() error {
 	if c.tbl == nil {
 		return c.emitPara()
@@ -750,6 +782,7 @@ func (c *docxRenderCtx) handleParaEnd() error {
 	return nil
 }
 
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: emit an image placeholder with alt text from a wp:docPr drawing element (pure)
 func (c *docxRenderCtx) handleDrawingDocPr(t xml.StartElement) {
 	var descr string
 	for _, a := range t.Attr {
@@ -765,6 +798,7 @@ func (c *docxRenderCtx) handleDrawingDocPr(t xml.StartElement) {
 	c.writeText("![" + descr + "](image-" + itoa(c.st.imageCounter) + ")")
 }
 
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse a paragraph style element to set heading level on the current paragraph state (pure)
 func (c *docxRenderCtx) handlePStyle(t xml.StartElement) {
 	if c.p == nil {
 		return
@@ -780,6 +814,7 @@ func (c *docxRenderCtx) handlePStyle(t xml.StartElement) {
 	}
 }
 
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse list indent level from XML attribute and store on current paragraph (pure)
 func (c *docxRenderCtx) handleIlvl(t xml.StartElement) {
 	if c.p == nil || !c.p.isListItem {
 		return
@@ -804,6 +839,7 @@ func (c *docxRenderCtx) handleIlvl(t xml.StartElement) {
 	}
 }
 
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse list numbering ID from XML attribute and store on current paragraph (pure)
 func (c *docxRenderCtx) handleNumID(t xml.StartElement) {
 	if c.p == nil || !c.p.isListItem {
 		return
@@ -816,6 +852,7 @@ func (c *docxRenderCtx) handleNumID(t xml.StartElement) {
 	}
 }
 
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: register a footnote reference and emit its markdown anchor inline (mutates shared state)
 func (c *docxRenderCtx) handleFootnoteReference(t xml.StartElement) {
 	var id string
 	for _, a := range t.Attr {
@@ -837,6 +874,7 @@ func (c *docxRenderCtx) handleFootnoteReference(t xml.StartElement) {
 	c.writeText("[^" + id + "]")
 }
 
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: push a new hyperlink frame onto the stack, resolving the relationship target (mutates shared state)
 func (c *docxRenderCtx) handleHyperlinkStart(t xml.StartElement) {
 	docxLoadRels(c.st)
 	var target string
@@ -849,6 +887,7 @@ func (c *docxRenderCtx) handleHyperlinkStart(t xml.StartElement) {
 	c.hyperlinks = append(c.hyperlinks, &docxHyperlinkFrame{target: target})
 }
 
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: pop the hyperlink frame and emit the buffered inner text as a markdown link (mutates shared state)
 func (c *docxRenderCtx) handleHyperlinkEnd() {
 	n := len(c.hyperlinks)
 	if n == 0 {
@@ -867,6 +906,7 @@ func (c *docxRenderCtx) handleHyperlinkEnd() {
 // itoa converts an int to a decimal string without importing strconv in this file.
 // Package-private copy for pkg/extract; relocated alongside the docx extractor
 // from api/timmy_embedding_automation_handlers.go where the monolith keeps its own copy.
+// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: convert an integer to its decimal string representation (pure)
 func itoa(n int) string {
 	if n == 0 {
 		return "0"

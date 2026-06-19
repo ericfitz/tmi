@@ -6,6 +6,7 @@ import (
 
 // RepositoryRepository defines the interface for repository operations with caching support.
 // (Yes, the doubled name is awkward; the entity is named "Repository" in the API spec.)
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: interface for CRUD, soft-delete, patch, pagination, bulk create, and cache operations on repository entities
 type RepositoryRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, repository *Repository, threatModelID string) error

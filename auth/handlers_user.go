@@ -11,6 +11,7 @@ import (
 
 // MeLogout revokes the caller's own JWT token
 // This is a convenience endpoint that doesn't require passing the token in the body
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: revoke the caller's own JWT access token and clear session cookies (mutates shared state)
 func (h *Handlers) MeLogout(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -65,11 +66,13 @@ func (h *Handlers) MeLogout(c *gin.Context) {
 
 // Logout is deprecated - use RevokeToken for RFC 7009 compliance or MeLogout for self-logout
 // Kept for backward compatibility, delegates to MeLogout
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: deprecated alias that delegates to MeLogout for backward compatibility
 func (h *Handlers) Logout(c *gin.Context) {
 	h.MeLogout(c)
 }
 
 // Me returns the current user
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: return the authenticated user's profile with groups and admin status (reads DB)
 func (h *Handlers) Me(c *gin.Context) {
 	// Get the full user object from Gin context (set by JWT middleware)
 	userInterface, exists := c.Get(string(UserContextKey))

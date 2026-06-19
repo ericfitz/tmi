@@ -12,12 +12,14 @@ import (
 )
 
 // ThreatModelDiagramHandler provides handlers for diagram operations within threat models
+// SEM@314192db3f19e15fbbe44e914b7adf29f1816602: HTTP handler for diagram CRUD and collaboration scoped under a threat model (pure)
 type ThreatModelDiagramHandler struct {
 	// WebSocket hub for collaboration sessions
 	wsHub *WebSocketHub
 }
 
 // NewThreatModelDiagramHandler creates a new handler for diagrams within threat models
+// SEM@314192db3f19e15fbbe44e914b7adf29f1816602: build a ThreatModelDiagramHandler wired to the WebSocket hub (pure)
 func NewThreatModelDiagramHandler(wsHub *WebSocketHub) *ThreatModelDiagramHandler {
 	return &ThreatModelDiagramHandler{
 		wsHub: wsHub,
@@ -25,6 +27,7 @@ func NewThreatModelDiagramHandler(wsHub *WebSocketHub) *ThreatModelDiagramHandle
 }
 
 // GetDiagrams returns a list of diagrams for a threat model
+// SEM@56c7ade8aa871465aa5ecb657172ddbf41f9112e: list diagrams for a threat model with pagination (reads DB)
 func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId string) {
 	// Parse pagination parameters
 	limit := parseIntParam(c.DefaultQuery("limit", "20"), 20)
@@ -104,7 +107,9 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 }
 
 // CreateDiagram creates a new diagram for a threat model
+// SEM@f24c94ac3b48082482bcf5b8e9642017897fe3b6: create a new diagram under a threat model and return its location (reads DB)
 func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId string) {
+	// SEM@fa90788260b7ad67805c563575b948d3d1607a99: request body shape for creating a diagram under a threat model (pure)
 	type CreateThreatModelDiagramRequest struct {
 		Name        string  `json:"name" binding:"required"`
 		Type        string  `json:"type" binding:"required"`
@@ -190,6 +195,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 }
 
 // GetDiagramByID retrieves a specific diagram within a threat model
+// SEM@533fc769067d317cc10f227729848688da16fba0: fetch a single diagram by ID after verifying parent threat model ownership (reads DB)
 func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId, diagramId string) {
 	// Validate ID formats
 	if _, err := ParseUUID(threatModelId); err != nil {
@@ -245,6 +251,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 }
 
 // UpdateDiagram fully updates a diagram within a threat model
+// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: fully replace a diagram's content with optimistic locking; rejects active collaboration sessions (reads DB)
 func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId, diagramId string) {
 	// AuthzMiddleware (#365) has already enforced ownership=writer on this
 	// route. Identity is still pulled from the JWT for audit/log lines below.
@@ -380,6 +387,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 }
 
 // PatchDiagram partially updates a diagram within a threat model
+// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: apply JSON Patch operations to a diagram with optimistic locking; rejects active sessions (reads DB)
 func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, diagramId string) {
 	// Similar to UpdateDiagram but with JSON Patch operations
 	// For brevity, this implementation is simplified
@@ -524,6 +532,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 }
 
 // DeleteDiagram deletes a diagram within a threat model
+// SEM@533fc769067d317cc10f227729848688da16fba0: soft-delete a diagram under a threat model; rejects active collaboration sessions (reads DB)
 func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId, diagramId string) {
 	// AuthzMiddleware (#365) has already enforced ownership=owner on this
 	// route. Load the threat model to verify diagram parentage below.
@@ -581,6 +590,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 }
 
 // GetDiagramCollaborate gets collaboration session status for a diagram within a threat model
+// SEM@533fc769067d317cc10f227729848688da16fba0: fetch the active collaboration session status for a diagram (reads DB)
 func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threatModelId, diagramId string) {
 	// AuthzMiddleware (#365) has already enforced ownership=reader on this
 	// route. Identity is still pulled from the JWT for the participant-list
@@ -642,6 +652,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 }
 
 // CreateDiagramCollaborate creates a new collaboration session for a diagram within a threat model
+// SEM@533fc769067d317cc10f227729848688da16fba0: create or retrieve a WebSocket collaboration session for a diagram (reads DB)
 func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, threatModelId, diagramId string) {
 	// Similar to DiagramHandler.PostDiagramCollaborate but with threat model access check
 	// For brevity, this implementation is simplified
@@ -713,6 +724,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 }
 
 // DeleteDiagramCollaborate leaves a collaboration session for a diagram within a threat model
+// SEM@533fc769067d317cc10f227729848688da16fba0: leave or close a collaboration session; host closes, other participants disconnect (mutates shared state)
 func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, threatModelId, diagramId string) {
 	// Similar to DiagramHandler.DeleteDiagramCollaborate but with threat model access check
 	// For brevity, this implementation is simplified
@@ -777,6 +789,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 }
 
 // areSlicesEqual compares two slices of DfdDiagram_Cells_Item for equality
+// SEM@46c5960fcabe5dcd3f7014239dc4a8ed43579299: compare two diagram cell slices for deep equality (pure)
 func areSlicesEqual(a, b []DfdDiagram_Cells_Item) bool {
 	if len(a) != len(b) {
 		return false
@@ -805,6 +818,7 @@ func areSlicesEqual(a, b []DfdDiagram_Cells_Item) bool {
 //   - Query parameter (legacy): ?format=json|yaml|graphml
 //   - Query parameter takes precedence if both are specified
 //   - Default: application/json
+// SEM@533fc769067d317cc10f227729848688da16fba0: fetch a minimal diagram model for automated threat modeling tools with content negotiation (reads DB)
 func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelId, diagramId openapi_types.UUID, params GetDiagramModelParams) {
 	// Determine output format using content negotiation
 	// Priority: 1) ?format query param, 2) Accept header, 3) default to JSON

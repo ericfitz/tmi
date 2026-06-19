@@ -24,6 +24,7 @@ import (
 // rows (the cascade-update legitimate no-children case). We swallow that exact
 // string and let every other error — including transient ADB errors — propagate
 // so WithRetryableGormTransaction can retry.
+// SEM@579b4f4aa29012b989445d1a6ef052ac48216b93: validate whether a GORM error is the Oracle driver's spurious no-rows pseudo-error (pure)
 func isOracleSpuriousNoRowsErr(err error) bool {
 	if err == nil {
 		return false
@@ -32,14 +33,17 @@ func isOracleSpuriousNoRowsErr(err error) bool {
 }
 
 // contextKeyIncludeDeleted is used to pass include_deleted flag through context
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: context key type for propagating the include-deleted flag through request context (pure)
 type contextKeyIncludeDeleted struct{}
 
 // ContextWithIncludeDeleted returns a context with include_deleted set
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: build a context that signals include-deleted queries are authorized (pure)
 func ContextWithIncludeDeleted(ctx context.Context) context.Context {
 	return context.WithValue(ctx, contextKeyIncludeDeleted{}, true)
 }
 
 // includeDeletedFromContext returns whether include_deleted is set in the context
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: fetch the include-deleted flag from a request context (pure)
 func includeDeletedFromContext(ctx context.Context) bool {
 	v, _ := ctx.Value(contextKeyIncludeDeleted{}).(bool)
 	return v
@@ -48,6 +52,7 @@ func includeDeletedFromContext(ctx context.Context) bool {
 // AuthorizeIncludeDeleted checks whether the authenticated user has owner or admin role,
 // which is required to use the include_deleted query parameter. Returns true if authorized.
 // If not authorized, sends a 403 response and returns false.
+// SEM@52360c4fb265990438f8595b7c8d0480a12f9979: authorize the include_deleted parameter for owner or admin role; send 403 if denied
 func AuthorizeIncludeDeleted(c *gin.Context) bool {
 	// Check if user is an administrator
 	isAdmin, _ := IsUserAdministrator(c)
@@ -73,6 +78,7 @@ func AuthorizeIncludeDeleted(c *gin.Context) bool {
 // --- GormThreatModelStore tombstone methods ---
 
 // SoftDelete sets deleted_at on a threat model and all its children
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: soft-delete a threat model and cascade deleted_at to all child entities (mutates DB)
 func (s *GormThreatModelStore) SoftDelete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -126,6 +132,7 @@ func (s *GormThreatModelStore) SoftDelete(ctx context.Context, id string) error 
 }
 
 // Restore clears deleted_at on a threat model and all its children
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: restore a soft-deleted threat model and all its child entities (mutates DB)
 func (s *GormThreatModelStore) Restore(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -173,6 +180,7 @@ func (s *GormThreatModelStore) Restore(id string) error {
 }
 
 // HardDelete permanently removes a threat model and all its children (the original Delete behavior)
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: permanently delete a threat model and all its children from the DB (mutates DB)
 func (s *GormThreatModelStore) HardDelete(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -183,6 +191,7 @@ func (s *GormThreatModelStore) HardDelete(id string) error {
 // hardDeleteTx performs the hard delete within a single serializable, retryable
 // transaction. The only caller passes the root *gorm.DB handle (never an
 // in-progress tx), which the retry wrapper requires.
+// SEM@d0742bff5d3b93b3ab7b22df0377398a720a8d9c: permanently delete a threat model, all children, metadata, and access records in one transaction (mutates DB)
 func (s *GormThreatModelStore) hardDeleteTx(db *gorm.DB, id string) error {
 	return authdb.WithRetryableGormTransaction(context.Background(), db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// 1. Get all child entity IDs for metadata cleanup
@@ -260,6 +269,7 @@ func (s *GormThreatModelStore) hardDeleteTx(db *gorm.DB, id string) error {
 }
 
 // GetIncludingDeleted retrieves a threat model by ID without filtering on deleted_at
+// SEM@579b4f4aa29012b989445d1a6ef052ac48216b93: fetch a threat model by ID regardless of its deleted_at status (reads DB)
 func (s *GormThreatModelStore) GetIncludingDeleted(id string) (ThreatModel, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -279,6 +289,7 @@ func (s *GormThreatModelStore) GetIncludingDeleted(id string) (ThreatModel, erro
 // --- GormDiagramStore tombstone methods ---
 
 // SoftDelete sets deleted_at on a diagram and nullifies diagram_id/cell_id on related threats
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: soft-delete a diagram and nullify diagram/cell references on related threats (mutates DB)
 func (s *GormDiagramStore) SoftDelete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -310,6 +321,7 @@ func (s *GormDiagramStore) SoftDelete(ctx context.Context, id string) error {
 }
 
 // Restore clears deleted_at on a diagram
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: restore a soft-deleted diagram by clearing its deleted_at timestamp (mutates DB)
 func (s *GormDiagramStore) Restore(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -327,11 +339,13 @@ func (s *GormDiagramStore) Restore(id string) error {
 }
 
 // HardDelete permanently removes a diagram (original Delete behavior with FK cleanup)
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: permanently delete a diagram with FK cleanup (mutates DB)
 func (s *GormDiagramStore) HardDelete(id string) error {
 	return s.hardDeleteDiagram(id)
 }
 
 // GetIncludingDeleted retrieves a diagram by ID without filtering on deleted_at
+// SEM@579b4f4aa29012b989445d1a6ef052ac48216b93: fetch a diagram by ID regardless of its deleted_at status (reads DB)
 func (s *GormDiagramStore) GetIncludingDeleted(id string) (DfdDiagram, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -352,6 +366,7 @@ func (s *GormDiagramStore) GetIncludingDeleted(id string) (DfdDiagram, error) {
 
 // GormDocumentRepository tombstone methods
 
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: soft-delete a document and invalidate its cache entry (mutates DB)
 func (s *GormDocumentRepository) SoftDelete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -382,6 +397,7 @@ func (s *GormDocumentRepository) SoftDelete(ctx context.Context, id string) erro
 	return nil
 }
 
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: restore a soft-deleted document by clearing its deleted_at timestamp (mutates DB)
 func (s *GormDocumentRepository) Restore(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -398,10 +414,12 @@ func (s *GormDocumentRepository) Restore(ctx context.Context, id string) error {
 	})
 }
 
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: permanently delete a document (mutates DB)
 func (s *GormDocumentRepository) HardDelete(ctx context.Context, id string) error {
 	return s.hardDeleteDocument(ctx, id)
 }
 
+// SEM@579b4f4aa29012b989445d1a6ef052ac48216b93: fetch a document by ID regardless of its deleted_at status, including metadata (reads DB)
 func (s *GormDocumentRepository) GetIncludingDeleted(ctx context.Context, id string) (*Document, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -426,6 +444,7 @@ func (s *GormDocumentRepository) GetIncludingDeleted(ctx context.Context, id str
 
 // GormNoteRepository tombstone methods
 
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: soft-delete a note and invalidate its cache entry (mutates DB)
 func (s *GormNoteRepository) SoftDelete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -452,6 +471,7 @@ func (s *GormNoteRepository) SoftDelete(ctx context.Context, id string) error {
 	return nil
 }
 
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: restore a soft-deleted note by clearing its deleted_at timestamp (mutates DB)
 func (s *GormNoteRepository) Restore(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -468,10 +488,12 @@ func (s *GormNoteRepository) Restore(ctx context.Context, id string) error {
 	})
 }
 
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: permanently delete a note (mutates DB)
 func (s *GormNoteRepository) HardDelete(ctx context.Context, id string) error {
 	return s.hardDeleteNote(ctx, id)
 }
 
+// SEM@579b4f4aa29012b989445d1a6ef052ac48216b93: fetch a note by ID regardless of its deleted_at status, including metadata (reads DB)
 func (s *GormNoteRepository) GetIncludingDeleted(ctx context.Context, id string) (*Note, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -496,6 +518,7 @@ func (s *GormNoteRepository) GetIncludingDeleted(ctx context.Context, id string)
 
 // GormRepositoryRepository tombstone methods
 
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: soft-delete a repository and invalidate its cache entry (mutates DB)
 func (s *GormRepositoryRepository) SoftDelete(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -522,6 +545,7 @@ func (s *GormRepositoryRepository) SoftDelete(ctx context.Context, id string) er
 	return nil
 }
 
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: restore a soft-deleted repository by clearing its deleted_at timestamp (mutates DB)
 func (s *GormRepositoryRepository) Restore(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -538,10 +562,12 @@ func (s *GormRepositoryRepository) Restore(ctx context.Context, id string) error
 	})
 }
 
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: permanently delete a repository (mutates DB)
 func (s *GormRepositoryRepository) HardDelete(ctx context.Context, id string) error {
 	return s.hardDeleteRepository(ctx, id)
 }
 
+// SEM@579b4f4aa29012b989445d1a6ef052ac48216b93: fetch a repository by ID regardless of its deleted_at status, including metadata (reads DB)
 func (s *GormRepositoryRepository) GetIncludingDeleted(ctx context.Context, id string) (*Repository, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -566,6 +592,7 @@ func (s *GormRepositoryRepository) GetIncludingDeleted(ctx context.Context, id s
 
 // GormAssetRepository tombstone methods
 
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: soft-delete an asset and invalidate its cache entry (mutates DB)
 func (s *GormAssetRepository) SoftDelete(ctx context.Context, id string) error {
 	now := time.Now().UTC()
 	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
@@ -589,6 +616,7 @@ func (s *GormAssetRepository) SoftDelete(ctx context.Context, id string) error {
 	return nil
 }
 
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: restore a soft-deleted asset by clearing its deleted_at timestamp (mutates DB)
 func (s *GormAssetRepository) Restore(ctx context.Context, id string) error {
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.Asset{ID: models.DBVarchar(id)}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
@@ -602,10 +630,12 @@ func (s *GormAssetRepository) Restore(ctx context.Context, id string) error {
 	})
 }
 
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: permanently delete an asset (mutates DB)
 func (s *GormAssetRepository) HardDelete(ctx context.Context, id string) error {
 	return s.hardDeleteAsset(ctx, id)
 }
 
+// SEM@579b4f4aa29012b989445d1a6ef052ac48216b93: fetch an asset by ID regardless of its deleted_at status, including metadata (reads DB)
 func (s *GormAssetRepository) GetIncludingDeleted(ctx context.Context, id string) (*Asset, error) {
 	var model models.Asset
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id)
@@ -627,6 +657,7 @@ func (s *GormAssetRepository) GetIncludingDeleted(ctx context.Context, id string
 
 // GormThreatRepository tombstone methods
 
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: soft-delete a threat and invalidate its cache entry (mutates DB)
 func (s *GormThreatRepository) SoftDelete(ctx context.Context, id string) error {
 	now := time.Now().UTC()
 	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
@@ -650,6 +681,7 @@ func (s *GormThreatRepository) SoftDelete(ctx context.Context, id string) error 
 	return nil
 }
 
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: restore a soft-deleted threat by clearing its deleted_at timestamp (mutates DB)
 func (s *GormThreatRepository) Restore(ctx context.Context, id string) error {
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.Threat{ID: models.DBVarchar(id)}).Where("deleted_at IS NOT NULL").UpdateColumn("deleted_at", nil)
@@ -663,10 +695,12 @@ func (s *GormThreatRepository) Restore(ctx context.Context, id string) error {
 	})
 }
 
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: permanently delete a threat (mutates DB)
 func (s *GormThreatRepository) HardDelete(ctx context.Context, id string) error {
 	return s.hardDeleteThreat(ctx, id)
 }
 
+// SEM@579b4f4aa29012b989445d1a6ef052ac48216b93: fetch a threat by ID regardless of its deleted_at status (reads DB)
 func (s *GormThreatRepository) GetIncludingDeleted(ctx context.Context, id string) (*Threat, error) {
 	var model models.Threat
 	result := s.db.WithContext(ctx).First(&model, "id = ?", id)

@@ -11,6 +11,7 @@ import (
 // (issue #451) makes the safe behavior the default on both PostgreSQL (SSI)
 // and Oracle ADB (snapshot isolation); weaker levels are an explicit,
 // per-site decision (#449).
+// SEM@e52f9bdea940a3032c58dec83ce3a82fd6b305b7: return Serializable transaction options as the safe default isolation level (pure)
 func serializableTxOptions() *sql.TxOptions {
 	return &sql.TxOptions{Isolation: sql.LevelSerializable}
 }
@@ -32,6 +33,7 @@ func serializableTxOptions() *sql.TxOptions {
 //     that must surface here rather than at BeginTx on Oracle only. Keeping
 //     the allow-list portable also avoids silently diverging PG vs. Oracle
 //     behavior.
+// SEM@e52f9bdea940a3032c58dec83ce3a82fd6b305b7: validate and normalize transaction isolation options, upgrading Default to Serializable (pure)
 func resolveTxOptions(opts []*sql.TxOptions) (*sql.TxOptions, error) {
 	if len(opts) == 0 || opts[0] == nil {
 		return serializableTxOptions(), nil
@@ -62,6 +64,7 @@ func resolveTxOptions(opts []*sql.TxOptions) (*sql.TxOptions, error) {
 // decorrelates retries so contending writers don't re-collide in lockstep
 // after a serialization failure. randN must behave like rand.Int63n (returns
 // [0, n) and panics on n <= 0); it is injected so tests can pin the extremes.
+// SEM@e52f9bdea940a3032c58dec83ce3a82fd6b305b7: compute an equal-jitter exponential backoff delay for a retry attempt (pure)
 func jitteredBackoff(cfg RetryConfig, attempt int, randN func(int64) int64) time.Duration {
 	// #nosec G115 - attempt is always >= 1 here, so the shift is in range.
 	window := cfg.BaseDelay * time.Duration(int64(1)<<uint(attempt-1))

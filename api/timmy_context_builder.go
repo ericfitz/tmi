@@ -6,9 +6,11 @@ import (
 )
 
 // ContextBuilder constructs LLM context from structured data and vector search results
+// SEM@eec102aedf0150afa44dc0d334e7923359c1f2aa: build structured LLM prompt context from threat-model entities and vector search results (pure)
 type ContextBuilder struct{}
 
 // NewContextBuilder creates a new ContextBuilder
+// SEM@eec102aedf0150afa44dc0d334e7923359c1f2aa: build a new ContextBuilder instance (pure)
 func NewContextBuilder() *ContextBuilder {
 	return &ContextBuilder{}
 }
@@ -16,6 +18,7 @@ func NewContextBuilder() *ContextBuilder {
 // BuildTier1Context creates a structured overview of the threat model.
 // This is a placeholder that formats entity names and descriptions.
 // The full implementation will read from stores to get all entity details.
+// SEM@eec102aedf0150afa44dc0d334e7923359c1f2aa: format entity summaries into a structured threat-model overview for an LLM prompt (pure)
 func (cb *ContextBuilder) BuildTier1Context(entitySummaries []EntitySummary) string {
 	if len(entitySummaries) == 0 {
 		return ""
@@ -64,6 +67,7 @@ func (cb *ContextBuilder) BuildTier1Context(entitySummaries []EntitySummary) str
 }
 
 // BuildTier2Context performs vector search and formats results with source attribution
+// SEM@bcbbb37ef77dea47d5a3d7df260c73ad52892c12: search a vector index and format top-K results as attributed source material for an LLM prompt (pure)
 func (cb *ContextBuilder) BuildTier2Context(index *VectorIndex, queryVector []float32, topK int) string {
 	if index == nil || topK <= 0 {
 		return ""
@@ -84,6 +88,7 @@ func (cb *ContextBuilder) BuildTier2Context(index *VectorIndex, queryVector []fl
 // (BuildFullContext) which instructs the model to treat <document> blocks
 // as data, never as commands. This is the same pattern Anthropic recommends
 // for prompt injection mitigation.
+// SEM@bcbbb37ef77dea47d5a3d7df260c73ad52892c12: format pre-fetched vector search results as sandboxed document excerpts for an LLM prompt (pure)
 func (cb *ContextBuilder) BuildTier2ContextFromResults(results []VectorSearchResult) string {
 	if len(results) == 0 {
 		return ""
@@ -108,11 +113,13 @@ func (cb *ContextBuilder) BuildTier2ContextFromResults(results []VectorSearchRes
 // Replacement inserts a zero-width-space (U+200B) inside the tag so the
 // content remains readable to the LLM but the literal "</document>" token
 // is no longer present.
+// SEM@bcbbb37ef77dea47d5a3d7df260c73ad52892c12: neutralize closing document fence tags in attacker-controlled content to prevent prompt injection (pure)
 func escapeUntrustedDocumentContent(s string) string {
 	return strings.ReplaceAll(s, "</document>", "</\u200bdocument>")
 }
 
 // BuildFullContext assembles the complete system prompt with context
+// SEM@eec102aedf0150afa44dc0d334e7923359c1f2aa: assemble a complete LLM system prompt by appending tier-1 and tier-2 context blocks (pure)
 func (cb *ContextBuilder) BuildFullContext(basePrompt, tier1, tier2 string) string {
 	var sb strings.Builder
 	sb.WriteString(basePrompt)
@@ -131,6 +138,7 @@ func (cb *ContextBuilder) BuildFullContext(basePrompt, tier1, tier2 string) stri
 }
 
 // EntitySummary holds a brief summary of an entity for Tier 1 context
+// SEM@eec102aedf0150afa44dc0d334e7923359c1f2aa: brief summary of a threat-model entity used to build tier-1 LLM context (pure)
 type EntitySummary struct {
 	EntityType  string
 	EntityID    string

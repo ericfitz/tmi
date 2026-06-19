@@ -29,12 +29,15 @@ import (
 
 // HostResolver looks up the IPs for a hostname. Implementations must be safe
 // for concurrent use.
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: interface for concurrent-safe hostname-to-IP resolution
 type HostResolver interface {
 	LookupHost(ctx context.Context, host string) ([]string, error)
 }
 
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: system DNS resolver implementation of HostResolver
 type defaultResolver struct{}
 
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: resolve a hostname to IP addresses using the system DNS resolver (pure)
 func (defaultResolver) LookupHost(ctx context.Context, host string) ([]string, error) {
 	return net.DefaultResolver.LookupHost(ctx, host)
 }
@@ -44,6 +47,7 @@ func (defaultResolver) LookupHost(ctx context.Context, host string) ([]string, e
 // space, the cloud-metadata endpoint (169.254.169.254), or any other
 // link-local address. It is the single source of truth for the SSRF IP
 // blocklist shared by api/ and auth/.
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: validate that an IP is not in any SSRF-blocked range (loopback, private, link-local, metadata) (pure)
 func CheckIP(ip net.IP) error {
 	if ip.IsLoopback() {
 		return fmt.Errorf("blocked: loopback address %s", ip)
@@ -67,6 +71,7 @@ func CheckIP(ip net.IP) error {
 // must be blocked before DNS resolution. These usually resolve to loopback (and
 // would be caught by CheckIP), but blocking by name is defense-in-depth against
 // a resolver that maps them elsewhere.
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: validate a hostname as a localhost alias that must be blocked before DNS resolution (pure)
 func IsBlockedLocalhostName(host string) bool {
 	switch strings.ToLower(host) {
 	case "localhost", "ip6-localhost", "ip6-loopback":
@@ -80,6 +85,7 @@ func IsBlockedLocalhostName(host string) bool {
 // hostname it resolves once, rejects the dial if ANY resolved IP is blocked,
 // and dials the first resolved IP — closing the validate/connect DNS-rebinding
 // window. For a literal IP it validates directly.
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: SSRF-resistant dialer that validates and pins outbound connections to a blocklist-cleared IP (pure)
 type PinningDialer struct {
 	resolver  HostResolver
 	dialer    *net.Dialer
@@ -91,6 +97,7 @@ type PinningDialer struct {
 // host, bypasses the SSRF blocklist for that host; it is intended only for
 // tests that must reach a loopback httptest server and is never set in
 // production. dialTimeout defaults to 10s when non-positive.
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: build a PinningDialer with configurable resolver, allow-list bypass, and dial timeout (pure)
 func NewPinningDialer(resolver HostResolver, allowHost func(host string) bool, dialTimeout time.Duration) *PinningDialer {
 	if resolver == nil {
 		resolver = defaultResolver{}
@@ -106,6 +113,7 @@ func NewPinningDialer(resolver HostResolver, allowHost func(host string) bool, d
 }
 
 // DialContext validates network/addr and dials a pinned, blocklist-cleared IP.
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: validate dial target against SSRF blocklist and connect to a pinned, blocklist-cleared IP
 func (d *PinningDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -156,11 +164,13 @@ func (d *PinningDialer) DialContext(ctx context.Context, network, addr string) (
 // runtime-mutable settings; following a redirect (Go re-sends the request body
 // on 307/308) would let a hostile or compromised endpoint bounce a
 // secret-bearing request to an internal or attacker-chosen target (SSRF).
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: reject all HTTP redirects to prevent SSRF via redirect-bounce on provider endpoints (pure)
 func RefuseRedirects(req *http.Request, _ []*http.Request) error {
 	return fmt.Errorf("refusing to follow redirect to %s: outbound provider endpoints must not redirect", req.URL.Redacted())
 }
 
 // HardenedClientOptions configures NewHardenedClient.
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: configuration options for building an SSRF-resistant outbound HTTP client (pure)
 type HardenedClientOptions struct {
 	// Timeout is the overall per-request timeout (http.Client.Timeout). A
 	// non-positive value leaves the client with no overall timeout (callers
@@ -188,6 +198,7 @@ type HardenedClientOptions struct {
 // Proxy support is intentionally disabled: routing through an HTTP proxy would
 // resolve the target host at the proxy and defeat dial-time IP pinning,
 // reopening the SSRF hole this client closes.
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: build an HTTP client with IP-pinning, SSRF blocklist enforcement, and redirect refusal (pure)
 func NewHardenedClient(opts HardenedClientOptions) *http.Client {
 	pd := NewPinningDialer(opts.Resolver, opts.AllowHost, opts.DialTimeout)
 

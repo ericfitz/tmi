@@ -10,6 +10,7 @@ import (
 )
 
 // ProviderInfo contains information about an OAuth provider
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: public OAuth provider metadata returned to clients
 type ProviderInfo struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -21,6 +22,7 @@ type ProviderInfo struct {
 }
 
 // SAMLProviderInfo contains public information about a SAML provider
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: public SAML provider metadata returned to clients
 type SAMLProviderInfo struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -34,6 +36,7 @@ type SAMLProviderInfo struct {
 }
 
 // GetProviders returns the available OAuth providers
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: list enabled OAuth providers with their public endpoint URLs
 func (h *Handlers) GetProviders(c *gin.Context) {
 	var enabledProviders map[string]OAuthProviderConfig
 
@@ -80,6 +83,7 @@ func (h *Handlers) GetProviders(c *gin.Context) {
 }
 
 // GetSAMLProviders returns the available SAML providers
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: list enabled SAML providers with initialization status and public URLs
 func (h *Handlers) GetSAMLProviders(c *gin.Context) {
 	// Return empty array if SAML disabled
 	if !h.samlEnabled(c.Request.Context()) {
@@ -159,6 +163,7 @@ func (h *Handlers) GetSAMLProviders(c *gin.Context) {
 // ensureSAMLProvider lazy-initializes a DB-sourced SAML provider if needed,
 // then returns it from the SAMLManager. Returns an error if the provider is
 // not found in the registry or cannot be initialized.
+// SEM@d398eb8185c6257f8aeade7ded4b474735df44ce: lazy-initialize a SAML provider from registry if not yet initialized
 func (h *Handlers) ensureSAMLProvider(samlManager *SAMLManager, providerID string) error {
 	if samlManager.IsProviderInitialized(providerID) {
 		return nil
@@ -182,6 +187,7 @@ func (h *Handlers) ensureSAMLProvider(samlManager *SAMLManager, providerID strin
 // ID. The OAuth callback URL is fetched from the runtime config reader
 // (DB-backed) when wired, falling back to the YAML snapshot when not
 // (e.g. in unit tests).
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: fetch an OAuth provider instance for a given provider ID using runtime config
 func (h *Handlers) getProviderWithContext(ctx context.Context, providerID string) (Provider, error) {
 	var providerConfig OAuthProviderConfig
 	var exists bool

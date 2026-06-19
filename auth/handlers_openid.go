@@ -11,6 +11,7 @@ import (
 )
 
 // OpenIDConfiguration represents the OpenID Connect Discovery metadata
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: DTO carrying OIDC discovery metadata fields (pure)
 type OpenIDConfiguration struct {
 	Issuer                            string   `json:"issuer"`
 	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
@@ -31,6 +32,7 @@ type OpenIDConfiguration struct {
 }
 
 // OAuthAuthorizationServerMetadata represents OAuth 2.0 Authorization Server Metadata
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: DTO carrying RFC 8414 authorization server metadata fields (pure)
 type OAuthAuthorizationServerMetadata struct {
 	Issuer                            string   `json:"issuer"`
 	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
@@ -47,6 +49,7 @@ type OAuthAuthorizationServerMetadata struct {
 }
 
 // OAuthProtectedResourceMetadata represents OAuth 2.0 protected resource metadata as defined in RFC 9728
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: DTO carrying RFC 9728 protected resource metadata fields (pure)
 type OAuthProtectedResourceMetadata struct {
 	Resource                              string   `json:"resource"`
 	ScopesSupported                       []string `json:"scopes_supported,omitempty"`
@@ -59,6 +62,7 @@ type OAuthProtectedResourceMetadata struct {
 }
 
 // GetOpenIDConfiguration returns OpenID Connect Discovery metadata
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: handle GET /.well-known/openid-configuration and return OIDC discovery document
 func (h *Handlers) GetOpenIDConfiguration(c *gin.Context) {
 	baseURL := getBaseURL(c)
 
@@ -88,6 +92,7 @@ func (h *Handlers) GetOpenIDConfiguration(c *gin.Context) {
 }
 
 // GetOAuthAuthorizationServerMetadata returns OAuth 2.0 Authorization Server metadata
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: handle GET /.well-known/oauth-authorization-server and return RFC 8414 metadata
 func (h *Handlers) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
 	baseURL := getBaseURL(c)
 
@@ -110,6 +115,7 @@ func (h *Handlers) GetOAuthAuthorizationServerMetadata(c *gin.Context) {
 }
 
 // GetOAuthProtectedResourceMetadata returns OAuth 2.0 protected resource metadata as per RFC 9728
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: handle GET /.well-known/oauth-protected-resource and return RFC 9728 metadata
 func (h *Handlers) GetOAuthProtectedResourceMetadata(c *gin.Context) {
 	baseURL := getBaseURL(c)
 
@@ -129,11 +135,13 @@ func (h *Handlers) GetOAuthProtectedResourceMetadata(c *gin.Context) {
 }
 
 // JWKSResponse represents a JSON Web Key Set response
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: DTO wrapping a JSON Web Key Set response (pure)
 type JWKSResponse struct {
 	Keys []JWK `json:"keys"`
 }
 
 // JWK represents a JSON Web Key
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: DTO representing a single JSON Web Key with RSA and ECDSA fields (pure)
 type JWK struct {
 	KeyType   string   `json:"kty"`
 	Use       string   `json:"use,omitempty"`
@@ -150,6 +158,7 @@ type JWK struct {
 }
 
 // createJWKFromPublicKey creates a JWK from a public key
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: convert an RSA or ECDSA public key to a JWK suitable for the JWKS endpoint (pure)
 func (h *Handlers) createJWKFromPublicKey(publicKey any, signingMethod string) (*JWK, error) {
 	jwk := &JWK{
 		Use:       "sig",
@@ -197,10 +206,12 @@ func (h *Handlers) createJWKFromPublicKey(publicKey any, signingMethod string) (
 }
 
 // Helper functions for JWK creation
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: encode bytes as unpadded base64url string (pure)
 func base64URLEncode(data []byte) string {
 	return base64.RawURLEncoding.EncodeToString(data)
 }
 
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: convert an integer to its minimal big-endian byte representation (pure)
 func intToBytes(i int) []byte {
 	// Convert int to big-endian bytes
 	if i == 0 {
@@ -216,6 +227,7 @@ func intToBytes(i int) []byte {
 }
 
 // GetJWKS returns the JSON Web Key Set for JWT signature verification
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: handle GET /.well-known/jwks.json and return the server's public signing key set
 func (h *Handlers) GetJWKS(c *gin.Context) {
 	jwks := JWKSResponse{
 		Keys: []JWK{},

@@ -8,6 +8,7 @@ import (
 )
 
 // Notification represents a database notification event
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: database notification event carrying a channel name, payload, and timestamp
 type Notification struct {
 	// Channel is the notification channel name
 	Channel string
@@ -22,6 +23,7 @@ type Notification struct {
 // NotificationService defines the interface for database notifications
 // This abstraction allows the application to work with both PostgreSQL's
 // LISTEN/NOTIFY mechanism and Oracle's polling-based approach.
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: interface for subscribing to and sending database notifications across DB backends
 type NotificationService interface {
 	// Subscribe starts listening for notifications on the specified channel.
 	// It returns a channel that will receive notifications.
@@ -38,6 +40,7 @@ type NotificationService interface {
 }
 
 // Config holds configuration for the notification service
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: configuration for the notification service including DB type and polling settings
 type Config struct {
 	// DatabaseType is "postgres" or "oracle"
 	DatabaseType string
@@ -53,6 +56,7 @@ type Config struct {
 }
 
 // DefaultConfig returns a default configuration
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: build a default notification service config for the given database type (pure)
 func DefaultConfig(databaseType string) Config {
 	return Config{
 		DatabaseType:     databaseType,

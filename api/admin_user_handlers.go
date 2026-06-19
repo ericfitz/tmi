@@ -16,6 +16,7 @@ import (
 )
 
 // ListAdminUsers handles GET /admin/users
+// SEM@6b85a6fabc237d03c99bf64a10eb26dfeaf09d3b: list all users with pagination and optional filtering via admin API (reads DB)
 func (s *Server) ListAdminUsers(c *gin.Context, params ListAdminUsersParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -126,6 +127,7 @@ func (s *Server) ListAdminUsers(c *gin.Context, params ListAdminUsersParams) {
 }
 
 // GetAdminUser handles GET /admin/users/{internal_uuid}
+// SEM@6a6c15749391c2817c30c64c8b54f8e0a4082a91: fetch a single user record by internal UUID via admin API (reads DB)
 func (s *Server) GetAdminUser(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -179,6 +181,7 @@ func (s *Server) GetAdminUser(c *gin.Context, internalUuid openapi_types.UUID) {
 // Note: UpdateAdminUserRequest is now generated from OpenAPI spec in api.go
 
 // UpdateAdminUser handles PATCH /admin/users/{internal_uuid}
+// SEM@6a6c15749391c2817c30c64c8b54f8e0a4082a91: update a user's admin-managed fields by internal UUID (mutates shared state)
 func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -283,6 +286,7 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 }
 
 // DeleteAdminUser handles DELETE /admin/users/{internal_uuid}
+// SEM@a870b93778753735e380098f91f8c25076bbb50a: delete a user account by internal UUID, preventing self-deletion (mutates shared state)
 func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 

@@ -13,6 +13,7 @@ import (
 // gated admin route. Each gated route MUST have a descriptor; a route without
 // one falls back to "field_path = method + path, no old/new values" — that
 // fallback is a defense-in-depth bug-catcher, not a routine code path.
+// SEM@9145716fc603b05b80fc2f976dec74110f64abcb: descriptor struct binding an HTTP method and path template to audit field and value extractor functions (pure)
 type auditDescriptor struct {
 	Method      string
 	PathTpl     string // OpenAPI path template, e.g. /admin/settings/{key}
@@ -24,6 +25,7 @@ type auditDescriptor struct {
 
 // SystemSettingReader is a narrow interface implemented by the system-settings
 // store; the descriptor table uses it to read the current value before a write.
+// SEM@9145716fc603b05b80fc2f976dec74110f64abcb: narrow interface for reading a system setting value by key before an admin write
 type SystemSettingReader interface {
 	Read(c *gin.Context, key string) string
 }
@@ -31,6 +33,7 @@ type SystemSettingReader interface {
 // adminAuditDescriptors returns the descriptors for all gated admin routes.
 // Adding a gated route requires adding an entry here; a unit test asserts
 // coverage (#355).
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: build the full audit descriptor table for all gated admin routes (pure)
 func adminAuditDescriptors(reader SystemSettingReader) []auditDescriptor {
 	read := func(c *gin.Context, key string) string {
 		if reader == nil {
@@ -256,6 +259,7 @@ func adminAuditDescriptors(reader SystemSettingReader) []auditDescriptor {
 // string. Used to extract "value" from PUT /admin/settings/{key} bodies.
 // Returns "" on any parse error or missing field — the audit row degrades
 // gracefully rather than failing the admin write.
+// SEM@9145716fc603b05b80fc2f976dec74110f64abcb: parse a single top-level field from a JSON object body, returning empty string on any error (pure)
 func extractJSONField(body []byte, field string) string {
 	if len(body) == 0 {
 		return ""
@@ -278,6 +282,7 @@ func extractJSONField(body []byte, field string) string {
 
 // readBodyForCapture buffers the body and returns a fresh reader for the handler.
 // Used by AdminAuditMiddleware to capture the request body before passing it on.
+// SEM@9145716fc603b05b80fc2f976dec74110f64abcb: buffer and restore the request body so audit middleware can read it without consuming it (mutates shared state)
 func readBodyForCapture(c *gin.Context) ([]byte, error) {
 	if c.Request.Body == nil {
 		return nil, nil

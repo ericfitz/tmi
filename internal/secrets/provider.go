@@ -20,6 +20,7 @@ var (
 )
 
 // Provider defines the interface for secrets providers
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: interface for fetching and listing secrets from a backing store
 type Provider interface {
 	// GetSecret retrieves a secret value by its key.
 	// Returns ErrSecretNotFound if the secret doesn't exist.
@@ -37,6 +38,7 @@ type Provider interface {
 }
 
 // ProviderType represents the type of secrets provider
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: string alias identifying a secrets backend (env, aws, oci, etc.) (pure)
 type ProviderType string
 
 // Provider type constants
@@ -51,6 +53,7 @@ const (
 
 // NewProvider creates a new secrets provider based on configuration.
 // If no provider is configured, it defaults to the environment variable provider.
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: build a secrets provider from config, defaulting to the environment variable backend
 func NewProvider(ctx context.Context, cfg *config.SecretsConfig) (Provider, error) {
 	logger := slogging.Get()
 

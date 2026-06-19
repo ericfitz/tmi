@@ -1,6 +1,7 @@
 package saml
 
 // SAMLConfig represents the configuration for a SAML identity provider
+// SEM@7e40aae7f066b1d045faeff914884107bde40f0e: full configuration for a SAML identity provider including SP keys and attribute mapping
 type SAMLConfig struct {
 	// Basic configuration
 	ID      string `json:"id" yaml:"id"`           // Provider ID (e.g., "saml_okta")
@@ -32,6 +33,7 @@ type SAMLConfig struct {
 }
 
 // AttributeNames defines standard SAML attribute names
+// SEM@0dcfe60d024e5cd95a40b61fc489253e670af6ce: set of standard SAML claim attribute names for user profile fields
 type AttributeNames struct {
 	Email      string
 	Name       string
@@ -42,6 +44,7 @@ type AttributeNames struct {
 }
 
 // DefaultAttributeNames returns common SAML attribute names
+// SEM@0dcfe60d024e5cd95a40b61fc489253e670af6ce: return WS-Federation schema SAML attribute names for common profile claims (pure)
 func DefaultAttributeNames() AttributeNames {
 	return AttributeNames{
 		Email:      "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
@@ -54,6 +57,7 @@ func DefaultAttributeNames() AttributeNames {
 }
 
 // OktaAttributeNames returns Okta-specific SAML attribute names
+// SEM@0dcfe60d024e5cd95a40b61fc489253e670af6ce: return Okta-specific SAML attribute names for common profile claims (pure)
 func OktaAttributeNames() AttributeNames {
 	return AttributeNames{
 		Email:      "email",

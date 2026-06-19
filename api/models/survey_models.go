@@ -10,6 +10,7 @@ import (
 )
 
 // SurveyTemplate represents a survey template for security review intake
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model representing a versioned security review intake survey template (pure)
 type SurveyTemplate struct {
 	ID                    DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	Name                  DBVarchar      `gorm:"size:256;not null;index:idx_st_name;uniqueIndex:idx_st_name_version,priority:1"`
@@ -24,11 +25,13 @@ type SurveyTemplate struct {
 }
 
 // TableName specifies the table name for SurveyTemplate
+// SEM@5998227fb120ee0575a994ea2c0ecb24f0e67109: return the DB table name for the survey template entity (pure)
 func (SurveyTemplate) TableName() string {
 	return tableName("survey_templates")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to a survey template if not already set before DB insert (pure)
 func (s *SurveyTemplate) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
 		s.ID = DBVarchar(uuid.New().String())
@@ -37,6 +40,7 @@ func (s *SurveyTemplate) BeforeCreate(tx *gorm.DB) error {
 }
 
 // SurveyTemplateVersion represents a versioned snapshot of a survey template definition
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model representing a frozen snapshot of a survey template definition (pure)
 type SurveyTemplateVersion struct {
 	ID                    DBVarchar `gorm:"primaryKey;not null;size:36"`
 	TemplateID            DBVarchar `gorm:"size:36;not null;index:idx_stv_template;uniqueIndex:idx_stv_template_version,priority:1"`
@@ -50,11 +54,13 @@ type SurveyTemplateVersion struct {
 }
 
 // TableName specifies the table name for SurveyTemplateVersion
+// SEM@5998227fb120ee0575a994ea2c0ecb24f0e67109: return the DB table name for the survey template version entity (pure)
 func (SurveyTemplateVersion) TableName() string {
 	return tableName("survey_template_versions")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to a survey template version if not already set before DB insert (pure)
 func (s *SurveyTemplateVersion) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
 		s.ID = DBVarchar(uuid.New().String())
@@ -63,6 +69,7 @@ func (s *SurveyTemplateVersion) BeforeCreate(tx *gorm.DB) error {
 }
 
 // SurveyResponse represents a user's response to a survey template
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model representing a user's submitted answers to a survey template with lifecycle state (pure)
 type SurveyResponse struct {
 	ID                     DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	TemplateID             DBVarchar         `gorm:"size:36;not null;index:idx_sr_template;index:idx_sr_template_status,priority:1"`
@@ -95,11 +102,13 @@ type SurveyResponse struct {
 }
 
 // TableName specifies the table name for SurveyResponse
+// SEM@5998227fb120ee0575a994ea2c0ecb24f0e67109: return the DB table name for the survey response entity (pure)
 func (SurveyResponse) TableName() string {
 	return tableName("survey_responses")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to a survey response if not already set before DB insert (pure)
 func (s *SurveyResponse) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
 		s.ID = DBVarchar(uuid.New().String())
@@ -110,6 +119,7 @@ func (s *SurveyResponse) BeforeCreate(tx *gorm.DB) error {
 // TriageNote represents a triage note attached to a survey response
 // Uses a composite primary key (SurveyResponseID, ID) where ID is a
 // per-response monotonically increasing integer.
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for an append-only reviewer note attached to a survey response with per-response sequential ID (pure)
 type TriageNote struct {
 	SurveyResponseID       DBVarchar         `gorm:"primaryKey;not null;size:36;index:idx_tn_sr"`
 	ID                     int               `gorm:"primaryKey;not null;autoIncrement:false"`
@@ -127,11 +137,13 @@ type TriageNote struct {
 }
 
 // TableName specifies the table name for TriageNote
+// SEM@5998227fb120ee0575a994ea2c0ecb24f0e67109: return the DB table name for the triage note entity (pure)
 func (TriageNote) TableName() string {
 	return tableName("triage_notes")
 }
 
 // BeforeCreate assigns the next sequential ID for the survey response
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign the next sequential per-response ID to a triage note before DB insert (reads DB)
 func (t *TriageNote) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == 0 {
 		var maxID *int
@@ -150,6 +162,7 @@ func (t *TriageNote) BeforeCreate(tx *gorm.DB) error {
 
 // SurveyResponseAccess represents access control for a survey response
 // Mirrors the ThreatModelAccess pattern for consistency
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for role-based access control grants on a survey response (pure)
 type SurveyResponseAccess struct {
 	ID                    DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	SurveyResponseID      DBVarchar         `gorm:"size:36;not null;index:idx_sra_sr;index:idx_sra_perf,priority:1"`
@@ -169,11 +182,13 @@ type SurveyResponseAccess struct {
 }
 
 // TableName specifies the table name for SurveyResponseAccess
+// SEM@5998227fb120ee0575a994ea2c0ecb24f0e67109: return the DB table name for the survey response access entity (pure)
 func (SurveyResponseAccess) TableName() string {
 	return tableName("survey_response_access")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to a survey response access record if not already set before DB insert (pure)
 func (s *SurveyResponseAccess) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
 		s.ID = DBVarchar(uuid.New().String())
@@ -183,6 +198,7 @@ func (s *SurveyResponseAccess) BeforeCreate(tx *gorm.DB) error {
 
 // SurveyAnswer represents an extracted answer from a survey response.
 // Rows are fully replaced on every response save for consistency.
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for a single extracted answer from a survey response keyed by question (pure)
 type SurveyAnswer struct {
 	ID             DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ResponseID     DBVarchar         `gorm:"size:36;not null;index:idx_sa_response_id;index:idx_sa_response_mapping"`
@@ -199,11 +215,13 @@ type SurveyAnswer struct {
 }
 
 // TableName specifies the table name for SurveyAnswer
+// SEM@5998227fb120ee0575a994ea2c0ecb24f0e67109: return the DB table name for the survey answer entity (pure)
 func (SurveyAnswer) TableName() string {
 	return tableName("survey_answers")
 }
 
 // BeforeCreate generates a UUID if not set
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign a UUID to a survey answer if not already set before DB insert (pure)
 func (s *SurveyAnswer) BeforeCreate(tx *gorm.DB) error {
 	if s.ID == "" {
 		s.ID = DBVarchar(uuid.New().String())

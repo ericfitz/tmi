@@ -10,6 +10,7 @@ import (
 // auditCursor is the keyset-pagination position for audit list endpoints:
 // the (created_at, id) of a boundary row plus the traversal direction. Encoded
 // opaque so clients cannot depend on its structure (#398, #464).
+// SEM@2ef32d6afa24748422ff40ac1dd3b019b602c256: opaque keyset pagination position for audit trail traversal (pure)
 type auditCursor struct {
 	CreatedAt time.Time `json:"t"`
 	ID        string    `json:"i"`
@@ -23,6 +24,7 @@ const (
 	dirBackward = "b"
 )
 
+// SEM@2ef32d6afa24748422ff40ac1dd3b019b602c256: serialize an audit cursor to a base64 opaque token (pure)
 func encodeAuditCursor(createdAt time.Time, id, dir string) string {
 	if dir == "" {
 		dir = dirForward
@@ -31,6 +33,7 @@ func encodeAuditCursor(createdAt time.Time, id, dir string) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
+// SEM@2ef32d6afa24748422ff40ac1dd3b019b602c256: deserialize and validate a base64 audit cursor token (pure)
 func decodeAuditCursor(s string) (*auditCursor, error) {
 	if s == "" {
 		return nil, fmt.Errorf("empty cursor")

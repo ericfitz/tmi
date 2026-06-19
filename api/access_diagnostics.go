@@ -61,6 +61,7 @@ const (
 // BuilderContext carries everything the builder needs to assemble a diagnostics
 // object. Empty fields are treated as "not applicable" — the builder tolerates
 // missing context.
+// SEM@fe4cf07a3a2b954860a8df90ba211cb0919d71de: context struct carrying caller, owner, and provider info for building access diagnostic remediations (pure)
 type BuilderContext struct {
 	ReasonCode   string
 	ReasonDetail string
@@ -92,6 +93,7 @@ type BuilderContext struct {
 // AccessRemediationDiag is the builder's internal representation of a single
 // remediation. The API-wire type is regenerated from OpenAPI in Phase 8; this
 // internal type is converted at the handler boundary.
+// SEM@b04bada4485747c502b780806fa3deba2fd822fa: internal representation of a single access remediation action with typed parameters (pure)
 type AccessRemediationDiag struct {
 	Action string                 `json:"action"`
 	Params map[string]interface{} `json:"params"`
@@ -99,6 +101,7 @@ type AccessRemediationDiag struct {
 
 // AccessDiagnosticsDiag is the builder's internal representation of
 // access_diagnostics. See AccessRemediationDiag.
+// SEM@b04bada4485747c502b780806fa3deba2fd822fa: internal representation of access diagnostics containing reason code and remediation list (pure)
 type AccessDiagnosticsDiag struct {
 	ReasonCode   string                  `json:"reason_code"`
 	ReasonDetail *string                 `json:"reason_detail,omitempty"`
@@ -107,6 +110,7 @@ type AccessDiagnosticsDiag struct {
 
 // BuildAccessDiagnostics returns a diagnostic object given the builder context,
 // or nil when there is no diagnostic to report (empty ReasonCode).
+// SEM@da7b9edd86863da63512f8216a886a429b2b6f9e: build an access diagnostics object with reason-specific remediations from the builder context (pure)
 func BuildAccessDiagnostics(ctx BuilderContext) *AccessDiagnosticsDiag {
 	if ctx.ReasonCode == "" {
 		return nil

@@ -11,6 +11,7 @@ import (
 // the classification registry. It emits two tables — bootstrap and operational
 // — so the wiki Configuration-Reference page is generated, not hand-maintained.
 // Secret defaults are shown as vault:// placeholders, never real values.
+// SEM@15870ed6c51c35dd0b30cf6f7a777a7010b1b69e: build the wiki configuration reference as Markdown with bootstrap and operational tables (pure)
 func GenerateReferenceMarkdown() ([]byte, error) {
 	cfg := getDefaultConfig()
 	cfg.Server.TLSSubjectName = "localhost" // deterministic — must not embed the build host's name
@@ -55,18 +56,21 @@ func GenerateReferenceMarkdown() ([]byte, error) {
 	return []byte(b.String()), nil
 }
 
+// SEM@15870ed6c51c35dd0b30cf6f7a777a7010b1b69e: format a bootstrap config setting as a Markdown table row (pure)
 func bootstrapRow(s MigratableSetting) string {
 	return fmt.Sprintf("| `%s` | %s | %s | %s | %s | %s | %s |\n",
 		s.Key, codeOrDash(s.EnvVar), s.Type, defaultCell(s),
 		yesNo(s.Class.Required), yesNo(s.Class.Secret), sanitizeCell(s.Description))
 }
 
+// SEM@15870ed6c51c35dd0b30cf6f7a777a7010b1b69e: format an operational config setting as a Markdown table row (pure)
 func operationalRow(s MigratableSetting) string {
 	return fmt.Sprintf("| `%s` | %s | %s | %s | %s | %s | %s |\n",
 		s.Key, s.Type, defaultCell(s), s.Class.Mutability.String(),
 		s.Class.Visibility.String(), yesNo(s.Class.Secret), sanitizeCell(s.Description))
 }
 
+// SEM@15870ed6c51c35dd0b30cf6f7a777a7010b1b69e: format a config setting's default value, masking secrets as placeholder (pure)
 func defaultCell(s MigratableSetting) string {
 	if s.Class.Secret {
 		return "_(secret)_"
@@ -77,6 +81,7 @@ func defaultCell(s MigratableSetting) string {
 	return "`" + sanitizeCell(s.Value) + "`"
 }
 
+// SEM@15870ed6c51c35dd0b30cf6f7a777a7010b1b69e: format a string as inline code or an em-dash when empty (pure)
 func codeOrDash(v string) string {
 	if v == "" {
 		return "—"
@@ -84,6 +89,7 @@ func codeOrDash(v string) string {
 	return "`" + v + "`"
 }
 
+// SEM@15870ed6c51c35dd0b30cf6f7a777a7010b1b69e: convert a boolean to 'yes' or 'no' (pure)
 func yesNo(b bool) string {
 	if b {
 		return "yes"
@@ -91,6 +97,7 @@ func yesNo(b bool) string {
 	return "no"
 }
 
+// SEM@15870ed6c51c35dd0b30cf6f7a777a7010b1b69e: escape Markdown table-breaking characters in a config cell value (pure)
 func sanitizeCell(s string) string {
 	s = strings.ReplaceAll(s, "|", "\\|")
 	s = strings.ReplaceAll(s, "\n", " ")

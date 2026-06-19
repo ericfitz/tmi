@@ -19,6 +19,7 @@ import (
 )
 
 // GormThreatRepository implements ThreatStore with GORM for database persistence and Redis caching
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: GORM-backed threat repository with cache and invalidator dependencies
 type GormThreatRepository struct {
 	db               *gorm.DB
 	cache            *CacheService
@@ -26,6 +27,7 @@ type GormThreatRepository struct {
 }
 
 // NewGormThreatRepository creates a new GORM-backed threat repository with caching
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build a GormThreatRepository wired to a database, cache, and invalidator (pure)
 func NewGormThreatRepository(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormThreatRepository {
 	return &GormThreatRepository{
 		db:               db,
@@ -35,6 +37,7 @@ func NewGormThreatRepository(db *gorm.DB, cache *CacheService, invalidator *Cach
 }
 
 // Create creates a new threat with write-through caching using GORM
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: store a new threat with alias allocation and write-through cache update (reads DB)
 func (s *GormThreatRepository) Create(ctx context.Context, threat *Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Creating threat: %s in threat model: %s", threat.Name, threat.ThreatModelId)
@@ -110,6 +113,7 @@ func (s *GormThreatRepository) Create(ctx context.Context, threat *Threat) error
 }
 
 // Get retrieves a threat by ID with cache-first strategy using GORM
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch a threat by ID using cache-first strategy, falling back to DB (reads DB)
 func (s *GormThreatRepository) Get(ctx context.Context, id string) (*Threat, error) {
 	logger := slogging.Get()
 	logger.Debug("Getting threat: %s", id)
@@ -160,6 +164,7 @@ func (s *GormThreatRepository) Get(ctx context.Context, id string) (*Threat, err
 }
 
 // Update updates an existing threat with write-through caching using GORM
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: persist all threat fields to DB and update the cache entry (reads DB)
 func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Updating threat: %s", threat.Id)
@@ -228,11 +233,13 @@ func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error
 }
 
 // Delete soft-deletes a threat by setting deleted_at
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: soft-delete a threat by delegating to SoftDelete (reads DB)
 func (s *GormThreatRepository) Delete(ctx context.Context, id string) error {
 	return s.SoftDelete(ctx, id)
 }
 
 // hardDeleteThreat permanently removes a threat and invalidates related caches using GORM
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: permanently remove a threat from DB and invalidate related caches (reads DB)
 func (s *GormThreatRepository) hardDeleteThreat(ctx context.Context, id string) error {
 	logger := slogging.Get()
 	logger.Debug("Deleting threat: %s", id)
@@ -289,6 +296,7 @@ func (s *GormThreatRepository) hardDeleteThreat(ctx context.Context, id string) 
 
 // List retrieves threats for a threat model with advanced filtering, sorting and pagination using GORM
 // Returns: items, total count (before pagination), error
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: list threats for a threat model with filtering, sorting, pagination, and cache (reads DB)
 func (s *GormThreatRepository) List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Listing threats for threat model %s with advanced filters", threatModelID)
@@ -328,6 +336,7 @@ func (s *GormThreatRepository) List(ctx context.Context, threatModelID string, f
 }
 
 // countWithFilter counts threats matching the filter (without pagination)
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: count threats matching a filter without applying pagination (reads DB)
 func (s *GormThreatRepository) countWithFilter(ctx context.Context, threatModelID string, filter ThreatFilter) (int, error) {
 	query := s.db.WithContext(ctx).Model(&models.Threat{})
 	if includeDeletedFromContext(ctx) {
@@ -345,6 +354,7 @@ func (s *GormThreatRepository) countWithFilter(ctx context.Context, threatModelI
 }
 
 // executeListQuery builds and executes the GORM query for listing threats
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build and execute a filtered, sorted, paginated DB query for threats (reads DB)
 func (s *GormThreatRepository) executeListQuery(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
 	logger := slogging.Get()
 
@@ -389,6 +399,7 @@ func (s *GormThreatRepository) executeListQuery(ctx context.Context, threatModel
 }
 
 // applyFilters applies the filter conditions to the GORM query
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply threat filter conditions to a GORM query (pure)
 func (s *GormThreatRepository) applyFilters(query *gorm.DB, filter ThreatFilter) *gorm.DB {
 	// Text filters - use LOWER() for cross-database case-insensitive search
 	if filter.Name != nil {
@@ -524,6 +535,7 @@ var semanticOrderMaps = map[string]map[string]int{
 
 // buildSemanticOrderExpr builds a CASE WHEN SQL expression for semantic sorting.
 // Values not in the map sort to -1 (before all known values).
+// SEM@b0defcce76130bf58c18812c7ab48f51db9b41bf: build a CASE WHEN SQL expression that ranks enum column values semantically (pure)
 func buildSemanticOrderExpr(column string, orderMap map[string]int, dialectName string) string {
 	col := ColumnName(dialectName, column)
 	var b strings.Builder
@@ -538,6 +550,7 @@ func buildSemanticOrderExpr(column string, orderMap map[string]int, dialectName 
 // buildOrderBy constructs a safe ORDER BY clause from sort parameter.
 // For severity, priority, and status fields, it generates a CASE WHEN
 // expression that sorts by semantic rank instead of alphabetical order.
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: construct a safe ORDER BY clause, using semantic ranking for enum fields (pure)
 func (s *GormThreatRepository) buildOrderBy(sort string) string {
 	validColumns := map[string]string{
 		"name":        "name",
@@ -577,6 +590,7 @@ func (s *GormThreatRepository) buildOrderBy(sort string) string {
 }
 
 // Patch applies JSON patch operations to a threat using GORM
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply JSON Patch operations to a threat and persist the result (reads DB)
 func (s *GormThreatRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Threat, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching threat %s with %d operations", id, len(operations))
@@ -604,6 +618,7 @@ func (s *GormThreatRepository) Patch(ctx context.Context, id string, operations 
 }
 
 // applyPatchOperation applies a single patch operation to a threat
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply a single JSON Patch operation to a threat's in-memory fields (pure)
 func (s *GormThreatRepository) applyPatchOperation(threat *Threat, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:
@@ -689,6 +704,7 @@ func (s *GormThreatRepository) applyPatchOperation(threat *Threat, op PatchOpera
 	return nil
 }
 
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply add, replace, or remove patch operations to a threat's type array (pure)
 func (s *GormThreatRepository) patchThreatTypeGorm(threat *Threat, op PatchOperation) error {
 	switch op.Op {
 	case string(Replace):
@@ -731,6 +747,7 @@ func (s *GormThreatRepository) patchThreatTypeGorm(threat *Threat, op PatchOpera
 }
 
 // BulkCreate creates multiple threats in a single transaction using GORM
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: store multiple threats in a single transaction with alias allocation and cache invalidation (reads DB)
 func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk creating %d threats", len(threats))
@@ -805,6 +822,7 @@ func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat)
 }
 
 // BulkUpdate updates multiple threats in a single transaction using GORM
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: update multiple threats in a single transaction and invalidate related caches (reads DB)
 func (s *GormThreatRepository) BulkUpdate(ctx context.Context, threats []Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk updating %d threats", len(threats))
@@ -860,6 +878,7 @@ func (s *GormThreatRepository) BulkUpdate(ctx context.Context, threats []Threat)
 }
 
 // InvalidateCache removes threat-related cache entries
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: remove a threat's cache entry by ID (mutates shared state)
 func (s *GormThreatRepository) InvalidateCache(ctx context.Context, id string) error {
 	if s.cache == nil {
 		return nil
@@ -868,6 +887,7 @@ func (s *GormThreatRepository) InvalidateCache(ctx context.Context, id string) e
 }
 
 // WarmCache preloads threats for a threat model into cache
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: preload the first page of threats for a threat model into cache (reads DB)
 func (s *GormThreatRepository) WarmCache(ctx context.Context, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Warming cache for threat model: %s", threatModelID)
@@ -887,16 +907,19 @@ func (s *GormThreatRepository) WarmCache(ctx context.Context, threatModelID stri
 }
 
 // loadMetadata loads metadata for a threat using GORM
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch metadata key-value pairs for a threat from the DB (reads DB)
 func (s *GormThreatRepository) loadMetadata(ctx context.Context, threatID string) ([]Metadata, error) {
 	return loadEntityMetadata(s.db.WithContext(ctx), "threat", threatID)
 }
 
 // saveMetadata saves metadata for a threat using GORM
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: replace all metadata for a threat outside a transaction (reads DB)
 func (s *GormThreatRepository) saveMetadata(ctx context.Context, threatID string, metadata *[]Metadata) error {
 	return s.saveMetadataTx(s.db.WithContext(ctx), threatID, metadata)
 }
 
 // saveMetadataTx saves metadata within a transaction
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: delete and re-insert all metadata for a threat within a given transaction (reads DB)
 func (s *GormThreatRepository) saveMetadataTx(tx *gorm.DB, threatID string, metadata *[]Metadata) error {
 	logger := slogging.Get()
 
@@ -943,6 +966,7 @@ func (s *GormThreatRepository) saveMetadataTx(tx *gorm.DB, threatID string, meta
 // Helper functions
 
 // shouldUseCache determines if the query is simple enough to use caching
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: report whether a threat list filter is simple enough to serve from cache (pure)
 func (s *GormThreatRepository) shouldUseCache(filter ThreatFilter) bool {
 	return filter.Name == nil && filter.Description == nil && len(filter.ThreatType) == 0 &&
 		len(filter.Severity) == 0 && len(filter.Priority) == 0 && len(filter.Status) == 0 &&
@@ -955,6 +979,7 @@ func (s *GormThreatRepository) shouldUseCache(filter ThreatFilter) bool {
 }
 
 // tryGetFromCache attempts to retrieve threats from cache
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: retrieve a paginated threat list from cache, returning nil on miss (reads DB)
 func (s *GormThreatRepository) tryGetFromCache(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
 	if s.cache == nil {
 		return nil, fmt.Errorf("cache not available")
@@ -974,6 +999,7 @@ func (s *GormThreatRepository) tryGetFromCache(ctx context.Context, threatModelI
 }
 
 // convertScore converts a *float32 to *float64 for database storage
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: convert a float32 score pointer to float64 for DB storage (pure)
 func (s *GormThreatRepository) convertScore(score *float32) *float64 {
 	if score == nil {
 		return nil
@@ -983,6 +1009,7 @@ func (s *GormThreatRepository) convertScore(score *float32) *float64 {
 }
 
 // convertUUIDToString converts a *uuid.UUID to *string, returning nil if the UUID is nil
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: convert a UUID pointer to a string pointer, returning nil if absent (pure)
 func (s *GormThreatRepository) convertUUIDToString(id *uuid.UUID) *string {
 	if id == nil {
 		return nil
@@ -996,6 +1023,7 @@ func (s *GormThreatRepository) convertUUIDToString(id *uuid.UUID) *string {
 // as NULL to the database, unlike struct-based Updates() which skips zero values.
 // Custom types (StringArray, CVSSArray, DBBool) are handled explicitly since map-based
 // Updates() bypasses GORM's Value() methods.
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build a map of all threat fields for GORM map-based update including nil-as-NULL (pure)
 func (s *GormThreatRepository) buildThreatUpdateMap(threat *Threat, now time.Time) map[string]any {
 	// Handle boolean fields: default to false if nil
 	mitigated := models.DBBool(false)
@@ -1085,6 +1113,7 @@ func (s *GormThreatRepository) buildThreatUpdateMap(threat *Threat, now time.Tim
 
 // toGormModelForCreate converts an API Threat to a GORM model for CREATE operations.
 // Timestamps are set explicitly to ensure compatibility across all database backends.
+// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: convert an API threat to a GORM model with explicit timestamps for DB insert (pure)
 func (s *GormThreatRepository) toGormModelForCreate(threat *Threat) *models.Threat {
 	var id string
 	var threatModelID string
@@ -1180,6 +1209,7 @@ func (s *GormThreatRepository) toGormModelForCreate(threat *Threat) *models.Thre
 }
 
 // toAPIModel converts a GORM Threat model to an API model
+// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: convert a GORM threat model to its API domain struct (pure)
 func (s *GormThreatRepository) toAPIModel(gm *models.Threat) *Threat {
 	mitigatedBool := gm.Mitigated.Bool()
 	includeInReport := gm.IncludeInReport.Bool()

@@ -7,19 +7,23 @@ import (
 )
 
 // DirectTextProvider extracts text from DB-resident entities (notes, assets, threats, repositories)
+// SEM@1726f5cd4954fda37fad0ef11e5205ed957ad7a2: content provider that extracts plain text from DB-resident entities (pure)
 type DirectTextProvider struct{}
 
 // NewDirectTextProvider creates a new DirectTextProvider
+// SEM@1726f5cd4954fda37fad0ef11e5205ed957ad7a2: build a DirectTextProvider (pure)
 func NewDirectTextProvider() *DirectTextProvider {
 	return &DirectTextProvider{}
 }
 
 // Name returns the provider name for logging
+// SEM@1726f5cd4954fda37fad0ef11e5205ed957ad7a2: return the canonical name of this content provider (pure)
 func (p *DirectTextProvider) Name() string {
 	return "direct-text"
 }
 
 // CanHandle returns true for DB-resident entities that don't have an external URI
+// SEM@d17204e0b973a10994d2e5e445738cf9103864e3: report whether the entity reference is a URI-less DB-resident entity type (pure)
 func (p *DirectTextProvider) CanHandle(_ context.Context, ref EntityReference) bool {
 	if ref.URI != "" {
 		return false
@@ -36,6 +40,7 @@ func (p *DirectTextProvider) CanHandle(_ context.Context, ref EntityReference) b
 }
 
 // Extract fetches and returns plain text content from the entity
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch plain text content from a DB-resident entity by type and ID (reads DB)
 func (p *DirectTextProvider) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
 	var text string
 	var title string

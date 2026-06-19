@@ -14,6 +14,7 @@ import (
 )
 
 // TestHelper provides utilities for testing auth package functionality
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: test fixture bundling mocked DB, Redis, JWT key manager, and state store for auth tests
 type TestHelper struct {
 	DB          *sql.DB
 	Mock        sqlmock.Sqlmock
@@ -25,6 +26,7 @@ type TestHelper struct {
 }
 
 // NewTestHelper creates a new test helper with mocked dependencies
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: build a test helper with mocked SQL DB, Redis, and JWT key manager (pure)
 func NewTestHelper(t *testing.T) *TestHelper {
 	t.Helper()
 
@@ -56,6 +58,7 @@ func NewTestHelper(t *testing.T) *TestHelper {
 }
 
 // Cleanup releases all resources held by the test helper
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: release Redis client, miniredis, and DB connections held by the test helper
 func (h *TestHelper) Cleanup() {
 	if h.Redis != nil {
 		_ = h.Redis.Close()
@@ -69,6 +72,7 @@ func (h *TestHelper) Cleanup() {
 }
 
 // SetupMockDB creates a mock SQL database for testing
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: build a mock SQL database and sqlmock controller for unit tests (pure)
 func SetupMockDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock) {
 	t.Helper()
 	db, mock, err := sqlmock.New()
@@ -77,6 +81,7 @@ func SetupMockDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock) {
 }
 
 // SetupMockRedis creates a mock Redis client using miniredis
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: build an in-process miniredis server and Redis client for unit tests (pure)
 func SetupMockRedis(t *testing.T) (*redis.Client, *miniredis.Miniredis) {
 	t.Helper()
 	mr, err := miniredis.Run()
@@ -90,6 +95,7 @@ func SetupMockRedis(t *testing.T) (*redis.Client, *miniredis.Miniredis) {
 }
 
 // SetupTestKeyManager creates a key manager for testing
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: build a JWT key manager with a fixed HMAC secret for unit tests (pure)
 func SetupTestKeyManager(t *testing.T) *JWTKeyManager {
 	t.Helper()
 	km, err := NewJWTKeyManager(JWTConfig{
@@ -101,6 +107,7 @@ func SetupTestKeyManager(t *testing.T) *JWTKeyManager {
 }
 
 // CreateTestUser creates a test user with default values
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: build a User value with default fields for a given provider and email (pure)
 func CreateTestUser(provider, email string) User {
 	now := time.Now()
 	return User{
@@ -119,6 +126,7 @@ func CreateTestUser(provider, email string) User {
 }
 
 // CreateTestUserWithRole creates a test user with specific admin status
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: build a test user with a specific admin role flag (pure)
 func CreateTestUserWithRole(provider, email string, isAdmin bool) User {
 	user := CreateTestUser(provider, email)
 	user.IsAdmin = isAdmin
@@ -126,6 +134,7 @@ func CreateTestUserWithRole(provider, email string, isAdmin bool) User {
 }
 
 // CreateTestUserWithGroups creates a test user with specific groups
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: build a test user assigned to specific groups (pure)
 func CreateTestUserWithGroups(provider, email string, groups []string) User {
 	user := CreateTestUser(provider, email)
 	user.Groups = groups
@@ -133,6 +142,7 @@ func CreateTestUserWithGroups(provider, email string, groups []string) User {
 }
 
 // CreateTestUserInfo creates UserInfo for testing OAuth responses
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: build a UserInfo value representing an OAuth provider's identity response (pure)
 func CreateTestUserInfo(email, name, idp string, groups []string) *UserInfo {
 	return &UserInfo{
 		ID:            email + "-id",
@@ -145,6 +155,7 @@ func CreateTestUserInfo(email, name, idp string, groups []string) *UserInfo {
 }
 
 // CreateTestClientCredential creates a test client credential
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: build a ClientCredential fixture with a placeholder bcrypt hash (pure)
 func CreateTestClientCredential(ownerUUID uuid.UUID, name string) *ClientCredential {
 	now := time.Now()
 	return &ClientCredential{
@@ -207,6 +218,7 @@ var TestUsers = struct {
 }
 
 // MockUserRow returns mock SQL rows for a user query
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: build sqlmock rows representing a single user record (pure)
 func MockUserRow(mock sqlmock.Sqlmock, user User) *sqlmock.Rows {
 	rows := sqlmock.NewRows([]string{
 		"internal_uuid", "provider", "provider_user_id", "email", "name",
@@ -220,6 +232,7 @@ func MockUserRow(mock sqlmock.Sqlmock, user User) *sqlmock.Rows {
 }
 
 // MockEmptyUserRows returns empty rows for user queries
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: build an empty sqlmock row set for user queries that return no results (pure)
 func MockEmptyUserRows(mock sqlmock.Sqlmock) *sqlmock.Rows {
 	return sqlmock.NewRows([]string{
 		"internal_uuid", "provider", "provider_user_id", "email", "name",
@@ -228,6 +241,7 @@ func MockEmptyUserRows(mock sqlmock.Sqlmock) *sqlmock.Rows {
 }
 
 // ExpectUserQuery sets up mock expectation for a user query by email
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: register a sqlmock expectation for a user lookup by email (mutates shared state)
 func ExpectUserQuery(mock sqlmock.Sqlmock, email string, user *User) {
 	if user != nil {
 		mock.ExpectQuery("SELECT .* FROM users WHERE email").
@@ -241,18 +255,21 @@ func ExpectUserQuery(mock sqlmock.Sqlmock, email string, user *User) {
 }
 
 // ExpectUserCreate sets up mock expectation for user creation
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: register a sqlmock expectation for an INSERT INTO users statement (mutates shared state)
 func ExpectUserCreate(mock sqlmock.Sqlmock) {
 	mock.ExpectExec("INSERT INTO users").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 }
 
 // ExpectUserUpdate sets up mock expectation for user update
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: register a sqlmock expectation for an UPDATE users statement (mutates shared state)
 func ExpectUserUpdate(mock sqlmock.Sqlmock) {
 	mock.ExpectExec("UPDATE users").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 }
 
 // ExpectUserDelete sets up mock expectation for user deletion
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: register a sqlmock expectation for a DELETE FROM users statement by user ID (mutates shared state)
 func ExpectUserDelete(mock sqlmock.Sqlmock, userID string) {
 	mock.ExpectExec("DELETE FROM users").
 		WithArgs(userID).
@@ -260,6 +277,7 @@ func ExpectUserDelete(mock sqlmock.Sqlmock, userID string) {
 }
 
 // TokenTestCase represents a test case for token operations
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: data type grouping token operation inputs and expected outcomes for table-driven tests (pure)
 type TokenTestCase struct {
 	Name           string
 	User           User
@@ -268,6 +286,7 @@ type TokenTestCase struct {
 }
 
 // ClientCredentialTestCase represents a test case for client credential operations
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: data type grouping client credential inputs, mock setup, and expected outcomes for table-driven tests (pure)
 type ClientCredentialTestCase struct {
 	Name          string
 	ClientID      string
@@ -279,6 +298,7 @@ type ClientCredentialTestCase struct {
 }
 
 // AuthScenario represents an authorization test scenario
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: data type grouping a user, required role, and expected access decision for authorization tests (pure)
 type AuthScenario struct {
 	Name           string
 	User           User
@@ -288,6 +308,7 @@ type AuthScenario struct {
 }
 
 // ValidateTokenClaims is a helper to validate common JWT claims
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: assert that JWT claims match the expected user's subject, email, and name (pure)
 func ValidateTokenClaims(t *testing.T, claims *Claims, user User) {
 	t.Helper()
 	if claims.Subject != user.InternalUUID {
@@ -302,21 +323,25 @@ func ValidateTokenClaims(t *testing.T, claims *Claims, user User) {
 }
 
 // FastForwardRedis advances time in miniredis for TTL testing
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: advance miniredis internal clock to trigger TTL expiry in tests (mutates shared state)
 func (h *TestHelper) FastForwardRedis(duration time.Duration) {
 	h.MiniRedis.FastForward(duration)
 }
 
 // SetRedisKey sets a key in miniredis for testing
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: store a key-value pair with expiration in the test Redis instance
 func (h *TestHelper) SetRedisKey(key, value string, expiration time.Duration) error {
 	return h.Redis.Set(h.TestContext, key, value, expiration).Err()
 }
 
 // GetRedisKey gets a key from miniredis for testing
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: fetch a string value by key from the test Redis instance
 func (h *TestHelper) GetRedisKey(key string) (string, error) {
 	return h.Redis.Get(h.TestContext, key).Result()
 }
 
 // FlushRedis clears all keys in miniredis
+// SEM@ac74bec7c763b2f6486d3fe0a6731458c37e43c5: delete all keys from the test Redis instance (mutates shared state)
 func (h *TestHelper) FlushRedis() {
 	h.MiniRedis.FlushAll()
 }

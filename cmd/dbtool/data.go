@@ -12,6 +12,7 @@ import (
 	"github.com/ericfitz/tmi/test/testdb"
 )
 
+// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: load and apply a seed file to the database using DB or API strategies per entry (reads DB)
 func runDataSeed(db *testdb.TestDB, inputFile, serverURL, user, provider string, dryRun bool) error {
 	log := slogging.Get()
 
@@ -80,6 +81,7 @@ func runDataSeed(db *testdb.TestDB, inputFile, serverURL, user, provider string,
 	return nil
 }
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: parse a JSON seed spec file and transform it into a SeedFile (pure)
 func loadSeedFile(path string) (*SeedFile, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path from CLI flags
 	if err != nil {
@@ -136,6 +138,7 @@ const (
 	strategyAPI = "api"
 )
 
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: map a seed entry kind to either the DB or API seeding strategy (pure)
 func classifyStrategy(kind string) string {
 	switch kind {
 	case kindUser, kindSetting:
@@ -152,6 +155,7 @@ func classifyStrategy(kind string) string {
 	}
 }
 
+// SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: look up a previously-seeded entity ID by its symbolic ref name (pure)
 func resolveRef(refs RefMap, refName string) (string, error) {
 	result, ok := refs[refName]
 	if !ok {
@@ -160,6 +164,7 @@ func resolveRef(refs RefMap, refName string) (string, error) {
 	return result.ID, nil
 }
 
+// SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: extract a ref field from a data map and resolve it to a seeded entity ID (pure)
 func resolveRefField(data map[string]any, refFieldName string, refs RefMap) (string, error) {
 	refName, ok := data[refFieldName].(string)
 	if !ok || refName == "" {

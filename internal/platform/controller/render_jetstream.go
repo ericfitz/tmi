@@ -22,11 +22,13 @@ const (
 // streamNameFor returns the JetStream stream name for a component.
 // JetStream stream names cannot contain dots or spaces, so the component
 // name is upcased and sanitized. Deterministic across reconciles.
+// SEM@2bf9318487695f6e17a03631c7e5f410aedc5758: compute the JetStream stream name for a TMIComponent (pure)
 func streamNameFor(c *platformv1alpha1.TMIComponent) string {
 	return "TMI_" + sanitizeName(c.Name)
 }
 
 // consumerNameFor returns the durable JetStream consumer name for a component.
+// SEM@2bf9318487695f6e17a03631c7e5f410aedc5758: compute the durable JetStream consumer name for a TMIComponent (pure)
 func consumerNameFor(c *platformv1alpha1.TMIComponent) string {
 	return sanitizeName(c.Name) + "_CONSUMER"
 }
@@ -36,6 +38,7 @@ func consumerNameFor(c *platformv1alpha1.TMIComponent) string {
 // characters (e.g. "tmi-extractor" vs "tmi.extractor") collide. In practice
 // each component is a distinct TMIComponent CR with a unique K8s name, so a
 // collision would require two deliberately near-identical names.
+// SEM@2bf9318487695f6e17a03631c7e5f410aedc5758: normalize a name to uppercase with JetStream-illegal characters replaced by underscores (pure)
 func sanitizeName(s string) string {
 	up := strings.ToUpper(s)
 	return strings.NewReplacer(".", "_", "-", "_", " ", "_").Replace(up)
@@ -43,6 +46,7 @@ func sanitizeName(s string) string {
 
 // StreamConfigFor returns the JetStream stream configuration that binds all
 // of a component's job subjects.
+// SEM@2bf9318487695f6e17a03631c7e5f410aedc5758: build a JetStream work-queue stream config for a component's job subjects (pure)
 func StreamConfigFor(c *platformv1alpha1.TMIComponent) *nats.StreamConfig {
 	return &nats.StreamConfig{
 		Name:      streamNameFor(c),
@@ -63,6 +67,7 @@ func StreamConfigFor(c *platformv1alpha1.TMIComponent) *nats.StreamConfig {
 // single-purpose, so the durable consumes every subject the stream binds. This
 // keeps the config identical regardless of how many jobSubjects a component
 // declares and avoids a filter-subject conflict when the worker binds it.
+// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: build a durable JetStream consumer config for a component with configurable ack-wait (pure)
 func ConsumerConfigFor(c *platformv1alpha1.TMIComponent) *nats.ConsumerConfig {
 	ackWait := defaultConsumerAckWait
 	if v, ok := c.Spec.Config["TMI_JOB_ACK_WAIT"]; ok {

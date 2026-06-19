@@ -5,6 +5,7 @@ import (
 )
 
 // AssetRepository defines the interface for asset operations with caching support
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: contract for CRUD, patch, bulk, and cache operations on threat-model assets (pure)
 type AssetRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, asset *Asset, threatModelID string) error

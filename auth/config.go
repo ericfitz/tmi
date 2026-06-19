@@ -20,6 +20,7 @@ const (
 )
 
 // Config holds all authentication configuration
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: top-level auth configuration aggregating database, Redis, JWT, OAuth, and SAML settings (pure)
 type Config struct {
 	Database  DatabaseConfig // Database config with URL-based connection string
 	Redis     RedisConfig
@@ -31,6 +32,7 @@ type Config struct {
 
 // DatabaseConfig holds unified database configuration.
 // Database type is determined from the URL scheme (postgres://, mysql://, etc.)
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: database connection settings including URL, Oracle wallet path, and connection pool limits (pure)
 type DatabaseConfig struct {
 	URL                  string // DATABASE_URL - contains all connection parameters
 	OracleWalletLocation string // path to Oracle wallet for ADB (cannot be in URL)
@@ -43,6 +45,7 @@ type DatabaseConfig struct {
 }
 
 // RedisConfig holds Redis configuration
+// SEM@d885c7955d5a30affb8ddde84ee1cf757aab2a6b: Redis connection settings including host, port, password, and DB index (pure)
 type RedisConfig struct {
 	Host     string
 	Port     string
@@ -51,6 +54,7 @@ type RedisConfig struct {
 }
 
 // JWTConfig holds JWT configuration
+// SEM@36538e427d89135597d0d3615fcf217f9f4088e4: JWT signing and expiration settings supporting HS256, RS256, and ES256 algorithms (pure)
 type JWTConfig struct {
 	Secret              string
 	ExpirationSeconds   int
@@ -71,6 +75,7 @@ type JWTConfig struct {
 }
 
 // OAuthConfig holds OAuth configuration
+// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: OAuth callback URL, provider map, and client-callback allowlist settings (pure)
 type OAuthConfig struct {
 	CallbackURL string
 	Providers   map[string]OAuthProviderConfig
@@ -81,12 +86,14 @@ type OAuthConfig struct {
 }
 
 // UserInfoEndpoint represents a single userinfo endpoint and its claim mappings
+// SEM@93e972b21be4fbdf788d2884f25d14b33d41b98e: a single OAuth userinfo endpoint URL with its claim-to-field mappings (pure)
 type UserInfoEndpoint struct {
 	URL    string            `json:"url"`
 	Claims map[string]string `json:"claims"`
 }
 
 // OAuthProviderConfig holds configuration for an OAuth provider
+// SEM@93e972b21be4fbdf788d2884f25d14b33d41b98e: full configuration for a single OAuth provider including credentials, endpoints, and scopes (pure)
 type OAuthProviderConfig struct {
 	ID               string             `json:"id"`
 	Name             string             `json:"name"`
@@ -106,12 +113,14 @@ type OAuthProviderConfig struct {
 }
 
 // SAMLConfig holds SAML configuration
+// SEM@2fbab585a899780eb5d718ec784b7c730c732113: SAML enabled flag and map of SAML provider configurations (pure)
 type SAMLConfig struct {
 	Enabled   bool                          `json:"enabled"`
 	Providers map[string]SAMLProviderConfig `json:"providers"`
 }
 
 // SAMLProviderConfig holds configuration for a SAML provider
+// SEM@7e40aae7f066b1d045faeff914884107bde40f0e: full configuration for a single SAML provider including SP/IDP keys, endpoints, and attribute mappings (pure)
 type SAMLProviderConfig struct {
 	ID                string `json:"id"`
 	Name              string `json:"name"`
@@ -139,6 +148,7 @@ type SAMLProviderConfig struct {
 
 // LoadConfig loads configuration from environment variables.
 // This uses DATABASE_URL as the primary database configuration method.
+// SEM@e03fc554584eab95175850a0591c019a25ec0d56: build the auth Config from environment variables; fail if TMI_DATABASE_URL is absent (reads env)
 func LoadConfig() (Config, error) {
 	logger := slogging.Get()
 	logger.Info("TRACE: LoadConfig() function called - START")
@@ -212,6 +222,7 @@ func LoadConfig() (Config, error) {
 
 // ToGormConfig converts Config to db.GormConfig for GORM database connections.
 // It parses the DATABASE_URL to extract connection parameters.
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: convert the auth database config to a GORM connection config, parsing the database URL (pure)
 func (c *Config) ToGormConfig() db.GormConfig {
 	logger := slogging.Get()
 
@@ -237,6 +248,7 @@ func (c *Config) ToGormConfig() db.GormConfig {
 }
 
 // ToRedisConfig converts Config to db.RedisConfig
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: convert the auth Redis config to a db.RedisConfig for initializing the Redis client (pure)
 func (c *Config) ToRedisConfig() db.RedisConfig {
 	return db.RedisConfig{
 		Host:     c.Redis.Host,
@@ -247,11 +259,13 @@ func (c *Config) ToRedisConfig() db.RedisConfig {
 }
 
 // GetJWTDuration returns the JWT expiration duration
+// SEM@d885c7955d5a30affb8ddde84ee1cf757aab2a6b: return the JWT expiration as a time.Duration (pure)
 func (c *Config) GetJWTDuration() time.Duration {
 	return time.Duration(c.JWT.ExpirationSeconds) * time.Second
 }
 
 // loadOAuthProviders loads OAuth provider configurations from environment
+// SEM@74c3372fd86df9011559420de319ea92b3dec3df: discover and build enabled OAuth provider configs from environment variable prefixes (reads env)
 func loadOAuthProviders() map[string]OAuthProviderConfig {
 	logger := slogging.Get()
 	logger.Info("loadOAuthProviders function called - starting provider discovery")
@@ -353,6 +367,7 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 //
 //	OAUTH_PROVIDERS_GOOGLE_USERINFO_CLAIMS_SUBJECT_CLAIM=sub
 //	OAUTH_PROVIDERS_GOOGLE_USERINFO_CLAIMS_EMAIL_CLAIM=email
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: scan environment variables under a prefix and return a lowercase claim-name-to-value map (reads env)
 func parseClaimMappings(prefix string) map[string]string {
 	claims := make(map[string]string)
 
@@ -382,6 +397,7 @@ func parseClaimMappings(prefix string) map[string]string {
 //
 //	OAUTH_PROVIDERS_GOOGLE_ADDITIONAL_PARAMS_ACCESS_TYPE=offline
 //	OAUTH_PROVIDERS_GOOGLE_ADDITIONAL_PARAMS_PROMPT=consent
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: scan environment variables under a prefix and return a lowercase param-name-to-value map (reads env)
 func parseAdditionalParams(prefix string) map[string]string {
 	params := make(map[string]string)
 
@@ -407,6 +423,7 @@ func parseAdditionalParams(prefix string) map[string]string {
 }
 
 // getEnabledProviderIDs returns a slice of enabled provider IDs for logging
+// SEM@70ff47b7829f38ef04399520210ae8765d39495d: list the IDs of all enabled OAuth providers in the given map (pure)
 func getEnabledProviderIDs(providers map[string]OAuthProviderConfig) []string {
 	var enabled []string
 	for id, provider := range providers {
@@ -425,6 +442,7 @@ func getEnabledProviderIDs(providers map[string]OAuthProviderConfig) []string {
 // to ensure SAML providers are loaded correctly from environment variables.
 
 // ValidateConfig validates the configuration
+// SEM@e03fc554584eab95175850a0591c019a25ec0d56: validate auth config fields including signing-method key requirements and secret uniqueness; reject invalid configs (pure)
 func (c *Config) ValidateConfig() error {
 	logger := slogging.Get()
 	logger.Debug("Validating authentication configuration")
@@ -503,6 +521,7 @@ func (c *Config) ValidateConfig() error {
 }
 
 // GetEnabledProviders returns a slice of enabled OAuth providers
+// SEM@0ecd9032832c43f28451afc85a42dd56721c8b3c: list all enabled OAuth provider configs (pure)
 func (c *Config) GetEnabledProviders() []OAuthProviderConfig {
 	var enabled []OAuthProviderConfig
 	for _, provider := range c.OAuth.Providers {
@@ -514,6 +533,7 @@ func (c *Config) GetEnabledProviders() []OAuthProviderConfig {
 }
 
 // GetProvider returns a specific OAuth provider configuration
+// SEM@0ecd9032832c43f28451afc85a42dd56721c8b3c: fetch an enabled OAuth provider by ID; return false if absent or disabled (pure)
 func (c *Config) GetProvider(providerID string) (OAuthProviderConfig, bool) {
 	provider, exists := c.OAuth.Providers[providerID]
 	if !exists || !provider.Enabled {

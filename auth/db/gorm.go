@@ -24,6 +24,7 @@ import (
 const sqliteMemoryPath = ":memory:"
 
 // DatabaseType represents the type of database
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: string type enumerating supported database backends (pure)
 type DatabaseType string
 
 const (
@@ -37,6 +38,7 @@ const (
 // GormConfig holds the configuration for GORM database connection.
 // The primary configuration method is via DATABASE_URL which contains all connection
 // parameters. The URL is parsed and values are stored in the unified fields below.
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: configuration struct for a GORM database connection parsed from a URL (pure)
 type GormConfig struct {
 	Type DatabaseType // Database type (extracted from URL scheme)
 
@@ -63,6 +65,7 @@ type GormConfig struct {
 }
 
 // GormDB represents a GORM database connection that works with PostgreSQL, Oracle, MySQL, SQL Server, and SQLite
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: GORM database connection wrapper supporting multiple SQL backends (pure)
 type GormDB struct {
 	db        *gorm.DB
 	cfg       GormConfig
@@ -76,6 +79,7 @@ type GormDB struct {
 //   - sqlserver://user:password@host:port?database=dbname
 //   - sqlite:///path/to/file.db or sqlite://:memory:
 //   - oracle://user:password@host:port/service_name
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: parse a multi-dialect database URL into a GormConfig (pure)
 func ParseDatabaseURL(rawURL string) (*GormConfig, error) {
 	if rawURL == "" {
 		return nil, fmt.Errorf("database URL is empty")
@@ -127,6 +131,7 @@ func ParseDatabaseURL(rawURL string) (*GormConfig, error) {
 }
 
 // parsePostgresURL extracts PostgreSQL connection parameters from a URL
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: extract PostgreSQL connection parameters from a parsed URL into GormConfig (pure)
 func parsePostgresURL(cfg *GormConfig, u *url.URL) error {
 	cfg.Host = u.Hostname()
 	cfg.Port = u.Port()
@@ -153,6 +158,7 @@ func parsePostgresURL(cfg *GormConfig, u *url.URL) error {
 }
 
 // parseMySQLURL extracts MySQL connection parameters from a URL
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: extract MySQL connection parameters from a parsed URL into GormConfig (pure)
 func parseMySQLURL(cfg *GormConfig, u *url.URL) error {
 	cfg.Host = u.Hostname()
 	cfg.Port = u.Port()
@@ -172,6 +178,7 @@ func parseMySQLURL(cfg *GormConfig, u *url.URL) error {
 }
 
 // parseSQLServerURL extracts SQL Server connection parameters from a URL
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: extract SQL Server connection parameters from a parsed URL into GormConfig (pure)
 func parseSQLServerURL(cfg *GormConfig, u *url.URL) error {
 	cfg.Host = u.Hostname()
 	cfg.Port = u.Port()
@@ -196,6 +203,7 @@ func parseSQLServerURL(cfg *GormConfig, u *url.URL) error {
 }
 
 // parseSQLiteURL extracts SQLite connection parameters from a URL
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: extract SQLite file path or in-memory sentinel from a parsed URL into GormConfig (pure)
 func parseSQLiteURL(cfg *GormConfig, u *url.URL) error {
 	// SQLite URL can be:
 	// - sqlite:///path/to/file.db (absolute path)
@@ -230,6 +238,7 @@ func parseSQLiteURL(cfg *GormConfig, u *url.URL) error {
 //   - Use the TNS alias from wallet/tnsnames.ora (e.g., tmidb_tp)
 //   - Password is provided via ORACLE_PASSWORD env var or included in URL
 //   - Wallet location is set via database.oracle_wallet_location in config
+// SEM@b650823b66084bdf6c24237cb2cf375aff547400: extract Oracle Easy Connect or TNS alias parameters from a parsed URL into GormConfig (pure)
 func parseOracleURL(cfg *GormConfig, u *url.URL) error {
 	if u.User != nil {
 		cfg.User = u.User.Username()
@@ -275,6 +284,7 @@ func parseOracleURL(cfg *GormConfig, u *url.URL) error {
 
 // ParseRedisURL parses a Redis connection URL and returns connection parameters.
 // Supported URL format: redis://[:password@]host:port[/db]
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: parse a Redis connection URL and return host, port, password, and database index (pure)
 func ParseRedisURL(rawURL string) (host, port, password string, db int, err error) {
 	if rawURL == "" {
 		return "", "", "", 0, fmt.Errorf("redis URL is empty")
@@ -317,46 +327,55 @@ func ParseRedisURL(rawURL string) (host, port, password string, db int, err erro
 // OracleNamingStrategy converts all identifiers to uppercase for Oracle compatibility.
 // Oracle folds unquoted identifiers to uppercase, so using uppercase names ensures
 // that queries work correctly even when identifiers aren't quoted.
+// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: GORM naming strategy that uppercases all identifiers for Oracle compatibility (pure)
 type OracleNamingStrategy struct {
 	schema.NamingStrategy
 }
 
 // TableName converts table name to uppercase for Oracle
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: convert a table name to uppercase for Oracle (pure)
 func (ns *OracleNamingStrategy) TableName(table string) string {
 	return strings.ToUpper(ns.NamingStrategy.TableName(table))
 }
 
 // ColumnName converts column name to uppercase for Oracle
+// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: convert a column name to uppercase for Oracle (pure)
 func (ns *OracleNamingStrategy) ColumnName(table, column string) string {
 	return strings.ToUpper(ns.NamingStrategy.ColumnName(table, column))
 }
 
 // JoinTableName converts join table name to uppercase for Oracle
+// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: convert a join table name to uppercase for Oracle (pure)
 func (ns *OracleNamingStrategy) JoinTableName(joinTable string) string {
 	return strings.ToUpper(ns.NamingStrategy.JoinTableName(joinTable))
 }
 
 // RelationshipFKName converts foreign key name to uppercase for Oracle
+// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: convert a foreign key constraint name to uppercase for Oracle (pure)
 func (ns *OracleNamingStrategy) RelationshipFKName(rel schema.Relationship) string {
 	return strings.ToUpper(ns.NamingStrategy.RelationshipFKName(rel))
 }
 
 // CheckerName converts checker constraint name to uppercase for Oracle
+// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: convert a check constraint name to uppercase for Oracle (pure)
 func (ns *OracleNamingStrategy) CheckerName(table, column string) string {
 	return strings.ToUpper(ns.NamingStrategy.CheckerName(table, column))
 }
 
 // IndexName converts index name to uppercase for Oracle
+// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: convert an index name to uppercase for Oracle (pure)
 func (ns *OracleNamingStrategy) IndexName(table, column string) string {
 	return strings.ToUpper(ns.NamingStrategy.IndexName(table, column))
 }
 
 // UniqueName converts unique constraint name to uppercase for Oracle
+// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: convert a unique constraint name to uppercase for Oracle (pure)
 func (ns *OracleNamingStrategy) UniqueName(table, column string) string {
 	return strings.ToUpper(ns.NamingStrategy.UniqueName(table, column))
 }
 
 // NewGormDB creates a new GORM database connection based on configuration
+// SEM@9be9de48236704afd7be7c8f4e5602ce2235739f: connect to a database via GORM with pooling, OTel tracing, and UTC session timezone
 func NewGormDB(cfg GormConfig) (*GormDB, error) {
 	log := slogging.Get()
 	log.Debug("Initializing GORM connection for database type: %s", cfg.Type)
@@ -510,6 +529,7 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 }
 
 // Close closes the database connection
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: close the underlying database connection pool (mutates shared state)
 func (g *GormDB) Close() error {
 	log := slogging.Get()
 	log.Debug("Closing GORM connection")
@@ -530,16 +550,19 @@ func (g *GormDB) Close() error {
 }
 
 // DB returns the GORM database instance
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: return the raw GORM database instance (pure)
 func (g *GormDB) DB() *gorm.DB {
 	return g.db
 }
 
 // DatabaseType returns the type of database (postgres or oracle)
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: return the configured database backend type for this connection (pure)
 func (g *GormDB) DatabaseType() DatabaseType {
 	return g.cfg.Type
 }
 
 // Ping checks if the database connection is alive
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: validate the GORM database connection is alive via ping (reads DB)
 func (g *GormDB) Ping(ctx context.Context) error {
 	log := slogging.Get()
 	log.Debug("Pinging GORM connection")
@@ -560,6 +583,7 @@ func (g *GormDB) Ping(ctx context.Context) error {
 }
 
 // LogStats logs statistics about the database connection pool
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: log connection pool statistics to structured debug output (reads DB)
 func (g *GormDB) LogStats() {
 	log := slogging.Get()
 
@@ -582,6 +606,7 @@ func (g *GormDB) LogStats() {
 }
 
 // AutoMigrate runs GORM auto-migration for the given models.
+// SEM@ba7ef88caa84239c54ef87465cd9a14f01f61e3d: apply additive schema migrations for all registered models (mutates shared state)
 func (g *GormDB) AutoMigrate(models ...any) error {
 	log := slogging.Get()
 	log.Debug("Running GORM auto-migration for %d models", len(models))
@@ -609,30 +634,37 @@ func (g *GormDB) AutoMigrate(models ...any) error {
 }
 
 // gormLogger adapts our slogging to GORM's logger interface
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: GORM logger adapter that routes database log events to the structured logger (pure)
 type gormLogger struct {
 	log *slogging.Logger
 }
 
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: build a GORM logger.Interface backed by the structured logger (pure)
 func newGormLogger(log *slogging.Logger) logger.Interface {
 	return &gormLogger{log: log}
 }
 
+// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: return the logger unchanged; log level changes are no-ops (pure)
 func (l *gormLogger) LogMode(level logger.LogLevel) logger.Interface {
 	return l
 }
 
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: dispatch a GORM info message to the structured logger at info level (pure)
 func (l *gormLogger) Info(ctx context.Context, msg string, data ...any) {
 	l.log.Info(msg, data...)
 }
 
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: dispatch a GORM warning message to the structured logger at warn level (pure)
 func (l *gormLogger) Warn(ctx context.Context, msg string, data ...any) {
 	l.log.Warn(msg, data...)
 }
 
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: dispatch a GORM error message to the structured logger at error level (pure)
 func (l *gormLogger) Error(ctx context.Context, msg string, data ...any) {
 	l.log.Error(msg, data...)
 }
 
+// SEM@7b44dd28820ffc230e89ff205b4e042638b5d35c: log a completed GORM query with elapsed time and error status (pure)
 func (l *gormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
 	elapsed := time.Since(begin)
 	sql, rows := fc()
@@ -659,6 +691,7 @@ func (l *gormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 //   - PostgreSQL/MySQL: TimeZone/loc=UTC is set in the DSN connection string.
 //
 // This function now only handles the per-connection cases that have no DSN-level lever.
+// SEM@22b322e46521c0753cc08719412daba7aeb05196: apply per-dialect session timezone settings after connection open (pure)
 func configureSessionTimezone(db *gorm.DB, dbType DatabaseType, log *slogging.Logger) error {
 	switch dbType {
 	case DatabaseTypeOracle:

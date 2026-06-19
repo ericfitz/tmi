@@ -11,6 +11,7 @@ import (
 // and step-up against them is short-circuited with an audit marker.
 //
 // See docs/superpowers/specs/2026-05-10-oauth2-step-up-design.md.
+// SEM@43dacd547eec5eefa97d1c84417548679f11c037: enum classifying whether a provider can enforce interactive re-authentication on demand (pure)
 type StepUpStrength int
 
 const (
@@ -18,6 +19,7 @@ const (
 	StepUpWeak
 )
 
+// SEM@43dacd547eec5eefa97d1c84417548679f11c037: convert a StepUpStrength value to its human-readable string label (pure)
 func (s StepUpStrength) String() string {
 	switch s {
 	case StepUpStrong:
@@ -55,6 +57,7 @@ var knownWeakProviderIDs = map[string]bool{
 //
 // SAML providers are classified Strong by callers via a separate path; this
 // function operates on OAuth provider configs only.
+// SEM@43dacd547eec5eefa97d1c84417548679f11c037: classify an OAuth provider config as strong or weak step-up based on allowlists and OIDC capability (pure)
 func ClassifyStepUpStrength(cfg OAuthProviderConfig) StepUpStrength {
 	if knownStrongProviderIDs[cfg.ID] {
 		return StepUpStrong
@@ -73,6 +76,7 @@ func ClassifyStepUpStrength(cfg OAuthProviderConfig) StepUpStrength {
 // to the URL returned by provider.GetAuthorizationURL(state). SAML callers
 // must not use this function; they call GetAuthorizationURLForceAuthn on the
 // SAML provider directly.
+// SEM@381909438c48d60df5164d4ea214359f1b52ebdf: build an authorization URL that forces interactive re-authentication via prompt=login and max_age=0 (pure)
 func BuildStepUpAuthorizationURL(provider Provider, cfg OAuthProviderConfig, state string) (string, error) {
 	// cfg is reserved for future per-provider step-up parameter overrides
 	// (e.g., providers that use a vendor-specific equivalent of prompt=login).
@@ -94,6 +98,7 @@ func BuildStepUpAuthorizationURL(provider Provider, cfg OAuthProviderConfig, sta
 // selection at the provider. Strong providers (those that honor prompt=consent)
 // also get prompt="select_account consent" so the user explicitly re-authorizes
 // scope grants. SAML providers are not supported for identity-link.
+// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: build an authorization URL that forces account selection and, for strong providers, consent (pure)
 func BuildIdentityLinkAuthorizationURL(provider Provider, cfg OAuthProviderConfig, state string) (string, error) {
 	raw := provider.GetAuthorizationURL(state)
 	u, err := url.Parse(raw)

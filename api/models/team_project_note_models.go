@@ -9,6 +9,7 @@ import (
 )
 
 // TeamNoteRecord represents a note attached to a team
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for a note attached to a team, with cascade delete on team removal
 type TeamNoteRecord struct {
 	ID           DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	TeamID       DBVarchar      `gorm:"size:36;not null;index:idx_tnote_team;index:idx_tnote_team_name,priority:1"`
@@ -25,11 +26,13 @@ type TeamNoteRecord struct {
 }
 
 // TableName specifies the table name for TeamNoteRecord
+// SEM@14963ec2acf3a735a933d7f1e724e4c7d224cbe6: return the database table name for TeamNoteRecord (pure)
 func (TeamNoteRecord) TableName() string {
 	return tableName("team_notes")
 }
 
 // BeforeCreate generates a UUID if not set and validates required fields.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: assign a UUID and validate required fields before inserting a team note (pure)
 func (n *TeamNoteRecord) BeforeCreate(tx *gorm.DB) error {
 	if n.ID == "" {
 		n.ID = DBVarchar(uuid.New().String())
@@ -44,6 +47,7 @@ func (n *TeamNoteRecord) BeforeCreate(tx *gorm.DB) error {
 }
 
 // ProjectNoteRecord represents a note attached to a project
+// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for a note attached to a project, with cascade delete on project removal
 type ProjectNoteRecord struct {
 	ID           DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	ProjectID    DBVarchar      `gorm:"size:36;not null;index:idx_pnote_project;index:idx_pnote_project_name,priority:1"`
@@ -60,11 +64,13 @@ type ProjectNoteRecord struct {
 }
 
 // TableName specifies the table name for ProjectNoteRecord
+// SEM@14963ec2acf3a735a933d7f1e724e4c7d224cbe6: return the database table name for ProjectNoteRecord (pure)
 func (ProjectNoteRecord) TableName() string {
 	return tableName("project_notes")
 }
 
 // BeforeCreate generates a UUID if not set and validates required fields.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: assign a UUID and validate required fields before inserting a project note (pure)
 func (n *ProjectNoteRecord) BeforeCreate(tx *gorm.DB) error {
 	if n.ID == "" {
 		n.ID = DBVarchar(uuid.New().String())

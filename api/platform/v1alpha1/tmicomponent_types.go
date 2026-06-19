@@ -8,6 +8,7 @@ import (
 
 // EgressPosture controls the NetworkPolicy the controller renders.
 // +kubebuilder:validation:Enum=none;fetch-controlled;allowlist
+// SEM@903a46db5bf7674feed65c5c638d24d77f8bf47c: enum type controlling the network egress policy rendered for a worker component (pure)
 type EgressPosture string
 
 const (
@@ -22,6 +23,7 @@ const (
 
 // InputMode declares how a component receives job input.
 // +kubebuilder:validation:Enum=content-ref;source-locator
+// SEM@903a46db5bf7674feed65c5c638d24d77f8bf47c: enum type declaring how a worker component receives job input (pure)
 type InputMode string
 
 const (
@@ -35,6 +37,7 @@ const (
 
 // SecretRef points to a key in a Kubernetes Secret. Secrets are NEVER
 // inlined in a TMIComponent — only referenced.
+// SEM@903a46db5bf7674feed65c5c638d24d77f8bf47c: data container referencing a key in a Kubernetes Secret by name without inlining secrets (pure)
 type SecretRef struct {
 	// Name is the logical name the worker uses to find this secret.
 	Name string `json:"name"`
@@ -48,6 +51,7 @@ type SecretRef struct {
 // component with egress: allowlist. At least one of CIDRs, ClusterPeers, or
 // OpenInternet must be set (enforced by ValidateComponent). The cloud metadata
 // IP (169.254.169.254) is never reachable regardless of what is declared here.
+// SEM@63e2aad01818e6abee8652287d395a8b4f205986: data container declaring allowed egress targets for a component with allowlist network posture (pure)
 type AllowlistEgress struct {
 	// CIDRs are stable destination ranges rendered as NetworkPolicy ipBlock
 	// egress rules. Use for an in-cluster VM, a cloud private-endpoint subnet,
@@ -73,6 +77,7 @@ type AllowlistEgress struct {
 
 // ClusterPeer selects an in-cluster egress destination by namespace and pod
 // labels. At least one of NamespaceSelector / PodSelector must be set.
+// SEM@63e2aad01818e6abee8652287d395a8b4f205986: data container selecting an in-cluster egress destination by namespace and pod labels (pure)
 type ClusterPeer struct {
 	// NamespaceSelector matches destination namespaces by label. When empty,
 	// the rule is not namespace-scoped (matches pods in any namespace by the
@@ -88,6 +93,7 @@ type ClusterPeer struct {
 }
 
 // ScalingSpec configures the KEDA ScaledObject.
+// SEM@903a46db5bf7674feed65c5c638d24d77f8bf47c: data container configuring KEDA autoscaling bounds and queue-depth target for a component (pure)
 type ScalingSpec struct {
 	// +kubebuilder:validation:Minimum=0
 	MinReplicas int32 `json:"minReplicas"`
@@ -100,6 +106,7 @@ type ScalingSpec struct {
 }
 
 // ScratchVolume requests a capped, ephemeral emptyDir mounted writable.
+// SEM@903a46db5bf7674feed65c5c638d24d77f8bf47c: data container declaring a capped ephemeral emptyDir volume for a worker pod (pure)
 type ScratchVolume struct {
 	// MountPath is where the emptyDir is mounted in the worker container.
 	MountPath string `json:"mountPath"`
@@ -109,6 +116,7 @@ type ScratchVolume struct {
 }
 
 // TMIComponentSpec is the desired state of a component type.
+// SEM@903a46db5bf7674feed65c5c638d24d77f8bf47c: desired-state spec for a TMI worker component type including image, scaling, and network policy (pure)
 type TMIComponentSpec struct {
 	// Image is the worker container image.
 	Image string `json:"image"`
@@ -139,6 +147,7 @@ type TMIComponentSpec struct {
 }
 
 // TMIComponentStatus is the observed state.
+// SEM@903a46db5bf7674feed65c5c638d24d77f8bf47c: observed-state status for a TMI worker component with Kubernetes conditions (pure)
 type TMIComponentStatus struct {
 	// Conditions follows the standard Kubernetes condition pattern.
 	// +optional
@@ -156,6 +165,7 @@ type TMIComponentStatus struct {
 // +kubebuilder:printcolumn:name="Input",type=string,JSONPath=`.spec.inputMode`
 
 // TMIComponent declares a TMI Component Platform worker type.
+// SEM@903a46db5bf7674feed65c5c638d24d77f8bf47c: Kubernetes custom resource declaring a TMI Component Platform worker type (pure)
 type TMIComponent struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -167,12 +177,14 @@ type TMIComponent struct {
 // +kubebuilder:object:root=true
 
 // TMIComponentList is a list of TMIComponent.
+// SEM@903a46db5bf7674feed65c5c638d24d77f8bf47c: list container for TMIComponent custom resources (pure)
 type TMIComponentList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []TMIComponent `json:"items"`
 }
 
+// SEM@903a46db5bf7674feed65c5c638d24d77f8bf47c: register TMIComponent and TMIComponentList types with the controller-runtime scheme (mutates shared state)
 func init() {
 	SchemeBuilder.Register(&TMIComponent{}, &TMIComponentList{})
 }

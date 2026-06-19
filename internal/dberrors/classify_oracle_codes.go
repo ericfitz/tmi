@@ -16,6 +16,7 @@ var ora01555Counter atomic.Uint64
 
 // SnapshotTooOldCount returns the cumulative number of ORA-01555 occurrences
 // observed since process start. Intended for operator inspection and tests.
+// SEM@379ec443351a5e4c305ce61c48bfaab5ed1a5f97: return the cumulative count of ORA-01555 snapshot-too-old errors observed since process start (pure)
 func SnapshotTooOldCount() uint64 {
 	return ora01555Counter.Load()
 }
@@ -30,6 +31,7 @@ func SnapshotTooOldCount() uint64 {
 // observed occurrence rate. ORA-01555 occurrences are counted in
 // ora01555Counter and emit a WARN log so operators can decide whether the
 // rate justifies reclassification.
+// SEM@178dbd0418cfb7e057d4297c7a88c5879cb64c7f: map an Oracle ORA- error code to a typed sentinel error; instrument ORA-01555 with counter and warn log (pure)
 func classifyOracleCode(err error, code int) error {
 	switch code {
 	// Unique constraint violated

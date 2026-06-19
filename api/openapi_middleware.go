@@ -14,6 +14,7 @@ import (
 )
 
 // OpenAPIErrorHandler converts OpenAPI validation errors to TMI's error format
+// SEM@b01e07335548bf92e0c83fbddb8681759f35fdb7: convert an OpenAPI validation error into a typed TMI error response with correct HTTP status
 func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 	var tmiError error
 
@@ -93,6 +94,7 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 
 // GinServerErrorHandler converts parameter binding errors to TMI's error format
 // This is used by the oapi-codegen generated server wrapper to handle parameter binding errors
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: convert a Gin parameter binding error into a typed TMI error response
 func GinServerErrorHandler(c *gin.Context, err error, statusCode int) {
 	requestID := getRequestID(c)
 	logger := slogging.GetContextLogger(c)
@@ -138,6 +140,7 @@ func GinServerErrorHandler(c *gin.Context, err error, statusCode int) {
 }
 
 // SetupOpenAPIValidation creates and returns OpenAPI validation middleware
+// SEM@74d36522781dcfd28cfc8f5f32ed5cd9dd62a25e: build and return a Gin middleware that validates requests against the OpenAPI spec, skipping WebSocket routes
 func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
 	swagger, err := GetSwagger()
 	if err != nil {
@@ -225,6 +228,7 @@ func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
 var cachedSwagger *openapi3.T
 
 // initCachedSwagger initializes the cached swagger spec
+// SEM@7c079224f190aff1ed70051c0b968bea85179c0e: lazily load and cache the parsed OpenAPI spec for path lookup (mutates shared state)
 func initCachedSwagger() {
 	if cachedSwagger == nil {
 		swagger, err := GetSwagger()
@@ -236,6 +240,7 @@ func initCachedSwagger() {
 
 // pathExistsInSpec checks if a path exists in the OpenAPI spec (with any method)
 // It handles path parameters by normalizing the path
+// SEM@7c079224f190aff1ed70051c0b968bea85179c0e: return true when a request path matches any path in the OpenAPI spec, handling path parameters (pure)
 func pathExistsInSpec(requestPath string) bool {
 	initCachedSwagger()
 	if cachedSwagger == nil {
@@ -280,6 +285,7 @@ func pathExistsInSpec(requestPath string) bool {
 }
 
 // getAllowedMethodsForPath returns the allowed HTTP methods for a path
+// SEM@68f368a9d5b9ab910204ebe7089f7417813fa2a2: return the Allow header value listing HTTP methods defined for a request path in the OpenAPI spec (pure)
 func getAllowedMethodsForPath(requestPath string) string {
 	initCachedSwagger()
 	if cachedSwagger == nil {
@@ -352,6 +358,7 @@ func getAllowedMethodsForPath(requestPath string) string {
 // findPathItem finds the OpenAPI PathItem for a request path, handling path parameters.
 // When multiple spec paths match (e.g. /things/{id} vs /things/bulk), the path
 // with more literal segment matches wins to avoid incorrect wildcard matches.
+// SEM@8a2298996c6d35ccb44ca1c855f941e5ad97039a: find the OpenAPI PathItem for a request path, preferring the most literal match over wildcard segments (pure)
 func findPathItem(requestPath string) *openapi3.PathItem {
 	initCachedSwagger()
 	if cachedSwagger == nil {
@@ -396,6 +403,7 @@ func findPathItem(requestPath string) *openapi3.PathItem {
 // getAcceptedContentTypes returns the set of base content types accepted by
 // an endpoint for the given HTTP method, according to the OpenAPI spec.
 // Returns nil if the path/method is not found (caller should fall back to defaults).
+// SEM@9c9e66bf68f17dfd4a827d91dd38c42a4fe3d0f6: return the set of request body content types accepted by an endpoint per the OpenAPI spec (pure)
 func getAcceptedContentTypes(requestPath, method string) map[string]bool {
 	pathItem := findPathItem(requestPath)
 	if pathItem == nil {

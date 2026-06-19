@@ -20,6 +20,7 @@ import (
 // convertUserToAPIResponse converts auth.User to a map matching the OpenAPI UserWithAdminStatus schema
 // This ensures field names match the API spec (provider_id instead of provider_user_id)
 // Used by /me endpoint for TMI-specific user information
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: convert a User to the API response map including role flags and group membership (pure)
 func convertUserToAPIResponse(user User, groups []UserGroupInfo) map[string]any {
 	response := map[string]any{
 		"principal_type":       "user",
@@ -41,6 +42,7 @@ func convertUserToAPIResponse(user User, groups []UserGroupInfo) map[string]any 
 // convertUserToOIDCResponse converts auth.User to OIDC-compliant userinfo response
 // Per OIDC Core 1.0 Section 5.1, only "sub" is required; other claims are optional
 // Used by /oauth2/userinfo endpoint for OIDC standard compliance
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: convert a User to an OIDC-compliant userinfo map with standard claims (pure)
 func convertUserToOIDCResponse(user User) map[string]any {
 	response := map[string]any{
 		"sub":   user.ProviderUserID, // OIDC: subject identifier (required)
@@ -62,6 +64,7 @@ func convertUserToOIDCResponse(user User) map[string]any {
 }
 
 // getBaseURL constructs the base URL for the current request
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: derive the request base URL from TLS state and X-Forwarded-Proto header (pure)
 func getBaseURL(c *gin.Context) string {
 	scheme := schemeHTTP
 	if c.Request.TLS != nil {
@@ -77,6 +80,7 @@ func getBaseURL(c *gin.Context) string {
 }
 
 // generateState generates a random state parameter (method on Handlers)
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: generate a cryptographically random OAuth state string, falling back to a timestamp on error (pure)
 func (h *Handlers) generateState() string {
 	state, err := generateRandomState()
 	if err != nil {
@@ -88,6 +92,7 @@ func (h *Handlers) generateState() string {
 }
 
 // generateRandomState generates a random state parameter
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: generate a cryptographically random 32-byte base64url OAuth state string (pure)
 func generateRandomState() (string, error) {
 	b := make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, b); err != nil {
@@ -100,6 +105,7 @@ func generateRandomState() (string, error) {
 // Tokens are returned in the URL fragment per OAuth 2.0 implicit flow specification
 // to prevent them from being logged in server access logs or browser history
 // buildAuthCodeRedirectURL builds redirect URL with authorization code (PKCE flow)
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: build a validated OAuth authorization-code redirect URL with code and state query params (pure)
 func buildAuthCodeRedirectURL(clientCallback string, code string, state string) (string, error) {
 	// Parse the client callback URL
 	parsedURL, err := url.Parse(clientCallback)
@@ -129,6 +135,7 @@ func buildAuthCodeRedirectURL(clientCallback string, code string, state string) 
 	return parsedURL.String(), nil
 }
 
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: build a validated OAuth redirect URL with token pair encoded in the URL fragment (pure)
 func buildClientRedirectURL(clientCallback string, tokenPair TokenPair, state string) (string, error) {
 	// Parse the client callback URL
 	parsedURL, err := url.Parse(clientCallback)
@@ -167,6 +174,7 @@ func buildClientRedirectURL(clientCallback string, tokenPair TokenPair, state st
 
 // validateOAuthScope validates the scope parameter according to OpenID Connect specification
 // Requires at least "openid" scope, supports "profile" and "email", ignores other scopes
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: validate that the OAuth scope string includes the required 'openid' scope (pure)
 func (h *Handlers) validateOAuthScope(scope string) error {
 	if scope == "" {
 		return fmt.Errorf("scope parameter is required")

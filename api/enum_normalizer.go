@@ -50,6 +50,7 @@ var enumBodyFields = map[string]bool{
 // Consecutive uppercase letters are treated as an acronym and kept together.
 // e.g., "oneSide" -> "one_side", "Bearer" -> "bearer", "OK" -> "ok",
 // "DEGRADED" -> "degraded", "Critical" -> "critical"
+// SEM@3281540c1e73b276d2ad4b041947dad66748e7cf: convert a camelCase or space-separated string to snake_case (pure)
 func camelToSnake(s string) string {
 	// Collapse spaces and replace with underscores so they act as word boundaries
 	s = strings.Join(strings.Fields(s), "_")
@@ -80,6 +81,7 @@ func camelToSnake(s string) string {
 
 // NormalizeEnumValue converts any case variant to canonical snake_case.
 // e.g., "Critical" -> "critical", "OneSide" -> "one_side", "OK" -> "ok"
+// SEM@034968fa0e0ba8c15e9af9052b475f4d5dd72d50: trim and convert an enum string value to snake_case (pure)
 func NormalizeEnumValue(value string) string {
 	return camelToSnake(strings.TrimSpace(value))
 }
@@ -87,6 +89,7 @@ func NormalizeEnumValue(value string) string {
 // EnumNormalizerMiddleware normalizes enum values in query parameters and JSON
 // request bodies to their canonical snake_case form before OpenAPI validation.
 // This makes enum matching case-insensitive for API consumers.
+// SEM@034968fa0e0ba8c15e9af9052b475f4d5dd72d50: normalize enum query params and JSON body fields to snake_case before validation
 func EnumNormalizerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.GetContextLogger(c)
@@ -105,6 +108,7 @@ func EnumNormalizerMiddleware() gin.HandlerFunc {
 }
 
 // normalizeQueryParams normalizes enum values in query parameters.
+// SEM@034968fa0e0ba8c15e9af9052b475f4d5dd72d50: convert known enum query parameter values to snake_case in place (mutates shared state)
 func normalizeQueryParams(c *gin.Context, logger slogging.SimpleLogger) {
 	query := c.Request.URL.Query()
 	modified := false
@@ -128,6 +132,7 @@ func normalizeQueryParams(c *gin.Context, logger slogging.SimpleLogger) {
 }
 
 // normalizeJSONBody normalizes enum field values in a JSON request body.
+// SEM@034968fa0e0ba8c15e9af9052b475f4d5dd72d50: parse and rewrite JSON request body enum fields to snake_case (mutates shared state)
 func normalizeJSONBody(c *gin.Context, logger slogging.SimpleLogger) {
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -166,6 +171,7 @@ func normalizeJSONBody(c *gin.Context, logger slogging.SimpleLogger) {
 
 // normalizeEnumFields recursively walks a parsed JSON value and normalizes
 // string values for known enum field names. Returns true if any value was modified.
+// SEM@034968fa0e0ba8c15e9af9052b475f4d5dd72d50: recursively normalize enum string values in a JSON-decoded object graph (pure)
 func normalizeEnumFields(v any) bool {
 	modified := false
 	switch val := v.(type) {

@@ -5,6 +5,7 @@ import (
 )
 
 // TableSchema represents the expected schema for a table
+// SEM@6b74774f78533f16518466a3a49931403eb6c263: expected schema descriptor for a database table including columns, indexes, and constraints (pure)
 type TableSchema struct {
 	Name        string
 	Columns     []ColumnSchema
@@ -13,6 +14,7 @@ type TableSchema struct {
 }
 
 // ColumnSchema represents the expected schema for a column
+// SEM@6b74774f78533f16518466a3a49931403eb6c263: expected schema descriptor for a table column including type, nullability, and primary key flag (pure)
 type ColumnSchema struct {
 	Name         string
 	DataType     string
@@ -22,6 +24,7 @@ type ColumnSchema struct {
 }
 
 // IndexSchema represents the expected schema for an index
+// SEM@6b74774f78533f16518466a3a49931403eb6c263: expected schema descriptor for a database index including name, columns, and uniqueness (pure)
 type IndexSchema struct {
 	Name     string
 	Columns  []string
@@ -29,6 +32,7 @@ type IndexSchema struct {
 }
 
 // ConstraintSchema represents the expected schema for a constraint
+// SEM@6b74774f78533f16518466a3a49931403eb6c263: expected schema descriptor for a database constraint including type, definition, and foreign key refs (pure)
 type ConstraintSchema struct {
 	Name           string
 	Type           string // CHECK, FOREIGN KEY, UNIQUE
@@ -38,6 +42,7 @@ type ConstraintSchema struct {
 }
 
 // GetExpectedSchema returns the complete expected database schema
+// SEM@233ab212fbfe0072b0d2d8a570accc8e504d723e: return the full canonical database schema as a list of table descriptors (pure)
 func GetExpectedSchema() []TableSchema {
 	schema := []TableSchema{
 		{
@@ -937,11 +942,13 @@ func GetExpectedSchema() []TableSchema {
 
 // stringPtr returns a pointer to the given string value.
 // Used for DefaultValue fields in ColumnSchema.
+// SEM@1e94d2f3efee773875c50f420309e6ffe2e8fd72: convert a string value to a pointer for use in nullable schema fields (pure)
 func stringPtr(s string) *string {
 	return &s
 }
 
 // normalizeDataType normalizes PostgreSQL data types for comparison
+// SEM@27f75e455935db4d67b8511cf30f5f77c118fc2f: normalize a PostgreSQL data type string to a canonical form for comparison (pure)
 func normalizeDataType(dataType string) string {
 	// Normalize common variations
 	dataType = strings.ToLower(dataType)
@@ -971,6 +978,7 @@ func normalizeDataType(dataType string) string {
 }
 
 // compareDataTypes compares two PostgreSQL data types accounting for variations
+// SEM@6b74774f78533f16518466a3a49931403eb6c263: validate that two PostgreSQL data type strings are equivalent after normalization (pure)
 func compareDataTypes(expected, actual string) bool {
 	return normalizeDataType(expected) == normalizeDataType(actual)
 }

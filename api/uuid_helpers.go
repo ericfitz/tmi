@@ -7,6 +7,7 @@ import (
 
 // ExtractUUID extracts and validates a UUID from a path parameter
 // Returns the parsed UUID or an error with HTTP response already sent
+// SEM@a5548be4c61d9f98ed2f3edd998abd909cd5f4ab: parse and validate a required UUID path parameter, sending a 400 on failure (pure)
 func ExtractUUID(c *gin.Context, paramName string) (uuid.UUID, error) {
 	id := c.Param(paramName)
 	if id == "" {
@@ -27,6 +28,7 @@ func ExtractUUID(c *gin.Context, paramName string) (uuid.UUID, error) {
 
 // ExtractRequiredUUIDs extracts and validates multiple required UUID parameters
 // Returns a map of parameter names to UUIDs, or an error with HTTP response already sent
+// SEM@a5548be4c61d9f98ed2f3edd998abd909cd5f4ab: parse and validate multiple required UUID path parameters, returning a name-to-UUID map (pure)
 func ExtractRequiredUUIDs(c *gin.Context, paramNames ...string) (map[string]uuid.UUID, error) {
 	result := make(map[string]uuid.UUID, len(paramNames))
 
@@ -44,6 +46,7 @@ func ExtractRequiredUUIDs(c *gin.Context, paramNames ...string) (map[string]uuid
 
 // ExtractOptionalUUID extracts and validates an optional UUID from a path parameter
 // Returns the parsed UUID (or uuid.Nil if not present), and an error if parsing fails
+// SEM@a5548be4c61d9f98ed2f3edd998abd909cd5f4ab: parse and validate an optional UUID path parameter, returning uuid.Nil if absent (pure)
 func ExtractOptionalUUID(c *gin.Context, paramName string) (uuid.UUID, error) {
 	id := c.Param(paramName)
 	if id == "" {

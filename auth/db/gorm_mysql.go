@@ -10,6 +10,7 @@ import (
 )
 
 // getMySQLDialector returns the MySQL dialector when built with the mysql tag.
+// SEM@f494d0d545837596afcc5bccc1deb2ee4bf3e336: build a GORM MySQL dialector from the given connection config (pure)
 func getMySQLDialector(cfg GormConfig) gorm.Dialector {
 	// MySQL DSN format: user:password@tcp(host:port)/dbname?parseTime=true
 	// parseTime=true is required for proper time.Time scanning

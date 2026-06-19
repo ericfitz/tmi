@@ -18,6 +18,7 @@ import (
 
 // revokeTokenInternal handles the actual token revocation logic
 // This is shared between RevokeToken (RFC 7009) and MeLogout endpoints
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: revoke an access or refresh token by blacklisting or deleting it (mutates shared state)
 func (h *Handlers) revokeTokenInternal(ctx context.Context, tokenString string, tokenTypeHint string) error {
 	logger := slogging.Get()
 
@@ -65,6 +66,7 @@ func (h *Handlers) revokeTokenInternal(ctx context.Context, tokenString string, 
 
 // validateTokenRevocationField validates a field value for the token revocation endpoint.
 // Delegates to the consolidated unicodecheck package for consistent character detection.
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: validate a token revocation field for zero-width and control characters, returning an error message (pure)
 func validateTokenRevocationField(value, fieldName string) string {
 	if value == "" {
 		return ""
@@ -84,6 +86,7 @@ func validateTokenRevocationField(value, fieldName string) string {
 }
 
 // validateTokenTypeHint validates the token_type_hint parameter
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: validate that the token_type_hint parameter is an RFC 7009 allowed value (pure)
 func validateTokenTypeHint(hint string) string {
 	if hint == "" {
 		return "" // Optional field
@@ -105,6 +108,7 @@ func validateTokenTypeHint(hint string) string {
 // RevokeToken revokes a token per RFC 7009 OAuth 2.0 Token Revocation
 // The token to revoke is passed in the request body, not the Authorization header.
 // Authentication: Bearer token OR client credentials (client_id/client_secret)
+// SEM@6cdf4b6d0226e518be3ef44423f6712f7c1d2717: handle RFC 7009 token revocation requests authenticated by Bearer token or client credentials
 func (h *Handlers) RevokeToken(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -289,6 +293,7 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 }
 
 // TokenIntrospectionResponse represents the response from token introspection
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: RFC 7662 token introspection response payload with active status and standard claims
 type TokenIntrospectionResponse struct {
 	Active    bool   `json:"active"`
 	Sub       string `json:"sub,omitempty"`
@@ -303,6 +308,7 @@ type TokenIntrospectionResponse struct {
 }
 
 // IntrospectToken handles token introspection requests per RFC 7662
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: handle RFC 7662 token introspection, returning active status and claims for a given token (reads DB)
 func (h *Handlers) IntrospectToken(c *gin.Context) {
 	var req struct {
 		Token string `json:"token" form:"token" binding:"required"`
@@ -394,6 +400,7 @@ func (h *Handlers) IntrospectToken(c *gin.Context) {
 // Rejects requests containing unknown fields to prevent mass assignment vulnerabilities.
 // Also validates that required fields are present, rejects duplicate keys, and rejects
 // trailing garbage after the JSON object.
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: parse and strictly validate a JSON revocation request, rejecting unknown fields and duplicate keys (pure)
 func strictJSONBindForRevoke(c *gin.Context, target any) string {
 	// Read body
 	body, err := io.ReadAll(c.Request.Body)
@@ -452,6 +459,7 @@ func strictJSONBindForRevoke(c *gin.Context, target any) string {
 // detectDuplicateJSONKeys checks for duplicate keys in a JSON object.
 // Go's standard json.Decoder silently overwrites duplicate keys with the last value,
 // so we need to manually detect this.
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: scan a JSON object for duplicate root-level keys, returning an error message if found (pure)
 func detectDuplicateJSONKeys(data []byte) string {
 	decoder := json.NewDecoder(strings.NewReader(string(data)))
 

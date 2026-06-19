@@ -45,6 +45,7 @@ const (
 //
 // Kept package-private — callers use errors.Is(err, ErrExtractionLimit)
 // and ClassifyError to consume it.
+// SEM@f7dfe970572e2574027691de97c695d5ae39d5b7: carry the kind, limit, observed value, and optional detail for a tripped extraction limit (pure)
 type extractionLimitError struct {
 	Kind     string
 	Limit    int64
@@ -52,6 +53,7 @@ type extractionLimitError struct {
 	Detail   string // optional context: "slide #42", "sheet 'Sales'"
 }
 
+// SEM@f7dfe970572e2574027691de97c695d5ae39d5b7: format the extraction limit error into a human-readable string (pure)
 func (e *extractionLimitError) Error() string {
 	if e.Detail != "" {
 		return fmt.Sprintf("extraction limit exceeded: kind=%s limit=%d observed=%d detail=%q",
@@ -61,7 +63,9 @@ func (e *extractionLimitError) Error() string {
 		e.Kind, e.Limit, e.Observed)
 }
 
+// SEM@f7dfe970572e2574027691de97c695d5ae39d5b7: match against the ErrExtractionLimit sentinel for errors.Is checks (pure)
 func (e *extractionLimitError) Is(target error) bool { return target == ErrExtractionLimit }
+// SEM@f7dfe970572e2574027691de97c695d5ae39d5b7: return the ErrExtractionLimit sentinel as the wrapped cause (pure)
 func (e *extractionLimitError) Unwrap() error        { return ErrExtractionLimit }
 
 // NewLimitError builds a typed extraction-limit error for the given Kind
@@ -78,6 +82,7 @@ func (e *extractionLimitError) Unwrap() error        { return ErrExtractionLimit
 //
 // Limit and Observed are left zero — this constructor is for classification
 // and test injection, not for producing human-facing limit diagnostics.
+// SEM@d1fd850907490887fd11a6ccd4a691326ede6e4e: build a classifiable extraction-limit error for a given kind and detail (pure)
 func NewLimitError(kind, detail string) error {
 	return &extractionLimitError{Kind: kind, Detail: detail}
 }
@@ -87,6 +92,7 @@ func NewLimitError(kind, detail string) error {
 // api.ExtractionClassification; the Status field is dropped because
 // access_status is a monolith concept — the worker reports only reason
 // codes, and the monolith's result-consumer (Plan 3) derives access_status.
+// SEM@f7dfe970572e2574027691de97c695d5ae39d5b7: pair a reason code with an optional human-readable detail for an extraction error (pure)
 type Classification struct {
 	ReasonCode   string
 	ReasonDetail string
@@ -94,6 +100,7 @@ type Classification struct {
 
 // ClassifyError walks the error chain and returns the matching reason code.
 // Default is ReasonExtractionInternal. A nil error returns the zero value.
+// SEM@f7dfe970572e2574027691de97c695d5ae39d5b7: walk an error chain and return the matching extraction reason code (pure)
 func ClassifyError(err error) Classification {
 	if err == nil {
 		return Classification{}

@@ -5,6 +5,7 @@ import (
 )
 
 // NoteRepository defines the interface for note operations with caching support
+// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: interface for CRUD, patch, list, count, and cache operations on threat model notes
 type NoteRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, note *Note, threatModelID string) error

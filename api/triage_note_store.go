@@ -6,6 +6,7 @@ import (
 
 // TriageNoteStore defines the interface for triage note operations.
 // Triage notes are append-only (create + read), so no Update/Delete/Patch methods.
+// SEM@869fcafe6842b187f8cfe8e7cf65ca47021b8418: interface for append-only triage note operations on a survey response (reads DB)
 type TriageNoteStore interface {
 	// Create creates a new triage note with an auto-assigned sequential ID
 	Create(ctx context.Context, note *TriageNote, surveyResponseID string, creatorInternalUUID string) error

@@ -6,6 +6,7 @@ import (
 )
 
 // userModelToAPI converts an auth/models.User to the OpenAPI User type.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: convert a DB user model to the OpenAPI User DTO (pure)
 func userModelToAPI(model *models.User) *User {
 	email := openapi_types.Email(model.Email)
 	return &User{

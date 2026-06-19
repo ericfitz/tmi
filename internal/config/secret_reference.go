@@ -22,6 +22,7 @@ const (
 // package that can import internal/secrets; internal/config cannot import
 // internal/secrets directly (that would create an import cycle, because
 // internal/secrets imports internal/config for config.SecretsConfig).
+// SEM@b583a71af02ca00e2c408d9d52e1e41f514df3ff: interface for dereferencing a vault:// secret path to its plaintext value (pure)
 type SecretResolver interface {
 	// ResolveVault returns the secret value stored at the given vault path.
 	ResolveVault(ctx context.Context, path string) (string, error)
@@ -29,6 +30,7 @@ type SecretResolver interface {
 
 // IsSecretReference reports whether value is a secret-reference locator
 // (vault://, env://, or file://) rather than an inline secret literal.
+// SEM@b583a71af02ca00e2c408d9d52e1e41f514df3ff: report whether a config value is a secret-reference locator rather than an inline literal (pure)
 func IsSecretReference(value string) bool {
 	return strings.HasPrefix(value, schemeVault) ||
 		strings.HasPrefix(value, schemeEnv) ||
@@ -48,6 +50,7 @@ func IsSecretReference(value string) bool {
 //     provider).
 //
 // Resolution failures are returned as typed errors; this function never panics.
+// SEM@b583a71af02ca00e2c408d9d52e1e41f514df3ff: dereference a vault://, env://, or file:// secret locator to its plaintext value (reads env/file/vault)
 func ResolveSecretValue(ctx context.Context, value string, vault SecretResolver) (string, error) {
 	switch {
 	case strings.HasPrefix(value, schemeVault):

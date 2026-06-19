@@ -15,6 +15,7 @@ import (
 // ContentSourceBundle groups the rebuildable content-source objects served to
 // request handlers and background pollers. It is immutable once built;
 // ContentSourceHolder swaps the whole struct on rebuild.
+// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: immutable snapshot grouping content sources, pipeline, and access poller for a single wiring revision (pure)
 type ContentSourceBundle struct {
 	Sources  *ContentSourceRegistry
 	Pipeline *ContentPipeline
@@ -34,6 +35,7 @@ type ContentSourceBundle struct {
 // return an error that would leave the server with no sources at all. A nil
 // bundle is returned only when the entire subsystem cannot be set up (e.g.
 // nil document store), in which case the holder keeps its previous bundle.
+// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: factory contract for building a ContentSourceBundle from live config without starting the poller (pure)
 type ContentSourceBundleBuilder func(ctx context.Context, cfg config.Config) (*ContentSourceBundle, error)
 
 // ContentSourceHolder owns the live ContentSourceBundle and rebuilds it lazily
@@ -44,6 +46,7 @@ type ContentSourceBundleBuilder func(ctx context.Context, cfg config.Config) (*C
 // requests hold their *ContentSourceBundle pointer for the duration of the
 // call; a swap replaces the holder's pointer but never mutates an in-use
 // bundle.
+// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: thread-safe holder that lazily rebuilds the content-source bundle when wiring config changes (mutates shared state)
 type ContentSourceHolder struct {
 	cfg   func(ctx context.Context) config.Config // live config reader
 	build ContentSourceBundleBuilder
@@ -56,6 +59,7 @@ type ContentSourceHolder struct {
 
 // NewContentSourceHolder constructs a holder over the given config reader and
 // builder. Neither argument may be nil.
+// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: build a ContentSourceHolder wired to the given config reader and bundle builder (pure)
 func NewContentSourceHolder(
 	cfgReader func(ctx context.Context) config.Config,
 	builder ContentSourceBundleBuilder,
@@ -67,6 +71,7 @@ func NewContentSourceHolder(
 // held) after each successful rebuild. Hooks are called in registration order
 // with the newly installed bundle. The bundle is never nil when a hook fires.
 // Hooks MUST NOT call Get (deadlock) or block for more than a few microseconds.
+// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: register a callback invoked after each successful content-source bundle rebuild (mutates shared state)
 func (h *ContentSourceHolder) AddRebuildHook(fn func(*ContentSourceBundle)) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -82,6 +87,7 @@ func (h *ContentSourceHolder) AddRebuildHook(fn func(*ContentSourceBundle)) {
 // Concurrency: the fast path (hash unchanged) acquires only an RLock.
 // A rebuild upgrades to WLock with a double-check to prevent two goroutines
 // from both rebuilding.
+// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: fetch the live content-source bundle, rebuilding lazily when wiring config hash changes (mutates shared state)
 func (h *ContentSourceHolder) Get(ctx context.Context) (*ContentSourceBundle, error) {
 	cfg := h.cfg(ctx)
 	want := contentSourceWiringHash(cfg)
@@ -125,6 +131,7 @@ func (h *ContentSourceHolder) Get(ctx context.Context) (*ContentSourceBundle, er
 
 // StopPoller stops the currently-running access poller, if any. Called during
 // server shutdown so the goroutine is cleaned up before the process exits.
+// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: stop the active content-source access poller for graceful shutdown (mutates shared state)
 func (h *ContentSourceHolder) StopPoller() {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -142,6 +149,7 @@ func (h *ContentSourceHolder) StopPoller() {
 // paths, picker keys, encryption key, allowlists). Pure tuning values (e.g.
 // access-poller interval) are NOT included because they are read live inside the
 // poller.
+// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: compute a stable hash over config fields that require a content-source rebuild when changed (pure)
 func contentSourceWiringHash(cfg config.Config) string {
 	cs := cfg.ContentSources
 	co := cfg.ContentOAuth
@@ -211,6 +219,7 @@ func contentSourceWiringHash(cfg config.Config) string {
 }
 
 // boolStr converts a bool to a stable string for hashing.
+// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: convert a bool to a stable one-character string for hashing (pure)
 func boolStr(b bool) string {
 	if b {
 		return "1"
@@ -222,6 +231,7 @@ func boolStr(b bool) string {
 // ContentSourceRegistry. The factory captures the startup-wired extractor
 // registry, concurrency limiter, and limits so they can be reused across
 // registry rebuilds. Only the source registry changes on runtime toggle.
+// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: factory function type that builds a ContentPipeline from a given source registry (pure)
 type ContentPipelineFactory func(sources *ContentSourceRegistry) *ContentPipeline
 
 // BuildContentSourceBundle is the production builder for ContentSourceHolder.
@@ -234,6 +244,7 @@ type ContentPipelineFactory func(sources *ContentSourceRegistry) *ContentPipelin
 // (pipeline will be nil in the returned bundle).
 //
 // The function signature matches ContentSourceBundleBuilder.
+// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: build the production ContentSourceBundleBuilder, registering all enabled content sources with graceful skip on misconfiguration
 func BuildContentSourceBundle(
 	tokenRepo ContentTokenRepository,
 	contentOAuthValidator *URIValidator,

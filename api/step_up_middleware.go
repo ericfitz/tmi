@@ -24,6 +24,7 @@ import (
 // Order: this middleware MUST run after AuthzMiddleware so non-admins get
 // 403 (not 401) when they hit an admin route they can't reach. See spec
 // "Request flow for a gated admin write".
+// SEM@e005ee4f6bf927c842fe7fae5363929a8ad0d794: enforce recent re-authentication for routes that require step-up auth (pure)
 func StepUpMiddleware(window time.Duration, table StepUpRouteTable) gin.HandlerFunc {
 	maxAgeSeconds := int(window.Seconds())
 	return func(c *gin.Context) {
@@ -62,6 +63,7 @@ func StepUpMiddleware(window time.Duration, table StepUpRouteTable) gin.HandlerF
 
 // stepUpReason produces a small human-readable string for the audit log
 // describing why a request was challenged.
+// SEM@e005ee4f6bf927c842fe7fae5363929a8ad0d794: produce a human-readable audit log reason for a step-up challenge (pure)
 func stepUpReason(authTime *time.Time, window time.Duration) string {
 	if authTime == nil {
 		return "auth_time_missing"

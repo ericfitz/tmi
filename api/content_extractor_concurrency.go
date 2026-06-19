@@ -15,6 +15,7 @@ import (
 // process (override changes don't resize the existing semaphore — known
 // limitation, see design spec). The lookup callback is invoked while the
 // internal mutex is held, so callers must supply a fast (cached) lookup.
+// SEM@d1fd850907490887fd11a6ccd4a691326ede6e4e: per-user weighted semaphore pool capping simultaneous content extractions (mutates shared state)
 type ConcurrencyLimiter struct {
 	mu       sync.Mutex
 	sems     map[string]*semaphore.Weighted
@@ -27,6 +28,7 @@ type ConcurrencyLimiter struct {
 // lookup is called on first acquire per user to fetch the override value.
 // A nil lookup means "always use fallback". Values outside (0,
 // config.MaxPerUserConcurrency] are clamped to the safe default of 2.
+// SEM@d1fd850907490887fd11a6ccd4a691326ede6e4e: build a ConcurrencyLimiter with a fallback cap and optional per-user override lookup (pure)
 func NewConcurrencyLimiter(fallback int, lookup func(ctx context.Context, userID string) (int, error)) *ConcurrencyLimiter {
 	if fallback <= 0 || fallback > config.MaxPerUserConcurrency {
 		fallback = 2
@@ -38,6 +40,7 @@ func NewConcurrencyLimiter(fallback int, lookup func(ctx context.Context, userID
 	}
 }
 
+// SEM@d1fd850907490887fd11a6ccd4a691326ede6e4e: acquire a per-user extraction slot, blocking until available or context cancelled (mutates shared state)
 func (cl *ConcurrencyLimiter) acquire(ctx context.Context, userID string) (release func(), err error) {
 	cl.mu.Lock()
 	sem, ok := cl.sems[userID]
@@ -65,6 +68,7 @@ func (cl *ConcurrencyLimiter) acquire(ctx context.Context, userID string) (relea
 // MaxXMLElementDepth and MaxCompressionRatio are server-only ceilings (not
 // operator-tunable) and are populated with the const ceilings here so the
 // extractors see consistent values regardless of caller.
+// SEM@d1fd850907490887fd11a6ccd4a691326ede6e4e: convert operator content-extractor config to OOXML extractor limits with fixed security ceilings (pure)
 func OOXMLLimitsFromConfig(c config.ContentExtractorsConfig) extract.Limits {
 	return extract.Limits{
 		CompressedSizeBytes:   c.CompressedSizeBytes,

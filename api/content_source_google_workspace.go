@@ -25,6 +25,7 @@ import (
 //
 // Construct via NewDelegatedGoogleWorkspaceSource (Task 3.2). A zero-value
 // struct has no Delegated helper and will panic on Fetch.
+// SEM@3d1c365886b95c6bdb2dab7691650f26dd8e27e2: content source that fetches Google Drive files using the user's delegated picker token
 type DelegatedGoogleWorkspaceSource struct {
 	// Delegated is the shared DelegatedSource helper (Task 3.2 sets DoFetch).
 	Delegated *DelegatedSource
@@ -41,6 +42,7 @@ type DelegatedGoogleWorkspaceSource struct {
 // OOXML extractors handle them downstream instead of the lossy text/plain or
 // text/csv export formats. Matches the behavior of the service-account
 // GoogleDriveSource.
+// SEM@7231febccdb44b858ff3622e6e6bc81ac0ebb575: map a Google Workspace MIME type to its OOXML export format, or empty for binary files (pure)
 func exportFormatFor(mime string) string {
 	switch mime {
 	case "application/vnd.google-apps.document":
@@ -58,6 +60,7 @@ func exportFormatFor(mime string) string {
 // token. The client is lightweight (single HTTP transport) and safe to
 // construct per call; callers pass a short-lived token that DelegatedSource
 // has just refreshed.
+// SEM@f5ad62889026b34082705666e24770ea9883b8f9: build a Google Drive v3 client from a bearer access token
 func newDriveService(ctx context.Context, accessToken string) (*drive.Service, error) {
 	return drive.NewService(ctx, option.WithTokenSource(staticTokenSource(accessToken)))
 }
@@ -65,6 +68,7 @@ func newDriveService(ctx context.Context, accessToken string) (*drive.Service, e
 // staticTokenSource wraps a bearer access token as an oauth2.TokenSource for
 // use with the Google Drive API client. The token is short-lived (the helper
 // layer refreshes before handing it to DoFetch), so no reuse across calls.
+// SEM@f5ad62889026b34082705666e24770ea9883b8f9: wrap a bearer access token as an oauth2.TokenSource (pure)
 func staticTokenSource(token string) oauth2.TokenSource {
 	return oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 }
@@ -73,6 +77,7 @@ func staticTokenSource(token string) oauth2.TokenSource {
 // token repository and OAuth provider registry. The DoFetch callback creates
 // a Drive service with the supplied access token on each call (no connection
 // caching — lightweight at this scale).
+// SEM@f5ad62889026b34082705666e24770ea9883b8f9: build a DelegatedGoogleWorkspaceSource wired to the given token repository and OAuth registry
 func NewDelegatedGoogleWorkspaceSource(
 	tokens ContentTokenRepository,
 	registry *ContentOAuthProviderRegistry,
@@ -140,6 +145,7 @@ func NewDelegatedGoogleWorkspaceSource(
 //     includes malformed file id extraction, since that is treated as
 //     "we can't reach this file" rather than a systemic error.
 //   - (true, nil): Drive accepted the metadata probe.
+// SEM@f5ad62889026b34082705666e24770ea9883b8f9: probe whether the user's linked token can access a Drive file without downloading it
 func (s *DelegatedGoogleWorkspaceSource) ValidateAccess(ctx context.Context, uri string) (bool, error) {
 	userID, ok := UserIDFromContext(ctx)
 	if !ok {
@@ -180,18 +186,21 @@ func (s *DelegatedGoogleWorkspaceSource) ValidateAccess(ctx context.Context, uri
 // is surfaced via access_diagnostics (reason_code + remediations[]) at the
 // pipeline/handler level. This method exists to satisfy the AccessRequester
 // interface; no Drive API call is made.
+// SEM@f5ad62889026b34082705666e24770ea9883b8f9: log an access hint for a Drive URI; satisfies AccessRequester interface (no Drive call)
 func (s *DelegatedGoogleWorkspaceSource) RequestAccess(_ context.Context, uri string) error {
 	slogging.Get().Info("DelegatedGoogleWorkspaceSource: access not available for %s; user may need to re-link or repick", uri)
 	return nil
 }
 
 // Name returns the provider id "google_workspace".
+// SEM@3d1c365886b95c6bdb2dab7691650f26dd8e27e2: return the provider identifier string for Google Workspace (pure)
 func (s *DelegatedGoogleWorkspaceSource) Name() string { return ProviderGoogleWorkspace }
 
 // CanHandle returns true for Google Docs and Google Drive URIs. The dispatch
 // layer (FindSourceForDocument) is responsible for deciding whether this
 // source or the service-account GoogleDriveSource handles a given document;
 // CanHandle only filters by URI host.
+// SEM@3d1c365886b95c6bdb2dab7691650f26dd8e27e2: report whether a URI targets Google Docs or Google Drive hosts (pure)
 func (s *DelegatedGoogleWorkspaceSource) CanHandle(_ context.Context, uri string) bool {
 	lower := strings.ToLower(uri)
 	host := extractHost(lower)
@@ -204,6 +213,7 @@ func (s *DelegatedGoogleWorkspaceSource) CanHandle(_ context.Context, uri string
 //
 // The actual Drive API call lives in the DelegatedSource.DoFetch callback
 // (Task 3.2 implementation); this skeleton delegates to the helper.
+// SEM@3d1c365886b95c6bdb2dab7691650f26dd8e27e2: fetch raw Drive file bytes for the user in context using delegated credentials
 func (s *DelegatedGoogleWorkspaceSource) Fetch(ctx context.Context, uri string) ([]byte, string, error) {
 	userID, ok := UserIDFromContext(ctx)
 	if !ok {

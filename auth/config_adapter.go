@@ -13,6 +13,7 @@ import (
 )
 
 // ConfigFromUnified converts unified config to auth-specific config
+// SEM@72ef5c64a4ca8965f90ee105cc73893284c60b1a: convert the unified application config to the auth-package Config struct (pure)
 func ConfigFromUnified(unified *config.Config) Config {
 	return Config{
 		Database: DatabaseConfig{
@@ -51,6 +52,7 @@ func ConfigFromUnified(unified *config.Config) Config {
 }
 
 // convertOAuthProviders converts unified OAuth providers to auth-specific format
+// SEM@93e972b21be4fbdf788d2884f25d14b33d41b98e: convert unified OAuth provider configs to auth-package OAuthProviderConfig map (pure)
 func convertOAuthProviders(unified map[string]config.OAuthProviderConfig) map[string]OAuthProviderConfig {
 	providers := make(map[string]OAuthProviderConfig)
 
@@ -87,6 +89,7 @@ func convertOAuthProviders(unified map[string]config.OAuthProviderConfig) map[st
 }
 
 // convertSAMLProviders converts unified SAML providers to auth-specific format
+// SEM@7e40aae7f066b1d045faeff914884107bde40f0e: convert unified SAML provider configs to auth-package SAMLProviderConfig map (pure)
 func convertSAMLProviders(unified map[string]config.SAMLProviderConfig) map[string]SAMLProviderConfig {
 	providers := make(map[string]SAMLProviderConfig)
 
@@ -123,6 +126,7 @@ func convertSAMLProviders(unified map[string]config.SAMLProviderConfig) map[stri
 // InitAuthWithDB initializes the auth system with an existing database manager.
 // This is the preferred initialization method for explicit dependency injection.
 // The caller is responsible for initializing the database connections before calling this function.
+// SEM@72ef5c64a4ca8965f90ee105cc73893284c60b1a: initialize the auth system using an injected database manager and unified config
 func InitAuthWithDB(dbManager *db.Manager, unified *config.Config) (*Handlers, error) {
 	if dbManager == nil {
 		return nil, fmt.Errorf("database manager is required")
@@ -169,6 +173,7 @@ func InitAuthWithDB(dbManager *db.Manager, unified *config.Config) (*Handlers, e
 // This function creates its own database manager internally, which can lead to
 // duplicate initialization and DRY violations. Prefer passing a pre-initialized
 // db.Manager to InitAuthWithDB instead.
+// SEM@590a86b0b387cc4227809d93d3f4f0942a8bf915: initialize the auth system by creating its own database manager (deprecated; prefer InitAuthWithDB)
 func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, error) {
 	authConfig := ConfigFromUnified(unified)
 
@@ -241,6 +246,7 @@ const (
 // validateOAuthProvidersAtStartup runs the OIDC-discovery-based classifier
 // against every enabled OAuth provider and refuses startup if any provider is
 // not safe to enable. (Issue #288)
+// SEM@6348e71f577bd1e4c952467c7bb6ffd800ab73c1: validate all enabled OAuth providers via OIDC discovery at startup, refusing startup on failure
 func validateOAuthProvidersAtStartup(providers map[string]OAuthProviderConfig) error {
 	logger := slogging.Get()
 	client := NewDiscoveryClient(oidcDiscoveryTimeout, oidcDiscoveryCacheTTL)

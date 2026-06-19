@@ -16,6 +16,7 @@ import (
 )
 
 // GormNoteRepository implements NoteStore using GORM
+// SEM@295362baebc5fe956353b6eb0f33773e00895092: GORM-backed note repository with integrated cache and invalidation support
 type GormNoteRepository struct {
 	db               *gorm.DB
 	cache            *CacheService
@@ -24,6 +25,7 @@ type GormNoteRepository struct {
 }
 
 // NewGormNoteRepository creates a new GORM-backed note store with optional caching
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build a GormNoteRepository wired to the given DB, cache service, and invalidator
 func NewGormNoteRepository(db *gorm.DB, cache *CacheService, invalidator *CacheInvalidator) *GormNoteRepository {
 	return &GormNoteRepository{
 		db:               db,
@@ -33,6 +35,7 @@ func NewGormNoteRepository(db *gorm.DB, cache *CacheService, invalidator *CacheI
 }
 
 // Create creates a new note
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: store a new note under a threat model and populate its cache entry (reads DB)
 func (s *GormNoteRepository) Create(ctx context.Context, note *Note, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -120,6 +123,7 @@ func (s *GormNoteRepository) Create(ctx context.Context, note *Note, threatModel
 }
 
 // Get retrieves a note by ID
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch a note by ID from cache or DB, including its metadata (reads DB)
 func (s *GormNoteRepository) Get(ctx context.Context, id string) (*Note, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -173,6 +177,7 @@ func (s *GormNoteRepository) Get(ctx context.Context, id string) (*Note, error) 
 }
 
 // Update updates an existing note
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: update a note's fields in the DB and refresh its cache entry (reads DB)
 func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -250,11 +255,13 @@ func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModel
 }
 
 // Delete soft-deletes a note by setting deleted_at
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: soft-delete a note by delegating to SoftDelete (reads DB)
 func (s *GormNoteRepository) Delete(ctx context.Context, id string) error {
 	return s.SoftDelete(ctx, id)
 }
 
 // hardDeleteNote permanently removes a note and its metadata from the database
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: permanently remove a note and its metadata from the DB and invalidate its cache (reads DB)
 func (s *GormNoteRepository) hardDeleteNote(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -320,6 +327,7 @@ func (s *GormNoteRepository) hardDeleteNote(ctx context.Context, id string) erro
 }
 
 // List retrieves notes for a threat model with pagination
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: list paginated notes for a threat model from cache or DB (reads DB)
 func (s *GormNoteRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Note, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -388,6 +396,7 @@ func (s *GormNoteRepository) List(ctx context.Context, threatModelID string, off
 }
 
 // Patch applies JSON patch operations to a note
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply JSON patch operations to a note and persist the result (reads DB)
 func (s *GormNoteRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Note, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching note %s with %d operations", id, len(operations))
@@ -421,6 +430,7 @@ func (s *GormNoteRepository) Patch(ctx context.Context, id string, operations []
 }
 
 // Count returns the total number of notes for a threat model
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: count non-deleted notes belonging to a threat model (reads DB)
 func (s *GormNoteRepository) Count(ctx context.Context, threatModelID string) (int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -446,6 +456,7 @@ func (s *GormNoteRepository) Count(ctx context.Context, threatModelID string) (i
 }
 
 // InvalidateCache removes note-related cache entries
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: evict a note's cache entry by entity ID (mutates shared state)
 func (s *GormNoteRepository) InvalidateCache(ctx context.Context, id string) error {
 	if s.cache == nil {
 		return nil
@@ -454,6 +465,7 @@ func (s *GormNoteRepository) InvalidateCache(ctx context.Context, id string) err
 }
 
 // WarmCache preloads notes for a threat model into cache
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: preload the first page of a threat model's notes into cache (mutates shared state)
 func (s *GormNoteRepository) WarmCache(ctx context.Context, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Warming cache for threat model notes: %s", threatModelID)
@@ -473,6 +485,7 @@ func (s *GormNoteRepository) WarmCache(ctx context.Context, threatModelID string
 }
 
 // modelToAPI converts a GORM Note model to the API Note type
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a DB note model to the API Note type (pure)
 func (s *GormNoteRepository) modelToAPI(model *models.Note) *Note {
 	id, _ := uuid.Parse(string(model.ID))
 	includeInReport := model.IncludeInReport.Bool()
@@ -494,21 +507,25 @@ func (s *GormNoteRepository) modelToAPI(model *models.Note) *Note {
 }
 
 // loadMetadata loads metadata for a note
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch metadata entries for a note from the DB (reads DB)
 func (s *GormNoteRepository) loadMetadata(ctx context.Context, noteID string) ([]Metadata, error) {
 	return loadEntityMetadata(s.db.WithContext(ctx), "note", noteID)
 }
 
 // saveMetadata saves metadata for a note
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: persist metadata entries for a note to the DB (reads DB)
 func (s *GormNoteRepository) saveMetadata(ctx context.Context, noteID string, metadata []Metadata) error {
 	return saveEntityMetadata(s.db.WithContext(ctx), "note", noteID, metadata)
 }
 
 // updateMetadata updates metadata for a note
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: replace all metadata entries for a note in the DB (reads DB)
 func (s *GormNoteRepository) updateMetadata(ctx context.Context, noteID string, metadata []Metadata) error {
 	return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "note", noteID, metadata)
 }
 
 // applyPatchOperation applies a single patch operation to a note
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply a single JSON patch operation to a note struct in memory (pure)
 func (s *GormNoteRepository) applyPatchOperation(note *Note, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:
@@ -545,6 +562,7 @@ func (s *GormNoteRepository) applyPatchOperation(note *Note, op PatchOperation) 
 }
 
 // getNoteThreatModelID retrieves the threat model ID for a note
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: look up the parent threat model ID for a given note (reads DB)
 func (s *GormNoteRepository) getNoteThreatModelID(ctx context.Context, noteID string) (string, error) {
 	var model models.Note
 	err := s.db.WithContext(ctx).Select("threat_model_id").First(&model, "id = ?", noteID).Error

@@ -11,14 +11,17 @@ import (
 )
 
 // DiagramOperationRequestHandler handles diagram operation request messages
+// SEM@90b176688ca38f0b04e4e70a233b332f1c28218e: WebSocket handler that processes diagram operation request messages
 type DiagramOperationRequestHandler struct{}
 
 // MessageType returns the message type this handler processes
+// SEM@4c26178bb9014e2fcc62e1a29307dad2c36b6ada: return the message type string this handler is registered for (pure)
 func (h *DiagramOperationRequestHandler) MessageType() string {
 	return "diagram_operation_request"
 }
 
 // HandleMessage processes diagram operation request messages
+// SEM@c79f3cd129aecd7cd6562b875b7f02232594d3d1: validate, apply, and broadcast a diagram cell operation from a WebSocket client (mutates shared state)
 func (h *DiagramOperationRequestHandler) HandleMessage(session *DiagramSession, client *WebSocketClient, message []byte) error {
 	defer func() {
 		if r := recover(); r != nil {
@@ -211,6 +214,7 @@ func (h *DiagramOperationRequestHandler) HandleMessage(session *DiagramSession, 
 }
 
 // buildCellStateMap builds a map of cell IDs to cell items from diagram cells
+// SEM@f4fae01ba5472bac237e3eb28ef9b4dc6d9effdf: build a cell-ID-to-item map from a diagram's cell slice (pure)
 func buildCellStateMap(cells []DfdDiagram_Cells_Item) map[string]*DfdDiagram_Cells_Item {
 	stateMap := make(map[string]*DfdDiagram_Cells_Item)
 	for i := range cells {
@@ -229,6 +233,7 @@ func buildCellStateMap(cells []DfdDiagram_Cells_Item) map[string]*DfdDiagram_Cel
 }
 
 // buildRejectionResponse builds rejection reason and message from validation result
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: convert a cell operation validation result into a rejection reason, message, and resync flag (pure)
 func buildRejectionResponse(validationResult OperationValidationResult, operationType string) (reason, message string, details *string, requiresResync bool) {
 	if !validationResult.Valid {
 		reason = validationResult.Reason

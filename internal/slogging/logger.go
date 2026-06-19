@@ -15,6 +15,7 @@ import (
 )
 
 // LogLevel represents logging verbosity (maintained for compatibility)
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: numeric log severity level used to filter log output (pure)
 type LogLevel int
 
 const (
@@ -36,6 +37,7 @@ var (
 )
 
 // SimpleLogger defines the basic logging interface used across the app (compatibility)
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: minimal interface for printf-style Debug/Info/Warn/Error logging (pure)
 type SimpleLogger interface {
 	Debug(format string, args ...any)
 	Info(format string, args ...any)
@@ -44,6 +46,7 @@ type SimpleLogger interface {
 }
 
 // Logger is the slog-based logging component
+// SEM@ab6c8e11db85b002bee1e06e5cddbec70e9e0d70: structured slog-backed logger with file rotation, redaction, cloud sink, and watchdogs (pure)
 type Logger struct {
 	slogger                     *slog.Logger
 	level                       LogLevel
@@ -56,6 +59,7 @@ type Logger struct {
 }
 
 // Config holds configuration options for the logger (maintained for compatibility)
+// SEM@ab6c8e11db85b002bee1e06e5cddbec70e9e0d70: configuration for logger construction including level, rotation, console, redaction, and cloud settings (pure)
 type Config struct {
 	// Level is the minimum log level to output
 	Level LogLevel
@@ -92,6 +96,7 @@ type Config struct {
 }
 
 // ParseLogLevel converts a string log level to LogLevel
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: parse a log level string to a LogLevel, defaulting to Info on unknown input (pure)
 func ParseLogLevel(level string) LogLevel {
 	switch strings.ToLower(level) {
 	case "debug":
@@ -108,6 +113,7 @@ func ParseLogLevel(level string) LogLevel {
 }
 
 // String returns the string representation of the log level
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: format a LogLevel as its uppercase name string (pure)
 func (l LogLevel) String() string {
 	switch l {
 	case LogLevelDebug:
@@ -124,6 +130,7 @@ func (l LogLevel) String() string {
 }
 
 // toSlogLevel converts our LogLevel to slog.Level
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: convert a LogLevel to the equivalent slog.Level (pure)
 func (l LogLevel) toSlogLevel() slog.Level {
 	switch l {
 	case LogLevelDebug:
@@ -140,15 +147,18 @@ func (l LogLevel) toSlogLevel() slog.Level {
 }
 
 // customHandler wraps slog handlers to add source information in dev mode
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: slog handler wrapper that injects caller source info in dev mode (pure)
 type customHandler struct {
 	handler slog.Handler
 	isDev   bool
 }
 
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: report whether the underlying handler accepts the given log level (pure)
 func (h *customHandler) Enabled(ctx context.Context, level slog.Level) bool {
 	return h.handler.Enabled(ctx, level)
 }
 
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: inject caller source info in dev mode then delegate the log record to the wrapped handler (pure)
 func (h *customHandler) Handle(ctx context.Context, record slog.Record) error {
 	// Add source information in dev mode
 	if h.isDev {
@@ -169,6 +179,7 @@ func (h *customHandler) Handle(ctx context.Context, record slog.Record) error {
 	return h.handler.Handle(ctx, record)
 }
 
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: build a new custom handler with additional pre-set attributes (pure)
 func (h *customHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return &customHandler{
 		handler: h.handler.WithAttrs(attrs),
@@ -176,6 +187,7 @@ func (h *customHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	}
 }
 
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: build a new custom handler scoped to a named attribute group (pure)
 func (h *customHandler) WithGroup(name string) slog.Handler {
 	return &customHandler{
 		handler: h.handler.WithGroup(name),
@@ -184,6 +196,7 @@ func (h *customHandler) WithGroup(name string) slog.Handler {
 }
 
 // NewLogger creates a new slog-based logger instance
+// SEM@39cf195d9b27ff160d2988b8578ceb31675c7760: build a configured Logger with file rotation, redaction, cloud sink, and watchdogs
 func NewLogger(config Config) (*Logger, error) {
 	// Set defaults
 	if config.LogDir == "" {
@@ -332,6 +345,7 @@ func NewLogger(config Config) (*Logger, error) {
 }
 
 // Initialize sets up the global logger
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: build a Logger from config and store it as the global logger instance (mutates shared state)
 func Initialize(config Config) error {
 	logger, err := NewLogger(config)
 	if err != nil {
@@ -346,6 +360,7 @@ func Initialize(config Config) error {
 }
 
 // Get returns the global logger instance, initializing with defaults if needed
+// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: fetch the global Logger, auto-initializing with defaults if not yet set (mutates shared state)
 func Get() *Logger {
 	if globalLogger == nil {
 		// Initialize with defaults if not already initialized
@@ -378,6 +393,7 @@ func Get() *Logger {
 }
 
 // Close properly closes the logger
+// SEM@ab6c8e11db85b002bee1e06e5cddbec70e9e0d70: flush and close the logger's cloud handler, file logger, and watchdogs
 func (l *Logger) Close() error {
 	var errs []error
 
@@ -410,6 +426,7 @@ func (l *Logger) Close() error {
 }
 
 // CloudLogErrors returns the count of cloud logging errors.
+// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: fetch the cumulative count of cloud log sink write failures (pure)
 func (l *Logger) CloudLogErrors() int64 {
 	if l.cloudHandler != nil {
 		return l.cloudHandler.ErrorCount()
@@ -418,6 +435,7 @@ func (l *Logger) CloudLogErrors() int64 {
 }
 
 // CloudLogLastError returns the last cloud logging error, if any.
+// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: fetch the most recent cloud log sink error, if any (pure)
 func (l *Logger) CloudLogLastError() error {
 	if l.cloudHandler != nil {
 		return l.cloudHandler.LastError()
@@ -427,6 +445,7 @@ func (l *Logger) CloudLogLastError() error {
 
 // Debug logs a debug-level message (compatibility method)
 // Log messages are sanitized to prevent log injection attacks (CWE-117)
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: log a sanitized debug-level message if the level threshold permits (pure)
 func (l *Logger) Debug(format string, args ...any) {
 	if l.level > LogLevelDebug {
 		return
@@ -446,6 +465,7 @@ func (l *Logger) Debug(format string, args ...any) {
 
 // Info logs an info-level message (compatibility method)
 // Log messages are sanitized to prevent log injection attacks (CWE-117)
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: log a sanitized info-level message if the level threshold permits (pure)
 func (l *Logger) Info(format string, args ...any) {
 	if l.level > LogLevelInfo {
 		return
@@ -465,6 +485,7 @@ func (l *Logger) Info(format string, args ...any) {
 
 // Warn logs a warning-level message (compatibility method)
 // Log messages are sanitized to prevent log injection attacks (CWE-117)
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: log a sanitized warn-level message if the level threshold permits (pure)
 func (l *Logger) Warn(format string, args ...any) {
 	if l.level > LogLevelWarn {
 		return
@@ -484,6 +505,7 @@ func (l *Logger) Warn(format string, args ...any) {
 
 // Error logs an error-level message (compatibility method)
 // Log messages are sanitized to prevent log injection attacks (CWE-117)
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: log a sanitized error-level message if the level threshold permits (pure)
 func (l *Logger) Error(format string, args ...any) {
 	if l.level > LogLevelError {
 		return
@@ -505,26 +527,31 @@ func (l *Logger) Error(format string, args ...any) {
 // All messages are sanitized to prevent log injection attacks (CWE-117)
 
 // DebugCtx logs a debug message with context and structured attributes
+// SEM@b29bc09af9d85dba2a37f84f1ec25c440fb77c3f: log a sanitized debug message with structured slog attributes and context (pure)
 func (l *Logger) DebugCtx(ctx context.Context, msg string, attrs ...slog.Attr) {
 	l.slogger.LogAttrs(ctx, slog.LevelDebug, SanitizeLogMessage(msg), attrs...)
 }
 
 // InfoCtx logs an info message with context and structured attributes
+// SEM@b29bc09af9d85dba2a37f84f1ec25c440fb77c3f: log a sanitized info message with structured slog attributes and context (pure)
 func (l *Logger) InfoCtx(ctx context.Context, msg string, attrs ...slog.Attr) {
 	l.slogger.LogAttrs(ctx, slog.LevelInfo, SanitizeLogMessage(msg), attrs...)
 }
 
 // WarnCtx logs a warning message with context and structured attributes
+// SEM@b29bc09af9d85dba2a37f84f1ec25c440fb77c3f: log a sanitized warn message with structured slog attributes and context (pure)
 func (l *Logger) WarnCtx(ctx context.Context, msg string, attrs ...slog.Attr) {
 	l.slogger.LogAttrs(ctx, slog.LevelWarn, SanitizeLogMessage(msg), attrs...)
 }
 
 // ErrorCtx logs an error message with context and structured attributes
+// SEM@b29bc09af9d85dba2a37f84f1ec25c440fb77c3f: log a sanitized error message with structured slog attributes and context (pure)
 func (l *Logger) ErrorCtx(ctx context.Context, msg string, attrs ...slog.Attr) {
 	l.slogger.LogAttrs(ctx, slog.LevelError, SanitizeLogMessage(msg), attrs...)
 }
 
 // GetSlogger returns the underlying slog.Logger for advanced usage
+// SEM@fd65443f98d69fa4f22b8f982c98ebf8eb89c515: fetch the underlying slog.Logger for advanced structured logging (pure)
 func (l *Logger) GetSlogger() *slog.Logger {
 	return l.slogger
 }

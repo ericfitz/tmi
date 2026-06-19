@@ -21,12 +21,14 @@ import (
 )
 
 // GormThreatModelStore handles threat model database operations using GORM
+// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: GORM-backed store for threat model persistence with read-write mutex (reads DB)
 type GormThreatModelStore struct {
 	db    *gorm.DB
 	mutex sync.RWMutex
 }
 
 // NewGormThreatModelStore creates a new threat model GORM store
+// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: build a GORM threat model store wrapping the provided database connection (pure)
 func NewGormThreatModelStore(database *gorm.DB) *GormThreatModelStore {
 	return &GormThreatModelStore{
 		db: database,
@@ -34,11 +36,13 @@ func NewGormThreatModelStore(database *gorm.DB) *GormThreatModelStore {
 }
 
 // GetDB returns the underlying GORM database connection
+// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: return the underlying GORM database handle (pure)
 func (s *GormThreatModelStore) GetDB() *gorm.DB {
 	return s.db
 }
 
 // resolveUserIdentifierToUUID attempts to resolve a user identifier to an internal_uuid using GORM
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: resolve a user identifier (UUID, provider ID, or email) to an internal UUID (reads DB)
 func (s *GormThreatModelStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifier string) (string, error) {
 	var user models.User
 
@@ -67,6 +71,7 @@ func (s *GormThreatModelStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifi
 }
 
 // resolveGroupToUUID attempts to resolve a group identifier to an internal_uuid using GORM
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: resolve a group name and provider to an internal UUID (reads DB)
 func (s *GormThreatModelStore) resolveGroupToUUID(tx *gorm.DB, groupName string, idp *string) (string, error) {
 	provider := BuiltInProvider
 	if idp != nil && *idp != "" {
@@ -87,6 +92,7 @@ func (s *GormThreatModelStore) resolveGroupToUUID(tx *gorm.DB, groupName string,
 }
 
 // ensureGroupExists creates a group entry if it doesn't exist and returns its internal_uuid using GORM
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: upsert a group record and return its internal UUID, creating it if absent (reads DB)
 func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, idp *string) (string, error) {
 	provider := BuiltInProvider
 	if idp != nil && *idp != "" {
@@ -132,6 +138,7 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 }
 
 // Get retrieves a threat model by ID using GORM
+// SEM@6a6c15749391c2817c30c64c8b54f8e0a4082a91: fetch a threat model by ID from cache or DB with all sub-resources (reads DB)
 func (s *GormThreatModelStore) Get(id string) (ThreatModel, error) {
 	logger := slogging.Get()
 	logger.Debug("GormThreatModelStore.Get() called id=%s", id)
@@ -180,15 +187,18 @@ func (s *GormThreatModelStore) Get(id string) (ThreatModel, error) {
 
 // GetAuthorization loads only authorization entries and owner for a threat model.
 // Used by middleware to check access without loading the full model.
+// SEM@0188701ac58d301e630fd335e1001e17602c8186: load authorization entries and owner for a threat model for middleware access checks (reads DB)
 func (s *GormThreatModelStore) GetAuthorization(id string) ([]Authorization, User, error) {
 	return s.getAuthorizationInternal(id, false)
 }
 
 // GetAuthorizationIncludingDeleted loads authorization for a potentially soft-deleted threat model.
+// SEM@0188701ac58d301e630fd335e1001e17602c8186: load authorization entries and owner for a threat model including soft-deleted records (reads DB)
 func (s *GormThreatModelStore) GetAuthorizationIncludingDeleted(id string) ([]Authorization, User, error) {
 	return s.getAuthorizationInternal(id, true)
 }
 
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch threat model owner and authorization entries, optionally including soft-deleted rows (reads DB)
 func (s *GormThreatModelStore) getAuthorizationInternal(id string, includeDeleted bool) ([]Authorization, User, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -227,6 +237,7 @@ func (s *GormThreatModelStore) getAuthorizationInternal(id string, includeDelete
 }
 
 // convertToAPIModel converts a GORM ThreatModel to the API ThreatModel
+// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: convert a GORM threat model with all sub-resources to its API DTO (reads DB)
 func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (ThreatModel, error) {
 	tmUUID, _ := uuid.Parse(string(tm.ID))
 
@@ -332,6 +343,7 @@ func (s *GormThreatModelStore) convertToAPIModel(tm *models.ThreatModel) (Threat
 
 // convertToListItem converts a GORM ThreatModel to TMListItem without any sub-resource queries.
 // Used by ListWithCounts for lightweight list conversion.
+// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: convert a GORM threat model to a lightweight list item without sub-resource queries (pure)
 func (s *GormThreatModelStore) convertToListItem(tm *models.ThreatModel) TMListItem {
 	tmUUID, _ := uuid.Parse(string(tm.ID))
 
@@ -392,6 +404,7 @@ func (s *GormThreatModelStore) convertToListItem(tm *models.ThreatModel) TMListI
 }
 
 // List returns filtered and paginated threat models using GORM
+// SEM@8992eaca709573d0f6834edf30a3ef57370db6fa: list filtered and paginated threat models with full sub-resource hydration (reads DB)
 func (s *GormThreatModelStore) List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -432,6 +445,7 @@ func (s *GormThreatModelStore) List(offset, limit int, filter func(ThreatModel) 
 // ListWithCounts returns filtered and paginated threat models with count information using GORM
 // Returns the paginated slice and the total count (before pagination)
 // applyThreatModelFilters applies database-level filter clauses to a threat model query.
+// SEM@a4ac8573f7346f39edd66fb2589bf1a90892b301: append WHERE/JOIN clauses to a threat model query based on filter criteria (pure)
 func applyThreatModelFilters(query *gorm.DB, filters *ThreatModelFilters) *gorm.DB {
 	if filters == nil {
 		return query
@@ -492,6 +506,7 @@ func applyThreatModelFilters(query *gorm.DB, filters *ThreatModelFilters) *gorm.
 	return query
 }
 
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: list paginated threat model summaries with per-model sub-resource counts and auth filtering (reads DB)
 func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -536,6 +551,7 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 	}
 
 	// Apply authorization filter using lightweight ThreatModel with only Owner + Authorization
+	// SEM@26ea9cecd7ad82e4c30b0791c4f3414b2490190d: local struct pairing a list item with its threat model ID for pagination (pure)
 	type filteredItem struct {
 		listItem TMListItem
 		modelID  string
@@ -602,6 +618,7 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 }
 
 // entityCounts holds pre-fetched counts for all sub-resources of a threat model.
+// SEM@26ea9cecd7ad82e4c30b0791c4f3414b2490190d: struct holding pre-fetched sub-resource counts for a single threat model (pure)
 type entityCounts struct {
 	DocumentCount int
 	SourceCount   int
@@ -613,6 +630,7 @@ type entityCounts struct {
 
 // batchCounts loads sub-resource counts for multiple threat models in batch using
 // GROUP BY queries (6 queries total instead of 6×N).
+// SEM@26ea9cecd7ad82e4c30b0791c4f3414b2490190d: fetch sub-resource counts for multiple threat models in batch GROUP BY queries (reads DB)
 func (s *GormThreatModelStore) batchCounts(ids []string) map[string]entityCounts {
 	result := make(map[string]entityCounts, len(ids))
 	if len(ids) == 0 {
@@ -631,6 +649,7 @@ func (s *GormThreatModelStore) batchCounts(ids []string) map[string]entityCounts
 		{"assets", func(ec *entityCounts, n int) { ec.AssetCount = n }},
 	}
 
+	// SEM@26ea9cecd7ad82e4c30b0791c4f3414b2490190d: local struct mapping a threat model ID to a COUNT result row (pure)
 	type countRow struct {
 		ThreatModelID string
 		Count         int64
@@ -658,6 +677,7 @@ func (s *GormThreatModelStore) batchCounts(ids []string) map[string]entityCounts
 
 // authWithOwner holds owner and authorization data for a threat model,
 // used for lightweight auth filtering in list operations.
+// SEM@26ea9cecd7ad82e4c30b0791c4f3414b2490190d: struct pairing a threat model's owner and authorization list for lightweight filtering (pure)
 type authWithOwner struct {
 	Owner         User
 	Authorization []Authorization
@@ -665,6 +685,7 @@ type authWithOwner struct {
 
 // batchLoadAuthorizationLightweight loads authorization entries for multiple threat models
 // in batch for use by the list's auth filter.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: batch-load owner and authorization entries for multiple threat models for list auth filtering (reads DB)
 func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, ownerMap map[string]User) map[string]authWithOwner {
 	result := make(map[string]authWithOwner, len(ids))
 	if len(ids) == 0 {
@@ -742,6 +763,7 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 }
 
 // Create adds a new threat model using GORM
+// SEM@178dbd0418cfb7e057d4297c7a88c5879cb64c7f: persist a new threat model with authorization and metadata in a serializable retryable transaction (reads DB)
 func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -899,6 +921,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 }
 
 // Update modifies an existing threat model using GORM
+// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: update threat model fields, authorization, and metadata in a retryable transaction (reads DB)
 func (s *GormThreatModelStore) Update(ctx context.Context, id string, item ThreatModel) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -1020,11 +1043,13 @@ func (s *GormThreatModelStore) Update(ctx context.Context, id string, item Threa
 // Delete is on the legacy non-ctx path; SoftDelete now requires a context,
 // so we pass context.Background() to preserve the existing Delete signature.
 // Callers that have a request ctx should call SoftDelete directly.
+// SEM@c79f3cd129aecd7cd6562b875b7f02232594d3d1: soft-delete a threat model and its children (reads DB)
 func (s *GormThreatModelStore) Delete(id string) error {
 	return s.SoftDelete(context.Background(), id)
 }
 
 // Count returns the total number of threat models using GORM
+// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: return the total number of non-deleted threat models (reads DB)
 func (s *GormThreatModelStore) Count() int {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -1036,6 +1061,7 @@ func (s *GormThreatModelStore) Count() int {
 
 // loadAuthorization loads authorization entries for a threat model using GORM
 // Note: Using batch lookups instead of Preload for Oracle compatibility
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch and resolve authorization entries for a threat model from access and user/group tables (reads DB)
 func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Authorization, error) {
 	logger := slogging.Get()
 	var accessEntries []models.ThreatModelAccess
@@ -1116,6 +1142,7 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 
 // resolveUsersAndGroupsBatch loads users and groups by internal UUIDs in batch.
 // Returns lookup maps keyed by internal_uuid. Oracle-compatible (chunks IN clauses at 999).
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: batch-fetch users and groups by internal UUIDs, chunked for Oracle IN-clause limits (reads DB)
 func (s *GormThreatModelStore) resolveUsersAndGroupsBatch(userUUIDs, groupUUIDs []string) (map[string]models.User, map[string]models.Group) {
 	userMap := make(map[string]models.User, len(userUUIDs))
 	groupMap := make(map[string]models.Group, len(groupUUIDs))
@@ -1144,6 +1171,7 @@ func (s *GormThreatModelStore) resolveUsersAndGroupsBatch(userUUIDs, groupUUIDs 
 }
 
 // chunkStrings splits a slice into chunks of at most size n.
+// SEM@8b12fc21190ea734f23106ca198b1fbe6ecba24e: split a string slice into chunks of at most n elements (pure)
 func chunkStrings(s []string, n int) [][]string {
 	if len(s) <= n {
 		return [][]string{s}
@@ -1160,11 +1188,13 @@ func chunkStrings(s []string, n int) [][]string {
 }
 
 // loadMetadata loads metadata for a threat model using GORM
+// SEM@22b222cb8680df2700e22f0e8538874669789920: fetch metadata key-value entries for a threat model (reads DB)
 func (s *GormThreatModelStore) loadMetadata(threatModelID string) ([]Metadata, error) {
 	return loadEntityMetadata(s.db, "threat_model", threatModelID)
 }
 
 // loadThreats loads threats for a threat model using GORM
+// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: fetch all threats and their metadata for a threat model (reads DB)
 func (s *GormThreatModelStore) loadThreats(threatModelID string) ([]Threat, error) {
 	var threatModels []models.Threat
 	result := s.db.Where("threat_model_id = ?", threatModelID).Find(&threatModels)
@@ -1247,6 +1277,7 @@ func (s *GormThreatModelStore) loadThreats(threatModelID string) ([]Threat, erro
 }
 
 // batchLoadThreatMetadata loads metadata for multiple threats in a single query.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch metadata for multiple threats in a single batch query (reads DB)
 func (s *GormThreatModelStore) batchLoadThreatMetadata(threatIDs []string) map[string][]Metadata {
 	result := make(map[string][]Metadata, len(threatIDs))
 	if len(threatIDs) == 0 {
@@ -1273,6 +1304,7 @@ func (s *GormThreatModelStore) batchLoadThreatMetadata(threatIDs []string) map[s
 }
 
 // loadDiagramsDynamically loads diagrams using the DiagramStore for single source of truth
+// SEM@6a6c15749391c2817c30c64c8b54f8e0a4082a91: fetch diagrams for a threat model via the diagram store in batch (reads DB)
 func (s *GormThreatModelStore) loadDiagramsDynamically(threatModelID string) (*[]Diagram, error) {
 	var diagramIDs []string
 	result := s.db.Model(&models.Diagram{}).
@@ -1315,6 +1347,7 @@ func (s *GormThreatModelStore) loadDiagramsDynamically(threatModelID string) (*[
 }
 
 // saveAuthorizationTx saves authorization entries within a transaction using GORM
+// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: insert authorization entries for a threat model within an existing transaction (reads DB)
 func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID string, authorization []Authorization) error {
 	logger := slogging.Get()
 	logger.Debug("[GORM-STORE] saveAuthorizationTx: Called with %d entries for threat model %s", len(authorization), threatModelID)
@@ -1390,11 +1423,13 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 }
 
 // saveMetadataTx saves metadata entries within a transaction using GORM
+// SEM@22b222cb8680df2700e22f0e8538874669789920: insert metadata entries for a threat model within an existing transaction (reads DB)
 func (s *GormThreatModelStore) saveMetadataTx(tx *gorm.DB, threatModelID string, metadata []Metadata) error {
 	return saveEntityMetadata(tx, "threat_model", threatModelID, metadata)
 }
 
 // updateAuthorizationTx updates authorization entries within a transaction using GORM
+// SEM@2a6f50581ff923a0bfe405886b92fcf688180407: replace all authorization entries for a threat model within a row-locked transaction (reads DB)
 func (s *GormThreatModelStore) updateAuthorizationTx(tx *gorm.DB, threatModelID string, authorization []Authorization) error {
 	logger := slogging.Get()
 
@@ -1430,17 +1465,20 @@ func (s *GormThreatModelStore) updateAuthorizationTx(tx *gorm.DB, threatModelID 
 }
 
 // updateMetadataTx updates metadata entries within a transaction using GORM
+// SEM@22b222cb8680df2700e22f0e8538874669789920: replace all metadata entries for a threat model within an existing transaction (reads DB)
 func (s *GormThreatModelStore) updateMetadataTx(tx *gorm.DB, threatModelID string, metadata []Metadata) error {
 	return deleteAndSaveEntityMetadata(tx, "threat_model", threatModelID, metadata)
 }
 
 // GormDiagramStore handles diagram database operations using GORM
+// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: GORM-backed store for diagram persistence with read-write mutex (reads DB)
 type GormDiagramStore struct {
 	db    *gorm.DB
 	mutex sync.RWMutex
 }
 
 // NewGormDiagramStore creates a new diagram GORM store
+// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: build a GORM diagram store wrapping the provided database connection (pure)
 func NewGormDiagramStore(database *gorm.DB) *GormDiagramStore {
 	return &GormDiagramStore{
 		db: database,
@@ -1448,6 +1486,7 @@ func NewGormDiagramStore(database *gorm.DB) *GormDiagramStore {
 }
 
 // Get retrieves a diagram by ID using GORM
+// SEM@6a6c15749391c2817c30c64c8b54f8e0a4082a91: fetch a diagram by ID from the database (reads DB)
 func (s *GormDiagramStore) Get(id string) (DfdDiagram, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -1465,6 +1504,7 @@ func (s *GormDiagramStore) Get(id string) (DfdDiagram, error) {
 }
 
 // GetBatch retrieves multiple diagrams by ID in a single query.
+// SEM@6a6c15749391c2817c30c64c8b54f8e0a4082a91: fetch multiple diagrams by ID in a single batch query (reads DB)
 func (s *GormDiagramStore) GetBatch(ids []string) ([]DfdDiagram, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -1500,6 +1540,7 @@ func (s *GormDiagramStore) GetBatch(ids []string) ([]DfdDiagram, error) {
 }
 
 // GetThreatModelID returns the threat model ID for a given diagram
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: return the parent threat model ID for a given diagram ID (reads DB)
 func (s *GormDiagramStore) GetThreatModelID(diagramID string) (string, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -1517,6 +1558,7 @@ func (s *GormDiagramStore) GetThreatModelID(diagramID string) (string, error) {
 }
 
 // convertToAPIDiagram converts a GORM Diagram to the API DfdDiagram
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a GORM diagram model with cells, palette, and metadata to its API DTO (reads DB)
 func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiagram, error) {
 	diagramUUID, _ := uuid.Parse(string(diagram.ID))
 
@@ -1593,11 +1635,13 @@ func (s *GormDiagramStore) convertToAPIDiagram(diagram *models.Diagram) (DfdDiag
 }
 
 // List returns all diagrams (not used in current implementation)
+// SEM@8992eaca709573d0f6834edf30a3ef57370db6fa: return an empty diagram list (stub; diagrams are loaded via threat model) (pure)
 func (s *GormDiagramStore) List(offset, limit int, filter func(DfdDiagram) bool) []DfdDiagram {
 	return []DfdDiagram{}
 }
 
 // CreateWithThreatModel adds a new diagram with a specific threat model ID using GORM
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: persist a new diagram linked to a threat model, allocating an alias in a transaction (reads DB)
 func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID string, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -1706,11 +1750,13 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 }
 
 // Create adds a new diagram using GORM (maintains backward compatibility)
+// SEM@178dbd0418cfb7e057d4297c7a88c5879cb64c7f: persist a new diagram with a nil threat model ID for backward compatibility (reads DB)
 func (s *GormDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
 	return s.CreateWithThreatModel(item, uuid.Nil.String(), idSetter)
 }
 
 // Update modifies an existing diagram using GORM
+// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: update diagram fields and metadata in a retryable transaction (reads DB)
 func (s *GormDiagramStore) Update(ctx context.Context, id string, item DfdDiagram) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -1805,11 +1851,13 @@ func (s *GormDiagramStore) Update(ctx context.Context, id string, item DfdDiagra
 // Delete is on the legacy non-ctx path; SoftDelete now requires a context,
 // so we pass context.Background() to preserve the existing Delete signature.
 // Callers that have a request ctx should call SoftDelete directly.
+// SEM@c79f3cd129aecd7cd6562b875b7f02232594d3d1: soft-delete a diagram by delegating to SoftDelete (reads DB)
 func (s *GormDiagramStore) Delete(id string) error {
 	return s.SoftDelete(context.Background(), id)
 }
 
 // hardDeleteDiagram permanently removes a diagram with FK cleanup
+// SEM@d0742bff5d3b93b3ab7b22df0377398a720a8d9c: permanently delete a diagram and clean up its FK references in a transaction (mutates shared state)
 func (s *GormDiagramStore) hardDeleteDiagram(id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -1845,6 +1893,7 @@ func (s *GormDiagramStore) hardDeleteDiagram(id string) error {
 }
 
 // Count returns the total number of diagrams using GORM
+// SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: fetch the total count of diagrams (reads DB)
 func (s *GormDiagramStore) Count() int {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -1855,11 +1904,13 @@ func (s *GormDiagramStore) Count() int {
 }
 
 // loadMetadata loads metadata for a diagram using GORM
+// SEM@22b222cb8680df2700e22f0e8538874669789920: fetch metadata entries for a diagram entity (reads DB)
 func (s *GormDiagramStore) loadMetadata(entityType, entityID string) ([]Metadata, error) {
 	return loadEntityMetadata(s.db, entityType, entityID)
 }
 
 // saveMetadata saves metadata for a diagram using GORM
+// SEM@22b222cb8680df2700e22f0e8538874669789920: store metadata entries for a diagram entity (mutates shared state)
 func (s *GormDiagramStore) saveMetadata(diagramID string, metadata []Metadata) error {
 	return saveEntityMetadata(s.db, "diagram", diagramID, metadata)
 }
@@ -1867,6 +1918,7 @@ func (s *GormDiagramStore) saveMetadata(diagramID string, metadata []Metadata) e
 // updateMetadataTx updates metadata for a diagram within a transaction using GORM.
 // Mirrors GormThreatModelStore.updateMetadataTx so the metadata delete+insert
 // participates in the surrounding retry envelope.
+// SEM@22b222cb8680df2700e22f0e8538874669789920: replace diagram metadata within an existing transaction (mutates shared state)
 func (s *GormDiagramStore) updateMetadataTx(tx *gorm.DB, diagramID string, metadata []Metadata) error {
 	return deleteAndSaveEntityMetadata(tx, "diagram", diagramID, metadata)
 }

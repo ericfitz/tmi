@@ -16,12 +16,14 @@ import (
 )
 
 // GormDeletionRepository implements DeletionRepository using GORM
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: GORM-backed repository for cascading deletion of users, groups, and their owned data
 type GormDeletionRepository struct {
 	db     *gorm.DB
 	logger *slogging.Logger
 }
 
 // NewGormDeletionRepository creates a new GORM-backed deletion repository
+// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: build a GormDeletionRepository backed by the given GORM DB connection (pure)
 func NewGormDeletionRepository(db *gorm.DB) *GormDeletionRepository {
 	return &GormDeletionRepository{
 		db:     db,
@@ -31,6 +33,7 @@ func NewGormDeletionRepository(db *gorm.DB) *GormDeletionRepository {
 
 // DeleteUserAndData deletes a user by email and handles ownership transfer for threat models.
 // Used by the self-deletion flow (DELETE /me) where identity comes from JWT email.
+// SEM@d0742bff5d3b93b3ab7b22df0377398a720a8d9c: delete a user by email and all owned data in a retryable transaction (reads DB)
 func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmail string) (*DeletionResult, error) {
 	result := &DeletionResult{
 		UserEmail: userEmail,
@@ -61,6 +64,7 @@ func (r *GormDeletionRepository) DeleteUserAndData(ctx context.Context, userEmai
 // DeleteUserByInternalUUID deletes a user by internal UUID and handles ownership transfer.
 // Used by admin deletion to avoid multi-hop identity resolution (UUID→provider→email→UUID)
 // that can target the wrong user when duplicate provider/email records exist.
+// SEM@d0742bff5d3b93b3ab7b22df0377398a720a8d9c: delete a user by internal UUID and all owned data in a retryable transaction (reads DB)
 func (r *GormDeletionRepository) DeleteUserByInternalUUID(ctx context.Context, internalUUID string) (*DeletionResult, error) {
 	result := &DeletionResult{}
 
@@ -89,6 +93,7 @@ func (r *GormDeletionRepository) DeleteUserByInternalUUID(ctx context.Context, i
 
 // deleteUserCore performs the actual user deletion within an existing transaction.
 // The user must already be resolved — this avoids identity re-resolution bugs.
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: transfer or hard-delete all threat models owned by a user, then remove the user record (reads DB)
 func (r *GormDeletionRepository) deleteUserCore(tx *gorm.DB, user *models.User, result *DeletionResult) error {
 	// Get all threat models owned by user (including soft-deleted tombstones)
 	var threatModels []models.ThreatModel
@@ -184,6 +189,7 @@ func (r *GormDeletionRepository) deleteUserCore(tx *gorm.DB, user *models.User, 
 
 // DeleteGroupAndData deletes a group by internal UUID and handles threat model cleanup
 // Uses internal_uuid for precise identification to avoid issues with duplicate group_names
+// SEM@d0742bff5d3b93b3ab7b22df0377398a720a8d9c: delete a non-built-in group and cascade-delete or transfer its owned threat models (reads DB)
 func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, internalUUID string) (*GroupDeletionResult, error) {
 	result := &GroupDeletionResult{}
 
@@ -312,6 +318,7 @@ func (r *GormDeletionRepository) DeleteGroupAndData(ctx context.Context, interna
 
 // deleteThreatModelChildren deletes all child entities of a threat model
 // This must be called before deleting the threat model itself due to FK constraints
+// SEM@b5c14add0b922ef290ad233df8d692a1910bb8f6: hard-delete all child entities of a threat model in FK-safe order (reads DB)
 func (r *GormDeletionRepository) deleteThreatModelChildren(tx *gorm.DB, threatModelID string) error {
 	// Delete in order to respect foreign key constraints
 	// Each entity type may have metadata, so delete metadata before the entity
@@ -391,6 +398,7 @@ func (r *GormDeletionRepository) deleteThreatModelChildren(tx *gorm.DB, threatMo
 // Uses Unscoped() because models with DeletedAt fields would otherwise be soft-deleted,
 // leaving FK references that block parent deletion.
 // Each operation gets a fresh tx.Unscoped() to avoid GORM WHERE clause accumulation.
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: hard-delete metadata and then all entities of a given type for a threat model (reads DB)
 func (r *GormDeletionRepository) deleteEntitiesWithMetadata(tx *gorm.DB, threatModelID, entityType string, entities any) error {
 	// Find all entities for this threat model (including soft-deleted)
 	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Find(entities).Error; err != nil {
@@ -463,6 +471,7 @@ func (r *GormDeletionRepository) deleteEntitiesWithMetadata(tx *gorm.DB, threatM
 }
 
 // deleteCollaborationSessions deletes collaboration sessions and their participants
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: hard-delete all collaboration sessions and their participants for a threat model (reads DB)
 func (r *GormDeletionRepository) deleteCollaborationSessions(tx *gorm.DB, threatModelID string) error {
 	var sessions []models.CollaborationSession
 	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Find(&sessions).Error; err != nil {
@@ -481,6 +490,7 @@ func (r *GormDeletionRepository) deleteCollaborationSessions(tx *gorm.DB, threat
 
 // deleteTimmyEntities deletes all Timmy-related entities for a threat model.
 // Deletion order respects FK constraints: timmy_usage -> timmy_messages -> timmy_sessions -> timmy_embeddings
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: hard-delete all Timmy sessions, messages, usage records, and embeddings for a threat model in FK order (reads DB)
 func (r *GormDeletionRepository) deleteTimmyEntities(tx *gorm.DB, threatModelID string) error {
 	// Find all timmy sessions for this threat model (including soft-deleted)
 	var sessions []models.TimmySession
@@ -520,6 +530,7 @@ func (r *GormDeletionRepository) deleteTimmyEntities(tx *gorm.DB, threatModelID 
 
 // deleteWebhookSubscriptions deletes webhook subscriptions for a threat model.
 // Note: webhook deliveries are stored in Redis, not Postgres (table dropped in migration).
+// SEM@8077d4387088ee7e6e22cce2171ad54ee850e10b: hard-delete all webhook subscriptions for a threat model (reads DB)
 func (r *GormDeletionRepository) deleteWebhookSubscriptions(tx *gorm.DB, threatModelID string) error {
 	if err := tx.Unscoped().Where("threat_model_id = ?", threatModelID).Delete(&models.WebhookSubscription{}).Error; err != nil {
 		return fmt.Errorf("failed to delete webhook subscriptions: %w", dberrors.Classify(err))
@@ -530,6 +541,7 @@ func (r *GormDeletionRepository) deleteWebhookSubscriptions(tx *gorm.DB, threatM
 // deleteUserTimmyEntities deletes Timmy sessions, messages, and usage for a user.
 // Handles data on non-owned threat models (owned TM data is cleaned via deleteThreatModelChildren).
 // Order: timmy_usage -> timmy_messages -> timmy_sessions
+// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: hard-delete all Timmy sessions, messages, and usage records owned by a user (reads DB)
 func (r *GormDeletionRepository) deleteUserTimmyEntities(tx *gorm.DB, userInternalUUID string) error {
 	var sessions []models.TimmySession
 	if err := tx.Unscoped().Where("user_id = ?", userInternalUUID).Find(&sessions).Error; err != nil {
@@ -559,6 +571,7 @@ func (r *GormDeletionRepository) deleteUserTimmyEntities(tx *gorm.DB, userIntern
 
 // nullifyTriageNoteRefs sets created_by_internal_uuid and modified_by_internal_uuid
 // to NULL on triage notes that reference the deleted user.
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: SET NULL on triage note audit columns referencing the deleted user (mutates DB)
 func (r *GormDeletionRepository) nullifyTriageNoteRefs(tx *gorm.DB, userInternalUUID string) error {
 	if err := tx.Model(&models.TriageNote{}).
 		Where("created_by_internal_uuid = ?", userInternalUUID).
@@ -574,6 +587,7 @@ func (r *GormDeletionRepository) nullifyTriageNoteRefs(tx *gorm.DB, userInternal
 }
 
 // deleteUserLinkedIdentities deletes all linked identity rows owned by the user.
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: delete all linked identity rows owned by the user (mutates DB)
 func (r *GormDeletionRepository) deleteUserLinkedIdentities(tx *gorm.DB, userInternalUUID string) error {
 	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.LinkedIdentity{}).Error; err != nil {
 		return fmt.Errorf("failed to delete linked identities: %w", dberrors.Classify(err))
@@ -585,6 +599,7 @@ func (r *GormDeletionRepository) deleteUserLinkedIdentities(tx *gorm.DB, userInt
 // The model declares constraint:- to suppress GORM-managed FKs, but databases that were
 // AutoMigrated before that tag was added retain fk_usability_feedback_created_by;
 // usability_feedback.created_by is also NOT NULL, so deletion is the only path.
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: delete all usability feedback rows created by the user (mutates DB)
 func (r *GormDeletionRepository) deleteUserUsabilityFeedback(tx *gorm.DB, userInternalUUID string) error {
 	if err := tx.Where("created_by = ?", userInternalUUID).Delete(&models.UsabilityFeedback{}).Error; err != nil {
 		return fmt.Errorf("failed to delete usability feedback: %w", dberrors.Classify(err))
@@ -601,6 +616,7 @@ func (r *GormDeletionRepository) deleteUserUsabilityFeedback(tx *gorm.DB, userIn
 // retain enforced GORM-managed FKs to users.internal_uuid. UpdateColumn is used
 // on ThreatModelAccess to bypass BeforeSave, which validates SubjectType on the
 // zero-value struct used by map-based GORM updates.
+// SEM@9be9de48236704afd7be7c8f4e5602ce2235739f: delete team/project memberships and nullify access grant audit refs for the deleted user (mutates DB)
 func (r *GormDeletionRepository) deleteUserTeamProjectAndGrantRefs(tx *gorm.DB, userInternalUUID string) error {
 	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.TeamMemberRecord{}).Error; err != nil {
 		return fmt.Errorf("failed to delete team memberships: %w", dberrors.Classify(err))
@@ -621,6 +637,7 @@ func (r *GormDeletionRepository) deleteUserTeamProjectAndGrantRefs(tx *gorm.DB, 
 
 // deleteUserRelatedEntities deletes all entities that reference the user
 // This must be called before deleting the user record due to FK constraints
+// SEM@211793c39ea528b3d2da244f3504963c40584df7: delete or nullify all FK-constrained entities referencing the user before account deletion (mutates DB)
 func (r *GormDeletionRepository) deleteUserRelatedEntities(tx *gorm.DB, userInternalUUID string) error {
 	// 1. Delete user preferences
 	if err := tx.Where("user_internal_uuid = ?", userInternalUUID).Delete(&models.UserPreference{}).Error; err != nil {
@@ -807,6 +824,7 @@ const (
 // SAVEPOINT so an SQLSTATE 23505 from the INSERT does not abort the outer
 // PostgreSQL transaction. Oracle has statement-level rollback semantics, so the
 // savepoint is purely a PG correctness fix and is safe on Oracle.
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch or create the built-in Security Reviewers group within a transaction (reads/mutates DB)
 func ensureSecurityReviewersGroupForDeletion(tx *gorm.DB) (string, error) {
 	var group models.Group
 	result := tx.Where("group_name = ? AND provider = ?", securityReviewersGroupName, builtInProvider).First(&group)
@@ -853,6 +871,7 @@ func ensureSecurityReviewersGroupForDeletion(tx *gorm.DB) (string, error) {
 // TransferOwnership transfers all owned threat models and survey responses
 // from sourceUserUUID to targetUserUUID within a single transaction.
 // The source user is downgraded to "writer" role on all transferred items.
+// SEM@d0742bff5d3b93b3ab7b22df0377398a720a8d9c: transfer all owned threat models and survey responses from one user to another, downgrading the source to writer (mutates DB)
 func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUserUUID, targetUserUUID string) (*TransferResult, error) {
 	result := &TransferResult{}
 
@@ -948,6 +967,7 @@ func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUs
 
 // upsertThreatModelAccess ensures a user has the specified role on a threat model.
 // If the user already has an access record, the role is updated. Otherwise, a new record is created.
+// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: store or update a user's role on a threat model access record (mutates DB)
 func (r *GormDeletionRepository) upsertThreatModelAccess(tx *gorm.DB, threatModelID, userUUID, role string) error {
 	var existing models.ThreatModelAccess
 	err := tx.Where(
@@ -978,6 +998,7 @@ func (r *GormDeletionRepository) upsertThreatModelAccess(tx *gorm.DB, threatMode
 
 // upsertSurveyResponseAccess ensures a user has the specified role on a survey response.
 // If the user already has an access record, the role is updated. Otherwise, a new record is created.
+// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: store or update a user's role on a survey response access record (mutates DB)
 func (r *GormDeletionRepository) upsertSurveyResponseAccess(tx *gorm.DB, surveyResponseID, userUUID, role string) error {
 	var existing models.SurveyResponseAccess
 	err := tx.Where(

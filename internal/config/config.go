@@ -20,6 +20,7 @@ import (
 const envTrueValue = "true"
 
 // AdministratorConfig represents a single administrator entry configuration
+// SEM@ef979cc7527137e0448782341a4ffe8e944571f5: configuration entry identifying a user or group to bootstrap as an administrator (pure)
 type AdministratorConfig struct {
 	Provider    string `yaml:"provider" json:"provider"`                           // OAuth/SAML provider ID (required)
 	ProviderId  string `yaml:"provider_id,omitempty" json:"provider_id,omitempty"` // Provider's user ID (for users, preferred)
@@ -29,6 +30,7 @@ type AdministratorConfig struct {
 }
 
 // Config holds all application configuration
+// SEM@13c4215bf8e204da342579717f97f7393bb5fe2f: top-level application configuration aggregating all subsystem config structs (pure)
 type Config struct {
 	Server                    ServerConfig            `yaml:"server"`
 	Database                  DatabaseConfig          `yaml:"database"`
@@ -50,6 +52,7 @@ type Config struct {
 }
 
 // ObservabilityConfig holds OpenTelemetry configuration
+// SEM@e81aaa612078c97ad77ca1478c9812ee7e86b331: configuration for OpenTelemetry tracing and Prometheus metrics export (pure)
 type ObservabilityConfig struct {
 	Enabled        bool    `yaml:"enabled" env:"TMI_OTEL_ENABLED"`
 	SamplingRate   float64 `yaml:"sampling_rate" env:"TMI_OTEL_SAMPLING_RATE"`
@@ -57,6 +60,7 @@ type ObservabilityConfig struct {
 }
 
 // SSRFConfig holds SSRF protection settings for URI validation
+// SEM@e81aaa612078c97ad77ca1478c9812ee7e86b331: configuration grouping per-URI-type SSRF protection allowlists and scheme restrictions (pure)
 type SSRFConfig struct {
 	IssueURI      SSRFURIConfig `yaml:"issue_uri"`
 	DocumentURI   SSRFURIConfig `yaml:"document_uri"`
@@ -66,12 +70,14 @@ type SSRFConfig struct {
 }
 
 // SSRFURIConfig holds allowlist and scheme configuration for a single URI type
+// SEM@e81aaa612078c97ad77ca1478c9812ee7e86b331: allowlist and permitted schemes for a single URI category used in SSRF validation (pure)
 type SSRFURIConfig struct {
 	Allowlist string `yaml:"allowlist"`
 	Schemes   string `yaml:"schemes"`
 }
 
 // ServerConfig holds HTTP server configuration
+// SEM@e81aaa612078c97ad77ca1478c9812ee7e86b331: configuration for the HTTP server port, TLS, timeouts, rate limits, and CORS (pure)
 type ServerConfig struct {
 	Port                string        `yaml:"port" env:"TMI_SERVER_PORT"`
 	Interface           string        `yaml:"interface" env:"TMI_SERVER_INTERFACE"`
@@ -96,6 +102,7 @@ type ServerConfig struct {
 }
 
 // CORSConfig holds CORS configuration
+// SEM@314b7ae8fe586a75ecee2e8fa7103d3193f15f7c: configuration for allowed CORS origins (pure)
 type CORSConfig struct {
 	AllowedOrigins []string `yaml:"allowed_origins" env:"TMI_CORS_ALLOWED_ORIGINS"` // Comma-separated allowed origins
 }
@@ -103,6 +110,7 @@ type CORSConfig struct {
 // DatabaseConfig holds database configuration.
 // The primary configuration method is DATABASE_URL which contains all connection parameters.
 // Database type is automatically detected from the URL scheme (postgres://, mysql://, etc.)
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: configuration for the primary database connection URL, Oracle wallet, connection pool, and Redis (pure)
 type DatabaseConfig struct {
 	URL                  string               `yaml:"url" env:"TMI_DATABASE_URL"`                              // Connection string URL (12-factor app pattern) - REQUIRED
 	OracleWalletLocation string               `yaml:"oracle_wallet_location" env:"TMI_ORACLE_WALLET_LOCATION"` // Path to Oracle wallet directory (Oracle ADB only)
@@ -111,6 +119,7 @@ type DatabaseConfig struct {
 }
 
 // ConnectionPoolConfig holds database connection pool settings
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: configuration struct for DB connection pool size and lifetime limits (pure)
 type ConnectionPoolConfig struct {
 	MaxOpenConns    int `yaml:"max_open_conns" env:"TMI_DB_MAX_OPEN_CONNS"`         // Maximum open connections (default: 10)
 	MaxIdleConns    int `yaml:"max_idle_conns" env:"TMI_DB_MAX_IDLE_CONNS"`         // Maximum idle connections (default: 2)
@@ -119,6 +128,7 @@ type ConnectionPoolConfig struct {
 }
 
 // RedisConfig holds Redis configuration
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: configuration struct for Redis connection coordinates and credentials (pure)
 type RedisConfig struct {
 	URL      string `yaml:"url" env:"TMI_REDIS_URL"` // Connection string URL (redis://[:password@]host:port[/db]), takes precedence over individual fields
 	Host     string `yaml:"host" env:"TMI_REDIS_HOST"`
@@ -128,6 +138,7 @@ type RedisConfig struct {
 }
 
 // AuthConfig holds authentication configuration
+// SEM@e81aaa612078c97ad77ca1478c9812ee7e86b331: configuration struct aggregating JWT, OAuth, SAML, cookie, and role settings (pure)
 type AuthConfig struct {
 	JWT                  JWTConfig    `yaml:"jwt"`
 	OAuth                OAuthConfig  `yaml:"oauth"`
@@ -142,6 +153,7 @@ type AuthConfig struct {
 }
 
 // CookieConfig holds HttpOnly session cookie configuration
+// SEM@314b7ae8fe586a75ecee2e8fa7103d3193f15f7c: configuration struct for HttpOnly session cookie domain and security flags (pure)
 type CookieConfig struct {
 	Enabled bool   `yaml:"enabled" env:"TMI_COOKIE_ENABLED"` // Enable HttpOnly cookie-based auth (default: true)
 	Domain  string `yaml:"domain" env:"TMI_COOKIE_DOMAIN"`   // Cookie domain (auto-inferred from BaseURL if empty)
@@ -149,6 +161,7 @@ type CookieConfig struct {
 }
 
 // JWTConfig holds JWT configuration
+// SEM@36538e427d89135597d0d3615fcf217f9f4088e4: configuration struct for JWT secret, signing method, and token lifetimes (pure)
 type JWTConfig struct {
 	Secret              string `yaml:"secret" env:"TMI_JWT_SECRET"`
 	ExpirationSeconds   int    `yaml:"expiration_seconds" env:"TMI_JWT_EXPIRATION_SECONDS"`
@@ -158,6 +171,7 @@ type JWTConfig struct {
 }
 
 // OAuthConfig holds OAuth configuration
+// SEM@e81aaa612078c97ad77ca1478c9812ee7e86b331: configuration struct for OAuth callback URL, providers map, and client-callback allowlist (pure)
 type OAuthConfig struct {
 	CallbackURL string                         `yaml:"callback_url" env:"TMI_OAUTH_CALLBACK_URL"`
 	Providers   map[string]OAuthProviderConfig `yaml:"providers"`
@@ -170,12 +184,14 @@ type OAuthConfig struct {
 }
 
 // UserInfoEndpoint represents a single userinfo endpoint and its claim mappings
+// SEM@ef979cc7527137e0448782341a4ffe8e944571f5: configuration struct for a userinfo endpoint URL and its claim mappings (pure)
 type UserInfoEndpoint struct {
 	URL    string            `yaml:"url" json:"url"`
 	Claims map[string]string `yaml:"claims" json:"claims,omitempty"`
 }
 
 // OAuthProviderConfig holds configuration for an OAuth provider
+// SEM@65af9b7db2850b6e18076df15ed522c8df4bb64c: configuration struct for a single OAuth provider's credentials, endpoints, and scopes (pure)
 type OAuthProviderConfig struct {
 	ID               string             `yaml:"id"`
 	Name             string             `yaml:"name"`
@@ -195,12 +211,14 @@ type OAuthProviderConfig struct {
 }
 
 // SAMLConfig holds SAML configuration
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: configuration struct for SAML enabled flag and provider map (pure)
 type SAMLConfig struct {
 	Enabled   bool                          `yaml:"enabled" env:"TMI_SAML_ENABLED"`
 	Providers map[string]SAMLProviderConfig `yaml:"providers"`
 }
 
 // SAMLProviderConfig holds configuration for a SAML provider
+// SEM@7e40aae7f066b1d045faeff914884107bde40f0e: configuration struct for a single SAML provider's SP/IdP metadata, keys, and attribute mappings (pure)
 type SAMLProviderConfig struct {
 	ID                string `yaml:"id"`
 	Name              string `yaml:"name"`
@@ -230,6 +248,7 @@ type SAMLProviderConfig struct {
 // lumberjack-backed file rotator. Most knobs map directly onto
 // gopkg.in/natefinch/lumberjack.v2; see the wiki page "Operator Guide:
 // Logging & Log Rotation" for full operator-facing documentation.
+// SEM@e81aaa612078c97ad77ca1478c9812ee7e86b331: configuration struct for log level, rotation, console mirroring, and debug verbosity flags (pure)
 type LoggingConfig struct {
 	// Level is the minimum log level to emit. One of: debug, info, warn, error.
 	Level string `yaml:"level" env:"TMI_LOG_LEVEL"`
@@ -270,16 +289,19 @@ type LoggingConfig struct {
 }
 
 // WebSocketConfig holds WebSocket timeout configuration
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: configuration struct for WebSocket session inactivity timeout (pure)
 type WebSocketConfig struct {
 	InactivityTimeoutSeconds int `yaml:"inactivity_timeout_seconds" env:"TMI_WEBSOCKET_INACTIVITY_TIMEOUT_SECONDS"`
 }
 
 // WebhookConfig holds webhook configuration
+// SEM@baf9ecb79a22da23c9922e1df63b14cb07d01523: configuration struct controlling whether non-HTTPS webhook targets are permitted (pure)
 type WebhookConfig struct {
 	AllowHTTPTargets bool `yaml:"allow_http_targets" env:"TMI_WEBHOOK_ALLOW_HTTP_TARGETS"` // Allow non-HTTPS webhook URLs (e.g., for intra-cluster communication)
 }
 
 // OperatorConfig holds operator/maintainer information
+// SEM@3a14034a3f1269afac3c226b27ecd2df7e050a75: configuration struct for operator identity and jurisdiction metadata (pure)
 type OperatorConfig struct {
 	Name         string `yaml:"name" env:"TMI_OPERATOR_NAME"`
 	Contact      string `yaml:"contact" env:"TMI_OPERATOR_CONTACT"`
@@ -292,6 +314,7 @@ type OperatorConfig struct {
 // events to WebhookURL. WebhookSecret is the HMAC signing secret for that
 // subscription; it may be an env:// or vault:// reference resolved at startup
 // by ResolveSecretReferences.
+// SEM@13c4215bf8e204da342579717f97f7393bb5fe2f: configuration struct for the operator-pinned audit alert webhook URL and signing secret (pure)
 type AlertingConfig struct {
 	Enabled       bool   `yaml:"enabled" env:"TMI_ALERTING_ENABLED"`
 	WebhookURL    string `yaml:"webhook_url" env:"TMI_ALERTING_WEBHOOK_URL"`
@@ -299,6 +322,7 @@ type AlertingConfig struct {
 }
 
 // SecretsConfig holds configuration for external secret providers
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: configuration struct for external secret-provider selection and per-provider connection settings (pure)
 type SecretsConfig struct {
 	Provider string `yaml:"provider" env:"TMI_SECRETS_PROVIDER"` // "env" (default), "vault", "aws", "azure", "gcp", "oci"
 
@@ -325,6 +349,7 @@ type SecretsConfig struct {
 }
 
 // Load loads configuration from YAML file with environment variable overrides
+// SEM@b4834203783bf0a76ea4b6d187622b91f43a018b: load and validate server configuration from a YAML file with env-var overrides (reads files, reads env)
 func Load(configFile string) (*Config, error) {
 	config := getDefaultConfig()
 
@@ -396,6 +421,7 @@ func Load(configFile string) (*Config, error) {
 }
 
 // getDefaultConfig returns a configuration with default values
+// SEM@3a14034a3f1269afac3c226b27ecd2df7e050a75: build a Config populated with compile-time default values (pure)
 func getDefaultConfig() *Config {
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -485,6 +511,7 @@ func getDefaultConfig() *Config {
 }
 
 // loadFromYAML loads configuration from a YAML file
+// SEM@31dcaad054adbc8f9eee0076ddc0a39da2afbdf1: parse a YAML config file and merge its values into the provided Config (reads file)
 func loadFromYAML(config *Config, filename string) error {
 	data, err := os.ReadFile(filename) // #nosec G304 -- filename comes from CLI flag set by server operator, not untrusted input
 	if err != nil {
@@ -499,11 +526,13 @@ func loadFromYAML(config *Config, filename string) error {
 }
 
 // overrideWithEnv overrides configuration values with environment variables
+// SEM@951145f6425b88fab9b769b19da233acbe42824c: apply environment-variable overrides to a Config struct (reads env)
 func overrideWithEnv(config *Config) error {
 	return overrideStructWithEnv(reflect.ValueOf(config).Elem())
 }
 
 // overrideStructWithEnv recursively overrides struct fields with environment variables
+// SEM@e81aaa612078c97ad77ca1478c9812ee7e86b331: recursively set struct fields from tagged env vars via reflection (reads env)
 func overrideStructWithEnv(v reflect.Value) error {
 	t := v.Type()
 
@@ -567,6 +596,7 @@ func overrideStructWithEnv(v reflect.Value) error {
 }
 
 // overrideOAuthProviders handles environment variable overrides for OAuth providers
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: discover and populate enabled OAuth provider configs from env vars (reads env, mutates shared state)
 func overrideOAuthProviders(mapField reflect.Value) error {
 	logger := slogging.Get()
 	logger.Info("[CONFIG] overrideOAuthProviders called - starting dynamic OAuth provider discovery")
@@ -645,6 +675,7 @@ func overrideOAuthProviders(mapField reflect.Value) error {
 }
 
 // overrideSAMLProviders handles environment variable overrides for SAML providers
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: discover and populate enabled SAML provider configs from env vars (reads env, mutates shared state)
 func overrideSAMLProviders(mapField reflect.Value) error {
 	logger := slogging.Get()
 	logger.Info("[CONFIG] overrideSAMLProviders called - starting dynamic SAML provider discovery")
@@ -737,6 +768,7 @@ func overrideSAMLProviders(mapField reflect.Value) error {
 // overrideContentOAuthProviders handles environment variable overrides for content OAuth providers.
 // It discovers providers via TMI_CONTENT_OAUTH_PROVIDERS_<ID>_ENABLED and populates
 // a map[string]ContentOAuthProviderConfig.
+// SEM@e81aaa612078c97ad77ca1478c9812ee7e86b331: discover and populate enabled content OAuth provider configs from env vars (reads env, mutates shared state)
 func overrideContentOAuthProviders(mapField reflect.Value) error {
 	logger := slogging.Get()
 	logger.Info("[CONFIG] overrideContentOAuthProviders called - starting dynamic content OAuth provider discovery")
@@ -793,6 +825,7 @@ func overrideContentOAuthProviders(mapField reflect.Value) error {
 }
 
 // setFieldFromString sets a struct field value from a string based on the field type
+// SEM@e81aaa612078c97ad77ca1478c9812ee7e86b331: convert a string value and assign it to a reflect.Value field by its kind (pure)
 func setFieldFromString(field reflect.Value, value string) error {
 	switch field.Kind() {
 	case reflect.String:
@@ -868,6 +901,7 @@ func setFieldFromString(field reflect.Value, value string) error {
 // classification registry + ValidateClassifications suite; its values come from
 // SeedDefaults. See validateOperationalRemoved below for the rationale on each
 // operational check that used to live here.
+// SEM@0ad78fa809c1bae435ba37740922d1e1b33e13d9: validate bootstrap-only config fields (server, database, JWT secret, CORS) at load time (pure)
 func (c *Config) Validate() error {
 	if err := c.validateServer(); err != nil {
 		return err
@@ -894,6 +928,7 @@ func (c *Config) Validate() error {
 //
 // All missing required keys are collected into a single error rather than
 // failing on the first, mirroring the ValidateClassifications multi-error style.
+// SEM@b4834203783bf0a76ea4b6d187622b91f43a018b: validate that all Required-classified bootstrap settings have non-empty values (pure)
 func (c *Config) ValidateRequired() error {
 	settings := c.GetMigratableSettings()
 	var missing []string
@@ -916,6 +951,7 @@ func (c *Config) ValidateRequired() error {
 // needs in order to exist.
 //
 // An inline value (the dev/test default shape) is left unchanged.
+// SEM@b583a71af02ca00e2c408d9d52e1e41f514df3ff: resolve env:// and file:// secret references in the Secrets config block before provider construction (reads env/file)
 func (c *Config) ResolveSecretsConfigReferences(ctx context.Context) error {
 	resolved, err := ResolveSecretValue(ctx, c.Secrets.VaultToken, nil)
 	if err != nil {
@@ -944,6 +980,7 @@ func (c *Config) ResolveSecretsConfigReferences(ctx context.Context) error {
 //
 // vault references the secrets provider's vault leg; it may be nil, in which
 // case any vault:// reference is reported as an error.
+// SEM@13c4215bf8e204da342579717f97f7393bb5fe2f: dereference vault://, env://, and file:// secret references across all bootstrap secret fields in place (reads env/file/vault)
 func (c *Config) ResolveSecretReferences(ctx context.Context, vault SecretResolver) error {
 	// field name -> pointer to the struct field holding the value.
 	fields := []struct {
@@ -978,6 +1015,7 @@ func (c *Config) ResolveSecretReferences(ctx context.Context, vault SecretResolv
 // NOTE: Timmy config is CategoryOperational (DB-seeded as of #415), so this is
 // NOT called from Load()-time Validate(). It is retained as a unit-testable
 // validator and may be invoked by callers that hold an effective Config.
+// SEM@e81aaa612078c97ad77ca1478c9812ee7e86b331: validate that dev-only Timmy flags are not enabled in production mode (pure)
 func (c *Config) validateTimmy() error {
 	if c.Timmy.DumpExtractedTextToNote && c.Auth.BuildMode == "production" {
 		return fmt.Errorf("timmy.dump_extracted_text_to_note is a dev/test-only flag; set TMI_BUILD_MODE != production or disable TMI_TIMMY_DUMP_EXTRACTED_TEXT_TO_NOTE")
@@ -985,6 +1023,7 @@ func (c *Config) validateTimmy() error {
 	return nil
 }
 
+// SEM@50499b7e7638c92c4c7ee7c13d8ca46e32e7f61d: validate that the server port is non-empty (pure)
 func (c *Config) validateServer() error {
 	if c.Server.Port == "" {
 		return fmt.Errorf("server port is required")
@@ -992,6 +1031,7 @@ func (c *Config) validateServer() error {
 	return nil
 }
 
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: validate that the database URL and Redis connection settings are present (pure)
 func (c *Config) validateDatabase() error {
 	// DATABASE_URL is required (contains all connection parameters including type, host, port, user, password, database)
 	if c.Database.URL == "" {
@@ -1012,6 +1052,7 @@ func (c *Config) validateDatabase() error {
 // validateJWTSecret validates the bootstrap JWT secret. auth.jwt.secret is
 // CategoryBootstrap (it must exist before any DB-backed settings can be read),
 // so this check stays in the Load()-time path.
+// SEM@0ad78fa809c1bae435ba37740922d1e1b33e13d9: validate that the JWT signing secret is non-empty (pure)
 func (c *Config) validateJWTSecret() error {
 	if c.Auth.JWT.Secret == "" {
 		return fmt.Errorf("jwt secret is required")
@@ -1025,6 +1066,7 @@ func (c *Config) validateJWTSecret() error {
 // default), so its value cannot be meaningfully validated against a
 // bootstrap-only file. Retained for direct unit testing of the validation
 // rules and for any caller that has an effective (non-bootstrap) Config.
+// SEM@0ad78fa809c1bae435ba37740922d1e1b33e13d9: validate JWT secret and expiration settings (pure)
 func (c *Config) validateJWT() error {
 	if err := c.validateJWTSecret(); err != nil {
 		return err
@@ -1041,6 +1083,7 @@ func (c *Config) validateJWT() error {
 // Validate(): a fresh deployment has zero OAuth providers seeded and an operator
 // adds them at runtime, so requiring >=1 provider AT BOOT would wrongly refuse
 // to start the server. Retained as a unit-testable validator only.
+// SEM@50499b7e7638c92c4c7ee7c13d8ca46e32e7f61d: validate that at least one enabled OAuth provider with credentials is configured (pure)
 func (c *Config) validateOAuth() error {
 	if c.Auth.OAuth.CallbackURL == "" {
 		return fmt.Errorf("oauth callback url is required")
@@ -1064,6 +1107,7 @@ func (c *Config) validateOAuth() error {
 // websocket.inactivity_timeout_seconds is CategoryOperational (DB-seeded as of
 // #415; the classification registry supplies a sane default), so this is NOT
 // called from Load()-time Validate(). Retained as a unit-testable validator.
+// SEM@50499b7e7638c92c4c7ee7c13d8ca46e32e7f61d: validate that the WebSocket inactivity timeout meets the minimum threshold (pure)
 func (c *Config) validateWebSocket() error {
 	if c.WebSocket.InactivityTimeoutSeconds < 15 {
 		return fmt.Errorf("websocket inactivity timeout must be at least 15 seconds")
@@ -1074,6 +1118,7 @@ func (c *Config) validateWebSocket() error {
 // validateAdministrators validates the administrators list. administrators is
 // CategoryOperational (DB-seeded as of #415), so this is NOT called from
 // Load()-time Validate(). Retained as a unit-testable validator.
+// SEM@50499b7e7638c92c4c7ee7c13d8ca46e32e7f61d: validate each administrator entry in the config list (pure)
 func (c *Config) validateAdministrators() error {
 	for i, admin := range c.Administrators {
 		if err := c.validateAdministrator(i, admin); err != nil {
@@ -1083,6 +1128,7 @@ func (c *Config) validateAdministrators() error {
 	return nil
 }
 
+// SEM@50499b7e7638c92c4c7ee7c13d8ca46e32e7f61d: validate a single administrator config entry's provider, subject type, and identity fields (pure)
 func (c *Config) validateAdministrator(index int, admin AdministratorConfig) error {
 	if admin.Provider == "" {
 		return fmt.Errorf("administrator[%d]: provider is required", index)
@@ -1103,6 +1149,7 @@ func (c *Config) validateAdministrator(index int, admin AdministratorConfig) err
 	return nil
 }
 
+// SEM@50499b7e7638c92c4c7ee7c13d8ca46e32e7f61d: validate that an administrator subject has the required identity fields for its subject type (pure)
 func (c *Config) validateAdministratorSubject(index int, admin AdministratorConfig) error {
 	switch admin.SubjectType {
 	case "user":
@@ -1119,6 +1166,7 @@ func (c *Config) validateAdministratorSubject(index int, admin AdministratorConf
 	return nil
 }
 
+// SEM@50499b7e7638c92c4c7ee7c13d8ca46e32e7f61d: validate that an administrator's referenced provider is configured and enabled (pure)
 func (c *Config) validateAdministratorProvider(index int, admin AdministratorConfig) error {
 	// Verify provider exists in configured OAuth/SAML providers
 	if c.isProviderConfigured(admin.Provider) {
@@ -1127,6 +1175,7 @@ func (c *Config) validateAdministratorProvider(index int, admin AdministratorCon
 	return fmt.Errorf("administrator[%d]: provider '%s' is not configured or not enabled", index, admin.Provider)
 }
 
+// SEM@314b7ae8fe586a75ecee2e8fa7103d3193f15f7c: validate that CORS allowed origins are well-formed URLs without wildcards (pure)
 func (c *Config) validateCORS() error {
 	for _, origin := range c.Server.CORS.AllowedOrigins {
 		if origin == "*" {
@@ -1140,6 +1189,7 @@ func (c *Config) validateCORS() error {
 	return nil
 }
 
+// SEM@50499b7e7638c92c4c7ee7c13d8ca46e32e7f61d: report whether a given provider ID is enabled in OAuth or SAML config (pure)
 func (c *Config) isProviderConfigured(providerID string) bool {
 	// Check OAuth providers
 	for id, provider := range c.Auth.OAuth.Providers {
@@ -1159,26 +1209,31 @@ func (c *Config) isProviderConfigured(providerID string) bool {
 }
 
 // IsTestMode returns true if running in test mode
+// SEM@00b0ee530c36c62288babea895dd77d7bfeeac94: report whether the server is running in test mode (pure)
 func (c *Config) IsTestMode() bool {
 	return c.Logging.IsTest || isRunningInTest()
 }
 
 // isRunningInTest detects if we're running under 'go test'
+// SEM@00b0ee530c36c62288babea895dd77d7bfeeac94: detect whether the current process is running under go test (pure)
 func isRunningInTest() bool {
 	return flag.Lookup("test.v") != nil
 }
 
 // GetJWTDuration returns the JWT expiration duration
+// SEM@951145f6425b88fab9b769b19da233acbe42824c: convert the JWT expiration seconds setting to a time.Duration (pure)
 func (c *Config) GetJWTDuration() time.Duration {
 	return time.Duration(c.Auth.JWT.ExpirationSeconds) * time.Second
 }
 
 // GetLogLevel returns the parsed log level
+// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: parse and return the configured log level as a typed LogLevel (pure)
 func (c *Config) GetLogLevel() slogging.LogLevel {
 	return slogging.ParseLogLevel(c.Logging.Level)
 }
 
 // GetEnabledOAuthProviders returns a slice of enabled OAuth providers
+// SEM@951145f6425b88fab9b769b19da233acbe42824c: list all enabled OAuth provider configs (pure)
 func (c *Config) GetEnabledOAuthProviders() []OAuthProviderConfig {
 	var enabled []OAuthProviderConfig
 	for _, provider := range c.Auth.OAuth.Providers {
@@ -1190,6 +1245,7 @@ func (c *Config) GetEnabledOAuthProviders() []OAuthProviderConfig {
 }
 
 // GetOAuthProvider returns a specific OAuth provider configuration
+// SEM@951145f6425b88fab9b769b19da233acbe42824c: fetch a single enabled OAuth provider config by provider ID (pure)
 func (c *Config) GetOAuthProvider(providerID string) (OAuthProviderConfig, bool) {
 	provider, exists := c.Auth.OAuth.Providers[providerID]
 	if !exists || !provider.Enabled {
@@ -1199,6 +1255,7 @@ func (c *Config) GetOAuthProvider(providerID string) (OAuthProviderConfig, bool)
 }
 
 // GetWebSocketInactivityTimeout returns the websocket inactivity timeout duration
+// SEM@5fab45cd0e653a12ca75749776c15b98390816b8: convert the WebSocket inactivity timeout seconds setting to a time.Duration (pure)
 func (c *Config) GetWebSocketInactivityTimeout() time.Duration {
 	return time.Duration(c.WebSocket.InactivityTimeoutSeconds) * time.Second
 }
@@ -1206,6 +1263,7 @@ func (c *Config) GetWebSocketInactivityTimeout() time.Duration {
 // GetBaseURL returns the server's public base URL for callbacks.
 // If BaseURL is explicitly configured, it is returned as-is.
 // Otherwise, the URL is auto-inferred from Interface, Port, and TLSEnabled.
+// SEM@df41a3866f5824f0f8fb588edb04475095615bcf: compute the server's public base URL from config, inferring scheme and host if not explicit (pure)
 func (c *Config) GetBaseURL() string {
 	if c.Server.BaseURL != "" {
 		return c.Server.BaseURL
@@ -1232,12 +1290,14 @@ func (c *Config) GetBaseURL() string {
 
 // IsSecureCookies returns whether cookies should have the Secure flag set.
 // Returns true if explicitly configured or if TLS is enabled.
+// SEM@314b7ae8fe586a75ecee2e8fa7103d3193f15f7c: report whether the Secure flag should be set on session cookies (pure)
 func (c *Config) IsSecureCookies() bool {
 	return c.Auth.Cookie.Secure || c.Server.TLSEnabled
 }
 
 // GetCookieDomain returns the cookie domain. If not explicitly configured,
 // it extracts the hostname from GetBaseURL().
+// SEM@314b7ae8fe586a75ecee2e8fa7103d3193f15f7c: return the cookie domain, inferring it from the base URL if not explicitly configured (pure)
 func (c *Config) GetCookieDomain() string {
 	if c.Auth.Cookie.Domain != "" {
 		return c.Auth.Cookie.Domain
@@ -1253,6 +1313,7 @@ func (c *Config) GetCookieDomain() string {
 // OperationalKeysInFile returns the operational-category setting keys present
 // in a YAML config file. Operational config belongs in the database; finding
 // it in a file indicates drift during the bootstrap-only migration.
+// SEM@e81aaa612078c97ad77ca1478c9812ee7e86b331: list operational-category config keys present in a YAML file to detect bootstrap drift (reads file)
 func OperationalKeysInFile(path string) ([]string, error) {
 	raw := map[string]any{}
 	data, err := os.ReadFile(path) //nolint:gosec // operator-supplied config path
@@ -1272,6 +1333,7 @@ func OperationalKeysInFile(path string) ([]string, error) {
 }
 
 // walkYAMLKeys invokes fn with the dotted path of every leaf key in m.
+// SEM@e81aaa612078c97ad77ca1478c9812ee7e86b331: invoke a callback for every dotted leaf key path in a nested YAML map (pure)
 func walkYAMLKeys(m map[string]any, prefix string, fn func(string)) {
 	for k, v := range m {
 		dotted := k

@@ -14,6 +14,7 @@ import (
 )
 
 // Exchange exchanges an authorization code for tokens (legacy endpoint, delegates to handleAuthorizationCodeGrant)
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: handle the authorization_code token exchange endpoint with PKCE validation
 func (h *Handlers) Exchange(c *gin.Context) {
 	var req struct {
 		GrantType    string `json:"grant_type" form:"grant_type" binding:"required"`
@@ -46,6 +47,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 
 // handleAuthorizationCodeGrant handles the authorization code grant flow with PKCE
 // This is called by both Token (for /oauth2/token) and Exchange (for backward compatibility)
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: validate PKCE, exchange authorization code, find or create user, and issue JWT token pair (reads DB)
 func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifier, _ string) {
 	// Get provider ID from query parameter
 	providerID := c.Query("idp")
@@ -290,6 +292,7 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 // Returns ok=true to indicate the Token handler should proceed with the
 // normal mint. Returns ok=false when the response has already been written
 // (identity mismatch → 400) and the caller must return immediately. #397.
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: verify the re-authenticated user matches the step-up initiator and blacklist the old refresh token (mutates shared state)
 func (h *Handlers) stepUpIdentityMatchAndRotate(c *gin.Context, ctx context.Context, isStepUp bool, user User, providerID, attemptedEmail, originalUUID, originalEmail string) bool {
 	if !isStepUp {
 		return true
@@ -323,6 +326,7 @@ func (h *Handlers) stepUpIdentityMatchAndRotate(c *gin.Context, ctx context.Cont
 // mode tag distinguishes from the weak-provider short-circuit path.
 //
 // When isStepUp is false this is a no-op. #397.
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: record a successful step-up completion audit event when the flow is a step-up (reads DB)
 func (h *Handlers) stepUpAuditComplete(ctx context.Context, isStepUp bool, user User, providerID, strength string) {
 	if !isStepUp {
 		return
@@ -341,6 +345,7 @@ func (h *Handlers) stepUpAuditComplete(ctx context.Context, isStepUp bool, user 
 }
 
 // Token exchanges an authorization code for tokens
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: dispatch OAuth2 token endpoint across authorization_code, refresh_token, and client_credentials grant types
 func (h *Handlers) Token(c *gin.Context) {
 	var req struct {
 		GrantType    string `json:"grant_type" form:"grant_type"`
@@ -476,6 +481,7 @@ func (h *Handlers) Token(c *gin.Context) {
 }
 
 // Refresh refreshes an access token
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: exchange a refresh token or cookie for a new JWT token pair (reads DB)
 func (h *Handlers) Refresh(c *gin.Context) {
 	var req struct {
 		RefreshToken string `json:"refresh_token"`
