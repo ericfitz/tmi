@@ -96,7 +96,7 @@ jobs:
         uses: astral-sh/setup-uv@v5
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 9   # pnpm-lock.yaml is lockfileVersion 9.0; package.json has no packageManager field
           run_install: false
