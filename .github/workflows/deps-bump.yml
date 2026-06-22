@@ -78,7 +78,7 @@ jobs:
       group: deps-bump-run-${{ matrix.branch }}
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ matrix.branch }}
           fetch-depth: 0
