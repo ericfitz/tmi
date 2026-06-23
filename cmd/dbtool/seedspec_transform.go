@@ -819,17 +819,23 @@ func sanitizeName(name string) string {
 }
 
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a deterministic seed ref key for a user ID (pure)
-func userRef(id string) string      { return "user:" + id }
+func userRef(id string) string { return "user:" + id }
+
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a deterministic seed ref key for a team name (pure)
-func teamRef(name string) string    { return "team:" + sanitizeName(name) }
+func teamRef(name string) string { return "team:" + sanitizeName(name) }
+
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a deterministic seed ref key for a project name (pure)
 func projectRef(name string) string { return "project:" + sanitizeName(name) }
+
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a deterministic seed ref key for a threat model name (pure)
-func tmRef(name string) string      { return "tm:" + sanitizeName(name) }
+func tmRef(name string) string { return "tm:" + sanitizeName(name) }
+
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a deterministic seed ref key for a group name (pure)
-func groupRef(name string) string   { return "group:" + sanitizeName(name) }
+func groupRef(name string) string { return "group:" + sanitizeName(name) }
+
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a deterministic seed ref key for a survey name (pure)
-func surveyRef(name string) string  { return "survey:" + sanitizeName(name) }
+func surveyRef(name string) string { return "survey:" + sanitizeName(name) }
+
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a stable lookup key for a webhook by sanitized name (pure)
 func webhookRef(name string) string { return "webhook:" + sanitizeName(name) }
 

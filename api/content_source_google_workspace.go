@@ -145,6 +145,7 @@ func NewDelegatedGoogleWorkspaceSource(
 //     includes malformed file id extraction, since that is treated as
 //     "we can't reach this file" rather than a systemic error.
 //   - (true, nil): Drive accepted the metadata probe.
+//
 // SEM@f5ad62889026b34082705666e24770ea9883b8f9: probe whether the user's linked token can access a Drive file without downloading it
 func (s *DelegatedGoogleWorkspaceSource) ValidateAccess(ctx context.Context, uri string) (bool, error) {
 	userID, ok := UserIDFromContext(ctx)

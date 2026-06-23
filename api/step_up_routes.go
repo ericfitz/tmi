@@ -17,6 +17,7 @@ import (
 //
 //	/admin/settings/:key               → /admin/settings/{key}
 //	/admin/groups/:internal_uuid/members/:member_uuid → /admin/groups/{internal_uuid}/members/{member_uuid}
+//
 // SEM@e005ee4f6bf927c842fe7fae5363929a8ad0d794: convert a Gin colon-param route template to OpenAPI curly-brace form (pure)
 func ginPathToOpenAPI(p string) string {
 	parts := strings.Split(p, "/")
@@ -64,6 +65,7 @@ func (t StepUpRouteTable) Required(method, path string) bool {
 //  1. Opt-in (any path/method): operation carries x-tmi-authz-step-up: "required".
 //  2. Default (admin write methods): any /admin/* POST/PUT/PATCH/DELETE is
 //     required unless opted out via x-tmi-authz-step-up: "optional".
+//
 // SEM@512260e3fe7e08b889b07b5644777571587d76fb: build step-up route table from OpenAPI spec using opt-in and admin-write defaults (pure)
 func BuildStepUpRouteTable(spec *openapi3.T) StepUpRouteTable {
 	table := StepUpRouteTable{required: map[stepUpRouteKey]bool{}}

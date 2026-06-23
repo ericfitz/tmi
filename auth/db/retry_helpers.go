@@ -33,6 +33,7 @@ func serializableTxOptions() *sql.TxOptions {
 //     that must surface here rather than at BeginTx on Oracle only. Keeping
 //     the allow-list portable also avoids silently diverging PG vs. Oracle
 //     behavior.
+//
 // SEM@e52f9bdea940a3032c58dec83ce3a82fd6b305b7: validate and normalize transaction isolation options, upgrading Default to Serializable (pure)
 func resolveTxOptions(opts []*sql.TxOptions) (*sql.TxOptions, error) {
 	if len(opts) == 0 || opts[0] == nil {

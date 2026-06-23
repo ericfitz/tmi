@@ -68,6 +68,7 @@ const (
 //	result := s.db.Where("status IN ?", statuses).
 //	    Where(DateSubDays(s.db.Dialector.Name(), "created_at", daysOld)).
 //	    Delete(&SomeModel{})
+//
 // SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: build a dialect-specific SQL WHERE clause for column < now minus N days (pure)
 func DateSubDays(dialectName, column string, days int) string {
 	switch dialectName {
@@ -95,6 +96,7 @@ func DateSubDays(dialectName, column string, days int) string {
 //	updates := map[string]interface{}{
 //	    "next_retry_at": gorm.Expr(DateAddDays(s.db.Dialector.Name(), retryDelayDays)),
 //	}
+//
 // SEM@b7b932142ab960e30c578c15382ac17d2ac13d79: build a dialect-specific SQL expression for now plus N days (pure)
 func DateAddDays(dialectName string, days int) string {
 	switch dialectName {

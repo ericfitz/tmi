@@ -54,6 +54,7 @@ type DelegatedSource struct {
 //   - ErrTransient: refresh failed with a transient (5xx/network) error. The
 //     caller may retry.
 //   - Any other error: propagated from DoFetch.
+//
 // SEM@df6661062f48aa17a42442510c452bf0eebc4542: fetch a URI on behalf of a user, refreshing the access token if expired; returns ErrAuthRequired or ErrTransient on failure
 func (d *DelegatedSource) FetchForUser(ctx context.Context, userID, uri string) ([]byte, string, error) {
 	log := slogging.Get()

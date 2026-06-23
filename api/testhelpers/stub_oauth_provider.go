@@ -27,6 +27,7 @@ var codeCounter atomic.Int64
 //   - POST /token      — handles authorization_code and refresh_token grants
 //   - POST /revoke     — records revocation calls
 //   - GET  /userinfo   — returns fake account JSON
+//
 // SEM@e7d993907da2bd3ae4a7685745af2be4bc6e23aa: in-process OAuth 2.0 stub server for testing the authorize/exchange/refresh/revoke flow (pure)
 type StubOAuthProvider struct {
 	Server *httptest.Server

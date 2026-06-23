@@ -289,6 +289,7 @@ func (m *SAMLManager) processUser(ctx context.Context, userInfo *saml.UserInfo, 
 //     provider is rejected with errCrossProviderConflict (#290): email is
 //     not a trust boundary across providers, and returning the matched user
 //     would mint tokens for the victim's account.
+//
 // SEM@098cfdc305fee6401384fe403fac69e5c063ac5e: find or create a user from a SAML assertion using tiered provider/email matching (reads DB)
 func processSAMLUser(ctx context.Context, r samlUserResolver, userInfo *saml.UserInfo, providerID string) (*User, error) {
 	logger := slogging.Get()

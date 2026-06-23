@@ -114,6 +114,7 @@ func ParseIfMatchHeader(c *gin.Context) (int, bool, error) {
 //   - If the header is absent and bodyVersion is non-nil, returns (*bodyVersion, true, nil).
 //   - If neither is provided, returns (0, false, nil) — caller decides whether
 //     to enforce per RequireIfMatch().
+//
 // SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: resolve expected resource version from If-Match header or body fallback (pure)
 func ResolveExpectedVersion(c *gin.Context, bodyVersion *int) (int, bool, error) {
 	if v, present, err := ParseIfMatchHeader(c); err != nil {

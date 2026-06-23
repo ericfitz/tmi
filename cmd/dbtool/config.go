@@ -29,6 +29,7 @@ import (
 //     handles the in-place source rewrite via stripOperationalKeys, which
 //     preserves comments, key ordering, and value types verbatim — none of
 //     which the *-migrated.yml writer below does.
+//
 // SEM@e7880ae29f527fb2d814f6d7b7c13280082fa033: migrate operational settings from a config file into the database, optionally writing a bootstrap-only YAML (writes DB)
 func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, dryRun, emitLegacyMigratedYAML bool) error {
 	log := slogging.Get()

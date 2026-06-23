@@ -81,6 +81,7 @@ func NewPickerTokenHandler(
 //  5. Token status check → 401 if failed_refresh.
 //  6. refreshIfNeeded → 401/503 on error.
 //  7. 200 with access_token, expires_at, developer_key, app_id.
+//
 // SEM@67569fbeb577336dd278978473f2ea666cf1543f: validate and dispatch a picker token request, refreshing the OAuth token if needed (reads DB)
 func (h *PickerTokenHandler) Handle(c *gin.Context) {
 	log := slogging.Get().WithContext(c)
@@ -213,6 +214,7 @@ func (h *PickerTokenHandler) Handle(c *gin.Context) {
 //     refresh token; caller should ask user to re-authorize.
 //   - ErrTransient: transient network/5xx failure; caller may retry.
 //   - Other: unexpected repository or provider error.
+//
 // SEM@7f94f986783cd37704845fd81e9b0f90951a91d1: return a valid OAuth access token, refreshing via provider if expired; lock-safe (reads DB)
 func (h *PickerTokenHandler) refreshIfNeeded(c *gin.Context, tok *ContentToken, providerID string) (string, *time.Time, error) {
 	log := slogging.Get().WithContext(c)

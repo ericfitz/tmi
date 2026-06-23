@@ -279,14 +279,19 @@ func (h *CloudLogHandler) ErrorCount() int64 {
 type NoopCloudWriter struct{}
 
 // SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: discard bytes and report success for the no-op cloud writer (pure)
-func (n *NoopCloudWriter) Write(p []byte) (int, error)                  { return len(p), nil }
+func (n *NoopCloudWriter) Write(p []byte) (int, error) { return len(p), nil }
+
 // SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: discard a structured log entry for the no-op cloud writer (pure)
 func (n *NoopCloudWriter) WriteLog(_ context.Context, _ LogEntry) error { return nil }
+
 // SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: no-op flush for the no-op cloud writer (pure)
-func (n *NoopCloudWriter) Flush(_ context.Context) error                { return nil }
+func (n *NoopCloudWriter) Flush(_ context.Context) error { return nil }
+
 // SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: no-op close for the no-op cloud writer (pure)
-func (n *NoopCloudWriter) Close() error                                 { return nil }
+func (n *NoopCloudWriter) Close() error { return nil }
+
 // SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: return the provider name for the no-op cloud writer (pure)
-func (n *NoopCloudWriter) Name() string                                 { return "noop" }
+func (n *NoopCloudWriter) Name() string { return "noop" }
+
 // SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: report healthy for the no-op cloud writer (pure)
-func (n *NoopCloudWriter) IsHealthy(_ context.Context) bool             { return true }
+func (n *NoopCloudWriter) IsHealthy(_ context.Context) bool { return true }

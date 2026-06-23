@@ -42,6 +42,7 @@ const (
 //   - c: Gin context
 //   - errType: Error type (invalid_request, invalid_token, insufficient_scope) or empty for basic challenge
 //   - description: Human-readable error description (optional, ignored if errType is empty)
+//
 // SEM@212287c6c02d99be7f8071b21a50666223646bec: set a RFC 6750 Bearer WWW-Authenticate header on the response (pure)
 func SetWWWAuthenticateHeader(c *gin.Context, errType WWWAuthenticateError, description string) {
 	// Start with realm (always included per best practice)

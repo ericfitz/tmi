@@ -73,9 +73,9 @@ func TestPruneOrphanedVersionSnapshotsIntegration(t *testing.T) {
 	}
 	require.NoError(t, db.Create(&liveTM).Error)
 
-	orphanOldID := seedSnapshot(t, db, models.ObjectTypeThreatModel, uuid.New().String(), 60) // orphan, past floor+cutoff
+	orphanOldID := seedSnapshot(t, db, models.ObjectTypeThreatModel, uuid.New().String(), 60)  // orphan, past floor+cutoff
 	orphanYoungID := seedSnapshot(t, db, models.ObjectTypeThreatModel, uuid.New().String(), 3) // orphan, younger than cutoff
-	liveOldID := seedSnapshot(t, db, models.ObjectTypeThreatModel, string(liveTM.ID), 60)       // live entity, must be spared
+	liveOldID := seedSnapshot(t, db, models.ObjectTypeThreatModel, string(liveTM.ID), 60)      // live entity, must be spared
 
 	// Install with a 7-day snapshot floor so the 60-day-old orphan delete is
 	// permitted by the trigger.

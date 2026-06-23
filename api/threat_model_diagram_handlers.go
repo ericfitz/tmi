@@ -818,6 +818,7 @@ func areSlicesEqual(a, b []DfdDiagram_Cells_Item) bool {
 //   - Query parameter (legacy): ?format=json|yaml|graphml
 //   - Query parameter takes precedence if both are specified
 //   - Default: application/json
+//
 // SEM@533fc769067d317cc10f227729848688da16fba0: fetch a minimal diagram model for automated threat modeling tools with content negotiation (reads DB)
 func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelId, diagramId openapi_types.UUID, params GetDiagramModelParams) {
 	// Determine output format using content negotiation

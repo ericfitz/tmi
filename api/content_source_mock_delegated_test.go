@@ -21,10 +21,10 @@ import (
 // MockDelegatedSource tests self-contained.
 type mockDelegatedTestProvider struct{}
 
-func (mockDelegatedTestProvider) ID() string                                       { return "mock" }
-func (mockDelegatedTestProvider) AuthorizationURL(_, _, _ string) string           { return "" }
-func (mockDelegatedTestProvider) RequiredScopes() []string                         { return nil }
-func (mockDelegatedTestProvider) Revoke(_ context.Context, _ string) error         { return nil }
+func (mockDelegatedTestProvider) ID() string                               { return "mock" }
+func (mockDelegatedTestProvider) AuthorizationURL(_, _, _ string) string   { return "" }
+func (mockDelegatedTestProvider) RequiredScopes() []string                 { return nil }
+func (mockDelegatedTestProvider) Revoke(_ context.Context, _ string) error { return nil }
 func (mockDelegatedTestProvider) FetchAccountInfo(_ context.Context, _ string) (string, string, error) {
 	return "", "", nil
 }

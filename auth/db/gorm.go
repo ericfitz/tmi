@@ -79,6 +79,7 @@ type GormDB struct {
 //   - sqlserver://user:password@host:port?database=dbname
 //   - sqlite:///path/to/file.db or sqlite://:memory:
 //   - oracle://user:password@host:port/service_name
+//
 // SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: parse a multi-dialect database URL into a GormConfig (pure)
 func ParseDatabaseURL(rawURL string) (*GormConfig, error) {
 	if rawURL == "" {
@@ -238,6 +239,7 @@ func parseSQLiteURL(cfg *GormConfig, u *url.URL) error {
 //   - Use the TNS alias from wallet/tnsnames.ora (e.g., tmidb_tp)
 //   - Password is provided via ORACLE_PASSWORD env var or included in URL
 //   - Wallet location is set via database.oracle_wallet_location in config
+//
 // SEM@b650823b66084bdf6c24237cb2cf375aff547400: extract Oracle Easy Connect or TNS alias parameters from a parsed URL into GormConfig (pure)
 func parseOracleURL(cfg *GormConfig, u *url.URL) error {
 	if u.User != nil {

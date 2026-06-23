@@ -331,6 +331,7 @@ func (s *DelegatedMicrosoftSource) Fetch(ctx context.Context, uri string) ([]byt
 //   - (false, ErrTransient): provider returned 5xx during refresh OR Graph 5xx.
 //   - (false, nil): Graph returned 4xx (not accessible).
 //   - (true, nil): metadata probe succeeded.
+//
 // SEM@a2be144a7f5811ad4833b7435ffaf713e3becd3a: probe whether the user's delegated token can resolve a SharePoint URI without downloading the file
 func (s *DelegatedMicrosoftSource) ValidateAccess(ctx context.Context, uri string) (bool, error) {
 	userID, ok := UserIDFromContext(ctx)

@@ -93,6 +93,7 @@ func isEmojiCodepoint(r rune) bool {
 //   - ZWS (U+200B) — truly invisible, no legitimate use in JSON string values
 //   - BOM (U+FEFF) — no legitimate use mid-string
 //   - LRM (U+200E) and RLM (U+200F) — directional marks
+//
 // SEM@445f237f7a35ca185cf03ef25426c1a97b1a1917: validate a string for dangerous zero-width chars, allowing legitimate ZWNJ in Indic and ZWJ in emoji contexts (pure)
 func ContainsDangerousZeroWidthChars(s string) bool {
 	runes := []rune(s)

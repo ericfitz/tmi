@@ -18,6 +18,7 @@ import (
 //	mock := NewMockDelegatedSource(tokenRepo, registry)
 //	mock.Contents["doc1"] = []byte("hello world")
 //	data, ct, err := mock.FetchForUser(ctx, userID, "mock://doc/doc1")
+//
 // SEM@910d076563691e5e679e89d83c82fdca8d04f2b3: test/dev delegated content source serving canned payloads for mock://doc/{id} URIs (pure)
 type MockDelegatedSource struct {
 	*DelegatedSource

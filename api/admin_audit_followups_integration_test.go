@@ -17,9 +17,9 @@ import (
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	openapi_types "github.com/oapi-codegen/runtime/types"
 	"gorm.io/gorm"
 )
 

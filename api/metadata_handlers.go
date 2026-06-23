@@ -81,6 +81,7 @@ type GenericMetadataHandler struct {
 //   - entityType: the entity type string (e.g., "survey", "threat_model")
 //   - parentParamName: the gin parameter name for the parent entity ID (e.g., "survey_id")
 //   - verifyParent: optional function to verify parent entity exists (nil to skip)
+//
 // SEM@0734f383e8c73aef4842c88dc88e90d0440f048a: build a generic metadata handler for the given store, entity type, and optional parent verifier (pure)
 func NewGenericMetadataHandler(metadataStore MetadataRepository, entityType, parentParamName string, verifyParent ParentVerifier) *GenericMetadataHandler {
 	return &GenericMetadataHandler{

@@ -33,6 +33,7 @@ func NewRuntimeConfigReaderAdapter(settings SettingsServiceInterface) *RuntimeCo
 //   - exists=true, err==nil: parsed allowlist returned.
 //   - exists=true, err!=nil: DB row present but unusable → caller MUST
 //     fail-closed to prevent open-redirect against a corrupt row.
+//
 // SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: fetch the OAuth client callback allowlist from DB settings; fail-closed on corrupt or missing row (reads DB)
 func (a *RuntimeConfigReaderAdapter) GetClientCallbackAllowList(ctx context.Context) ([]string, bool, error) {
 	raw, err := a.settings.GetString(ctx, "auth.oauth.client_callback_allowlist")

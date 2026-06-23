@@ -97,11 +97,13 @@ type idempotency struct {
 
 // SEM@3b4afc57df700de14d06ec4e93a7038dcf52b9d2: build an empty in-process idempotency tracker (pure)
 func newIdempotency() *idempotency { return &idempotency{seen: map[string]struct{}{}} }
+
 // SEM@3b4afc57df700de14d06ec4e93a7038dcf52b9d2: report whether a job ID has already been processed this lifetime (pure)
 func (i *idempotency) done(id string) bool {
 	_, ok := i.seen[id]
 	return ok
 }
+
 // SEM@3b4afc57df700de14d06ec4e93a7038dcf52b9d2: record a job ID as completed in the idempotency tracker (mutates shared state)
 func (i *idempotency) mark(id string) { i.seen[id] = struct{}{} }
 

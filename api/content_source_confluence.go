@@ -117,6 +117,7 @@ func (s *DelegatedConfluenceSource) Fetch(ctx context.Context, uri string) ([]by
 //   - (false, nil): page is not reachable for this user (4xx) or URL is
 //     malformed; treated as "not accessible" rather than systemic.
 //   - (true, nil): metadata probe succeeded.
+//
 // SEM@6199f1bebeb0a5e637b7c38588d721ac36b525f4: validate that the user's OAuth token can access the given Confluence page URL
 func (s *DelegatedConfluenceSource) ValidateAccess(ctx context.Context, uri string) (bool, error) {
 	userID, ok := UserIDFromContext(ctx)
@@ -165,6 +166,7 @@ func (s *DelegatedConfluenceSource) RequestAccess(_ context.Context, uri string)
 //     matching the URI host against each resource's url.
 //  3. GET /ex/confluence/{cloud_id}/wiki/api/v2/pages/{id}?body-format=view.
 //  4. Return body.view.value as bytes with content-type "text/html".
+//
 // SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: fetch the rendered HTML view body of a Confluence page via the v2 REST API
 func (s *DelegatedConfluenceSource) doFetchPageView(ctx context.Context, accessToken, uri string) ([]byte, string, error) {
 	host, pageID, err := parseConfluencePageURL(uri)

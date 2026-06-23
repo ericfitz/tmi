@@ -385,5 +385,6 @@ func newCappedReadCloser(rc io.ReadCloser, maxBytes int64) io.ReadCloser {
 
 // SEM@b554bb5371f70e0115912131e032671de29e8c09: read bytes from the capped stream up to the configured limit (pure)
 func (c *cappedReadCloser) Read(p []byte) (int, error) { return c.r.Read(p) }
+
 // SEM@b554bb5371f70e0115912131e032671de29e8c09: close the underlying ReadCloser of the capped stream (pure)
-func (c *cappedReadCloser) Close() error               { return c.rc.Close() }
+func (c *cappedReadCloser) Close() error { return c.rc.Close() }

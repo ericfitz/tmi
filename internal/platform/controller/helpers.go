@@ -11,7 +11,8 @@ import (
 // of redeclaring near-identical helpers.
 
 // SEM@033363404fa8d485d9d46c5454abf63fe8bfc1e5: convert a bool value to a pointer for Kubernetes API optional fields (pure)
-func boolPtr(b bool) *bool    { return &b }
+func boolPtr(b bool) *bool { return &b }
+
 // SEM@033363404fa8d485d9d46c5454abf63fe8bfc1e5: convert an int64 value to a pointer for Kubernetes API optional fields (pure)
 func int64Ptr(i int64) *int64 { return &i }
 

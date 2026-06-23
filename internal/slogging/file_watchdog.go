@@ -26,6 +26,7 @@ const pollInterval = 500 * time.Millisecond
 //   - fsnotify directory watch: low-latency detection of rename/remove events.
 //   - Periodic poll (pollInterval): fallback for platforms where rapid
 //     create+delete events are coalesced by the OS kernel (e.g. macOS kqueue).
+//
 // SEM@2f80ec5d2bdaa65c830758314bb6b3bc6361d551: background watcher that reopens the log file when it is deleted or renamed (mutates shared state)
 type logFileWatchdog struct {
 	watcher    *fsnotify.Watcher

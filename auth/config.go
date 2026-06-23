@@ -367,6 +367,7 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 //
 //	OAUTH_PROVIDERS_GOOGLE_USERINFO_CLAIMS_SUBJECT_CLAIM=sub
 //	OAUTH_PROVIDERS_GOOGLE_USERINFO_CLAIMS_EMAIL_CLAIM=email
+//
 // SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: scan environment variables under a prefix and return a lowercase claim-name-to-value map (reads env)
 func parseClaimMappings(prefix string) map[string]string {
 	claims := make(map[string]string)
@@ -397,6 +398,7 @@ func parseClaimMappings(prefix string) map[string]string {
 //
 //	OAUTH_PROVIDERS_GOOGLE_ADDITIONAL_PARAMS_ACCESS_TYPE=offline
 //	OAUTH_PROVIDERS_GOOGLE_ADDITIONAL_PARAMS_PROMPT=consent
+//
 // SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: scan environment variables under a prefix and return a lowercase param-name-to-value map (reads env)
 func parseAdditionalParams(prefix string) map[string]string {
 	params := make(map[string]string)
