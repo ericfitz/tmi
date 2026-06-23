@@ -2,6 +2,8 @@ module github.com/ericfitz/tmi
 
 go 1.26.2
 
+toolchain go1.26.4
+
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/alicebob/miniredis/v2 v2.38.0
@@ -21,7 +23,7 @@ require (
 	github.com/lib/pq v1.12.3
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/oapi-codegen/gin-middleware v1.0.2
-	github.com/oapi-codegen/runtime v1.4.1
+	github.com/oapi-codegen/runtime v1.4.2
 	github.com/oracle-samples/gorm-oracle v1.1.2
 	github.com/oracle/oci-go-sdk/v65 v65.118.0
 	github.com/stretchr/testify v1.11.1
