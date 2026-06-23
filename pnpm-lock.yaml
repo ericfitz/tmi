@@ -4,16 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  minimatch@<3.1.4: 3.1.4
-  rollup@<2.80.0: 2.80.0
-  undici@<6.24.1: 6.24.1
-  lodash@<=4.17.23: 4.18.1
-  protobufjs: 7.6.4
-  js-yaml@<4.2.0: 4.2.0
-  postcss@<8.5.10: 8.5.10
-  dompurify: ^3.4.11
-
 importers:
 
   .:
@@ -69,13 +59,13 @@ packages:
     resolution: {integrity: sha512-//NdP6iIwPbMTcazYsiBMbJW7gfmpHom33u1beiIoHDEM0Q9clvtQB1T0efvMqHeKsGohiHo97BCPCkBXdscwg==}
     engines: {node: '>= 12.0.0'}
     peerDependencies:
-      rollup: 2.80.0
+      rollup: ^2.68.0
 
   '@rollup/pluginutils@3.1.0':
     resolution: {integrity: sha512-GksZ6pr6TpIjHm8h9lSQ8pi8BE9VeubNT0OMJ3B5uZJ8pz73NPiqOtCog/x2/QzM1ENChPKxMDhiQuRHsqc+lg==}
     engines: {node: '>= 8.0.0'}
     peerDependencies:
-      rollup: 2.80.0
+      rollup: ^1.20.0||^2.0.0
 
   '@stoplight/better-ajv-errors@1.0.3':
     resolution: {integrity: sha512-0p9uXkuB22qGdNfy3VeEhxkU5uwvp/KrBTAbrLBURv6ilxIVwanKwjMc41lQfIVgPGcOkmLbTolfFrSsueu7zA==}
