@@ -2,6 +2,8 @@ module github.com/ericfitz/tmi
 
 go 1.26.2
 
+toolchain go1.26.4
+
 replace github.com/ericfitz/tmi-clients/go-client-generated/v1_4_0 => ../tmi-clients/go-client-generated/v1_4_0
 
 require (
