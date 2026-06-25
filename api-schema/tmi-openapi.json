@@ -6542,18 +6542,15 @@
         "properties": {
           "refresh_token": {
             "type": "string",
-            "description": "Valid refresh token",
+            "description": "Refresh token. Optional: browser SPA clients may omit it and send an empty body, in which case the server reads the refresh token from the HttpOnly refresh cookie. Non-browser clients should supply it in the body.",
             "example": "8xLOxBtZp8_example_refresh_token",
             "maxLength": 1000,
             "pattern": "^[^\\x00-\\x1F]*$",
             "minLength": 1
           }
         },
-        "required": [
-          "refresh_token"
-        ],
         "additionalProperties": false,
-        "description": "OAuth 2.0 refresh token request"
+        "description": "OAuth 2.0 refresh token request. The refresh token may be supplied either in this body or via the HttpOnly refresh cookie (browser SPA flow); at least one must be present."
       },
       "ComponentHealth": {
         "type": "object",
