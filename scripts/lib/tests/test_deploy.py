@@ -1,9 +1,14 @@
+import re
 import sys
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import deploy  # noqa: E402
+
+# Repo root: scripts/lib/tests -> up 3 == project root.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_DEV_DIR = _REPO_ROOT / "deployments" / "k8s" / "dev"
 
 
 class TestImageBuildsFor(unittest.TestCase):
@@ -67,6 +72,119 @@ class TestRenderConfigmapYaml(unittest.TestCase):
         )
         self.assertIn("config.yml: |", out)
         self.assertIn("port: 8080", out)
+
+
+class TestNodePortExposure(unittest.TestCase):
+    """Guard the dev-server host-exposure topology (issue #463).
+
+    The server is reached on the host at localhost:8080 via a NodePort published
+    by the kind cluster (extraPortMappings), NOT via `kubectl port-forward`.
+    These are drift guards: the three places that hard-code the port pair
+    (deploy.py constants, the two Service manifests, the kind cluster config)
+    must stay in agreement, or the host loses its path to the server.
+    """
+
+    def test_constants_are_expected_values(self):
+        self.assertEqual(deploy.HOST_PORT, 8080)
+        self.assertEqual(deploy.NODE_PORT, 30080)
+        self.assertEqual(deploy.SERVER_URL, "http://localhost:8080")
+
+    def _assert_service_is_nodeport(self, manifest_name: str) -> None:
+        text = (_DEV_DIR / manifest_name).read_text()
+        # Slice the Service document (the second YAML doc, after the '---').
+        svc = text.split("\nkind: Service", 1)
+        self.assertEqual(len(svc), 2, f"{manifest_name}: no Service document found")
+        svc_doc = "kind: Service" + svc[1]
+        self.assertRegex(
+            svc_doc, r"(?m)^\s*type:\s*NodePort\b",
+            f"{manifest_name}: Service must be type NodePort",
+        )
+        self.assertRegex(
+            svc_doc, rf"(?m)^\s*nodePort:\s*{deploy.NODE_PORT}\b",
+            f"{manifest_name}: Service nodePort must equal deploy.NODE_PORT",
+        )
+        self.assertRegex(
+            svc_doc, rf"(?m)^\s*-?\s*port:\s*{deploy.HOST_PORT}\b",
+            f"{manifest_name}: Service port must equal deploy.HOST_PORT",
+        )
+
+    def test_server_service_is_nodeport(self):
+        self._assert_service_is_nodeport("server.yml")
+
+    def test_server_oracle_service_is_nodeport(self):
+        self._assert_service_is_nodeport("server-oracle.yml")
+
+    def test_kind_cluster_maps_host_to_nodeport(self):
+        text = (_DEV_DIR / "kind-cluster.yml").read_text()
+        # extraPortMappings entry must map hostPort HOST_PORT -> containerPort NODE_PORT.
+        self.assertRegex(
+            text, r"(?m)^\s*extraPortMappings:",
+            "kind-cluster.yml: missing extraPortMappings",
+        )
+        self.assertRegex(
+            text, rf"(?m)^\s*-?\s*containerPort:\s*{deploy.NODE_PORT}\b",
+            "kind-cluster.yml: extraPortMappings containerPort must equal deploy.NODE_PORT",
+        )
+        self.assertRegex(
+            text, rf"(?m)^\s*-?\s*hostPort:\s*{deploy.HOST_PORT}\b",
+            "kind-cluster.yml: extraPortMappings hostPort must equal deploy.HOST_PORT",
+        )
+
+    def test_no_server_port_forward_remains(self):
+        """The server must NOT be port-forwarded; only redis is (issue #463)."""
+        src = (Path(deploy.__file__)).read_text()
+        self.assertNotRegex(
+            src, re.compile(r"port-forward.*svc/tmi-server"),
+            "deploy.py must not port-forward the server (use the NodePort)",
+        )
+        self.assertIn("svc/redis", src, "deploy.py should still forward redis")
+
+
+class TestRewriteDbHostForIncluster(unittest.TestCase):
+    """The in-cluster server reaches the host Postgres via host.docker.internal,
+    while config-development.yml keeps localhost for host-side tools (issue #463)."""
+
+    def test_rewrites_localhost_in_postgres_url(self):
+        src = 'url: "postgres://tmi_dev:dev123@localhost:5432/tmi_dev?sslmode=disable"'
+        out = deploy.rewrite_db_host_for_incluster(src)
+        self.assertIn("@host.docker.internal:5432/tmi_dev", out)
+        self.assertNotIn("@localhost:", out)
+
+    def test_rewrites_127_0_0_1_in_postgres_url(self):
+        src = 'url: "postgres://u:p@127.0.0.1:5432/db"'
+        out = deploy.rewrite_db_host_for_incluster(src)
+        self.assertIn("@host.docker.internal:5432/db", out)
+
+    def test_leaves_other_localhost_references_untouched(self):
+        src = (
+            'database:\n'
+            '  url: "postgres://tmi_dev:dev123@localhost:5432/tmi_dev?sslmode=disable"\n'
+            '  redis:\n'
+            '    host: localhost\n'
+            'auth:\n'
+            '  oauth:\n'
+            '    client_callback_allowlist:\n'
+            '      - http://localhost:8079/\n'
+        )
+        out = deploy.rewrite_db_host_for_incluster(src)
+        # Only the postgres URL host changed; redis + OAuth callback localhost remain.
+        self.assertIn("@host.docker.internal:5432/tmi_dev", out)
+        self.assertIn("host: localhost", out)
+        self.assertIn("http://localhost:8079/", out)
+
+    def test_noop_on_non_postgres_url(self):
+        src = 'url: "oracle://ADMIN@tmiadb_tp"'
+        self.assertEqual(deploy.rewrite_db_host_for_incluster(src), src)
+
+    def test_noop_when_host_already_explicit(self):
+        src = 'url: "postgres://u:p@db.example.com:5432/db"'
+        self.assertEqual(deploy.rewrite_db_host_for_incluster(src), src)
+
+    def test_config_development_yml_uses_localhost(self):
+        """The on-disk dev config must keep localhost so host tools work."""
+        cfg = (_REPO_ROOT / "config-development.yml").read_text()
+        self.assertRegex(cfg, r"postgres://[^\"'\s]*@localhost:5432")
+        self.assertNotRegex(cfg, r"postgres://[^\"'\s]*@host\.docker\.internal")
 
 
 if __name__ == "__main__":

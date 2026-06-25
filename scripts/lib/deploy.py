@@ -14,6 +14,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import cluster
@@ -31,11 +32,29 @@ DEV_DIR = "deployments/k8s/dev"
 PLATFORM_DIR = "deployments/k8s/platform"
 CONFIG_FILE = "config-development.yml"
 CONFIGMAP_NAME = "tmi-server-config"
+
+# The server is reached on the host at localhost:HOST_PORT. The kind cluster
+# publishes the tmi-server Service's NodePort (NODE_PORT) directly on the host
+# via extraPortMappings (deployments/k8s/dev/kind-cluster.yml), so there is NO
+# `kubectl port-forward` for the server. The old userspace port-forward proxy
+# collapsed under high connection rates (CATS fuzzing -> 99% CONNECTION_ERROR,
+# issue #463); Docker's published port + kube-proxy DNAT has no such bottleneck.
+# KEEP NODE_PORT IN SYNC with server.yml/server-oracle.yml (.spec.ports[].nodePort)
+# and kind-cluster.yml (extraPortMappings[].containerPort).
+HOST_PORT = 8080
+NODE_PORT = 30080
+SERVER_URL = f"http://localhost:{HOST_PORT}"
+
+# Legacy server port-forward pidfile. The server no longer uses a port-forward
+# (it is reached via the NodePort above), but stop_port_forward() still cleans
+# up this file so an upgrade from a port-forward-based checkout kills any stale
+# forwarder left running on :8080 that would otherwise shadow the NodePort.
 PORT_FORWARD_PID = "/tmp/tmi-dev-portforward.pid"
 # Redis is an in-cluster ClusterIP service; the server reaches it as redis:6379.
 # Integration tests that seed Redis directly (e.g. the step-up legacy refresh
 # token round-trip) connect to TEST_REDIS_HOST:TEST_REDIS_PORT, defaulting to
-# localhost:6379 — so forward the in-cluster Redis to the host as well.
+# localhost:6379 — so forward the in-cluster Redis to the host as well. Redis is
+# low-throughput from the host (test setup only), so a port-forward is fine here.
 REDIS_PORT_FORWARD_PID = "/tmp/tmi-dev-redis-portforward.pid"
 
 
@@ -80,6 +99,30 @@ def _no_workers_files(db: str) -> tuple[str, ...]:
 def content_hash(text: str) -> str:
     """Stable 12-char hex digest of text (for config-change annotations)."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+
+# The host the in-cluster server uses to reach the host-published Postgres.
+# config-development.yml carries `localhost` (correct for host-side tools like
+# bin/tmi-dbtool, which connect from the Mac host). The server pod's localhost is
+# the pod itself, so when we deliver that file as a ConfigMap we rewrite ONLY the
+# database-URL authority to this host. Docker Desktop maps host.docker.internal to
+# the host, reaching the 127.0.0.1:5432-published Postgres container.
+IN_CLUSTER_DB_HOST = "host.docker.internal"
+# Match the host (and optional :port) inside a postgres:// URL authority, after
+# the credentials '@'. Deliberately narrow: it touches ONLY a postgres URL's host,
+# never other localhost references in the config (redis host, OAuth callbacks, ...).
+_DB_URL_HOST_RE = re.compile(r"(postgres://[^\"'\s]*@)(localhost|127\.0\.0\.1)(?=[:/])")
+
+
+def rewrite_db_host_for_incluster(config_text: str, *, db_host: str = IN_CLUSTER_DB_HOST) -> str:
+    """Rewrite a postgres:// URL's localhost/127.0.0.1 host to db_host.
+
+    Used when delivering config-development.yml to the in-cluster server so the
+    pod can reach the host-published Postgres. Leaves every other host reference
+    (redis, OAuth callback allowlist, etc.) untouched, and is a no-op when the
+    URL already points somewhere else (e.g. an oracle:// URL, or an explicit host).
+    """
+    return _DB_URL_HOST_RE.sub(rf"\1{db_host}", config_text)
 
 
 def render_configmap_yaml(*, name: str, namespace: str, file_key: str, content: str) -> str:
@@ -306,6 +349,9 @@ def ensure_namespace() -> None:
 
 def deliver_config() -> None:
     content = (get_project_root() / CONFIG_FILE).read_text()
+    # The on-disk config points the DB at localhost (for host-side tools); the
+    # in-cluster server reaches the host-published Postgres via host.docker.internal.
+    content = rewrite_db_host_for_incluster(content)
     manifest = render_configmap_yaml(
         name=CONFIGMAP_NAME, namespace=NS, file_key="config.yml", content=content,
     )
@@ -404,20 +450,42 @@ def apply_overlay(no_workers: bool, db: str) -> None:
 def wait_and_forward() -> None:
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-component-controller", "--timeout=120s"])
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", "--timeout=180s"])
-    start_port_forward()
-    log_success("Dev environment ready at http://localhost:8080")
+    start_redis_port_forward()
+    wait_for_server()
+    log_success(f"Dev environment ready at {SERVER_URL}")
 
 
-def start_port_forward() -> None:
-    stop_port_forward()
-    proc = subprocess.Popen(
-        ["kubectl", "-n", NS, "port-forward", "svc/tmi-server", "8080:8080"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+def wait_for_server(*, attempts: int = 30, delay_s: float = 1.0) -> None:
+    """Poll the server NodePort until it answers (or give up after attempts).
+
+    The Deployment rollout completing means the pod is Ready, but kube-proxy
+    programming the NodePort DNAT and the kind extraPortMapping becoming live on
+    the host can lag a beat. Poll localhost:8080 so callers (and CATS) don't race
+    a not-yet-reachable NodePort.
+    """
+    for i in range(1, attempts + 1):
+        reachable, code = server_http_status()
+        if reachable:
+            log_info(f"Server reachable at {SERVER_URL} (HTTP {code})")
+            return
+        if i < attempts:
+            time.sleep(delay_s)
+    log_error(
+        f"Server not reachable at {SERVER_URL} after {attempts} attempts. "
+        f"If you upgraded an existing cluster, recreate it so the NodePort "
+        f"mapping takes effect: 'make dev-cluster-down && make dev-cluster-up' "
+        f"(or 'make dev-nuke')."
     )
-    Path(PORT_FORWARD_PID).write_text(str(proc.pid))
-    log_info(f"Port-forward started (PID {proc.pid}): localhost:8080 -> svc/tmi-server:8080")
 
+
+def start_redis_port_forward() -> None:
+    """Forward the in-cluster Redis to localhost:6379 for host integration tests.
+
+    The server itself is NOT forwarded — it is reached via the NodePort published
+    on localhost:8080 by the kind extraPortMapping. Only Redis needs a host
+    forward, and only for test setup (low throughput), so a port-forward is fine.
+    """
+    stop_port_forward()
     redis_proc = subprocess.Popen(
         ["kubectl", "-n", NS, "port-forward", "svc/redis", "6379:6379"],
         stdout=subprocess.DEVNULL,
@@ -460,10 +528,10 @@ def remove_local_images(db: str) -> None:
 
 
 def server_http_status() -> tuple[bool, str]:
-    """Return (reachable, http_code) for http://localhost:8080 via the port-forward."""
+    """Return (reachable, http_code) for the server NodePort at localhost:8080."""
     r = subprocess.run(
         ["curl", "-s", "--connect-timeout", "2", "--max-time", "5",
-         "-o", "/dev/null", "-w", "%{http_code}", "http://localhost:8080"],
+         "-o", "/dev/null", "-w", "%{http_code}", SERVER_URL],
         capture_output=True, text=True,
     )
     code = r.stdout.strip() or "000"
@@ -515,8 +583,9 @@ def restart(*, db: str, no_workers: bool = False, skip_context_guard: bool = Fal
     apply_overlay(no_workers, db)
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", "--timeout=180s"])
-    start_port_forward()
-    log_success("Server restarted; http://localhost:8080")
+    start_redis_port_forward()
+    wait_for_server()
+    log_success(f"Server restarted; {SERVER_URL}")
 
 
 def teardown(*, db: str = "postgres") -> None:

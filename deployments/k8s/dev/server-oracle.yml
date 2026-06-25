@@ -87,17 +87,30 @@ spec:
             - name: wallet
               mountPath: /wallet
               readOnly: true
+          # Probe target `/` runs a full DB+Redis health check on every request,
+          # so under heavy load (e.g. CATS fuzzing) it can exceed the default 1s
+          # probe timeout. With tight probes Kubernetes then evicts/restarts a
+          # server that is merely BUSY (not dead), crashlooping it mid-fuzz and
+          # producing mass connection failures (issue #463). These dev probes are
+          # deliberately tolerant: a busy server keeps serving, and only a truly
+          # hung one is restarted. (Dev-only tuning; not the production posture.)
           readinessProbe:
             httpGet: { path: /, port: 8080 }
             initialDelaySeconds: 3
-            periodSeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
           livenessProbe:
             httpGet: { path: /, port: 8080 }
-            initialDelaySeconds: 15
-            periodSeconds: 20
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 10
           resources:
+            # Headroom so the single dev replica can absorb fuzz bursts without
+            # CPU-starving the health-check path into probe timeouts (issue #463).
             requests: { cpu: 100m, memory: 128Mi }
-            limits: { cpu: 1000m, memory: 512Mi }
+            limits: { cpu: 2000m, memory: 1Gi }
       volumes:
         - name: config
           configMap:
@@ -112,7 +125,15 @@ metadata:
   name: tmi-server
   namespace: tmi-platform
 spec:
+  # NodePort (not ClusterIP): the kind cluster maps host localhost:8080 ->
+  # this nodePort (30080) via extraPortMappings (deployments/k8s/dev/kind-cluster.yml),
+  # giving the host a userspace-proxy-free path to the server. This replaces
+  # `kubectl port-forward`, which dropped connections under load (issue #463).
+  # KEEP nodePort IN SYNC with kind-cluster.yml extraPortMappings and
+  # scripts/lib/deploy.py NODE_PORT.
+  type: NodePort
   selector: { app: tmi-server }
   ports:
     - port: 8080
       targetPort: 8080
+      nodePort: 30080

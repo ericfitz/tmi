@@ -7,4 +7,18 @@ containerdConfigPatches:
       endpoint = ["http://tmi-dev-registry:5000"]
 nodes:
   - role: control-plane
+    # Publish the tmi-server NodePort (30080) directly on the host as
+    # localhost:8080. This replaces the former `kubectl port-forward
+    # svc/tmi-server`, whose single-process userspace proxy collapsed under
+    # high connection rates (e.g. CATS fuzzing ~50 conn/s -> 99% CONNECTION_ERROR;
+    # see issue #463). Docker's published port + kube-proxy DNAT has no userspace
+    # bottleneck, so high-throughput clients reach the server reliably.
+    # NOTE: extraPortMappings are baked in at node-container creation time —
+    # an existing cluster must be recreated (`make dev-nuke` or
+    # `make dev-cluster-down && make dev-cluster-up`) to pick this up.
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8080
+        listenAddress: "127.0.0.1"
+        protocol: TCP
   - role: worker
