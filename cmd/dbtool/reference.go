@@ -136,6 +136,11 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	}
 	adminGroupID := nilUUID
 
+	// Syntactically-valid actor email for the audit-endpoint refData (#494). The
+	// value only needs to pass the OpenAPI email-format check so HappyPath returns
+	// 200 (an empty result set is still 200); it need not match a real audit row.
+	actorEmail := fmt.Sprintf("%s@tmi.local", user)
+
 	yaml := fmt.Sprintf(`# CATS Reference Data - Path-based format for parameter replacement
 # Generated: %s
 # See: https://endava.github.io/cats/docs/getting-started/running-cats/
@@ -173,6 +178,24 @@ all:
   user_id: %s
   # Group member endpoints - user_uuid is the internal UUID of the test user
   user_uuid: %s
+# Admin audit list endpoints (#494): supply valid values for the query params CATS
+# otherwise randomizes, so HappyPath reaches the server cleanly (200) and the
+# field-mutation fuzzers exercise their target field instead of every request
+# dying on a malformed param. 'cursor' (an opaque keyset token) and 'around'
+# (an entry UUID) are intentionally omitted - they have no static valid value;
+# the residual injection-fuzzer 400s are classified as false positives by
+# scripts/parse_cats_results.py (AUDIT_QUERY_VALIDATION_400).
+/admin/audit/threat_models:
+  actor_email: %s
+  actor_provider: %s
+  created_after: "2020-01-01T00:00:00Z"
+  created_before: "2035-01-01T00:00:00Z"
+  threat_model_id: %s
+/admin/audit/system:
+  actor_email: %s
+  actor_provider: %s
+  created_after: "2020-01-01T00:00:00Z"
+  created_before: "2035-01-01T00:00:00Z"
 `,
 		time.Now().UTC().Format(time.RFC3339),
 		tmID, tmID,
@@ -185,6 +208,8 @@ all:
 		provider, user,
 		provider, provider,
 		adminUUID, adminUUID,
+		actorEmail, provider, tmID,
+		actorEmail, provider,
 	)
 
 	return os.WriteFile(path, []byte(yaml), 0o600)

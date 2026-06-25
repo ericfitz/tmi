@@ -537,6 +537,7 @@ class CATSResultsParser:
     FP_RULE_CHECK_DELETED_405 = "CHECK_DELETED_405"
     FP_RULE_CONTENT_OAUTH_HAPPY_PATH = "CONTENT_OAUTH_HAPPY_PATH_400"
     FP_RULE_CONTENT_OAUTH_AUTHORIZE = "CONTENT_OAUTH_AUTHORIZE_422"
+    FP_RULE_AUDIT_QUERY_VALIDATION_400 = "AUDIT_QUERY_VALIDATION_400"
 
     def detect_false_positive(self, data: Dict) -> Tuple[bool, Optional[str]]:
         """
@@ -611,6 +612,7 @@ class CATSResultsParser:
         - CHECK_DELETED_405: CheckDeletedResourcesNotAvailable expects 404 but gets 405 (which IS 4XX) — endpoint correctly rejects the wrong HTTP method
         - CONTENT_OAUTH_HAPPY_PATH_400: /oauth2/content_callback returns 400 because CATS cannot supply a valid OAuth provider code/state
         - CONTENT_OAUTH_AUTHORIZE_422: /me/content_tokens/{provider_id}/authorize returns 422 because the test provider has no OAuth configuration
+        - AUDIT_QUERY_VALIDATION_400: /admin/audit/* correctly rejects malformed query params (e.g. opaque cursor) with 400
         """
         response_code = data.get('response', {}).get('responseCode', 0)
         result_reason = (data.get('resultReason') or '').lower()
@@ -1428,6 +1430,21 @@ class CATSResultsParser:
                 'LargeNumberOfRandomAlphanumericHeaders',
             ):
                 return (True, self.FP_RULE_CONTENT_OAUTH_AUTHORIZE)
+
+        # 59. /admin/audit/* query-parameter validation false positives (400) (#494)
+        # The admin audit list endpoints take opaque query params (cursor, actor_email,
+        # around, created_after/before). CATS injection/boundary fuzzers send malformed
+        # values that the OpenAPI validation middleware correctly rejects with 400 — most
+        # commonly a bad `cursor` pagination token. A clean admin request returns 200.
+        # refData (cats-test-data.yml) makes HappyPath succeed; this rule mops up the
+        # residual injection-fuzzer 400s that refData can't prevent. The 400 is documented
+        # in the OpenAPI spec, so this is correct, in-contract behavior.
+        if response_code == 400:
+            path = data.get('path', '')
+            request_method = data.get('request', {}).get('httpMethod', '')
+            if path.startswith('/admin/audit/') and request_method == 'GET':
+                if 'unexpected response code' in result_reason:
+                    return (True, self.FP_RULE_AUDIT_QUERY_VALIDATION_400)
 
         return (False, None)
 
