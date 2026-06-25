@@ -3,11 +3,38 @@ package auth
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"net/http"
+	"regexp"
 
+	tmi "github.com/ericfitz/tmi" // Root package: embedded static sign-in icons
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
+
+// safeProviderIDForIcon constrains which provider ids may be interpolated into
+// an embedded icon path, as defence-in-depth against path traversal even
+// though provider ids come from trusted config.
+var safeProviderIDForIcon = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+// providerSignInIcon returns the served path of a sign-in icon for a provider
+// whose config supplies no icon of its own. When an icon matching the provider
+// id is embedded in the binary (static/provider-logos/signin/<id>.svg) it is
+// used so built-in providers like "tmi" show their own branding; otherwise a
+// generic OAuth icon is returned. Falling back to the bare provider id instead
+// produced a malformed value the client resolved to a bogus URL (#498).
+// SEM@f298766967f135dd9ae0e6697257535bbcc1946d: resolve a provider's default sign-in icon path, preferring an embedded brand icon
+func providerSignInIcon(id string) string {
+	const generic = "/static/provider-logos/signin/oauth.svg"
+	if !safeProviderIDForIcon.MatchString(id) {
+		return generic
+	}
+	embedded := "static/provider-logos/signin/" + id + ".svg"
+	if _, err := fs.Stat(tmi.StaticFS, embedded); err == nil {
+		return "/" + embedded
+	}
+	return generic
+}
 
 // ProviderInfo contains information about an OAuth provider
 // SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: public OAuth provider metadata returned to clients
@@ -36,7 +63,7 @@ type SAMLProviderInfo struct {
 }
 
 // GetProviders returns the available OAuth providers
-// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: list enabled OAuth providers with their public endpoint URLs
+// SEM@c1ae98795fcc480287e8ef03be0c86587e974cc5: list enabled OAuth providers with public endpoint URLs and resolved sign-in icons
 func (h *Handlers) GetProviders(c *gin.Context) {
 	var enabledProviders map[string]OAuthProviderConfig
 
@@ -58,14 +85,14 @@ func (h *Handlers) GetProviders(c *gin.Context) {
 		if name == "" {
 			name = id
 		}
-		// Fall back to a generic, guaranteed-to-exist sign-in icon when a
-		// provider has no icon configured. Using the bare provider id (e.g.
-		// "tmi") produced a malformed value the client resolved to a bogus
-		// URL like http://host/tmi (#498); the generic OAuth icon is a valid
-		// path the server serves from its embedded static assets.
+		// Fall back to a valid sign-in icon when a provider has no icon
+		// configured: the provider's own embedded icon if present (e.g. the
+		// built-in "tmi" provider gets tmi.svg), else a generic OAuth icon.
+		// Using the bare provider id produced a malformed value the client
+		// resolved to a bogus URL like http://host/tmi (#498).
 		icon := providerConfig.Icon
 		if icon == "" {
-			icon = "/static/provider-logos/signin/oauth.svg"
+			icon = providerSignInIcon(id)
 		}
 
 		authURL := fmt.Sprintf("%s/oauth2/authorize?idp=%s", getBaseURL(c), id)

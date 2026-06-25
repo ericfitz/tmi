@@ -93,6 +93,8 @@ func TestGetProvidersHandler(t *testing.T) {
 // TestGetProvidersEmptyIconFallback pins the fix for #498: a provider with no
 // configured icon must fall back to a valid, loadable icon path -- not the bare
 // provider id, which the client resolved to a bogus URL like http://host/tmi.
+// A provider whose id matches an embedded icon (e.g. "tmi") gets its own brand
+// icon; an unknown provider gets the generic OAuth icon.
 func TestGetProvidersEmptyIconFallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -105,7 +107,13 @@ func TestGetProvidersEmptyIconFallback(t *testing.T) {
 					ID:      "tmi",
 					Name:    "TMI",
 					Enabled: true,
-					Icon:    "", // no icon configured
+					Icon:    "", // no icon configured -> branded fallback
+				},
+				"mystery": {
+					ID:      "mystery",
+					Name:    "Mystery",
+					Enabled: true,
+					Icon:    "", // no icon and no embedded asset -> generic
 				},
 			},
 		},
@@ -123,11 +131,16 @@ func TestGetProvidersEmptyIconFallback(t *testing.T) {
 	var response map[string][]map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
+	// tmi has an embedded brand icon -> tmi.svg (never the bare id).
 	tmiProvider := findProviderByID(response["providers"], "tmi")
 	require.NotNil(t, tmiProvider)
-	// Must NOT be the bare id, and must be a server-resolvable absolute path.
 	assert.NotEqual(t, "tmi", tmiProvider["icon"])
-	assert.Equal(t, "/static/provider-logos/signin/oauth.svg", tmiProvider["icon"])
+	assert.Equal(t, "/static/provider-logos/signin/tmi.svg", tmiProvider["icon"])
+
+	// Unknown provider with no embedded icon -> generic OAuth icon.
+	mysteryProvider := findProviderByID(response["providers"], "mystery")
+	require.NotNil(t, mysteryProvider)
+	assert.Equal(t, "/static/provider-logos/signin/oauth.svg", mysteryProvider["icon"])
 }
 
 func TestGetProvidersEmptyConfig(t *testing.T) {
