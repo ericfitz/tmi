@@ -264,7 +264,14 @@ func ApplyOptimisticLock(c *gin.Context, store VersionedStore, id string, bodyVe
 		if mapped := MapVersionError(casErr); mapped != nil {
 			return 0, true, mapped
 		}
-		// Missing row falls through to caller's not-found mapping.
+		// A missing row means the optimistic-lock CAS ran against a resource
+		// that does not exist. Map it to a 404 RequestError here rather than
+		// returning the bare store error: callers hand this straight to
+		// HandleRequestError, which would otherwise classify the unrecognized
+		// error as a 500 (violating the Zero-500 policy). (#495 B2)
+		if errors.Is(casErr, dberrors.ErrNotFound) {
+			return 0, false, NotFoundError("Resource not found")
+		}
 		return 0, true, casErr
 	}
 	return bumped, true, nil

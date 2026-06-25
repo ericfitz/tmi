@@ -541,7 +541,7 @@ func toAPIAuditEntry(entry AuditEntryResponse) AuditEntry {
 		Version:       entry.Version,
 		ChangeType:    AuditEntryChangeType(entry.ChangeType),
 		Actor: AuditActor{
-			Email:       openapi_types.Email(entry.Actor.Email),
+			Email:       entry.Actor.Email,
 			Provider:    entry.Actor.Provider,
 			ProviderId:  entry.Actor.ProviderID,
 			DisplayName: entry.Actor.DisplayName,

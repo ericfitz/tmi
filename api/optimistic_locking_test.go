@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
@@ -123,6 +124,38 @@ func TestCheckAndBumpVersion_NotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, dberrors.ErrNotFound))
 	assert.False(t, errors.Is(err, ErrVersionMismatch))
+}
+
+// fakeVersionStore is a VersionedStore whose CheckAndBumpVersion always returns
+// a fixed error, used to exercise ApplyOptimisticLock's error mapping without a DB.
+type fakeVersionStore struct{ err error }
+
+func (f fakeVersionStore) CheckAndBumpVersion(_ context.Context, _ string, _ int) (int, error) {
+	return 0, f.err
+}
+
+// TestApplyOptimisticLock_NotFoundReturns404 pins the Zero-500 fix (#495 B2):
+// when the CAS finds no row, ApplyOptimisticLock must surface a 404 RequestError
+// rather than a bare store error that HandleRequestError would turn into a 500.
+func TestApplyOptimisticLock_NotFoundReturns404(t *testing.T) {
+	c := newGinCtxWithHeader("If-Match", `"5"`)
+	_, present, err := ApplyOptimisticLock(c, fakeVersionStore{err: dberrors.ErrNotFound}, uuid.New().String(), nil)
+	require.Error(t, err)
+	var reqErr *RequestError
+	require.True(t, errors.As(err, &reqErr), "expected *RequestError, got %T", err)
+	assert.Equal(t, http.StatusNotFound, reqErr.Status)
+	assert.False(t, present)
+}
+
+// TestApplyOptimisticLock_VersionMismatchReturns409 pins the sibling mapping:
+// a version mismatch surfaces as a 409 RequestError.
+func TestApplyOptimisticLock_VersionMismatchReturns409(t *testing.T) {
+	c := newGinCtxWithHeader("If-Match", `"5"`)
+	_, _, err := ApplyOptimisticLock(c, fakeVersionStore{err: ErrVersionMismatch}, uuid.New().String(), nil)
+	require.Error(t, err)
+	var reqErr *RequestError
+	require.True(t, errors.As(err, &reqErr), "expected *RequestError, got %T", err)
+	assert.Equal(t, http.StatusConflict, reqErr.Status)
 }
 
 // TestCheckAndBumpVersion_VersionMismatch verifies that a stale expected
