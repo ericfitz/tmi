@@ -21,6 +21,7 @@ const (
 	testMetaKeyPriority    = "priority"
 	testMetaKeyAuthor      = "author"
 	testMetaKeyCriticality = "criticality"
+	testKeyNonexistent     = "nonexistent"
 )
 
 // MockMetadataStore is a mock implementation of MetadataRepository for testing

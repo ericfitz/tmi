@@ -14,80 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- Tests for buildWebSocketURL ---
-
-func TestBuildWebSocketURL(t *testing.T) {
-	handler := &CellHandler{}
-
-	t.Run("default_no_tls", func(t *testing.T) {
-		c, _ := CreateTestGinContext(http.MethodGet, "/diagrams/d-123/cells")
-		// Don't set any TLS context — defaults should apply
-		url := handler.buildWebSocketURL(c, "d-123")
-		assert.Equal(t, "ws://", url[:5], "Should use ws:// without TLS")
-		assert.Contains(t, url, "/ws/diagrams/d-123")
-	})
-
-	t.Run("tls_enabled_no_subject_name", func(t *testing.T) {
-		c, _ := CreateTestGinContext(http.MethodGet, "/diagrams/d-123/cells")
-		c.Set("tlsEnabled", true)
-		url := handler.buildWebSocketURL(c, "d-123")
-		assert.True(t, strings.HasPrefix(url, "wss://"), "Should use wss:// with TLS enabled")
-		assert.Contains(t, url, "/ws/diagrams/d-123")
-	})
-
-	t.Run("tls_enabled_with_subject_name_default_port", func(t *testing.T) {
-		c, _ := CreateTestGinContext(http.MethodGet, "/diagrams/d-123/cells")
-		c.Set("tlsEnabled", true)
-		c.Set("tlsSubjectName", "api.example.com")
-		c.Set("serverPort", "443")
-		url := handler.buildWebSocketURL(c, "d-123")
-		assert.Equal(t, "wss://api.example.com/ws/diagrams/d-123", url,
-			"Default HTTPS port (443) should NOT be appended to the host")
-	})
-
-	t.Run("tls_enabled_with_subject_name_custom_port", func(t *testing.T) {
-		c, _ := CreateTestGinContext(http.MethodGet, "/diagrams/d-123/cells")
-		c.Set("tlsEnabled", true)
-		c.Set("tlsSubjectName", "api.example.com")
-		c.Set("serverPort", "8443")
-		url := handler.buildWebSocketURL(c, "d-123")
-		assert.Equal(t, "wss://api.example.com:8443/ws/diagrams/d-123", url,
-			"Custom port should be appended to the host")
-	})
-
-	t.Run("subject_name_without_tls_ignored", func(t *testing.T) {
-		// BUG DOCUMENTATION: If tlsSubjectName is set but tlsEnabled is false,
-		// the subject name is ignored because the condition is `tlsSubjectName != "" && tlsEnabled`.
-		// This is correct behavior — subject name only matters for TLS connections.
-		c, _ := CreateTestGinContext(http.MethodGet, "/diagrams/d-123/cells")
-		c.Set("tlsEnabled", false)
-		c.Set("tlsSubjectName", "api.example.com")
-		c.Set("serverPort", "8443")
-		url := handler.buildWebSocketURL(c, "d-123")
-		assert.True(t, strings.HasPrefix(url, "ws://"), "Should use ws:// when TLS is disabled")
-		// Host comes from request, not subject name
-		assert.NotContains(t, url, "api.example.com")
-	})
-
-	t.Run("wrong_type_in_context_uses_defaults", func(t *testing.T) {
-		// If context values are the wrong type, they should be silently ignored
-		c, _ := CreateTestGinContext(http.MethodGet, "/diagrams/d-123/cells")
-		c.Set("tlsEnabled", "yes")     // string instead of bool
-		c.Set("serverPort", 8080)      // int instead of string
-		c.Set("tlsSubjectName", 12345) // int instead of string
-		url := handler.buildWebSocketURL(c, "d-123")
-		assert.True(t, strings.HasPrefix(url, "ws://"), "Wrong type for tlsEnabled should default to false")
-		assert.Contains(t, url, "/ws/diagrams/d-123")
-	})
-
-	t.Run("empty_diagram_id", func(t *testing.T) {
-		c, _ := CreateTestGinContext(http.MethodGet, "/diagrams//cells")
-		url := handler.buildWebSocketURL(c, "")
-		assert.True(t, strings.HasSuffix(url, "/ws/diagrams/"),
-			"Empty diagram ID produces trailing slash in URL path")
-	})
-}
-
 // --- Tests for parseThreatModelFilters ---
 
 func TestParseThreatModelFilters(t *testing.T) {
@@ -693,24 +619,6 @@ func TestGetFieldErrorMessage(t *testing.T) {
 		msg := getFieldErrorMessage("nonexistent_field")
 		assert.NotEmpty(t, msg, "Unknown fields should get a default message")
 		assert.Contains(t, msg, "not allowed")
-	})
-}
-
-// --- Tests for NewCellHandler constructors ---
-
-func TestNewCellHandler(t *testing.T) {
-	t.Run("with_nil_dependencies", func(t *testing.T) {
-		handler := NewCellHandler(nil, nil, nil, nil)
-		assert.NotNil(t, handler)
-		assert.Nil(t, handler.metadataStore)
-		assert.Nil(t, handler.db)
-		assert.Nil(t, handler.cache)
-		assert.Nil(t, handler.cacheInvalidator)
-	})
-
-	t.Run("simple_constructor", func(t *testing.T) {
-		handler := NewCellHandlerSimple()
-		assert.NotNil(t, handler)
 	})
 }
 

@@ -28,6 +28,17 @@ func (s *Server) RegisterHandlers(r *gin.Engine) {
 	logger := slogging.Get()
 	logger.Info("[API_SERVER] Starting custom route registration")
 
+	// The two WebSocket upgrade endpoints below are intentionally OUTSIDE the
+	// OpenAPI specification and are therefore exempt from the
+	// Documented-Status-Code Policy (CLAUDE.md). OpenAPI describes
+	// request/response REST operations; these endpoints perform an HTTP->WS
+	// protocol upgrade (HTTP 101) and then speak the realtime protocol that is
+	// authoritatively defined by the AsyncAPI specification, not OpenAPI. The
+	// pre-upgrade handshake can still emit HTTP error codes (400/401/429/500)
+	// when auth or rate limits reject the upgrade; those are documented in the
+	// AsyncAPI spec alongside the protocol, not duplicated as OpenAPI
+	// operations. See #496 (decision: mark out-of-OpenAPI-scope).
+
 	// Register WebSocket handler - it needs a custom route because it's not part of the OpenAPI spec
 	logger.Info("[API_SERVER] Registering WebSocket route: GET /threat_models/:threat_model_id/diagrams/:diagram_id/ws")
 	r.GET("/threat_models/:threat_model_id/diagrams/:diagram_id/ws", s.HandleWebSocket)
