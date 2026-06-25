@@ -16,7 +16,7 @@ import (
 // which requires both a machine-readable `error` code and a human-readable
 // `error_description`. The SAML protocol handlers historically emitted a bare
 // `{"error": "<message>"}` body that violated the documented contract (#493).
-// SEM@new: write a SAML error response body conforming to the Error schema (pure)
+// SEM@3256ece0f5730b6c910aa6e61025555c7726a4a5: format and send a SAML error as a JSON HTTP response (pure)
 func samlErrorJSON(c *gin.Context, status int, code, description string) {
 	c.JSON(status, gin.H{
 		"error":             code,
@@ -25,7 +25,7 @@ func samlErrorJSON(c *gin.Context, status int, code, description string) {
 }
 
 // GetSAMLMetadata returns SAML service provider metadata
-// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: serve SP SAML metadata XML for a given provider ID
+// SEM@3256ece0f5730b6c910aa6e61025555c7726a4a5: fetch and return SP metadata XML for a SAML provider
 func (h *Handlers) GetSAMLMetadata(c *gin.Context, providerID string) {
 	logger := slogging.Get()
 
@@ -69,7 +69,7 @@ func (h *Handlers) GetSAMLMetadata(c *gin.Context, providerID string) {
 }
 
 // InitiateSAMLLogin starts SAML authentication flow
-// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: start a SAML authentication flow and redirect to the IdP
+// SEM@3256ece0f5730b6c910aa6e61025555c7726a4a5: build a SAML auth request, store relay state, and redirect to the IdP
 func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCallback *string) {
 	logger := slogging.Get()
 
@@ -316,7 +316,7 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 }
 
 // ProcessSAMLLogout handles SAML single logout
-// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: handle an IdP-initiated SAML SLO request, invalidate user sessions, and return a logout response
+// SEM@3256ece0f5730b6c910aa6e61025555c7726a4a5: validate a SAML logout request and invalidate the user's sessions (writes DB)
 func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequest string) {
 	logger := slogging.Get()
 

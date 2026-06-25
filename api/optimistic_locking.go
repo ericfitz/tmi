@@ -247,7 +247,7 @@ type VersionedStore interface {
 //
 // On success the new version is returned so the handler can stamp the ETag
 // response header before serializing the response body.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: resolve and enforce the If-Match version contract, returning the bumped version on success (reads DB)
+// SEM@3256ece0f5730b6c910aa6e61025555c7726a4a5: validate and apply a versioned compare-and-swap lock on a stored resource (reads DB)
 func ApplyOptimisticLock(c *gin.Context, store VersionedStore, id string, bodyVersion *int) (newVersion int, present bool, err error) {
 	expected, hasVersion, parseErr := ResolveExpectedVersion(c, bodyVersion)
 	if parseErr != nil {

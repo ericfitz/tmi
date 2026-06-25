@@ -531,7 +531,7 @@ func buildAuditFilters(objectType *GetThreatModelAuditTrailParamsObjectType, cha
 }
 
 // toAPIAuditEntry converts an AuditEntryResponse to the generated API type.
-// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: convert an internal AuditEntryResponse to the generated API AuditEntry DTO (pure)
+// SEM@3256ece0f5730b6c910aa6e61025555c7726a4a5: convert an internal audit entry response to its API DTO (pure)
 func toAPIAuditEntry(entry AuditEntryResponse) AuditEntry {
 	return AuditEntry{
 		Id:            parseUUID(entry.ID),
