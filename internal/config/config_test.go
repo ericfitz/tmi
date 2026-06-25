@@ -1355,3 +1355,31 @@ func TestValidateRequired_LoadFailsWhenRequiredKeyMissing(t *testing.T) {
 		t.Errorf("error should mention auth.build_mode, got: %v", err)
 	}
 }
+
+// TestGetCookieDomain verifies the cookie domain is taken ONLY from explicit
+// config and is never inferred from the bind/listen address. Regression test
+// for #497: deriving the domain from Server.Interface (default "0.0.0.0")
+// produced Domain=0.0.0.0, which browsers reject, silently dropping the auth
+// cookies.
+func TestGetCookieDomain(t *testing.T) {
+	t.Run("default config yields host-only cookie (empty domain)", func(t *testing.T) {
+		config := getDefaultConfig()
+		// Sanity: the default binds to the wildcard address that caused #497.
+		assert.Equal(t, "0.0.0.0", config.Server.Interface)
+		assert.Empty(t, config.GetCookieDomain(),
+			"cookie domain must be empty (host-only) and never derived from the bind address")
+	})
+
+	t.Run("does not infer from base URL host", func(t *testing.T) {
+		config := getDefaultConfig()
+		config.Server.BaseURL = "https://api.example.com:8443"
+		assert.Empty(t, config.GetCookieDomain(),
+			"cookie domain must not be inferred from the base URL")
+	})
+
+	t.Run("returns explicitly configured domain", func(t *testing.T) {
+		config := getDefaultConfig()
+		config.Auth.Cookie.Domain = "example.com"
+		assert.Equal(t, "example.com", config.GetCookieDomain())
+	})
+}

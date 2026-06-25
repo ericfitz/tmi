@@ -156,7 +156,7 @@ type AuthConfig struct {
 // SEM@314b7ae8fe586a75ecee2e8fa7103d3193f15f7c: configuration struct for HttpOnly session cookie domain and security flags (pure)
 type CookieConfig struct {
 	Enabled bool   `yaml:"enabled" env:"TMI_COOKIE_ENABLED"` // Enable HttpOnly cookie-based auth (default: true)
-	Domain  string `yaml:"domain" env:"TMI_COOKIE_DOMAIN"`   // Cookie domain (auto-inferred from BaseURL if empty)
+	Domain  string `yaml:"domain" env:"TMI_COOKIE_DOMAIN"`   // Cookie domain; leave empty for a host-only cookie (recommended). Never inferred from the bind address (#497).
 	Secure  bool   `yaml:"secure" env:"TMI_COOKIE_SECURE"`   // Require HTTPS (auto-derived from TLSEnabled if not set)
 }
 
@@ -1295,19 +1295,21 @@ func (c *Config) IsSecureCookies() bool {
 	return c.Auth.Cookie.Secure || c.Server.TLSEnabled
 }
 
-// GetCookieDomain returns the cookie domain. If not explicitly configured,
-// it extracts the hostname from GetBaseURL().
-// SEM@314b7ae8fe586a75ecee2e8fa7103d3193f15f7c: return the cookie domain, inferring it from the base URL if not explicitly configured (pure)
+// GetCookieDomain returns the cookie domain for HttpOnly auth cookies.
+//
+// It returns ONLY an explicitly configured domain; otherwise it returns ""
+// so the cookie is set without a Domain attribute (a host-only cookie scoped
+// to the exact request host). The domain is deliberately never inferred from
+// the bind/listen address or base URL: the server binds to 0.0.0.0 in dev,
+// and deriving the cookie Domain from that produced Domain=0.0.0.0, which
+// browsers reject (an IP literal that does not match the request host), so the
+// auth cookies were silently discarded (#497). A host-only cookie is also the
+// strictly more secure default in production -- it cannot leak to sibling
+// subdomains -- so omitting Domain is correct everywhere unless an operator
+// explicitly needs cross-host scoping.
+// SEM@314b7ae8fe586a75ecee2e8fa7103d3193f15f7c: return only the explicitly configured cookie domain, else empty for a host-only cookie (pure)
 func (c *Config) GetCookieDomain() string {
-	if c.Auth.Cookie.Domain != "" {
-		return c.Auth.Cookie.Domain
-	}
-
-	parsed, err := url.Parse(c.GetBaseURL())
-	if err != nil {
-		return ""
-	}
-	return parsed.Hostname()
+	return c.Auth.Cookie.Domain
 }
 
 // OperationalKeysInFile returns the operational-category setting keys present
