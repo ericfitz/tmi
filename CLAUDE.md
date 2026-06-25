@@ -305,6 +305,14 @@ curl -X POST http://localhost:8080/oauth2/token \
 - CATS fuzzing results must be analyzed for true-positive 500 errors after filtering false positives
 - Do not dismiss 500 errors as "edge cases" or "fuzzer artifacts" — if the server can return 500, it will happen in production
 
+### Documented-Status-Code Policy
+
+**MANDATORY: The server must never return an HTTP status code that is not documented for that operation in the OpenAPI spec (`api-schema/tmi-openapi.json`).** The spec is the source of truth for the contract; an undocumented status code is a contract violation even when the behavior itself is correct.
+
+- If a handler legitimately needs to return a status code that isn't yet documented, **add that code to the spec** for the operation (and regenerate API code) rather than leaving it undocumented. Adding new codes to the spec when necessary is expected and encouraged.
+- CATS flags this as an "undocumented response code" true positive; treat those like the Zero-500 findings — investigate and resolve (document the code, or change the handler) before release.
+- This applies to all status codes, including 4xx (e.g., a 404/400/409 the spec doesn't list for that path).
+
 ### Client Bug Triage
 
 TMI has a separate client application ([tmi-ux](https://github.com/ericfitz/tmi-ux)). When investigating a problem, if you determine the root cause is in the client rather than the server, you MUST:
