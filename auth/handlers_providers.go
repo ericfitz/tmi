@@ -58,9 +58,14 @@ func (h *Handlers) GetProviders(c *gin.Context) {
 		if name == "" {
 			name = id
 		}
+		// Fall back to a generic, guaranteed-to-exist sign-in icon when a
+		// provider has no icon configured. Using the bare provider id (e.g.
+		// "tmi") produced a malformed value the client resolved to a bogus
+		// URL like http://host/tmi (#498); the generic OAuth icon is a valid
+		// path the server serves from its embedded static assets.
 		icon := providerConfig.Icon
 		if icon == "" {
-			icon = id
+			icon = "/static/provider-logos/signin/oauth.svg"
 		}
 
 		authURL := fmt.Sprintf("%s/oauth2/authorize?idp=%s", getBaseURL(c), id)

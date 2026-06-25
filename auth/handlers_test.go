@@ -90,6 +90,46 @@ func TestGetProvidersHandler(t *testing.T) {
 	assert.Contains(t, githubProvider["auth_url"], "/oauth2/authorize?idp=github")
 }
 
+// TestGetProvidersEmptyIconFallback pins the fix for #498: a provider with no
+// configured icon must fall back to a valid, loadable icon path -- not the bare
+// provider id, which the client resolved to a bogus URL like http://host/tmi.
+func TestGetProvidersEmptyIconFallback(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	config := Config{
+		OAuth: OAuthConfig{
+			CallbackURL: "http://localhost:8080/oauth2/callback",
+			Providers: map[string]OAuthProviderConfig{
+				"tmi": {
+					ID:      "tmi",
+					Name:    "TMI",
+					Enabled: true,
+					Icon:    "", // no icon configured
+				},
+			},
+		},
+	}
+
+	handlers := &Handlers{config: config}
+	router.GET("/oauth2/providers", handlers.GetProviders)
+
+	req := httptest.NewRequest("GET", "/oauth2/providers", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response map[string][]map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+
+	tmiProvider := findProviderByID(response["providers"], "tmi")
+	require.NotNil(t, tmiProvider)
+	// Must NOT be the bare id, and must be a server-resolvable absolute path.
+	assert.NotEqual(t, "tmi", tmiProvider["icon"])
+	assert.Equal(t, "/static/provider-logos/signin/oauth.svg", tmiProvider["icon"])
+}
+
 func TestGetProvidersEmptyConfig(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

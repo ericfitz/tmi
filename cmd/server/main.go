@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	tmi "github.com/ericfitz/tmi" // Root package: embedded static assets
 	"github.com/ericfitz/tmi/api" // Your module path
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/api/seed"
@@ -446,23 +448,37 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 	return nil
 }
 
-// registerStaticFiles registers static file routes on the Gin engine.
-// SEM@55d231496346f253f73606e7d54a728f88ad7402: register static asset routes on the Gin engine for favicons and manifests (mutates shared state)
+// registerStaticFiles registers static file routes on the Gin engine, served
+// from assets embedded in the binary (tmi.StaticFS). The assets are embedded
+// rather than read from a relative ./static directory because the production
+// container image contains only the binary (Dockerfile.server), so a relative
+// path resolves to nothing and every static route 404s — including the OAuth
+// provider sign-in icons (#498).
+// SEM@55d231496346f253f73606e7d54a728f88ad7402: register static asset routes on the Gin engine, served from the embedded asset FS (mutates shared state)
 func registerStaticFiles(r *gin.Engine) {
-	r.Static("/static", "./static")
-	r.StaticFile("/robots.txt", "./static/robots.txt")
-	r.StaticFile("/favicon.ico", "./static/favicon.ico")
-	r.StaticFile("/site.webmanifest", "./static/site.webmanifest")
-	r.StaticFile("/web-app-manifest-192x192.png", "./static/web-app-manifest-192x192.png")
-	r.StaticFile("/web-app-manifest-512x512.png", "./static/web-app-manifest-512x512.png")
-	r.StaticFile("/favicon.svg", "./static/favicon.svg")
-	r.StaticFile("/TMI-Logo.svg", "./static/TMI-Logo.svg")
-	r.StaticFile("/android-chrome-192x192.png", "./static/android-chrome-192x192.png")
-	r.StaticFile("/android-chrome-512x512.png", "./static/android-chrome-512x512.png")
-	r.StaticFile("/apple-touch-icon.png", "./static/apple-touch-icon.png")
-	r.StaticFile("/favicon-16x16.png", "./static/favicon-16x16.png")
-	r.StaticFile("/favicon-32x32.png", "./static/favicon-32x32.png")
-	r.StaticFile("/favicon-96x96.png", "./static/favicon-96x96.png")
+	staticSub, err := fs.Sub(tmi.StaticFS, "static")
+	if err != nil {
+		// Can only happen if the embedded "static" directory is missing, which
+		// is a build-time invariant — fail loudly rather than serve 404s.
+		slogging.Get().Error("failed to open embedded static assets: %v", err)
+		os.Exit(1)
+	}
+	staticFS := http.FS(staticSub)
+
+	r.StaticFS("/static", staticFS)
+	r.StaticFileFS("/robots.txt", "robots.txt", staticFS)
+	r.StaticFileFS("/favicon.ico", "favicon.ico", staticFS)
+	r.StaticFileFS("/site.webmanifest", "site.webmanifest", staticFS)
+	r.StaticFileFS("/web-app-manifest-192x192.png", "web-app-manifest-192x192.png", staticFS)
+	r.StaticFileFS("/web-app-manifest-512x512.png", "web-app-manifest-512x512.png", staticFS)
+	r.StaticFileFS("/favicon.svg", "favicon.svg", staticFS)
+	r.StaticFileFS("/TMI-Logo.svg", "TMI-Logo.svg", staticFS)
+	r.StaticFileFS("/android-chrome-192x192.png", "android-chrome-192x192.png", staticFS)
+	r.StaticFileFS("/android-chrome-512x512.png", "android-chrome-512x512.png", staticFS)
+	r.StaticFileFS("/apple-touch-icon.png", "apple-touch-icon.png", staticFS)
+	r.StaticFileFS("/favicon-16x16.png", "favicon-16x16.png", staticFS)
+	r.StaticFileFS("/favicon-32x32.png", "favicon-32x32.png", staticFS)
+	r.StaticFileFS("/favicon-96x96.png", "favicon-96x96.png", staticFS)
 }
 
 // configureTrustedProxies sets trusted proxies on the Gin engine when configured.
