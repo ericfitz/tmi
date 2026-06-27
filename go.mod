@@ -25,7 +25,7 @@ require (
 	github.com/oapi-codegen/gin-middleware v1.0.2
 	github.com/oapi-codegen/runtime v1.4.2
 	github.com/oracle-samples/gorm-oracle v1.1.2
-	github.com/oracle/oci-go-sdk/v65 v65.118.0
+	github.com/oracle/oci-go-sdk/v65 v65.118.1
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/net v0.56.0
 	golang.org/x/oauth2 v0.36.0
@@ -36,7 +36,7 @@ require (
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/driver/sqlserver v1.6.3
-	gorm.io/gorm v1.31.1
+	gorm.io/gorm v1.31.2
 )
 
 require (
