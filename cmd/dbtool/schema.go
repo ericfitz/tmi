@@ -7,6 +7,7 @@ import (
 	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/api/seed"
 	"github.com/ericfitz/tmi/internal/dbcheck"
+	"github.com/ericfitz/tmi/internal/dbschema"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/test/testdb"
 )
@@ -29,7 +30,16 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 	if err := db.AutoMigrate(); err != nil {
 		return fmt.Errorf("AutoMigrate failed: %w", err)
 	}
-	log.Info("AutoMigrate completed for %d models", len(api.GetAllModels()))
+	allModels := api.GetAllModels()
+	log.Info("AutoMigrate completed for %d models", len(allModels))
+
+	// Stamp the schema fingerprint so a (possibly limited-privilege) server
+	// booting against this schema can skip its own introspection-heavy
+	// AutoMigrate pass (#480). Non-fatal: a failure just means the server
+	// re-runs AutoMigrate on first boot.
+	if err := dbschema.RecordSchemaFingerprint(db.DB(), dbschema.ComputeModelsFingerprint(allModels...)); err != nil {
+		log.Warn("failed to record schema fingerprint (non-fatal): %v", err)
+	}
 
 	// Step 2: Seed system data
 	log.Info("Seeding system data (groups, webhook deny list)...")

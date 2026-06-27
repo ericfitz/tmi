@@ -61,6 +61,19 @@ spec:
           # producing mass connection failures (issue #463). These dev probes are
           # deliberately tolerant: a busy server keeps serving, and only a truly
           # hung one is restarted. (Dev-only tuning; not the production posture.)
+          #
+          # The server starts its HTTP listener only AFTER Phase-2 migrations
+          # complete. The startupProbe suspends the liveness and readiness probes
+          # until the app first answers, so a slow first-boot migration is never
+          # killed mid-flight (#479/#480). On Postgres migration is fast so this
+          # budget is not consumed; kept identical to server-oracle.yml per the
+          # keep-in-sync contract between the two manifests.
+          startupProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 120
           readinessProbe:
             httpGet: { path: /, port: 8080 }
             initialDelaySeconds: 3

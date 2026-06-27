@@ -342,48 +342,88 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 	// All databases use GORM AutoMigrate for schema management
 	// This provides a single source of truth (api/models/models.go) for all supported databases
 	logger.Info("==== PHASE 2: Running database migrations ====")
-	logger.Info("Running GORM AutoMigrate for %s database", dbType)
 	allModels := api.GetAllModels()
-	if err := gormDB.AutoMigrate(allModels...); err != nil {
-		errStr := err.Error()
 
-		switch {
-		case strings.Contains(errStr, "ORA-00955"):
-			// Oracle: table already exists — benign, continue
-			logger.Debug("Some tables already exist, continuing: %v", err)
+	// Fast path (#480): AutoMigrate is introspection-heavy (hundreds of
+	// per-object existence checks for the full TMI schema). Against a remote
+	// database (Oracle ADB) each is a network round-trip, so a full pass takes
+	// many minutes — long enough that the in-cluster pod was killed mid-migration
+	// and crash-looped (#479). If a recorded schema fingerprint already matches
+	// the current model set, the schema is up to date and we skip the pass
+	// entirely (turning hundreds of round-trips into a stamp-table read).
+	desiredFP := dbschema.ComputeModelsFingerprint(allModels...)
+	if dbschema.SchemaFingerprintCurrent(gormDB.DB(), desiredFP) {
+		logger.Info("Schema fingerprint current (%s); skipping AutoMigrate for %d models", desiredFP[:12], len(allModels))
+	} else {
+		logger.Info("Running GORM AutoMigrate for %s database", dbType)
+		recordFingerprint := true
+		if err := gormDB.AutoMigrate(allModels...); err != nil {
+			errStr := err.Error()
 
-		case dbcheck.IsPermissionError(err, dbType):
-			// DDL permission denied — check if schema is already current
-			logger.Warn("AutoMigrate failed with permission error: %v", err)
-			sqlDB, sqlErr := gormDB.DB().DB()
-			if sqlErr != nil {
-				return fmt.Errorf("failed to get sql.DB for schema check: %w", sqlErr)
-			}
-			health, healthErr := dbcheck.CheckSchemaHealth(sqlDB, dbType)
-			if healthErr != nil {
-				return fmt.Errorf("failed to check schema health: %w", healthErr)
-			}
-			if health.IsCurrent() {
-				logger.Warn("DDL permissions unavailable, but schema is up to date. Proceeding.")
-			} else {
-				logger.Error("Database schema requires updates but this database user lacks DDL permissions.")
-				logger.Error("")
-				logger.Error("Missing tables: %s", strings.Join(health.MissingTables, ", "))
-				logger.Error("")
-				logger.Error("To resolve this, choose one of:")
-				logger.Error("  1. Run schema migration with an admin-privileged database user:")
-				logger.Error("     tmi-dbtool --schema --config=<config-file>")
-				logger.Error("  2. Grant DDL permissions to the current database user.")
-				logger.Error("")
-				logger.Error("See: https://github.com/ericfitz/tmi/wiki/Database-Security-Strategies")
-				return fmt.Errorf("schema requires updates but DDL permissions are unavailable")
-			}
+			switch {
+			case strings.Contains(errStr, "ORA-00955"):
+				// Oracle: table already exists — benign, continue.
+				//
+				// Do NOT stamp the schema fingerprint on this path. GORM's
+				// AutoMigrate processes models in order and returns on the first
+				// error, so a *bubbling* ORA-00955 means the pass aborted early
+				// and any genuinely-new object later in the set was never
+				// created. Stamping the full-set fingerprint here would make the
+				// next boot skip AutoMigrate and freeze that partial state
+				// permanently (surfacing later as ORA-00904 at query time). The
+				// per-operation ORA-00955/01430 swallow lives in the additive
+				// Oracle migrator (auth/db/gorm_oracle.go); a top-level bubble is
+				// unexpected, so leaving the fingerprint unstamped (re-run every
+				// boot, today's behavior) is the safe fallback.
+				logger.Debug("Some tables already exist, continuing: %v", err)
+				recordFingerprint = false
 
-		default:
-			return fmt.Errorf("failed to auto-migrate schema: %w", err)
+			case dbcheck.IsPermissionError(err, dbType):
+				// DDL permission denied — check if schema is already current
+				logger.Warn("AutoMigrate failed with permission error: %v", err)
+				sqlDB, sqlErr := gormDB.DB().DB()
+				if sqlErr != nil {
+					return fmt.Errorf("failed to get sql.DB for schema check: %w", sqlErr)
+				}
+				health, healthErr := dbcheck.CheckSchemaHealth(sqlDB, dbType)
+				if healthErr != nil {
+					return fmt.Errorf("failed to check schema health: %w", healthErr)
+				}
+				if health.IsCurrent() {
+					logger.Warn("DDL permissions unavailable, but schema is up to date. Proceeding.")
+					// The user lacks DDL, so it cannot create/write the stamp
+					// table either; leave the fingerprint to the admin-privileged
+					// provisioner (tmi-dbtool --schema), which records it.
+					recordFingerprint = false
+				} else {
+					logger.Error("Database schema requires updates but this database user lacks DDL permissions.")
+					logger.Error("")
+					logger.Error("Missing tables: %s", strings.Join(health.MissingTables, ", "))
+					logger.Error("")
+					logger.Error("To resolve this, choose one of:")
+					logger.Error("  1. Run schema migration with an admin-privileged database user:")
+					logger.Error("     tmi-dbtool --schema --config=<config-file>")
+					logger.Error("  2. Grant DDL permissions to the current database user.")
+					logger.Error("")
+					logger.Error("See: https://github.com/ericfitz/tmi/wiki/Database-Security-Strategies")
+					return fmt.Errorf("schema requires updates but DDL permissions are unavailable")
+				}
+
+			default:
+				return fmt.Errorf("failed to auto-migrate schema: %w", err)
+			}
+		}
+		logger.Info("GORM AutoMigrate completed for %d models", len(allModels))
+
+		// Stamp the schema fingerprint so the next boot (and the second
+		// full-set AutoMigrate in InitAuthWithDB) can take the fast path.
+		// Non-fatal: a failure here just means the next boot re-runs AutoMigrate.
+		if recordFingerprint {
+			if err := dbschema.RecordSchemaFingerprint(gormDB.DB(), desiredFP); err != nil {
+				logger.Warn("failed to record schema fingerprint (non-fatal; next boot will re-run AutoMigrate): %v", err)
+			}
 		}
 	}
-	logger.Info("GORM AutoMigrate completed for %d models", len(allModels))
 
 	// Normalize legacy severity enum values to snake_case
 	// This is idempotent: rows already lowercase are unaffected

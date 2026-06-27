@@ -8,6 +8,7 @@ import (
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
+	"github.com/ericfitz/tmi/internal/dbschema"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -208,10 +209,26 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 	if gormDB == nil {
 		return nil, fmt.Errorf("GORM database not initialized")
 	}
-	if err := gormDB.AutoMigrate(models.AllModels()...); err != nil {
-		return nil, fmt.Errorf("failed to auto-migrate schema: %w", err)
+	// Fast path (#480): skip the introspection-heavy AutoMigrate pass when the
+	// recorded schema fingerprint already matches the model set. Against a
+	// remote Oracle ADB a full pass issues hundreds of per-object round-trips
+	// and costs many minutes. (This is the deprecated all-in-one init path; the
+	// server uses InitAuthWithDB, whose migration is handled by Phase-2
+	// runMigrations. Here — e.g. the standalone/example path — the first run
+	// migrates and stamps; later runs skip.) See internal/dbschema/schema_version.go.
+	allModels := models.AllModels()
+	desiredFP := dbschema.ComputeModelsFingerprint(allModels...)
+	if dbschema.SchemaFingerprintCurrent(gormDB.DB(), desiredFP) {
+		logger.Info("[AUTH_CONFIG_ADAPTER] Schema fingerprint current; skipping AutoMigrate")
+	} else {
+		if err := gormDB.AutoMigrate(allModels...); err != nil {
+			return nil, fmt.Errorf("failed to auto-migrate schema: %w", err)
+		}
+		if err := dbschema.RecordSchemaFingerprint(gormDB.DB(), desiredFP); err != nil {
+			logger.Warn("[AUTH_CONFIG_ADAPTER] failed to record schema fingerprint (non-fatal): %v", err)
+		}
+		logger.Info("[AUTH_CONFIG_ADAPTER] GORM AutoMigrate completed")
 	}
-	logger.Info("[AUTH_CONFIG_ADAPTER] GORM AutoMigrate completed")
 
 	// Create authentication service
 	service, err := NewService(dbManager, authConfig)

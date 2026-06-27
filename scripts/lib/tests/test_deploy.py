@@ -140,6 +140,45 @@ class TestNodePortExposure(unittest.TestCase):
         self.assertIn("svc/redis", src, "deploy.py should still forward redis")
 
 
+class TestServerRolloutTimeout(unittest.TestCase):
+    """Rollout-status timeout must be long enough for a fresh Oracle ADB's
+    first AutoMigrate, which can take 10-20 min (#479/#480)."""
+
+    def test_oracle_gets_long_budget(self):
+        self.assertEqual(deploy.server_rollout_timeout("oracle"), "1200s")
+
+    def test_postgres_keeps_short_budget(self):
+        self.assertEqual(deploy.server_rollout_timeout("postgres"), "180s")
+
+
+class TestServerStartupProbe(unittest.TestCase):
+    """Both server manifests must carry a startupProbe so a slow first-boot
+    migration is not killed by the livenessProbe mid-flight (#479)."""
+
+    def _assert_has_startup_probe(self, manifest_name: str) -> None:
+        text = (_DEV_DIR / manifest_name).read_text()
+        # Slice the Deployment document (before the Service '---').
+        deploy_doc = text.split("\nkind: Service", 1)[0]
+        self.assertRegex(
+            deploy_doc, r"(?m)^\s*startupProbe:",
+            f"{manifest_name}: Deployment must define a startupProbe",
+        )
+        # A generous budget: failureThreshold must be large (>= 60) so the
+        # first remote migration is not cut short.
+        m = re.search(r"startupProbe:.*?failureThreshold:\s*(\d+)", deploy_doc, re.DOTALL)
+        self.assertIsNotNone(m, f"{manifest_name}: startupProbe missing failureThreshold")
+        self.assertGreaterEqual(
+            int(m.group(1)), 60,
+            f"{manifest_name}: startupProbe failureThreshold too small for first-boot migration",
+        )
+
+    def test_postgres_manifest_has_startup_probe(self):
+        self._assert_has_startup_probe("server.yml")
+
+    def test_oracle_manifest_has_startup_probe(self):
+        self._assert_has_startup_probe("server-oracle.yml")
+
+
 class TestRewriteDbHostForIncluster(unittest.TestCase):
     """The in-cluster server reaches the host Postgres via host.docker.internal,
     while config-development.yml keeps localhost for host-side tools (issue #463)."""

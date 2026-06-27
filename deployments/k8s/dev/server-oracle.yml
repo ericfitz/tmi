@@ -94,6 +94,22 @@ spec:
           # producing mass connection failures (issue #463). These dev probes are
           # deliberately tolerant: a busy server keeps serving, and only a truly
           # hung one is restarted. (Dev-only tuning; not the production posture.)
+          #
+          # The server starts its HTTP listener only AFTER Phase-2 migrations
+          # complete. On a fresh remote Oracle ADB the first AutoMigrate pass
+          # issues hundreds of per-object introspection round-trips and can take
+          # 10-20 min (#480); with only a livenessProbe the pod was killed ~75 s
+          # in and crash-looped (#479). The startupProbe suspends the liveness
+          # and readiness probes until the app first answers, giving first-boot
+          # migration a long budget (failureThreshold x periodSeconds ~= 20 min).
+          # Later boots take the schema-fingerprint fast path (#480) and answer
+          # in seconds, so this budget is only ever consumed on a fresh schema.
+          startupProbe:
+            httpGet: { path: /, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 120
           readinessProbe:
             httpGet: { path: /, port: 8080 }
             initialDelaySeconds: 3

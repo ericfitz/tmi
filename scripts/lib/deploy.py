@@ -447,9 +447,23 @@ def apply_overlay(no_workers: bool, db: str) -> None:
         kubectl(["apply", "-f", "-"], input_text=rendered)
 
 
-def wait_and_forward() -> None:
+def server_rollout_timeout(db: str) -> str:
+    """Rollout-status timeout for the tmi-server Deployment, DB-aware.
+
+    On the FIRST boot against a remote Oracle ADB, GORM AutoMigrate issues
+    hundreds of per-object introspection round-trips and can take 10-20 min
+    (#480) before the server's HTTP listener (and thus its startupProbe) comes
+    up. A fixed 180s wait timed out on that first boot and the rollout failed
+    (#479). Oracle therefore gets a long budget; Postgres migrates locally in
+    seconds and keeps the short one. Later boots take the schema-fingerprint
+    fast path regardless, so the long budget is only ever consumed once.
+    """
+    return "1200s" if db == "oracle" else "180s"
+
+
+def wait_and_forward(db: str = "postgres") -> None:
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-component-controller", "--timeout=120s"])
-    kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", "--timeout=180s"])
+    kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", f"--timeout={server_rollout_timeout(db)}"])
     start_redis_port_forward()
     wait_for_server()
     log_success(f"Dev environment ready at {SERVER_URL}")
@@ -566,7 +580,7 @@ def start(*, db: str, no_workers: bool = False, skip_context_guard: bool = False
     # backoff-cleared pods. imagePullPolicy:Always ensures the new image is pulled.
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-component-controller"])
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
-    wait_and_forward()
+    wait_and_forward(db)
 
 
 def restart(*, db: str, no_workers: bool = False, skip_context_guard: bool = False) -> None:
@@ -582,7 +596,7 @@ def restart(*, db: str, no_workers: bool = False, skip_context_guard: bool = Fal
         create_oracle_db_secret()
     apply_overlay(no_workers, db)
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
-    kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", "--timeout=180s"])
+    kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", f"--timeout={server_rollout_timeout(db)}"])
     start_redis_port_forward()
     wait_for_server()
     log_success(f"Server restarted; {SERVER_URL}")
