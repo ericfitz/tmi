@@ -321,7 +321,7 @@ func runMigrations(ctx context.Context, gormDB *db.GormDB, dbType string) {
 // os.Exit inside the lock-holding region would skip the deferred release
 // (gocritic exitAfterDefer) and leave the lock orphaned for replicas to
 // time out on.
-// SEM@080eef4c36738f6b82a5dddaff40f2580081b8bc: acquire a cross-replica advisory lock and run AutoMigrate, data normalization, seeding, and trigger installation (writes DB)
+// SEM@70c02e3f4b4dd833280d8f3ca9d152b483013ffe: run DB migrations under advisory lock with fingerprint fast path (writes DB)
 func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) error {
 	logger := slogging.Get()
 
@@ -494,7 +494,7 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 // container image contains only the binary (Dockerfile.server), so a relative
 // path resolves to nothing and every static route 404s — including the OAuth
 // provider sign-in icons (#498).
-// SEM@55d231496346f253f73606e7d54a728f88ad7402: register static asset routes on the Gin engine, served from the embedded asset FS (mutates shared state)
+// SEM@c1ae98795fcc480287e8ef03be0c86587e974cc5: register embedded static assets and well-known web files on the router
 func registerStaticFiles(r *gin.Engine) {
 	staticSub, err := fs.Sub(tmi.StaticFS, "static")
 	if err != nil {
@@ -1184,7 +1184,7 @@ func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) *api.ExtractionP
 // content provider), or when any required collaborator is unavailable, the
 // function logs and leaves the handler unset; the generated delegation
 // wrappers will respond with 503 for the affected endpoints.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: build and attach delegated content OAuth handlers, picker token handler, and pre-delete hook to the API server
+// SEM@f69d82c5864c65f768181d82416962e3bbd63667: build and register delegated content-OAuth handlers on the API server
 func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB *gorm.DB, dbManager *db.Manager, authHandlers *auth.Handlers) (api.ContentTokenRepository, *api.ContentOAuthProviderRegistry) {
 	logger := slogging.Get()
 
