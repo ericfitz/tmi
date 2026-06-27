@@ -159,12 +159,6 @@ func ValidateAddonDescription(description string) error {
 	return validateTextField(description, "description", MaxAddonDescriptionLength, false)
 }
 
-// checkHTMLInjection delegates to the unified HTML/XSS injection checker.
-// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: validate a field value for HTML/XSS injection attempts (pure)
-func checkHTMLInjection(value, fieldName string) error {
-	return CheckHTMLInjection(value, fieldName)
-}
-
 // ValidateUnicodeContent checks for problematic Unicode that might slip through middleware.
 // Delegates to the consolidated unicodecheck package for consistent character detection.
 // Uses context-aware zero-width checking and threshold-based combining mark detection

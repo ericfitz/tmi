@@ -22,14 +22,6 @@ type HostResolver interface {
 	LookupHost(ctx context.Context, host string) ([]string, error)
 }
 
-// SEM@b554bb5371f70e0115912131e032671de29e8c09: default HostResolver implementation backed by net.DefaultResolver (pure)
-type defaultResolver struct{}
-
-// SEM@b554bb5371f70e0115912131e032671de29e8c09: resolve a hostname to its IP addresses using the system default resolver
-func (defaultResolver) LookupHost(ctx context.Context, host string) ([]string, error) {
-	return net.DefaultResolver.LookupHost(ctx, host)
-}
-
 // SafeFetchOptions controls a single Fetch / FetchStreaming call.
 // Zero values fall back to client-level defaults.
 // SEM@0aee687bf1c2b4e1819bf1c183575104459a14d4: per-request configuration for method, headers, timeouts, body cap, and redirect policy (pure)
@@ -130,7 +122,7 @@ func WithDefaultTimeouts(overall, headerWait time.Duration, maxBody int64) SafeH
 func NewSafeHTTPClient(validator *URIValidator, opts ...SafeHTTPClientOption) *SafeHTTPClient {
 	c := &SafeHTTPClient{
 		validator:         validator,
-		resolver:          defaultResolver{},
+		resolver:          safehttp.DefaultResolver,
 		defaultTimeout:    30 * time.Second,
 		defaultHeaderWait: 10 * time.Second,
 		defaultMaxBody:    10 * 1024 * 1024,

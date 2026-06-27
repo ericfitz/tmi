@@ -37,6 +37,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/api/testhelpers"
+	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -132,7 +133,7 @@ func newGWIntegrationInfra(t *testing.T) *gwIntegrationInfra {
 	callbackURL := ts.URL + "/oauth2/content_callback"
 
 	stateStore := NewContentOAuthStateStore(rdb)
-	allowList := NewClientCallbackAllowList([]string{gwTestClientCallback, gwTestClientCallback + "*"})
+	allowList := auth.NewClientCallbackAllowList([]string{gwTestClientCallback, gwTestClientCallback + "*"})
 
 	contentOAuthH := &ContentOAuthHandlers{
 		Cfg: config.ContentOAuthConfig{

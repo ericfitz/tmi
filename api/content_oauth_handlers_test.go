@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -151,7 +152,7 @@ func newTestHandlers(t *testing.T, repo ContentTokenRepository, provider Content
 		registry.Register(provider)
 	}
 
-	allowList := NewClientCallbackAllowList([]string{"http://localhost:8079/", "http://localhost:4200/*"})
+	allowList := auth.NewClientCallbackAllowList([]string{"http://localhost:8079/", "http://localhost:4200/*"})
 
 	cfg := config.ContentOAuthConfig{
 		CallbackURL:            "http://tmi.local/oauth2/content_callback",

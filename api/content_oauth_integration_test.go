@@ -21,6 +21,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/api/testhelpers"
+	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -159,7 +160,7 @@ func buildIntegrationHandlers(
 
 	stateStore := NewContentOAuthStateStore(rdb)
 
-	allowList := NewClientCallbackAllowList([]string{clientCallbackURL, clientCallbackURL + "*"})
+	allowList := auth.NewClientCallbackAllowList([]string{clientCallbackURL, clientCallbackURL + "*"})
 
 	cfg := config.ContentOAuthConfig{
 		CallbackURL:            callbackURL,

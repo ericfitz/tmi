@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/testhelpers"
+	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -155,7 +156,7 @@ func TestConfluenceDelegated_EndToEnd_Integration(t *testing.T) {
 
 		// Build OAuth handlers / router.
 		stateStore := NewContentOAuthStateStore(rdb)
-		allowList := NewClientCallbackAllowList([]string{clientCallback, clientCallback + "*"})
+		allowList := auth.NewClientCallbackAllowList([]string{clientCallback, clientCallback + "*"})
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {}))
 		t.Cleanup(ts.Close)
 		callbackURL := ts.URL + "/oauth2/content_callback"

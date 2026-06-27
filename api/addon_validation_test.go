@@ -779,9 +779,9 @@ func TestCheckHTMLInjection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := checkHTMLInjection(tt.value, tt.fieldName)
+			err := CheckHTMLInjection(tt.value, tt.fieldName)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("checkHTMLInjection() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("CheckHTMLInjection() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if err != nil && tt.errMsg != "" {

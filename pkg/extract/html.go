@@ -29,19 +29,18 @@ func (e *HTMLExtractor) CanHandle(contentType string) bool {
 // Script and style element content is excluded.
 // SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse HTML bytes and return visible text as extracted content (pure)
 func (e *HTMLExtractor) Extract(data []byte, contentType string) (ExtractedContent, error) {
-	text := extractTextFromHTML(string(data))
+	text := ExtractTextFromHTML(string(data))
 	return ExtractedContent{
 		Text:        text,
 		ContentType: contentType,
 	}, nil
 }
 
-// extractTextFromHTML parses an HTML document and returns the concatenated visible text,
-// skipping content inside <script> and <style> elements.
-// Self-contained copy for pkg/extract; the monolith keeps its own copy in
-// api/timmy_content_provider_http.go for the HTTP provider's use.
+// ExtractTextFromHTML parses an HTML document and returns the concatenated visible text,
+// skipping content inside <script> and <style> elements. This is the single
+// source of truth shared by the HTMLExtractor and the api HTTP content provider.
 // SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: parse an HTML document and concatenate visible text, skipping script and style subtrees (pure)
-func extractTextFromHTML(htmlContent string) string {
+func ExtractTextFromHTML(htmlContent string) string {
 	doc, err := html.Parse(strings.NewReader(htmlContent))
 	if err != nil {
 		// Fall back to raw content if parsing fails

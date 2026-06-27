@@ -1179,7 +1179,7 @@ func wireContentOAuthHandlers(apiServer *api.Server, cfg *config.Config, gormDB 
 	}
 	stateStore := api.NewContentOAuthStateStore(dbManager.Redis().GetClient())
 
-	allowList := api.NewClientCallbackAllowList(cfg.ContentOAuth.AllowedClientCallbacks)
+	allowList := auth.NewClientCallbackAllowList(cfg.ContentOAuth.AllowedClientCallbacks)
 
 	// userLookup extracts the caller's internal UUID from the JWT middleware
 	// context. "userInternalUUID" is set by jwt_auth.go after successful

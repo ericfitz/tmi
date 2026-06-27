@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ericfitz/tmi/pkg/extract"
 )
 
 func TestDirectTextProvider_CanHandle(t *testing.T) {
@@ -148,11 +150,11 @@ func TestHTTPEmbeddingSource_Extract_SSRFBlocked(t *testing.T) {
 	assert.Contains(t, err.Error(), "SSRF check failed")
 }
 
-// --- extractTextFromHTML unit tests ---
+// --- ExtractTextFromHTML unit tests ---
 
 func TestExtractTextFromHTML(t *testing.T) {
 	htmlContent := `<html><head><title>Test</title><style>body{}</style></head><body><h1>Hello</h1><p>World</p><script>alert('x')</script></body></html>`
-	text := extractTextFromHTML(htmlContent)
+	text := extract.ExtractTextFromHTML(htmlContent)
 	assert.Contains(t, text, "Hello")
 	assert.Contains(t, text, "World")
 	assert.NotContains(t, text, "alert")
@@ -160,12 +162,12 @@ func TestExtractTextFromHTML(t *testing.T) {
 }
 
 func TestExtractTextFromHTML_Empty(t *testing.T) {
-	text := extractTextFromHTML("")
+	text := extract.ExtractTextFromHTML("")
 	assert.Equal(t, "", text)
 }
 
 func TestExtractTextFromHTML_PlainText(t *testing.T) {
-	text := extractTextFromHTML("just some text")
+	text := extract.ExtractTextFromHTML("just some text")
 	assert.Contains(t, text, "just some text")
 }
 

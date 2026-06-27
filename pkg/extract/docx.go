@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"io"
+	"strconv"
 	"strings"
 )
 
@@ -441,7 +442,7 @@ func docxListMarker(st *docxState, p *docxParaState) string {
 		return "-"
 	}
 
-	key := numID + "/" + itoa(ilvl)
+	key := numID + "/" + strconv.Itoa(ilvl)
 	if st.listCounters == nil {
 		st.listCounters = map[string]int{}
 		st.listLastParaIdx = map[string]int{}
@@ -468,7 +469,7 @@ func docxFormatOrdinal(fmtName string, n int) string {
 	case "decimal", "ordinal", "cardinalText", "ordinalText",
 		"decimalZero", "decimalEnclosedCircle", "decimalEnclosedFullstop",
 		"decimalEnclosedParen":
-		return itoa(n)
+		return strconv.Itoa(n)
 	case "lowerLetter":
 		return docxAlphabetic(n, 'a')
 	case "upperLetter":
@@ -478,7 +479,7 @@ func docxFormatOrdinal(fmtName string, n int) string {
 	case "upperRoman":
 		return docxRoman(n)
 	default:
-		return itoa(n)
+		return strconv.Itoa(n)
 	}
 }
 
@@ -504,7 +505,7 @@ func docxAlphabetic(n int, base rune) string {
 // SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: convert a positive integer to upper-case Roman numeral string (pure)
 func docxRoman(n int) string {
 	if n <= 0 || n > 3999 {
-		return itoa(n)
+		return strconv.Itoa(n)
 	}
 	vals := []int{1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1}
 	syms := []string{"M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"}
@@ -795,7 +796,7 @@ func (c *docxRenderCtx) handleDrawingDocPr(t xml.StartElement) {
 		return
 	}
 	c.st.imageCounter++
-	c.writeText("![" + descr + "](image-" + itoa(c.st.imageCounter) + ")")
+	c.writeText("![" + descr + "](image-" + strconv.Itoa(c.st.imageCounter) + ")")
 }
 
 // SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse a paragraph style element to set heading level on the current paragraph state (pure)
@@ -901,30 +902,4 @@ func (c *docxRenderCtx) handleHyperlinkEnd() {
 		rendered = "[" + inner + "](" + top.target + ")"
 	}
 	c.writeText(rendered)
-}
-
-// itoa converts an int to a decimal string without importing strconv in this file.
-// Package-private copy for pkg/extract; relocated alongside the docx extractor
-// from api/timmy_embedding_automation_handlers.go where the monolith keeps its own copy.
-// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: convert an integer to its decimal string representation (pure)
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var buf [20]byte
-	pos := len(buf)
-	for n > 0 {
-		pos--
-		buf[pos] = byte('0' + n%10)
-		n /= 10
-	}
-	if neg {
-		pos--
-		buf[pos] = '-'
-	}
-	return string(buf[pos:])
 }

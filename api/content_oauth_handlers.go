@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -20,7 +21,7 @@ type ContentOAuthHandlers struct {
 	Registry      *ContentOAuthProviderRegistry
 	StateStore    *ContentOAuthStateStore
 	Tokens        ContentTokenRepository
-	CallbackAllow *ClientCallbackAllowList
+	CallbackAllow *auth.ClientCallbackAllowList
 	// Documents is used by Delete for the picker un-link cascade.
 	// Nil is allowed — cascade is skipped when nil.
 	Documents DocumentRepository

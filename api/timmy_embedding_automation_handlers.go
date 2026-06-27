@@ -6,6 +6,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -115,7 +116,7 @@ func (s *Server) IngestEmbeddings(c *gin.Context, threatModelId ThreatModelId) {
 		expectedIndex := EntityTypeToIndexType(item.EntityType)
 		if expectedIndex != indexType {
 			HandleRequestError(c, InvalidInputError(
-				"item at index "+itoa(i)+": entity_type '"+item.EntityType+
+				"item at index "+strconv.Itoa(i)+": entity_type '"+item.EntityType+
 					"' belongs to index '"+expectedIndex+
 					"' but request declares index_type '"+indexType+"'",
 			))
@@ -125,13 +126,13 @@ func (s *Server) IngestEmbeddings(c *gin.Context, threatModelId ThreatModelId) {
 		// Validate vector length matches embedding_dim
 		if len(item.Vector) == 0 {
 			HandleRequestError(c, InvalidInputError(
-				"item at index "+itoa(i)+": vector must not be empty",
+				"item at index "+strconv.Itoa(i)+": vector must not be empty",
 			))
 			return
 		}
 		if item.EmbeddingDim <= 0 {
 			HandleRequestError(c, InvalidInputError(
-				"item at index "+itoa(i)+": embedding_dim must be positive",
+				"item at index "+strconv.Itoa(i)+": embedding_dim must be positive",
 			))
 			return
 		}
@@ -139,7 +140,7 @@ func (s *Server) IngestEmbeddings(c *gin.Context, threatModelId ThreatModelId) {
 			HandleRequestError(c, &RequestError{
 				Status:  422,
 				Code:    "dimension_mismatch",
-				Message: "item at index " + itoa(i) + ": vector length does not match embedding_dim",
+				Message: "item at index " + strconv.Itoa(i) + ": vector length does not match embedding_dim",
 			})
 			return
 		}
@@ -152,7 +153,7 @@ func (s *Server) IngestEmbeddings(c *gin.Context, threatModelId ThreatModelId) {
 			HandleRequestError(c, &RequestError{
 				Status:  422,
 				Code:    "inconsistent_dimensions",
-				Message: "item at index " + itoa(i) + ": all embeddings must have the same dimension",
+				Message: "item at index " + strconv.Itoa(i) + ": all embeddings must have the same dimension",
 			})
 			return
 		}
@@ -282,28 +283,4 @@ func (s *Server) DeleteEmbeddings(c *gin.Context, threatModelId ThreatModelId, p
 	}
 
 	c.JSON(http.StatusOK, EmbeddingDeleteResponse{Deleted: int(deleted)})
-}
-
-// itoa converts an int to a decimal string without importing strconv in this file.
-// SEM@f16967b728491ff069bbdf69eba796fa935a9104: convert an integer to its decimal string representation (pure)
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var buf [20]byte
-	pos := len(buf)
-	for n > 0 {
-		pos--
-		buf[pos] = byte('0' + n%10)
-		n /= 10
-	}
-	if neg {
-		pos--
-		buf[pos] = '-'
-	}
-	return string(buf[pos:])
 }

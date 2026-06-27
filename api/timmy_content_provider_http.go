@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"golang.org/x/net/html"
+
+	"github.com/ericfitz/tmi/pkg/extract"
 )
 
 // HTTPEmbeddingSource fetches and extracts plain text from HTTP/HTTPS URLs.
@@ -62,7 +63,7 @@ func (p *HTTPEmbeddingSource) Extract(ctx context.Context, ref EntityReference) 
 	body := string(result.Body)
 	var text string
 	if strings.Contains(contentType, "text/html") {
-		text = extractTextFromHTML(body)
+		text = extract.ExtractTextFromHTML(body)
 	} else {
 		text = body
 	}
@@ -72,45 +73,4 @@ func (p *HTTPEmbeddingSource) Extract(ctx context.Context, ref EntityReference) 
 		Title:       ref.Name,
 		ContentType: contentType,
 	}, nil
-}
-
-// extractTextFromHTML parses an HTML document and returns the concatenated visible text,
-// skipping content inside <script> and <style> elements.
-// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: parse an HTML document and return concatenated visible text, skipping script and style nodes (pure)
-func extractTextFromHTML(htmlContent string) string {
-	doc, err := html.Parse(strings.NewReader(htmlContent))
-	if err != nil {
-		// Fall back to raw content if parsing fails
-		return htmlContent
-	}
-	var sb strings.Builder
-	// Iterative pre-order traversal using the tree's own parent/sibling
-	// links (O(1) extra memory). A recursive walk here is remotely
-	// triggerable stack exhaustion: nesting depth is attacker-controlled
-	// and a Go stack overflow is an unrecoverable fatal error.
-	for n := doc; n != nil; {
-		if n.Type == html.TextNode {
-			text := strings.TrimSpace(n.Data)
-			if text != "" {
-				sb.WriteString(text)
-				sb.WriteString(" ")
-			}
-		}
-		// Skip the children of script and style elements
-		skipChildren := n.Type == html.ElementNode && (n.Data == "script" || n.Data == "style")
-		if !skipChildren && n.FirstChild != nil {
-			n = n.FirstChild
-			continue
-		}
-		// Subtree finished: advance to the next sibling, climbing back
-		// toward the root as ancestors complete. Never ascend above doc.
-		for n != doc && n.NextSibling == nil {
-			n = n.Parent
-		}
-		if n == doc {
-			break
-		}
-		n = n.NextSibling
-	}
-	return strings.TrimSpace(sb.String())
 }

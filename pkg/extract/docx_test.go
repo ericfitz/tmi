@@ -2,6 +2,7 @@ package extract
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -90,7 +91,7 @@ func buildNumberingXML(mapping map[string]map[int]string) []byte {
 		b.WriteString(`<w:abstractNum w:abstractNumId="` + numID + `">`)
 		for ilvl, fmtName := range lvls {
 			b.WriteString(`<w:lvl w:ilvl="`)
-			b.WriteString(itoa(ilvl))
+			b.WriteString(strconv.Itoa(ilvl))
 			b.WriteString(`"><w:numFmt w:val="` + fmtName + `"/></w:lvl>`)
 		}
 		b.WriteString(`</w:abstractNum>`)

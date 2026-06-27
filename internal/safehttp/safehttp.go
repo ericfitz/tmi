@@ -42,6 +42,11 @@ func (defaultResolver) LookupHost(ctx context.Context, host string) ([]string, e
 	return net.DefaultResolver.LookupHost(ctx, host)
 }
 
+// DefaultResolver is the shared system-DNS HostResolver. Consumers above this
+// package (api/, auth/) reuse it instead of defining their own copy.
+// SEM@e55d63794c48585aafab36880122df63ab8ab1be: shared system-DNS HostResolver value reused by api and auth (pure)
+var DefaultResolver HostResolver = defaultResolver{}
+
 // CheckIP returns a non-nil error when ip falls in a range that
 // server-originated outbound HTTP must never reach: loopback, RFC1918 private
 // space, the cloud-metadata endpoint (169.254.169.254), or any other
@@ -100,7 +105,7 @@ type PinningDialer struct {
 // SEM@e55d63794c48585aafab36880122df63ab8ab1be: build a PinningDialer with configurable resolver, allow-list bypass, and dial timeout (pure)
 func NewPinningDialer(resolver HostResolver, allowHost func(host string) bool, dialTimeout time.Duration) *PinningDialer {
 	if resolver == nil {
-		resolver = defaultResolver{}
+		resolver = DefaultResolver
 	}
 	if dialTimeout <= 0 {
 		dialTimeout = 10 * time.Second
