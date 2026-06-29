@@ -175,4 +175,25 @@ func TestDeleteAndSaveEntityMetadata(t *testing.T) {
 		assert.Len(t, loaded, 1)
 		assert.Equal(t, "staging", loaded[0].Value)
 	})
+
+	// Regression (#502): the map-based WHERE must emit an explicit predicate for
+	// empty entity identifiers (matching nothing) rather than dropping it. A
+	// dropped predicate on DELETE would wipe every entity's metadata.
+	t.Run("empty entity identifiers delete nothing", func(t *testing.T) {
+		db := setupTestDB(t)
+
+		err := saveEntityMetadata(db, "asset", "abc", []Metadata{{Key: "env", Value: "prod"}})
+		require.NoError(t, err)
+		err = saveEntityMetadata(db, "asset", "xyz", []Metadata{{Key: "env", Value: "staging"}})
+		require.NoError(t, err)
+
+		// Passing empty type/id must not delete the (already empty) match set,
+		// and crucially must not delete unrelated rows.
+		err = deleteAndSaveEntityMetadata(db, "", "", []Metadata{})
+		require.NoError(t, err)
+
+		var count int64
+		require.NoError(t, db.Model(&models.Metadata{}).Count(&count).Error)
+		assert.Equal(t, int64(2), count, "empty identifiers must not delete unrelated metadata")
+	})
 }

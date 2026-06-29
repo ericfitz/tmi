@@ -84,6 +84,15 @@ func resolveGroupUUID(tx *gorm.DB, groupName string, idp *string) (string, error
 		provider = *idp
 	}
 
+	// Guard against an empty group name: the struct-based query below omits
+	// zero-value fields, so an empty groupName would silently drop the
+	// group_name predicate and match the first group for this provider. Reject
+	// it as not-found instead (matches the old positional "group_name = ''"
+	// semantics, which matched nothing). (#502)
+	if groupName == "" {
+		return "", fmt.Errorf("%s@%s: %w", groupName, provider, ErrGroupNotFound)
+	}
+
 	var group models.Group
 	result := tx.Where(&models.Group{Provider: models.DBVarchar(provider), GroupName: models.DBVarchar(groupName)}).First(&group)
 	if result.Error != nil {

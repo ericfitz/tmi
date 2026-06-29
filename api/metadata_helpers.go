@@ -14,9 +14,18 @@ import (
 // SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch all metadata entries for an entity type and ID, ordered by key (reads DB)
 func loadEntityMetadata(db *gorm.DB, entityType, entityID string) ([]Metadata, error) {
 	var metadataEntries []models.Metadata
+	// Use a map-based WHERE keyed by ColumnName() so the Oracle GORM driver
+	// receives uppercase column identifiers (a positional "entity_type = ?"
+	// clause is not Oracle-safe). A map predicate, unlike a struct query, does
+	// not omit zero-value fields, so an empty entityType/entityID still emits an
+	// explicit predicate that matches nothing rather than being silently dropped.
+	dialect := db.Name()
 	result := db.
-		Where("entity_type = ? AND entity_id = ?", entityType, entityID).
-		Order("key ASC").
+		Where(map[string]any{
+			ColumnName(dialect, "entity_type"): entityType,
+			ColumnName(dialect, "entity_id"):   entityID,
+		}).
+		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{OrderByCol(dialect, "key", false)}}).
 		Find(&metadataEntries)
 
 	if result.Error != nil {
@@ -82,9 +91,16 @@ func saveEntityMetadata(db *gorm.DB, entityType, entityID string, metadata []Met
 // The db parameter can be s.db.WithContext(ctx) or a transaction.
 // SEM@22b222cb8680df2700e22f0e8538874669789920: atomically replace all metadata for an entity by deleting then reinserting (reads DB)
 func deleteAndSaveEntityMetadata(db *gorm.DB, entityType, entityID string, metadata []Metadata) error {
-	// Delete existing metadata
+	// Delete existing metadata. Use a map-based WHERE keyed by ColumnName() for
+	// Oracle-safe column casing. A map predicate never omits zero-value fields,
+	// so an empty entityType/entityID emits an explicit predicate matching
+	// nothing rather than being dropped (which on DELETE would wipe the table).
+	dialect := db.Name()
 	if err := db.
-		Where("entity_type = ? AND entity_id = ?", entityType, entityID).
+		Where(map[string]any{
+			ColumnName(dialect, "entity_type"): entityType,
+			ColumnName(dialect, "entity_id"):   entityID,
+		}).
 		Delete(&models.Metadata{}).Error; err != nil {
 		return fmt.Errorf("failed to delete existing %s metadata: %w", entityType, err)
 	}
