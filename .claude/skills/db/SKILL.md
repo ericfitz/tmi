@@ -89,23 +89,25 @@ docker exec tmi-postgresql psql -U tmi_dev -d tmi_dev -c "SELECT * FROM table_na
 
 The database schema is managed by GORM `AutoMigrate()`, driven by the struct tags
 in `api/models/*.go` — there are no standalone SQL migration files. The schema is
-applied automatically on server startup (`make start-dev`). Legacy SQL migrations
+applied automatically on server startup (`make dev-up`). Legacy SQL migrations
 are archived under `docs/reference/legacy-migrations/` for historical reference only.
 
 ### Database Reset
 
-To reset the database (drop and recreate schema):
+To reset the local dev database (drop and recreate schema):
 
 ```bash
-make heroku-reset-db  # Works for local database too
+make reset-database  # Drop and recreate the local dev schema
 ```
+
+For the Heroku database, use `make reset-db-heroku` (DESTRUCTIVE).
 
 ### Clear generated test data from the dev database without
 
 To clear automatically generated test data out of the development postgresql database without dropping it and recreating it:
 
 ```bash
-make test-db-clean
+make test-db-cleanup
 ```
 
 ## TMI Database Schema
@@ -143,10 +145,10 @@ Key tables in the TMI database:
 
 If you encounter errors:
 
-1. **Container not running**: Start the database with `make start-database` or `make start-dev`
+1. **Container not running**: Start the database with `make start-database` or `make dev-up`
 2. **Connection refused**: Check if the container is healthy: `docker ps`
 3. **Authentication failed**: Verify credentials in `config-development.yml`
-4. **Database does not exist**: Run migrations with `make migrate`
+4. **Database does not exist**: Run migrations with `make migrate-database`
 
 ## Security Notes
 
@@ -196,6 +198,6 @@ When the user asks to:
 - **"Add/Create..."** - Use INSERT queries (but ask for confirmation first)
 - **"Update/Modify..."** - Use UPDATE queries (but ask for confirmation first)
 - **"Delete/Remove..."** - Use DELETE queries (but ALWAYS ask for confirmation first)
-- **"Reset/Clear..."** - Suggest using `make heroku-reset-db` or specific DELETE queries
+- **"Reset/Clear..."** - Suggest using `make reset-database` (local), `make test-db-cleanup` (clear test data only), or specific DELETE queries
 
 Always show the user the SQL query you're about to execute before running it, especially for INSERT, UPDATE, or DELETE operations.
