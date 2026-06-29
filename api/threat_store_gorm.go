@@ -163,7 +163,7 @@ func (s *GormThreatRepository) Get(ctx context.Context, id string) (*Threat, err
 }
 
 // Update updates an existing threat with write-through caching using GORM
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: persist all threat fields to DB and update the cache entry (reads DB)
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: store updated threat fields and metadata, then refresh the cache (reads DB)
 func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Updating threat: %s", threat.Id)
@@ -825,7 +825,7 @@ func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat)
 }
 
 // BulkUpdate updates multiple threats in a single transaction using GORM
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: update multiple threats in a single transaction and invalidate related caches (reads DB)
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: atomically update multiple threats and their metadata in one transaction (reads DB)
 func (s *GormThreatRepository) BulkUpdate(ctx context.Context, threats []Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk updating %d threats", len(threats))
@@ -920,7 +920,7 @@ func (s *GormThreatRepository) loadMetadata(ctx context.Context, threatID string
 }
 
 // saveMetadata saves metadata for a threat using GORM
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: replace all metadata for a threat outside a transaction (reads DB)
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: replace all threat metadata via a context-scoped DB handle (reads DB)
 func (s *GormThreatRepository) saveMetadata(ctx context.Context, threatID string, metadata []Metadata) error {
 	return s.saveMetadataTx(s.db.WithContext(ctx), threatID, metadata)
 }
@@ -928,7 +928,7 @@ func (s *GormThreatRepository) saveMetadata(ctx context.Context, threatID string
 // saveMetadataTx replaces all metadata for a threat within a transaction by
 // delegating to the shared delete-then-upsert helper. An empty/nil slice clears
 // the threat's existing metadata (the delete runs unconditionally).
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: replace all metadata for a threat within a transaction (reads DB)
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: replace all metadata for a threat within a transaction (reads DB)
 func (s *GormThreatRepository) saveMetadataTx(tx *gorm.DB, threatID string, metadata []Metadata) error {
 	return deleteAndSaveEntityMetadata(tx, "threat", threatID, metadata)
 }

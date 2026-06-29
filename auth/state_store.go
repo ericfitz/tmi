@@ -144,7 +144,7 @@ func (s *InMemoryStateStore) DeleteState(ctx context.Context, state string) erro
 }
 
 // cleanupExpired removes expired states periodically
-// SEM@2fbab585a899780eb5d718ec784b7c730c732113: periodically purge expired state entries from the in-memory store (mutates shared state)
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: periodically delete expired OAuth state entries from the in-memory store (mutates shared state)
 func (s *InMemoryStateStore) cleanupExpired() {
 	periodic.RunCleanup(s.cleanup, s.done, func() {
 		s.mu.Lock()

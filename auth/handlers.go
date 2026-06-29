@@ -41,7 +41,7 @@ const tmiProviderID = wwwauth.Realm
 // The header value is built by the shared internal/wwwauth package so the RFC
 // 6750 format lives in one place (the auth package must not import api, hence
 // the shared internal package).
-// SEM@212287c6c02d99be7f8071b21a50666223646bec: set RFC 6750 Bearer WWW-Authenticate response header with error details
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: set the WWW-Authenticate response header for a given error type (pure)
 func setWWWAuthenticateHeader(c *gin.Context, errType, description string) {
 	c.Header("WWW-Authenticate", wwwauth.BuildHeader(errType, description))
 }

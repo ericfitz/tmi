@@ -111,7 +111,7 @@ func (h *chunkEmbedHandler) Handle(ctx context.Context, job jobenvelope.Job) err
 }
 
 // publishFailure publishes a failed result and returns a terminal JobError.
-// SEM@ef969bb79ad525fa5038847af0fb0be1038ae961: publish a terminal job failure result to NATS and return a terminal JobError (mutates shared state)
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: publish a job failure result with the given reason code and detail
 func (h *chunkEmbedHandler) publishFailure(ctx context.Context, job jobenvelope.Job,
 	reasonCode, detail string) error {
 	return h.conn.PublishFailureResult(ctx, job.JobID, reasonCode, detail)

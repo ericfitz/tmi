@@ -154,7 +154,7 @@ func (p *PollingNotifier) processNewNotifications() {
 }
 
 // handleNotification distributes a notification to subscribers
-// SEM@23998f331524274d028e5ec84e6d6b7d29d4e332: dispatch a single notification entry to all registered channel subscribers (mutates shared state)
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: dispatch a polled notification queue entry to all channel subscribers (mutates shared state)
 func (p *PollingNotifier) handleNotification(entry NotificationQueueEntry) {
 	p.mu.RLock()
 	subscribers, exists := p.channels[string(entry.Channel)]

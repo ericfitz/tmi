@@ -126,7 +126,7 @@ func (c *QuotaCache) InvalidateAll() {
 }
 
 // cleanupExpired removes expired entries from cache
-// SEM@f5e41f0bdd3e5075ef62036d28d486bd0ef0286b: periodically evict expired quota entries from cache on a ticker (mutates shared state)
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: periodically delete expired quota cache entries for users and webhooks (mutates shared state)
 func (c *QuotaCache) cleanupExpired() {
 	periodic.RunCleanup(c.cleanupTicker, c.stopCleanup, func() {
 		now := time.Now()

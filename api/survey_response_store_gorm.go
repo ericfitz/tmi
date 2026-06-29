@@ -636,7 +636,7 @@ func (s *GormSurveyResponseStore) GetAuthorization(ctx context.Context, id uuid.
 }
 
 // UpdateAuthorization updates authorization entries for a response
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: replace the full authorization list for a survey response under a row lock (mutates DB)
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: replace all survey response authorization entries within a locked transaction (reads DB)
 func (s *GormSurveyResponseStore) UpdateAuthorization(ctx context.Context, id uuid.UUID, authorization []Authorization) error {
 	logger := slogging.Get()
 

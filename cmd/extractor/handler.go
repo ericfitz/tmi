@@ -136,7 +136,7 @@ func (h *extractHandler) extract(ctx context.Context, ext extract.ContentExtract
 
 // publishFailure classifies the error, publishes a failed Result envelope,
 // and returns a terminal *worker.JobError so the message is terminated.
-// SEM@36720db6f1f6739799ded7c10487674e25b41268: publish a terminal extraction failure result envelope and return a terminal job error
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: classify an extraction error and publish a job failure result
 func (h *extractHandler) publishFailure(ctx context.Context, job jobenvelope.Job, extractErr error) error {
 	c := extract.ClassifyError(extractErr)
 	return h.conn.PublishFailureResult(ctx, job.JobID, c.ReasonCode, c.ReasonDetail)

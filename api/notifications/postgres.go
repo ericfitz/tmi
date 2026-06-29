@@ -114,7 +114,7 @@ func (p *PostgresNotifier) listenLoop() {
 }
 
 // handleNotification distributes a notification to subscribers
-// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: fan out a received PostgreSQL notification to all channel subscribers (mutates shared state)
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: dispatch a Postgres LISTEN notification to all channel subscribers (mutates shared state)
 func (p *PostgresNotifier) handleNotification(n *pq.Notification) {
 	p.mu.RLock()
 	subscribers, exists := p.channels[n.Channel]

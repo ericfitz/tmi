@@ -1352,7 +1352,7 @@ func (s *GormThreatModelStore) loadDiagramsDynamically(threatModelID string) (*[
 }
 
 // saveAuthorizationTx saves authorization entries within a transaction using GORM
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: insert authorization entries for a threat model within an existing transaction (reads DB)
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: store authorization entries for a threat model, resolving principals to UUIDs (reads DB)
 func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID string, authorization []Authorization) error {
 	logger := slogging.Get()
 	logger.Debug("[GORM-STORE] saveAuthorizationTx: Called with %d entries for threat model %s", len(authorization), threatModelID)
