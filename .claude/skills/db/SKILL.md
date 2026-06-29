@@ -102,13 +102,20 @@ make reset-database  # Drop and recreate the local dev schema
 
 For the Heroku database, use `make reset-db-heroku` (DESTRUCTIVE).
 
-### Clear generated test data from the dev database without
+### Clear Generated Test Data (without dropping the database)
 
-To clear automatically generated test data out of the development postgresql database without dropping it and recreating it:
+To clear automatically generated test data (test users with `@tmi.local`
+emails, test groups, and CATS-seeded artifacts) out of the development database
+without dropping and recreating it:
 
 ```bash
 make test-db-cleanup
 ```
+
+Note: this runs `scripts/delete-test-users.py`, which deletes via the admin API
+(not direct SQL), so the **TMI server must be running** and the
+`charlie@tmi.local` admin account must exist. It cascades related data and
+preserves `charlie@tmi.local`.
 
 ## TMI Database Schema
 
@@ -145,7 +152,7 @@ Key tables in the TMI database:
 
 If you encounter errors:
 
-1. **Container not running**: Start the database with `make start-database` or `make dev-up`
+1. **Container not running**: Start just the database container with `make start-database` (this is all the psql commands above need). `make dev-up` also starts it, but additionally brings up the full kind dev environment (cluster + server + Redis) — use that only if you want the whole stack.
 2. **Connection refused**: Check if the container is healthy: `docker ps`
 3. **Authentication failed**: Verify credentials in `config-development.yml`
 4. **Database does not exist**: Run migrations with `make migrate-database`
@@ -162,9 +169,10 @@ If you encounter errors:
 
 ```bash
 docker exec tmi-postgresql psql -U tmi_dev -d tmi_dev -c "
-SELECT id, name, owner, created_at
-FROM threat_models
-ORDER BY created_at DESC
+SELECT tm.id, tm.name, u.email AS owner, tm.created_at
+FROM threat_models tm
+JOIN users u ON u.internal_uuid = tm.owner_internal_uuid
+ORDER BY tm.created_at DESC
 LIMIT 5;
 "
 ```
@@ -180,15 +188,22 @@ WHERE a.type = 'software';
 "
 ```
 
-### Check migration status
+### Check applied schema version
+
+The schema is managed by GORM `AutoMigrate()` (see "Schema Migrations" above),
+so there is no per-migration history table. The current schema state is recorded
+as a single-row fingerprint stamp in `tmi_schema_versions` (`id`, a SHA-256
+`fingerprint` of the GORM model set, and `applied_at`):
 
 ```bash
 docker exec tmi-postgresql psql -U tmi_dev -d tmi_dev -c "
-SELECT version, applied_at
-FROM schema_migrations
-ORDER BY version;
+SELECT id, fingerprint, applied_at
+FROM tmi_schema_versions;
 "
 ```
+
+(The `schema_migrations` table, columns `version`/`dirty`, is a vestigial
+golang-migrate artifact and is not used by GORM AutoMigrate.)
 
 ## Integration with Claude Code
 
