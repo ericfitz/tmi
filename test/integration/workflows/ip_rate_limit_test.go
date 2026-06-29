@@ -10,7 +10,7 @@ import (
 
 // TestIPRateLimiting_PublicEndpoints verifies IP-based rate limiting
 // on public discovery endpoints (Tier 1).
-// Requires: running TMI server + Redis (via make start-dev) AND rate
+// Requires: running TMI server + Redis (via make dev-up) AND rate
 // limiting enabled at the server. The dev server is commonly started with
 // disable_rate_limiting: true, and the IP limiter additionally bypasses
 // loopback addresses (so localhost-originating requests never count). In

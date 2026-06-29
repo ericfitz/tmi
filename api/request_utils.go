@@ -10,6 +10,7 @@ import (
 
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/wwwauth"
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,7 +21,7 @@ const (
 
 // WWWAuthenticateRealm identifies the protection space for Bearer token authentication.
 // This is a static value for TMI's API - all protected endpoints share the same realm.
-const WWWAuthenticateRealm = "tmi"
+const WWWAuthenticateRealm = wwwauth.Realm
 
 // WWWAuthenticateError represents error types per RFC 6750 section 3.1
 // SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: string type enumerating RFC 6750 WWW-Authenticate error codes (pure)
@@ -28,15 +29,16 @@ type WWWAuthenticateError string
 
 const (
 	// WWWAuthInvalidRequest indicates the request is malformed or missing parameters
-	WWWAuthInvalidRequest WWWAuthenticateError = "invalid_request"
+	WWWAuthInvalidRequest WWWAuthenticateError = wwwauth.ErrInvalidRequest
 	// WWWAuthInvalidToken indicates the token is expired, revoked, or malformed
-	WWWAuthInvalidToken WWWAuthenticateError = "invalid_token"
+	WWWAuthInvalidToken WWWAuthenticateError = wwwauth.ErrInvalidToken
 	// WWWAuthInsufficientScope indicates the request requires higher privileges
-	WWWAuthInsufficientScope WWWAuthenticateError = "insufficient_scope"
+	WWWAuthInsufficientScope WWWAuthenticateError = wwwauth.ErrInsufficientScope
 )
 
 // SetWWWAuthenticateHeader sets a RFC 6750 compliant WWW-Authenticate header.
-// Per RFC 6750 section 3, the header includes realm and optionally error/error_description.
+// The header value is built by the shared internal/wwwauth package so the RFC
+// 6750 format lives in one place.
 //
 // Parameters:
 //   - c: Gin context
@@ -45,20 +47,7 @@ const (
 //
 // SEM@212287c6c02d99be7f8071b21a50666223646bec: set a RFC 6750 Bearer WWW-Authenticate header on the response (pure)
 func SetWWWAuthenticateHeader(c *gin.Context, errType WWWAuthenticateError, description string) {
-	// Start with realm (always included per best practice)
-	header := fmt.Sprintf(`Bearer realm="%s"`, WWWAuthenticateRealm)
-
-	// Add error and error_description if provided
-	if errType != "" {
-		header += fmt.Sprintf(`, error="%s"`, errType)
-		if description != "" {
-			// Escape quotes in description per RFC 6750 auth-param ABNF
-			escapedDesc := strings.ReplaceAll(description, `"`, `\"`)
-			header += fmt.Sprintf(`, error_description="%s"`, escapedDesc)
-		}
-	}
-
-	c.Header("WWW-Authenticate", header)
+	c.Header("WWW-Authenticate", wwwauth.BuildHeader(string(errType), description))
 }
 
 // sanitizeErrorMessage removes control characters (0x00-0x1F) from error messages

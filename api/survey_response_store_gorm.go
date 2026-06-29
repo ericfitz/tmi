@@ -671,7 +671,7 @@ func (s *GormSurveyResponseStore) UpdateAuthorization(ctx context.Context, id uu
 				}
 				access.UserInternalUUID = models.NewNullableDBVarchar(&userUUID)
 			case AuthorizationPrincipalTypeGroup:
-				groupUUID, err := s.resolveGroupToUUID(tx, auth.ProviderId, &auth.Provider)
+				groupUUID, err := resolveGroupUUID(tx, auth.ProviderId, &auth.Provider)
 				if err != nil {
 					return err
 				}
@@ -834,25 +834,6 @@ func (s *GormSurveyResponseStore) resolveUserToUUID(tx *gorm.DB, providerUserID,
 		return "", dberrors.Classify(result.Error)
 	}
 	return string(user.InternalUUID), nil
-}
-
-// resolveGroupToUUID resolves a group identifier to internal UUID
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: resolve a group name and provider to its internal UUID (reads DB)
-func (s *GormSurveyResponseStore) resolveGroupToUUID(tx *gorm.DB, groupName string, provider *string) (string, error) {
-	p := BuiltInProvider
-	if provider != nil && *provider != "" {
-		p = *provider
-	}
-
-	var group models.Group
-	result := tx.Where("provider = ? AND group_name = ?", p, groupName).First(&group)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return "", fmt.Errorf("%s@%s: %w", groupName, p, ErrGroupNotFound)
-		}
-		return "", dberrors.Classify(result.Error)
-	}
-	return string(group.InternalUUID), nil
 }
 
 // apiToModel converts an API SurveyResponse to a database model

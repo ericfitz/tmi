@@ -2,9 +2,8 @@ package auth
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
+	"github.com/ericfitz/tmi/internal/wwwauth"
 	"github.com/gin-gonic/gin"
 )
 
@@ -35,25 +34,16 @@ const (
 	UserContextKey contextKey = "user"
 )
 
-// wwwAuthenticateRealm identifies the protection space for Bearer token authentication.
-const wwwAuthenticateRealm = "tmi"
-
 // tmiProviderID is the identifier for the built-in TMI OAuth provider
-const tmiProviderID = wwwAuthenticateRealm
+const tmiProviderID = wwwauth.Realm
 
 // setWWWAuthenticateHeader sets a RFC 6750 compliant WWW-Authenticate header.
-// This is a package-local helper to avoid circular dependencies with the api package.
+// The header value is built by the shared internal/wwwauth package so the RFC
+// 6750 format lives in one place (the auth package must not import api, hence
+// the shared internal package).
 // SEM@212287c6c02d99be7f8071b21a50666223646bec: set RFC 6750 Bearer WWW-Authenticate response header with error details
 func setWWWAuthenticateHeader(c *gin.Context, errType, description string) {
-	header := fmt.Sprintf(`Bearer realm="%s"`, wwwAuthenticateRealm)
-	if errType != "" {
-		header += fmt.Sprintf(`, error="%s"`, errType)
-		if description != "" {
-			escapedDesc := strings.ReplaceAll(description, `"`, `\"`)
-			header += fmt.Sprintf(`, error_description="%s"`, escapedDesc)
-		}
-	}
-	c.Header("WWW-Authenticate", header)
+	c.Header("WWW-Authenticate", wwwauth.BuildHeader(errType, description))
 }
 
 // AdminChecker is an interface for checking if a user is an administrator or security reviewer

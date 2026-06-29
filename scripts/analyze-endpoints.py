@@ -410,28 +410,6 @@ class EndpointAnalyzer:
 
         return matches
 
-    def _find_threat_model_endpoints(
-        self, method: str, resource: str
-    ) -> List[Tuple[str, str]]:
-        """Find threat model related endpoints"""
-        resource_lower = resource.lower()
-        potential_methods = []
-
-        if "diagram" in resource_lower:
-            potential_methods.append((method, "diagrams"))
-        elif "document" in resource_lower:
-            potential_methods.append((method, "documents"))
-        elif "source" in resource_lower:
-            potential_methods.append((method, "sources"))
-        elif "threat" in resource_lower and "model" not in resource_lower:
-            potential_methods.append((method, "threats"))
-        elif "metadata" in resource_lower:
-            potential_methods.append((method, "metadata"))
-        else:
-            potential_methods.append((method, resource_lower))
-
-        return potential_methods
-
     def analyze_middleware_stack(self):
         """Analyze middleware applied to endpoints"""
         # Global middleware (applied to all endpoints)

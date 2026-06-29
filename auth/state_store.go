@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/ericfitz/tmi/internal/periodic"
 )
 
 // StateStore is an interface for storing and retrieving state information
@@ -144,22 +146,16 @@ func (s *InMemoryStateStore) DeleteState(ctx context.Context, state string) erro
 // cleanupExpired removes expired states periodically
 // SEM@2fbab585a899780eb5d718ec784b7c730c732113: periodically purge expired state entries from the in-memory store (mutates shared state)
 func (s *InMemoryStateStore) cleanupExpired() {
-	for {
-		select {
-		case <-s.cleanup.C:
-			s.mu.Lock()
-			now := time.Now()
-			for state, entry := range s.states {
-				if now.After(entry.ExpiresAt) {
-					delete(s.states, state)
-				}
+	periodic.RunCleanup(s.cleanup, s.done, func() {
+		s.mu.Lock()
+		now := time.Now()
+		for state, entry := range s.states {
+			if now.After(entry.ExpiresAt) {
+				delete(s.states, state)
 			}
-			s.mu.Unlock()
-		case <-s.done:
-			s.cleanup.Stop()
-			return
 		}
-	}
+		s.mu.Unlock()
+	})
 }
 
 // StorePKCEChallenge stores PKCE code challenge with associated method

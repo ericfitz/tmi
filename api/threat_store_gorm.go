@@ -15,7 +15,6 @@ import (
 	"github.com/ericfitz/tmi/internal/uuidgen"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // GormThreatRepository implements ThreatStore with GORM for database persistence and Redis caching
@@ -202,7 +201,11 @@ func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error
 	}
 
 	// Save metadata to separate table
-	if err := s.saveMetadata(ctx, threat.Id.String(), threat.Metadata); err != nil {
+	var threatMetadata []Metadata
+	if threat.Metadata != nil {
+		threatMetadata = *threat.Metadata
+	}
+	if err := s.saveMetadata(ctx, threat.Id.String(), threatMetadata); err != nil {
 		logger.Error("Failed to save metadata for threat %s: %v", threat.Id, err)
 	}
 
@@ -854,7 +857,11 @@ func (s *GormThreatRepository) BulkUpdate(ctx context.Context, threats []Threat)
 			}
 
 			// Save metadata
-			if err := s.saveMetadataTx(tx, threat.Id.String(), threat.Metadata); err != nil {
+			var threatMetadata []Metadata
+			if threat.Metadata != nil {
+				threatMetadata = *threat.Metadata
+			}
+			if err := s.saveMetadataTx(tx, threat.Id.String(), threatMetadata); err != nil {
 				logger.Error("Failed to save metadata for threat %s: %v", threat.Id, err)
 			}
 		}
@@ -914,53 +921,16 @@ func (s *GormThreatRepository) loadMetadata(ctx context.Context, threatID string
 
 // saveMetadata saves metadata for a threat using GORM
 // SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: replace all metadata for a threat outside a transaction (reads DB)
-func (s *GormThreatRepository) saveMetadata(ctx context.Context, threatID string, metadata *[]Metadata) error {
+func (s *GormThreatRepository) saveMetadata(ctx context.Context, threatID string, metadata []Metadata) error {
 	return s.saveMetadataTx(s.db.WithContext(ctx), threatID, metadata)
 }
 
-// saveMetadataTx saves metadata within a transaction
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: delete and re-insert all metadata for a threat within a given transaction (reads DB)
-func (s *GormThreatRepository) saveMetadataTx(tx *gorm.DB, threatID string, metadata *[]Metadata) error {
-	logger := slogging.Get()
-
-	// Delete existing metadata
-	if err := tx.Where("entity_type = ? AND entity_id = ?", "threat", threatID).Delete(&models.Metadata{}).Error; err != nil {
-		logger.Error("Failed to delete existing metadata for threat %s: %v", threatID, err)
-		return fmt.Errorf("failed to delete existing metadata: %w", err)
-	}
-
-	// Insert new metadata if present
-	if metadata != nil && len(*metadata) > 0 {
-		for _, m := range *metadata {
-			entry := models.Metadata{
-				ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
-				EntityType: "threat",
-				EntityID:   models.DBVarchar(threatID),
-				Key:        models.DBVarchar(m.Key),
-				Value:      models.DBVarchar(m.Value),
-			}
-
-			// Use Col()/ColumnName() so the Oracle GORM driver receives
-			// uppercase column identifiers when emitting MERGE INTO.
-			dialect := tx.Name()
-			if err := tx.Clauses(clause.OnConflict{
-				Columns: []clause.Column{
-					Col(dialect, "entity_type"),
-					Col(dialect, "entity_id"),
-					Col(dialect, "key"),
-				},
-				DoUpdates: clause.AssignmentColumns([]string{
-					ColumnName(dialect, "value"),
-					ColumnName(dialect, "modified_at"),
-				}),
-			}).Create(&entry).Error; err != nil {
-				logger.Error("Failed to insert metadata for threat %s (key: %s): %v", threatID, m.Key, err)
-				return fmt.Errorf("failed to insert metadata: %w", err)
-			}
-		}
-	}
-
-	return nil
+// saveMetadataTx replaces all metadata for a threat within a transaction by
+// delegating to the shared delete-then-upsert helper. An empty/nil slice clears
+// the threat's existing metadata (the delete runs unconditionally).
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: replace all metadata for a threat within a transaction (reads DB)
+func (s *GormThreatRepository) saveMetadataTx(tx *gorm.DB, threatID string, metadata []Metadata) error {
+	return deleteAndSaveEntityMetadata(tx, "threat", threatID, metadata)
 }
 
 // Helper functions

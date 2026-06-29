@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/ericfitz/tmi/internal/periodic"
 )
 
 // QuotaCache provides in-memory caching for quota lookups with TTL
@@ -126,32 +128,25 @@ func (c *QuotaCache) InvalidateAll() {
 // cleanupExpired removes expired entries from cache
 // SEM@f5e41f0bdd3e5075ef62036d28d486bd0ef0286b: periodically evict expired quota entries from cache on a ticker (mutates shared state)
 func (c *QuotaCache) cleanupExpired() {
-	for {
-		select {
-		case <-c.cleanupTicker.C:
-			now := time.Now()
-			c.mutex.Lock()
+	periodic.RunCleanup(c.cleanupTicker, c.stopCleanup, func() {
+		now := time.Now()
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
 
-			// Clean up user API quotas
-			for userID, cached := range c.userAPIQuotas {
-				if now.After(cached.expiresAt) {
-					delete(c.userAPIQuotas, userID)
-				}
+		// Clean up user API quotas
+		for userID, cached := range c.userAPIQuotas {
+			if now.After(cached.expiresAt) {
+				delete(c.userAPIQuotas, userID)
 			}
-
-			// Clean up webhook quotas
-			for userID, cached := range c.webhookQuotas {
-				if now.After(cached.expiresAt) {
-					delete(c.webhookQuotas, userID)
-				}
-			}
-
-			c.mutex.Unlock()
-
-		case <-c.stopCleanup:
-			return
 		}
-	}
+
+		// Clean up webhook quotas
+		for userID, cached := range c.webhookQuotas {
+			if now.After(cached.expiresAt) {
+				delete(c.webhookQuotas, userID)
+			}
+		}
+	})
 }
 
 // Stop stops the cleanup goroutine

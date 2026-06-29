@@ -98,7 +98,7 @@ Most build operations now use the refactored Makefile:
 ```bash
 make test-unit                 # Instead of old shell scripts
 make test-integration         # Replaces start-integration-tests.sh
-make start-dev                # Replaces start-dev.sh
+make dev-up                   # Replaces start-dev.sh (brings up the kind dev environment)
 ```
 
 ### For Development Analysis

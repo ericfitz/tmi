@@ -139,20 +139,7 @@ func (h *extractHandler) extract(ctx context.Context, ext extract.ContentExtract
 // SEM@36720db6f1f6739799ded7c10487674e25b41268: publish a terminal extraction failure result envelope and return a terminal job error
 func (h *extractHandler) publishFailure(ctx context.Context, job jobenvelope.Job, extractErr error) error {
 	c := extract.ClassifyError(extractErr)
-	res := jobenvelope.Result{
-		JobID:        job.JobID,
-		Status:       jobenvelope.StatusFailed,
-		ReasonCode:   c.ReasonCode,
-		ReasonDetail: c.ReasonDetail,
-	}
-	b, err := jsonMarshal(res, "result")
-	if err != nil {
-		return err
-	}
-	if err := h.conn.Publish(ctx, worker.ResultSubject(job.JobID), b); err != nil {
-		return err // transient publish failure -> redeliver and retry
-	}
-	return &worker.JobError{ReasonCode: c.ReasonCode, Detail: c.ReasonDetail, Terminal: true}
+	return h.conn.PublishFailureResult(ctx, job.JobID, c.ReasonCode, c.ReasonDetail)
 }
 
 // mergeMetadata folds the extractor's title into the forwarded metadata.

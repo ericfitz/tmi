@@ -487,18 +487,6 @@ def read_pid_file(path: str | Path) -> int | None:
         return None
 
 
-def write_pid_file(path: str | Path, pid: int) -> None:
-    """Write a PID to a file, creating parent directories as needed.
-
-    Args:
-        path: File path to write the PID to.
-        pid: Process ID to write.
-    """
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(str(pid))
-
-
 def ensure_oauth_stub(port: int = 8079) -> None:
     """Ensure the OAuth callback stub is running.
 

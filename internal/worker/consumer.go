@@ -30,6 +30,31 @@ func (e *JobError) Error() string {
 	return fmt.Sprintf("job error: reason=%s detail=%q terminal=%v", e.ReasonCode, e.Detail, e.Terminal)
 }
 
+// PublishFailureResult publishes a terminal "failed" Result envelope for the
+// given job and returns a terminal *JobError so the consumer terminates the
+// message. Handlers perform their own error classification to derive
+// reasonCode/detail, then call this shared helper for the common
+// build-Result -> marshal -> publish -> return-terminal-JobError core.
+// A marshal or publish failure is returned as-is (the latter is transient and
+// triggers redelivery).
+// SEM@ef969bb79ad525fa5038847af0fb0be1038ae961: publish a terminal job failure result envelope and return a terminal job error (mutates shared state)
+func (c *Conn) PublishFailureResult(ctx context.Context, jobID, reasonCode, detail string) error {
+	res := jobenvelope.Result{
+		JobID:        jobID,
+		Status:       jobenvelope.StatusFailed,
+		ReasonCode:   reasonCode,
+		ReasonDetail: detail,
+	}
+	b, err := json.Marshal(res)
+	if err != nil {
+		return fmt.Errorf("worker: marshal result for job %s: %w", jobID, err)
+	}
+	if err := c.Publish(ctx, ResultSubject(jobID), b); err != nil {
+		return err // transient publish failure -> redeliver and retry
+	}
+	return &JobError{ReasonCode: reasonCode, Detail: detail, Terminal: true}
+}
+
 // outcome is the consumer's per-message decision.
 // SEM@3b4afc57df700de14d06ec4e93a7038dcf52b9d2: enumerated ack/nak/term disposition for a consumed JetStream message (pure)
 type outcome int

@@ -119,11 +119,6 @@ def print_warning(msg: str) -> None:
     print(f"{YELLOW}{msg}{NC}")
 
 
-def print_info(msg: str) -> None:
-    """Print info message in cyan."""
-    print(f"{CYAN}{msg}{NC}")
-
-
 def check_server_running() -> bool:
     """Check if TMI server is running."""
     try:

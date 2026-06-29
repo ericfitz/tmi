@@ -8,7 +8,7 @@ OpenAPI-driven integration test framework for testing TMI REST API workflows fro
 
 ```bash
 # 1. Start development server
-make start-dev
+make dev-up
 
 # 2. Start OAuth stub (in separate terminal)
 make start-oauth-stub
@@ -242,7 +242,7 @@ Solution: make start-oauth-stub
 ### Server not running
 ```
 Error: connection refused
-Solution: make start-dev
+Solution: make dev-up
 ```
 
 ### OpenAPI validation errors

@@ -70,22 +70,27 @@ func (s *GormThreatModelStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifi
 	return "", ErrUserNotFound
 }
 
-// resolveGroupToUUID attempts to resolve a group identifier to an internal_uuid using GORM
+// resolveGroupUUID resolves a (group name, provider) pair to a group's
+// internal_uuid. It uses a struct-based GORM query so column identifiers are
+// emitted in a cross-database-compatible form: the Oracle GORM driver requires
+// quoted lowercase column names, and a positional "provider = ? AND group_name
+// = ?" clause is NOT Oracle-safe. Not-found is reported as a wrapped
+// ErrGroupNotFound (carrying group@provider context and unwrapping via
+// errors.Is); any other DB error is classified via dberrors.Classify.
 // SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: resolve a group name and provider to an internal UUID (reads DB)
-func (s *GormThreatModelStore) resolveGroupToUUID(tx *gorm.DB, groupName string, idp *string) (string, error) {
+func resolveGroupUUID(tx *gorm.DB, groupName string, idp *string) (string, error) {
 	provider := BuiltInProvider
 	if idp != nil && *idp != "" {
 		provider = *idp
 	}
 
 	var group models.Group
-	// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	result := tx.Where(&models.Group{Provider: models.DBVarchar(provider), GroupName: models.DBVarchar(groupName)}).First(&group)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return "", ErrGroupNotFound
+			return "", fmt.Errorf("%s@%s: %w", groupName, provider, ErrGroupNotFound)
 		}
-		return "", result.Error
+		return "", dberrors.Classify(result.Error)
 	}
 
 	return string(group.InternalUUID), nil
@@ -1383,7 +1388,7 @@ func (s *GormThreatModelStore) saveAuthorizationTx(tx *gorm.DB, threatModelID st
 				everyoneUUID := EveryonePseudoGroupUUID
 				groupUUID = &everyoneUUID
 			} else {
-				resolvedUUID, err := s.resolveGroupToUUID(tx, auth.ProviderId, &auth.Provider)
+				resolvedUUID, err := resolveGroupUUID(tx, auth.ProviderId, &auth.Provider)
 				if err != nil {
 					logger.Debug("Could not resolve group identifier %s to internal_uuid: %v", auth.ProviderId, err)
 					newGroupUUID, err := s.ensureGroupExists(tx, auth.ProviderId, &auth.Provider)

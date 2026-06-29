@@ -131,15 +131,7 @@ func (p *PostgresNotifier) handleNotification(n *pq.Notification) {
 		Timestamp: time.Now().UTC(),
 	}
 
-	// Send to all subscribers
-	for _, ch := range subscribers {
-		select {
-		case ch <- notification:
-			p.logger.Debug("Sent notification to subscriber on channel %s", n.Channel)
-		default:
-			p.logger.Warn("Subscriber channel full, dropping notification on %s", n.Channel)
-		}
-	}
+	dispatchToSubscribers(subscribers, notification, n.Channel, p.logger)
 }
 
 // Subscribe implements NotificationService.Subscribe

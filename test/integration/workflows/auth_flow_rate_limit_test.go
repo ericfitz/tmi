@@ -10,7 +10,7 @@ import (
 
 // TestAuthFlowRateLimiting_MultiScope verifies multi-scope rate limiting
 // on OAuth/SAML auth flow endpoints (Tier 2).
-// Requires: running TMI server + Redis (via make start-dev) AND
+// Requires: running TMI server + Redis (via make dev-up) AND
 // rate limiting enabled at the server. The dev server is commonly started
 // with disable_rate_limiting: true, in which case this test skips —
 // auth_flow_rate_limiter unit tests in api/ cover the limiter itself.

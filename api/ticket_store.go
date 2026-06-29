@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/ericfitz/tmi/internal/periodic"
 )
 
 // TicketStore manages short-lived, single-use WebSocket authentication tickets.
@@ -94,22 +96,16 @@ func (s *InMemoryTicketStore) ValidateTicket(_ context.Context, ticket string) (
 
 // SEM@c20da21da7db5dfa407cb89aae96e43a1e972644: periodically purge expired ticket entries from the in-memory store (mutates shared state)
 func (s *InMemoryTicketStore) cleanupExpired() {
-	for {
-		select {
-		case <-s.cleanup.C:
-			s.mu.Lock()
-			now := time.Now()
-			for ticket, entry := range s.tickets {
-				if now.After(entry.ExpiresAt) {
-					delete(s.tickets, ticket)
-				}
+	periodic.RunCleanup(s.cleanup, s.done, func() {
+		s.mu.Lock()
+		now := time.Now()
+		for ticket, entry := range s.tickets {
+			if now.After(entry.ExpiresAt) {
+				delete(s.tickets, ticket)
 			}
-			s.mu.Unlock()
-		case <-s.done:
-			s.cleanup.Stop()
-			return
 		}
-	}
+		s.mu.Unlock()
+	})
 }
 
 // Close stops the cleanup goroutine.

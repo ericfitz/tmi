@@ -25,7 +25,7 @@ import (
 //
 // Requires:
 //   - INTEGRATION_TESTS=true
-//   - TMI server running (make start-dev)
+//   - TMI server running (make dev-up)
 //   - OAuth stub running (make start-oauth-stub)
 func TestStepUpEndpoint_StrongProvider_Returns302WithPromptLogin(t *testing.T) {
 	if os.Getenv("INTEGRATION_TESTS") != "true" {

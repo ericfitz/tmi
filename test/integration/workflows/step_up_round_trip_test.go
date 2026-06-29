@@ -16,7 +16,7 @@ package workflows
 //
 // Requires:
 //   - INTEGRATION_TESTS=true
-//   - TMI server running (make start-dev)
+//   - TMI server running (make dev-up)
 //   - OAuth stub running (make start-oauth-stub)
 //   - Redis reachable at localhost:6379
 

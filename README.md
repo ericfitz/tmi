@@ -31,10 +31,10 @@ For detailed setup instructions, see [Development Setup Guide](https://github.co
 ```bash
 git clone https://github.com/ericfitz/tmi.git
 cd tmi
-make start-dev
+make dev-up
 ```
 
-The complete development environment (server + database + Redis) will start automatically on port 8080.
+The complete development environment (a local kind cluster running the server, plus database and Redis) will start automatically, with the server reachable on port 8080.
 
 ## Project Structure
 
@@ -98,7 +98,9 @@ See **[TMI Wiki](https://github.com/ericfitz/tmi/wiki)** for the complete docume
 ## Development Commands
 
 ```bash
-make start-dev          # Start complete dev environment
+make dev-up             # Start complete dev environment (kind cluster)
+make dev-status         # Show dev environment status
+make dev-down           # Tear down dev environment (keep db data)
 make build-server       # Build production binary
 make test-unit                # Run unit tests
 make test-integration-new     # Run integration tests (server must be running)

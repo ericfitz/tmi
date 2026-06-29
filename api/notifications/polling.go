@@ -171,15 +171,7 @@ func (p *PollingNotifier) handleNotification(entry NotificationQueueEntry) {
 		Timestamp: entry.CreatedAt,
 	}
 
-	// Send to all subscribers
-	for _, ch := range subscribers {
-		select {
-		case ch <- notification:
-			p.logger.Debug("Sent notification to subscriber on channel %s", entry.Channel)
-		default:
-			p.logger.Warn("Subscriber channel full, dropping notification on %s", entry.Channel)
-		}
-	}
+	dispatchToSubscribers(subscribers, notification, string(entry.Channel), p.logger)
 }
 
 // cleanupOldNotifications removes processed notifications older than 1 hour

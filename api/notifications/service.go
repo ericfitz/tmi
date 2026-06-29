@@ -5,6 +5,8 @@ package notifications
 import (
 	"context"
 	"time"
+
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // Notification represents a database notification event
@@ -37,6 +39,23 @@ type NotificationService interface {
 
 	// Close cleans up resources used by the notification service
 	Close() error
+}
+
+// dispatchToSubscribers performs a non-blocking fan-out of a notification to
+// every subscriber channel. A subscriber whose buffer is full has the
+// notification dropped (with a warning) rather than blocking the dispatcher.
+// The channel name is used only for log context. Each notifier builds the
+// Notification from its own input type and then calls this shared helper.
+// SEM@23998f331524274d028e5ec84e6d6b7d29d4e332: non-blocking fan-out of a notification to all subscriber channels (mutates shared state)
+func dispatchToSubscribers(subscribers []chan Notification, notification Notification, channel string, logger *slogging.Logger) {
+	for _, ch := range subscribers {
+		select {
+		case ch <- notification:
+			logger.Debug("Sent notification to subscriber on channel %s", channel)
+		default:
+			logger.Warn("Subscriber channel full, dropping notification on %s", channel)
+		}
+	}
 }
 
 // Config holds configuration for the notification service

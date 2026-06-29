@@ -114,18 +114,5 @@ func (h *chunkEmbedHandler) Handle(ctx context.Context, job jobenvelope.Job) err
 // SEM@ef969bb79ad525fa5038847af0fb0be1038ae961: publish a terminal job failure result to NATS and return a terminal JobError (mutates shared state)
 func (h *chunkEmbedHandler) publishFailure(ctx context.Context, job jobenvelope.Job,
 	reasonCode, detail string) error {
-	res := jobenvelope.Result{
-		JobID:        job.JobID,
-		Status:       jobenvelope.StatusFailed,
-		ReasonCode:   reasonCode,
-		ReasonDetail: detail,
-	}
-	b, err := jsonMarshal(res, "result")
-	if err != nil {
-		return err
-	}
-	if err := h.conn.Publish(ctx, worker.ResultSubject(job.JobID), b); err != nil {
-		return err
-	}
-	return &worker.JobError{ReasonCode: reasonCode, Detail: detail, Terminal: true}
+	return h.conn.PublishFailureResult(ctx, job.JobID, reasonCode, detail)
 }
