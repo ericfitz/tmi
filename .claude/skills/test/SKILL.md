@@ -102,7 +102,7 @@ If API tests passed, run CATS security fuzzing:
 make cats-fuzz
 ```
 
-This takes approximately 25-30 minutes. The output will show progress through various fuzzers. Check status every 5 minutes until the 20 minute mark, and then every minute until the 25 minute mark, and then every 30 seconds thereafter.
+This takes approximately 30-40 minutes. The output will show progress through various fuzzers. Check status every 5 minutes until the 25 minute mark, and then every minute until completion.
 
 ### Step 5: Parse and Analyze CATS Results
 
@@ -115,7 +115,7 @@ make parse-cats-results
 Then analyze the database. Run these queries to understand the results:
 
 ```bash
-# Summary statistics (excluding OAuth false positives)
+# Summary statistics (excluding false positives)
 sqlite3 test/outputs/cats/cats-results.db <<'SQL'
 .mode column
 .headers on
@@ -125,13 +125,13 @@ SELECT
     ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS percentage
 FROM tests t
 JOIN result_types rt ON t.result_type_id = rt.id
-WHERE t.is_oauth_false_positive = 0
+WHERE t.is_false_positive = 0
 GROUP BY rt.name
 ORDER BY count DESC;
 SQL
 
 # Count OAuth false positives (expected, not real issues)
-sqlite3 test/outputs/cats/cats-results.db "SELECT COUNT(*) as oauth_false_positives FROM tests WHERE is_oauth_false_positive = 1;"
+sqlite3 test/outputs/cats/cats-results.db "SELECT COUNT(*) as oauth_false_positives FROM tests WHERE is_false_positive = 1;"
 
 # Actual errors by path (top 10)
 sqlite3 test/outputs/cats/cats-results.db <<'SQL'
@@ -145,7 +145,7 @@ FROM tests t
 JOIN result_types rt ON t.result_type_id = rt.id
 JOIN paths p ON t.path_id = p.id
 JOIN fuzzers f ON t.fuzzer_id = f.id
-WHERE rt.name = 'error' AND t.is_oauth_false_positive = 0
+WHERE rt.name = 'error' AND t.is_false_positive = 0
 GROUP BY p.path
 ORDER BY error_count DESC
 LIMIT 10;
@@ -161,7 +161,7 @@ SELECT
 FROM tests t
 JOIN result_types rt ON t.result_type_id = rt.id
 JOIN paths p ON t.path_id = p.id
-WHERE rt.name = 'warn' AND t.is_oauth_false_positive = 0
+WHERE rt.name = 'warn' AND t.is_false_positive = 0
 GROUP BY p.path
 ORDER BY warn_count DESC
 LIMIT 10;
@@ -170,8 +170,8 @@ SQL
 
 **Analysis**:
 
-- **OAuth false positives** are expected (401/403 responses from auth tests) - these are NOT real issues
-- Focus on the **error** and **warn** results where `is_oauth_false_positive = 0`
+- **False positives** are expected (e.g. 401/403 responses from auth related tests) - these are NOT real issues
+- Focus on the **error** and **warn** results where `is_false_positive = 0`
 - Report any actual errors by path and fuzzer
 - Warnings are less critical but should be noted
 
@@ -198,7 +198,7 @@ If any stage fails:
 
 ## Important Notes
 
-- **OAuth false positives**: CATS will flag 401/403 responses as "errors" but these are expected for auth testing. The `is_oauth_false_positive` flag identifies these.
+- **OAuth false positives**: CATS will flag 401/403 responses as "errors" but these are expected for auth testing. The `is_false_positive` flag identifies these.
 - **CATS duration**: The fuzzing stage takes ~9 minutes - this is normal
 - **Server must be running**: All tests except unit tests require the dev server (`make dev-up`)
 - **Database required**: Integration and API tests require PostgreSQL (`make start-database`)
@@ -208,7 +208,7 @@ If any stage fails:
 
 The CATS results database has these key tables:
 
-- `tests` - Individual test results with `is_oauth_false_positive` flag
+- `tests` - Individual test results with `is_false_positive` flag
 - `result_types` - Result categories: `success`, `warn`, `error`, `skip`
 - `paths` - API endpoints tested
 - `fuzzers` - CATS fuzzer names
