@@ -97,7 +97,7 @@ func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInt
 	// Validate team_id exists
 	var teamCount int64
 	if err := s.db.WithContext(ctx).Model(&models.TeamRecord{}).
-		Where(map[string]any{"id": project.TeamId.String()}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"id": project.TeamId.String()})).
 		Count(&teamCount).Error; err != nil {
 		logger.Error("failed to check team existence: %v", err)
 		return nil, dberrors.Classify(err)
@@ -182,7 +182,7 @@ func (s *GormProjectStore) Get(ctx context.Context, id string) (*Project, error)
 		Preload("CreatedBy").
 		Preload("ModifiedBy").
 		Preload("ReviewedBy").
-		First(&record, map[string]any{"id": id})
+		First(&record, ColumnMap(s.db.Name(), map[string]any{"id": id}))
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -229,7 +229,7 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 
 	// Check that the project exists
 	var existing models.ProjectRecord
-	if err := s.db.WithContext(ctx).First(&existing, map[string]any{"id": id}).Error; err != nil {
+	if err := s.db.WithContext(ctx).First(&existing, ColumnMap(s.db.Name(), map[string]any{"id": id})).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrProjectNotFound
 		}
@@ -241,7 +241,7 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 	if newTeamID != string(existing.TeamID) {
 		var teamCount int64
 		if err := s.db.WithContext(ctx).Model(&models.TeamRecord{}).
-			Where(map[string]any{"id": newTeamID}).
+			Where(ColumnMap(s.db.Name(), map[string]any{"id": newTeamID})).
 			Count(&teamCount).Error; err != nil {
 			logger.Error("failed to check team existence: %v", err)
 			return nil, dberrors.Classify(err)
@@ -276,7 +276,7 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 		updates["status"] = projectStatusToString(project.Status)
 
 		if err := tx.Model(&models.ProjectRecord{}).
-			Where(map[string]any{"id": id}).
+			Where(ColumnMap(tx.Name(), map[string]any{"id": id})).
 			Updates(updates).Error; err != nil {
 			logger.Error("failed to update project: id=%s, error=%v", id, err)
 			return dberrors.Classify(err)
@@ -284,7 +284,7 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 
 		// Delete and recreate responsible parties
 		if project.ResponsibleParties != nil {
-			if err := tx.Where(map[string]any{"project_id": id}).
+			if err := tx.Where(ColumnMap(tx.Name(), map[string]any{"project_id": id})).
 				Delete(&models.ProjectResponsiblePartyRecord{}).Error; err != nil {
 				return dberrors.Classify(err)
 			}
@@ -331,7 +331,7 @@ func (s *GormProjectStore) Delete(ctx context.Context, id string) error {
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Check that the project exists
 		var existing models.ProjectRecord
-		if err := tx.First(&existing, map[string]any{"id": id}).Error; err != nil {
+		if err := tx.First(&existing, ColumnMap(tx.Name(), map[string]any{"id": id})).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrProjectNotFound
 			}
@@ -360,7 +360,7 @@ func (s *GormProjectStore) Delete(ctx context.Context, id string) error {
 		}
 
 		// Delete responsible parties
-		if err := tx.Where(map[string]any{"project_id": id}).
+		if err := tx.Where(ColumnMap(tx.Name(), map[string]any{"project_id": id})).
 			Delete(&models.ProjectResponsiblePartyRecord{}).Error; err != nil {
 			return dberrors.Classify(err)
 		}
@@ -372,7 +372,7 @@ func (s *GormProjectStore) Delete(ctx context.Context, id string) error {
 		}
 
 		// Delete the project record
-		if err := tx.Delete(&models.ProjectRecord{}, map[string]any{"id": id}).Error; err != nil {
+		if err := tx.Delete(&models.ProjectRecord{}, ColumnMap(tx.Name(), map[string]any{"id": id})).Error; err != nil {
 			return dberrors.Classify(err)
 		}
 		return nil
@@ -417,7 +417,7 @@ func (s *GormProjectStore) List(ctx context.Context, limit, offset int, filters 
 		}
 
 		if filters.TeamID != nil && *filters.TeamID != "" {
-			query = query.Where(map[string]any{models.ProjectRecord{}.TableName() + ".team_id": *filters.TeamID})
+			query = query.Where(ColumnMap(query.Name(), map[string]any{models.ProjectRecord{}.TableName() + ".team_id": *filters.TeamID}))
 		}
 
 		// Apply related_to filter
@@ -484,7 +484,7 @@ func (s *GormProjectStore) List(ctx context.Context, limit, offset int, filters 
 		// Get note count
 		var noteCount int64
 		s.db.WithContext(ctx).Model(&models.ProjectNoteRecord{}).
-			Where(map[string]any{"project_id": r.ID}).
+			Where(ColumnMap(s.db.Name(), map[string]any{"project_id": r.ID})).
 			Count(&noteCount)
 		nc := int(noteCount)
 
@@ -529,7 +529,7 @@ func (s *GormProjectStore) GetTeamID(ctx context.Context, projectID string) (str
 	var record models.ProjectRecord
 	result := s.db.WithContext(ctx).
 		Select("team_id").
-		First(&record, map[string]any{"id": projectID})
+		First(&record, ColumnMap(s.db.Name(), map[string]any{"id": projectID}))
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -547,7 +547,7 @@ func (s *GormProjectStore) GetTeamID(ctx context.Context, projectID string) (str
 func (s *GormProjectStore) HasThreatModels(ctx context.Context, projectID string) (bool, error) {
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.ThreatModel{}).
-		Where(map[string]any{"project_id": projectID}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"project_id": projectID})).
 		Count(&count).Error; err != nil {
 		return false, dberrors.Classify(err)
 	}
@@ -568,7 +568,7 @@ func (s *GormProjectStore) validateProjectRelationships(ctx context.Context, pro
 		// Verify the related project exists
 		var count int64
 		if err := s.db.WithContext(ctx).Model(&models.ProjectRecord{}).
-			Where(map[string]any{"id": relatedID}).
+			Where(ColumnMap(s.db.Name(), map[string]any{"id": relatedID})).
 			Count(&count).Error; err != nil {
 			return dberrors.Classify(err)
 		}
@@ -641,7 +641,7 @@ func (s *GormProjectStore) detectProjectCycle(ctx context.Context, sourceID, tar
 			// Find all projects that currentID points to via the same relationship type
 			var rels []models.ProjectRelationshipRecord
 			if err := s.db.WithContext(ctx).
-				Where(map[string]any{"project_id": currentID, "relationship": relationship}).
+				Where(ColumnMap(s.db.Name(), map[string]any{"project_id": currentID, "relationship": relationship})).
 				Find(&rels).Error; err != nil {
 				return dberrors.Classify(err)
 			}
@@ -677,7 +677,7 @@ func (s *GormProjectStore) saveResponsibleParties(tx *gorm.DB, projectID string,
 		// Verify the user exists
 		var userCount int64
 		if err := tx.Model(&models.User{}).
-			Where(map[string]any{"internal_uuid": party.UserId.String()}).
+			Where(ColumnMap(tx.Name(), map[string]any{"internal_uuid": party.UserId.String()})).
 			Count(&userCount).Error; err != nil {
 			logger.Error("failed to verify user for responsible party: %v", err)
 			return dberrors.Classify(err)
@@ -723,7 +723,7 @@ func (s *GormProjectStore) loadResponsibleParties(ctx context.Context, projectID
 	var records []models.ProjectResponsiblePartyRecord
 	if err := s.db.WithContext(ctx).
 		Preload("User").
-		Where(map[string]any{"project_id": projectID}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"project_id": projectID})).
 		Find(&records).Error; err != nil {
 		return nil, dberrors.Classify(err)
 	}
@@ -758,7 +758,7 @@ func (s *GormProjectStore) loadResponsibleParties(ctx context.Context, projectID
 func (s *GormProjectStore) loadRelationships(ctx context.Context, projectID string) ([]RelatedProject, error) {
 	var records []models.ProjectRelationshipRecord
 	if err := s.db.WithContext(ctx).
-		Where(map[string]any{"project_id": projectID}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"project_id": projectID})).
 		Find(&records).Error; err != nil {
 		return nil, dberrors.Classify(err)
 	}
@@ -900,7 +900,7 @@ func (s *GormProjectStore) collectTransitiveRelatedIDs(ctx context.Context, star
 
 			// Forward direction: currentID has the relationship to related projects
 			if err := s.db.WithContext(ctx).
-				Where(map[string]any{"project_id": currentID, "relationship": relationship}).
+				Where(ColumnMap(s.db.Name(), map[string]any{"project_id": currentID, "relationship": relationship})).
 				Find(&rels).Error; err != nil {
 				continue
 			}
@@ -916,7 +916,7 @@ func (s *GormProjectStore) collectTransitiveRelatedIDs(ctx context.Context, star
 			var reverseRels []models.ProjectRelationshipRecord
 			inverse := getInverseRelationship(relationship)
 			if err := s.db.WithContext(ctx).
-				Where(map[string]any{"related_project_id": currentID, "relationship": inverse}).
+				Where(ColumnMap(s.db.Name(), map[string]any{"related_project_id": currentID, "relationship": inverse})).
 				Find(&reverseRels).Error; err != nil {
 				continue
 			}

@@ -163,7 +163,7 @@ func (s *GormWebhookSubscriptionStore) ListActiveByEventType(ctx context.Context
 	defer s.mutex.RUnlock()
 
 	var subs []models.WebhookSubscription
-	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "active"}).
+	if err := s.db.WithContext(ctx).Where(ColumnMap(s.db.Name(), map[string]any{"status": "active"})).
 		Order("created_at DESC").Find(&subs).Error; err != nil {
 		return nil, dberrors.Classify(err)
 	}
@@ -190,7 +190,7 @@ func (s *GormWebhookSubscriptionStore) ListPendingVerification(ctx context.Conte
 
 	var subs []models.WebhookSubscription
 	// Use clause.OrderByColumn for cross-database compatibility (Oracle requires uppercase column names)
-	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "pending_verification"}).
+	if err := s.db.WithContext(ctx).Where(ColumnMap(s.db.Name(), map[string]any{"status": "pending_verification"})).
 		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{OrderByCol(s.db.Name(), "created_at", false)}}).
 		Find(&subs).Error; err != nil {
 		return nil, dberrors.Classify(err)
@@ -212,7 +212,7 @@ func (s *GormWebhookSubscriptionStore) ListPendingDelete(ctx context.Context) ([
 
 	var subs []models.WebhookSubscription
 	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
-	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "pending_delete"}).
+	if err := s.db.WithContext(ctx).Where(ColumnMap(s.db.Name(), map[string]any{"status": "pending_delete"})).
 		Clauses(clause.OrderBy{Columns: []clause.OrderByColumn{OrderByCol(s.db.Name(), "modified_at", false)}}).
 		Find(&subs).Error; err != nil {
 		return nil, dberrors.Classify(err)
@@ -239,7 +239,7 @@ func (s *GormWebhookSubscriptionStore) ListIdle(ctx context.Context, daysIdle in
 	// Complex OR condition: (last_successful_use IS NOT NULL AND last_successful_use < cutoff) OR (last_successful_use IS NULL AND created_at < cutoff)
 	// operator_pinned=false ensures the pinned audit sink is never marked idle.
 	// Use models.DBBool(false) so the driver.Valuer path fires on Oracle (NUMBER(1)).
-	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "active", "operator_pinned": models.DBBool(false)}).
+	if err := s.db.WithContext(ctx).Where(ColumnMap(s.db.Name(), map[string]any{"status": "active", "operator_pinned": models.DBBool(false)})).
 		Where(
 			s.db.Where(clause.Expr{SQL: "? IS NOT NULL", Vars: []any{Col(s.db.Name(), "last_successful_use")}}).
 				Where(clause.Expr{SQL: "? < ?", Vars: []any{Col(s.db.Name(), "last_successful_use"), cutoff}}).
@@ -272,7 +272,7 @@ func (s *GormWebhookSubscriptionStore) ListBroken(ctx context.Context, minFailur
 	// Condition: status = active AND operator_pinned = false AND publication_failures >= minFailures AND (last_successful_use IS NULL OR last_successful_use < cutoff)
 	// operator_pinned=false ensures the pinned audit sink is never marked broken.
 	// Use models.DBBool(false) so the driver.Valuer path fires on Oracle (NUMBER(1)).
-	if err := s.db.WithContext(ctx).Where(map[string]any{"status": "active", "operator_pinned": models.DBBool(false)}).
+	if err := s.db.WithContext(ctx).Where(ColumnMap(s.db.Name(), map[string]any{"status": "active", "operator_pinned": models.DBBool(false)})).
 		Where(clause.Expr{SQL: "? >= ?", Vars: []any{Col(s.db.Name(), "publication_failures"), minFailures}}).
 		Where(
 			s.db.Where(clause.Expr{SQL: "? IS NULL", Vars: []any{Col(s.db.Name(), "last_successful_use")}}).

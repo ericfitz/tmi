@@ -92,7 +92,7 @@ func (s *GormTimmySessionStore) ListByUserAndThreatModel(ctx context.Context, us
 	var total int64
 	err := s.db.WithContext(ctx).
 		Model(&models.TimmySession{}).
-		Where(conditions).
+		Where(ColumnMap(s.db.Name(), conditions)).
 		Where("deleted_at IS NULL").
 		Count(&total).Error
 	if err != nil {
@@ -102,7 +102,7 @@ func (s *GormTimmySessionStore) ListByUserAndThreatModel(ctx context.Context, us
 
 	var sessions []models.TimmySession
 	err = s.db.WithContext(ctx).
-		Where(conditions).
+		Where(ColumnMap(s.db.Name(), conditions)).
 		Where("deleted_at IS NULL").
 		Order("created_at DESC").
 		Offset(offset).
@@ -208,10 +208,10 @@ func (s *GormTimmySessionStore) CountActiveByThreatModel(ctx context.Context, th
 	var count int64
 	err := s.db.WithContext(ctx).
 		Model(&models.TimmySession{}).
-		Where(map[string]any{
+		Where(ColumnMap(s.db.Name(), map[string]any{
 			"threat_model_id": threatModelID,
 			"status":          "active",
-		}).
+		})).
 		Where("deleted_at IS NULL").
 		Count(&count).Error
 	if err != nil {
@@ -272,7 +272,7 @@ func (s *GormTimmyMessageStore) ListBySession(ctx context.Context, sessionID str
 	var total int64
 	err := s.db.WithContext(ctx).
 		Model(&models.TimmyMessage{}).
-		Where(map[string]any{"session_id": sessionID}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"session_id": sessionID})).
 		Count(&total).Error
 	if err != nil {
 		logger.Error("Failed to count Timmy messages: %v", err)
@@ -281,7 +281,7 @@ func (s *GormTimmyMessageStore) ListBySession(ctx context.Context, sessionID str
 
 	var messages []models.TimmyMessage
 	err = s.db.WithContext(ctx).
-		Where(map[string]any{"session_id": sessionID}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"session_id": sessionID})).
 		Order("sequence ASC").
 		Offset(offset).
 		Limit(limit).
@@ -307,7 +307,7 @@ func (s *GormTimmyMessageStore) GetNextSequence(ctx context.Context, sessionID s
 	var maxSeq *int
 	err := s.db.WithContext(ctx).
 		Model(&models.TimmyMessage{}).
-		Where(map[string]any{"session_id": sessionID}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"session_id": sessionID})).
 		Select("MAX(sequence)").
 		Scan(&maxSeq).Error
 	if err != nil {

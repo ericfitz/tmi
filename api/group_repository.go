@@ -49,7 +49,7 @@ func (r *GormGroupRepository) List(ctx context.Context, filter GroupFilter) ([]G
 	// Apply filters
 	// Use map-based queries for cross-database compatibility (Oracle requires quoted lowercase column names)
 	if filter.Provider != "" {
-		query = query.Where(map[string]any{"provider": filter.Provider})
+		query = query.Where(ColumnMap(query.Name(), map[string]any{"provider": filter.Provider}))
 	}
 
 	if filter.GroupName != "" {
@@ -219,7 +219,7 @@ func (r *GormGroupRepository) Count(ctx context.Context, filter GroupFilter) (in
 	// Apply same filters as List (excluding pagination and sorting)
 	// Use map-based queries for cross-database compatibility (Oracle requires quoted lowercase column names)
 	if filter.Provider != "" {
-		query = query.Where(map[string]any{"provider": filter.Provider})
+		query = query.Where(ColumnMap(query.Name(), map[string]any{"provider": filter.Provider}))
 	}
 
 	if filter.GroupName != "" {

@@ -115,7 +115,7 @@ func (s *GormTeamNoteStore) Create(ctx context.Context, note *TeamNote, teamID s
 	// Verify parent team exists
 	var teamCount int64
 	if err := s.db.WithContext(ctx).Model(&models.TeamRecord{}).
-		Where(map[string]any{"id": teamID}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"id": teamID})).
 		Count(&teamCount).Error; err != nil {
 		logger.Error("Failed to check team existence: %v", err)
 		return nil, dberrors.Classify(err)
@@ -154,7 +154,7 @@ func (s *GormTeamNoteStore) Get(ctx context.Context, id string) (*TeamNote, erro
 
 	var record models.TeamNoteRecord
 	if err := s.db.WithContext(ctx).
-		Where(map[string]any{"id": id}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"id": id})).
 		First(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrTeamNoteNotFound
@@ -173,7 +173,7 @@ func (s *GormTeamNoteStore) Update(ctx context.Context, id string, note *TeamNot
 
 	var existing models.TeamNoteRecord
 	if err := s.db.WithContext(ctx).
-		Where(map[string]any{"id": id}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"id": id})).
 		First(&existing).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrTeamNoteNotFound
@@ -220,7 +220,7 @@ func (s *GormTeamNoteStore) Delete(ctx context.Context, id string) error {
 
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.
-			Where(map[string]any{"id": id}).
+			Where(ColumnMap(tx.Name(), map[string]any{"id": id})).
 			Delete(&models.TeamNoteRecord{})
 		if result.Error != nil {
 			logger.Error("Failed to delete team note: %v", result.Error)
@@ -257,7 +257,7 @@ func (s *GormTeamNoteStore) Patch(ctx context.Context, id string, operations []P
 	// Find the record to get the teamID
 	var record models.TeamNoteRecord
 	if err := s.db.WithContext(ctx).
-		Where(map[string]any{"id": id}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"id": id})).
 		First(&record).Error; err != nil {
 		logger.Error("Failed to find team note for patch: %v", err)
 		return nil, dberrors.Classify(err)
@@ -272,10 +272,10 @@ func (s *GormTeamNoteStore) List(ctx context.Context, teamID string, offset, lim
 	logger := slogging.Get()
 
 	query := s.db.WithContext(ctx).Model(&models.TeamNoteRecord{}).
-		Where(map[string]any{"team_id": teamID})
+		Where(ColumnMap(s.db.Name(), map[string]any{"team_id": teamID}))
 
 	if !includeNonSharable {
-		query = query.Where(map[string]any{"sharable": models.DBBool(true)})
+		query = query.Where(ColumnMap(query.Name(), map[string]any{"sharable": models.DBBool(true)}))
 	}
 
 	// Get total count
@@ -309,10 +309,10 @@ func (s *GormTeamNoteStore) Count(ctx context.Context, teamID string, includeNon
 	logger := slogging.Get()
 
 	query := s.db.WithContext(ctx).Model(&models.TeamNoteRecord{}).
-		Where(map[string]any{"team_id": teamID})
+		Where(ColumnMap(s.db.Name(), map[string]any{"team_id": teamID}))
 
 	if !includeNonSharable {
-		query = query.Where(map[string]any{"sharable": models.DBBool(true)})
+		query = query.Where(ColumnMap(query.Name(), map[string]any{"sharable": models.DBBool(true)}))
 	}
 
 	var count int64

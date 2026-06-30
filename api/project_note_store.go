@@ -115,7 +115,7 @@ func (s *GormProjectNoteStore) Create(ctx context.Context, note *ProjectNote, pr
 	// Verify parent project exists
 	var projectCount int64
 	if err := s.db.WithContext(ctx).Model(&models.ProjectRecord{}).
-		Where(map[string]any{"id": projectID}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"id": projectID})).
 		Count(&projectCount).Error; err != nil {
 		logger.Error("Failed to check project existence: %v", err)
 		return nil, dberrors.Classify(err)
@@ -154,7 +154,7 @@ func (s *GormProjectNoteStore) Get(ctx context.Context, id string) (*ProjectNote
 
 	var record models.ProjectNoteRecord
 	if err := s.db.WithContext(ctx).
-		Where(map[string]any{"id": id}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"id": id})).
 		First(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrProjectNoteNotFound
@@ -173,7 +173,7 @@ func (s *GormProjectNoteStore) Update(ctx context.Context, id string, note *Proj
 
 	var existing models.ProjectNoteRecord
 	if err := s.db.WithContext(ctx).
-		Where(map[string]any{"id": id}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"id": id})).
 		First(&existing).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrProjectNoteNotFound
@@ -220,7 +220,7 @@ func (s *GormProjectNoteStore) Delete(ctx context.Context, id string) error {
 
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.
-			Where(map[string]any{"id": id}).
+			Where(ColumnMap(tx.Name(), map[string]any{"id": id})).
 			Delete(&models.ProjectNoteRecord{})
 		if result.Error != nil {
 			logger.Error("Failed to delete project note: %v", result.Error)
@@ -257,7 +257,7 @@ func (s *GormProjectNoteStore) Patch(ctx context.Context, id string, operations 
 	// Find the record to get the projectID
 	var record models.ProjectNoteRecord
 	if err := s.db.WithContext(ctx).
-		Where(map[string]any{"id": id}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"id": id})).
 		First(&record).Error; err != nil {
 		logger.Error("Failed to find project note for patch: %v", err)
 		return nil, dberrors.Classify(err)
@@ -272,10 +272,10 @@ func (s *GormProjectNoteStore) List(ctx context.Context, projectID string, offse
 	logger := slogging.Get()
 
 	query := s.db.WithContext(ctx).Model(&models.ProjectNoteRecord{}).
-		Where(map[string]any{"project_id": projectID})
+		Where(ColumnMap(s.db.Name(), map[string]any{"project_id": projectID}))
 
 	if !includeNonSharable {
-		query = query.Where(map[string]any{"sharable": models.DBBool(true)})
+		query = query.Where(ColumnMap(query.Name(), map[string]any{"sharable": models.DBBool(true)}))
 	}
 
 	// Get total count
@@ -309,10 +309,10 @@ func (s *GormProjectNoteStore) Count(ctx context.Context, projectID string, incl
 	logger := slogging.Get()
 
 	query := s.db.WithContext(ctx).Model(&models.ProjectNoteRecord{}).
-		Where(map[string]any{"project_id": projectID})
+		Where(ColumnMap(s.db.Name(), map[string]any{"project_id": projectID}))
 
 	if !includeNonSharable {
-		query = query.Where(map[string]any{"sharable": models.DBBool(true)})
+		query = query.Where(ColumnMap(query.Name(), map[string]any{"sharable": models.DBBool(true)}))
 	}
 
 	var count int64

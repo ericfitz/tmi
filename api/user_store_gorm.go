@@ -150,7 +150,7 @@ func (s *GormUserStore) GetByProviderAndID(ctx context.Context, provider string,
 	var gormUser models.User
 	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 	result := s.db.WithContext(ctx).
-		Where(map[string]any{"provider": provider, "provider_user_id": providerUserID}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"provider": provider, "provider_user_id": providerUserID})).
 		First(&gormUser)
 
 	if result.Error != nil {

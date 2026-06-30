@@ -2378,16 +2378,23 @@ func findUserByProviderIdentityGorm(ctx context.Context, gormDB *gorm.DB, provid
 		InternalUUID string `gorm:"column:internal_uuid"`
 	}
 
-	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
+	// Map-keyed predicates must route through api.ColumnMap so the column
+	// identifiers are cased correctly for the dialect: GORM emits map keys
+	// verbatim (bypassing the NamingStrategy), so a bare lowercase key fails to
+	// match the uppercase column the Oracle driver creates. See #503.
+	// NOTE: the Table("users") name itself still needs dialect-correct casing
+	// for this query to work on Oracle; that table-identifier bug is tracked
+	// separately (see follow-up issue).
+	dialect := gormDB.Name()
 	query := gormDB.WithContext(ctx).Table("users").
 		Select("internal_uuid").
-		Where(map[string]any{"provider": provider})
+		Where(api.ColumnMap(dialect, map[string]any{"provider": provider}))
 
 	switch {
 	case providerID != "":
-		query = query.Where(map[string]any{"provider_user_id": providerID})
+		query = query.Where(api.ColumnMap(dialect, map[string]any{"provider_user_id": providerID}))
 	case email != "":
-		query = query.Where(map[string]any{"email": email})
+		query = query.Where(api.ColumnMap(dialect, map[string]any{"email": email}))
 	default:
 		return uuid.Nil, fmt.Errorf("either provider_id or email is required")
 	}

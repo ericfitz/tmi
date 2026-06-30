@@ -35,7 +35,7 @@ func (s *GormTimmyEmbeddingStore) ListByThreatModelAndIndexType(ctx context.Cont
 
 	var embeddings []models.TimmyEmbedding
 	err := s.db.WithContext(ctx).
-		Where(map[string]any{"threat_model_id": threatModelID, "index_type": indexType}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"threat_model_id": threatModelID, "index_type": indexType})).
 		Order("entity_type ASC, entity_id ASC, chunk_index ASC").
 		Find(&embeddings).Error
 	if err != nil {
@@ -82,11 +82,11 @@ func (s *GormTimmyEmbeddingStore) DeleteByEntity(ctx context.Context, threatMode
 	var rowsAffected int64
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.
-			Where(map[string]any{
+			Where(ColumnMap(tx.Name(), map[string]any{
 				"threat_model_id": threatModelID,
 				"entity_type":     entityType,
 				"entity_id":       entityID,
-			}).
+			})).
 			Delete(&models.TimmyEmbedding{})
 		if result.Error != nil {
 			logger.Error("Failed to delete embeddings for entity %s/%s: %v", entityType, entityID, result.Error)
@@ -115,7 +115,7 @@ func (s *GormTimmyEmbeddingStore) DeleteByThreatModel(ctx context.Context, threa
 	var rowsAffected int64
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.
-			Where(map[string]any{"threat_model_id": threatModelID}).
+			Where(ColumnMap(tx.Name(), map[string]any{"threat_model_id": threatModelID})).
 			Delete(&models.TimmyEmbedding{})
 		if result.Error != nil {
 			logger.Error("Failed to delete embeddings for threat model %s: %v", threatModelID, result.Error)
@@ -144,7 +144,7 @@ func (s *GormTimmyEmbeddingStore) DeleteByThreatModelAndIndexType(ctx context.Co
 	var rowsAffected int64
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.
-			Where(map[string]any{"threat_model_id": threatModelID, "index_type": indexType}).
+			Where(ColumnMap(tx.Name(), map[string]any{"threat_model_id": threatModelID, "index_type": indexType})).
 			Delete(&models.TimmyEmbedding{})
 		if result.Error != nil {
 			logger.Error("Failed to delete %s embeddings for threat model %s: %v", indexType, threatModelID, result.Error)
@@ -183,10 +183,10 @@ func (s *GormTimmyEmbeddingStore) ListEntityMetadataByThreatModelAndIndexType(
 	err := s.db.WithContext(ctx).
 		Table(models.TimmyEmbedding{}.TableName()).
 		Select("entity_type, entity_id, content_hash, embedding_model, embedding_dim").
-		Where(map[string]any{
+		Where(ColumnMap(s.db.Name(), map[string]any{
 			"threat_model_id": threatModelID,
 			"index_type":      indexType,
-		}).
+		})).
 		Find(&rows).Error
 	if err != nil {
 		logger.Error("Failed to list embedding metadata for threat model %s index type %s: %v",

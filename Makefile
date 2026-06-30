@@ -87,7 +87,7 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-genconfig generate-config-example build-genconfigdocs generate-config-docs clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz
+.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-genconfig generate-config-example build-genconfigdocs generate-config-docs clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz check-oracle-unsafe-map-keys
 
 build-server:
 	@uv run scripts/build-server.py
@@ -145,6 +145,13 @@ check-direct-http-client:
 # removes the prefix list and enforces this on every operation.
 check-x-tmi-authz:
 	@uv run scripts/check-x-tmi-authz.py
+
+# Check that GORM map-keyed WHERE/condition predicates in api/ route through
+# ColumnMap() so column identifiers are uppercased on Oracle. GORM emits map
+# predicate keys verbatim (bypassing the NamingStrategy), so a bare lowercase
+# key fails to match the uppercase Oracle column (ORA-00904). See issue #503.
+check-oracle-unsafe-map-keys:
+	@uv run scripts/check-oracle-unsafe-map-keys.py
 
 
 # ============================================================================

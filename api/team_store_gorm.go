@@ -271,7 +271,7 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 	var memberRecords []models.TeamMemberRecord
 	if err := s.db.WithContext(ctx).
 		Preload("User").
-		Where(map[string]any{"team_id": id}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"team_id": id})).
 		Find(&memberRecords).Error; err != nil {
 		logger.Error("Failed to load team members: %v", err)
 		return nil, dberrors.Classify(err)
@@ -281,7 +281,7 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 	var rpRecords []models.TeamResponsiblePartyRecord
 	if err := s.db.WithContext(ctx).
 		Preload("User").
-		Where(map[string]any{"team_id": id}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"team_id": id})).
 		Find(&rpRecords).Error; err != nil {
 		logger.Error("Failed to load team responsible parties: %v", err)
 		return nil, dberrors.Classify(err)
@@ -290,7 +290,7 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 	// Load relationships
 	var relRecords []models.TeamRelationshipRecord
 	if err := s.db.WithContext(ctx).
-		Where(map[string]any{"team_id": id}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"team_id": id})).
 		Find(&relRecords).Error; err != nil {
 		logger.Error("Failed to load team relationships: %v", err)
 		return nil, dberrors.Classify(err)
@@ -368,7 +368,7 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 		}
 
 		// Replace members: delete all then recreate
-		if err := tx.Where(map[string]any{"team_id": id}).Delete(&models.TeamMemberRecord{}).Error; err != nil {
+		if err := tx.Where(ColumnMap(tx.Name(), map[string]any{"team_id": id})).Delete(&models.TeamMemberRecord{}).Error; err != nil {
 			logger.Error("Failed to delete team members: %v", err)
 			return dberrors.Classify(err)
 		}
@@ -392,7 +392,7 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 		}
 
 		// Replace responsible parties: delete all then recreate
-		if err := tx.Where(map[string]any{"team_id": id}).Delete(&models.TeamResponsiblePartyRecord{}).Error; err != nil {
+		if err := tx.Where(ColumnMap(tx.Name(), map[string]any{"team_id": id})).Delete(&models.TeamResponsiblePartyRecord{}).Error; err != nil {
 			logger.Error("Failed to delete team responsible parties: %v", err)
 			return dberrors.Classify(err)
 		}
@@ -416,7 +416,7 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 		}
 
 		// Replace relationships: delete all then recreate
-		if err := tx.Where(map[string]any{"team_id": id}).Delete(&models.TeamRelationshipRecord{}).Error; err != nil {
+		if err := tx.Where(ColumnMap(tx.Name(), map[string]any{"team_id": id})).Delete(&models.TeamRelationshipRecord{}).Error; err != nil {
 			logger.Error("Failed to delete team relationships: %v", err)
 			return dberrors.Classify(err)
 		}
@@ -476,7 +476,7 @@ func (s *GormTeamStore) Delete(ctx context.Context, id string) error {
 		// ADB error during the check triggers retry instead of a one-shot 500.
 		var projectCount int64
 		if err := tx.Model(&models.ProjectRecord{}).
-			Where(map[string]any{"team_id": id}).
+			Where(ColumnMap(tx.Name(), map[string]any{"team_id": id})).
 			Count(&projectCount).Error; err != nil {
 			logger.Error("Failed to check team projects: %v", err)
 			return dberrors.Classify(err)
@@ -487,23 +487,23 @@ func (s *GormTeamStore) Delete(ctx context.Context, id string) error {
 
 		// Delete in reverse dependency order:
 		// 1. Relationships (both directions)
-		if err := tx.Where(map[string]any{"team_id": id}).Delete(&models.TeamRelationshipRecord{}).Error; err != nil {
+		if err := tx.Where(ColumnMap(tx.Name(), map[string]any{"team_id": id})).Delete(&models.TeamRelationshipRecord{}).Error; err != nil {
 			logger.Error("Failed to delete team relationships (as source): %v", err)
 			return dberrors.Classify(err)
 		}
-		if err := tx.Where(map[string]any{"related_team_id": id}).Delete(&models.TeamRelationshipRecord{}).Error; err != nil {
+		if err := tx.Where(ColumnMap(tx.Name(), map[string]any{"related_team_id": id})).Delete(&models.TeamRelationshipRecord{}).Error; err != nil {
 			logger.Error("Failed to delete team relationships (as target): %v", err)
 			return dberrors.Classify(err)
 		}
 
 		// 2. Responsible parties
-		if err := tx.Where(map[string]any{"team_id": id}).Delete(&models.TeamResponsiblePartyRecord{}).Error; err != nil {
+		if err := tx.Where(ColumnMap(tx.Name(), map[string]any{"team_id": id})).Delete(&models.TeamResponsiblePartyRecord{}).Error; err != nil {
 			logger.Error("Failed to delete team responsible parties: %v", err)
 			return dberrors.Classify(err)
 		}
 
 		// 3. Members
-		if err := tx.Where(map[string]any{"team_id": id}).Delete(&models.TeamMemberRecord{}).Error; err != nil {
+		if err := tx.Where(ColumnMap(tx.Name(), map[string]any{"team_id": id})).Delete(&models.TeamMemberRecord{}).Error; err != nil {
 			logger.Error("Failed to delete team members: %v", err)
 			return dberrors.Classify(err)
 		}
@@ -610,7 +610,7 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 		// Get member count
 		var memberCount int64
 		if err := s.db.WithContext(ctx).Model(&models.TeamMemberRecord{}).
-			Where(map[string]any{"team_id": rec.ID}).
+			Where(ColumnMap(s.db.Name(), map[string]any{"team_id": rec.ID})).
 			Count(&memberCount).Error; err != nil {
 			logger.Error("Failed to count members for team %s: %v", rec.ID, err)
 			return nil, 0, dberrors.Classify(err)
@@ -620,7 +620,7 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 		// Get project count
 		var projectCount int64
 		if err := s.db.WithContext(ctx).Model(&models.ProjectRecord{}).
-			Where(map[string]any{"team_id": rec.ID}).
+			Where(ColumnMap(s.db.Name(), map[string]any{"team_id": rec.ID})).
 			Count(&projectCount).Error; err != nil {
 			logger.Error("Failed to count projects for team %s: %v", rec.ID, err)
 			return nil, 0, dberrors.Classify(err)
@@ -630,7 +630,7 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 		// Get note count
 		var noteCount int64
 		if err := s.db.WithContext(ctx).Model(&models.TeamNoteRecord{}).
-			Where(map[string]any{"team_id": rec.ID}).
+			Where(ColumnMap(s.db.Name(), map[string]any{"team_id": rec.ID})).
 			Count(&noteCount).Error; err != nil {
 			logger.Error("Failed to count notes for team %s: %v", rec.ID, err)
 			return nil, 0, dberrors.Classify(err)
@@ -666,7 +666,7 @@ func (s *GormTeamStore) IsMember(ctx context.Context, teamID string, userInterna
 
 	var count int64
 	result := s.db.WithContext(ctx).Model(&models.TeamMemberRecord{}).
-		Where(map[string]any{"team_id": teamID, "user_internal_uuid": userInternalUUID}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"team_id": teamID, "user_internal_uuid": userInternalUUID})).
 		Count(&count)
 
 	if result.Error != nil {
@@ -685,7 +685,7 @@ func (s *GormTeamStore) HasProjects(ctx context.Context, teamID string) (bool, e
 
 	var count int64
 	result := s.db.WithContext(ctx).Model(&models.ProjectRecord{}).
-		Where(map[string]any{"team_id": teamID}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"team_id": teamID})).
 		Count(&count)
 
 	if result.Error != nil {
@@ -775,7 +775,7 @@ func (s *GormTeamStore) detectCycle(ctx context.Context, teamID, relatedTeamID, 
 			// Find all teams related to currentID via the traversal relationship
 			var relIDs []string
 			if err := s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
-				Where(map[string]any{"team_id": currentID, "relationship": traverseRelationship}).
+				Where(ColumnMap(s.db.Name(), map[string]any{"team_id": currentID, "relationship": traverseRelationship})).
 				Pluck("related_team_id", &relIDs).Error; err != nil {
 				return dberrors.Classify(err)
 			}
@@ -816,7 +816,7 @@ func (s *GormTeamStore) resolveRelatedTeamIDs(ctx context.Context, filters *Team
 
 	// Non-transitive: simple query for directly related teams
 	query := s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
-		Where(map[string]any{"related_team_id": relatedTo})
+		Where(ColumnMap(s.db.Name(), map[string]any{"related_team_id": relatedTo}))
 
 	if relationship != "" {
 		// Find teams that have the given relationship TO the relatedTo team.
@@ -828,7 +828,7 @@ func (s *GormTeamStore) resolveRelatedTeamIDs(ctx context.Context, filters *Team
 		// Teams that point TO relatedTo with the given relationship
 		var teamIDs1 []string
 		if err := s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
-			Where(map[string]any{"related_team_id": relatedTo, "relationship": relationship}).
+			Where(ColumnMap(s.db.Name(), map[string]any{"related_team_id": relatedTo, "relationship": relationship})).
 			Pluck("team_id", &teamIDs1).Error; err != nil {
 			return nil, dberrors.Classify(err)
 		}
@@ -837,7 +837,7 @@ func (s *GormTeamStore) resolveRelatedTeamIDs(ctx context.Context, filters *Team
 		var teamIDs2 []string
 		if inv, ok := inverseRelationship[relationship]; ok {
 			if err := s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
-				Where(map[string]any{"team_id": relatedTo, "relationship": inv}).
+				Where(ColumnMap(s.db.Name(), map[string]any{"team_id": relatedTo, "relationship": inv})).
 				Pluck("related_team_id", &teamIDs2).Error; err != nil {
 				return nil, dberrors.Classify(err)
 			}
@@ -846,7 +846,7 @@ func (s *GormTeamStore) resolveRelatedTeamIDs(ctx context.Context, filters *Team
 		// Also check: teams where team_id=relatedTo with the given relationship
 		var teamIDs3 []string
 		if err := s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
-			Where(map[string]any{"team_id": relatedTo, "relationship": relationship}).
+			Where(ColumnMap(s.db.Name(), map[string]any{"team_id": relatedTo, "relationship": relationship})).
 			Pluck("related_team_id", &teamIDs3).Error; err != nil {
 			return nil, dberrors.Classify(err)
 		}
@@ -873,7 +873,7 @@ func (s *GormTeamStore) resolveRelatedTeamIDs(ctx context.Context, filters *Team
 
 	var teamIDs2 []string
 	if err := s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
-		Where(map[string]any{"team_id": relatedTo}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"team_id": relatedTo})).
 		Pluck("related_team_id", &teamIDs2).Error; err != nil {
 		return nil, dberrors.Classify(err)
 	}
@@ -909,7 +909,7 @@ func (s *GormTeamStore) resolveTransitiveRelatedTeams(ctx context.Context, start
 			// Find teams related via the specified relationship from currentID
 			var relIDs []string
 			if err := s.db.WithContext(ctx).Model(&models.TeamRelationshipRecord{}).
-				Where(map[string]any{"team_id": currentID, "relationship": relationship}).
+				Where(ColumnMap(s.db.Name(), map[string]any{"team_id": currentID, "relationship": relationship})).
 				Pluck("related_team_id", &relIDs).Error; err != nil {
 				return nil, dberrors.Classify(err)
 			}

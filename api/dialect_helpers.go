@@ -266,3 +266,26 @@ func AssignmentMap(dialectName string, assignments map[string]any) map[string]an
 	}
 	return result
 }
+
+// ColumnMap rewrites the keys of a map-based WHERE predicate to the correct
+// case for the database dialect. GORM emits map[string]any predicate keys
+// verbatim through the quoter (it does NOT run them through the NamingStrategy
+// the way it does struct-field queries), so a lowercase literal key produces a
+// quoted-lowercase identifier that fails to match the uppercase column the
+// Oracle GORM driver creates. Wrap every map-keyed Where/Not/Or predicate that
+// uses literal column names in this helper:
+//
+//	db.Where(ColumnMap(db.Name(), map[string]any{"team_id": id}))
+//
+// On non-Oracle dialects the map is returned unchanged.
+// SEM@aa6d284f5df5c13ccb0001366a1f228490aba957: rewrite map-based WHERE predicate keys to dialect-correct column casing (pure)
+func ColumnMap(dialectName string, predicate map[string]any) map[string]any {
+	if dialectName != DialectOracle {
+		return predicate
+	}
+	result := make(map[string]any, len(predicate))
+	for k, v := range predicate {
+		result[ColumnName(dialectName, k)] = v
+	}
+	return result
+}

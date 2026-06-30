@@ -45,7 +45,7 @@ func IsTeamMemberOrAdmin(ctx context.Context, teamID string, userInternalUUID st
 
 	var count int64
 	result := teamAuthDB.WithContext(ctx).Model(&models.TeamMemberRecord{}).
-		Where(map[string]any{"team_id": teamID, "user_internal_uuid": userInternalUUID}).
+		Where(ColumnMap(teamAuthDB.Name(), map[string]any{"team_id": teamID, "user_internal_uuid": userInternalUUID})).
 		Count(&count)
 	if result.Error != nil {
 		logger.Error("IsTeamMemberOrAdmin: membership query failed: %v", result.Error)
@@ -79,7 +79,7 @@ func IsTeamOwnerOrAdmin(ctx context.Context, teamID string, userInternalUUID str
 	// Check if user is the team creator
 	var team models.TeamRecord
 	result := teamAuthDB.WithContext(ctx).
-		Where(map[string]any{"id": teamID}).
+		Where(ColumnMap(teamAuthDB.Name(), map[string]any{"id": teamID})).
 		First(&team)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -115,7 +115,7 @@ func IsProjectTeamMemberOrAdmin(ctx context.Context, projectID string, userInter
 	// Look up the project's team_id
 	var project models.ProjectRecord
 	result := teamAuthDB.WithContext(ctx).
-		Where(map[string]any{"id": projectID}).
+		Where(ColumnMap(teamAuthDB.Name(), map[string]any{"id": projectID})).
 		First(&project)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -138,7 +138,7 @@ func GetProjectTeamID(ctx context.Context, projectID string) (string, error) {
 
 	var project models.ProjectRecord
 	result := teamAuthDB.WithContext(ctx).
-		Where(map[string]any{"id": projectID}).
+		Where(ColumnMap(teamAuthDB.Name(), map[string]any{"id": projectID})).
 		Select("team_id").
 		First(&project)
 	if result.Error != nil {

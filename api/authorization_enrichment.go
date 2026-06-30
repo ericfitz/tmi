@@ -66,7 +66,7 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 		// Primary path: lookup by provider + provider_id
 		// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 		result = db.WithContext(ctx).
-			Where(map[string]any{"provider_user_id": auth.ProviderId, "provider": auth.Provider}).
+			Where(ColumnMap(db.Name(), map[string]any{"provider_user_id": auth.ProviderId, "provider": auth.Provider})).
 			First(&user)
 		if result.Error == nil {
 			found = true
@@ -74,7 +74,7 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 			// The provider_id might actually be an email address (common mistake).
 			// Try looking up by email before creating a duplicate sparse user.
 			result = db.WithContext(ctx).
-				Where(map[string]any{"email": auth.ProviderId, "provider": auth.Provider}).
+				Where(ColumnMap(db.Name(), map[string]any{"email": auth.ProviderId, "provider": auth.Provider})).
 				First(&user)
 			if result.Error == nil {
 				found = true
@@ -85,7 +85,7 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 		// Secondary path: lookup by provider + email
 		// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 		result = db.WithContext(ctx).
-			Where(map[string]any{"email": string(*auth.Email), "provider": auth.Provider}).
+			Where(ColumnMap(db.Name(), map[string]any{"email": string(*auth.Email), "provider": auth.Provider})).
 			First(&user)
 		if result.Error == nil {
 			found = true
@@ -119,11 +119,11 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 		// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
 		if hasProviderID {
 			result = db.WithContext(ctx).
-				Where(map[string]any{"provider_user_id": auth.ProviderId, "provider": auth.Provider}).
+				Where(ColumnMap(db.Name(), map[string]any{"provider_user_id": auth.ProviderId, "provider": auth.Provider})).
 				First(&user)
 		} else {
 			result = db.WithContext(ctx).
-				Where(map[string]any{"email": string(*auth.Email), "provider": auth.Provider}).
+				Where(ColumnMap(db.Name(), map[string]any{"email": string(*auth.Email), "provider": auth.Provider})).
 				First(&user)
 		}
 		if result.Error != nil {
@@ -206,7 +206,7 @@ func performSparseUserInsert(ctx context.Context, db *gorm.DB, auth *Authorizati
 	// GORM handles this differently - try to create, ignore if exists
 	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
 	result := db.WithContext(ctx).
-		Where(map[string]any{"provider": auth.Provider}).
+		Where(ColumnMap(db.Name(), map[string]any{"provider": auth.Provider})).
 		Where(
 			db.Where(clause.Expr{SQL: "? = ?", Vars: []any{Col(db.Name(), "provider_user_id"), providerUserID}}).
 				Or(clause.Expr{SQL: "? = ?", Vars: []any{Col(db.Name(), "email"), email}}),

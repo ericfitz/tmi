@@ -46,23 +46,29 @@ func (s *GormThreatModelStore) GetDB() *gorm.DB {
 func (s *GormThreatModelStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifier string) (string, error) {
 	var user models.User
 
-	// Use map-based queries for cross-database compatibility (Oracle requires quoted lowercase column names)
+	// Use map-based queries keyed via ColumnMap so the column identifiers are
+	// emitted in the correct case for the active dialect. GORM emits map keys
+	// verbatim (it does not run them through the NamingStrategy the way it does
+	// struct queries), so a bare lowercase key produces a quoted-lowercase
+	// identifier that fails to match the uppercase column the Oracle driver
+	// creates. ColumnMap uppercases on Oracle and is a passthrough elsewhere.
+	dialect := tx.Name()
 	// Step 1: Check if it's already a valid internal_uuid
 	if _, err := uuid.Parse(identifier); err == nil {
-		result := tx.Where(map[string]any{"internal_uuid": identifier}).First(&user)
+		result := tx.Where(ColumnMap(dialect, map[string]any{"internal_uuid": identifier})).First(&user)
 		if result.Error == nil {
 			return string(user.InternalUUID), nil
 		}
 	}
 
 	// Step 2: Try as provider_user_id
-	result := tx.Where(map[string]any{"provider_user_id": identifier}).First(&user)
+	result := tx.Where(ColumnMap(dialect, map[string]any{"provider_user_id": identifier})).First(&user)
 	if result.Error == nil {
 		return string(user.InternalUUID), nil
 	}
 
 	// Step 3: Try as email
-	result = tx.Where(map[string]any{"email": identifier}).First(&user)
+	result = tx.Where(ColumnMap(dialect, map[string]any{"email": identifier})).First(&user)
 	if result.Error == nil {
 		return string(user.InternalUUID), nil
 	}

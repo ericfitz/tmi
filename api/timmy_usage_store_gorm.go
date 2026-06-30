@@ -60,7 +60,7 @@ func (s *GormTimmyUsageStore) GetByUser(ctx context.Context, userID string, star
 
 	var records []models.TimmyUsage
 	err := s.db.WithContext(ctx).
-		Where(map[string]any{"user_id": userID}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"user_id": userID})).
 		Where("period_start >= ? AND period_end <= ?", start, end).
 		Order("period_start ASC").
 		Find(&records).Error
@@ -84,7 +84,7 @@ func (s *GormTimmyUsageStore) GetByThreatModel(ctx context.Context, threatModelI
 
 	var records []models.TimmyUsage
 	err := s.db.WithContext(ctx).
-		Where(map[string]any{"threat_model_id": threatModelID}).
+		Where(ColumnMap(s.db.Name(), map[string]any{"threat_model_id": threatModelID})).
 		Where("period_start >= ? AND period_end <= ?", start, end).
 		Order("period_start ASC").
 		Find(&records).Error
@@ -127,10 +127,10 @@ func (s *GormTimmyUsageStore) GetAggregated(ctx context.Context, userID, threatM
 		Where("period_start >= ? AND period_end <= ?", start, end)
 
 	if userID != "" {
-		query = query.Where(map[string]any{"user_id": userID})
+		query = query.Where(ColumnMap(query.Name(), map[string]any{"user_id": userID}))
 	}
 	if threatModelID != "" {
-		query = query.Where(map[string]any{"threat_model_id": threatModelID})
+		query = query.Where(ColumnMap(query.Name(), map[string]any{"threat_model_id": threatModelID}))
 	}
 
 	var result aggregateResult
