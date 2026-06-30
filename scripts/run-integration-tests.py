@@ -346,15 +346,24 @@ def run_pg(project_root: Path, log_path: str) -> int:
         "TEST_WEBHOOK_ADVERTISE_HOST": "host.docker.internal",
     }
 
+    # Optional: restrict the workflow run to tests matching a regex (e.g. to
+    # iterate on one workflow). When set, the api/ suite is skipped so the run
+    # is fast and focused.
+    workflow_run = os.environ.get("TMI_TEST_WORKFLOW_RUN", "").strip()
+
     # The api/ integration suite connects directly to TEST_DB_* (and spins up
     # in-process httptest servers where needed), so it is self-contained — no
     # external server required.
-    log_info("Running api/ integration tests against the isolated test DB")
-    api_cmd = [
-        "go", "test", "-v", "-timeout=10m", "-tags=test",
-        "./api/...", "-run", "Integration",
-    ]
-    api_exit = run_go_test(api_cmd, project_root, base_env, log_path)
+    api_exit = 0
+    if workflow_run:
+        log_info(f"TMI_TEST_WORKFLOW_RUN={workflow_run} set — skipping api/ suite")
+    else:
+        log_info("Running api/ integration tests against the isolated test DB")
+        api_cmd = [
+            "go", "test", "-v", "-timeout=10m", "-tags=test",
+            "./api/...", "-run", "Integration",
+        ]
+        api_exit = run_go_test(api_cmd, project_root, base_env, log_path)
 
     # The workflow tests drive a live HTTP server. Run a dedicated server
     # CONTAINER bound to the isolated test DB (never the dev-up server),
@@ -404,6 +413,8 @@ def run_pg(project_root: Path, log_path: str) -> int:
                     "TEST_SERVER_URL": server_url,
                 }
                 wf_cmd = ["go", "test", "-v", "-timeout=15m", "-p", "1", "./workflows/..."]
+                if workflow_run:
+                    wf_cmd += ["-run", workflow_run]
                 # The workflows package is a separate module under test/integration.
                 workflow_exit = run_go_test(
                     wf_cmd, project_root / "test" / "integration", wf_env, log_path,

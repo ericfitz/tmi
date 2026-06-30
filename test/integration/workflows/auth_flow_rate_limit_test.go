@@ -10,10 +10,17 @@ import (
 
 // TestAuthFlowRateLimiting_MultiScope verifies multi-scope rate limiting
 // on OAuth/SAML auth flow endpoints (Tier 2).
-// Requires: running TMI server + Redis (via make dev-up) AND
-// rate limiting enabled at the server. The dev server is commonly started
-// with disable_rate_limiting: true, in which case this test skips —
-// auth_flow_rate_limiter unit tests in api/ cover the limiter itself.
+//
+// The auth-flow limiter intentionally no-ops in build_mode=test
+// (auth_flow_rate_limiter.go short-circuits to Allowed), so it cannot be
+// exercised against the integration test server, which must run in
+// build_mode=test for the built-in tmi OAuth provider every other workflow
+// test depends on. This test therefore SKIPS in that environment (and whenever
+// rate limiting is otherwise disabled); the limiter's behavior is covered by
+// the unit tests in api/auth_flow_rate_limiter_test.go. The skip guard checks
+// that the limiter is actually enforcing (a positive X-RateLimit-Limit), not
+// merely that headers are present (which are emitted with a 0 limit even when
+// the limiter is disabled).
 func TestAuthFlowRateLimiting_MultiScope(t *testing.T) {
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
 		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")
@@ -24,8 +31,8 @@ func TestAuthFlowRateLimiting_MultiScope(t *testing.T) {
 		serverURL = "http://localhost:8080"
 	}
 
-	if !framework.IsRateLimitingActive(serverURL) {
-		t.Skip("Rate limiting is not active on the server (disable_rate_limiting or build_mode=test); skipping rate-limit assertions")
+	if !framework.IsAuthFlowRateLimitingActive(serverURL) {
+		t.Skip("Auth-flow rate limiter is not enforcing (disabled via disable_rate_limiting or build_mode=test — the integration server's mode); covered by unit tests in api/auth_flow_rate_limiter_test.go")
 	}
 
 	t.Run("session scope blocks after 5 requests with same state", func(t *testing.T) {
