@@ -774,7 +774,7 @@ func toAuditEntryResponses(entries []models.AuditEntry) []AuditEntryResponse {
 }
 
 // PurgeTombstones hard-deletes entities that have been soft-deleted longer than the retention period.
-// SEM@a1f271c8c84084548552b08828e5325d3255eb2a: hard-delete soft-deleted threat models and sub-resources past the tombstone retention period (reads DB)
+// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: hard-delete soft-deleted threat models and sub-resources past the tombstone retention period (reads DB)
 func (s *GormAuditService) PurgeTombstones(ctx context.Context) (int, error) {
 	logger := slogging.Get()
 	cutoff := time.Now().UTC().Add(-time.Duration(s.tombstoneRetentionDays) * 24 * time.Hour)

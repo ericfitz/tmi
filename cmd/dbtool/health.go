@@ -59,7 +59,7 @@ func runHealthCheck(db *testdb.TestDB, _ bool) error {
 }
 
 // checkSystemDataHealth checks whether required system data exists.
-// SEM@192fb026aa596416ded7413d23092ccd1733ad90: log built-in group count and webhook deny-list seeding status from the database (reads DB)
+// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: log built-in group count and webhook deny-list seeding status from the database (reads DB)
 func checkSystemDataHealth(db *testdb.TestDB, log *slogging.Logger) {
 	// Check built-in groups (provider = "tmi" are built-in)
 	var groupCount int64

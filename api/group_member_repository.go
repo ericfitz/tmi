@@ -562,7 +562,7 @@ func (r *GormGroupMemberRepository) HasAnyMembers(ctx context.Context, groupInte
 // This queries the group_members table for user-type memberships and joins the groups table
 // to return group metadata. The "everyone" pseudo-group is excluded since it has no
 // membership records (all authenticated users are implicitly members).
-// SEM@f9ee21801aeaafee608b61a6e35aa8c146928a03: list all TMI-managed groups a user has direct membership in (reads DB)
+// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: list all TMI-managed groups a user has direct membership in (reads DB)
 func (r *GormGroupMemberRepository) GetGroupsForUser(ctx context.Context, userInternalUUID uuid.UUID) ([]Group, error) {
 	// SEM@f9ee21801aeaafee608b61a6e35aa8c146928a03: scan target for a group row when querying a user's group memberships (pure)
 	type groupRow struct {

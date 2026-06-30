@@ -107,7 +107,7 @@ func run() int {
 
 // deduplicateGroupMembers finds and removes duplicate (group, user, subject_type)
 // rows in group_members, keeping the earliest row by added_at.
-// SEM@c849919898ec78d8bff15ce75f9fccb040810e4a: delete duplicate group_members rows, keeping the earliest entry per membership (mutates shared state)
+// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: delete duplicate group_members rows, keeping the earliest entry per membership (mutates shared state)
 func deduplicateGroupMembers(gormDB *gorm.DB, dryRun bool) (int64, error) {
 	log := slogging.Get()
 

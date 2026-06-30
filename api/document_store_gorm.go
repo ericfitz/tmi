@@ -666,7 +666,7 @@ func (s *GormDocumentRepository) UpdateAccessStatusWithDiagnostics(
 
 // GetAccessReason returns the diagnostic fields for a document.
 // See DocumentStore.GetAccessReason.
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch access reason code, detail, and status timestamp for a document (reads DB)
+// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: fetch access reason code, detail, and status timestamp for a document (reads DB)
 func (s *GormDocumentRepository) GetAccessReason(
 	ctx context.Context, id string,
 ) (reasonCode string, reasonDetail string, updatedAt *time.Time, err error) {
@@ -725,7 +725,7 @@ func (s *GormDocumentRepository) GetThreatModelID(ctx context.Context, id string
 
 // GetPickerDispatch returns picker metadata + owner UUID for poller dispatch.
 // See DocumentStore.GetPickerDispatch.
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: fetch picker metadata and threat model owner UUID for poller dispatch (reads DB)
+// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: fetch picker metadata and threat model owner UUID for poller dispatch (reads DB)
 func (s *GormDocumentRepository) GetPickerDispatch(
 	ctx context.Context, id string,
 ) (*PickerMetadata, string, error) {

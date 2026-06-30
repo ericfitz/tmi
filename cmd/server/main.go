@@ -2372,7 +2372,7 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 }
 
 // findUserByProviderIdentityGorm looks up a user by provider and provider_id or email using GORM
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a user's internal UUID by provider identity or email (reads DB)
+// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: fetch a user's internal UUID by provider identity or email (reads DB)
 func findUserByProviderIdentityGorm(ctx context.Context, gormDB *gorm.DB, provider string, providerID string, email string) (uuid.UUID, error) {
 	var user struct {
 		InternalUUID string `gorm:"column:internal_uuid"`
@@ -2408,7 +2408,7 @@ func findUserByProviderIdentityGorm(ctx context.Context, gormDB *gorm.DB, provid
 }
 
 // createUserForAdministratorGorm creates a new user record for a configured administrator using GORM
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: store a new user record for a configured administrator using GORM (writes DB)
+// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: store a new user record for a configured administrator using GORM (writes DB)
 func createUserForAdministratorGorm(ctx context.Context, gormDB *gorm.DB, adminCfg config.AdministratorConfig) (uuid.UUID, error) {
 	logger := slogging.Get()
 

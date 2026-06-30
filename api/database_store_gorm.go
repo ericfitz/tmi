@@ -650,7 +650,7 @@ type entityCounts struct {
 
 // batchCounts loads sub-resource counts for multiple threat models in batch using
 // GROUP BY queries (6 queries total instead of 6×N).
-// SEM@26ea9cecd7ad82e4c30b0791c4f3414b2490190d: fetch sub-resource counts for multiple threat models in batch GROUP BY queries (reads DB)
+// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: fetch sub-resource counts for multiple threat models in batch GROUP BY queries (reads DB)
 func (s *GormThreatModelStore) batchCounts(ids []string) map[string]entityCounts {
 	result := make(map[string]entityCounts, len(ids))
 	if len(ids) == 0 {
