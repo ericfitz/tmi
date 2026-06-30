@@ -648,6 +648,7 @@ const (
 // Returns the normalized format ("json", "yaml", or "graphml"), or an error
 // (the caller maps it to 406 Not Acceptable) when the Accept header matches
 // none of the offered types.
+// SEM@29f63eb500c26288d0d3fe23737adf6fd94bdf9c: select diagram output format string from request Accept header (pure)
 func negotiateFormat(c *gin.Context) (string, error) {
 	chosen, ok := negotiateContentType(
 		c.GetHeader("Accept"),

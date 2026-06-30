@@ -116,7 +116,7 @@ func (s *Server) DeleteThreatModelDiagram(c *gin.Context, threatModelId openapi_
 // Diagram Collaboration Methods (already partially implemented above)
 
 // GetDiagramModel gets minimal diagram model for automated analysis
-// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: fetch minimal diagram model for automated analysis via diagram handler
+// SEM@29f63eb500c26288d0d3fe23737adf6fd94bdf9c: route diagram model request to the diagram handler
 func (s *Server) GetDiagramModel(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
 	// Create handler with websocket hub
 	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}

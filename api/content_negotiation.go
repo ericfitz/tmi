@@ -17,6 +17,8 @@ import (
 //     first offered type that matches a client range wins.
 //   - Returns (chosen, true) on a match, or ("", false) when no offered type is
 //     acceptable (the caller should respond 406 Not Acceptable).
+//
+// SEM@29f63eb500c26288d0d3fe23737adf6fd94bdf9c: select the best offered media type from an Accept header (pure)
 func negotiateContentType(acceptHeader string, offered []string) (string, bool) {
 	if len(offered) == 0 {
 		return "", false
@@ -26,6 +28,7 @@ func negotiateContentType(acceptHeader string, offered []string) (string, bool) 
 		return offered[0], true
 	}
 
+	// SEM@29f63eb500c26288d0d3fe23737adf6fd94bdf9c: represent a parsed Accept-header media range entry with quality weight (pure)
 	type mediaRange struct {
 		typ string
 		sub string

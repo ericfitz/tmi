@@ -1045,7 +1045,7 @@ func JSONErrorHandler() gin.HandlerFunc {
 
 // AcceptHeaderValidation middleware validates that the Accept header is application/json
 // Returns 406 Not Acceptable for unsupported media types
-// SEM@db4151c18be26b4507aad60c8a2b51001815f1de: reject requests whose Accept header excludes application/json or text/event-stream with 406
+// SEM@29f63eb500c26288d0d3fe23737adf6fd94bdf9c: build middleware that rejects requests with unsupported Accept media types
 func AcceptHeaderValidation() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get logger from context

@@ -39,7 +39,7 @@ const (
 )
 
 // ListSystemAuditEntries handles GET /admin/audit/system (#398).
-// SEM@2c1d4cb3d8cc963743f568bc4f17a46154cb2c43: handle GET /admin/audit/system, listing or exporting system audit entries with filters and keyset pagination (reads DB)
+// SEM@29f63eb500c26288d0d3fe23737adf6fd94bdf9c: list or stream system audit entries with optional filters (reads DB)
 func (s *Server) ListSystemAuditEntries(c *gin.Context, params ListSystemAuditEntriesParams) {
 	logger := slogging.Get().WithContext(c)
 

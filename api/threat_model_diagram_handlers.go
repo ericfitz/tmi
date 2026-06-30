@@ -819,7 +819,7 @@ func areSlicesEqual(a, b []DfdDiagram_Cells_Item) bool {
 //   - application/graphml+xml
 //   - 406 Not Acceptable when the Accept header matches none of these
 //
-// SEM@533fc769067d317cc10f227729848688da16fba0: fetch a minimal diagram model for automated threat modeling tools with content negotiation (reads DB)
+// SEM@29f63eb500c26288d0d3fe23737adf6fd94bdf9c: fetch a diagram model and serialize in the negotiated format (reads DB)
 func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelId, diagramId openapi_types.UUID) {
 	// Determine output format from the Accept header (default application/json).
 	format, err := negotiateFormat(c)
