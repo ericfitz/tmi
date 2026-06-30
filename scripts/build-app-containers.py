@@ -219,6 +219,14 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Build without Docker cache",
     )
+    parser.add_argument(
+        "--build-tags",
+        default="",
+        metavar="TAGS",
+        help='Go build tags passed to the server image build via the BUILD_TAGS '
+        'build-arg (e.g. "dev" to compile in login_hint + the test OAuth provider). '
+        "Only applies to the server component.",
+    )
     return parser.parse_args()
 
 
@@ -255,6 +263,7 @@ def build_component(
     *,
     push: bool,
     no_cache: bool,
+    build_tags: str = "",
 ) -> None:
     """Build a single component container."""
     if component not in config.dockerfile_map:
@@ -277,6 +286,11 @@ def build_component(
     extra_args: list[str] = []
     if component == "redis" and "oracle" in dockerfile:
         extra_args.extend(["--build-arg", "REDIS_VERSION=8.4.0"])
+    # Server image Go build tags (e.g. "dev" enables login_hint + the test OAuth
+    # provider, needed by the integration test server). Dockerfile.server reads
+    # the BUILD_TAGS build-arg; other Dockerfiles ignore it.
+    if component == "server" and build_tags:
+        extra_args.extend(["--build-arg", f"BUILD_TAGS={build_tags}"])
 
     helpers.run_docker_build(
         config,
@@ -387,6 +401,7 @@ def main() -> None:
                 build_date,
                 push=args.push,
                 no_cache=args.no_cache,
+                build_tags=args.build_tags,
             )
 
             if args.scan:

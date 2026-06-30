@@ -57,10 +57,39 @@ class TestDevProfile(unittest.TestCase):
 
 
 class TestTestProfile(unittest.TestCase):
-    def test_dev_and_test_share_container_name(self):
-        """Dev and test share the same container name (faithful to original manage-database.py)."""
-        self.assertEqual(database.test_profile(_DEV_CONFIG).container, database.dev_profile(_DEV_CONFIG).container)
-        self.assertEqual(database.test_profile(_DEV_CONFIG).container, database.DEV_CONTAINER)
+    def test_dev_and_test_have_distinct_container_names(self):
+        """Dev and test must use distinct container names so the test DB can
+        never collide with or replace the dev container (#477)."""
+        test_container = database.test_profile(_DEV_CONFIG).container
+        dev_container = database.dev_profile(_DEV_CONFIG).container
+        self.assertNotEqual(test_container, dev_container)
+        self.assertEqual(test_container, database.TEST_CONTAINER)
+        self.assertEqual(dev_container, database.DEV_CONTAINER)
+
+    def test_test_profile_container_name(self):
+        """Test profile always uses the isolated test container name."""
+        self.assertEqual(database.test_profile(_DEV_CONFIG).container, database.TEST_CONTAINER)
+        self.assertNotEqual(database.TEST_CONTAINER, database.DEV_CONTAINER)
+
+    def test_test_profile_forces_test_port(self):
+        """test_profile forces the runner-owned TEST_PORT regardless of the
+        config file's url port, so the isolated container never collides with
+        dev's port (#477). _DEV_CONFIG's url is 5432; the test profile must
+        still report TEST_PORT."""
+        p = database.test_profile(_DEV_CONFIG)
+        self.assertEqual(p.port, database.TEST_PORT)
+        self.assertNotEqual(p.port, database.dev_profile(_DEV_CONFIG).port)
+
+    def test_test_profile_default_config_is_test_config(self):
+        """Called with no explicit config, test_profile must derive its
+        connection from config-test.yml (isolated tmi_test DB), not the dev
+        config (#477)."""
+        p = database.test_profile()
+        self.assertTrue(
+            p.config_path.endswith("config-test.yml"),
+            f"expected config-test.yml, got {p.config_path!r}",
+        )
+        self.assertEqual(p.database, "tmi_test")
 
     def test_dev_has_volume_test_does_not(self):
         """The real dev/test distinction: dev has a persistent volume, test is ephemeral."""

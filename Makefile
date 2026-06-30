@@ -63,13 +63,13 @@ clean-nats:  ## Remove the NATS JetStream container
 .PHONY: start-test-database stop-test-database clean-test-database start-test-redis stop-test-redis clean-test-redis clean-test-infrastructure
 
 start-test-database:
-	@uv run scripts/manage-database.py --test start
+	@uv run scripts/manage-database.py --test --config config-test.yml start
 
 stop-test-database:
-	@uv run scripts/manage-database.py --test stop
+	@uv run scripts/manage-database.py --test --config config-test.yml stop
 
 clean-test-database:
-	@uv run scripts/manage-database.py --test clean
+	@uv run scripts/manage-database.py --test --config config-test.yml clean
 
 start-test-redis:
 	@uv run scripts/manage-redis.py --test start
@@ -188,7 +188,7 @@ wait-test-database:
 	@uv run scripts/manage-database.py --test --config config-test.yml wait
 
 migrate-test-database:
-	@uv run scripts/manage-database.py --config config-test.yml migrate
+	@uv run scripts/manage-database.py --test --config config-test.yml migrate
 
 # ============================================================================
 # ATOMIC COMPONENTS - Cleanup Operations
@@ -235,12 +235,14 @@ test-unit:
 test-integration: test-integration-pg
 
 # Integration Testing - PostgreSQL backend (Docker container)
-# Starts PostgreSQL, Redis, runs migrations, and executes integration tests
-# Configuration: config-test.yml + TMI_DATABASE_URL for the PostgreSQL backend
-# (run-integration-tests.py builds the URL from the local dev DB parameters)
+# Self-contained: brings up and migrates the ISOLATED test container
+# (tmi-postgresql-test @5433/tmi_test), runs the api/ suite directly against it,
+# and launches a dedicated tmiserver bound to it for the workflow tests.
+# Does NOT require `make dev-up` and never touches the dev DB (#477).
+# Configuration: config-test.yml + TMI_DATABASE_URL (5433/tmi_test).
 # Usage: make test-integration-pg
-# (Cleanup of dev containers is the responsibility of make stop-dev /
-#  make clean-everything, not this target.)
+# (The isolated test container is left running for fast reruns; remove it with
+#  make clean-test-database.)
 test-integration-pg:
 	@uv run scripts/run-integration-tests.py --target pg
 

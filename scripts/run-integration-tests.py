@@ -1,5 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
+# dependencies = ["pyyaml>=6.0"]
 # ///
 """Run TMI integration tests with formatted output.
 
@@ -12,13 +13,17 @@ Replaces the bash wrappers' `tee | grep` exit-code path which silently
 masked failures (tee always exits 0 without `set -o pipefail`).
 
 Targets:
-  pg   — run integration + workflow tests against the dev PostgreSQL DB
-         Server started with config-test.yml + TMI_DATABASE_URL=postgres://...
+  pg   — run integration + workflow tests against the ISOLATED test PostgreSQL
+         container (tmi-postgresql-test @ config-test.yml's port, db tmi_test),
+         never the dev DB (#477). This target is self-contained: it brings up
+         and migrates the isolated test container, points the api/ suite's
+         direct DB connection (TEST_DB_*) at it, and launches a dedicated
+         tmiserver bound to it (TMI_DATABASE_URL) for the workflow tests. It
+         does NOT require `make dev-up` and never touches the dev container.
   oci  — run integration tests against Oracle ADB (requires oci-env.sh)
          Server started with config-test.yml + TMI_DATABASE_URL=oracle://...
          (TMI_DATABASE_URL set by scripts/oci-env.sh via ORACLE_CONNECT_STRING)
-
-Both targets require `make dev-up` (or `dev-up DB=oracle`) to be running.
+         Requires `make dev-up DB=oracle` to be running.
 """
 
 from __future__ import annotations
@@ -29,14 +34,18 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import database  # noqa: E402
 from tmi_common import (
     add_verbosity_args,
     apply_verbosity,
+    config_get,
     get_project_root,
+    load_config,
     log_error,
     log_info,
     log_success,
@@ -93,21 +102,28 @@ def ensure_oauth_stub(project_root: Path) -> bool:
     return server_is_running(stub_url)
 
 
-def clear_redis_rate_limits() -> None:
-    """Best-effort: drop auth/IP rate-limit keys from the dev Redis."""
+def clear_redis_rate_limits(redis_db: str = "0") -> None:
+    """Best-effort: drop auth/IP rate-limit keys from the test Redis logical DB.
+
+    Targets the test logical DB (``-n redis_db``) so it never touches dev's
+    keyspace (DB 0). dev and test share the Redis container but are isolated by
+    logical DB index (#477).
+    """
     if not shutil.which("docker"):
         return
     for pattern in ("auth:ratelimit:*", "ip:ratelimit:*"):
         try:
             scan = subprocess.run(
-                ["docker", "exec", "tmi-redis", "redis-cli", "--scan", "--pattern", pattern],
+                ["docker", "exec", "tmi-redis", "redis-cli", "-n", redis_db,
+                 "--scan", "--pattern", pattern],
                 capture_output=True, text=True, check=False,
             )
             keys = [k for k in scan.stdout.splitlines() if k.strip()]
             if not keys:
                 continue
             subprocess.run(
-                ["docker", "exec", "-i", "tmi-redis", "redis-cli", "DEL", *keys],
+                ["docker", "exec", "-i", "tmi-redis", "redis-cli", "-n", redis_db,
+                 "DEL", *keys],
                 check=False, capture_output=True,
             )
         except OSError:
@@ -128,61 +144,273 @@ def run_go_test(cmd: list[str], cwd: Path, env: dict, log_path: str) -> int:
     return result.returncode
 
 
+def wait_for_server(url: str, timeout: int = 60) -> bool:
+    """Poll url until it answers (status < 500) or timeout elapses."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if server_is_running(url):
+            return True
+        time.sleep(1)
+    return False
+
+
+def ensure_redis(project_root: Path) -> None:
+    """Best-effort: ensure a Redis is listening on localhost:6379.
+
+    The isolated test server and the integration suite use Redis; config-test.yml
+    selects logical DB 1 for test isolation. Postgres is the only store #477
+    isolates by container, so Redis intentionally reuses the local instance.
+    """
+    scripts_dir = project_root / "scripts"
+    try:
+        subprocess.run(
+            ["uv", "run", str(scripts_dir / "manage-redis.py"), "start"],
+            cwd=str(project_root), check=False, capture_output=True,
+        )
+    except OSError:
+        log_warn("Could not start Redis; tests needing Redis may fail")
+
+
+TEST_SERVER_CONTAINER = "tmi-server-test"
+TEST_SERVER_IMAGE = "tmi/tmi-server:latest"
+TEST_SERVER_HOST_PORT = "8081"
+
+
+def build_server_image(project_root: Path) -> bool:
+    """Build the dev-tagged test server image (tmi/tmi-server:latest).
+
+    The `dev` build tag compiles in login_hint + the built-in tmi OAuth provider
+    the workflow tests rely on. Returns True on success.
+    """
+    log_info("Building the test server container image (BUILD_TAGS=dev)...")
+    try:
+        result = subprocess.run(
+            ["uv", "run", "scripts/build-app-containers.py",
+             "--target", "local", "--component", "server", "--build-tags", "dev"],
+            cwd=str(project_root), check=False,
+        )
+    except OSError as exc:
+        log_error(f"Failed to invoke image build: {exc}")
+        return False
+    return result.returncode == 0
+
+
+def stop_test_server_container() -> None:
+    """Remove the test server container (best-effort)."""
+    if not shutil.which("docker"):
+        return
+    subprocess.run(
+        ["docker", "rm", "-f", TEST_SERVER_CONTAINER],
+        check=False, capture_output=True,
+    )
+
+
+def start_test_server_container(
+    project_root: Path, config_path: Path, container_db_url: str,
+    redis_host: str, redis_port: str, host_port: str,
+    *, disable_rate_limiting: bool = True,
+) -> str | None:
+    """Start the test server in a Docker container, mirroring the dev pod topology.
+
+    The container reaches all host-side dependencies (test DB, Redis, OAuth stub,
+    webhook receiver) via host.docker.internal, and the host reaches the server
+    via the published port. Because host→server traffic is NAT'd through the
+    Docker bridge, the server sees a NON-loopback client IP — so IP/auth
+    rate-limiting and the webhook SSRF path behave exactly as in dev-up. The
+    workflow tests depend on this; a host-run loopback server cannot satisfy
+    them (#477).
+
+    Rate limiting is disabled by default (like the dev server): during testing,
+    rate limits are a liability that flakes unrelated tests. Set the runner env
+    TMI_TEST_ENABLE_RATE_LIMITING=true to keep it on (e.g. when explicitly
+    exercising the rate-limit workflow tests).
+
+    Returns the container name, or None on failure.
+    """
+    stop_test_server_container()
+    cmd = [
+        "docker", "run", "-d", "--name", TEST_SERVER_CONTAINER,
+        "--add-host", "host.docker.internal:host-gateway",
+        "-p", f"{host_port}:8080",
+        "-v", f"{config_path}:/etc/tmi/config.yml:ro",
+        "-e", f"TMI_DATABASE_URL={container_db_url}",
+        "-e", f"TMI_REDIS_HOST={redis_host}",
+        "-e", f"TMI_REDIS_PORT={redis_port}",
+        "-e", "TMI_SERVER_INTERFACE=0.0.0.0",
+        "-e", "TMI_SERVER_PORT=8080",
+        "-e", "LOGGING_IS_TEST=true",
+        # The server builds self-referential OAuth callback URLs from this. The
+        # container listens on 8080 internally but the host reaches it on the
+        # published port, so advertise the host-reachable URL or the OAuth
+        # callback the tests follow would point at an unreachable port.
+        "-e", f"TMI_OAUTH_CALLBACK_URL=http://localhost:{host_port}/oauth2/callback",
+        # Dev/test toggles mirrored from deployments/k8s/dev/server.yml: the tmi
+        # OAuth provider, first-user admin auto-promote, http webhook targets, and
+        # the SSRF allowlist for the host-run webhook receiver (reached, like the
+        # dev pod, via host.docker.internal).
+        "-e", "OAUTH_PROVIDERS_TMI_ENABLED=true",
+        "-e", "TMI_AUTH_AUTO_PROMOTE_FIRST_USER=true",
+        "-e", "TMI_WEBHOOK_ALLOW_HTTP_TARGETS=true",
+        "-e", "TMI_SSRF_WEBHOOK_ALLOWLIST=host.docker.internal",
+        # The OAuth flow drives the callback stub at localhost:8079; allowlist it
+        # here (tracked runner) rather than in the gitignored config-test.yml, so
+        # the harness is reproducible. Comma-separated; overrides the file value.
+        "-e", "TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST="
+        "http://localhost:8079/,http://localhost:8079/*,http://localhost:4200/*",
+    ]
+    if disable_rate_limiting:
+        cmd += ["-e", "TMI_DISABLE_RATE_LIMITING=true"]
+    cmd += [TEST_SERVER_IMAGE, "--config=/etc/tmi/config.yml"]
+    try:
+        result = subprocess.run(
+            cmd, cwd=str(project_root), check=False, capture_output=True, text=True,
+        )
+    except OSError as exc:
+        log_error(f"Failed to start test server container: {exc}")
+        return None
+    if result.returncode != 0:
+        log_error(f"docker run failed: {result.stderr.strip()}")
+        return None
+    return TEST_SERVER_CONTAINER
+
+
+def dump_test_server_logs(server_log: str) -> None:
+    """Capture the test server container logs to a file for debugging."""
+    if not shutil.which("docker"):
+        return
+    try:
+        with open(server_log, "w") as fh:
+            subprocess.run(
+                ["docker", "logs", TEST_SERVER_CONTAINER],
+                check=False, stdout=fh, stderr=subprocess.STDOUT,
+            )
+    except OSError:
+        pass
+
+
 def run_pg(project_root: Path, log_path: str) -> int:
-    server_url = "http://localhost:8080"
-    if not server_is_running(f"{server_url}/"):
-        log_error(f"TMI server is not running on {server_url}")
-        log_info("Start the server first with: make dev-up")
-        return 2
+    # Bring up the ISOLATED test database container (tmi-postgresql-test on the
+    # config-test.yml port, db tmi_test) and migrate it. This never touches the
+    # dev container, and does not require `make dev-up` (#477).
+    test_cfg = project_root / "config-test.yml"
+    profile = database.test_profile(str(test_cfg))
 
-    log_info("Server is ready")
+    log_info(
+        f"Starting isolated test DB container '{profile.container}' on port {profile.port}"
+    )
+    database.up(profile)
+    database.wait(profile, timeout=120)
+    log_info("Running migrations against the isolated test DB")
+    database.migrate(profile)
 
-    oauth_running = ensure_oauth_stub(project_root)
-    if not oauth_running:
-        log_warn("OAuth stub not available — workflow tests will be skipped")
+    ensure_redis(project_root)
 
     db_host = "localhost"
-    db_port = "5432"
-    db_user = "tmi_dev"
-    db_password = "dev123"  # noqa: S105 - local dev Docker container credential
-    db_name = "tmi_dev"
+    db_port = str(profile.port)
+    db_user = profile.user
+    db_password = profile.password
+    db_name = profile.database
+    db_url = (
+        f"postgres://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?sslmode=disable"
+    )
+
+    # Redis is shared with dev by container but isolated by logical DB index:
+    # config-test.yml selects DB 1 for tests (dev uses DB 0). Keep config-test.yml
+    # authoritative and propagate the same index to the test helpers via
+    # TEST_REDIS_DB so direct test connections never collide with dev (#477).
+    raw_test_cfg = load_config(test_cfg)
+    redis_host = str(config_get(raw_test_cfg, "database.redis.host") or "localhost")
+    redis_port = str(config_get(raw_test_cfg, "database.redis.port") or "6379")
+    redis_db = str(config_get(raw_test_cfg, "database.redis.db") or "0")
 
     base_env = {
         **os.environ,
-        # config-test.yml is the bootstrap config; TMI_DATABASE_URL selects
-        # the PostgreSQL backend for the integration test run. Built from the
-        # local dev DB connection parameters below.
-        "TMI_DATABASE_URL": (
-            f"postgres://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?sslmode=disable"
-        ),
+        "TMI_DATABASE_URL": db_url,
         "LOGGING_IS_TEST": "true",
         "TEST_DB_HOST": db_host,
         "TEST_DB_PORT": db_port,
         "TEST_DB_USER": db_user,
         "TEST_DB_PASSWORD": db_password,
         "TEST_DB_NAME": db_name,
-        "TEST_REDIS_HOST": "localhost",
-        "TEST_REDIS_PORT": "6379",
-        "TEST_SERVER_URL": server_url,
+        # framework.NewDevDatabase() reads TEST_DEV_DB_PORT (default 5432) for
+        # the "same DB the server uses" cleanup connection. The server now uses
+        # the isolated test DB, so point this at the test port too (#477).
+        "TEST_DEV_DB_PORT": db_port,
+        "TEST_REDIS_HOST": redis_host,
+        "TEST_REDIS_PORT": redis_port,
+        "TEST_REDIS_DB": redis_db,
+        # The webhook receiver binds on the host; advertise it as
+        # host.docker.internal so the containerized test server reaches it the
+        # same way the dev pod does (and the SSRF deny-list, which globs literal
+        # hostnames, doesn't block it) (#477).
+        "TEST_WEBHOOK_ADVERTISE_HOST": "host.docker.internal",
     }
 
-    log_info("Running api/ integration tests")
+    # The api/ integration suite connects directly to TEST_DB_* (and spins up
+    # in-process httptest servers where needed), so it is self-contained — no
+    # external server required.
+    log_info("Running api/ integration tests against the isolated test DB")
     api_cmd = [
         "go", "test", "-v", "-timeout=10m", "-tags=test",
         "./api/...", "-run", "Integration",
     ]
     api_exit = run_go_test(api_cmd, project_root, base_env, log_path)
 
+    # The workflow tests drive a live HTTP server. Run a dedicated server
+    # CONTAINER bound to the isolated test DB (never the dev-up server),
+    # mirroring the dev pod topology so non-loopback-dependent behaviour
+    # (rate-limiting, webhook SSRF) works (#477).
     workflow_exit = 0
-    if oauth_running:
-        clear_redis_rate_limits()
-        log_info("Running workflow integration tests")
-        wf_env = {**base_env, "INTEGRATION_TESTS": "true", "TMI_SERVER_URL": server_url}
-        wf_cmd = ["go", "test", "-v", "-timeout=15m", "-p", "1", "./workflows/..."]
-        # The workflows package is a separate module under test/integration.
-        workflow_exit = run_go_test(
-            wf_cmd, project_root / "test" / "integration", wf_env, log_path,
+    server_log = str((project_root / "logs" / "tmi-test-server.log"))
+    (project_root / "logs").mkdir(exist_ok=True)
+    oauth_running = ensure_oauth_stub(project_root)
+    if not oauth_running:
+        log_warn("OAuth stub not available — workflow tests will be skipped")
+    elif not build_server_image(project_root):
+        log_warn("test server image build failed — workflow tests will be skipped")
+    else:
+        server_url = f"http://localhost:{TEST_SERVER_HOST_PORT}"
+        # The container reaches the host-published test DB and dev Redis via
+        # host.docker.internal (its own localhost is the container, not the host).
+        container_db_url = (
+            f"postgres://{db_user}:{db_password}@host.docker.internal:{db_port}"
+            f"/{db_name}?sslmode=disable"
         )
+        # Rate limiting is a testing liability (flakes unrelated tests), so the
+        # test server disables it by default — matching the dev server. Opt back
+        # in with TMI_TEST_ENABLE_RATE_LIMITING=true to run the rate-limit
+        # workflow tests (which otherwise skip via IsRateLimitingActive).
+        enable_rl = os.environ.get("TMI_TEST_ENABLE_RATE_LIMITING", "").lower() == "true"
+        container = start_test_server_container(
+            project_root, test_cfg, container_db_url,
+            "host.docker.internal", redis_port, TEST_SERVER_HOST_PORT,
+            disable_rate_limiting=not enable_rl,
+        )
+        try:
+            if container is None or not wait_for_server(f"{server_url}/", timeout=90):
+                dump_test_server_logs(server_log)
+                log_warn(
+                    f"Test server did not become ready (see {server_log}) — "
+                    "skipping workflow tests"
+                )
+            else:
+                log_info(f"Test server ready on {server_url}")
+                clear_redis_rate_limits(redis_db)
+                log_info("Running workflow integration tests against the isolated test server")
+                wf_env = {
+                    **base_env,
+                    "INTEGRATION_TESTS": "true",
+                    "TMI_SERVER_URL": server_url,
+                    "TEST_SERVER_URL": server_url,
+                }
+                wf_cmd = ["go", "test", "-v", "-timeout=15m", "-p", "1", "./workflows/..."]
+                # The workflows package is a separate module under test/integration.
+                workflow_exit = run_go_test(
+                    wf_cmd, project_root / "test" / "integration", wf_env, log_path,
+                )
+        finally:
+            dump_test_server_logs(server_log)
+            stop_test_server_container()
 
     return api_exit if api_exit != 0 else workflow_exit
 

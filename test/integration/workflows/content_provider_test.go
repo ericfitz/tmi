@@ -62,6 +62,17 @@ func googleDriveCredentialsExist() bool {
 	return err == nil
 }
 
+// serverContentSourcesConfigured reports whether the TMI server under test has
+// external content-source providers (e.g. Google Drive) provisioned. Detecting
+// content_source/access_status requires the SERVER to have the source
+// registered (an operational setting), not just credentials present on the test
+// host. The isolated integration server does not provision external content
+// sources, so these tests skip there; the runner sets
+// TEST_CONTENT_SOURCES_CONFIGURED=true only where the server actually has them.
+func serverContentSourcesConfigured() bool {
+	return os.Getenv("TEST_CONTENT_SOURCES_CONFIGURED") == "true"
+}
+
 // TestContentProviderWorkflow tests the document access tracking pipeline end-to-end.
 // Requires:
 // - INTEGRATION_TESTS=true
@@ -83,9 +94,10 @@ func TestContentProviderWorkflow(t *testing.T) {
 	}
 
 	gdriveDocs := loadGoogleDriveTestDocs(t)
-	hasGDrive := gdriveDocs != nil && googleDriveCredentialsExist()
+	hasGDrive := gdriveDocs != nil && googleDriveCredentialsExist() && serverContentSourcesConfigured()
 	if !hasGDrive {
-		t.Log("Google Drive test docs/credentials not found — Google Drive tests will be skipped")
+		t.Log("Google Drive content source not configured on the server " +
+			"(or test fixtures/credentials absent) — Google Drive tests will be skipped")
 	}
 
 	userID := framework.UniqueUserID()

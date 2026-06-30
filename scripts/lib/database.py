@@ -34,6 +34,17 @@ _POSTGRES_IMAGE = "tmi/tmi-postgresql:latest"
 DEV_CONTAINER = "tmi-postgresql"
 DEV_VOLUME = "tmi-postgres-data"
 
+# Isolated test container — distinct name and a distinct host port so the
+# ephemeral integration-test database can never collide with or replace a
+# developer's running dev container/data (#477).
+TEST_CONTAINER = "tmi-postgresql-test"
+
+# Host port for the isolated test container. Owned here in the tracked runner —
+# not in config-test.yml, which is a gitignored, dev-local file — so the
+# integration harness binds the test DB to a port distinct from dev's 5432
+# reproducibly, regardless of what a given developer's config-test.yml says.
+TEST_PORT = 5433
+
 
 @dataclass(frozen=True)
 class DBProfile:
@@ -181,18 +192,23 @@ def dev_profile(config_path: str = "config-development.yml") -> DBProfile:
     )
 
 
-def test_profile(config_path: str = "config-development.yml") -> DBProfile:
-    """Return the ephemeral test PostgreSQL profile.
+def test_profile(config_path: str = "config-test.yml") -> DBProfile:
+    """Return the ephemeral, isolated test PostgreSQL profile.
 
-    Connection settings are derived from config_path's database.url field.
-    Faithful to the original manage-database.py TEST behavior: shares the same
-    container name as dev (``tmi-postgresql``) and uses NO volume (ephemeral —
-    container data is discarded when the container stops).
+    Connection credentials (user/password/database) are derived from
+    config_path's database.url field (config-test.yml: the ``tmi_test``
+    database). The host port is forced to the runner-owned ``TEST_PORT`` so the
+    isolated container always binds a port distinct from dev's 5432, regardless
+    of the gitignored config file's url. Uses a dedicated container name
+    (``tmi-postgresql-test``) distinct from the dev container and NO volume
+    (ephemeral — data is discarded on stop), so the integration-test database
+    can never collide with or replace a developer's running dev container (#477).
     """
     return profile_from_config(
         config_path,
         ephemeral=True,
-        container=DEV_CONTAINER,
+        container=TEST_CONTAINER,
+        overrides={"port": TEST_PORT},
     )
 
 
@@ -288,9 +304,18 @@ def migrate(profile: DBProfile, *, verbose: bool = False) -> None:
     project_root = get_project_root()
     config_path = Path(profile.config_path).resolve()
     migrate_dir = project_root / "cmd" / "migrate"
+    # Migrate against the profile's actual connection, not just config_path's
+    # url: the test profile forces a runner-owned port (TEST_PORT) that may
+    # differ from the gitignored config file's url. TMI_DATABASE_URL overrides
+    # the file's database.url for this run (#477).
+    db_url = (
+        f"postgres://{profile.user}:{profile.password}@localhost:{profile.port}"
+        f"/{profile.database}?sslmode=disable"
+    )
     run_cmd(
         ["go", "run", "main.go", "--config", str(config_path)],
         cwd=migrate_dir,
+        env={"TMI_DATABASE_URL": db_url},
         verbose=verbose,
     )
     log_success("Database migrations completed")

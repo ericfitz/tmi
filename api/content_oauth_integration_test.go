@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -90,8 +91,17 @@ func openIntegrationRedis(t *testing.T) redis.UniversalClient {
 		return redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	}
 
+	// Honor the test logical DB index (TEST_REDIS_DB=1) so this direct
+	// connection lands on the test keyspace, not dev's DB 0 (#477).
+	db := 0
+	if v := os.Getenv("TEST_REDIS_DB"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			db = n
+		}
+	}
 	return redis.NewClient(&redis.Options{
 		Addr: fmt.Sprintf("%s:%s", host, port),
+		DB:   db,
 	})
 }
 

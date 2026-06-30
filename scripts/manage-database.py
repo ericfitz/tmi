@@ -37,9 +37,21 @@ def _profile(args: argparse.Namespace) -> database.DBProfile:
     CLI flags (--container, --port, --user-name, --database, --image) are
     applied as overrides on top of the config-derived values.
     """
-    cfg_path = args.config or "config-development.yml"
+    test_mode = args.test
+    # In test mode, default to config-test.yml (isolated tmi_test DB on the
+    # dedicated test host port) so --test never derives its connection from the
+    # dev config (#477).
+    cfg_path = args.config or (
+        "config-test.yml" if test_mode else "config-development.yml"
+    )
+    # In test mode, always use the isolated test container unless the caller
+    # explicitly overrides --container, so the test database can never collide
+    # with or replace the dev container (#477).
+    container_override = getattr(args, "container", None)
+    if test_mode and container_override is None:
+        container_override = database.TEST_CONTAINER
     overrides = {
-        "container": getattr(args, "container", None),
+        "container": container_override,
         "port": getattr(args, "port", None),
         "user": getattr(args, "user_name", None),
         "database": getattr(args, "database", None),
@@ -47,7 +59,7 @@ def _profile(args: argparse.Namespace) -> database.DBProfile:
     }
     return database.profile_from_config(
         cfg_path,
-        ephemeral=args.test,
+        ephemeral=test_mode,
         overrides=overrides,
     )
 
@@ -155,7 +167,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--test",
         action="store_true",
         default=False,
-        help="Use development container (port 5432)",
+        help="Use the isolated, ephemeral test container "
+        "(tmi-postgresql-test, config-test.yml); never touches the dev container",
     )
     parser.add_argument(
         "--container",

@@ -267,7 +267,7 @@ func writeRefreshTokenToRedis(t *testing.T, refreshTokenID, userInternalUUID str
 
 	rdb := redis.NewClient(&redis.Options{
 		Addr: fmt.Sprintf("%s:%s", host, port),
-		DB:   0,
+		DB:   framework.TestRedisDB(),
 	})
 	defer rdb.Close()
 
