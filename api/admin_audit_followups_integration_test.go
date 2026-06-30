@@ -342,12 +342,11 @@ func TestExportHandlerCSVAndNDJSONIntegration(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodGet,
-			fmt.Sprintf("/admin/audit/system?format=csv&actor_email=%s", actor), nil)
+			fmt.Sprintf("/admin/audit/system?actor_email=%s", actor), nil)
 		c.Request = c.Request.WithContext(ctx)
+		c.Request.Header.Set("Accept", "text/csv")
 
-		fmtCSV := ListSystemAuditEntriesParamsFormatCsv
 		s.ListSystemAuditEntries(c, ListSystemAuditEntriesParams{
-			Format:     &fmtCSV,
 			ActorEmail: &actorEmail,
 		})
 
@@ -369,12 +368,11 @@ func TestExportHandlerCSVAndNDJSONIntegration(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodGet,
-			fmt.Sprintf("/admin/audit/system?format=ndjson&actor_email=%s", actor), nil)
+			fmt.Sprintf("/admin/audit/system?actor_email=%s", actor), nil)
 		c.Request = c.Request.WithContext(ctx)
+		c.Request.Header.Set("Accept", "application/x-ndjson")
 
-		fmtNDJSON := ListSystemAuditEntriesParamsFormatNdjson
 		s.ListSystemAuditEntries(c, ListSystemAuditEntriesParams{
-			Format:     &fmtNDJSON,
 			ActorEmail: &actorEmail,
 		})
 

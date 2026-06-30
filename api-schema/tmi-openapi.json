@@ -13418,21 +13418,6 @@
           "maxLength": 36
         }
       },
-      "FormatQueryParam": {
-        "name": "format",
-        "in": "query",
-        "required": false,
-        "description": "Output format for the diagram model (case-insensitive). Defaults to json if not specified.",
-        "schema": {
-          "type": "string",
-          "enum": [
-            "json",
-            "yaml",
-            "graphml"
-          ],
-          "default": "json"
-        }
-      },
       "SurveyResponseStatusQueryParam": {
         "name": "status",
         "in": "query",
@@ -13730,19 +13715,6 @@
         "schema": {
           "type": "string",
           "format": "uuid"
-        }
-      },
-      "AuditExportFormat": {
-        "name": "format",
-        "in": "query",
-        "required": false,
-        "description": "When set, stream the entire filtered set as an attachment instead of a JSON page. Honors all active filters; ignores cursor/limit/around.",
-        "schema": {
-          "type": "string",
-          "enum": [
-            "csv",
-            "ndjson"
-          ]
         }
       }
     }
@@ -42574,7 +42546,7 @@
       "get": {
         "operationId": "getDiagramModel",
         "summary": "Get minimal diagram model for automated analysis",
-        "description": "Returns a minimal representation of the diagram optimized for automated threat modeling. Strips all visual styling, layout, and rendering properties. Includes threat model context, computed parent-child relationships, and flattened metadata.\n\nContent negotiation: Use the Accept header (application/json, application/x-yaml, application/xml) or the ?format query parameter. Query parameter takes precedence if both are specified. Default: application/json.",
+        "description": "Returns a minimal representation of the diagram optimized for automated threat modeling. Strips all visual styling, layout, and rendering properties. Includes threat model context, computed parent-child relationships, and flattened metadata.\n\nContent negotiation: use the Accept header to select the response format — application/json (default), application/yaml, or application/graphml+xml. An Accept header that matches none of these yields 406 Not Acceptable.",
         "tags": [
           "Threat Model Sub-Resources"
         ],
@@ -42589,9 +42561,6 @@
           },
           {
             "$ref": "#/components/parameters/DiagramIdPathParam"
-          },
-          {
-            "$ref": "#/components/parameters/FormatQueryParam"
           }
         ],
         "responses": {
@@ -42688,13 +42657,13 @@
                   "$ref": "#/components/schemas/MinimalDiagramModel"
                 }
               },
-              "application/x-yaml": {
+              "application/yaml": {
                 "schema": {
                   "type": "string",
                   "description": "YAML serialization of MinimalDiagramModel. The response body contains raw YAML text."
                 }
               },
-              "application/xml": {
+              "application/graphml+xml": {
                 "schema": {
                   "type": "string",
                   "description": "GraphML 1.0 XML serialization of the diagram. The response body contains raw XML text."
@@ -69356,7 +69325,7 @@
           "Administration"
         ],
         "summary": "List system audit entries",
-        "description": "Cursor-paginated, filterable list of system-level admin-write audit records. Admin role required; read-only (no step-up).",
+        "description": "Cursor-paginated, filterable list of system-level admin-write audit records. Admin role required; read-only (no step-up).\n\nContent negotiation: the default application/json returns a cursor-paginated page. Request Accept: text/csv or application/x-ndjson to stream the entire filtered set as a downloadable export (honors all active filters; ignores cursor/limit/around). An Accept header that matches none of the offered types yields 406 Not Acceptable.",
         "operationId": "listSystemAuditEntries",
         "security": [
           {
@@ -69393,9 +69362,6 @@
           },
           {
             "$ref": "#/components/parameters/AuditAround"
-          },
-          {
-            "$ref": "#/components/parameters/AuditExportFormat"
           }
         ],
         "responses": {

@@ -577,6 +577,30 @@ func TestAcceptHeaderValidation(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
+
+	// Content-negotiated representations are now allowed through the coarse
+	// gate so the diagram-model and audit-export endpoints can serve them.
+	for _, ct := range []string{
+		"application/yaml",
+		"application/graphml+xml",
+		"text/csv",
+		"application/x-ndjson",
+	} {
+		t.Run("accepts "+ct, func(t *testing.T) {
+			router := gin.New()
+			router.Use(AcceptHeaderValidation())
+			router.GET("/test", func(c *gin.Context) {
+				c.JSON(http.StatusOK, gin.H{"status": "ok"})
+			})
+
+			req := httptest.NewRequest("GET", "/test", nil)
+			req.Header.Set("Accept", ct)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+		})
+	}
 }
 
 func TestJSONErrorHandler(t *testing.T) {

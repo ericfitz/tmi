@@ -230,27 +230,40 @@ func TestDiagramCRUD(t *testing.T) {
 	})
 
 	t.Run("GetDiagramModel_MultiFormat", func(t *testing.T) {
-		// Test getting diagram model with format query parameter
-		// OpenAPI spec supports: json, yaml, graphml
-		formats := []string{"json", "yaml", "graphml"}
+		// Content negotiation is via the Accept header. Offered media types:
+		// application/json (default), application/yaml, application/graphml+xml.
+		cases := []struct{ accept, label string }{
+			{"application/json", "json"},
+			{"application/yaml", "yaml"},
+			{"application/graphml+xml", "graphml"},
+		}
 
-		for _, format := range formats {
+		for _, tc := range cases {
 			resp, err := client.Do(framework.Request{
-				Method: "GET",
-				Path:   fmt.Sprintf("/threat_models/%s/diagrams/%s/model", threatModelID, diagramID),
-				QueryParams: map[string]string{
-					"format": format,
-				},
+				Method:  "GET",
+				Path:    fmt.Sprintf("/threat_models/%s/diagrams/%s/model", threatModelID, diagramID),
+				Headers: map[string]string{"Accept": tc.accept},
 			})
-			framework.AssertNoError(t, err, fmt.Sprintf("Failed to get diagram model in %s format", format))
+			framework.AssertNoError(t, err, fmt.Sprintf("Failed to get diagram model as %s", tc.accept))
 			framework.AssertStatusOK(t, resp)
 
 			// Validate non-empty response
 			if len(resp.Body) == 0 {
-				t.Errorf("Expected non-empty response for %s format", format)
+				t.Errorf("Expected non-empty response for %s", tc.accept)
 			}
 
-			t.Logf("✓ Retrieved diagram model in %s format", format)
+			t.Logf("✓ Retrieved diagram model as %s", tc.label)
+		}
+
+		// An unsupported Accept must yield 406 Not Acceptable.
+		resp, err := client.Do(framework.Request{
+			Method:  "GET",
+			Path:    fmt.Sprintf("/threat_models/%s/diagrams/%s/model", threatModelID, diagramID),
+			Headers: map[string]string{"Accept": "application/pdf"},
+		})
+		framework.AssertNoError(t, err, "request with unacceptable Accept should still return a response")
+		if resp.StatusCode != 406 {
+			t.Errorf("Expected 406 for Accept: application/pdf, got %d", resp.StatusCode)
 		}
 	})
 

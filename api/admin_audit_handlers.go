@@ -29,6 +29,15 @@ func adminAuditPageLimit(p *AuditPageLimit) int {
 	return *p
 }
 
+// Offered response media types for GET /admin/audit/system, in server
+// preference order (application/json is the default page response; the others
+// stream the whole filtered set as a downloadable export).
+const (
+	auditMediaTypeJSON   = "application/json"
+	auditMediaTypeCSV    = "text/csv"
+	auditMediaTypeNDJSON = "application/x-ndjson"
+)
+
 // ListSystemAuditEntries handles GET /admin/audit/system (#398).
 // SEM@2c1d4cb3d8cc963743f568bc4f17a46154cb2c43: handle GET /admin/audit/system, listing or exporting system audit entries with filters and keyset pagination (reads DB)
 func (s *Server) ListSystemAuditEntries(c *gin.Context, params ListSystemAuditEntriesParams) {
@@ -108,11 +117,26 @@ func (s *Server) ListSystemAuditEntries(c *gin.Context, params ListSystemAuditEn
 		Cursor:        cursor,
 	}
 
-	// Export branch: stream the whole filtered set, ignore pagination.
-	if params.Format != nil {
-		s.streamSystemAuditExport(c, logger, filter, string(*params.Format))
+	// Content negotiation: application/json (default) returns a paginated page;
+	// text/csv or application/x-ndjson streams the whole filtered set as a
+	// downloadable export (ignores pagination). 406 if Accept matches none.
+	chosen, ok := negotiateContentType(c.GetHeader("Accept"), []string{
+		auditMediaTypeJSON, auditMediaTypeCSV, auditMediaTypeNDJSON,
+	})
+	if !ok {
+		HandleRequestError(c, NotAcceptableError(
+			"Accept header must be one of application/json, text/csv, application/x-ndjson"))
 		return
 	}
+	switch chosen {
+	case auditMediaTypeCSV:
+		s.streamSystemAuditExport(c, logger, filter, "csv")
+		return
+	case auditMediaTypeNDJSON:
+		s.streamSystemAuditExport(c, logger, filter, "ndjson")
+		return
+	}
+	// application/json falls through to the paginated JSON page below.
 
 	// Around branch: page centered on an entry. Mutually exclusive with cursor.
 	if params.Around != nil {

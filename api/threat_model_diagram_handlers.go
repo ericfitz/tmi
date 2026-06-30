@@ -813,19 +813,18 @@ func areSlicesEqual(a, b []DfdDiagram_Cells_Item) bool {
 //
 // Authorization: Requires at least RoleReader on the threat model.
 //
-// Content negotiation:
-//   - Accept header (preferred): application/json, application/x-yaml, application/xml
-//   - Query parameter (legacy): ?format=json|yaml|graphml
-//   - Query parameter takes precedence if both are specified
-//   - Default: application/json
+// Content negotiation (Accept header):
+//   - application/json (default)
+//   - application/yaml
+//   - application/graphml+xml
+//   - 406 Not Acceptable when the Accept header matches none of these
 //
 // SEM@533fc769067d317cc10f227729848688da16fba0: fetch a minimal diagram model for automated threat modeling tools with content negotiation (reads DB)
-func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelId, diagramId openapi_types.UUID, params GetDiagramModelParams) {
-	// Determine output format using content negotiation
-	// Priority: 1) ?format query param, 2) Accept header, 3) default to JSON
-	format, err := negotiateFormat(c, params.Format)
+func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelId, diagramId openapi_types.UUID) {
+	// Determine output format from the Accept header (default application/json).
+	format, err := negotiateFormat(c)
 	if err != nil {
-		HandleRequestError(c, InvalidInputError(err.Error()))
+		HandleRequestError(c, NotAcceptableError(err.Error()))
 		return
 	}
 
@@ -864,12 +863,12 @@ func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelI
 	// Transform to minimal model representation (includes referenced assets)
 	minimalModel := buildMinimalDiagramModel(c.Request.Context(), tm, diagram, GlobalAssetRepository)
 
-	// Serialize based on requested format
+	// Serialize based on the negotiated format.
 	switch format {
-	case string(FormatQueryParamJson):
+	case diagramFormatJSON:
 		c.JSON(http.StatusOK, minimalModel)
 
-	case string(FormatQueryParamYaml):
+	case diagramFormatYAML:
 		yamlBytes, err := serializeAsYAML(minimalModel)
 		if err != nil {
 			slogging.Get().Error("Failed to serialize diagram model as YAML: %v (diagramId=%s, threatModelId=%s)",
@@ -877,9 +876,9 @@ func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelI
 			HandleRequestError(c, ServerError("Failed to serialize diagram model"))
 			return
 		}
-		c.Data(http.StatusOK, "application/x-yaml", yamlBytes)
+		c.Data(http.StatusOK, diagramMediaTypeYAML, yamlBytes)
 
-	case string(FormatQueryParamGraphml):
+	case diagramFormatGraphML:
 		graphmlBytes, err := serializeAsGraphML(minimalModel)
 		if err != nil {
 			slogging.Get().Error("Failed to serialize diagram model as GraphML: %v (diagramId=%s, threatModelId=%s)",
@@ -887,10 +886,10 @@ func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelI
 			HandleRequestError(c, ServerError("Failed to serialize diagram model"))
 			return
 		}
-		c.Data(http.StatusOK, "application/xml", graphmlBytes)
+		c.Data(http.StatusOK, diagramMediaTypeGraphML, graphmlBytes)
 
 	default:
-		// This should never happen due to parseFormat validation, but handle gracefully
-		HandleRequestError(c, InvalidIDError("Invalid format parameter: must be json, yaml, or graphml"))
+		// Unreachable: negotiateFormat only returns the three formats above.
+		HandleRequestError(c, ServerError("Unexpected diagram model format"))
 	}
 }

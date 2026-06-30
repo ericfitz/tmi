@@ -1066,18 +1066,35 @@ func AcceptHeaderValidation() gin.HandlerFunc {
 			return
 		}
 
-		// Check if Accept header includes a supported media type
-		// We're being lenient and accepting quality parameters
-		acceptsSupported := strings.Contains(acceptHeader, "application/json") ||
-			strings.Contains(acceptHeader, "*/*") ||
-			strings.Contains(acceptHeader, "application/*") ||
-			strings.Contains(acceptHeader, "text/event-stream")
+		// Coarse server-wide allowlist of producible media types. This is a
+		// blunt gate; per-endpoint content negotiation (e.g. the diagram model
+		// and system-audit export) does the precise selection and may still
+		// return 406 for a type it doesn't offer. Substring matching keeps it
+		// lenient about quality parameters and multi-type Accept headers.
+		supportedAcceptTypes := []string{
+			"application/json",
+			"*/*",
+			"application/*",
+			"text/event-stream",
+			// Content-negotiated representations (see negotiateContentType):
+			"application/yaml",        // diagram model (YAML)
+			"application/graphml+xml", // diagram model (GraphML)
+			"text/csv",                // system-audit export (CSV)
+			"application/x-ndjson",    // system-audit export (NDJSON)
+		}
+		acceptsSupported := false
+		for _, t := range supportedAcceptTypes {
+			if strings.Contains(acceptHeader, t) {
+				acceptsSupported = true
+				break
+			}
+		}
 
 		if !acceptsSupported {
 			logger.Debug("Rejecting request with unsupported Accept header: %s", acceptHeader)
 			c.AbortWithStatusJSON(http.StatusNotAcceptable, Error{
 				Error:            "not_acceptable",
-				ErrorDescription: "The requested Accept header media type is not supported. Supported types: application/json, text/event-stream",
+				ErrorDescription: "The requested Accept header media type is not supported by this server.",
 			})
 			return
 		}

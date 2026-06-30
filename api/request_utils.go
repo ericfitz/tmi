@@ -508,6 +508,17 @@ func ForbiddenError(message string) *RequestError {
 	}
 }
 
+// NotAcceptableError creates a RequestError for content negotiation failures
+// (no offered response media type matches the request's Accept header).
+// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: build a 406 RequestError for an unsatisfiable Accept header (pure)
+func NotAcceptableError(message string) *RequestError {
+	return &RequestError{
+		Status:  http.StatusNotAcceptable,
+		Code:    "not_acceptable",
+		Message: message,
+	}
+}
+
 // SEM@420d8bdd24035796662ee4234e3bfaa6ba1a73bf: build a 401 RequestError for unauthenticated access (pure)
 func UnauthorizedError(message string) *RequestError {
 	return &RequestError{

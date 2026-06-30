@@ -75,124 +75,78 @@ func createTestContextWithAccept(acceptHeader string) *gin.Context {
 
 // TestNegotiateFormat tests format negotiation with query param and Accept header
 func TestNegotiateFormat(t *testing.T) {
-	t.Run("nil format and no Accept header defaults to json", func(t *testing.T) {
+	// Content negotiation is now driven solely by the Accept header against the
+	// canonical (modernized) media types: application/json (default),
+	// application/yaml, application/graphml+xml. The legacy ?format query param
+	// and the old synonym media types (application/x-yaml, application/xml,
+	// text/yaml, ...) are intentionally no longer accepted.
+
+	t.Run("no Accept header defaults to json", func(t *testing.T) {
 		c := createTestContextWithAccept("")
-		result, err := negotiateFormat(c, nil)
+		result, err := negotiateFormat(c)
 		assert.NoError(t, err)
 		assert.Equal(t, "json", result)
 	})
 
-	t.Run("query param json format", func(t *testing.T) {
-		c := createTestContextWithAccept("")
-		format := GetDiagramModelParamsFormat("json")
-		result, err := negotiateFormat(c, &format)
-		assert.NoError(t, err)
-		assert.Equal(t, "json", result)
-	})
-
-	t.Run("query param yaml format", func(t *testing.T) {
-		c := createTestContextWithAccept("")
-		format := GetDiagramModelParamsFormat("yaml")
-		result, err := negotiateFormat(c, &format)
-		assert.NoError(t, err)
-		assert.Equal(t, "yaml", result)
-	})
-
-	t.Run("query param graphml format", func(t *testing.T) {
-		c := createTestContextWithAccept("")
-		format := GetDiagramModelParamsFormat("graphml")
-		result, err := negotiateFormat(c, &format)
-		assert.NoError(t, err)
-		assert.Equal(t, "graphml", result)
-	})
-
-	t.Run("query param uppercase JSON", func(t *testing.T) {
-		c := createTestContextWithAccept("")
-		format := GetDiagramModelParamsFormat("JSON")
-		result, err := negotiateFormat(c, &format)
-		assert.NoError(t, err)
-		assert.Equal(t, "json", result)
-	})
-
-	t.Run("query param mixed case YAML", func(t *testing.T) {
-		c := createTestContextWithAccept("")
-		format := GetDiagramModelParamsFormat("YaML")
-		result, err := negotiateFormat(c, &format)
-		assert.NoError(t, err)
-		assert.Equal(t, "yaml", result)
-	})
-
-	t.Run("invalid query param format", func(t *testing.T) {
-		c := createTestContextWithAccept("")
-		format := GetDiagramModelParamsFormat("pdf")
-		_, err := negotiateFormat(c, &format)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid format parameter")
-	})
-
-	// Accept header tests
-	t.Run("Accept header application/json", func(t *testing.T) {
-		c := createTestContextWithAccept("application/json")
-		result, err := negotiateFormat(c, nil)
-		assert.NoError(t, err)
-		assert.Equal(t, "json", result)
-	})
-
-	t.Run("Accept header application/x-yaml", func(t *testing.T) {
-		c := createTestContextWithAccept("application/x-yaml")
-		result, err := negotiateFormat(c, nil)
-		assert.NoError(t, err)
-		assert.Equal(t, "yaml", result)
-	})
-
-	t.Run("Accept header application/yaml", func(t *testing.T) {
-		c := createTestContextWithAccept("application/yaml")
-		result, err := negotiateFormat(c, nil)
-		assert.NoError(t, err)
-		assert.Equal(t, "yaml", result)
-	})
-
-	t.Run("Accept header text/yaml", func(t *testing.T) {
-		c := createTestContextWithAccept("text/yaml")
-		result, err := negotiateFormat(c, nil)
-		assert.NoError(t, err)
-		assert.Equal(t, "yaml", result)
-	})
-
-	t.Run("Accept header application/xml", func(t *testing.T) {
-		c := createTestContextWithAccept("application/xml")
-		result, err := negotiateFormat(c, nil)
-		assert.NoError(t, err)
-		assert.Equal(t, "graphml", result)
-	})
-
-	t.Run("Accept header application/graphml+xml", func(t *testing.T) {
-		c := createTestContextWithAccept("application/graphml+xml")
-		result, err := negotiateFormat(c, nil)
-		assert.NoError(t, err)
-		assert.Equal(t, "graphml", result)
-	})
-
-	t.Run("Accept header */* defaults to json", func(t *testing.T) {
+	t.Run("Accept */* defaults to json", func(t *testing.T) {
 		c := createTestContextWithAccept("*/*")
-		result, err := negotiateFormat(c, nil)
+		result, err := negotiateFormat(c)
 		assert.NoError(t, err)
 		assert.Equal(t, "json", result)
 	})
 
-	t.Run("unsupported Accept header", func(t *testing.T) {
-		c := createTestContextWithAccept("application/pdf")
-		_, err := negotiateFormat(c, nil)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "unsupported Accept header")
+	t.Run("Accept application/json", func(t *testing.T) {
+		c := createTestContextWithAccept("application/json")
+		result, err := negotiateFormat(c)
+		assert.NoError(t, err)
+		assert.Equal(t, "json", result)
 	})
 
-	t.Run("query param takes precedence over Accept header", func(t *testing.T) {
-		c := createTestContextWithAccept("application/xml") // Would return graphml
-		format := GetDiagramModelParamsFormat("yaml")
-		result, err := negotiateFormat(c, &format)
+	t.Run("Accept application/yaml", func(t *testing.T) {
+		c := createTestContextWithAccept("application/yaml")
+		result, err := negotiateFormat(c)
 		assert.NoError(t, err)
-		assert.Equal(t, "yaml", result) // Query param wins
+		assert.Equal(t, "yaml", result)
+	})
+
+	t.Run("Accept application/graphml+xml", func(t *testing.T) {
+		c := createTestContextWithAccept("application/graphml+xml")
+		result, err := negotiateFormat(c)
+		assert.NoError(t, err)
+		assert.Equal(t, "graphml", result)
+	})
+
+	t.Run("q-values select the highest acceptable type", func(t *testing.T) {
+		c := createTestContextWithAccept("application/json;q=0.5, application/yaml;q=0.9")
+		result, err := negotiateFormat(c)
+		assert.NoError(t, err)
+		assert.Equal(t, "yaml", result)
+	})
+
+	t.Run("application/* wildcard matches the default (json)", func(t *testing.T) {
+		c := createTestContextWithAccept("application/*")
+		result, err := negotiateFormat(c)
+		assert.NoError(t, err)
+		assert.Equal(t, "json", result)
+	})
+
+	t.Run("legacy application/x-yaml is no longer accepted", func(t *testing.T) {
+		c := createTestContextWithAccept("application/x-yaml")
+		_, err := negotiateFormat(c)
+		assert.Error(t, err)
+	})
+
+	t.Run("generic application/xml is no longer accepted", func(t *testing.T) {
+		c := createTestContextWithAccept("application/xml")
+		_, err := negotiateFormat(c)
+		assert.Error(t, err)
+	})
+
+	t.Run("unsupported Accept yields an error (406)", func(t *testing.T) {
+		c := createTestContextWithAccept("application/pdf")
+		_, err := negotiateFormat(c)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no acceptable response media type")
 	})
 }
 

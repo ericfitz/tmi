@@ -117,12 +117,12 @@ func (s *Server) DeleteThreatModelDiagram(c *gin.Context, threatModelId openapi_
 
 // GetDiagramModel gets minimal diagram model for automated analysis
 // SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: fetch minimal diagram model for automated analysis via diagram handler
-func (s *Server) GetDiagramModel(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID, params GetDiagramModelParams) {
+func (s *Server) GetDiagramModel(c *gin.Context, threatModelId openapi_types.UUID, diagramId openapi_types.UUID) {
 	// Create handler with websocket hub
 	handler := &ThreatModelDiagramHandler{wsHub: s.wsHub}
 
 	// Delegate to existing implementation
-	handler.GetDiagramModel(c, threatModelId, diagramId, params)
+	handler.GetDiagramModel(c, threatModelId, diagramId)
 }
 
 // Diagram Metadata Methods

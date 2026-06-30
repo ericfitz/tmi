@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -632,46 +631,40 @@ func buildGraphMLEdge(edge MinimalEdge) GraphMLEdge {
 	}
 }
 
-// negotiateFormat determines the output format using content negotiation.
-// Priority: 1) ?format query param (legacy), 2) Accept header, 3) default to JSON.
-// Returns normalized format string ("json", "yaml", or "graphml") or error if unsupported.
-// SEM@cdbe48c974fb76e1161972733b30bb0d1c02c3b1: resolve the response format from a query parameter or Accept header, defaulting to JSON (pure)
-func negotiateFormat(c *gin.Context, formatParam *GetDiagramModelParamsFormat) (string, error) {
-	// If query parameter is specified, it takes precedence (backwards compatibility)
-	if formatParam != nil {
-		normalized := strings.ToLower(string(*formatParam))
-		switch normalized {
-		case string(FormatQueryParamJson), string(FormatQueryParamYaml), string(FormatQueryParamGraphml):
-			return normalized, nil
-		default:
-			return "", fmt.Errorf("invalid format parameter: must be json, yaml, or graphml")
-		}
+// Diagram-model response formats and their canonical (modern) media types.
+const (
+	diagramFormatJSON    = "json"
+	diagramFormatYAML    = "yaml"
+	diagramFormatGraphML = "graphml"
+
+	diagramMediaTypeJSON    = "application/json"
+	diagramMediaTypeYAML    = "application/yaml"        // RFC 9512
+	diagramMediaTypeGraphML = "application/graphml+xml" // GraphML over XML
+)
+
+// negotiateFormat resolves the diagram-model response format from the request's
+// Accept header. Offered media types, in server-preference order:
+// application/json (default), application/yaml, application/graphml+xml.
+// Returns the normalized format ("json", "yaml", or "graphml"), or an error
+// (the caller maps it to 406 Not Acceptable) when the Accept header matches
+// none of the offered types.
+func negotiateFormat(c *gin.Context) (string, error) {
+	chosen, ok := negotiateContentType(
+		c.GetHeader("Accept"),
+		[]string{diagramMediaTypeJSON, diagramMediaTypeYAML, diagramMediaTypeGraphML},
+	)
+	if !ok {
+		return "", fmt.Errorf(
+			"no acceptable response media type; offered: %s, %s, %s",
+			diagramMediaTypeJSON, diagramMediaTypeYAML, diagramMediaTypeGraphML,
+		)
 	}
-
-	// Use Accept header for content negotiation
-	accept := c.GetHeader("Accept")
-	if accept == "" || accept == "*/*" {
-		return "json", nil // Default to JSON
-	}
-
-	// Parse Accept header (simplified - handles common cases)
-	// Full implementation would parse quality values (q=) and wildcards
-	acceptLower := strings.ToLower(accept)
-
-	// Check for specific media types (in order of preference if multiple specified)
-	switch {
-	case strings.Contains(acceptLower, "application/json"):
-		return "json", nil
-	case strings.Contains(acceptLower, "application/x-yaml"),
-		strings.Contains(acceptLower, "application/yaml"),
-		strings.Contains(acceptLower, "text/yaml"):
-		return "yaml", nil
-	case strings.Contains(acceptLower, "application/xml"),
-		strings.Contains(acceptLower, "text/xml"),
-		strings.Contains(acceptLower, "application/graphml+xml"):
-		return string(FormatQueryParamGraphml), nil
+	switch chosen {
+	case diagramMediaTypeYAML:
+		return diagramFormatYAML, nil
+	case diagramMediaTypeGraphML:
+		return diagramFormatGraphML, nil
 	default:
-		// 406 Not Acceptable would be more correct, but return error for simplicity
-		return "", fmt.Errorf("unsupported Accept header: %s. Supported types: application/json, application/x-yaml, application/xml", accept)
+		return diagramFormatJSON, nil
 	}
 }
