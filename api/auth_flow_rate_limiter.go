@@ -12,6 +12,14 @@ import (
 
 const buildModeTest = "test"
 
+// envForceAuthFlowRateLimiting, when set to "true", forces the auth-flow rate
+// limiter to enforce limits even in build_mode=test. It exists so the
+// integration suite can exercise the multi-scope limiter against a server that
+// must otherwise run in build_mode=test for the built-in tmi OAuth provider.
+// The override only ever makes limiting MORE restrictive and has no effect
+// outside build_mode=test, so it is inert in production.
+const envForceAuthFlowRateLimiting = "TMI_TEST_FORCE_AUTH_FLOW_RATE_LIMITING"
+
 // AuthFlowRateLimiter implements multi-scope rate limiting for OAuth/SAML auth flows
 // SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: enforce sliding-window rate limits on OAuth/SAML auth flows across session, IP, and user scopes (mutates shared state)
 type AuthFlowRateLimiter struct {
@@ -72,8 +80,14 @@ func (r *AuthFlowRateLimiter) checkRateLimitWithIPLimit(ctx context.Context, ses
 	logger := slogging.Get()
 
 	// Skip rate limiting in test mode to avoid false failures during
-	// integration tests that perform many OAuth flows from localhost.
-	if os.Getenv("TMI_BUILD_MODE") == buildModeTest {
+	// integration tests that perform many OAuth flows from localhost. A
+	// dedicated test-only override (TMI_TEST_FORCE_AUTH_FLOW_RATE_LIMITING=true)
+	// forces the limiter on so the multi-scope behavior can be exercised against
+	// the integration server, which must otherwise run in build_mode=test for
+	// the built-in tmi provider. The override is inert outside build_mode=test
+	// and only ever makes limiting more restrictive.
+	if os.Getenv("TMI_BUILD_MODE") == buildModeTest &&
+		os.Getenv(envForceAuthFlowRateLimiting) != "true" {
 		return &RateLimitResult{Allowed: true}, nil
 	}
 

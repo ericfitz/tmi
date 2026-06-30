@@ -209,6 +209,7 @@ def start_test_server_container(
     project_root: Path, config_path: Path, container_db_url: str,
     redis_host: str, redis_port: str, host_port: str,
     *, disable_rate_limiting: bool = True,
+    force_auth_flow_rate_limiting: bool = False,
 ) -> str | None:
     """Start the test server in a Docker container, mirroring the dev pod topology.
 
@@ -224,6 +225,11 @@ def start_test_server_container(
     rate limits are a liability that flakes unrelated tests. Set the runner env
     TMI_TEST_ENABLE_RATE_LIMITING=true to keep it on (e.g. when explicitly
     exercising the rate-limit workflow tests).
+
+    The auth-flow limiter additionally no-ops in build_mode=test (which the
+    container runs for the built-in tmi provider), so force_auth_flow_rate_limiting
+    sets the server-side override that enforces it anyway — required for the
+    auth-flow multi-scope workflow test to actually run instead of skip.
 
     Returns the container name, or None on failure.
     """
@@ -260,6 +266,8 @@ def start_test_server_container(
     ]
     if disable_rate_limiting:
         cmd += ["-e", "TMI_DISABLE_RATE_LIMITING=true"]
+    if force_auth_flow_rate_limiting:
+        cmd += ["-e", "TMI_TEST_FORCE_AUTH_FLOW_RATE_LIMITING=true"]
     cmd += [TEST_SERVER_IMAGE, "--config=/etc/tmi/config.yml"]
     try:
         result = subprocess.run(
@@ -394,6 +402,7 @@ def run_pg(project_root: Path, log_path: str) -> int:
             project_root, test_cfg, container_db_url,
             "host.docker.internal", redis_port, TEST_SERVER_HOST_PORT,
             disable_rate_limiting=not enable_rl,
+            force_auth_flow_rate_limiting=enable_rl,
         )
         try:
             if container is None or not wait_for_server(f"{server_url}/", timeout=90):
