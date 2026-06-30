@@ -87,7 +87,7 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-genconfig generate-config-example build-genconfigdocs generate-config-docs clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz check-oracle-unsafe-map-keys
+.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-genconfig generate-config-example build-genconfigdocs generate-config-docs clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz check-oracle-unsafe-map-keys check-oracle-table-names
 
 build-server:
 	@uv run scripts/build-server.py
@@ -152,6 +152,13 @@ check-x-tmi-authz:
 # key fails to match the uppercase Oracle column (ORA-00904). See issue #503.
 check-oracle-unsafe-map-keys:
 	@uv run scripts/check-oracle-unsafe-map-keys.py
+
+# Check that GORM .Table("...") calls use dialect-correct table identifiers
+# (model TableName), not bare lowercase literals which GORM quotes as
+# "users" and which fail to match the uppercase Oracle table (ORA-00942).
+# Aliased forms (.Table("t alias")) are emitted unquoted and are safe. See #504.
+check-oracle-table-names:
+	@uv run scripts/check-oracle-table-names.py
 
 
 # ============================================================================

@@ -152,7 +152,10 @@ func main() {
 
 	fmt.Printf("Creating with GORM: ID=%s, Name=%s\n", minThreat.ID, minThreat.Name)
 
-	result = db.Table("threats").Create(&minThreat)
+	// Oracle-only diagnostic: the table identifier must be uppercase to match
+	// the Oracle table (a bare "threats" would be quoted-lowercase -> ORA-00942),
+	// consistent with this struct's hardcoded uppercase column tags. (#504)
+	result = db.Table("THREATS").Create(&minThreat)
 	if result.Error != nil {
 		fmt.Printf("GORM INSERT failed: %v\n", result.Error)
 	} else {

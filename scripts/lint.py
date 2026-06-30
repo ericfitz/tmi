@@ -58,6 +58,12 @@ def main() -> None:
         cwd=project_root,
     )
 
+    log_info("Checking GORM .Table() calls use dialect-correct table names (Oracle-safe)...")
+    run_cmd(
+        ["uv", "run", "scripts/check-oracle-table-names.py"],
+        cwd=project_root,
+    )
+
     log_info("Running golangci-lint...")
     golangci = Path.home() / "go" / "bin" / "golangci-lint"
     run_cmd(

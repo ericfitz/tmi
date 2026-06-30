@@ -2382,11 +2382,12 @@ func findUserByProviderIdentityGorm(ctx context.Context, gormDB *gorm.DB, provid
 	// identifiers are cased correctly for the dialect: GORM emits map keys
 	// verbatim (bypassing the NamingStrategy), so a bare lowercase key fails to
 	// match the uppercase column the Oracle driver creates. See #503.
-	// NOTE: the Table("users") name itself still needs dialect-correct casing
-	// for this query to work on Oracle; that table-identifier bug is tracked
-	// separately (see follow-up issue).
+	// The Table name must likewise be dialect-correct: GORM quotes a bare
+	// .Table("users") as "users" (quoted-lowercase) which does not match the
+	// uppercase USERS table on Oracle (ORA-00942). (&models.User{}).TableName()
+	// returns the dialect-correct name (#504).
 	dialect := gormDB.Name()
-	query := gormDB.WithContext(ctx).Table("users").
+	query := gormDB.WithContext(ctx).Table((&models.User{}).TableName()).
 		Select("internal_uuid").
 		Where(api.ColumnMap(dialect, map[string]any{"provider": provider}))
 
@@ -2420,19 +2421,23 @@ func createUserForAdministratorGorm(ctx context.Context, gormDB *gorm.DB, adminC
 		name = name[:idx] // Use email prefix as name
 	}
 
-	// Create user using GORM
-	user := map[string]any{
-		"internal_uuid":    internalUUID.String(),
-		"provider":         adminCfg.Provider,
-		"provider_user_id": adminCfg.ProviderId,
-		"email":            adminCfg.Email,
-		"name":             name,
-		"email_verified":   false,
-		"created_at":       time.Now(),
-		"modified_at":      time.Now(),
+	// Create user using GORM. Use the model struct (not a map[string]any) so the
+	// table and column identifiers resolve through the schema/NamingStrategy and
+	// are cased correctly for the dialect. A map-based Create over .Table("users")
+	// emits both the table and the column names quoted-lowercase, neither of which
+	// matches the uppercase USERS table/columns the Oracle driver creates
+	// (ORA-00942 / ORA-00904). created_at/modified_at are set via the model's
+	// autoCreateTime/autoUpdateTime tags. (#504)
+	userRecord := models.User{
+		InternalUUID:   models.DBVarchar(internalUUID.String()),
+		Provider:       models.DBVarchar(adminCfg.Provider),
+		ProviderUserID: models.NewNullableDBVarchar(&adminCfg.ProviderId),
+		Email:          models.DBVarchar(adminCfg.Email),
+		Name:           models.DBVarchar(name),
+		EmailVerified:  models.DBBool(false),
 	}
 
-	if err := gormDB.WithContext(ctx).Table("users").Create(user).Error; err != nil {
+	if err := gormDB.WithContext(ctx).Create(&userRecord).Error; err != nil {
 		logger.Error("Failed to insert user for administrator: provider=%s, email=%s, error=%v",
 			adminCfg.Provider, adminCfg.Email, err)
 		return uuid.Nil, fmt.Errorf("failed to create user: %w", err)

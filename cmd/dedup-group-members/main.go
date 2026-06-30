@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -151,7 +152,7 @@ func deduplicateGroupMembers(gormDB *gorm.DB, dryRun bool) (int64, error) {
 
 		// Find the ID of the earliest row to keep
 		var keepID string
-		err := gormDB.Table("group_members").
+		err := gormDB.Table((&models.GroupMember{}).TableName()).
 			Select("id").
 			Where("group_internal_uuid = ? AND user_internal_uuid = ? AND subject_type = ?",
 				dup.GroupInternalUUID, dup.UserInternalUUID, dup.SubjectType).

@@ -679,7 +679,7 @@ func (s *GormDocumentRepository) GetAccessReason(
 		AccessStatusUpdatedAt *time.Time
 	}
 	result := s.db.WithContext(ctx).
-		Table("documents").
+		Table(models.Document{}.TableName()).
 		Select("access_reason_code, access_reason_detail, access_status_updated_at").
 		Where("id = ? AND deleted_at IS NULL", id).
 		Take(&row)
@@ -739,7 +739,7 @@ func (s *GormDocumentRepository) GetPickerDispatch(
 		OwnerInternalUUID string
 	}
 	result := s.db.WithContext(ctx).
-		Table("documents").
+		Table(models.Document{}.TableName()).
 		Select("documents.picker_provider_id, documents.picker_file_id, documents.picker_mime_type, threat_models.owner_internal_uuid AS owner_internal_uuid").
 		Joins("INNER JOIN threat_models ON documents.threat_model_id = threat_models.id").
 		Where("documents.id = ? AND documents.deleted_at IS NULL", id).

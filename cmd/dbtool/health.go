@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/dbcheck"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/test/testdb"
@@ -62,7 +63,7 @@ func runHealthCheck(db *testdb.TestDB, _ bool) error {
 func checkSystemDataHealth(db *testdb.TestDB, log *slogging.Logger) {
 	// Check built-in groups (provider = "tmi" are built-in)
 	var groupCount int64
-	if err := db.DB().Table("groups").Where("provider = ?", "tmi").Count(&groupCount).Error; err != nil {
+	if err := db.DB().Table((&models.Group{}).TableName()).Where("provider = ?", "tmi").Count(&groupCount).Error; err != nil {
 		log.Info("  Built-in groups: unable to query (%v)", err)
 	} else {
 		// There are 7 built-in groups defined in api/seed/seed.go
@@ -76,7 +77,7 @@ func checkSystemDataHealth(db *testdb.TestDB, log *slogging.Logger) {
 
 	// Check webhook deny list
 	var denyCount int64
-	if err := db.DB().Table("webhook_url_deny_list").Count(&denyCount).Error; err != nil {
+	if err := db.DB().Table((&models.WebhookURLDenyList{}).TableName()).Count(&denyCount).Error; err != nil {
 		log.Info("  Webhook deny list: unable to query (%v)", err)
 	} else if denyCount > 0 {
 		log.Info("  Webhook deny list: %d entries", denyCount)

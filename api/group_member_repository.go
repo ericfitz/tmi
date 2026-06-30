@@ -573,7 +573,7 @@ func (r *GormGroupMemberRepository) GetGroupsForUser(ctx context.Context, userIn
 
 	var rows []groupRow
 	err := r.db.WithContext(ctx).
-		Table("group_members").
+		Table(models.GroupMember{}.TableName()).
 		Distinct("groups.internal_uuid, groups.group_name, groups.name").
 		Joins("JOIN groups ON groups.internal_uuid = group_members.group_internal_uuid").
 		Where("group_members.subject_type = ? AND group_members.user_internal_uuid = ?", "user", userInternalUUID.String()).

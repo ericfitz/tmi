@@ -657,16 +657,19 @@ func (s *GormThreatModelStore) batchCounts(ids []string) map[string]entityCounts
 		return result
 	}
 
+	// Table names come from the models so they are cased correctly for the
+	// dialect (GORM quotes a bare lowercase .Table("documents") as "documents",
+	// which does not match the uppercase Oracle table -> ORA-00942). (#504)
 	tables := []struct {
 		name   string
 		setter func(*entityCounts, int)
 	}{
-		{"documents", func(ec *entityCounts, n int) { ec.DocumentCount = n }},
-		{"repositories", func(ec *entityCounts, n int) { ec.SourceCount = n }},
-		{"diagrams", func(ec *entityCounts, n int) { ec.DiagramCount = n }},
-		{"threats", func(ec *entityCounts, n int) { ec.ThreatCount = n }},
-		{"notes", func(ec *entityCounts, n int) { ec.NoteCount = n }},
-		{"assets", func(ec *entityCounts, n int) { ec.AssetCount = n }},
+		{models.Document{}.TableName(), func(ec *entityCounts, n int) { ec.DocumentCount = n }},
+		{models.Repository{}.TableName(), func(ec *entityCounts, n int) { ec.SourceCount = n }},
+		{models.Diagram{}.TableName(), func(ec *entityCounts, n int) { ec.DiagramCount = n }},
+		{models.Threat{}.TableName(), func(ec *entityCounts, n int) { ec.ThreatCount = n }},
+		{models.Note{}.TableName(), func(ec *entityCounts, n int) { ec.NoteCount = n }},
+		{models.Asset{}.TableName(), func(ec *entityCounts, n int) { ec.AssetCount = n }},
 	}
 
 	// SEM@26ea9cecd7ad82e4c30b0791c4f3414b2490190d: local struct mapping a threat model ID to a COUNT result row (pure)

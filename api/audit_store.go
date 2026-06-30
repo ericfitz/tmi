@@ -805,13 +805,16 @@ func (s *GormAuditService) PurgeTombstones(ctx context.Context) (int, error) {
 		table string
 		name  string
 	}
+	// table must be the model's dialect-correct name (a bare lowercase
+	// .Table("diagrams") is quoted-lowercase -> ORA-00942 on Oracle); name is the
+	// audit/metadata entity_type value (a bind value, not an identifier). (#504)
 	subResources := []subResource{
-		{"diagrams", "diagram"},
-		{"threats", "threat"},
-		{"assets", "asset"},
-		{"documents", "document"},
-		{"notes", "note"},
-		{"repositories", "repository"},
+		{models.Diagram{}.TableName(), "diagram"},
+		{models.Threat{}.TableName(), "threat"},
+		{models.Asset{}.TableName(), "asset"},
+		{models.Document{}.TableName(), "document"},
+		{models.Note{}.TableName(), "note"},
+		{models.Repository{}.TableName(), "repository"},
 	}
 
 	for _, sr := range subResources {
