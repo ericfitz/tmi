@@ -76,7 +76,7 @@ func (s *GormTimmySessionStore) Get(ctx context.Context, id string) (*models.Tim
 
 // ListByUserAndThreatModel returns paginated sessions for a user and threat model
 // Returns the sessions, the total count, and any error
-// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: list paginated non-deleted Timmy sessions for a user and threat model, returning total count (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: list paginated non-deleted Timmy sessions for a user and threat model, returning total count (reads DB)
 func (s *GormTimmySessionStore) ListByUserAndThreatModel(ctx context.Context, userID, threatModelID string, offset, limit int) ([]models.TimmySession, int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -197,7 +197,7 @@ func (s *GormTimmySessionStore) UpdateTitle(ctx context.Context, id, title strin
 }
 
 // CountActiveByThreatModel returns the number of active sessions for a threat model
-// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: count non-deleted active Timmy sessions for a threat model (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: count non-deleted active Timmy sessions for a threat model (reads DB)
 func (s *GormTimmySessionStore) CountActiveByThreatModel(ctx context.Context, threatModelID string) (int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -261,7 +261,7 @@ func (s *GormTimmyMessageStore) Create(ctx context.Context, message *models.Timm
 
 // ListBySession returns paginated messages for a session ordered by sequence ascending
 // Returns the messages, the total count, and any error
-// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: fetch paginated Timmy messages for a session ordered by sequence (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch paginated Timmy messages for a session ordered by sequence (reads DB)
 func (s *GormTimmyMessageStore) ListBySession(ctx context.Context, sessionID string, offset, limit int) ([]models.TimmyMessage, int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -296,7 +296,7 @@ func (s *GormTimmyMessageStore) ListBySession(ctx context.Context, sessionID str
 }
 
 // GetNextSequence returns the next sequence number for a session (MAX(sequence) + 1, starting at 1)
-// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: compute the next message sequence number for a session (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: compute the next message sequence number for a session (reads DB)
 func (s *GormTimmyMessageStore) GetNextSequence(ctx context.Context, sessionID string) (int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()

@@ -42,7 +42,7 @@ func (s *GormThreatModelStore) GetDB() *gorm.DB {
 }
 
 // resolveUserIdentifierToUUID attempts to resolve a user identifier to an internal_uuid using GORM
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: resolve a user identifier (UUID, provider ID, or email) to an internal UUID (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: resolve a user identifier (UUID, provider ID, or email) to an internal UUID (reads DB)
 func (s *GormThreatModelStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifier string) (string, error) {
 	var user models.User
 

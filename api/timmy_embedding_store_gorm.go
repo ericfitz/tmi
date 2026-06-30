@@ -25,7 +25,7 @@ func NewGormTimmyEmbeddingStore(db *gorm.DB) *GormTimmyEmbeddingStore {
 }
 
 // ListByThreatModelAndIndexType returns all embeddings for a threat model and index type ordered by entity_type, entity_id, chunk_index
-// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: fetch all embeddings for a threat model and index type ordered by entity and chunk (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch all embeddings for a threat model and index type ordered by entity and chunk (reads DB)
 func (s *GormTimmyEmbeddingStore) ListByThreatModelAndIndexType(ctx context.Context, threatModelID, indexType string) ([]models.TimmyEmbedding, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -71,7 +71,7 @@ func (s *GormTimmyEmbeddingStore) CreateBatch(ctx context.Context, embeddings []
 }
 
 // DeleteByEntity deletes all embeddings for a specific entity within a threat model
-// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: delete all embeddings for a specific entity within a threat model and return count removed (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: delete all embeddings for a specific entity within a threat model and return count removed (reads DB)
 func (s *GormTimmyEmbeddingStore) DeleteByEntity(ctx context.Context, threatModelID, entityType, entityID string) (int64, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -104,7 +104,7 @@ func (s *GormTimmyEmbeddingStore) DeleteByEntity(ctx context.Context, threatMode
 }
 
 // DeleteByThreatModel deletes all embeddings for a threat model
-// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: delete all embeddings for a threat model and return count removed (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: delete all embeddings for a threat model and return count removed (reads DB)
 func (s *GormTimmyEmbeddingStore) DeleteByThreatModel(ctx context.Context, threatModelID string) (int64, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -133,7 +133,7 @@ func (s *GormTimmyEmbeddingStore) DeleteByThreatModel(ctx context.Context, threa
 }
 
 // DeleteByThreatModelAndIndexType deletes all embeddings for a threat model and index type
-// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: delete all embeddings for a threat model and index type and return count removed (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: delete all embeddings for a threat model and index type and return count removed (reads DB)
 func (s *GormTimmyEmbeddingStore) DeleteByThreatModelAndIndexType(ctx context.Context, threatModelID, indexType string) (int64, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -163,7 +163,7 @@ func (s *GormTimmyEmbeddingStore) DeleteByThreatModelAndIndexType(ctx context.Co
 
 // ListEntityMetadataByThreatModelAndIndexType returns one EntityEmbeddingMeta
 // per entity. See TimmyEmbeddingStore.ListEntityMetadataByThreatModelAndIndexType.
-// SEM@85c2885c496b7031495d6d6c1aa09ecb6d3d45a2: fetch a map of entity keys to embedding metadata for a threat model and index type (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a map of entity keys to embedding metadata for a threat model and index type (reads DB)
 func (s *GormTimmyEmbeddingStore) ListEntityMetadataByThreatModelAndIndexType(
 	ctx context.Context, threatModelID, indexType string,
 ) (map[EntityKey]EntityEmbeddingMeta, error) {

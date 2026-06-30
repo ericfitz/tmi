@@ -246,7 +246,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 }
 
 // Get retrieves a team by ID with all associated data
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: fetch a team with its members, responsible parties, relationships and metadata (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a team with its members, responsible parties, relationships and metadata (reads DB)
 func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 	logger := slogging.Get()
 	logger.Debug("Getting team: %s", id)
@@ -311,7 +311,7 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 }
 
 // Update updates an existing team, replacing members, responsible parties, and relationships
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: replace a team's fields, members, responsible parties, relationships, and metadata (writes DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: replace a team's fields, members, responsible parties, relationships, and metadata (writes DB)
 func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userInternalUUID string) (*Team, error) {
 	logger := slogging.Get()
 	logger.Debug("Updating team: %s", id)
@@ -455,7 +455,7 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 }
 
 // Delete removes a team and all associated data
-// SEM@e354a49a611147ee218201f6556521a582991be5: delete a team and all associated records, blocking if projects exist (writes DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: delete a team and all associated records, blocking if projects exist (writes DB)
 func (s *GormTeamStore) Delete(ctx context.Context, id string) error {
 	logger := slogging.Get()
 	logger.Debug("Deleting team: %s", id)
@@ -526,7 +526,7 @@ func (s *GormTeamStore) Delete(ctx context.Context, id string) error {
 }
 
 // List retrieves teams with filtering, pagination, and access control
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: list teams with filters, access control, and pagination, including counts (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: list teams with filters, access control, and pagination, including counts (reads DB)
 func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *TeamFilters, userInternalUUID string, isAdmin bool) ([]TeamListItem, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Listing teams (limit=%d, offset=%d, isAdmin=%t)", limit, offset, isAdmin)
@@ -659,7 +659,7 @@ func (s *GormTeamStore) List(ctx context.Context, limit, offset int, filters *Te
 }
 
 // IsMember checks if a user is a member of a team
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: check whether a user is a member of a team (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: check whether a user is a member of a team (reads DB)
 func (s *GormTeamStore) IsMember(ctx context.Context, teamID string, userInternalUUID string) (bool, error) {
 	logger := slogging.Get()
 	logger.Debug("Checking membership: team=%s, user=%s", teamID, userInternalUUID)
@@ -678,7 +678,7 @@ func (s *GormTeamStore) IsMember(ctx context.Context, teamID string, userInterna
 }
 
 // HasProjects checks if a team has any associated projects
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: check whether a team has any associated projects (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: check whether a team has any associated projects (reads DB)
 func (s *GormTeamStore) HasProjects(ctx context.Context, teamID string) (bool, error) {
 	logger := slogging.Get()
 	logger.Debug("Checking projects for team: %s", teamID)
@@ -732,7 +732,7 @@ func (s *GormTeamStore) validateRelationship(ctx context.Context, teamID, relate
 // For "child": adding A->child->B means B is A's child. Check if B is already an ancestor of A.
 // For "supersedes": adding A->supersedes->B. Check if B already supersedes A (directly or transitively).
 // For "superseded_by": adding A->superseded_by->B. Check if A already supersedes B.
-// SEM@a73016493971c9f00c5012a42c1385586f489aa0: detect whether adding a directional team relationship would create a cycle (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: detect whether adding a directional team relationship would create a cycle (reads DB)
 func (s *GormTeamStore) detectCycle(ctx context.Context, teamID, relatedTeamID, relationship string) error {
 	logger := slogging.Get()
 
@@ -792,7 +792,7 @@ func (s *GormTeamStore) detectCycle(ctx context.Context, teamID, relatedTeamID, 
 
 // resolveRelatedTeamIDs resolves the set of team IDs matching a related_to + relationship filter,
 // optionally following transitive relationships.
-// SEM@44b26bfffa64acf6c77f67d0356800e18e509cd3: resolve team IDs matching a related_to/relationship filter, optionally transitive (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: resolve team IDs matching a related_to/relationship filter, optionally transitive (reads DB)
 func (s *GormTeamStore) resolveRelatedTeamIDs(ctx context.Context, filters *TeamFilters) ([]string, error) {
 	if filters.RelatedTo == nil || *filters.RelatedTo == "" {
 		return nil, nil
@@ -893,7 +893,7 @@ func (s *GormTeamStore) resolveRelatedTeamIDs(ctx context.Context, filters *Team
 }
 
 // resolveTransitiveRelatedTeams follows a directional relationship chain iteratively up to maxTeamRelationshipDepth
-// SEM@44b26bfffa64acf6c77f67d0356800e18e509cd3: follow a directional relationship chain to collect all transitive related team IDs (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: follow a directional relationship chain to collect all transitive related team IDs (reads DB)
 func (s *GormTeamStore) resolveTransitiveRelatedTeams(ctx context.Context, startTeamID string, relationship string) ([]string, error) {
 	logger := slogging.Get()
 	logger.Debug("Resolving transitive %s relationships from team %s", relationship, startTeamID)

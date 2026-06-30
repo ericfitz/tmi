@@ -50,7 +50,7 @@ func (s *GormTimmyUsageStore) Record(ctx context.Context, usage *models.TimmyUsa
 }
 
 // GetByUser returns all usage records for a user within the given time range
-// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: fetch all Timmy usage records for a user within a time range (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch all Timmy usage records for a user within a time range (reads DB)
 func (s *GormTimmyUsageStore) GetByUser(ctx context.Context, userID string, start, end time.Time) ([]models.TimmyUsage, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -74,7 +74,7 @@ func (s *GormTimmyUsageStore) GetByUser(ctx context.Context, userID string, star
 }
 
 // GetByThreatModel returns all usage records for a threat model within the given time range
-// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: fetch all Timmy usage records for a threat model within a time range (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch all Timmy usage records for a threat model within a time range (reads DB)
 func (s *GormTimmyUsageStore) GetByThreatModel(ctx context.Context, threatModelID string, start, end time.Time) ([]models.TimmyUsage, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -98,7 +98,7 @@ func (s *GormTimmyUsageStore) GetByThreatModel(ctx context.Context, threatModelI
 }
 
 // GetAggregated returns summed usage metrics with optional user and threat model filters
-// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: aggregate Timmy token and session counts filtered by user and threat model over a time range (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: aggregate Timmy token and session counts filtered by user and threat model over a time range (reads DB)
 func (s *GormTimmyUsageStore) GetAggregated(ctx context.Context, userID, threatModelID string, start, end time.Time) (*UsageAggregation, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()

@@ -157,7 +157,7 @@ func (s *GormWebhookSubscriptionStore) ListActiveByOwner(ctx context.Context, ow
 // Event matching is performed in Go after fetching active rows because the
 // Events column is stored as a serialised string array; this mirrors the
 // approach used by the consumer's filterSubscriptions helper.
-// SEM@c13f85301f7c723dfb20f687cb8fddc4ed77e703: fetch active webhook subscriptions matching a given event type (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch active webhook subscriptions matching a given event type (reads DB)
 func (s *GormWebhookSubscriptionStore) ListActiveByEventType(ctx context.Context, eventType string) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -183,7 +183,7 @@ func (s *GormWebhookSubscriptionStore) ListActiveByEventType(ctx context.Context
 }
 
 // ListPendingVerification retrieves subscriptions pending verification using GORM
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: fetch webhook subscriptions awaiting verification challenge (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch webhook subscriptions awaiting verification challenge (reads DB)
 func (s *GormWebhookSubscriptionStore) ListPendingVerification(ctx context.Context) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -205,7 +205,7 @@ func (s *GormWebhookSubscriptionStore) ListPendingVerification(ctx context.Conte
 }
 
 // ListPendingDelete retrieves subscriptions pending deletion using GORM
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: fetch webhook subscriptions queued for deletion (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch webhook subscriptions queued for deletion (reads DB)
 func (s *GormWebhookSubscriptionStore) ListPendingDelete(ctx context.Context) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -227,7 +227,7 @@ func (s *GormWebhookSubscriptionStore) ListPendingDelete(ctx context.Context) ([
 }
 
 // ListIdle retrieves subscriptions that have been idle for a certain number of days using GORM
-// SEM@c0d6404284f25e45cfa9076be2c6375c2f93913e: fetch active non-pinned webhook subscriptions unused for at least N days (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch active non-pinned webhook subscriptions unused for at least N days (reads DB)
 func (s *GormWebhookSubscriptionStore) ListIdle(ctx context.Context, daysIdle int) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -260,7 +260,7 @@ func (s *GormWebhookSubscriptionStore) ListIdle(ctx context.Context, daysIdle in
 }
 
 // ListBroken retrieves subscriptions with too many failures using GORM
-// SEM@c0d6404284f25e45cfa9076be2c6375c2f93913e: fetch active non-pinned subscriptions exceeding failure threshold without recent success (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch active non-pinned subscriptions exceeding failure threshold without recent success (reads DB)
 func (s *GormWebhookSubscriptionStore) ListBroken(ctx context.Context, minFailures int, daysSinceSuccess int) ([]DBWebhookSubscription, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()

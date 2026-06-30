@@ -108,7 +108,7 @@ func teamNoteListItemFromRecord(record *models.TeamNoteRecord) TeamNoteListItem 
 }
 
 // Create creates a new team note
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: persist a new team note under a verified parent team (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: persist a new team note under a verified parent team (reads DB)
 func (s *GormTeamNoteStore) Create(ctx context.Context, note *TeamNote, teamID string) (*TeamNote, error) {
 	logger := slogging.Get()
 
@@ -148,7 +148,7 @@ func (s *GormTeamNoteStore) Create(ctx context.Context, note *TeamNote, teamID s
 }
 
 // Get retrieves a team note by ID
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: fetch a team note by ID (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a team note by ID (reads DB)
 func (s *GormTeamNoteStore) Get(ctx context.Context, id string) (*TeamNote, error) {
 	logger := slogging.Get()
 
@@ -167,7 +167,7 @@ func (s *GormTeamNoteStore) Get(ctx context.Context, id string) (*TeamNote, erro
 }
 
 // Update replaces a team note
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: replace all mutable fields of an existing team note (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: replace all mutable fields of an existing team note (reads DB)
 func (s *GormTeamNoteStore) Update(ctx context.Context, id string, note *TeamNote, teamID string) (*TeamNote, error) {
 	logger := slogging.Get()
 
@@ -214,7 +214,7 @@ func (s *GormTeamNoteStore) Update(ctx context.Context, id string, note *TeamNot
 }
 
 // Delete deletes a team note
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: delete a team note by ID (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: delete a team note by ID (reads DB)
 func (s *GormTeamNoteStore) Delete(ctx context.Context, id string) error {
 	logger := slogging.Get()
 
@@ -234,7 +234,7 @@ func (s *GormTeamNoteStore) Delete(ctx context.Context, id string) error {
 }
 
 // Patch applies JSON Patch operations to a team note
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: apply JSON Patch operations to a team note and persist the result (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: apply JSON Patch operations to a team note and persist the result (reads DB)
 func (s *GormTeamNoteStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*TeamNote, error) {
 	logger := slogging.Get()
 
@@ -267,7 +267,7 @@ func (s *GormTeamNoteStore) Patch(ctx context.Context, id string, operations []P
 }
 
 // List returns a paginated list of team notes for a team
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: list paginated team notes for a team with optional non-sharable inclusion (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: list paginated team notes for a team with optional non-sharable inclusion (reads DB)
 func (s *GormTeamNoteStore) List(ctx context.Context, teamID string, offset, limit int, includeNonSharable bool) ([]TeamNoteListItem, int, error) {
 	logger := slogging.Get()
 
@@ -304,7 +304,7 @@ func (s *GormTeamNoteStore) List(ctx context.Context, teamID string, offset, lim
 }
 
 // Count returns the number of team notes for a team
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: count team notes for a team with optional non-sharable inclusion (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: count team notes for a team with optional non-sharable inclusion (reads DB)
 func (s *GormTeamNoteStore) Count(ctx context.Context, teamID string, includeNonSharable bool) (int, error) {
 	logger := slogging.Get()
 

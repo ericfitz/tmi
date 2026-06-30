@@ -16,7 +16,7 @@ var adminDB *gorm.DB
 
 // GetGroupUUIDsByNames looks up group UUIDs from group names for a given provider.
 // This is used by admin checks and auth adapters to convert JWT group claims to UUIDs.
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: fetch UUIDs for the named groups scoped to a provider (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch UUIDs for the named groups scoped to a provider (reads DB)
 func GetGroupUUIDsByNames(ctx context.Context, db *gorm.DB, provider string, groupNames []string) ([]uuid.UUID, error) {
 	if len(groupNames) == 0 {
 		return []uuid.UUID{}, nil
@@ -82,7 +82,7 @@ func (a *GroupBasedAdminChecker) IsSecurityReviewer(ctx context.Context, userInt
 
 // GetGroupUUIDsByNames converts group names to UUIDs.
 // Implements auth.AdminChecker.
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: convert group names to UUID strings for a given provider via the admin checker (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: convert group names to UUID strings for a given provider via the admin checker (reads DB)
 func (a *GroupBasedAdminChecker) GetGroupUUIDsByNames(ctx context.Context, provider string, groupNames []string) ([]string, error) {
 	uuids, err := GetGroupUUIDsByNames(ctx, a.db, provider, groupNames)
 	if err != nil {

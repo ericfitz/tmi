@@ -23,7 +23,7 @@ func SetTeamAuthDB(db *gorm.DB) {
 
 // IsTeamMemberOrAdmin checks if a user is a member of the specified team OR an administrator.
 // Returns true if the user is authorized to access the team's resources.
-// SEM@8c7929da791c778ff88713684c47aa2a10911bba: authorize whether a user is a team member or administrator (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: authorize whether a user is a team member or administrator (reads DB)
 func IsTeamMemberOrAdmin(ctx context.Context, teamID string, userInternalUUID string, c *gin.Context) (bool, error) {
 	logger := slogging.Get()
 
@@ -57,7 +57,7 @@ func IsTeamMemberOrAdmin(ctx context.Context, teamID string, userInternalUUID st
 
 // IsTeamOwnerOrAdmin checks if a user is the creator/owner of a team or an administrator.
 // Used for operations that require owner-level access (e.g., delete).
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: authorize whether a user is the team creator or administrator (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: authorize whether a user is the team creator or administrator (reads DB)
 func IsTeamOwnerOrAdmin(ctx context.Context, teamID string, userInternalUUID string, c *gin.Context) (bool, error) {
 	logger := slogging.Get()
 
@@ -93,7 +93,7 @@ func IsTeamOwnerOrAdmin(ctx context.Context, teamID string, userInternalUUID str
 }
 
 // IsProjectTeamMemberOrAdmin checks if a user is a member of the team that owns the project, or an administrator.
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: authorize whether a user belongs to the team that owns a project, or is an administrator (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: authorize whether a user belongs to the team that owns a project, or is an administrator (reads DB)
 func IsProjectTeamMemberOrAdmin(ctx context.Context, projectID string, userInternalUUID string, c *gin.Context) (bool, error) {
 	logger := slogging.Get()
 
@@ -130,7 +130,7 @@ func IsProjectTeamMemberOrAdmin(ctx context.Context, projectID string, userInter
 }
 
 // GetProjectTeamID retrieves the team_id for a given project.
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: fetch the team ID that owns a given project (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch the team ID that owns a given project (reads DB)
 func GetProjectTeamID(ctx context.Context, projectID string) (string, error) {
 	if teamAuthDB == nil {
 		return "", fmt.Errorf("database not initialized") //nolint:goerr113

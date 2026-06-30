@@ -84,7 +84,7 @@ func NewGormProjectStore(db *gorm.DB) *GormProjectStore {
 }
 
 // Create creates a new project
-// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: store a new project with responsible parties and relationships in a retryable transaction (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: store a new project with responsible parties and relationships in a retryable transaction (reads DB)
 func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInternalUUID string) (*Project, error) {
 	logger := slogging.Get()
 
@@ -172,7 +172,7 @@ func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInt
 }
 
 // Get retrieves a project by ID
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: fetch a project by ID with its team, responsible parties, relationships, and metadata (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a project by ID with its team, responsible parties, relationships, and metadata (reads DB)
 func (s *GormProjectStore) Get(ctx context.Context, id string) (*Project, error) {
 	logger := slogging.Get()
 
@@ -223,7 +223,7 @@ func (s *GormProjectStore) Get(ctx context.Context, id string) (*Project, error)
 }
 
 // Update updates an existing project
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: replace a project's fields, responsible parties, and relationships in a retryable transaction (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: replace a project's fields, responsible parties, and relationships in a retryable transaction (reads DB)
 func (s *GormProjectStore) Update(ctx context.Context, id string, project *Project, userInternalUUID string) (*Project, error) {
 	logger := slogging.Get()
 
@@ -324,7 +324,7 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 }
 
 // Delete removes a project by ID
-// SEM@e354a49a611147ee218201f6556521a582991be5: delete a project and its dependent records, blocking if threat models exist (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: delete a project and its dependent records, blocking if threat models exist (reads DB)
 func (s *GormProjectStore) Delete(ctx context.Context, id string) error {
 	logger := slogging.Get()
 
@@ -387,7 +387,7 @@ func (s *GormProjectStore) Delete(ctx context.Context, id string) error {
 }
 
 // List retrieves projects with pagination and optional filters
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: list projects with pagination, access control, and optional filters (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: list projects with pagination, access control, and optional filters (reads DB)
 func (s *GormProjectStore) List(ctx context.Context, limit, offset int, filters *ProjectFilters, userInternalUUID string, isAdmin bool) ([]ProjectListItem, int, error) {
 	logger := slogging.Get()
 
@@ -522,7 +522,7 @@ func (s *GormProjectStore) List(ctx context.Context, limit, offset int, filters 
 }
 
 // GetTeamID returns the team_id for a given project
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: fetch the team ID for a given project (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch the team ID for a given project (reads DB)
 func (s *GormProjectStore) GetTeamID(ctx context.Context, projectID string) (string, error) {
 	logger := slogging.Get()
 
@@ -543,7 +543,7 @@ func (s *GormProjectStore) GetTeamID(ctx context.Context, projectID string) (str
 }
 
 // HasThreatModels checks if a project has any associated threat models
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: check whether a project has any associated threat models (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: check whether a project has any associated threat models (reads DB)
 func (s *GormProjectStore) HasThreatModels(ctx context.Context, projectID string) (bool, error) {
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&models.ThreatModel{}).
@@ -555,7 +555,7 @@ func (s *GormProjectStore) HasThreatModels(ctx context.Context, projectID string
 }
 
 // validateProjectRelationships validates relationship constraints
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: validate relationship targets exist and detect cycles for directional relationships (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: validate relationship targets exist and detect cycles for directional relationships (reads DB)
 func (s *GormProjectStore) validateProjectRelationships(ctx context.Context, projectID string, relationships []RelatedProject) error {
 	for _, rel := range relationships {
 		relatedID := rel.RelatedProjectId.String()
@@ -616,7 +616,7 @@ func getInverseRelationship(rel string) string {
 }
 
 // detectProjectCycle detects cycles in directional project relationships using BFS
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: detect cycles in directional project relationships via BFS, rejecting if a cycle would form (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: detect cycles in directional project relationships via BFS, rejecting if a cycle would form (reads DB)
 func (s *GormProjectStore) detectProjectCycle(ctx context.Context, sourceID, targetID, relationship string) error {
 	// For a directional relationship (e.g., sourceID is parent of targetID),
 	// we need to check that targetID does not already reach sourceID
@@ -658,7 +658,7 @@ func (s *GormProjectStore) detectProjectCycle(ctx context.Context, sourceID, tar
 }
 
 // saveResponsibleParties saves responsible party records for a project
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: store responsible party records for a project, verifying each user exists (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: store responsible party records for a project, verifying each user exists (reads DB)
 func (s *GormProjectStore) saveResponsibleParties(tx *gorm.DB, projectID string, parties []ResponsibleParty) error {
 	logger := slogging.Get()
 
@@ -718,7 +718,7 @@ func (s *GormProjectStore) saveRelationships(tx *gorm.DB, projectID string, rela
 }
 
 // loadResponsibleParties loads responsible parties for a project
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: fetch and convert responsible party records for a project to API types (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch and convert responsible party records for a project to API types (reads DB)
 func (s *GormProjectStore) loadResponsibleParties(ctx context.Context, projectID string) ([]ResponsibleParty, error) {
 	var records []models.ProjectResponsiblePartyRecord
 	if err := s.db.WithContext(ctx).
@@ -754,7 +754,7 @@ func (s *GormProjectStore) loadResponsibleParties(ctx context.Context, projectID
 }
 
 // loadRelationships loads relationships for a project
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: fetch and convert relationship records for a project to API types (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch and convert relationship records for a project to API types (reads DB)
 func (s *GormProjectStore) loadRelationships(ctx context.Context, projectID string) ([]RelatedProject, error) {
 	var records []models.ProjectRelationshipRecord
 	if err := s.db.WithContext(ctx).
@@ -885,7 +885,7 @@ func (s *GormProjectStore) applyRelatedToFilter(query *gorm.DB, relatedTo string
 }
 
 // collectTransitiveRelatedIDs follows relationship chains transitively (BFS, max depth 10)
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: BFS-collect all project IDs reachable via a relationship type up to depth 10 (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: BFS-collect all project IDs reachable via a relationship type up to depth 10 (reads DB)
 func (s *GormProjectStore) collectTransitiveRelatedIDs(ctx context.Context, startID, relationship string) []string {
 	const maxDepth = 10
 	visited := map[string]bool{startID: true}

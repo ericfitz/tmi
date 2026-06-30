@@ -21,7 +21,7 @@ import (
 // completed when the user logs in via OAuth.
 //
 // Group principals are skipped (no enrichment needed).
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: resolve a user by provider identity, performing a sparse insert for unknown users, and fill in missing authorization fields (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: resolve a user by provider identity, performing a sparse insert for unknown users, and fill in missing authorization fields (reads DB)
 func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorization) error {
 	logger := slogging.Get()
 
@@ -166,7 +166,7 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 }
 
 // performSparseUserInsert creates a sparse user record that will be completed on first login
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: upsert a partial user record for a not-yet-logged-in principal to satisfy an authorization entry (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: upsert a partial user record for a not-yet-logged-in principal to satisfy an authorization entry (reads DB)
 func performSparseUserInsert(ctx context.Context, db *gorm.DB, auth *Authorization) error {
 	logger := slogging.Get()
 

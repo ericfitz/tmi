@@ -108,7 +108,7 @@ func projectNoteListItemFromRecord(record *models.ProjectNoteRecord) ProjectNote
 }
 
 // Create creates a new project note
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: store a new project note under a verified parent project (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: store a new project note under a verified parent project (reads DB)
 func (s *GormProjectNoteStore) Create(ctx context.Context, note *ProjectNote, projectID string) (*ProjectNote, error) {
 	logger := slogging.Get()
 
@@ -148,7 +148,7 @@ func (s *GormProjectNoteStore) Create(ctx context.Context, note *ProjectNote, pr
 }
 
 // Get retrieves a project note by ID
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: fetch a single project note by ID (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a single project note by ID (reads DB)
 func (s *GormProjectNoteStore) Get(ctx context.Context, id string) (*ProjectNote, error) {
 	logger := slogging.Get()
 
@@ -167,7 +167,7 @@ func (s *GormProjectNoteStore) Get(ctx context.Context, id string) (*ProjectNote
 }
 
 // Update replaces a project note
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: replace all fields of a project note within its parent project (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: replace all fields of a project note within its parent project (reads DB)
 func (s *GormProjectNoteStore) Update(ctx context.Context, id string, note *ProjectNote, projectID string) (*ProjectNote, error) {
 	logger := slogging.Get()
 
@@ -214,7 +214,7 @@ func (s *GormProjectNoteStore) Update(ctx context.Context, id string, note *Proj
 }
 
 // Delete deletes a project note
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: delete a project note by ID, returning not-found if absent (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: delete a project note by ID, returning not-found if absent (reads DB)
 func (s *GormProjectNoteStore) Delete(ctx context.Context, id string) error {
 	logger := slogging.Get()
 
@@ -234,7 +234,7 @@ func (s *GormProjectNoteStore) Delete(ctx context.Context, id string) error {
 }
 
 // Patch applies JSON Patch operations to a project note
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: apply JSON Patch operations to a project note and persist the result (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: apply JSON Patch operations to a project note and persist the result (reads DB)
 func (s *GormProjectNoteStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*ProjectNote, error) {
 	logger := slogging.Get()
 
@@ -267,7 +267,7 @@ func (s *GormProjectNoteStore) Patch(ctx context.Context, id string, operations 
 }
 
 // List returns a paginated list of project notes for a project
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: fetch a paginated list of project notes for a project, optionally filtering by sharability (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a paginated list of project notes for a project, optionally filtering by sharability (reads DB)
 func (s *GormProjectNoteStore) List(ctx context.Context, projectID string, offset, limit int, includeNonSharable bool) ([]ProjectNoteListItem, int, error) {
 	logger := slogging.Get()
 
@@ -304,7 +304,7 @@ func (s *GormProjectNoteStore) List(ctx context.Context, projectID string, offse
 }
 
 // Count returns the number of project notes for a project
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: count project notes for a project, optionally filtering by sharability (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: count project notes for a project, optionally filtering by sharability (reads DB)
 func (s *GormProjectNoteStore) Count(ctx context.Context, projectID string, includeNonSharable bool) (int, error) {
 	logger := slogging.Get()
 

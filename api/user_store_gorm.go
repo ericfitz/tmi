@@ -145,7 +145,7 @@ func (s *GormUserStore) Get(ctx context.Context, internalUUID openapi_types.UUID
 }
 
 // GetByProviderAndID retrieves a user by provider and provider_user_id
-// SEM@6a6c15749391c2817c30c64c8b54f8e0a4082a91: fetch a user by identity provider and provider user ID (reads DB)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a user by identity provider and provider user ID (reads DB)
 func (s *GormUserStore) GetByProviderAndID(ctx context.Context, provider string, providerUserID string) (*AdminUser, error) {
 	var gormUser models.User
 	// Use map-based query for cross-database compatibility (Oracle requires quoted lowercase column names)

@@ -278,7 +278,7 @@ func AssignmentMap(dialectName string, assignments map[string]any) map[string]an
 //	db.Where(ColumnMap(db.Name(), map[string]any{"team_id": id}))
 //
 // On non-Oracle dialects the map is returned unchanged.
-// SEM@aa6d284f5df5c13ccb0001366a1f228490aba957: rewrite map-based WHERE predicate keys to dialect-correct column casing (pure)
+// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: rewrite map-based WHERE predicate keys to dialect-correct column casing (pure)
 func ColumnMap(dialectName string, predicate map[string]any) map[string]any {
 	if dialectName != DialectOracle {
 		return predicate
