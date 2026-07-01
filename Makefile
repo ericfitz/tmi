@@ -63,6 +63,7 @@ install-hooks:  ## Install Git hooks (points core.hooksPath at scripts/hooks)
 	@git config core.hooksPath scripts/hooks
 	@chmod +x scripts/hooks/pre-commit scripts/hooks/post-commit
 	@echo "Git hooks installed (core.hooksPath -> scripts/hooks)"
+	@echo "Note: this supersedes any personal hooks in .git/hooks/ (Git ignores that dir while core.hooksPath is set)."
 
 # Test Infrastructure - Ephemeral containers for integration tests (isolated from dev)
 .PHONY: start-test-database stop-test-database clean-test-database start-test-redis stop-test-redis clean-test-redis clean-test-infrastructure
