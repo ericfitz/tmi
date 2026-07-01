@@ -153,3 +153,76 @@ jobs:
           fail-on-severity: high
           # Deny licenses that are incompatible with the project
           deny-licenses: GPL-3.0, AGPL-3.0
+
+  govulncheck:
+    name: Vulnerability Scan (govulncheck)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Provision generated client (tmi-clients)
+        uses: actions/checkout@v7
+        with:
+          repository: ericfitz/tmi-clients
+          path: .tmi-clients
+      - name: Point go.mod replace at the checked-out client
+        run: sed -i 's|=> ../tmi-clients/|=> ./.tmi-clients/|' go.mod
+
+      - name: Install govulncheck
+        # Pinned per repo convention. Verify this is the current release and
+        # bump if a newer stable tag exists.
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+
+      - name: Run govulncheck
+        run: govulncheck ./...
+
+  gosec:
+    name: Static Security Scan (gosec, informational)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write   # required to upload SARIF to the Security tab
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Provision generated client (tmi-clients)
+        uses: actions/checkout@v7
+        with:
+          repository: ericfitz/tmi-clients
+          path: .tmi-clients
+      - name: Point go.mod replace at the checked-out client
+        run: sed -i 's|=> ../tmi-clients/|=> ./.tmi-clients/|' go.mod
+
+      - name: Install gosec
+        # Pinned per repo convention. Verify current release and bump if needed.
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.5
+
+      - name: Run gosec (never fails the build)
+        # -no-fail: exit 0 even on findings (informational job).
+        # -exclude-generated: skip oapi-codegen's api/api.go and other generated code.
+        # -exclude-dir: skip the checked-out client shim.
+        run: gosec -no-fail -exclude-generated -exclude-dir=.tmi-clients -fmt sarif -out gosec.sarif ./...
+
+      - name: Upload SARIF to the Security tab
+        if: always()
+        continue-on-error: true   # SARIF upload lacks a write-scoped token on dependabot/fork PRs; never block on it
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: gosec.sarif
+          category: gosec
