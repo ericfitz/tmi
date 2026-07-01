@@ -11,6 +11,9 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+// syncBuffer (a concurrency-safe buffer shared between the watchdog goroutine
+// and the test reader) is defined in cloud_watchdog_test.go in this package.
+
 // waitForFile polls for the existence of path for up to timeout.
 func waitForFile(path string, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
@@ -27,7 +30,7 @@ func waitForFile(path string, timeout time.Duration) bool {
 // Used because the watchdog emits its Warn from a goroutine; the slog output
 // can lag the file recreation by tens to hundreds of milliseconds on macOS
 // kqueue, particularly when several watchdog tests run back-to-back.
-func waitForBufContains(buf *bytes.Buffer, needle []byte, timeout time.Duration) bool {
+func waitForBufContains(buf *syncBuffer, needle []byte, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if bytes.Contains(buf.Bytes(), needle) {
@@ -45,7 +48,7 @@ func TestLogFileWatchdog_ReopensOnDelete(t *testing.T) {
 	lj := &lumberjack.Logger{Filename: logPath, MaxSize: 100, MaxBackups: 0, MaxAge: 0}
 	t.Cleanup(func() { _ = lj.Close() })
 
-	var buf bytes.Buffer
+	var buf syncBuffer
 	slogger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	w, err := newLogFileWatchdog(lj, slogger)
@@ -94,7 +97,7 @@ func TestLogFileWatchdog_IgnoresUnrelatedFiles(t *testing.T) {
 	lj := &lumberjack.Logger{Filename: logPath, MaxSize: 100}
 	t.Cleanup(func() { _ = lj.Close() })
 
-	var buf bytes.Buffer
+	var buf syncBuffer
 	slogger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	w, err := newLogFileWatchdog(lj, slogger)
@@ -130,7 +133,7 @@ func TestLogFileWatchdog_SilentOnLumberjackRotation(t *testing.T) {
 	lj := &lumberjack.Logger{Filename: logPath, MaxSize: 100, MaxBackups: 1, MaxAge: 0}
 	t.Cleanup(func() { _ = lj.Close() })
 
-	var buf bytes.Buffer
+	var buf syncBuffer
 	slogger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	w, err := newLogFileWatchdog(lj, slogger)
@@ -163,7 +166,7 @@ func TestLogFileWatchdog_StopIsIdempotent(t *testing.T) {
 	lj := &lumberjack.Logger{Filename: logPath, MaxSize: 100}
 	t.Cleanup(func() { _ = lj.Close() })
 
-	slogger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	slogger := slog.New(slog.NewTextHandler(&syncBuffer{}, nil))
 
 	w, err := newLogFileWatchdog(lj, slogger)
 	if err != nil {

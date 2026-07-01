@@ -64,7 +64,8 @@ func (m *markdownBuilder) WriteByte(b byte) error {
 }
 
 // SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: return the current byte length of the markdown buffer (pure)
-func (m *markdownBuilder) Len() int       { return m.buf.Len() }
+func (m *markdownBuilder) Len() int { return m.buf.Len() }
+
 // SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: return accumulated markdown content as a string (pure)
 func (m *markdownBuilder) String() string { return m.buf.String() }
 

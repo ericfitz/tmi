@@ -65,8 +65,9 @@ func (e *extractionLimitError) Error() string {
 
 // SEM@f7dfe970572e2574027691de97c695d5ae39d5b7: match against the ErrExtractionLimit sentinel for errors.Is checks (pure)
 func (e *extractionLimitError) Is(target error) bool { return target == ErrExtractionLimit }
+
 // SEM@f7dfe970572e2574027691de97c695d5ae39d5b7: return the ErrExtractionLimit sentinel as the wrapped cause (pure)
-func (e *extractionLimitError) Unwrap() error        { return ErrExtractionLimit }
+func (e *extractionLimitError) Unwrap() error { return ErrExtractionLimit }
 
 // NewLimitError builds a typed extraction-limit error for the given Kind
 // (one of the documented Kind values: compressed_size, decompressed_size,

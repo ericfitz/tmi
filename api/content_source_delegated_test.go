@@ -58,10 +58,14 @@ func newDelegatedTestRepo() *delegatedTestRepo {
 }
 
 func (r *delegatedTestRepo) store(t *ContentToken) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.tokens[t.ID] = t
 }
 
 func (r *delegatedTestRepo) GetByUserAndProvider(_ context.Context, userID, providerID string) (*ContentToken, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	for _, t := range r.tokens {
 		if t.UserID == userID && t.ProviderID == providerID {
 			cp := *t
@@ -76,11 +80,15 @@ func (r *delegatedTestRepo) ListByUser(_ context.Context, _ string) ([]ContentTo
 }
 
 func (r *delegatedTestRepo) Upsert(_ context.Context, t *ContentToken) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.tokens[t.ID] = t
 	return nil
 }
 
 func (r *delegatedTestRepo) UpdateStatus(_ context.Context, id, status, lastError string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	t, ok := r.tokens[id]
 	if !ok {
 		return ErrContentTokenNotFound
@@ -91,6 +99,8 @@ func (r *delegatedTestRepo) UpdateStatus(_ context.Context, id, status, lastErro
 }
 
 func (r *delegatedTestRepo) Delete(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if _, ok := r.tokens[id]; !ok {
 		return ErrContentTokenNotFound
 	}
@@ -99,6 +109,8 @@ func (r *delegatedTestRepo) Delete(_ context.Context, id string) error {
 }
 
 func (r *delegatedTestRepo) DeleteByUserAndProvider(_ context.Context, userID, providerID string) (*ContentToken, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	for id, t := range r.tokens {
 		if t.UserID == userID && t.ProviderID == providerID {
 			cp := *t

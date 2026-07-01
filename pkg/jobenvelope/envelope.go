@@ -71,6 +71,7 @@ type Limits struct {
 //     the JetStream Object Store.
 //   - source-locator: SourceURL (+ optional SourceSecretRef, FetchLimits)
 //     is set. RESERVED — not exercised by issue #347.
+//
 // SEM@fd1c8398b240fc2d88814019a767c2cebb498d27: job input descriptor referencing a payload by object-store ref or source URL (pure)
 type Input struct {
 	// ObjectRef is the Object Store locator for content-ref mode.
