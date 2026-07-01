@@ -45,6 +45,14 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Provision generated client (tmi-clients)
+        uses: actions/checkout@v7
+        with:
+          repository: ericfitz/tmi-clients
+          path: .tmi-clients
+      - name: Point go.mod replace at the checked-out client
+        run: sed -i 's|=> ../tmi-clients/|=> ./.tmi-clients/|' go.mod
+
       - name: Autobuild
         uses: github/codeql-action/autobuild@v4
 

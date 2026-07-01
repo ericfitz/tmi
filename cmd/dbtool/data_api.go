@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	tmiclient "github.com/ericfitz/tmi-clients/go-client-generated/v1_4_0"
+	tmiclient "github.com/ericfitz/tmi-clients/go-client-generated/v1_5_0"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/test/testdb"
 )
