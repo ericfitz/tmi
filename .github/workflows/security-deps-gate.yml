@@ -27,6 +27,12 @@ permissions:
 jobs:
   deps-gate:
     name: Block on critical/high alerts in sensitive paths
+    # Dependabot-triggered runs get a read-only token with NO access to Actions
+    # secrets, so the App-token step below cannot mint a token there. The gate
+    # only inspects main's Dependabot-alert state (alerts are not computed per
+    # PR branch), so it is redundant on a PR anyway. Skip on Dependabot; the
+    # push-to-main and daily schedule runs still enforce the gate.
+    if: ${{ github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
