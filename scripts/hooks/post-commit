@@ -1,0 +1,48 @@
+#!/bin/bash
+# post-commit hook - Automatically update version and amend commit
+#
+# This hook increments the build number and amends the commit with the updated version.
+# Only triggers for changes to production code:
+#   - Go files (not *_test.go) in: api/, auth/, cmd/server/, internal/
+#   - Any file in static/
+
+# Only run on the main branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$CURRENT_BRANCH" != "main" ]; then
+    exit 0
+fi
+
+# Check if we're already in an amend operation to prevent infinite loop
+if [ -f ".git/AMEND_IN_PROGRESS" ]; then
+    rm -f ".git/AMEND_IN_PROGRESS"
+    exit 0
+fi
+
+# Get files changed in this commit
+CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD)
+
+# Check for production Go files (in specific directories, excluding tests)
+PROD_GO=$(echo "$CHANGED_FILES" | grep -E "^(api|auth|cmd/server|internal)/" | grep '\.go$' | grep -v '_test\.go$' || true)
+
+# Check for static assets
+STATIC=$(echo "$CHANGED_FILES" | grep "^static/" || true)
+
+# Exit early if no production files changed
+if [ -z "$PROD_GO" ] && [ -z "$STATIC" ]; then
+    exit 0
+fi
+
+# Mark that we're starting an amend
+touch ".git/AMEND_IN_PROGRESS"
+
+# Run the version update script in commit mode
+./scripts/update-version.sh --commit
+
+# Amend the commit with the version files (no message change, no hooks)
+git commit --amend --no-edit --no-verify
+
+# Clean up the marker file
+rm -f ".git/AMEND_IN_PROGRESS"
+
+# Exit with success
+exit 0

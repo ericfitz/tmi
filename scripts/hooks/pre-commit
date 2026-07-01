@@ -1,0 +1,54 @@
+#!/bin/bash
+# pre-commit hook - lightweight static analysis on staged Go files.
+#
+# Runs gofmt, go vet, and golangci-lint --fast-only on the packages of the
+# staged Go files, and blocks the commit on any failure.
+#
+# Bypass with: git commit --no-verify
+set -uo pipefail
+
+# Staged Go files (Added/Copied/Modified), excluding deletions. Git runs hooks
+# with the working directory at the repository root, so paths are repo-relative.
+staged_go=$(git diff --cached --diff-filter=ACM --name-only -- '*.go')
+
+if [ -z "$staged_go" ]; then
+    # Nothing Go-related staged (docs/config commit) -> no-op.
+    exit 0
+fi
+
+fail=0
+
+# 1. gofmt: list any staged file that is not gofmt-clean.
+unformatted=$(gofmt -l $staged_go)
+if [ -n "$unformatted" ]; then
+    echo "pre-commit: the following staged files are not gofmt-formatted:" >&2
+    echo "$unformatted" | sed 's/^/  /' >&2
+    echo "  fix with: gofmt -w <files>" >&2
+    fail=1
+fi
+
+# Unique package directories of the staged files, as ./dir patterns.
+pkg_dirs=$(echo "$staged_go" | xargs -n1 dirname | sort -u | sed 's,^,./,')
+
+# 2. go vet on just the affected packages (fast; whole-module vet is slow).
+if ! go vet $pkg_dirs; then
+    echo "pre-commit: go vet reported problems (see above)." >&2
+    fail=1
+fi
+
+# 3. golangci-lint --fast-only on the affected packages (honors .golangci.yml).
+if ! command -v golangci-lint >/dev/null 2>&1; then
+    echo "pre-commit: golangci-lint is not installed." >&2
+    echo "  install: https://golangci-lint.run/welcome/install/ (or: brew install golangci-lint)" >&2
+    fail=1
+elif ! golangci-lint run --fast-only $pkg_dirs; then
+    echo "pre-commit: golangci-lint reported problems (see above)." >&2
+    fail=1
+fi
+
+if [ "$fail" -ne 0 ]; then
+    echo "pre-commit: checks failed; commit aborted (bypass with 'git commit --no-verify')." >&2
+    exit 1
+fi
+
+exit 0
