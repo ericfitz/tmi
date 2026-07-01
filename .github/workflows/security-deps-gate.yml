@@ -37,8 +37,19 @@ jobs:
         with:
           python-version: "3.11"
 
+      # The default GITHUB_TOKEN cannot read the Dependabot alerts API (that
+      # endpoint needs a token with "Dependabot alerts: read"; security-events
+      # only covers code-scanning), so the gate 403'd on every run. Mint the
+      # same GitHub App token deps-bump.yml uses, which has that permission.
+      - name: Mint GitHub App token (reads Dependabot alerts)
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.DEPS_BOT_APP_ID }}
+          private-key: ${{ secrets.DEPS_BOT_APP_PRIVATE_KEY }}
+
       - name: Run gate
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: python3 scripts/security-deps-gate.py
