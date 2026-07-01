@@ -95,8 +95,17 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install vacuum
+        # Pin the version: the quobix install_vacuum.sh script auto-detects the
+        # latest release, and when that detection hiccups it builds a URL with an
+        # empty version and 404s, flaking this required check. Download a pinned
+        # release asset directly instead.
+        env:
+          VACUUM_VERSION: "0.29.7"
         run: |
-          curl -fsSL https://quobix.com/scripts/install_vacuum.sh | sudo sh
+          curl -fsSL "https://github.com/daveshanley/vacuum/releases/download/v${VACUUM_VERSION}/vacuum_${VACUUM_VERSION}_linux_x86_64.tar.gz" -o /tmp/vacuum.tar.gz
+          tar -xzf /tmp/vacuum.tar.gz -C /tmp vacuum
+          sudo install -m 0755 /tmp/vacuum /usr/local/bin/vacuum
+          vacuum version
 
       - name: Validate OpenAPI specification
         run: |
