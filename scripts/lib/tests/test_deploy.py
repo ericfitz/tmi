@@ -149,13 +149,23 @@ class TestNodePortExposure(unittest.TestCase):
             "kind-cluster.yml: extraPortMappings hostPort must equal deploy.HOST_PORT",
         )
 
-    def test_no_server_port_forward_remains(self):
-        """The server must NOT be port-forwarded; only redis is (issue #463)."""
+    def test_server_port_forward_is_k3s_only(self):
+        """#463: the KIND server is reached via the NodePort, never a port-forward
+        (the userspace proxy collapsed under CATS load). A server port-forward
+        exists ONLY for the remote k3s target — which has no extraPortMappings, and
+        where CATS uses the NodePort at rp2:30080 directly — and every invocation is
+        gated on cluster_target == 'k3s'."""
         src = (Path(deploy.__file__)).read_text()
-        self.assertNotRegex(
-            src, re.compile(r"port-forward.*svc/tmi-server"),
-            "deploy.py must not port-forward the server (use the NodePort)",
-        )
+        # Exactly one server port-forward command, inside start_server_port_forward.
+        cmd_lines = re.findall(r'port-forward".*svc/tmi-server', src)
+        self.assertEqual(len(cmd_lines), 1,
+                         "exactly one server port-forward command (the k3s helper)")
+        # Every call site (excluding the def) must be immediately gated on k3s.
+        call_sites = re.findall(r"(?<!def )start_server_port_forward\(\)", src)
+        guarded = re.findall(r'if cluster_target == "k3s":\n\s+start_server_port_forward\(\)', src)
+        self.assertGreaterEqual(len(call_sites), 1)
+        self.assertEqual(len(call_sites), len(guarded),
+                         "every start_server_port_forward() call must be gated on cluster_target == 'k3s'")
         self.assertIn("svc/redis", src, "deploy.py should still forward redis")
 
 
