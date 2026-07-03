@@ -1,0 +1,3 @@
+- op: replace
+  path: /spec/image
+  value: rp2:30500/tmi-chunk-embed:dev

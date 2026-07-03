@@ -80,8 +80,14 @@ def image_builds_for(db: str) -> list[tuple[str, str, dict]]:
     ]
 
 
-def overlay_dir_for(db: str) -> str:
-    """Return the kustomize overlay directory path for the chosen DB flavor."""
+def overlay_dir_for(db: str, cluster_target: str = "kind") -> str:
+    """Return the kustomize overlay directory path for the chosen cluster + DB flavor.
+
+    CLUSTER=k3s uses its own overlay (in-cluster registry image refs, full stack);
+    Oracle-on-k3s is out of scope, so k3s implies the postgres overlay.
+    """
+    if cluster_target == "k3s":
+        return f"{DEV_DIR}/k3s"
     return f"{DEV_DIR}/oracle" if db == "oracle" else DEV_DIR
 
 
@@ -108,6 +114,17 @@ def content_hash(text: str) -> str:
 # database-URL authority to this host. Docker Desktop maps host.docker.internal to
 # the host, reaching the 127.0.0.1:5432-published Postgres container.
 IN_CLUSTER_DB_HOST = "host.docker.internal"
+
+
+def in_cluster_db_host(cluster_target: str = "kind") -> str:
+    """Host the in-cluster server uses to reach Postgres for the given cluster.
+
+    kind: Postgres is a Mac container, reached via host.docker.internal.
+    k3s:  Postgres runs in-cluster as the `postgres` Service (postgres.yml).
+    """
+    return "postgres" if cluster_target == "k3s" else IN_CLUSTER_DB_HOST
+
+
 # Match the host (and optional :port) inside a postgres:// URL authority, after
 # the credentials '@'. Deliberately narrow: it touches ONLY a postgres URL's host,
 # never other localhost references in the config (redis host, OAuth callbacks, ...).
@@ -352,11 +369,12 @@ def ensure_namespace() -> None:
     )
 
 
-def deliver_config() -> None:
+def deliver_config(cluster_target: str = "kind") -> None:
     content = (get_project_root() / CONFIG_FILE).read_text()
-    # The on-disk config points the DB at localhost (for host-side tools); the
-    # in-cluster server reaches the host-published Postgres via host.docker.internal.
-    content = rewrite_db_host_for_incluster(content)
+    # The on-disk config points the DB at localhost (for host-side tools); rewrite
+    # it to the host the in-cluster server uses: host.docker.internal (kind) or the
+    # in-cluster `postgres` Service (k3s).
+    content = rewrite_db_host_for_incluster(content, db_host=in_cluster_db_host(cluster_target))
     manifest = render_configmap_yaml(
         name=CONFIGMAP_NAME, namespace=NS, file_key="config.yml", content=content,
     )

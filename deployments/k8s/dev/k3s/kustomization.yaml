@@ -1,0 +1,40 @@
+# k3s (CLUSTER=k3s) dev overlay — full parity with the kind dev stack, but every
+# TMI image is served from the in-cluster registry at rp2:30500 instead of the
+# kind-local localhost:5000.
+#
+# Postgres (postgres.yml) and the in-cluster registry (registry.yml) are NOT part
+# of this overlay: deploy.py applies them as prerequisites (registry before the
+# image build/push; Postgres before the server, mirroring how kind brings the DB
+# up first). This overlay is the workload set: server, controller, redis, and the
+# extractor/chunk-embed worker TMIComponents.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tmi-platform
+resources:
+  - ../controller.yml
+  - ../redis.yml
+  - ../server.yml
+  - ../../platform/components/tmi-extractor.yml
+  - ../../platform/components/tmi-chunk-embed.yml
+# Deployment container images (server, controller) — remapped by the images
+# transformer (preserves the :dev tag).
+images:
+  - name: localhost:5000/tmi-server
+    newName: rp2:30500/tmi-server
+  - name: localhost:5000/tmi-component-controller
+    newName: rp2:30500/tmi-component-controller
+# The workers are TMIComponent custom resources; their .spec.image is not a
+# PodSpec container image, so the images transformer cannot reach it — patch it.
+patches:
+  - path: patches/extractor-image.yaml
+    target:
+      group: tmi.dev
+      version: v1alpha1
+      kind: TMIComponent
+      name: tmi-extractor
+  - path: patches/chunkembed-image.yaml
+    target:
+      group: tmi.dev
+      version: v1alpha1
+      kind: TMIComponent
+      name: tmi-chunk-embed
