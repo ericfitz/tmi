@@ -6,6 +6,25 @@ from an in-cluster registry at **`rp2:30500`** (plain HTTP). Two one-time,
 out-of-band configuration steps are required before the first `dev-up CLUSTER=k3s`,
 because they need root/SSH on machines the dev tooling cannot reach.
 
+## 0. Mac: make `rp2` resolve reliably
+
+The k3s kubeconfig context (`k3s-rp`) and the registry ref (`rp2:30500`) both use
+the bare short name `rp2`. On macOS that resolves only via mDNS (`rp2.local`), and
+the bare form is unreliable — in particular, kubectl's Go resolver returns
+`lookup rp2: no such host` right after the node reboots (mDNS hasn't re-advertised
+yet), which aborts `make dev-up CLUSTER=k3s` in pre-flight. Pin it in `/etc/hosts`
+so every resolver (kubectl, docker, curl) resolves it deterministically:
+
+```bash
+echo "192.168.1.2  rp2" | sudo tee -a /etc/hosts
+# verify
+dscacheutil -q host -a name rp2   # -> ip_address: 192.168.1.2
+```
+
+One-time and persists across reboots. Use `rp2.local` or `192.168.1.2` directly if
+you prefer not to edit `/etc/hosts`, but then the kubeconfig server URL and the
+registry refs would need to match — pinning `rp2` keeps everything as-is.
+
 ## 1. Mac: trust the registry over plain HTTP
 
 The registry has no TLS, so the Docker daemon must treat `rp2:30500` as insecure,
@@ -74,6 +93,5 @@ done
 
 - These steps are **idempotent** and only needed once per machine (they persist
   across reboots). They do not affect the default `kind` dev path.
-- `rp2` must resolve from the Mac (it does, via mDNS → 192.168.1.2). If that ever
-  breaks, substitute the IP `192.168.1.2:30500` consistently in both steps and in
-  the k3s overlay image refs.
+- `rp2` must resolve from the Mac — pin it in `/etc/hosts` (step 0). Relying on
+  mDNS alone is what breaks `dev-up` after a node reboot.

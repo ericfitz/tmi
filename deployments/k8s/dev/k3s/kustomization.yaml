@@ -23,6 +23,14 @@ images:
     newName: rp2:30500/tmi-server
   - name: localhost:5000/tmi-component-controller
     newName: rp2:30500/tmi-component-controller
+  # Redis: the kind path uses cgr.dev/chainguard/redis, whose bundled jemalloc is
+  # compiled for 4KB pages and aborts with "Unsupported system page size" on the
+  # Pi 5 (BCM2712) nodes, which run a 16KB-page kernel. redis:7-alpine is built
+  # with libc malloc (page-size-agnostic) and runs the same redis-server with the
+  # same args. Verified starting cleanly on the nodes.
+  - name: cgr.dev/chainguard/redis
+    newName: redis
+    newTag: "7-alpine"
 # The workers are TMIComponent custom resources; their .spec.image is not a
 # PodSpec container image, so the images transformer cannot reach it — patch it.
 patches:
