@@ -43,7 +43,7 @@ def _db_profile():
 
 
 def cmd_up(args) -> None:
-    cluster.up()
+    cluster.up(cluster=args.cluster)
     if args.db == "postgres":
         database.up(_db_profile())
     deploy.start(db=args.db, no_workers=args.no_workers, skip_context_guard=args.yes)
@@ -53,7 +53,7 @@ def cmd_down(args) -> None:
     deploy.teardown(db=args.db)
     if args.db == "postgres":
         database.down(_db_profile())  # keep volume
-    cluster.down()
+    cluster.down(cluster=args.cluster)
     log_success("dev environment down (db data preserved)")
 
 
@@ -73,13 +73,13 @@ def cmd_reset(args) -> None:
 def cmd_nuke(args) -> None:
     log_info("dev-nuke: destroying EVERYTHING incl. db data + built images")
     deploy.teardown(db=args.db)
-    cluster.down()
+    cluster.down(cluster=args.cluster)
     if args.db == "postgres":
         database.destroy(_db_profile())   # removes container + volume (data wiped)
     deploy.remove_local_images(args.db)
     _clean_logs_and_files()
     # rebuild from scratch
-    cluster.up()
+    cluster.up(cluster=args.cluster)
     if args.db == "postgres":
         database.up(_db_profile())
     deploy.start(db=args.db, no_workers=args.no_workers, skip_context_guard=args.yes)
@@ -105,7 +105,7 @@ def cmd_logs(args) -> None:
 
 
 def cmd_cluster(args) -> None:
-    {"up": cluster.up, "down": cluster.down}[args.action]()
+    {"up": cluster.up, "down": cluster.down}[args.action](cluster=args.cluster)
 
 
 def cmd_db(args) -> None:

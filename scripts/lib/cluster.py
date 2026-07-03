@@ -21,14 +21,30 @@ LOCAL_REGISTRY = "localhost:5000"
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 KIND_CONFIG = str(_PROJECT_ROOT / "deployments/k8s/dev/kind-cluster.yml")
 
+# Remote k3s dev target (CLUSTER=k3s). We do not own this cluster: we select
+# its context but never create/delete it. Images go to an in-cluster registry
+# exposed at rp2:30500 (NodePort 30500).
+K3S_CONTEXT = "k3s-rp"
+K3S_REGISTRY = "rp2:30500"
+
+
+def registry_for(cluster: str = "kind") -> str:
+    """Return the dev image-registry hostname for the given cluster target."""
+    return K3S_REGISTRY if cluster == "k3s" else LOCAL_REGISTRY
+
+
+def expected_context(cluster: str = "kind") -> str:
+    """Return the kube-context that must be active for the given cluster target."""
+    return K3S_CONTEXT if cluster == "k3s" else f"kind-{CLUSTER_NAME}"
+
 # Contexts we consider safe to deploy a dev environment into without --yes.
 _LOCAL_CONTEXT_PREFIXES = ("kind-", "k3d-")
 _LOCAL_CONTEXT_EXACT = {"k3s", "default", "rancher-desktop", "docker-desktop", "minikube"}
 
 
-def local_image_ref(name: str, tag: str = "dev", registry: str = LOCAL_REGISTRY) -> str:
-    """Return the fully-qualified local-registry image reference."""
-    return f"{registry}/{name}:{tag}"
+def local_image_ref(name: str, tag: str = "dev", *, cluster: str = "kind") -> str:
+    """Return the fully-qualified dev-registry image reference for the cluster."""
+    return f"{registry_for(cluster)}/{name}:{tag}"
 
 
 def is_local_kube_context(name: str) -> bool:
@@ -116,8 +132,17 @@ def connect_registry_to_kind() -> None:
     )
 
 
-def up() -> None:
-    """Bring up the kind cluster and local dev registry."""
+def up(cluster: str = "kind") -> None:
+    """Bring up the dev cluster: create kind + local registry, or (k3s) select the
+    remote context without creating anything (the in-cluster registry and workloads
+    are applied by deploy)."""
+    if cluster == "k3s":
+        check_tool("kubectl")
+        log_info(f"Using existing k3s context '{K3S_CONTEXT}' (no cluster create)")
+        run_cmd(["kubectl", "config", "use-context", K3S_CONTEXT])
+        log_success(f"kube context set to '{K3S_CONTEXT}'")
+        return
+
     for tool in ("docker", "kind", "kubectl"):
         check_tool(tool)
 
@@ -135,8 +160,12 @@ def up() -> None:
     log_success(f"kind cluster '{CLUSTER_NAME}' ready; context kind-{CLUSTER_NAME}")
 
 
-def down() -> None:
-    """Delete the kind cluster entirely."""
+def down(cluster: str = "kind") -> None:
+    """Delete the kind cluster entirely; no-op for the remote k3s cluster (not ours
+    to delete — namespace teardown is handled by deploy)."""
+    if cluster == "k3s":
+        log_info("cluster down is a no-op for k3s (remote cluster is not ours to delete)")
+        return
     check_tool("kind")
     run_cmd(["kind", "delete", "cluster", "--name", CLUSTER_NAME])
     log_success(f"kind cluster '{CLUSTER_NAME}' deleted")
