@@ -16,7 +16,8 @@ Verbs (the make targets are 1:1 thin wrappers):
   cluster  up|down the kind cluster only
   db       up|down the postgres container only
 
-Global: --db postgres|oracle (default postgres), --no-workers, --yes
+Global: --db postgres|oracle (default postgres), --cluster kind|k3s
+        (default kind), --no-workers, --yes
 """
 from __future__ import annotations
 
@@ -145,12 +146,16 @@ def _add_global_options(
     if is_subparser:
         parser.add_argument("--db", choices=["postgres", "oracle"],
                             default=argparse.SUPPRESS)
+        parser.add_argument("--cluster", choices=["kind", "k3s"],
+                            default=argparse.SUPPRESS)
         parser.add_argument("--no-workers", action="store_true", dest="no_workers",
                             default=argparse.SUPPRESS)
         parser.add_argument("--yes", action="store_true", default=argparse.SUPPRESS,
                             help="Skip the local-kube-context safety check")
     else:
         parser.add_argument("--db", choices=["postgres", "oracle"], default="postgres")
+        parser.add_argument("--cluster", choices=["kind", "k3s"], default="kind",
+                            help="Kube cluster target: kind (local, default) or k3s (remote k3s-rp)")
         parser.add_argument("--no-workers", action="store_true", dest="no_workers")
         parser.add_argument("--yes", action="store_true",
                             help="Skip the local-kube-context safety check")
