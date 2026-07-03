@@ -32,13 +32,17 @@ containerd on every node must also be told the registry is plain HTTP, or pods
 fail to pull with an `http: server gave HTTP response to HTTPS client` error.
 
 On **each** node (`rp2`, `rp3`, `rp4`), create/merge
-`/etc/rancher/k3s/registries.yaml`:
+`/etc/rancher/k3s/registries.yaml`. Note the endpoint is the **IP**
+`192.168.1.2` (rp2), not the hostname: the nodes do not resolve each other's
+bare hostnames (`lookup rp2: no such host`), so the mirror must dial an IP. The
+mirror *key* stays `rp2:30500` so image references and the Mac's Docker config
+are unchanged.
 
 ```yaml
 mirrors:
   "rp2:30500":
     endpoint:
-      - "http://rp2:30500"
+      - "http://192.168.1.2:30500"
 ```
 
 Then restart k3s so containerd reloads:
@@ -61,7 +65,7 @@ To push the file to all three nodes at once (requires SSH + sudo on each):
 ```bash
 for n in rp2 rp3 rp4; do
   ssh "$n" 'sudo mkdir -p /etc/rancher/k3s && \
-    printf "mirrors:\n  \"rp2:30500\":\n    endpoint:\n      - \"http://rp2:30500\"\n" | sudo tee /etc/rancher/k3s/registries.yaml >/dev/null && \
+    printf "mirrors:\n  \"rp2:30500\":\n    endpoint:\n      - \"http://192.168.1.2:30500\"\n" | sudo tee /etc/rancher/k3s/registries.yaml >/dev/null && \
     sudo systemctl restart k3s'
 done
 ```
