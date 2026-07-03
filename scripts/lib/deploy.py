@@ -297,8 +297,13 @@ def unstage_tmi_client(created: bool) -> None:
 # Image build + push
 # ---------------------------------------------------------------------------
 
-def build_and_push(db: str) -> None:
-    """Build all images and push them to the local registry.
+def build_and_push(db: str, cluster_target: str = "kind") -> None:
+    """Build all images and push them to the target cluster's registry.
+
+    kind -> localhost:5000; k3s -> the in-cluster registry at rp2:30500. The Mac
+    and the k3s nodes are both arm64, so a plain host-arch `docker build` already
+    produces arm64 images — no buildx/--platform is needed; only the registry the
+    ref points at differs.
 
     All four Dockerfiles require the tmi-client staged in .docker-deps/.
     Stage once before the first build and clean up in a try/finally block
@@ -311,7 +316,7 @@ def build_and_push(db: str) -> None:
     created = stage_tmi_client()
     try:
         for name, dockerfile, build_args_map in image_builds_for(db):
-            ref = cluster.local_image_ref(name)
+            ref = cluster.local_image_ref(name, cluster=cluster_target)
             log_info(f"Building {name}  ({dockerfile}) -> {ref}")
 
             cmd = ["docker", "build", "-f", str(project_root / dockerfile)]
@@ -535,10 +540,11 @@ def tail_server_logs() -> None:
     kubectl(["-n", NS, "logs", "-f", "deploy/tmi-server", "--tail=200"], check=False)
 
 
-def remove_local_images(db: str) -> None:
+def remove_local_images(db: str, cluster_target: str = "kind") -> None:
     """Remove the locally-built dev images (used by `devenv.py nuke`)."""
     for name, _df, _args in image_builds_for(db):
-        run_cmd(["docker", "rmi", "-f", cluster.local_image_ref(name)], check=False)
+        run_cmd(["docker", "rmi", "-f", cluster.local_image_ref(name, cluster=cluster_target)],
+                check=False)
 
 
 def server_http_status() -> tuple[bool, str]:

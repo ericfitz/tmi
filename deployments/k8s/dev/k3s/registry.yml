@@ -1,0 +1,66 @@
+# In-cluster image registry for the k3s (CLUSTER=k3s) dev target.
+#
+# The Mac builds arm64 images and pushes them to this registry at rp2:30500
+# (NodePort 30500). The k3s nodes pull from it via a one-time
+# /etc/rancher/k3s/registries.yaml mirror entry (see README-node-setup.md).
+#
+# registry:2 is multi-arch (arm64-capable) and is pulled from Docker Hub by the
+# node, so there is no chicken-and-egg with this registry itself.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tmi-platform
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-data
+  namespace: tmi-platform
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: tmi-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: registry }
+  template:
+    metadata:
+      labels: { app: registry }
+    spec:
+      containers:
+        - name: registry
+          image: registry:2
+          ports:
+            - containerPort: 5000
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/registry
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: "1", memory: 512Mi }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: registry-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: registry
+  namespace: tmi-platform
+spec:
+  type: NodePort
+  selector: { app: registry }
+  ports:
+    - port: 5000
+      targetPort: 5000
+      nodePort: 30500
