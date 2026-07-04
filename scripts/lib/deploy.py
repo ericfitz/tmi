@@ -33,14 +33,13 @@ PLATFORM_DIR = "deployments/k8s/platform"
 CONFIG_FILE = "config-development.yml"
 CONFIGMAP_NAME = "tmi-server-config"
 
-# The server is reached on the host at localhost:HOST_PORT. The kind cluster
-# publishes the tmi-server Service's NodePort (NODE_PORT) directly on the host
-# via extraPortMappings (deployments/k8s/dev/kind-cluster.yml), so there is NO
-# `kubectl port-forward` for the server. The old userspace port-forward proxy
-# collapsed under high connection rates (CATS fuzzing -> 99% CONNECTION_ERROR,
-# issue #463); Docker's published port + kube-proxy DNAT has no such bottleneck.
-# KEEP NODE_PORT IN SYNC with server.yml/server-oracle.yml (.spec.ports[].nodePort)
-# and kind-cluster.yml (extraPortMappings[].containerPort).
+# The server is reached on the host at localhost:HOST_PORT via a kubectl
+# port-forward (start_server_port_forward). Neither docker-desktop nor k3s
+# publishes the NodePort directly on the host (only the former kind cluster did
+# that via extraPortMappings). The port-forward replaces the removed kind path;
+# for high-throughput testing (CATS) against k3s, hit the NodePort at
+# rp2:30080 directly — the userspace forward throttles under load (#463).
+# KEEP NODE_PORT IN SYNC with server.yml/server-oracle.yml (.spec.ports[].nodePort).
 HOST_PORT = 8080
 NODE_PORT = 30080
 SERVER_URL = f"http://localhost:{HOST_PORT}"
@@ -80,11 +79,11 @@ def image_builds_for(db: str) -> list[tuple[str, str, dict]]:
     ]
 
 
-def overlay_dir_for(db: str, cluster_target: str = "kind") -> str:
+def overlay_dir_for(db: str, cluster_target: str = "docker-desktop") -> str:
     """Return the kustomize overlay directory path for the chosen cluster + DB flavor.
 
     CLUSTER=k3s uses its own overlay (in-cluster registry image refs, full stack);
-    Oracle-on-k3s is out of scope, so k3s implies the postgres overlay.
+    CLUSTER=docker-desktop uses its own overlay (DB in-cluster, image import).
     """
     if cluster_target == "k3s":
         return f"{DEV_DIR}/k3s"
@@ -139,20 +138,16 @@ def import_image_to_node(ref: str, node: str) -> None:
         sys.exit(1)
 
 
-# The host the in-cluster server uses to reach the host-published Postgres.
-# config-development.yml carries `localhost` (correct for host-side tools like
-# bin/tmi-dbtool, which connect from the Mac host). The server pod's localhost is
-# the pod itself, so when we deliver that file as a ConfigMap we rewrite ONLY the
-# database-URL authority to this host. Docker Desktop maps host.docker.internal to
-# the host, reaching the 127.0.0.1:5432-published Postgres container.
+# Fallback host for reaching a host-published Postgres from inside a cluster
+# (kept for historical reference; k3s and docker-desktop use in-cluster Postgres
+# and therefore use the `postgres` service name instead).
 IN_CLUSTER_DB_HOST = "host.docker.internal"
 
 
-def in_cluster_db_host(cluster_target: str = "kind") -> str:
+def in_cluster_db_host(cluster_target: str = "docker-desktop") -> str:
     """Host the in-cluster server uses to reach Postgres for the given cluster.
 
-    kind: Postgres is a Mac container, reached via host.docker.internal.
-    k3s:  Postgres runs in-cluster as the `postgres` Service (postgres.yml).
+    k3s and docker-desktop: Postgres runs in-cluster as the `postgres` Service.
     """
     return "postgres" if cluster_target in ("k3s", "docker-desktop") else IN_CLUSTER_DB_HOST
 
@@ -224,7 +219,7 @@ def _preflight() -> None:
     for tool in ("docker", "kubectl"):
         check_tool(tool)
     if run_cmd(["kubectl", "cluster-info"], check=False).returncode != 0:
-        log_error("No reachable cluster. Run 'make dev-cluster-up' (kind) or start your k3s cluster.")
+        log_error("No reachable cluster. Run 'make dev-cluster-up' to set the cluster context.")
         sys.exit(1)
 
 
@@ -351,11 +346,11 @@ def unstage_tmi_client(created: bool) -> None:
 def build_and_push(db: str, cluster_target: str = "kind") -> None:
     """Build all images and deliver them to the target cluster.
 
-    kind -> push to localhost:5000; k3s -> push to the in-cluster registry at
-    rp2:30500; docker-desktop -> import straight into the DD node's containerd
-    via `docker save | ctr import` (no registry, no push). The Mac and the k3s
-    nodes are both arm64, so a plain host-arch `docker build` already produces
-    arm64 images — no buildx/--platform is needed; only the delivery step differs.
+    k3s -> push to the in-cluster registry at rp2:30500; docker-desktop ->
+    import straight into the DD node's containerd via `docker save | ctr import`
+    (no registry, no push). The Mac and the k3s nodes are both arm64, so a plain
+    host-arch `docker build` already produces arm64 images — no buildx/--platform
+    is needed; only the delivery step differs.
 
     All four Dockerfiles require the tmi-client staged in .docker-deps/.
     Stage once before the first build and clean up in a try/finally block
@@ -422,9 +417,8 @@ def ensure_k3s_registry() -> None:
 
 
 def apply_incluster_postgres(cluster_target: str) -> None:
-    """Apply the in-cluster Postgres for a cluster that hosts its own DB (k3s,
-    docker-desktop) and wait for it — a prerequisite before the server, mirroring
-    how the kind path brings the host DB up first."""
+    """Apply the in-cluster Postgres (k3s and docker-desktop) and wait for it —
+    a prerequisite before the server starts AutoMigrate."""
     project_root = get_project_root()
     subdir = "k3s" if cluster_target == "k3s" else "docker-desktop"
     kubectl(["apply", "-f", str(project_root / DEV_DIR / subdir / "postgres.yml")])
@@ -432,11 +426,10 @@ def apply_incluster_postgres(cluster_target: str) -> None:
     log_success("In-cluster Postgres ready (svc/postgres:5432)")
 
 
-def deliver_config(cluster_target: str = "kind") -> None:
+def deliver_config(cluster_target: str = "docker-desktop") -> None:
     content = (get_project_root() / CONFIG_FILE).read_text()
     # The on-disk config points the DB at localhost (for host-side tools); rewrite
-    # it to the host the in-cluster server uses: host.docker.internal (kind) or the
-    # in-cluster `postgres` Service (k3s).
+    # it to the in-cluster `postgres` Service (k3s and docker-desktop).
     content = rewrite_db_host_for_incluster(content, db_host=in_cluster_db_host(cluster_target))
     manifest = render_configmap_yaml(
         name=CONFIGMAP_NAME, namespace=NS, file_key="config.yml", content=content,
@@ -577,18 +570,15 @@ def wait_for_server(*, attempts: int = 30, delay_s: float = 1.0) -> None:
             time.sleep(delay_s)
     log_error(
         f"Server not reachable at {SERVER_URL} after {attempts} attempts. "
-        f"If you upgraded an existing cluster, recreate it so the NodePort "
-        f"mapping takes effect: 'make dev-cluster-down && make dev-cluster-up' "
-        f"(or 'make dev-nuke')."
+        f"If the port-forward is not running, try 'make dev-nuke' for a clean restart."
     )
 
 
 def start_redis_port_forward() -> None:
     """Forward the in-cluster Redis to localhost:6379 for host integration tests.
 
-    The server itself is NOT forwarded — it is reached via the NodePort published
-    on localhost:8080 by the kind extraPortMapping. Only Redis needs a host
-    forward, and only for test setup (low throughput), so a port-forward is fine.
+    Redis is low-throughput from the host (test setup only), so a port-forward
+    is fine here.
     """
     stop_port_forward()
     redis_proc = subprocess.Popen(
@@ -601,14 +591,14 @@ def start_redis_port_forward() -> None:
 
 
 def start_server_port_forward() -> None:
-    """Forward the in-cluster server to localhost:8080 (k3s only).
+    """Forward the in-cluster server to localhost:8080 (k3s and docker-desktop).
 
-    kind publishes the server NodePort on localhost:8080 via extraPortMappings, so
-    no forward is needed there. A remote k3s cluster has no such mapping, so we
+    Neither target publishes the server NodePort directly on the host, so we
     preserve the localhost:8080 contract with a port-forward. (For CATS/high-
-    throughput, hit the NodePort at rp2:30080 directly — the userspace forward
-    throttles under load, the #463 problem.) Stops only a prior SERVER forward so
-    it does not disturb the redis forward started just before it."""
+    throughput against k3s, hit the NodePort at rp2:30080 directly — the
+    userspace forward throttles under load, the #463 problem.) Stops only a
+    prior SERVER forward so it does not disturb the redis forward started
+    just before it."""
     _stop_port_forward_pidfile(PORT_FORWARD_PID)
     srv_proc = subprocess.Popen(
         ["kubectl", "-n", NS, "port-forward", "svc/tmi-server", f"{HOST_PORT}:{HOST_PORT}"],
@@ -674,9 +664,7 @@ def start(*, db: str, cluster_target: str = "kind", no_workers: bool = False,
     _guard_context(skip_context_guard, cluster_target)
     if cluster_target == "k3s":
         ensure_k3s_registry()          # in-cluster registry must be up before push
-    elif cluster_target != "docker-desktop":
-        cluster.ensure_registry()
-        cluster.connect_registry_to_kind()
+    # docker-desktop: no registry — build_and_push imports the images directly.
     build_and_push(db, cluster_target)
     ensure_namespace()
     apply_platform_base()
@@ -707,9 +695,7 @@ def restart(*, db: str, cluster_target: str = "kind", no_workers: bool = False,
     _guard_context(skip_context_guard, cluster_target)
     if cluster_target == "k3s":
         ensure_k3s_registry()
-    elif cluster_target != "docker-desktop":
-        cluster.ensure_registry()
-        cluster.connect_registry_to_kind()
+    # docker-desktop: no registry — build_and_push imports the images directly.
     build_and_push(db, cluster_target)
     deliver_config(cluster_target)
     if db == "oracle":
@@ -788,9 +774,6 @@ def teardown(*, db: str = "postgres") -> None:
         ["-n", NS, "delete", "secret", "tmi-oracle-db", "--ignore-not-found"],
         check=False,
     )
-
-    # Stop the local registry container
-    run_cmd(["docker", "stop", cluster.REGISTRY_CONTAINER], check=False)
 
     log_success("Dev environment torn down (cluster left intact)")
 

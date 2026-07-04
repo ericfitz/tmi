@@ -33,11 +33,12 @@ class TestImageBuildsFor(unittest.TestCase):
 
 
 class TestOverlayDirFor(unittest.TestCase):
-    def test_overlay_dir_oracle(self):
-        self.assertTrue(deploy.overlay_dir_for("oracle").endswith("/oracle"))
+    def test_overlay_dir_oracle_docker_desktop(self):
+        # docker-desktop uses the docker-desktop overlay regardless of DB flavor.
+        self.assertTrue(deploy.overlay_dir_for("oracle", "docker-desktop").endswith("/docker-desktop"))
 
-    def test_overlay_dir_postgres(self):
-        self.assertFalse(deploy.overlay_dir_for("postgres").endswith("/oracle"))
+    def test_overlay_dir_postgres_docker_desktop(self):
+        self.assertTrue(deploy.overlay_dir_for("postgres", "docker-desktop").endswith("/docker-desktop"))
 
     def test_overlay_dir_k3s(self):
         # CLUSTER=k3s uses the k3s overlay regardless of DB flavor.
@@ -49,9 +50,9 @@ class TestOverlayDirFor(unittest.TestCase):
 
 
 class TestInClusterDbHost(unittest.TestCase):
-    def test_kind_uses_host_docker_internal(self):
-        self.assertEqual(deploy.in_cluster_db_host(), "host.docker.internal")
-        self.assertEqual(deploy.in_cluster_db_host("kind"), "host.docker.internal")
+    def test_default_uses_postgres_service(self):
+        # docker-desktop is the default cluster target
+        self.assertEqual(deploy.in_cluster_db_host(), "postgres")
 
     def test_k3s_uses_postgres_service(self):
         self.assertEqual(deploy.in_cluster_db_host("k3s"), "postgres")
@@ -138,22 +139,6 @@ class TestNodePortExposure(unittest.TestCase):
 
     def test_server_oracle_service_is_nodeport(self):
         self._assert_service_is_nodeport("server-oracle.yml")
-
-    def test_kind_cluster_maps_host_to_nodeport(self):
-        text = (_DEV_DIR / "kind-cluster.yml").read_text()
-        # extraPortMappings entry must map hostPort HOST_PORT -> containerPort NODE_PORT.
-        self.assertRegex(
-            text, r"(?m)^\s*extraPortMappings:",
-            "kind-cluster.yml: missing extraPortMappings",
-        )
-        self.assertRegex(
-            text, rf"(?m)^\s*-?\s*containerPort:\s*{deploy.NODE_PORT}\b",
-            "kind-cluster.yml: extraPortMappings containerPort must equal deploy.NODE_PORT",
-        )
-        self.assertRegex(
-            text, rf"(?m)^\s*-?\s*hostPort:\s*{deploy.HOST_PORT}\b",
-            "kind-cluster.yml: extraPortMappings hostPort must equal deploy.HOST_PORT",
-        )
 
     def test_server_port_forward_is_k3s_only(self):
         """#463: the KIND server is reached via the NodePort, never a port-forward

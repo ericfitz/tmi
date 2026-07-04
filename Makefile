@@ -320,10 +320,10 @@ tilt-down:  ## Stop Tilt and restore the prod-shaped server
 	@echo "prod-shaped server restored"
 
 # ============================================================================
-# DEV ENVIRONMENT — single orchestrator (scripts/devenv.py). DB=postgres|oracle CLUSTER=docker-desktop|k3s|kind
+# DEV ENVIRONMENT — single orchestrator (scripts/devenv.py). DB=postgres|oracle CLUSTER=docker-desktop|k3s
 # ============================================================================
 
-dev-up:  ## Bring up the full dev environment (cluster + db + deploy). DB=postgres|oracle CLUSTER=docker-desktop|k3s|kind
+dev-up:  ## Bring up the full dev environment (cluster + deploy). DB=postgres|oracle CLUSTER=docker-desktop|k3s
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) up
 
 dev-down:  ## Tear down the dev environment; KEEP db data
@@ -347,10 +347,10 @@ dev-logs:  ## Stream the tmi-server pod logs
 dev-deploy:  ## (Re)apply manifests + rollout without recreating cluster/db
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) deploy
 
-dev-cluster-up:  ## Create the local cluster + registry only (kind); switch context (k3s)
+dev-cluster-up:  ## Switch to the cluster kube context (docker-desktop or k3s)
 	@uv run scripts/devenv.py --cluster $(CLUSTER) cluster up
 
-dev-cluster-down:  ## Delete the local kind cluster only (no-op for k3s)
+dev-cluster-down:  ## No-op for docker-desktop and k3s (clusters are not owned)
 	@uv run scripts/devenv.py --cluster $(CLUSTER) cluster down
 
 dev-db-up:  ## Start the postgres dev container only
@@ -425,7 +425,7 @@ kill-oauth-stub:
 check-oauth-stub:
 	@uv run scripts/manage-oauth-stub.py status
 
-stop-all: stop-oauth-stub dev-down  ## Stop the OAuth stub and tear down the kind dev environment
+stop-all: stop-oauth-stub dev-down  ## Stop the OAuth stub and tear down the dev environment
 
 
 # ============================================================================
