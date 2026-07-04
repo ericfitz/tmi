@@ -197,6 +197,20 @@ class TestNodePortExposure(unittest.TestCase):
         # Both no-own-cluster targets gate the server port-forward together.
         self.assertIn('if cluster_target in ("k3s", "docker-desktop"):', src)
 
+    def test_server_port_forward_is_self_healing(self):
+        """A userspace port-forward dies when its backing pod rolls; to keep
+        localhost:8080 usable for the LIFE of the dev env (not just the instant
+        dev-up finishes), the forward runs under a re-launching supervisor loop
+        in its own session, and teardown signals the whole group so the kubectl
+        child dies with the supervisor shell."""
+        src = (Path(deploy.__file__)).read_text()
+        self.assertIn("while true", src,
+                      "port-forward must run under a re-launching supervisor loop")
+        self.assertIn("start_new_session=True", src,
+                      "supervised forward must run in its own session for group teardown")
+        self.assertIn("killpg", src,
+                      "teardown must signal the process group to stop the kubectl child")
+
 
 class TestServerRolloutTimeout(unittest.TestCase):
     """Rollout-status timeout must be long enough for a fresh Oracle ADB's
