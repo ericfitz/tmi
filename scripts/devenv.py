@@ -16,7 +16,8 @@ Verbs (the make targets are 1:1 thin wrappers):
   cluster  up|down the kind cluster only
   db       up|down the postgres container only
 
-Global: --db postgres|oracle (default postgres), --no-workers, --yes
+Global: --db postgres|oracle (default postgres), --cluster kind|k3s
+        (default kind), --no-workers, --yes
 """
 from __future__ import annotations
 
@@ -41,47 +42,69 @@ def _db_profile():
     return database.dev_profile()
 
 
+def _uses_host_db(args) -> bool:
+    """True when the Mac-hosted Postgres container is in play: postgres DB on the
+    kind cluster. For CLUSTER=k3s the DB runs in-cluster, so the host container is
+    never touched."""
+    return args.db == "postgres" and args.cluster == "kind"
+
+
 def cmd_up(args) -> None:
-    cluster.up()
-    if args.db == "postgres":
+    cluster.up(cluster=args.cluster)
+    if _uses_host_db(args):
         database.up(_db_profile())
-    deploy.start(db=args.db, no_workers=args.no_workers, skip_context_guard=args.yes)
+    deploy.start(db=args.db, cluster_target=args.cluster,
+                 no_workers=args.no_workers, skip_context_guard=args.yes)
 
 
 def cmd_down(args) -> None:
     deploy.teardown(db=args.db)
-    if args.db == "postgres":
+    if _uses_host_db(args):
         database.down(_db_profile())  # keep volume
-    cluster.down()
+    cluster.down(cluster=args.cluster)
     log_success("dev environment down (db data preserved)")
 
 
 def cmd_restart(args) -> None:
-    deploy.restart(db=args.db, no_workers=args.no_workers, skip_context_guard=args.yes)
+    deploy.restart(db=args.db, cluster_target=args.cluster,
+                   no_workers=args.no_workers, skip_context_guard=args.yes)
 
 
 def cmd_reset(args) -> None:
     log_info("dev-reset: redeploying the in-cluster stack (keeping cluster + db data)")
     deploy.teardown(db=args.db)
-    if args.db == "postgres":
+    if _uses_host_db(args):
         database.up(_db_profile())  # ensure db is up (no data loss)
-    deploy.start(db=args.db, no_workers=args.no_workers, skip_context_guard=args.yes)
+    deploy.start(db=args.db, cluster_target=args.cluster,
+                 no_workers=args.no_workers, skip_context_guard=args.yes)
     log_success("dev-reset complete")
 
 
 def cmd_nuke(args) -> None:
     log_info("dev-nuke: destroying EVERYTHING incl. db data + built images")
+    if args.cluster == "k3s":
+        # Namespace-scoped hard reset: we don't own the k3s cluster, so wipe the
+        # tmi-platform namespace (workloads + registry + Postgres data) and redeploy.
+        cluster.up(cluster="k3s")  # ensure the k3s-rp context is active
+        deploy.teardown_k3s_namespace()
+        deploy.remove_local_images(args.db, cluster_target="k3s")
+        _clean_logs_and_files()
+        deploy.start(db=args.db, cluster_target="k3s",
+                     no_workers=args.no_workers, skip_context_guard=args.yes)
+        log_success("dev-nuke complete (fresh k3s environment up)")
+        return
     deploy.teardown(db=args.db)
-    cluster.down()
-    if args.db == "postgres":
+    cluster.down(cluster=args.cluster)
+    if _uses_host_db(args):
         database.destroy(_db_profile())   # removes container + volume (data wiped)
     deploy.remove_local_images(args.db)
     _clean_logs_and_files()
     # rebuild from scratch
-    cluster.up()
-    if args.db == "postgres":
+    cluster.up(cluster=args.cluster)
+    if _uses_host_db(args):
         database.up(_db_profile())
-    deploy.start(db=args.db, no_workers=args.no_workers, skip_context_guard=args.yes)
+    deploy.start(db=args.db, cluster_target=args.cluster,
+                 no_workers=args.no_workers, skip_context_guard=args.yes)
     log_success("dev-nuke complete (fresh environment up)")
 
 
@@ -96,7 +119,8 @@ def cmd_status(args) -> None:
 
 
 def cmd_deploy(args) -> None:
-    deploy.start(db=args.db, no_workers=args.no_workers, skip_context_guard=args.yes)
+    deploy.start(db=args.db, cluster_target=args.cluster,
+                 no_workers=args.no_workers, skip_context_guard=args.yes)
 
 
 def cmd_logs(args) -> None:
@@ -104,7 +128,7 @@ def cmd_logs(args) -> None:
 
 
 def cmd_cluster(args) -> None:
-    {"up": cluster.up, "down": cluster.down}[args.action]()
+    {"up": cluster.up, "down": cluster.down}[args.action](cluster=args.cluster)
 
 
 def cmd_db(args) -> None:
@@ -145,12 +169,16 @@ def _add_global_options(
     if is_subparser:
         parser.add_argument("--db", choices=["postgres", "oracle"],
                             default=argparse.SUPPRESS)
+        parser.add_argument("--cluster", choices=["kind", "k3s"],
+                            default=argparse.SUPPRESS)
         parser.add_argument("--no-workers", action="store_true", dest="no_workers",
                             default=argparse.SUPPRESS)
         parser.add_argument("--yes", action="store_true", default=argparse.SUPPRESS,
                             help="Skip the local-kube-context safety check")
     else:
         parser.add_argument("--db", choices=["postgres", "oracle"], default="postgres")
+        parser.add_argument("--cluster", choices=["kind", "k3s"], default="kind",
+                            help="Kube cluster target: kind (local, default) or k3s (remote k3s-rp)")
         parser.add_argument("--no-workers", action="store_true", dest="no_workers")
         parser.add_argument("--yes", action="store_true",
                             help="Skip the local-kube-context safety check")

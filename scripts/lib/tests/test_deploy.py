@@ -39,6 +39,25 @@ class TestOverlayDirFor(unittest.TestCase):
     def test_overlay_dir_postgres(self):
         self.assertFalse(deploy.overlay_dir_for("postgres").endswith("/oracle"))
 
+    def test_overlay_dir_k3s(self):
+        # CLUSTER=k3s uses the k3s overlay regardless of DB flavor.
+        self.assertTrue(deploy.overlay_dir_for("postgres", "k3s").endswith("/k3s"))
+        self.assertTrue(deploy.overlay_dir_for("oracle", "k3s").endswith("/k3s"))
+
+
+class TestInClusterDbHost(unittest.TestCase):
+    def test_kind_uses_host_docker_internal(self):
+        self.assertEqual(deploy.in_cluster_db_host(), "host.docker.internal")
+        self.assertEqual(deploy.in_cluster_db_host("kind"), "host.docker.internal")
+
+    def test_k3s_uses_postgres_service(self):
+        self.assertEqual(deploy.in_cluster_db_host("k3s"), "postgres")
+
+    def test_k3s_rewrites_url_host_to_postgres_service(self):
+        src = 'url: "postgres://tmi_dev:dev123@localhost:5432/tmi_dev?sslmode=disable"'
+        out = deploy.rewrite_db_host_for_incluster(src, db_host=deploy.in_cluster_db_host("k3s"))
+        self.assertIn("@postgres:5432/tmi_dev", out)
+
 
 class TestNoWorkersFiles(unittest.TestCase):
     def test_no_workers_files_oracle_uses_oracle_server(self):
@@ -130,13 +149,23 @@ class TestNodePortExposure(unittest.TestCase):
             "kind-cluster.yml: extraPortMappings hostPort must equal deploy.HOST_PORT",
         )
 
-    def test_no_server_port_forward_remains(self):
-        """The server must NOT be port-forwarded; only redis is (issue #463)."""
+    def test_server_port_forward_is_k3s_only(self):
+        """#463: the KIND server is reached via the NodePort, never a port-forward
+        (the userspace proxy collapsed under CATS load). A server port-forward
+        exists ONLY for the remote k3s target — which has no extraPortMappings, and
+        where CATS uses the NodePort at rp2:30080 directly — and every invocation is
+        gated on cluster_target == 'k3s'."""
         src = (Path(deploy.__file__)).read_text()
-        self.assertNotRegex(
-            src, re.compile(r"port-forward.*svc/tmi-server"),
-            "deploy.py must not port-forward the server (use the NodePort)",
-        )
+        # Exactly one server port-forward command, inside start_server_port_forward.
+        cmd_lines = re.findall(r'port-forward".*svc/tmi-server', src)
+        self.assertEqual(len(cmd_lines), 1,
+                         "exactly one server port-forward command (the k3s helper)")
+        # Every call site (excluding the def) must be immediately gated on k3s.
+        call_sites = re.findall(r"(?<!def )start_server_port_forward\(\)", src)
+        guarded = re.findall(r'if cluster_target == "k3s":\n\s+start_server_port_forward\(\)', src)
+        self.assertGreaterEqual(len(call_sites), 1)
+        self.assertEqual(len(call_sites), len(guarded),
+                         "every start_server_port_forward() call must be gated on cluster_target == 'k3s'")
         self.assertIn("svc/redis", src, "deploy.py should still forward redis")
 
 

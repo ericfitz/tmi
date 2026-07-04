@@ -80,8 +80,14 @@ def image_builds_for(db: str) -> list[tuple[str, str, dict]]:
     ]
 
 
-def overlay_dir_for(db: str) -> str:
-    """Return the kustomize overlay directory path for the chosen DB flavor."""
+def overlay_dir_for(db: str, cluster_target: str = "kind") -> str:
+    """Return the kustomize overlay directory path for the chosen cluster + DB flavor.
+
+    CLUSTER=k3s uses its own overlay (in-cluster registry image refs, full stack);
+    Oracle-on-k3s is out of scope, so k3s implies the postgres overlay.
+    """
+    if cluster_target == "k3s":
+        return f"{DEV_DIR}/k3s"
     return f"{DEV_DIR}/oracle" if db == "oracle" else DEV_DIR
 
 
@@ -108,6 +114,17 @@ def content_hash(text: str) -> str:
 # database-URL authority to this host. Docker Desktop maps host.docker.internal to
 # the host, reaching the 127.0.0.1:5432-published Postgres container.
 IN_CLUSTER_DB_HOST = "host.docker.internal"
+
+
+def in_cluster_db_host(cluster_target: str = "kind") -> str:
+    """Host the in-cluster server uses to reach Postgres for the given cluster.
+
+    kind: Postgres is a Mac container, reached via host.docker.internal.
+    k3s:  Postgres runs in-cluster as the `postgres` Service (postgres.yml).
+    """
+    return "postgres" if cluster_target == "k3s" else IN_CLUSTER_DB_HOST
+
+
 # Match the host (and optional :port) inside a postgres:// URL authority, after
 # the credentials '@'. Deliberately narrow: it touches ONLY a postgres URL's host,
 # never other localhost references in the config (redis host, OAuth callbacks, ...).
@@ -179,14 +196,16 @@ def _preflight() -> None:
         sys.exit(1)
 
 
-def _guard_context(skip: bool) -> str:
+def _guard_context(skip: bool, cluster_target: str = "kind") -> str:
     ctx = current_kube_context()
     log_info(f"kubectl context: {ctx or '(none)'}  namespace: {NS}")
     if not ctx:
         log_error("No kubectl context set. Run 'make dev-cluster-up'")
         sys.exit(1)
-    if not skip and not cluster.is_local_kube_context(ctx):
-        log_error(f"Context '{ctx}' is not a recognized local dev cluster. Re-run with --yes to override.")
+    expected = cluster.expected_context(cluster_target)
+    if not skip and ctx != expected and not cluster.is_local_kube_context(ctx):
+        log_error(f"Context '{ctx}' is not the expected '{expected}' for CLUSTER={cluster_target}, "
+                  f"nor a recognized local dev cluster. Re-run with --yes to override.")
         sys.exit(1)
     return ctx
 
@@ -297,8 +316,13 @@ def unstage_tmi_client(created: bool) -> None:
 # Image build + push
 # ---------------------------------------------------------------------------
 
-def build_and_push(db: str) -> None:
-    """Build all images and push them to the local registry.
+def build_and_push(db: str, cluster_target: str = "kind") -> None:
+    """Build all images and push them to the target cluster's registry.
+
+    kind -> localhost:5000; k3s -> the in-cluster registry at rp2:30500. The Mac
+    and the k3s nodes are both arm64, so a plain host-arch `docker build` already
+    produces arm64 images — no buildx/--platform is needed; only the registry the
+    ref points at differs.
 
     All four Dockerfiles require the tmi-client staged in .docker-deps/.
     Stage once before the first build and clean up in a try/finally block
@@ -311,7 +335,7 @@ def build_and_push(db: str) -> None:
     created = stage_tmi_client()
     try:
         for name, dockerfile, build_args_map in image_builds_for(db):
-            ref = cluster.local_image_ref(name)
+            ref = cluster.local_image_ref(name, cluster=cluster_target)
             log_info(f"Building {name}  ({dockerfile}) -> {ref}")
 
             cmd = ["docker", "build", "-f", str(project_root / dockerfile)]
@@ -347,11 +371,32 @@ def ensure_namespace() -> None:
     )
 
 
-def deliver_config() -> None:
+def ensure_k3s_registry() -> None:
+    """Apply the in-cluster registry and wait for it (k3s prerequisite before push).
+
+    The Mac builds images and pushes them to this registry (rp2:30500), and the
+    nodes pull from it, so it must be Running before build_and_push."""
+    project_root = get_project_root()
+    kubectl(["apply", "-f", str(project_root / DEV_DIR / "k3s" / "registry.yml")])
+    kubectl(["-n", NS, "rollout", "status", "deploy/registry", "--timeout=180s"])
+    log_success("In-cluster registry ready (rp2:30500)")
+
+
+def apply_k3s_postgres() -> None:
+    """Apply the in-cluster Postgres and wait for it (k3s prerequisite before the
+    server, mirroring how the kind path brings the host DB up first)."""
+    project_root = get_project_root()
+    kubectl(["apply", "-f", str(project_root / DEV_DIR / "k3s" / "postgres.yml")])
+    kubectl(["-n", NS, "rollout", "status", "statefulset/postgres", "--timeout=180s"])
+    log_success("In-cluster Postgres ready (svc/postgres:5432)")
+
+
+def deliver_config(cluster_target: str = "kind") -> None:
     content = (get_project_root() / CONFIG_FILE).read_text()
-    # The on-disk config points the DB at localhost (for host-side tools); the
-    # in-cluster server reaches the host-published Postgres via host.docker.internal.
-    content = rewrite_db_host_for_incluster(content)
+    # The on-disk config points the DB at localhost (for host-side tools); rewrite
+    # it to the host the in-cluster server uses: host.docker.internal (kind) or the
+    # in-cluster `postgres` Service (k3s).
+    content = rewrite_db_host_for_incluster(content, db_host=in_cluster_db_host(cluster_target))
     manifest = render_configmap_yaml(
         name=CONFIGMAP_NAME, namespace=NS, file_key="config.yml", content=content,
     )
@@ -421,7 +466,7 @@ def create_oracle_db_secret() -> None:
     log_success("oracle DB connection delivered as Secret/tmi-oracle-db")
 
 
-def apply_overlay(no_workers: bool, db: str) -> None:
+def apply_overlay(no_workers: bool, db: str, cluster_target: str = "kind") -> None:
     """Apply the dev overlay.
 
     When --no-workers: apply the three core manifests individually to avoid
@@ -441,7 +486,7 @@ def apply_overlay(no_workers: bool, db: str) -> None:
     else:
         rendered = run_cmd(
             ["kubectl", "kustomize", "--load-restrictor", "LoadRestrictionsNone",
-             str(project_root / overlay_dir_for(db))],
+             str(project_root / overlay_dir_for(db, cluster_target))],
             capture=True,
         ).stdout
         kubectl(["apply", "-f", "-"], input_text=rendered)
@@ -461,10 +506,15 @@ def server_rollout_timeout(db: str) -> str:
     return "1200s" if db == "oracle" else "180s"
 
 
-def wait_and_forward(db: str = "postgres") -> None:
+def wait_and_forward(db: str = "postgres", cluster_target: str = "kind") -> None:
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-component-controller", "--timeout=120s"])
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", f"--timeout={server_rollout_timeout(db)}"])
     start_redis_port_forward()
+    # k3s has no extraPortMappings, so preserve localhost:8080 with a server
+    # port-forward. Start it AFTER the redis forward, whose stop_port_forward()
+    # clears both pidfiles, so this one survives.
+    if cluster_target == "k3s":
+        start_server_port_forward()
     wait_for_server()
     log_success(f"Dev environment ready at {SERVER_URL}")
 
@@ -509,6 +559,25 @@ def start_redis_port_forward() -> None:
     log_info(f"Port-forward started (PID {redis_proc.pid}): localhost:6379 -> svc/redis:6379")
 
 
+def start_server_port_forward() -> None:
+    """Forward the in-cluster server to localhost:8080 (k3s only).
+
+    kind publishes the server NodePort on localhost:8080 via extraPortMappings, so
+    no forward is needed there. A remote k3s cluster has no such mapping, so we
+    preserve the localhost:8080 contract with a port-forward. (For CATS/high-
+    throughput, hit the NodePort at rp2:30080 directly — the userspace forward
+    throttles under load, the #463 problem.) Stops only a prior SERVER forward so
+    it does not disturb the redis forward started just before it."""
+    _stop_port_forward_pidfile(PORT_FORWARD_PID)
+    srv_proc = subprocess.Popen(
+        ["kubectl", "-n", NS, "port-forward", "svc/tmi-server", f"{HOST_PORT}:{HOST_PORT}"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    Path(PORT_FORWARD_PID).write_text(str(srv_proc.pid))
+    log_info(f"Port-forward started (PID {srv_proc.pid}): localhost:{HOST_PORT} -> svc/tmi-server:{HOST_PORT}")
+
+
 def _stop_port_forward_pidfile(pid_path: str) -> None:
     p = Path(pid_path)
     if p.exists():
@@ -535,10 +604,11 @@ def tail_server_logs() -> None:
     kubectl(["-n", NS, "logs", "-f", "deploy/tmi-server", "--tail=200"], check=False)
 
 
-def remove_local_images(db: str) -> None:
+def remove_local_images(db: str, cluster_target: str = "kind") -> None:
     """Remove the locally-built dev images (used by `devenv.py nuke`)."""
     for name, _df, _args in image_builds_for(db):
-        run_cmd(["docker", "rmi", "-f", cluster.local_image_ref(name)], check=False)
+        run_cmd(["docker", "rmi", "-f", cluster.local_image_ref(name, cluster=cluster_target)],
+                check=False)
 
 
 def server_http_status() -> tuple[bool, str]:
@@ -556,21 +626,27 @@ def server_http_status() -> tuple[bool, str]:
 # Orchestration entry points
 # ---------------------------------------------------------------------------
 
-def start(*, db: str, no_workers: bool = False, skip_context_guard: bool = False) -> None:
+def start(*, db: str, cluster_target: str = "kind", no_workers: bool = False,
+          skip_context_guard: bool = False) -> None:
     """Build images, deploy all components, wait for readiness, and start port-forwards."""
     _preflight()
-    _guard_context(skip_context_guard)
-    cluster.ensure_registry()
-    cluster.connect_registry_to_kind()
-    build_and_push(db)
+    _guard_context(skip_context_guard, cluster_target)
+    if cluster_target == "k3s":
+        ensure_k3s_registry()          # in-cluster registry must be up before push
+    else:
+        cluster.ensure_registry()
+        cluster.connect_registry_to_kind()
+    build_and_push(db, cluster_target)
     ensure_namespace()
     apply_platform_base()
-    deliver_config()
+    if cluster_target == "k3s":
+        apply_k3s_postgres()           # in-cluster DB up before the server (AutoMigrate)
+    deliver_config(cluster_target)
     create_embedding_secret()
     if db == "oracle":
         create_oracle_wallet_secret()
         create_oracle_db_secret()
-    apply_overlay(no_workers, db)
+    apply_overlay(no_workers, db, cluster_target)
     # `kubectl apply` of an unchanged Deployment spec does not roll a new pod, so
     # a freshly-built :dev image (same tag) would not be picked up, and a pod
     # stuck in CrashLoopBackOff from a prior transient outage (e.g. the host DB
@@ -580,24 +656,30 @@ def start(*, db: str, no_workers: bool = False, skip_context_guard: bool = False
     # backoff-cleared pods. imagePullPolicy:Always ensures the new image is pulled.
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-component-controller"])
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
-    wait_and_forward(db)
+    wait_and_forward(db, cluster_target)
 
 
-def restart(*, db: str, no_workers: bool = False, skip_context_guard: bool = False) -> None:
+def restart(*, db: str, cluster_target: str = "kind", no_workers: bool = False,
+            skip_context_guard: bool = False) -> None:
     """Rebuild the server image, re-deliver config, and roll the server deployment."""
     _preflight()
-    _guard_context(skip_context_guard)
-    cluster.ensure_registry()
-    cluster.connect_registry_to_kind()
-    build_and_push(db)
-    deliver_config()
+    _guard_context(skip_context_guard, cluster_target)
+    if cluster_target == "k3s":
+        ensure_k3s_registry()
+    else:
+        cluster.ensure_registry()
+        cluster.connect_registry_to_kind()
+    build_and_push(db, cluster_target)
+    deliver_config(cluster_target)
     if db == "oracle":
         create_oracle_wallet_secret()
         create_oracle_db_secret()
-    apply_overlay(no_workers, db)
+    apply_overlay(no_workers, db, cluster_target)
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", f"--timeout={server_rollout_timeout(db)}"])
     start_redis_port_forward()
+    if cluster_target == "k3s":
+        start_server_port_forward()
     wait_for_server()
     log_success(f"Server restarted; {SERVER_URL}")
 
@@ -670,3 +752,12 @@ def teardown(*, db: str = "postgres") -> None:
     run_cmd(["docker", "stop", cluster.REGISTRY_CONTAINER], check=False)
 
     log_success("Dev environment torn down (cluster left intact)")
+
+
+def teardown_k3s_namespace() -> None:
+    """Hard reset for k3s: delete the entire tmi-platform namespace (all workloads,
+    the in-cluster registry, and the Postgres PVC/data). Never touches the k3s
+    cluster itself — we do not own it."""
+    stop_port_forward()
+    kubectl(["delete", "namespace", NS, "--ignore-not-found", "--wait=true"])
+    log_success(f"Namespace {NS} deleted (k3s hard reset)")

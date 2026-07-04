@@ -41,6 +41,10 @@ class TestParserDefaults(unittest.TestCase):
         self.assertEqual(args.verb, "up")
         self.assertEqual(args.db, "postgres")
 
+    def test_parse_up_defaults_to_kind(self):
+        args = devenv_cli.build_parser().parse_args(["up"])
+        self.assertEqual(args.cluster, "kind")
+
     def test_parse_up_no_workers_default_false(self):
         args = devenv_cli.build_parser().parse_args(["up"])
         self.assertFalse(args.no_workers)
@@ -74,6 +78,26 @@ class TestParserDbOption(unittest.TestCase):
     def test_parse_yes_after_verb(self):
         args = devenv_cli.build_parser().parse_args(["up", "--yes"])
         self.assertTrue(args.yes)
+
+
+class TestParserClusterOption(unittest.TestCase):
+    """--cluster option must work both before and after the verb, orthogonal to --db."""
+
+    def test_parse_cluster_k3s_after_verb(self):
+        """'up --cluster k3s' — option after verb (used by unit tests)."""
+        args = devenv_cli.build_parser().parse_args(["up", "--cluster", "k3s"])
+        self.assertEqual(args.cluster, "k3s")
+
+    def test_parse_cluster_k3s_before_verb(self):
+        """'--cluster k3s up' — option before verb (used by Makefile wrappers)."""
+        args = devenv_cli.build_parser().parse_args(["--cluster", "k3s", "up"])
+        self.assertEqual(args.cluster, "k3s")
+
+    def test_parse_db_and_cluster_together(self):
+        """--db and --cluster are orthogonal and coexist in either order."""
+        args = devenv_cli.build_parser().parse_args(["--db", "oracle", "--cluster", "k3s", "nuke"])
+        self.assertEqual(args.db, "oracle")
+        self.assertEqual(args.cluster, "k3s")
 
 
 class TestClusterAndDbSubcmds(unittest.TestCase):

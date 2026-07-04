@@ -22,6 +22,9 @@ SERVER_PORT ?= 8080
 # Default database backend for dev environment (postgres|oracle)
 DB ?= postgres
 
+# Default kube cluster target for dev environment (kind|k3s)
+CLUSTER ?= kind
+
 # ============================================================================
 # ATOMIC COMPONENTS - Infrastructure Management
 # ============================================================================
@@ -317,38 +320,38 @@ tilt-down:  ## Stop Tilt and restore the prod-shaped server
 	@echo "prod-shaped server restored"
 
 # ============================================================================
-# DEV ENVIRONMENT — single orchestrator (scripts/devenv.py). DB=postgres|oracle
+# DEV ENVIRONMENT — single orchestrator (scripts/devenv.py). DB=postgres|oracle CLUSTER=kind|k3s
 # ============================================================================
 
-dev-up:  ## Bring up the full kind dev environment (cluster + db + deploy). DB=postgres|oracle
-	@uv run scripts/devenv.py --db $(DB) up
+dev-up:  ## Bring up the full dev environment (cluster + db + deploy). DB=postgres|oracle CLUSTER=kind|k3s
+	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) up
 
-dev-down:  ## Tear down the kind dev environment; KEEP db data
-	@uv run scripts/devenv.py --db $(DB) down
+dev-down:  ## Tear down the dev environment; KEEP db data
+	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) down
 
 dev-restart:  ## Rebuild the server image + roll the server pod (cluster + db untouched)
-	@uv run scripts/devenv.py --db $(DB) restart
+	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) restart
 
 dev-reset:  ## Soft known-state: redeploy the stack with fresh images; KEEP db data
-	@uv run scripts/devenv.py --db $(DB) reset
+	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) reset
 
 dev-nuke:  ## Hard known-state: destroy everything incl. db data + images, rebuild
-	@uv run scripts/devenv.py --db $(DB) nuke
+	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) nuke
 
-dev-status:  ## kind-aware dev environment status dashboard
-	@uv run scripts/devenv.py status
+dev-status:  ## dev environment status dashboard
+	@uv run scripts/devenv.py --cluster $(CLUSTER) status
 
 dev-logs:  ## Stream the tmi-server pod logs
-	@uv run scripts/devenv.py logs
+	@uv run scripts/devenv.py --cluster $(CLUSTER) logs
 
 dev-deploy:  ## (Re)apply manifests + rollout without recreating cluster/db
-	@uv run scripts/devenv.py --db $(DB) deploy
+	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) deploy
 
-dev-cluster-up:  ## Create the local kind cluster + registry only
-	@uv run scripts/devenv.py cluster up
+dev-cluster-up:  ## Create the local cluster + registry only (kind); switch context (k3s)
+	@uv run scripts/devenv.py --cluster $(CLUSTER) cluster up
 
-dev-cluster-down:  ## Delete the local kind cluster only
-	@uv run scripts/devenv.py cluster down
+dev-cluster-down:  ## Delete the local kind cluster only (no-op for k3s)
+	@uv run scripts/devenv.py --cluster $(CLUSTER) cluster down
 
 dev-db-up:  ## Start the postgres dev container only
 	@uv run scripts/devenv.py db up
