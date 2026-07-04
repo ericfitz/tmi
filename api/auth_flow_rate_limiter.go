@@ -12,6 +12,33 @@ import (
 
 const buildModeTest = "test"
 
+// Auth-flow rate limit values (requests per 60s sliding window).
+const (
+	// authFlowSessionLimit bounds requests sharing one session identifier
+	// (OAuth state / SAML RelayState / token code).
+	authFlowSessionLimit = 100
+
+	// authFlowUserLimit bounds requests keyed on a single user identifier
+	// (login_hint, or client_id for the client-credentials grant). It is
+	// deliberately LOWER than the per-IP limit so the user scope is
+	// independently enforceable (issue #506): for single-account attacks such
+	// as password-spray or account enumeration against one victim from a single
+	// source IP, the user counter now trips before the shared-IP counter, which
+	// at an equal limit always tripped first and subsumed the user scope. 50/60s
+	// is far above any legitimate single-account cadence — an interactive OAuth
+	// flow is a handful of requests, and a client-credentials client with a
+	// 1-hour token needs roughly one token request per hour — and
+	// ResetUserRateLimit clears this counter on a successful login, so
+	// legitimate users are never locked out.
+	authFlowUserLimit = 50
+
+	// authFlowDefaultIPLimit bounds requests from a single source IP across the
+	// auth-flow and token endpoints. Higher than authFlowUserLimit so that
+	// shared egress IPs (corporate NAT) can carry many distinct users before the
+	// coarse IP scope engages.
+	authFlowDefaultIPLimit = 100
+)
+
 // envForceAuthFlowRateLimiting, when set to "true", forces the auth-flow rate
 // limiter to enforce limits even in build_mode=test. It exists so the
 // integration suite can exercise the multi-scope limiter against a server that
@@ -60,22 +87,26 @@ func (r *AuthFlowRateLimiter) ResetUserRateLimit(ctx context.Context, userIdenti
 	}
 }
 
-// CheckRateLimit checks all three scopes and returns the most restrictive result
-// Scopes: session (100/min), IP (100/min), user identifier (100/min)
+// CheckRateLimit checks all three scopes and returns the most restrictive result.
+// Scopes are evaluated most-specific-first: session (100/min), user identifier
+// (50/min), IP (100/min).
 // SEM@2ba330fcb59eb085d8f877fe8f75f90af9b69071: check all three auth-flow rate limit scopes and return the most restrictive result (reads DB)
 func (r *AuthFlowRateLimiter) CheckRateLimit(ctx context.Context, sessionID string, ipAddress string, userIdentifier string) (*RateLimitResult, error) {
-	return r.checkRateLimitWithIPLimit(ctx, sessionID, ipAddress, userIdentifier, 100)
+	return r.checkRateLimitWithIPLimit(ctx, sessionID, ipAddress, userIdentifier, authFlowDefaultIPLimit)
 }
 
 // CheckRateLimitForTokenEndpoint checks rate limits for the token endpoint
-// Uses the same 100 requests/minute per IP limit as other auth endpoints
+// Uses the same per-IP limit as other auth endpoints
 // SEM@c70d49ed2d6089c24d05f8bc287ba5711c73abde: check rate limits for the token endpoint using the standard per-IP limit (reads DB)
 func (r *AuthFlowRateLimiter) CheckRateLimitForTokenEndpoint(ctx context.Context, sessionID string, ipAddress string, userIdentifier string) (*RateLimitResult, error) {
-	return r.checkRateLimitWithIPLimit(ctx, sessionID, ipAddress, userIdentifier, 100)
+	return r.checkRateLimitWithIPLimit(ctx, sessionID, ipAddress, userIdentifier, authFlowDefaultIPLimit)
 }
 
-// checkRateLimitWithIPLimit implements multi-scope rate limiting with a configurable IP limit
-// SEM@c70d49ed2d6089c24d05f8bc287ba5711c73abde: check session, IP, and user rate limit scopes with a configurable IP limit (reads DB)
+// checkRateLimitWithIPLimit implements multi-scope rate limiting with a configurable IP limit.
+// Scopes are checked most-specific-first (session -> user -> IP) so that the
+// most narrowly-scoped counter is the one attributed when several would trip,
+// and so the lower per-user limit engages before the shared per-IP limit.
+// SEM@40c0e38339277e6a54d03dc01d30025bc0ef663d: check session, user, then IP rate limit scopes with a configurable IP limit (reads DB)
 func (r *AuthFlowRateLimiter) checkRateLimitWithIPLimit(ctx context.Context, sessionID string, ipAddress string, userIdentifier string, ipLimit int) (*RateLimitResult, error) {
 	logger := slogging.Get()
 
@@ -96,28 +127,50 @@ func (r *AuthFlowRateLimiter) checkRateLimitWithIPLimit(ctx context.Context, ses
 		return &RateLimitResult{Allowed: true}, nil
 	}
 
-	// Check session scope (100 requests/minute)
+	// Check session scope (most specific: one OAuth state / SAML relay / code).
 	if sessionID != "" {
 		sessionKey := fmt.Sprintf("auth:ratelimit:session:60s:%s", sessionID)
-		allowed, retryAfter, err := r.CheckSlidingWindow(ctx, sessionKey, 100, 60)
+		allowed, retryAfter, err := r.CheckSlidingWindow(ctx, sessionKey, authFlowSessionLimit, 60)
 		if err != nil {
 			logger.Error("failed to check session rate limit: %v", err)
 			return nil, fmt.Errorf("session rate limit check failed: %w", err)
 		}
 		if !allowed {
-			remaining, resetAt, _ := r.GetRateLimitInfo(ctx, sessionKey, 100, 60)
+			remaining, resetAt, _ := r.GetRateLimitInfo(ctx, sessionKey, authFlowSessionLimit, 60)
 			return &RateLimitResult{
 				Allowed:        false,
 				BlockedByScope: "session",
 				RetryAfter:     retryAfter,
-				Limit:          100,
+				Limit:          authFlowSessionLimit,
 				Remaining:      remaining,
 				ResetAt:        resetAt,
 			}, nil
 		}
 	}
 
-	// Check IP scope (configurable requests/minute)
+	// Check user identifier scope before IP so the lower per-user limit engages
+	// independently for single-account attacks from a shared source IP.
+	if userIdentifier != "" {
+		userKey := fmt.Sprintf("auth:ratelimit:user:60s:%s", userIdentifier)
+		allowed, retryAfter, err := r.CheckSlidingWindow(ctx, userKey, authFlowUserLimit, 60)
+		if err != nil {
+			logger.Error("failed to check user identifier rate limit: %v", err)
+			return nil, fmt.Errorf("user identifier rate limit check failed: %w", err)
+		}
+		if !allowed {
+			remaining, resetAt, _ := r.GetRateLimitInfo(ctx, userKey, authFlowUserLimit, 60)
+			return &RateLimitResult{
+				Allowed:        false,
+				BlockedByScope: "user",
+				RetryAfter:     retryAfter,
+				Limit:          authFlowUserLimit,
+				Remaining:      remaining,
+				ResetAt:        resetAt,
+			}, nil
+		}
+	}
+
+	// Check IP scope last (coarsest: a shared egress IP may carry many users).
 	if ipAddress != "" {
 		ipKey := fmt.Sprintf("auth:ratelimit:ip:60s:%s", ipAddress)
 		allowed, retryAfter, err := r.CheckSlidingWindow(ctx, ipKey, ipLimit, 60)
@@ -138,41 +191,20 @@ func (r *AuthFlowRateLimiter) checkRateLimitWithIPLimit(ctx context.Context, ses
 		}
 	}
 
-	// Check user identifier scope (100 attempts/minute)
-	if userIdentifier != "" {
-		userKey := fmt.Sprintf("auth:ratelimit:user:60s:%s", userIdentifier)
-		allowed, retryAfter, err := r.CheckSlidingWindow(ctx, userKey, 100, 60)
-		if err != nil {
-			logger.Error("failed to check user identifier rate limit: %v", err)
-			return nil, fmt.Errorf("user identifier rate limit check failed: %w", err)
-		}
-		if !allowed {
-			remaining, resetAt, _ := r.GetRateLimitInfo(ctx, userKey, 100, 60)
-			return &RateLimitResult{
-				Allowed:        false,
-				BlockedByScope: "user",
-				RetryAfter:     retryAfter,
-				Limit:          100,
-				Remaining:      remaining,
-				ResetAt:        resetAt,
-			}, nil
-		}
-	}
-
 	// All scopes passed - return session scope info (most restrictive window)
 	var remaining int
 	var resetAt int64
 	if sessionID != "" {
 		sessionKey := fmt.Sprintf("auth:ratelimit:session:60s:%s", sessionID)
-		remaining, resetAt, _ = r.GetRateLimitInfo(ctx, sessionKey, 100, 60)
+		remaining, resetAt, _ = r.GetRateLimitInfo(ctx, sessionKey, authFlowSessionLimit, 60)
 	} else {
-		remaining = 100
+		remaining = authFlowSessionLimit
 		resetAt = time.Now().Unix() + 60
 	}
 
 	return &RateLimitResult{
 		Allowed:   true,
-		Limit:     100,
+		Limit:     authFlowSessionLimit,
 		Remaining: remaining,
 		ResetAt:   resetAt,
 	}, nil

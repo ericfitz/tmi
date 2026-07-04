@@ -8,11 +8,17 @@ import (
 	"github.com/ericfitz/tmi/test/integration/framework"
 )
 
-// authFlowLimit is the per-scope auth-flow rate limit (requests / 60s) enforced
-// by api/auth_flow_rate_limiter.go for the session, IP, and user scopes. The
-// token endpoint uses the same per-IP limit. Keep this in sync with the
-// implementation (checkRateLimitWithIPLimit).
+// authFlowLimit is the per-session and per-IP auth-flow rate limit (requests /
+// 60s) enforced by api/auth_flow_rate_limiter.go. The token endpoint uses the
+// same per-IP limit. Keep this in sync with the implementation
+// (authFlowSessionLimit / authFlowDefaultIPLimit in checkRateLimitWithIPLimit).
 const authFlowLimit = 100
+
+// authFlowUserLimit is the per-user-identifier auth-flow rate limit (requests /
+// 60s). It is deliberately lower than authFlowLimit so the user scope is
+// independently enforceable for single-account attacks (issue #506). Keep this
+// in sync with authFlowUserLimit in api/auth_flow_rate_limiter.go.
+const authFlowUserLimit = 50
 
 // uniqueAuthFlowIP returns a distinct non-loopback test IP for index i. The
 // integration server runs with no trusted proxies, so it honors X-Forwarded-For
@@ -148,19 +154,20 @@ func TestAuthFlowRateLimiting_MultiScope(t *testing.T) {
 		framework.AssertNoError(t, err, "Failed to create client")
 
 		// Same login_hint, but a unique state AND a unique IP per request so
-		// neither the session nor the IP scope accumulates — only the user scope.
+		// neither the session nor the IP scope accumulates — only the user scope,
+		// which enforces the lower authFlowUserLimit (issue #506).
 		loginHint := "ratelimit-user-" + framework.UniqueUserID()
-		for i := 0; i < authFlowLimit; i++ {
+		for i := 0; i < authFlowUserLimit; i++ {
 			state := fmt.Sprintf("user-state-%s-%d", framework.UniqueUserID(), i)
 			resp := authFlowAuthorize(t, client, state, loginHint, uniqueAuthFlowIP(i))
 			if resp.StatusCode == 429 {
-				t.Fatalf("Request %d was rate limited before the limit of %d", i+1, authFlowLimit)
+				t.Fatalf("Request %d was rate limited before the limit of %d", i+1, authFlowUserLimit)
 			}
 		}
 
-		resp := authFlowAuthorize(t, client, "user-final-"+framework.UniqueUserID(), loginHint, uniqueAuthFlowIP(authFlowLimit))
+		resp := authFlowAuthorize(t, client, "user-final-"+framework.UniqueUserID(), loginHint, uniqueAuthFlowIP(authFlowUserLimit))
 		if resp.StatusCode != 429 {
-			t.Errorf("Expected 429 on request %d with the same login_hint, got %d", authFlowLimit+1, resp.StatusCode)
+			t.Errorf("Expected 429 on request %d with the same login_hint, got %d", authFlowUserLimit+1, resp.StatusCode)
 		}
 		if scope := resp.Headers.Get("X-RateLimit-Scope"); scope != "user" {
 			t.Errorf("Expected X-RateLimit-Scope=user, got %q", scope)
