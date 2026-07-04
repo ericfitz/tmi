@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -596,6 +597,31 @@ def wait_for_server(*, attempts: int = 30, delay_s: float = 1.0) -> None:
     )
 
 
+def _spawn_supervised_forward(argv: list[str], pid_path: str, human_desc: str) -> None:
+    """Start a self-healing kubectl port-forward and record its supervisor PID.
+
+    A bare `kubectl port-forward` exits whenever its backing pod rolls or
+    restarts (a `dev-restart`, a crash, an eviction, or a manual scale) — after
+    which localhost silently loses its path to the service until the next
+    `dev-up`. Wrapping it in a re-launching shell loop keeps the localhost
+    binding alive for the life of the dev environment, so `dev-up` yields an
+    environment that STAYS immediately usable rather than only being usable the
+    instant it finishes. The loop runs in its own session (start_new_session) so
+    its pidfile can tear down the whole group (supervisor shell + the current
+    kubectl child) and so it outlives this one-shot orchestrator process.
+    """
+    _stop_port_forward_pidfile(pid_path)
+    inner = " ".join(shlex.quote(a) for a in argv)
+    proc = subprocess.Popen(
+        ["sh", "-c", f"while true; do {inner} >/dev/null 2>&1; sleep 1; done"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    Path(pid_path).write_text(str(proc.pid))
+    log_info(f"Port-forward started (PID {proc.pid}): {human_desc}")
+
+
 def start_redis_port_forward() -> None:
     """Forward the in-cluster Redis to localhost:6379 for host integration tests.
 
@@ -603,13 +629,11 @@ def start_redis_port_forward() -> None:
     is fine here.
     """
     stop_port_forward()
-    redis_proc = subprocess.Popen(
+    _spawn_supervised_forward(
         ["kubectl", "-n", NS, "port-forward", "svc/redis", "6379:6379"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        REDIS_PORT_FORWARD_PID,
+        "localhost:6379 -> svc/redis:6379",
     )
-    Path(REDIS_PORT_FORWARD_PID).write_text(str(redis_proc.pid))
-    log_info(f"Port-forward started (PID {redis_proc.pid}): localhost:6379 -> svc/redis:6379")
 
 
 def start_server_port_forward() -> None:
@@ -620,27 +644,37 @@ def start_server_port_forward() -> None:
     throughput against k3s, hit the NodePort at rp2:30080 directly — the
     userspace forward throttles under load, the #463 problem.) Stops only a
     prior SERVER forward so it does not disturb the redis forward started
-    just before it."""
-    _stop_port_forward_pidfile(PORT_FORWARD_PID)
-    srv_proc = subprocess.Popen(
+    just before it. The forward is supervised so it survives server pod rolls
+    (see _spawn_supervised_forward)."""
+    _spawn_supervised_forward(
         ["kubectl", "-n", NS, "port-forward", "svc/tmi-server", f"{HOST_PORT}:{HOST_PORT}"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        PORT_FORWARD_PID,
+        f"localhost:{HOST_PORT} -> svc/tmi-server:{HOST_PORT}",
     )
-    Path(PORT_FORWARD_PID).write_text(str(srv_proc.pid))
-    log_info(f"Port-forward started (PID {srv_proc.pid}): localhost:{HOST_PORT} -> svc/tmi-server:{HOST_PORT}")
 
 
 def _stop_port_forward_pidfile(pid_path: str) -> None:
     p = Path(pid_path)
-    if p.exists():
-        try:
-            pid = int(p.read_text().strip())
-            os.kill(pid, signal.SIGTERM)
-            log_info(f"Stopped port-forward (PID {pid})")
-        except (ProcessLookupError, ValueError):
-            pass
+    if not p.exists():
+        return
+    try:
+        pid = int(p.read_text().strip())
+    except ValueError:
         p.unlink(missing_ok=True)
+        return
+    try:
+        # Supervised forwards are session leaders (pgid == pid): signal the whole
+        # group so the kubectl child dies with the supervisor shell. A legacy
+        # bare forward (pgid != pid) gets a single-process signal so we never
+        # tear down an unrelated process group.
+        if os.getpgid(pid) == pid:
+            os.killpg(pid, signal.SIGTERM)
+        else:
+            os.kill(pid, signal.SIGTERM)
+        log_info(f"Stopped port-forward (PID {pid})")
+    except ProcessLookupError:
+        pass
+    p.unlink(missing_ok=True)
 
 
 def stop_port_forward() -> None:
