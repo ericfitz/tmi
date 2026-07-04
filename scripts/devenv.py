@@ -82,16 +82,16 @@ def cmd_reset(args) -> None:
 
 def cmd_nuke(args) -> None:
     log_info("dev-nuke: destroying EVERYTHING incl. db data + built images")
-    if args.cluster == "k3s":
-        # Namespace-scoped hard reset: we don't own the k3s cluster, so wipe the
-        # tmi-platform namespace (workloads + registry + Postgres data) and redeploy.
-        cluster.up(cluster="k3s")  # ensure the k3s-rp context is active
-        deploy.teardown_k3s_namespace()
-        deploy.remove_local_images(args.db, cluster_target="k3s")
+    if args.cluster in ("k3s", "docker-desktop"):
+        # Namespace-scoped hard reset: we don't own these clusters, so wipe the
+        # tmi-platform namespace (workloads + in-cluster Postgres data) and redeploy.
+        cluster.up(cluster=args.cluster)      # ensure the right context is active
+        deploy.teardown_namespace()
+        deploy.remove_local_images(args.db, cluster_target=args.cluster)
         _clean_logs_and_files()
-        deploy.start(db=args.db, cluster_target="k3s",
+        deploy.start(db=args.db, cluster_target=args.cluster,
                      no_workers=args.no_workers, skip_context_guard=args.yes)
-        log_success("dev-nuke complete (fresh k3s environment up)")
+        log_success(f"dev-nuke complete (fresh {args.cluster} environment up)")
         return
     deploy.teardown(db=args.db)
     cluster.down(cluster=args.cluster)

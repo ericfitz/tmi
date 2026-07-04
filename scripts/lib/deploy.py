@@ -421,11 +421,13 @@ def ensure_k3s_registry() -> None:
     log_success("In-cluster registry ready (rp2:30500)")
 
 
-def apply_k3s_postgres() -> None:
-    """Apply the in-cluster Postgres and wait for it (k3s prerequisite before the
-    server, mirroring how the kind path brings the host DB up first)."""
+def apply_incluster_postgres(cluster_target: str) -> None:
+    """Apply the in-cluster Postgres for a cluster that hosts its own DB (k3s,
+    docker-desktop) and wait for it — a prerequisite before the server, mirroring
+    how the kind path brings the host DB up first."""
     project_root = get_project_root()
-    kubectl(["apply", "-f", str(project_root / DEV_DIR / "k3s" / "postgres.yml")])
+    subdir = "k3s" if cluster_target == "k3s" else "docker-desktop"
+    kubectl(["apply", "-f", str(project_root / DEV_DIR / subdir / "postgres.yml")])
     kubectl(["-n", NS, "rollout", "status", "statefulset/postgres", "--timeout=180s"])
     log_success("In-cluster Postgres ready (svc/postgres:5432)")
 
@@ -549,10 +551,10 @@ def wait_and_forward(db: str = "postgres", cluster_target: str = "kind") -> None
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-component-controller", "--timeout=120s"])
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", f"--timeout={server_rollout_timeout(db)}"])
     start_redis_port_forward()
-    # k3s has no extraPortMappings, so preserve localhost:8080 with a server
-    # port-forward. Start it AFTER the redis forward, whose stop_port_forward()
-    # clears both pidfiles, so this one survives.
-    if cluster_target == "k3s":
+    # k3s and docker-desktop have no extraPortMappings, so preserve localhost:8080
+    # with a server port-forward. Start it AFTER the redis forward, whose
+    # stop_port_forward() clears both pidfiles, so this one survives.
+    if cluster_target in ("k3s", "docker-desktop"):
         start_server_port_forward()
     wait_for_server()
     log_success(f"Dev environment ready at {SERVER_URL}")
@@ -672,14 +674,14 @@ def start(*, db: str, cluster_target: str = "kind", no_workers: bool = False,
     _guard_context(skip_context_guard, cluster_target)
     if cluster_target == "k3s":
         ensure_k3s_registry()          # in-cluster registry must be up before push
-    else:
+    elif cluster_target != "docker-desktop":
         cluster.ensure_registry()
         cluster.connect_registry_to_kind()
     build_and_push(db, cluster_target)
     ensure_namespace()
     apply_platform_base()
-    if cluster_target == "k3s":
-        apply_k3s_postgres()           # in-cluster DB up before the server (AutoMigrate)
+    if cluster_target in ("k3s", "docker-desktop"):
+        apply_incluster_postgres(cluster_target)  # in-cluster DB up before the server (AutoMigrate)
     deliver_config(cluster_target)
     create_embedding_secret()
     if db == "oracle":
@@ -705,7 +707,7 @@ def restart(*, db: str, cluster_target: str = "kind", no_workers: bool = False,
     _guard_context(skip_context_guard, cluster_target)
     if cluster_target == "k3s":
         ensure_k3s_registry()
-    else:
+    elif cluster_target != "docker-desktop":
         cluster.ensure_registry()
         cluster.connect_registry_to_kind()
     build_and_push(db, cluster_target)
@@ -717,7 +719,7 @@ def restart(*, db: str, cluster_target: str = "kind", no_workers: bool = False,
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", f"--timeout={server_rollout_timeout(db)}"])
     start_redis_port_forward()
-    if cluster_target == "k3s":
+    if cluster_target in ("k3s", "docker-desktop"):
         start_server_port_forward()
     wait_for_server()
     log_success(f"Server restarted; {SERVER_URL}")
@@ -793,10 +795,10 @@ def teardown(*, db: str = "postgres") -> None:
     log_success("Dev environment torn down (cluster left intact)")
 
 
-def teardown_k3s_namespace() -> None:
-    """Hard reset for k3s: delete the entire tmi-platform namespace (all workloads,
-    the in-cluster registry, and the Postgres PVC/data). Never touches the k3s
-    cluster itself — we do not own it."""
+def teardown_namespace() -> None:
+    """Hard reset for a cluster we don't own (k3s, docker-desktop): delete the entire
+    tmi-platform namespace (all workloads, the in-cluster registry, and the Postgres
+    PVC/data). Never touches the cluster itself."""
     stop_port_forward()
     kubectl(["delete", "namespace", NS, "--ignore-not-found", "--wait=true"])
-    log_success(f"Namespace {NS} deleted (k3s hard reset)")
+    log_success(f"Namespace {NS} deleted (hard reset)")

@@ -158,21 +158,32 @@ class TestNodePortExposure(unittest.TestCase):
     def test_server_port_forward_is_k3s_only(self):
         """#463: the KIND server is reached via the NodePort, never a port-forward
         (the userspace proxy collapsed under CATS load). A server port-forward
-        exists ONLY for the remote k3s target — which has no extraPortMappings, and
-        where CATS uses the NodePort at rp2:30080 directly — and every invocation is
-        gated on cluster_target == 'k3s'."""
+        exists ONLY for no-own-cluster targets (k3s, docker-desktop) — which have
+        no extraPortMappings — and every invocation is gated on the tuple check
+        cluster_target in ('k3s', 'docker-desktop')."""
         src = (Path(deploy.__file__)).read_text()
         # Exactly one server port-forward command, inside start_server_port_forward.
         cmd_lines = re.findall(r'port-forward".*svc/tmi-server', src)
         self.assertEqual(len(cmd_lines), 1,
-                         "exactly one server port-forward command (the k3s helper)")
-        # Every call site (excluding the def) must be immediately gated on k3s.
+                         "exactly one server port-forward command (the no-own-cluster helper)")
+        # Every call site (excluding the def) must be immediately gated on the tuple.
         call_sites = re.findall(r"(?<!def )start_server_port_forward\(\)", src)
-        guarded = re.findall(r'if cluster_target == "k3s":\n\s+start_server_port_forward\(\)', src)
+        guarded = re.findall(
+            r'if cluster_target in \("k3s", "docker-desktop"\):\n\s+start_server_port_forward\(\)',
+            src,
+        )
         self.assertGreaterEqual(len(call_sites), 1)
-        self.assertEqual(len(call_sites), len(guarded),
-                         "every start_server_port_forward() call must be gated on cluster_target == 'k3s'")
+        self.assertEqual(
+            len(call_sites), len(guarded),
+            "every start_server_port_forward() call must be gated on "
+            "cluster_target in ('k3s', 'docker-desktop')",
+        )
         self.assertIn("svc/redis", src, "deploy.py should still forward redis")
+
+    def test_server_port_forward_gated_for_docker_desktop_too(self):
+        src = (Path(deploy.__file__)).read_text()
+        # Both no-own-cluster targets gate the server port-forward together.
+        self.assertIn('if cluster_target in ("k3s", "docker-desktop"):', src)
 
 
 class TestServerRolloutTimeout(unittest.TestCase):
