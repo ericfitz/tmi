@@ -223,7 +223,7 @@ def _preflight() -> None:
         sys.exit(1)
 
 
-def _guard_context(skip: bool, cluster_target: str = "kind") -> str:
+def _guard_context(skip: bool, cluster_target: str = "docker-desktop") -> str:
     ctx = current_kube_context()
     log_info(f"kubectl context: {ctx or '(none)'}  namespace: {NS}")
     if not ctx:
@@ -343,7 +343,7 @@ def unstage_tmi_client(created: bool) -> None:
 # Image build + push
 # ---------------------------------------------------------------------------
 
-def build_and_push(db: str, cluster_target: str = "kind") -> None:
+def build_and_push(db: str, cluster_target: str = "docker-desktop") -> None:
     """Build all images and deliver them to the target cluster.
 
     k3s -> push to the in-cluster registry at rp2:30500; docker-desktop ->
@@ -500,7 +500,7 @@ def create_oracle_db_secret() -> None:
     log_success("oracle DB connection delivered as Secret/tmi-oracle-db")
 
 
-def apply_overlay(no_workers: bool, db: str, cluster_target: str = "kind") -> None:
+def apply_overlay(no_workers: bool, db: str, cluster_target: str = "docker-desktop") -> None:
     """Apply the dev overlay.
 
     When --no-workers: apply the three core manifests individually to avoid
@@ -540,7 +540,7 @@ def server_rollout_timeout(db: str) -> str:
     return "1200s" if db == "oracle" else "180s"
 
 
-def wait_and_forward(db: str = "postgres", cluster_target: str = "kind") -> None:
+def wait_and_forward(db: str = "postgres", cluster_target: str = "docker-desktop") -> None:
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-component-controller", "--timeout=120s"])
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", f"--timeout={server_rollout_timeout(db)}"])
     start_redis_port_forward()
@@ -635,7 +635,7 @@ def tail_server_logs() -> None:
     kubectl(["-n", NS, "logs", "-f", "deploy/tmi-server", "--tail=200"], check=False)
 
 
-def remove_local_images(db: str, cluster_target: str = "kind") -> None:
+def remove_local_images(db: str, cluster_target: str = "docker-desktop") -> None:
     """Remove the locally-built dev images (used by `devenv.py nuke`)."""
     for name, _df, _args in image_builds_for(db):
         run_cmd(["docker", "rmi", "-f", cluster.local_image_ref(name, cluster=cluster_target)],
@@ -657,7 +657,7 @@ def server_http_status() -> tuple[bool, str]:
 # Orchestration entry points
 # ---------------------------------------------------------------------------
 
-def start(*, db: str, cluster_target: str = "kind", no_workers: bool = False,
+def start(*, db: str, cluster_target: str = "docker-desktop", no_workers: bool = False,
           skip_context_guard: bool = False) -> None:
     """Build images, deploy all components, wait for readiness, and start port-forwards."""
     _preflight()
@@ -688,7 +688,7 @@ def start(*, db: str, cluster_target: str = "kind", no_workers: bool = False,
     wait_and_forward(db, cluster_target)
 
 
-def restart(*, db: str, cluster_target: str = "kind", no_workers: bool = False,
+def restart(*, db: str, cluster_target: str = "docker-desktop", no_workers: bool = False,
             skip_context_guard: bool = False) -> None:
     """Rebuild the server image, re-deliver config, and roll the server deployment."""
     _preflight()

@@ -224,7 +224,7 @@ clean-everything:
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev tilt-up tilt-down test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-up dev-down dev-restart dev-reset dev-nuke dev-status dev-logs dev-deploy dev-cluster-up dev-cluster-down dev-db-up dev-db-down
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev tilt-up tilt-down test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-up dev-down dev-restart dev-reset dev-nuke dev-status dev-logs dev-deploy dev-cluster-up dev-cluster-down
 
 # Dev-environment Python helpers unit tests
 test-dev-scripts:  ## Run unit tests for the dev-environment Python helpers
@@ -352,12 +352,6 @@ dev-cluster-up:  ## Switch to the cluster kube context (docker-desktop or k3s)
 
 dev-cluster-down:  ## No-op for docker-desktop and k3s (clusters are not owned)
 	@uv run scripts/devenv.py --cluster $(CLUSTER) cluster down
-
-dev-db-up:  ## Start the postgres dev container only
-	@uv run scripts/devenv.py db up
-
-dev-db-down:  ## Stop the postgres dev container only (keep data)
-	@uv run scripts/devenv.py db down
 
 # --- deprecated aliases (removable next release) ---
 start-dev:  ## DEPRECATED alias for dev-up

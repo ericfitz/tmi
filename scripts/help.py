@@ -13,18 +13,16 @@ TMI Makefile
 Usage: make <target> [VARIABLE=value ...]
 
 Development Environment:
-  dev-up                 - Bring up the full kind dev environment (cluster + db + deploy). DB=postgres|oracle
-  dev-down               - Tear down the kind dev environment; keep db data
+  dev-up                 - Bring up the full dev environment (cluster + deploy). DB=postgres|oracle CLUSTER=docker-desktop|k3s
+  dev-down               - Tear down the dev environment; keep db data
   dev-restart            - Rebuild the server image + roll the server pod
   dev-reset              - Soft known-state: redeploy the stack with fresh images; keep db data
   dev-nuke               - Hard known-state: destroy everything incl. db data + images, rebuild
-  dev-status             - kind-aware dev environment status dashboard
+  dev-status             - Dev environment status dashboard
   dev-logs               - Stream the tmi-server pod logs
   dev-deploy             - (Re)apply manifests + rollout without recreating cluster/db
-  dev-cluster-up         - Create the local kind cluster only
-  dev-cluster-down       - Delete the local kind cluster only
-  dev-db-up              - Start the postgres dev container only
-  dev-db-down            - Stop the postgres dev container only (keep data)
+  dev-cluster-up         - Switch to the cluster kube context (docker-desktop or k3s)
+  dev-cluster-down       - No-op for docker-desktop and k3s (clusters are not owned)
   start-dev              - (deprecated, use dev-up)
   start-dev-oci          - (deprecated, use dev-up DB=oracle)
   restart-dev            - (deprecated, use dev-restart)
