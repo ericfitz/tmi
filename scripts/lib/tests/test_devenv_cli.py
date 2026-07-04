@@ -41,9 +41,9 @@ class TestParserDefaults(unittest.TestCase):
         self.assertEqual(args.verb, "up")
         self.assertEqual(args.db, "postgres")
 
-    def test_parse_up_defaults_to_kind(self):
+    def test_parse_up_defaults_to_docker_desktop(self):
         args = devenv_cli.build_parser().parse_args(["up"])
-        self.assertEqual(args.cluster, "kind")
+        self.assertEqual(args.cluster, "docker-desktop")
 
     def test_parse_up_no_workers_default_false(self):
         args = devenv_cli.build_parser().parse_args(["up"])

@@ -2,7 +2,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["pyyaml>=6.0"]
 # ///
-"""Single orchestrator for the kind-based TMI dev environment.
+"""Single orchestrator for the TMI dev environment.
 
 Verbs (the make targets are 1:1 thin wrappers):
   up       create cluster + registry, start db, build+push images, deploy, wait
@@ -10,14 +10,14 @@ Verbs (the make targets are 1:1 thin wrappers):
   restart  rebuild server image + roll the server pod (cluster + db untouched)
   reset    soft known-state: redeploy the stack with fresh images; KEEP db data
   nuke     hard known-state: destroy everything incl. db data + images, rebuild
-  status   kind-aware status dashboard
+  status   cluster-aware status dashboard
   deploy   (re)apply manifests + rollout without recreating cluster/db
   logs     stream the tmi-server pod logs
   cluster  up|down the kind cluster only
   db       up|down the postgres container only
 
-Global: --db postgres|oracle (default postgres), --cluster kind|k3s|docker-desktop
-        (default kind), --no-workers, --yes
+Global: --db postgres|oracle (default postgres), --cluster docker-desktop|k3s|kind
+        (default docker-desktop), --no-workers, --yes
 """
 from __future__ import annotations
 
@@ -177,8 +177,8 @@ def _add_global_options(
                             help="Skip the local-kube-context safety check")
     else:
         parser.add_argument("--db", choices=["postgres", "oracle"], default="postgres")
-        parser.add_argument("--cluster", choices=["kind", "k3s", "docker-desktop"], default="kind",
-                            help="Kube cluster target: kind (local, default) or k3s (remote k3s-rp)")
+        parser.add_argument("--cluster", choices=["kind", "k3s", "docker-desktop"], default="docker-desktop",
+                            help="Kube cluster target: docker-desktop (default), k3s (remote), or kind (standalone)")
         parser.add_argument("--no-workers", action="store_true", dest="no_workers")
         parser.add_argument("--yes", action="store_true",
                             help="Skip the local-kube-context safety check")

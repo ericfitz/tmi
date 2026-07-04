@@ -22,8 +22,8 @@ SERVER_PORT ?= 8080
 # Default database backend for dev environment (postgres|oracle)
 DB ?= postgres
 
-# Default kube cluster target for dev environment (kind|k3s)
-CLUSTER ?= kind
+# Default kube cluster target for dev environment (docker-desktop|k3s|kind)
+CLUSTER ?= docker-desktop
 
 # ============================================================================
 # ATOMIC COMPONENTS - Infrastructure Management
@@ -320,10 +320,10 @@ tilt-down:  ## Stop Tilt and restore the prod-shaped server
 	@echo "prod-shaped server restored"
 
 # ============================================================================
-# DEV ENVIRONMENT — single orchestrator (scripts/devenv.py). DB=postgres|oracle CLUSTER=kind|k3s
+# DEV ENVIRONMENT — single orchestrator (scripts/devenv.py). DB=postgres|oracle CLUSTER=docker-desktop|k3s|kind
 # ============================================================================
 
-dev-up:  ## Bring up the full dev environment (cluster + db + deploy). DB=postgres|oracle CLUSTER=kind|k3s
+dev-up:  ## Bring up the full dev environment (cluster + db + deploy). DB=postgres|oracle CLUSTER=docker-desktop|k3s|kind
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) up
 
 dev-down:  ## Tear down the dev environment; KEEP db data
