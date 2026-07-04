@@ -51,10 +51,6 @@ class TestParserDefaults(unittest.TestCase):
         args = devenv_cli.build_parser().parse_args(["up"])
         self.assertEqual(args.cluster, "docker-desktop")
 
-    def test_parse_up_no_workers_default_false(self):
-        args = devenv_cli.build_parser().parse_args(["up"])
-        self.assertFalse(args.no_workers)
-
     def test_parse_up_yes_default_false(self):
         args = devenv_cli.build_parser().parse_args(["up"])
         self.assertFalse(args.yes)
@@ -72,14 +68,6 @@ class TestParserDbOption(unittest.TestCase):
         """'--db oracle up' — option before verb (used by Makefile wrappers)."""
         args = devenv_cli.build_parser().parse_args(["--db", "oracle", "up"])
         self.assertEqual(args.db, "oracle")
-
-    def test_parse_no_workers_after_verb(self):
-        args = devenv_cli.build_parser().parse_args(["up", "--no-workers"])
-        self.assertTrue(args.no_workers)
-
-    def test_no_workers_before_verb(self):
-        args = devenv_cli.build_parser().parse_args(["--no-workers", "up"])
-        self.assertTrue(args.no_workers)
 
     def test_parse_yes_after_verb(self):
         args = devenv_cli.build_parser().parse_args(["up", "--yes"])

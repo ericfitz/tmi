@@ -50,6 +50,10 @@ spec:
       containers:
         - name: postgres
           image: cgr.dev/chainguard/postgres:latest
+          # The image is pre-imported into the node's containerd by deploy.py
+          # (build_and_push), so use the imported copy and never re-pull from
+          # cgr.dev (a :latest tag would otherwise default to Always). See #517.
+          imagePullPolicy: IfNotPresent
           envFrom:
             - secretRef: { name: tmi-postgres }
           env:

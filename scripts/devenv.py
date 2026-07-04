@@ -16,7 +16,7 @@ Verbs (the make targets are 1:1 thin wrappers):
   cluster  up|down the cluster target
 
 Global: --db postgres|oracle (default postgres), --cluster docker-desktop|k3s
-        (default docker-desktop), --no-workers, --yes
+        (default docker-desktop), --yes
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ VERBS = ["up", "down", "restart", "reset", "nuke",
 def cmd_up(args) -> None:
     cluster.up(cluster=args.cluster)
     deploy.start(db=args.db, cluster_target=args.cluster,
-                 no_workers=args.no_workers, skip_context_guard=args.yes)
+                 skip_context_guard=args.yes)
 
 
 def cmd_down(args) -> None:
@@ -50,14 +50,14 @@ def cmd_down(args) -> None:
 
 def cmd_restart(args) -> None:
     deploy.restart(db=args.db, cluster_target=args.cluster,
-                   no_workers=args.no_workers, skip_context_guard=args.yes)
+                   skip_context_guard=args.yes)
 
 
 def cmd_reset(args) -> None:
     log_info("dev-reset: redeploying the in-cluster stack (keeping cluster + db data)")
     deploy.teardown(db=args.db)
     deploy.start(db=args.db, cluster_target=args.cluster,
-                 no_workers=args.no_workers, skip_context_guard=args.yes)
+                 skip_context_guard=args.yes)
     log_success("dev-reset complete")
 
 
@@ -70,7 +70,7 @@ def cmd_nuke(args) -> None:
     deploy.remove_local_images(args.db, cluster_target=args.cluster)
     _clean_logs_and_files()
     deploy.start(db=args.db, cluster_target=args.cluster,
-                 no_workers=args.no_workers, skip_context_guard=args.yes)
+                 skip_context_guard=args.yes)
     log_success(f"dev-nuke complete (fresh {args.cluster} environment up)")
 
 
@@ -86,7 +86,7 @@ def cmd_status(args) -> None:
 
 def cmd_deploy(args) -> None:
     deploy.start(db=args.db, cluster_target=args.cluster,
-                 no_workers=args.no_workers, skip_context_guard=args.yes)
+                 skip_context_guard=args.yes)
 
 
 def cmd_logs(args) -> None:
@@ -109,7 +109,7 @@ def _add_global_options(
     *,
     is_subparser: bool = False,
 ) -> None:
-    """Add --db/--no-workers/--yes to a parser (top-level or subparser).
+    """Add --db/--cluster/--yes to a parser (top-level or subparser).
 
     Defined as a helper so the exact same options are added to both the
     top-level parser and each subparser, enabling both orderings:
@@ -127,15 +127,12 @@ def _add_global_options(
                             default=argparse.SUPPRESS)
         parser.add_argument("--cluster", choices=["k3s", "docker-desktop"],
                             default=argparse.SUPPRESS)
-        parser.add_argument("--no-workers", action="store_true", dest="no_workers",
-                            default=argparse.SUPPRESS)
         parser.add_argument("--yes", action="store_true", default=argparse.SUPPRESS,
                             help="Skip the local-kube-context safety check")
     else:
         parser.add_argument("--db", choices=["postgres", "oracle"], default="postgres")
         parser.add_argument("--cluster", choices=["k3s", "docker-desktop"], default="docker-desktop",
                             help="Kube cluster target: docker-desktop (default) or k3s (remote)")
-        parser.add_argument("--no-workers", action="store_true", dest="no_workers")
         parser.add_argument("--yes", action="store_true",
                             help="Skip the local-kube-context safety check")
 

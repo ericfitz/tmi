@@ -56,6 +56,19 @@ PORT_FORWARD_PID = "/tmp/tmi-dev-portforward.pid"
 # low-throughput from the host (test setup only), so a port-forward is fine here.
 REDIS_PORT_FORWARD_PID = "/tmp/tmi-dev-redis-portforward.pid"
 
+# Public base images the docker-desktop node would otherwise pull from cgr.dev on
+# first bring-up. Docker Desktop Kubernetes' containerd pulls these independently
+# of the host Docker daemon, and that first pull occasionally fails with a
+# transient EOF from cgr.dev (#517), leaving postgres/redis in ErrImagePull. We
+# instead `docker pull` them on the host and import them into the node's
+# containerd alongside the tmi-* images, then pin imagePullPolicy: IfNotPresent on
+# the postgres/redis manifests so the imported copy is used and no cgr.dev pull is
+# attempted. KEEP THESE IN SYNC with the image refs in
+# deployments/k8s/dev/docker-desktop/postgres.yml and deployments/k8s/dev/redis.yml.
+DD_POSTGRES_IMAGE = "cgr.dev/chainguard/postgres:latest"
+DD_REDIS_IMAGE = "cgr.dev/chainguard/redis:latest"
+DD_BASE_IMAGES = (DD_POSTGRES_IMAGE, DD_REDIS_IMAGE)
+
 
 # ---------------------------------------------------------------------------
 # Pure helpers
@@ -95,15 +108,12 @@ def overlay_dir_for(db: str, cluster_target: str = "docker-desktop") -> str:
     raise ValueError(f"unknown cluster target: {cluster_target!r}")
 
 
-def _no_workers_files(db: str) -> tuple[str, ...]:
-    """Return the per-file manifest list for --no-workers mode.
-
-    controller.yml and redis.yml are shared across DB flavors; only the server
-    manifest filename differs (server.yml for postgres, server-oracle.yml for oracle).
-    All files physically live in DEV_DIR.
-    """
-    server_file = "server-oracle.yml" if db == "oracle" else "server.yml"
-    return ("controller.yml", "redis.yml", server_file)
+def dd_base_images_for(db: str) -> tuple[str, ...]:
+    """Public base images to pre-import into the docker-desktop node for the given
+    DB flavor (#517). Redis is always deployed; in-cluster Postgres is deployed
+    only for the postgres flavor (oracle uses an external ADB and brings up no
+    Postgres pod), so skip the Postgres base image there."""
+    return (DD_REDIS_IMAGE,) if db == "oracle" else DD_BASE_IMAGES
 
 
 def content_hash(text: str) -> str:
@@ -128,8 +138,20 @@ def import_image_to_node(ref: str, node: str) -> None:
     log_info(f"Importing {ref} -> {node} containerd (k8s.io)")
     saver = subprocess.Popen(save_cmd, stdout=subprocess.PIPE)
     try:
-        importer = subprocess.Popen(import_cmd, stdin=saver.stdout)
-        saver.stdout.close()  # allow saver to receive SIGPIPE if importer exits
+        try:
+            importer = subprocess.Popen(import_cmd, stdin=saver.stdout)
+        except BaseException:
+            # The importer never started, so nobody will drain saver's stdout.
+            # Kill saver before the finally's wait() so it can't block forever
+            # writing into a pipe with no reader, then re-raise.
+            saver.kill()
+            raise
+        finally:
+            # Release the parent's copy of the pipe's read end unconditionally,
+            # whether or not the importer Popen raised. This both lets saver
+            # receive SIGPIPE if the importer exits and guarantees saver.wait()
+            # below cannot deadlock on a pipe the parent is still holding open.
+            saver.stdout.close()
         importer.communicate()
         if importer.returncode != 0:
             log_error(f"ctr import failed for {ref} (exit {importer.returncode})")
@@ -383,6 +405,14 @@ def build_and_push(db: str, cluster_target: str = "docker-desktop") -> None:
                 run_cmd(["docker", "push", ref])
 
         if cluster_target == "docker-desktop":
+            # Import the public postgres/redis base images too, so first bring-up
+            # doesn't depend on the DD node's containerd reaching cgr.dev (#517).
+            # Pull on the host first (respects the host Docker's proxy/cache), then
+            # stream into the node's containerd exactly like the tmi-* images.
+            for base in dd_base_images_for(db):
+                log_info(f"Pulling base image {base}")
+                run_cmd(["docker", "pull", base])
+                import_image_to_node(base, cluster.DD_NODE)
             log_success("All images built and imported into the docker-desktop node")
         else:
             log_success("All images built and pushed to local registry")
@@ -503,28 +533,20 @@ def create_oracle_db_secret() -> None:
     log_success("oracle DB connection delivered as Secret/tmi-oracle-db")
 
 
-def apply_overlay(no_workers: bool, db: str, cluster_target: str = "docker-desktop") -> None:
+def apply_overlay(db: str, cluster_target: str = "docker-desktop") -> None:
     """Apply the dev overlay.
 
-    When --no-workers: apply the three core manifests individually to avoid
-    kustomize referencing the component CR files (which include TMIComponent
-    resources from ../platform/components/).
-
-    Otherwise: render the full kustomize overlay with --load-restrictor
-    LoadRestrictionsNone (needed because the overlay references files outside
-    its own directory tree, e.g. ../../platform/components/).
+    Render the full kustomize overlay with --load-restrictor LoadRestrictionsNone
+    (needed because the overlay references files outside its own directory tree,
+    e.g. ../../platform/components/).
     """
     project_root = get_project_root()
-    if no_workers:
-        for f in _no_workers_files(db):
-            kubectl(["apply", "-f", str(project_root / DEV_DIR / f)])
-    else:
-        rendered = run_cmd(
-            ["kubectl", "kustomize", "--load-restrictor", "LoadRestrictionsNone",
-             str(project_root / overlay_dir_for(db, cluster_target))],
-            capture=True,
-        ).stdout
-        kubectl(["apply", "-f", "-"], input_text=rendered)
+    rendered = run_cmd(
+        ["kubectl", "kustomize", "--load-restrictor", "LoadRestrictionsNone",
+         str(project_root / overlay_dir_for(db, cluster_target))],
+        capture=True,
+    ).stdout
+    kubectl(["apply", "-f", "-"], input_text=rendered)
 
 
 def server_rollout_timeout(db: str) -> str:
@@ -657,7 +679,7 @@ def server_http_status() -> tuple[bool, str]:
 # Orchestration entry points
 # ---------------------------------------------------------------------------
 
-def start(*, db: str, cluster_target: str = "docker-desktop", no_workers: bool = False,
+def start(*, db: str, cluster_target: str = "docker-desktop",
           skip_context_guard: bool = False) -> None:
     """Build images, deploy all components, wait for readiness, and start port-forwards."""
     _preflight()
@@ -678,7 +700,7 @@ def start(*, db: str, cluster_target: str = "docker-desktop", no_workers: bool =
     if db == "oracle":
         create_oracle_wallet_secret()
         create_oracle_db_secret()
-    apply_overlay(no_workers, db, cluster_target)
+    apply_overlay(db, cluster_target)
     # `kubectl apply` of an unchanged Deployment spec does not roll a new pod, so
     # a freshly-built :dev image (same tag) would not be picked up, and a pod
     # stuck in CrashLoopBackOff from a prior transient outage (e.g. the host DB
@@ -691,7 +713,7 @@ def start(*, db: str, cluster_target: str = "docker-desktop", no_workers: bool =
     wait_and_forward(db, cluster_target)
 
 
-def restart(*, db: str, cluster_target: str = "docker-desktop", no_workers: bool = False,
+def restart(*, db: str, cluster_target: str = "docker-desktop",
             skip_context_guard: bool = False) -> None:
     """Rebuild the server image, re-deliver config, and roll the server deployment."""
     _preflight()
@@ -704,7 +726,7 @@ def restart(*, db: str, cluster_target: str = "docker-desktop", no_workers: bool
     if db == "oracle":
         create_oracle_wallet_secret()
         create_oracle_db_secret()
-    apply_overlay(no_workers, db, cluster_target)
+    apply_overlay(db, cluster_target)
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", f"--timeout={server_rollout_timeout(db)}"])
     start_redis_port_forward()

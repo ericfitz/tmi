@@ -2,6 +2,7 @@ import re
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import deploy  # noqa: E402
@@ -74,18 +75,36 @@ class TestInClusterDbHost(unittest.TestCase):
         self.assertIn("@postgres:5432/tmi_dev", out)
 
 
-class TestNoWorkersFiles(unittest.TestCase):
-    def test_no_workers_files_oracle_uses_oracle_server(self):
-        self.assertIn("server-oracle.yml", deploy._no_workers_files("oracle"))
+class TestDdBaseImages(unittest.TestCase):
+    """The docker-desktop base images pre-imported to dodge the cgr.dev first-run
+    pull flake (#517) must stay in sync with the refs in the manifests that
+    reference them, or the pre-imported copy won't match what the pods request."""
 
-    def test_no_workers_files_postgres_uses_plain_server(self):
-        self.assertIn("server.yml", deploy._no_workers_files("postgres"))
+    def test_includes_postgres_and_redis(self):
+        self.assertIn("cgr.dev/chainguard/postgres:latest", deploy.DD_BASE_IMAGES)
+        self.assertIn("cgr.dev/chainguard/redis:latest", deploy.DD_BASE_IMAGES)
 
-    def test_no_workers_files_includes_controller_and_redis(self):
-        for db in ("postgres", "oracle"):
-            files = deploy._no_workers_files(db)
-            self.assertIn("controller.yml", files)
-            self.assertIn("redis.yml", files)
+    def test_postgres_ref_matches_docker_desktop_manifest(self):
+        text = (_DEV_DIR / "docker-desktop" / "postgres.yml").read_text()
+        self.assertIn("cgr.dev/chainguard/postgres:latest", deploy.DD_BASE_IMAGES)
+        self.assertIn("image: cgr.dev/chainguard/postgres:latest", text)
+
+    def test_redis_ref_matches_shared_manifest(self):
+        text = (_DEV_DIR / "redis.yml").read_text()
+        self.assertIn("cgr.dev/chainguard/redis:latest", deploy.DD_BASE_IMAGES)
+        self.assertIn("image: cgr.dev/chainguard/redis:latest", text)
+
+    def test_postgres_flavor_imports_both_base_images(self):
+        imgs = deploy.dd_base_images_for("postgres")
+        self.assertIn(deploy.DD_POSTGRES_IMAGE, imgs)
+        self.assertIn(deploy.DD_REDIS_IMAGE, imgs)
+
+    def test_oracle_flavor_skips_postgres_base_image(self):
+        # Oracle uses an external ADB — no in-cluster Postgres pod — so importing
+        # the Postgres base image would be wasted work.
+        imgs = deploy.dd_base_images_for("oracle")
+        self.assertIn(deploy.DD_REDIS_IMAGE, imgs)
+        self.assertNotIn(deploy.DD_POSTGRES_IMAGE, imgs)
 
 
 class TestRenderConfigmapYaml(unittest.TestCase):
@@ -274,6 +293,33 @@ class TestSaveImportCmds(unittest.TestCase):
             ["docker", "exec", "-i", "desktop-control-plane",
              "ctr", "-n", "k8s.io", "images", "import", "-"],
         )
+
+
+class TestImportImageToNode(unittest.TestCase):
+    """#519: if the importer Popen raises before we release the saver's stdout,
+    the saver must be torn down (stdout closed + killed + waited) so it can't
+    deadlock writing into a pipe with no reader — rather than left to hang."""
+
+    def test_importer_popen_raises_tears_down_saver(self):
+        saver = mock.MagicMock()
+        saver.returncode = 0
+
+        def popen_side_effect(*_args, **_kwargs):
+            # First call (docker save) succeeds; second call (ctr import) fails to
+            # spawn, e.g. FileNotFoundError if docker exec were unavailable.
+            popen_side_effect.calls += 1
+            if popen_side_effect.calls == 1:
+                return saver
+            raise FileNotFoundError("docker exec not found")
+        popen_side_effect.calls = 0
+
+        with mock.patch.object(deploy.subprocess, "Popen", side_effect=popen_side_effect):
+            with self.assertRaises(FileNotFoundError):
+                deploy.import_image_to_node("tmi-server:dev", "desktop-control-plane")
+
+        saver.stdout.close.assert_called_once()   # pipe read end released
+        saver.kill.assert_called_once()           # saver stopped, can't block
+        saver.wait.assert_called_once()           # reaped in the finally
 
 
 if __name__ == "__main__":
