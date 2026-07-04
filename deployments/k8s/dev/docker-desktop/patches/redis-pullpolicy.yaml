@@ -1,0 +1,9 @@
+# docker-desktop pins redis to IfNotPresent so the base image pre-imported into
+# the node's containerd (deploy.py build_and_push, #517) is used and the node
+# never re-pulls cgr.dev/chainguard/redis:latest (a :latest tag would otherwise
+# default to Always). redis.yml has no imagePullPolicy field, so this is an `add`,
+# not a `replace` (contrast server-pullpolicy.yaml, whose manifest sets Always).
+# k3s does not use this patch: it remaps redis to redis:7-alpine (Docker Hub).
+- op: add
+  path: /spec/template/spec/containers/0/imagePullPolicy
+  value: IfNotPresent
