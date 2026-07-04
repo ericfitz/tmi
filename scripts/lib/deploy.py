@@ -88,6 +88,8 @@ def overlay_dir_for(db: str, cluster_target: str = "kind") -> str:
     """
     if cluster_target == "k3s":
         return f"{DEV_DIR}/k3s"
+    if cluster_target == "docker-desktop":
+        return f"{DEV_DIR}/docker-desktop"
     return f"{DEV_DIR}/oracle" if db == "oracle" else DEV_DIR
 
 
@@ -122,7 +124,7 @@ def in_cluster_db_host(cluster_target: str = "kind") -> str:
     kind: Postgres is a Mac container, reached via host.docker.internal.
     k3s:  Postgres runs in-cluster as the `postgres` Service (postgres.yml).
     """
-    return "postgres" if cluster_target == "k3s" else IN_CLUSTER_DB_HOST
+    return "postgres" if cluster_target in ("k3s", "docker-desktop") else IN_CLUSTER_DB_HOST
 
 
 # Match the host (and optional :port) inside a postgres:// URL authority, after

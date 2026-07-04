@@ -99,6 +99,10 @@ class TestParserClusterOption(unittest.TestCase):
         self.assertEqual(args.db, "oracle")
         self.assertEqual(args.cluster, "k3s")
 
+    def test_cluster_accepts_docker_desktop(self):
+        args = devenv_cli.build_parser().parse_args(["--cluster", "docker-desktop", "up"])
+        self.assertEqual(args.cluster, "docker-desktop")
+
 
 class TestClusterAndDbSubcmds(unittest.TestCase):
     """'cluster' and 'db' take a positional action."""

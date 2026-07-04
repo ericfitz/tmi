@@ -27,14 +27,26 @@ KIND_CONFIG = str(_PROJECT_ROOT / "deployments/k8s/dev/kind-cluster.yml")
 K3S_CONTEXT = "k3s-rp"
 K3S_REGISTRY = "rp2:30500"
 
+# Docker Desktop dev target (CLUSTER=docker-desktop, the default). DD owns the
+# cluster lifecycle (kind provisioner); we only select its context and never
+# create/delete it. Images are imported straight into the node's containerd
+# (no registry): docker save <img> | docker exec -i DD_NODE ctr -n k8s.io images import -.
+DD_CONTEXT = "docker-desktop"
+DD_NODE = "desktop-control-plane"
 
-def registry_for(cluster: str = "kind") -> str:
-    """Return the dev image-registry hostname for the given cluster target."""
+
+def registry_for(cluster: str = "kind") -> str | None:
+    """Return the dev image-registry hostname, or None for docker-desktop (no
+    registry — images are imported into the node's containerd)."""
+    if cluster == "docker-desktop":
+        return None
     return K3S_REGISTRY if cluster == "k3s" else LOCAL_REGISTRY
 
 
 def expected_context(cluster: str = "kind") -> str:
     """Return the kube-context that must be active for the given cluster target."""
+    if cluster == "docker-desktop":
+        return DD_CONTEXT
     return K3S_CONTEXT if cluster == "k3s" else f"kind-{CLUSTER_NAME}"
 
 # Contexts we consider safe to deploy a dev environment into without --yes.
@@ -43,8 +55,10 @@ _LOCAL_CONTEXT_EXACT = {"k3s", "default", "rancher-desktop", "docker-desktop", "
 
 
 def local_image_ref(name: str, tag: str = "dev", *, cluster: str = "kind") -> str:
-    """Return the fully-qualified dev-registry image reference for the cluster."""
-    return f"{registry_for(cluster)}/{name}:{tag}"
+    """Return the dev image reference for the cluster: registry-qualified for
+    kind/k3s, or a bare name:tag for docker-desktop (imported, not pulled)."""
+    reg = registry_for(cluster)
+    return f"{name}:{tag}" if reg is None else f"{reg}/{name}:{tag}"
 
 
 def is_local_kube_context(name: str) -> bool:
@@ -143,6 +157,13 @@ def up(cluster: str = "kind") -> None:
         log_success(f"kube context set to '{K3S_CONTEXT}'")
         return
 
+    if cluster == "docker-desktop":
+        check_tool("kubectl")
+        log_info(f"Using Docker Desktop Kubernetes context '{DD_CONTEXT}' (no cluster create)")
+        run_cmd(["kubectl", "config", "use-context", DD_CONTEXT])
+        log_success(f"kube context set to '{DD_CONTEXT}'")
+        return
+
     for tool in ("docker", "kind", "kubectl"):
         check_tool(tool)
 
@@ -170,6 +191,9 @@ def down(cluster: str = "kind") -> None:
     to delete — namespace teardown is handled by deploy)."""
     if cluster == "k3s":
         log_info("cluster down is a no-op for k3s (remote cluster is not ours to delete)")
+        return
+    if cluster == "docker-desktop":
+        log_info("cluster down is a no-op for docker-desktop (Docker Desktop owns the cluster)")
         return
     check_tool("kind")
     run_cmd(["kind", "delete", "cluster", "--name", CLUSTER_NAME])

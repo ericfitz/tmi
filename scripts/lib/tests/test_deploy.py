@@ -44,6 +44,9 @@ class TestOverlayDirFor(unittest.TestCase):
         self.assertTrue(deploy.overlay_dir_for("postgres", "k3s").endswith("/k3s"))
         self.assertTrue(deploy.overlay_dir_for("oracle", "k3s").endswith("/k3s"))
 
+    def test_overlay_dir_docker_desktop(self):
+        self.assertTrue(deploy.overlay_dir_for("postgres", "docker-desktop").endswith("/docker-desktop"))
+
 
 class TestInClusterDbHost(unittest.TestCase):
     def test_kind_uses_host_docker_internal(self):
@@ -52,6 +55,9 @@ class TestInClusterDbHost(unittest.TestCase):
 
     def test_k3s_uses_postgres_service(self):
         self.assertEqual(deploy.in_cluster_db_host("k3s"), "postgres")
+
+    def test_docker_desktop_uses_postgres_service(self):
+        self.assertEqual(deploy.in_cluster_db_host("docker-desktop"), "postgres")
 
     def test_k3s_rewrites_url_host_to_postgres_service(self):
         src = 'url: "postgres://tmi_dev:dev123@localhost:5432/tmi_dev?sslmode=disable"'
