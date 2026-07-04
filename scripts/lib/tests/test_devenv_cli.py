@@ -29,8 +29,14 @@ class TestVerbsRegistered(unittest.TestCase):
 
     def test_all_verbs_registered(self):
         expected = {"up", "down", "restart", "reset", "nuke",
-                    "status", "deploy", "logs", "cluster", "db"}
+                    "status", "deploy", "logs", "cluster"}
         self.assertTrue(expected <= set(devenv_cli.VERBS))
+
+    def test_kind_not_a_valid_cluster(self):
+        """'kind' must not appear in --cluster choices (retired dev target)."""
+        p = devenv_cli.build_parser()
+        with self.assertRaises(SystemExit):
+            p.parse_args(["--cluster", "kind", "up"])
 
 
 class TestParserDefaults(unittest.TestCase):
@@ -41,9 +47,9 @@ class TestParserDefaults(unittest.TestCase):
         self.assertEqual(args.verb, "up")
         self.assertEqual(args.db, "postgres")
 
-    def test_parse_up_defaults_to_kind(self):
+    def test_parse_up_defaults_to_docker_desktop(self):
         args = devenv_cli.build_parser().parse_args(["up"])
-        self.assertEqual(args.cluster, "kind")
+        self.assertEqual(args.cluster, "docker-desktop")
 
     def test_parse_up_no_workers_default_false(self):
         args = devenv_cli.build_parser().parse_args(["up"])
@@ -99,9 +105,13 @@ class TestParserClusterOption(unittest.TestCase):
         self.assertEqual(args.db, "oracle")
         self.assertEqual(args.cluster, "k3s")
 
+    def test_cluster_accepts_docker_desktop(self):
+        args = devenv_cli.build_parser().parse_args(["--cluster", "docker-desktop", "up"])
+        self.assertEqual(args.cluster, "docker-desktop")
 
-class TestClusterAndDbSubcmds(unittest.TestCase):
-    """'cluster' and 'db' take a positional action."""
+
+class TestClusterSubcmd(unittest.TestCase):
+    """'cluster' takes a positional action."""
 
     def test_cluster_up(self):
         args = devenv_cli.build_parser().parse_args(["cluster", "up"])
@@ -110,15 +120,6 @@ class TestClusterAndDbSubcmds(unittest.TestCase):
 
     def test_cluster_down(self):
         args = devenv_cli.build_parser().parse_args(["cluster", "down"])
-        self.assertEqual(args.action, "down")
-
-    def test_db_up(self):
-        args = devenv_cli.build_parser().parse_args(["db", "up"])
-        self.assertEqual(args.verb, "db")
-        self.assertEqual(args.action, "up")
-
-    def test_db_down(self):
-        args = devenv_cli.build_parser().parse_args(["db", "down"])
         self.assertEqual(args.action, "down")
 
 

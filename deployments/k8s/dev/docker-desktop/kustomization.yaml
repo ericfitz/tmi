@@ -1,0 +1,36 @@
+# docker-desktop (CLUSTER=docker-desktop, the default) dev overlay. Images are
+# imported into the node's containerd by bare name (no registry), so the images
+# transformer strips the localhost:5000/ prefix and the server's imagePullPolicy
+# is forced to IfNotPresent. Postgres (postgres.yml) is applied as a prerequisite
+# by deploy.py, not here. Redis stays chainguard (DD kernel is 4KB pages).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tmi-platform
+resources:
+  - ../controller.yml
+  - ../redis.yml
+  - ../server.yml
+  - ../../platform/components/tmi-extractor.yml
+  - ../../platform/components/tmi-chunk-embed.yml
+images:
+  - name: localhost:5000/tmi-server
+    newName: tmi-server
+  - name: localhost:5000/tmi-component-controller
+    newName: tmi-component-controller
+patches:
+  - path: patches/server-pullpolicy.yaml
+    target:
+      kind: Deployment
+      name: tmi-server
+  - path: patches/extractor-image.yaml
+    target:
+      group: tmi.dev
+      version: v1alpha1
+      kind: TMIComponent
+      name: tmi-extractor
+  - path: patches/chunkembed-image.yaml
+    target:
+      group: tmi.dev
+      version: v1alpha1
+      kind: TMIComponent
+      name: tmi-chunk-embed

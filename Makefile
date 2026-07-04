@@ -22,8 +22,8 @@ SERVER_PORT ?= 8080
 # Default database backend for dev environment (postgres|oracle)
 DB ?= postgres
 
-# Default kube cluster target for dev environment (kind|k3s)
-CLUSTER ?= kind
+# Default kube cluster target for dev environment (docker-desktop|k3s|kind)
+CLUSTER ?= docker-desktop
 
 # ============================================================================
 # ATOMIC COMPONENTS - Infrastructure Management
@@ -224,7 +224,7 @@ clean-everything:
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev tilt-up tilt-down test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-up dev-down dev-restart dev-reset dev-nuke dev-status dev-logs dev-deploy dev-cluster-up dev-cluster-down dev-db-up dev-db-down
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev tilt-up tilt-down test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-up dev-down dev-restart dev-reset dev-nuke dev-status dev-logs dev-deploy dev-cluster-up dev-cluster-down
 
 # Dev-environment Python helpers unit tests
 test-dev-scripts:  ## Run unit tests for the dev-environment Python helpers
@@ -320,10 +320,10 @@ tilt-down:  ## Stop Tilt and restore the prod-shaped server
 	@echo "prod-shaped server restored"
 
 # ============================================================================
-# DEV ENVIRONMENT — single orchestrator (scripts/devenv.py). DB=postgres|oracle CLUSTER=kind|k3s
+# DEV ENVIRONMENT — single orchestrator (scripts/devenv.py). DB=postgres|oracle CLUSTER=docker-desktop|k3s
 # ============================================================================
 
-dev-up:  ## Bring up the full dev environment (cluster + db + deploy). DB=postgres|oracle CLUSTER=kind|k3s
+dev-up:  ## Bring up the full dev environment (cluster + deploy). DB=postgres|oracle CLUSTER=docker-desktop|k3s
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) up
 
 dev-down:  ## Tear down the dev environment; KEEP db data
@@ -347,17 +347,11 @@ dev-logs:  ## Stream the tmi-server pod logs
 dev-deploy:  ## (Re)apply manifests + rollout without recreating cluster/db
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) deploy
 
-dev-cluster-up:  ## Create the local cluster + registry only (kind); switch context (k3s)
+dev-cluster-up:  ## Switch to the cluster kube context (docker-desktop or k3s)
 	@uv run scripts/devenv.py --cluster $(CLUSTER) cluster up
 
-dev-cluster-down:  ## Delete the local kind cluster only (no-op for k3s)
+dev-cluster-down:  ## No-op for docker-desktop and k3s (clusters are not owned)
 	@uv run scripts/devenv.py --cluster $(CLUSTER) cluster down
-
-dev-db-up:  ## Start the postgres dev container only
-	@uv run scripts/devenv.py db up
-
-dev-db-down:  ## Stop the postgres dev container only (keep data)
-	@uv run scripts/devenv.py db down
 
 # --- deprecated aliases (removable next release) ---
 start-dev:  ## DEPRECATED alias for dev-up
@@ -425,7 +419,7 @@ kill-oauth-stub:
 check-oauth-stub:
 	@uv run scripts/manage-oauth-stub.py status
 
-stop-all: stop-oauth-stub dev-down  ## Stop the OAuth stub and tear down the kind dev environment
+stop-all: stop-oauth-stub dev-down  ## Stop the OAuth stub and tear down the dev environment
 
 
 # ============================================================================

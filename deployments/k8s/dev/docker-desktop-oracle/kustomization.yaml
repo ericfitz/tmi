@@ -1,0 +1,37 @@
+# docker-desktop oracle overlay (CLUSTER=docker-desktop DB=oracle). Same as the
+# docker-desktop postgres overlay but deploys server-oracle.yml (external Oracle
+# ADB via the tmi-oracle-db/tmi-oracle-wallet secrets) with NO in-cluster Postgres.
+# Images are imported into the node containerd by bare name; reuses the
+# docker-desktop patches (server Deployment is named tmi-server; worker patches
+# are identical).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tmi-platform
+resources:
+  - ../controller.yml
+  - ../redis.yml
+  - ../server-oracle.yml
+  - ../../platform/components/tmi-extractor.yml
+  - ../../platform/components/tmi-chunk-embed.yml
+images:
+  - name: localhost:5000/tmi-server-oracle
+    newName: tmi-server-oracle
+  - name: localhost:5000/tmi-component-controller
+    newName: tmi-component-controller
+patches:
+  - path: ../docker-desktop/patches/server-pullpolicy.yaml
+    target:
+      kind: Deployment
+      name: tmi-server
+  - path: ../docker-desktop/patches/extractor-image.yaml
+    target:
+      group: tmi.dev
+      version: v1alpha1
+      kind: TMIComponent
+      name: tmi-extractor
+  - path: ../docker-desktop/patches/chunkembed-image.yaml
+    target:
+      group: tmi.dev
+      version: v1alpha1
+      kind: TMIComponent
+      name: tmi-chunk-embed

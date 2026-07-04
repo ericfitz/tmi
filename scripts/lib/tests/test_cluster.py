@@ -7,18 +7,6 @@ import cluster  # noqa: E402
 
 
 class TestLocalImageRef(unittest.TestCase):
-    def test_local_image_ref_default_tag(self):
-        self.assertEqual(cluster.local_image_ref("tmi-server"), "localhost:5000/tmi-server:dev")
-
-    def test_local_image_ref_custom_tag(self):
-        self.assertEqual(cluster.local_image_ref("tmi-server", tag="x"), "localhost:5000/tmi-server:x")
-
-    def test_local_image_ref_kind_explicit(self):
-        self.assertEqual(
-            cluster.local_image_ref("tmi-server", cluster="kind"),
-            "localhost:5000/tmi-server:dev",
-        )
-
     def test_local_image_ref_k3s(self):
         self.assertEqual(
             cluster.local_image_ref("tmi-server", cluster="k3s"),
@@ -27,25 +15,44 @@ class TestLocalImageRef(unittest.TestCase):
 
 
 class TestRegistryFor(unittest.TestCase):
-    def test_registry_for_default_is_kind(self):
-        self.assertEqual(cluster.registry_for(), "localhost:5000")
-
-    def test_registry_for_kind(self):
-        self.assertEqual(cluster.registry_for("kind"), "localhost:5000")
-
     def test_registry_for_k3s(self):
         self.assertEqual(cluster.registry_for("k3s"), "rp2:30500")
 
+    def test_registry_for_unknown_raises(self):
+        with self.assertRaises(ValueError):
+            cluster.registry_for("kind")
+
 
 class TestExpectedContext(unittest.TestCase):
-    def test_expected_context_default_is_kind(self):
-        self.assertEqual(cluster.expected_context(), "kind-tmi-dev")
-
-    def test_expected_context_kind(self):
-        self.assertEqual(cluster.expected_context("kind"), "kind-tmi-dev")
+    def test_expected_context_default_is_docker_desktop(self):
+        self.assertEqual(cluster.expected_context(), "docker-desktop")
 
     def test_expected_context_k3s(self):
         self.assertEqual(cluster.expected_context("k3s"), "k3s-rp")
+
+    def test_expected_context_unknown_raises(self):
+        with self.assertRaises(ValueError):
+            cluster.expected_context("kind")
+
+
+class TestDockerDesktopIdentity(unittest.TestCase):
+    def test_registry_for_docker_desktop_is_none(self):
+        self.assertIsNone(cluster.registry_for("docker-desktop"))
+
+    def test_local_image_ref_docker_desktop_is_bare(self):
+        # No registry prefix — the image is imported straight into the node's containerd.
+        self.assertEqual(cluster.local_image_ref("tmi-server", cluster="docker-desktop"), "tmi-server:dev")
+
+    def test_local_image_ref_default_is_docker_desktop(self):
+        # Default cluster is docker-desktop — no registry prefix.
+        self.assertEqual(cluster.local_image_ref("tmi-server"), "tmi-server:dev")
+
+    def test_expected_context_docker_desktop(self):
+        self.assertEqual(cluster.expected_context("docker-desktop"), "docker-desktop")
+
+    def test_constants(self):
+        self.assertEqual(cluster.DD_CONTEXT, "docker-desktop")
+        self.assertEqual(cluster.DD_NODE, "desktop-control-plane")
 
 
 class TestIsLocalKubeContext(unittest.TestCase):

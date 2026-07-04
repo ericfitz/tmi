@@ -1,0 +1,84 @@
+# In-cluster single-node Postgres for the Docker Desktop dev target; uses the
+# cluster default storageclass (hostpath).
+#
+# Uses the same vanilla Chainguard image as the kind dev DB (Dockerfile.postgres
+# is just `FROM cgr.dev/chainguard/postgres:latest` + PGDATA/locale env, with no
+# extensions), so the node pulls it straight from cgr.dev — no build/push to the
+# in-cluster registry is needed. Schema is created by the server's GORM
+# AutoMigrate at startup (same as kind).
+#
+# Credentials MUST match database.url in config-development.yml
+# (postgres://tmi_dev:dev123@.../tmi_dev). The server reaches this DB via the
+# `postgres` Service DNS name; deploy.py rewrites the config URL host to `postgres`
+# for CLUSTER=docker-desktop.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: tmi-postgres
+  namespace: tmi-platform
+type: Opaque
+stringData:
+  POSTGRES_USER: "tmi_dev"
+  POSTGRES_PASSWORD: "dev123"
+  POSTGRES_DB: "tmi_dev"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: tmi-platform
+spec:
+  selector: { app: postgres }
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: tmi-platform
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels: { app: postgres }
+  template:
+    metadata:
+      labels: { app: postgres }
+    spec:
+      containers:
+        - name: postgres
+          image: cgr.dev/chainguard/postgres:latest
+          envFrom:
+            - secretRef: { name: tmi-postgres }
+          env:
+            # Match Dockerfile.postgres so behavior mirrors the kind dev DB.
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+            - { name: LANG, value: en_US.UTF-8 }
+            - { name: LC_ALL, value: en_US.UTF-8 }
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "tmi_dev", "-d", "tmi_dev"] }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec: { command: ["pg_isready", "-U", "tmi_dev"] }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 8Gi
