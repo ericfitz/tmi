@@ -661,9 +661,9 @@ func TestAuthFlowRateLimitMiddleware(t *testing.T) {
 
 		loginHint := "testuser@example.com"
 
-		// Make 100 requests to exhaust user limit (100/min)
+		// Make authFlowUserLimit requests to exhaust the user limit (50/min)
 		// Use different state AND different IP each time to avoid session/IP limits
-		for i := range 100 {
+		for i := range authFlowUserLimit {
 			req := httptest.NewRequest("GET", "/oauth2/authorize?state="+uuid.New().String()+"&login_hint="+loginHint, nil)
 			req.RemoteAddr = fmt.Sprintf("10.%d.%d.%d:12345", i/65536%256, i/256%256, i%256+1)
 			w := httptest.NewRecorder()
@@ -671,7 +671,7 @@ func TestAuthFlowRateLimitMiddleware(t *testing.T) {
 			assert.Equal(t, http.StatusOK, w.Code, "Request %d should be allowed", i+1)
 		}
 
-		// 101st request should be blocked by user scope
+		// The next request should be blocked by user scope
 		req := httptest.NewRequest("GET", "/oauth2/authorize?state="+uuid.New().String()+"&login_hint="+loginHint, nil)
 		req.RemoteAddr = "10.99.99.99:12345"
 		w := httptest.NewRecorder()
@@ -1067,18 +1067,19 @@ func TestAuthFlowRateLimiter(t *testing.T) {
 		limiter := NewAuthFlowRateLimiter(client)
 		userIdentifier := "testuser@example.com"
 
-		// Make 100 requests to exhaust user limit (use different sessions and IPs)
-		for i := range 100 {
+		// Make authFlowUserLimit requests to exhaust the user limit (use different sessions and IPs)
+		for i := range authFlowUserLimit {
 			result, err := limiter.CheckRateLimit(context.Background(), uuid.New().String(), uuid.New().String(), userIdentifier)
 			require.NoError(t, err)
 			assert.True(t, result.Allowed, "Request %d should be allowed", i+1)
 		}
 
-		// 101st request should be blocked by user scope
+		// The next request should be blocked by user scope
 		result, err := limiter.CheckRateLimit(context.Background(), uuid.New().String(), uuid.New().String(), userIdentifier)
 		require.NoError(t, err)
 		assert.False(t, result.Allowed)
 		assert.Equal(t, "user", result.BlockedByScope)
+		assert.Equal(t, authFlowUserLimit, result.Limit)
 	})
 }
 
@@ -1250,8 +1251,10 @@ func TestAuthFlowRateLimiterMultiScopeScenarios(t *testing.T) {
 		limiter := NewAuthFlowRateLimiter(client)
 		targetUser := "admin@example.com"
 
-		// Attacker probes one username 100 times from different IPs/sessions
-		for i := range 100 {
+		// Attacker probes one username authFlowUserLimit times from different IPs/sessions.
+		// The per-user limit (50) is lower than the per-IP limit (100), so the user
+		// scope bites independently even though each request also uses a fresh IP.
+		for i := range authFlowUserLimit {
 			result, err := limiter.CheckRateLimit(context.Background(),
 				uuid.New().String(),
 				fmt.Sprintf("10.0.%d.%d", i/256, i%256),
@@ -1260,7 +1263,7 @@ func TestAuthFlowRateLimiterMultiScopeScenarios(t *testing.T) {
 			assert.True(t, result.Allowed, "Request %d should be allowed", i+1)
 		}
 
-		// 101st attempt blocked by user scope
+		// The next attempt is blocked by user scope
 		result, err := limiter.CheckRateLimit(context.Background(),
 			uuid.New().String(),
 			"172.16.0.1",
@@ -1268,6 +1271,35 @@ func TestAuthFlowRateLimiterMultiScopeScenarios(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, result.Allowed)
 		assert.Equal(t, "user", result.BlockedByScope)
+	})
+
+	t.Run("single-account attack from one IP is blocked by user scope, not subsumed by IP (issue #506)", func(t *testing.T) {
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+
+		limiter := NewAuthFlowRateLimiter(client)
+		targetUser := "victim@example.com"
+		attackerIP := "203.0.113.77"
+
+		// A real single-IP attacker password-spraying one account: same user and
+		// same IP on every request (unique session per request so the session
+		// scope stays out of it). Because the per-user limit (50) is lower than
+		// the per-IP limit (100), the user scope must trip first — before the IP
+		// counter reaches its limit. Prior to #506 the equal limits and the
+		// session->IP->user order let the IP scope always trip first, so the user
+		// scope could never be the attributed blocker for single-IP traffic.
+		for i := range authFlowUserLimit {
+			result, err := limiter.CheckRateLimit(context.Background(), uuid.New().String(), attackerIP, targetUser)
+			require.NoError(t, err)
+			assert.True(t, result.Allowed, "Request %d should be allowed", i+1)
+		}
+
+		result, err := limiter.CheckRateLimit(context.Background(), uuid.New().String(), attackerIP, targetUser)
+		require.NoError(t, err)
+		assert.False(t, result.Allowed)
+		assert.Equal(t, "user", result.BlockedByScope, "user scope must bite before the shared-IP scope for single-account attacks")
+		assert.Equal(t, authFlowUserLimit, result.Limit)
 	})
 
 	t.Run("session replay: same session blocked at 100 regardless of other scopes", func(t *testing.T) {
