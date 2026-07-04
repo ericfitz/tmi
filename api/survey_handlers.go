@@ -445,7 +445,7 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 // DeleteAdminSurvey deletes a survey.
 // DELETE /admin/surveys/{survey_id}
 // SEM@00add3d4f7dc1c0a9cc072d7e6ca32ace4d03641: delete a survey that has no responses and emit a webhook event (mutates shared state)
-func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyId) {
+func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyId, params DeleteAdminSurveyParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
@@ -468,32 +468,50 @@ func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyId) {
 		return
 	}
 
-	// Check if survey has responses
-	hasResponses, err := GlobalSurveyStore.HasResponses(ctx, surveyId)
-	if err != nil {
-		logger.Error("Failed to check for responses: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to check for responses",
-		})
-		return
-	}
+	force := params.Force != nil && *params.Force
 
-	if hasResponses {
-		c.JSON(http.StatusConflict, Error{
-			Error:            "conflict",
-			ErrorDescription: "Cannot delete survey with existing responses",
-		})
-		return
-	}
+	if force {
+		// Force delete: remove the survey together with all of its responses
+		// and their sub-resources in one transaction. We already confirmed the
+		// survey exists above, so a subsequent ErrSurveyNotFound means the row
+		// was removed by a retried (commit-ack-lost) or concurrent delete — the
+		// desired end state — and is treated as idempotent success, not a 500.
+		if err := GlobalSurveyStore.ForceDelete(ctx, surveyId); err != nil && !errors.Is(err, ErrSurveyNotFound) {
+			logger.Error("Failed to force-delete survey: %v", err)
+			c.JSON(http.StatusInternalServerError, Error{
+				Error:            "server_error",
+				ErrorDescription: "Failed to delete survey",
+			})
+			return
+		}
+	} else {
+		// Default: refuse to delete a survey that still has responses.
+		hasResponses, err := GlobalSurveyStore.HasResponses(ctx, surveyId)
+		if err != nil {
+			logger.Error("Failed to check for responses: %v", err)
+			c.JSON(http.StatusInternalServerError, Error{
+				Error:            "server_error",
+				ErrorDescription: "Failed to check for responses",
+			})
+			return
+		}
 
-	if err := GlobalSurveyStore.Delete(ctx, surveyId); err != nil {
-		logger.Error("Failed to delete survey: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to delete survey",
-		})
-		return
+		if hasResponses {
+			c.JSON(http.StatusConflict, Error{
+				Error:            "conflict",
+				ErrorDescription: "Cannot delete survey with existing responses",
+			})
+			return
+		}
+
+		if err := GlobalSurveyStore.Delete(ctx, surveyId); err != nil {
+			logger.Error("Failed to delete survey: %v", err)
+			c.JSON(http.StatusInternalServerError, Error{
+				Error:            "server_error",
+				ErrorDescription: "Failed to delete survey",
+			})
+			return
+		}
 	}
 
 	// Emit webhook event
