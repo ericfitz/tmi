@@ -34,8 +34,8 @@ class TestImageBuildsFor(unittest.TestCase):
 
 class TestOverlayDirFor(unittest.TestCase):
     def test_overlay_dir_oracle_docker_desktop(self):
-        # docker-desktop uses the docker-desktop overlay regardless of DB flavor.
-        self.assertTrue(deploy.overlay_dir_for("oracle", "docker-desktop").endswith("/docker-desktop"))
+        # docker-desktop + oracle uses the dedicated docker-desktop-oracle overlay.
+        self.assertTrue(deploy.overlay_dir_for("oracle", "docker-desktop").endswith("/docker-desktop-oracle"))
 
     def test_overlay_dir_postgres_docker_desktop(self):
         self.assertTrue(deploy.overlay_dir_for("postgres", "docker-desktop").endswith("/docker-desktop"))
@@ -47,6 +47,14 @@ class TestOverlayDirFor(unittest.TestCase):
 
     def test_overlay_dir_docker_desktop(self):
         self.assertTrue(deploy.overlay_dir_for("postgres", "docker-desktop").endswith("/docker-desktop"))
+
+    def test_overlay_dir_docker_desktop_oracle(self):
+        self.assertTrue(deploy.overlay_dir_for("oracle", "docker-desktop").endswith("/docker-desktop-oracle"))
+
+    def test_overlay_dir_docker_desktop_postgres_not_oracle(self):
+        p = deploy.overlay_dir_for("postgres", "docker-desktop")
+        self.assertTrue(p.endswith("/docker-desktop"))
+        self.assertFalse(p.endswith("-oracle"))
 
 
 class TestInClusterDbHost(unittest.TestCase):

@@ -102,12 +102,11 @@ metadata:
   name: tmi-server
   namespace: tmi-platform
 spec:
-  # NodePort (not ClusterIP): the kind cluster maps host localhost:8080 ->
-  # this nodePort (30080) via extraPortMappings (deployments/k8s/dev/kind-cluster.yml),
-  # giving the host a userspace-proxy-free path to the server. This replaces
-  # `kubectl port-forward`, which dropped connections under load (issue #463).
-  # KEEP nodePort IN SYNC with kind-cluster.yml extraPortMappings and
-  # scripts/lib/deploy.py NODE_PORT.
+  # NodePort (not ClusterIP): the server is reached on the host at localhost:8080
+  # via `kubectl port-forward` (deploy.py start_server_port_forward). The NodePort
+  # is also used for high-throughput CATS runs against k3s (hit rp2:30080 directly
+  # to bypass the userspace port-forward, which throttles under load — issue #463).
+  # KEEP nodePort IN SYNC with scripts/lib/deploy.py NODE_PORT.
   type: NodePort
   selector: { app: tmi-server }
   ports:

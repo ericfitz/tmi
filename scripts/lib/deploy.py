@@ -44,10 +44,10 @@ HOST_PORT = 8080
 NODE_PORT = 30080
 SERVER_URL = f"http://localhost:{HOST_PORT}"
 
-# Legacy server port-forward pidfile. The server no longer uses a port-forward
-# (it is reached via the NodePort above), but stop_port_forward() still cleans
-# up this file so an upgrade from a port-forward-based checkout kills any stale
-# forwarder left running on :8080 that would otherwise shadow the NodePort.
+# Server port-forward pidfile. The server is reached on the host at localhost:8080
+# via the server port-forward (k3s and docker-desktop), which writes this pidfile
+# so stop_port_forward() can tear it down. Also cleans up any stale forwarder
+# left running on :8080 from a prior session.
 PORT_FORWARD_PID = "/tmp/tmi-dev-portforward.pid"
 # Redis is an in-cluster ClusterIP service; the server reaches it as redis:6379.
 # Integration tests that seed Redis directly (e.g. the step-up legacy refresh
@@ -83,13 +83,16 @@ def overlay_dir_for(db: str, cluster_target: str = "docker-desktop") -> str:
     """Return the kustomize overlay directory path for the chosen cluster + DB flavor.
 
     CLUSTER=k3s uses its own overlay (in-cluster registry image refs, full stack);
-    CLUSTER=docker-desktop uses its own overlay (DB in-cluster, image import).
+    CLUSTER=docker-desktop uses its own overlay (image import, no registry).
+    For docker-desktop the DB flavor further selects: oracle gets the dedicated
+    docker-desktop-oracle overlay (external ADB, no in-cluster Postgres); postgres
+    gets the standard docker-desktop overlay (in-cluster Postgres).
     """
     if cluster_target == "k3s":
         return f"{DEV_DIR}/k3s"
     if cluster_target == "docker-desktop":
-        return f"{DEV_DIR}/docker-desktop"
-    return f"{DEV_DIR}/oracle" if db == "oracle" else DEV_DIR
+        return f"{DEV_DIR}/docker-desktop-oracle" if db == "oracle" else f"{DEV_DIR}/docker-desktop"
+    raise ValueError(f"unknown cluster target: {cluster_target!r}")
 
 
 def _no_workers_files(db: str) -> tuple[str, ...]:
@@ -509,9 +512,7 @@ def apply_overlay(no_workers: bool, db: str, cluster_target: str = "docker-deskt
 
     Otherwise: render the full kustomize overlay with --load-restrictor
     LoadRestrictionsNone (needed because the overlay references files outside
-    its own directory tree, i.e. ../platform/components/; the oracle overlay at
-    deployments/k8s/dev/oracle references ../../platform/components/ so the flag
-    is equally required for both flavors).
+    its own directory tree, e.g. ../../platform/components/).
     """
     project_root = get_project_root()
     if no_workers:
@@ -554,12 +555,11 @@ def wait_and_forward(db: str = "postgres", cluster_target: str = "docker-desktop
 
 
 def wait_for_server(*, attempts: int = 30, delay_s: float = 1.0) -> None:
-    """Poll the server NodePort until it answers (or give up after attempts).
+    """Poll the server until it answers (or give up after attempts).
 
-    The Deployment rollout completing means the pod is Ready, but kube-proxy
-    programming the NodePort DNAT and the kind extraPortMapping becoming live on
-    the host can lag a beat. Poll localhost:8080 so callers (and CATS) don't race
-    a not-yet-reachable NodePort.
+    The Deployment rollout completing means the pod is Ready, but the kubectl
+    port-forward establishing the localhost:8080 path can lag a beat. Poll
+    localhost:8080 so callers (and CATS) don't race a not-yet-reachable server.
     """
     for i in range(1, attempts + 1):
         reachable, code = server_http_status()
@@ -643,7 +643,7 @@ def remove_local_images(db: str, cluster_target: str = "docker-desktop") -> None
 
 
 def server_http_status() -> tuple[bool, str]:
-    """Return (reachable, http_code) for the server NodePort at localhost:8080."""
+    """Return (reachable, http_code) for the server at localhost:8080 (via port-forward)."""
     r = subprocess.run(
         ["curl", "-s", "--connect-timeout", "2", "--max-time", "5",
          "-o", "/dev/null", "-w", "%{http_code}", SERVER_URL],
@@ -662,13 +662,16 @@ def start(*, db: str, cluster_target: str = "docker-desktop", no_workers: bool =
     """Build images, deploy all components, wait for readiness, and start port-forwards."""
     _preflight()
     _guard_context(skip_context_guard, cluster_target)
+    if db == "oracle" and cluster_target == "k3s":
+        log_error("DB=oracle is not supported on CLUSTER=k3s. Use CLUSTER=docker-desktop for local Oracle dev.")
+        sys.exit(1)
     if cluster_target == "k3s":
         ensure_k3s_registry()          # in-cluster registry must be up before push
     # docker-desktop: no registry — build_and_push imports the images directly.
     build_and_push(db, cluster_target)
     ensure_namespace()
     apply_platform_base()
-    if cluster_target in ("k3s", "docker-desktop"):
+    if cluster_target in ("k3s", "docker-desktop") and db != "oracle":
         apply_incluster_postgres(cluster_target)  # in-cluster DB up before the server (AutoMigrate)
     deliver_config(cluster_target)
     create_embedding_secret()
@@ -724,7 +727,6 @@ def teardown(*, db: str = "postgres") -> None:
     - Secret tmi-embedding
     - Secret tmi-oracle-wallet (defensive; no-op if never created)
     - Secret tmi-oracle-db (defensive; no-op if never created)
-    - local registry container (docker stop)
     """
     stop_port_forward()
 
