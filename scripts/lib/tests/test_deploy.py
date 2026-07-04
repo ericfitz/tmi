@@ -261,5 +261,16 @@ class TestRewriteDbHostForIncluster(unittest.TestCase):
         self.assertNotRegex(cfg, r"postgres://[^\"'\s]*@host\.docker\.internal")
 
 
+class TestSaveImportCmds(unittest.TestCase):
+    def test_builds_docker_save_and_ctr_import_pair(self):
+        save, imp = deploy.save_import_cmds("tmi-server:dev", "desktop-control-plane")
+        self.assertEqual(save, ["docker", "save", "tmi-server:dev"])
+        self.assertEqual(
+            imp,
+            ["docker", "exec", "-i", "desktop-control-plane",
+             "ctr", "-n", "k8s.io", "images", "import", "-"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

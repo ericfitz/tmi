@@ -109,6 +109,36 @@ def content_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
 
 
+def save_import_cmds(ref: str, node: str) -> tuple[list[str], list[str]]:
+    """Return the (docker save, docker exec ctr import) argv pair that streams a
+    locally-built image straight into a cluster node's containerd (k8s.io ns).
+    This is exactly what `kind load docker-image` does under the hood — used for
+    docker-desktop, whose cluster our standalone kind CLI cannot address."""
+    return (
+        ["docker", "save", ref],
+        ["docker", "exec", "-i", node, "ctr", "-n", "k8s.io", "images", "import", "-"],
+    )
+
+
+def import_image_to_node(ref: str, node: str) -> None:
+    """Stream `ref` from the host Docker into `node`'s containerd via a pipe."""
+    save_cmd, import_cmd = save_import_cmds(ref, node)
+    log_info(f"Importing {ref} -> {node} containerd (k8s.io)")
+    saver = subprocess.Popen(save_cmd, stdout=subprocess.PIPE)
+    try:
+        importer = subprocess.Popen(import_cmd, stdin=saver.stdout)
+        saver.stdout.close()  # allow saver to receive SIGPIPE if importer exits
+        importer.communicate()
+        if importer.returncode != 0:
+            log_error(f"ctr import failed for {ref} (exit {importer.returncode})")
+            sys.exit(1)
+    finally:
+        saver.wait()
+    if saver.returncode != 0:
+        log_error(f"docker save failed for {ref} (exit {saver.returncode})")
+        sys.exit(1)
+
+
 # The host the in-cluster server uses to reach the host-published Postgres.
 # config-development.yml carries `localhost` (correct for host-side tools like
 # bin/tmi-dbtool, which connect from the Mac host). The server pod's localhost is
@@ -319,12 +349,13 @@ def unstage_tmi_client(created: bool) -> None:
 # ---------------------------------------------------------------------------
 
 def build_and_push(db: str, cluster_target: str = "kind") -> None:
-    """Build all images and push them to the target cluster's registry.
+    """Build all images and deliver them to the target cluster.
 
-    kind -> localhost:5000; k3s -> the in-cluster registry at rp2:30500. The Mac
-    and the k3s nodes are both arm64, so a plain host-arch `docker build` already
-    produces arm64 images — no buildx/--platform is needed; only the registry the
-    ref points at differs.
+    kind -> push to localhost:5000; k3s -> push to the in-cluster registry at
+    rp2:30500; docker-desktop -> import straight into the DD node's containerd
+    via `docker save | ctr import` (no registry, no push). The Mac and the k3s
+    nodes are both arm64, so a plain host-arch `docker build` already produces
+    arm64 images — no buildx/--platform is needed; only the delivery step differs.
 
     All four Dockerfiles require the tmi-client staged in .docker-deps/.
     Stage once before the first build and clean up in a try/finally block
@@ -347,10 +378,16 @@ def build_and_push(db: str, cluster_target: str = "kind") -> None:
 
             run_cmd(cmd)
 
-            log_info(f"Pushing {ref}")
-            run_cmd(["docker", "push", ref])
+            if cluster_target == "docker-desktop":
+                import_image_to_node(ref, cluster.DD_NODE)
+            else:
+                log_info(f"Pushing {ref}")
+                run_cmd(["docker", "push", ref])
 
-        log_success("All images built and pushed to local registry")
+        if cluster_target == "docker-desktop":
+            log_success("All images built and imported into the docker-desktop node")
+        else:
+            log_success("All images built and pushed to local registry")
     finally:
         unstage_tmi_client(created)
 
