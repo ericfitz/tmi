@@ -156,6 +156,11 @@ def up(cluster: str = "kind") -> None:
         run_cmd(["kind", "create", "cluster", "--config", KIND_CONFIG])
         log_success(f"kind cluster '{CLUSTER_NAME}' created")
 
+    # `kind create` sets the kubectl context, but the skip-create path does not,
+    # so an active context from another cluster (e.g. k3s-rp) would linger and fail
+    # deploy's context guard. Always select the kind context — idempotent.
+    run_cmd(["kubectl", "config", "use-context", f"kind-{CLUSTER_NAME}"])
+
     connect_registry_to_kind()
     log_success(f"kind cluster '{CLUSTER_NAME}' ready; context kind-{CLUSTER_NAME}")
 
