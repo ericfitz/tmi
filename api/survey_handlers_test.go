@@ -33,6 +33,7 @@ type mockSurveyStore struct {
 	getErr          error
 	updateErr       error
 	deleteErr       error
+	forceDeleteErr  error
 	listErr         error
 	listActiveErr   error
 	hasResponsesErr error
@@ -91,6 +92,17 @@ func (m *mockSurveyStore) Update(_ context.Context, survey *Survey) error {
 func (m *mockSurveyStore) Delete(_ context.Context, id uuid.UUID) error {
 	if m.deleteErr != nil {
 		return m.deleteErr
+	}
+	if m.err != nil {
+		return m.err
+	}
+	delete(m.surveys, id)
+	return nil
+}
+
+func (m *mockSurveyStore) ForceDelete(_ context.Context, id uuid.UUID) error {
+	if m.forceDeleteErr != nil {
+		return m.forceDeleteErr
 	}
 	if m.err != nil {
 		return m.err
@@ -843,7 +855,7 @@ func TestDeleteAdminSurvey(t *testing.T) {
 		surveyID := seedSurvey(store, "To Delete", "v1", SurveyStatusInactive)
 
 		c, _ := CreateTestGinContext("DELETE", fmt.Sprintf("/admin/surveys/%s", surveyID))
-		server.DeleteAdminSurvey(c, surveyID)
+		server.DeleteAdminSurvey(c, surveyID, DeleteAdminSurveyParams{})
 
 		// c.Status() doesn't flush to httptest.NewRecorder; check Gin's writer status
 		assert.Equal(t, http.StatusNoContent, c.Writer.Status())
@@ -856,7 +868,7 @@ func TestDeleteAdminSurvey(t *testing.T) {
 		saveSurveyStores(t, store, nil)
 
 		c, w := CreateTestGinContext("DELETE", "/admin/surveys/"+uuid.New().String())
-		server.DeleteAdminSurvey(c, uuid.New())
+		server.DeleteAdminSurvey(c, uuid.New(), DeleteAdminSurveyParams{})
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
 		assert.Contains(t, w.Body.String(), "not_found")
@@ -870,7 +882,7 @@ func TestDeleteAdminSurvey(t *testing.T) {
 		surveyID := seedSurvey(store, "Has Responses", "v1", SurveyStatusActive)
 
 		c, w := CreateTestGinContext("DELETE", fmt.Sprintf("/admin/surveys/%s", surveyID))
-		server.DeleteAdminSurvey(c, surveyID)
+		server.DeleteAdminSurvey(c, surveyID, DeleteAdminSurveyParams{})
 
 		assert.Equal(t, http.StatusConflict, w.Code)
 		assert.Contains(t, w.Body.String(), "existing responses")
@@ -882,7 +894,7 @@ func TestDeleteAdminSurvey(t *testing.T) {
 		saveSurveyStores(t, store, nil)
 
 		c, w := CreateTestGinContext("DELETE", "/admin/surveys/"+uuid.New().String())
-		server.DeleteAdminSurvey(c, uuid.New())
+		server.DeleteAdminSurvey(c, uuid.New(), DeleteAdminSurveyParams{})
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 		assert.Contains(t, w.Body.String(), "server_error")
@@ -896,7 +908,7 @@ func TestDeleteAdminSurvey(t *testing.T) {
 		surveyID := seedSurvey(store, "Some Survey", "v1", SurveyStatusActive)
 
 		c, w := CreateTestGinContext("DELETE", fmt.Sprintf("/admin/surveys/%s", surveyID))
-		server.DeleteAdminSurvey(c, surveyID)
+		server.DeleteAdminSurvey(c, surveyID, DeleteAdminSurveyParams{})
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 		assert.Contains(t, w.Body.String(), "server_error")
@@ -910,10 +922,58 @@ func TestDeleteAdminSurvey(t *testing.T) {
 		surveyID := seedSurvey(store, "Delete Fail", "v1", SurveyStatusActive)
 
 		c, w := CreateTestGinContext("DELETE", fmt.Sprintf("/admin/surveys/%s", surveyID))
-		server.DeleteAdminSurvey(c, surveyID)
+		server.DeleteAdminSurvey(c, surveyID, DeleteAdminSurveyParams{})
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 		assert.Contains(t, w.Body.String(), "server_error")
+	})
+
+	t.Run("force deletes even with responses", func(t *testing.T) {
+		store := newMockSurveyStore()
+		store.hasResponses = true // would 409 without force
+		saveSurveyStores(t, store, nil)
+
+		surveyID := seedSurvey(store, "Force Delete", "v1", SurveyStatusActive)
+
+		force := true
+		c, _ := CreateTestGinContext("DELETE", fmt.Sprintf("/admin/surveys/%s?force=true", surveyID))
+		server.DeleteAdminSurvey(c, surveyID, DeleteAdminSurveyParams{Force: &force})
+
+		assert.Equal(t, http.StatusNoContent, c.Writer.Status())
+		assert.Nil(t, store.surveys[surveyID])
+	})
+
+	t.Run("force delete store error returns 500", func(t *testing.T) {
+		store := newMockSurveyStore()
+		store.hasResponses = true
+		store.forceDeleteErr = errors.New("cascade failed")
+		saveSurveyStores(t, store, nil)
+
+		surveyID := seedSurvey(store, "Force Fail", "v1", SurveyStatusActive)
+
+		force := true
+		c, w := CreateTestGinContext("DELETE", fmt.Sprintf("/admin/surveys/%s?force=true", surveyID))
+		server.DeleteAdminSurvey(c, surveyID, DeleteAdminSurveyParams{Force: &force})
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Contains(t, w.Body.String(), "server_error")
+	})
+
+	t.Run("force delete tolerates not-found from retry as success", func(t *testing.T) {
+		// The survey exists at the existence check, but ForceDelete reports
+		// ErrSurveyNotFound (e.g. a commit-ack-lost retry observed the row
+		// already gone). That is the desired end state -> 204, not 500.
+		store := newMockSurveyStore()
+		store.forceDeleteErr = ErrSurveyNotFound
+		saveSurveyStores(t, store, nil)
+
+		surveyID := seedSurvey(store, "Idempotent", "v1", SurveyStatusActive)
+
+		force := true
+		c, _ := CreateTestGinContext("DELETE", fmt.Sprintf("/admin/surveys/%s?force=true", surveyID))
+		server.DeleteAdminSurvey(c, surveyID, DeleteAdminSurveyParams{Force: &force})
+
+		assert.Equal(t, http.StatusNoContent, c.Writer.Status())
 	})
 }
 

@@ -45895,6 +45895,16 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/SurveyId"
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "description": "When true, delete the survey even if it has responses, cascading deletion to all of its responses and their sub-resources (triage notes, access grants, metadata, answers). Intended as an admin cleanup affordance; without it a survey that has responses cannot be deleted (409).",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {

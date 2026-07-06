@@ -5,18 +5,33 @@
 # ///
 
 """
-TMI Test User, Group, and CATS Artifact Cleanup Script
+TMI Test Data Cleanup Script
 
-Deletes all test users, groups, and CATS-seeded artifacts from the TMI database
-via the admin API. Preserves the charlie@tmi.local admin account (authenticated
-identity), any non-TMI provider users, and the "everyone" pseudo-group.
+Deletes test users, groups, and test-created artifacts (threat models, intake
+surveys, survey responses, and CATS-seeded webhooks/addons/credentials) from the
+TMI database via the admin API. Preserves the charlie@tmi.local admin account
+(our authenticated identity), non-test users, the built-in pseudo-groups, and
+all non-test data.
 
-CATS artifacts are identified by the "CATS Test" name prefix used by cats-seed.
-This includes threat models (and all sub-resources), webhooks, addons, surveys,
-survey responses, and client credentials.
+Test data is identified by these markers (the constants that SET them live in
+test/integration/framework/fixtures.go and test/seeds/cats-seed-data.json):
+  #1  users whose email is in a synthetic test domain (@tmi.local, @cats.io);
+      deleting a user cascades every artifact it owns
+  #2  artifact name starts with the CATS seed prefix ("CATS Test")
+  #3  artifact description == the integration-framework default
+      ("Created by integration test framework")
+  #4  artifact description names the CATS/dbtool fuzz seed
+      ("...comprehensive API fuzzing...")
+  #5  artifact description names an integration test ("...integration test...")
+
+Markers #2-#5 are owner-independent, so they also remove test artifacts owned by
+a preserved account (e.g. charlie) that the owner cascade (marker #1) leaves
+behind. They are applied to threat models, surveys, and survey responses;
+webhooks/addons/client credentials remain matched by the CATS name prefix only
+(any test-owned copies are already removed by the owner cascade).
 
 Prerequisites:
-    1. TMI server must be running (make start-dev)
+    1. TMI server must be running (make dev-up)
     2. OAuth callback stub must be running (make start-oauth-stub)
     3. charlie@tmi.local must exist and be an administrator
 
@@ -25,29 +40,18 @@ Authentication Flow:
     the OAuth callback stub. See scripts/oauth-client-callback-stub.py for details.
 
 API Endpoints Used:
-    - GET    /admin/users           - List all users (paginated)
-    - DELETE /admin/users/{uuid}    - Delete user and cascade all related data
-    - GET    /admin/groups          - List all groups (paginated)
-    - DELETE /admin/groups/{uuid}   - Delete group
-    - GET    /threat_models         - List threat models (paginated)
-    - DELETE /threat_models/{id}    - Delete threat model and sub-resources
-    - GET    /admin/webhooks/subscriptions - List webhooks
-    - DELETE /admin/webhooks/subscriptions/{id} - Delete webhook
-    - GET    /addons                - List addons
-    - DELETE /addons/{id}           - Delete addon
-    - GET    /admin/surveys         - List surveys
-    - DELETE /admin/surveys/{id}    - Delete survey
-    - GET    /intake/survey_responses - List survey responses
-    - DELETE /intake/survey_responses/{id} - Delete survey response
-    - GET    /me/client_credentials - List client credentials
-    - DELETE /me/client_credentials/{id} - Delete client credential
+    - GET/DELETE /admin/users, /admin/groups
+    - GET/DELETE /threat_models              (cascades sub-resources)
+    - GET/DELETE /admin/surveys   (DELETE uses ?force=true to cascade responses)
+    - GET/DELETE /intake/survey_responses
+    - GET/DELETE /admin/webhooks/subscriptions, /addons, /me/client_credentials
 
 Usage:
     uv run scripts/delete-test-users.py
     uv run scripts/delete-test-users.py --dry-run
     uv run scripts/delete-test-users.py --users-only
     uv run scripts/delete-test-users.py --groups-only
-    uv run scripts/delete-test-users.py --cats-only
+    uv run scripts/delete-test-users.py --artifacts-only   (alias: --cats-only)
 """
 
 import argparse
@@ -62,6 +66,12 @@ OAUTH_STUB = "http://localhost:8079"
 ADMIN_USER = "charlie"
 ADMIN_EMAIL = f"{ADMIN_USER}@tmi.local"
 EVERYONE_GROUP = "everyone"
+
+# Marker #1: synthetic email domains used exclusively by test tooling. A user in
+# one of these domains is a test user; deleting it cascades every artifact it
+# owns. @tmi.local is the TMI OAuth provider's test domain; @cats.io is used by
+# CATS fuzz identities. ADMIN_EMAIL is always preserved (see is_test_user).
+TEST_EMAIL_DOMAINS = ("@tmi.local", "@cats.io")
 
 # Built-in pseudo-groups created by api/seed/seed.go. The seed function uses
 # provider="tmi" for all of these, so naive provider-based filtering treats them
@@ -86,7 +96,14 @@ CYAN = "\033[0;36m"
 NC = "\033[0m"  # No Color
 
 
-CATS_NAME_PREFIX = "CATS Test"
+# Content markers (owner-independent), set by TMI test tooling:
+CATS_NAME_PREFIX = "CATS Test"  # marker #2 (name prefix; cats-seed-data.json)
+# marker #3 — integration framework default description (fixtures.go), matched exactly:
+INTEGRATION_FRAMEWORK_DESC = "created by integration test framework"
+# marker #4 — CATS/dbtool fuzz seed description (cats-seed-data.json), matched as substring:
+FUZZING_DESC_MARKER = "comprehensive api fuzzing"
+# marker #5 — any integration-test description (superset of #3), matched as substring:
+INTEGRATION_DESC_MARKER = "integration test"
 
 
 @dataclass
@@ -99,9 +116,9 @@ class Stats:
     groups_deleted: int = 0
     groups_failed: int = 0
     groups_skipped: int = 0
-    cats_deleted: int = 0
-    cats_failed: int = 0
-    cats_skipped: int = 0
+    artifacts_deleted: int = 0
+    artifacts_failed: int = 0
+    artifacts_skipped: int = 0
 
 
 def print_error(msg: str) -> None:
@@ -131,8 +148,8 @@ def check_server_running() -> bool:
 def check_oauth_stub_running() -> bool:
     """Check if OAuth stub is running."""
     try:
-        response = requests.get(f"{OAUTH_STUB}/", timeout=5)
         # Stub returns various codes, just check it responds
+        requests.get(f"{OAUTH_STUB}/", timeout=5)
         return True
     except requests.RequestException:
         return False
@@ -195,15 +212,17 @@ def authenticate_as_charlie() -> str | None:
 
 def is_test_user(user: dict) -> bool:
     """
-    Determine if a user is a test user that should be deleted.
+    Determine if a user is a test user that should be deleted (marker #1).
 
-    Test users are identified by email ending in @tmi.local.
-    The charlie@tmi.local admin account is excluded.
+    Test users are identified by a synthetic test email domain (@tmi.local or
+    @cats.io). The charlie@tmi.local admin account (our authenticated identity)
+    is always preserved. Real OAuth-provider users (github/google/etc.) and
+    synthetic system users (e.g. operator@tmi.system) are left untouched.
     """
     email = user.get("email", "")
 
-    # Test users have @tmi.local email addresses
-    if not email.endswith("@tmi.local"):
+    # Test users live in a synthetic test email domain
+    if not email.endswith(TEST_EMAIL_DOMAINS):
         return False
 
     # Never delete the admin account we're authenticated as
@@ -457,9 +476,33 @@ def cleanup_groups(token: str, dry_run: bool = False) -> tuple[int, int, int]:
 
 
 def is_cats_artifact(item: dict, name_field: str = "name") -> bool:
-    """Check if an item is a CATS-seeded artifact by name prefix."""
+    """Check if an item is a CATS-seeded artifact by name prefix (marker #2)."""
     name = item.get(name_field, "")
     return name.startswith(CATS_NAME_PREFIX)
+
+
+def is_test_artifact(item: dict, name_field: str = "name") -> bool:
+    """Check if an item was created by TMI test tooling (markers #2-#5).
+
+    Owner-independent, so it catches test artifacts owned by a preserved account
+    (e.g. charlie) that the owner cascade (marker #1) leaves behind. Markers:
+      #2  name starts with the CATS seed prefix ("CATS Test")
+      #3  description == the integration-framework default
+      #4  description names the CATS/dbtool fuzz seed ("comprehensive API fuzzing")
+      #5  description names an integration test (superset of #3)
+    #3 is retained explicitly for traceability even though #5 subsumes it.
+    """
+    name = item.get(name_field) or ""
+    desc = (item.get("description") or "").lower()
+    if name.startswith(CATS_NAME_PREFIX):          # marker #2
+        return True
+    if desc == INTEGRATION_FRAMEWORK_DESC:         # marker #3
+        return True
+    if FUZZING_DESC_MARKER in desc:                # marker #4
+        return True
+    if INTEGRATION_DESC_MARKER in desc:            # marker #5
+        return True
+    return False
 
 
 def fetch_paginated(token: str, endpoint: str, items_key: str) -> list[dict]:
@@ -495,7 +538,8 @@ def fetch_paginated(token: str, endpoint: str, items_key: str) -> list[dict]:
 
 
 def delete_resource(
-    token: str, endpoint: str, resource_id: str, label: str, dry_run: bool = False
+    token: str, endpoint: str, resource_id: str, label: str,
+    dry_run: bool = False, params: dict | None = None
 ) -> bool:
     """Delete a resource via the API. Returns True on success."""
     if dry_run:
@@ -509,6 +553,7 @@ def delete_resource(
         response = requests.delete(
             f"{API_BASE}{endpoint}/{resource_id}",
             headers=headers,
+            params=params,
             timeout=30,
         )
         if response.status_code in (200, 204):
@@ -524,107 +569,99 @@ def delete_resource(
         return False
 
 
-def cleanup_cats_artifacts(
+def cleanup_test_artifacts(
     token: str, dry_run: bool = False
 ) -> tuple[int, int, int]:
     """
-    Delete all CATS-seeded artifacts.
+    Delete test-created artifacts that survived the owner cascade.
+
+    Threat models, surveys, and survey responses are matched by the full test
+    markers (#2-#5, plus parent-survey membership for responses); webhooks,
+    addons, and client credentials are matched by the CATS name prefix only.
 
     Deletion order matters due to dependencies:
     1. Addons (depend on webhooks and threat models)
     2. Client credentials
-    3. Survey responses (depend on surveys)
+    3. Survey responses (children — deleted before their parent surveys)
     4. Surveys
     5. Webhooks
     6. Threat models (cascade deletes sub-resources)
 
     Returns tuple of (deleted, failed, skipped) counts.
     """
-    print("\nCleaning up CATS artifacts...")
+    print("\nCleaning up test artifacts...")
     deleted = 0
     failed = 0
     skipped = 0
 
-    # Define resource types in dependency order
-    resource_types = [
-        {
-            "name": "addons",
-            "endpoint": "/addons",
-            "items_key": "addons",
-            "name_field": "name",
-        },
-        {
-            "name": "client credentials",
-            "endpoint": "/me/client_credentials",
-            "items_key": "credentials",
-            "name_field": "name",
-        },
-        {
-            "name": "survey responses",
-            "endpoint": "/intake/survey_responses",
-            "items_key": "survey_responses",
-            "name_field": "survey_id",  # handled specially below
-        },
-        {
-            "name": "surveys",
-            "endpoint": "/admin/surveys",
-            "items_key": "surveys",
-            "name_field": "name",
-        },
-        {
-            "name": "webhooks",
-            "endpoint": "/admin/webhooks/subscriptions",
-            "items_key": "subscriptions",
-            "name_field": "name",
-        },
-        {
-            "name": "threat models",
-            "endpoint": "/threat_models",
-            "items_key": "threat_models",
-            "name_field": "name",
-        },
-    ]
+    # Pre-pass: identify test surveys (by markers #2-#5) up front so survey
+    # RESPONSES — which must be deleted BEFORE their parent surveys (FK child
+    # first) — can be matched to their parent even though surveys are processed
+    # later in the loop. (Previously survey responses were matched against an
+    # empty set because surveys were collected after them, so none were caught.)
+    test_survey_ids: set[str] = {
+        s.get("id", "")
+        for s in fetch_paginated(token, "/admin/surveys", "surveys")
+        if is_test_artifact(s)
+    }
 
-    # Collect CATS survey IDs so we can match survey responses
-    cats_survey_ids: set[str] = set()
+    # Define resource types in dependency order. `match` selects the predicate:
+    #   "markers"  -> is_test_artifact (markers #2-#5)
+    #   "response" -> parent survey in test_survey_ids OR survey_name marker
+    #   "cats"     -> is_cats_artifact (CATS name prefix only)
+    resource_types = [
+        {"name": "addons", "endpoint": "/addons", "items_key": "addons",
+         "name_field": "name", "match": "cats"},
+        {"name": "client credentials", "endpoint": "/me/client_credentials",
+         "items_key": "credentials", "name_field": "name", "match": "cats"},
+        {"name": "survey responses", "endpoint": "/intake/survey_responses",
+         "items_key": "survey_responses", "name_field": "survey_name",
+         "match": "response"},
+        {"name": "surveys", "endpoint": "/admin/surveys", "items_key": "surveys",
+         "name_field": "name", "match": "markers", "params": {"force": "true"}},
+        {"name": "webhooks", "endpoint": "/admin/webhooks/subscriptions",
+         "items_key": "subscriptions", "name_field": "name", "match": "cats"},
+        {"name": "threat models", "endpoint": "/threat_models",
+         "items_key": "threat_models", "name_field": "name", "match": "markers"},
+    ]
 
     for rt in resource_types:
         print(f"\n  Fetching {rt['name']}...")
         items = fetch_paginated(token, rt["endpoint"], rt["items_key"])
 
-        # For surveys, collect their IDs for survey response matching
-        if rt["name"] == "surveys":
-            for item in items:
-                if is_cats_artifact(item, rt["name_field"]):
-                    cats_survey_ids.add(item.get("id", ""))
-
-        # Filter to CATS artifacts
-        cats_items = []
+        test_items = []
         for item in items:
-            if rt["name"] == "survey responses":
-                # Match survey responses by their survey_id
-                if item.get("survey_id", "") in cats_survey_ids:
-                    cats_items.append(item)
-                else:
-                    skipped += 1
-            elif is_cats_artifact(item, rt["name_field"]):
-                cats_items.append(item)
+            if rt["match"] == "response":
+                # A response is test data if its parent survey is a test survey,
+                # or its (denormalized) survey_name carries a name marker.
+                matched = (
+                    item.get("survey_id", "") in test_survey_ids
+                    or is_test_artifact(item, "survey_name")
+                )
+            elif rt["match"] == "markers":
+                matched = is_test_artifact(item, rt["name_field"])
+            else:  # "cats"
+                matched = is_cats_artifact(item, rt["name_field"])
+
+            if matched:
+                test_items.append(item)
             else:
                 skipped += 1
 
-        if not cats_items:
-            print(f"  No CATS {rt['name']} found")
+        if not test_items:
+            print(f"  No test {rt['name']} found")
             continue
 
-        print(f"  Found {len(cats_items)} CATS {rt['name']} to delete")
+        print(f"  Found {len(test_items)} test {rt['name']} to delete")
 
-        for item in cats_items:
+        for item in test_items:
             item_id = item.get("id", "")
             item_label = item.get(rt["name_field"], item_id)
-            if rt["name"] == "survey responses":
+            if rt["match"] == "response":
                 item_label = f"survey response {item_id[:8]}..."
             label = f"{rt['name'].rstrip('s')}: {item_label}"
-            if delete_resource(token, rt["endpoint"], item_id, label, dry_run):
+            if delete_resource(token, rt["endpoint"], item_id, label, dry_run,
+                               params=rt.get("params")):
                 deleted += 1
             else:
                 failed += 1
@@ -651,10 +688,10 @@ def print_summary(stats: Stats, dry_run: bool = False) -> None:
     print(f"  Failed:  {RED}{stats.groups_failed}{NC}")
     print(f"  Skipped: {stats.groups_skipped} (non-test groups + {len(BUILTIN_GROUPS)} built-in pseudo-groups)")
 
-    print("\nCATS Artifacts:")
-    print(f"  Deleted: {GREEN}{stats.cats_deleted}{NC}")
-    print(f"  Failed:  {RED}{stats.cats_failed}{NC}")
-    print(f"  Skipped: {stats.cats_skipped} (non-CATS resources)")
+    print("\nTest Artifacts (threat models, surveys, responses, webhooks, addons, credentials):")
+    print(f"  Deleted: {GREEN}{stats.artifacts_deleted}{NC}")
+    print(f"  Failed:  {RED}{stats.artifacts_failed}{NC}")
+    print(f"  Skipped: {stats.artifacts_skipped} (non-test resources)")
 
 
 def main() -> int:
@@ -668,7 +705,7 @@ Examples:
   uv run scripts/delete-test-users.py --dry-run    # Show what would be deleted
   uv run scripts/delete-test-users.py --users-only # Delete only test users
   uv run scripts/delete-test-users.py --groups-only # Delete only test groups
-  uv run scripts/delete-test-users.py --cats-only  # Delete only CATS-seeded artifacts
+  uv run scripts/delete-test-users.py --artifacts-only # Delete only test artifacts (alias: --cats-only)
         """,
     )
     parser.add_argument(
@@ -687,15 +724,18 @@ Examples:
         help="Only delete test groups, skip users",
     )
     parser.add_argument(
+        "--artifacts-only",
         "--cats-only",
+        dest="artifacts_only",
         action="store_true",
-        help="Only delete CATS-seeded artifacts, skip users and groups",
+        help="Only delete test artifacts (threat models, surveys, responses, "
+             "CATS webhooks/addons/credentials), skip users and groups",
     )
 
     args = parser.parse_args()
 
     # Validate arguments
-    only_flags = sum([args.users_only, args.groups_only, args.cats_only])
+    only_flags = sum([args.users_only, args.groups_only, args.artifacts_only])
     if only_flags > 1:
         print_error("Cannot specify more than one --*-only flag")
         return 1
@@ -731,29 +771,29 @@ Examples:
     # Perform cleanup
     stats = Stats()
 
-    if not args.groups_only and not args.cats_only:
+    if not args.groups_only and not args.artifacts_only:
         deleted, failed, skipped = cleanup_users(token, args.dry_run)
         stats.users_deleted = deleted
         stats.users_failed = failed
         stats.users_skipped = skipped
 
-    if not args.users_only and not args.cats_only:
+    if not args.users_only and not args.artifacts_only:
         deleted, failed, skipped = cleanup_groups(token, args.dry_run)
         stats.groups_deleted = deleted
         stats.groups_failed = failed
         stats.groups_skipped = skipped
 
     if not args.users_only and not args.groups_only:
-        deleted, failed, skipped = cleanup_cats_artifacts(token, args.dry_run)
-        stats.cats_deleted = deleted
-        stats.cats_failed = failed
-        stats.cats_skipped = skipped
+        deleted, failed, skipped = cleanup_test_artifacts(token, args.dry_run)
+        stats.artifacts_deleted = deleted
+        stats.artifacts_failed = failed
+        stats.artifacts_skipped = skipped
 
     # Print summary
     print_summary(stats, args.dry_run)
 
     # Return non-zero if any failures
-    if stats.users_failed > 0 or stats.groups_failed > 0 or stats.cats_failed > 0:
+    if stats.users_failed > 0 or stats.groups_failed > 0 or stats.artifacts_failed > 0:
         return 1
 
     return 0

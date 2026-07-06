@@ -23,6 +23,10 @@ type SurveyStore interface {
 	Update(ctx context.Context, survey *Survey) error
 	Delete(ctx context.Context, id uuid.UUID) error
 
+	// ForceDelete removes a survey together with all of its responses and their
+	// sub-resources (used by the admin force-delete path).
+	ForceDelete(ctx context.Context, id uuid.UUID) error
+
 	// List operations with pagination and filtering
 	List(ctx context.Context, limit, offset int, status *string) ([]SurveyListItem, int, error)
 
@@ -233,6 +237,64 @@ func (s *GormSurveyStore) Delete(ctx context.Context, id uuid.UUID) error {
 	}
 
 	logger.Info("Survey deleted: id=%s", id)
+
+	return nil
+}
+
+// ForceDelete removes a survey template together with all of its responses and
+// each response's dependent rows (triage notes, access grants, metadata,
+// answers), in a single transaction. This backs the admin force-delete path so
+// a survey that still has responses can be removed (the default Delete refuses
+// via 409). Deletion is child-first: every dependent row is removed before the
+// responses, and the responses before the survey template itself.
+func (s *GormSurveyStore) ForceDelete(ctx context.Context, id uuid.UUID) error {
+	logger := slogging.Get()
+
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Fresh subquery per use (avoids reusing a mutated builder): the ids of
+		// all responses belonging to this survey. A correlated subquery keeps
+		// this correct for arbitrarily many responses on both PostgreSQL and
+		// Oracle (no bind-list length limit, unlike an IN(...) literal list).
+		respIDs := func() *gorm.DB {
+			return tx.Model(&models.SurveyResponse{}).
+				Select("id").Where("template_id = ?", id.String())
+		}
+
+		if err := tx.Where("survey_response_id IN (?)", respIDs()).Delete(&models.TriageNote{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		if err := tx.Where("survey_response_id IN (?)", respIDs()).Delete(&models.SurveyResponseAccess{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		if err := tx.Where("entity_type = ? AND entity_id IN (?)", "survey_response", respIDs()).Delete(&models.Metadata{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		if err := tx.Where("response_id IN (?)", respIDs()).Delete(&models.SurveyAnswer{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+		if err := tx.Where("template_id = ?", id.String()).Delete(&models.SurveyResponse{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+
+		// The survey template's own (polymorphic, soft/no-FK) metadata rows.
+		if err := tx.Where("entity_type = ? AND entity_id = ?", "survey", id.String()).Delete(&models.Metadata{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+
+		result := tx.Delete(&models.SurveyTemplate{}, "id = ?", id.String())
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrSurveyNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	logger.Info("Survey force-deleted with responses: id=%s", id)
 
 	return nil
 }
