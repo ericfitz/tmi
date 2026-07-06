@@ -221,6 +221,12 @@ func (s *GormSurveyStore) Delete(ctx context.Context, id uuid.UUID) error {
 	logger := slogging.Get()
 
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Versioned snapshots carry a hard FK to the template, so remove them
+		// before the template or the delete raises ORA-02292 / 23503 (#526).
+		// (The caller guarantees no responses; versions can still exist.)
+		if err := tx.Where("template_id = ?", id.String()).Delete(&models.SurveyTemplateVersion{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
 		result := tx.Delete(&models.SurveyTemplate{}, "id = ?", id.String())
 		if result.Error != nil {
 			logger.Error("Failed to delete survey: id=%s, error=%v", id, result.Error)
@@ -278,6 +284,13 @@ func (s *GormSurveyStore) ForceDelete(ctx context.Context, id uuid.UUID) error {
 
 		// The survey template's own (polymorphic, soft/no-FK) metadata rows.
 		if err := tx.Where("entity_type = ? AND entity_id = ?", "survey", id.String()).Delete(&models.Metadata{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
+
+		// Versioned snapshots carry a hard FK to the template (foreignKey:
+		// TemplateID), so they must be removed before the template itself or
+		// the final delete raises ORA-02292 / 23503 (#526).
+		if err := tx.Where("template_id = ?", id.String()).Delete(&models.SurveyTemplateVersion{}).Error; err != nil {
 			return dberrors.Classify(err)
 		}
 
