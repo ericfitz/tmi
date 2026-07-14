@@ -1,20 +1,7 @@
 {
   "devDependencies": {
-    "@redocly/cli": "^2.38.0",
+    "@redocly/cli": "^2.39.0",
     "@stoplight/spectral-cli": "^6.16.1"
-  },
-  "pnpm": {
-    "overrides": {
-      "minimatch@<3.1.4": "3.1.4",
-      "rollup@<2.80.0": "2.80.0",
-      "undici@<6.27.0": "6.27.0",
-      "lodash@<=4.17.23": "4.18.1",
-      "dompurify@<3.4.11": "3.4.11",
-      "protobufjs": "7.6.4",
-      "js-yaml@<4.2.0": "4.2.0",
-      "postcss@<8.5.10": "8.5.10",
-      "fast-xml-parser@<5.7.0": "5.7.3"
-    }
   },
   "scripts": {
     "arazzo:scaffold": "redocly generate-arazzo api-schema/tmi-openapi.json --output-file api-schema/arazzo/scaffolds/base-scaffold.arazzo.yaml",

@@ -28,6 +28,7 @@
 !config-example.yml
 !package.json
 !pnpm-lock.yaml
+!pnpm-workspace.yaml
 
 # Include subdirectories (but avoid overriding specific ignores)
 !api/
