@@ -159,6 +159,53 @@ func TestLogFileWatchdog_SilentOnLumberjackRotation(t *testing.T) {
 	}
 }
 
+// TestLogFileWatchdog_SilentWhenFileRecreatedPromptly reproduces the race
+// behind the flaky TestLogFileWatchdog_SilentOnLumberjackRotation CI failures:
+// lumberjack's rotation renames the active file to a backup and only then
+// recreates it, so the watchdog can process the RENAME event while the active
+// path is momentarily missing. It must not treat that as an external deletion
+// when the file reappears moments later. The event-handling seam is invoked
+// directly because real fsnotify delivery timing is platform-dependent (macOS
+// kqueue coalesces the events; Linux inotify delivers them in the gap).
+func TestLogFileWatchdog_SilentWhenFileRecreatedPromptly(t *testing.T) {
+	tmp := t.TempDir()
+	logPath := filepath.Join(tmp, "tmi.log")
+
+	lj := &lumberjack.Logger{Filename: logPath, MaxSize: 100}
+	t.Cleanup(func() { _ = lj.Close() })
+
+	var buf syncBuffer
+	slogger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	w, err := newLogFileWatchdog(lj, slogger)
+	if err != nil {
+		t.Fatalf("newLogFileWatchdog: %v", err)
+	}
+	t.Cleanup(w.Stop)
+
+	if _, err := lj.Write([]byte("pre-rotate\n")); err != nil {
+		t.Fatalf("initial write: %v", err)
+	}
+
+	// Rename the active file away, as lumberjack's openNew does...
+	if err := os.Rename(logPath, logPath+".rotated"); err != nil {
+		t.Fatalf("rename: %v", err)
+	}
+	// ...and recreate it a moment later, as lumberjack does right after its
+	// rename, while the watchdog is already handling the RENAME event.
+	go func() {
+		time.Sleep(60 * time.Millisecond)
+		_ = os.WriteFile(logPath, nil, 0o600)
+	}()
+
+	// Simulate the RENAME event arriving while the active path is missing.
+	w.onActivePathGone("RENAME")
+
+	if bytes.Contains(buf.Bytes(), []byte("log file unlinked or replaced")) {
+		t.Fatalf("watchdog warned for a rotation-style rename+recreate; got %q", buf.String())
+	}
+}
+
 func TestLogFileWatchdog_StopIsIdempotent(t *testing.T) {
 	tmp := t.TempDir()
 	logPath := filepath.Join(tmp, "tmi.log")

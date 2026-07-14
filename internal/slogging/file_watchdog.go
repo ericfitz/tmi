@@ -17,6 +17,16 @@ import (
 // catches deletions that fsnotify missed.
 const pollInterval = 500 * time.Millisecond
 
+// rotationGrace is how long the watchdog waits for the active log file to
+// reappear after a remove/rename before treating it as externally deleted.
+// Lumberjack's own rotation renames the file to a backup and only then
+// recreates it, so a stat can find the path missing mid-rotation; the file
+// reappearing within the grace window means self-rotation, not interference.
+const rotationGrace = 250 * time.Millisecond
+
+// rotationGraceStep is the re-check period within rotationGrace.
+const rotationGraceStep = 10 * time.Millisecond
+
 // logFileWatchdog observes the directory containing the active log file and,
 // when that file is unlinked or renamed and not replaced (i.e., not a
 // lumberjack-internal rotation), calls Rotate() on the lumberjack logger to
@@ -85,6 +95,30 @@ func (w *logFileWatchdog) handleMissing(eventDesc string) {
 		"event", eventDesc)
 }
 
+// onActivePathGone handles a Remove/Rename event (or poll miss) for the
+// active log path. The file reappearing within rotationGrace means a
+// lumberjack self-rotation (rename to backup, then recreate) — skip silently.
+// Only a file that stays missing for the whole grace window is treated as an
+// external removal needing reopen.
+// SEM@2f80ec5d2bdaa65c830758314bb6b3bc6361d551: decide whether a missing log file is a self-rotation or an external removal needing reopen (mutates shared state)
+func (w *logFileWatchdog) onActivePathGone(eventDesc string) {
+	deadline := time.Now().Add(rotationGrace)
+	for {
+		if _, err := os.Stat(w.activePath); err == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+		select {
+		case <-w.done:
+			return
+		case <-time.After(rotationGraceStep):
+		}
+	}
+	w.handleMissing(eventDesc)
+}
+
 // SEM@2f80ec5d2bdaa65c830758314bb6b3bc6361d551: event loop that detects log file removal via fsnotify and polling, and triggers reopen (mutates shared state)
 func (w *logFileWatchdog) run() {
 	ticker := time.NewTicker(pollInterval)
@@ -102,12 +136,7 @@ func (w *logFileWatchdog) run() {
 			if ev.Op&(fsnotify.Remove|fsnotify.Rename) == 0 {
 				continue
 			}
-			// If the active path still exists (lumberjack already created
-			// a fresh file), this is a self-rotation — skip silently.
-			if _, err := os.Stat(w.activePath); err == nil {
-				continue
-			}
-			w.handleMissing(ev.Op.String())
+			w.onActivePathGone(ev.Op.String())
 
 		case err, ok := <-w.watcher.Errors:
 			if !ok {
@@ -122,7 +151,7 @@ func (w *logFileWatchdog) run() {
 			// sequences are coalesced (macOS kqueue), the fsnotify event may
 			// be dropped. Check directly.
 			if _, err := os.Stat(w.activePath); os.IsNotExist(err) {
-				w.handleMissing("poll")
+				w.onActivePathGone("poll")
 			}
 
 		case <-w.done:
