@@ -5,6 +5,6 @@
   },
   "scripts": {
     "arazzo:scaffold": "redocly generate-arazzo api-schema/tmi-openapi.json --output-file api-schema/arazzo/scaffolds/base-scaffold.arazzo.yaml",
-    "arazzo:lint": "spectral lint api-schema/tmi.arazzo.yaml"
+    "arazzo:lint": "spectral lint api-schema/tmi.arazzo.yaml --ruleset arazzo-spectral.yaml"
   }
 }
