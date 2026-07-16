@@ -41,6 +41,12 @@ jobs:
           install-mode: goinstall
           args: --timeout=5m
 
+      - name: Check sensitive fields are not passed to logger calls
+        # Guardrail for #540: attribute-based log redaction cannot catch a
+        # secret interpolated into a format string. Stdlib-only script; runs
+        # with the runner's system python3 (no uv in CI).
+        run: python3 scripts/check-sensitive-log-args.py
+
   build:
     name: Build Verification
     runs-on: ubuntu-latest

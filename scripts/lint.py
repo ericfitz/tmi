@@ -64,6 +64,12 @@ def main() -> None:
         cwd=project_root,
     )
 
+    log_info("Checking for sensitive fields passed to logger calls...")
+    run_cmd(
+        ["uv", "run", "scripts/check-sensitive-log-args.py"],
+        cwd=project_root,
+    )
+
     log_info("Running golangci-lint...")
     golangci = Path.home() / "go" / "bin" / "golangci-lint"
     run_cmd(
