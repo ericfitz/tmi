@@ -149,7 +149,8 @@ func (a *ooxmlArchive) openMember(name string) (io.ReadCloser, error) {
 			continue
 		}
 		// Compare as uint64 to avoid int64 overflow; limits are non-negative.
-		if f.UncompressedSize64 > uint64(a.limits.PartSizeBytes) { // #nosec G115 -- PartSizeBytes is always non-negative
+		// #nosec G115 -- PartSizeBytes is always non-negative
+		if f.UncompressedSize64 > uint64(a.limits.PartSizeBytes) {
 			return nil, &extractionLimitError{
 				Kind:     "part_size",
 				Limit:    a.limits.PartSizeBytes,
@@ -161,7 +162,8 @@ func (a *ooxmlArchive) openMember(name string) (io.ReadCloser, error) {
 		// compressed size to compare against.
 		if f.CompressedSize64 > 0 {
 			ratio := f.UncompressedSize64 / f.CompressedSize64
-			if ratio > uint64(a.limits.MaxCompressionRatio) { // #nosec G115 -- MaxCompressionRatio is always non-negative
+			// #nosec G115 -- MaxCompressionRatio is always non-negative
+			if ratio > uint64(a.limits.MaxCompressionRatio) {
 				return nil, &extractionLimitError{
 					Kind:     "compression_ratio",
 					Limit:    a.limits.MaxCompressionRatio,

@@ -16,7 +16,8 @@ func main() {
 		logger.Error("genconfigdocs: %v", err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile("config-reference.md", out, 0o644); err != nil { // #nosec G306 -- doc artifact, not secret
+	// #nosec G306 -- doc artifact, not secret
+	if err := os.WriteFile("config-reference.md", out, 0o644); err != nil {
 		logger.Error("genconfigdocs: write config-reference.md: %v", err)
 		os.Exit(1)
 	}
