@@ -96,7 +96,7 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-genconfig generate-config-example build-genconfigdocs generate-config-docs clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz check-oracle-unsafe-map-keys check-oracle-table-names
+.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-genconfig generate-config-example build-genconfigdocs generate-config-docs clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz check-oracle-unsafe-map-keys check-oracle-table-names check-sensitive-log-args
 
 build-server:
 	@uv run scripts/build-server.py
@@ -168,6 +168,12 @@ check-oracle-unsafe-map-keys:
 # Aliased forms (.Table("t alias")) are emitted unquoted and are safe. See #504.
 check-oracle-table-names:
 	@uv run scripts/check-oracle-table-names.py
+
+# Check that no code passes sensitive config/credential fields to logger calls.
+# Log redaction is attribute-based and cannot redact secrets interpolated into
+# format strings. See issue #540.
+check-sensitive-log-args:
+	@uv run scripts/check-sensitive-log-args.py
 
 
 # ============================================================================

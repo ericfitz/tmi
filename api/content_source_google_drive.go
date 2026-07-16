@@ -31,7 +31,7 @@ type GoogleDriveSource struct {
 func NewGoogleDriveSource(credentialsFile string, serviceAccountEmail string) (*GoogleDriveSource, error) {
 	ctx := context.Background()
 
-	//nolint:gosec // Path comes from operator config, not user input
+	// #nosec G304 -- path comes from operator config, not user input
 	creds, err := os.ReadFile(credentialsFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read Google credentials file %s: %w", credentialsFile, err)

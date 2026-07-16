@@ -130,5 +130,5 @@ func acquireOracleLock(ctx context.Context, db *gorm.DB, name string, logger *sl
 // SEM@73235c4c5e292c1a307c5bb6d625a4cb06eb57f2: convert a lock name to a stable int64 key via SHA-256 for use with pg_advisory_lock (pure)
 func nameToInt64(name string) int64 {
 	h := sha256.Sum256([]byte(name))
-	return int64(binary.BigEndian.Uint64(h[:8])) //nolint:gosec // deterministic-hash; signed wrap is fine
+	return int64(binary.BigEndian.Uint64(h[:8])) // #nosec G115 -- deterministic hash; signed wrap is fine
 }

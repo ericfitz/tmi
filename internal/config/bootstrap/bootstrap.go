@@ -32,7 +32,7 @@ type WorkerBootstrap struct {
 // suffix after the prefix is lowercased and each underscore becomes a dash to
 // form the logical name: TMI_WORKER_SECRET_MOUNT_EMBEDDING_API_KEY ->
 // SecretMounts["embedding-api-key"] (so a literal __ in the name becomes --).
-const secretMountEnvPrefix = "TMI_WORKER_SECRET_MOUNT_" //nolint:gosec // this is an env-var prefix, not a credential
+const secretMountEnvPrefix = "TMI_WORKER_SECRET_MOUNT_" // #nosec G101 -- env-var prefix, not a credential
 
 // LoadWorker builds a WorkerBootstrap from environment variables only.
 // It reads no YAML and touches no database.
@@ -80,7 +80,7 @@ func (wb *WorkerBootstrap) ReadSecret(logicalName string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("worker bootstrap: no secret mount for %q", logicalName)
 	}
-	b, err := os.ReadFile(path) //nolint:gosec // path comes from operator-controlled env
+	b, err := os.ReadFile(path) // #nosec G304 -- path comes from operator-controlled env
 	if err != nil {
 		return "", fmt.Errorf("worker bootstrap: read secret %q: %w", logicalName, err)
 	}

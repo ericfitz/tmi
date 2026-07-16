@@ -74,7 +74,7 @@ func ResolveSecretValue(ctx context.Context, value string, vault SecretResolver)
 
 	case strings.HasPrefix(value, schemeFile):
 		path := strings.TrimPrefix(value, schemeFile)
-		data, err := os.ReadFile(path) //nolint:gosec // G304 - path comes from operator-controlled bootstrap config
+		data, err := os.ReadFile(path) // #nosec G304 -- path comes from operator-controlled bootstrap config
 		if err != nil {
 			return "", fmt.Errorf("reading file reference %q: %w", value, err)
 		}

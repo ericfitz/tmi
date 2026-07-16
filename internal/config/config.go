@@ -1318,7 +1318,7 @@ func (c *Config) GetCookieDomain() string {
 // SEM@e81aaa612078c97ad77ca1478c9812ee7e86b331: list operational-category config keys present in a YAML file to detect bootstrap drift (reads file)
 func OperationalKeysInFile(path string) ([]string, error) {
 	raw := map[string]any{}
-	data, err := os.ReadFile(path) //nolint:gosec // operator-supplied config path
+	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied config path
 	if err != nil {
 		return nil, fmt.Errorf("read config file: %w", err)
 	}
