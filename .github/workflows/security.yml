@@ -216,8 +216,11 @@ jobs:
       - name: Run gosec (never fails the build)
         # -no-fail: exit 0 even on findings (informational job).
         # -exclude-generated: skip oapi-codegen's api/api.go and other generated code.
-        # -exclude-dir: skip the checked-out client shim.
-        run: gosec -no-fail -exclude-generated -exclude-dir=.tmi-clients -fmt sarif -out gosec.sarif ./...
+        # -exclude-dir: skip the checked-out client shim, plus test-only code that
+        # never ships in the server binary (test/integration and wstest are separate
+        # Go modules; excluding them keeps the Security tab scoped to shipped code
+        # even if a future go.work pulls them into ./...).
+        run: gosec -no-fail -exclude-generated -exclude-dir=.tmi-clients -exclude-dir=test -exclude-dir=wstest -fmt sarif -out gosec.sarif ./...
 
       - name: Upload SARIF to the Security tab
         if: always()

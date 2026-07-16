@@ -22,7 +22,7 @@ import (
 // Returns the size of the rewritten file in bytes for the operator log.
 // SEM@e7880ae29f527fb2d814f6d7b7c13280082fa033: rewrite a YAML config file in place, removing all operational-category keys (reads DB)
 func stripOperationalKeys(path string) (int64, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // operator-supplied config path
+	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied config path
 	if err != nil {
 		return 0, fmt.Errorf("read config: %w", err)
 	}
@@ -97,7 +97,7 @@ func pruneOperationalFromMapping(m *yaml.Node, prefix string) {
 // the backup path. Format: <path>.<YYYYMMDD-HHMMSS>.bak.
 // SEM@e7880ae29f527fb2d814f6d7b7c13280082fa033: write a timestamped backup copy of a config file alongside the original (reads DB)
 func backupConfigFile(path string) (string, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // operator-supplied config path
+	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied config path
 	if err != nil {
 		return "", fmt.Errorf("read for backup: %w", err)
 	}

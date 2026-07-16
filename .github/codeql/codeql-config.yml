@@ -12,6 +12,11 @@ queries:
 paths-ignore:
   # Auto-generated OpenAPI code (contains many false positives from oapi-codegen)
   - api/api.go
+  # CI-time checkout of the generated API client repo (ericfitz/tmi-clients).
+  # OpenAPI-generator's stock template includes a Debug-gated httputil.DumpRequestOut
+  # that logs request headers (incl. API key) when cfg.Debug=true — real pattern, but
+  # third-party generated code we don't maintain here. Never enable Debug in production.
+  - ".tmi-clients/**"
   # Development-only Python scripts (OAuth testing harness, deployment tools)
   # These intentionally log OAuth tokens/credentials for debugging purposes
   - scripts/oauth-client-callback-stub.py
@@ -65,14 +70,39 @@ query-filters:
 #   3. Values are parameterized - GORM generates "WHERE column = ?" with bound params
 #   4. This pattern is used for Oracle cross-database compatibility
 #
-# Affected files (dismiss these alerts in GitHub as "False positive"):
-#   - api/admin_checker.go:28                         (GetGroupUUIDsByNames)
-#   - api/authorization_enrichment.go:65,71,94,98,181 (user lookup queries)
-#   - api/database_store_gorm.go:44,51,57             (resolveUserIdentifierToUUID)
-#   - api/project_store_gorm.go:60,208,545,616,651    (project CRUD + validation)
-#   - api/team_middleware.go:45                        (IsTeamMemberOrAdmin)
-#   - api/team_store_gorm.go:691                      (team relationship traversal)
-#   - auth/repository/user_repository.go:65           (GetByProviderID)
+# Safe sub-patterns confirmed in the 2026-07 triage (all flagged, all FP):
+#   a. Where(ColumnMap(dialect, map[string]any{...})) - ColumnMap/ColumnName/Col
+#      (api/dialect_helpers.go) only case-fold hard-coded literal column names
+#      for Oracle; user data never reaches the identifier position.
+#   b. OrderByCol(dialect, "key", ...) - ORDER BY column is a hard-coded literal
+#      (api/metadata_helpers.go).
+#   c. clause.Expr{SQL: "? = ?", Vars: []any{Col(...), value}} - SQL string is a
+#      constant; first ? renders as a quoted identifier from a literal, second is
+#      a bound value (api/authorization_enrichment.go).
+#
+# Affected files (dismiss these alerts in GitHub as "False positive"; line numbers
+# drift with the code - validate the pattern, not the line):
+#   - api/admin_checker.go            (GetGroupUUIDsByNames)
+#   - api/authorization_enrichment.go (user lookup queries)
+#   - api/database_store_gorm.go      (resolveUserIdentifierToUUID)
+#   - api/project_store_gorm.go       (project CRUD + validation)
+#   - api/metadata_helpers.go         (metadata CRUD, map-Where + OrderByCol)
+#   - api/team_middleware.go          (IsTeamMemberOrAdmin)
+#   - api/team_store_gorm.go          (team relationship traversal)
+#   - auth/repository/user_repository.go (GetByProviderID)
 #
 # Reason: "GORM map-based queries are parameterized internally"
+# =============================================================================
+# KNOWN FALSE POSITIVES - slogging sinks (go/clear-text-logging)
+# =============================================================================
+# CodeQL reports the generic Logger.Debug/Info/Warn/Error(format, args) methods in
+# internal/slogging/ (and their ContextLogger/FallbackLogger equivalents) as
+# clear-text-logging sinks because sensitive-typed config fields (Password,
+# LLMAPIKey, etc.) COULD flow there. No caller actually passes secret values into
+# log arguments (verified 2026-07); cmd/server/startup_checks.go logs setting KEY
+# NAMES only, never values. Dismiss these as "False positive" rather than
+# path-ignoring internal/slogging - a path ignore would also hide a genuine future
+# leak, since every TMI log call sinks in that package.
+# NOTE: TMI's log redaction is attribute-based; a secret interpolated directly into
+# a format string would bypass it. Tracked as a hardening follow-up issue.
 # =============================================================================

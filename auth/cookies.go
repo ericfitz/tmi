@@ -11,7 +11,7 @@ const (
 	// AccessTokenCookieName is the cookie name for the JWT access token
 	AccessTokenCookieName = "tmi_access_token"
 	// RefreshTokenCookieName is the cookie name for the refresh token
-	RefreshTokenCookieName = "tmi_refresh_token" //nolint:gosec // G101 - cookie name constant, not a credential
+	RefreshTokenCookieName = "tmi_refresh_token" // #nosec G101 -- cookie name constant, not a credential
 	// MaxCookieSize is the practical browser cookie size limit
 	MaxCookieSize = 4093
 )

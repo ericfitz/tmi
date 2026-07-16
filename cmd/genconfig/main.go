@@ -16,7 +16,7 @@ func main() {
 		logger.Error("genconfig: %v", err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile("config-example.yml", out, 0o644); err != nil { //nolint:gosec // example file, not secret
+	if err := os.WriteFile("config-example.yml", out, 0o644); err != nil { // #nosec G306 -- example file, not secret
 		logger.Error("genconfig: write config-example.yml: %v", err)
 		os.Exit(1)
 	}

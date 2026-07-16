@@ -83,7 +83,7 @@ func runDataSeed(db *testdb.TestDB, inputFile, serverURL, user, provider string,
 
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: parse a JSON seed spec file and transform it into a SeedFile (pure)
 func loadSeedFile(path string) (*SeedFile, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // path from CLI flags
+	data, err := os.ReadFile(path) // #nosec G304 -- path from CLI flags
 	if err != nil {
 		return nil, fmt.Errorf("failed to read %s: %w", path, err)
 	}
