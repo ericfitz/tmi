@@ -28,8 +28,8 @@ require (
 	github.com/lib/pq v1.12.3
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/nats-io/nats.go v1.52.0
-	github.com/oapi-codegen/gin-middleware v1.0.2
-	github.com/oapi-codegen/runtime v1.5.0
+	github.com/oapi-codegen/gin-middleware v1.1.0
+	github.com/oapi-codegen/runtime v1.6.0
 	github.com/oracle-samples/gorm-oracle v1.1.3
 	github.com/oracle/oci-go-sdk/v65 v65.121.0
 	github.com/prometheus/client_golang v1.23.2
@@ -54,7 +54,7 @@ require (
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/text v0.40.0
-	google.golang.org/api v0.288.0
+	google.golang.org/api v0.289.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/mysql v1.6.0
@@ -171,7 +171,7 @@ require (
 	golang.org/x/tools v0.48.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260630182238-925bb5da69e7 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260630182238-925bb5da69e7 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
 	google.golang.org/grpc v1.82.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
@@ -214,7 +214,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
-	github.com/mattn/go-isatty v0.0.22 // indirect
+	github.com/mattn/go-isatty v0.0.23 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/oasdiff/yaml v0.1.1 // indirect
