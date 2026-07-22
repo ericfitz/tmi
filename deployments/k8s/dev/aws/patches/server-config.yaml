@@ -1,0 +1,36 @@
+# Strategic-merge patch for the AWS (EKS) tmi-server Deployment.
+#
+# - env: `$patch: replace` swaps the ENTIRE dev env list for the AWS list —
+#   the dev-only entries TMI_WEBHOOK_ALLOW_HTTP_TARGETS and
+#   TMI_SSRF_WEBHOOK_ALLOWLIST=host.docker.internal (used only to reach the
+#   host-run integration webhook receiver) are dropped. TMI_NATS_URL stays:
+#   NATS runs in-cluster on AWS too. Non-webhook config (TMI_DATABASE_URL,
+#   TMI_JWT_SECRET, etc.) comes from the terraform-owned tmi-server-config
+#   ConfigMap mounted at /etc/tmi, not from this env list.
+# - imagePullPolicy: IfNotPresent — ECR tags are immutable per deploy
+#   (unlike the local :dev tag, which churns on every `make restart-dev` and
+#   needs Always).
+# - serviceAccountName: tmi-api — the IRSA-annotated ServiceAccount terraform
+#   creates (kubernetes_service_account_v1.tmi_api in
+#   terraform/modules/kubernetes/aws/k8s_resources.tf), needed for the pod to
+#   assume the IAM role that reads secrets from Secrets Manager.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tmi-server
+spec:
+  template:
+    spec:
+      serviceAccountName: tmi-api
+      containers:
+        - name: server
+          imagePullPolicy: IfNotPresent
+          env:
+            - $patch: replace
+            - { name: TMI_SERVER_INTERFACE, value: "0.0.0.0" }
+            - { name: TMI_SERVER_PORT, value: "8080" }
+            - { name: TMI_REDIS_HOST, value: "redis" }
+            - { name: TMI_NATS_URL, value: "nats://nats.tmi-platform.svc:4222" }
+            - { name: TMI_LOG_DIR, value: "/tmp/logs" }
+            - { name: OAUTH_PROVIDERS_TMI_ENABLED, value: "true" }
+            - { name: TMI_AUTH_AUTO_PROMOTE_FIRST_USER, value: "true" }

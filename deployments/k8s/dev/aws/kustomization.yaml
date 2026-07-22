@@ -1,0 +1,44 @@
+# AWS (EKS) overlay. Terraform owns infra + bootstrap objects (namespace,
+# tmi-server-config ConfigMap, secrets, IRSA service accounts); this overlay
+# owns every workload. Image URIs are pinned by the deploy script via
+# generated-images.yaml (gitignored) because the ECR registry is
+# account-specific. NATS + KEDA + the TMIComponent CRD are applied by
+# scripts/deploy-aws.sh before this overlay (same order as scripts/lib/
+# deploy.py apply_platform_base). Postgres is RDS — no in-cluster DB.
+#
+# Resolved caveats (see README.md for full detail):
+#   - No NATS storage-class patch: deployments/k8s/platform/nats.yml's
+#     StatefulSet uses an emptyDir for /data/jetstream (no PVC, no
+#     storageClassName at all), so there is nothing for this overlay or the
+#     deploy script to patch. JetStream data is ephemeral, matching local dev.
+#   - No ingress subnets annotation: terraform/modules/network/aws/main.tf
+#     tags both public subnets kubernetes.io/role/elb=1, so the AWS Load
+#     Balancer Controller auto-discovers them without an explicit
+#     alb.ingress.kubernetes.io/subnets annotation.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tmi-platform
+resources:
+  - ../controller.yml
+  - ../redis.yml
+  - ../server.yml
+  - ../../platform/components/tmi-extractor.yml
+  - ../../platform/components/tmi-chunk-embed.yml
+  - ingress.yml
+patches:
+  - path: patches/server-config.yaml
+    target:
+      kind: Deployment
+      name: tmi-server
+  - path: patches/extractor-image.yaml
+    target:
+      group: tmi.dev
+      version: v1alpha1
+      kind: TMIComponent
+      name: tmi-extractor
+  - path: patches/chunkembed-image.yaml
+    target:
+      group: tmi.dev
+      version: v1alpha1
+      kind: TMIComponent
+      name: tmi-chunk-embed
