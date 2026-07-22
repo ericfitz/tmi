@@ -195,6 +195,12 @@ variable "lb_controller_chart_version" {
   default     = "1.7.1"
 }
 
+variable "lb_controller_chart_local_path" {
+  description = "Absolute path to a vendored aws-load-balancer-controller .tgz chart. When set, the chart is installed from this local file instead of the remote https://aws.github.io/eks-charts repo (air-gapped / flaky-registry escape hatch). Empty (default) uses the remote repo."
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   description = "Tags to apply to all AWS resources"
   type        = map(string)

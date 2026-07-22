@@ -141,6 +141,13 @@ resource "aws_launch_template" "eks_nodes" {
   name_prefix   = "${var.name_prefix}-eks-node-"
   instance_type = var.node_instance_type
 
+  # Attach the node security group so the RDS security group's 5432 ingress
+  # (which allows this SG) actually matches node/pod egress. Without this, a
+  # managed node group backed by a launch template that omits security groups
+  # gets ONLY the EKS-managed cluster SG, so pod->RDS traffic is dropped
+  # (connection timeout). EKS still adds the cluster SG automatically on top.
+  vpc_security_group_ids = var.cluster_security_group_ids
+
   metadata_options {
     http_endpoint               = "enabled"
     http_tokens                 = "required"
@@ -585,11 +592,16 @@ resource "aws_iam_role_policy_attachment" "tmi_secrets_access" {
 # ============================================================================
 
 resource "helm_release" "aws_lb_controller" {
-  name       = "aws-load-balancer-controller"
-  repository = "https://aws.github.io/eks-charts"
-  chart      = "aws-load-balancer-controller"
+  name = "aws-load-balancer-controller"
+  # When lb_controller_chart_local_path is set, install from a vendored .tgz
+  # instead of the remote repo. This is an air-gapped / flaky-registry escape
+  # hatch: the default ("") preserves the normal remote fetch from
+  # https://aws.github.io/eks-charts unchanged. With a local tarball the repo
+  # and version are omitted (the tarball carries its own version).
+  repository = var.lb_controller_chart_local_path == "" ? "https://aws.github.io/eks-charts" : null
+  chart      = var.lb_controller_chart_local_path == "" ? "aws-load-balancer-controller" : var.lb_controller_chart_local_path
   namespace  = "kube-system"
-  version    = var.lb_controller_chart_version
+  version    = var.lb_controller_chart_local_path == "" ? var.lb_controller_chart_version : null
 
   set {
     name  = "clusterName"

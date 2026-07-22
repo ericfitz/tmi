@@ -160,3 +160,4 @@ test/configs/google-drive-test-docs.json
 .docker-deps/
 .claude/scheduled_tasks.lock
 .local/
+terraform/environments/aws-public/vendor/

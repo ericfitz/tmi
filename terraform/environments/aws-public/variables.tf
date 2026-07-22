@@ -63,3 +63,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "lb_controller_chart_local_path" {
+  description = "Absolute path to a vendored aws-load-balancer-controller .tgz. When set, installs the ALB controller from this local file instead of the remote helm repo. Empty (default) uses the remote repo."
+  type        = string
+  default     = ""
+}

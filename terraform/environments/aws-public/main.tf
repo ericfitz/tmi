@@ -250,6 +250,10 @@ module "kubernetes" {
   # production build mode.
   everyone_is_a_reviewer = true
 
+  # Optional vendored AWS Load Balancer Controller chart (air-gapped /
+  # flaky-registry escape hatch). Empty by default (remote fetch).
+  lb_controller_chart_local_path = var.lb_controller_chart_local_path
+
   # Redis (password only — feeds the tmi-secrets Secret; image is overlay-owned)
   redis_password = module.secrets.redis_password
 
