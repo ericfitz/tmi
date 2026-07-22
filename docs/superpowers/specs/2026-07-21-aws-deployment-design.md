@@ -31,6 +31,7 @@ workloads on every target, eliminating this class of drift permanently.
 | Mechanism | Hybrid: Terraform = infra, kustomize = workloads |
 | Workload scope | Full current shape (matches local dev, minus in-cluster Postgres) |
 | OAuth | Dev build mode; built-in "tmi" test provider |
+| DB config | Replicated from local dev DB via new dbtool `--export-config` + existing `--import-config`, with env-specific value adjustments |
 
 ## Split of responsibilities
 
@@ -112,6 +113,23 @@ Preflight → build/push 5 images to ECR → `terraform init -backend-config` +
   (RDS data dropped — acceptable at this tier)
 - Server tolerates NATS absence by design (`TMI_NATS_URL` unset → async
   extraction disabled); worker-plane failures do not take down the core API
+
+## Configuration replication (dev DB → RDS)
+
+The RDS database must start with the operational configuration currently stored
+in the local dev instance's Postgres, not bare defaults.
+
+- Add `--export-config` to `cmd/dbtool` (DB → YAML), symmetric with the existing
+  `--import-config`
+- Flow: export settings from the local dev DB → review/adjust environment-specific
+  values (hostnames, URLs, anything referencing localhost or in-cluster names →
+  AWS equivalents such as `server.aws.tmi.dev`) → import into RDS via
+  `--import-config` after migrations run
+- The adjusted export file is environment-specific and gitignored; the deploy
+  script wires the import step in after `terraform apply` (RDS reachable) and
+  before workload rollout
+- Per project rules, dbtool changes ship with the schema/tooling change and the
+  oracle-db-admin review gate applies to any DB-touching code added here
 
 ## Cost
 
