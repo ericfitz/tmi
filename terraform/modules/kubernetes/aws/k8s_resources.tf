@@ -93,12 +93,18 @@ resource "kubernetes_config_map_v1" "tmi" {
       # config.go struct tag — this name is already correct.
       TMI_NATS_URL = "nats://nats.tmi-platform.svc:4222"
     },
-    # Public mode adds verbose logging
+    # everyone_is_a_reviewer is decoupled from build_mode (a plain runtime flag)
+    # so it stays on under production build mode. AuthConfig.EveryoneIsAReviewer,
+    # config.go:148.
+    var.everyone_is_a_reviewer ? {
+      TMI_AUTH_EVERYONE_IS_A_REVIEWER = "true"
+    } : {},
+    # Verbose request/response logging is dev-only — off in production so the
+    # public endpoint does not log full API/WS traffic.
     var.tmi_build_mode == "dev" ? {
-      TMI_AUTH_EVERYONE_IS_A_REVIEWER = "true" # AuthConfig.EveryoneIsAReviewer, config.go:148
-      TMI_LOG_API_REQUESTS            = "true" # LoggingConfig.LogAPIRequests, config.go:284
-      TMI_LOG_API_RESPONSES           = "true" # LoggingConfig.LogAPIResponses, config.go:285
-      TMI_LOG_WEBSOCKET_MESSAGES      = "true" # LoggingConfig.LogWebSocketMsg, config.go:286
+      TMI_LOG_API_REQUESTS       = "true" # LoggingConfig.LogAPIRequests, config.go:284
+      TMI_LOG_API_RESPONSES      = "true" # LoggingConfig.LogAPIResponses, config.go:285
+      TMI_LOG_WEBSOCKET_MESSAGES = "true" # LoggingConfig.LogWebSocketMsg, config.go:286
     } : {},
     var.extra_environment_variables
   )

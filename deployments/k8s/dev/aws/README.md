@@ -228,37 +228,44 @@ With the naming fixed, `patches/server-config.yaml` now wires
 container, so the flat `TMI_*` keys actually reach the runtime. Kubernetes
 resolves an explicit `env:` entry ahead of `envFrom` for the same variable
 name, and this patch's `env:` list sets `TMI_SERVER_INTERFACE`,
-`TMI_SERVER_PORT`, `TMI_REDIS_HOST`, and `TMI_NATS_URL` explicitly — so those
-four stay pinned to the patch's values regardless of what the ConfigMap says,
-and `envFrom` supplies the rest: `TMI_BUILD_MODE`, the `TMI_LOG_*` toggles,
-`TMI_AUTH_AUTO_PROMOTE_FIRST_USER` (`"false"`), and
-`TMI_AUTH_EVERYONE_IS_A_REVIEWER` (`"true"`, dev-mode block). The ConfigMap's
-`config.yml` key is not a valid environment variable name and is silently
-skipped by Kubernetes under `envFrom` (a benign warning Event, not a failure).
+`TMI_SERVER_PORT`, `TMI_REDIS_HOST`, `TMI_NATS_URL`, and
+`OAUTH_PROVIDERS_TMI_ENABLED` explicitly — so those stay pinned to the patch's
+values regardless of what the ConfigMap says, and `envFrom` supplies the rest:
+`TMI_BUILD_MODE` (`"production"`), `TMI_AUTH_AUTO_PROMOTE_FIRST_USER`
+(`"false"`), and `TMI_AUTH_EVERYONE_IS_A_REVIEWER` (`"true"`, set via the
+terraform `everyone_is_a_reviewer` variable). The ConfigMap's `config.yml` key
+is not a valid environment variable name and is silently skipped by Kubernetes
+under `envFrom` (a benign warning Event, not a failure).
 
 ## Authentication posture (internet-facing)
 
 This overlay serves a **public** ALB, so the authentication configuration is
 deliberately hardened relative to local dev:
 
-- **No tmi stub provider.** `patches/server-config.yaml` does NOT set
-  `OAUTH_PROVIDERS_TMI_ENABLED`, and `scripts/deploy-aws.sh` builds the server
-  image **without** `--build-tags dev`. Under the default (production) build
-  tag the tmi provider is client-credentials only — the no-credential-check
-  `login_hint` authorization-code flow is not compiled in — and an explicit
-  `idp` parameter is required (no default provider). Interactive sign-in comes
-  from the real OAuth providers (e.g. Google) carried in the replicated
-  database config.
+- **Production runtime build mode.** `TMI_BUILD_MODE=production` (terraform
+  ConfigMap). The "tmi" OAuth provider stays **enabled**
+  (`OAUTH_PROVIDERS_TMI_ENABLED=true`), but in production it is restricted to
+  the **Client Credentials Grant**: `auth/test_provider.go`'s `ExchangeCode`
+  refuses the Authorization Code / `login_hint` flow unless
+  `isDevOrTestBuild()` (`TMI_BUILD_MODE in {dev,test}`), so no anonymous JWT
+  can be minted from `login_hint`. Critically, this control is the **runtime
+  build mode, not provider registration** — it holds even though the replicated
+  DB config also enables the tmi provider. Interactive human sign-in comes from
+  the real OAuth providers (e.g. Google) in the replicated config; the tmi
+  provider serves only machine/client-credentials tokens (which require a real
+  `client_id`/`client_secret`).
 - **No first-user auto-promotion.** `TMI_AUTH_AUTO_PROMOTE_FIRST_USER="false"`
   (terraform ConfigMap). On a public endpoint auto-promotion would hand admin
   to the first random visitor. Admin is seeded explicitly via the
   `administrators` operational setting in the replicated DB config (the
   configured Google admin identity). **If no administrator is seeded, the
   deployment has no admin** — verify the imported config.
-- **Everyone is a reviewer.** `TMI_AUTH_EVERYONE_IS_A_REVIEWER="true"`
-  (dev-mode block) is a deliberate choice for this collaborative deployment:
-  every user who authenticates via a real provider gets security-reviewer
-  capability. Scoped to real-provider-authenticated users, not anonymous.
+- **Everyone is a reviewer.** `TMI_AUTH_EVERYONE_IS_A_REVIEWER="true"` (set via
+  the terraform `everyone_is_a_reviewer` variable, decoupled from build mode so
+  it survives production mode) is a deliberate choice for this collaborative
+  deployment: every user who authenticates via a real provider gets
+  security-reviewer capability. Scoped to real-provider-authenticated users,
+  not anonymous.
 
 ## Chunk-embed API key (`TMI_EMBEDDING_API_KEY`)
 

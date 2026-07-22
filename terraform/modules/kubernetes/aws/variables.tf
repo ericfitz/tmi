@@ -118,6 +118,12 @@ variable "tmi_build_mode" {
   }
 }
 
+variable "everyone_is_a_reviewer" {
+  description = "Grant every authenticated user security-reviewer capability (TMI_AUTH_EVERYONE_IS_A_REVIEWER). Decoupled from build mode so it can be set independently of dev/production."
+  type        = bool
+  default     = false
+}
+
 variable "extra_environment_variables" {
   description = "Additional environment variables for TMI server"
   type        = map(string)

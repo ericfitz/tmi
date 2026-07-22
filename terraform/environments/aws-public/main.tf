@@ -235,8 +235,20 @@ module "kubernetes" {
   # Secrets Manager ARNs for IRSA
   secret_arns = values(module.secrets.secret_arns)
 
-  # TMI Server (build mode only — image/replicas/ALB are overlay-owned now)
-  tmi_build_mode = "dev"
+  # TMI Server (build mode only — image/replicas/ALB are overlay-owned now).
+  # production: the TMI "tmi" OAuth provider stays enabled but is restricted to
+  # the Client Credentials Grant — the Authorization Code / login_hint flow that
+  # mints an ephemeral user with no credential check is disabled at runtime in
+  # production (auth/test_provider.go isDevOrTestBuild gate). This is what keeps
+  # the public endpoint from handing out anonymous JWTs; it does NOT depend on
+  # whether the tmi provider is registered, so it is robust against the
+  # replicated DB config re-enabling that provider.
+  tmi_build_mode = "production"
+
+  # Grant every authenticated user security-reviewer capability. Deliberately
+  # decoupled from build_mode (a plain runtime flag) so it stays on under
+  # production build mode.
+  everyone_is_a_reviewer = true
 
   # Redis (password only — feeds the tmi-secrets Secret; image is overlay-owned)
   redis_password = module.secrets.redis_password

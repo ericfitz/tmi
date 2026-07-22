@@ -526,15 +526,18 @@ build_and_push_images() {
     # scripts/container_build_helpers.py's _aws_ecr_login()) before pushing,
     # so no separate `docker login` call is needed here.
     log_info "Building and pushing all 5 images (server, redis, extractor, chunkembed, controller)..."
-    # No `--build-tags dev`: this is an internet-facing deployment, so the
-    # server is built WITHOUT the dev-only "tmi" stub OAuth provider (which
-    # performs no credential check and mints users from login_hint). Under the
-    # default (production) build tag the tmi provider is client-credentials
-    # only — there is no anonymous authorization-code/login_hint path — and an
-    # explicit `idp` is required. Interactive auth comes from the real OAuth
-    # providers (e.g. Google) carried in the replicated database config. Do NOT
-    # add `--build-tags dev` here: it would recompile the no-auth stub into a
-    # public binary.
+    # No `--build-tags dev`: this is an internet-facing, production-build-mode
+    # deployment. The "tmi" OAuth provider remains enabled, but the control that
+    # closes the anonymous-login hole is the RUNTIME build mode
+    # (TMI_BUILD_MODE=production, set in the terraform ConfigMap), not the build
+    # tag: auth/test_provider.go's ExchangeCode refuses the Authorization Code /
+    # login_hint flow unless isDevOrTestBuild() (TMI_BUILD_MODE in {dev,test}),
+    # leaving the tmi provider usable only for the Client Credentials Grant
+    # (which requires real client_id/secret). Interactive human auth comes from
+    # the real OAuth providers (e.g. Google) in the replicated database config.
+    # Do NOT add `--build-tags dev` here — it changes the default provider and
+    # log paths but, more importantly, a production runtime build mode is what
+    # keeps this endpoint from minting anonymous JWTs.
     (cd "${PROJECT_ROOT}" && uv run "${SCRIPT_DIR}/build-app-containers.py" \
         --target aws --component all --push --scan)
     log_success "All images built, pushed, and scanned"
@@ -835,11 +838,14 @@ verify_deployment() {
     echo "    kubectl logs -n ${NAMESPACE} -l app=tmi-server   # View API logs"
     echo "    ./scripts/deploy-aws.sh --destroy                # Tear down"
     echo ""
-    log_warning "Auth posture: the tmi stub provider is disabled and first-user auto-promotion"
-    log_warning "is OFF. Admin access comes solely from the 'administrators' setting in the"
-    log_warning "replicated database config (expected: the configured Google admin identity)."
-    log_warning "Every authenticated user is a security reviewer (everyone_is_a_reviewer=true)."
-    log_warning "If no administrator is seeded, NO ONE will have admin — verify the imported config."
+    log_warning "Auth posture: production build mode. The tmi provider is enabled but"
+    log_warning "restricted to the Client Credentials Grant — the login_hint/authorization-code"
+    log_warning "flow is disabled at runtime, so no anonymous JWTs. Interactive human sign-in"
+    log_warning "uses the real OAuth providers (e.g. Google) from the replicated config."
+    log_warning "First-user auto-promotion is OFF; admin comes solely from the 'administrators'"
+    log_warning "setting (expected: the configured Google admin identity) — if none is seeded,"
+    log_warning "NO ONE will have admin, so verify the imported config. Every authenticated"
+    log_warning "user is a security reviewer (everyone_is_a_reviewer=true)."
 }
 
 # ============================================================================
