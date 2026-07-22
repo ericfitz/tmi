@@ -48,8 +48,24 @@ variable "extra_env_vars" {
   default     = {}
 }
 
+variable "domain_name" {
+  description = "FQDN for the TMI server (e.g. server.aws.example.com)"
+  type        = string
+}
+
+variable "hosted_zone_id" {
+  description = "Route 53 hosted zone ID that domain_name lives in (zone must be in this account)"
+  type        = string
+}
+
 variable "tags" {
   description = "Additional tags to apply to all resources"
   type        = map(string)
   default     = {}
+}
+
+variable "lb_controller_chart_local_path" {
+  description = "Absolute path to a vendored aws-load-balancer-controller .tgz. When set, installs the ALB controller from this local file instead of the remote helm repo. Empty (default) uses the remote repo."
+  type        = string
+  default     = ""
 }

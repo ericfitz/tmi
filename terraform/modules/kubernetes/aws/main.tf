@@ -13,8 +13,11 @@ terraform {
       version = ">= 2.25.0"
     }
     helm = {
-      source  = "hashicorp/helm"
-      version = ">= 2.12.0"
+      source = "hashicorp/helm"
+      # See the matching comment in environments/aws-public/main.tf: helm
+      # provider v3 breaks the provider "helm" { kubernetes {...} } schema
+      # used by the environments that instantiate this module.
+      version = ">= 2.12.0, < 3.0.0"
     }
   }
 }
@@ -119,6 +122,51 @@ resource "aws_iam_role_policy_attachment" "ecr_read_only" {
 }
 
 # ============================================================================
+# EKS Node Launch Template (IMDS hardening)
+#
+# IMDSv2-only (http_tokens = "required") and a single network hop
+# (http_put_response_hop_limit = 1) so a pod running on the node cannot
+# reach the node's instance-metadata service through routed traffic — only
+# a process on the node itself, using a session token, can. No custom AMI is
+# specified here, so per AWS's launch-template guidance
+# (docs.aws.amazon.com/eks/latest/userguide/launch-templates.html) `ami_type`
+# is intentionally left unset on the node group below: EKS resolves the
+# EKS-optimized AMI itself and merges its own bootstrap user data with this
+# template's (MIME multi-part), which only works when no custom AMI is set.
+# instance_types/disk_size/remote_access must NOT be set on the node group
+# once it references a launch template — they move here instead.
+# ============================================================================
+
+resource "aws_launch_template" "eks_nodes" {
+  name_prefix   = "${var.name_prefix}-eks-node-"
+  instance_type = var.node_instance_type
+
+  # Attach the node security group so the RDS security group's 5432 ingress
+  # (which allows this SG) actually matches node/pod egress. Without this, a
+  # managed node group backed by a launch template that omits security groups
+  # gets ONLY the EKS-managed cluster SG, so pod->RDS traffic is dropped
+  # (connection timeout). EKS still adds the cluster SG automatically on top.
+  vpc_security_group_ids = var.cluster_security_group_ids
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags          = var.tags
+  }
+
+  tags = var.tags
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# ============================================================================
 # EKS Managed Node Group
 # ============================================================================
 
@@ -128,7 +176,10 @@ resource "aws_eks_node_group" "tmi" {
   node_role_arn   = aws_iam_role.eks_nodes.arn
   subnet_ids      = var.node_subnet_ids
 
-  instance_types = [var.node_instance_type]
+  launch_template {
+    id      = aws_launch_template.eks_nodes.id
+    version = aws_launch_template.eks_nodes.latest_version
+  }
 
   scaling_config {
     desired_size = var.node_count
@@ -143,6 +194,36 @@ resource "aws_eks_node_group" "tmi" {
     aws_iam_role_policy_attachment.eks_cni_policy,
     aws_iam_role_policy_attachment.ecr_read_only,
   ]
+}
+
+# ============================================================================
+# VPC CNI Addon — NetworkPolicy enforcement
+#
+# The VPC CNI plugin ships on every EKS cluster whether or not it's declared
+# as a first-class `aws_eks_addon`; declaring it here adopts the
+# already-running installation (resolve_conflicts_on_create = OVERWRITE
+# handles the resulting "already exists" conflict cleanly) and turns on its
+# NetworkPolicy agent, so standard Kubernetes NetworkPolicy objects are
+# actually enforced in-cluster (see
+# docs.aws.amazon.com/eks/latest/userguide/cni-network-policy-configure.html
+# — configuration_values schema verified against that page). Without this,
+# any NetworkPolicy resource in the cluster would be silently unenforced.
+# ============================================================================
+
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name = aws_eks_cluster.tmi.name
+  addon_name   = "vpc-cni"
+
+  configuration_values = jsonencode({
+    enableNetworkPolicy = "true"
+  })
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  tags = var.tags
+
+  depends_on = [aws_eks_node_group.tmi]
 }
 
 # ============================================================================
@@ -470,7 +551,10 @@ resource "aws_iam_role" "tmi_pod" {
         Condition = {
           StringEquals = {
             "${local.oidc_provider_url}:aud" = "sts.amazonaws.com"
-            "${local.oidc_provider_url}:sub" = "system:serviceaccount:tmi:tmi-api"
+            # Must match the namespace/ServiceAccount name created in
+            # k8s_resources.tf (kubernetes_namespace_v1.tmi /
+            # kubernetes_service_account_v1.tmi_api).
+            "${local.oidc_provider_url}:sub" = "system:serviceaccount:tmi-platform:tmi-api"
           }
         }
       }
@@ -508,11 +592,16 @@ resource "aws_iam_role_policy_attachment" "tmi_secrets_access" {
 # ============================================================================
 
 resource "helm_release" "aws_lb_controller" {
-  name       = "aws-load-balancer-controller"
-  repository = "https://aws.github.io/eks-charts"
-  chart      = "aws-load-balancer-controller"
+  name = "aws-load-balancer-controller"
+  # When lb_controller_chart_local_path is set, install from a vendored .tgz
+  # instead of the remote repo. This is an air-gapped / flaky-registry escape
+  # hatch: the default ("") preserves the normal remote fetch from
+  # https://aws.github.io/eks-charts unchanged. With a local tarball the repo
+  # and version are omitted (the tarball carries its own version).
+  repository = var.lb_controller_chart_local_path == "" ? "https://aws.github.io/eks-charts" : null
+  chart      = var.lb_controller_chart_local_path == "" ? "aws-load-balancer-controller" : var.lb_controller_chart_local_path
   namespace  = "kube-system"
-  version    = var.lb_controller_chart_version
+  version    = var.lb_controller_chart_local_path == "" ? var.lb_controller_chart_version : null
 
   set {
     name  = "clusterName"

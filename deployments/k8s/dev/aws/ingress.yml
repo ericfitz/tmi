@@ -1,0 +1,32 @@
+# ALB Ingress for the TMI server on EKS. The certificate ARN is injected by
+# the deploy script (generated-ingress-patch.yaml) because ARNs are
+# account-specific. 3600s idle timeout keeps WebSocket sessions alive.
+#
+# No explicit subnets annotation: terraform/modules/network/aws/main.tf tags
+# both public subnets kubernetes.io/role/elb=1, so the AWS Load Balancer
+# Controller auto-discovers them. See README.md for details.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tmi-server
+  namespace: tmi-platform
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=3600
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: CERT_ARN_PLACEHOLDER
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tmi-server
+                port:
+                  number: 8080

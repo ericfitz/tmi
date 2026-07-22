@@ -1,0 +1,96 @@
+# Strategic-merge patch for the AWS (EKS) tmi-server Deployment.
+#
+# - env: `$patch: replace` swaps the ENTIRE dev env list for the AWS list —
+#   the dev-only entries TMI_WEBHOOK_ALLOW_HTTP_TARGETS and
+#   TMI_SSRF_WEBHOOK_ALLOWLIST=host.docker.internal (used only to reach the
+#   host-run integration webhook receiver) are dropped. TMI_NATS_URL stays:
+#   NATS runs in-cluster on AWS too.
+#
+#   AUTH POSTURE (internet-facing deployment): the runtime build mode is
+#   PRODUCTION (TMI_BUILD_MODE=production, set in the terraform ConfigMap).
+#   The "tmi" OAuth provider stays ENABLED here (OAUTH_PROVIDERS_TMI_ENABLED),
+#   but in production the provider is restricted to the Client Credentials
+#   Grant: the Authorization Code / login_hint flow that would mint an
+#   ephemeral user with NO credential check is disabled at runtime
+#   (auth/test_provider.go ExchangeCode returns an error when
+#   !isDevOrTestBuild()). So no anonymous JWT can be obtained, and this holds
+#   even though the replicated DB config also enables the tmi provider — the
+#   control is the runtime build mode, not provider registration. Interactive
+#   human auth is served by the real OAuth providers (e.g. Google) in the
+#   replicated config; the tmi provider serves machine/client-credentials
+#   tokens (which require real client_id/secret). First-user auto-promotion is
+#   OFF: TMI_AUTH_AUTO_PROMOTE_FIRST_USER="false" in the ConfigMap (not
+#   overridden here), so admin comes solely from the DB `administrators`
+#   setting. everyone_is_a_reviewer is true (set via the terraform
+#   `everyone_is_a_reviewer` variable, decoupled from build mode) by deliberate
+#   choice for this collaborative deployment.
+#
+#   TMI_DATABASE_URL and TMI_JWT_SECRET are explicit valueFrom.secretKeyRef
+#   entries against the terraform-owned `tmi-secrets` Secret (see
+#   kubernetes_secret_v1.tmi in terraform/modules/kubernetes/aws/k8s_resources.tf).
+#   Both are REQUIRED by internal/config/config.go (server fails to start
+#   without TMI_DATABASE_URL; JWT secret is validated at startup too) — do
+#   not remove. Deliberately explicit refs, NOT `envFrom: secretRef:
+#   tmi-secrets`: that Secret also carries TMI_REDIS_PASSWORD, and the
+#   in-cluster redis (../redis.yml, chainguard image) runs WITHOUT
+#   requirepass — same as local dev. Blindly sweeping the whole Secret in
+#   would inject a password the redis server never asked for, making the
+#   go-redis client send AUTH and fail every connection. TMI_REDIS_PASSWORD
+#   is intentionally omitted: internal/config/config.go's RedisConfig.Password
+#   defaults to "" and auth/db/redis.go's go-redis client only issues AUTH
+#   when Password is non-empty, so an unset var is a safe, no-op default that
+#   matches the unauthenticated in-cluster posture. See README.md
+#   "Redis authentication" for the full decision writeup.
+#
+#   The terraform-owned `tmi-server-config` ConfigMap ALSO carries flat
+#   TMI_* keys (TMI_BUILD_MODE, TMI_LOG_*, etc.), verified against the
+#   `env:` struct tags internal/config/config.go actually reads (see the
+#   inline citations in kubernetes_config_map_v1.tmi in
+#   terraform/modules/kubernetes/aws/k8s_resources.tf; an earlier naming
+#   mismatch there — e.g. TMI_AUTH_BUILD_MODE vs. the expected
+#   TMI_BUILD_MODE — was fixed in commit c581c2ff). This patch wires that
+#   ConfigMap in via `envFrom` below. Kubernetes resolves an explicit `env:`
+#   entry ahead of `envFrom` for the same variable name, so the explicit
+#   entries in this patch's `env:` list (TMI_SERVER_INTERFACE,
+#   TMI_SERVER_PORT, TMI_REDIS_HOST, TMI_NATS_URL, OAUTH_PROVIDERS_TMI_ENABLED)
+#   keep taking effect unchanged; envFrom activates the keys not listed there —
+#   TMI_BUILD_MODE (="production"), TMI_AUTH_AUTO_PROMOTE_FIRST_USER (="false"),
+#   TMI_AUTH_EVERYONE_IS_A_REVIEWER (="true"), and the TMI_LOG_* toggles.
+#   The ConfigMap's `config.yml` key is not a
+#   valid environment variable name and is silently skipped under envFrom
+#   (a benign warning Event, not a failure).
+# - serviceAccountName: tmi-api — the IRSA-annotated ServiceAccount terraform
+#   creates (kubernetes_service_account_v1.tmi_api in
+#   terraform/modules/kubernetes/aws/k8s_resources.tf), needed for the pod to
+#   assume the IAM role that reads secrets from Secrets Manager.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tmi-server
+spec:
+  template:
+    spec:
+      serviceAccountName: tmi-api
+      containers:
+        - name: server
+          envFrom:
+            - configMapRef:
+                name: tmi-server-config
+          env:
+            - $patch: replace
+            - { name: TMI_SERVER_INTERFACE, value: "0.0.0.0" }
+            - { name: TMI_SERVER_PORT, value: "8080" }
+            - { name: TMI_REDIS_HOST, value: "redis" }
+            - { name: TMI_NATS_URL, value: "nats://nats.tmi-platform.svc:4222" }
+            - { name: TMI_LOG_DIR, value: "/tmp/logs" }
+            - { name: OAUTH_PROVIDERS_TMI_ENABLED, value: "true" }
+            - name: TMI_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tmi-secrets
+                  key: TMI_DATABASE_URL
+            - name: TMI_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tmi-secrets
+                  key: TMI_JWT_SECRET

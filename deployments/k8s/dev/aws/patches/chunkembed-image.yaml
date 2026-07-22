@@ -1,0 +1,7 @@
+# Placeholder rewritten by the deploy script to the account's ECR registry
+# URI (same JSON-patch shape as
+# deployments/k8s/dev/docker-desktop/patches/chunkembed-image.yaml — the
+# TMIComponent CR's image lives at .spec.image).
+- op: replace
+  path: /spec/image
+  value: ECR_REGISTRY_PLACEHOLDER/tmi-chunk-embed:latest

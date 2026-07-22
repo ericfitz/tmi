@@ -643,10 +643,10 @@ deploy-heroku:
 deploy-aws: ## Deploy TMI to AWS (EKS + RDS + Secrets Manager). Use ARGS for options (e.g., ARGS="--domain tmi.example.com --zone-id Z123")
 	@./scripts/deploy-aws.sh $(ARGS)
 
-deploy-aws-dry-run: ## Preview AWS deployment changes without applying
+deploy-aws-dry-run: ## Preview AWS deployment changes without applying. ARGS must include --domain and --zone-id (e.g., ARGS="--domain tmi.example.com --zone-id Z123")
 	@./scripts/deploy-aws.sh --dry-run $(ARGS)
 
-destroy-aws: ## Destroy TMI AWS deployment (DESTRUCTIVE - removes all AWS resources)
+destroy-aws: ## Destroy TMI AWS deployment (DESTRUCTIVE - removes all AWS resources). ARGS must include --domain and --zone-id (Terraform requires them to destroy too)
 	@./scripts/deploy-aws.sh --destroy $(ARGS)
 
 # ============================================================================

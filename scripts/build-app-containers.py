@@ -4,16 +4,17 @@
 # requires-python = ">=3.11"
 # ///
 
-"""Build TMI application containers (server, redis, extractor, chunkembed).
+"""Build TMI application containers (server, redis, extractor, chunkembed,
+controller).
 
 Supports local Docker builds and cloud registry push for OCI, AWS, Azure, GCP,
 and Heroku targets. See --help for full usage.
 
-The TMI Component Platform worker images (extractor, chunkembed) are
-first-class components here so they get cloud-registry push targets, Syft
-SBOM generation, and the --scan security-scan path. The Makefile targets
-build-extractor-container / build-chunkembed-container remain valid for
-local dev and CI.
+The TMI Component Platform worker images (extractor, chunkembed) and the
+component-controller image are first-class components here so they get
+cloud-registry push targets, Syft SBOM generation, and the --scan
+security-scan path. The Makefile targets build-extractor-container /
+build-chunkembed-container remain valid for local dev and CI.
 """
 
 import argparse
@@ -29,16 +30,25 @@ import container_build_helpers as helpers  # noqa: E402
 
 
 VALID_TARGETS = ("local", "oci", "aws", "azure", "gcp", "heroku")
-VALID_COMPONENTS = ("server", "redis", "extractor", "chunkembed", "all")
+VALID_COMPONENTS = ("server", "redis", "extractor", "chunkembed", "controller", "all")
 VALID_ARCHS = ("arm64", "amd64", "both")
 VALID_DB_BACKENDS = ("postgresql", "oracle-adb")
 
-# Components built when --component=all (redis is intentionally excluded from
-# 'all' for cloud targets that supply a managed Redis; see resolve_components).
-ALL_COMPONENTS = ("server", "redis", "extractor", "chunkembed")
+# Components built when --component=all. Redis is NOT excluded from 'all' for
+# cloud targets in general — aws/oci/azure/gcp all build and push their own
+# tmi-redis image (see each target's overlay). Only Heroku restricts this
+# down to server only (via HEROKU_COMPONENTS in resolve_components), because
+# Heroku uses a managed Redis addon instead.
+ALL_COMPONENTS = ("server", "redis", "extractor", "chunkembed", "controller")
 
 # Worker components depend on the staged tmi-client module, same as the server.
-CLIENT_DEPENDENT_COMPONENTS = ("server", "extractor", "chunkembed")
+# NOTE: `controller` is included here even though cmd/component-controller has
+# zero actual tmi-clients imports (verified via `go list -deps`), because
+# Dockerfile.controller unconditionally does
+# `COPY .docker-deps/tmi-client/ /tmi-client/` (copied from
+# Dockerfile.extractor's pattern). Without staging, the Docker build fails at
+# that COPY step with "not found". See task-3-report.md for details.
+CLIENT_DEPENDENT_COMPONENTS = ("server", "extractor", "chunkembed", "controller")
 
 # Staging directory for external dependencies copied into the Docker build context
 DOCKER_DEPS_DIR = ".docker-deps"

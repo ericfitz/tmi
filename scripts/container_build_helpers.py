@@ -176,9 +176,10 @@ def _resolve_arch(arch: str | None, target: str) -> str:
 def _get_dockerfile_map(target: str, db_backend: str) -> dict[str, str]:
     """Determine Dockerfile for each component based on target and db backend.
 
-    The component-platform workers (extractor, chunkembed) build on the same
-    Chainguard static base regardless of target/db-backend — they do not link
-    Oracle Instant Client — so they have a single Dockerfile each.
+    The component-platform workers (extractor, chunkembed) and the
+    component-controller build on the same Chainguard static base regardless
+    of target/db-backend — they do not link Oracle Instant Client — so they
+    have a single Dockerfile each.
     """
     use_oracle = target == "oci" or db_backend == "oracle-adb"
     return {
@@ -187,6 +188,7 @@ def _get_dockerfile_map(target: str, db_backend: str) -> dict[str, str]:
         "postgres": "Dockerfile.postgres",
         "extractor": "Dockerfile.extractor",
         "chunkembed": "Dockerfile.chunkembed",
+        "controller": "Dockerfile.controller",
     }
 
 
@@ -222,6 +224,14 @@ def get_target_config(
                 auth_commands=[],
                 dockerfile_map=dockerfile_map,
                 image_name_prefix="tmi/tmi-",
+                # Matches the "tmi-component-controller" / "tmi-chunk-embed"
+                # names used by the deployments/k8s manifests and make dev-up,
+                # not the default "{prefix}{component}" ("tmi/tmi-controller",
+                # "tmi/tmi-chunkembed").
+                image_name_map={
+                    "controller": "tmi/tmi-component-controller",
+                    "chunkembed": "tmi/tmi-chunk-embed",
+                },
             )
 
         case "oci":
@@ -246,6 +256,8 @@ def get_target_config(
                 image_name_prefix=f"{base}/{name_prefix}/tmi-",
                 image_name_map={
                     "server": f"{base}/{name_prefix}/tmi",
+                    "controller": f"{base}/{name_prefix}/tmi-component-controller",
+                    "chunkembed": f"{base}/{name_prefix}/tmi-chunk-embed",
                 },
             )
 
@@ -277,6 +289,14 @@ def get_target_config(
                 ],
                 dockerfile_map=dockerfile_map,
                 image_name_prefix=f"{ecr_registry}/tmi-",
+                # ECR repo/image names must be "tmi-component-controller" and
+                # "tmi-chunk-embed" to match the deployments/k8s manifests
+                # (and Task 4's ECR repos), not the defaults
+                # "{prefix}controller" / "{prefix}chunkembed".
+                image_name_map={
+                    "controller": f"{ecr_registry}/tmi-component-controller",
+                    "chunkembed": f"{ecr_registry}/tmi-chunk-embed",
+                },
             )
 
         case "azure":
@@ -294,6 +314,10 @@ def get_target_config(
                 ],
                 dockerfile_map=dockerfile_map,
                 image_name_prefix=f"{registry_override}/tmi-",
+                image_name_map={
+                    "controller": f"{registry_override}/tmi-component-controller",
+                    "chunkembed": f"{registry_override}/tmi-chunk-embed",
+                },
             )
 
         case "gcp":
@@ -311,6 +335,10 @@ def get_target_config(
                 ],
                 dockerfile_map=dockerfile_map,
                 image_name_prefix=f"{registry_override}/tmi-",
+                image_name_map={
+                    "controller": f"{registry_override}/tmi-component-controller",
+                    "chunkembed": f"{registry_override}/tmi-chunk-embed",
+                },
             )
 
         case "heroku":

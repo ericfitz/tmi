@@ -38,11 +38,14 @@ func run() int {
 	importLegacy := flag.Bool("import-legacy", false, "Import operational settings from a legacy config file into the database")
 	flag.BoolVar(importLegacy, "l", false, "Import operational settings from a legacy config file (short)")
 
+	exportConfig := flag.Bool("export-config", false, "Export database settings to a config YAML file")
+	noDecrypt := flag.Bool("no-decrypt", false, "With --export-config: skip secret settings instead of decrypting")
+
 	inputFile := flag.String("input-file", "", "Input file (config YAML for -c and -l, seed JSON for -t)")
 	flag.StringVar(inputFile, "f", "", "Input file (short)")
 
 	configFile := flag.String("config", "", "TMI config file (provides DB connection via database.url)")
-	outputFile := flag.String("output", "", "Path for migrated config YAML (with -c or -l)")
+	outputFile := flag.String("output", "", "Path for migrated config YAML (with -c or -l); export destination (with --export-config)")
 	overwrite := flag.Bool("overwrite", false, "Overwrite existing settings (with -c)")
 	noBackup := flag.Bool("no-backup", false, "Skip the timestamped backup of the source file (with -l default flow)")
 	noRewrite := flag.Bool("no-rewrite", false, "Keep legacy behavior — write a sibling *-migrated.yml and leave the source untouched (with -l)")
@@ -88,6 +91,7 @@ func run() int {
 		"import_config":    *importConfig,
 		"import_test_data": *importTestData,
 		"import_legacy":    *importLegacy,
+		"export_config":    *exportConfig,
 		"dry_run":          *dryRun,
 	}
 	if *configFile != "" {
@@ -98,11 +102,11 @@ func run() int {
 	}
 
 	// Determine which operation to run
-	opCount := boolCount(*schema, *importConfig, *importTestData, *importLegacy)
+	opCount := boolCount(*schema, *importConfig, *importTestData, *importLegacy, *exportConfig)
 
 	// Resolve config file
 	dbConfigFile := *configFile
-	if dbConfigFile == "" && (*importConfig || *importLegacy) && *inputFile != "" {
+	if dbConfigFile == "" && (*importConfig || *importLegacy || *exportConfig) && *inputFile != "" {
 		dbConfigFile = *inputFile
 	}
 	if dbConfigFile == "" {
@@ -126,60 +130,24 @@ func run() int {
 	log.Info("Connected to %s database", db.DialectName())
 
 	// Dispatch
-	var runErr error
-
-	switch {
-	case opCount == 0:
-		// No operation flags - health check mode
-		runErr = runHealthCheck(db, *verbose)
-	case opCount > 1:
-		runErr = fmt.Errorf("only one operation flag can be specified at a time (-s, -c, -t)")
-	case *schema:
-		runErr = runSchema(db, *dryRun, *verbose)
-	case *importConfig:
-		if *inputFile == "" {
-			runErr = fmt.Errorf("--input-file / -f is required for --import-config")
-		} else {
-			if !*dryRun {
-				if migrateErr := ensureSchema(db); migrateErr != nil {
-					log.Warn("Schema migration skipped or failed: %v", migrateErr)
-				}
-			}
-			runErr = runConfigSeed(db, *inputFile, *outputFile, *overwrite, *dryRun, true)
-		}
-	case *importTestData:
-		if *inputFile == "" {
-			runErr = fmt.Errorf("--input-file / -f is required for --import-test-data")
-		} else {
-			if !*dryRun {
-				if migrateErr := ensureSchema(db); migrateErr != nil {
-					log.Warn("Schema migration skipped or failed: %v", migrateErr)
-				}
-			}
-			runErr = runDataSeed(db, *inputFile, *serverURL, *user, *provider, *dryRun)
-		}
-	case *importLegacy:
-		switch {
-		case *inputFile == "":
-			runErr = fmt.Errorf("--input-file / -f is required for --import-legacy")
-		case *noRewrite && *outputFile != "":
-			runErr = fmt.Errorf("--no-rewrite and --output are mutually exclusive")
-		default:
-			if !*dryRun {
-				if migrateErr := ensureSchema(db); migrateErr != nil {
-					log.Warn("Schema migration skipped or failed: %v", migrateErr)
-				}
-			}
-			runErr = runLegacyConfigImport(db, legacyImportOptions{
-				inputFile:  *inputFile,
-				outputFile: *outputFile,
-				overwrite:  *overwrite,
-				dryRun:     *dryRun,
-				noBackup:   *noBackup,
-				noRewrite:  *noRewrite,
-			})
-		}
-	}
+	runErr := dispatchOperation(db, log, opCount, cliFlags{
+		schema:         *schema,
+		importConfig:   *importConfig,
+		importTestData: *importTestData,
+		importLegacy:   *importLegacy,
+		exportConfig:   *exportConfig,
+		inputFile:      *inputFile,
+		outputFile:     *outputFile,
+		overwrite:      *overwrite,
+		noBackup:       *noBackup,
+		noRewrite:      *noRewrite,
+		noDecrypt:      *noDecrypt,
+		serverURL:      *serverURL,
+		user:           *user,
+		provider:       *provider,
+		dryRun:         *dryRun,
+		verbose:        *verbose,
+	})
 
 	if runErr != nil {
 		log.Error("%v", runErr)
@@ -189,6 +157,116 @@ func run() int {
 
 	printExitSummary(info, args, "success", "")
 	return 0
+}
+
+// cliFlags holds the dereferenced CLI flag values needed to dispatch an operation.
+// SEM@7e3bc19f8950c8b27a14cef539ae7dff89e30a7a: DTO holding dereferenced CLI flag values for dispatching a dbtool operation (pure)
+type cliFlags struct {
+	schema         bool
+	importConfig   bool
+	importTestData bool
+	importLegacy   bool
+	exportConfig   bool
+	inputFile      string
+	outputFile     string
+	overwrite      bool
+	noBackup       bool
+	noRewrite      bool
+	noDecrypt      bool
+	serverURL      string
+	user           string
+	provider       string
+	dryRun         bool
+	verbose        bool
+}
+
+// dispatchOperation selects and runs the single requested dbtool operation
+// (schema, import-config, import-test-data, import-legacy, or
+// export-config), or a health check when no operation flag is set.
+// SEM@7e3bc19f8950c8b27a14cef539ae7dff89e30a7a: select and run the requested dbtool operation, or health check if none given (reads DB)
+func dispatchOperation(db *testdb.TestDB, log *slogging.Logger, opCount int, f cliFlags) error {
+	switch {
+	case opCount == 0:
+		// No operation flags - health check mode
+		return runHealthCheck(db, f.verbose)
+	case opCount > 1:
+		return fmt.Errorf("only one operation flag can be specified at a time (-s, -c, -t, -l, --export-config)")
+	case f.schema:
+		return runSchema(db, f.dryRun, f.verbose)
+	case f.importConfig:
+		return dispatchImportConfig(db, log, f)
+	case f.importTestData:
+		return dispatchImportTestData(db, log, f)
+	case f.importLegacy:
+		return dispatchImportLegacy(db, log, f)
+	case f.exportConfig:
+		return dispatchExportConfig(db, f)
+	}
+	return nil
+}
+
+// dispatchImportConfig runs --import-config after validating --input-file.
+// SEM@7e3bc19f8950c8b27a14cef539ae7dff89e30a7a: validate --input-file and run config import into the database (reads/writes DB)
+func dispatchImportConfig(db *testdb.TestDB, log *slogging.Logger, f cliFlags) error {
+	if f.inputFile == "" {
+		return fmt.Errorf("--input-file / -f is required for --import-config")
+	}
+	if !f.dryRun {
+		if migrateErr := ensureSchema(db); migrateErr != nil {
+			log.Warn("Schema migration skipped or failed: %v", migrateErr)
+		}
+	}
+	return runConfigSeed(db, f.inputFile, f.outputFile, f.overwrite, f.dryRun, true)
+}
+
+// dispatchImportTestData runs --import-test-data after validating --input-file.
+// SEM@7e3bc19f8950c8b27a14cef539ae7dff89e30a7a: validate --input-file and run test data import via the API (calls API)
+func dispatchImportTestData(db *testdb.TestDB, log *slogging.Logger, f cliFlags) error {
+	if f.inputFile == "" {
+		return fmt.Errorf("--input-file / -f is required for --import-test-data")
+	}
+	if !f.dryRun {
+		if migrateErr := ensureSchema(db); migrateErr != nil {
+			log.Warn("Schema migration skipped or failed: %v", migrateErr)
+		}
+	}
+	return runDataSeed(db, f.inputFile, f.serverURL, f.user, f.provider, f.dryRun)
+}
+
+// dispatchImportLegacy runs --import-legacy after validating its flag combination.
+// SEM@7e3bc19f8950c8b27a14cef539ae7dff89e30a7a: validate legacy-import flag combination and run legacy config migration (reads/writes DB)
+func dispatchImportLegacy(db *testdb.TestDB, log *slogging.Logger, f cliFlags) error {
+	switch {
+	case f.inputFile == "":
+		return fmt.Errorf("--input-file / -f is required for --import-legacy")
+	case f.noRewrite && f.outputFile != "":
+		return fmt.Errorf("--no-rewrite and --output are mutually exclusive")
+	}
+	if !f.dryRun {
+		if migrateErr := ensureSchema(db); migrateErr != nil {
+			log.Warn("Schema migration skipped or failed: %v", migrateErr)
+		}
+	}
+	return runLegacyConfigImport(db, legacyImportOptions{
+		inputFile:  f.inputFile,
+		outputFile: f.outputFile,
+		overwrite:  f.overwrite,
+		dryRun:     f.dryRun,
+		noBackup:   f.noBackup,
+		noRewrite:  f.noRewrite,
+	})
+}
+
+// dispatchExportConfig runs --export-config after validating --input-file and --output.
+// SEM@7e3bc19f8950c8b27a14cef539ae7dff89e30a7a: validate --input-file and --output and run database config export (reads DB, writes file)
+func dispatchExportConfig(db *testdb.TestDB, f cliFlags) error {
+	switch {
+	case f.outputFile == "":
+		return fmt.Errorf("--output is required for --export-config")
+	case f.inputFile == "":
+		return fmt.Errorf("--input-file / -f is required for --export-config")
+	}
+	return runConfigExport(db, f.inputFile, f.outputFile, !f.noDecrypt)
 }
 
 // ensureSchema runs AutoMigrate if needed. Non-fatal for import operations.
@@ -227,13 +305,15 @@ Database Operations:
   -c, --import-config       Import config file settings into database
   -t, --import-test-data    Import test data from a seed file
   -l, --import-legacy       Import operational settings from a legacy config file into the database
+      --export-config       Export database settings to a config YAML file
 
 Input:
-  -f, --input-file FILE     Input file (config YAML for -c and -l, seed JSON for -t)
+  -f, --input-file FILE     Input file (config YAML for -c, -l, and --export-config; seed JSON for -t)
       --config FILE         TMI config file (provides DB connection via database.url)
 
 Output:
-      --output FILE         Path for migrated config YAML (with -c or -l)
+      --output FILE         Path for migrated config YAML (with -c or -l);
+                            export destination (with --export-config)
 
 Behavior:
       --dry-run             Show what would happen without writing
@@ -241,6 +321,7 @@ Behavior:
       --no-backup           Skip the timestamped source backup (with -l default flow)
       --no-rewrite          Write a sibling *-migrated.yml and leave the source
                             untouched (with -l; mutually exclusive with --output)
+      --no-decrypt          With --export-config: skip secret settings instead of decrypting
   -v, --verbose             Print step-by-step operations and DB messages
   -h, --help                Print usage
 
@@ -260,6 +341,7 @@ Examples:
   tmi-dbtool -c -f config-production.yml                        # Import config
   tmi-dbtool -l -f config-production.yml                        # Import operational settings from a legacy config into the DB
   tmi-dbtool -t -f test/seeds/cats-seed-data.json --config=config-development.yml
+  tmi-dbtool --export-config -f config-development.yml --output export.yml   # Export DB settings to YAML
 `)
 }
 

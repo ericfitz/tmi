@@ -76,3 +76,8 @@ make-containers-*.sh
 
 # Test files
 *_test.go
+
+# Build artifacts / test outputs (keep build context small)
+test/outputs/
+security-reports/
+*.backup
