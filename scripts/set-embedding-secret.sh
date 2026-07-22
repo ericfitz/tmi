@@ -36,10 +36,11 @@ kubectl -n "$NS" create secret generic tmi-embedding \
   --from-file=api-key="$KEYFILE" \
   --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
-# Verify by printing key NAMES only (never values).
+# Verify by printing key NAMES only (never values). Non-fatal (|| true) so a
+# verify hiccup never skips the pod refresh or the key-file shred below.
 printf 'Secret tmi-embedding present with keys: '
-# shellcheck disable=SC2016  # $k/$v are kubectl jsonpath vars, not shell vars
-kubectl -n "$NS" get secret tmi-embedding -o jsonpath='{range $k,$v := .data}{$k}{" "}{end}'
+# shellcheck disable=SC2016  # $k/$v are go-template vars, not shell vars
+kubectl -n "$NS" get secret tmi-embedding -o go-template='{{range $k, $v := .data}}{{$k}} {{end}}' 2>/dev/null || true
 printf '\n'
 
 # Recreate the chunk-embed pod so it picks up the key (it was in
