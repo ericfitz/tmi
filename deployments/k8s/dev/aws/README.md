@@ -121,9 +121,23 @@ Strategic-merge patch on the `tmi-server` Deployment:
   dev server can reach the host-run integration webhook receiver over
   plaintext HTTP; neither applies on AWS. Kept: `TMI_NATS_URL` — NATS runs
   in-cluster on AWS too, at the same `nats.tmi-platform.svc:4222` address.
-  Everything else the server needs (`TMI_DATABASE_URL`, `TMI_JWT_SECRET`,
-  etc.) comes from the terraform-owned `tmi-server-config` ConfigMap mounted
-  at `/etc/tmi`, unaffected by this patch.
+  Added two explicit `valueFrom.secretKeyRef` entries against the
+  terraform-owned `tmi-secrets` Secret
+  (`kubernetes_secret_v1.tmi` in
+  `terraform/modules/kubernetes/aws/k8s_resources.tf`): `TMI_DATABASE_URL`
+  and `TMI_JWT_SECRET`. Both are **required** —
+  `internal/config/config.go` fails startup validation without
+  `TMI_DATABASE_URL` (`"database url is required (TMI_DATABASE_URL)"`) and
+  validates the JWT secret too. The `tmi-server-config` ConfigMap mounted at
+  `/etc/tmi` supplies only a deliberately-empty `config.yml` (see that
+  ConfigMap's `data["config.yml"]` comment in `k8s_resources.tf`) — it does
+  **not** supply these values; an earlier version of this comment claimed
+  otherwise and was wrong.
+- **Deliberately explicit refs, not `envFrom: secretRef: tmi-secrets`**: the
+  same Secret also carries `TMI_REDIS_PASSWORD`, and sweeping the whole
+  Secret in via `envFrom` would silently inject it. See "Redis
+  authentication" below for why that would break the server's Redis
+  connection.
 - **`imagePullPolicy: IfNotPresent`**: overrides the dev base's `Always`.
   ECR image tags are immutable per deploy; only the local `:dev` tag needs
   `Always` to pick up `make restart-dev` churn.
@@ -131,6 +145,73 @@ Strategic-merge patch on the `tmi-server` Deployment:
   ServiceAccount terraform creates, so the pod can assume the IAM role that
   reads secrets from Secrets Manager (see
   `internal/secrets/aws_provider.go`).
+
+## Redis authentication — decision: unauthenticated in-cluster (matches local dev)
+
+The terraform-owned `tmi-secrets` Secret carries a `TMI_REDIS_PASSWORD` key
+(`var.redis_password`), but the in-cluster redis this overlay deploys
+(`../redis.yml`, `cgr.dev/chainguard/redis`) is started with `--protected-mode
+no` and no `requirepass` — exactly like every other dev target
+(docker-desktop, k3s). It is **not** authenticated.
+
+**Decision: `TMI_REDIS_PASSWORD` is intentionally omitted from the server's
+env.** Verified this is safe, not just convenient:
+
+- `internal/config/config.go`'s `RedisConfig.Password` (`env:"TMI_REDIS_PASSWORD"`)
+  defaults to the empty string when unset — there is no "password required"
+  validation for Redis anywhere in `config.go` (unlike `TMI_DATABASE_URL`
+  and the JWT secret, which are validated).
+- `auth/db/redis.go` passes `Password: cfg.Password` straight into
+  `redis.NewClient(&redis.Options{...})`; the go-redis client only issues an
+  `AUTH` command when `Password != ""`. An empty password is therefore a
+  true no-op, not a client that tries to authenticate against an
+  unauthenticated server (which would fail differently: `ERR Client sent
+  AUTH, but no password is set`).
+
+So option (a) — omit the var — was chosen over option (b) — wire
+`requirepass` into the redis Deployment via the same Secret and inject the
+password into the server. (a) matches local dev's security posture exactly,
+needs no additional patch on `../redis.yml`, and avoids a chicken-and-egg
+where a leaked or rotated `redis_password` Terraform variable could break
+the in-cluster (already network-policy-isolated, non-internet-facing) redis
+connection for no real security benefit — the redis Service has no
+`Ingress`/external exposure and is only reachable from within the
+`tmi-platform` namespace. If in-cluster redis auth is later required (e.g.
+a compliance requirement for defense-in-depth even on internal traffic),
+revisit as option (b): add a `requirepass` patch to `../redis.yml`'s args and
+an explicit `TMI_REDIS_PASSWORD` `secretKeyRef` entry here, in the same
+commit, so they can't drift apart.
+
+## ConfigMap flat keys — not wired via `envFrom` (terraform-side naming bug)
+
+The `tmi-server-config` ConfigMap also carries flat `TMI_*` keys
+(`TMI_AUTH_BUILD_MODE`, `TMI_LOGGING_ALSO_LOG_TO_CONSOLE`,
+`TMI_LOGGING_REDACT_AUTH_TOKENS`, `TMI_LOGGING_SUPPRESS_UNAUTHENTICATED_LOGS`,
+etc.) evidently intended for `envFrom: configMapRef:`. This overlay does
+**not** wire that up, because several of those key names don't match what
+`internal/config/config.go` actually reads:
+
+| ConfigMap key (terraform) | config.go expects | Match? |
+|---|---|---|
+| `TMI_AUTH_BUILD_MODE` | `TMI_BUILD_MODE` | no |
+| `TMI_LOGGING_ALSO_LOG_TO_CONSOLE` | `TMI_LOG_ALSO_LOG_TO_CONSOLE` | no |
+| `TMI_LOGGING_REDACT_AUTH_TOKENS` | `TMI_LOG_REDACT_AUTH_TOKENS` | no |
+| `TMI_LOGGING_SUPPRESS_UNAUTHENTICATED_LOGS` | `TMI_LOG_SUPPRESS_UNAUTH_LOGS` | no |
+| `TMI_AUTH_AUTO_PROMOTE_FIRST_USER` | `TMI_AUTH_AUTO_PROMOTE_FIRST_USER` | yes (already set explicitly above) |
+| `TMI_SERVER_INTERFACE` / `TMI_SERVER_PORT` / `TMI_REDIS_HOST` / `TMI_NATS_URL` | (same) | yes (already set explicitly above) |
+
+None of these mismatched keys are required for startup (unlike
+`TMI_DATABASE_URL`/`TMI_JWT_SECRET`), so this is not a Critical-severity gap
+like the one this section documents the fix for — but it does mean
+`TMI_AUTH_BUILD_MODE` and the three logging toggles terraform intends to set
+are silently no-ops today. This overlay doesn't own
+`terraform/modules/kubernetes/aws/k8s_resources.tf`, so the fix (renaming
+the ConfigMap keys to match `config.go`'s `env:` tags) belongs in a
+follow-up to that file, not here. Once the names are corrected there, add
+`envFrom: - configMapRef: { name: tmi-server-config }` to this patch's
+container (the ConfigMap's `config.yml` key, not being a valid environment
+variable name, is silently skipped by Kubernetes when used with `envFrom` —
+a benign warning Event, not a failure).
 
 ## Render test
 

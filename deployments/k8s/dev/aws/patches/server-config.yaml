@@ -4,9 +4,35 @@
 #   the dev-only entries TMI_WEBHOOK_ALLOW_HTTP_TARGETS and
 #   TMI_SSRF_WEBHOOK_ALLOWLIST=host.docker.internal (used only to reach the
 #   host-run integration webhook receiver) are dropped. TMI_NATS_URL stays:
-#   NATS runs in-cluster on AWS too. Non-webhook config (TMI_DATABASE_URL,
-#   TMI_JWT_SECRET, etc.) comes from the terraform-owned tmi-server-config
-#   ConfigMap mounted at /etc/tmi, not from this env list.
+#   NATS runs in-cluster on AWS too.
+#
+#   TMI_DATABASE_URL and TMI_JWT_SECRET are explicit valueFrom.secretKeyRef
+#   entries against the terraform-owned `tmi-secrets` Secret (see
+#   kubernetes_secret_v1.tmi in terraform/modules/kubernetes/aws/k8s_resources.tf).
+#   Both are REQUIRED by internal/config/config.go (server fails to start
+#   without TMI_DATABASE_URL; JWT secret is validated at startup too) — do
+#   not remove. Deliberately explicit refs, NOT `envFrom: secretRef:
+#   tmi-secrets`: that Secret also carries TMI_REDIS_PASSWORD, and the
+#   in-cluster redis (../redis.yml, chainguard image) runs WITHOUT
+#   requirepass — same as local dev. Blindly sweeping the whole Secret in
+#   would inject a password the redis server never asked for, making the
+#   go-redis client send AUTH and fail every connection. TMI_REDIS_PASSWORD
+#   is intentionally omitted: internal/config/config.go's RedisConfig.Password
+#   defaults to "" and auth/db/redis.go's go-redis client only issues AUTH
+#   when Password is non-empty, so an unset var is a safe, no-op default that
+#   matches the unauthenticated in-cluster posture. See README.md
+#   "Redis authentication" for the full decision writeup.
+#
+#   The terraform-owned `tmi-server-config` ConfigMap ALSO carries flat
+#   TMI_* keys (TMI_AUTH_BUILD_MODE, TMI_LOGGING_*, etc.) intended for
+#   envFrom, but several of those key names don't match the env tags
+#   internal/config/config.go actually reads (e.g. TMI_AUTH_BUILD_MODE vs.
+#   the expected TMI_BUILD_MODE, TMI_LOGGING_REDACT_AUTH_TOKENS vs. the
+#   expected TMI_LOG_REDACT_AUTH_TOKENS) — a terraform-side naming bug (see
+#   README.md), not something this overlay can fix since it doesn't own
+#   k8s_resources.tf. Wiring `envFrom: configMapRef: tmi-server-config`
+#   would only add inert, silently-ignored env vars today, so it's
+#   deliberately left out of this patch pending that terraform fix.
 # - imagePullPolicy: IfNotPresent — ECR tags are immutable per deploy
 #   (unlike the local :dev tag, which churns on every `make restart-dev` and
 #   needs Always).
@@ -34,3 +60,13 @@ spec:
             - { name: TMI_LOG_DIR, value: "/tmp/logs" }
             - { name: OAUTH_PROVIDERS_TMI_ENABLED, value: "true" }
             - { name: TMI_AUTH_AUTO_PROMOTE_FIRST_USER, value: "true" }
+            - name: TMI_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tmi-secrets
+                  key: TMI_DATABASE_URL
+            - name: TMI_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tmi-secrets
+                  key: TMI_JWT_SECRET
