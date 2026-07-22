@@ -22,6 +22,11 @@ variable "subject_alternative_names" {
   default     = []
 }
 
+variable "hosted_zone_id" {
+  description = "Route 53 hosted zone ID that domain_name (and its SANs) live in; used to create DNS validation records"
+  type        = string
+}
+
 variable "tags" {
   description = "Tags to apply to all resources"
   type        = map(string)

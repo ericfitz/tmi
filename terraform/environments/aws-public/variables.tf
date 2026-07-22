@@ -48,6 +48,16 @@ variable "extra_env_vars" {
   default     = {}
 }
 
+variable "domain_name" {
+  description = "FQDN for the TMI server (e.g. server.aws.example.com)"
+  type        = string
+}
+
+variable "hosted_zone_id" {
+  description = "Route 53 hosted zone ID that domain_name lives in (zone must be in this account)"
+  type        = string
+}
+
 variable "tags" {
   description = "Additional tags to apply to all resources"
   type        = map(string)

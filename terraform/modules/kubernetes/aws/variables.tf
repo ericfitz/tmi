@@ -61,13 +61,13 @@ variable "cluster_security_group_ids" {
 }
 
 variable "alb_subnet_ids" {
-  description = "Subnet IDs for ALB placement (public subnets for internet-facing, private for internal)"
+  description = "(Unused by this module; kept for aws-private compatibility — see the note above tmi_image_url) Subnet IDs for ALB placement"
   type        = list(string)
   default     = []
 }
 
 variable "alb_scheme" {
-  description = "ALB scheme: internet-facing or internal"
+  description = "(Unused by this module; kept for aws-private compatibility — see the note above tmi_image_url) ALB scheme: internet-facing or internal"
   type        = string
   default     = "internet-facing"
 
@@ -85,39 +85,26 @@ variable "secret_arns" {
 }
 
 # TMI Server configuration
+#
+# tmi_image_url / tmi_replicas / alb_scheme / alb_subnet_ids below are no
+# longer consumed inside this module (the TMI API Deployment/Service/Ingress
+# moved to the deployments/k8s/dev/aws kustomize overlay — see the note atop
+# k8s_resources.tf). They are KEPT here (with defaults, so aws-public can
+# simply stop passing them) solely because terraform/environments/aws-private
+# still passes them explicitly to this module; removing the declarations
+# would break `terraform validate` for aws-private, which this refactor must
+# not touch. Follow-up: once aws-private is refactored the same way (out of
+# scope here), these can be deleted for real.
 variable "tmi_image_url" {
-  description = "Container image URL for TMI server"
+  description = "(Unused by this module; kept for aws-private compatibility) Container image URL for TMI server"
   type        = string
+  default     = null
 }
 
 variable "tmi_replicas" {
-  description = "Number of TMI API pod replicas (TMI is stateful; use 1)"
+  description = "(Unused by this module; kept for aws-private compatibility) Number of TMI API pod replicas"
   type        = number
   default     = 1
-}
-
-variable "tmi_cpu_request" {
-  description = "CPU request for TMI API pods"
-  type        = string
-  default     = "500m"
-}
-
-variable "tmi_memory_request" {
-  description = "Memory request for TMI API pods"
-  type        = string
-  default     = "1Gi"
-}
-
-variable "tmi_cpu_limit" {
-  description = "CPU limit for TMI API pods"
-  type        = string
-  default     = "2"
-}
-
-variable "tmi_memory_limit" {
-  description = "Memory limit for TMI API pods"
-  type        = string
-  default     = "4Gi"
 }
 
 variable "tmi_build_mode" {
@@ -139,38 +126,15 @@ variable "extra_environment_variables" {
 
 # Redis configuration
 variable "redis_image_url" {
-  description = "Container image URL for Redis"
+  description = "(Unused by this module; kept for aws-private compatibility — see the note above tmi_image_url) Container image URL for Redis"
   type        = string
+  default     = null
 }
 
 variable "redis_password" {
-  description = "Redis password"
+  description = "Redis password (feeds the tmi-secrets Secret's TMI_REDIS_PASSWORD key)"
   type        = string
   sensitive   = true
-}
-
-variable "redis_cpu_request" {
-  description = "CPU request for Redis pod"
-  type        = string
-  default     = "250m"
-}
-
-variable "redis_memory_request" {
-  description = "Memory request for Redis pod"
-  type        = string
-  default     = "512Mi"
-}
-
-variable "redis_cpu_limit" {
-  description = "CPU limit for Redis pod"
-  type        = string
-  default     = "1"
-}
-
-variable "redis_memory_limit" {
-  description = "Memory limit for Redis pod"
-  type        = string
-  default     = "2Gi"
 }
 
 # Database configuration
@@ -210,12 +174,13 @@ variable "jwt_secret" {
   sensitive   = true
 }
 
-# SSL configuration
-variable "certificate_arn" {
-  description = "ACM certificate ARN for ALB HTTPS listener (optional)"
-  type        = string
-  default     = null
-}
+# NOTE: certificate_arn was removed — TLS termination is now configured on
+# the Ingress annotations owned by the deployments/k8s/dev/aws overlay (Task
+# 5/6), not by this module. terraform/modules/certificates/aws still creates
+# and DNS-validates the ACM certificate; its ARN flows to the overlay via the
+# deploy script, not through this module. Neither aws-public nor aws-private
+# passed this variable explicitly, so removing it does not break either
+# environment.
 
 # Load Balancer Controller
 variable "lb_controller_chart_version" {

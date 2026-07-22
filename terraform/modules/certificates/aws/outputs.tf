@@ -1,8 +1,8 @@
 # Outputs for AWS Certificates Module
 
 output "certificate_arn" {
-  description = "ARN of the ACM certificate"
-  value       = aws_acm_certificate.tmi.arn
+  description = "ARN of the DNS-validated ACM certificate. Depending on this output (rather than aws_acm_certificate.tmi.arn directly) forces dependents to wait until validation completes."
+  value       = aws_acm_certificate_validation.tmi.certificate_arn
 }
 
 output "certificate_domain_name" {

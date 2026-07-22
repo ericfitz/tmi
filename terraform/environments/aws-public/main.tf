@@ -25,8 +25,13 @@ terraform {
       version = ">= 2.25.0"
     }
     helm = {
-      source  = "hashicorp/helm"
-      version = ">= 2.12.0"
+      source = "hashicorp/helm"
+      # Pinned below 3.0: the helm provider v3 line replaced the
+      # `kubernetes { ... }` nested block used by provider "helm" below with
+      # a different schema, breaking `terraform validate`/`init` on an
+      # unbounded ">= 2.12.0" constraint. Pre-existing gap, unrelated to
+      # this change; fixed here because it blocked this task's validation gate.
+      version = ">= 2.12.0, < 3.0.0"
     }
     random = {
       source  = "hashicorp/random"
@@ -91,25 +96,42 @@ locals {
     Environment = "public"
     ManagedBy   = "terraform"
   })
+
+  # Components built/pushed by scripts/build-app-containers.py (aws target)
+  # and scripts/container_build_helpers.py's `get_target_config("aws", ...)`.
+  # Repo names must match what those scripts push:
+  #   - server/redis/extractor default to "{name_prefix}-{component}" via
+  #     container_build_helpers.py's image_name_prefix pattern.
+  #   - controller is special-cased to "tmi-component-controller" (matching
+  #     the manifests) rather than the default "{name_prefix}-controller" —
+  #     see Task 3 brief.
+  #   - chunkembed is special-cased to "tmi-chunk-embed" (hyphenated) to
+  #     match the image name used throughout deployments/k8s (e.g.
+  #     deployments/k8s/platform/components/tmi-chunk-embed.yml), NOT the
+  #     unhyphenated "tmi-chunkembed" that container_build_helpers.py's
+  #     default `{prefix}{component}` naming would otherwise produce for the
+  #     "chunkembed" component key. container_build_helpers.py's aws target
+  #     must add an explicit image_name_map entry so the pushed image name
+  #     agrees with this repo name (tracked as a coordination item with
+  #     Task 3 — see the Task 4 report).
+  ecr_components = ["server", "redis", "extractor", "chunkembed", "controller"]
+
+  ecr_repo_names = {
+    server     = "${var.name_prefix}-server"
+    redis      = "${var.name_prefix}-redis"
+    extractor  = "${var.name_prefix}-extractor"
+    chunkembed = "tmi-chunk-embed"
+    controller = "tmi-component-controller"
+  }
 }
 
 # ============================================================================
-# ECR Repository (container registry)
+# ECR Repositories (container registry — one per app/worker component)
 # ============================================================================
 
 resource "aws_ecr_repository" "tmi" {
-  name                 = "${var.name_prefix}-server"
-  image_tag_mutability = "MUTABLE"
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-
-  tags = local.common_tags
-}
-
-resource "aws_ecr_repository" "redis" {
-  name                 = "${var.name_prefix}-redis"
+  for_each             = toset(local.ecr_components)
+  name                 = local.ecr_repo_names[each.key]
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -168,7 +190,23 @@ module "database" {
 }
 
 # ============================================================================
-# Kubernetes (EKS)
+# Certificates (ACM, DNS-validated via Route 53)
+# ============================================================================
+
+module "certificates" {
+  source = "../../modules/certificates/aws"
+
+  name_prefix               = var.name_prefix
+  domain_name               = var.domain_name
+  hosted_zone_id            = var.hosted_zone_id
+  subject_alternative_names = []
+  tags                      = local.common_tags
+}
+
+# ============================================================================
+# Kubernetes (EKS) — infra + bootstrap only (namespace, ConfigMap, Secret,
+# ServiceAccount, ALB controller). Workloads are applied separately by the
+# deployments/k8s/dev/aws kustomize overlay (deploy script).
 # ============================================================================
 
 module "kubernetes" {
@@ -184,20 +222,15 @@ module "kubernetes" {
   subnet_ids                 = concat(module.network.public_subnet_ids, module.network.private_subnet_ids)
   node_subnet_ids            = module.network.private_subnet_ids
   cluster_security_group_ids = [module.network.eks_nodes_security_group_id]
-  alb_subnet_ids             = module.network.public_subnet_ids
-  alb_scheme                 = "internet-facing"
 
   # Secrets Manager ARNs for IRSA
   secret_arns = values(module.secrets.secret_arns)
 
-  # TMI Server
-  tmi_image_url  = "${aws_ecr_repository.tmi.repository_url}:${var.tmi_image_tag}"
+  # TMI Server (build mode only — image/replicas/ALB are overlay-owned now)
   tmi_build_mode = "dev"
-  tmi_replicas   = 1
 
-  # Redis
-  redis_image_url = "${aws_ecr_repository.redis.repository_url}:${var.redis_image_tag}"
-  redis_password  = module.secrets.redis_password
+  # Redis (password only — feeds the tmi-secrets Secret; image is overlay-owned)
+  redis_password = module.secrets.redis_password
 
   # Database
   db_host     = module.database.host

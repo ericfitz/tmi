@@ -1,13 +1,21 @@
 # Kubernetes Resources for TMI on EKS
-# Manages Deployments, Services, ConfigMaps, Secrets, and Ingress
+# Bootstrap-only: namespace, ConfigMap, Secret, ServiceAccount (IRSA).
+# Workload resources (Deployments/Services/Ingress) are NOT managed here —
+# they are owned by the deployments/k8s/dev/aws kustomize overlay applied by
+# the deploy script. This keeps terraform to infra + bootstrap, and lets the
+# same workload manifests be reused across dev clusters and AWS.
 
 # ============================================================================
 # Namespace
+#
+# NOTE: named "tmi-platform" (not "tmi") to match the namespace convention
+# used by every other TMI dev/deploy target (docker-desktop, k3s) and hardcoded
+# by the deployments/k8s/dev/aws overlay (Task 5) and its NATS/Redis DNS names.
 # ============================================================================
 
 resource "kubernetes_namespace_v1" "tmi" {
   metadata {
-    name = "tmi"
+    name = "tmi-platform"
     labels = {
       app        = "tmi"
       managed_by = "terraform"
@@ -19,16 +27,35 @@ resource "kubernetes_namespace_v1" "tmi" {
 
 # ============================================================================
 # ConfigMap (non-sensitive environment variables)
+#
+# NOTE: named "tmi-server-config" to match the name deployments/k8s/dev/server.yml
+# (the overlay's base manifest) already expects for the server's config.
 # ============================================================================
 
 resource "kubernetes_config_map_v1" "tmi" {
   metadata {
-    name      = "tmi-config"
+    name      = "tmi-server-config"
     namespace = kubernetes_namespace_v1.tmi.metadata[0].name
   }
 
   data = merge(
     {
+      # deployments/k8s/dev/server.yml (the overlay's base manifest) mounts
+      # this ConfigMap as a volume at /etc/tmi and runs the server with
+      # --config=/etc/tmi/config.yml, so a "config.yml" key must exist.
+      # internal/config/config.go Load() seeds defaults, then merges this
+      # YAML file (missing/empty fields keep their defaults), then applies
+      # environment variable overrides — so an intentionally-empty document
+      # is valid: every AWS-specific value below is supplied via env vars
+      # (TMI_* keys in this ConfigMap / patched directly on the Deployment),
+      # not via this file.
+      "config.yml" = <<-EOT
+        # TMI AWS (EKS) configuration.
+        # Intentionally minimal: all operational values are supplied via
+        # environment variables (see the TMI_* keys in this ConfigMap and
+        # the tmi-secrets Secret), not this file. See internal/config/config.go.
+      EOT
+
       TMI_AUTH_BUILD_MODE                       = var.tmi_build_mode
       TMI_AUTH_AUTO_PROMOTE_FIRST_USER          = "true"
       TMI_LOGGING_ALSO_LOG_TO_CONSOLE           = "true"
@@ -37,8 +64,15 @@ resource "kubernetes_config_map_v1" "tmi" {
       TMI_SERVER_INTERFACE                      = "0.0.0.0"
       TMI_SERVER_PORT                           = "8080"
 
-      # Redis accessed via K8s ClusterIP service
-      TMI_DATABASE_REDIS_HOST = "tmi-redis.tmi.svc.cluster.local"
+      # Redis accessed via the K8s ClusterIP service created by the deploy
+      # overlay (deployments/k8s/dev/redis.yml -> Service "redis"). The
+      # correct env var per internal/config/config.go is TMI_REDIS_HOST
+      # (TMI_DATABASE_REDIS_HOST is not a recognized key).
+      TMI_REDIS_HOST = "redis.tmi-platform.svc.cluster.local"
+
+      # NATS runs in-cluster, applied by the deploy script ahead of the
+      # workload overlay (see deployments/k8s/platform/nats.yml).
+      TMI_NATS_URL = "nats://nats.tmi-platform.svc:4222"
     },
     # Public mode adds verbose logging
     var.tmi_build_mode == "dev" ? {
@@ -62,9 +96,11 @@ resource "kubernetes_secret_v1" "tmi" {
   }
 
   data = {
-    TMI_DATABASE_URL            = "postgresql://${var.db_username}:${urlencode(var.db_password)}@${var.db_host}:${var.db_port}/${var.db_name}?sslmode=require"
-    TMI_JWT_SECRET              = var.jwt_secret
-    TMI_DATABASE_REDIS_PASSWORD = var.redis_password
+    TMI_DATABASE_URL = "postgresql://${var.db_username}:${urlencode(var.db_password)}@${var.db_host}:${var.db_port}/${var.db_name}?sslmode=require"
+    TMI_JWT_SECRET   = var.jwt_secret
+    # Per internal/config/config.go the recognized key is TMI_REDIS_PASSWORD
+    # (TMI_DATABASE_REDIS_PASSWORD is not a recognized key).
+    TMI_REDIS_PASSWORD = var.redis_password
   }
 }
 
@@ -96,313 +132,13 @@ resource "kubernetes_service_account_v1" "tmi_api" {
   automount_service_account_token = true
 }
 
-# ============================================================================
-# TMI API Deployment
-# ============================================================================
-
-resource "kubernetes_deployment_v1" "tmi_api" {
-  wait_for_rollout = false
-
-  metadata {
-    name      = "tmi-api"
-    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
-    labels = {
-      app       = "tmi-api"
-      component = "api"
-    }
-  }
-
-  spec {
-    replicas = var.tmi_replicas
-
-    selector {
-      match_labels = {
-        app = "tmi-api"
-      }
-    }
-
-    strategy {
-      type = "Recreate"
-    }
-
-    template {
-      metadata {
-        labels = {
-          app       = "tmi-api"
-          component = "api"
-        }
-      }
-
-      spec {
-        service_account_name = kubernetes_service_account_v1.tmi_api.metadata[0].name
-        # T10 (#348): see ServiceAccount comment above. IRSA needs this true.
-        automount_service_account_token = true
-
-        container {
-          name  = "tmi-api"
-          image = var.tmi_image_url
-
-          port {
-            name           = "http"
-            container_port = 8080
-            protocol       = "TCP"
-          }
-
-          env_from {
-            config_map_ref {
-              name = kubernetes_config_map_v1.tmi.metadata[0].name
-            }
-          }
-
-          env_from {
-            secret_ref {
-              name = kubernetes_secret_v1.tmi.metadata[0].name
-            }
-          }
-
-          volume_mount {
-            name       = "tmp"
-            mount_path = "/tmp"
-          }
-
-          liveness_probe {
-            http_get {
-              path = "/"
-              port = "http"
-            }
-            initial_delay_seconds = 60
-            period_seconds        = 30
-            timeout_seconds       = 10
-            failure_threshold     = 3
-          }
-
-          readiness_probe {
-            http_get {
-              path = "/"
-              port = "http"
-            }
-            initial_delay_seconds = 10
-            period_seconds        = 10
-            timeout_seconds       = 5
-            failure_threshold     = 3
-          }
-
-          resources {
-            requests = {
-              cpu    = var.tmi_cpu_request
-              memory = var.tmi_memory_request
-            }
-            limits = {
-              cpu    = var.tmi_cpu_limit
-              memory = var.tmi_memory_limit
-            }
-          }
-        }
-
-        volume {
-          name = "tmp"
-          empty_dir {}
-        }
-
-        termination_grace_period_seconds = 60
-        restart_policy                   = "Always"
-      }
-    }
-  }
-}
-
-# ============================================================================
-# Redis Deployment (separate pod, accessed via ClusterIP service)
-# ============================================================================
-
-resource "kubernetes_deployment_v1" "redis" {
-  wait_for_rollout = false
-
-  metadata {
-    name      = "tmi-redis"
-    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
-    labels = {
-      app       = "tmi-redis"
-      component = "cache"
-    }
-  }
-
-  spec {
-    replicas = 1
-
-    selector {
-      match_labels = {
-        app = "tmi-redis"
-      }
-    }
-
-    template {
-      metadata {
-        labels = {
-          app       = "tmi-redis"
-          component = "cache"
-        }
-      }
-
-      spec {
-        container {
-          name  = "redis"
-          image = var.redis_image_url
-
-          command = ["redis-server", "--requirepass", var.redis_password, "--port", "6379"]
-
-          port {
-            container_port = 6379
-            protocol       = "TCP"
-          }
-
-          liveness_probe {
-            tcp_socket {
-              port = 6379
-            }
-            initial_delay_seconds = 15
-            period_seconds        = 30
-            timeout_seconds       = 10
-            failure_threshold     = 3
-          }
-
-          readiness_probe {
-            tcp_socket {
-              port = 6379
-            }
-            initial_delay_seconds = 5
-            period_seconds        = 10
-            timeout_seconds       = 5
-            failure_threshold     = 3
-          }
-
-          resources {
-            requests = {
-              cpu    = var.redis_cpu_request
-              memory = var.redis_memory_request
-            }
-            limits = {
-              cpu    = var.redis_cpu_limit
-              memory = var.redis_memory_limit
-            }
-          }
-        }
-
-        termination_grace_period_seconds = 30
-        restart_policy                   = "Always"
-      }
-    }
-  }
-}
-
-# ============================================================================
-# Redis ClusterIP Service (internal only)
-# ============================================================================
-
-resource "kubernetes_service_v1" "redis" {
-  metadata {
-    name      = "tmi-redis"
-    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
-    labels = {
-      app       = "tmi-redis"
-      component = "cache"
-    }
-  }
-
-  spec {
-    selector = {
-      app = "tmi-redis"
-    }
-
-    port {
-      name        = "redis"
-      port        = 6379
-      target_port = 6379
-      protocol    = "TCP"
-    }
-
-    type = "ClusterIP"
-  }
-}
-
-# ============================================================================
-# TMI API Service (NodePort, targeted by ALB Ingress)
-# ============================================================================
-
-resource "kubernetes_service_v1" "tmi_api" {
-  metadata {
-    name      = "tmi-api"
-    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
-    labels = {
-      app       = "tmi-api"
-      component = "api"
-    }
-  }
-
-  spec {
-    selector = {
-      app = "tmi-api"
-    }
-
-    port {
-      name        = "http"
-      port        = 8080
-      target_port = 8080
-      protocol    = "TCP"
-    }
-
-    type = "NodePort"
-  }
-}
-
-# ============================================================================
-# ALB Ingress (via AWS Load Balancer Controller)
-# ============================================================================
-
-resource "kubernetes_ingress_v1" "tmi_api" {
-  metadata {
-    name      = "tmi-api"
-    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
-    annotations = merge(
-      {
-        "kubernetes.io/ingress.class"                        = "alb"
-        "alb.ingress.kubernetes.io/scheme"                   = var.alb_scheme
-        "alb.ingress.kubernetes.io/target-type"              = "ip"
-        "alb.ingress.kubernetes.io/healthcheck-path"         = "/"
-        "alb.ingress.kubernetes.io/load-balancer-attributes" = "idle_timeout.timeout_seconds=3600"
-        "alb.ingress.kubernetes.io/listen-ports"             = "[{\"HTTP\": 80}]"
-      },
-      # Add certificate ARN annotation if provided
-      var.certificate_arn != null ? {
-        "alb.ingress.kubernetes.io/certificate-arn" = var.certificate_arn
-        "alb.ingress.kubernetes.io/listen-ports"    = "[{\"HTTP\": 80}, {\"HTTPS\": 443}]"
-        "alb.ingress.kubernetes.io/ssl-redirect"    = "443"
-      } : {},
-      # Subnets annotation
-      length(var.alb_subnet_ids) > 0 ? {
-        "alb.ingress.kubernetes.io/subnets" = join(",", var.alb_subnet_ids)
-      } : {}
-    )
-  }
-
-  spec {
-    rule {
-      http {
-        path {
-          path      = "/"
-          path_type = "Prefix"
-          backend {
-            service {
-              name = kubernetes_service_v1.tmi_api.metadata[0].name
-              port {
-                number = 8080
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  depends_on = [helm_release.aws_lb_controller]
-}
+# NOTE: Workload resources (TMI API Deployment/Service, Redis Deployment/
+# Service, ALB Ingress) previously lived here as kubernetes_deployment_v1 /
+# kubernetes_service_v1 / kubernetes_ingress_v1 resources. They have been
+# removed — the deployments/k8s/dev/aws kustomize overlay (applied by the
+# deploy script, see Task 5/6 of the AWS deployment plan) now owns all
+# workloads, reusing the same base manifests as the docker-desktop/k3s dev
+# targets. Terraform's job here is infra + bootstrap only: namespace,
+# ConfigMap, Secret, ServiceAccount (above), plus the EKS cluster, node
+# group, IAM/IRSA roles, and the AWS Load Balancer Controller Helm release
+# (all in main.tf), so the overlay's Ingress has a controller to bind to.

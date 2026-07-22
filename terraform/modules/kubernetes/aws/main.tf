@@ -13,8 +13,11 @@ terraform {
       version = ">= 2.25.0"
     }
     helm = {
-      source  = "hashicorp/helm"
-      version = ">= 2.12.0"
+      source = "hashicorp/helm"
+      # See the matching comment in environments/aws-public/main.tf: helm
+      # provider v3 breaks the provider "helm" { kubernetes {...} } schema
+      # used by the environments that instantiate this module.
+      version = ">= 2.12.0, < 3.0.0"
     }
   }
 }
@@ -470,7 +473,10 @@ resource "aws_iam_role" "tmi_pod" {
         Condition = {
           StringEquals = {
             "${local.oidc_provider_url}:aud" = "sts.amazonaws.com"
-            "${local.oidc_provider_url}:sub" = "system:serviceaccount:tmi:tmi-api"
+            # Must match the namespace/ServiceAccount name created in
+            # k8s_resources.tf (kubernetes_namespace_v1.tmi /
+            # kubernetes_service_account_v1.tmi_api).
+            "${local.oidc_provider_url}:sub" = "system:serviceaccount:tmi-platform:tmi-api"
           }
         }
       }
