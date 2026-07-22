@@ -224,11 +224,13 @@ def get_target_config(
                 auth_commands=[],
                 dockerfile_map=dockerfile_map,
                 image_name_prefix="tmi/tmi-",
-                # Matches the "tmi-component-controller" name used by the
-                # deployments/k8s manifests and make dev-up, not the default
-                # "{prefix}controller" ("tmi/tmi-controller").
+                # Matches the "tmi-component-controller" / "tmi-chunk-embed"
+                # names used by the deployments/k8s manifests and make dev-up,
+                # not the default "{prefix}{component}" ("tmi/tmi-controller",
+                # "tmi/tmi-chunkembed").
                 image_name_map={
                     "controller": "tmi/tmi-component-controller",
+                    "chunkembed": "tmi/tmi-chunk-embed",
                 },
             )
 
@@ -255,6 +257,7 @@ def get_target_config(
                 image_name_map={
                     "server": f"{base}/{name_prefix}/tmi",
                     "controller": f"{base}/{name_prefix}/tmi-component-controller",
+                    "chunkembed": f"{base}/{name_prefix}/tmi-chunk-embed",
                 },
             )
 
@@ -286,11 +289,13 @@ def get_target_config(
                 ],
                 dockerfile_map=dockerfile_map,
                 image_name_prefix=f"{ecr_registry}/tmi-",
-                # ECR repo/image name must be "tmi-component-controller" to
-                # match the deployments/k8s manifests, not the default
-                # "{prefix}controller" ("tmi-controller").
+                # ECR repo/image names must be "tmi-component-controller" and
+                # "tmi-chunk-embed" to match the deployments/k8s manifests
+                # (and Task 4's ECR repos), not the defaults
+                # "{prefix}controller" / "{prefix}chunkembed".
                 image_name_map={
                     "controller": f"{ecr_registry}/tmi-component-controller",
+                    "chunkembed": f"{ecr_registry}/tmi-chunk-embed",
                 },
             )
 
@@ -311,6 +316,7 @@ def get_target_config(
                 image_name_prefix=f"{registry_override}/tmi-",
                 image_name_map={
                     "controller": f"{registry_override}/tmi-component-controller",
+                    "chunkembed": f"{registry_override}/tmi-chunk-embed",
                 },
             )
 
@@ -331,6 +337,7 @@ def get_target_config(
                 image_name_prefix=f"{registry_override}/tmi-",
                 image_name_map={
                     "controller": f"{registry_override}/tmi-component-controller",
+                    "chunkembed": f"{registry_override}/tmi-chunk-embed",
                 },
             )
 
