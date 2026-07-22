@@ -4,19 +4,25 @@
 # Deploy TMI to AWS: EKS + RDS + Secrets Manager, with workloads applied via
 # kubectl/kustomize (not Terraform). This is a *hybrid* flow:
 #
-#   preflight -> build/push 5 images to ECR -> terraform apply (infra only)
-#   -> EKS kubeconfig -> apply platform base (NATS/KEDA/CRD)
+#   preflight -> terraform apply (infra only, including the 5 ECR repos)
+#   -> ECR login + build/push 5 images -> EKS kubeconfig
+#   -> apply platform base (NATS/KEDA/CRD)
 #   -> apply the AWS kustomize overlay (with placeholder substitution)
 #   -> upsert the server CNAME -> optional dbtool config import
 #   -> verify
 #
-# Terraform (terraform/environments/aws-public) owns infrastructure only:
-# VPC, EKS cluster/node group, RDS Postgres, ECR repositories, IAM/IRSA,
-# ACM certificate, and bootstrap Kubernetes objects (namespace, the
-# tmi-server-config ConfigMap, secrets, the tmi-api ServiceAccount). This
-# script owns every workload (server, redis, controller, extractor,
-# chunkembed, ingress) via deployments/k8s/dev/aws, mirroring the ownership
-# split documented in deployments/k8s/dev/aws/README.md.
+# Terraform (terraform/environments/aws-public) is the SOLE owner of the 5
+# ECR repositories (server, redis, extractor, chunkembed, controller) as
+# well as the rest of the infrastructure: VPC, EKS cluster/node group, RDS
+# Postgres, IAM/IRSA, ACM certificate, and bootstrap Kubernetes objects
+# (namespace, the tmi-server-config ConfigMap, secrets, the tmi-api
+# ServiceAccount). Terraform applies first, so the ECR repos already exist
+# by the time images are built/pushed — this script never creates ECR repos
+# itself. This script owns every workload (server, redis, controller,
+# extractor, chunkembed, ingress) via deployments/k8s/dev/aws, mirroring the
+# ownership split documented in deployments/k8s/dev/aws/README.md.
+# --dry-run stops after `terraform plan`; it never builds or pushes images
+# or touches the cluster.
 #
 # Usage: ./scripts/deploy-aws.sh --domain <fqdn> --zone-id <zone> [options]
 #
@@ -30,7 +36,7 @@
 #                                   database after the overlay is up (optional)
 #   --skip-build                   Skip container image build/push (use existing ECR images)
 #   --destroy                      Destroy the deployment instead of creating it
-#   --dry-run                      Run terraform plan only (no apply, no cluster changes)
+#   --dry-run                      Run terraform plan only (no apply, no build/push, no cluster changes)
 #   --auto-approve                 Skip terraform apply confirmation
 #   --help                         Show this help message
 #
@@ -89,10 +95,6 @@ PF_PID=""
 RDS_PROXY_STARTED=false
 TMPDIR_TO_CLEAN=""
 
-# The five images this script builds/pushes and deploys (matches
-# scripts/container_build_helpers.py's aws image_name_map / ALL_COMPONENTS).
-ECR_COMPONENT_NAMES=(tmi-server tmi-redis tmi-extractor tmi-chunk-embed tmi-component-controller)
-
 # Parse command line arguments
 parse_args() {
     while [[ $# -gt 0 ]]; do
@@ -135,7 +137,7 @@ parse_args() {
 }
 
 show_help() {
-    sed -n '2,49p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,54p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # ============================================================================
@@ -323,58 +325,7 @@ preflight_checks() {
 }
 
 # ============================================================================
-# PHASE 2: Container Images
-# ============================================================================
-
-ensure_ecr_repositories() {
-    # Idempotently ensure the 5 ECR repos exist so a first deploy on a fresh
-    # account can push before Terraform has run — this script pushes images
-    # before applying infra (see module header). If terraform/environments/
-    # aws-public later declares these same names as managed
-    # `aws_ecr_repository` resources, running this script before the first
-    # `terraform apply` pre-creates them out of band; a subsequent
-    # `terraform apply` must import or otherwise reconcile them rather than
-    # fail with EntityAlreadyExistsException. Flagged for cross-task review
-    # (see task-6-report.md).
-    local repo
-    for repo in "${ECR_COMPONENT_NAMES[@]}"; do
-        if aws ecr describe-repositories --repository-names "${repo}" --region "${REGION}" &>/dev/null; then
-            log_success "ECR repository exists: ${repo}"
-        else
-            log_info "Creating ECR repository: ${repo}"
-            aws ecr create-repository \
-                --repository-name "${repo}" \
-                --region "${REGION}" \
-                --image-scanning-configuration scanOnPush=true \
-                --encryption-configuration encryptionType=AES256 \
-                --output text --query 'repository.repositoryUri' >/dev/null
-            log_success "Created ECR repository: ${repo}"
-        fi
-    done
-}
-
-build_and_push_images() {
-    if [[ "${DESTROY}" == "true" ]]; then
-        return 0
-    fi
-
-    log_step "Phase 2: Container Images"
-
-    if [[ "${SKIP_BUILD}" == "true" ]]; then
-        log_info "Skipping build/push (--skip-build); assuming images already exist in ECR"
-        return 0
-    fi
-
-    ensure_ecr_repositories
-
-    log_info "Building and pushing all 5 images (server, redis, extractor, chunkembed, controller)..."
-    (cd "${PROJECT_ROOT}" && uv run "${SCRIPT_DIR}/build-app-containers.py" \
-        --target aws --component all --push --scan)
-    log_success "All images built, pushed, and scanned"
-}
-
-# ============================================================================
-# PHASE 3: Terraform (infrastructure only)
+# PHASE 2: Terraform (infrastructure only, including the 5 ECR repos)
 # ============================================================================
 
 terraform_init() {
@@ -384,7 +335,7 @@ terraform_init() {
 }
 
 terraform_deploy() {
-    log_step "Phase 3: Terraform Infrastructure ${DESTROY:+(Destroy)}"
+    log_step "Phase 2: Terraform Infrastructure ${DESTROY:+(Destroy)}"
 
     terraform_init
 
@@ -393,7 +344,7 @@ terraform_deploy() {
             log_info "Dry run: showing destroy plan..."
             terraform -chdir="${TF_DIR}" plan -destroy
         else
-            log_warning "This will DESTROY all TMI AWS infrastructure!"
+            log_warning "This will DESTROY all TMI AWS infrastructure (including the ECR repos)!"
             if [[ "${AUTO_APPROVE}" == "true" ]]; then
                 terraform -chdir="${TF_DIR}" destroy -auto-approve
             else
@@ -412,11 +363,11 @@ terraform_deploy() {
 
     if [[ "${DRY_RUN}" == "true" ]]; then
         log_info "Dry run complete. Review the plan above."
-        log_info "To apply, run without --dry-run"
+        log_info "To apply (and build/push images, and deploy), run without --dry-run"
         return 0
     fi
 
-    log_info "Applying Terraform plan..."
+    log_info "Applying Terraform plan (creates/updates infra, including the 5 ECR repos)..."
     if [[ "${AUTO_APPROVE}" == "true" ]]; then
         terraform -chdir="${TF_DIR}" apply tfplan
     else
@@ -457,6 +408,30 @@ capture_terraform_outputs() {
     log_success "cluster_name=${CLUSTER_NAME}"
 }
 
+# ============================================================================
+# PHASE 3: Container Images (ECR login + build/push, after infra exists)
+# ============================================================================
+
+build_and_push_images() {
+    log_step "Phase 3: Container Images"
+
+    if [[ "${SKIP_BUILD}" == "true" ]]; then
+        log_info "Skipping build/push (--skip-build); assuming images already exist in ECR"
+        return 0
+    fi
+
+    # Terraform (Phase 2) already created the 5 ECR repos this script pushes
+    # to — Terraform is their sole owner, so nothing here creates or manages
+    # ECR repositories. build-app-containers.py authenticates to ECR itself
+    # (aws ecr get-login-password | docker login, see
+    # scripts/container_build_helpers.py's _aws_ecr_login()) before pushing,
+    # so no separate `docker login` call is needed here.
+    log_info "Building and pushing all 5 images (server, redis, extractor, chunkembed, controller)..."
+    (cd "${PROJECT_ROOT}" && uv run "${SCRIPT_DIR}/build-app-containers.py" \
+        --target aws --component all --push --scan)
+    log_success "All images built, pushed, and scanned"
+}
+
 configure_kubeconfig() {
     log_info "Configuring kubectl for EKS cluster ${CLUSTER_NAME}..."
     aws eks update-kubeconfig --name "${CLUSTER_NAME}" --region "${REGION}"
@@ -485,25 +460,32 @@ apply_overlay() {
     log_step "Phase 5: AWS Kustomize Overlay"
 
     # Rewrite account-specific placeholders into the rendered kustomize
-    # stream (never onto tracked files on disk) and apply.
+    # stream (never onto tracked files on disk, and never as generated files
+    # written into the overlay directory) and apply.
     #
-    # CERT_ARN_PLACEHOLDER / ECR_REGISTRY_PLACEHOLDER are the two placeholders
-    # the overlay itself defines (deployments/k8s/dev/aws/README.md). In
-    # addition, the tmi-server and tmi-component-controller *base* manifests
-    # (deployments/k8s/dev/server.yml, controller.yml) hardcode the local-dev
-    # registry image `localhost:5000/...:dev`. The AWS overlay's
-    # kustomization.yaml does not patch or otherwise override either image
-    # (no `images:` transformer, no image patch target for either
-    # Deployment) — only patches/server-config.yaml touches the tmi-server
-    # Deployment, and it only sets imagePullPolicy/serviceAccountName/env.
-    # Left unpatched, EKS nodes would try to pull a localhost:5000 image and
-    # fail. This script rewrites both images to the ECR images just built,
-    # on the same rendered stream, so no tracked file needs to change.
+    # Exactly two placeholder tokens exist in the overlay (see
+    # deployments/k8s/dev/aws/README.md): CERT_ARN_PLACEHOLDER (ingress.yml's
+    # ACM certificate-arn annotation) and ECR_REGISTRY_PLACEHOLDER (the
+    # top-level `images:` transformer in kustomization.yaml, which pins
+    # tmi-server, tmi-component-controller, and tmi-redis, plus the two
+    # TMIComponent JSON6902 patches for tmi-extractor/tmi-chunk-embed). All
+    # five workload images are covered by that transformer/patches as of
+    # commit 126782e0 — this script does not need, and must not add, any
+    # further image-rewrite substitutions.
+    #
+    # Tag tradeoff: every image resolves to ECR_REGISTRY_PLACEHOLDER/tmi-
+    # <component>:latest, a mutable tag shared by every deploy. That's
+    # acceptable for this "kick the tires" environment (the deploy script
+    # always rebuilds and re-pushes :latest immediately before applying the
+    # overlay, and Kubernetes' default imagePullPolicy pulls a fresh copy),
+    # but it means two concurrent deploys or a slow rollout can observe a
+    # moving target, and there's no way to pin/rollback to a specific past
+    # build by tag alone. Per-deploy immutable tags (e.g. the git commit SHA
+    # already computed by build-app-containers.py) are a follow-up, not
+    # implemented here.
     log_info "Rendering and applying overlay (ECR registry: ${ECR_REGISTRY})..."
     sed -e "s|CERT_ARN_PLACEHOLDER|${CERT_ARN}|" \
         -e "s|ECR_REGISTRY_PLACEHOLDER|${ECR_REGISTRY}|" \
-        -e "s|localhost:5000/tmi-server:dev|${ECR_REGISTRY}/tmi-server:latest|" \
-        -e "s|localhost:5000/tmi-component-controller:dev|${ECR_REGISTRY}/tmi-component-controller:latest|" \
         <(kubectl kustomize --load-restrictor LoadRestrictionsNone "${OVERLAY_DIR}") \
       | kubectl apply -f -
 
@@ -675,15 +657,16 @@ main() {
     parse_args "$@"
 
     preflight_checks
-    build_and_push_images
     terraform_deploy
 
     if [[ "${DESTROY}" == "true" ]] || [[ "${DRY_RUN}" == "true" ]]; then
         # terraform_deploy() already logged plan/destroy-plan output above.
+        # Nothing is built/pushed and the cluster is never touched.
         return 0
     fi
 
     capture_terraform_outputs
+    build_and_push_images
     configure_kubeconfig
     apply_platform_base
     apply_overlay
