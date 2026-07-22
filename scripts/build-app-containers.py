@@ -34,8 +34,11 @@ VALID_COMPONENTS = ("server", "redis", "extractor", "chunkembed", "controller", 
 VALID_ARCHS = ("arm64", "amd64", "both")
 VALID_DB_BACKENDS = ("postgresql", "oracle-adb")
 
-# Components built when --component=all (redis is intentionally excluded from
-# 'all' for cloud targets that supply a managed Redis; see resolve_components).
+# Components built when --component=all. Redis is NOT excluded from 'all' for
+# cloud targets in general — aws/oci/azure/gcp all build and push their own
+# tmi-redis image (see each target's overlay). Only Heroku restricts this
+# down to server only (via HEROKU_COMPONENTS in resolve_components), because
+# Heroku uses a managed Redis addon instead.
 ALL_COMPONENTS = ("server", "redis", "extractor", "chunkembed", "controller")
 
 # Worker components depend on the staged tmi-client module, same as the server.

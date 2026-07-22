@@ -40,6 +40,15 @@
 #   --auto-approve                 Skip terraform apply confirmation
 #   --help                         Show this help message
 #
+# Environment variables:
+#   TMI_EMBEDDING_API_KEY          API key for the chunk-embed worker's embedding
+#                                   provider (Secret/tmi-embedding, key api-key). If
+#                                   unset, the secret is NOT created and a warning is
+#                                   printed — chunk-embed will fail with
+#                                   CreateContainerConfigError when KEDA scales it up
+#                                   from zero. Not stored anywhere by this script;
+#                                   never echoed or logged.
+#
 # Examples:
 #   ./scripts/deploy-aws.sh --domain tmi.example.com --zone-id Z1234567890ABC
 #   ./scripts/deploy-aws.sh --domain tmi.example.com --zone-id Z1234567890ABC --skip-build --dry-run
@@ -137,7 +146,7 @@ parse_args() {
 }
 
 show_help() {
-    sed -n '2,54p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,64p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # ============================================================================
@@ -171,7 +180,24 @@ preflight_checks() {
 
     export AWS_PROFILE="${PROFILE}"
 
-    # 1. AWS CLI
+    # 1. --name-prefix is currently required to be "tmi": the build helper
+    # (scripts/container_build_helpers.py's aws image_name_prefix), the
+    # deployments/k8s/dev/aws kustomize overlay (hardcoded ECR repo/image
+    # names), and the Secret/ConfigMap names this script and the overlay
+    # reference (tmi-secrets, tmi-server-config, tmi-embedding) are all
+    # hardcoded to "tmi", not templated from --name-prefix. Passing a
+    # different prefix would desync Terraform's ECR repo names from what the
+    # build/push and kustomize steps push to and expect. Flag kept for future
+    # work (templating those three coupling points).
+    if [[ "${NAME_PREFIX}" != "tmi" ]]; then
+        log_error "--name-prefix must be \"tmi\" (got: ${NAME_PREFIX})"
+        echo "  The build helper, the deployments/k8s/dev/aws kustomize overlay, and the"
+        echo "  Secret/ConfigMap names it references are hardcoded to the \"tmi\" prefix."
+        echo "  The flag is kept for future work; do not pass a different value yet."
+        failed=1
+    fi
+
+    # 2. AWS CLI
     if command -v aws &>/dev/null; then
         local aws_version
         aws_version=$(aws --version 2>&1 | awk '{print $1}')
@@ -182,7 +208,7 @@ preflight_checks() {
         failed=1
     fi
 
-    # 2. AWS credentials (respects --profile via AWS_PROFILE)
+    # 3. AWS credentials (respects --profile via AWS_PROFILE)
     if aws sts get-caller-identity &>/dev/null; then
         local account_id identity
         account_id=$(aws sts get-caller-identity --query Account --output text)
@@ -195,7 +221,7 @@ preflight_checks() {
         failed=1
     fi
 
-    # 3. Terraform
+    # 4. Terraform
     if command -v terraform &>/dev/null; then
         local tf_version
         tf_version=$(terraform version -json 2>/dev/null | jq -r '.terraform_version' 2>/dev/null || terraform version | head -1)
@@ -214,7 +240,7 @@ preflight_checks() {
         failed=1
     fi
 
-    # 4. Docker (unless skipping build)
+    # 5. Docker (unless skipping build)
     if [[ "${SKIP_BUILD}" == "false" ]] && [[ "${DESTROY}" == "false" ]]; then
         if command -v docker &>/dev/null; then
             if docker info &>/dev/null; then
@@ -233,7 +259,7 @@ preflight_checks() {
         log_info "Skipping Docker check (--skip-build or --destroy)"
     fi
 
-    # 5. uv (drives build-app-containers.py)
+    # 6. uv (drives build-app-containers.py)
     if [[ "${SKIP_BUILD}" == "false" ]] && [[ "${DESTROY}" == "false" ]]; then
         if command -v uv &>/dev/null; then
             log_success "uv installed"
@@ -244,7 +270,7 @@ preflight_checks() {
         fi
     fi
 
-    # 6. kubectl
+    # 7. kubectl
     if command -v kubectl &>/dev/null; then
         log_success "kubectl installed"
     else
@@ -253,7 +279,7 @@ preflight_checks() {
         failed=1
     fi
 
-    # 7. jq
+    # 8. jq
     if command -v jq &>/dev/null; then
         log_success "jq installed"
     else
@@ -262,7 +288,7 @@ preflight_checks() {
         failed=1
     fi
 
-    # 8. Terraform directory exists
+    # 9. Terraform directory exists
     if [[ -d "${TF_DIR}" ]]; then
         log_success "Terraform config found at terraform/environments/aws-public/"
     else
@@ -271,7 +297,7 @@ preflight_checks() {
         failed=1
     fi
 
-    # 9. Backend config exists (terraform init -backend-config=...)
+    # 10. Backend config exists (terraform init -backend-config=...)
     if [[ -d "${TF_DIR}" ]]; then
         local backend_config="${BACKEND_CONFIG:-${TF_DIR}/backend.hcl}"
         if [[ -f "${backend_config}" ]]; then
@@ -288,7 +314,7 @@ preflight_checks() {
         fi
     fi
 
-    # 10. Overlay directory exists
+    # 11. Overlay directory exists
     if [[ -d "${OVERLAY_DIR}" ]]; then
         log_success "AWS kustomize overlay found at deployments/k8s/dev/aws/"
     else
@@ -296,7 +322,7 @@ preflight_checks() {
         failed=1
     fi
 
-    # 11. --domain / --zone-id required for deploy, dry-run, AND destroy:
+    # 12. --domain / --zone-id required for deploy, dry-run, AND destroy:
     # terraform/environments/aws-public/variables.tf declares domain_name and
     # hosted_zone_id with no default, so `terraform destroy` needs a tfvars
     # file supplying them just as much as `terraform apply` does.
@@ -307,7 +333,7 @@ preflight_checks() {
         failed=1
     fi
 
-    # 12. Check AWS region is valid
+    # 13. Check AWS region is valid
     if [[ "${failed}" -eq 0 ]]; then
         if aws ec2 describe-regions --region-names "${REGION}" &>/dev/null; then
             log_success "AWS region '${REGION}' is valid"
@@ -351,6 +377,7 @@ terraform_deploy() {
             log_info "Dry run: showing destroy plan..."
             terraform -chdir="${TF_DIR}" plan -destroy
         else
+            pre_destroy_cleanup
             log_warning "This will DESTROY all TMI AWS infrastructure (including the ECR repos)!"
             if [[ "${AUTO_APPROVE}" == "true" ]]; then
                 terraform -chdir="${TF_DIR}" destroy -auto-approve
@@ -383,6 +410,73 @@ terraform_deploy() {
     fi
 
     log_success "Terraform apply complete"
+}
+
+# Cluster-side objects the ALB controller and this script create at runtime
+# (the ALB behind ingress/tmi-server, and the Route 53 CNAME upserted in
+# Phase 6) are NOT terraform-managed — if left behind they orphan a load
+# balancer with ENIs still attached to the VPC, which can make `terraform
+# destroy` hang or fail deleting the VPC/subnets/security groups. Best-effort
+# only: every step tolerates absence or an unreachable cluster (`|| true`
+# equivalents), since destroy must still proceed even if the cluster was
+# already torn down out-of-band.
+pre_destroy_cleanup() {
+    log_step "Phase 2.5: Pre-Destroy Cleanup (best-effort)"
+
+    local cluster_name
+    cluster_name=$(terraform -chdir="${TF_DIR}" output -raw cluster_name 2>/dev/null || true)
+    if [[ -z "${cluster_name}" ]]; then
+        log_info "No cluster_name in Terraform state (nothing deployed yet?) — skipping cluster cleanup"
+        return 0
+    fi
+
+    aws eks update-kubeconfig --name "${cluster_name}" --region "${REGION}" &>/dev/null || true
+    if ! kubectl cluster-info &>/dev/null; then
+        log_info "Cluster ${cluster_name} not reachable — skipping ingress/ALB/DNS cleanup"
+        return 0
+    fi
+
+    local alb_host
+    alb_host=$(kubectl get ingress tmi-server -n "${NAMESPACE}" \
+        -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+
+    log_info "Deleting ingress/tmi-server (releases the ALB)..."
+    kubectl delete ingress tmi-server -n "${NAMESPACE}" --ignore-not-found &>/dev/null || true
+
+    if [[ -n "${alb_host}" ]]; then
+        log_info "Waiting up to 5 minutes for ALB (${alb_host}) to be deprovisioned..."
+        local waited=0 lb_count
+        while [[ "${waited}" -lt 300 ]]; do
+            lb_count=$(aws elbv2 describe-load-balancers --region "${REGION}" \
+                --query "length(LoadBalancers[?DNSName=='${alb_host}'])" --output text 2>/dev/null || echo "0")
+            if [[ "${lb_count}" == "0" ]]; then
+                log_success "ALB deprovisioned"
+                break
+            fi
+            sleep 10
+            waited=$((waited + 10))
+        done
+    else
+        log_info "No ALB hostname on ingress/tmi-server — nothing to wait for"
+    fi
+
+    log_info "Removing Route 53 CNAME for ${DOMAIN}..."
+    local existing_value
+    existing_value=$(aws route53 list-resource-record-sets --hosted-zone-id "${ZONE_ID}" \
+        --query "ResourceRecordSets[?Name=='${DOMAIN}.' && Type=='CNAME'].ResourceRecords[0].Value | [0]" \
+        --output text 2>/dev/null || true)
+    if [[ -n "${existing_value}" ]] && [[ "${existing_value}" != "None" ]]; then
+        if aws route53 change-resource-record-sets --hosted-zone-id "${ZONE_ID}" \
+            --change-batch "{\"Changes\":[{\"Action\":\"DELETE\",\"ResourceRecordSet\":{
+              \"Name\":\"${DOMAIN}\",\"Type\":\"CNAME\",\"TTL\":300,
+              \"ResourceRecords\":[{\"Value\":\"${existing_value}\"}]}}]}" &>/dev/null; then
+            log_success "Route 53 CNAME removed"
+        else
+            log_warning "Failed to remove Route 53 CNAME for ${DOMAIN} (continuing destroy)"
+        fi
+    else
+        log_info "No CNAME found for ${DOMAIN} — nothing to remove"
+    fi
 }
 
 generate_tfvars() {
@@ -432,8 +526,15 @@ build_and_push_images() {
     # scripts/container_build_helpers.py's _aws_ecr_login()) before pushing,
     # so no separate `docker login` call is needed here.
     log_info "Building and pushing all 5 images (server, redis, extractor, chunkembed, controller)..."
+    # --build-tags dev: this is a "kick the tires" deploy (see the header
+    # comment), and the AWS overlay turns on the tmi interactive OAuth
+    # provider (OAUTH_PROVIDERS_TMI_ENABLED=true in
+    # deployments/k8s/dev/aws/patches/server-config.yaml), which is
+    # compiled in only under the `dev` Go build tag — matching
+    # scripts/lib/deploy.py:87's local-dev BUILD_TAGS=dev. A production
+    # build must drop this flag.
     (cd "${PROJECT_ROOT}" && uv run "${SCRIPT_DIR}/build-app-containers.py" \
-        --target aws --component all --push --scan)
+        --target aws --component all --push --scan --build-tags dev)
     log_success "All images built, pushed, and scanned"
 }
 
@@ -458,6 +559,41 @@ apply_platform_base() {
 }
 
 # ============================================================================
+# PHASE 4.5: Chunk-Embed API Key Secret
+# ============================================================================
+
+# Mirrors create_embedding_secret() in scripts/lib/deploy.py:478 (create-or-
+# update via `kubectl create --dry-run=client -o yaml | kubectl apply -f -`,
+# key never echoed) but does NOT fall back to a placeholder value the way the
+# local-dev helper does: on AWS a placeholder key would deploy successfully
+# and fail invisibly later (bad embedding-API auth) rather than obviously, so
+# instead we skip creating the Secret and warn loudly. The chunk-embed
+# TMIComponent (deployments/k8s/platform/components/tmi-chunk-embed.yml)
+# references Secret/tmi-embedding's `api-key` key via secretKeyRef; if the
+# Secret doesn't exist, the pod KEDA scales up from zero fails immediately
+# with CreateContainerConfigError.
+create_embedding_secret() {
+    log_step "Phase 4.5: Chunk-Embed API Key Secret"
+
+    if [[ -z "${TMI_EMBEDDING_API_KEY:-}" ]]; then
+        log_warning "TMI_EMBEDDING_API_KEY is not set — Secret/tmi-embedding will NOT be created."
+        log_warning "chunk-embed (deployments/k8s/platform/components/tmi-chunk-embed.yml) reads"
+        log_warning "its embedding-provider API key from this Secret's 'api-key' key via secretKeyRef."
+        log_warning "When KEDA scales chunk-embed up from zero without it, the pod will fail with"
+        log_warning "CreateContainerConfigError. Set TMI_EMBEDDING_API_KEY and re-run to fix."
+        return 0
+    fi
+
+    log_info "Creating/updating Secret/tmi-embedding (key never logged)..."
+    local rendered
+    rendered=$(kubectl create secret generic tmi-embedding -n "${NAMESPACE}" \
+        --from-literal="api-key=${TMI_EMBEDDING_API_KEY}" \
+        --dry-run=client -o yaml)
+    echo "${rendered}" | kubectl apply -f - >/dev/null
+    log_success "Secret/tmi-embedding created/updated"
+}
+
+# ============================================================================
 # PHASE 5: Application Overlay
 # ============================================================================
 
@@ -479,15 +615,27 @@ apply_overlay() {
     # further image-rewrite substitutions.
     #
     # Tag tradeoff: every image resolves to ECR_REGISTRY_PLACEHOLDER/tmi-
-    # <component>:latest, a mutable tag shared by every deploy. That's
-    # acceptable for this "kick the tires" environment (the deploy script
-    # always rebuilds and re-pushes :latest immediately before applying the
-    # overlay, and Kubernetes' default imagePullPolicy pulls a fresh copy),
-    # but it means two concurrent deploys or a slow rollout can observe a
-    # moving target, and there's no way to pin/rollback to a specific past
-    # build by tag alone. Per-deploy immutable tags (e.g. the git commit SHA
-    # already computed by build-app-containers.py) are a follow-up, not
-    # implemented here.
+    # <component>:latest, a mutable tag shared by every deploy. No manifest in
+    # this overlay sets imagePullPolicy, so Kubernetes' default applies —
+    # which is Always for a ":latest" tag — so a pod that gets (re)scheduled
+    # always pulls the freshly-pushed image. That's acceptable for this "kick
+    # the tires" environment, but it means two concurrent deploys or a slow
+    # rollout can observe a moving target, and there's no way to pin/rollback
+    # to a specific past build by tag alone. Per-deploy immutable tags (e.g.
+    # the git commit SHA already computed by build-app-containers.py) are a
+    # follow-up, not implemented here.
+    #
+    # imagePullPolicy: Always only helps a pod that gets (re)scheduled — it
+    # does NOT make `kubectl apply` roll a Deployment whose spec is otherwise
+    # unchanged (same image ref, same tag). So a re-deploy that only refreshed
+    # the ":latest" image contents needs an explicit rollout restart below;
+    # see the "detect first install" logic and the restart calls following
+    # this apply.
+    local server_existed=false
+    if kubectl get deployment tmi-server -n "${NAMESPACE}" &>/dev/null; then
+        server_existed=true
+    fi
+
     log_info "Rendering and applying overlay (ECR registry: ${ECR_REGISTRY})..."
     sed -e "s|CERT_ARN_PLACEHOLDER|${CERT_ARN}|" \
         -e "s|ECR_REGISTRY_PLACEHOLDER|${ECR_REGISTRY}|" \
@@ -495,6 +643,12 @@ apply_overlay() {
       | kubectl apply -f -
 
     log_success "Overlay applied"
+
+    if [[ "${server_existed}" == "true" ]]; then
+        log_info "Existing deployment detected — forcing a rollout restart so the freshly pushed :latest images are actually picked up (an unchanged Deployment spec does not trigger a new rollout on its own)..."
+        kubectl rollout restart deployment -n "${NAMESPACE}" tmi-server
+        kubectl rollout restart deployment -n "${NAMESPACE}" tmi-component-controller
+    fi
 }
 
 # ============================================================================
@@ -679,6 +833,8 @@ verify_deployment() {
     echo "    kubectl logs -n ${NAMESPACE} -l app=tmi-server   # View API logs"
     echo "    ./scripts/deploy-aws.sh --destroy                # Tear down"
     echo ""
+    log_warning "TMI_AUTH_AUTO_PROMOTE_FIRST_USER=true is set on this deployment: the FIRST"
+    log_warning "user to authenticate becomes admin. Log in at https://${DOMAIN} now."
 }
 
 # ============================================================================
@@ -704,6 +860,7 @@ main() {
     build_and_push_images
     configure_kubeconfig
     apply_platform_base
+    create_embedding_secret
     apply_overlay
     upsert_cname
     import_config

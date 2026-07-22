@@ -134,6 +134,15 @@ resource "aws_ecr_repository" "tmi" {
   name                 = local.ecr_repo_names[each.key]
   image_tag_mutability = "MUTABLE"
 
+  # kick-the-tires environment: repos routinely still hold pushed images at
+  # teardown time (every `scripts/deploy-aws.sh` deploy re-pushes :latest),
+  # and ECR repositories with images in them block a plain `terraform
+  # destroy`. force_delete lets destroy remove the repo (and its images)
+  # in one step instead of failing partway through. Do not carry this into
+  # an environment where image loss on destroy should require a separate,
+  # explicit step.
+  force_delete = true
+
   image_scanning_configuration {
     scan_on_push = true
   }

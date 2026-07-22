@@ -138,9 +138,25 @@ Strategic-merge patch on the `tmi-server` Deployment:
   Secret in via `envFrom` would silently inject it. See "Redis
   authentication" below for why that would break the server's Redis
   connection.
-- **`imagePullPolicy: IfNotPresent`**: overrides the dev base's `Always`.
-  ECR image tags are immutable per deploy; only the local `:dev` tag needs
-  `Always` to pick up `make restart-dev` churn.
+- **`envFrom: configMapRef: tmi-server-config`**: wires the terraform-owned
+  ConfigMap's flat `TMI_*` keys in. See "ConfigMap flat keys" below for what
+  this newly activates and why the explicit `env:` entries above aren't
+  shadowed by it.
+- **No `imagePullPolicy` override**: the dev base sets no explicit policy
+  either, so Kubernetes' default applies — which is `Always` for a `:latest`
+  tag (every image in this overlay resolves to
+  `ECR_REGISTRY_PLACEHOLDER/tmi-<component>:latest`). A prior version of this
+  patch set `imagePullPolicy: IfNotPresent` on the claim that "ECR tags are
+  immutable per deploy" — false: `terraform/environments/aws-public/main.tf`
+  sets `image_tag_mutability = "MUTABLE"` on every ECR repo, and
+  `scripts/deploy-aws.sh` re-pushes `:latest` on every deploy. `IfNotPresent`
+  would have left a pod that was never rescheduled running a stale image
+  indefinitely. Note that `imagePullPolicy: Always` alone only helps a pod
+  that gets (re)scheduled — a re-deploy onto an otherwise-unchanged
+  Deployment spec does not trigger a new rollout by itself, so
+  `scripts/deploy-aws.sh`'s `apply_overlay()` forces a
+  `kubectl rollout restart` after applying, when it detects the Deployment
+  already existed (i.e. this isn't the first install).
 - **`serviceAccountName: tmi-api`**: attaches the IRSA-annotated
   ServiceAccount terraform creates, so the pod can assume the IAM role that
   reads secrets from Secrets Manager (see
@@ -182,15 +198,16 @@ revisit as option (b): add a `requirepass` patch to `../redis.yml`'s args and
 an explicit `TMI_REDIS_PASSWORD` `secretKeyRef` entry here, in the same
 commit, so they can't drift apart.
 
-## ConfigMap flat keys — naming bug fixed; still not wired via `envFrom`
+## ConfigMap flat keys — naming bug fixed, and now wired via `envFrom`
 
-**Update:** the terraform-side naming bug this section originally flagged is
-now **fixed** in `terraform/modules/kubernetes/aws/k8s_resources.tf` — every
-flat `TMI_*` key in the `tmi-server-config` ConfigMap now matches an actual
-`env:` struct tag in `internal/config/config.go` (verified against the tags,
-not guessed; each key has an inline comment citing the field and line). The
-audit also caught three more mismatches beyond the four originally listed
-here (the dev-mode-only API/WebSocket logging toggles), all now fixed too:
+The terraform-side naming bug this section originally flagged is **fixed**
+in `terraform/modules/kubernetes/aws/k8s_resources.tf` (commit c581c2ff) —
+every flat `TMI_*` key in the `tmi-server-config` ConfigMap now matches an
+actual `env:` struct tag in `internal/config/config.go` (verified against
+the tags, not guessed; each key has an inline comment citing the field and
+line). That audit caught three more mismatches beyond the four originally
+listed here (the dev-mode-only API/WebSocket logging toggles), all now
+fixed too:
 
 | ConfigMap key (terraform, before) | config.go expects (now used) |
 |---|---|
@@ -206,19 +223,32 @@ here (the dev-mode-only API/WebSocket logging toggles), all now fixed too:
 block), `TMI_SERVER_INTERFACE`, `TMI_SERVER_PORT`, `TMI_REDIS_HOST`, and
 `TMI_NATS_URL` already matched and are unchanged.
 
-**What's still open:** this overlay's `patches/server-config.yaml` does
-**not** wire `envFrom: - configMapRef: { name: tmi-server-config }` on the
-`tmi-server` container. The naming fix above removes the blocker that
-justified deferring it, but the wiring itself is a separate change to this
-overlay (not terraform) and is out of scope for the naming fix — it remains
-a follow-up. When it's added: the ConfigMap's `config.yml` key is not a
-valid environment variable name and is silently skipped by Kubernetes under
-`envFrom` (a benign warning Event, not a failure); and note that
-`TMI_SERVER_INTERFACE`/`TMI_SERVER_PORT`/`TMI_REDIS_HOST`/`TMI_NATS_URL`/
-`TMI_AUTH_AUTO_PROMOTE_FIRST_USER` are already set explicitly in this
-patch's `env:` list (which takes precedence over `envFrom` for the same
-name), so wiring the ConfigMap only newly activates `TMI_BUILD_MODE` and the
-logging toggles above.
+With the naming fixed, `patches/server-config.yaml` now wires
+`envFrom: - configMapRef: { name: tmi-server-config }` on the `tmi-server`
+container, so the flat `TMI_*` keys actually reach the runtime. Kubernetes
+resolves an explicit `env:` entry ahead of `envFrom` for the same variable
+name, and this patch's `env:` list already sets `TMI_SERVER_INTERFACE`,
+`TMI_SERVER_PORT`, `TMI_REDIS_HOST`, `TMI_NATS_URL`, and
+`TMI_AUTH_AUTO_PROMOTE_FIRST_USER` explicitly — so those five stay pinned to
+the patch's values regardless of what the ConfigMap says, and `envFrom` only
+newly activates `TMI_BUILD_MODE` and the `TMI_LOG_*` toggles above (plus
+`TMI_AUTH_EVERYONE_IS_A_REVIEWER` in dev mode). The ConfigMap's `config.yml`
+key is not a valid environment variable name and is silently skipped by
+Kubernetes under `envFrom` (a benign warning Event, not a failure).
+
+## Chunk-embed API key (`TMI_EMBEDDING_API_KEY`)
+
+`deployments/k8s/platform/components/tmi-chunk-embed.yml` reads its
+embedding-provider API key from `Secret/tmi-embedding`'s `api-key` key via
+`secretKeyRef`. This overlay does not create that Secret — it's out of
+scope for kustomize since the value is a deployer-supplied credential, not a
+static manifest field. `scripts/deploy-aws.sh` creates/updates it from the
+`TMI_EMBEDDING_API_KEY` environment variable before applying this overlay
+(mirroring `create_embedding_secret()` in `scripts/lib/deploy.py`, used for
+local dev). If `TMI_EMBEDDING_API_KEY` is unset, the script skips creating
+the Secret and prints a warning instead of writing a placeholder: without
+it, chunk-embed fails with `CreateContainerConfigError` the moment KEDA
+scales it up from zero.
 
 ## Render test
 
