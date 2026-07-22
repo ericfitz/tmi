@@ -227,14 +227,38 @@ With the naming fixed, `patches/server-config.yaml` now wires
 `envFrom: - configMapRef: { name: tmi-server-config }` on the `tmi-server`
 container, so the flat `TMI_*` keys actually reach the runtime. Kubernetes
 resolves an explicit `env:` entry ahead of `envFrom` for the same variable
-name, and this patch's `env:` list already sets `TMI_SERVER_INTERFACE`,
-`TMI_SERVER_PORT`, `TMI_REDIS_HOST`, `TMI_NATS_URL`, and
-`TMI_AUTH_AUTO_PROMOTE_FIRST_USER` explicitly — so those five stay pinned to
-the patch's values regardless of what the ConfigMap says, and `envFrom` only
-newly activates `TMI_BUILD_MODE` and the `TMI_LOG_*` toggles above (plus
-`TMI_AUTH_EVERYONE_IS_A_REVIEWER` in dev mode). The ConfigMap's `config.yml`
-key is not a valid environment variable name and is silently skipped by
-Kubernetes under `envFrom` (a benign warning Event, not a failure).
+name, and this patch's `env:` list sets `TMI_SERVER_INTERFACE`,
+`TMI_SERVER_PORT`, `TMI_REDIS_HOST`, and `TMI_NATS_URL` explicitly — so those
+four stay pinned to the patch's values regardless of what the ConfigMap says,
+and `envFrom` supplies the rest: `TMI_BUILD_MODE`, the `TMI_LOG_*` toggles,
+`TMI_AUTH_AUTO_PROMOTE_FIRST_USER` (`"false"`), and
+`TMI_AUTH_EVERYONE_IS_A_REVIEWER` (`"true"`, dev-mode block). The ConfigMap's
+`config.yml` key is not a valid environment variable name and is silently
+skipped by Kubernetes under `envFrom` (a benign warning Event, not a failure).
+
+## Authentication posture (internet-facing)
+
+This overlay serves a **public** ALB, so the authentication configuration is
+deliberately hardened relative to local dev:
+
+- **No tmi stub provider.** `patches/server-config.yaml` does NOT set
+  `OAUTH_PROVIDERS_TMI_ENABLED`, and `scripts/deploy-aws.sh` builds the server
+  image **without** `--build-tags dev`. Under the default (production) build
+  tag the tmi provider is client-credentials only — the no-credential-check
+  `login_hint` authorization-code flow is not compiled in — and an explicit
+  `idp` parameter is required (no default provider). Interactive sign-in comes
+  from the real OAuth providers (e.g. Google) carried in the replicated
+  database config.
+- **No first-user auto-promotion.** `TMI_AUTH_AUTO_PROMOTE_FIRST_USER="false"`
+  (terraform ConfigMap). On a public endpoint auto-promotion would hand admin
+  to the first random visitor. Admin is seeded explicitly via the
+  `administrators` operational setting in the replicated DB config (the
+  configured Google admin identity). **If no administrator is seeded, the
+  deployment has no admin** — verify the imported config.
+- **Everyone is a reviewer.** `TMI_AUTH_EVERYONE_IS_A_REVIEWER="true"`
+  (dev-mode block) is a deliberate choice for this collaborative deployment:
+  every user who authenticates via a real provider gets security-reviewer
+  capability. Scoped to real-provider-authenticated users, not anonymous.
 
 ## Chunk-embed API key (`TMI_EMBEDDING_API_KEY`)
 

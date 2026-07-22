@@ -60,20 +60,24 @@ resource "kubernetes_config_map_v1" "tmi" {
       # `env:` struct tags (not guessed). A previous pass named several of
       # these after the YAML nesting (TMI_AUTH_*/TMI_LOGGING_*) instead of
       # the actual flattened env var name, which silently no-op'd them —
-      # fixed here. See deployments/k8s/dev/aws/README.md "ConfigMap flat
-      # keys" for the remaining consumption caveat: this ConfigMap is still
-      # not wired via `envFrom` in the deploy overlay's server-config.yaml
-      # patch, so these keys — while now correctly named — remain inert
-      # until that overlay adds the envFrom (a follow-up now unblocked by
-      # this fix, tracked in that README). TMI_SERVER_INTERFACE/
-      # TMI_SERVER_PORT/TMI_REDIS_HOST/TMI_NATS_URL/
-      # TMI_AUTH_AUTO_PROMOTE_FIRST_USER are moot either way — the overlay's
-      # patch already sets them explicitly on the container.
-      TMI_BUILD_MODE                   = var.tmi_build_mode # AuthConfig.BuildMode, config.go:149
-      TMI_AUTH_AUTO_PROMOTE_FIRST_USER = "true"             # AuthConfig.AutoPromoteFirstUser, config.go:147
-      TMI_LOG_ALSO_LOG_TO_CONSOLE      = "true"             # LoggingConfig.AlsoLogToConsole, config.go:276
-      TMI_LOG_REDACT_AUTH_TOKENS       = "true"             # LoggingConfig.RedactAuthTokens, config.go:287
-      TMI_LOG_SUPPRESS_UNAUTH_LOGS     = "true"             # LoggingConfig.SuppressUnauthenticatedLogs, config.go:288
+      # fixed here. This ConfigMap IS wired into the server via `envFrom`
+      # in the deploy overlay's server-config.yaml patch, so these keys take
+      # effect (an explicit `env:` entry in that patch still wins over the
+      # same key here). TMI_SERVER_INTERFACE/TMI_SERVER_PORT/TMI_REDIS_HOST/
+      # TMI_NATS_URL are also set explicitly on the container, so those four
+      # are sourced from the patch; the rest (including
+      # TMI_AUTH_AUTO_PROMOTE_FIRST_USER below) come from this ConfigMap.
+      TMI_BUILD_MODE = var.tmi_build_mode # AuthConfig.BuildMode, config.go:149
+      # Auto-promotion of the first authenticated user to admin is OFF: on an
+      # internet-facing deployment it would hand admin to the first random
+      # visitor who authenticates. Admin is instead seeded explicitly via the
+      # `administrators` operational setting in the replicated database config
+      # (the configured Google admin identity). AuthConfig.AutoPromoteFirstUser,
+      # config.go:147.
+      TMI_AUTH_AUTO_PROMOTE_FIRST_USER = "false"
+      TMI_LOG_ALSO_LOG_TO_CONSOLE      = "true" # LoggingConfig.AlsoLogToConsole, config.go:276
+      TMI_LOG_REDACT_AUTH_TOKENS       = "true" # LoggingConfig.RedactAuthTokens, config.go:287
+      TMI_LOG_SUPPRESS_UNAUTH_LOGS     = "true" # LoggingConfig.SuppressUnauthenticatedLogs, config.go:288
       TMI_SERVER_INTERFACE             = "0.0.0.0"
       TMI_SERVER_PORT                  = "8080"
 

@@ -526,15 +526,17 @@ build_and_push_images() {
     # scripts/container_build_helpers.py's _aws_ecr_login()) before pushing,
     # so no separate `docker login` call is needed here.
     log_info "Building and pushing all 5 images (server, redis, extractor, chunkembed, controller)..."
-    # --build-tags dev: this is a "kick the tires" deploy (see the header
-    # comment), and the AWS overlay turns on the tmi interactive OAuth
-    # provider (OAUTH_PROVIDERS_TMI_ENABLED=true in
-    # deployments/k8s/dev/aws/patches/server-config.yaml), which is
-    # compiled in only under the `dev` Go build tag — matching
-    # scripts/lib/deploy.py:87's local-dev BUILD_TAGS=dev. A production
-    # build must drop this flag.
+    # No `--build-tags dev`: this is an internet-facing deployment, so the
+    # server is built WITHOUT the dev-only "tmi" stub OAuth provider (which
+    # performs no credential check and mints users from login_hint). Under the
+    # default (production) build tag the tmi provider is client-credentials
+    # only — there is no anonymous authorization-code/login_hint path — and an
+    # explicit `idp` is required. Interactive auth comes from the real OAuth
+    # providers (e.g. Google) carried in the replicated database config. Do NOT
+    # add `--build-tags dev` here: it would recompile the no-auth stub into a
+    # public binary.
     (cd "${PROJECT_ROOT}" && uv run "${SCRIPT_DIR}/build-app-containers.py" \
-        --target aws --component all --push --scan --build-tags dev)
+        --target aws --component all --push --scan)
     log_success "All images built, pushed, and scanned"
 }
 
@@ -833,8 +835,11 @@ verify_deployment() {
     echo "    kubectl logs -n ${NAMESPACE} -l app=tmi-server   # View API logs"
     echo "    ./scripts/deploy-aws.sh --destroy                # Tear down"
     echo ""
-    log_warning "TMI_AUTH_AUTO_PROMOTE_FIRST_USER=true is set on this deployment: the FIRST"
-    log_warning "user to authenticate becomes admin. Log in at https://${DOMAIN} now."
+    log_warning "Auth posture: the tmi stub provider is disabled and first-user auto-promotion"
+    log_warning "is OFF. Admin access comes solely from the 'administrators' setting in the"
+    log_warning "replicated database config (expected: the configured Google admin identity)."
+    log_warning "Every authenticated user is a security reviewer (everyone_is_a_reviewer=true)."
+    log_warning "If no administrator is seeded, NO ONE will have admin — verify the imported config."
 }
 
 # ============================================================================

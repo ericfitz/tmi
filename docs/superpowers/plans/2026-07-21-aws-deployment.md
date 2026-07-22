@@ -865,7 +865,12 @@ make deploy-aws ARGS="--domain server.aws.tmi.dev --zone-id Z05646533D2YL1I678JX
 uv run scripts/run-dbtool.py -- --export-config -f config-development.yaml --output /tmp/tmi-config-export.yml
 ```
 
-(adapt to run-dbtool.py's actual argument pass-through, discovered in Task 6). Review the export: adjust hostname/URL-bearing settings to AWS values (anything referencing localhost, *.svc names that differ, or dev callback URLs → `https://server.aws.tmi.dev`). Then re-run deploy with import only:
+(adapt to run-dbtool.py's actual argument pass-through, discovered in Task 6). Review the export and adjust before importing:
+
+- **Hostnames/URLs:** anything referencing localhost, `*.svc` names that differ, or dev callback URLs → `https://server.aws.tmi.dev`. In particular the OAuth provider `callback_url`/redirect settings for the Google provider must point at the AWS host, and the Google OAuth app's authorized redirect URIs must include it.
+- **Admin seeding (REQUIRED — auto-promote is OFF):** this deployment sets `TMI_AUTH_AUTO_PROMOTE_FIRST_USER=false`, so the ONLY path to admin is the `administrators` operational setting. Confirm the exported config's `administrators` list contains the fixed admin: `{provider: google, subject_type: user, email: hobobarbarian@gmail.com}` (the Google provider id lives in the dev DB and replicates). If absent, add it before importing — otherwise the deployment will have no administrator. `everyone_is_a_reviewer` stays true (build_mode=dev in the ConfigMap), so every authenticated user gets reviewer capability by design.
+
+Then re-run deploy with import only:
 
 ```bash
 make deploy-aws ARGS="--skip-build --domain server.aws.tmi.dev --zone-id Z05646533D2YL1I678JXS --config-export /tmp/tmi-config-export.yml"
@@ -877,11 +882,9 @@ Restart the server deployment so it re-reads DB settings: `kubectl rollout resta
 
 ```bash
 curl -s https://server.aws.tmi.dev/ | jq .            # version banner
-# OAuth flow (tmi provider), then an authenticated call:
-curl -s "https://server.aws.tmi.dev/oauth2/authorize?idp=tmi&login_hint=alice"
 ```
 
-Full OAuth + API + WebSocket verification per spec: complete a token exchange (oauth stub pattern from CLAUDE.md, pointed at the AWS host), `GET /threat_models` with the bearer token, then optional `wstest --user alice` against `wss://server.aws.tmi.dev`. Extraction smoke: submit a document extraction and verify the extractor TMIComponent scales via KEDA and drains the NATS queue (`kubectl logs -l app=tmi-extractor -n tmi-platform`).
+Auth verification uses the **real Google provider** (the tmi stub is disabled and not compiled in — there is no `login_hint` shortcut on this deployment). Complete an interactive Google OAuth sign-in against `https://server.aws.tmi.dev/oauth2/authorize?idp=google` (idp is now REQUIRED — production build has no default provider), obtain a bearer token, then `GET /threat_models`. Confirm the seeded admin (hobobarbarian@gmail.com) has admin capabilities and that a second, non-admin Google account is a reviewer but not admin. Optional `wstest` against `wss://server.aws.tmi.dev` (using a real token). Extraction smoke: submit a document extraction and verify the extractor TMIComponent scales via KEDA and drains the NATS queue (`kubectl logs -l app=tmi-extractor -n tmi-platform`); this exercises the `tmi-embedding` secret path (Step 1 must have set `TMI_EMBEDDING_API_KEY`).
 
 - [ ] **Step 6: Land the branch**
 

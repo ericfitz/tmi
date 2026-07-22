@@ -6,6 +6,18 @@
 #   host-run integration webhook receiver) are dropped. TMI_NATS_URL stays:
 #   NATS runs in-cluster on AWS too.
 #
+#   AUTH POSTURE (internet-facing deployment): the dev-only "tmi" stub OAuth
+#   provider is NOT enabled here (no OAUTH_PROVIDERS_TMI_ENABLED) and the
+#   server image is built WITHOUT `--build-tags dev` (see deploy-aws.sh
+#   build_and_push_images), so the no-credential-check login_hint flow is not
+#   even compiled in. Interactive auth is served by the real OAuth providers
+#   (e.g. Google) in the replicated database config. First-user auto-promotion
+#   is OFF: TMI_AUTH_AUTO_PROMOTE_FIRST_USER is set to "false" in the
+#   terraform ConfigMap (kubernetes_config_map_v1.tmi) and is intentionally
+#   NOT overridden here, so admin comes solely from the DB `administrators`
+#   setting. everyone_is_a_reviewer remains true (build_mode=dev in the
+#   ConfigMap) by deliberate choice for this collaborative deployment.
+#
 #   TMI_DATABASE_URL and TMI_JWT_SECRET are explicit valueFrom.secretKeyRef
 #   entries against the terraform-owned `tmi-secrets` Secret (see
 #   kubernetes_secret_v1.tmi in terraform/modules/kubernetes/aws/k8s_resources.tf).
@@ -33,10 +45,10 @@
 #   ConfigMap in via `envFrom` below. Kubernetes resolves an explicit `env:`
 #   entry ahead of `envFrom` for the same variable name, so the explicit
 #   entries in this patch's `env:` list (TMI_SERVER_INTERFACE,
-#   TMI_SERVER_PORT, TMI_REDIS_HOST, TMI_NATS_URL,
-#   TMI_AUTH_AUTO_PROMOTE_FIRST_USER) keep taking effect unchanged; envFrom
-#   newly activates only the keys not already listed there — TMI_BUILD_MODE
-#   and the TMI_LOG_* toggles. The ConfigMap's `config.yml` key is not a
+#   TMI_SERVER_PORT, TMI_REDIS_HOST, TMI_NATS_URL) keep taking effect
+#   unchanged; envFrom activates the keys not listed there — TMI_BUILD_MODE,
+#   TMI_AUTH_AUTO_PROMOTE_FIRST_USER (="false"), and the TMI_LOG_* toggles.
+#   The ConfigMap's `config.yml` key is not a
 #   valid environment variable name and is silently skipped under envFrom
 #   (a benign warning Event, not a failure).
 # - serviceAccountName: tmi-api — the IRSA-annotated ServiceAccount terraform
@@ -63,8 +75,6 @@ spec:
             - { name: TMI_REDIS_HOST, value: "redis" }
             - { name: TMI_NATS_URL, value: "nats://nats.tmi-platform.svc:4222" }
             - { name: TMI_LOG_DIR, value: "/tmp/logs" }
-            - { name: OAUTH_PROVIDERS_TMI_ENABLED, value: "true" }
-            - { name: TMI_AUTH_AUTO_PROMOTE_FIRST_USER, value: "true" }
             - name: TMI_DATABASE_URL
               valueFrom:
                 secretKeyRef:
