@@ -72,9 +72,6 @@
 !terraform/**
 !deployments/
 !deployments/**
-# AWS EKS overlay: the deploy script writes ECR-registry/cert-ARN-pinned,
-# account-specific kustomize components here at deploy time — never commit.
-deployments/k8s/dev/aws/generated-*.yaml
 !config/
 !config/**
 

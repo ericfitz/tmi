@@ -1,10 +1,13 @@
 # AWS (EKS) overlay. Terraform owns infra + bootstrap objects (namespace,
 # tmi-server-config ConfigMap, secrets, IRSA service accounts); this overlay
-# owns every workload. Image URIs are pinned by the deploy script via
-# generated-images.yaml (gitignored) because the ECR registry is
-# account-specific. NATS + KEDA + the TMIComponent CRD are applied by
-# scripts/deploy-aws.sh before this overlay (same order as scripts/lib/
-# deploy.py apply_platform_base). Postgres is RDS — no in-cluster DB.
+# owns every workload. Every image reference below is pinned to the literal
+# token ECR_REGISTRY_PLACEHOLDER, which the deploy script rewrites in place
+# (sed) to the account's real ECR registry URI immediately before `kubectl
+# apply -k` — the same mechanism used for CERT_ARN_PLACEHOLDER in ingress.yml.
+# There is no generated/gitignored kustomize component involved. NATS + KEDA +
+# the TMIComponent CRD are applied by scripts/deploy-aws.sh before this
+# overlay (same order as scripts/lib/deploy.py apply_platform_base). Postgres
+# is RDS — no in-cluster DB.
 #
 # Resolved caveats (see README.md for full detail):
 #   - No NATS storage-class patch: deployments/k8s/platform/nats.yml's
@@ -15,6 +18,11 @@
 #     tags both public subnets kubernetes.io/role/elb=1, so the AWS Load
 #     Balancer Controller auto-discovers them without an explicit
 #     alb.ingress.kubernetes.io/subnets annotation.
+#   - Redis is rebuilt and pushed to ECR as tmi-redis (see
+#     scripts/container_build_helpers.py aws target) rather than pulled from
+#     cgr.dev at deploy time, so the cluster has no external registry
+#     dependency and the image is subject to the same ECR scanning/pull-through
+#     posture as every other TMI image.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: tmi-platform
@@ -25,6 +33,19 @@ resources:
   - ../../platform/components/tmi-extractor.yml
   - ../../platform/components/tmi-chunk-embed.yml
   - ingress.yml
+images:
+  # Repo names must match scripts/container_build_helpers.py's aws
+  # image_name_map (controller, chunkembed) / image_name_prefix (server,
+  # redis, extractor default to "tmi-<component>") and Task 4's ECR repos.
+  - name: localhost:5000/tmi-server
+    newName: ECR_REGISTRY_PLACEHOLDER/tmi-server
+    newTag: latest
+  - name: localhost:5000/tmi-component-controller
+    newName: ECR_REGISTRY_PLACEHOLDER/tmi-component-controller
+    newTag: latest
+  - name: cgr.dev/chainguard/redis
+    newName: ECR_REGISTRY_PLACEHOLDER/tmi-redis
+    newTag: latest
 patches:
   - path: patches/server-config.yaml
     target:

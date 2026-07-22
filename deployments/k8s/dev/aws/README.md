@@ -21,30 +21,45 @@ workload set on **Amazon EKS**, from the same bases local dev uses
   the ALB Ingress.
 - **`scripts/deploy-aws.sh`** applies NATS, KEDA, and the TMIComponent CRD
   before this overlay (mirroring `apply_platform_base` in
-  `scripts/lib/deploy.py` for local dev), and writes two gitignored,
-  generated files that this overlay does not itself produce:
-  - `generated-images.yaml` — a kustomize `images:` transformer component
-    pinning the ECR registry URI (account-specific).
-  - a generated ingress patch supplying the real ACM certificate ARN in
-    place of `CERT_ARN_PLACEHOLDER`.
+  `scripts/lib/deploy.py` for local dev), then rewrites the
+  `ECR_REGISTRY_PLACEHOLDER` / `CERT_ARN_PLACEHOLDER` tokens described below
+  (sed, in place, on a deploy-time working copy of this directory) before
+  running `kubectl apply -k`. **No generated/gitignored kustomize component
+  files are produced by the deploy script** — every rendered manifest comes
+  straight from the files committed here, with only the placeholder tokens
+  substituted.
 - Postgres is **RDS**, not in-cluster — there is no Postgres base in this
   overlay's `resources:`.
 
 ## Placeholders
 
 Two exact tokens are seeded by this overlay and rewritten by the deploy
-script (sed-style substitution) — do not rename them without updating the
-deploy script in lockstep:
+script (sed-style substitution, in place, no generated files) — do not
+rename them without updating the deploy script in lockstep:
 
 | Placeholder | Where | Replaced with |
 |---|---|---|
 | `CERT_ARN_PLACEHOLDER` | `ingress.yml`, `alb.ingress.kubernetes.io/certificate-arn` | ACM certificate ARN |
-| `ECR_REGISTRY_PLACEHOLDER` | `patches/extractor-image.yaml`, `patches/chunkembed-image.yaml` | Account's ECR registry URI |
+| `ECR_REGISTRY_PLACEHOLDER` | `kustomization.yaml` (`images:` transformer, for `tmi-server`, `tmi-component-controller`, `tmi-redis`), `patches/extractor-image.yaml`, `patches/chunkembed-image.yaml` | Account's ECR registry URI |
 
-The `tmi-server` and `tmi-component-controller` image URIs are **not**
-placeholder-patched in this overlay at all; they are pinned by the deploy
-script's generated `images:` transformer (`generated-images.yaml`), the same
-mechanism the interface note above describes.
+All five workload images (`tmi-server`, `tmi-component-controller`,
+`tmi-redis`, `tmi-extractor`, `tmi-chunk-embed`) are rewritten to
+`ECR_REGISTRY_PLACEHOLDER/tmi-<component>:latest`. The server and controller
+go through the top-level `images:` transformer in `kustomization.yaml`
+(kustomize's standard image-rewrite mechanism, matching the pattern
+`../docker-desktop/kustomization.yaml` uses to strip the `localhost:5000/`
+prefix); the two TMIComponent CRs go through their own JSON6902 patches
+because kustomize's `images:` transformer does not know how to find an image
+reference at a custom CRD path like `.spec.image`.
+
+**Redis is rebuilt and pushed to ECR as `tmi-redis`** (see the `aws` case in
+`scripts/container_build_helpers.py`) rather than pulled from
+`cgr.dev/chainguard/redis` at deploy time. This removes the external
+registry as a deploy-time dependency and puts Redis through the same
+ECR-hosted, scanned image pipeline as every other TMI component. Local dev
+(docker-desktop/k3s overlays) is unaffected — those still use
+`cgr.dev/chainguard/redis:latest` directly, since they have no ECR to push
+to.
 
 ## Resolved caveats
 
@@ -125,4 +140,30 @@ kubectl kustomize --load-restrictor LoadRestrictionsNone deployments/k8s/dev/aws
 
 Renders successfully with placeholders in place — `kubectl kustomize` does
 not resolve or validate placeholder values, only `kubectl apply` against a
-real cluster would.
+real cluster would. To confirm no image reference was missed, verify zero
+non-ECR image sources remain:
+
+```bash
+kubectl kustomize --load-restrictor LoadRestrictionsNone deployments/k8s/dev/aws \
+  | rg -c 'localhost:5000|cgr.dev'
+```
+
+`rg -c` should find no matches (exit status 1), and every `image:` line
+should read `ECR_REGISTRY_PLACEHOLDER/tmi-<component>:latest` for all five
+workloads (`tmi-server`, `tmi-component-controller`, `tmi-redis`,
+`tmi-extractor`, `tmi-chunk-embed`).
+
+## No generated files / `.gitignore`
+
+Earlier drafts of this overlay assumed the deploy script would write a
+gitignored `generated-images.yaml` kustomize component (and a matching
+generated ingress patch) to inject account-specific values. That mechanism
+was never implemented and is not how the placeholders are actually consumed:
+**both `CERT_ARN_PLACEHOLDER` and `ECR_REGISTRY_PLACEHOLDER` are resolved by
+the deploy script sed-rewriting the literal token in place**, not by
+generating separate files. Consequently `.gitignore` carries no
+`deployments/k8s/dev/aws/generated-*` entry — there is nothing for the
+deploy script to produce in this directory that would need ignoring. If a
+future deploy-script implementation switches to a generated-component
+approach instead of in-place sed, re-add the `.gitignore` entry at that
+time.
