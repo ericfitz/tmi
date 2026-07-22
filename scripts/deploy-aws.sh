@@ -35,7 +35,7 @@
 #   --config-export FILE           Import this dbtool config-export YAML into the deployed
 #                                   database after the overlay is up (optional)
 #   --skip-build                   Skip container image build/push (use existing ECR images)
-#   --destroy                      Destroy the deployment instead of creating it
+#   --destroy                      Destroy the deployment instead of creating it (--domain/--zone-id still required)
 #   --dry-run                      Run terraform plan only (no apply, no build/push, no cluster changes)
 #   --auto-approve                 Skip terraform apply confirmation
 #   --help                         Show this help message
@@ -44,7 +44,7 @@
 #   ./scripts/deploy-aws.sh --domain tmi.example.com --zone-id Z1234567890ABC
 #   ./scripts/deploy-aws.sh --domain tmi.example.com --zone-id Z1234567890ABC --skip-build --dry-run
 #   ./scripts/deploy-aws.sh --domain tmi.example.com --zone-id Z1234567890ABC --config-export /tmp/tmi-config.yaml
-#   ./scripts/deploy-aws.sh --destroy
+#   ./scripts/deploy-aws.sh --destroy --domain tmi.example.com --zone-id Z1234567890ABC
 #
 # Removed flags (no longer apply — see terraform/environments/aws-public/variables.tf):
 #   --san, --alert-email, --db-instance-class, --db-multi-az, --multi-az-nat
@@ -296,13 +296,15 @@ preflight_checks() {
         failed=1
     fi
 
-    # 11. --domain / --zone-id required together for deploy (not --destroy)
-    if [[ "${DESTROY}" == "false" ]]; then
-        if [[ -z "${DOMAIN}" ]] || [[ -z "${ZONE_ID}" ]]; then
-            log_error "--domain and --zone-id are both required for deploy/dry-run"
-            echo "  The ACM certificate, ALB ingress, and Route 53 CNAME all depend on them."
-            failed=1
-        fi
+    # 11. --domain / --zone-id required for deploy, dry-run, AND destroy:
+    # terraform/environments/aws-public/variables.tf declares domain_name and
+    # hosted_zone_id with no default, so `terraform destroy` needs a tfvars
+    # file supplying them just as much as `terraform apply` does.
+    if [[ -z "${DOMAIN}" ]] || [[ -z "${ZONE_ID}" ]]; then
+        log_error "--domain and --zone-id are both required (including for --destroy)"
+        echo "  domain_name/hosted_zone_id are required Terraform variables with no"
+        echo "  default; Terraform needs them to plan/apply OR destroy this environment."
+        failed=1
     fi
 
     # 12. Check AWS region is valid
@@ -339,6 +341,11 @@ terraform_deploy() {
 
     terraform_init
 
+    # domain_name/hosted_zone_id have no default in variables.tf, so both the
+    # deploy and the destroy path need terraform.tfvars generated first —
+    # one code path, not a throwaway -var=... special case for destroy.
+    generate_tfvars
+
     if [[ "${DESTROY}" == "true" ]]; then
         if [[ "${DRY_RUN}" == "true" ]]; then
             log_info "Dry run: showing destroy plan..."
@@ -354,8 +361,6 @@ terraform_deploy() {
         fi
         return 0
     fi
-
-    generate_tfvars
 
     log_info "Running terraform plan..."
     terraform -chdir="${TF_DIR}" plan -out=tfplan
@@ -522,6 +527,32 @@ upsert_cname() {
 }
 
 # ============================================================================
+# URL encoding helper (used by import_config())
+# ============================================================================
+
+# Percent-encode a string for safe use in a URL userinfo (username/password)
+# position, mirroring terraform's urlencode() usage in
+# terraform/modules/kubernetes/aws/k8s_resources.tf:99 (TMI_DATABASE_URL).
+# random_password's override_special charset includes `% # ? & =`: a stray
+# `%` makes Go's net/url.Parse hard-fail, and `#`/`?` truncate the URL at the
+# fragment/query boundary before the real host:port/dbname is even reached.
+# RFC 3986 unreserved characters (ALPHA / DIGIT / "-" / "." / "_" / "~") pass
+# through unencoded; everything else becomes %XX. This is a superset of what
+# userinfo strictly requires — safe, just occasionally over-encodes — and is
+# pure bash (no external dependency, no shellout per character).
+urlencode() {
+    local string="$1" length i c
+    length="${#string}"
+    for (( i = 0; i < length; i++ )); do
+        c="${string:i:1}"
+        case "${c}" in
+            [a-zA-Z0-9.~_-]) printf '%s' "${c}" ;;
+            *) printf '%%%02X' "'${c}" ;;
+        esac
+    done
+}
+
+# ============================================================================
 # PHASE 7: Optional dbtool config import (via in-cluster TCP proxy)
 # ============================================================================
 
@@ -571,6 +602,10 @@ import_config() {
     db_password=$(echo "${secret_json}" | jq -r '.password')
     unset secret_json
 
+    local db_password_encoded
+    db_password_encoded=$(urlencode "${db_password}")
+    unset db_password
+
     local tmp_dir
     tmp_dir=$(mktemp -d)
     TMPDIR_TO_CLEAN="${tmp_dir}"
@@ -580,7 +615,7 @@ server:
   port: "8080"
   interface: "0.0.0.0"
 database:
-  url: "postgres://${db_user}:${db_password}@localhost:15432/tmi?sslmode=require"
+  url: "postgres://${db_user}:${db_password_encoded}@localhost:15432/tmi?sslmode=require"
   redis:
     host: "localhost"
     port: "6379"
@@ -590,7 +625,7 @@ auth:
     secret: "deploy-aws-transient-connect-only"
 EOF
     )
-    unset db_password
+    unset db_password_encoded
 
     log_info "Building dbtool..."
     (cd "${PROJECT_ROOT}" && uv run "${SCRIPT_DIR}/build-server.py" --component dbtool)
@@ -628,7 +663,7 @@ verify_deployment() {
     fi
     log_success "https://${DOMAIN}/ is responding (HTTP 200)"
 
-    curl -s "https://${DOMAIN}/" | jq .
+    curl -s "https://${DOMAIN}/" | jq . || true
     kubectl get pods -n "${NAMESPACE}"
 
     echo ""
