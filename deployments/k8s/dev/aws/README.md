@@ -182,36 +182,43 @@ revisit as option (b): add a `requirepass` patch to `../redis.yml`'s args and
 an explicit `TMI_REDIS_PASSWORD` `secretKeyRef` entry here, in the same
 commit, so they can't drift apart.
 
-## ConfigMap flat keys — not wired via `envFrom` (terraform-side naming bug)
+## ConfigMap flat keys — naming bug fixed; still not wired via `envFrom`
 
-The `tmi-server-config` ConfigMap also carries flat `TMI_*` keys
-(`TMI_AUTH_BUILD_MODE`, `TMI_LOGGING_ALSO_LOG_TO_CONSOLE`,
-`TMI_LOGGING_REDACT_AUTH_TOKENS`, `TMI_LOGGING_SUPPRESS_UNAUTHENTICATED_LOGS`,
-etc.) evidently intended for `envFrom: configMapRef:`. This overlay does
-**not** wire that up, because several of those key names don't match what
-`internal/config/config.go` actually reads:
+**Update:** the terraform-side naming bug this section originally flagged is
+now **fixed** in `terraform/modules/kubernetes/aws/k8s_resources.tf` — every
+flat `TMI_*` key in the `tmi-server-config` ConfigMap now matches an actual
+`env:` struct tag in `internal/config/config.go` (verified against the tags,
+not guessed; each key has an inline comment citing the field and line). The
+audit also caught three more mismatches beyond the four originally listed
+here (the dev-mode-only API/WebSocket logging toggles), all now fixed too:
 
-| ConfigMap key (terraform) | config.go expects | Match? |
-|---|---|---|
-| `TMI_AUTH_BUILD_MODE` | `TMI_BUILD_MODE` | no |
-| `TMI_LOGGING_ALSO_LOG_TO_CONSOLE` | `TMI_LOG_ALSO_LOG_TO_CONSOLE` | no |
-| `TMI_LOGGING_REDACT_AUTH_TOKENS` | `TMI_LOG_REDACT_AUTH_TOKENS` | no |
-| `TMI_LOGGING_SUPPRESS_UNAUTHENTICATED_LOGS` | `TMI_LOG_SUPPRESS_UNAUTH_LOGS` | no |
-| `TMI_AUTH_AUTO_PROMOTE_FIRST_USER` | `TMI_AUTH_AUTO_PROMOTE_FIRST_USER` | yes (already set explicitly above) |
-| `TMI_SERVER_INTERFACE` / `TMI_SERVER_PORT` / `TMI_REDIS_HOST` / `TMI_NATS_URL` | (same) | yes (already set explicitly above) |
+| ConfigMap key (terraform, before) | config.go expects (now used) |
+|---|---|
+| `TMI_AUTH_BUILD_MODE` | `TMI_BUILD_MODE` |
+| `TMI_LOGGING_ALSO_LOG_TO_CONSOLE` | `TMI_LOG_ALSO_LOG_TO_CONSOLE` |
+| `TMI_LOGGING_REDACT_AUTH_TOKENS` | `TMI_LOG_REDACT_AUTH_TOKENS` |
+| `TMI_LOGGING_SUPPRESS_UNAUTHENTICATED_LOGS` | `TMI_LOG_SUPPRESS_UNAUTH_LOGS` |
+| `TMI_LOGGING_LOG_API_REQUESTS` (dev-mode block) | `TMI_LOG_API_REQUESTS` |
+| `TMI_LOGGING_LOG_API_RESPONSES` (dev-mode block) | `TMI_LOG_API_RESPONSES` |
+| `TMI_LOGGING_LOG_WEBSOCKET_MESSAGES` (dev-mode block) | `TMI_LOG_WEBSOCKET_MESSAGES` |
 
-None of these mismatched keys are required for startup (unlike
-`TMI_DATABASE_URL`/`TMI_JWT_SECRET`), so this is not a Critical-severity gap
-like the one this section documents the fix for — but it does mean
-`TMI_AUTH_BUILD_MODE` and the three logging toggles terraform intends to set
-are silently no-ops today. This overlay doesn't own
-`terraform/modules/kubernetes/aws/k8s_resources.tf`, so the fix (renaming
-the ConfigMap keys to match `config.go`'s `env:` tags) belongs in a
-follow-up to that file, not here. Once the names are corrected there, add
-`envFrom: - configMapRef: { name: tmi-server-config }` to this patch's
-container (the ConfigMap's `config.yml` key, not being a valid environment
-variable name, is silently skipped by Kubernetes when used with `envFrom` —
-a benign warning Event, not a failure).
+`TMI_AUTH_AUTO_PROMOTE_FIRST_USER`, `TMI_AUTH_EVERYONE_IS_A_REVIEWER` (dev-mode
+block), `TMI_SERVER_INTERFACE`, `TMI_SERVER_PORT`, `TMI_REDIS_HOST`, and
+`TMI_NATS_URL` already matched and are unchanged.
+
+**What's still open:** this overlay's `patches/server-config.yaml` does
+**not** wire `envFrom: - configMapRef: { name: tmi-server-config }` on the
+`tmi-server` container. The naming fix above removes the blocker that
+justified deferring it, but the wiring itself is a separate change to this
+overlay (not terraform) and is out of scope for the naming fix — it remains
+a follow-up. When it's added: the ConfigMap's `config.yml` key is not a
+valid environment variable name and is silently skipped by Kubernetes under
+`envFrom` (a benign warning Event, not a failure); and note that
+`TMI_SERVER_INTERFACE`/`TMI_SERVER_PORT`/`TMI_REDIS_HOST`/`TMI_NATS_URL`/
+`TMI_AUTH_AUTO_PROMOTE_FIRST_USER` are already set explicitly in this
+patch's `env:` list (which takes precedence over `envFrom` for the same
+name), so wiring the ConfigMap only newly activates `TMI_BUILD_MODE` and the
+logging toggles above.
 
 ## Render test
 

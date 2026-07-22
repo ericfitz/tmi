@@ -56,13 +56,26 @@ resource "kubernetes_config_map_v1" "tmi" {
         # the tmi-secrets Secret), not this file. See internal/config/config.go.
       EOT
 
-      TMI_AUTH_BUILD_MODE                       = var.tmi_build_mode
-      TMI_AUTH_AUTO_PROMOTE_FIRST_USER          = "true"
-      TMI_LOGGING_ALSO_LOG_TO_CONSOLE           = "true"
-      TMI_LOGGING_REDACT_AUTH_TOKENS            = "true"
-      TMI_LOGGING_SUPPRESS_UNAUTHENTICATED_LOGS = "true"
-      TMI_SERVER_INTERFACE                      = "0.0.0.0"
-      TMI_SERVER_PORT                           = "8080"
+      # NOTE: every key below is verified against internal/config/config.go's
+      # `env:` struct tags (not guessed). A previous pass named several of
+      # these after the YAML nesting (TMI_AUTH_*/TMI_LOGGING_*) instead of
+      # the actual flattened env var name, which silently no-op'd them —
+      # fixed here. See deployments/k8s/dev/aws/README.md "ConfigMap flat
+      # keys" for the remaining consumption caveat: this ConfigMap is still
+      # not wired via `envFrom` in the deploy overlay's server-config.yaml
+      # patch, so these keys — while now correctly named — remain inert
+      # until that overlay adds the envFrom (a follow-up now unblocked by
+      # this fix, tracked in that README). TMI_SERVER_INTERFACE/
+      # TMI_SERVER_PORT/TMI_REDIS_HOST/TMI_NATS_URL/
+      # TMI_AUTH_AUTO_PROMOTE_FIRST_USER are moot either way — the overlay's
+      # patch already sets them explicitly on the container.
+      TMI_BUILD_MODE                   = var.tmi_build_mode # AuthConfig.BuildMode, config.go:149
+      TMI_AUTH_AUTO_PROMOTE_FIRST_USER = "true"             # AuthConfig.AutoPromoteFirstUser, config.go:147
+      TMI_LOG_ALSO_LOG_TO_CONSOLE      = "true"             # LoggingConfig.AlsoLogToConsole, config.go:276
+      TMI_LOG_REDACT_AUTH_TOKENS       = "true"             # LoggingConfig.RedactAuthTokens, config.go:287
+      TMI_LOG_SUPPRESS_UNAUTH_LOGS     = "true"             # LoggingConfig.SuppressUnauthenticatedLogs, config.go:288
+      TMI_SERVER_INTERFACE             = "0.0.0.0"
+      TMI_SERVER_PORT                  = "8080"
 
       # Redis accessed via the K8s ClusterIP service created by the deploy
       # overlay (deployments/k8s/dev/redis.yml -> Service "redis"). The
@@ -71,15 +84,17 @@ resource "kubernetes_config_map_v1" "tmi" {
       TMI_REDIS_HOST = "redis.tmi-platform.svc.cluster.local"
 
       # NATS runs in-cluster, applied by the deploy script ahead of the
-      # workload overlay (see deployments/k8s/platform/nats.yml).
+      # workload overlay (see deployments/k8s/platform/nats.yml). Read
+      # directly via os.Getenv/MustEnv in internal/worker/nats.go, not a
+      # config.go struct tag — this name is already correct.
       TMI_NATS_URL = "nats://nats.tmi-platform.svc:4222"
     },
     # Public mode adds verbose logging
     var.tmi_build_mode == "dev" ? {
-      TMI_AUTH_EVERYONE_IS_A_REVIEWER    = "true"
-      TMI_LOGGING_LOG_API_REQUESTS       = "true"
-      TMI_LOGGING_LOG_API_RESPONSES      = "true"
-      TMI_LOGGING_LOG_WEBSOCKET_MESSAGES = "true"
+      TMI_AUTH_EVERYONE_IS_A_REVIEWER = "true" # AuthConfig.EveryoneIsAReviewer, config.go:148
+      TMI_LOG_API_REQUESTS            = "true" # LoggingConfig.LogAPIRequests, config.go:284
+      TMI_LOG_API_RESPONSES           = "true" # LoggingConfig.LogAPIResponses, config.go:285
+      TMI_LOG_WEBSOCKET_MESSAGES      = "true" # LoggingConfig.LogWebSocketMsg, config.go:286
     } : {},
     var.extra_environment_variables
   )
