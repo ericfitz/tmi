@@ -15,6 +15,32 @@ func Get(key, fallback string) string {
 	return fallback
 }
 
+// ScanPrefixedMap returns a map of every environment variable whose name starts
+// with prefix, keyed by the lowercased remainder of the name and valued by the
+// variable's value. For example, with prefix
+// "OAUTH_PROVIDERS_GOOGLE_USERINFO_CLAIMS_":
+//
+//	OAUTH_PROVIDERS_GOOGLE_USERINFO_CLAIMS_SUBJECT_CLAIM=sub  -> {"subject_claim": "sub"}
+//	OAUTH_PROVIDERS_GOOGLE_USERINFO_CLAIMS_EMAIL_CLAIM=email  -> {"email_claim": "email"}
+//
+// Returns a non-nil empty map when nothing matches. Used for OAuth userinfo
+// claim mappings and additional OAuth parameters, which are dynamic-cardinality
+// (the concrete keys are only known at runtime).
+// SEM@33c446dc529c7bbdd5753f7eb5d6fb76e8f6ae6c: scan environment variables under a prefix into a lowercase suffix-to-value map (reads env)
+func ScanPrefixedMap(prefix string) map[string]string {
+	out := make(map[string]string)
+	for _, env := range os.Environ() {
+		parts := strings.SplitN(env, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		if suffix, ok := strings.CutPrefix(parts[0], prefix); ok && suffix != "" {
+			out[strings.ToLower(suffix)] = parts[1]
+		}
+	}
+	return out
+}
+
 // DiscoverProviders scans environment variables to find configured providers.
 // It looks for environment variables matching the pattern: <prefix><PROVIDER_ID><suffix>
 // For example, with prefix="SAML_PROVIDERS_" and suffix="_ENABLED",
