@@ -8,20 +8,17 @@
 #
 #   AUTH POSTURE (internet-facing deployment): the runtime build mode is
 #   PRODUCTION (TMI_BUILD_MODE=production, set in the terraform ConfigMap).
-#   The "tmi" OAuth provider stays ENABLED here (OAUTH_PROVIDERS_TMI_ENABLED),
-#   but in production the provider is restricted to the Client Credentials
-#   Grant: the Authorization Code / login_hint flow that would mint an
-#   ephemeral user with NO credential check is disabled at runtime
-#   (auth/test_provider.go ExchangeCode returns an error when
-#   !isDevOrTestBuild()). So no anonymous JWT can be obtained, and this holds
-#   even though the replicated DB config also enables the tmi provider — the
-#   control is the runtime build mode, not provider registration. Interactive
-#   human auth is served by the real OAuth providers (e.g. Google) in the
-#   replicated config; the tmi provider serves machine/client-credentials
-#   tokens (which require real client_id/secret). First-user auto-promotion is
-#   OFF: TMI_AUTH_AUTO_PROMOTE_FIRST_USER="false" in the ConfigMap (not
-#   overridden here), so admin comes solely from the DB `administrators`
-#   setting. everyone_is_a_reviewer is true (set via the terraform
+#   The dev-only "tmi" OAuth provider is NOT enabled here and NOT advertised in
+#   the interactive providers list — in a production build its authorization-
+#   code/login_hint flow is disabled anyway (auth/test_provider.go ExchangeCode
+#   errors when !isDevOrTestBuild()), and service-account/client-credentials
+#   auth does not depend on it being registered. Interactive human auth is
+#   served entirely by the real OAuth/SAML providers (Google, GitHub, Microsoft,
+#   Entra SAML) supplied via the `tmi-oauth-providers` secret (envFrom above).
+#   First-user auto-promotion is OFF: TMI_AUTH_AUTO_PROMOTE_FIRST_USER="false"
+#   in the ConfigMap (not overridden here), so admin comes solely from the
+#   `administrators` setting (TMI_ADMIN_PROVIDER/_ID in the secret).
+#   everyone_is_a_reviewer is true (set via the terraform
 #   `everyone_is_a_reviewer` variable, decoupled from build mode) by deliberate
 #   choice for this collaborative deployment.
 #
@@ -52,9 +49,9 @@
 #   ConfigMap in via `envFrom` below. Kubernetes resolves an explicit `env:`
 #   entry ahead of `envFrom` for the same variable name, so the explicit
 #   entries in this patch's `env:` list (TMI_SERVER_INTERFACE,
-#   TMI_SERVER_PORT, TMI_REDIS_HOST, TMI_NATS_URL, OAUTH_PROVIDERS_TMI_ENABLED)
-#   keep taking effect unchanged; envFrom activates the keys not listed there —
-#   TMI_BUILD_MODE (="production"), TMI_AUTH_AUTO_PROMOTE_FIRST_USER (="false"),
+#   TMI_SERVER_PORT, TMI_REDIS_HOST, TMI_NATS_URL) keep taking effect unchanged;
+#   envFrom activates the keys not listed there — TMI_BUILD_MODE
+#   (="production"), TMI_AUTH_AUTO_PROMOTE_FIRST_USER (="false"),
 #   TMI_AUTH_EVERYONE_IS_A_REVIEWER (="true"), and the TMI_LOG_* toggles.
 #   The ConfigMap's `config.yml` key is not a
 #   valid environment variable name and is silently skipped under envFrom
@@ -76,6 +73,13 @@ spec:
           envFrom:
             - configMapRef:
                 name: tmi-server-config
+            # Real OAuth/SAML provider config (Google/GitHub/Microsoft/Entra),
+            # the admin identity (TMI_ADMIN_PROVIDER/_ID), and the callback/base
+            # URLs. Created out-of-band by the operator from the source
+            # deployment's provider config (secrets are never committed); this
+            # envFrom makes it durable across overlay re-applies.
+            - secretRef:
+                name: tmi-oauth-providers
           env:
             - $patch: replace
             - { name: TMI_SERVER_INTERFACE, value: "0.0.0.0" }
@@ -83,7 +87,10 @@ spec:
             - { name: TMI_REDIS_HOST, value: "redis" }
             - { name: TMI_NATS_URL, value: "nats://nats.tmi-platform.svc:4222" }
             - { name: TMI_LOG_DIR, value: "/tmp/logs" }
-            - { name: OAUTH_PROVIDERS_TMI_ENABLED, value: "true" }
+            # The dev-only "tmi" provider is intentionally NOT enabled: on a
+            # production build it is client-credentials-only, and the interactive
+            # providers list must not advertise it. Service-account/client-
+            # credentials auth does not require it to be registered.
             - name: TMI_DATABASE_URL
               valueFrom:
                 secretKeyRef:
