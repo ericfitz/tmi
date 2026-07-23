@@ -634,11 +634,31 @@ func overrideOAuthProviders(mapField reflect.Value) error {
 			}
 		}
 
-		// Build userinfo endpoints array
+		// Build userinfo endpoints array, each with its claim mappings. The
+		// claim maps MUST be populated here: providers classified as NonOIDC
+		// (e.g. GitHub) or OIDCCustomUserinfo require an explicit
+		// subject_claim, and startup validation fails without it. A previous
+		// version of this loader parsed only the endpoint URLs and dropped the
+		// USERINFO_CLAIMS_* / SECONDARY / ADDITIONAL env vars, so env-var-only
+		// provider config (e.g. replicated from another deployment) could not
+		// satisfy validation (#558). This mirrors auth/config.go's loader.
 		var userInfoEndpoints []UserInfoEndpoint
 		if userinfoURL := os.Getenv(envPrefix + "USERINFO_URL"); userinfoURL != "" {
 			userInfoEndpoints = append(userInfoEndpoints, UserInfoEndpoint{
-				URL: userinfoURL,
+				URL:    userinfoURL,
+				Claims: envutil.ScanPrefixedMap(envPrefix + "USERINFO_CLAIMS_"),
+			})
+		}
+		if secondaryURL := os.Getenv(envPrefix + "USERINFO_SECONDARY_URL"); secondaryURL != "" {
+			userInfoEndpoints = append(userInfoEndpoints, UserInfoEndpoint{
+				URL:    secondaryURL,
+				Claims: envutil.ScanPrefixedMap(envPrefix + "USERINFO_SECONDARY_CLAIMS_"),
+			})
+		}
+		if additionalURL := os.Getenv(envPrefix + "USERINFO_ADDITIONAL_URL"); additionalURL != "" {
+			userInfoEndpoints = append(userInfoEndpoints, UserInfoEndpoint{
+				URL:    additionalURL,
+				Claims: envutil.ScanPrefixedMap(envPrefix + "USERINFO_ADDITIONAL_CLAIMS_"),
 			})
 		}
 
@@ -656,6 +676,9 @@ func overrideOAuthProviders(mapField reflect.Value) error {
 			JWKSURL:          os.Getenv(envPrefix + "JWKS_URL"),
 			Scopes:           scopes,
 			UserInfo:         userInfoEndpoints,
+			AdditionalParams: envutil.ScanPrefixedMap(envPrefix + "ADDITIONAL_PARAMS_"),
+			AuthHeaderFormat: os.Getenv(envPrefix + "AUTH_HEADER_FORMAT"),
+			AcceptHeader:     os.Getenv(envPrefix + "ACCEPT_HEADER"),
 		}
 
 		// Use key as default name if not set

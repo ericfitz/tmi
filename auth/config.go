@@ -2,7 +2,6 @@ package auth
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -370,27 +369,7 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 //
 // SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: scan environment variables under a prefix and return a lowercase claim-name-to-value map (reads env)
 func parseClaimMappings(prefix string) map[string]string {
-	claims := make(map[string]string)
-
-	// Scan all environment variables for claim mappings
-	for _, env := range os.Environ() {
-		parts := strings.SplitN(env, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := parts[0]
-		value := parts[1]
-
-		if after, ok := strings.CutPrefix(key, prefix); ok {
-			// Extract claim name by removing prefix and converting to lowercase
-			claimName := after
-			claimName = strings.ToLower(claimName)
-			claims[claimName] = value
-		}
-	}
-
-	return claims
+	return envutil.ScanPrefixedMap(prefix)
 }
 
 // parseAdditionalParams parses additional OAuth parameters from environment variables
@@ -401,27 +380,7 @@ func parseClaimMappings(prefix string) map[string]string {
 //
 // SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: scan environment variables under a prefix and return a lowercase param-name-to-value map (reads env)
 func parseAdditionalParams(prefix string) map[string]string {
-	params := make(map[string]string)
-
-	// Scan all environment variables for additional params
-	for _, env := range os.Environ() {
-		parts := strings.SplitN(env, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := parts[0]
-		value := parts[1]
-
-		if after, ok := strings.CutPrefix(key, prefix); ok {
-			// Extract param name by removing prefix and converting to lowercase
-			paramName := after
-			paramName = strings.ToLower(paramName)
-			params[paramName] = value
-		}
-	}
-
-	return params
+	return envutil.ScanPrefixedMap(prefix)
 }
 
 // getEnabledProviderIDs returns a slice of enabled provider IDs for logging
