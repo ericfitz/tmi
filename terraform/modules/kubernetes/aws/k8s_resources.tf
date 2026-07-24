@@ -104,26 +104,27 @@ resource "kubernetes_config_map_v1" "tmi" {
       # config.go struct tag — this name is already correct.
       TMI_NATS_URL = "nats://nats.tmi-platform.svc:4222"
 
-      # OAuth client_callback allowlist for the tmi-ux web UI
-      # (S3+CloudFront at app.aws.tmi.dev). config.go:183
-      # (TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST); auth/client_callback_allowlist.go
-      # is FAIL-CLOSED — an unset/empty value rejects EVERY client_callback, so
-      # OAuth login fails outright. A pattern ending in "*" is a strict string
-      # PREFIX match: the trailing slash after the host is load-bearing — it
-      # confines matches to this exact origin (e.g. "app.aws.tmi.dev.evil.com/"
-      # does NOT match "https://app.aws.tmi.dev/"). The UI uses three callbacks
-      # (/oauth2/callback, /oauth2/link/callback,
+      # OAuth client_callback allowlist for the tmi-ux web UI (now S3+CloudFront
+      # at www.tmi.dev; app.aws.tmi.dev retained during the DNS transition).
+      # config.go:183 (TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST);
+      # auth/client_callback_allowlist.go is FAIL-CLOSED — an unset/empty value
+      # rejects EVERY client_callback, so OAuth login fails outright. A pattern
+      # ending in "*" is a strict string PREFIX match: the trailing slash after
+      # the host is load-bearing — it confines matches to this exact origin
+      # (e.g. "www.tmi.dev.evil.com/" does NOT match "https://www.tmi.dev/").
+      # The UI uses three callbacks (/oauth2/callback, /oauth2/link/callback,
       # /oauth2/content-callback?return_to=...), one with a dynamic query
-      # string, so a single origin-prefix wildcard covers them all.
-      TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST = "https://app.aws.tmi.dev/*"
+      # string, so a single origin-prefix wildcard covers them all. Comma-
+      # separated list; drop the app.aws.tmi.dev entry once the cutover settles.
+      TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST = "https://www.tmi.dev/*,https://app.aws.tmi.dev/*"
 
       # CORS: pin the allowed browser origin(s). config.go:107
       # (TMI_CORS_ALLOWED_ORIGINS). Unset, the server reflects any Origin back
       # with access-control-allow-credentials: true — setting this switches to
       # allowlist-only. NO wildcard allowed here (config.go:1182 rejects "*"
-      # with credentials); list exact origins comma-separated. Add any other
-      # active browser origins (e.g. a localhost dev origin) if introduced.
-      TMI_CORS_ALLOWED_ORIGINS = "https://app.aws.tmi.dev"
+      # with credentials); list exact origins comma-separated. Drop the
+      # app.aws.tmi.dev entry once the cutover settles.
+      TMI_CORS_ALLOWED_ORIGINS = "https://www.tmi.dev,https://app.aws.tmi.dev"
     },
     # everyone_is_a_reviewer is decoupled from build_mode (a plain runtime flag)
     # so it stays on under production build mode. AuthConfig.EveryoneIsAReviewer,
