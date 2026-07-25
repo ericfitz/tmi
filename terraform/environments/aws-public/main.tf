@@ -221,7 +221,11 @@ module "certificates" {
 module "kubernetes" {
   source = "../../modules/kubernetes/aws"
 
-  name_prefix            = var.name_prefix
+  name_prefix = var.name_prefix
+  # null falls through to the module's own default (Terraform substitutes a
+  # module variable's default when the caller passes null), so the pin lives in
+  # one place unless an operator is deliberately stepping through an upgrade.
+  kubernetes_version     = var.kubernetes_version
   node_instance_type     = "t3.medium"
   node_count             = 1
   endpoint_public_access = true

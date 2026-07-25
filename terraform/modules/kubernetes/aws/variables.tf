@@ -7,10 +7,22 @@ variable "name_prefix" {
 }
 
 # EKS Cluster configuration
+#
+# 1.36 is the current EKS default version (`aws eks describe-cluster-versions`)
+# and is in STANDARD_SUPPORT until 2027-08-01. The previous pin (1.31) had
+# fallen into EXTENDED_SUPPORT, which is both surcharged and a hard deadline —
+# AWS force-upgrades a cluster when extended support ends.
+#
+# NOTE for operators: EKS upgrades ONE minor version at a time (control plane
+# and node group both), so moving an existing cluster to this pin may require
+# several sequential `terraform apply` runs, not one. Terraform will happily
+# emit a plan that jumps multiple minors; the AWS API rejects it. Upgrade the
+# node group to match the control plane at each hop. A control-plane minor
+# upgrade can be rolled back only within 7 days.
 variable "kubernetes_version" {
   description = "Kubernetes version for the EKS cluster"
   type        = string
-  default     = "1.31"
+  default     = "1.36"
 }
 
 variable "endpoint_public_access" {
@@ -189,10 +201,24 @@ variable "jwt_secret" {
 # environment.
 
 # Load Balancer Controller
+#
+# Chart 1.17.1 == controller app v2.17.1, the newest release of the 2.x line.
+# Bumped from 1.7.1 (app v2.7.1, built against Kubernetes 1.29 client libs)
+# because the cluster now pins Kubernetes 1.36 — a controller that far behind
+# the API server is outside any tested skew, and its admission webhooks are
+# the failure mode that takes the Ingress (and therefore the ALB) down.
+#
+# Deliberately NOT the 3.x line (chart 3.x == app v3.x): v3 renumbered the
+# chart to match the app version, requires CRDs to be applied out-of-band
+# before `helm upgrade` (including Gateway API CRDs, even when Gateway API is
+# unused — kubernetes-sigs/aws-load-balancer-controller#4674), and ships a
+# further-changed IAM policy. None of that buys this deployment anything: it
+# uses a single ALB Ingress with no Gateway API. Revisit when the 2.x line
+# stops receiving updates.
 variable "lb_controller_chart_version" {
-  description = "Helm chart version for AWS Load Balancer Controller"
+  description = "Helm chart version for AWS Load Balancer Controller (chart 1.x == controller v2.x)"
   type        = string
-  default     = "1.7.1"
+  default     = "1.17.1"
 }
 
 variable "lb_controller_chart_local_path" {

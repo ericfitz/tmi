@@ -12,8 +12,11 @@ tmi_image_tag   = "latest"
 redis_image_tag = "latest"
 
 # FQDN for the TMI server and the Route 53 hosted zone it lives in.
-# The zone must already exist in this AWS account.
-domain_name    = "tmi.example.com"
+# The zone must already exist in this AWS account. This is the API hostname
+# only — the browser client is a separate host, and its origin is allowlisted
+# via TMI_CORS_ALLOWED_ORIGINS in
+# terraform/modules/kubernetes/aws/k8s_resources.tf.
+domain_name    = "api.example.com"
 hosted_zone_id = "Z0123456789ABCDEFGHIJ"
 
 # Additional environment variables for TMI server
