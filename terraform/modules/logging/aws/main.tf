@@ -149,6 +149,20 @@ resource "kubernetes_config_map_v1" "fluent_bit" {
     namespace = kubernetes_namespace_v1.cloudwatch.metadata[0].name
   }
 
+  # Two things here are load-bearing and were previously wrong (see #567):
+  #
+  # 1. The tail input's DB (its file-offset bookkeeping) lives on a WRITABLE
+  #    volume. It used to sit at /var/log/flb_kube.db, but /var/log is mounted
+  #    read-only below, so fluent-bit could not create it — tail.0 failed to
+  #    initialize, and since it is the only input, the whole backend exited and
+  #    the DaemonSet crashlooped forever without shipping a single line.
+  #
+  # 2. The parser is `cri`, not `docker`. EKS nodes run containerd, which
+  #    writes CRI-format lines ("<time> <stream> <logtag> <message>"), not
+  #    Docker's JSON-per-line. With the docker parser every line fails to
+  #    parse. This was masked by (1) — nothing ever got far enough to parse —
+  #    so fixing only the DB path would have swapped a crashloop for silently
+  #    malformed logs.
   data = {
     "fluent-bit.conf" = <<-EOT
       [SERVICE]
@@ -161,8 +175,8 @@ resource "kubernetes_config_map_v1" "fluent_bit" {
           Name              tail
           Tag               kube.*
           Path              /var/log/containers/tmi-*.log
-          Parser            docker
-          DB                /var/log/flb_kube.db
+          Parser            cri
+          DB                /var/fluent-bit/state/flb_kube.db
           Mem_Buf_Limit     50MB
           Skip_Long_Lines   On
           Refresh_Interval  10
@@ -194,12 +208,19 @@ resource "kubernetes_config_map_v1" "fluent_bit" {
           Time_Format %Y-%m-%dT%H:%M:%S.%L
           Time_Keep   On
 
+      # The payload capture MUST be named "log", not "message": the kubernetes
+      # filter's `Merge_Log On` looks for a "log" key to parse application JSON
+      # out of, and silently does nothing when the field is named anything else.
+      # Time_Format likewise uses fluent-bit's strptime extensions (%L for
+      # fractional seconds, %z for the offset) — %N/%:z are glibc/date(1)
+      # spellings that fluent-bit does not implement, so timestamps failed to
+      # parse and every record fell back to ingest time.
       [PARSER]
           Name        cri
           Format      regex
-          Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<message>.*)$
+          Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
           Time_Key    time
-          Time_Format %Y-%m-%dT%H:%M:%S.%N%:z
+          Time_Format %Y-%m-%dT%H:%M:%S.%L%z
     EOT
   }
 }
@@ -241,16 +262,23 @@ resource "kubernetes_daemon_set_v1" "fluent_bit" {
             mount_path = "/fluent-bit/etc/"
           }
 
+          # /var/log stays READ-ONLY: it is only ever tailed. The tail input's
+          # state DB goes on the separate writable volume below rather than
+          # relaxing this mount, which is why the read_only flag can stay.
           volume_mount {
             name       = "varlog"
             mount_path = "/var/log"
             read_only  = true
           }
 
+          # Writable home for the tail input's file-offset DB. Deliberately a
+          # hostPath and not an emptyDir: the DB records how far into each log
+          # file fluent-bit has read, so keeping it on the node means a pod
+          # restart resumes where it left off instead of re-shipping every
+          # existing log line as duplicates.
           volume_mount {
-            name       = "varlibdockercontainers"
-            mount_path = "/var/lib/docker/containers"
-            read_only  = true
+            name       = "fluentbitstate"
+            mount_path = "/var/fluent-bit/state"
           }
 
           resources {
@@ -279,10 +307,13 @@ resource "kubernetes_daemon_set_v1" "fluent_bit" {
           }
         }
 
+        # type = DirectoryOrCreate so the first pod on a fresh node creates the
+        # directory instead of failing to mount it.
         volume {
-          name = "varlibdockercontainers"
+          name = "fluentbitstate"
           host_path {
-            path = "/var/lib/docker/containers"
+            path = "/var/fluent-bit/state"
+            type = "DirectoryOrCreate"
           }
         }
 
