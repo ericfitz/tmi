@@ -176,14 +176,30 @@ resource "aws_eks_node_group" "tmi" {
   node_role_arn   = aws_iam_role.eks_nodes.arn
   subnet_ids      = var.node_subnet_ids
 
+  # Track the same pin as the control plane. Without this, `version` is
+  # unmanaged: Terraform adopts whatever the node group currently runs and
+  # never plans a kubelet upgrade, so a control-plane bump silently widens the
+  # kubelet/kube-apiserver skew until it exceeds the supported 3 minor versions
+  # and nodes stop being able to register. Same one-minor-at-a-time constraint
+  # as the control plane applies here, and the node group must be upgraded to
+  # match after each control-plane hop.
+  version = var.kubernetes_version
+
   launch_template {
     id      = aws_launch_template.eks_nodes.id
     version = aws_launch_template.eks_nodes.latest_version
   }
 
+  # max_size is deliberately node_count + 1 rather than node_count. A managed
+  # node group upgrade (kubelet version or launch-template revision) works by
+  # launching replacement capacity BEFORE draining the old nodes; when
+  # max_size == desired_size the ASG has no room to do that and the update
+  # fails ("couldn't scale up"). The extra slot is only ever occupied mid-
+  # upgrade — steady-state size is still desired_size = var.node_count, so
+  # this does not change the resting cost of the environment.
   scaling_config {
     desired_size = var.node_count
-    max_size     = var.node_count
+    max_size     = var.node_count + 1
     min_size     = var.node_count
   }
 
@@ -197,26 +213,84 @@ resource "aws_eks_node_group" "tmi" {
 }
 
 # ============================================================================
-# VPC CNI Addon — NetworkPolicy enforcement
+# Core EKS Addons — vpc-cni, kube-proxy, coredns
 #
-# The VPC CNI plugin ships on every EKS cluster whether or not it's declared
-# as a first-class `aws_eks_addon`; declaring it here adopts the
+# All three ship on every EKS cluster whether or not they're declared as
+# first-class `aws_eks_addon` resources. Declaring them adopts the
 # already-running installation (resolve_conflicts_on_create = OVERWRITE
-# handles the resulting "already exists" conflict cleanly) and turns on its
-# NetworkPolicy agent, so standard Kubernetes NetworkPolicy objects are
-# actually enforced in-cluster (see
+# handles the resulting "already exists" conflict cleanly).
+#
+# Why all three are declared rather than just vpc-cni: an undeclared component
+# is SELF-MANAGED, which means nothing ever updates it — it stays pinned at
+# whatever shipped when the cluster was created while the control plane moves
+# out from under it. kube-proxy is the sharp edge: it has a hard version-skew
+# limit against kube-apiserver, so a self-managed kube-proxy left behind across
+# a few control-plane upgrades takes cluster networking down. Managing them as
+# addons puts their versions on the same var.kubernetes_version pin as
+# everything else.
+#
+# The data sources resolve the default addon build AWS publishes for the
+# pinned Kubernetes version, so bumping var.kubernetes_version plans an addon
+# update instead of silently leaving them behind. (Without an explicit
+# addon_version the attribute is Optional+Computed: Terraform records whatever
+# it got at create time and never plans an upgrade again.)
+# ============================================================================
+
+data "aws_eks_addon_version" "vpc_cni" {
+  addon_name         = "vpc-cni"
+  kubernetes_version = var.kubernetes_version
+}
+
+data "aws_eks_addon_version" "kube_proxy" {
+  addon_name         = "kube-proxy"
+  kubernetes_version = var.kubernetes_version
+}
+
+data "aws_eks_addon_version" "coredns" {
+  addon_name         = "coredns"
+  kubernetes_version = var.kubernetes_version
+}
+
+# NetworkPolicy enforcement is turned on here: standard Kubernetes
+# NetworkPolicy objects are only actually enforced in-cluster when the VPC CNI
+# NetworkPolicy agent is enabled (see
 # docs.aws.amazon.com/eks/latest/userguide/cni-network-policy-configure.html
 # — configuration_values schema verified against that page). Without this,
 # any NetworkPolicy resource in the cluster would be silently unenforced.
-# ============================================================================
-
 resource "aws_eks_addon" "vpc_cni" {
-  cluster_name = aws_eks_cluster.tmi.name
-  addon_name   = "vpc-cni"
+  cluster_name  = aws_eks_cluster.tmi.name
+  addon_name    = "vpc-cni"
+  addon_version = data.aws_eks_addon_version.vpc_cni.version
 
   configuration_values = jsonencode({
     enableNetworkPolicy = "true"
   })
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  tags = var.tags
+
+  depends_on = [aws_eks_node_group.tmi]
+}
+
+resource "aws_eks_addon" "kube_proxy" {
+  cluster_name  = aws_eks_cluster.tmi.name
+  addon_name    = "kube-proxy"
+  addon_version = data.aws_eks_addon_version.kube_proxy.version
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  tags = var.tags
+
+  depends_on = [aws_eks_node_group.tmi]
+}
+
+resource "aws_eks_addon" "coredns" {
+  cluster_name  = aws_eks_cluster.tmi.name
+  addon_name    = "coredns"
+  addon_version = data.aws_eks_addon_version.coredns.version
 
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
@@ -276,6 +350,17 @@ resource "aws_iam_role" "lb_controller" {
   tags = var.tags
 }
 
+# Ported verbatim (statement order, resources, and conditions) from the
+# controller's own published policy for the pinned chart:
+#   https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.17.1/docs/install/iam_policy.json
+# Keep it a faithful copy so it stays diffable against upstream when
+# var.lb_controller_chart_version moves. Relative to the v2.7.1 policy this
+# replaced, v2.17.1 additionally needs: ec2:GetSecurityGroupsForVpc,
+# ec2:DescribeIpamPools, ec2:DescribeRouteTables,
+# elasticloadbalancing:Describe{ListenerAttributes,CapacityReservation},
+# elasticloadbalancing:Modify{ListenerAttributes,CapacityReservation,IpPools},
+# and elasticloadbalancing:SetRulePriorities. Upstream dropped
+# ec2:DescribeInstanceTypes, so it is dropped here too.
 resource "aws_iam_policy" "lb_controller" {
   name        = "${var.name_prefix}-aws-lb-controller-policy"
   description = "IAM policy for AWS Load Balancer Controller"
@@ -309,9 +394,11 @@ resource "aws_iam_policy" "lb_controller" {
           "ec2:DescribeInstances",
           "ec2:DescribeNetworkInterfaces",
           "ec2:DescribeTags",
-          "ec2:DescribeCoipPools",
           "ec2:GetCoipPoolUsage",
-          "ec2:DescribeInstanceTypes",
+          "ec2:DescribeCoipPools",
+          "ec2:GetSecurityGroupsForVpc",
+          "ec2:DescribeIpamPools",
+          "ec2:DescribeRouteTables",
           "elasticloadbalancing:DescribeLoadBalancers",
           "elasticloadbalancing:DescribeLoadBalancerAttributes",
           "elasticloadbalancing:DescribeListeners",
@@ -322,7 +409,9 @@ resource "aws_iam_policy" "lb_controller" {
           "elasticloadbalancing:DescribeTargetGroupAttributes",
           "elasticloadbalancing:DescribeTargetHealth",
           "elasticloadbalancing:DescribeTags",
-          "elasticloadbalancing:DescribeTrustStores"
+          "elasticloadbalancing:DescribeTrustStores",
+          "elasticloadbalancing:DescribeListenerAttributes",
+          "elasticloadbalancing:DescribeCapacityReservation"
         ]
         Resource = "*"
       },
@@ -471,7 +560,10 @@ resource "aws_iam_policy" "lb_controller" {
           "elasticloadbalancing:DeleteLoadBalancer",
           "elasticloadbalancing:ModifyTargetGroup",
           "elasticloadbalancing:ModifyTargetGroupAttributes",
-          "elasticloadbalancing:DeleteTargetGroup"
+          "elasticloadbalancing:DeleteTargetGroup",
+          "elasticloadbalancing:ModifyListenerAttributes",
+          "elasticloadbalancing:ModifyCapacityReservation",
+          "elasticloadbalancing:ModifyIpPools"
         ]
         Resource = "*"
         Condition = {
@@ -517,7 +609,8 @@ resource "aws_iam_policy" "lb_controller" {
           "elasticloadbalancing:ModifyListener",
           "elasticloadbalancing:AddListenerCertificates",
           "elasticloadbalancing:RemoveListenerCertificates",
-          "elasticloadbalancing:ModifyRule"
+          "elasticloadbalancing:ModifyRule",
+          "elasticloadbalancing:SetRulePriorities"
         ]
         Resource = "*"
       }
