@@ -202,6 +202,24 @@ variable "jwt_secret" {
   sensitive   = true
 }
 
+# Settings-at-rest encryption (#547)
+#
+# Deliberately required with no default. An empty default would let an
+# environment silently omit the key, and the failure mode is invisible: the
+# server starts fine, logs one ERROR, and stores every secret-classified
+# setting (OAuth client secrets among them) as plaintext in the database.
+# Requiring it makes an environment that forgets fail at plan time instead.
+variable "settings_encryption_key" {
+  description = "Hex-encoded 32-byte key used to encrypt secret-classified system settings at rest (TMI_SECRET_SETTINGS_ENCRYPTION_KEY)"
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[0-9a-fA-F]{64}$", var.settings_encryption_key))
+    error_message = "settings_encryption_key must be exactly 64 hex characters (32 bytes); internal/crypto/settings_encryptor.go rejects anything else."
+  }
+}
+
 # NOTE: certificate_arn was removed — TLS termination is now configured on
 # the Ingress annotations owned by the deployments/k8s/dev/aws overlay (Task
 # 5/6), not by this module. terraform/modules/certificates/aws still creates

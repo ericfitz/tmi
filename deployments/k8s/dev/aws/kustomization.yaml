@@ -33,24 +33,38 @@ resources:
   - ../../platform/components/tmi-extractor.yml
   - ../../platform/components/tmi-chunk-embed.yml
   - ingress.yml
+  - networkpolicy-redis.yml
 images:
   # Repo names must match scripts/container_build_helpers.py's aws
   # image_name_map (controller, chunkembed) / image_name_prefix (server,
   # redis, extractor default to "tmi-<component>") and Task 4's ECR repos.
+  #
+  # newTag is the literal token IMAGE_TAG_PLACEHOLDER, rewritten by
+  # scripts/deploy-aws.sh to the short git SHA of the commit being deployed —
+  # the same tag scripts/container_build_helpers.py's get_image_tags() already
+  # pushes alongside :latest. Immutable per-deploy tags mean a Deployment's
+  # spec actually CHANGES between deploys, so `kubectl apply` rolls it on its
+  # own; the previous :latest scheme left the spec identical and needed an
+  # explicit rollout restart, which only ever covered server and controller and
+  # silently left redis running a stale image (#553).
   - name: localhost:5000/tmi-server
     newName: ECR_REGISTRY_PLACEHOLDER/tmi-server
-    newTag: latest
+    newTag: IMAGE_TAG_PLACEHOLDER
   - name: localhost:5000/tmi-component-controller
     newName: ECR_REGISTRY_PLACEHOLDER/tmi-component-controller
-    newTag: latest
+    newTag: IMAGE_TAG_PLACEHOLDER
   - name: cgr.dev/chainguard/redis
     newName: ECR_REGISTRY_PLACEHOLDER/tmi-redis
-    newTag: latest
+    newTag: IMAGE_TAG_PLACEHOLDER
 patches:
   - path: patches/server-config.yaml
     target:
       kind: Deployment
       name: tmi-server
+  - path: patches/redis-auth.yaml
+    target:
+      kind: Deployment
+      name: redis
   - path: patches/extractor-image.yaml
     target:
       group: tmi.dev

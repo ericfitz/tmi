@@ -1,0 +1,53 @@
+# Strategic-merge patch: turn on redis authentication for the AWS overlay (#551).
+#
+# The base manifest (../redis.yml) runs redis with `--protected-mode no` and no
+# password, matching local dev where redis is only reachable from the developer's
+# own machine. On an internet-facing cluster that leaves an unauthenticated
+# datastore — holding sessions and cached authorization decisions — reachable by
+# anything that gets a foothold in the cluster. This patch, together with the
+# NetworkPolicy in ../networkpolicy-redis.yml, closes that.
+#
+# `args` is an atomic list under strategic-merge, so the ENTIRE arg list is
+# restated here, not just the added flag. Dropping one of the base flags by
+# accident would silently change redis persistence behaviour, so the base
+# flags are kept verbatim and only --requirepass is added.
+#
+# `$(REDIS_PASSWORD)` is expanded by the kubelet from the container's own env
+# at start time — it is NOT shell interpolation, and the literal string
+# "$(REDIS_PASSWORD)" is what appears in the stored PodSpec, so `kubectl get
+# pod -o yaml` does not disclose the password. It IS visible in the process
+# table inside the redis container; that is inherent to redis's --requirepass
+# flag. The alternative (a redis.conf projected from the Secret) avoids that
+# but needs a ConfigMap/Secret volume and an entrypoint override, which is more
+# machinery than this tier warrants. Revisit if redis ever holds more than
+# ephemeral session state.
+#
+# `--protected-mode no` is retained deliberately: with requirepass set,
+# protected mode is redundant, and re-enabling it would reject the server pod's
+# connections (they arrive from another pod IP, not loopback).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  template:
+    spec:
+      containers:
+        - name: redis
+          args:
+            - "--save"
+            - ""
+            - "--appendonly"
+            - "no"
+            - "--bind"
+            - "0.0.0.0"
+            - "--protected-mode"
+            - "no"
+            - "--requirepass"
+            - "$(REDIS_PASSWORD)"
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tmi-secrets
+                  key: TMI_REDIS_PASSWORD

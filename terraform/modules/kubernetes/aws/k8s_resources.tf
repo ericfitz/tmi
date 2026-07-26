@@ -164,6 +164,21 @@ resource "kubernetes_secret_v1" "tmi" {
     # Per internal/config/config.go the recognized key is TMI_REDIS_PASSWORD
     # (TMI_DATABASE_REDIS_PASSWORD is not a recognized key).
     TMI_REDIS_PASSWORD = var.redis_password
+
+    # Settings-at-rest encryption (#547). The name is not arbitrary: no
+    # secrets provider is configured for this deployment, so
+    # internal/secrets/provider.go falls back to the EnvProvider, which maps
+    # the secret key "settings_encryption_key" to the environment variable
+    # TMI_SECRET_<KEY> — i.e. exactly TMI_SECRET_SETTINGS_ENCRYPTION_KEY.
+    # Without it crypto.NewSettingsEncryptor returns a disabled encryptor and
+    # every Secret-classified setting (the OAuth client secrets in the
+    # replicated DB config among them) is written to RDS in plaintext, which
+    # cmd/server/startup_checks.go reports as a production-mode ERROR.
+    #
+    # Setting this only encrypts values written from here on. Rows already
+    # stored in plaintext stay that way until POST /admin/settings/reencrypt
+    # is called — see the deploy notes in scripts/deploy-aws.sh.
+    TMI_SECRET_SETTINGS_ENCRYPTION_KEY = var.settings_encryption_key
   }
 }
 

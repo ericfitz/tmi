@@ -22,7 +22,8 @@ workload set on **Amazon EKS**, from the same bases local dev uses
 - **`scripts/deploy-aws.sh`** applies NATS, KEDA, and the TMIComponent CRD
   before this overlay (mirroring `apply_platform_base` in
   `scripts/lib/deploy.py` for local dev), then rewrites the
-  `ECR_REGISTRY_PLACEHOLDER` / `CERT_ARN_PLACEHOLDER` tokens described below
+  `ECR_REGISTRY_PLACEHOLDER` / `IMAGE_TAG_PLACEHOLDER` / `CERT_ARN_PLACEHOLDER`
+  tokens described below
   (sed, in place, on a deploy-time working copy of this directory) before
   running `kubectl apply -k`. **No generated/gitignored kustomize component
   files are produced by the deploy script** — every rendered manifest comes
@@ -33,7 +34,7 @@ workload set on **Amazon EKS**, from the same bases local dev uses
 
 ## Placeholders
 
-Two exact tokens are seeded by this overlay and rewritten by the deploy
+Three exact tokens are seeded by this overlay and rewritten by the deploy
 script (sed-style substitution, in place, no generated files) — do not
 rename them without updating the deploy script in lockstep:
 
@@ -41,10 +42,11 @@ rename them without updating the deploy script in lockstep:
 |---|---|---|
 | `CERT_ARN_PLACEHOLDER` | `ingress.yml`, `alb.ingress.kubernetes.io/certificate-arn` | ACM certificate ARN |
 | `ECR_REGISTRY_PLACEHOLDER` | `kustomization.yaml` (`images:` transformer, for `tmi-server`, `tmi-component-controller`, `tmi-redis`), `patches/extractor-image.yaml`, `patches/chunkembed-image.yaml` | Account's ECR registry URI |
+| `IMAGE_TAG_PLACEHOLDER` | same places as `ECR_REGISTRY_PLACEHOLDER` | Short git SHA of the deployed commit |
 
 All five workload images (`tmi-server`, `tmi-component-controller`,
 `tmi-redis`, `tmi-extractor`, `tmi-chunk-embed`) are rewritten to
-`ECR_REGISTRY_PLACEHOLDER/tmi-<component>:latest`. The server and controller
+`ECR_REGISTRY_PLACEHOLDER/tmi-<component>:IMAGE_TAG_PLACEHOLDER`. The server and controller
 go through the top-level `images:` transformer in `kustomization.yaml`
 (kustomize's standard image-rewrite mechanism, matching the pattern
 `../docker-desktop/kustomization.yaml` uses to strip the `localhost:5000/`
@@ -121,11 +123,13 @@ Strategic-merge patch on the `tmi-server` Deployment:
   dev server can reach the host-run integration webhook receiver over
   plaintext HTTP; neither applies on AWS. Kept: `TMI_NATS_URL` — NATS runs
   in-cluster on AWS too, at the same `nats.tmi-platform.svc:4222` address.
-  Added two explicit `valueFrom.secretKeyRef` entries against the
+  Added four explicit `valueFrom.secretKeyRef` entries against the
   terraform-owned `tmi-secrets` Secret
   (`kubernetes_secret_v1.tmi` in
-  `terraform/modules/kubernetes/aws/k8s_resources.tf`): `TMI_DATABASE_URL`
-  and `TMI_JWT_SECRET`. Both are **required** —
+  `terraform/modules/kubernetes/aws/k8s_resources.tf`): `TMI_DATABASE_URL`,
+  `TMI_JWT_SECRET`, `TMI_REDIS_PASSWORD` (#551, see "Redis authentication"
+  below) and `TMI_SECRET_SETTINGS_ENCRYPTION_KEY` (#547, see
+  "Settings-at-rest encryption" below). The first two are **required** —
   `internal/config/config.go` fails startup validation without
   `TMI_DATABASE_URL` (`"database url is required (TMI_DATABASE_URL)"`) and
   validates the JWT secret too. The `tmi-server-config` ConfigMap mounted at
@@ -133,70 +137,114 @@ Strategic-merge patch on the `tmi-server` Deployment:
   ConfigMap's `data["config.yml"]` comment in `k8s_resources.tf`) — it does
   **not** supply these values; an earlier version of this comment claimed
   otherwise and was wrong.
-- **Deliberately explicit refs, not `envFrom: secretRef: tmi-secrets`**: the
-  same Secret also carries `TMI_REDIS_PASSWORD`, and sweeping the whole
-  Secret in via `envFrom` would silently inject it. See "Redis
-  authentication" below for why that would break the server's Redis
-  connection.
+- **Deliberately explicit refs, not `envFrom: secretRef: tmi-secrets`**:
+  sweeping the whole Secret in would also inject keys the server does not
+  read, and listing them explicitly keeps the blast radius of a future key
+  addition visible at the point of use.
 - **`envFrom: configMapRef: tmi-server-config`**: wires the terraform-owned
   ConfigMap's flat `TMI_*` keys in. See "ConfigMap flat keys" below for what
   this newly activates and why the explicit `env:` entries above aren't
   shadowed by it.
 - **No `imagePullPolicy` override**: the dev base sets no explicit policy
-  either, so Kubernetes' default applies — which is `Always` for a `:latest`
-  tag (every image in this overlay resolves to
-  `ECR_REGISTRY_PLACEHOLDER/tmi-<component>:latest`). A prior version of this
-  patch set `imagePullPolicy: IfNotPresent` on the claim that "ECR tags are
-  immutable per deploy" — false: `terraform/environments/aws-public/main.tf`
-  sets `image_tag_mutability = "MUTABLE"` on every ECR repo, and
-  `scripts/deploy-aws.sh` re-pushes `:latest` on every deploy. `IfNotPresent`
-  would have left a pod that was never rescheduled running a stale image
-  indefinitely. Note that `imagePullPolicy: Always` alone only helps a pod
-  that gets (re)scheduled — a re-deploy onto an otherwise-unchanged
-  Deployment spec does not trigger a new rollout by itself, so
-  `scripts/deploy-aws.sh`'s `apply_overlay()` forces a
-  `kubectl rollout restart` after applying, when it detects the Deployment
-  already existed (i.e. this isn't the first install).
+  either, so Kubernetes' default applies. Since #553 every image resolves to
+  `ECR_REGISTRY_PLACEHOLDER/tmi-<component>:<short git SHA>` rather than
+  `:latest`, and the default for any non-`:latest` tag is `IfNotPresent` —
+  which is correct here, because a per-deploy tag names one immutable build
+  and re-pulling it on every reschedule would be wasted work.
+
+  This supersedes an earlier arrangement worth understanding, because it
+  failed silently. With `:latest`, the rendered Deployment spec was
+  byte-identical on every deploy, so `kubectl apply` was a no-op and no
+  rollout happened; `apply_overlay()` compensated by issuing an explicit
+  `kubectl rollout restart` against a hardcoded list of **two** Deployments
+  (`tmi-server`, `tmi-component-controller`). Redis was not on that list, so a
+  rebuilt `tmi-redis` image never reached the cluster at all. Per-deploy tags
+  make the spec genuinely change, so Kubernetes rolls exactly the workloads
+  whose image moved and the restart hack is gone.
 - **`serviceAccountName: tmi-api`**: attaches the IRSA-annotated
   ServiceAccount terraform creates, so the pod can assume the IAM role that
   reads secrets from Secrets Manager (see
   `internal/secrets/aws_provider.go`).
 
-## Redis authentication — decision: unauthenticated in-cluster (matches local dev)
+## Redis authentication — authenticated + network-restricted (#551)
 
-The terraform-owned `tmi-secrets` Secret carries a `TMI_REDIS_PASSWORD` key
-(`var.redis_password`), but the in-cluster redis this overlay deploys
-(`../redis.yml`, `cgr.dev/chainguard/redis`) is started with `--protected-mode
-no` and no `requirepass` — exactly like every other dev target
-(docker-desktop, k3s). It is **not** authenticated.
+The in-cluster redis this overlay deploys is **authenticated**, and reachable
+only from the API server pods. Two independent controls:
 
-**Decision: `TMI_REDIS_PASSWORD` is intentionally omitted from the server's
-env.** Verified this is safe, not just convenient:
+- `patches/redis-auth.yaml` starts redis with
+  `--requirepass $(REDIS_PASSWORD)`, sourced from the terraform-owned
+  `tmi-secrets` Secret's `TMI_REDIS_PASSWORD` key. The server side of the same
+  Secret is injected by `patches/server-config.yaml`.
+- `networkpolicy-redis.yml` restricts ingress to port 6379 to pods labelled
+  `app=tmi-server`.
 
-- `internal/config/config.go`'s `RedisConfig.Password` (`env:"TMI_REDIS_PASSWORD"`)
-  defaults to the empty string when unset — there is no "password required"
-  validation for Redis anywhere in `config.go` (unlike `TMI_DATABASE_URL`
-  and the JWT secret, which are validated).
-- `auth/db/redis.go` passes `Password: cfg.Password` straight into
-  `redis.NewClient(&redis.Options{...})`; the go-redis client only issues an
-  `AUTH` command when `Password != ""`. An empty password is therefore a
-  true no-op, not a client that tries to authenticate against an
-  unauthenticated server (which would fail differently: `ERR Client sent
-  AUTH, but no password is set`).
+**These two patches must move together.** Injecting `TMI_REDIS_PASSWORD` into
+the server without the redis patch (or vice versa) breaks every redis
+connection — in opposite and equally confusing ways: a server with a password
+against a passwordless redis gets `ERR Client sent AUTH, but no password is
+set`, while a passwordless server against an authenticated redis gets
+`NOAUTH Authentication required`.
 
-So option (a) — omit the var — was chosen over option (b) — wire
-`requirepass` into the redis Deployment via the same Secret and inject the
-password into the server. (a) matches local dev's security posture exactly,
-needs no additional patch on `../redis.yml`, and avoids a chicken-and-egg
-where a leaked or rotated `redis_password` Terraform variable could break
-the in-cluster (already network-policy-isolated, non-internet-facing) redis
-connection for no real security benefit — the redis Service has no
-`Ingress`/external exposure and is only reachable from within the
-`tmi-platform` namespace. If in-cluster redis auth is later required (e.g.
-a compliance requirement for defense-in-depth even on internal traffic),
-revisit as option (b): add a `requirepass` patch to `../redis.yml`'s args and
-an explicit `TMI_REDIS_PASSWORD` `secretKeyRef` entry here, in the same
-commit, so they can't drift apart.
+Local dev (docker-desktop, k3s) is deliberately **unchanged** and still runs
+redis unauthenticated. Only this overlay patches it, so the dev inner loop
+keeps working without secrets plumbing.
+
+### Why this reversed the previous decision
+
+This overlay originally shipped redis unauthenticated, matching local dev, and
+deliberately omitted `TMI_REDIS_PASSWORD` from the server env. That reasoning
+was sound about the mechanics — `RedisConfig.Password` defaults to empty and
+`auth/db/redis.go` only issues `AUTH` when it is non-empty, so omitting the
+variable really was a no-op rather than a broken client — but it rested on a
+premise that was not true: it described redis as "already
+network-policy-isolated". No NetworkPolicy existed for redis, and even if one
+had, EKS silently does not enforce NetworkPolicy objects unless the VPC CNI's
+NetworkPolicy agent is enabled.
+
+Both halves of that gap are now closed: terraform enables the agent
+(`enableNetworkPolicy = "true"` on the `vpc-cni` addon), and the policy
+actually exists. Redis holds session state and cached authorization decisions,
+so on an internet-facing cluster "only reachable from inside the namespace" was
+not a sufficient control by itself.
+
+One residual, accepted: `--requirepass` puts the password in the redis
+container's process table. The stored PodSpec is unaffected (`$(REDIS_PASSWORD)`
+is expanded by the kubelet at start time, so `kubectl get pod -o yaml` does not
+disclose it). Projecting a `redis.conf` from the Secret would avoid even that,
+at the cost of a volume and an entrypoint override — revisit if redis ever
+holds more than ephemeral state.
+
+## Settings-at-rest encryption (#547)
+
+`patches/server-config.yaml` injects `TMI_SECRET_SETTINGS_ENCRYPTION_KEY` from
+the terraform-owned `tmi-secrets` Secret. The name matters: this deployment
+configures no secrets provider, so `internal/secrets/provider.go` falls back to
+the `EnvProvider`, which maps the secret key `settings_encryption_key` to
+`TMI_SECRET_<KEY>`. The value is a 32-byte AES-256-GCM key rendered as 64 hex
+characters (`random_id.settings_encryption_key.hex` in
+`terraform/modules/secrets/aws`); `internal/crypto/settings_encryptor.go`
+rejects anything else.
+
+Without it, `crypto.NewSettingsEncryptor` returns a **disabled but non-nil**
+encryptor and every Secret-classified system setting — the OAuth client secrets
+in the replicated DB config among them — is written to RDS in plaintext.
+`cmd/server/startup_checks.go` reports this, but only as a single log line
+(ERROR in production build mode, WARN otherwise); it never blocks startup, so
+the failure is easy to miss.
+
+Two things this does **not** do:
+
+- **It does not retroactively encrypt.** Only values written after the key is
+  in place are encrypted. Rows an earlier deploy already stored as plaintext
+  stay that way until something rewrites them; converting them needs
+  `POST /admin/settings/reencrypt`, which requires an interactive (PKCE) admin
+  token because service-account tokens are refused on `/admin/*`.
+- **It does not cover `dbtool`.** `cmd/dbtool/config.go` builds its own
+  secrets provider from its own config file, so `--import-config` would write
+  plaintext even with the server correctly configured. `scripts/deploy-aws.sh`
+  therefore points dbtool's transient connect config at Secrets Manager
+  (`secrets.provider: aws`), letting it read the key under the deployer's own
+  AWS identity rather than passing the value through the environment.
 
 ## ConfigMap flat keys — naming bug fixed, and now wired via `envFrom`
 
@@ -298,9 +346,11 @@ kubectl kustomize --load-restrictor LoadRestrictionsNone deployments/k8s/dev/aws
 ```
 
 `rg -c` should find no matches (exit status 1), and every `image:` line
-should read `ECR_REGISTRY_PLACEHOLDER/tmi-<component>:latest` for all five
-workloads (`tmi-server`, `tmi-component-controller`, `tmi-redis`,
-`tmi-extractor`, `tmi-chunk-embed`).
+should read `ECR_REGISTRY_PLACEHOLDER/tmi-<component>:IMAGE_TAG_PLACEHOLDER`
+for all five workloads (`tmi-server`, `tmi-component-controller`,
+`tmi-redis`, `tmi-extractor`, `tmi-chunk-embed`). A leftover literal
+`:latest` on any of them means an image reference escaped the tag
+substitution and would deploy a mutable tag.
 
 ## No generated files / `.gitignore`
 

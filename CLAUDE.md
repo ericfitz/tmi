@@ -585,27 +585,59 @@ marker whose entity didn't logically change.
 
 # AWS Guidance
 
-- Prefer the AWS MCP Server for AWS interactions — it provides sandboxed
-  execution, observability, and audit logging. If unavailable, use the
-  AWS CLI directly.
-- Before starting a task, check whether a relevant AWS skill is available.
-  Load the skill with `retrieve_skill` and prefer its guidance over
-  general knowledge.
+- **Terraform is the only IaC tool this project uses.** Infrastructure lives in
+  `terraform/environments/<env>` (`aws-public` is the live one) and
+  `terraform/modules/<name>/aws`. Create and change infrastructure there, not
+  with `aws` CLI mutations. There is no CDK or CloudFormation in this repo, so
+  ignore generic AWS advice that assumes either — including CloudFormation-only
+  constructs like `{{resolve:secretsmanager:...}}`.
+- Workloads are NOT Terraform's job. The split is deliberate: Terraform owns
+  infra and bootstrap objects (namespace, ConfigMap, Secret, IRSA service
+  account); every Deployment/Service/Ingress belongs to the kustomize overlay in
+  `deployments/k8s/dev/aws`. Adding a workload resource to Terraform re-breaks
+  that boundary.
+- Run Terraform from the environment directory with the `tmi` profile, e.g.
+  `cd terraform/environments/aws-public && AWS_PROFILE=tmi terraform plan`.
+  Read the plan before applying. `terraform.tfvars` is generated and gitignored;
+  `scripts/deploy-aws.sh` rewrites it on every run, so any hand-edit there is
+  temporary by construction.
+- The `aws` CLI is the normal tool for *reading* state and for the handful of
+  operations Terraform does not own (Route 53 record surgery during a cutover,
+  ECR pushes, `eks update-kubeconfig`). The AWS MCP Server is also available and
+  preferred when it can do the job, for its sandboxing and audit logging.
+- Before starting a task, check whether a relevant AWS skill is available and
+  load it with `retrieve_skill`, preferring its guidance over general knowledge.
+  Verify skill names before relying on them; the skill set available here is not
+  guaranteed to match AWS's published catalogue.
 - When uncertain about specific AWS details (API parameters, permissions,
   limits, error codes), verify against documentation rather than guessing.
   State uncertainty explicitly if you cannot confirm.
-- When creating infrastructure, prefer infrastructure-as-code (AWS CDK or
-  CloudFormation) over direct CLI commands.
-- When working with infrastructure, follow AWS Well-Architected Framework
-  principles.
+- Follow AWS Well-Architected Framework principles.
 - Do not use em dashes in AWS resource names or descriptions. Use
   hyphens instead.
 
 ## Secret Safety
 
-- MUST load the `aws-secrets-manager` skill first for any secret,
-  credential, API key, token, or password task. MUST NOT call
-  `secretsmanager get-secret-value` or `batch-get-secret-value`, and MUST
-  NOT hit the Secrets Manager Agent daemon directly. MUST use
-  `{{resolve:secretsmanager:secret-id:SecretString:json-key}}` with
-  `asm-exec` so the secret resolves at runtime without entering context.
+The rule is that secret *values* must never reach a command line, an
+environment variable, a log, or the model's context. How that is achieved
+differs by path, and this repo already has sanctioned patterns — use them
+rather than inventing one.
+
+- **Never** echo, `cat`, `printf`, or interpolate a secret into a shell command,
+  and never enable `set -x` in a script that handles one.
+- Injecting a secret into the cluster: follow `scripts/set-oauth-secret.sh` and
+  `scripts/set-embedding-secret.sh`. The operator writes the value to a
+  `umask 077` file and `kubectl --from-file` reads it straight from disk, so it
+  never appears in argv or the environment.
+- Reading a secret for a deploy step: `scripts/deploy-aws.sh` is the sanctioned
+  caller of `aws secretsmanager get-secret-value`. It fetches the DB credentials
+  into a `umask 077` temp config file and never prints them. Do not treat that
+  call as forbidden, and do not add new ad-hoc callers — extend the script.
+- Terraform-managed secrets (`terraform/modules/secrets/aws`, `random_password`)
+  land in remote state. That is why `encrypt = true` is pinned in code
+  (`terraform/environments/aws-public/main.tf`) while the bucket/table
+  themselves come per-deployer from the gitignored `backend.hcl`. Never write
+  state to a local file or paste it anywhere, and mark secret outputs
+  `sensitive` — the existing module already does.
+- Local key material for this machine lives in `~/.keys/` at mode 600 per the
+  global CLAUDE.md. Source those files; never read, print, or inspect them.

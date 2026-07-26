@@ -440,8 +440,17 @@ pre_destroy_cleanup() {
     alb_host=$(kubectl get ingress tmi-server -n "${NAMESPACE}" \
         -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
 
+    # --timeout bounds the wait and --wait=false stops kubectl blocking on the
+    # object actually disappearing. ingress/tmi-server carries the
+    # ingress.k8s.aws/resources finalizer, which only clears once the AWS Load
+    # Balancer Controller has torn the ALB down; if that controller is already
+    # gone or wedged, the finalizer never clears and a plain `kubectl delete`
+    # blocks forever. This whole function is best-effort cleanup ahead of
+    # `terraform destroy`, so it must degrade to "deletion requested" rather
+    # than hang the destroy.
     log_info "Deleting ingress/tmi-server (releases the ALB)..."
-    kubectl delete ingress tmi-server -n "${NAMESPACE}" --ignore-not-found &>/dev/null || true
+    kubectl delete ingress tmi-server -n "${NAMESPACE}" \
+        --ignore-not-found --wait=false --timeout=60s &>/dev/null || true
 
     if [[ -n "${alb_host}" ]]; then
         log_info "Waiting up to 5 minutes for ALB (${alb_host}) to be deprovisioned..."
@@ -505,6 +514,65 @@ capture_terraform_outputs() {
     RDS_ENDPOINT=$(terraform -chdir="${TF_DIR}" output -raw rds_endpoint)
     ECR_REGISTRY=$(echo "${ECR_URLS_JSON}" | jq -r '.server' | sed 's|/[^/]*$||')
     log_success "cluster_name=${CLUSTER_NAME}"
+}
+
+# ============================================================================
+# Image tag (#553)
+#
+# Deploys are pinned to an immutable per-deploy tag rather than :latest. The
+# tag MUST match what scripts/container_build_helpers.py's get_image_tags()
+# pushes, which is `git rev-parse --short HEAD` — the same command, so the two
+# cannot drift as long as neither is changed independently.
+#
+# Why this matters beyond hygiene: with :latest every deploy produced an
+# identical Deployment spec, so `kubectl apply` was a no-op and a rollout only
+# happened because the script explicitly restarted server and controller. Redis
+# was never in that list, so a redis image rebuild simply never reached the
+# cluster. An immutable tag changes the spec, so Kubernetes rolls each workload
+# whose image actually moved, and nothing needs restarting by hand.
+# ============================================================================
+
+resolve_image_tag() {
+    IMAGE_TAG=$(git -C "${PROJECT_ROOT}" rev-parse --short HEAD 2>/dev/null || echo "")
+    if [[ -z "${IMAGE_TAG}" ]]; then
+        log_error "Could not determine the git commit to tag images with."
+        echo "  scripts/container_build_helpers.py tags pushed images with"
+        echo "  \`git rev-parse --short HEAD\`; deploying requires the same value."
+        echo "  Run from inside the TMI git working tree."
+        exit 1
+    fi
+
+    # A dirty tree means the images about to be built (or, with --skip-build,
+    # the images already in ECR under this SHA) do not correspond to the commit
+    # the tag names. Warn rather than fail: iterating on an uncommitted change
+    # is a legitimate thing to do in this environment.
+    if [[ -n "$(git -C "${PROJECT_ROOT}" status --porcelain 2>/dev/null)" ]]; then
+        log_warning "Working tree is dirty — images will be tagged ${IMAGE_TAG}, which names"
+        log_warning "the last commit and NOT the code being deployed. Commit first if the tag"
+        log_warning "needs to be meaningful for rollback."
+    fi
+
+    log_success "Image tag: ${IMAGE_TAG}"
+}
+
+# With --skip-build nothing verifies that this tag exists in ECR, and a missing
+# tag surfaces late and unhelpfully as ImagePullBackOff on every workload. Check
+# up front instead. Only the server repo is probed: all five images are built
+# and pushed together by the same invocation, so either the whole set is present
+# for a given SHA or none of it is.
+verify_image_tag_present() {
+    log_info "Verifying image tag ${IMAGE_TAG} exists in ECR (--skip-build)..."
+    if aws ecr describe-images --region "${REGION}" \
+        --repository-name "${NAME_PREFIX}-server" \
+        --image-ids "imageTag=${IMAGE_TAG}" &>/dev/null; then
+        log_success "Found ${NAME_PREFIX}-server:${IMAGE_TAG} in ECR"
+    else
+        log_error "No image tagged ${IMAGE_TAG} in ECR repository ${NAME_PREFIX}-server."
+        echo "  --skip-build deploys the images already pushed for the current commit,"
+        echo "  but nothing has been pushed for this one. Either drop --skip-build to"
+        echo "  build and push it, or check out the commit you intend to deploy."
+        exit 1
+    fi
 }
 
 # ============================================================================
@@ -609,51 +677,37 @@ apply_overlay() {
     # stream (never onto tracked files on disk, and never as generated files
     # written into the overlay directory) and apply.
     #
-    # Exactly two placeholder tokens exist in the overlay (see
+    # Three placeholder tokens exist in the overlay (see
     # deployments/k8s/dev/aws/README.md): CERT_ARN_PLACEHOLDER (ingress.yml's
-    # ACM certificate-arn annotation) and ECR_REGISTRY_PLACEHOLDER (the
-    # top-level `images:` transformer in kustomization.yaml, which pins
-    # tmi-server, tmi-component-controller, and tmi-redis, plus the two
-    # TMIComponent JSON6902 patches for tmi-extractor/tmi-chunk-embed). All
-    # five workload images are covered by that transformer/patches as of
-    # commit 126782e0 — this script does not need, and must not add, any
-    # further image-rewrite substitutions.
+    # ACM certificate-arn annotation), ECR_REGISTRY_PLACEHOLDER, and
+    # IMAGE_TAG_PLACEHOLDER. The latter two appear in the top-level `images:`
+    # transformer in kustomization.yaml (tmi-server, tmi-component-controller,
+    # tmi-redis) and in the two TMIComponent JSON6902 patches for
+    # tmi-extractor/tmi-chunk-embed. All five workload images are covered by
+    # that transformer/patches — this script does not need, and must not add,
+    # any further image-rewrite substitutions.
     #
-    # Tag tradeoff: every image resolves to ECR_REGISTRY_PLACEHOLDER/tmi-
-    # <component>:latest, a mutable tag shared by every deploy. No manifest in
-    # this overlay sets imagePullPolicy, so Kubernetes' default applies —
-    # which is Always for a ":latest" tag — so a pod that gets (re)scheduled
-    # always pulls the freshly-pushed image. That's acceptable for this "kick
-    # the tires" environment, but it means two concurrent deploys or a slow
-    # rollout can observe a moving target, and there's no way to pin/rollback
-    # to a specific past build by tag alone. Per-deploy immutable tags (e.g.
-    # the git commit SHA already computed by build-app-containers.py) are a
-    # follow-up, not implemented here.
+    # Images are pinned to the immutable per-deploy tag resolved by
+    # resolve_image_tag() (#553). Because that tag differs between deploys, the
+    # rendered Deployment spec differs too, so `kubectl apply` triggers a
+    # rollout for exactly the workloads whose image changed. The previous
+    # :latest scheme could not do this: the spec was byte-identical every time,
+    # so the apply was a no-op and rollouts had to be forced by hand for a
+    # hardcoded list of two Deployments — which is why a rebuilt redis image
+    # never actually reached the cluster.
     #
-    # imagePullPolicy: Always only helps a pod that gets (re)scheduled — it
-    # does NOT make `kubectl apply` roll a Deployment whose spec is otherwise
-    # unchanged (same image ref, same tag). So a re-deploy that only refreshed
-    # the ":latest" image contents needs an explicit rollout restart below;
-    # see the "detect first install" logic and the restart calls following
-    # this apply.
-    local server_existed=false
-    if kubectl get deployment tmi-server -n "${NAMESPACE}" &>/dev/null; then
-        server_existed=true
-    fi
-
-    log_info "Rendering and applying overlay (ECR registry: ${ECR_REGISTRY})..."
+    # imagePullPolicy is intentionally left unset. Kubernetes defaults it to
+    # IfNotPresent for any tag other than ":latest", which is exactly right for
+    # an immutable tag: the digest behind it never changes, so re-pulling on
+    # every reschedule would be wasted work.
+    log_info "Rendering and applying overlay (ECR registry: ${ECR_REGISTRY}, tag: ${IMAGE_TAG})..."
     sed -e "s|CERT_ARN_PLACEHOLDER|${CERT_ARN}|" \
         -e "s|ECR_REGISTRY_PLACEHOLDER|${ECR_REGISTRY}|" \
+        -e "s|IMAGE_TAG_PLACEHOLDER|${IMAGE_TAG}|" \
         <(kubectl kustomize --load-restrictor LoadRestrictionsNone "${OVERLAY_DIR}") \
       | kubectl apply -f -
 
     log_success "Overlay applied"
-
-    if [[ "${server_existed}" == "true" ]]; then
-        log_info "Existing deployment detected — forcing a rollout restart so the freshly pushed :latest images are actually picked up (an unchanged Deployment spec does not trigger a new rollout on its own)..."
-        kubectl rollout restart deployment -n "${NAMESPACE}" tmi-server
-        kubectl rollout restart deployment -n "${NAMESPACE}" tmi-component-controller
-    fi
 }
 
 # ============================================================================
@@ -782,6 +836,25 @@ auth:
   build_mode: "test"
   jwt:
     secret: "deploy-aws-transient-connect-only"
+# Settings-at-rest encryption for the imported config (#547).
+#
+# cmd/dbtool/config.go builds its OWN secrets provider from this file. Left
+# unset it defaults to the EnvProvider, finds no key, and writes every
+# Secret-classified setting (the OAuth client secrets among them) to RDS as
+# PLAINTEXT — silently, and regardless of the server being configured to
+# encrypt, because the server never re-writes rows the import just created.
+#
+# Pointing dbtool at Secrets Manager rather than exporting the key into this
+# script's environment is deliberate: dbtool authenticates with the deployer's
+# own AWS identity and reads the value directly, so the key never lands in a
+# shell variable, in argv, or in the environment of any process this script
+# spawns. aws_secret_name must match the secret created by
+# terraform/modules/secrets/aws, whose JSON payload carries the
+# "settings_encryption_key" property internal/secrets/aws_provider.go looks up.
+secrets:
+  provider: "aws"
+  aws_region: "${REGION}"
+  aws_secret_name: "${NAME_PREFIX}-settings-encryption-key"
 EOF
     )
     unset db_password_encoded
@@ -793,7 +866,7 @@ EOF
     "${PROJECT_ROOT}/bin/tmi-dbtool" --import-config -f "${CONFIG_EXPORT_FILE}" \
         --config "${tmp_dir}/dbtool-connect.yaml" --overwrite
 
-    log_success "Config import complete"
+    log_success "Config import complete (secret-classified settings encrypted at rest)"
 
     rm -rf "${tmp_dir}"
     TMPDIR_TO_CLEAN=""
@@ -846,6 +919,14 @@ verify_deployment() {
     log_warning "setting (expected: the configured Google admin identity) — if none is seeded,"
     log_warning "NO ONE will have admin, so verify the imported config. Every authenticated"
     log_warning "user is a security reviewer (everyone_is_a_reviewer=true)."
+    echo ""
+    log_warning "Settings-at-rest encryption (#547) is enabled, but it only applies to values"
+    log_warning "written from now on. Any Secret-classified setting already stored in RDS as"
+    log_warning "plaintext by an earlier deploy STAYS plaintext until it is rewritten. To"
+    log_warning "convert them, sign in as an administrator and call:"
+    log_warning "    POST https://${DOMAIN}/admin/settings/reencrypt"
+    log_warning "This needs an interactive (PKCE) admin token — service-account tokens are"
+    log_warning "refused on /admin/* — so it cannot be done from this script."
 }
 
 # ============================================================================
@@ -868,6 +949,10 @@ main() {
     fi
 
     capture_terraform_outputs
+    resolve_image_tag
+    if [[ "${SKIP_BUILD}" == "true" ]]; then
+        verify_image_tag_present
+    fi
     build_and_push_images
     configure_kubeconfig
     apply_platform_base

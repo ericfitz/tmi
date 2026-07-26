@@ -1,0 +1,40 @@
+# Restrict who can reach in-cluster redis (#551).
+#
+# Defence in depth alongside the --requirepass added by patches/redis-auth.yaml:
+# the password stops an unauthenticated caller, this stops the connection being
+# made at all from anywhere except the API server pods.
+#
+# This is only enforceable because terraform enables the VPC CNI's NetworkPolicy
+# agent (enableNetworkPolicy = "true" on the vpc-cni addon, see
+# terraform/modules/kubernetes/aws/main.tf). Without that agent EKS accepts
+# NetworkPolicy objects and silently does not enforce them, which is the state
+# this deployment's README previously described as "isolated" when it was not.
+#
+# Ingress-only on purpose. policyTypes lists Ingress alone, so redis's egress is
+# untouched — adding an Egress policy here would also have to re-permit DNS to
+# kube-dns, and redis has no reason to originate traffic anyway.
+#
+# Selecting ONLY app=tmi-server is correct as of this writing: the server is the
+# sole redis client. The controller, extractor and chunk-embed workers talk to
+# NATS, not redis (TMI_REDIS_HOST appears only in the server manifests). If a
+# future component needs redis, add it to `from` — the symptom of forgetting is
+# a connection timeout to redis:6379, not an auth error.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-allow-tmi-server
+  namespace: tmi-platform
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: tmi-server
+      ports:
+        - protocol: TCP
+          port: 6379
