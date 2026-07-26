@@ -19,10 +19,20 @@ variable "name_prefix" {
 # emit a plan that jumps multiple minors; the AWS API rejects it. Upgrade the
 # node group to match the control plane at each hop. A control-plane minor
 # upgrade can be rolled back only within 7 days.
+#
+# nullable = false is load-bearing, not decoration: since Terraform 1.1
+# variables are nullable by default, so a caller passing an unset (null)
+# value would propagate null in here rather than falling back to this
+# default — which surfaces as "Missing required argument" from the
+# aws_eks_addon_version data sources below. With nullable = false, Terraform
+# substitutes this default whenever the caller passes null, which is what lets
+# environments/aws-public declare `kubernetes_version = var.kubernetes_version`
+# with a null default and get the pin from here.
 variable "kubernetes_version" {
   description = "Kubernetes version for the EKS cluster"
   type        = string
   default     = "1.36"
+  nullable    = false
 }
 
 variable "endpoint_public_access" {
