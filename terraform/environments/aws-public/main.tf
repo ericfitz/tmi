@@ -225,9 +225,27 @@ module "kubernetes" {
   # null falls through to the module's own default (Terraform substitutes a
   # module variable's default when the caller passes null), so the pin lives in
   # one place unless an operator is deliberately stepping through an upgrade.
-  kubernetes_version     = var.kubernetes_version
-  node_instance_type     = "t3.medium"
-  node_count             = 1
+  kubernetes_version = var.kubernetes_version
+  node_instance_type = "t3.medium"
+
+  # Two nodes, not one (#575). The binding constraint is the VPC CNI's
+  # pod-per-node ceiling, not CPU or memory: a t3.medium allows 3 ENIs x 6 IPs
+  # - 1 = 17 pods, and this platform sits at 16 at rest. A deploy that rolls
+  # several workloads at once therefore has nowhere to put the surge pods, and
+  # they sit Pending with "Too many pods" / "failed to assign an IP address"
+  # until something terminates. That happened on the 2026-07-26 deploy: the
+  # rollout stalled for ~3 minutes, during which the old tmi-server kept
+  # serving against the newly authenticated redis and the API reported
+  # degraded.
+  #
+  # A second node also removes the single point of failure for the whole
+  # platform, which a one-node cluster running an internet-facing service had
+  # regardless of the pod ceiling.
+  #
+  # Note this makes max_size 3 (the module sets node_count + 1 for upgrade
+  # headroom), so a managed node-group upgrade still has room to launch
+  # replacement capacity before draining.
+  node_count             = 2
   endpoint_public_access = true
 
   # Network
