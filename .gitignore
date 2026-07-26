@@ -161,3 +161,8 @@ test/configs/google-drive-test-docs.json
 .claude/scheduled_tasks.lock
 .local/
 terraform/environments/aws-public/vendor/
+
+# Machine-local Claude notes. The blanket `!*.md` near the top of this file
+# re-includes every markdown file, which would otherwise make this per-developer
+# scratch file show up as untracked in every `git status`.
+CLAUDE.local.md
