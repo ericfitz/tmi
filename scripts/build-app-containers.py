@@ -110,23 +110,74 @@ def _resolve_client_path(project_root: Path) -> str:
     return str(project_root.parent / "tmi-clients")
 
 
+def _go_mod_client_version(project_root: Path) -> str:
+    """Read the tmi-clients version directory name out of go.mod.
+
+    go.mod encodes the version in the module path itself, e.g.
+
+        github.com/ericfitz/tmi-clients/go-client-generated/v1_5_0 v0.0.0-...
+
+    Returns "" when go.mod is absent or names no tmi-clients module.
+    """
+    go_mod = project_root / "go.mod"
+    try:
+        text = go_mod.read_text()
+    except OSError:
+        return ""
+
+    # Match the version directory component of the module path. Deliberately
+    # anchored on the full "tmi-clients/go-client-generated/" prefix so an
+    # unrelated vN_N_N path elsewhere in go.mod cannot be picked up.
+    matches = re.findall(
+        r"tmi-clients/go-client-generated/(v\d+_\d+_\d+)", text
+    )
+    if not matches:
+        return ""
+
+    # A `replace` directive names the same version twice (LHS and RHS), so
+    # duplicates are expected and fine. Genuinely different versions are not:
+    # the build would be ambiguous, so report rather than silently pick one.
+    unique = sorted(set(matches))
+    if len(unique) > 1:
+        helpers.log_error(
+            f"go.mod names multiple tmi-clients versions: {', '.join(unique)}. "
+            "Resolve the ambiguity in go.mod, or set TMI_CLIENT_VERSION to pick one."
+        )
+        sys.exit(1)
+    return unique[0]
+
+
 def _resolve_client_version(project_root: Path) -> str:
     """Resolve the tmi-clients version directory name.
 
     Checks in order:
     1. TMI_CLIENT_VERSION environment variable
-    2. Derived from current git branch name
+    2. go.mod (authoritative -- the module actually compiled against)
+    3. Derived from current git branch name (legacy heuristic)
+
+    go.mod is consulted before the branch name because it is a fact rather than
+    a convention: the build links against exactly the module go.mod names, so a
+    branch-derived guess that disagrees with it produces a container built from
+    a different client than the one the code compiles against. The branch rule
+    also simply has no answer on any branch without a semver in it -- `main`
+    included -- which used to make `scripts/deploy-aws.sh` unable to complete
+    from the branch releases are cut from (#554).
     """
     env_version = os.environ.get("TMI_CLIENT_VERSION", "")
     if env_version:
         return env_version
 
+    go_mod_version = _go_mod_client_version(project_root)
+    if go_mod_version:
+        return go_mod_version
+
     branch = _get_git_branch(project_root)
     version = _branch_to_client_version(branch)
     if not version:
         helpers.log_error(
-            f"Cannot derive client version from branch '{branch}'. "
-            "Set TMI_CLIENT_VERSION (e.g. 'v1_4_0') or switch to a dev/X.Y.Z branch."
+            f"Cannot derive client version from branch '{branch}', and go.mod "
+            "names no tmi-clients module. Set TMI_CLIENT_VERSION (e.g. 'v1_4_0'), "
+            "add the tmi-clients dependency to go.mod, or switch to a dev/X.Y.Z branch."
         )
         sys.exit(1)
     return version
