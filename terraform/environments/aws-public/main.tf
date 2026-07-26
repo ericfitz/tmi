@@ -271,6 +271,9 @@ module "kubernetes" {
   # JWT
   jwt_secret = module.secrets.jwt_secret
 
+  # Encrypts secret-classified system settings at rest in RDS (#547)
+  settings_encryption_key = module.secrets.settings_encryption_key
+
   # Extra env vars from deployer
   extra_environment_variables = var.extra_env_vars
 

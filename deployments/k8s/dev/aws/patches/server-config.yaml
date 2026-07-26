@@ -27,17 +27,27 @@
 #   kubernetes_secret_v1.tmi in terraform/modules/kubernetes/aws/k8s_resources.tf).
 #   Both are REQUIRED by internal/config/config.go (server fails to start
 #   without TMI_DATABASE_URL; JWT secret is validated at startup too) — do
-#   not remove. Deliberately explicit refs, NOT `envFrom: secretRef:
-#   tmi-secrets`: that Secret also carries TMI_REDIS_PASSWORD, and the
-#   in-cluster redis (../redis.yml, chainguard image) runs WITHOUT
-#   requirepass — same as local dev. Blindly sweeping the whole Secret in
-#   would inject a password the redis server never asked for, making the
-#   go-redis client send AUTH and fail every connection. TMI_REDIS_PASSWORD
-#   is intentionally omitted: internal/config/config.go's RedisConfig.Password
-#   defaults to "" and auth/db/redis.go's go-redis client only issues AUTH
-#   when Password is non-empty, so an unset var is a safe, no-op default that
-#   matches the unauthenticated in-cluster posture. See README.md
-#   "Redis authentication" for the full decision writeup.
+#   not remove.
+#
+#   TMI_REDIS_PASSWORD is now also injected (#551). This REVERSES the previous
+#   posture, in which redis ran with no requirepass and this variable was
+#   deliberately omitted so the go-redis client would not send AUTH. The AWS
+#   overlay's redis-auth.yaml patch now starts redis with
+#   `--requirepass $(REDIS_PASSWORD)` from this same tmi-secrets key, so the
+#   two sides must move together: injecting the password without the redis
+#   patch (or vice versa) breaks every redis connection. Local dev
+#   (docker-desktop / k3s) is unchanged and still runs redis unauthenticated —
+#   only this overlay patches it.
+#
+#   Still deliberately explicit secretKeyRef entries rather than
+#   `envFrom: secretRef: tmi-secrets`: sweeping the whole Secret in would also
+#   pull in keys the server does not read, and explicit refs keep the blast
+#   radius of a future key addition visible here.
+#
+#   TMI_SECRET_SETTINGS_ENCRYPTION_KEY (#547) turns on encryption of
+#   secret-classified system settings at rest. The TMI_SECRET_ prefix is what
+#   internal/secrets/env_provider.go looks for; without this var the server
+#   stores OAuth client secrets as plaintext in RDS.
 #
 #   The terraform-owned `tmi-server-config` ConfigMap ALSO carries flat
 #   TMI_* keys (TMI_BUILD_MODE, TMI_LOG_*, etc.), verified against the
@@ -101,3 +111,16 @@ spec:
                 secretKeyRef:
                   name: tmi-secrets
                   key: TMI_JWT_SECRET
+            # Must stay in lockstep with patches/redis-auth.yaml, which starts
+            # redis with --requirepass from this same key (#551).
+            - name: TMI_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tmi-secrets
+                  key: TMI_REDIS_PASSWORD
+            # Encrypts secret-classified settings at rest (#547).
+            - name: TMI_SECRET_SETTINGS_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tmi-secrets
+                  key: TMI_SECRET_SETTINGS_ENCRYPTION_KEY

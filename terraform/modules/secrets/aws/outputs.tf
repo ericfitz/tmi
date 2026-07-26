@@ -30,6 +30,16 @@ output "jwt_secret_name" {
   value       = aws_secretsmanager_secret.jwt_secret.name
 }
 
+output "settings_encryption_key_arn" {
+  description = "ARN of the settings-at-rest encryption key secret"
+  value       = aws_secretsmanager_secret.settings_encryption_key.arn
+}
+
+output "settings_encryption_key_name" {
+  description = "Name of the settings-at-rest encryption key secret"
+  value       = aws_secretsmanager_secret.settings_encryption_key.name
+}
+
 # Generated password values (for passing to other modules)
 output "db_password" {
   description = "Generated database password"
@@ -49,6 +59,12 @@ output "jwt_secret" {
   sensitive   = true
 }
 
+output "settings_encryption_key" {
+  description = "Generated settings-at-rest encryption key (64 hex chars / 32 bytes)"
+  value       = random_id.settings_encryption_key.hex
+  sensitive   = true
+}
+
 # Standard interface outputs for multi-cloud compatibility
 output "secrets_provider_id" {
   description = "Secrets provider ID (standard interface)"
@@ -58,8 +74,9 @@ output "secrets_provider_id" {
 output "secret_arns" {
   description = "Map of all secret ARNs for IAM policy creation"
   value = {
-    db_credentials = aws_secretsmanager_secret.db_credentials.arn
-    redis_password = aws_secretsmanager_secret.redis_password.arn
-    jwt_secret     = aws_secretsmanager_secret.jwt_secret.arn
+    db_credentials          = aws_secretsmanager_secret.db_credentials.arn
+    redis_password          = aws_secretsmanager_secret.redis_password.arn
+    jwt_secret              = aws_secretsmanager_secret.jwt_secret.arn
+    settings_encryption_key = aws_secretsmanager_secret.settings_encryption_key.arn
   }
 }
