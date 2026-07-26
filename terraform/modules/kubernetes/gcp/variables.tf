@@ -81,6 +81,19 @@ variable "tmi_replicas" {
   description = "Number of TMI API pod replicas (TMI is stateful; use 1 to avoid database corruption)"
   type        = number
   default     = 1
+
+  # Hard cap, not advice. TMI keeps collaboration session state in the
+  # in-process WebSocketHub (api/websocket.go), so a second instance behind the
+  # same load balancer gets its own hub: participants are split across sessions
+  # by whichever pod they are routed to, and edits do not propagate between
+  # them. The description below has warned about this for a long time, but
+  # nothing enforced it -- a deployer could set 2 and get a silently broken
+  # deployment. Raising this ceiling requires externalising session state
+  # first, not just editing this number.
+  validation {
+    condition     = var.tmi_replicas == 1
+    error_message = "tmi_replicas must be 1: TMI holds collaboration session state in-process, so multiple instances behind one load balancer split sessions and lose edits."
+  }
 }
 
 variable "tmi_cpu_request" {

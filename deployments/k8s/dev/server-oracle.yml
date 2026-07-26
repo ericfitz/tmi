@@ -19,6 +19,14 @@ metadata:
   name: tmi-server
   namespace: tmi-platform
 spec:
+  # See the equivalent block in server.yml for the full reasoning: TMI holds
+  # collaboration session state in the in-process WebSocketHub, so two
+  # instances behind one load balancer split participants across separate
+  # hubs. replicas: 1 is not sufficient on its own -- the default
+  # RollingUpdate strategy surges to a second Ready pod during every deploy.
+  # Recreate terminates the old pod first, making "at most one" actually hold.
+  strategy:
+    type: Recreate
   replicas: 1
   selector:
     matchLabels: { app: tmi-server }

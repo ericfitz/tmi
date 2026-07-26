@@ -9,6 +9,28 @@ metadata:
   name: tmi-server
   namespace: tmi-platform
 spec:
+  # TMI is STATEFUL and must never run more than one instance behind a load
+  # balancer. Collaboration sessions live in the in-process WebSocketHub
+  # (api/websocket.go), so a second instance gets its own hub: participants
+  # land in different sessions depending on which pod the ALB routes them to,
+  # and edits do not propagate between them.
+  #
+  # replicas: 1 alone does NOT guarantee that. The default RollingUpdate
+  # strategy computes maxSurge=25% which rounds UP to 1 for a single replica,
+  # so a deploy starts the new pod, waits for it to become Ready, and only
+  # then terminates the old one -- a window in which BOTH pods are Ready, both
+  # are Service endpoints, and both are registered ALB targets. That is not
+  # theoretical: two Ready tmi-server pods were observed simultaneously during
+  # the 2026-07-26 AWS deploy.
+  #
+  # Recreate makes the cap real: the old pod is terminated before the new one
+  # is created, so at most one server exists at any instant. The tradeoff is
+  # accepted deliberately -- a few seconds of downtime per deploy is correct
+  # for a single-instance stateful service, whereas overlapping instances are
+  # silently wrong. Do not change this to RollingUpdate, and do not scale this
+  # Deployment above 1, without first making session state external.
+  strategy:
+    type: Recreate
   replicas: 1
   selector:
     matchLabels: { app: tmi-server }
