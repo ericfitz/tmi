@@ -363,7 +363,17 @@ terraform_init() {
 }
 
 terraform_deploy() {
-    log_step "Phase 2: Terraform Infrastructure ${DESTROY:+(Destroy)}"
+    # Test the VALUE, not just whether the variable is set. DESTROY is always
+    # non-empty -- it is initialised to the string "false" and only ever set to
+    # "true" -- so the previous `${DESTROY:+(Destroy)}` expanded on every run
+    # and labelled ordinary applies "(Destroy)" (#548). Alarming, and worse,
+    # it trained the reader to ignore the one label that should never be
+    # ignored.
+    local phase2_label="Phase 2: Terraform Infrastructure"
+    if [[ "${DESTROY}" == "true" ]]; then
+        phase2_label+=" (Destroy)"
+    fi
+    log_step "${phase2_label}"
 
     terraform_init
 
