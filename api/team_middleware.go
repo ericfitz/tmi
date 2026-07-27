@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -142,7 +143,7 @@ func GetProjectTeamID(ctx context.Context, projectID string) (string, error) {
 		Select("team_id").
 		First(&project)
 	if result.Error != nil {
-		return "", result.Error
+		return "", dberrors.Classify(result.Error)
 	}
 
 	return string(project.TeamID), nil

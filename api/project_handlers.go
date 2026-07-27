@@ -400,6 +400,10 @@ func (s *Server) DeleteProject(c *gin.Context, projectId openapi_types.UUID) {
 	// Authorization check - need project's team, then check owner/admin
 	teamID, err := GetProjectTeamID(ctx, projectId.String())
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			HandleRequestError(c, NotFoundError("Project not found"))
+			return
+		}
 		logger.Error("Failed to get project team: %v", err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Project not found", "Failed to get project"))
 		return

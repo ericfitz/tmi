@@ -289,6 +289,17 @@ func TestProjectCRUD(t *testing.T) {
 		t.Log("404 handling validated")
 	})
 
+	t.Run("ErrorHandling_NotFound_Delete", func(t *testing.T) {
+		resp, err := client.Do(framework.Request{
+			Method: "DELETE",
+			Path:   "/projects/00000000-0000-0000-0000-000000000000",
+		})
+		framework.AssertNoError(t, err, "Request failed unexpectedly")
+		framework.AssertStatusNotFound(t, resp)
+
+		t.Log("404 handling validated for DELETE nonexistent project")
+	})
+
 	t.Run("ErrorHandling_BadRequest", func(t *testing.T) {
 		// Missing required team_id field
 		resp, err := client.Do(framework.Request{

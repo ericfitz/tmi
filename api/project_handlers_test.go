@@ -593,6 +593,20 @@ func TestDeleteProject(t *testing.T) {
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
+
+	t.Run("not found - nonexistent project", func(t *testing.T) {
+		projectStore := newMockProjectStore()
+		saveTeamProjectStores(t, nil, projectStore)
+		setupTestTeamAuthDB(t) // no project seeded - GetProjectTeamID yields not-found
+
+		projectUUID, _ := uuid.Parse(testProjectID)
+		c, w := CreateTestGinContext("DELETE", "/projects/"+testProjectID)
+		TestUsers.Owner.SetContext(c)
+
+		server.DeleteProject(c, projectUUID)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
 }
 
 func TestProjectStatusConversions(t *testing.T) {
