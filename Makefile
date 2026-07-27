@@ -432,8 +432,15 @@ stop-all: stop-oauth-stub dev-down  ## Stop the OAuth stub and tear down the dev
 # CATS FUZZING - API Security Testing
 # ============================================================================
 
-.PHONY: cats-seed cats-seed-oci cats-fuzz cats-fuzz-oci query-cats-results analyze-cats-results e2e-seed
+.PHONY: cats-seed cats-seed-oci cats-fuzz cats-fuzz-oci query-cats-results analyze-cats-results cats-report e2e-seed
 
+# The cats plugin (scripts/cats_tool.py) is a portable tool that replaces the
+# former run-cats-fuzz.py / parse_cats_results.py / query-cats-results.py
+# pipeline. It is NOT installed into the Claude plugin cache
+# (~/.claude/plugins/cache/... does not exist for this plugin) -- point
+# directly at the checkout instead. Config lives at .local/cats/config.yaml
+# (gitignored; discovered by walking up from cwd).
+CATS := uv run $(HOME)/Projects/skills/cats/scripts/cats_tool.py
 CATS_CONFIG ?= config-development.yml
 CATS_USER ?= charlie
 CATS_PROVIDER ?= tmi
@@ -447,19 +454,29 @@ e2e-seed:  ## Seed database with E2E test data from tmi-ux seed-spec
 	if [ ! -f "$$E2E_SEED" ]; then echo "Error: seed-spec.json not found at $$E2E_SEED (check .local-projects.json)"; exit 1; fi; \
 	uv run scripts/run-dbtool.py --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER) --server=$(CATS_SERVER) --input-file=$$E2E_SEED
 
-cats-seed-oci:  ## Seed database for CATS fuzzing (Oracle ADB)
+cats-seed-oci:  ## Seed database for CATS fuzzing (Oracle ADB; requires scripts/oci-env.sh sourced)
 	@uv run scripts/run-dbtool.py --oci --user=$(CATS_USER) --provider=$(CATS_PROVIDER)
 
-cats-fuzz: cats-seed  ## Run CATS API fuzzing (auto-parses results)
-	@uv run scripts/run-cats-fuzz.py --skip-seed --user $(CATS_USER) --server $(CATS_SERVER) --config $(CATS_CONFIG) --provider $(CATS_PROVIDER) $(if $(FUZZ_USER),--user $(FUZZ_USER),) $(if $(FUZZ_SERVER),--server $(FUZZ_SERVER),) $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)
+cats-fuzz:  ## Run CATS API fuzzing (seeds via the plugin's seed hook, fuzzes, parses, classifies)
+	@$(CATS) run $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)
 
+# The legacy target built tmi-dbtool with Oracle support and seeded via a
+# directly-connected DB backend selected by an already-sourced
+# TMI_DATABASE_URL (scripts/oci-env.sh), not by switching config files (see
+# scripts/run-dbtool.py's --oci handling). The plugin's config-driven `seed`
+# hook always calls run-dbtool.py without --oci, so reproduce the Oracle path
+# by seeding through cats-seed-oci first and telling the plugin to skip its
+# own seed hook.
 cats-fuzz-oci: cats-seed-oci  ## Run CATS API fuzzing with OCI ADB (auto-parses results)
-	@uv run scripts/run-cats-fuzz.py --oci --skip-seed $(if $(FUZZ_USER),--user $(FUZZ_USER),) $(if $(FUZZ_SERVER),--server $(FUZZ_SERVER),) $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)
+	@$(CATS) run --skip-seed $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)
 
 query-cats-results:  ## Query parsed CATS results
-	@uv run scripts/query-cats-results.py --db test/outputs/cats/cats-results.db
+	@$(CATS) query
 
 analyze-cats-results: query-cats-results  ## Analyze CATS results
+
+cats-report:  ## Generate an HTML report from the latest run
+	@$(CATS) report --open
 
 
 # ============================================================================

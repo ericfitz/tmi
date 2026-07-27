@@ -2,8 +2,8 @@
   "version": "1.0",
   "description": "CATS fuzzing test data - all objects needed for comprehensive API security testing",
   "output": {
-    "reference_file": "test/outputs/cats/cats-test-data.json",
-    "reference_yaml": "test/outputs/cats/cats-test-data.yml"
+    "reference_file": "test/results/cats/cats-test-data.json",
+    "reference_yaml": "test/results/cats/cats-test-data.yml"
   },
   "users": [
     {

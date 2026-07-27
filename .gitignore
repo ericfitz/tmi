@@ -120,6 +120,7 @@ eval/**
 
 # Test outputs and deprecated resources (consolidated under test/)
 test/outputs/
+test/results/
 test/deprecated/
 test/tools/wstest/wstest
 
