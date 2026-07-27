@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 
 import cluster
+import portfwd
 from tmi_common import (
     check_tool, container_exists, container_is_running, get_project_root,
     log_error, log_info, log_success, run_cmd,
@@ -597,7 +598,44 @@ def wait_for_server(*, attempts: int = 30, delay_s: float = 1.0) -> None:
     )
 
 
-def _spawn_supervised_forward(argv: list[str], pid_path: str, human_desc: str) -> None:
+def _preflight_port(port: int) -> None:
+    """Reclaim `port` from a squatting kubectl port-forward before spawning a
+    fresh supervisor, or refuse to proceed if something else holds it.
+
+    #580: an orphaned supervisor (lost/stale pidfile, reparented to init after
+    an orchestrator crash, or a forward started before this module existed)
+    keeps re-forwarding forever and silently squats on the port. That is the
+    likely mechanism behind a 2026-07-27 incident where "local" verification
+    on localhost:8080 silently reached an AWS EKS cluster instead of the local
+    k3s dev environment. Rather than let a fresh `kubectl port-forward` race a
+    squatter for the bind, actively reclaim the port from anything positively
+    identified as one of our own forwards (see portfwd.is_kubectl_forward),
+    and hard-fail if an unrelated process is holding it instead of silently
+    binding somewhere else or proceeding against the wrong target.
+    """
+    listeners = portfwd.port_listeners(port)
+    if not listeners:
+        return
+    for pid, command in listeners:
+        if not portfwd.is_kubectl_forward(command):
+            continue
+        try:
+            os.killpg(os.getpgid(pid), signal.SIGTERM)
+            log_info(f"Reclaimed port {port} from squatting port-forward (PID {pid})")
+        except ProcessLookupError:
+            pass
+    time.sleep(0.5)
+    for pid, command in portfwd.port_listeners(port):
+        if not portfwd.is_kubectl_forward(command):
+            log_error(
+                f"Port {port} is held by an unrelated process (PID {pid}): {command}\n"
+                "Refusing to start a port-forward that would not reach the dev cluster."
+            )
+            sys.exit(1)
+
+
+def _spawn_supervised_forward(argv: list[str], pid_path: str, human_desc: str,
+                               *, port: int, context: str) -> None:
     """Start a self-healing kubectl port-forward and record its supervisor PID.
 
     A bare `kubectl port-forward` exits whenever its backing pod rolls or
@@ -609,16 +647,29 @@ def _spawn_supervised_forward(argv: list[str], pid_path: str, human_desc: str) -
     instant it finishes. The loop runs in its own session (start_new_session) so
     its pidfile can tear down the whole group (supervisor shell + the current
     kubectl child) and so it outlives this one-shot orchestrator process.
+
+    #580: before spawning, reap any orphaned supervisor tied to this exact
+    pidfile (marker-scoped, so this never touches a different forward's
+    orphans) that pidfile-based stop couldn't reach, then preflight the port
+    so a squatter can never be raced or silently left in place. The marker is
+    embedded as a trailing `sh -c` comment — inert to the shell, but visible
+    to `pgrep -f` — so a future run (or a different caller, e.g. #578) can
+    find and reap this exact supervisor even if its pidfile is lost.
     """
     _stop_port_forward_pidfile(pid_path)
+    reaped = portfwd.reap_supervisors(portfwd.marker_for(pid_path))
+    if reaped:
+        log_info(f"Reaped {len(reaped)} orphaned port-forward supervisor(s) for {Path(pid_path).name}")
+    _preflight_port(port)
     inner = " ".join(shlex.quote(a) for a in argv)
+    marker = portfwd.marker_for(pid_path)
     proc = subprocess.Popen(
-        ["sh", "-c", f"while true; do {inner} >/dev/null 2>&1; sleep 1; done"],
+        ["sh", "-c", f"while true; do {inner} >/dev/null 2>&1; sleep 1; done # {marker}"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         start_new_session=True,
     )
-    Path(pid_path).write_text(str(proc.pid))
+    portfwd.write_pidfile(pid_path, proc.pid, context=context, port=port)
     log_info(f"Port-forward started (PID {proc.pid}): {human_desc}")
 
 
@@ -626,13 +677,21 @@ def start_redis_port_forward() -> None:
     """Forward the in-cluster Redis to localhost:6379 for host integration tests.
 
     Redis is low-throughput from the host (test setup only), so a port-forward
-    is fine here.
+    is fine here. The kube context is pinned via --context (rather than left
+    to resolve from the ambient kubeconfig) because the supervisor re-execs
+    kubectl on every pod roll — an unpinned kubectl would silently retarget
+    to whatever context is CURRENT at each respawn, so switching context (say,
+    to a remote EKS cluster) after this forward starts would re-point "local"
+    Redis at the wrong cluster without any visible error (#580).
     """
     stop_port_forward()
+    ctx = current_kube_context()
     _spawn_supervised_forward(
-        ["kubectl", "-n", NS, "port-forward", "svc/redis", "6379:6379"],
+        ["kubectl", "--context", ctx, "-n", NS, "port-forward", "svc/redis", "6379:6379"],
         REDIS_PORT_FORWARD_PID,
         "localhost:6379 -> svc/redis:6379",
+        port=6379,
+        context=ctx,
     )
 
 
@@ -645,41 +704,63 @@ def start_server_port_forward() -> None:
     userspace forward throttles under load, the #463 problem.) Stops only a
     prior SERVER forward so it does not disturb the redis forward started
     just before it. The forward is supervised so it survives server pod rolls
-    (see _spawn_supervised_forward)."""
+    (see _spawn_supervised_forward). The kube context is pinned via --context
+    for the same reason as start_redis_port_forward: an unpinned kubectl
+    resolves the CURRENT context on every respawn, so a context switch after
+    this forward starts (e.g. to EKS) would silently retarget "local" traffic
+    at the wrong cluster — the likely mechanism behind the #580 incident."""
+    ctx = current_kube_context()
     _spawn_supervised_forward(
-        ["kubectl", "-n", NS, "port-forward", "svc/tmi-server", f"{HOST_PORT}:{HOST_PORT}"],
+        ["kubectl", "--context", ctx, "-n", NS, "port-forward", "svc/tmi-server", f"{HOST_PORT}:{HOST_PORT}"],
         PORT_FORWARD_PID,
         f"localhost:{HOST_PORT} -> svc/tmi-server:{HOST_PORT}",
+        port=HOST_PORT,
+        context=ctx,
     )
 
 
 def _stop_port_forward_pidfile(pid_path: str) -> None:
-    p = Path(pid_path)
-    if not p.exists():
-        return
-    try:
-        pid = int(p.read_text().strip())
-    except ValueError:
-        p.unlink(missing_ok=True)
-        return
-    try:
-        # Supervised forwards are session leaders (pgid == pid): signal the whole
-        # group so the kubectl child dies with the supervisor shell. A legacy
-        # bare forward (pgid != pid) gets a single-process signal so we never
-        # tear down an unrelated process group.
-        if os.getpgid(pid) == pid:
-            os.killpg(pid, signal.SIGTERM)
-        else:
-            os.kill(pid, signal.SIGTERM)
-        log_info(f"Stopped port-forward (PID {pid})")
-    except ProcessLookupError:
-        pass
-    p.unlink(missing_ok=True)
+    record = portfwd.read_pidfile(pid_path)
+    if record is not None:
+        try:
+            # Supervised forwards are session leaders (pgid == pid): signal the
+            # whole group so the kubectl child dies with the supervisor shell.
+            # A legacy bare forward (pgid != pid) gets a single-process signal
+            # so we never tear down an unrelated process group.
+            if os.getpgid(record.pid) == record.pid:
+                os.killpg(record.pid, signal.SIGTERM)
+            else:
+                os.kill(record.pid, signal.SIGTERM)
+            log_info(f"Stopped port-forward (PID {record.pid})")
+        except ProcessLookupError:
+            pass
+    Path(pid_path).unlink(missing_ok=True)
+    # #580: the pidfile alone cannot reach an orphan that was reparented to
+    # init after losing its pidfile entirely (stale/lost file, crash before
+    # write). Reap anything still carrying this pidfile's marker so it can't
+    # keep squatting on the port after this "stop".
+    reaped = portfwd.reap_supervisors(portfwd.marker_for(pid_path))
+    if reaped:
+        log_info(f"Reaped {len(reaped)} orphaned port-forward supervisor(s) for {Path(pid_path).name}")
 
 
 def stop_port_forward() -> None:
     _stop_port_forward_pidfile(PORT_FORWARD_PID)
     _stop_port_forward_pidfile(REDIS_PORT_FORWARD_PID)
+    # Legacy tier (#580): reap any kubectl port-forward supervisor for a
+    # tmi-platform Service that predates marker-based pidfile tracking
+    # entirely — e.g. a forward started before this module existed, or one
+    # whose pidfile was lost/removed out-of-band. The pattern is deliberately
+    # narrow: it requires the literal substring "-n tmi-platform port-forward
+    # svc/" (namespace flag immediately followed by the port-forward verb and
+    # a Service target) to appear in the command line, in that exact order —
+    # a combination that only ever appears in our own dev port-forward
+    # supervisors. reap_supervisors additionally requires the "while true"
+    # supervisor-loop shape (or the kubectl-forward shape) and pgid isolation
+    # from our own group before signaling anything (see portfwd.py).
+    reaped = portfwd.reap_supervisors("-n tmi-platform port-forward svc/")
+    if reaped:
+        log_info(f"Reaped {len(reaped)} orphaned legacy port-forward supervisor(s)")
 
 
 # ---------------------------------------------------------------------------
