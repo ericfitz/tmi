@@ -2,6 +2,7 @@ package dberrors
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"testing"
@@ -29,6 +30,38 @@ func TestClassify_ContextErrors(t *testing.T) {
 
 func TestClassify_GormRecordNotFound(t *testing.T) {
 	err := Classify(gorm.ErrRecordNotFound)
+	assert.True(t, errors.Is(err, ErrNotFound))
+	// The wrapped error must still satisfy errors.Is(err, gorm.ErrRecordNotFound)
+	// so that callers (e.g. api/project_handlers.go DeleteProject) can branch on
+	// the original GORM sentinel after Wrap's double-%w wrap. If Wrap ever
+	// stopped preserving this identity, this assertion is what would catch it.
+	assert.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+}
+
+// TestClassify_SqlErrNoRows pins the central fix for #581 finding 1a/1d:
+// sql.ErrNoRows is a distinct value from gorm.ErrRecordNotFound (errors.Is
+// does not bridge them), and prior to this fix it fell through Classify
+// unclassified — every call site that finishes a query with a raw
+// *sql.Row/*sql.Rows Scan (rather than a GORM model query) would see a bare,
+// unrecognized error, which HandleRequestError turns into an undocumented
+// 500 instead of a 404. Classifying it centrally closes the gap for every
+// current and future call site, not just the one that surfaced it
+// (api/optimistic_locking.go's wildcard If-Match read-back).
+func TestClassify_SqlErrNoRows(t *testing.T) {
+	err := Classify(sql.ErrNoRows)
+	assert.True(t, errors.Is(err, ErrNotFound))
+	// The wrapped error must still satisfy errors.Is(err, sql.ErrNoRows) so
+	// callers that need to distinguish the original stdlib sentinel can.
+	assert.True(t, errors.Is(err, sql.ErrNoRows))
+}
+
+// TestClassify_SqlErrNoRows_Wrapped verifies the fmt.Errorf-wrapped form
+// (as would appear from a driver/query-layer that adds context) is also
+// recognized, matching the wrapped-error coverage pattern used for
+// TestClassify_PgWrappedError.
+func TestClassify_SqlErrNoRows_Wrapped(t *testing.T) {
+	wrapped := fmt.Errorf("scan version: %w", sql.ErrNoRows)
+	err := Classify(wrapped)
 	assert.True(t, errors.Is(err, ErrNotFound))
 }
 

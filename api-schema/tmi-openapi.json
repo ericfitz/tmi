@@ -13623,11 +13623,10 @@
         "name": "If-Match",
         "in": "header",
         "required": false,
-        "description": "Optimistic-locking precondition. Pass the integer version returned by the previous read (or as the body 'version' field on the previous write). On version mismatch the server returns 409 Conflict. In a future release this header will be required and missing values will return 428 Precondition Required.",
+        "description": "Optimistic-locking precondition. Pass the integer version returned by the previous read (or as the body 'version' field on the previous write). On version mismatch the server returns 409 Conflict. In a future release this header will be required and missing values will return 428 Precondition Required. Accepts an integer version (bare or ETag-quoted) or \"*\" for an unconditional write (RFC 7232).",
         "schema": {
-          "type": "integer",
-          "format": "int32",
-          "minimum": 1
+          "type": "string",
+          "pattern": "^\\s*(\\*|(W/)?\"?[0-9]+\"?)\\s*$"
         }
       },
       "AuditPageLimit": {

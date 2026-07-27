@@ -2,6 +2,7 @@ package dberrors
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 
@@ -32,6 +33,18 @@ func Classify(err error) error {
 
 	// GORM-specific: record not found
 	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return Wrap(err, ErrNotFound)
+	}
+
+	// database/sql: no rows returned. This is a DISTINCT value from
+	// gorm.ErrRecordNotFound — errors.Is does not bridge them — and it is
+	// what callers see when they finish a query with a raw *sql.Row/*sql.Rows
+	// Scan (e.g. db.Raw(...).Row().Scan(...), or any GORM finisher that
+	// falls back to the stdlib driver's zero-row signal) rather than a GORM
+	// model query. Classify it centrally so every call site gets the same
+	// 404-shaped sentinel instead of falling through unclassified to a
+	// bare, policy-violating 500.
+	if errors.Is(err, sql.ErrNoRows) {
 		return Wrap(err, ErrNotFound)
 	}
 

@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -185,8 +186,139 @@ func TestCheckAndBumpVersion_VersionMismatch(t *testing.T) {
 	assert.Equal(t, 5, fresh.Version)
 }
 
+// TestCheckAndBumpVersion_Wildcard verifies that an expected value of
+// VersionWildcard (RFC 7232 "If-Match: *") bumps unconditionally regardless
+// of the row's current version, and returns the resulting new version.
+func TestCheckAndBumpVersion_Wildcard(t *testing.T) {
+	db, _ := setupThreatModelAliasTestDB(t)
+	id := uuid.New().String()
+	tm := &models.ThreatModel{
+		ID:                    models.DBVarchar(id),
+		Name:                  "Wildcard Bump Test",
+		OwnerInternalUUID:     models.DBVarchar(uuid.New().String()),
+		CreatedByInternalUUID: models.DBVarchar(uuid.New().String()),
+		ThreatModelFramework:  "STRIDE",
+		Status:                "not_started",
+		Version:               7,
+	}
+	require.NoError(t, db.Create(tm).Error)
+
+	newVersion, err := CheckAndBumpVersion(context.Background(), db, "threat_models", id, VersionWildcard)
+	require.NoError(t, err)
+	assert.Equal(t, 8, newVersion, "wildcard bump must return current+1")
+
+	var fresh models.ThreatModel
+	require.NoError(t, db.First(&fresh, "id = ?", id).Error)
+	assert.Equal(t, 8, fresh.Version)
+}
+
+// TestCheckAndBumpVersion_WildcardNotFound verifies that a wildcard CAS
+// against a missing row returns ErrNotFound rather than ErrVersionMismatch —
+// there is no version predicate under the wildcard, so a zero-rows-affected
+// UPDATE can only mean the row does not exist.
+func TestCheckAndBumpVersion_WildcardNotFound(t *testing.T) {
+	db, _ := setupThreatModelAliasTestDB(t)
+	_, err := CheckAndBumpVersion(context.Background(), db, "threat_models", uuid.New().String(), VersionWildcard)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, dberrors.ErrNotFound))
+	assert.False(t, errors.Is(err, ErrVersionMismatch))
+}
+
+// TestCheckAndBumpVersion_WildcardReadBackNoRows is the regression guard for
+// #581 finding 1: on the wildcard path, the version bump commits via
+// UpdateColumn and the resulting version is then read back with a separate
+// SELECT. If that read-back races a hard delete (or, on Oracle, hits a
+// transient connectivity blip classified by dberrors), the old
+// `.Row().Scan(&int)` implementation surfaced a bare, unclassified error
+// (sql.ErrNoRows was not recognized by dberrors.Classify, and a nil *sql.Row
+// receiver could even panic) that HandleRequestError would turn into an
+// undocumented 500 — violating the Zero-500 policy. This test forces the
+// read-back to fail with sql.ErrNoRows after a successful bump and asserts
+// the helper now reports dberrors.ErrNotFound, which ApplyOptimisticLock
+// already maps to a documented 404 (see TestApplyOptimisticLock_NotFoundReturns404).
+func TestCheckAndBumpVersion_WildcardReadBackNoRows(t *testing.T) {
+	db, _ := setupThreatModelAliasTestDB(t)
+	id := uuid.New().String()
+	tm := &models.ThreatModel{
+		ID:                    models.DBVarchar(id),
+		Name:                  "Wildcard Read-Back Failure Test",
+		OwnerInternalUUID:     models.DBVarchar(uuid.New().String()),
+		CreatedByInternalUUID: models.DBVarchar(uuid.New().String()),
+		ThreatModelFramework:  "STRIDE",
+		Status:                "not_started",
+		Version:               3,
+	}
+	require.NoError(t, db.Create(tm).Error)
+
+	// Force the read-back SELECT (identified by its sql.NullInt64 dest,
+	// which only the wildcard read-back in CheckAndBumpVersion uses) to fail
+	// with sql.ErrNoRows, simulating a hard delete racing the SELECT that
+	// follows the already-committed UPDATE.
+	require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:inject_readback_norows", func(tx *gorm.DB) {
+		if _, ok := tx.Statement.Dest.(*sql.NullInt64); ok {
+			tx.Error = sql.ErrNoRows
+		}
+	}))
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove("test:inject_readback_norows")
+	})
+
+	_, err := CheckAndBumpVersion(context.Background(), db, "threat_models", id, VersionWildcard)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, dberrors.ErrNotFound),
+		"read-back sql.ErrNoRows must classify to dberrors.ErrNotFound (404), not surface bare (500), got: %v", err)
+
+	// The bump itself must still have committed even though the read-back failed.
+	require.NoError(t, db.Callback().Query().Remove("test:inject_readback_norows"))
+	var fresh models.ThreatModel
+	require.NoError(t, db.First(&fresh, "id = ?", id).Error)
+	assert.Equal(t, 4, fresh.Version, "the version bump commits independently of the read-back")
+}
+
+// TestCheckAndBumpVersion_WildcardReadBackTransient covers the sibling case:
+// a transient (non-not-found) error on the read-back — e.g. a dropped
+// connection — must not surface bare either (#581 finding 1b). The bump
+// already committed, so CheckAndBumpVersion cannot honestly report the
+// resulting version; it maps this to ErrVersionMismatch, reusing the
+// already-documented 409 refetch-and-retry response rather than an
+// undocumented status code.
+func TestCheckAndBumpVersion_WildcardReadBackTransient(t *testing.T) {
+	db, _ := setupThreatModelAliasTestDB(t)
+	id := uuid.New().String()
+	tm := &models.ThreatModel{
+		ID:                    models.DBVarchar(id),
+		Name:                  "Wildcard Read-Back Transient Test",
+		OwnerInternalUUID:     models.DBVarchar(uuid.New().String()),
+		CreatedByInternalUUID: models.DBVarchar(uuid.New().String()),
+		ThreatModelFramework:  "STRIDE",
+		Status:                "not_started",
+		Version:               9,
+	}
+	require.NoError(t, db.Create(tm).Error)
+
+	require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:inject_readback_transient", func(tx *gorm.DB) {
+		if _, ok := tx.Statement.Dest.(*sql.NullInt64); ok {
+			tx.Error = errors.New("connection reset by peer")
+		}
+	}))
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove("test:inject_readback_transient")
+	})
+
+	_, err := CheckAndBumpVersion(context.Background(), db, "threat_models", id, VersionWildcard)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrVersionMismatch),
+		"transient read-back error must map to ErrVersionMismatch (409), not surface bare (500), got: %v", err)
+	assert.False(t, errors.Is(err, dberrors.ErrNotFound))
+
+	require.NoError(t, db.Callback().Query().Remove("test:inject_readback_transient"))
+	var fresh models.ThreatModel
+	require.NoError(t, db.First(&fresh, "id = ?", id).Error)
+	assert.Equal(t, 10, fresh.Version, "the version bump commits independently of the read-back")
+}
+
 // TestParseIfMatchHeader covers the header parsing surface: missing, bare
-// integer, quoted ETag form, weak prefix, wildcard rejection, malformed.
+// integer, quoted ETag form, weak prefix, wildcard (bare and quoted), malformed.
 func TestParseIfMatchHeader_Variants(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -199,7 +331,8 @@ func TestParseIfMatchHeader_Variants(t *testing.T) {
 		{"bare integer", "5", 5, true, false},
 		{"quoted etag", `"7"`, 7, true, false},
 		{"weak prefix", `W/"3"`, 3, true, false},
-		{"wildcard rejected", "*", 0, true, true},
+		{"wildcard", "*", VersionWildcard, true, false},
+		{"quoted wildcard", `"*"`, VersionWildcard, true, false},
 		{"malformed", "not-a-number", 0, true, true},
 		{"negative", "-1", 0, true, true},
 	}

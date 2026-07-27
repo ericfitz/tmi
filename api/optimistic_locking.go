@@ -31,6 +31,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
@@ -69,16 +70,22 @@ const VersionDeprecationMessage = `299 - "If-Match header (or body 'version') is
 // clients have a stable signal they can scan for.
 const VersionDeprecationLink = `true`
 
-// ParseIfMatchHeader extracts a non-negative integer version from the
-// If-Match request header. Returns (version, true, nil) on success,
-// (0, false, nil) if the header is absent, or (0, true, err) if the header
-// is present but malformed.
+// VersionWildcard is the sentinel expected-version value meaning "match any
+// current version" — the CAS bump in CheckAndBumpVersion applies
+// unconditionally. It is negative so it can never collide with a real
+// version (all other call sites enforce n >= 0).
+const VersionWildcard = -1
+
+// ParseIfMatchHeader extracts the expected version from the If-Match request
+// header. Returns (version, true, nil) on success, (0, false, nil) if the
+// header is absent, or (0, true, err) if the header is present but
+// malformed.
 //
 // Per RFC 7232 If-Match values are quoted ETags. We accept either a bare
-// integer ("If-Match: 5") or a quoted integer (`If-Match: "5"`) for client
-// convenience. The "*" wildcard form is intentionally rejected for now —
-// callers should send an explicit version.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: parse a non-negative integer version from the If-Match request header (pure)
+// integer ("If-Match: 5"), a quoted integer (`If-Match: "5"`), or the "*"
+// wildcard, which RFC 7232 defines as matching any current representation —
+// we map it to VersionWildcard so the write proceeds unconditionally.
+// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: parse an integer version or wildcard from the If-Match request header (pure)
 func ParseIfMatchHeader(c *gin.Context) (int, bool, error) {
 	raw := strings.TrimSpace(c.GetHeader("If-Match"))
 	if raw == "" {
@@ -89,11 +96,7 @@ func ParseIfMatchHeader(c *gin.Context) (int, bool, error) {
 	v = strings.Trim(v, `"`)
 	v = strings.TrimSpace(v)
 	if v == "*" {
-		return 0, true, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_if_match",
-			Message: "If-Match: * is not supported; pass the resource version",
-		}
+		return VersionWildcard, true, nil
 	}
 	n, err := strconv.Atoi(v)
 	if err != nil || n < 0 {
@@ -163,9 +166,22 @@ func SetETagHeader(c *gin.Context, version int) {
 // CheckAndBumpVersion atomically validates the caller's expected version and
 // increments the row's version by one. Returns the new version on success.
 //
+// If expected is VersionWildcard (the caller sent "If-Match: *", RFC 7232's
+// "match any current representation"), the bump is unconditional: the WHERE
+// clause carries only the id, and the new version is read back with a
+// SELECT since UpdateColumn does not return the updated row's value on
+// either PostgreSQL or Oracle. A clause.Returning cannot substitute for the
+// read-back here: gorm-oracle only builds `RETURNING ... INTO` when
+// stmt.Schema is non-nil, and this call uses Table() with no model, so
+// Schema is nil and a Returning clause would be silently ignored (verified
+// against gorm-oracle's Dialector.UpdateFromRewrite).
+//
 // Errors:
 //   - dberrors.ErrNotFound  if the row with id does not exist.
-//   - ErrVersionMismatch    if the row exists but version != expected.
+//   - ErrVersionMismatch    if the row exists but version != expected. Under
+//     VersionWildcard this is also returned (instead of a bare classified
+//     error) when the bump committed but the read-back could not confirm the
+//     resulting version — see the wildcard branch below for why.
 //   - other GORM errors are returned wrapped via dberrors.Classify.
 //
 // This is intended to be called BEFORE the entity's content UPDATE inside
@@ -177,21 +193,44 @@ func SetETagHeader(c *gin.Context, version int) {
 // tableName must be the physical DB table name (e.g. "threat_models").
 // On Oracle, GORM lowercases the WHERE column references; the column is
 // "version" on both PostgreSQL and Oracle (case-insensitive identifier).
-// SEM@9fa66a9bf47d32b91bc4119acc795e307691601a: atomically validate expected version and increment the row version in the DB (reads DB)
+// SEM@9fa66a9bf47d32b91bc4119acc795e307691601a: atomically validate expected version (or wildcard) and increment the row version in the DB (reads DB)
 func CheckAndBumpVersion(ctx context.Context, db *gorm.DB, tableName, id string, expected int) (int, error) {
-	tx := db.WithContext(ctx).Table(tableName).
-		Where("id = ? AND version = ?", id, expected).
-		UpdateColumn("version", gorm.Expr("version + 1"))
-	// Oracle's GORM driver returns a spurious "WHERE conditions required"
-	// pseudo-error when an UpdateColumn matches zero rows, even though the
-	// statement carried a WHERE clause. Treat that exact shape as a clean
-	// zero-rows-affected so the version-mismatch / not-found branch below
-	// fires correctly. See api/tombstone_store.go for the same workaround
-	// in the cascade-update path. (#392)
+	query := db.WithContext(ctx).Table(tableName).Where("id = ?", id)
+	if expected != VersionWildcard {
+		query = query.Where("version = ?", expected)
+	}
+	tx := query.UpdateColumn("version", gorm.Expr("version + 1"))
+	// gorm-oracle@v1.1.3's checkMissingWhereConditions runs BEFORE
+	// executeUpdate (oracle/update.go:126 vs :132) — it is a PRE-EXECUTION
+	// build check, so it can never fire alongside a successful row update;
+	// tx.RowsAffected == 0 whenever tx.Error carries this message. Its real
+	// trigger is isSoftDeleteExprCondition (oracle/update.go:251-257), which
+	// discards any clause.Expr whose SQL merely *contains* both
+	// "deleted_at" and "null" — e.g. the tombstone cascade's
+	// `Where("threat_model_id = ? AND deleted_at IS NULL", id)` (see
+	// api/tombstone_store.go, #392). Neither "id = ?" nor "version = ?"
+	// contains "deleted_at", so this heuristic cannot trigger for this
+	// function's WHERE clauses; the swallow below is dead code here today,
+	// kept only so a future change to this query's WHERE shape doesn't
+	// silently reintroduce #392's confusing 500.
 	if tx.Error != nil && !isOracleSpuriousNoRowsErr(tx.Error) {
 		return 0, dberrors.Classify(tx.Error)
 	}
 	if tx.RowsAffected == 0 {
+		if expected == VersionWildcard {
+			// No version predicate is in play under the wildcard, so
+			// RowsAffected == 0 normally means the row does not exist.
+			// Guard (#581 finding 2 hardening): only conclude that when
+			// tx.Error is nil. tx.Error can only be non-nil here because
+			// isOracleSpuriousNoRowsErr swallowed it above; if a future
+			// gorm-oracle change broadens that heuristic to swallow a real
+			// error against a *live* row, don't blindly report 404 for it —
+			// classify and surface it instead.
+			if tx.Error != nil {
+				return 0, dberrors.Classify(tx.Error)
+			}
+			return 0, dberrors.ErrNotFound
+		}
 		// Distinguish 404 (row missing) from 409 (version mismatch).
 		var count int64
 		probe := db.WithContext(ctx).Table(tableName).Where("id = ?", id).Count(&count)
@@ -202,6 +241,48 @@ func CheckAndBumpVersion(ctx context.Context, db *gorm.DB, tableName, id string,
 			return 0, dberrors.ErrNotFound
 		}
 		return 0, ErrVersionMismatch
+	}
+	if expected == VersionWildcard {
+		// The bump above committed (RowsAffected == 1); this SELECT only
+		// recovers the resulting value for the ETag. Use a GORM finisher
+		// (Pluck) rather than .Row().Scan(): the latter returns a bare
+		// *sql.Row whose Scan panics on a nil receiver if GORM's row
+		// callback short-circuits, and its only error signal is
+		// sql.ErrNoRows, which dberrors.Classify did not previously
+		// recognize (#581 finding 1c). Pluck runs the normal "gorm:query"
+		// callback chain and exposes both Error and RowsAffected on its
+		// returned *gorm.DB. Scanning into sql.NullInt64 (the pattern
+		// already used at cmd/server/main.go:1543) also means a NULL
+		// version column cannot produce an unclassified "converting NULL to
+		// int is unsupported" scan error (#581 finding 1c).
+		var newVersion sql.NullInt64
+		readTx := db.WithContext(ctx).Table(tableName).Where("id = ?", id).Pluck("version", &newVersion)
+		if readTx.Error != nil {
+			classified := dberrors.Classify(readTx.Error)
+			if errors.Is(classified, dberrors.ErrNotFound) {
+				// The row existed a moment ago (the UPDATE above matched
+				// it) but is gone now — a hard delete raced the read-back.
+				return 0, dberrors.ErrNotFound
+			}
+			// Any other classified error (transient ADB blip, permission
+			// oddity, etc., #581 finding 1b) must not be returned bare:
+			// ApplyOptimisticLock only special-cases ErrNotFound and
+			// ErrVersionMismatch, so anything else reaches
+			// HandleRequestError's else-branch and becomes an
+			// undocumented, policy-violating 500 — and unlike a pre-commit
+			// failure, the version bump here already committed, so there is
+			// nothing left to roll back. We cannot honestly report the
+			// resulting version, so treat this the same as a version
+			// mismatch: the caller's view of the resource is stale
+			// regardless of *why* we can't confirm it, and 409's
+			// refetch-and-retry response is already documented for every
+			// operation that reaches this path, unlike any 5xx code.
+			return 0, ErrVersionMismatch
+		}
+		if readTx.RowsAffected == 0 || !newVersion.Valid {
+			return 0, dberrors.ErrNotFound
+		}
+		return int(newVersion.Int64), nil
 	}
 	return expected + 1, nil
 }
