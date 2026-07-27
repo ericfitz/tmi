@@ -28,7 +28,41 @@ if [ -n "$unformatted" ]; then
 fi
 
 # Unique package directories of the staged files, as ./dir patterns.
-pkg_dirs=$(echo "$staged_go" | xargs -n1 dirname | sort -u | sed 's,^,./,')
+#
+# Nested Go modules (e.g. test/integration, which has its own go.mod) are
+# excluded: `go vet ./test/integration/...` run from the root module fails with
+# "main module does not contain package ...", so staging any file from one of
+# them would block the commit unconditionally. gofmt above still covers them,
+# and their own module's build/test gates cover the rest.
+root_mod=$(git rev-parse --show-toplevel)
+in_nested_module() {
+    local dir=$1
+    while [ "$dir" != "$root_mod" ] && [ "$dir" != "/" ]; do
+        [ -f "$dir/go.mod" ] && return 0
+        dir=$(dirname "$dir")
+    done
+    return 1
+}
+
+pkg_dirs=""
+skipped_dirs=""
+for d in $(echo "$staged_go" | xargs -n1 dirname | sort -u); do
+    if in_nested_module "$root_mod/$d"; then
+        skipped_dirs="$skipped_dirs $d"
+    else
+        pkg_dirs="$pkg_dirs ./$d"
+    fi
+done
+
+if [ -n "$skipped_dirs" ]; then
+    echo "pre-commit: skipping vet/lint for nested-module packages:$skipped_dirs" >&2
+fi
+
+if [ -z "$pkg_dirs" ]; then
+    # Everything staged lives in nested modules; gofmt already ran.
+    [ "$fail" -ne 0 ] && exit 1
+    exit 0
+fi
 
 # 2. go vet on just the affected packages (fast; whole-module vet is slow).
 if ! go vet $pkg_dirs; then
