@@ -13,6 +13,26 @@
       "roles": { "is_admin": true },
       "oauth_provider": "tmi",
       "api_quota": { "rpm": 100000, "rph": 1000000 }
+    },
+    {
+      "id": "cats-target",
+      "email": "cats-target@tmi.local",
+      "display_name": "CATS Target (Throwaway User)",
+      "roles": { "is_admin": false },
+      "oauth_provider": "tmi"
+    }
+  ],
+  "teams": [
+    {
+      "name": "CATS Test Team",
+      "status": "active"
+    }
+  ],
+  "projects": [
+    {
+      "name": "CATS Test Project",
+      "team": "CATS Test Team",
+      "status": "active"
     }
   ],
   "threat_models": [

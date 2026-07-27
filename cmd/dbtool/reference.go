@@ -123,6 +123,8 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	surveyID := findRefByKind(refs, "survey")
 	responseID := findRefByKind(refs, "survey_response")
 	metadataKey := findRefByKind(refs, "metadata")
+	teamID := findRefByKind(refs, "team")
+	projectID := findRefByKind(refs, "project")
 
 	adminUUID := ""
 	for _, r := range refs {
@@ -134,6 +136,21 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	if adminUUID == "" {
 		adminUUID = nilUUID
 	}
+
+	// targetUUID identifies the account used for destructive/mutating admin
+	// user endpoints (PATCH/DELETE /admin/users/{internal_uuid}, quota PUT/DELETE,
+	// ownership transfer, client-credential deletion, ...). It must NEVER be the
+	// fuzzing identity's own account (#591): a successful mutation against the
+	// live identity (e.g. a 200 from an injection fuzzer) invalidates its bearer
+	// token, silently running the rest of the campaign unauthenticated. Prefer a
+	// dedicated throwaway user seeded under ref "user:cats-target"; fall back to
+	// the first seeded user (historically the fuzzing identity itself) only for
+	// seed files that don't define a throwaway target, to preserve old behavior.
+	targetUUID := adminUUID
+	if r, ok := refs[userRef("cats-target")]; ok {
+		targetUUID = r.ID
+	}
+
 	adminGroupID := nilUUID
 
 	// Syntactically-valid actor email for the audit-endpoint refData (#494). The
@@ -159,12 +176,30 @@ all:
   delivery_id: %s
   addon_id: %s
   client_credential_id: %s
+  # credential_id is the spec's actual path parameter name for
+  # /me/client_credentials/{credential_id} and
+  # /admin/users/{internal_uuid}/client_credentials/{credential_id} (#590);
+  # client_credential_id above is kept for backward compatibility.
+  credential_id: %s
   survey_id: %s
   survey_response_id: %s
   key: %s
+  # team_id/project_id for /teams/{team_id} and /projects/{project_id}.
+  # related_team_id/related_project_id are body fields nested inside
+  # related_teams[]/related_projects[] (#590, #582's canonical UUID spec
+  # examples) - CATS substitutes by field name in bodies too, so pointing
+  # these at real seeded team/project ids makes those requests validate
+  # without needing the seeded entities to literally carry the canonical ids.
+  team_id: %s
+  project_id: %s
+  related_team_id: %s
+  related_project_id: %s
   # Admin resource identifiers
   group_id: %s
-  # internal_uuid for /admin/users/{internal_uuid} and /admin/groups/{internal_uuid} endpoints
+  # internal_uuid for /admin/users/{internal_uuid} and /admin/groups/{internal_uuid} endpoints.
+  # Deliberately NOT the fuzzing identity's own account (#591): a successful
+  # mutation here (PATCH/DELETE) would invalidate the identity's own bearer
+  # token mid-campaign. Points at a dedicated throwaway seeded user instead.
   internal_uuid: %s
   # User identity uses provider:provider_id format
   user_provider: %s
@@ -174,9 +209,13 @@ all:
   # SAML/OAuth provider endpoints - uses the IDP name directly
   provider: %s
   idp: %s
-  # Admin quota endpoints - user_id is internal UUID (OpenAPI spec defines it as UUID format)
+  # Admin quota endpoints - user_id is internal UUID (OpenAPI spec defines it as UUID
+  # format). Also points at the throwaway target user (#591) so quota-mutating
+  # fuzzers can't throttle the fuzzing identity's own account mid-campaign.
   user_id: %s
-  # Group member endpoints - user_uuid is the internal UUID of the test user
+  # Group member endpoints - user_uuid is the internal UUID of the test user.
+  # Not currently a real path parameter name in the spec (see member_uuid),
+  # kept for compatibility; also switched to the throwaway target user.
   user_uuid: %s
 # Admin audit list endpoints (#494): supply valid values for the query params CATS
 # otherwise randomizes, so HappyPath reaches the server cleanly (200) and the
@@ -201,13 +240,15 @@ all:
 		tmID, tmID,
 		threatID, diagramID, documentID, assetID, noteID, repoID,
 		webhookID, deliveryID, addonID, credID,
+		credID,
 		surveyID, responseID,
 		metadataKey,
-		adminGroupID, adminUUID,
+		teamID, projectID, teamID, projectID,
+		adminGroupID, targetUUID,
 		provider, user,
 		provider, user,
 		provider, provider,
-		adminUUID, adminUUID,
+		targetUUID, targetUUID,
 		actorEmail, provider, tmID,
 		actorEmail, provider,
 	)
