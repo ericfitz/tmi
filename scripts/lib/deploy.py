@@ -567,12 +567,12 @@ def server_rollout_timeout(db: str) -> str:
 def wait_and_forward(db: str = "postgres", cluster_target: str = "docker-desktop") -> None:
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-component-controller", "--timeout=120s"])
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", f"--timeout={server_rollout_timeout(db)}"])
-    start_redis_port_forward()
+    start_redis_port_forward(cluster_target)
     # k3s and docker-desktop have no extraPortMappings, so preserve localhost:8080
     # with a server port-forward. Start it AFTER the redis forward, whose
     # stop_port_forward() clears both pidfiles, so this one survives.
     if cluster_target in ("k3s", "docker-desktop"):
-        start_server_port_forward()
+        start_server_port_forward(cluster_target)
     wait_for_server()
     log_success(f"Dev environment ready at {SERVER_URL}")
 
@@ -622,7 +622,7 @@ def _spawn_supervised_forward(argv: list[str], pid_path: str, human_desc: str) -
     log_info(f"Port-forward started (PID {proc.pid}): {human_desc}")
 
 
-def start_redis_port_forward() -> None:
+def start_redis_port_forward(cluster_target: str = "docker-desktop") -> None:
     """Forward the in-cluster Redis to localhost:6379 for host integration tests.
 
     Redis is low-throughput from the host (test setup only), so a port-forward
@@ -630,13 +630,29 @@ def start_redis_port_forward() -> None:
     """
     stop_port_forward()
     _spawn_supervised_forward(
-        ["kubectl", "-n", NS, "port-forward", "svc/redis", "6379:6379"],
+        ["kubectl", *_context_args(cluster_target), "-n", NS, "port-forward", "svc/redis", "6379:6379"],
         REDIS_PORT_FORWARD_PID,
         "localhost:6379 -> svc/redis:6379",
     )
 
 
-def start_server_port_forward() -> None:
+def _context_args(cluster_target: str) -> list[str]:
+    """`--context <ctx>` for the target cluster, so a respawn cannot drift.
+
+    The supervisor loop re-runs `kubectl port-forward` every time its child
+    exits, and a bare invocation resolves the context at THAT moment — not the
+    one in effect when `dev-up` started it. So a developer who temporarily
+    switches to a remote context (EKS, say) for debugging silently repoints
+    localhost:8080 at that remote cluster the next time the child dies, with no
+    visible signal. Pinning the context makes the forward mean what it meant
+    when it was created, for its whole life. See #580 for the related pidfile
+    gap that lets orphaned supervisors survive to do this.
+    """
+    ctx = cluster.expected_context(cluster_target)
+    return ["--context", ctx] if ctx else []
+
+
+def start_server_port_forward(cluster_target: str = "docker-desktop") -> None:
     """Forward the in-cluster server to localhost:8080 (k3s and docker-desktop).
 
     Neither target publishes the server NodePort directly on the host, so we
@@ -647,7 +663,7 @@ def start_server_port_forward() -> None:
     just before it. The forward is supervised so it survives server pod rolls
     (see _spawn_supervised_forward)."""
     _spawn_supervised_forward(
-        ["kubectl", "-n", NS, "port-forward", "svc/tmi-server", f"{HOST_PORT}:{HOST_PORT}"],
+        ["kubectl", *_context_args(cluster_target), "-n", NS, "port-forward", "svc/tmi-server", f"{HOST_PORT}:{HOST_PORT}"],
         PORT_FORWARD_PID,
         f"localhost:{HOST_PORT} -> svc/tmi-server:{HOST_PORT}",
     )
@@ -763,9 +779,9 @@ def restart(*, db: str, cluster_target: str = "docker-desktop",
     apply_overlay(db, cluster_target)
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", f"--timeout={server_rollout_timeout(db)}"])
-    start_redis_port_forward()
+    start_redis_port_forward(cluster_target)
     if cluster_target in ("k3s", "docker-desktop"):
-        start_server_port_forward()
+        start_server_port_forward(cluster_target)
     wait_for_server()
     log_success(f"Server restarted; {SERVER_URL}")
 

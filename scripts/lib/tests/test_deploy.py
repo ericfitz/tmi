@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import cluster  # noqa: E402
 import deploy  # noqa: E402
 
 # Repo root: scripts/lib/tests -> up 3 == project root.
@@ -179,9 +180,9 @@ class TestNodePortExposure(unittest.TestCase):
         self.assertEqual(len(cmd_lines), 1,
                          "exactly one server port-forward command (the no-own-cluster helper)")
         # Every call site (excluding the def) must be immediately gated on the tuple.
-        call_sites = re.findall(r"(?<!def )start_server_port_forward\(\)", src)
+        call_sites = re.findall(r"(?<!def )start_server_port_forward\([^)]*\)", src)
         guarded = re.findall(
-            r'if cluster_target in \("k3s", "docker-desktop"\):\n\s+start_server_port_forward\(\)',
+            r'if cluster_target in \("k3s", "docker-desktop"\):\n\s+start_server_port_forward\([^)]*\)',
             src,
         )
         self.assertGreaterEqual(len(call_sites), 1)
@@ -196,6 +197,21 @@ class TestNodePortExposure(unittest.TestCase):
         src = (Path(deploy.__file__)).read_text()
         # Both no-own-cluster targets gate the server port-forward together.
         self.assertIn('if cluster_target in ("k3s", "docker-desktop"):', src)
+
+    def test_port_forwards_pin_the_kube_context(self):
+        """A respawn must not follow a context switch made after dev-up.
+
+        The supervisor re-runs `kubectl port-forward` whenever its child exits,
+        and a bare invocation resolves the context at THAT moment. Without an
+        explicit --context, a developer who temporarily switches to a remote
+        cluster silently repoints localhost:8080 there on the next respawn, with
+        no visible signal — which is how a "local" test run ends up hitting a
+        remote server."""
+        for target, expected in (("k3s", cluster.K3S_CONTEXT),
+                                 ("docker-desktop", cluster.DD_CONTEXT)):
+            args = deploy._context_args(target)
+            self.assertEqual(args, ["--context", expected],
+                             f"{target} forwards must pin --context {expected}")
 
     def test_server_port_forward_is_self_healing(self):
         """A userspace port-forward dies when its backing pod rolls; to keep
