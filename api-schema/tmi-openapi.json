@@ -2131,7 +2131,8 @@
             "format": "uuid",
             "description": "ID of the connected node (UUID)",
             "maxLength": 36,
-            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
+            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$",
+            "example": "37EAEDFA-BF37-4996-8665-242FEC34BBFF"
           },
           "port": {
             "type": "string",
@@ -8816,7 +8817,8 @@
             "format": "uuid",
             "maxLength": 36,
             "description": "UUID of the related team",
-            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "example": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
           },
           "relationship": {
             "$ref": "#/components/schemas/RelationshipType"
@@ -8843,7 +8845,8 @@
             "format": "uuid",
             "maxLength": 36,
             "description": "UUID of the related project",
-            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "example": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
           },
           "relationship": {
             "$ref": "#/components/schemas/RelationshipType"
