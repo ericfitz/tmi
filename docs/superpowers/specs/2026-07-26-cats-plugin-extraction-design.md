@@ -7,7 +7,7 @@
 ## Problem
 
 TMI's CATS API fuzzing tooling works well but is welded to TMI. Three scripts totalling
-~2,450 lines carry the whole pipeline, and the most valuable artifact in it — 43
+~2,450 lines carry the whole pipeline, and the most valuable artifact in it — 62
 hand-derived false-positive rules — exists as ~900 lines of hardcoded Python inside
 `detect_false_positive()`. None of it can be used in another repo, and the rules cannot be
 edited, reviewed, or reasoned about as data.
@@ -17,7 +17,7 @@ Current inventory:
 | File | Lines | Role |
 | --- | --- | --- |
 | `scripts/run-cats-fuzz.py` | 480 | preflight, Redis rate-limit clearing, dbtool seeding, OAuth-stub token acquisition, CATS invocation, auto-parse |
-| `scripts/parse_cats_results.py` | 1798 | SQLite schema (6 tables, 5 views, 18 indexes) + `detect_false_positive()` (43 rules) |
+| `scripts/parse_cats_results.py` | 1798 | SQLite schema (10 tables, 6 views, 20 indexes) + `detect_false_positive()` (62 rules) |
 | `scripts/query-cats-results.py` | 178 | canned summary queries |
 
 Plus Makefile targets `cats-seed`, `cats-fuzz`, `cats-fuzz-oci`, `query-cats-results`,
@@ -169,7 +169,7 @@ Preserved from today: `--identity`, `--path`, `--rate`, `--blackbox`, `--skip-se
 
 ### Field vocabulary
 
-Exactly the fields the 43 existing rules touch, nothing speculative:
+Exactly the fields the 62 existing rules touch, nothing speculative:
 
 `result` · `response_code` · `fuzzer` · `path` · `contract_path` · `method` · `url` ·
 `scenario` · `result_reason` · `result_details` · `any_text` (virtual: `result_reason` +
@@ -239,7 +239,7 @@ working. Additions:
 `server`, `tool_version`.
 
 **Bodies for `error`/`warn` rows** — `responses.response_body` and `requests.request_body`.
-Required because classification runs from the DB, and 14 of the 43 rules match on response
+Required because classification runs from the DB, and many of the 62 rules match on response
 body or `json_body.*`. Success rows skip bodies, containing the size increase.
 
 **`fp_rules`** — `rule_id`, `why`, `order_index`, `enabled`, `match_count`. The DB carries
@@ -293,7 +293,7 @@ YAML to `/cats:fp`. 500s are always reported and never auto-suppressed.
 
 ## Rule migration and validation
 
-The 43 rules port to YAML mechanically, preserving order. Correctness is verified against
+The 62 rules port to YAML mechanically, preserving order. Correctness is verified against
 the complete golden corpus already on disk from the June 30 run:
 **121,940 `Test*.json` files, 54,813 currently flagged as false positives.**
 

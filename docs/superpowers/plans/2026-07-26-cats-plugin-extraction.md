@@ -2233,7 +2233,7 @@ git commit -m "feat(cats): skills, run subagent, and marketplace registration"
 
 ---
 
-## Task 9: Port the 43 TMI rules to YAML
+## Task 9: Port the 62 TMI rules to YAML
 
 **Files:**
 - Create: `/Users/efitz/Projects/tmi/test/cats/false-positives.yaml`
@@ -2285,7 +2285,7 @@ rs = load_rules(Path('/Users/efitz/Projects/tmi/test/cats/false-positives.yaml')
 print(len(rs), 'rules'); print([r.id for r in rs])"
 ```
 
-Expected: 43 rules, ids matching the `FP_RULE_*` values, no `RuleError`.
+Expected: 62 rules, ids matching the `FP_RULE_*` values, no `RuleError`.
 
 - [ ] **Step 3: Commit (TMI)**
 
@@ -2294,7 +2294,7 @@ cd /Users/efitz/Projects/tmi
 git add test/cats/false-positives.yaml
 git commit -m "feat(cats): port false-positive rules to declarative YAML
 
-Ports the 43 rules from detect_false_positive() into a declarative rule file.
+Ports the 62 rules from detect_false_positive() into a declarative rule file.
 Sub-conditions reading response.responseBody are omitted as dead: CATS never
 emits that key.
 
