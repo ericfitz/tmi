@@ -102,7 +102,8 @@ api/api.test
 wstest/wstest
 wstest/wstest
 test/postman/test-results/
-test/cats/
+test/cats/*
+!test/cats/false-positives.yaml
 scripts/configure-heroku-env.sh
 .dedupe/
 .claude/skills/monitor_500s/investigated.json
