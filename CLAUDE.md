@@ -193,7 +193,7 @@ CATS performs security fuzzing of the TMI API via a portable plugin (`~/Projects
 - **Output**: `test/results/cats/` (SQLite database per run, `latest.db` symlink to the most recent completed run)
 - Perform all analysis by querying the SQLite database; don't read the html or json files
 
-**False Positive Handling**: Public endpoints (17) and cacheable endpoints (6) use vendor extensions (`x-public-endpoint`, `x-cacheable-endpoint`) to skip inapplicable fuzzers. OAuth 401/403 responses auto-filtered via `is_oauth_false_positive` flag.
+**False Positive Handling**: Public endpoints (17) and cacheable endpoints (6) use vendor extensions (`x-public-endpoint`, `x-cacheable-endpoint`) to skip inapplicable fuzzers. Remaining false positives (e.g. OAuth 401/403 responses) are classified by the rule set in `test/cats/false-positives.yaml` (62 rules, evaluated in file order, first match wins — see `test/cats/README.md`) and recorded in the results database's `is_false_positive` column. Manage these rules through the plugin's `fp` skill (`uv run ~/Projects/skills/cats/scripts/cats_tool.py` add/review/reclassify workflows) rather than by editing Python — the legacy `detect_false_positive()` implementation no longer exists.
 
 ### OAuth Callback Stub
 

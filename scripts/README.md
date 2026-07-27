@@ -44,12 +44,12 @@ This directory contains scripts that are actively used by the refactored build s
 
 ## CATS Fuzzing Tools
 
-- **`run-cats-fuzz.sh`** - CATS fuzzing script with OAuth integration; automates authentication and runs CATS fuzzing against TMI API
-- **`cats-create-test-data.sh`** - Creates prerequisite test data for CATS fuzzing to eliminate false positives (threat models, threats, diagrams, etc.)
-- **`cats-prepare-database.sh`** - Prepares the database for CATS fuzzing by granting admin privileges to the test user
-- **`cats-set-max-quotas.sh`** - Sets maximum quotas and rate limits for CATS test user to prevent rate-limit errors during fuzzing
-- **`parse-cats-results.py`** - Parses CATS fuzzer test result JSON files into a normalized SQLite database
-- **`query-cats-results.sh`** - Provides quick SQL queries against the parsed CATS results database
+CATS fuzzing itself runs through the portable cats plugin (`~/Projects/skills/cats`,
+invoked via `make cats-fuzz`), not a script in this directory. These two scripts are
+hook commands the plugin shells out to, per `.local/cats/config.yaml`:
+
+- **`cats-token.py`** - `token` hook: authenticates via the OAuth stub and prints a bearer token for the plugin to use
+- **`cats-prep.py`** - `pre_run` hook: clears Redis rate-limit keys and runs preflight checks before a fuzzing run
 
 ## Container Management
 

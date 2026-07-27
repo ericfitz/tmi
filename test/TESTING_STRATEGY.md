@@ -97,7 +97,7 @@ test/
 
 - Security fuzzing configuration
 - Run via: `make cats-fuzz`
-- Output: `test/outputs/cats/*.db`, `test/outputs/cats/*.md`
+- Output: `test/results/cats/*.db`, `test/results/cats/*.md`
 
 ## Integration Test Framework Architecture
 
@@ -182,7 +182,7 @@ test/
 
 ### Phase 4: Test Output Consolidation
 
-1. Update CATS scripts → `test/outputs/cats/`
+1. Update CATS scripts → `test/results/cats/`
 2. Update newman scripts → `test/outputs/newman/` (if kept)
 3. Update coverage reports → `test/outputs/unit/`
 4. Update security reports → `test/outputs/security/`

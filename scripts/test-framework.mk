@@ -124,7 +124,7 @@ clean-test-outputs:
 	$(call log_info,"Cleaning test outputs...")
 	@rm -rf test/outputs/integration/*
 	@rm -rf test/outputs/unit/*
-	@rm -rf test/outputs/cats/*
+	@rm -rf test/results/cats/*
 	@rm -rf test/outputs/newman/*
 	@rm -rf test/outputs/security/*
 	@rm -rf test/outputs/wstest/*

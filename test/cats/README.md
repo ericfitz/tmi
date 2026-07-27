@@ -12,8 +12,9 @@ tracked.
 `/Users/efitz/Projects/skills/cats/scripts/` (`catslib.rules`). Rules are
 matched in **file order, first match wins** — this mirrors the sequential
 if-chain with early returns in the legacy Python function
-(`scripts/parse_cats_results.py`, `detect_false_positive()`) that the YAML
-was ported from. **Order is load-bearing**: inserting a rule in the wrong
+(`detect_false_positive()`, formerly in `scripts/parse_cats_results.py`,
+deleted once the port was verified equivalent) that the YAML was ported
+from. **Order is load-bearing**: inserting a rule in the wrong
 place, or reordering existing rules, can silently change which rule (or
 whether any rule) suppresses a given fuzzer finding. Each rule's leading
 comment records its actual file position as `rule N of 62`; if you add,
@@ -29,20 +30,22 @@ fuzzing corpus: for each of the 62 rules, how many classified (`error`/
 
 It exists because the equivalence gate that originally proved the YAML
 behaves identically to the legacy Python (three independent runs, zero
-disagreements across 121,940 corpus records) depends on `detect_false_positive()`
-still existing in `scripts/parse_cats_results.py`. Once that function is
-removed, the gate can never be re-run — this file is the only remaining
-record of what the rule set did, and the reference point for judging whether
-a future rule change altered behavior.
+disagreements across 121,940 corpus records) depended on `detect_false_positive()`
+in `scripts/parse_cats_results.py`, which has since been deleted along with
+the rest of the legacy pipeline. That gate can never be re-run — this file
+is the only remaining record of what the rule set did, and the reference
+point for judging whether a future rule change altered behavior.
 
 ### Regenerating after a deliberate rule change
 
 If you intentionally change a rule's conditions (not just comments), update
 `rule-baseline.json` so it keeps reflecting reality:
 
-1. Get (or refresh) a CATS fuzzing corpus under `test/outputs/cats/report/`
-   (`Test*.json` files) — run `make cats-fuzz` or reuse an existing report
-   directory.
+1. Get (or refresh) a CATS fuzzing corpus (`Test*.json` files) — run
+   `make cats-fuzz` with `retain_raw_report: true` set in
+   `.local/cats/config.yaml`, which leaves the raw report at
+   `test/results/cats/report-<run_id>/` instead of deleting it after parsing,
+   or reuse an existing retained report directory.
 2. Write a short script that imports `catslib.rules` and `catslib.parse`
    from `/Users/efitz/Projects/skills/cats/scripts/`, loads
    `false-positives.yaml` via `load_rules`, and for each classified record

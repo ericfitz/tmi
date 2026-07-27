@@ -184,7 +184,7 @@ all:
 # dying on a malformed param. 'cursor' (an opaque keyset token) and 'around'
 # (an entry UUID) are intentionally omitted - they have no static valid value;
 # the residual injection-fuzzer 400s are classified as false positives by
-# scripts/parse_cats_results.py (AUDIT_QUERY_VALIDATION_400).
+# the CATS plugin's rule set (test/cats/false-positives.yaml, AUDIT_QUERY_VALIDATION_400).
 /admin/audit/threat_models:
   actor_email: %s
   actor_provider: %s
