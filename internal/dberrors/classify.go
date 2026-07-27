@@ -13,7 +13,7 @@ import (
 // It checks in order: context errors, GORM errors, driver-specific errors
 // (PostgreSQL pgconn.PgError, Oracle godror.OraErr), then falls back to
 // string matching for errors that don't carry typed driver info.
-// SEM@178dbd0418cfb7e057d4297c7a88c5879cb64c7f: convert a raw database error to a typed sentinel (not-found, duplicate, transient, etc.) (pure)
+// SEM@bacedc2fda0d7e7c4267e5fef6abc1a24bafed1a: convert a raw database error to a typed sentinel, including no-rows cases (pure)
 func Classify(err error) error {
 	if err == nil {
 		return nil

@@ -85,7 +85,7 @@ const VersionWildcard = -1
 // integer ("If-Match: 5"), a quoted integer (`If-Match: "5"`), or the "*"
 // wildcard, which RFC 7232 defines as matching any current representation —
 // we map it to VersionWildcard so the write proceeds unconditionally.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: parse an integer version or wildcard from the If-Match request header (pure)
+// SEM@bacedc2fda0d7e7c4267e5fef6abc1a24bafed1a: parse an integer version or wildcard sentinel from the If-Match header (pure)
 func ParseIfMatchHeader(c *gin.Context) (int, bool, error) {
 	raw := strings.TrimSpace(c.GetHeader("If-Match"))
 	if raw == "" {
@@ -193,7 +193,7 @@ func SetETagHeader(c *gin.Context, version int) {
 // tableName must be the physical DB table name (e.g. "threat_models").
 // On Oracle, GORM lowercases the WHERE column references; the column is
 // "version" on both PostgreSQL and Oracle (case-insensitive identifier).
-// SEM@9fa66a9bf47d32b91bc4119acc795e307691601a: atomically validate expected version (or wildcard) and increment the row version in the DB (reads DB)
+// SEM@bacedc2fda0d7e7c4267e5fef6abc1a24bafed1a: validate and bump a row version, bumping unconditionally on wildcard (reads DB)
 func CheckAndBumpVersion(ctx context.Context, db *gorm.DB, tableName, id string, expected int) (int, error) {
 	query := db.WithContext(ctx).Table(tableName).Where("id = ?", id)
 	if expected != VersionWildcard {

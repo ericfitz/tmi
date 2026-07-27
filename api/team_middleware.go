@@ -131,7 +131,7 @@ func IsProjectTeamMemberOrAdmin(ctx context.Context, projectID string, userInter
 }
 
 // GetProjectTeamID retrieves the team_id for a given project.
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch the team ID that owns a given project (reads DB)
+// SEM@8590f761ec02582bd24052fdd19e0b7d39c07f1a: fetch the team ID that owns a given project (reads DB)
 func GetProjectTeamID(ctx context.Context, projectID string) (string, error) {
 	if teamAuthDB == nil {
 		return "", fmt.Errorf("database not initialized") //nolint:goerr113
