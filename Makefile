@@ -457,7 +457,19 @@ e2e-seed:  ## Seed database with E2E test data from tmi-ux seed-spec
 cats-seed-oci:  ## Seed database for CATS fuzzing (Oracle ADB; requires scripts/oci-env.sh sourced)
 	@uv run scripts/run-dbtool.py --oci --user=$(CATS_USER) --provider=$(CATS_PROVIDER)
 
+# CATS_USER/CATS_SERVER/CATS_PROVIDER only steer cats-seed(-oci) -- the plugin
+# reads identity (who to fuzz as) and server from .local/cats/config.yaml, not
+# from these make variables, and has no equivalent of FUZZ_USER/FUZZ_SERVER.
+# $(origin ...) fires only when the caller actually passed one on the command
+# line (`make cats-fuzz CATS_USER=alice`), so normal invocations stay silent.
+define CATS_FUZZ_VAR_NOTE
+if [ "$(origin CATS_USER)" = "command line" ] || [ "$(origin CATS_SERVER)" = "command line" ] || [ "$(origin CATS_PROVIDER)" = "command line" ] || [ -n "$(FUZZ_USER)" ] || [ -n "$(FUZZ_SERVER)" ]; then \
+	echo "NOTE: CATS_USER/CATS_SERVER/CATS_PROVIDER/FUZZ_USER/FUZZ_SERVER only affect seeding here -- fuzzing identity and target server come from .local/cats/config.yaml (identities.*.token_cmd, server:). Edit that file to fuzz as a different user or against a different server." >&2; \
+fi
+endef
+
 cats-fuzz:  ## Run CATS API fuzzing (seeds via the plugin's seed hook, fuzzes, parses, classifies)
+	@$(CATS_FUZZ_VAR_NOTE)
 	@$(CATS) run $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)
 
 # The legacy target built tmi-dbtool with Oracle support and seeded via a
@@ -468,6 +480,7 @@ cats-fuzz:  ## Run CATS API fuzzing (seeds via the plugin's seed hook, fuzzes, p
 # by seeding through cats-seed-oci first and telling the plugin to skip its
 # own seed hook.
 cats-fuzz-oci: cats-seed-oci  ## Run CATS API fuzzing with OCI ADB (auto-parses results)
+	@$(CATS_FUZZ_VAR_NOTE)
 	@$(CATS) run --skip-seed $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)
 
 query-cats-results:  ## Query parsed CATS results

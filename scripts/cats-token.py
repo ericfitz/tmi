@@ -19,11 +19,11 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.error
 import urllib.request
-from contextlib import redirect_stdout
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -176,15 +176,25 @@ def authenticate_user(user: str, server: str, idp: str) -> str:
 def main() -> None:
     args = parse_args()
 
-    # ensure_oauth_stub() is a shared helper that itself logs via
-    # tmi_common.log_info/log_success (stdout). Redirect stdout to stderr for
-    # the duration of this call so a stub cold-start can never leak a line
-    # onto the stdout stream the plugin treats as the token.
-    with redirect_stdout(sys.stderr):
-        ensure_oauth_stub(OAUTH_STUB_PORT)
+    # ensure_oauth_stub() may shell out to manage-oauth-stub.py on a cold
+    # start (tmi_common.run_cmd's `capture` defaults to False there), so that
+    # child process inherits fd 1 directly and prints several lines
+    # (log_info/log_success go to stdout by default) straight past any
+    # Python-level redirect. contextlib.redirect_stdout only rebinds the
+    # `sys.stdout` object, not fd 1 itself — confirmed empirically that a
+    # subprocess still writes to the real stdout underneath it — so it
+    # cannot stop this leak. Redirect at the fd level instead: point fd 1 at
+    # fd 2 for the rest of the process (every writer, Python or subprocess,
+    # now lands on stderr), and write the token directly to the saved real
+    # stdout fd at the end.
+    token_fd = os.dup(1)
+    os.dup2(2, 1)
 
+    ensure_oauth_stub(OAUTH_STUB_PORT)
     token = authenticate_user(args.user, args.server, args.idp)
-    print(token)
+
+    os.write(token_fd, (token + "\n").encode())
+    os.close(token_fd)
 
 
 if __name__ == "__main__":

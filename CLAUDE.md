@@ -186,11 +186,11 @@ Arazzo specification (OpenAPI Initiative) documents API workflow sequences and d
 
 ### CATS API Fuzzing
 
-CATS performs security fuzzing of the TMI API with automatic OAuth authentication.
+CATS performs security fuzzing of the TMI API via a portable plugin (`~/Projects/skills/cats`), configured per-repo by `.local/cats/config.yaml` (gitignored).
 
-- **Run**: `make cats-fuzz` | **Analyze**: `make analyze-cats-results`
-- **Custom user**: `make cats-fuzz-user USER=alice`
-- **Output**: `test/outputs/cats/` (JSON reports + SQLite database)
+- **Run**: `make cats-fuzz` | **Analyze**: `make analyze-cats-results` | **HTML report**: `make cats-report`
+- **Custom user**: fuzzing identity comes from `.local/cats/config.yaml`'s `identities:`, not a make variable. Add a named identity (`token_cmd` prints a bearer token on stdout for that user) and invoke the plugin directly with `--identity <name>`, e.g. `uv run ~/Projects/skills/cats/scripts/cats_tool.py run --identity alice`. `CATS_USER`/`CATS_SERVER`/`CATS_PROVIDER` still control `make cats-seed`, but not who or where `make cats-fuzz` fuzzes.
+- **Output**: `test/results/cats/` (SQLite database per run, `latest.db` symlink to the most recent completed run)
 - Perform all analysis by querying the SQLite database; don't read the html or json files
 
 **False Positive Handling**: Public endpoints (17) and cacheable endpoints (6) use vendor extensions (`x-public-endpoint`, `x-cacheable-endpoint`) to skip inapplicable fuzzers. OAuth 401/403 responses auto-filtered via `is_oauth_false_positive` flag.

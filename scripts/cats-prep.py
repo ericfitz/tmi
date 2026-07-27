@@ -11,6 +11,12 @@ run-cats-fuzz.py so the cats plugin can invoke it as an opaque `pre_run`
 hook command. Does NOT touch report directories — the plugin owns run
 directories now.
 
+Also runs two preflight checks the legacy script had (directly or
+indirectly) that the plugin's own preflight doesn't cover: the CATS refData
+file must already exist (`make cats-seed` writes it; see `_check_ref_data`),
+and the active kubectl context must look like a local dev cluster before
+`kubectl exec` is used to reach Redis (see `_check_kube_context`).
+
 Redis access: the legacy script shelled out to `docker exec tmi-redis`,
 which assumed Redis ran as a plain Docker container. `make dev-up` now
 deploys Redis as an in-cluster Kubernetes Deployment (namespace
@@ -38,11 +44,24 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
-from tmi_common import log_error, log_info, log_success  # noqa: E402
+from tmi_common import get_project_root, log_error, log_info, log_success  # noqa: E402
 
 REDIS_NAMESPACE = "tmi-platform"
 REDIS_DOCKER_CONTAINER = "tmi-redis"
 REDIS_DEPLOYMENT = "redis"
+
+# Where dbtool writes the CATS refData file (test/seeds/cats-seed-data.json's
+# output.reference_yaml). Duplicated from .local/cats/config.yaml's
+# `cats.ref_data` rather than read from it, since this script has no
+# dependency on the plugin's config module and the path is a fixed repo
+# convention, not something a developer is expected to change per-run.
+REF_DATA_RELPATH = Path("test") / "results" / "cats" / "cats-test-data.yml"
+
+# Kubernetes contexts that look like a local development cluster: dev-up's
+# two supported CLUSTER values (docker-desktop, k3s) plus other common local
+# tooling. Matched as a substring so a differently-named local cluster (e.g.
+# a home lab's "k3s-rp") still passes.
+LOCAL_CONTEXT_PATTERNS = ("docker-desktop", "k3s", "kind", "minikube", "rancher-desktop", "colima")
 
 
 # ---------------------------------------------------------------------------
@@ -60,7 +79,78 @@ def parse_args() -> argparse.Namespace:
         default="charlie",
         help="OAuth user login hint whose rate-limit keys should be cleared (default: charlie)",
     )
+    parser.add_argument(
+        "--allow-any-context",
+        action="store_true",
+        default=False,
+        help="Skip the local-kube-context safety check (see _check_kube_context)",
+    )
     return parser.parse_args()
+
+
+# ---------------------------------------------------------------------------
+# Preflight checks
+# ---------------------------------------------------------------------------
+
+
+def _check_ref_data() -> None:
+    """Fail fast if the CATS refData file dbtool writes during seeding is missing.
+
+    The portable plugin's own preflight (catslib.runner.checks) verifies spec,
+    cats binary, rules and server health -- not refData. Without this check, a
+    missing or stale refData file reaches CATS as `--refData=<nonexistent>`, and
+    the run silently degrades into a campaign of 404s that reads as real
+    findings rather than failing loudly. This matters most on any --skip-seed
+    path (e.g. `make cats-fuzz-oci`), since those skip the plugin's own `seed`
+    hook entirely and rely on refData already being present from a prior seed.
+    Mirrors the guard the legacy run-cats-fuzz.py had at lines 452-456.
+    """
+    ref_data = get_project_root() / REF_DATA_RELPATH
+    if not ref_data.exists():
+        log_error(f"CATS refData file not found: {ref_data}")
+        log_error("Run 'make cats-seed' first to create test data.")
+        sys.exit(1)
+
+
+def _current_kube_context() -> str | None:
+    """Return `kubectl config current-context`, or None if it can't be determined."""
+    try:
+        proc = subprocess.run(
+            ["kubectl", "config", "current-context"],
+            capture_output=True, text=True, check=False,
+        )
+    except FileNotFoundError:
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout.strip() or None
+
+
+def _check_kube_context(allow_any_context: bool) -> None:
+    """Log the active kubectl context and refuse to touch Redis outside a
+    recognized local dev cluster, unless overridden.
+
+    This script clears Redis rate-limit keys via `kubectl exec`, which acts on
+    whatever context is currently active -- not necessarily "the machine this
+    script runs on". A developer whose context happens to be pointed at a
+    shared/remote cluster (this repo's own dev session hit exactly this: the
+    active context was an AWS EKS cluster) would otherwise silently mutate
+    that cluster's Redis as a side effect of running CATS locally.
+    """
+    context = _current_kube_context()
+    log_info(f"Active kubectl context: {context or '(unknown)'}")
+    if allow_any_context or context is None:
+        return
+    if any(pattern in context for pattern in LOCAL_CONTEXT_PATTERNS):
+        return
+    log_error(
+        f"Active kubectl context {context!r} does not look like a local dev cluster "
+        f"(expected one matching {LOCAL_CONTEXT_PATTERNS!r}). Refusing to run `kubectl exec` "
+        "against it -- this would clear Redis rate-limit keys on whatever cluster that "
+        "context points at. Switch to your local dev cluster's context, or pass "
+        "--allow-any-context to override."
+    )
+    sys.exit(1)
 
 
 # ---------------------------------------------------------------------------
@@ -68,12 +158,15 @@ def parse_args() -> argparse.Namespace:
 # ---------------------------------------------------------------------------
 
 
-def _detect_redis_target() -> list[str] | None:
+def _detect_redis_target(*, allow_any_context: bool) -> list[str] | None:
     """Return an exec command prefix for reaching Redis, or None if unreachable.
 
     Prefers the legacy `docker exec tmi-redis` container if it is actually
     running, otherwise falls back to `kubectl exec` against the in-cluster
-    Redis Deployment that `make dev-up` deploys.
+    Redis Deployment that `make dev-up` deploys. The kubectl fallback acts on
+    whatever context happens to be active, so `_check_kube_context` runs right
+    before committing to that path -- not unconditionally -- since a Docker
+    container being available makes the active kube context irrelevant.
     """
     try:
         docker_check = subprocess.run(
@@ -96,6 +189,7 @@ def _detect_redis_target() -> list[str] | None:
             capture_output=True, text=True, check=False,
         )
         if kubectl_check.returncode == 0 and kubectl_check.stdout.strip() not in ("", "0"):
+            _check_kube_context(allow_any_context)
             log_info(
                 f"Found deployment/{REDIS_DEPLOYMENT} in namespace {REDIS_NAMESPACE}; "
                 "using kubectl exec"
@@ -116,11 +210,17 @@ def _redis_cli_shell(cli_args: list[str]) -> list[str]:
     env var) and unauthenticated Redis (local dev) without this script ever
     needing to know or carry the password itself — it is resolved by the
     container's own shell, not interpolated by us.
+
+    Auth is passed via the REDISCLI_AUTH env var rather than `-a`: `-a` puts
+    the password on redis-cli's own argv, which is visible to `ps` inside the
+    container for the life of that call (this is also why `-a` normally
+    prints a "using a password on the command line" warning -- REDISCLI_AUTH
+    doesn't trigger it, so --no-auth-warning is no longer needed either).
     """
     quoted = " ".join(shlex.quote(a) for a in cli_args)
     script = (
         'if [ -n "$REDIS_PASSWORD" ]; then '
-        f'redis-cli -a "$REDIS_PASSWORD" --no-auth-warning {quoted}; '
+        f'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli {quoted}; '
         f"else redis-cli {quoted}; fi"
     )
     return ["sh", "-c", script]
@@ -165,9 +265,11 @@ def _redis_del_pattern(target: list[str], pattern: str) -> int:
 def main() -> None:
     args = parse_args()
 
+    _check_ref_data()
+
     log_info("Preparing CATS test environment: clearing rate-limit keys...")
 
-    target = _detect_redis_target()
+    target = _detect_redis_target(allow_any_context=args.allow_any_context)
     if target is None:
         log_error(
             f"Could not reach Redis via docker (container {REDIS_DOCKER_CONTAINER!r}) "
