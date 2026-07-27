@@ -44,6 +44,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 
+from cluster import is_local_kube_context  # noqa: E402
 from tmi_common import get_project_root, log_error, log_info, log_success  # noqa: E402
 
 REDIS_NAMESPACE = "tmi-platform"
@@ -56,12 +57,6 @@ REDIS_DEPLOYMENT = "redis"
 # dependency on the plugin's config module and the path is a fixed repo
 # convention, not something a developer is expected to change per-run.
 REF_DATA_RELPATH = Path("test") / "results" / "cats" / "cats-test-data.yml"
-
-# Kubernetes contexts that look like a local development cluster: dev-up's
-# two supported CLUSTER values (docker-desktop, k3s) plus other common local
-# tooling. Matched as a substring so a differently-named local cluster (e.g.
-# a home lab's "k3s-rp") still passes.
-LOCAL_CONTEXT_PATTERNS = ("docker-desktop", "k3s", "kind", "minikube", "rancher-desktop", "colima")
 
 
 # ---------------------------------------------------------------------------
@@ -136,16 +131,24 @@ def _check_kube_context(allow_any_context: bool) -> None:
     shared/remote cluster (this repo's own dev session hit exactly this: the
     active context was an AWS EKS cluster) would otherwise silently mutate
     that cluster's Redis as a side effect of running CATS locally.
+
+    Uses `cluster.is_local_kube_context` -- the same predicate scripts/devenv.py
+    uses to decide whether a `make dev-up` needs `--yes` -- rather than a second,
+    independently-maintained list. That predicate exact-matches "k3s" (a generic
+    local context name) but NOT this repo's own K3S_CONTEXT = "k3s-rp" (a real,
+    remote home-lab cluster devenv.py itself requires --yes to touch); a
+    substring match here previously auto-approved it, which was actually looser
+    than the rest of the project's own safety bar for that exact cluster.
     """
     context = _current_kube_context()
     log_info(f"Active kubectl context: {context or '(unknown)'}")
     if allow_any_context or context is None:
         return
-    if any(pattern in context for pattern in LOCAL_CONTEXT_PATTERNS):
+    if is_local_kube_context(context):
         return
     log_error(
         f"Active kubectl context {context!r} does not look like a local dev cluster "
-        f"(expected one matching {LOCAL_CONTEXT_PATTERNS!r}). Refusing to run `kubectl exec` "
+        "(cluster.is_local_kube_context returned False). Refusing to run `kubectl exec` "
         "against it -- this would clear Redis rate-limit keys on whatever cluster that "
         "context points at. Switch to your local dev cluster's context, or pass "
         "--allow-any-context to override."
