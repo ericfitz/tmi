@@ -34,9 +34,11 @@ Usage:
 """
 
 import argparse
+import os
 import shlex
 import subprocess
 import sys
+import urllib.parse
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -80,6 +82,12 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Skip the local-kube-context safety check (see _check_kube_context)",
     )
+    parser.add_argument(
+        "--allow-local-server",
+        action="store_true",
+        default=False,
+        help="Skip the loopback-server policy check (see _check_server_not_loopback)",
+    )
     return parser.parse_args()
 
 
@@ -105,6 +113,37 @@ def _check_ref_data() -> None:
         log_error(f"CATS refData file not found: {ref_data}")
         log_error("Run 'make cats-seed' first to create test data.")
         sys.exit(1)
+
+
+def _check_server_not_loopback(allow_local_server: bool) -> None:
+    """Fail fast if CATS_SERVER points at localhost/loopback (TMI policy #578).
+
+    All CATS fuzzing targets the k3s-rp cluster directly (http://rp2:30080);
+    the cats plugin's own preflight only refuses a *detected kubectl
+    port-forward* on a loopback URL (catslib.runner.detect_port_forward) --
+    this check is deliberately stricter and also catches a natively-run local
+    server with no forward involved at all (e.g. `go run ./cmd/server`
+    listening on localhost:8080), which the plugin has no way to detect since
+    there's no forward process to find. Mirrors the plugin's loopback host set.
+    """
+    server = os.environ.get("CATS_SERVER")
+    if not server:
+        return
+    if allow_local_server:
+        return
+    hostname = (urllib.parse.urlsplit(server).hostname or "").lower()
+    if hostname not in {"localhost", "127.0.0.1", "::1"}:
+        return
+    log_error(
+        f"CATS_SERVER={server!r} points at a loopback address. TMI policy (#578): "
+        "fuzz the k3s-rp NodePort directly at http://rp2:30080, not a localhost "
+        "endpoint -- a local server or a forwarded connection can silently drop "
+        "requests under load, producing a run that looks clean but never reached "
+        "most of the API. Point .local/cats/config.yaml's `server:` at "
+        "http://rp2:30080, or pass --allow-local-server if you specifically intend "
+        "to fuzz a local server."
+    )
+    sys.exit(1)
 
 
 def _current_kube_context() -> str | None:
@@ -269,6 +308,7 @@ def main() -> None:
     args = parse_args()
 
     _check_ref_data()
+    _check_server_not_loopback(args.allow_local_server)
 
     log_info("Preparing CATS test environment: clearing rate-limit keys...")
 
