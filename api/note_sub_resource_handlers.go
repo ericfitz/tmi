@@ -448,7 +448,12 @@ func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 	// Apply patch operations
 	updatedNote, err := h.noteStore.Patch(c.Request.Context(), noteID, operations)
 	if err != nil {
-		HandleRequestError(c, ServerError("Failed to patch note"))
+		// Classify rather than assuming a server fault: the store returns a
+		// 400 patch_failed for an inapplicable JSON Patch and a not-found for
+		// a missing note, and hardcoding ServerError turned both into 500
+		// (#611). Matches the asset handler, which already did this.
+		logger.Error("Failed to patch note %s: %v", noteID, err)
+		HandleRequestError(c, StoreErrorToRequestError(err, "Note not found", "Failed to patch note"))
 		return
 	}
 
