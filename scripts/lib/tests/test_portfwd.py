@@ -367,6 +367,36 @@ class TestFindAndReapSupervisors(unittest.TestCase):
         self.assertEqual(portfwd.find_supervisors(marker), [])
         self.assertEqual(portfwd.reap_supervisors(marker), [])
 
+    def test_pattern_starting_with_dash_is_not_parsed_as_a_pgrep_option(self):
+        """A leading-dash pattern must still match.
+
+        stop_port_forward()'s legacy tier reaps with "-n tmi-platform
+        port-forward svc/". Without a `--` separator, pgrep parses the leading
+        "-n" as its own option, exits with "illegal option", and finds nothing
+        — so the reaper silently did nothing while reporting success. Observed
+        against three real orphans that plainly matched the pattern.
+        """
+        token = f"dashopt-{uuid.uuid4().hex[:12]}"
+        # Shape must satisfy _candidate_matches: while-true + port-forward.
+        script = (
+            f"while true; do sleep 1; done "
+            f"# -n tmi-platform port-forward svc/{token}"
+        )
+        proc = subprocess.Popen(["sh", "-c", script], start_new_session=True)
+        self._cleanup_pids.append(proc.pid)
+        time.sleep(0.2)  # let it settle, matching the sibling orphan test
+
+        pattern = f"-n tmi-platform port-forward svc/{token}"
+        found = portfwd.find_supervisors(pattern)
+        self.assertIn(proc.pid, found,
+                      "leading-dash pattern must not be swallowed by pgrep")
+
+        # reap_supervisors has its own pgrep call site — the original bug was
+        # fixed in one and not the other, so assert both paths.
+        reaped = portfwd.reap_supervisors(pattern)
+        self.assertIn(proc.pid, reaped,
+                      "reap_supervisors must honor a leading-dash pattern too")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -239,9 +239,13 @@ def find_supervisors(pattern: str) -> list[int]:
 
     `pgrep -f pattern` only nominates candidates — never trust it alone. Each
     candidate is re-verified via `ps` before being included.
+
+    The `--` is load-bearing: the legacy reap pattern starts with "-n", which
+    pgrep otherwise parses as its own option and rejects with "illegal option",
+    returning no candidates and silently reaping nothing.
     """
     result = subprocess.run(
-        ["pgrep", "-f", pattern],
+        ["pgrep", "-f", "--", pattern],
         capture_output=True, text=True, check=False,
     )
     if result.returncode not in (0, 1):  # 1 == no matches, not an error
@@ -303,8 +307,11 @@ def reap_supervisors(pattern: str) -> list[int]:
     """
     reaped: list[int] = []
     seen_pgids: set[int] = set()
+    # `--` is load-bearing here for the same reason as in find_supervisors:
+    # the legacy reap pattern starts with "-n", which pgrep would otherwise
+    # treat as its own option and reject, silently reaping nothing.
     result = subprocess.run(
-        ["pgrep", "-f", pattern],
+        ["pgrep", "-f", "--", pattern],
         capture_output=True, text=True, check=False,
     )
     if result.returncode not in (0, 1):
