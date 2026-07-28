@@ -102,20 +102,32 @@ func classifyByString(err error) error {
 		}
 	}
 
-	// Not found (from RowsAffected == 0 checks that return error strings)
-	if strings.Contains(errStr, "not found") {
-		return Wrap(err, ErrNotFound)
-	}
-
-	// Constraint patterns (fallback for non-typed driver errors)
+	// Constraint patterns BEFORE the bare "not found" check below. Order is
+	// load-bearing: Oracle phrases a foreign-key violation as
+	// "ORA-02291: integrity constraint (...) violated - parent key not found",
+	// which contains both "constraint" and "not found". With "not found"
+	// tested first, an FK violation classified as ErrNotFound and surfaced as
+	// a 404 instead of a constraint error (#598). Only reachable when the
+	// `oracle` build tag is absent — classifyOracleError is a no-op then and
+	// ORA errors fall through to here — but the protection was a build flag
+	// rather than code, which is what this restores.
 	if strings.Contains(errStr, "duplicate") || strings.Contains(errStr, "unique constraint") {
 		return Wrap(err, ErrDuplicate)
 	}
-	if strings.Contains(errStr, "foreign key") {
+	// "parent key not found" is ORA-02291; "child record found" is ORA-02292
+	// (delete blocked by a dependent row). Both are foreign-key violations.
+	if strings.Contains(errStr, "foreign key") ||
+		strings.Contains(errStr, "parent key not found") ||
+		strings.Contains(errStr, "child record found") {
 		return Wrap(err, ErrForeignKey)
 	}
 	if strings.Contains(errStr, "constraint") || strings.Contains(errStr, "violates") {
 		return Wrap(err, ErrConstraint)
+	}
+
+	// Not found (from RowsAffected == 0 checks that return error strings)
+	if strings.Contains(errStr, "not found") {
+		return Wrap(err, ErrNotFound)
 	}
 
 	// Unclassified — return as-is
