@@ -113,7 +113,7 @@ func (r *TMIComponentReconciler) ReconcileComponent(ctx context.Context, key typ
 //     changed, and because SetupWithManager Owns(&appsv1.Deployment{}), that
 //     write re-triggers the watch, which reconciles, which writes again.
 //
-// SEM@a1b2c3d4e5f60718293a4b5c6d7e8f9012345678: create a Kubernetes object, or update it in place only when the live object does not already satisfy it
+// SEM@057904fdab6d441170cccc6d204c153786d9b992: create a Kubernetes object, or update it only when live does not already satisfy it
 func (r *TMIComponentReconciler) apply(ctx context.Context, obj client.Object) error {
 	err := r.Create(ctx, obj)
 	if err == nil {
@@ -147,7 +147,7 @@ func (r *TMIComponentReconciler) apply(ctx context.Context, obj client.Object) e
 // Deployment that does not set one, so an Update cannot clobber the value the
 // autoscaler owns. A renderer that DOES set replicas is left alone — that is
 // an explicit intent to control the count.
-// SEM@a1b2c3d4e5f60718293a4b5c6d7e8f9012345678: copy the live replica count onto a rendered Deployment that leaves it unset (pure)
+// SEM@057904fdab6d441170cccc6d204c153786d9b992: copy the live replica count onto a rendered Deployment that leaves it unset (pure)
 func preserveAutoscaledReplicas(rendered, live client.Object) {
 	d, ok := rendered.(*appsv1.Deployment)
 	if !ok || d.Spec.Replicas != nil {
@@ -173,7 +173,7 @@ func preserveAutoscaledReplicas(rendered, live client.Object) {
 // need to clear anything, so the trade is sound here. An unrecognised type
 // returns false — always update — because a wrong "no change" is a stuck
 // controller, while a redundant update is merely wasteful.
-// SEM@a1b2c3d4e5f60718293a4b5c6d7e8f9012345678: report whether a live Kubernetes object already satisfies the rendered one (pure)
+// SEM@057904fdab6d441170cccc6d204c153786d9b992: report whether a live Kubernetes object already satisfies the rendered one (pure)
 func liveSatisfies(rendered, live client.Object) bool {
 	switch d := rendered.(type) {
 	case *appsv1.Deployment:
