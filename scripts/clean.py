@@ -5,7 +5,7 @@
 
 Subcommands:
   logs       - Remove log files and PID files
-  files      - Remove logs + CATS artifacts
+  files      - Remove logs + wstest logs (CATS results are the plugin's to prune)
   process    - Stop OAuth stub and wstest processes
   build      - Remove build artifacts from bin/ directory
   containers - Stop and remove development containers
@@ -14,7 +14,6 @@ Subcommands:
 
 import argparse
 import sys
-import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
@@ -58,30 +57,26 @@ def clean_logs() -> None:
 
 
 def clean_files() -> None:
-    """Remove logs, CATS artifacts, and the cats-report directory."""
+    """Remove log files and wstest logs.
+
+    CATS results are deliberately NOT touched here. The cats plugin owns the
+    run lifecycle under `test/results/cats/`: it writes per-run databases named
+    `cats-results-<run_id>.db`, maintains the `latest.db` symlink, and prunes
+    old runs itself via `keep_runs` while explicitly protecting whatever
+    `latest.db` points at (see `prune_run_dbs` in the plugin's
+    catslib/runner.py). A second retention policy here would race that one and
+    destroy campaign corpora that cost ~40 minutes each to reproduce.
+
+    This also no longer kills CATS processes. `pkill -f cats` matched on a bare
+    substring, so it hit the plugin's own path
+    (~/Projects/skills/cats/scripts/cats_tool.py), any unrelated process whose
+    command line happens to contain "cats", and — as the pgrep self-match trap
+    showed — potentially the invoking shell. Killing an in-flight campaign is
+    not what "clean files" means; stopping processes is `clean_process`'s job.
+    """
     clean_logs()
 
     project_root = get_project_root()
-
-    log_info("Cleaning CATS artifacts...")
-    run_cmd(["pkill", "-f", "cats"], check=False)
-    time.sleep(1)
-
-    cats_dir = project_root / "test" / "outputs" / "cats"
-    if cats_dir.is_dir():
-        preserve = {"cats-results.db", "cats-results.db-shm", "cats-results.db-wal"}
-        for item in cats_dir.iterdir():
-            if item.name not in preserve:
-                if item.is_file() or item.is_symlink():
-                    item.unlink()
-                elif item.is_dir():
-                    import shutil
-                    shutil.rmtree(item)
-
-    cats_report = project_root / "cats-report"
-    if cats_report.exists():
-        import shutil
-        shutil.rmtree(cats_report)
 
     # Clean wstest logs
     wstest_dir = project_root / "wstest"

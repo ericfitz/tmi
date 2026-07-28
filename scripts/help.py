@@ -97,13 +97,19 @@ Coverage:
   generate-coverage      - Generate coverage report from merged profiles
 
 CATS API Fuzzing:
-  cats-fuzz              - Run CATS API fuzzing (seeds + fuzzes + parses results)
+  cats-fuzz              - Run CATS API fuzzing (seeds + fuzzes + parses + classifies)
   cats-fuzz-oci          - Run CATS API fuzzing with Oracle ADB
-    Variables: FUZZ_USER=alice FUZZ_SERVER=http://host ENDPOINT=/path BLACKBOX=true
+    Variables: ENDPOINT=/path BLACKBOX=true
+    Fuzzing identity and target server come from .local/cats/config.yaml
+    (identities.*.token_cmd, server:) -- NOT from CATS_USER/CATS_SERVER,
+    which only steer the seed targets below.
   cats-seed              - Seed database for CATS (PostgreSQL)
   cats-seed-oci          - Seed database for CATS (Oracle ADB)
+    Variables: CATS_USER=charlie CATS_PROVIDER=tmi CATS_SERVER=http://host
+  e2e-seed               - Seed database with E2E test data from tmi-ux seed-spec
   analyze-cats-results   - Parse and query CATS results
   query-cats-results     - Query parsed CATS results database
+  cats-report            - Generate an HTML report from the latest run
 
 SBOM Generation:
   generate-sbom          - Generate SBOM for Go application (cyclonedx-gomod)

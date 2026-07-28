@@ -45,11 +45,17 @@ This directory contains scripts that are actively used by the refactored build s
 ## CATS Fuzzing Tools
 
 CATS fuzzing itself runs through the portable cats plugin (`~/Projects/skills/cats`,
-invoked via `make cats-fuzz`), not a script in this directory. These two scripts are
+invoked via `make cats-fuzz`), not a script in this directory. These three scripts are
 hook commands the plugin shells out to, per `.local/cats/config.yaml`:
 
 - **`cats-token.py`** - `token` hook: authenticates via the OAuth stub and prints a bearer token for the plugin to use
 - **`cats-prep.py`** - `pre_run` hook: clears Redis rate-limit keys and runs preflight checks before a fuzzing run
+- **`cats-check-fixtures.py`** - `post_run` hook: reports which seeded fixtures the campaign destroyed, so a run whose nested coverage was truncated says so instead of looking clean (#608)
+
+Campaign results live under `test/results/cats/`, which the plugin owns: it writes
+per-run `cats-results-<run_id>.db`, maintains the `latest.db` symlink, and prunes old
+runs via `keep_runs`. Do not add cleanup of that directory to `clean.py` or the make
+clean targets — a second retention policy races the plugin's and destroys corpora.
 
 ## Container Management
 
@@ -139,7 +145,8 @@ make build-containers
 
 ```bash
 make cats-fuzz                 # Run CATS fuzzing with OAuth
-make cats-analyze              # Parse and query results
+make analyze-cats-results      # Parse and query results
+make cats-report               # Generate an HTML report from the latest run
 ```
 
 ## Dependencies
