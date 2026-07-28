@@ -27,6 +27,15 @@
         "is_admin": false
       },
       "oauth_provider": "tmi"
+    },
+    {
+      "id": "cats-decoy",
+      "email": "cats-decoy@tmi.local",
+      "display_name": "CATS Decoy (Deletable User)",
+      "roles": {
+        "is_admin": false
+      },
+      "oauth_provider": "tmi"
     }
   ],
   "teams": [
@@ -40,6 +49,10 @@
           "description": "Seeded for CATS"
         }
       ]
+    },
+    {
+      "name": "CATS Throwaway Team",
+      "status": "active"
     }
   ],
   "projects": [
@@ -54,6 +67,11 @@
           "description": "Seeded for CATS"
         }
       ]
+    },
+    {
+      "name": "CATS Throwaway Project",
+      "team": "CATS Test Team",
+      "status": "active"
     }
   ],
   "threat_models": [
@@ -124,12 +142,40 @@
           "verbatim": "Seeded for CATS fuzzing coverage of feedback_id."
         }
       ]
+    },
+    {
+      "name": "CATS Throwaway Threat Model",
+      "description": "Destructive-fuzz target so the real one survives. DO NOT DELETE.",
+      "threat_model_framework": "STRIDE"
     }
   ],
   "surveys": [
     {
       "name": "CATS Test Survey",
       "description": "Created by tmi-dbtool for comprehensive API fuzzing. DO NOT DELETE.",
+      "version": "1.0",
+      "status": "active",
+      "survey_json": {
+        "pages": [
+          {
+            "name": "page1",
+            "elements": [
+              {
+                "type": "text",
+                "name": "project_name",
+                "title": "Project Name"
+              }
+            ]
+          }
+        ]
+      },
+      "settings": {
+        "allow_threat_model_linking": true
+      }
+    },
+    {
+      "name": "CATS Decoy Survey",
+      "description": "Carrier for the destructive-fuzz decoy survey response (#608).",
       "version": "1.0",
       "status": "active",
       "survey_json": {
@@ -164,12 +210,25 @@
           "content": "Triage note for CATS fuzzing coverage of triage_note_id."
         }
       ]
+    },
+    {
+      "survey": "CATS Decoy Survey",
+      "user": "charlie",
+      "responses": {
+        "project_name": "CATS Throwaway Project"
+      }
     }
   ],
   "admin_entities": {
     "groups": [
       {
         "name": "CATS Test Group",
+        "members": [
+          "cats-target"
+        ]
+      },
+      {
+        "name": "CATS Throwaway Group",
         "members": [
           "cats-target"
         ]

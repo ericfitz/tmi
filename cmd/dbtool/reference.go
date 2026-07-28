@@ -109,7 +109,7 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	tmID := findRefByKind(refs, "threat_model")
+	tmID := findRefByName(refs, tmRef(realThreatModelName), "threat_model")
 	threatID := findRefByKind(refs, "threat")
 	diagramID := findRefByKind(refs, "diagram")
 	documentID := findRefByKind(refs, "document")
@@ -131,10 +131,13 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	addonID := findRefByKind(refs, "addon")
 	credID := findRefByKind(refs, "client_credential")
 	surveyID := findRefByKind(refs, "survey")
-	responseID := findRefByKind(refs, "survey_response")
+	// Index 0 explicitly: survey responses are seeded positionally and
+	// findRefByKind ranges over a map, so with the #608 decoy present it
+	// could return either one — and the decoy is the one DELETE consumes.
+	responseID := findRefByName(refs, "survey-response:0", "survey_response")
 	metadataKey := findRefByKind(refs, "metadata")
-	teamID := findRefByKind(refs, "team")
-	projectID := findRefByKind(refs, "project")
+	teamID := findRefByName(refs, teamRef(realTeamName), "team")
+	projectID := findRefByName(refs, projectRef(realProjectName), "project")
 
 	adminUUID := ""
 	for _, r := range refs {
@@ -166,7 +169,45 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	// group family permanently 404d. The spec now names them {group_id} and
 	// {user_id} (#603), so this is just an ordinary global value again — the
 	// per-path override sections this file used to emit are gone.
-	adminGroupID := findRefByKind(refs, kindGroup)
+	adminGroupID := findRefByName(refs, groupRef(realGroupName), kindGroup)
+
+	// Anchor-path decoys (#608). A campaign deletes 15 of its own seeded
+	// fixtures, and because CATS walks paths in lexical order the anchor
+	// (/threat_models/{threat_model_id}) is fuzzed BEFORE everything nested
+	// under it — the seeded group died at test 3608 while the first
+	// /admin/groups/{group_id}/members test was 4151, so every member
+	// operation ran against a group that no longer existed. Pointing each
+	// anchor path at a throwaway keeps DELETE coverage on the anchor while the
+	// fixture the nested paths depend on survives.
+	//
+	// Only the exact anchor path is overridden; nested paths are different
+	// path strings and keep the global value.
+	decoys := []struct{ path, param, id string }{
+		{"/teams/{team_id}", "team_id", findRefByName(refs, teamRef(throwawayTeamName), "")},
+		{"/projects/{project_id}", "project_id", findRefByName(refs, projectRef(throwawayProjectName), "")},
+		{"/threat_models/{threat_model_id}", "threat_model_id",
+			findRefByName(refs, tmRef(throwawayThreatModelName), "")},
+		{"/admin/groups/{group_id}", "group_id",
+			findRefByName(refs, groupRef(throwawayGroupName), "")},
+		// cats-target is itself a throwaway (#591), but it is the id every
+		// NESTED /admin/users route uses, so the anchor needs its own decoy —
+		// run 20260728T062255Z deleted a user at test 13815 and fuzzed
+		// .../client_credentials immediately after.
+		{"/admin/users/{user_id}", "user_id", findRefByName(refs, userRef("cats-decoy"), "")},
+		// Survey responses are seeded positionally; index 1 is the decoy.
+		{"/intake/survey_responses/{survey_response_id}", "survey_response_id",
+			findRefByName(refs, "survey-response:1", "")},
+	}
+	decoySections := ""
+	for _, d := range decoys {
+		// A decoy that was not seeded must not emit a section: an empty or nil
+		// value would make every request to the anchor 404 on a bad id, which
+		// is worse than sharing the real fixture.
+		if d.id == "" || d.id == nilUUID {
+			continue
+		}
+		decoySections += fmt.Sprintf("%s:\n  %s: %s\n", d.path, d.param, d.id)
+	}
 
 	// Per-path sections for the harvested audit entry ids. Emitting a section
 	// with an empty value would be worse than omitting it: CATS would then
@@ -312,7 +353,7 @@ all:
 # seeding rather than seeded, because audit entries are a side effect of the
 # seeding itself. A section is omitted entirely when its listing was empty, in
 # which case that family stays uncovered exactly as before.
-%s`,
+%s%s`,
 		time.Now().UTC().Format(time.RFC3339),
 		tmID, tmID,
 		threatID, diagramID, documentID, assetID, noteID,
@@ -329,10 +370,42 @@ all:
 		targetUUID, targetUUID,
 		actorEmail, provider, tmID,
 		actorEmail, provider,
+		decoySections,
 		auditSections,
 	)
 
 	return os.WriteFile(path, []byte(yaml), 0o600)
+}
+
+// Seed refs for the destructive-fuzz decoys. Anchor paths (/teams/{team_id},
+// /threat_models/{threat_model_id}, ...) are pointed at these while everything
+// nested underneath keeps the real fixture, so a successful DELETE consumes
+// the decoy instead of the resource 63 nested paths depend on (#608).
+const (
+	throwawayTeamName        = "CATS Throwaway Team"
+	throwawayProjectName     = "CATS Throwaway Project"
+	throwawayGroupName       = "CATS Throwaway Group"
+	throwawayThreatModelName = "CATS Throwaway Threat Model"
+	realTeamName             = "CATS Test Team"
+	realProjectName          = "CATS Test Project"
+	realGroupName            = "CATS Test Group"
+	realThreatModelName      = "CATS Test Threat Model"
+)
+
+// findRefByName returns a seeded id by its exact seed ref, falling back to the
+// first ref of `kind` when that ref is absent.
+//
+// The fallback is what keeps a seed file that defines only one team (or one
+// threat model) working. It is also why the named lookup has to come first:
+// findRefByKind ranges over a map, so with two instances seeded it would
+// return an arbitrary one — fine while every kind had exactly one instance,
+// actively wrong now that the decoys exist.
+// SEM@a3b4c5d6e7f8091a2b3c4d5e6f70819293041526: fetch a seeded id by exact ref, falling back to the first of a kind (pure)
+func findRefByName(refs RefMap, ref, kind string) string {
+	if r, ok := refs[ref]; ok && r.ID != "" {
+		return r.ID
+	}
+	return findRefByKind(refs, kind)
 }
 
 // SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: return the ID of the first ref matching a resource kind, or the nil UUID if not found (pure)
