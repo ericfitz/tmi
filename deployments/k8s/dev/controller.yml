@@ -60,6 +60,17 @@ spec:
       containers:
         - name: controller
           image: localhost:5000/tmi-component-controller:dev
+          env:
+            # Without this the reconciler leaves Streams nil and skips
+            # EnsureStreamAndConsumer entirely (cmd/component-controller/main.go),
+            # logging "TMI_NATS_URL unset; JetStream stream/consumer provisioning
+            # disabled (workers will not scale from zero)". The ScaledObject then
+            # watches a durable consumer that was never created, so KEDA reads no
+            # queue depth, never scales a worker up, and published extraction and
+            # embedding jobs are never delivered — the whole Timmy ingest path is
+            # silently inert. Same service DNS the workers themselves use.
+            - name: TMI_NATS_URL
+              value: nats://nats.tmi-platform.svc:4222
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532

@@ -7,6 +7,7 @@ import (
 	platformv1alpha1 "github.com/ericfitz/tmi/api/platform/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -95,7 +96,24 @@ func (r *TMIComponentReconciler) ReconcileComponent(ctx context.Context, key typ
 // On update it first fetches the live object to capture its resourceVersion
 // (required by the API server for optimistic concurrency), then carries that
 // resourceVersion onto the freshly-rendered object before the Update call.
-// SEM@edd453e8c1ef926476270a4ae067018900cad001: create a Kubernetes object or update it in place preserving resourceVersion
+//
+// Two guards stand between this function and an API-server hot loop, both
+// added after production hit one: on the AWS cluster the tmi-chunk-embed and
+// tmi-extractor Deployments reached metadata.generation ~2.45 million in six
+// days, a measured ~4.3 spec writes per second each, with worker pods
+// destroyed and recreated continuously as a side effect.
+//
+//  1. spec.replicas is preserved from the live object. RenderDeployment
+//     deliberately never sets it because KEDA owns it, but "not set" on an
+//     Update means nil, and the API server defaults nil to 1 — silently
+//     undoing every KEDA scale-to-zero. The renderer cannot preserve what it
+//     does not know, so the preservation has to happen here.
+//  2. The Update is skipped entirely when the live object already satisfies
+//     the rendered one. Without this, an Update fires even when nothing
+//     changed, and because SetupWithManager Owns(&appsv1.Deployment{}), that
+//     write re-triggers the watch, which reconciles, which writes again.
+//
+// SEM@a1b2c3d4e5f60718293a4b5c6d7e8f9012345678: create a Kubernetes object, or update it in place only when the live object does not already satisfy it
 func (r *TMIComponentReconciler) apply(ctx context.Context, obj client.Object) error {
 	err := r.Create(ctx, obj)
 	if err == nil {
@@ -114,8 +132,59 @@ func (r *TMIComponentReconciler) apply(ctx context.Context, obj client.Object) e
 	if err := r.Get(ctx, key, existing); err != nil {
 		return err
 	}
+
+	preserveAutoscaledReplicas(obj, existing)
+
+	if liveSatisfies(obj, existing) {
+		return nil
+	}
+
 	obj.SetResourceVersion(existing.GetResourceVersion())
 	return r.Update(ctx, obj)
+}
+
+// preserveAutoscaledReplicas carries the live spec.replicas onto a rendered
+// Deployment that does not set one, so an Update cannot clobber the value the
+// autoscaler owns. A renderer that DOES set replicas is left alone — that is
+// an explicit intent to control the count.
+// SEM@a1b2c3d4e5f60718293a4b5c6d7e8f9012345678: copy the live replica count onto a rendered Deployment that leaves it unset (pure)
+func preserveAutoscaledReplicas(rendered, live client.Object) {
+	d, ok := rendered.(*appsv1.Deployment)
+	if !ok || d.Spec.Replicas != nil {
+		return
+	}
+	if lv, ok := live.(*appsv1.Deployment); ok {
+		d.Spec.Replicas = lv.Spec.Replicas
+	}
+}
+
+// liveSatisfies reports whether the live object already matches what was
+// rendered, so the Update can be skipped.
+//
+// Comparison is DeepDerivative rather than DeepEqual: fields unset in the
+// rendered object are treated as "don't care". That is what makes the check
+// stable against API-server defaulting — live carries dozens of defaulted
+// fields (terminationMessagePath, dnsPolicy, revisionHistoryLimit, …) that
+// the renderer never mentions, and DeepEqual would report a difference on
+// every single pass, which is the loop this exists to prevent.
+//
+// The trade-off is that clearing a field cannot be expressed by omitting it.
+// These renderers build a fixed shape from the TMIComponent spec and never
+// need to clear anything, so the trade is sound here. An unrecognised type
+// returns false — always update — because a wrong "no change" is a stuck
+// controller, while a redundant update is merely wasteful.
+// SEM@a1b2c3d4e5f60718293a4b5c6d7e8f9012345678: report whether a live Kubernetes object already satisfies the rendered one (pure)
+func liveSatisfies(rendered, live client.Object) bool {
+	switch d := rendered.(type) {
+	case *appsv1.Deployment:
+		lv, ok := live.(*appsv1.Deployment)
+		return ok && apiequality.Semantic.DeepDerivative(d.Spec, lv.Spec)
+	case *networkingv1.NetworkPolicy:
+		lv, ok := live.(*networkingv1.NetworkPolicy)
+		return ok && apiequality.Semantic.DeepDerivative(d.Spec, lv.Spec)
+	default:
+		return false
+	}
 }
 
 // SetupWithManager registers the reconciler and its owned child types.
