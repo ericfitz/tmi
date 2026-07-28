@@ -137,7 +137,7 @@ func (s *Server) ListAdminGroups(c *gin.Context, params ListAdminGroupsParams) {
 	})
 }
 
-// GetAdminGroup handles GET /admin/groups/{internal_uuid}
+// GetAdminGroup handles GET /admin/groups/{group_id}
 // SEM@0734f383e8c73aef4842c88dc88e90d0440f048a: fetch a single admin group by UUID with enriched authorization data (reads DB)
 func (s *Server) GetAdminGroup(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
@@ -265,7 +265,7 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 
 // Note: UpdateAdminGroupRequest is now generated from OpenAPI spec in api.go
 
-// UpdateAdminGroup handles PATCH /admin/groups/{internal_uuid}
+// UpdateAdminGroup handles PATCH /admin/groups/{group_id}
 // SEM@70b575a9e0ec7ae8f154644ac025dce6e14acb51: update a group's name or description and emit an audit log entry (mutates shared state)
 func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
@@ -365,7 +365,7 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	c.JSON(http.StatusOK, group)
 }
 
-// DeleteAdminGroup handles DELETE /admin/groups/{internal_uuid}
+// DeleteAdminGroup handles DELETE /admin/groups/{group_id}
 // SEM@70b575a9e0ec7ae8f154644ac025dce6e14acb51: delete a group and its associated data, rejecting protected built-in groups (mutates shared state)
 func (s *Server) DeleteAdminGroup(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)

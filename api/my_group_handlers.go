@@ -66,7 +66,7 @@ func (s *Server) ListMyGroups(c *gin.Context) {
 	})
 }
 
-// ListMyGroupMembers handles GET /me/groups/{internal_uuid}/members
+// ListMyGroupMembers handles GET /me/groups/{group_id}/members
 // Returns a paginated list of members for a group the authenticated user belongs to.
 // Admin audit fields (added_by, notes) are redacted from the response.
 // SEM@0734f383e8c73aef4842c88dc88e90d0440f048a: list paginated members of a group the authenticated user belongs to, redacting admin audit fields (reads DB)

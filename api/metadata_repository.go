@@ -163,7 +163,7 @@ func (r *GormMetadataRepository) Get(ctx context.Context, entityType, entityID, 
 }
 
 // Update updates an existing metadata entry
-// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: update the value of an existing metadata entry by key (mutates shared state)
+// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: update a metadata entry's value, setting modified_at explicitly (mutates shared state)
 func (r *GormMetadataRepository) Update(ctx context.Context, entityType, entityID string, metadata *Metadata) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -178,11 +178,22 @@ func (r *GormMetadataRepository) Update(ctx context.Context, entityType, entityI
 	err := authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Skip hooks to avoid validation errors on empty model struct.
 		// Entity type is already validated above.
-		// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
+		//
+		// modified_at explicitly: SkipHooks suppresses GORM's autoUpdateTime
+		// injector, so the old comment here ("handled automatically by GORM's
+		// autoUpdateTime tag") was false and metadata.modified_at sat frozen at
+		// created_at for the life of every row on both dialects. This is the
+		// third instance of the same defect; #610 fixed the document and
+		// repository stores and missed this one.
+		//
+		// INVARIANT: the lowercase key is safe ONLY while SkipHooks is set —
+		// see the fuller note in document_store_gorm.go for why re-enabling
+		// hooks would raise ORA-00957 on Oracle but not PostgreSQL.
 		result := tx.Session(&gorm.Session{SkipHooks: true}).Model(&models.Metadata{}).
 			Where("entity_type = ? AND entity_id = ? AND key = ?", entityType, entityID, metadata.Key).
 			Updates(map[string]any{
-				"value": metadata.Value,
+				"value":       metadata.Value,
+				"modified_at": time.Now().UTC(),
 			})
 
 		if result.Error != nil {

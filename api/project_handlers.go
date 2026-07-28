@@ -119,7 +119,7 @@ func (s *Server) CreateProject(c *gin.Context) {
 		Description:        req.Description,
 		TeamId:             req.TeamId,
 		RelatedProjects:    req.RelatedProjects,
-		ResponsibleParties: req.ResponsibleParties,
+		ResponsibleParties: responsiblePartiesFromInput(req.ResponsibleParties),
 		Status:             req.Status,
 		Uri:                req.Uri,
 	}
@@ -243,7 +243,7 @@ func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID, _ U
 		Description:        req.Description,
 		TeamId:             req.TeamId,
 		RelatedProjects:    req.RelatedProjects,
-		ResponsibleParties: req.ResponsibleParties,
+		ResponsibleParties: responsiblePartiesFromInput(req.ResponsibleParties),
 		Status:             req.Status,
 		Uri:                req.Uri,
 	}
@@ -387,7 +387,7 @@ func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID, _ Pa
 // DeleteProject deletes a project.
 // Requires team owner/creator role or admin. Returns 409 if threat models reference it.
 // DELETE /projects/{project_id}
-// SEM@63220a9061c9f3350c3ad8fc0c180619bb4fc3bf: delete a project, rejecting with 409 if threat models still reference it (reads DB)
+// SEM@8590f761ec02582bd24052fdd19e0b7d39c07f1a: delete a project, returning 404 if missing or 409 if still referenced (reads DB)
 func (s *Server) DeleteProject(c *gin.Context, projectId openapi_types.UUID) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -400,6 +400,10 @@ func (s *Server) DeleteProject(c *gin.Context, projectId openapi_types.UUID) {
 	// Authorization check - need project's team, then check owner/admin
 	teamID, err := GetProjectTeamID(ctx, projectId.String())
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			HandleRequestError(c, NotFoundError("Project not found"))
+			return
+		}
 		logger.Error("Failed to get project team: %v", err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Project not found", "Failed to get project"))
 		return

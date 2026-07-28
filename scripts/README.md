@@ -44,12 +44,20 @@ This directory contains scripts that are actively used by the refactored build s
 
 ## CATS Fuzzing Tools
 
-- **`run-cats-fuzz.sh`** - CATS fuzzing script with OAuth integration; automates authentication and runs CATS fuzzing against TMI API
-- **`cats-create-test-data.sh`** - Creates prerequisite test data for CATS fuzzing to eliminate false positives (threat models, threats, diagrams, etc.)
-- **`cats-prepare-database.sh`** - Prepares the database for CATS fuzzing by granting admin privileges to the test user
-- **`cats-set-max-quotas.sh`** - Sets maximum quotas and rate limits for CATS test user to prevent rate-limit errors during fuzzing
-- **`parse-cats-results.py`** - Parses CATS fuzzer test result JSON files into a normalized SQLite database
-- **`query-cats-results.sh`** - Provides quick SQL queries against the parsed CATS results database
+CATS fuzzing itself runs through the portable cats plugin, not a script in this
+directory. Invoke it as `make cats-fuzz` from a shell or `/cats:run` from Claude Code —
+the Makefile resolves the installed plugin first and falls back to a `~/Projects/skills`
+development checkout, so both paths run the same implementation. These three scripts are
+hook commands the plugin shells out to, per `.local/cats/config.yaml`:
+
+- **`cats-token.py`** - `token` hook: authenticates via the OAuth stub and prints a bearer token for the plugin to use
+- **`cats-prep.py`** - `pre_run` hook: clears Redis rate-limit keys and runs preflight checks before a fuzzing run
+- **`cats-check-fixtures.py`** - `post_run` hook: reports which seeded fixtures the campaign destroyed, so a run whose nested coverage was truncated says so instead of looking clean (#608)
+
+Campaign results live under `test/results/cats/`, which the plugin owns: it writes
+per-run `cats-results-<run_id>.db`, maintains the `latest.db` symlink, and prunes old
+runs via `keep_runs`. Do not add cleanup of that directory to `clean.py` or the make
+clean targets — a second retention policy races the plugin's and destroys corpora.
 
 ## Container Management
 
@@ -59,7 +67,7 @@ This directory contains scripts that are actively used by the refactored build s
   - Builds TMI containers using Chainguard base images for enhanced security
   - Supports individual container builds: `./build-containers.sh postgresql|redis|application`
   - Generates SBOMs (Software Bill of Materials) for all containers
-  - **Make targets**: `make build-container-db`, `make build-container-redis`, `make build-container-tmi`, `make build-containers`
+  - **Make targets**: `make build-db`, `make build-redis-container`, `make build-server-container`, `make build-containers`
 - **`build-promtail-container.sh`** - Builds Promtail container with Chainguard static base for logging infrastructure
 - **`make-containers-dev-local.sh`** - Local development container setup with security scanning
 
@@ -113,17 +121,17 @@ uv run scripts/validate-asyncapi.py api-schema/tmi-asyncapi.yaml
 
 ```bash
 make start-oauth-stub          # Start OAuth callback handler
-make oauth-stub-status         # Check if running
-make oauth-stub-stop           # Stop gracefully
+make check-oauth-stub          # Check if running
+make stop-oauth-stub           # Stop gracefully
 ```
 
 ### For Container Management
 
 ```bash
 # Build individual containers (faster for iterative development)
-make build-container-db      # PostgreSQL only
-make build-container-redis   # Redis only
-make build-container-tmi     # TMI server only
+make build-db                # PostgreSQL only
+make build-redis-container   # Redis only
+make build-server-container  # TMI server only
 
 # Build all containers
 make build-containers
@@ -139,7 +147,8 @@ make build-containers
 
 ```bash
 make cats-fuzz                 # Run CATS fuzzing with OAuth
-make cats-analyze              # Parse and query results
+make analyze-cats-results      # Parse and query results
+make cats-report               # Generate an HTML report from the latest run
 ```
 
 ## Dependencies

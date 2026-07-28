@@ -177,8 +177,8 @@ func setupMyGroupRouter() (*gin.Engine, *Server, *mockGroupStoreForMyHandlers, *
 
 	// Register routes
 	r.GET("/me/groups", server.ListMyGroups)
-	r.GET("/me/groups/:internal_uuid/members", func(c *gin.Context) {
-		uuidStr := c.Param("internal_uuid")
+	r.GET("/me/groups/:group_id/members", func(c *gin.Context) {
+		uuidStr := c.Param("group_id")
 		parsedUUID, err := uuid.Parse(uuidStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_uuid", "error_description": "internal_uuid must be a valid UUID"})
@@ -427,8 +427,8 @@ func TestListMyGroupMembers(t *testing.T) {
 		}
 
 		// No auth middleware
-		r.GET("/me/groups/:internal_uuid/members", func(c *gin.Context) {
-			uuidStr := c.Param("internal_uuid")
+		r.GET("/me/groups/:group_id/members", func(c *gin.Context) {
+			uuidStr := c.Param("group_id")
 			parsedUUID, _ := uuid.Parse(uuidStr)
 			server.ListMyGroupMembers(c, parsedUUID, ListMyGroupMembersParams{})
 		})

@@ -1,0 +1,836 @@
+# CATS false-positive rules for TMI.
+#
+# Ported from scripts/parse_cats_results.py, detect_false_positive()
+# (git history up to and including PR "eliminate /admin/audit/* CATS
+# false-positive 400s"). Rules are evaluated in *file order*, first match
+# wins — this mirrors the legacy function's sequential if-chain with early
+# returns, so rule position here is load-bearing. Do not reorder rules
+# without re-verifying against the legacy behavior.
+#
+# NOTE on deliberate divergence (#586): CONNECTION_ERROR_999 was moved from
+# its ported position to rule 1 so that no application-layer rule can claim
+# a transport-layer failure (response code 953/999) under first-match-wins.
+# This is an intentional break from the legacy port's ordering, not a bug.
+# test/cats/rule-baseline.json — captured before this change — is the
+# behavioral reference for everything except that reordering; it is stale
+# with respect to CONNECTION_ERROR_999's position and the XSS_QUERY_PARAMS
+# guard added in the same change, pending regeneration.
+#
+# NOTE on scope: at the time of writing, detect_false_positive() defines and
+# uses 62 distinct FP_RULE_* ids (not 43 — the constant list has grown via
+# many follow-up commits since whatever revision had 43). This file ports
+# all 62, in source order, to stay behaviorally equivalent to the current
+# legacy function.
+#
+# NOTE on dead conditions: the CATS result JSON has no top-level
+# `response.responseBody` key (only `response.jsonBody`), so every legacy
+# sub-condition that read `data['response']['responseBody']` was
+# unreachable dead code. Those sub-conditions are omitted here; each
+# affected rule carries a comment recording what was dropped.
+#
+# NOTE on rule numbering: each rule's leading comment reads "rule N of 48",
+# where N is the rule's actual position in this file (1-indexed, matching
+# file/evaluation order). This intentionally replaces the legacy function's
+# comment numbers, which do not run in sequence (the legacy source interleaves
+# insertions from many follow-up commits) — a maintainer who trusted those
+# numbers as an ordering guide could insert a new rule in the wrong place and
+# silently change which rule wins. If you insert, remove, or reorder a rule,
+# renumber every "rule N of 48" comment (and the two-digit total) to match.
+#
+# NOTE on inert conditions: STRING_BOUNDARY_EMPTY_PATH carries an inherited
+# legacy condition that never actually constrains anything against the real
+# corpus. It is marked INERT CONDITION at its definition. (The other two
+# holders of such a condition, EMPTY_PATH_PARAM_405 and IDOR_LIST, were
+# removed with the rest of the dead rules under #585.)
+# See test/cats/rule-baseline.json for the numbers and
+# docs/superpowers/plans/2026-07-26-cats-rule-migration-report.md for
+# background. These are known, deliberate carry-overs, not new bugs; do not
+# "fix" them without checking that plan for the associated follow-up issue.
+version: 1
+rules:
+  # rule 1 of 48: Connection errors (response code 953 or 999)
+  # 999 indicates a connection error or malformed request that never got a
+  # real HTTP response (often a URL-encoding issue in a path parameter).
+  # 953 indicates connection refused (server temporarily unreachable).
+  # Both are CATS/network issues, not API bugs. Positioned first (#586): a
+  # transport-layer failure is categorically not an application-layer
+  # finding, so no application rule may claim these records under
+  # first-match-wins.
+  - id: CONNECTION_ERROR_999
+    why: Response codes 953/999 are CATS/network-layer issues (connection refused, no real HTTP response received), not API bugs.
+    when:
+      response_code: { in: [953, 999] }
+
+  # rule 2 of 48: Rate Limit False Positives (429)
+  # Rate limiting is infrastructure protection, not API behavior.
+  - id: RATE_LIMIT_429
+    why: Rate limiting is infrastructure protection, not API behavior.
+    when:
+      response_code: 429
+
+  # rule 3 of 48: Deliberate credential-stripping (401/403)
+  # BypassAuthentication is the ONLY CATS fuzzer that attacks the auth
+  # header (every other header fuzzer explicitly preserves authentication
+  # headers). A 401/403 when credentials were deliberately removed is the
+  # correct security outcome. Any other 401/403 must surface. (#583)
+  - id: AUTH_BYPASS_401_403
+    why: BypassAuthentication deliberately strips the Authorization header, so a 401/403 rejection is the correct security outcome; CATS preserves auth headers in every other fuzzer, so no other fuzzer legitimately triggers auth failures.
+    when:
+      fuzzer: BypassAuthentication
+      response_code: { in: [401, 403] }
+
+  # rule 4 of 48: Validation False Positives (400)
+  # TMI has explicit security hardening middleware that rejects zero-width
+  # chars, bidirectional overrides, Hangul fillers, Zalgo text, control
+  # chars, and similar malformed/adversarial input. Returning 400 for these
+  # is correct security behavior, not a bug.
+  - id: VALIDATION_400
+    why: TMI's security hardening middleware correctly rejects malformed/adversarial input (unicode abuse, injection payloads, overflow values, malformed JSON) with 400.
+    when:
+      response_code: 400
+    any_of:
+      - fuzzer:
+          in:
+            - ZeroWidthCharsInValuesFields
+            - ZeroWidthCharsInNamesFields
+            - HangulCharsInStringFields
+            - ArabicCharsInStringFields
+            - HangulFillerFields
+            - BidirectionalOverrideFields
+            - ZalgoTextInFields
+            - AbugidasInStringFields
+            - FullwidthBracketsFields
+            - SpecialCharsInStringFields
+            - ControlCharsInStringFields
+            - EmojisInStringFields
+            - TrailingSpacesInFields
+            - LeadingSpacesInFields
+            - OverflowArraySizeFields
+            - ExtremeNegativeNumbersInNumericFields
+            - ExtremePositiveNumbersInNumericFields
+            - VeryLargeStrings
+            - VeryLargeUnicodeStrings
+            - MalformedJson
+            - DuplicateKeysFields
+            - InvalidJsonInRequestBody
+            - NullValuesInFields
+            - EmptyStringsInFields
+            - SQLInjection
+            - XSSInjection
+            - PathTraversal
+      - fuzzer:
+          contains_any:
+            - injection
+            - overflow
+            - chars
+            - unicode
+            - malformed
+            - hangul
+            - zalgo
+            - bidirectional
+            - fullwidth
+            - abugida
+
+  # rule 5 of 48: Not Found False Positives (404)
+  # Expected when fuzzing with random/invalid resource IDs — all implemented
+  # endpoints correctly return 404 for non-existent resources.
+  # NOTE: legacy also checked response.responseBody against
+  # legitimate_not_found_messages, which CATS never emits (dead branch);
+  # only the result_details check (which reads the same message list) is live.
+  - id: NOT_FOUND_404
+    why: Fuzzers that substitute random/invalid resource IDs correctly get 404 from fully-implemented endpoints.
+    when:
+      response_code: 404
+    any_of:
+      - fuzzer:
+          in:
+            - RandomResourcesFuzzer
+            - InsecureDirectObjectReferences
+            - RandomForeignKeyReference
+            - NonExistentResource
+            - RandomResources
+            - AcceptLanguageHeaders
+            - CheckSecurityHeaders
+            - DuplicateHeaders
+            - ExtraHeaders
+            - HappyPath
+            - LargeNumberOfRandomAlphanumericHeaders
+            - NewFields
+            - InvalidReferencesFields
+            - ZeroWidthCharsInValuesFields
+            - HangulFillerFields
+            - AbugidasInStringFields
+            - FullwidthBracketsFields
+            - IterateThroughEnumValuesFields
+            - RemoveFields
+            - DefaultValuesInFields
+            - ExtremePositiveNumbersInIntegerFields
+            - ExtremeNegativeNumbersInIntegerFields
+            - IntegerFieldsRightBoundary
+            - LeadingSpacesInHeaders
+            - MaxLengthExactValuesInStringFields
+            - TrailingSpacesInHeaders
+            - EmptyStringsInFields
+            - ExamplesFields
+            - MaximumExactNumbersInNumericFields
+            - MinLengthExactValuesInStringFields
+            - MinimumExactNumbersInNumericFields
+            - NullValuesInFields
+            - RemoveHeaders
+            - StringFieldsLeftBoundary
+            - StringFieldsRightBoundary
+            - VeryLargeStringsInFields
+      # The "unexpected response code: 404" branch that used to sit here was
+      # CATS's default message for ANY status mismatch and so reduced the whole
+      # rule to "every 404 is fine" (#584). Removed: on the 20260728T042755Z
+      # corpus the fuzzer list below already covered 3288 of 3288 matches, so
+      # nothing this rule legitimately suppressed is lost -- but a 404 from a
+      # fuzzer that does NOT substitute a resource id now surfaces.
+      - result_details:
+          contains_any:
+            - "not found"
+            - "add-on not found"
+            - "invocation not found"
+            - "user not found"
+            - "group not found"
+            - "webhook not found"
+            - "threat model not found"
+            - "diagram not found"
+            - "document not found"
+            - "threat not found"
+            - "not defined in the api specification"
+
+  # rule 6 of 48: IDOR False Positives for admin-only endpoints
+  # InsecureDirectObjectReferences replaces ID fields with alternative
+  # values. Admin endpoints (and the admin-only DELETE /addons/{id}) grant
+  # full access regardless of which ID is used, so this is expected.
+  - id: IDOR_ADMIN
+    why: Admin endpoints (and admin-only DELETE /addons/{id}) grant full access regardless of which ID is substituted, so IDOR probing them is expected to "succeed".
+    when:
+      fuzzer: InsecureDirectObjectReferences
+    any_of:
+      - path:
+          starts_with: /admin/
+      - path:
+          starts_with: /addons/
+        method: DELETE
+
+  # rule 7 of 48: IDOR False Positives for /me/ endpoints (single-user scoped)
+  # CATS POST fuzzers may create additional resources (e.g. client
+  # credentials) owned by the same test user; the IDOR fuzzer then reuses
+  # those IDs. Since the replacement resource is also owned by the same
+  # user, success is expected — ownership is enforced via
+  # WHERE owner_uuid = ? in all queries.
+  - id: IDOR_SAME_OWNER
+    why: /me/ endpoints are single-user scoped; a substituted ID that also belongs to the same authenticated user is a same-owner access, not an IDOR — ownership is enforced via WHERE owner_uuid = ? in all queries.
+    when:
+      fuzzer: InsecureDirectObjectReferences
+      path:
+        starts_with: /me/
+      response_code: { in: [200, 204] }
+
+  # rule 8 of 48: HTTP Methods False Positives
+  # Returning 400/405 for unsupported HTTP methods is correct behavior.
+  - id: HTTP_METHODS
+    why: Returning 400/405 for unsupported HTTP methods is correct behavior.
+    when:
+      fuzzer: { in: [HttpMethods, NonRestHttpMethods, CustomHttpMethods] }
+      response_code: { in: [400, 405] }
+
+  # rule 9 of 48: Non-JSON Content Type False Positives from Go HTTP layer
+  # When fuzzers send malformed requests, Go's net/http package may reject
+  # the request at the transport layer before it reaches Gin middleware,
+  # returning "400 Bad Request" as text/plain rather than JSON. The spec
+  # allows text/plain as an alternative for 400, but CATS may not recognize
+  # it (charset suffix, or only checking the first content type).
+  - id: CONTENT_TYPE_GO_HTTP
+    why: Go's net/http layer can reject a malformed request before Gin middleware runs, returning text/plain "400 Bad Request" instead of JSON — expected HTTP behavior, not a bug.
+    when:
+      any_text:
+        contains: "content type not matching"
+      response_content_type:
+        starts_with: text/plain
+      response_code: 400
+
+  # rule 10 of 48: Injection False Positives for JSON API
+  # TMI is a JSON API, not an HTML-rendering application. "Payload
+  # reflected in response" means data was stored and returned as JSON —
+  # that's not XSS, which requires HTML context. NoSQL/command injection
+  # "potential" findings are storage, not execution. NoSQL syntax has no
+  # effect on TMI's PostgreSQL backend.
+  - id: INJECTION_JSON_API
+    why: For a JSON API, storing and echoing user-supplied data as JSON is not XSS (which needs HTML context); NoSQL injection syntax has no effect on TMI's PostgreSQL backend.
+    when:
+      fuzzer:
+        in:
+          - XssInjectionInStringFields
+          - NoSqlInjectionInStringFields
+          - CommandInjectionInStringFields
+          - SqlInjectionInStringFields
+    any_of:
+      - result_reason:
+          contains_any: [reflected, potential]
+      - fuzzer: NoSqlInjectionInStringFields
+        result_reason:
+          contains_any: [detected, vulnerability]
+
+  # rule 11 of 48: XSS on Query Parameters is always a false positive for JSON APIs
+  # XSS requires HTML context to execute. TMI returns application/json.
+  # GET requests only carry query parameters (no body), so XSS on GET is
+  # never exploitable. A "warn" result on any method means the payload was
+  # merely accepted, not reflected as HTML. Guarded (#586) to a real HTTP
+  # status (1xx-5xx) so it can never claim a synthetic CATS connection-error
+  # code (953/999) ahead of CONNECTION_ERROR_999 — on the current corpus this
+  # guard is a no-op now that CONNECTION_ERROR_999 sits at rule 1, but it's
+  # cheap defense-in-depth against a future reorder.
+  - id: XSS_QUERY_PARAMS
+    why: TMI returns JSON, not HTML, so XSS requires no exploitable context; GET-only query-parameter payloads and "warn"-level (accepted, not reflected-as-HTML) results are never exploitable. Restricted to real HTTP status codes (#586) so it can never claim a synthetic CATS code like 953/999.
+    when:
+      fuzzer: XssInjectionInStringFields
+      response_code: { matches: "^[1-5][0-9][0-9]$" }
+    any_of:
+      - method: GET
+      - result: warn
+
+  # rule 12 of 48: Header Validation False Positives
+  # These fuzzers send malformed/unusual headers and expect success.
+  # Returning 400 for invalid headers is correct input validation.
+  - id: HEADER_VALIDATION_400
+    why: Returning 400 for malformed/unusual headers (bad Accept-Language, invalid Content-Type, header flooding, duplicate/extra headers) is correct input validation.
+    when:
+      fuzzer:
+        in:
+          - AcceptLanguageHeaders
+          - UnsupportedContentTypesHeaders
+          - DummyContentLengthHeaders
+          - LargeNumberOfRandomAlphanumericHeaders
+          - DuplicateHeaders
+          - ExtraHeaders
+      response_code: 400
+
+  # rule 13 of 48: StringFieldsLeftBoundary on optional fields
+  # CATS sends empty strings for optional fields and expects 4XX. Empty
+  # strings on optional fields (e.g. 'description') are valid — the API
+  # correctly returns 2XX because the field is optional.
+  # NOTE: the legacy condition was
+  #   `'is required [FALSE]' in scenario.lower() or 'is required [false]' in scenario`
+  # — `scenario` was already fully lowercased earlier in the function, so the
+  # first disjunct (mixed-case needle "[FALSE]") can never match a
+  # lowercased haystack; only the second, fully-lowercase disjunct is live.
+  # Ported as a single condition; the engine's `contains` is
+  # case-insensitive, so this matches exactly the same records as the
+  # original OR.
+  - id: STRING_BOUNDARY_OPTIONAL
+    why: CATS expects 4XX for an empty string on an optional field, but an optional field accepting an empty value and returning 2XX is correct.
+    when:
+      fuzzer: StringFieldsLeftBoundary
+      response_code: { in: [200, 201, 204] }
+      scenario:
+        contains: "is required [false]"
+
+  # rule 14 of 48: CheckDeletedResourcesNotAvailable on list endpoints
+  # This fuzzer deletes a resource then checks it's no longer accessible.
+  # For LIST endpoints, returning 200 with an empty array is correct REST
+  # behavior — the fuzzer expects 404/410, but a list endpoint should
+  # return 200 with empty results.
+  - id: DELETED_RESOURCE_LIST
+    why: LIST endpoints correctly return 200 with an empty array after the listed resource is deleted, rather than 404/410.
+    when:
+      fuzzer: CheckDeletedResourcesNotAvailable
+    any_of:
+      - path:
+          starts_with: /me/client_credentials
+      - path:
+          starts_with: /admin/quotas/users/
+      - path:
+          equals: /admin/quotas/users
+      - path:
+          starts_with: /admin/quotas/addons/
+      - path:
+          equals: /admin/quotas/addons
+      - path:
+          starts_with: /admin/quotas/webhooks/
+      - path:
+          equals: /admin/quotas/webhooks
+
+  # rule 15 of 48: JSON validation tests on form-urlencoded endpoints (CATS test design issue)
+  # MalformedJson/DuplicateKeysFields/RandomDummyInvalidJsonBody test
+  # JSON-specific issues, but some endpoints (e.g. /oauth2/revoke per RFC
+  # 7009) accept form-urlencoded data. When the request Content-Type is
+  # form-urlencoded, the server correctly handles the form data — the
+  # fuzzers are testing the wrong content type.
+  - id: FORM_URLENCODED_JSON_TEST
+    why: JSON-body fuzzers (MalformedJson, DuplicateKeysFields, RandomDummyInvalidJsonBody) test the wrong content type against endpoints that legitimately accept form-urlencoded data (e.g. /oauth2/revoke per RFC 7009).
+    when:
+      fuzzer: { in: [MalformedJson, DuplicateKeysFields, RandomDummyInvalidJsonBody] }
+      request_header.content-type:
+        contains: application/x-www-form-urlencoded
+
+  # rule 16 of 48: DELETE /me two-step challenge flow
+  # DELETE /me is a two-step deletion: the first call (no challenge) returns
+  # 200 with a challenge string, the second (with challenge) confirms
+  # deletion. Fuzzers that send DELETE /me without the challenge parameter
+  # correctly get 400 "Invalid or expired challenge".
+  - id: DELETE_ME_CHALLENGE
+    why: DELETE /me requires a two-step challenge flow; any 400 without the challenge parameter correctly enforces that flow.
+    when:
+      response_code: 400
+      path:
+        equals: /me
+      method: DELETE
+
+  # rule 17 of 48: Path parameter validation errors (regex mismatch)
+  # CATS uses parameter names like "cats-test-key" containing hyphens, but
+  # OpenAPI patterns like ^[a-z][a-z0-9_.]*$ don't allow hyphens — 400 is
+  # correct path-parameter format validation.
+  # NOTE: legacy also checked response.responseBody for the same
+  # "parameter ... doesn't match the regular expression" message, which
+  # CATS never emits (dead branch).
+  - id: PATH_PARAM_VALIDATION
+    why: CATS test parameter names (e.g. "cats-test-key") contain hyphens that some OpenAPI path-parameter regex patterns disallow; 400 is correct validation.
+    when:
+      response_code: 400
+      json_body.error_description:
+        contains_all:
+          - "openapi3filter.requesterror: parameter"
+          - "doesn't match the regular expression"
+
+  # rule 18 of 48: EmptyJsonBody with missing required fields
+  # EmptyJsonBody sends {} when required fields are documented — 400 for
+  # missing required properties is correct.
+  # NOTE: legacy also checked response.responseBody for the same "property
+  # ... is missing" / "is required" messages (2 places), which CATS never
+  # emits (dead branches); only the json_body.error_description checks are live.
+  - id: EMPTY_BODY_REQUIRED_FIELDS
+    why: EmptyJsonBody sends {} against endpoints with documented required fields; 400 for a missing required property is correct.
+    when:
+      fuzzer: EmptyJsonBody
+      response_code: 400
+    any_of:
+      - json_body.error_description:
+          contains_all: [property, "is missing"]
+      - json_body.error_description:
+          contains: "is required"
+
+  # rule 19 of 48: EmptyJsonBody with 404 Not Found
+  # EmptyJsonBody uses random UUIDs that don't exist in the database — 404
+  # is correct and unrelated to the empty body itself.
+  - id: EMPTY_JSON_BODY_NOT_FOUND
+    why: EmptyJsonBody's random UUIDs don't exist in the database; 404 Not Found is correct and unrelated to the empty request body.
+    when:
+      fuzzer: EmptyJsonBody
+      response_code: 404
+    any_of:
+      - json_body.error_description:
+          contains_any: ["not found", "does not exist", "no such"]
+      - result_reason:
+          contains: "not found"
+
+  # rule 20 of 48: StringFieldsLeftBoundary with empty path parameter causing route mismatch
+  # An empty string for a path parameter changes the URL (e.g.
+  # /admin/settings/{key} becomes /admin/settings/), which routes to a
+  # different endpoint (list vs item): 200 for GET on the list endpoint, or
+  # 405 for methods the list endpoint doesn't support.
+  #
+  # INERT CONDITION (inherited from legacy): every CATS request URL starts
+  # with "http://", so `url: {contains: "//"}` below is vacuously true for
+  # every classified record and constrains nothing. Because it's one arm of
+  # an `any_of`, that always-true disjunct makes the whole any_of always
+  # true, so this rule effectively reduces to: fuzzer=StringFieldsLeftBoundary
+  # AND response_code in (200, 405). Do not restore or rely on this
+  # condition as a real empty-path guard — it is a faithful port of a legacy
+  # no-op check, kept only for behavioral equivalence with the ported
+  # Python. See test/cats/rule-baseline.json and
+  # docs/superpowers/plans/2026-07-26-cats-rule-migration-report.md.
+  - id: STRING_BOUNDARY_EMPTY_PATH
+    why: In practice this rule fires whenever StringFieldsLeftBoundary gets response_code 200 or 405 — the url any_of below is inert (see comment above), so it does not actually gate on an empty path segment despite the historical framing.
+    when:
+      fuzzer: StringFieldsLeftBoundary
+      response_code: { in: [200, 405] }
+    any_of:
+      - url:
+          ends_with: "/"
+      - url:
+          contains: "//"
+
+  # rule 21 of 48: No-body endpoints correctly rejecting request bodies
+  # Some endpoints (e.g. /admin/settings/migrate) don't accept a request
+  # body — sending one correctly returns 400.
+  # NOTE: legacy also checked response.responseBody for "does not accept a
+  # request body", which CATS never emits (dead branch).
+  - id: NO_BODY_ENDPOINT
+    why: Endpoints that don't accept a request body (e.g. /admin/settings/migrate) correctly return 400 when a fuzzer sends one anyway.
+    when:
+      response_code: 400
+      json_body.error_description:
+        contains: "does not accept a request body"
+
+  # rule 22 of 48: Survey endpoint validation false positives (400)
+  # Survey POST/PUT correctly rejects malformed survey_json, status, etc.
+  - id: SURVEY_VALIDATION_400
+    why: Survey POST/PUT correctly rejects malformed survey_json, status, and other fuzzed fields with 400.
+    when:
+      response_code: 400
+      path:
+        contains: /admin/surveys
+      method: { in: [POST, PUT] }
+      # Was the meaningless `unexpected response code` reason (#584); these cover 36 of 36 matches.
+      response_body:
+        contains_any:
+          - survey_json must contain
+          - Duplicate metadata key found
+          - request body has an error
+
+  # rule 23 of 48: Survey DELETE 409 Conflict (referential integrity)
+  # Deleting a survey with existing responses correctly returns 409.
+  - id: SURVEY_DELETE_CONFLICT_409
+    why: Deleting a survey that has existing responses correctly returns 409 Conflict (referential integrity).
+    when:
+      response_code: 409
+      path:
+        contains: /admin/surveys/
+      method: DELETE
+
+  # rule 24 of 48: JSON Patch validation false positives (400)
+  # PATCH endpoints correctly reject malformed/empty JSON Patch operations.
+  - id: JSONPATCH_INVALID_400
+    why: PATCH endpoints correctly reject malformed or inapplicable JSON Patch documents with 400, matched on the server's actual rejection rather than the status code alone.
+    when:
+      response_code: 400
+      method: PATCH
+      # Was `result_reason: contains "unexpected response code"` with no path
+      # constraint -- CATS's default status-mismatch message, so the rule meant
+      # "any 400 on any PATCH anywhere" (#584). These markers covered 334 of
+      # 334 matches on the 20260728T042755Z corpus.
+      response_body:
+        contains_any:
+          - patch_failed
+          - request body has an error
+          - Invalid request body
+          - multiple errors encountered
+          - Duplicate metadata key found
+
+  # rule 25 of 48: Survey response endpoint validation false positives (400)
+  # Survey response POST/PUT correctly rejects fuzzed input.
+  - id: SURVEY_RESPONSE_VALIDATION_400
+    why: Survey response POST/PUT correctly rejects fuzzed input with 400.
+    when:
+      response_code: 400
+      path:
+        contains: /survey_responses
+      method: { in: [POST, PUT] }
+      # Was the meaningless `unexpected response code` reason (#584); these cover 10 of 10 matches.
+      response_body:
+        contains_any:
+          - Referenced resource not found
+          - request body has an error
+
+  # rule 26 of 48: Bulk metadata validation false positives (400)
+  # Bulk metadata endpoints correctly reject malformed payloads.
+  - id: METADATA_BULK_VALIDATION_400
+    why: Bulk metadata endpoints correctly reject malformed payloads with 400.
+    when:
+      response_code: 400
+      path:
+        contains: /metadata/bulk
+      # Was the meaningless `unexpected response code` reason (#584); these cover 24 of 24 matches.
+      response_body:
+        contains_any:
+          - request body has an error
+          - Duplicate metadata key found
+
+  # rule 27 of 48: Schema mismatch warnings with valid Error responses
+  # CATS warns "Not matching response schema" but our Error responses are
+  # valid: the Error schema requires 'error' and 'error_description'
+  # (details is nullable); OAuth endpoints may return just 'error' per RFC
+  # 6749 5.2; and Go's HTTP layer's text/plain "400 Bad Request" gets
+  # parsed by CATS as {"notAJson": "400 Bad Request"}.
+  - id: SCHEMA_MISMATCH_VALID_ERROR
+    why: CATS warns "Not matching response schema" but the response is actually a valid Error (error+error_description, an RFC 6749 5.2 error-only OAuth response, or Go's text/plain 400 parsed by CATS as notAJson).
+    when:
+      result: warn
+      result_reason:
+        contains: "not matching response schema"
+    any_of:
+      - json_body.error:
+          exists: true
+        json_body.error_description:
+          exists: true
+      - json_body.error:
+          exists: true
+        response_code: 400
+      - json_body.notAJson:
+          equals: "400 Bad Request"
+
+  # rule 28 of 48: SSRF payload reflected in validation error messages
+  # CATS sends SSRF URLs (e.g. http://intranet) in non-URL fields (boolean,
+  # integer). The OpenAPI validation middleware correctly rejects with 400
+  # and echoes the invalid value in the error description — the server
+  # never attempts to connect to the URL; the "reflection" is only in the
+  # validation error text.
+  - id: SSRF_VALIDATION_400
+    why: The OpenAPI validation middleware echoes an SSRF payload back in a 400 error description without ever attempting to connect to it — reflection in a validation message is not SSRF.
+    when:
+      fuzzer: { in: [SSRFInUrlFields, SsrfInjectionInStringFields] }
+      response_code: 400
+
+  # rule 29 of 48: ExamplesFields 409 on survey create (seed data collision)
+  # ExamplesFields sends the OpenAPI example survey, which collides with
+  # seed data already in the database — 409 Conflict is correct.
+  - id: SURVEY_EXAMPLES_CONFLICT_409
+    why: The OpenAPI example survey sent by ExamplesFields collides with pre-seeded survey data; 409 Conflict is correct.
+    when:
+      response_code: 409
+      fuzzer: ExamplesFields
+      path:
+        contains: /admin/surveys
+
+  # rule 30 of 48: Survey metadata POST 409 (seed data collision)
+  # CATS seeding creates metadata entries; a valid POST to
+  # /admin/surveys/{id}/metadata correctly returns 409 because the metadata
+  # key already exists from seeding.
+  - id: SURVEY_METADATA_CONFLICT_409
+    why: CATS seed data already created the survey metadata key being POSTed; 409 Conflict is correct, not a bug.
+    when:
+      response_code: 409
+      path:
+        contains_all: ["/admin/surveys/", "/metadata"]
+      method: POST
+
+  # rule 31 of 48: Empty JSON array body returning 200 (correct no-op)
+  # EmptyJsonArrayBody sends [] to bulk endpoints — an empty array means
+  # "no operations to perform", so 200 is correct.
+  - id: EMPTY_ARRAY_BODY_200
+    why: An empty JSON array body to a bulk endpoint means "no operations to perform"; 200 is the correct no-op response.
+    when:
+      fuzzer: EmptyJsonArrayBody
+      response_code: 200
+
+  # rule 32 of 48: Addon parameter discriminated union validation (400)
+  # CATS generates all AddonParameter fields simultaneously regardless of
+  # the `type` discriminator (e.g. a "boolean" type with enum_values and a
+  # mismatched default_value, or a "number" type with string constraints).
+  # The server correctly rejects these with 400 — CATS cannot generate
+  # valid discriminated-union data for this schema.
+  # NOTE: legacy also assigned response.responseBody in this block but
+  # never referenced it in a condition — an unused local, not a dead check,
+  # so there is nothing to omit here.
+  - id: ADDON_PARAMETER_VALIDATION_400
+    why: CATS cannot generate valid discriminated-union AddonParameter data (fields for every `type` variant are generated simultaneously); the server correctly rejects the resulting invalid combinations with 400.
+    when:
+      response_code: 400
+      path:
+        equals: /addons
+      json_body.error_description:
+        contains_any:
+          - default_value
+          - enum_values
+          - "must not have"
+          - number_min
+          - number_max
+          - string_max_length
+          - string_validation_regex
+          - metadata_key
+          - "parameter '"
+
+  # rule 33 of 48. RFC 7009 Section 2.1: the token revocation endpoint SHOULD return 200
+  # even for invalid/malformed tokens. String boundary and large string
+  # fuzzers flag this as an error because they expect 4xx for bad input,
+  # but 200 is the RFC-compliant behavior.
+  - id: REVOKE_STRING_BOUNDARY_RFC7009
+    why: "RFC 7009 2.1: /oauth2/revoke SHOULD return 200 even for malformed tokens, so string-boundary/large-string fuzzers expecting 4xx are false positives."
+    when:
+      result: error
+      path:
+        contains: /oauth2/revoke
+      fuzzer:
+        contains_any:
+          - StringFieldsRightBoundary
+          - VeryLargeStringsInFields
+          - VeryLargeUnicodeStringsInFields
+
+  # rule 34 of 48: /oauth2/revoke accepts numeric/boolean values in string fields (RFC 7009)
+  # RFC 7009 requires returning 200 even for malformed tokens. Type-coerced
+  # values in client_id, client_secret, or token fields correctly return
+  # 200 — there is no valid token to revoke, so the server responds with
+  # success per the RFC.
+  - id: REVOKE_TYPE_COERCION_RFC7009
+    why: "RFC 7009 requires 200 even for malformed tokens; type-coerced numeric/boolean values in client_id/client_secret/token correctly return 200 since there's no valid token to revoke."
+    when:
+      result: error
+      path:
+        contains: /oauth2/revoke
+      fuzzer: { in: [NumericValuesInStringFields, BooleanValuesInStringFields] }
+
+  # rule 35 of 48: /oauth2/revoke returns 200 for undocumented HTTP methods (RFC 7009)
+  # Go's HTTP framework returns 200 for HEAD requests (mirroring GET/POST),
+  # and the revoke endpoint's permissive error handling per RFC 7009 means
+  # it gracefully handles unexpected methods.
+  - id: REVOKE_HTTP_METHODS_RFC7009
+    why: Go's HTTP framework returns 200 for HEAD (mirroring GET/POST), and RFC 7009's permissive error handling means undocumented methods on /oauth2/revoke are handled gracefully.
+    when:
+      result: error
+      path:
+        contains: /oauth2/revoke
+      fuzzer:
+        contains: HttpMethods
+
+  # rule 36 of 48: Automation account creation returning 409 Conflict (seed data collision)
+  # POST /admin/users/automation returns 409 when the automation account
+  # already exists from CATS seed data.
+  - id: AUTOMATION_ACCOUNT_CONFLICT_409
+    why: POST /admin/users/automation correctly returns 409 when the automation account already exists from CATS seed data.
+    when:
+      response_code: 409
+      path:
+        equals: /admin/users/automation
+      method: POST
+
+  # rule 37 of 48: /oauth2/introspect returns 200 for all inputs (RFC 7662 2.2)
+  # RFC 7662 requires introspection to return HTTP 200 with
+  # {"active":false} for any invalid, expired, or unrecognizable token.
+  - id: INTROSPECT_RFC7662
+    why: "RFC 7662 2.2 requires introspection to return HTTP 200 with {\"active\":false} for any invalid/expired/unrecognizable token; CATS expects 4xx for fuzzed input."
+    when:
+      result: error
+      response_code: 200
+      path:
+        equals: /oauth2/introspect
+
+  # rule 38 of 48: OAuth token/callback/refresh return 400 for missing/invalid params
+  # These endpoints require valid OAuth parameters (code, state,
+  # refresh_token, client_id, etc.) that CATS cannot generate — 400 is
+  # correct validation, not a bug.
+  - id: OAUTH_TOKEN_VALIDATION_400
+    why: /oauth2/token, /oauth2/callback, and /oauth2/refresh require valid OAuth parameters CATS cannot generate; 400 is correct validation.
+    when:
+      result: error
+      response_code: 400
+      path: { in: [/oauth2/token, /oauth2/callback, /oauth2/refresh] }
+
+  # rule 39 of 48: /oauth2/token returns 401 invalid_client per RFC 6749 5.2 when
+  # client credentials don't authenticate. IterateThroughEnumValuesFields
+  # iterates grant_type=client_credentials with synthetic client_id/secret;
+  # the server correctly rejects unknown clients with 401 invalid_client.
+  # This is required protocol behavior, not a bug.
+  - id: OAUTH_TOKEN_INVALID_CLIENT_401
+    why: "RFC 6749 5.2: the server correctly rejects unknown/synthetic client_credentials with 401 invalid_client — required protocol behavior, not a bug."
+    when:
+      result: error
+      response_code: 401
+      path:
+        equals: /oauth2/token
+      json_body.error:
+        equals: invalid_client
+
+  # rule 40 of 48: Numeric values accepted in string fields (Go JSON type coercion)
+  # Go's encoding/json decoder converts JSON numbers to Go string fields.
+  # This is defined, safe behavior — the number becomes a string like
+  # "9223372036854775807". No privilege escalation or data corruption occurs.
+  - id: TYPE_COERCION_STRING
+    why: Go's encoding/json decoder safely converts a JSON number into a Go string field; defined behavior with no privilege escalation or data corruption.
+    when:
+      result: error
+      response_code: { in: [200, 201] }
+      fuzzer: NumericValuesInStringFields
+
+  # rule 41 of 48: /webhook-deliveries/{id} returns 404 for auth bypass/invalid headers
+  # The webhook delivery endpoint uses dual auth (HMAC or JWT). When auth
+  # is bypassed or headers are empty/spaces, the delivery is not found.
+  - id: WEBHOOK_DELIVERY_AUTH_404
+    why: /webhook-deliveries/{id} uses dual HMAC-or-JWT auth; bypassed or empty/whitespace auth headers correctly resolve to "delivery not found" (404).
+    when:
+      result: error
+      response_code: 404
+      path:
+        contains: /webhook-deliveries/
+
+  # rule 42 of 48: /admin/webhooks/.../test returns 404/400 for edge cases
+  # EmptyBody -> 404 (subscription not found with empty body),
+  # MaxLengthExactValues -> 400 (OpenAPI validation rejects oversized event_type).
+  - id: WEBHOOK_TEST_VALIDATION
+    why: The webhook subscription test endpoint correctly returns 404 for EmptyBody (subscription not found) and 400 for MaxLengthExactValues (oversized event_type rejected by OpenAPI validation).
+    when:
+      result: error
+      response_code: { in: [400, 404] }
+      path:
+        contains_all: ["/webhooks/subscriptions/", "/test"]
+
+  # rule 43 of 48: DELETE /admin/users/{uuid} returns 409 for self-deletion
+  # CATS authenticates as charlie (admin) and tries to delete charlie's own
+  # user account. The self-deletion guard correctly returns 409 Conflict.
+  - id: SELF_DELETION_409
+    why: CATS authenticates as the admin user (charlie) and attempts to delete that same account; the self-deletion guard correctly returns 409 Conflict.
+    when:
+      result: error
+      response_code: 409
+      path:
+        contains: /admin/users/
+      method: DELETE
+
+  # rule 44 of 48: CheckDeletedResourcesNotAvailable returning 405
+  # This fuzzer expects 404 after deletion, but sometimes targets an
+  # endpoint that exists as a path prefix yet doesn't accept the test's
+  # HTTP method (e.g. GET on a DELETE-only collection item). 405 IS a 4XX
+  # response and correct REST behavior — it tells the client the method is
+  # not allowed on that resource.
+  - id: CHECK_DELETED_405
+    why: CheckDeletedResourcesNotAvailable expects 404, but a 405 (method not allowed on an existing path) is still a correct 4XX REST response, not a bug.
+    when:
+      result: error
+      response_code: 405
+      fuzzer: CheckDeletedResourcesNotAvailable
+
+  # rule 45 of 48: /admin/audit/* query-parameter validation false positives (400) (#494)
+  # The admin audit list endpoints take opaque query params (cursor,
+  # actor_email, around, created_after/before). Injection/boundary fuzzers
+  # send malformed values that the OpenAPI validation middleware correctly
+  # rejects with 400 — most commonly a bad cursor pagination token. This
+  # 400 is documented in the OpenAPI spec, so it's correct, in-contract
+  # behavior.
+  - id: AUDIT_QUERY_VALIDATION_400
+    why: /admin/audit/* takes opaque query params (cursor, actor_email, around, created_after/before); OpenAPI validation correctly rejects fuzzer-mangled values (commonly a bad cursor) with the documented 400.
+    when:
+      response_code: 400
+      path:
+        starts_with: /admin/audit/
+      method: GET
+      # Was the meaningless `unexpected response code` reason (#584); the cursor message covers 26 of 26 matches.
+      response_body:
+        contains_any:
+          - Invalid pagination cursor
+          - request body has an error
+
+  # rule 46 of 48: Step-up re-authentication 401 (#583)
+  # Sensitive operations (identity link start, admin user transfer,
+  # credential deletion) require recent re-authentication via the step-up
+  # middleware; CATS's seeded token can never satisfy that requirement.
+  - id: STEP_UP_AUTH_401
+    why: Sensitive operations (identity link start, admin user transfer, credential deletion) require recent re-authentication via the step-up middleware; 401 insufficient_user_authentication is the deliberate step-up response and CATS's seeded token can never satisfy it.
+    when:
+      response_code: 401
+      json_body.error:
+        equals: insufficient_user_authentication
+
+  # rule 47 of 48: Automation-only endpoints 403 (#583)
+  # /automation/* endpoints are restricted to automation service accounts;
+  # the CATS identity is an interactive admin, so 403 is the intended
+  # authorization outcome.
+  - id: AUTOMATION_ONLY_ENDPOINT_403
+    why: /automation/* endpoints are restricted to automation service accounts; the CATS identity is an interactive admin, so 403 forbidden is the intended authorization outcome.
+    when:
+      response_code: 403
+      path: { starts_with: /automation/ }
+      json_body.error: { equals: forbidden }
+
+  # rule 48 of 48: Admin client-credentials automation-account gate 403 (#583)
+  # Admin client-credentials management is only available for automation
+  # accounts; the seeded target user is a normal user, so 403 is the
+  # intended outcome.
+  - id: ADMIN_CLIENT_CREDENTIALS_AUTOMATION_ONLY_403
+    why: Admin client-credentials management is only available for automation accounts; the seeded target user is a normal user, so 403 is the intended outcome.
+    when:
+      response_code: 403
+      path: { starts_with: /admin/users/, contains: client_credentials }
+      json_body.error_description:
+        contains: only available for automation accounts

@@ -2,17 +2,76 @@
   "version": "1.0",
   "description": "CATS fuzzing test data - all objects needed for comprehensive API security testing",
   "output": {
-    "reference_file": "test/outputs/cats/cats-test-data.json",
-    "reference_yaml": "test/outputs/cats/cats-test-data.yml"
+    "reference_file": "test/results/cats/cats-test-data.json",
+    "reference_yaml": "test/results/cats/cats-test-data.yml"
   },
   "users": [
     {
       "id": "charlie",
       "email": "charlie@tmi.local",
       "display_name": "Charlie (Seed User)",
-      "roles": { "is_admin": true },
+      "roles": {
+        "is_admin": true
+      },
       "oauth_provider": "tmi",
-      "api_quota": { "rpm": 100000, "rph": 1000000 }
+      "api_quota": {
+        "rpm": 100000,
+        "rph": 1000000
+      }
+    },
+    {
+      "id": "cats-target",
+      "email": "cats-target@tmi.local",
+      "display_name": "CATS Target (Throwaway User)",
+      "roles": {
+        "is_admin": false
+      },
+      "oauth_provider": "tmi"
+    },
+    {
+      "id": "cats-decoy",
+      "email": "cats-decoy@tmi.local",
+      "display_name": "CATS Decoy (Deletable User)",
+      "roles": {
+        "is_admin": false
+      },
+      "oauth_provider": "tmi"
+    }
+  ],
+  "teams": [
+    {
+      "name": "CATS Test Team",
+      "status": "active",
+      "notes": [
+        {
+          "name": "CATS Test Team Note",
+          "content": "Team note for CATS fuzzing coverage of team_note_id.",
+          "description": "Seeded for CATS"
+        }
+      ]
+    },
+    {
+      "name": "CATS Throwaway Team",
+      "status": "active"
+    }
+  ],
+  "projects": [
+    {
+      "name": "CATS Test Project",
+      "team": "CATS Test Team",
+      "status": "active",
+      "notes": [
+        {
+          "name": "CATS Test Project Note",
+          "content": "Project note for CATS fuzzing coverage of project_note_id.",
+          "description": "Seeded for CATS"
+        }
+      ]
+    },
+    {
+      "name": "CATS Throwaway Project",
+      "team": "CATS Test Team",
+      "status": "active"
     }
   ],
   "threat_models": [
@@ -21,14 +80,23 @@
       "description": "Created by tmi-dbtool for comprehensive API fuzzing. DO NOT DELETE.",
       "threat_model_framework": "STRIDE",
       "metadata": [
-        { "key": "version", "value": "1.0" },
-        { "key": "purpose", "value": "cats-fuzzing-test-data" }
+        {
+          "key": "version",
+          "value": "1.0"
+        },
+        {
+          "key": "purpose",
+          "value": "cats-fuzzing-test-data"
+        }
       ],
       "threats": [
         {
           "name": "CATS Test Threat",
           "description": "Test threat for CATS fuzzing",
-          "threat_type": ["Tampering", "Information Disclosure"],
+          "threat_type": [
+            "Tampering",
+            "Information Disclosure"
+          ],
           "severity": "high",
           "priority": "high",
           "status": "identified"
@@ -64,13 +132,50 @@
         {
           "uri": "https://github.com/example/cats-test-repo"
         }
+      ],
+      "feedback": [
+        {
+          "sentiment": "up",
+          "target_type": "note",
+          "target_ref": "note:cats-test-threat-model:cats-test-note",
+          "client_id": "cats-seed",
+          "verbatim": "Seeded for CATS fuzzing coverage of feedback_id."
+        }
       ]
+    },
+    {
+      "name": "CATS Throwaway Threat Model",
+      "description": "Destructive-fuzz target so the real one survives. DO NOT DELETE.",
+      "threat_model_framework": "STRIDE"
     }
   ],
   "surveys": [
     {
       "name": "CATS Test Survey",
       "description": "Created by tmi-dbtool for comprehensive API fuzzing. DO NOT DELETE.",
+      "version": "1.0",
+      "status": "active",
+      "survey_json": {
+        "pages": [
+          {
+            "name": "page1",
+            "elements": [
+              {
+                "type": "text",
+                "name": "project_name",
+                "title": "Project Name"
+              }
+            ]
+          }
+        ]
+      },
+      "settings": {
+        "allow_threat_model_linking": true
+      }
+    },
+    {
+      "name": "CATS Decoy Survey",
+      "description": "Carrier for the destructive-fuzz decoy survey response (#608).",
       "version": "1.0",
       "status": "active",
       "survey_json": {
@@ -98,19 +203,51 @@
       "user": "charlie",
       "responses": {
         "project_name": "CATS Test Project"
+      },
+      "triage_notes": [
+        {
+          "name": "CATS Test Triage Note",
+          "content": "Triage note for CATS fuzzing coverage of triage_note_id."
+        }
+      ]
+    },
+    {
+      "survey": "CATS Decoy Survey",
+      "user": "charlie",
+      "responses": {
+        "project_name": "CATS Throwaway Project"
       }
     }
   ],
   "admin_entities": {
+    "groups": [
+      {
+        "name": "CATS Test Group",
+        "members": [
+          "cats-target"
+        ]
+      },
+      {
+        "name": "CATS Throwaway Group",
+        "members": [
+          "cats-target"
+        ]
+      }
+    ],
     "webhooks": [
       {
         "name": "CATS Test Webhook",
         "url": "https://webhook.site/cats-test-webhook",
-        "events": ["threat_model.created", "threat.created"]
+        "events": [
+          "threat_model.created",
+          "threat.created"
+        ]
       }
     ],
     "webhook_test_deliveries": [
-      { "webhook": "CATS Test Webhook" }
+      {
+        "webhook": "CATS Test Webhook"
+      }
     ],
     "addons": [
       {
@@ -127,14 +264,59 @@
     ]
   },
   "metadata": [
-    { "target": "tm:cats-test-threat-model", "target_kind": "threat_model", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "threat:cats-test-threat-model:cats-test-threat", "target_kind": "threat", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "diagram:cats-test-threat-model:cats-test-diagram", "target_kind": "diagram", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "document:cats-test-threat-model:cats-test-document", "target_kind": "document", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "asset:cats-test-threat-model:cats-test-asset", "target_kind": "asset", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "note:cats-test-threat-model:cats-test-note", "target_kind": "note", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "repo:cats-test-threat-model:", "target_kind": "repository", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "survey:cats-test-survey", "target_kind": "survey", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "survey-response:0", "target_kind": "survey_response", "key": "cats-test-key", "value": "cats-test-value" }
+    {
+      "target": "tm:cats-test-threat-model",
+      "target_kind": "threat_model",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "threat:cats-test-threat-model:cats-test-threat",
+      "target_kind": "threat",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "diagram:cats-test-threat-model:cats-test-diagram",
+      "target_kind": "diagram",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "document:cats-test-threat-model:cats-test-document",
+      "target_kind": "document",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "asset:cats-test-threat-model:cats-test-asset",
+      "target_kind": "asset",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "note:cats-test-threat-model:cats-test-note",
+      "target_kind": "note",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "repo:cats-test-threat-model:",
+      "target_kind": "repository",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "survey:cats-test-survey",
+      "target_kind": "survey",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "survey-response:0",
+      "target_kind": "survey_response",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    }
   ]
 }

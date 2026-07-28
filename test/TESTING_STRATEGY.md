@@ -97,7 +97,9 @@ test/
 
 - Security fuzzing configuration
 - Run via: `make cats-fuzz`
-- Output: `test/outputs/cats/*.db`, `test/outputs/cats/*.md`
+- Output: `test/results/cats/cats-results-<run_id>.db` plus a `latest.db` symlink, and
+  HTML reports from `make cats-report`. The cats plugin owns this directory and prunes
+  it via `keep_runs`; do not add it to any clean target.
 
 ## Integration Test Framework Architecture
 
@@ -182,7 +184,7 @@ test/
 
 ### Phase 4: Test Output Consolidation
 
-1. Update CATS scripts → `test/outputs/cats/`
+1. Update CATS scripts → `test/results/cats/`
 2. Update newman scripts → `test/outputs/newman/` (if kept)
 3. Update coverage reports → `test/outputs/unit/`
 4. Update security reports → `test/outputs/security/`
@@ -198,7 +200,7 @@ test/
 ```makefile
 # Unit tests
 make test-unit                    # Run all unit tests
-make test-unit-coverage          # Generate coverage report
+make test-coverage               # Generate coverage report
 
 # Integration tests
 make test-integration            # Run all integration tests
@@ -206,11 +208,12 @@ make test-integration-workflow WORKFLOW=oauth_flow  # Run specific workflow
 
 # Tools
 make wstest                      # Run WebSocket test harness
-make oauth-stub                  # Start OAuth callback stub
+make start-oauth-stub            # Start OAuth callback stub
 
 # CATS fuzzing
 make cats-fuzz                   # Run CATS fuzzing
-make cats-analyze                # Analyze CATS results
+make analyze-cats-results        # Analyze CATS results
+make cats-report                 # Generate an HTML report from the latest run
 
 # Cleanup
 make test-clean                  # Remove all test outputs

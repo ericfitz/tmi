@@ -227,8 +227,15 @@ func (h *TriageNoteSubResourceHandler) CreateTriageNote(c *gin.Context) {
 		return
 	}
 
-	// Sanitize markdown content (strip dangerous HTML, preserve safe elements)
-	note.Content = SanitizeMarkdownContent(note.Content)
+	// Sanitize markdown content (strip dangerous HTML, preserve safe elements).
+	// Content is required and non-empty, so input that sanitizes away is a 400,
+	// not a store failure surfaced as 500 (#605).
+	sanitizedContent, contentErr := SanitizeRequiredMarkdownContent("content", note.Content)
+	if contentErr != nil {
+		HandleRequestError(c, contentErr)
+		return
+	}
+	note.Content = sanitizedContent
 
 	logger.Debug("Creating triage note in survey response %s (user: %s)", surveyResponseID, user.Email)
 

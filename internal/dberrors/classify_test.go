@@ -2,6 +2,7 @@ package dberrors
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"testing"
@@ -29,6 +30,38 @@ func TestClassify_ContextErrors(t *testing.T) {
 
 func TestClassify_GormRecordNotFound(t *testing.T) {
 	err := Classify(gorm.ErrRecordNotFound)
+	assert.True(t, errors.Is(err, ErrNotFound))
+	// The wrapped error must still satisfy errors.Is(err, gorm.ErrRecordNotFound)
+	// so that callers (e.g. api/project_handlers.go DeleteProject) can branch on
+	// the original GORM sentinel after Wrap's double-%w wrap. If Wrap ever
+	// stopped preserving this identity, this assertion is what would catch it.
+	assert.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+}
+
+// TestClassify_SqlErrNoRows pins the central fix for #581 finding 1a/1d:
+// sql.ErrNoRows is a distinct value from gorm.ErrRecordNotFound (errors.Is
+// does not bridge them), and prior to this fix it fell through Classify
+// unclassified — every call site that finishes a query with a raw
+// *sql.Row/*sql.Rows Scan (rather than a GORM model query) would see a bare,
+// unrecognized error, which HandleRequestError turns into an undocumented
+// 500 instead of a 404. Classifying it centrally closes the gap for every
+// current and future call site, not just the one that surfaced it
+// (api/optimistic_locking.go's wildcard If-Match read-back).
+func TestClassify_SqlErrNoRows(t *testing.T) {
+	err := Classify(sql.ErrNoRows)
+	assert.True(t, errors.Is(err, ErrNotFound))
+	// The wrapped error must still satisfy errors.Is(err, sql.ErrNoRows) so
+	// callers that need to distinguish the original stdlib sentinel can.
+	assert.True(t, errors.Is(err, sql.ErrNoRows))
+}
+
+// TestClassify_SqlErrNoRows_Wrapped verifies the fmt.Errorf-wrapped form
+// (as would appear from a driver/query-layer that adds context) is also
+// recognized, matching the wrapped-error coverage pattern used for
+// TestClassify_PgWrappedError.
+func TestClassify_SqlErrNoRows_Wrapped(t *testing.T) {
+	wrapped := fmt.Errorf("scan version: %w", sql.ErrNoRows)
+	err := Classify(wrapped)
 	assert.True(t, errors.Is(err, ErrNotFound))
 }
 
@@ -156,4 +189,60 @@ func TestClassify_UnknownError(t *testing.T) {
 	err := Classify(original)
 	// Returns as-is when nothing matches
 	assert.Equal(t, original, err)
+}
+
+// TestClassifyByString_OracleConstraintsBeatNotFound pins the ordering inside
+// classifyByString. Oracle phrases a foreign-key violation as "... violated -
+// parent key not found", so a bare "not found" check placed first classified
+// an FK violation as ErrNotFound and surfaced it as a 404 (#598). Only
+// reachable without the `oracle` build tag, where classifyOracleError is a
+// no-op and ORA errors fall through to the string fallback.
+func TestClassifyByString_OracleConstraintsBeatNotFound(t *testing.T) {
+	cases := []struct {
+		name    string
+		input   string
+		want    error
+		notWant error
+	}{
+		{
+			name:    "ORA-02291 parent key not found is a foreign-key violation",
+			input:   "ORA-02291: integrity constraint (TMI.FK_THREATS_TM) violated - parent key not found",
+			want:    ErrForeignKey,
+			notWant: ErrNotFound,
+		},
+		{
+			name:    "ORA-02292 child record found is a foreign-key violation",
+			input:   "ORA-02292: integrity constraint (TMI.FK_ASSETS_TM) violated - child record found",
+			want:    ErrForeignKey,
+			notWant: ErrNotFound,
+		},
+		{
+			name:  "ORA-00001 unique constraint is a duplicate",
+			input: "ORA-00001: unique constraint (TMI.UQ_USERS_EMAIL) violated",
+			want:  ErrDuplicate,
+		},
+		{
+			name:  "ORA-02290 check constraint is a constraint error",
+			input: "ORA-02290: check constraint (TMI.CK_SEVERITY) violated",
+			want:  ErrConstraint,
+		},
+		{
+			// The plain case must still classify as not-found; the reorder
+			// must not have cost anything.
+			name:  "a plain not-found string is still ErrNotFound",
+			input: "threat model not found",
+			want:  ErrNotFound,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := classifyByString(errors.New(tc.input))
+			if !errors.Is(got, tc.want) {
+				t.Fatalf("expected %v, got %v", tc.want, got)
+			}
+			if tc.notWant != nil && errors.Is(got, tc.notWant) {
+				t.Fatalf("must not classify as %v: %v", tc.notWant, got)
+			}
+		})
+	}
 }

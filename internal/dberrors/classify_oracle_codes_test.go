@@ -41,6 +41,37 @@ func TestClassifyOracleCode_NotNullViolation(t *testing.T) {
 	assert.False(t, errors.Is(err, ErrForeignKey))
 }
 
+// ORA-01407 is the UPDATE-path sibling of ORA-01400 (which Oracle raises only
+// on INSERT). It is reachable wherever a NOT NULL string column is emptied,
+// because Oracle binds an empty string as NULL. Before this case existed the
+// error fell
+// through to the string fallback, matched none of its patterns, and became a
+// 500 on Oracle while the same request succeeded on PostgreSQL.
+func TestClassifyOracleCode_NotNullUpdateViolation(t *testing.T) {
+	src := fmt.Errorf(`ORA-01407: cannot update ("TMI"."REPOSITORIES"."URI") to NULL`)
+	err := classifyOracleCode(src, 1407)
+	assert.True(t, errors.Is(err, ErrConstraint))
+	assert.False(t, errors.Is(err, ErrNotFound))
+	assert.False(t, errors.Is(err, ErrForeignKey))
+}
+
+// ORA-01438 is the Oracle half of the pair whose PostgreSQL side (22003,
+// numeric_value_out_of_range) classify_pg.go already maps to ErrConstraint.
+// Reachable via PATCH .../threats/{id} with an out-of-range score: Threat.Score
+// is decimal(3,1) -> NUMBER(3,1) on Oracle, and map-based Updates runs
+// BeforeSave against an empty struct so ValidateScore never sees the value.
+func TestClassifyOracleCode_ValueLargerThanPrecision(t *testing.T) {
+	src := fmt.Errorf("ORA-01438: value larger than specified precision allowed for this column")
+	err := classifyOracleCode(src, 1438)
+	assert.True(t, errors.Is(err, ErrConstraint))
+	assert.False(t, errors.Is(err, ErrNotFound))
+	assert.False(t, errors.Is(err, ErrTransient))
+
+	// ORA-01401 is the pre-11g spelling of ORA-12899.
+	legacy := classifyOracleCode(fmt.Errorf("ORA-01401: inserted value too large for column"), 1401)
+	assert.True(t, errors.Is(legacy, ErrConstraint))
+}
+
 func TestClassifyOracleCode_CheckConstraintViolated(t *testing.T) {
 	src := fmt.Errorf("ORA-02290: check constraint (X.Y) violated")
 	err := classifyOracleCode(src, 2290)

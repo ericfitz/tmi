@@ -310,8 +310,8 @@ func setupAdminGroupRouter() (*gin.Engine, *Server, *mockGroupStoreForAdminHandl
 		server.ListAdminGroups(c, params)
 	})
 
-	r.GET("/admin/groups/:internal_uuid", func(c *gin.Context) {
-		uuidStr := c.Param("internal_uuid")
+	r.GET("/admin/groups/:group_id", func(c *gin.Context) {
+		uuidStr := c.Param("group_id")
 		parsedUUID, err := uuid.Parse(uuidStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_uuid", "error_description": "internal_uuid must be a valid UUID"})
@@ -322,8 +322,8 @@ func setupAdminGroupRouter() (*gin.Engine, *Server, *mockGroupStoreForAdminHandl
 
 	r.POST("/admin/groups", server.CreateAdminGroup)
 
-	r.PATCH("/admin/groups/:internal_uuid", func(c *gin.Context) {
-		uuidStr := c.Param("internal_uuid")
+	r.PATCH("/admin/groups/:group_id", func(c *gin.Context) {
+		uuidStr := c.Param("group_id")
 		parsedUUID, err := uuid.Parse(uuidStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_uuid", "error_description": "internal_uuid must be a valid UUID"})
@@ -332,8 +332,8 @@ func setupAdminGroupRouter() (*gin.Engine, *Server, *mockGroupStoreForAdminHandl
 		server.UpdateAdminGroup(c, parsedUUID)
 	})
 
-	r.DELETE("/admin/groups/:internal_uuid", func(c *gin.Context) {
-		uuidStr := c.Param("internal_uuid")
+	r.DELETE("/admin/groups/:group_id", func(c *gin.Context) {
+		uuidStr := c.Param("group_id")
 		parsedUUID, err := uuid.Parse(uuidStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_uuid", "error_description": "internal_uuid must be a valid UUID"})
@@ -343,8 +343,8 @@ func setupAdminGroupRouter() (*gin.Engine, *Server, *mockGroupStoreForAdminHandl
 	})
 
 	// Register group member routes
-	r.GET("/admin/groups/:internal_uuid/members", func(c *gin.Context) {
-		uuidStr := c.Param("internal_uuid")
+	r.GET("/admin/groups/:group_id/members", func(c *gin.Context) {
+		uuidStr := c.Param("group_id")
 		parsedUUID, err := uuid.Parse(uuidStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_uuid"})
@@ -366,8 +366,8 @@ func setupAdminGroupRouter() (*gin.Engine, *Server, *mockGroupStoreForAdminHandl
 		server.ListGroupMembers(c, parsedUUID, params)
 	})
 
-	r.POST("/admin/groups/:internal_uuid/members", func(c *gin.Context) {
-		uuidStr := c.Param("internal_uuid")
+	r.POST("/admin/groups/:group_id/members", func(c *gin.Context) {
+		uuidStr := c.Param("group_id")
 		parsedUUID, err := uuid.Parse(uuidStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_uuid"})
@@ -376,8 +376,8 @@ func setupAdminGroupRouter() (*gin.Engine, *Server, *mockGroupStoreForAdminHandl
 		server.AddGroupMember(c, parsedUUID)
 	})
 
-	r.DELETE("/admin/groups/:internal_uuid/members/:member_uuid", func(c *gin.Context) {
-		groupUUIDStr := c.Param("internal_uuid")
+	r.DELETE("/admin/groups/:group_id/members/:member_uuid", func(c *gin.Context) {
+		groupUUIDStr := c.Param("group_id")
 		memberUUIDStr := c.Param("member_uuid")
 		groupUUID, err := uuid.Parse(groupUUIDStr)
 		if err != nil {

@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -146,6 +148,17 @@ func seedViaAPI(serverURL, token string, entry SeedEntry, refs RefMap, db *testd
 		return client.seedChildResource(entry, refs, "threat_model_ref", "documents")
 	case kindNote:
 		return client.seedChildResource(entry, refs, "threat_model_ref", "notes")
+	case kindTeamNote:
+		return client.seedNestedResource(entry, refs, "team_ref", "teams", "team_id", "notes")
+	case kindProjectNote:
+		return client.seedNestedResource(entry, refs, "project_ref", "projects", "project_id", "notes")
+	case kindFeedback:
+		return client.seedFeedback(entry, refs)
+	case kindTriageNote:
+		return client.seedNestedResource(
+			entry, refs, "survey_response_ref", "triage/survey_responses",
+			"survey_response_id", "triage_notes",
+		)
 	case kindRepository:
 		return client.seedChildResource(entry, refs, "threat_model_ref", "repositories")
 	case kindWebhook:
@@ -266,7 +279,11 @@ func (c *apiClient) findExistingByNameHTTP(path, itemsKey, name string) string {
 		for _, item := range items {
 			if m, ok := item.(map[string]any); ok {
 				if n, _ := m["name"].(string); n == name {
-					if id, _ := m["id"].(string); id != "" {
+					// extractID, not a string assertion: a few resources
+					// (TriageNote) use an integer id, and this is the
+					// idempotency check -- getting it wrong re-creates the
+					// resource on every seed rather than reusing it.
+					if id, ok := extractID(m["id"]); ok {
 						return id
 					}
 				}
@@ -274,6 +291,27 @@ func (c *apiClient) findExistingByNameHTTP(path, itemsKey, name string) string {
 		}
 	}
 	return ""
+}
+
+// findFirstIDHTTP returns the id of the first item in a listing, for resources
+// that have no name to match on (content feedback). Empty if the listing is
+// empty or unreachable.
+// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: fetch the id of the first item in an API listing, returning empty if absent
+func (c *apiClient) findFirstIDHTTP(path, itemsKey string) string {
+	result, status, err := c.apiRequest("GET", path+"?limit=1", nil)
+	if err != nil || status >= 300 {
+		return ""
+	}
+	items, ok := result[itemsKey].([]any)
+	if !ok || len(items) == 0 {
+		return ""
+	}
+	m, ok := items[0].(map[string]any)
+	if !ok {
+		return ""
+	}
+	id, _ := extractID(m["id"])
+	return id
 }
 
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: fetch the internal UUID of an admin group by group name, returning empty if absent
@@ -613,28 +651,44 @@ func (c *apiClient) seedGroupMember(entry SeedEntry, refs RefMap) (*SeedResult, 
 
 // SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: create a threat-model child resource via API, skipping if one with the same name exists
 func (c *apiClient) seedChildResource(entry SeedEntry, refs RefMap, refField, resourcePath string) (*SeedResult, error) {
+	return c.seedNestedResource(entry, refs, refField, "threat_models", "threat_model_id", resourcePath)
+}
+
+// seedNestedResource creates a resource nested under any parent collection.
+//
+// Generalized from seedChildResource, which hard-coded /threat_models: notes,
+// feedback and triage notes hang off teams, projects and survey responses too,
+// and each of those path parameters was uncovered in refData (#597).
+// parentCollection is the URL segment ("teams"), parentIDKey the name the
+// resolved parent id is published under in Extra so the reference file can
+// emit it.
+// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: create a resource nested under a parent collection via API, skipping if one with the same name exists
+func (c *apiClient) seedNestedResource(
+	entry SeedEntry, refs RefMap, refField, parentCollection, parentIDKey, resourcePath string,
+) (*SeedResult, error) {
 	log := slogging.Get()
 
-	tmID, err := resolveRefField(entry.Data, refField, refs)
+	parentID, err := resolveRefField(entry.Data, refField, refs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve %s: %w", refField, err)
 	}
-	if tmID == "" {
+	if parentID == "" {
 		return nil, fmt.Errorf("%s is required for %s seed", refField, entry.Kind)
 	}
+
+	collectionPath := fmt.Sprintf("/%s/%s/%s", parentCollection, parentID, resourcePath)
 
 	// Idempotency: check if a child resource with this name already exists
 	name, _ := entry.Data["name"].(string)
 	if name != "" {
-		listPath := fmt.Sprintf("/threat_models/%s/%s", tmID, resourcePath)
-		if existingID := c.findExistingByNameHTTP(listPath, resourcePath, name); existingID != "" {
+		if existingID := c.findExistingByNameHTTP(collectionPath, resourcePath, name); existingID != "" {
 			log.Info("  %s already exists: %s (skipping)", entry.Kind, existingID)
 			return &SeedResult{
 				Ref:  entry.Ref,
 				Kind: entry.Kind,
 				ID:   existingID,
 				Extra: map[string]string{
-					"threat_model_id": tmID,
+					parentIDKey: parentID,
 				},
 			}, nil
 		}
@@ -643,8 +697,7 @@ func (c *apiClient) seedChildResource(entry SeedEntry, refs RefMap, refField, re
 	payload := copyMap(entry.Data)
 	delete(payload, refField)
 
-	url := fmt.Sprintf("/threat_models/%s/%s", tmID, resourcePath)
-	id, err := c.createAPIObject(entry.Kind, url, payload)
+	id, err := c.createAPIObject(entry.Kind, collectionPath, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -653,8 +706,61 @@ func (c *apiClient) seedChildResource(entry SeedEntry, refs RefMap, refField, re
 		Kind: entry.Kind,
 		ID:   id,
 		Extra: map[string]string{
-			"threat_model_id": tmID,
+			parentIDKey: parentID,
 		},
+	}, nil
+}
+
+// seedFeedback creates a content-feedback entry on a threat model.
+//
+// Feedback has no name, so seedNestedResource's name-based idempotency check
+// cannot apply; instead a threat model is allowed at most one seeded feedback
+// entry and an existing one is reused. target_ref names the seed ref of the
+// artifact the feedback is about (a note, diagram or threat) and is resolved
+// to target_id here — a fabricated UUID would 404.
+// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: create a content-feedback entry on a threat model, reusing an existing one
+func (c *apiClient) seedFeedback(entry SeedEntry, refs RefMap) (*SeedResult, error) {
+	log := slogging.Get()
+
+	tmID, err := resolveRefField(entry.Data, "threat_model_ref", refs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve threat_model_ref: %w", err)
+	}
+	if tmID == "" {
+		return nil, fmt.Errorf("threat_model_ref is required for %s seed", entry.Kind)
+	}
+
+	collectionPath := fmt.Sprintf("/threat_models/%s/feedback", tmID)
+	if existingID := c.findFirstIDHTTP(collectionPath, "feedback"); existingID != "" {
+		log.Info("  %s already exists: %s (skipping)", entry.Kind, existingID)
+		return &SeedResult{
+			Ref:   entry.Ref,
+			Kind:  entry.Kind,
+			ID:    existingID,
+			Extra: map[string]string{"threat_model_id": tmID},
+		}, nil
+	}
+
+	payload := copyMap(entry.Data)
+	delete(payload, "threat_model_ref")
+	if targetRef, _ := payload["target_ref"].(string); targetRef != "" {
+		targetID, err := resolveRef(refs, targetRef)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve target_ref: %w", err)
+		}
+		payload["target_id"] = targetID
+		delete(payload, "target_ref")
+	}
+
+	id, err := c.createAPIObject(entry.Kind, collectionPath, payload)
+	if err != nil {
+		return nil, err
+	}
+	return &SeedResult{
+		Ref:   entry.Ref,
+		Kind:  entry.Kind,
+		ID:    id,
+		Extra: map[string]string{"threat_model_id": tmID},
 	}, nil
 }
 
@@ -991,13 +1097,115 @@ func (c *apiClient) createAPIObject(name, path string, payload any) (string, err
 		return "", fmt.Errorf("failed to create %s: HTTP %d - %v", name, status, result)
 	}
 
-	id, ok := result["id"].(string)
-	if !ok || id == "" {
+	id, ok := extractID(result["id"])
+	if !ok {
 		return "", fmt.Errorf("no 'id' field in response for %s: %v", name, result)
 	}
 
 	log.Info("    Created %s: %s", name, id)
 	return id, nil
+}
+
+// Bounded poll for asynchronously-written audit entries. 20 x 1s covers the
+// ~10s lag observed on a freshly seeded threat model's trail with headroom,
+// and only costs that long when a listing is genuinely empty — the two admin
+// listings carry history from previous runs and return on the first attempt.
+const (
+	auditCaptureAttempts = 20
+	auditCaptureInterval = time.Second
+)
+
+// auditEntryCapture describes one audit listing to harvest an entry id from.
+// SEM@e1f2a3b4c5d6e7f8091a2b3c4d5e6f7081929304: audit listing to harvest an entry id from after seeding (pure)
+type auditEntryCapture struct {
+	Kind     string // seed kind the captured id is registered under
+	ListPath string // collection to read (may contain a %s for the threat model id)
+	ItemsKey string // JSON array property holding the entries
+}
+
+// auditEntryCaptures enumerates the three audit families. They all use the
+// path parameter name `entry_id` but identify entries in different tables, so
+// like /admin/groups vs /admin/users (#603) a single global refData value
+// cannot satisfy all of them — reference.go emits per-path sections instead.
+var auditEntryCaptures = []auditEntryCapture{
+	{"audit_entry_system", "/admin/audit/system", "entries"},
+	{"audit_entry_admin_tm", "/admin/audit/threat_models", "entries"},
+	{"audit_entry_tm_trail", "/threat_models/%s/audit_trail", "audit_entries"},
+}
+
+// captureAuditEntryIDs harvests one real entry id from each audit listing.
+//
+// Audit entries cannot be seeded like other resources: they are a side effect
+// of the seeding itself, so there is nothing to point a seed entry at (#597).
+// This runs AFTER the seed loop, when the writes that generated them have
+// happened, and registers what it finds in the ref map so the reference file
+// can emit it.
+//
+// Best-effort by design: an empty audit table or an unreachable endpoint
+// leaves that family without an id, exactly as before this existed. A seed
+// must not fail because a listing happened to be empty.
+// SEM@e1f2a3b4c5d6e7f8091a2b3c4d5e6f7081929304: harvest one audit entry id per audit family after seeding (reads API)
+func (c *apiClient) captureAuditEntryIDs(refs RefMap, threatModelID string) {
+	log := slogging.Get()
+	for _, capture := range auditEntryCaptures {
+		path := capture.ListPath
+		if strings.Contains(path, "%s") {
+			if threatModelID == "" || threatModelID == nilUUID {
+				continue
+			}
+			path = fmt.Sprintf(path, threatModelID)
+		}
+		// Audit entries are written asynchronously, so a listing read the
+		// instant seeding finishes can still be empty for rows whose writes
+		// have already returned 200 — observed as a ~10s lag on a threat
+		// model's own trail. Poll briefly rather than concluding "no entries".
+		var id string
+		for attempt := range auditCaptureAttempts {
+			if id = c.findFirstIDHTTP(path, capture.ItemsKey); id != "" {
+				break
+			}
+			if attempt < auditCaptureAttempts-1 {
+				time.Sleep(auditCaptureInterval)
+			}
+		}
+		if id == "" {
+			log.Info("  no audit entry available from %s after %s (skipping %s)",
+				path, auditCaptureAttempts*auditCaptureInterval, capture.Kind)
+			continue
+		}
+		refs["audit-entry:"+capture.Kind] = &SeedResult{
+			Ref:  "audit-entry:" + capture.Kind,
+			Kind: capture.Kind,
+			ID:   id,
+		}
+		log.Info("  Captured %s: %s", capture.Kind, id)
+	}
+}
+
+// extractID renders a resource id from a decoded JSON value.
+//
+// Most TMI resources use a UUID string, but a few are scoped-sequential
+// integers — TriageNote.id is "sequential identifier for the triage note
+// within its survey response" — and encoding/json decodes those as float64.
+// A string-only assertion rejected them with "no 'id' field in response",
+// which is both wrong and misleading, since the field was right there.
+// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: render a resource id from a decoded JSON string or number (pure)
+func extractID(v any) (string, bool) {
+	switch id := v.(type) {
+	case string:
+		return id, id != ""
+	case float64:
+		// Integer ids only; a fractional value is not an id and must not be
+		// silently truncated into one.
+		if id != math.Trunc(id) {
+			return "", false
+		}
+		return strconv.FormatInt(int64(id), 10), true
+	case json.Number:
+		return id.String(), id.String() != ""
+	default:
+		return "", false
+	}
 }
 
 // SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: shallow-copy a string-keyed map (pure)

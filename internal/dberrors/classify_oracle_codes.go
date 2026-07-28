@@ -21,6 +21,98 @@ func SnapshotTooOldCount() uint64 {
 	return ora01555Counter.Load()
 }
 
+// oracleCodeSentinels maps an ORA- numeric code to the sentinel it classifies
+// as. A table rather than a switch because the switch outgrew the cyclomatic
+// complexity budget; every arm was a bare `return Wrap(err, X)`, so the mapping
+// is pure data and reads better as such. Codes absent from this table fall
+// through to classifyOracleCode's ORA-01555 instrumentation and then to nil,
+// which means "defer to the string fallback in classify.go".
+var oracleCodeSentinels = map[int]error{
+	// Unique constraint violated
+	1: ErrDuplicate, // ORA-00001
+
+	// Foreign key violations
+	2291: ErrForeignKey, // parent key not found
+	2292: ErrForeignKey, // child record found
+
+	// Undefined schema object (PG 42P01 analogue). ORA-02289 fires when a
+	// referenced sequence does not exist (e.g. NEXTVAL on a dropped sequence);
+	// ORA-00942 when a table or view does not exist. Classified distinctly so
+	// callers that can repair the object (e.g. reinstall the alias sequence)
+	// can do so instead of returning 500. Not transient — a bare retry fails
+	// identically until the object is recreated.
+	2289: ErrUndefinedObject, // sequence does not exist
+	942:  ErrUndefinedObject, // table or view does not exist
+
+	// Constraint violations
+	12899: ErrConstraint, // value too large for column
+	1400:  ErrConstraint, // cannot insert NULL into ... — PG-23502 analogue
+	// ORA-01407 (cannot update ... to NULL) is the UPDATE-path sibling of
+	// ORA-01400, which Oracle raises only on INSERT. Reachable because Oracle
+	// binds '' as NULL: emptying a NOT NULL string column succeeds on
+	// PostgreSQL and raises this on Oracle. Without this entry the string
+	// fallback in classify.go matches none of its patterns, the error stays
+	// unclassified, and StoreErrorToRequestError degrades it to a 500 on
+	// Oracle only — a Zero-500 violation invisible in PG testing.
+	1407: ErrConstraint,
+	2290: ErrConstraint, // check constraint violated — PG-23514 analogue
+	// ORA-01438 (value larger than specified precision allowed for this column)
+	// is the Oracle half of the pair classify_pg.go documents when it maps PG
+	// 22003 (numeric_value_out_of_range) to ErrConstraint. Reachable the same
+	// way ORA-01407 was: Threat.Score is decimal(3,1) -> NUMBER(3,1) on Oracle,
+	// and a JSON Patch `replace /score 999` is unchecked because map-based
+	// Updates runs Threat.BeforeSave against an empty struct. PG returns 400
+	// via 22003; without this Oracle fell through to a 500. ORA-01401 is the
+	// pre-11g spelling of ORA-12899, folded in for completeness.
+	1438: ErrConstraint,
+	1401: ErrConstraint,
+
+	// Serialization / deadlock / lock contention
+	8177: ErrTransient, // can't serialize access
+	60:   ErrTransient, // deadlock detected
+	54:   ErrTransient, // resource busy and acquire with NOWAIT specified or timeout expired
+
+	// Connection errors
+	3113:  ErrTransient, // end-of-file on communication channel
+	3114:  ErrTransient, // not connected
+	3135:  ErrTransient, // connection lost contact
+	12170: ErrTransient, // connect timeout
+	12537: ErrTransient, // TNS: connection closed — companion to 12541/12543, common on ADB maintenance
+	12541: ErrTransient, // no listener
+	12543: ErrTransient, // destination host unreachable
+
+	// Package state discarded — retry is safe regardless of whether the same
+	// session is reused: the failing session has already invalidated its stale
+	// cursor by the time the retry begins; a different pool session was never
+	// affected. Common on ADB plan-change/upgrade events.
+	4068: ErrTransient, // existing state of package has been discarded
+
+	// Permission / credential errors
+	1017:  ErrPermission, // invalid username/password
+	1031:  ErrPermission, // insufficient privileges
+	1045:  ErrPermission, // user lacks CREATE SESSION privilege; logon denied
+	28001: ErrPermission, // the password has expired — fires if ADB credential rotates and wallet wasn't refreshed
+
+	// User-requested cancellation (often query timeout)
+	1013: ErrContextDone, // user requested cancel of current operation
+
+	// Application-defined errors (range -20000 to -20999).
+	// ORA-20001 is the code raised by the audit_entries / version_snapshots
+	// append-only triggers (T19, #356). Classified as ErrAppendOnlyViolation so
+	// callers can distinguish a T19 trip from a generic constraint violation;
+	// the error chain still satisfies errors.Is(err, ErrConstraint) for any
+	// caller that only cares about the broader category.
+	20001: ErrAppendOnlyViolation,
+
+	// Additional ADB transient conditions
+	18:    ErrTransient, // maximum number of sessions exceeded — ADB tier-cap exhaustion
+	20:    ErrTransient, // maximum number of processes exceeded
+	3156:  ErrTransient, // RPC connection timed out
+	12519: ErrTransient, // TNS:no appropriate service handler found — ADB shape-resize transient
+	12520: ErrTransient, // TNS:listener could not find available handler — ADB autoscale
+	25408: ErrTransient, // can not safely replay call — Application Continuity / replay-driver
+}
+
 // classifyOracleCode maps an ORA- numeric code to a typed sentinel.
 // Lives outside the //go:build oracle file so it can be unit-tested
 // without depending on godror (which requires CGO + Oracle Instant Client).
@@ -31,97 +123,10 @@ func SnapshotTooOldCount() uint64 {
 // observed occurrence rate. ORA-01555 occurrences are counted in
 // ora01555Counter and emit a WARN log so operators can decide whether the
 // rate justifies reclassification.
-// SEM@178dbd0418cfb7e057d4297c7a88c5879cb64c7f: map an Oracle ORA- error code to a typed sentinel error; instrument ORA-01555 with counter and warn log (pure)
+// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: look up an Oracle ORA- error code in a table to classify its sentinel error; instrument ORA-01555 with counter and warn log (pure)
 func classifyOracleCode(err error, code int) error {
-	switch code {
-	// Unique constraint violated
-	case 1: // ORA-00001
-		return Wrap(err, ErrDuplicate)
-
-	// Foreign key violations
-	case 2291, 2292: // ORA-02291 (parent key not found), ORA-02292 (child record found)
-		return Wrap(err, ErrForeignKey)
-
-	// Undefined schema object (PG 42P01 analogue). ORA-02289 fires when a
-	// referenced sequence does not exist (e.g. NEXTVAL on a dropped sequence);
-	// ORA-00942 when a table or view does not exist. Classified distinctly so
-	// callers that can repair the object (e.g. reinstall the alias sequence)
-	// can do so instead of returning 500. Not transient — a bare retry fails
-	// identically until the object is recreated.
-	case 2289, 942: // ORA-02289 (sequence does not exist), ORA-00942 (table or view does not exist)
-		return Wrap(err, ErrUndefinedObject)
-
-	// Constraint violations
-	case 12899: // ORA-12899 (value too large for column)
-		return Wrap(err, ErrConstraint)
-	case 1400: // ORA-01400 (cannot insert NULL into ...) — PG-23502 analogue
-		return Wrap(err, ErrConstraint)
-	case 2290: // ORA-02290 (check constraint violated) — PG-23514 analogue
-		return Wrap(err, ErrConstraint)
-
-	// Serialization / deadlock / lock contention
-	case 8177: // ORA-08177 (can't serialize access)
-		return Wrap(err, ErrTransient)
-	case 60: // ORA-00060 (deadlock detected)
-		return Wrap(err, ErrTransient)
-	case 54: // ORA-00054 (resource busy and acquire with NOWAIT specified or timeout expired)
-		return Wrap(err, ErrTransient)
-
-	// Connection errors
-	case 3113, 3114: // ORA-03113/03114 (end-of-file on communication channel / not connected)
-		return Wrap(err, ErrTransient)
-	case 3135: // ORA-03135 (connection lost contact)
-		return Wrap(err, ErrTransient)
-	case 12170: // ORA-12170 (connect timeout)
-		return Wrap(err, ErrTransient)
-	case 12537: // ORA-12537 (TNS: connection closed) — companion to 12541/12543, common on ADB maintenance
-		return Wrap(err, ErrTransient)
-	case 12541, 12543: // ORA-12541/12543 (no listener / destination host unreachable)
-		return Wrap(err, ErrTransient)
-
-	// Package state discarded — retry is safe regardless of whether the same session
-	// is reused: the failing session has already invalidated its stale cursor by the
-	// time the retry begins; a different pool session was never affected. Common on
-	// ADB plan-change/upgrade events.
-	case 4068: // ORA-04068 (existing state of package has been discarded)
-		return Wrap(err, ErrTransient)
-
-	// Permission / credential errors
-	case 1017: // ORA-01017 (invalid username/password)
-		return Wrap(err, ErrPermission)
-	case 1031: // ORA-01031 (insufficient privileges)
-		return Wrap(err, ErrPermission)
-	case 1045: // ORA-01045 (user lacks CREATE SESSION privilege; logon denied)
-		return Wrap(err, ErrPermission)
-	case 28001: // ORA-28001 (the password has expired) — fires if ADB credential rotates and wallet wasn't refreshed
-		return Wrap(err, ErrPermission)
-
-	// User-requested cancellation (often query timeout)
-	case 1013: // ORA-01013 (user requested cancel of current operation)
-		return Wrap(err, ErrContextDone)
-
-	// Application-defined errors (range -20000 to -20999).
-	// ORA-20001 is the code raised by the audit_entries / version_snapshots
-	// append-only triggers (T19, #356). Classify it as ErrAppendOnlyViolation
-	// so callers can distinguish a T19 trip from a generic constraint
-	// violation; the error chain still satisfies errors.Is(err, ErrConstraint)
-	// for any caller that only cares about the broader category.
-	case 20001:
-		return Wrap(err, ErrAppendOnlyViolation)
-
-	// Additional ADB transient conditions
-	case 18: // ORA-00018 (maximum number of sessions exceeded) — ADB tier-cap exhaustion
-		return Wrap(err, ErrTransient)
-	case 20: // ORA-00020 (maximum number of processes exceeded)
-		return Wrap(err, ErrTransient)
-	case 3156: // ORA-03156 (RPC connection timed out)
-		return Wrap(err, ErrTransient)
-	case 12519: // ORA-12519 (TNS:no appropriate service handler found) — ADB shape-resize transient
-		return Wrap(err, ErrTransient)
-	case 12520: // ORA-12520 (TNS:listener could not find available handler) — ADB autoscale
-		return Wrap(err, ErrTransient)
-	case 25408: // ORA-25408 (can not safely replay call) — Application Continuity / replay-driver
-		return Wrap(err, ErrTransient)
+	if sentinel, ok := oracleCodeSentinels[code]; ok {
+		return Wrap(err, sentinel)
 	}
 
 	// ORA-01555 (snapshot too old) — defer to data. We instrument the

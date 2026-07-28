@@ -980,7 +980,12 @@ func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 	// Apply patch operations
 	updatedDocument, err := h.documentStore.Patch(c.Request.Context(), documentID, operations)
 	if err != nil {
-		HandleRequestError(c, ServerError("Failed to patch document"))
+		// Classify rather than assuming a server fault: the store returns a
+		// 400 patch_failed for an inapplicable JSON Patch and a not-found for
+		// a missing document, and hardcoding ServerError turned both into 500
+		// (#611). Matches the asset handler, which already did this.
+		logger.Error("Failed to patch document %s: %v", documentID, err)
+		HandleRequestError(c, StoreErrorToRequestError(err, "Document not found", "Failed to patch document"))
 		return
 	}
 	if documentNewVersion > 0 {

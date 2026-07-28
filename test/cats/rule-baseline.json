@@ -1,0 +1,298 @@
+{
+  "_comment": "Golden baseline of per-rule firing counts for test/cats/false-positives.yaml, captured against CATS run 20260728T042755Z (121,673 tests) on 2026-07-28. This is the first baseline taken from a corpus that passes BOTH run-validity gates (connection errors 0.06%, non-false-positive 401s 0.17%); the previous baseline came from a run that lost its bearer token 21% of the way in and ran the rest unauthenticated (#591), which is why its OAUTH_AUTH_401_403 count was 52,804. Rules are evaluated in file order, first match wins (see false-positives.yaml header). `matched` = records the rule condition matches in isolation (regardless of earlier rules), computed with `cats_tool.py classify --rules <single-rule> --dry-run`; `fired` = records where this rule is the first match under first-match-wins. Regenerate after any deliberate rule change per test/cats/README.md.",
+  "corpus_run": "20260728T042755Z",
+  "corpus_date": "2026-07-28",
+  "total_records": 121673,
+  "classified_records": 10029,
+  "suppressed_records": 8187,
+  "rules": [
+    {
+      "id": "CONNECTION_ERROR_999",
+      "position": 1,
+      "matched": 78,
+      "fired": 78
+    },
+    {
+      "id": "RATE_LIMIT_429",
+      "position": 2,
+      "matched": 13,
+      "fired": 13
+    },
+    {
+      "id": "AUTH_BYPASS_401_403",
+      "position": 3,
+      "matched": 442,
+      "fired": 442
+    },
+    {
+      "id": "VALIDATION_400",
+      "position": 4,
+      "matched": 1087,
+      "fired": 1087
+    },
+    {
+      "id": "NOT_FOUND_404",
+      "position": 5,
+      "matched": 3288,
+      "fired": 3288
+    },
+    {
+      "id": "IDOR_ADMIN",
+      "position": 6,
+      "matched": 0,
+      "fired": 0
+    },
+    {
+      "id": "IDOR_SAME_OWNER",
+      "position": 7,
+      "matched": 0,
+      "fired": 0
+    },
+    {
+      "id": "HTTP_METHODS",
+      "position": 8,
+      "matched": 17,
+      "fired": 17
+    },
+    {
+      "id": "CONTENT_TYPE_GO_HTTP",
+      "position": 9,
+      "matched": 97,
+      "fired": 97
+    },
+    {
+      "id": "INJECTION_JSON_API",
+      "position": 10,
+      "matched": 98,
+      "fired": 26
+    },
+    {
+      "id": "XSS_QUERY_PARAMS",
+      "position": 11,
+      "matched": 460,
+      "fired": 377
+    },
+    {
+      "id": "HEADER_VALIDATION_400",
+      "position": 12,
+      "matched": 723,
+      "fired": 723
+    },
+    {
+      "id": "STRING_BOUNDARY_OPTIONAL",
+      "position": 13,
+      "matched": 34,
+      "fired": 34
+    },
+    {
+      "id": "DELETED_RESOURCE_LIST",
+      "position": 14,
+      "matched": 15,
+      "fired": 15
+    },
+    {
+      "id": "FORM_URLENCODED_JSON_TEST",
+      "position": 15,
+      "matched": 7,
+      "fired": 7
+    },
+    {
+      "id": "DELETE_ME_CHALLENGE",
+      "position": 16,
+      "matched": 10,
+      "fired": 4
+    },
+    {
+      "id": "PATH_PARAM_VALIDATION",
+      "position": 17,
+      "matched": 415,
+      "fired": 299
+    },
+    {
+      "id": "EMPTY_BODY_REQUIRED_FIELDS",
+      "position": 18,
+      "matched": 6,
+      "fired": 6
+    },
+    {
+      "id": "EMPTY_JSON_BODY_NOT_FOUND",
+      "position": 19,
+      "matched": 3,
+      "fired": 3
+    },
+    {
+      "id": "STRING_BOUNDARY_EMPTY_PATH",
+      "position": 20,
+      "matched": 43,
+      "fired": 16
+    },
+    {
+      "id": "NO_BODY_ENDPOINT",
+      "position": 21,
+      "matched": 10,
+      "fired": 4
+    },
+    {
+      "id": "SURVEY_VALIDATION_400",
+      "position": 22,
+      "matched": 72,
+      "fired": 38
+    },
+    {
+      "id": "SURVEY_DELETE_CONFLICT_409",
+      "position": 23,
+      "matched": 12,
+      "fired": 12
+    },
+    {
+      "id": "JSONPATCH_INVALID_400",
+      "position": 24,
+      "matched": 729,
+      "fired": 334
+    },
+    {
+      "id": "SURVEY_RESPONSE_VALIDATION_400",
+      "position": 25,
+      "matched": 22,
+      "fired": 10
+    },
+    {
+      "id": "METADATA_BULK_VALIDATION_400",
+      "position": 26,
+      "matched": 94,
+      "fired": 24
+    },
+    {
+      "id": "SCHEMA_MISMATCH_VALID_ERROR",
+      "position": 27,
+      "matched": 897,
+      "fired": 593
+    },
+    {
+      "id": "SSRF_VALIDATION_400",
+      "position": 28,
+      "matched": 86,
+      "fired": 86
+    },
+    {
+      "id": "SURVEY_EXAMPLES_CONFLICT_409",
+      "position": 29,
+      "matched": 11,
+      "fired": 11
+    },
+    {
+      "id": "SURVEY_METADATA_CONFLICT_409",
+      "position": 30,
+      "matched": 23,
+      "fired": 22
+    },
+    {
+      "id": "EMPTY_ARRAY_BODY_200",
+      "position": 31,
+      "matched": 2,
+      "fired": 2
+    },
+    {
+      "id": "ADDON_PARAMETER_VALIDATION_400",
+      "position": 32,
+      "matched": 19,
+      "fired": 11
+    },
+    {
+      "id": "REVOKE_STRING_BOUNDARY_RFC7009",
+      "position": 33,
+      "matched": 9,
+      "fired": 9
+    },
+    {
+      "id": "REVOKE_TYPE_COERCION_RFC7009",
+      "position": 34,
+      "matched": 30,
+      "fired": 30
+    },
+    {
+      "id": "REVOKE_HTTP_METHODS_RFC7009",
+      "position": 35,
+      "matched": 0,
+      "fired": 0
+    },
+    {
+      "id": "AUTOMATION_ACCOUNT_CONFLICT_409",
+      "position": 36,
+      "matched": 10,
+      "fired": 10
+    },
+    {
+      "id": "INTROSPECT_RFC7662",
+      "position": 37,
+      "matched": 85,
+      "fired": 81
+    },
+    {
+      "id": "OAUTH_TOKEN_VALIDATION_400",
+      "position": 38,
+      "matched": 74,
+      "fired": 28
+    },
+    {
+      "id": "OAUTH_TOKEN_INVALID_CLIENT_401",
+      "position": 39,
+      "matched": 1,
+      "fired": 1
+    },
+    {
+      "id": "TYPE_COERCION_STRING",
+      "position": 40,
+      "matched": 74,
+      "fired": 34
+    },
+    {
+      "id": "WEBHOOK_DELIVERY_AUTH_404",
+      "position": 41,
+      "matched": 44,
+      "fired": 6
+    },
+    {
+      "id": "WEBHOOK_TEST_VALIDATION",
+      "position": 42,
+      "matched": 43,
+      "fired": 3
+    },
+    {
+      "id": "SELF_DELETION_409",
+      "position": 43,
+      "matched": 0,
+      "fired": 0
+    },
+    {
+      "id": "CHECK_DELETED_405",
+      "position": 44,
+      "matched": 17,
+      "fired": 17
+    },
+    {
+      "id": "AUDIT_QUERY_VALIDATION_400",
+      "position": 45,
+      "matched": 63,
+      "fired": 26
+    },
+    {
+      "id": "STEP_UP_AUTH_401",
+      "position": 46,
+      "matched": 92,
+      "fired": 92
+    },
+    {
+      "id": "AUTOMATION_ONLY_ENDPOINT_403",
+      "position": 47,
+      "matched": 171,
+      "fired": 171
+    },
+    {
+      "id": "ADMIN_CLIENT_CREDENTIALS_AUTOMATION_ONLY_403",
+      "position": 48,
+      "matched": 0,
+      "fired": 0
+    }
+  ]
+}

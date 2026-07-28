@@ -163,9 +163,9 @@ func (s *Server) TransferCurrentUserOwnership(c *gin.Context) {
 	s.ownershipTransferHandler.TransferCurrentUserOwnership(c)
 }
 
-// TransferAdminUserOwnership handles POST /admin/users/{internal_uuid}/transfer
+// TransferAdminUserOwnership handles POST /admin/users/{user_id}/transfer
 // SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route admin ownership transfer for a target user to the transfer handler
-func (s *Server) TransferAdminUserOwnership(c *gin.Context, internalUuid InternalUuidPathParam) {
+func (s *Server) TransferAdminUserOwnership(c *gin.Context, userID UserIdPathParam) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] TransferAdminUserOwnership called")
 
@@ -174,7 +174,7 @@ func (s *Server) TransferAdminUserOwnership(c *gin.Context, internalUuid Interna
 		return
 	}
 
-	s.ownershipTransferHandler.TransferAdminUserOwnership(c, internalUuid)
+	s.ownershipTransferHandler.TransferAdminUserOwnership(c, userID)
 }
 
 // GetAuthProviders lists OAuth providers

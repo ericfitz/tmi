@@ -432,8 +432,36 @@ stop-all: stop-oauth-stub dev-down  ## Stop the OAuth stub and tear down the dev
 # CATS FUZZING - API Security Testing
 # ============================================================================
 
-.PHONY: cats-seed cats-seed-oci cats-fuzz cats-fuzz-oci query-cats-results analyze-cats-results e2e-seed
+.PHONY: cats-seed cats-seed-oci cats-fuzz cats-fuzz-oci query-cats-results analyze-cats-results cats-report e2e-seed
 
+# The cats plugin (scripts/cats_tool.py) is a portable tool that replaces the
+# former run-cats-fuzz.py / parse_cats_results.py / query-cats-results.py
+# pipeline. Config lives at .local/cats/config.yaml (gitignored; discovered by
+# walking up from cwd).
+#
+# Resolution order is load-bearing. The /cats:* skills invoke
+# $(CLAUDE_PLUGIN_ROOT)/scripts/cats_tool.py -- the installed plugin -- so these
+# targets prefer that same copy: `make cats-fuzz` and `/cats:run` running two
+# different implementations of the run-validity gates is precisely the class of
+# bug those gates exist to catch. The development checkout is the fallback for a
+# machine where the plugin is not installed (CI, another contributor).
+#
+# The cache holds one version per plugin, so the wildcard resolves to a single
+# path; lastword+sort keeps it deterministic if that ever stops being true.
+# Override either path with `make ... CATS_TOOL=/path/to/cats_tool.py`.
+CATS_PLUGIN_TOOL := $(lastword $(sort $(wildcard $(HOME)/.claude/plugins/cache/efitz-skills/cats/*/scripts/cats_tool.py)))
+CATS_CHECKOUT_TOOL := $(wildcard $(HOME)/Projects/skills/cats/scripts/cats_tool.py)
+CATS_TOOL ?= $(firstword $(CATS_PLUGIN_TOOL) $(CATS_CHECKOUT_TOOL))
+CATS := uv run $(CATS_TOOL)
+
+# Fail with the reason rather than letting `uv run` report a missing file, which
+# reads as a broken target instead of an uninstalled plugin.
+define CATS_TOOL_GUARD
+if [ -z "$(CATS_TOOL)" ] || [ ! -f "$(CATS_TOOL)" ]; then \
+	echo "Error: cats plugin not found. Install it with /plugin (cats@efitz-skills), check out ~/Projects/skills, or pass CATS_TOOL=/path/to/cats_tool.py." >&2; \
+	exit 1; \
+fi
+endef
 CATS_CONFIG ?= config-development.yml
 CATS_USER ?= charlie
 CATS_PROVIDER ?= tmi
@@ -443,23 +471,50 @@ cats-seed:  ## Seed database for CATS fuzzing
 	@uv run scripts/run-dbtool.py --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER) --server=$(CATS_SERVER)
 
 e2e-seed:  ## Seed database with E2E test data from tmi-ux seed-spec
-	@E2E_SEED=$$(jq -r '."tmi-ux"' .local-projects.json 2>/dev/null)/e2e/seed/seed-spec.json; \
-	if [ ! -f "$$E2E_SEED" ]; then echo "Error: seed-spec.json not found at $$E2E_SEED (check .local-projects.json)"; exit 1; fi; \
+	@E2E_SEED=$$(jq -r '."tmi-ux".path // empty' .local/repos.json 2>/dev/null)/e2e/seed/seed-spec.json; \
+	if [ ! -f "$$E2E_SEED" ]; then echo "Error: seed-spec.json not found at $$E2E_SEED (check .local/repos.json)"; exit 1; fi; \
 	uv run scripts/run-dbtool.py --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER) --server=$(CATS_SERVER) --input-file=$$E2E_SEED
 
-cats-seed-oci:  ## Seed database for CATS fuzzing (Oracle ADB)
+cats-seed-oci:  ## Seed database for CATS fuzzing (Oracle ADB; requires scripts/oci-env.sh sourced)
 	@uv run scripts/run-dbtool.py --oci --user=$(CATS_USER) --provider=$(CATS_PROVIDER)
 
-cats-fuzz: cats-seed  ## Run CATS API fuzzing (auto-parses results)
-	@uv run scripts/run-cats-fuzz.py --skip-seed --user $(CATS_USER) --server $(CATS_SERVER) --config $(CATS_CONFIG) --provider $(CATS_PROVIDER) $(if $(FUZZ_USER),--user $(FUZZ_USER),) $(if $(FUZZ_SERVER),--server $(FUZZ_SERVER),) $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)
+# CATS_USER/CATS_SERVER/CATS_PROVIDER only steer cats-seed(-oci) -- the plugin
+# reads identity (who to fuzz as) and server from .local/cats/config.yaml, not
+# from these make variables, and has no equivalent of FUZZ_USER/FUZZ_SERVER.
+# $(origin ...) fires only when the caller actually passed one on the command
+# line (`make cats-fuzz CATS_USER=alice`), so normal invocations stay silent.
+define CATS_FUZZ_VAR_NOTE
+if [ "$(origin CATS_USER)" = "command line" ] || [ "$(origin CATS_SERVER)" = "command line" ] || [ "$(origin CATS_PROVIDER)" = "command line" ] || [ -n "$(FUZZ_USER)" ] || [ -n "$(FUZZ_SERVER)" ]; then \
+	echo "NOTE: CATS_USER/CATS_SERVER/CATS_PROVIDER/FUZZ_USER/FUZZ_SERVER only affect seeding here -- fuzzing identity and target server come from .local/cats/config.yaml (identities.*.token_cmd, server:). Edit that file to fuzz as a different user or against a different server." >&2; \
+fi
+endef
 
+cats-fuzz:  ## Run CATS API fuzzing (seeds via the plugin's seed hook, fuzzes, parses, classifies)
+	@$(CATS_TOOL_GUARD)
+	@$(CATS_FUZZ_VAR_NOTE)
+	@$(CATS) run $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)
+
+# The legacy target built tmi-dbtool with Oracle support and seeded via a
+# directly-connected DB backend selected by an already-sourced
+# TMI_DATABASE_URL (scripts/oci-env.sh), not by switching config files (see
+# scripts/run-dbtool.py's --oci handling). The plugin's config-driven `seed`
+# hook always calls run-dbtool.py without --oci, so reproduce the Oracle path
+# by seeding through cats-seed-oci first and telling the plugin to skip its
+# own seed hook.
 cats-fuzz-oci: cats-seed-oci  ## Run CATS API fuzzing with OCI ADB (auto-parses results)
-	@uv run scripts/run-cats-fuzz.py --oci --skip-seed $(if $(FUZZ_USER),--user $(FUZZ_USER),) $(if $(FUZZ_SERVER),--server $(FUZZ_SERVER),) $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)
+	@$(CATS_TOOL_GUARD)
+	@$(CATS_FUZZ_VAR_NOTE)
+	@$(CATS) run --skip-seed $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)
 
 query-cats-results:  ## Query parsed CATS results
-	@uv run scripts/query-cats-results.py --db test/outputs/cats/cats-results.db
+	@$(CATS_TOOL_GUARD)
+	@$(CATS) query
 
 analyze-cats-results: query-cats-results  ## Analyze CATS results
+
+cats-report:  ## Generate an HTML report from the latest run
+	@$(CATS_TOOL_GUARD)
+	@$(CATS) report --open
 
 
 # ============================================================================

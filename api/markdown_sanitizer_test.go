@@ -1,9 +1,11 @@
 package api
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSanitizeMarkdownContent(t *testing.T) {
@@ -254,6 +256,44 @@ func TestSanitizeMarkdownContent(t *testing.T) {
 
 func TestSanitizeMarkdownContent_Empty(t *testing.T) {
 	assert.Equal(t, "", SanitizeMarkdownContent(""))
+}
+
+func TestSanitizeRequiredMarkdownContent(t *testing.T) {
+	// #605: content whose whole value is markup the policy strips used to
+	// reach the store as "", fail its non-empty check, and surface as a 500.
+	tests := []struct {
+		name      string
+		input     string
+		wantValue string
+		wantErr   bool
+	}{
+		{"script only is rejected", "<script>alert(1)</script>", "", true},
+		{"iframe only is rejected", "<iframe src=\"x\"></iframe>", "", true},
+		{"whitespace-only remainder is rejected", "  <script>x</script>  ", "", true},
+		{"allowlisted html survives", "<strong>bold</strong>", "<strong>bold</strong>", false},
+		{"non-allowlisted tag is stripped but its text remains", "<b>bold</b>", "bold", false},
+		{"mixed keeps the safe part", "<script>x</script><strong>ok</strong>", "<strong>ok</strong>", false},
+		{"plain text passes through", "plain text", "plain text", false},
+		// An already-empty value is the caller's problem to reject (the schema's
+		// minLength does it), not a sanitization failure — reporting "empty after
+		// sanitization" for input that was empty to begin with would be a lie.
+		{"empty input is not a sanitization failure", "", "", false},
+		{"whitespace-only input is not a sanitization failure", "   ", "   ", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, reqErr := SanitizeRequiredMarkdownContent("content", tc.input)
+			if tc.wantErr {
+				require.NotNil(t, reqErr)
+				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
+				assert.Contains(t, reqErr.Message, "content")
+				assert.Equal(t, "", got)
+				return
+			}
+			require.Nil(t, reqErr)
+			assert.Equal(t, tc.wantValue, got)
+		})
+	}
 }
 
 func TestSanitizePlainText(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -516,7 +517,19 @@ func (s *GormAssetRepository) Patch(ctx context.Context, id string, operations [
 	for _, op := range operations {
 		if err := s.applyPatchOperation(asset, op); err != nil {
 			logger.Error("Failed to apply patch operation %s to asset %s: %v", op.Op, id, err)
-			return nil, fmt.Errorf("failed to apply patch operation: %w", err)
+			// A malformed or inapplicable JSON Patch is client input, so it
+			// must surface as 400, not 500 (#611). fmt.Errorf here produced an
+			// untyped error that StoreErrorToRequestError could only classify
+			// as a server fault — a `remove` on a path the document does not
+			// have returned "Failed to patch {kind}" with a 500. RequestError
+			// passes through StoreErrorToRequestError untouched, and matches
+			// the patch_failed code ApplyPatchOperations already returns for
+			// the entities that go through it.
+			return nil, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "patch_failed",
+				Message: "Failed to apply patch: " + err.Error(),
+			}
 		}
 	}
 

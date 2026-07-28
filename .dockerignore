@@ -79,5 +79,9 @@ make-containers-*.sh
 
 # Build artifacts / test outputs (keep build context small)
 test/outputs/
+# test/results/ holds one ~1.4 GB SQLite database per CATS run. It replaced
+# test/outputs/ in the cats-plugin migration but the exclusion was never
+# carried over, so the build context had grown to 14 GB.
+test/results/
 security-reports/
 *.backup

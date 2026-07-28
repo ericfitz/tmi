@@ -8,7 +8,7 @@ TMI is a Go-based service implementing the REST API and store for managing a sec
 
 ## Related Projects
 
-TMI has several sibling projects. When you need to read files from or interact with these projects, check `.local-projects.json` in the project root for local filesystem paths before fetching from GitHub. This file is gitignored (local to each developer's machine).
+TMI has several sibling projects. When you need to read files from or interact with these projects, check `.local/repos.json` for local filesystem paths before fetching from GitHub. It is a registry keyed by repo name — `{ "<name>": { "path": "<abs>", "github": { "owner", "repo", "project", "wiki_path" } } }` — and is the only source of a repo's local path. The file is gitignored (local to each developer's machine) and is provisioned by `~/Scripts/provision-repo-config.py`.
 
 ## Key Files
 
@@ -186,14 +186,19 @@ Arazzo specification (OpenAPI Initiative) documents API workflow sequences and d
 
 ### CATS API Fuzzing
 
-CATS performs security fuzzing of the TMI API with automatic OAuth authentication.
+CATS performs security fuzzing of the TMI API via a portable plugin (`cats@efitz-skills`), configured per-repo by `.local/cats/config.yaml` (gitignored).
 
-- **Run**: `make cats-fuzz` | **Analyze**: `make analyze-cats-results`
-- **Custom user**: `make cats-fuzz-user USER=alice`
-- **Output**: `test/outputs/cats/` (JSON reports + SQLite database)
+- **Run**: `make cats-fuzz` or `/cats:run` | **Analyze**: `make analyze-cats-results` or `/cats:analyze` | **HTML report**: `make cats-report` or `/cats:report` | **False-positive rules**: `/cats:fp`
+- **The make targets and the `/cats:*` skills are the same engine.** The Makefile resolves `CATS_TOOL` to the installed plugin first and falls back to a `~/Projects/skills/cats` development checkout, which is what the skills use via `${CLAUDE_PLUGIN_ROOT}`. Never hardcode either path in new code or docs — `make ... CATS_TOOL=/path/to/cats_tool.py` overrides it. Two copies of the run-validity gates disagreeing is exactly the failure those gates exist to catch.
+- **Custom user**: fuzzing identity comes from `.local/cats/config.yaml`'s `identities:`, not a make variable. Add a named identity (`token_cmd` prints a bearer token on stdout for that user) and pass `--identity <name>` to the plugin — `/cats:run` accepts it, or use `make cats-fuzz` after setting the default identity in the config. `CATS_USER`/`CATS_SERVER`/`CATS_PROVIDER` still control `make cats-seed`, but not who or where `make cats-fuzz` fuzzes.
+- **Output**: `test/results/cats/` (SQLite database per run, `latest.db` symlink to the most recent completed run)
 - Perform all analysis by querying the SQLite database; don't read the html or json files
+- **Always fuzz the cluster directly** (`http://rp2:30080`, the k3s-rp NodePort) — never through a `kubectl port-forward`. A port-forwarded campaign loses ~46% of its requests to connection errors that the `CONNECTION_ERROR_999` rule absorbs, so the run looks clean while most of the API was never reached (#463/#578). The plugin now refuses such a run at preflight (override: `--allow-port-forward`) and exits 3 without updating `latest.db` if more than `max_connection_error_pct` of responses are transport errors.
+- Fuzzing configs must send `If-Match: *` (see `.local/cats/config.yaml` `cats.headers`) so optimistic-locking preconditions pass instead of tripping the `If-Match` schema (#581). It used to ride in `extra_args` as a raw `-H`; #599 gave it a first-class key.
+- **A completed campaign is not automatically a valid one.** Two gates decide, both enforced by the plugin (a failing run exits 3 and never becomes `latest.db`): the transport-error rate (`max_connection_error_pct`, default 1%) and the non-false-positive 401 rate (`max_unauthenticated_pct`, default 5%). The second exists because a campaign can revoke its own bearer token by fuzzing an endpoint that logs the caller out and then run the rest of itself unauthenticated while still reporting as complete (#591). Endpoints like that belong in `cats.skip_paths` — TMI skips `/me/logout` — and can be fuzzed on their own with `run --path`.
+- **Seeding runs over loopback (`http://localhost:8080` behind a port-forward), not the NodePort**, because macOS can block a freshly built unsigned Go binary such as `tmi-dbtool` from opening any TCP connection to a LAN host (#595). Both the `tmi-server` and `postgres` port-forwards must be up before `make cats-seed` or the plugin's seed hook.
 
-**False Positive Handling**: Public endpoints (17) and cacheable endpoints (6) use vendor extensions (`x-public-endpoint`, `x-cacheable-endpoint`) to skip inapplicable fuzzers. OAuth 401/403 responses auto-filtered via `is_oauth_false_positive` flag.
+**False Positive Handling**: Public endpoints (21) and cacheable endpoints (7) use vendor extensions (`x-public-endpoint`, `x-cacheable-endpoint`) to skip inapplicable fuzzers. Remaining false positives (e.g. OAuth 401/403 responses) are classified by the rule set in `test/cats/false-positives.yaml` (48 rules, evaluated in file order, first match wins — see `test/cats/README.md`) and recorded in the results database's `is_false_positive` column. Manage these rules through the `/cats:fp` skill (add/review/reclassify workflows) rather than by editing Python — the legacy `detect_false_positive()` implementation no longer exists.
 
 ### OAuth Callback Stub
 

@@ -192,8 +192,15 @@ func (h *NoteSubResourceHandler) CreateNote(c *gin.Context) {
 		return
 	}
 
-	// Sanitize markdown content (strip dangerous HTML, preserve safe elements)
-	note.Content = SanitizeMarkdownContent(note.Content)
+	// Sanitize markdown content (strip dangerous HTML, preserve safe elements).
+	// Content is required and non-empty, so input that sanitizes away is a 400,
+	// not a store failure surfaced as 500 (#605).
+	sanitizedContent, contentErr := SanitizeRequiredMarkdownContent("content", note.Content)
+	if contentErr != nil {
+		HandleRequestError(c, contentErr)
+		return
+	}
+	note.Content = sanitizedContent
 
 	// Generate UUID if not provided
 	if note.Id == nil {
@@ -267,8 +274,15 @@ func (h *NoteSubResourceHandler) UpdateNote(c *gin.Context) {
 		return
 	}
 
-	// Sanitize markdown content (strip dangerous HTML, preserve safe elements)
-	note.Content = SanitizeMarkdownContent(note.Content)
+	// Sanitize markdown content (strip dangerous HTML, preserve safe elements).
+	// Content is required and non-empty, so input that sanitizes away is a 400,
+	// not a store failure surfaced as 500 (#605).
+	sanitizedContent, contentErr := SanitizeRequiredMarkdownContent("content", note.Content)
+	if contentErr != nil {
+		HandleRequestError(c, contentErr)
+		return
+	}
+	note.Content = sanitizedContent
 
 	// Set ID from URL (override any value in body)
 	note.Id = &noteUUID
@@ -403,11 +417,20 @@ func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 		return
 	}
 
-	// Sanitize content values in patch operations before they reach the store
+	// Sanitize content values in patch operations before they reach the store.
+	// A patch that replaces content with markup the policy strips would leave
+	// the note's required content empty, which the store rejects — surfacing as
+	// a 500 rather than the 400 the input deserves (#605), exactly as on the
+	// create and update paths.
 	for i, op := range operations {
 		if op.Path == patchPathContent && (op.Op == string(Replace) || op.Op == string(Add)) {
 			if content, ok := op.Value.(string); ok {
-				operations[i].Value = SanitizeMarkdownContent(content)
+				sanitized, contentErr := SanitizeRequiredMarkdownContent("content", content)
+				if contentErr != nil {
+					HandleRequestError(c, contentErr)
+					return
+				}
+				operations[i].Value = sanitized
 			}
 		}
 	}
@@ -425,7 +448,12 @@ func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 	// Apply patch operations
 	updatedNote, err := h.noteStore.Patch(c.Request.Context(), noteID, operations)
 	if err != nil {
-		HandleRequestError(c, ServerError("Failed to patch note"))
+		// Classify rather than assuming a server fault: the store returns a
+		// 400 patch_failed for an inapplicable JSON Patch and a not-found for
+		// a missing note, and hardcoding ServerError turned both into 500
+		// (#611). Matches the asset handler, which already did this.
+		logger.Error("Failed to patch note %s: %v", noteID, err)
+		HandleRequestError(c, StoreErrorToRequestError(err, "Note not found", "Failed to patch note"))
 		return
 	}
 

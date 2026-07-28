@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/validation"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -195,7 +197,7 @@ func (s *GormRepositoryRepository) Get(ctx context.Context, id string) (*Reposit
 }
 
 // Update updates an existing repository
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: update an existing repository's fields and metadata, refreshing the cache (reads DB)
+// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: update a repository's fields, set modified_at explicitly, and refresh cache (mutates shared state)
 func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -222,8 +224,27 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 		}
 	}
 
-	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
+	// modified_at explicitly, NOT via the autoUpdateTime tag: SkipHooks
+	// suppresses it. Measured against this cluster — an asset PUT (plain
+	// Model(), no SkipHooks) moves modified_at, while a document PUT
+	// (SkipHooks) leaves it equal to created_at forever. Setting it here keeps
+	// the column truthful without giving the empty-struct hook a chance to run.
+	//
+	// INVARIANT: safe ONLY while the session below sets SkipHooks — the
+	// autoUpdateTime injector is guarded by `!stmt.SkipHooks`, and its dedup
+	// check tests field.Name/field.DBName ("ModifiedAt"/"MODIFIED_AT" on
+	// Oracle), which a lowercase key matches neither of. Re-enabling hooks
+	// yields a duplicate assignment and ORA-00957 on Oracle while PostgreSQL
+	// stays green. The key's casing is NOT itself a problem — LookUpField's
+	// namer fallback resolves it and the emitted SQL uses DBName. See the
+	// fuller note in document_store_gorm.go.
+	// Truncated to microseconds because that is the resolution both
+	// TIMESTAMP(6) on Oracle and timestamptz on PostgreSQL actually store.
+	// Without it the value mirrored onto the struct below (and returned in the
+	// response body) carries up to 999ns the next DB-served read will not.
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	updates := map[string]any{
+		"modified_at": now,
 		"name":        repository.Name,
 		"uri":         repository.Uri,
 		"description": repository.Description,
@@ -241,8 +262,21 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 		updates["timmy_enabled"] = models.DBBool(false)
 	}
 
+	// SkipHooks, matching GormDocumentRepository.Update: a map-based Updates
+	// never populates the model from the map, so GORM would run
+	// Repository.BeforeSave against the empty &models.Repository{} above and
+	// fail its non-empty-URI check with "uri: URI cannot be empty" — on a
+	// request whose URI is present and valid (#610). The URI is already
+	// validated by the handler (repository_sub_resource_handlers.go, via
+	// validateURI) and by the OpenAPI middleware before reaching here, and the
+	// hook cannot meaningfully validate an empty struct anyway.
+	//
+	// SkipHooks rather than Table("repositories"): it changes no emitted SQL,
+	// so it carries no dialect risk, and it keeps GORM's schema — which the
+	// autoUpdateTime tag on modified_at depends on. Table() would silently
+	// stop that column updating.
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Model(&models.Repository{}).
+		result := tx.Session(&gorm.Session{SkipHooks: true}).Model(&models.Repository{}).
 			Where("id = ? AND threat_model_id = ?", repository.Id.String(), threatModelID).
 			Updates(updates)
 		if result.Error != nil {
@@ -259,6 +293,12 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 		}
 		return err
 	}
+
+	// Mirror the new timestamp onto the struct before it is cached. Without
+	// this the row advances while the cached copy keeps the caller-supplied
+	// (older) value, so a cache-served GET reports a modified_at behind the
+	// database — a divergence that did not exist while the column was frozen.
+	repository.ModifiedAt = &now
 
 	// Update metadata if present
 	if repository.Metadata != nil {
@@ -515,7 +555,7 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 }
 
 // Patch applies JSON patch operations to a repository
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply JSON Patch operations to a repository and persist the result (reads DB)
+// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON Patch operations to a repository and persist the result (reads DB)
 func (s *GormRepositoryRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Repository, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching repository %s with %d operations", id, len(operations))
@@ -530,7 +570,19 @@ func (s *GormRepositoryRepository) Patch(ctx context.Context, id string, operati
 	for _, op := range operations {
 		if err := s.applyPatchOperation(repository, op); err != nil {
 			logger.Error("Failed to apply patch operation %s to repository %s: %v", op.Op, id, err)
-			return nil, fmt.Errorf("failed to apply patch operation: %w", err)
+			// A malformed or inapplicable JSON Patch is client input, so it
+			// must surface as 400, not 500 (#611). fmt.Errorf here produced an
+			// untyped error that StoreErrorToRequestError could only classify
+			// as a server fault — a `remove` on a path the document does not
+			// have returned "Failed to patch {kind}" with a 500. RequestError
+			// passes through StoreErrorToRequestError untouched, and matches
+			// the patch_failed code ApplyPatchOperations already returns for
+			// the entities that go through it.
+			return nil, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "patch_failed",
+				Message: "Failed to apply patch: " + err.Error(),
+			}
 		}
 	}
 
@@ -670,7 +722,7 @@ func (s *GormRepositoryRepository) updateMetadata(ctx context.Context, repositor
 }
 
 // applyPatchOperation applies a single patch operation to a repository
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply a single JSON Patch operation to a repository's mutable fields (pure)
+// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: validate and apply a single JSON Patch operation to a repository's mutable fields (pure)
 func (s *GormRepositoryRepository) applyPatchOperation(repository *Repository, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:
@@ -684,6 +736,12 @@ func (s *GormRepositoryRepository) applyPatchOperation(repository *Repository, o
 	case PatchPathType:
 		if op.Op == string(Replace) {
 			if repoType, ok := op.Value.(string); ok {
+				// Re-checked here because Update() runs with SkipHooks, which
+				// disables Repository.BeforeSave and with it this enum check.
+				// Without it an off-enum type persists on both dialects.
+				if err := validation.ValidateRepositoryType(repoType); err != nil {
+					return err
+				}
 				rt := RepositoryType(repoType)
 				repository.Type = &rt
 			} else {
@@ -693,6 +751,15 @@ func (s *GormRepositoryRepository) applyPatchOperation(repository *Repository, o
 	case PatchPathURI:
 		if op.Op == string(Replace) {
 			if uri, ok := op.Value.(string); ok {
+				// Re-checked here for the same reason, and this one is a
+				// dialect-divergence bug rather than just bad data:
+				// ValidateURIPatchOperations deliberately skips empty strings,
+				// so `replace /uri ""` reaches the store. PostgreSQL stores ''
+				// in a NOT NULL text column; Oracle binds '' as NULL and raises
+				// ORA-01407. Rejecting it here keeps both dialects on 400.
+				if err := validation.ValidateURI("uri", uri); err != nil {
+					return err
+				}
 				repository.Uri = uri
 			} else {
 				return fmt.Errorf("invalid value type for uri: expected string")

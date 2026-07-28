@@ -1175,7 +1175,7 @@ func wireExtractionNATS(apiServer *api.Server, gormDB *gorm.DB) *api.ExtractionP
 
 // wireContentOAuthHandlers constructs the delegated content provider handler
 // bundle and attaches it to the shared *api.Server. Routes for the
-// /me/content_tokens/*, /admin/users/{internal_uuid}/content_tokens/*, and
+// /me/content_tokens/*, /admin/users/{user_id}/content_tokens/*, and
 // /oauth2/content_callback endpoints are registered by the generated
 // RegisterHandlersWithOptions call — this function only wires the dependency
 // the generated interface methods delegate to.

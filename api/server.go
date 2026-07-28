@@ -109,7 +109,7 @@ type Server struct {
 	// (and step-up auditor) is reused here. When nil the handlers return 500.
 	systemAuditRepo SystemAuditRepository
 	// contentOAuth holds the handler for the /me/content_tokens/*,
-	// /admin/users/{internal_uuid}/content_tokens/*, and /oauth2/content_callback
+	// /admin/users/{user_id}/content_tokens/*, and /oauth2/content_callback
 	// endpoints. When nil, the delegated content provider subsystem is not
 	// wired (e.g. no encryption key configured) and the six generated
 	// interface methods short-circuit with 503.
@@ -144,7 +144,7 @@ type Server struct {
 }
 
 // SetContentOAuthHandlers attaches the content-OAuth handler bundle used to
-// service the /me/content_tokens/*, /admin/users/{internal_uuid}/content_tokens/*,
+// service the /me/content_tokens/*, /admin/users/{user_id}/content_tokens/*,
 // and /oauth2/content_callback endpoints. Called from cmd/server/main.go
 // after the handler is constructed. Passing nil leaves the subsystem
 // disabled — the delegation wrappers will return 503.

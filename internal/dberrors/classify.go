@@ -2,6 +2,7 @@ package dberrors
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 
@@ -12,7 +13,7 @@ import (
 // It checks in order: context errors, GORM errors, driver-specific errors
 // (PostgreSQL pgconn.PgError, Oracle godror.OraErr), then falls back to
 // string matching for errors that don't carry typed driver info.
-// SEM@178dbd0418cfb7e057d4297c7a88c5879cb64c7f: convert a raw database error to a typed sentinel (not-found, duplicate, transient, etc.) (pure)
+// SEM@bacedc2fda0d7e7c4267e5fef6abc1a24bafed1a: convert a raw database error to a typed sentinel, including no-rows cases (pure)
 func Classify(err error) error {
 	if err == nil {
 		return nil
@@ -32,6 +33,18 @@ func Classify(err error) error {
 
 	// GORM-specific: record not found
 	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return Wrap(err, ErrNotFound)
+	}
+
+	// database/sql: no rows returned. This is a DISTINCT value from
+	// gorm.ErrRecordNotFound — errors.Is does not bridge them — and it is
+	// what callers see when they finish a query with a raw *sql.Row/*sql.Rows
+	// Scan (e.g. db.Raw(...).Row().Scan(...), or any GORM finisher that
+	// falls back to the stdlib driver's zero-row signal) rather than a GORM
+	// model query. Classify it centrally so every call site gets the same
+	// 404-shaped sentinel instead of falling through unclassified to a
+	// bare, policy-violating 500.
+	if errors.Is(err, sql.ErrNoRows) {
 		return Wrap(err, ErrNotFound)
 	}
 
@@ -89,20 +102,32 @@ func classifyByString(err error) error {
 		}
 	}
 
-	// Not found (from RowsAffected == 0 checks that return error strings)
-	if strings.Contains(errStr, "not found") {
-		return Wrap(err, ErrNotFound)
-	}
-
-	// Constraint patterns (fallback for non-typed driver errors)
+	// Constraint patterns BEFORE the bare "not found" check below. Order is
+	// load-bearing: Oracle phrases a foreign-key violation as
+	// "ORA-02291: integrity constraint (...) violated - parent key not found",
+	// which contains both "constraint" and "not found". With "not found"
+	// tested first, an FK violation classified as ErrNotFound and surfaced as
+	// a 404 instead of a constraint error (#598). Only reachable when the
+	// `oracle` build tag is absent — classifyOracleError is a no-op then and
+	// ORA errors fall through to here — but the protection was a build flag
+	// rather than code, which is what this restores.
 	if strings.Contains(errStr, "duplicate") || strings.Contains(errStr, "unique constraint") {
 		return Wrap(err, ErrDuplicate)
 	}
-	if strings.Contains(errStr, "foreign key") {
+	// "parent key not found" is ORA-02291; "child record found" is ORA-02292
+	// (delete blocked by a dependent row). Both are foreign-key violations.
+	if strings.Contains(errStr, "foreign key") ||
+		strings.Contains(errStr, "parent key not found") ||
+		strings.Contains(errStr, "child record found") {
 		return Wrap(err, ErrForeignKey)
 	}
 	if strings.Contains(errStr, "constraint") || strings.Contains(errStr, "violates") {
 		return Wrap(err, ErrConstraint)
+	}
+
+	// Not found (from RowsAffected == 0 checks that return error strings)
+	if strings.Contains(errStr, "not found") {
+		return Wrap(err, ErrNotFound)
 	}
 
 	// Unclassified — return as-is

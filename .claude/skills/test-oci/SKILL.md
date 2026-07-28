@@ -100,72 +100,25 @@ make cats-fuzz-oci
 
 This takes approximately 9 minutes. The output will show progress through various fuzzers.
 
-### Step 5: Parse and Analyze CATS Results
+### Step 5: Analyze CATS Results
 
-After CATS completes, parse the results:
+`make cats-fuzz-oci` (Step 4) already parses and classifies results as part of the
+run — there is no separate parse step. Query the results database directly. The cats
+plugin is installed, so invoke the `/cats:report` skill for the full schema (tables,
+views, worked queries) and for ad-hoc queries; `/cats:analyze` triages the findings.
+
+For a quick shape-of-the-run check without loading a skill:
+
 ```bash
-make parse-cats-results
+make query-cats-results
 ```
 
-Then analyze the database. Run these queries to understand the results:
-
-```bash
-# Summary statistics (excluding OAuth false positives)
-sqlite3 test/outputs/cats/cats-results.db <<'SQL'
-.mode column
-.headers on
-SELECT
-    rt.name AS result,
-    COUNT(*) AS count,
-    ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS percentage
-FROM tests t
-JOIN result_types rt ON t.result_type_id = rt.id
-WHERE t.is_oauth_false_positive = 0
-GROUP BY rt.name
-ORDER BY count DESC;
-SQL
-
-# Count OAuth false positives (expected, not real issues)
-sqlite3 test/outputs/cats/cats-results.db "SELECT COUNT(*) as oauth_false_positives FROM tests WHERE is_oauth_false_positive = 1;"
-
-# Actual errors by path (top 10)
-sqlite3 test/outputs/cats/cats-results.db <<'SQL'
-.mode column
-.headers on
-SELECT
-    p.path,
-    COUNT(*) AS error_count,
-    GROUP_CONCAT(DISTINCT f.name) AS fuzzers
-FROM tests t
-JOIN result_types rt ON t.result_type_id = rt.id
-JOIN paths p ON t.path_id = p.id
-JOIN fuzzers f ON t.fuzzer_id = f.id
-WHERE rt.name = 'error' AND t.is_oauth_false_positive = 0
-GROUP BY p.path
-ORDER BY error_count DESC
-LIMIT 10;
-SQL
-
-# Warnings by path (top 10)
-sqlite3 test/outputs/cats/cats-results.db <<'SQL'
-.mode column
-.headers on
-SELECT
-    p.path,
-    COUNT(*) AS warn_count
-FROM tests t
-JOIN result_types rt ON t.result_type_id = rt.id
-JOIN paths p ON t.path_id = p.id
-WHERE rt.name = 'warn' AND t.is_oauth_false_positive = 0
-GROUP BY p.path
-ORDER BY warn_count DESC
-LIMIT 10;
-SQL
-```
+That target resolves the plugin the same way `/cats:*` does (installed copy first,
+development checkout as fallback), so both run the same implementation.
 
 **Analysis**:
-- **OAuth false positives** are expected (401/403 responses from auth tests) - these are NOT real issues
-- Focus on the **error** and **warn** results where `is_oauth_false_positive = 0`
+- **False positives** are expected (e.g. 401/403 responses from auth tests) - these are NOT real issues
+- Focus on the **error** and **warn** results in `true_positives_view` (`is_false_positive = 0`)
 - Report any actual errors by path and fuzzer
 - Warnings are less critical but should be noted
 
@@ -176,7 +129,7 @@ If all tests pass, report:
 - Unit tests: X tests passed
 - Integration tests (OCI): X tests passed
 - API tests: X assertions passed
-- CATS fuzzing (OCI): X tests run, Y errors (Z oauth false positives excluded)
+- CATS fuzzing (OCI): X tests run, Y errors (Z false positives excluded)
 
 ### On Failure
 If any stage fails:
@@ -189,8 +142,8 @@ If any stage fails:
 ## Important Notes
 
 - **Oracle Support**: The server must be built with `-tags oracle` for OCI support. The `make dev-up DB=oracle` target handles this automatically.
-- **CATS Seeding Tool**: The CATS seeding tool (`bin/cats-seed`) must also be built with Oracle support. Use `make build-cats-seed-oci` or let `make cats-seed-oci` (called by `make cats-fuzz-oci`) build it automatically.
-- **OAuth false positives**: CATS will flag 401/403 responses as "errors" but these are expected for auth testing. The `is_oauth_false_positive` flag identifies these.
+- **CATS Seeding Tool**: Seeding runs through `bin/tmi-dbtool`, which must also be built with Oracle support. `make cats-seed-oci` (a prerequisite of `make cats-fuzz-oci`) calls `scripts/run-dbtool.py --oci`, which builds it with `-tags oracle` automatically after sourcing `scripts/oci-env.sh`. There is no separate build target, and `bin/cats-seed` is a pre-migration artifact that is no longer built or used.
+- **False positives**: CATS will flag some responses (e.g. 401/403 from auth testing) as "errors" but these are expected. The rule set in `test/cats/false-positives.yaml` classifies these; matched rows are flagged via the `is_false_positive` column.
 - **CATS duration**: The fuzzing stage takes ~9 minutes - this is normal
 - **Server must be running**: All tests except unit tests require the dev server (`make dev-up DB=oracle`)
 - **Redis required**: API and CATS tests require Redis (`make start-redis` - started automatically by `dev-up DB=oracle`)
@@ -198,13 +151,8 @@ If any stage fails:
 
 ## Database Schema Reference
 
-The CATS results database has these key tables:
-- `tests` - Individual test results with `is_oauth_false_positive` flag
-- `result_types` - Result categories: `success`, `warn`, `error`, `skip`
-- `paths` - API endpoints tested
-- `fuzzers` - CATS fuzzer names
-- `test_results_view` - Convenient view joining all tables
-- `test_results_filtered_view` - View excluding OAuth false positives
+Invoke the `/cats:report` skill for the full results database schema — tables, views,
+and worked queries.
 
 ## Troubleshooting
 

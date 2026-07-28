@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/validation"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -188,7 +190,7 @@ func (s *GormDocumentRepository) Get(ctx context.Context, id string) (*Document,
 }
 
 // Update updates an existing document
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: update a document's fields and metadata in DB and cache (reads DB)
+// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: update a document's fields, set modified_at explicitly, and refresh cache (mutates shared state)
 func (s *GormDocumentRepository) Update(ctx context.Context, document *Document, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -196,10 +198,31 @@ func (s *GormDocumentRepository) Update(ctx context.Context, document *Document,
 	logger := slogging.Get()
 	logger.Debug("Updating document: %s", document.Id)
 
-	// Note: Do not include modified_at in updates map as the Document model has
-	// autoUpdateTime which GORM handles automatically. Including it manually
-	// causes ORA-00957 (duplicate column name) errors in Oracle.
+	// modified_at explicitly: the SkipHooks session below suppresses GORM's
+	// autoUpdateTime tag, so without this the column stays at created_at for
+	// the life of the row. Pre-dates #610 — the same measurement that found it
+	// on repositories found it here.
+	//
+	// The lowercase key itself is fine: GORM's LookUpField falls back to running
+	// it through the naming strategy, which yields MODIFIED_AT on Oracle, and
+	// the emitted SQL uses field.DBName. So this does NOT risk ORA-00904, and
+	// rewriting it via AssignmentMap "to fix the casing" would be treating a
+	// non-problem. (That fallback is a GORM-version dependency — on a release
+	// without it the raw key is emitted verbatim and ORA-00904 is real.)
+	//
+	// INVARIANT: this key is safe ONLY while that session sets SkipHooks. The
+	// autoUpdateTime injector is guarded by `!stmt.SkipHooks`, and its dedup
+	// check tests value[field.Name] and value[field.DBName] — "ModifiedAt" and
+	// "MODIFIED_AT" on Oracle. A lowercase key matches neither, so re-enabling
+	// hooks would append a SECOND assignment to the same column: ORA-00957
+	// (duplicate column name), which is what the comment previously here warned
+	// about. PostgreSQL's DBName is literally "modified_at", so its guard fires
+	// and PG stays green — the breakage would be Oracle-only. If you need the
+	// hooks back, drop this key or route it through AssignmentMap first.
+	// Truncated to microseconds — see the note in repository_store_gorm.go.
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	updates := map[string]any{
+		"modified_at": now,
 		"name":        document.Name,
 		"uri":         document.Uri,
 		"description": document.Description,
@@ -235,6 +258,10 @@ func (s *GormDocumentRepository) Update(ctx context.Context, document *Document,
 		}
 		return err
 	}
+
+	// Mirror the new timestamp onto the struct before it is cached — see the
+	// matching note in repository_store_gorm.go.
+	document.ModifiedAt = &now
 
 	// Update metadata if present
 	if document.Metadata != nil {
@@ -493,7 +520,7 @@ func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Doc
 }
 
 // Patch applies JSON patch operations to a document
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply JSON patch operations to a document and persist the result (reads DB)
+// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON patch operations to a document and persist the result (reads DB)
 func (s *GormDocumentRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Document, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching document %s with %d operations", id, len(operations))
@@ -508,7 +535,19 @@ func (s *GormDocumentRepository) Patch(ctx context.Context, id string, operation
 	for _, op := range operations {
 		if err := s.applyPatchOperation(document, op); err != nil {
 			logger.Error("Failed to apply patch operation %s to document %s: %v", op.Op, id, err)
-			return nil, fmt.Errorf("failed to apply patch operation: %w", err)
+			// A malformed or inapplicable JSON Patch is client input, so it
+			// must surface as 400, not 500 (#611). fmt.Errorf here produced an
+			// untyped error that StoreErrorToRequestError could only classify
+			// as a server fault — a `remove` on a path the document does not
+			// have returned "Failed to patch {kind}" with a 500. RequestError
+			// passes through StoreErrorToRequestError untouched, and matches
+			// the patch_failed code ApplyPatchOperations already returns for
+			// the entities that go through it.
+			return nil, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "patch_failed",
+				Message: "Failed to apply patch: " + err.Error(),
+			}
 		}
 	}
 
@@ -906,12 +945,19 @@ func (s *GormDocumentRepository) updateMetadata(ctx context.Context, documentID 
 }
 
 // applyPatchOperation applies a single patch operation to a document
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply a single JSON patch operation to a document's mutable fields (pure)
+// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: validate and apply a single JSON patch operation to a document's mutable fields (pure)
 func (s *GormDocumentRepository) applyPatchOperation(document *Document, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:
 		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
+				// Re-checked here because Update() runs with SkipHooks, which
+				// disables Document.BeforeSave and with it this check. NAME is
+				// VARCHAR2(256) NOT NULL on Oracle, which binds '' as NULL and
+				// raises ORA-01407, while PostgreSQL stores '' happily.
+				if err := validation.ValidateNonEmpty("name", name); err != nil {
+					return err
+				}
 				document.Name = name
 			} else {
 				return fmt.Errorf("invalid value type for name: expected string")
@@ -920,6 +966,12 @@ func (s *GormDocumentRepository) applyPatchOperation(document *Document, op Patc
 	case PatchPathURI:
 		if op.Op == string(Replace) {
 			if uri, ok := op.Value.(string); ok {
+				// Same reason: ValidateURIPatchOperations skips empty strings,
+				// so `replace /uri ""` would otherwise reach a CLOB NOT NULL
+				// column and diverge between the two dialects.
+				if err := validation.ValidateURI("uri", uri); err != nil {
+					return err
+				}
 				document.Uri = uri
 			} else {
 				return fmt.Errorf("invalid value type for uri: expected string")

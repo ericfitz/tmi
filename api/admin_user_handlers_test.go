@@ -261,8 +261,8 @@ func setupAdminUserRouter(userEmail, userInternalUUID string) (*gin.Engine, *Ser
 		server.ListAdminUsers(c, params)
 	})
 
-	r.GET("/admin/users/:internal_uuid", func(c *gin.Context) {
-		uuidStr := c.Param("internal_uuid")
+	r.GET("/admin/users/:user_id", func(c *gin.Context) {
+		uuidStr := c.Param("user_id")
 		parsedUUID, err := uuid.Parse(uuidStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID"})
@@ -271,8 +271,8 @@ func setupAdminUserRouter(userEmail, userInternalUUID string) (*gin.Engine, *Ser
 		server.GetAdminUser(c, parsedUUID)
 	})
 
-	r.PATCH("/admin/users/:internal_uuid", func(c *gin.Context) {
-		uuidStr := c.Param("internal_uuid")
+	r.PATCH("/admin/users/:user_id", func(c *gin.Context) {
+		uuidStr := c.Param("user_id")
 		parsedUUID, err := uuid.Parse(uuidStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID"})
@@ -281,8 +281,8 @@ func setupAdminUserRouter(userEmail, userInternalUUID string) (*gin.Engine, *Ser
 		server.UpdateAdminUser(c, parsedUUID)
 	})
 
-	r.DELETE("/admin/users/:internal_uuid", func(c *gin.Context) {
-		uuidStr := c.Param("internal_uuid")
+	r.DELETE("/admin/users/:user_id", func(c *gin.Context) {
+		uuidStr := c.Param("user_id")
 		parsedUUID, err := uuid.Parse(uuidStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID"})

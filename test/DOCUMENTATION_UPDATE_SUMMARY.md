@@ -123,7 +123,7 @@ make test-integration-workflow WORKFLOW=name
 
 # Security fuzzing
 make cats-fuzz
-make cats-analyze
+make analyze-cats-results
 
 # WebSocket testing
 make wstest

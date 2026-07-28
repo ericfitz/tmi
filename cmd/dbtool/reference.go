@@ -109,20 +109,35 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	tmID := findRefByKind(refs, "threat_model")
+	tmID := findRefByName(refs, tmRef(realThreatModelName), "threat_model")
 	threatID := findRefByKind(refs, "threat")
 	diagramID := findRefByKind(refs, "diagram")
 	documentID := findRefByKind(refs, "document")
 	assetID := findRefByKind(refs, "asset")
 	noteID := findRefByKind(refs, "note")
+	teamNoteID := findRefByKind(refs, kindTeamNote)
+	projectNoteID := findRefByKind(refs, kindProjectNote)
+	feedbackID := findRefByKind(refs, kindFeedback)
+	// TriageNote.id is a per-survey-response sequential INTEGER, not a UUID, so
+	// the nilUUID fallback the other lookups use would be a type error in that
+	// path parameter (a 400 rather than the 404 a missing id should produce).
+	triageNoteID := findRefByKind(refs, kindTriageNote)
+	if triageNoteID == nilUUID {
+		triageNoteID = "0"
+	}
 	repoID := findRefByKind(refs, "repository")
 	webhookID := findRefByKind(refs, "webhook")
 	deliveryID := findRefByKind(refs, "webhook_test_delivery")
 	addonID := findRefByKind(refs, "addon")
 	credID := findRefByKind(refs, "client_credential")
 	surveyID := findRefByKind(refs, "survey")
-	responseID := findRefByKind(refs, "survey_response")
+	// Index 0 explicitly: survey responses are seeded positionally and
+	// findRefByKind ranges over a map, so with the #608 decoy present it
+	// could return either one — and the decoy is the one DELETE consumes.
+	responseID := findRefByName(refs, "survey-response:0", "survey_response")
 	metadataKey := findRefByKind(refs, "metadata")
+	teamID := findRefByName(refs, teamRef(realTeamName), "team")
+	projectID := findRefByName(refs, projectRef(realProjectName), "project")
 
 	adminUUID := ""
 	for _, r := range refs {
@@ -134,7 +149,81 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	if adminUUID == "" {
 		adminUUID = nilUUID
 	}
-	adminGroupID := nilUUID
+
+	// targetUUID identifies the account used for destructive/mutating admin
+	// user endpoints (PATCH/DELETE /admin/users/{user_id}, quota PUT/DELETE,
+	// ownership transfer, client-credential deletion, ...). It must NEVER be the
+	// fuzzing identity's own account (#591): a successful mutation against the
+	// live identity (e.g. a 200 from an injection fuzzer) invalidates its bearer
+	// token, silently running the rest of the campaign unauthenticated. Prefer a
+	// dedicated throwaway user seeded under ref "user:cats-target"; fall back to
+	// the first seeded user (historically the fuzzing identity itself) only for
+	// seed files that don't define a throwaway target, to preserve old behavior.
+	targetUUID := adminUUID
+	if r, ok := refs[userRef("cats-target")]; ok {
+		targetUUID = r.ID
+	}
+
+	// The group routes used to share the user routes' {internal_uuid} parameter
+	// name, so a single global refData value could not satisfy both and the
+	// group family permanently 404d. The spec now names them {group_id} and
+	// {user_id} (#603), so this is just an ordinary global value again — the
+	// per-path override sections this file used to emit are gone.
+	adminGroupID := findRefByName(refs, groupRef(realGroupName), kindGroup)
+
+	// Anchor-path decoys (#608). A campaign deletes 15 of its own seeded
+	// fixtures, and because CATS walks paths in lexical order the anchor
+	// (/threat_models/{threat_model_id}) is fuzzed BEFORE everything nested
+	// under it — the seeded group died at test 3608 while the first
+	// /admin/groups/{group_id}/members test was 4151, so every member
+	// operation ran against a group that no longer existed. Pointing each
+	// anchor path at a throwaway keeps DELETE coverage on the anchor while the
+	// fixture the nested paths depend on survives.
+	//
+	// Only the exact anchor path is overridden; nested paths are different
+	// path strings and keep the global value.
+	decoys := []struct{ path, param, id string }{
+		{"/teams/{team_id}", "team_id", findRefByName(refs, teamRef(throwawayTeamName), "")},
+		{"/projects/{project_id}", "project_id", findRefByName(refs, projectRef(throwawayProjectName), "")},
+		{"/threat_models/{threat_model_id}", "threat_model_id",
+			findRefByName(refs, tmRef(throwawayThreatModelName), "")},
+		{"/admin/groups/{group_id}", "group_id",
+			findRefByName(refs, groupRef(throwawayGroupName), "")},
+		// cats-target is itself a throwaway (#591), but it is the id every
+		// NESTED /admin/users route uses, so the anchor needs its own decoy —
+		// run 20260728T062255Z deleted a user at test 13815 and fuzzed
+		// .../client_credentials immediately after.
+		{"/admin/users/{user_id}", "user_id", findRefByName(refs, userRef("cats-decoy"), "")},
+		// Survey responses are seeded positionally; index 1 is the decoy.
+		{"/intake/survey_responses/{survey_response_id}", "survey_response_id",
+			findRefByName(refs, "survey-response:1", "")},
+	}
+	decoySections := ""
+	for _, d := range decoys {
+		// A decoy that was not seeded must not emit a section: an empty or nil
+		// value would make every request to the anchor 404 on a bad id, which
+		// is worse than sharing the real fixture.
+		if d.id == "" || d.id == nilUUID {
+			continue
+		}
+		decoySections += fmt.Sprintf("%s:\n  %s: %s\n", d.path, d.param, d.id)
+	}
+
+	// Per-path sections for the harvested audit entry ids. Emitting a section
+	// with an empty value would be worse than omitting it: CATS would then
+	// substitute "" into the URL and every request would 404 on a malformed
+	// path rather than falling back to the global value.
+	auditSections := ""
+	for _, s := range []struct{ kind, path string }{
+		{"audit_entry_system", "/admin/audit/system/{entry_id}"},
+		{"audit_entry_admin_tm", "/admin/audit/threat_models/{entry_id}"},
+		{"audit_entry_tm_trail", "/threat_models/{threat_model_id}/audit_trail/{entry_id}"},
+		{"audit_entry_tm_trail", "/threat_models/{threat_model_id}/audit_trail/{entry_id}/rollback"},
+	} {
+		if id := findRefByKind(refs, s.kind); id != "" && id != nilUUID {
+			auditSections += fmt.Sprintf("%s:\n  entry_id: %s\n", s.path, id)
+		}
+	}
 
 	// Syntactically-valid actor email for the audit-endpoint refData (#494). The
 	// value only needs to pass the OpenAPI email-format check so HappyPath returns
@@ -154,18 +243,75 @@ all:
   document_id: %s
   asset_id: %s
   note_id: %s
+  # Notes on teams and projects are separate resources from threat-model notes
+  # and have their own path parameters (#597).
+  team_note_id: %s
+  project_note_id: %s
+  # Content feedback on a threat model, and triage notes on a survey response.
+  feedback_id: %s
+  triage_note_id: %s
   repository_id: %s
   webhook_id: %s
   delivery_id: %s
   addon_id: %s
   client_credential_id: %s
+  # credential_id is the spec's actual path parameter name for
+  # /me/client_credentials/{credential_id} and
+  # /admin/users/{user_id}/client_credentials/{credential_id} (#590);
+  # client_credential_id above is kept for backward compatibility.
+  credential_id: %s
   survey_id: %s
   survey_response_id: %s
   key: %s
-  # Admin resource identifiers
+  # team_id/project_id for /teams/{team_id} and /projects/{project_id}.
+  # related_team_id/related_project_id are body fields nested inside
+  # related_teams[]/related_projects[] (#590, #582's canonical UUID spec
+  # examples) - CATS substitutes by field name in bodies too, so pointing
+  # these at real seeded team/project ids makes those requests validate
+  # without needing the seeded entities to literally carry the canonical ids.
+  # They are kept for the day the CATS defect below is fixed upstream; today
+  # the arrays that contain them are removed outright, so nothing substitutes.
+  team_id: %s
+  project_id: %s
+  related_team_id: %s
+  related_project_id: %s
+  # Body arrays removed from every generated payload, because CATS 13.8.0
+  # cannot produce a valid item for any of them and so poisons every
+  # POST/PUT to /projects and /teams (#596 and #604):
+  #
+  #   related_projects[] / related_teams[]  (#596)
+  #     CATS drops a nested property whose name shares an underscore-delimited
+  #     token with an ANCESTOR property's name -- a self-reference guard that
+  #     matches on name similarity rather than actual schema recursion. So
+  #     related_projects[].related_project_id is dropped ("related" collides
+  #     with the parent array), while responsible_parties[].user_id is not.
+  #     Verified by renaming the parent array to linked_projects, at which
+  #     point related_project_id appears. Since related_project_id is
+  #     required, every generated item fails validation.
+  #
+  #   responsible_parties[] / members[]  (#604)
+  #     No longer a SCHEMA problem: the spec now splits request and response
+  #     shapes (TeamMemberInput / ResponsiblePartyInput have no "user" at all),
+  #     so CATS generates structurally valid items and the readOnly rejection
+  #     is gone. They stay removed for a different reason -- CATS fills the
+  #     nested user_id with a random UUID that refData does not substitute, so
+  #     the server correctly answers "user not found for responsible party" and
+  #     POST /projects + POST /teams go back to 400 on every test. Removing
+  #     them is now a coverage trade, not a workaround for a blocker: drop
+  #     these two the moment refData reaches nested array items.
+  related_projects: cats_remove_field
+  related_teams: cats_remove_field
+  responsible_parties: cats_remove_field
+  members: cats_remove_field
+  # Admin resource identifiers. group_id serves /admin/groups/{group_id}* and
+  # /me/groups/{group_id}/members; both used to be spelled {internal_uuid},
+  # which collided with the user routes and made every group happy path
+  # unreachable (#603). The rename removed the collision, so the per-path
+  # override sections this file used to emit are gone.
   group_id: %s
-  # internal_uuid for /admin/users/{internal_uuid} and /admin/groups/{internal_uuid} endpoints
-  internal_uuid: %s
+  # member_uuid identifies the USER being added to or removed from a group,
+  # so it points at the throwaway target for the same reason user_id does.
+  member_uuid: %s
   # User identity uses provider:provider_id format
   user_provider: %s
   user_provider_id: %s
@@ -174,9 +320,15 @@ all:
   # SAML/OAuth provider endpoints - uses the IDP name directly
   provider: %s
   idp: %s
-  # Admin quota endpoints - user_id is internal UUID (OpenAPI spec defines it as UUID format)
+  # user_id is the user's internal UUID. It now serves BOTH the admin quota
+  # endpoints and /admin/users/{user_id}* (formerly {internal_uuid}, #603).
+  # Deliberately NOT the fuzzing identity's own account (#591): a successful
+  # mutation here (PATCH/DELETE) would invalidate the identity's own bearer
+  # token mid-campaign. Points at a dedicated throwaway seeded user instead.
   user_id: %s
-  # Group member endpoints - user_uuid is the internal UUID of the test user
+  # Group member endpoints - user_uuid is the internal UUID of the test user.
+  # Not currently a real path parameter name in the spec (see member_uuid),
+  # kept for compatibility; also switched to the throwaway target user.
   user_uuid: %s
 # Admin audit list endpoints (#494): supply valid values for the query params CATS
 # otherwise randomizes, so HappyPath reaches the server cleanly (200) and the
@@ -184,7 +336,7 @@ all:
 # dying on a malformed param. 'cursor' (an opaque keyset token) and 'around'
 # (an entry UUID) are intentionally omitted - they have no static valid value;
 # the residual injection-fuzzer 400s are classified as false positives by
-# scripts/parse_cats_results.py (AUDIT_QUERY_VALIDATION_400).
+# the CATS plugin's rule set (test/cats/false-positives.yaml, AUDIT_QUERY_VALIDATION_400).
 /admin/audit/threat_models:
   actor_email: %s
   actor_provider: %s
@@ -196,23 +348,65 @@ all:
   actor_provider: %s
   created_after: "2020-01-01T00:00:00Z"
   created_before: "2035-01-01T00:00:00Z"
-`,
+# entry_id names three different audit families (system, admin threat-model,
+# and a threat model's own trail) — the one-name-many-resources problem #603
+# fixed for groups vs users, still present here. These ids are harvested after
+# seeding rather than seeded, because audit entries are a side effect of the
+# seeding itself. A section is omitted entirely when its listing was empty, in
+# which case that family stays uncovered exactly as before.
+%s%s`,
 		time.Now().UTC().Format(time.RFC3339),
 		tmID, tmID,
-		threatID, diagramID, documentID, assetID, noteID, repoID,
+		threatID, diagramID, documentID, assetID, noteID,
+		teamNoteID, projectNoteID, feedbackID, triageNoteID, repoID,
 		webhookID, deliveryID, addonID, credID,
+		credID,
 		surveyID, responseID,
 		metadataKey,
-		adminGroupID, adminUUID,
+		teamID, projectID, teamID, projectID,
+		adminGroupID, targetUUID,
 		provider, user,
 		provider, user,
 		provider, provider,
-		adminUUID, adminUUID,
+		targetUUID, targetUUID,
 		actorEmail, provider, tmID,
 		actorEmail, provider,
+		decoySections,
+		auditSections,
 	)
 
 	return os.WriteFile(path, []byte(yaml), 0o600)
+}
+
+// Seed refs for the destructive-fuzz decoys. Anchor paths (/teams/{team_id},
+// /threat_models/{threat_model_id}, ...) are pointed at these while everything
+// nested underneath keeps the real fixture, so a successful DELETE consumes
+// the decoy instead of the resource 63 nested paths depend on (#608).
+const (
+	throwawayTeamName        = "CATS Throwaway Team"
+	throwawayProjectName     = "CATS Throwaway Project"
+	throwawayGroupName       = "CATS Throwaway Group"
+	throwawayThreatModelName = "CATS Throwaway Threat Model"
+	realTeamName             = "CATS Test Team"
+	realProjectName          = "CATS Test Project"
+	realGroupName            = "CATS Test Group"
+	realThreatModelName      = "CATS Test Threat Model"
+)
+
+// findRefByName returns a seeded id by its exact seed ref, falling back to the
+// first ref of `kind` when that ref is absent.
+//
+// The fallback is what keeps a seed file that defines only one team (or one
+// threat model) working. It is also why the named lookup has to come first:
+// findRefByKind ranges over a map, so with two instances seeded it would
+// return an arbitrary one — fine while every kind had exactly one instance,
+// actively wrong now that the decoys exist.
+// SEM@a3b4c5d6e7f8091a2b3c4d5e6f70819293041526: fetch a seeded id by exact ref, falling back to the first of a kind (pure)
+func findRefByName(refs RefMap, ref, kind string) string {
+	if r, ok := refs[ref]; ok && r.ID != "" {
+		return r.ID
+	}
+	return findRefByKind(refs, kind)
 }
 
 // SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: return the ID of the first ref matching a resource kind, or the nil UUID if not found (pure)
