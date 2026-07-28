@@ -8,7 +8,7 @@ TMI is a Go-based service implementing the REST API and store for managing a sec
 
 ## Related Projects
 
-TMI has several sibling projects. When you need to read files from or interact with these projects, check `.local-projects.json` in the project root for local filesystem paths before fetching from GitHub. This file is gitignored (local to each developer's machine).
+TMI has several sibling projects. When you need to read files from or interact with these projects, check `.local/repos.json` for local filesystem paths before fetching from GitHub. It is a registry keyed by repo name — `{ "<name>": { "path": "<abs>", "github": { "owner", "repo", "project", "wiki_path" } } }` — and is the only source of a repo's local path. The file is gitignored (local to each developer's machine) and is provisioned by `~/Scripts/provision-repo-config.py`.
 
 ## Key Files
 

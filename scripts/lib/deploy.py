@@ -273,21 +273,21 @@ def _resolve_client_path(project_root: Path) -> str:
 
     Checks (in order):
     1. TMI_CLIENT_PATH environment variable
-    2. .local-projects.json entry for tmi-clients
+    2. .local/repos.json entry for tmi-clients
     3. Default sibling directory ../tmi-clients
     """
     env_path = os.environ.get("TMI_CLIENT_PATH", "")
     if env_path:
         return env_path
 
-    local_projects_file = project_root / ".local-projects.json"
-    if local_projects_file.exists():
+    repos_file = project_root / ".local" / "repos.json"
+    if repos_file.exists():
         try:
-            data = json.loads(local_projects_file.read_text())
-            for proj in data.get("projects", []):
-                if proj.get("name") == "tmi-clients":
-                    return proj["path"]
-        except (json.JSONDecodeError, KeyError):
+            data = json.loads(repos_file.read_text())
+            path = data.get("tmi-clients", {}).get("path")
+            if path:
+                return path
+        except (json.JSONDecodeError, AttributeError):
             pass
 
     return str(project_root.parent / "tmi-clients")

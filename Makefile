@@ -450,8 +450,8 @@ cats-seed:  ## Seed database for CATS fuzzing
 	@uv run scripts/run-dbtool.py --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER) --server=$(CATS_SERVER)
 
 e2e-seed:  ## Seed database with E2E test data from tmi-ux seed-spec
-	@E2E_SEED=$$(jq -r '."tmi-ux"' .local-projects.json 2>/dev/null)/e2e/seed/seed-spec.json; \
-	if [ ! -f "$$E2E_SEED" ]; then echo "Error: seed-spec.json not found at $$E2E_SEED (check .local-projects.json)"; exit 1; fi; \
+	@E2E_SEED=$$(jq -r '."tmi-ux".path // empty' .local/repos.json 2>/dev/null)/e2e/seed/seed-spec.json; \
+	if [ ! -f "$$E2E_SEED" ]; then echo "Error: seed-spec.json not found at $$E2E_SEED (check .local/repos.json)"; exit 1; fi; \
 	uv run scripts/run-dbtool.py --config=$(CATS_CONFIG) --user=$(CATS_USER) --provider=$(CATS_PROVIDER) --server=$(CATS_SERVER) --input-file=$$E2E_SEED
 
 cats-seed-oci:  ## Seed database for CATS fuzzing (Oracle ADB; requires scripts/oci-env.sh sourced)
