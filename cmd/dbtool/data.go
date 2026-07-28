@@ -151,6 +151,7 @@ func classifyStrategy(kind string) string {
 		kindGroup, kindGroupMember,
 		kindDiagram, kindDiagramUpdate,
 		kindThreat, kindAsset, kindDocument, kindNote, kindRepository,
+		kindTeamNote, kindProjectNote, kindFeedback, kindTriageNote,
 		kindWebhook, kindWebhookTestDeliv, kindAddon, kindClientCredential,
 		kindSurvey, kindSurveyResponse, kindMetadata:
 		return strategyAPI

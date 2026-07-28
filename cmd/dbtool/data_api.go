@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -277,7 +279,11 @@ func (c *apiClient) findExistingByNameHTTP(path, itemsKey, name string) string {
 		for _, item := range items {
 			if m, ok := item.(map[string]any); ok {
 				if n, _ := m["name"].(string); n == name {
-					if id, _ := m["id"].(string); id != "" {
+					// extractID, not a string assertion: a few resources
+					// (TriageNote) use an integer id, and this is the
+					// idempotency check -- getting it wrong re-creates the
+					// resource on every seed rather than reusing it.
+					if id, ok := extractID(m["id"]); ok {
 						return id
 					}
 				}
@@ -304,7 +310,7 @@ func (c *apiClient) findFirstIDHTTP(path, itemsKey string) string {
 	if !ok {
 		return ""
 	}
-	id, _ := m["id"].(string)
+	id, _ := extractID(m["id"])
 	return id
 }
 
@@ -1091,13 +1097,39 @@ func (c *apiClient) createAPIObject(name, path string, payload any) (string, err
 		return "", fmt.Errorf("failed to create %s: HTTP %d - %v", name, status, result)
 	}
 
-	id, ok := result["id"].(string)
-	if !ok || id == "" {
+	id, ok := extractID(result["id"])
+	if !ok {
 		return "", fmt.Errorf("no 'id' field in response for %s: %v", name, result)
 	}
 
 	log.Info("    Created %s: %s", name, id)
 	return id, nil
+}
+
+// extractID renders a resource id from a decoded JSON value.
+//
+// Most TMI resources use a UUID string, but a few are scoped-sequential
+// integers — TriageNote.id is "sequential identifier for the triage note
+// within its survey response" — and encoding/json decodes those as float64.
+// A string-only assertion rejected them with "no 'id' field in response",
+// which is both wrong and misleading, since the field was right there.
+// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: render a resource id from a decoded JSON string or number (pure)
+func extractID(v any) (string, bool) {
+	switch id := v.(type) {
+	case string:
+		return id, id != ""
+	case float64:
+		// Integer ids only; a fractional value is not an id and must not be
+		// silently truncated into one.
+		if id != math.Trunc(id) {
+			return "", false
+		}
+		return strconv.FormatInt(int64(id), 10), true
+	case json.Number:
+		return id.String(), id.String() != ""
+	default:
+		return "", false
+	}
 }
 
 // SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: shallow-copy a string-keyed map (pure)

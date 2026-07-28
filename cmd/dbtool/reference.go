@@ -118,7 +118,13 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	teamNoteID := findRefByKind(refs, kindTeamNote)
 	projectNoteID := findRefByKind(refs, kindProjectNote)
 	feedbackID := findRefByKind(refs, kindFeedback)
+	// TriageNote.id is a per-survey-response sequential INTEGER, not a UUID, so
+	// the nilUUID fallback the other lookups use would be a type error in that
+	// path parameter (a 400 rather than the 404 a missing id should produce).
 	triageNoteID := findRefByKind(refs, kindTriageNote)
+	if triageNoteID == nilUUID {
+		triageNoteID = "0"
+	}
 	repoID := findRefByKind(refs, "repository")
 	webhookID := findRefByKind(refs, "webhook")
 	deliveryID := findRefByKind(refs, "webhook_test_delivery")

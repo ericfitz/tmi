@@ -534,3 +534,32 @@ func TestTransformSeedSpec_TriageNotes(t *testing.T) {
 	}
 	assert.Less(t, respIdx, noteIdx, "a triage note cannot be created before its survey response")
 }
+
+func TestExtractID(t *testing.T) {
+	// TriageNote.id is a per-survey-response sequential integer, and
+	// encoding/json decodes JSON numbers as float64 — a string-only assertion
+	// rejected it with "no 'id' field in response" while the field was present.
+	cases := []struct {
+		name string
+		in   any
+		want string
+		ok   bool
+	}{
+		{"uuid string", "0fe8018c-1be6-4c94-a242-49963ec7354a", "0fe8018c-1be6-4c94-a242-49963ec7354a", true},
+		{"empty string", "", "", false},
+		{"integer as float64", float64(1), "1", true},
+		{"large integer", float64(9007199254740991), "9007199254740991", true},
+		{"zero", float64(0), "0", true},
+		{"fractional is not an id", float64(1.5), "", false},
+		{"nil", nil, "", false},
+		{"bool", true, "", false},
+		{"map", map[string]any{"a": 1}, "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := extractID(tc.in)
+			assert.Equal(t, tc.ok, ok)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
