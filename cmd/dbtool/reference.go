@@ -169,6 +169,22 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	// file override it to the group for the three /admin/groups routes.
 	adminGroupID := findRefByKind(refs, kindGroup)
 
+	// Per-path sections for the harvested audit entry ids. Emitting a section
+	// with an empty value would be worse than omitting it: CATS would then
+	// substitute "" into the URL and every request would 404 on a malformed
+	// path rather than falling back to the global value.
+	auditSections := ""
+	for _, s := range []struct{ kind, path string }{
+		{"audit_entry_system", "/admin/audit/system/{entry_id}"},
+		{"audit_entry_admin_tm", "/admin/audit/threat_models/{entry_id}"},
+		{"audit_entry_tm_trail", "/threat_models/{threat_model_id}/audit_trail/{entry_id}"},
+		{"audit_entry_tm_trail", "/threat_models/{threat_model_id}/audit_trail/{entry_id}/rollback"},
+	} {
+		if id := findRefByKind(refs, s.kind); id != "" && id != nilUUID {
+			auditSections += fmt.Sprintf("%s:\n  entry_id: %s\n", s.path, id)
+		}
+	}
+
 	// Syntactically-valid actor email for the audit-endpoint refData (#494). The
 	// value only needs to pass the OpenAPI email-format check so HappyPath returns
 	// 200 (an empty result set is still 200); it need not match a real audit row.
@@ -306,7 +322,13 @@ all:
 /admin/groups/{internal_uuid}/members/{member_uuid}:
   internal_uuid: %s
   member_uuid: %s
-`,
+# entry_id names three different audit families (system, admin threat-model,
+# and a threat model's own trail), so it has the same one-name-many-resources
+# collision as internal_uuid above (#597/#603). These ids are harvested after
+# seeding rather than seeded, because audit entries are a side effect of the
+# seeding itself. A section is omitted entirely when its listing was empty, in
+# which case that family stays uncovered exactly as before.
+%s`,
 		time.Now().UTC().Format(time.RFC3339),
 		tmID, tmID,
 		threatID, diagramID, documentID, assetID, noteID,
@@ -326,6 +348,7 @@ all:
 		adminGroupID,
 		adminGroupID, targetUUID,
 		adminGroupID, targetUUID,
+		auditSections,
 	)
 
 	return os.WriteFile(path, []byte(yaml), 0o600)

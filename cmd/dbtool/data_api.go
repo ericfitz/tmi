@@ -1106,6 +1106,82 @@ func (c *apiClient) createAPIObject(name, path string, payload any) (string, err
 	return id, nil
 }
 
+// Bounded poll for asynchronously-written audit entries. 20 x 1s covers the
+// ~10s lag observed on a freshly seeded threat model's trail with headroom,
+// and only costs that long when a listing is genuinely empty — the two admin
+// listings carry history from previous runs and return on the first attempt.
+const (
+	auditCaptureAttempts = 20
+	auditCaptureInterval = time.Second
+)
+
+// auditEntryCapture describes one audit listing to harvest an entry id from.
+// SEM@e1f2a3b4c5d6e7f8091a2b3c4d5e6f7081929304: audit listing to harvest an entry id from after seeding (pure)
+type auditEntryCapture struct {
+	Kind     string // seed kind the captured id is registered under
+	ListPath string // collection to read (may contain a %s for the threat model id)
+	ItemsKey string // JSON array property holding the entries
+}
+
+// auditEntryCaptures enumerates the three audit families. They all use the
+// path parameter name `entry_id` but identify entries in different tables, so
+// like /admin/groups vs /admin/users (#603) a single global refData value
+// cannot satisfy all of them — reference.go emits per-path sections instead.
+var auditEntryCaptures = []auditEntryCapture{
+	{"audit_entry_system", "/admin/audit/system", "entries"},
+	{"audit_entry_admin_tm", "/admin/audit/threat_models", "entries"},
+	{"audit_entry_tm_trail", "/threat_models/%s/audit_trail", "audit_entries"},
+}
+
+// captureAuditEntryIDs harvests one real entry id from each audit listing.
+//
+// Audit entries cannot be seeded like other resources: they are a side effect
+// of the seeding itself, so there is nothing to point a seed entry at (#597).
+// This runs AFTER the seed loop, when the writes that generated them have
+// happened, and registers what it finds in the ref map so the reference file
+// can emit it.
+//
+// Best-effort by design: an empty audit table or an unreachable endpoint
+// leaves that family without an id, exactly as before this existed. A seed
+// must not fail because a listing happened to be empty.
+// SEM@e1f2a3b4c5d6e7f8091a2b3c4d5e6f7081929304: harvest one audit entry id per audit family after seeding (reads API)
+func (c *apiClient) captureAuditEntryIDs(refs RefMap, threatModelID string) {
+	log := slogging.Get()
+	for _, capture := range auditEntryCaptures {
+		path := capture.ListPath
+		if strings.Contains(path, "%s") {
+			if threatModelID == "" || threatModelID == nilUUID {
+				continue
+			}
+			path = fmt.Sprintf(path, threatModelID)
+		}
+		// Audit entries are written asynchronously, so a listing read the
+		// instant seeding finishes can still be empty for rows whose writes
+		// have already returned 200 — observed as a ~10s lag on a threat
+		// model's own trail. Poll briefly rather than concluding "no entries".
+		var id string
+		for attempt := range auditCaptureAttempts {
+			if id = c.findFirstIDHTTP(path, capture.ItemsKey); id != "" {
+				break
+			}
+			if attempt < auditCaptureAttempts-1 {
+				time.Sleep(auditCaptureInterval)
+			}
+		}
+		if id == "" {
+			log.Info("  no audit entry available from %s after %s (skipping %s)",
+				path, auditCaptureAttempts*auditCaptureInterval, capture.Kind)
+			continue
+		}
+		refs["audit-entry:"+capture.Kind] = &SeedResult{
+			Ref:  "audit-entry:" + capture.Kind,
+			Kind: capture.Kind,
+			ID:   id,
+		}
+		log.Info("  Captured %s: %s", capture.Kind, id)
+	}
+}
+
 // extractID renders a resource id from a decoded JSON value.
 //
 // Most TMI resources use a UUID string, but a few are scoped-sequential

@@ -71,6 +71,15 @@ func runDataSeed(db *testdb.TestDB, inputFile, serverURL, user, provider string,
 		}
 	}
 
+	// Audit entries are a side effect of the seeding above rather than
+	// something that can be seeded, so their ids can only be harvested once
+	// the writes that produced them have happened (#597). Best-effort: an
+	// empty audit table just leaves entry_id uncovered, as before.
+	if !dryRun && token != "" {
+		newAPIClient(serverURL, token).
+			captureAuditEntryIDs(refs, findRefByKind(refs, kindThreatModel))
+	}
+
 	if seedFile.Output != nil && !dryRun {
 		if err := writeReferenceFiles(seedFile.Output, refs, serverURL, user, provider); err != nil {
 			return fmt.Errorf("failed to write reference files: %w", err)
