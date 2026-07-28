@@ -17,7 +17,7 @@ require (
 	github.com/ericfitz/tmi-clients/go-client-generated/v1_5_0 v0.0.0-20260701025703-ad400e64ba0c
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/getkin/kin-openapi v0.143.0
+	github.com/getkin/kin-openapi v0.145.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/godror/godror v0.51.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -32,7 +32,7 @@ require (
 	github.com/oapi-codegen/runtime v1.6.0
 	github.com/oracle-samples/gorm-oracle v1.1.3
 	github.com/oracle/oci-go-sdk/v65 v65.121.1
-	github.com/prometheus/client_golang v1.24.0
+	github.com/prometheus/client_golang v1.24.1
 	github.com/redis/go-redis/extra/redisotel/v9 v9.21.0
 	github.com/redis/go-redis/v9 v9.21.0
 	github.com/stretchr/testify v1.11.1
