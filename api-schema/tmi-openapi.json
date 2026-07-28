@@ -8881,29 +8881,6 @@
             "example": "Core platform infrastructure team",
             "nullable": true
           },
-          "members": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TeamMemberInput"
-            },
-            "maxItems": 1000,
-            "description": "List of team members with their roles",
-            "example": [
-              {
-                "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-                "role": "engineering_lead"
-              }
-            ]
-          },
-          "responsible_parties": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ResponsiblePartyInput"
-            },
-            "maxItems": 100,
-            "description": "Responsible parties for this team (in lieu of owner)",
-            "example": []
-          },
           "related_teams": {
             "type": "array",
             "items": {
@@ -9142,7 +9119,40 @@
         "additionalProperties": false
       },
       "TeamInput": {
-        "$ref": "#/components/schemas/TeamBase"
+        "description": "Client-writable fields for Team",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/TeamBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "members": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TeamMemberInput"
+                },
+                "maxItems": 1000,
+                "description": "List of team members with their roles",
+                "example": [
+                  {
+                    "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "role": "engineering_lead"
+                  }
+                ]
+              },
+              "responsible_parties": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ResponsiblePartyInput"
+                },
+                "maxItems": 100,
+                "description": "Responsible parties for this team (in lieu of owner)",
+                "example": []
+              }
+            }
+          }
+        ]
       },
       "ListTeamsResponse": {
         "type": "object",
@@ -9220,15 +9230,6 @@
             "description": "UUID of the team this project belongs to",
             "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
             "example": "550e8400-e29b-41d4-a716-446655440000"
-          },
-          "responsible_parties": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ResponsiblePartyInput"
-            },
-            "maxItems": 100,
-            "description": "Responsible parties for this project",
-            "example": []
           },
           "related_projects": {
             "type": "array",
@@ -9459,7 +9460,26 @@
         "additionalProperties": false
       },
       "ProjectInput": {
-        "$ref": "#/components/schemas/ProjectBase"
+        "description": "Client-writable fields for Project",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProjectBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "responsible_parties": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ResponsiblePartyInput"
+                },
+                "maxItems": 100,
+                "description": "Responsible parties for this project",
+                "example": []
+              }
+            }
+          }
+        ]
       },
       "ListProjectsResponse": {
         "type": "object",
