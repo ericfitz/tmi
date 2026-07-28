@@ -17,13 +17,13 @@ deleted once the port was verified equivalent) that the YAML was ported
 from. **Order is load-bearing**: inserting a rule in the wrong
 place, or reordering existing rules, can silently change which rule (or
 whether any rule) suppresses a given fuzzer finding. Each rule's leading
-comment records its actual file position as `rule N of 65`; if you add,
+comment records its actual file position as `rule N of 48`; if you add,
 remove, or reorder a rule, renumber every comment (and the total) to match.
 
 ## `rule-baseline.json`
 
 This is a golden snapshot of what the rule set actually does against a real
-fuzzing corpus: for each of the 65 rules, how many classified (`error`/
+fuzzing corpus: for each of the 48 rules, how many classified (`error`/
 `warn`) records it **matches** in isolation, and how many it actually
 **fires** on once first-match-wins is applied (a record a later rule
 "matches" may already have been claimed by an earlier one).
