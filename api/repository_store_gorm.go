@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/validation"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -228,8 +229,22 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 	// Model(), no SkipHooks) moves modified_at, while a document PUT
 	// (SkipHooks) leaves it equal to created_at forever. Setting it here keeps
 	// the column truthful without giving the empty-struct hook a chance to run.
+	//
+	// INVARIANT: safe ONLY while the session below sets SkipHooks — the
+	// autoUpdateTime injector is guarded by `!stmt.SkipHooks`, and its dedup
+	// check tests field.Name/field.DBName ("ModifiedAt"/"MODIFIED_AT" on
+	// Oracle), which a lowercase key matches neither of. Re-enabling hooks
+	// yields a duplicate assignment and ORA-00957 on Oracle while PostgreSQL
+	// stays green. The key's casing is NOT itself a problem — LookUpField's
+	// namer fallback resolves it and the emitted SQL uses DBName. See the
+	// fuller note in document_store_gorm.go.
+	// Truncated to microseconds because that is the resolution both
+	// TIMESTAMP(6) on Oracle and timestamptz on PostgreSQL actually store.
+	// Without it the value mirrored onto the struct below (and returned in the
+	// response body) carries up to 999ns the next DB-served read will not.
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	updates := map[string]any{
-		"modified_at": time.Now().UTC(),
+		"modified_at": now,
 		"name":        repository.Name,
 		"uri":         repository.Uri,
 		"description": repository.Description,
@@ -278,6 +293,12 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 		}
 		return err
 	}
+
+	// Mirror the new timestamp onto the struct before it is cached. Without
+	// this the row advances while the cached copy keeps the caller-supplied
+	// (older) value, so a cache-served GET reports a modified_at behind the
+	// database — a divergence that did not exist while the column was frozen.
+	repository.ModifiedAt = &now
 
 	// Update metadata if present
 	if repository.Metadata != nil {
@@ -715,6 +736,12 @@ func (s *GormRepositoryRepository) applyPatchOperation(repository *Repository, o
 	case PatchPathType:
 		if op.Op == string(Replace) {
 			if repoType, ok := op.Value.(string); ok {
+				// Re-checked here because Update() runs with SkipHooks, which
+				// disables Repository.BeforeSave and with it this enum check.
+				// Without it an off-enum type persists on both dialects.
+				if err := validation.ValidateRepositoryType(repoType); err != nil {
+					return err
+				}
 				rt := RepositoryType(repoType)
 				repository.Type = &rt
 			} else {
@@ -724,6 +751,15 @@ func (s *GormRepositoryRepository) applyPatchOperation(repository *Repository, o
 	case PatchPathURI:
 		if op.Op == string(Replace) {
 			if uri, ok := op.Value.(string); ok {
+				// Re-checked here for the same reason, and this one is a
+				// dialect-divergence bug rather than just bad data:
+				// ValidateURIPatchOperations deliberately skips empty strings,
+				// so `replace /uri ""` reaches the store. PostgreSQL stores ''
+				// in a NOT NULL text column; Oracle binds '' as NULL and raises
+				// ORA-01407. Rejecting it here keeps both dialects on 400.
+				if err := validation.ValidateURI("uri", uri); err != nil {
+					return err
+				}
 				repository.Uri = uri
 			} else {
 				return fmt.Errorf("invalid value type for uri: expected string")
