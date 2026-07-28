@@ -1,12 +1,52 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"net/http"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
+	"gorm.io/gorm"
 )
+
+// requireProjectTeamMemberOrAdmin authorizes the caller against a project's
+// team, writing the response and returning false when it does not hold.
+//
+// The reason this is a helper rather than six copies: IsProjectTeamMemberOrAdmin
+// returns gorm.ErrRecordNotFound when the project itself does not exist, and
+// every call site mapped that to 500 "Failed to check authorization" — a
+// nonexistent project reported as a server fault, in violation of the
+// zero-500 policy (#592). CATS never caught it because the fuzzing identity is
+// an admin and the admin fast path skips the project lookup entirely.
+//
+// `action` completes "You must be a project team member or administrator to
+// <action> project notes".
+// SEM@e1f2a3b4c5d6e7f8091a2b3c4d5e6f7081929304: authorize a caller against a project's team, writing 404/403/500 as appropriate (reads DB)
+func requireProjectTeamMemberOrAdmin(
+	c *gin.Context, ctx context.Context, projectID, userUUID, action string,
+) bool {
+	authorized, err := IsProjectTeamMemberOrAdmin(ctx, projectID, userUUID, c)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			HandleRequestError(c, NotFoundError("Project not found"))
+			return false
+		}
+		slogging.Get().WithContext(c).Error("Failed to check project authorization: %v", err)
+		HandleRequestError(c, ServerError("Failed to check authorization"))
+		return false
+	}
+	if !authorized {
+		c.JSON(http.StatusForbidden, Error{
+			Error: "forbidden",
+			ErrorDescription: "You must be a project team member or administrator to " +
+				action + " project notes",
+		})
+		return false
+	}
+	return true
+}
 
 // ListProjectNotes returns a paginated list of notes for a project.
 // GET /projects/{project_id}/notes
@@ -21,17 +61,7 @@ func (s *Server) ListProjectNotes(c *gin.Context, projectId openapi_types.UUID, 
 	}
 
 	// Authorization: must be project team member or admin
-	authorized, err := IsProjectTeamMemberOrAdmin(ctx, projectId.String(), userUUID, c)
-	if err != nil {
-		logger.Error("Failed to check project authorization: %v", err)
-		HandleRequestError(c, ServerError("Failed to check authorization"))
-		return
-	}
-	if !authorized {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "You must be a project team member or administrator to access project notes",
-		})
+	if !requireProjectTeamMemberOrAdmin(c, ctx, projectId.String(), userUUID, "access") {
 		return
 	}
 
@@ -90,17 +120,7 @@ func (s *Server) CreateProjectNote(c *gin.Context, projectId openapi_types.UUID)
 	}
 
 	// Authorization: must be project team member or admin
-	authorized, err := IsProjectTeamMemberOrAdmin(ctx, projectId.String(), userUUID, c)
-	if err != nil {
-		logger.Error("Failed to check project authorization: %v", err)
-		HandleRequestError(c, ServerError("Failed to check authorization"))
-		return
-	}
-	if !authorized {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "You must be a project team member or administrator to create project notes",
-		})
+	if !requireProjectTeamMemberOrAdmin(c, ctx, projectId.String(), userUUID, "create") {
 		return
 	}
 
@@ -160,7 +180,6 @@ func (s *Server) CreateProjectNote(c *gin.Context, projectId openapi_types.UUID)
 // GET /projects/{project_id}/notes/{project_note_id}
 // SEM@8a8c018ad8b1686dd4e43f736f31431743de5393: fetch a single project note, hiding non-sharable notes from unprivileged users as 404 (reads DB)
 func (s *Server) GetProjectNote(c *gin.Context, projectId openapi_types.UUID, projectNoteId ProjectNoteId) {
-	logger := slogging.Get()
 	ctx := c.Request.Context()
 
 	userUUID, ok := getUserUUID(c)
@@ -169,17 +188,7 @@ func (s *Server) GetProjectNote(c *gin.Context, projectId openapi_types.UUID, pr
 	}
 
 	// Authorization: must be project team member or admin
-	authorized, err := IsProjectTeamMemberOrAdmin(ctx, projectId.String(), userUUID, c)
-	if err != nil {
-		logger.Error("Failed to check project authorization: %v", err)
-		HandleRequestError(c, ServerError("Failed to check authorization"))
-		return
-	}
-	if !authorized {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "You must be a project team member or administrator to access project notes",
-		})
+	if !requireProjectTeamMemberOrAdmin(c, ctx, projectId.String(), userUUID, "access") {
 		return
 	}
 
@@ -214,17 +223,7 @@ func (s *Server) UpdateProjectNote(c *gin.Context, projectId openapi_types.UUID,
 	}
 
 	// Authorization: must be project team member or admin
-	authorized, err := IsProjectTeamMemberOrAdmin(ctx, projectId.String(), userUUID, c)
-	if err != nil {
-		logger.Error("Failed to check project authorization: %v", err)
-		HandleRequestError(c, ServerError("Failed to check authorization"))
-		return
-	}
-	if !authorized {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "You must be a project team member or administrator to update project notes",
-		})
+	if !requireProjectTeamMemberOrAdmin(c, ctx, projectId.String(), userUUID, "update") {
 		return
 	}
 
@@ -308,17 +307,7 @@ func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, 
 	}
 
 	// Authorization: must be project team member or admin
-	authorized, err := IsProjectTeamMemberOrAdmin(ctx, projectId.String(), userUUID, c)
-	if err != nil {
-		logger.Error("Failed to check project authorization: %v", err)
-		HandleRequestError(c, ServerError("Failed to check authorization"))
-		return
-	}
-	if !authorized {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "You must be a project team member or administrator to patch project notes",
-		})
+	if !requireProjectTeamMemberOrAdmin(c, ctx, projectId.String(), userUUID, "patch") {
 		return
 	}
 
@@ -382,17 +371,7 @@ func (s *Server) DeleteProjectNote(c *gin.Context, projectId openapi_types.UUID,
 	}
 
 	// Authorization: must be project team member or admin
-	authorized, err := IsProjectTeamMemberOrAdmin(ctx, projectId.String(), userUUID, c)
-	if err != nil {
-		logger.Error("Failed to check project authorization: %v", err)
-		HandleRequestError(c, ServerError("Failed to check authorization"))
-		return
-	}
-	if !authorized {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "You must be a project team member or administrator to delete project notes",
-		})
+	if !requireProjectTeamMemberOrAdmin(c, ctx, projectId.String(), userUUID, "delete") {
 		return
 	}
 
