@@ -1,12 +1,58 @@
 package api
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+// requireTeamMemberOrAdmin authorizes the caller against a team, writing the
+// response and returning false when it does not hold.
+//
+// Checks existence BEFORE authorization: IsTeamMemberOrAdmin's admin fast path
+// returns true without ever resolving the team, so an administrator listing
+// notes on a nonexistent team got 200 with an empty list — indistinguishable
+// from a genuinely empty list, and disagreeing with both `GET /teams/{id}`
+// and what a regular user sees (#609).
+//
+// `action` completes "You must be a team member or administrator to <action>
+// team notes".
+// SEM@f2a3b4c5d6e7f8091a2b3c4d5e6f708192930415: authorize a caller against a team, writing 404/403/500 as appropriate (reads DB)
+func requireTeamMemberOrAdmin(
+	c *gin.Context, ctx context.Context, teamID, userUUID, action string,
+) bool {
+	logger := slogging.Get().WithContext(c)
+
+	exists, err := TeamExists(ctx, teamID)
+	if err != nil {
+		logger.Error("Failed to check team existence: %v", err)
+		HandleRequestError(c, ServerError("Failed to check authorization"))
+		return false
+	}
+	if !exists {
+		HandleRequestError(c, NotFoundError("Team not found"))
+		return false
+	}
+
+	authorized, err := IsTeamMemberOrAdmin(ctx, teamID, userUUID, c)
+	if err != nil {
+		logger.Error("Failed to check team authorization: %v", err)
+		HandleRequestError(c, ServerError("Failed to check authorization"))
+		return false
+	}
+	if !authorized {
+		c.JSON(http.StatusForbidden, Error{
+			Error: "forbidden",
+			ErrorDescription: "You must be a team member or administrator to " +
+				action + " team notes",
+		})
+		return false
+	}
+	return true
+}
 
 // isPrivilegedUser checks if the user is an administrator or security reviewer.
 // SEM@1ce00faf902914340ca54f7376e355c547163dda: check whether the current user is an administrator or security reviewer (pure)
@@ -32,17 +78,7 @@ func (s *Server) ListTeamNotes(c *gin.Context, teamId openapi_types.UUID, params
 	}
 
 	// Authorization: must be team member or admin
-	authorized, err := IsTeamMemberOrAdmin(ctx, teamId.String(), userUUID, c)
-	if err != nil {
-		logger.Error("Failed to check team authorization: %v", err)
-		HandleRequestError(c, ServerError("Failed to check authorization"))
-		return
-	}
-	if !authorized {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "You must be a team member or administrator to access team notes",
-		})
+	if !requireTeamMemberOrAdmin(c, ctx, teamId.String(), userUUID, "access") {
 		return
 	}
 
@@ -101,17 +137,7 @@ func (s *Server) CreateTeamNote(c *gin.Context, teamId openapi_types.UUID) {
 	}
 
 	// Authorization: must be team member or admin
-	authorized, err := IsTeamMemberOrAdmin(ctx, teamId.String(), userUUID, c)
-	if err != nil {
-		logger.Error("Failed to check team authorization: %v", err)
-		HandleRequestError(c, ServerError("Failed to check authorization"))
-		return
-	}
-	if !authorized {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "You must be a team member or administrator to create team notes",
-		})
+	if !requireTeamMemberOrAdmin(c, ctx, teamId.String(), userUUID, "create") {
 		return
 	}
 
@@ -171,7 +197,6 @@ func (s *Server) CreateTeamNote(c *gin.Context, teamId openapi_types.UUID) {
 // GET /teams/{team_id}/notes/{team_note_id}
 // SEM@1ce00faf902914340ca54f7376e355c547163dda: fetch a team note, hiding non-sharable notes from unprivileged users (reads DB)
 func (s *Server) GetTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNoteId TeamNoteId) {
-	logger := slogging.Get()
 	ctx := c.Request.Context()
 
 	userUUID, ok := getUserUUID(c)
@@ -180,17 +205,7 @@ func (s *Server) GetTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNote
 	}
 
 	// Authorization: must be team member or admin
-	authorized, err := IsTeamMemberOrAdmin(ctx, teamId.String(), userUUID, c)
-	if err != nil {
-		logger.Error("Failed to check team authorization: %v", err)
-		HandleRequestError(c, ServerError("Failed to check authorization"))
-		return
-	}
-	if !authorized {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "You must be a team member or administrator to access team notes",
-		})
+	if !requireTeamMemberOrAdmin(c, ctx, teamId.String(), userUUID, "access") {
 		return
 	}
 
@@ -225,17 +240,7 @@ func (s *Server) UpdateTeamNote(c *gin.Context, teamId openapi_types.UUID, teamN
 	}
 
 	// Authorization: must be team member or admin
-	authorized, err := IsTeamMemberOrAdmin(ctx, teamId.String(), userUUID, c)
-	if err != nil {
-		logger.Error("Failed to check team authorization: %v", err)
-		HandleRequestError(c, ServerError("Failed to check authorization"))
-		return
-	}
-	if !authorized {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "You must be a team member or administrator to update team notes",
-		})
+	if !requireTeamMemberOrAdmin(c, ctx, teamId.String(), userUUID, "update") {
 		return
 	}
 
@@ -319,17 +324,7 @@ func (s *Server) PatchTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNo
 	}
 
 	// Authorization: must be team member or admin
-	authorized, err := IsTeamMemberOrAdmin(ctx, teamId.String(), userUUID, c)
-	if err != nil {
-		logger.Error("Failed to check team authorization: %v", err)
-		HandleRequestError(c, ServerError("Failed to check authorization"))
-		return
-	}
-	if !authorized {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "You must be a team member or administrator to patch team notes",
-		})
+	if !requireTeamMemberOrAdmin(c, ctx, teamId.String(), userUUID, "patch") {
 		return
 	}
 
@@ -393,17 +388,7 @@ func (s *Server) DeleteTeamNote(c *gin.Context, teamId openapi_types.UUID, teamN
 	}
 
 	// Authorization: must be team member or admin
-	authorized, err := IsTeamMemberOrAdmin(ctx, teamId.String(), userUUID, c)
-	if err != nil {
-		logger.Error("Failed to check team authorization: %v", err)
-		HandleRequestError(c, ServerError("Failed to check authorization"))
-		return
-	}
-	if !authorized {
-		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
-			ErrorDescription: "You must be a team member or administrator to delete team notes",
-		})
+	if !requireTeamMemberOrAdmin(c, ctx, teamId.String(), userUUID, "delete") {
 		return
 	}
 

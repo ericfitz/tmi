@@ -27,6 +27,20 @@ import (
 func requireProjectTeamMemberOrAdmin(
 	c *gin.Context, ctx context.Context, projectID, userUUID, action string,
 ) bool {
+	// Existence before authorization: the admin fast path inside
+	// IsProjectTeamMemberOrAdmin returns true without ever resolving the
+	// project, so without this an admin got 200-with-an-empty-list where a
+	// regular user correctly got 404 (#609).
+	if _, err := GetProjectTeamID(ctx, projectID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			HandleRequestError(c, NotFoundError("Project not found"))
+			return false
+		}
+		slogging.Get().WithContext(c).Error("Failed to resolve project: %v", err)
+		HandleRequestError(c, ServerError("Failed to check authorization"))
+		return false
+	}
+
 	authorized, err := IsProjectTeamMemberOrAdmin(ctx, projectID, userUUID, c)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
