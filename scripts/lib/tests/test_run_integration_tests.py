@@ -119,5 +119,26 @@ class TestBuildFailureDetection(unittest.TestCase):
     def test_unreadable_log_is_not_a_build_failure(self):
         self.assertIsNone(rit.build_failure_reason("/nonexistent/path/xyz"))
 
+
+class TestBuildFailureIsFoundAnywhereInTheLog(unittest.TestCase):
+    """Regression: the first implementation scanned only the last 200 lines.
+    `go test ./...` prints a package's build failure when it reaches that
+    package and the packages that DO build keep logging afterwards, so in a
+    real run the marker sat at line 131 of a 1000-line log and was missed."""
+
+    def test_marker_early_in_a_long_log_is_found(self):
+        import tempfile
+        body = ["# github.com/ericfitz/tmi/api\n",
+                "../../api/team_store_gorm.go:156:18: undefined: EngineeringLead\n"]
+        body += [f"=== RUN   TestSomething{i}\n--- PASS: TestSomething{i} (0.01s)\n"
+                 for i in range(600)]
+        fd, path = tempfile.mkstemp()
+        with open(fd, "w") as fh:
+            fh.writelines(body)
+        self.addCleanup(lambda: Path(path).unlink(missing_ok=True))
+        reason = rit.build_failure_reason(path)
+        self.assertIsNotNone(reason, "a build failure early in a long log must still be found")
+        self.assertIn("github.com/ericfitz/tmi/api", reason)
+
 if __name__ == "__main__":
     unittest.main()

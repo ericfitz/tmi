@@ -4025,8 +4025,7 @@
               "git",
               "svn",
               "mercurial",
-              "other",
-              null
+              "other"
             ],
             "maxLength": 16,
             "nullable": true
@@ -6624,8 +6623,7 @@
             "description": "A hint about the type of the token. If omitted, the server will attempt to determine the token type.",
             "enum": [
               "access_token",
-              "refresh_token",
-              null
+              "refresh_token"
             ],
             "nullable": true,
             "example": "access_token"
@@ -12007,6 +12005,78 @@
             "description": "Additional linked identities"
           }
         }
+      },
+      "DocumentBulkUpdateItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DocumentBase"
+          },
+          {
+            "type": "object",
+            "description": "Document update item with required ID for bulk operations",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "maxLength": 36,
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                "description": "Unique identifier of the document to update (required for bulk updates)"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          }
+        ],
+        "description": "Document data for bulk update operations, including required ID field"
+      },
+      "RepositoryBulkUpdateItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RepositoryBase"
+          },
+          {
+            "type": "object",
+            "description": "Repository update item with required ID for bulk operations",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "maxLength": 36,
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                "description": "Unique identifier of the repository to update (required for bulk updates)"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          }
+        ],
+        "description": "Repository data for bulk update operations, including required ID field"
+      },
+      "AssetBulkUpdateItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AssetBase"
+          },
+          {
+            "type": "object",
+            "description": "Asset update item with required ID for bulk operations",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "maxLength": 36,
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                "description": "Unique identifier of the asset to update (required for bulk updates)"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          }
+        ],
+        "description": "Asset data for bulk update operations, including required ID field"
       }
     },
     "responses": {
@@ -22782,7 +22852,7 @@
               "schema": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Document"
+                  "$ref": "#/components/schemas/DocumentBulkUpdateItem"
                 },
                 "maxItems": 20,
                 "description": "Array of documents to create"
@@ -25237,7 +25307,7 @@
               "schema": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Repository"
+                  "$ref": "#/components/schemas/RepositoryBulkUpdateItem"
                 },
                 "maxItems": 20,
                 "description": "Array of source references to create"
@@ -32070,7 +32140,7 @@
               "schema": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Asset"
+                  "$ref": "#/components/schemas/AssetBulkUpdateItem"
                 },
                 "maxItems": 50
               },

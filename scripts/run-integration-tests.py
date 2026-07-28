@@ -168,7 +168,13 @@ def build_failure_reason(log_path: str) -> str | None:
             lines = fh.read().splitlines()
     except OSError:
         return None
-    for line in reversed(lines[-200:]):
+    # Scan the WHOLE log, not a tail window. `go test ./...` emits a package's
+    # build failure when it reaches that package, and the packages that do
+    # build keep printing verbose output afterwards — in a real run the
+    # "# github.com/..." header landed at line 131 of 1000+. A tail window
+    # silently found nothing, which is the same class of miss this function
+    # exists to prevent.
+    for line in lines:
         stripped = line.strip()
         if any(marker in stripped for marker in BUILD_FAILURE_MARKERS):
             return stripped
