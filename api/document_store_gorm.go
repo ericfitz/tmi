@@ -199,7 +199,12 @@ func (s *GormDocumentRepository) Update(ctx context.Context, document *Document,
 	// Note: Do not include modified_at in updates map as the Document model has
 	// autoUpdateTime which GORM handles automatically. Including it manually
 	// causes ORA-00957 (duplicate column name) errors in Oracle.
+	// modified_at explicitly: the SkipHooks session below suppresses GORM's
+	// autoUpdateTime tag, so without this the column stays at created_at for
+	// the life of the row. Pre-dates #610 — the same measurement that found it
+	// on repositories found it here.
 	updates := map[string]any{
+		"modified_at": time.Now().UTC(),
 		"name":        document.Name,
 		"uri":         document.Uri,
 		"description": document.Description,

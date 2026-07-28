@@ -222,8 +222,13 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 		}
 	}
 
-	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
+	// modified_at explicitly, NOT via the autoUpdateTime tag: SkipHooks
+	// suppresses it. Measured against this cluster — an asset PUT (plain
+	// Model(), no SkipHooks) moves modified_at, while a document PUT
+	// (SkipHooks) leaves it equal to created_at forever. Setting it here keeps
+	// the column truthful without giving the empty-struct hook a chance to run.
 	updates := map[string]any{
+		"modified_at": time.Now().UTC(),
 		"name":        repository.Name,
 		"uri":         repository.Uri,
 		"description": repository.Description,
@@ -241,8 +246,21 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 		updates["timmy_enabled"] = models.DBBool(false)
 	}
 
+	// SkipHooks, matching GormDocumentRepository.Update: a map-based Updates
+	// never populates the model from the map, so GORM would run
+	// Repository.BeforeSave against the empty &models.Repository{} above and
+	// fail its non-empty-URI check with "uri: URI cannot be empty" — on a
+	// request whose URI is present and valid (#610). The URI is already
+	// validated by the handler (repository_sub_resource_handlers.go, via
+	// validateURI) and by the OpenAPI middleware before reaching here, and the
+	// hook cannot meaningfully validate an empty struct anyway.
+	//
+	// SkipHooks rather than Table("repositories"): it changes no emitted SQL,
+	// so it carries no dialect risk, and it keeps GORM's schema — which the
+	// autoUpdateTime tag on modified_at depends on. Table() would silently
+	// stop that column updating.
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Model(&models.Repository{}).
+		result := tx.Session(&gorm.Session{SkipHooks: true}).Model(&models.Repository{}).
 			Where("id = ? AND threat_model_id = ?", repository.Id.String(), threatModelID).
 			Updates(updates)
 		if result.Error != nil {
