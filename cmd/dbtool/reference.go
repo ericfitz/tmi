@@ -151,7 +151,13 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 		targetUUID = r.ID
 	}
 
-	adminGroupID := nilUUID
+	// The group family of /admin routes reuses the SAME path-parameter name as the
+	// user family ({internal_uuid}), so a single global refData value cannot satisfy
+	// both and whichever family loses gets a well-formed UUID of the wrong kind and
+	// permanently 404s (#603). The global value stays pointed at a user, because far
+	// more operations need it; the per-path sections emitted at the bottom of this
+	// file override it to the group for the three /admin/groups routes.
+	adminGroupID := findRefByKind(refs, kindGroup)
 
 	// Syntactically-valid actor email for the audit-endpoint refData (#494). The
 	// value only needs to pass the OpenAPI email-format check so HappyPath returns
@@ -190,10 +196,39 @@ all:
   # examples) - CATS substitutes by field name in bodies too, so pointing
   # these at real seeded team/project ids makes those requests validate
   # without needing the seeded entities to literally carry the canonical ids.
+  # They are kept for the day the CATS defect below is fixed upstream; today
+  # the arrays that contain them are removed outright, so nothing substitutes.
   team_id: %s
   project_id: %s
   related_team_id: %s
   related_project_id: %s
+  # Body arrays removed from every generated payload, because CATS 13.8.0
+  # cannot produce a valid item for any of them and so poisons every
+  # POST/PUT to /projects and /teams (#596 and #604):
+  #
+  #   related_projects[] / related_teams[]  (#596)
+  #     CATS drops a nested property whose name shares an underscore-delimited
+  #     token with an ANCESTOR property's name -- a self-reference guard that
+  #     matches on name similarity rather than actual schema recursion. So
+  #     related_projects[].related_project_id is dropped ("related" collides
+  #     with the parent array), while responsible_parties[].user_id is not.
+  #     Verified by renaming the parent array to linked_projects, at which
+  #     point related_project_id appears. Since related_project_id is
+  #     required, every generated item fails validation.
+  #
+  #   responsible_parties[] / members[]  (#604)
+  #     CATS ignores "readOnly: true" on request-body properties, so it emits
+  #     the server-populated "user" object inside each item and TMI's OpenAPI
+  #     validation middleware rejects the request. refData cannot remove a
+  #     nested field (only top-level ones), so the whole array goes.
+  #
+  # Cost: these four arrays are not fuzzed. Before this, POST /projects and
+  # POST /teams returned 400 on EVERY test, so no part of either resource was
+  # fuzzed at all. Drop the entries below as each defect is resolved.
+  related_projects: cats_remove_field
+  related_teams: cats_remove_field
+  responsible_parties: cats_remove_field
+  members: cats_remove_field
   # Admin resource identifiers
   group_id: %s
   # internal_uuid for /admin/users/{internal_uuid} and /admin/groups/{internal_uuid} endpoints.
@@ -235,6 +270,25 @@ all:
   actor_provider: %s
   created_after: "2020-01-01T00:00:00Z"
   created_before: "2035-01-01T00:00:00Z"
+# /admin/groups/* reuses {internal_uuid} for a GROUP id while /admin/users/*
+# uses it for a USER id (#603). refData is keyed by parameter name, so the
+# global 'internal_uuid' above can only ever be one of the two -- it is the
+# user, leaving every /admin/groups/* happy path 404ing on a user UUID. These
+# per-path sections override it back to the seeded group; CATS resolves the
+# most specific match, verified against 13.8.0.
+#
+# This is a workaround, not the fix. The parameter name describes the storage
+# shape rather than the resource it identifies, which is what makes the
+# collision possible at all; renaming to {group_id}/{user_id} in the spec is
+# the real answer and is still tracked on #603.
+/admin/groups/{internal_uuid}:
+  internal_uuid: %s
+/admin/groups/{internal_uuid}/members:
+  internal_uuid: %s
+  member_uuid: %s
+/admin/groups/{internal_uuid}/members/{member_uuid}:
+  internal_uuid: %s
+  member_uuid: %s
 `,
 		time.Now().UTC().Format(time.RFC3339),
 		tmID, tmID,
@@ -251,6 +305,9 @@ all:
 		targetUUID, targetUUID,
 		actorEmail, provider, tmID,
 		actorEmail, provider,
+		adminGroupID,
+		adminGroupID, targetUUID,
+		adminGroupID, targetUUID,
 	)
 
 	return os.WriteFile(path, []byte(yaml), 0o600)

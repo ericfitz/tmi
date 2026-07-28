@@ -10,15 +10,22 @@
       "id": "charlie",
       "email": "charlie@tmi.local",
       "display_name": "Charlie (Seed User)",
-      "roles": { "is_admin": true },
+      "roles": {
+        "is_admin": true
+      },
       "oauth_provider": "tmi",
-      "api_quota": { "rpm": 100000, "rph": 1000000 }
+      "api_quota": {
+        "rpm": 100000,
+        "rph": 1000000
+      }
     },
     {
       "id": "cats-target",
       "email": "cats-target@tmi.local",
       "display_name": "CATS Target (Throwaway User)",
-      "roles": { "is_admin": false },
+      "roles": {
+        "is_admin": false
+      },
       "oauth_provider": "tmi"
     }
   ],
@@ -41,14 +48,23 @@
       "description": "Created by tmi-dbtool for comprehensive API fuzzing. DO NOT DELETE.",
       "threat_model_framework": "STRIDE",
       "metadata": [
-        { "key": "version", "value": "1.0" },
-        { "key": "purpose", "value": "cats-fuzzing-test-data" }
+        {
+          "key": "version",
+          "value": "1.0"
+        },
+        {
+          "key": "purpose",
+          "value": "cats-fuzzing-test-data"
+        }
       ],
       "threats": [
         {
           "name": "CATS Test Threat",
           "description": "Test threat for CATS fuzzing",
-          "threat_type": ["Tampering", "Information Disclosure"],
+          "threat_type": [
+            "Tampering",
+            "Information Disclosure"
+          ],
           "severity": "high",
           "priority": "high",
           "status": "identified"
@@ -122,15 +138,28 @@
     }
   ],
   "admin_entities": {
+    "groups": [
+      {
+        "name": "CATS Test Group",
+        "members": [
+          "cats-target"
+        ]
+      }
+    ],
     "webhooks": [
       {
         "name": "CATS Test Webhook",
         "url": "https://webhook.site/cats-test-webhook",
-        "events": ["threat_model.created", "threat.created"]
+        "events": [
+          "threat_model.created",
+          "threat.created"
+        ]
       }
     ],
     "webhook_test_deliveries": [
-      { "webhook": "CATS Test Webhook" }
+      {
+        "webhook": "CATS Test Webhook"
+      }
     ],
     "addons": [
       {
@@ -147,14 +176,59 @@
     ]
   },
   "metadata": [
-    { "target": "tm:cats-test-threat-model", "target_kind": "threat_model", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "threat:cats-test-threat-model:cats-test-threat", "target_kind": "threat", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "diagram:cats-test-threat-model:cats-test-diagram", "target_kind": "diagram", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "document:cats-test-threat-model:cats-test-document", "target_kind": "document", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "asset:cats-test-threat-model:cats-test-asset", "target_kind": "asset", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "note:cats-test-threat-model:cats-test-note", "target_kind": "note", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "repo:cats-test-threat-model:", "target_kind": "repository", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "survey:cats-test-survey", "target_kind": "survey", "key": "cats-test-key", "value": "cats-test-value" },
-    { "target": "survey-response:0", "target_kind": "survey_response", "key": "cats-test-key", "value": "cats-test-value" }
+    {
+      "target": "tm:cats-test-threat-model",
+      "target_kind": "threat_model",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "threat:cats-test-threat-model:cats-test-threat",
+      "target_kind": "threat",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "diagram:cats-test-threat-model:cats-test-diagram",
+      "target_kind": "diagram",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "document:cats-test-threat-model:cats-test-document",
+      "target_kind": "document",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "asset:cats-test-threat-model:cats-test-asset",
+      "target_kind": "asset",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "note:cats-test-threat-model:cats-test-note",
+      "target_kind": "note",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "repo:cats-test-threat-model:",
+      "target_kind": "repository",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "survey:cats-test-survey",
+      "target_kind": "survey",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    },
+    {
+      "target": "survey-response:0",
+      "target_kind": "survey_response",
+      "key": "cats-test-key",
+      "value": "cats-test-value"
+    }
   ]
 }
