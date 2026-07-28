@@ -146,6 +146,17 @@ func seedViaAPI(serverURL, token string, entry SeedEntry, refs RefMap, db *testd
 		return client.seedChildResource(entry, refs, "threat_model_ref", "documents")
 	case kindNote:
 		return client.seedChildResource(entry, refs, "threat_model_ref", "notes")
+	case kindTeamNote:
+		return client.seedNestedResource(entry, refs, "team_ref", "teams", "team_id", "notes")
+	case kindProjectNote:
+		return client.seedNestedResource(entry, refs, "project_ref", "projects", "project_id", "notes")
+	case kindFeedback:
+		return client.seedFeedback(entry, refs)
+	case kindTriageNote:
+		return client.seedNestedResource(
+			entry, refs, "survey_response_ref", "triage/survey_responses",
+			"survey_response_id", "triage_notes",
+		)
 	case kindRepository:
 		return client.seedChildResource(entry, refs, "threat_model_ref", "repositories")
 	case kindWebhook:
@@ -274,6 +285,27 @@ func (c *apiClient) findExistingByNameHTTP(path, itemsKey, name string) string {
 		}
 	}
 	return ""
+}
+
+// findFirstIDHTTP returns the id of the first item in a listing, for resources
+// that have no name to match on (content feedback). Empty if the listing is
+// empty or unreachable.
+// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: fetch the id of the first item in an API listing, returning empty if absent
+func (c *apiClient) findFirstIDHTTP(path, itemsKey string) string {
+	result, status, err := c.apiRequest("GET", path+"?limit=1", nil)
+	if err != nil || status >= 300 {
+		return ""
+	}
+	items, ok := result[itemsKey].([]any)
+	if !ok || len(items) == 0 {
+		return ""
+	}
+	m, ok := items[0].(map[string]any)
+	if !ok {
+		return ""
+	}
+	id, _ := m["id"].(string)
+	return id
 }
 
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: fetch the internal UUID of an admin group by group name, returning empty if absent
@@ -613,28 +645,44 @@ func (c *apiClient) seedGroupMember(entry SeedEntry, refs RefMap) (*SeedResult, 
 
 // SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: create a threat-model child resource via API, skipping if one with the same name exists
 func (c *apiClient) seedChildResource(entry SeedEntry, refs RefMap, refField, resourcePath string) (*SeedResult, error) {
+	return c.seedNestedResource(entry, refs, refField, "threat_models", "threat_model_id", resourcePath)
+}
+
+// seedNestedResource creates a resource nested under any parent collection.
+//
+// Generalized from seedChildResource, which hard-coded /threat_models: notes,
+// feedback and triage notes hang off teams, projects and survey responses too,
+// and each of those path parameters was uncovered in refData (#597).
+// parentCollection is the URL segment ("teams"), parentIDKey the name the
+// resolved parent id is published under in Extra so the reference file can
+// emit it.
+// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: create a resource nested under a parent collection via API, skipping if one with the same name exists
+func (c *apiClient) seedNestedResource(
+	entry SeedEntry, refs RefMap, refField, parentCollection, parentIDKey, resourcePath string,
+) (*SeedResult, error) {
 	log := slogging.Get()
 
-	tmID, err := resolveRefField(entry.Data, refField, refs)
+	parentID, err := resolveRefField(entry.Data, refField, refs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve %s: %w", refField, err)
 	}
-	if tmID == "" {
+	if parentID == "" {
 		return nil, fmt.Errorf("%s is required for %s seed", refField, entry.Kind)
 	}
+
+	collectionPath := fmt.Sprintf("/%s/%s/%s", parentCollection, parentID, resourcePath)
 
 	// Idempotency: check if a child resource with this name already exists
 	name, _ := entry.Data["name"].(string)
 	if name != "" {
-		listPath := fmt.Sprintf("/threat_models/%s/%s", tmID, resourcePath)
-		if existingID := c.findExistingByNameHTTP(listPath, resourcePath, name); existingID != "" {
+		if existingID := c.findExistingByNameHTTP(collectionPath, resourcePath, name); existingID != "" {
 			log.Info("  %s already exists: %s (skipping)", entry.Kind, existingID)
 			return &SeedResult{
 				Ref:  entry.Ref,
 				Kind: entry.Kind,
 				ID:   existingID,
 				Extra: map[string]string{
-					"threat_model_id": tmID,
+					parentIDKey: parentID,
 				},
 			}, nil
 		}
@@ -643,8 +691,7 @@ func (c *apiClient) seedChildResource(entry SeedEntry, refs RefMap, refField, re
 	payload := copyMap(entry.Data)
 	delete(payload, refField)
 
-	url := fmt.Sprintf("/threat_models/%s/%s", tmID, resourcePath)
-	id, err := c.createAPIObject(entry.Kind, url, payload)
+	id, err := c.createAPIObject(entry.Kind, collectionPath, payload)
 	if err != nil {
 		return nil, err
 	}
@@ -653,8 +700,61 @@ func (c *apiClient) seedChildResource(entry SeedEntry, refs RefMap, refField, re
 		Kind: entry.Kind,
 		ID:   id,
 		Extra: map[string]string{
-			"threat_model_id": tmID,
+			parentIDKey: parentID,
 		},
+	}, nil
+}
+
+// seedFeedback creates a content-feedback entry on a threat model.
+//
+// Feedback has no name, so seedNestedResource's name-based idempotency check
+// cannot apply; instead a threat model is allowed at most one seeded feedback
+// entry and an existing one is reused. target_ref names the seed ref of the
+// artifact the feedback is about (a note, diagram or threat) and is resolved
+// to target_id here — a fabricated UUID would 404.
+// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: create a content-feedback entry on a threat model, reusing an existing one
+func (c *apiClient) seedFeedback(entry SeedEntry, refs RefMap) (*SeedResult, error) {
+	log := slogging.Get()
+
+	tmID, err := resolveRefField(entry.Data, "threat_model_ref", refs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve threat_model_ref: %w", err)
+	}
+	if tmID == "" {
+		return nil, fmt.Errorf("threat_model_ref is required for %s seed", entry.Kind)
+	}
+
+	collectionPath := fmt.Sprintf("/threat_models/%s/feedback", tmID)
+	if existingID := c.findFirstIDHTTP(collectionPath, "feedback"); existingID != "" {
+		log.Info("  %s already exists: %s (skipping)", entry.Kind, existingID)
+		return &SeedResult{
+			Ref:   entry.Ref,
+			Kind:  entry.Kind,
+			ID:    existingID,
+			Extra: map[string]string{"threat_model_id": tmID},
+		}, nil
+	}
+
+	payload := copyMap(entry.Data)
+	delete(payload, "threat_model_ref")
+	if targetRef, _ := payload["target_ref"].(string); targetRef != "" {
+		targetID, err := resolveRef(refs, targetRef)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve target_ref: %w", err)
+		}
+		payload["target_id"] = targetID
+		delete(payload, "target_ref")
+	}
+
+	id, err := c.createAPIObject(entry.Kind, collectionPath, payload)
+	if err != nil {
+		return nil, err
+	}
+	return &SeedResult{
+		Ref:   entry.Ref,
+		Kind:  entry.Kind,
+		ID:    id,
+		Extra: map[string]string{"threat_model_id": tmID},
 	}, nil
 }
 

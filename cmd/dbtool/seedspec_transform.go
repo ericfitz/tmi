@@ -221,6 +221,35 @@ func transformTeams(teams []SeedSpecTeam) []SeedEntry {
 			Ref:  teamRef(t.Name),
 			Data: data,
 		})
+		seeds = append(seeds, transformTeamProjectNotes(
+			t.Notes, kindTeamNote, "team_ref", teamRef(t.Name), "team-note:"+sanitizeName(t.Name),
+		)...)
+	}
+	return seeds
+}
+
+// transformTeamProjectNotes converts notes hanging off a team or project.
+// Shared because TeamNoteInput and ProjectNoteInput are both TeamProjectNoteBase;
+// only the parent ref field and seed kind differ.
+// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: convert seed spec team/project notes to note seed entries (pure)
+func transformTeamProjectNotes(
+	notes []SeedSpecTeamProjectNote, kind, refField, parentRef, refPrefix string,
+) []SeedEntry {
+	var seeds []SeedEntry
+	for i, n := range notes {
+		data := map[string]any{
+			"name":    n.Name,
+			"content": n.Content,
+			refField:  parentRef,
+		}
+		if n.Description != "" {
+			data["description"] = n.Description
+		}
+		seeds = append(seeds, SeedEntry{
+			Kind: kind,
+			Ref:  fmt.Sprintf("%s:%d", refPrefix, i),
+			Data: data,
+		})
 	}
 	return seeds
 }
@@ -243,6 +272,10 @@ func transformProjects(projects []SeedSpecProject) []SeedEntry {
 			Ref:  projectRef(p.Name),
 			Data: data,
 		})
+		seeds = append(seeds, transformTeamProjectNotes(
+			p.Notes, kindProjectNote, "project_ref", projectRef(p.Name),
+			"project-note:"+sanitizeName(p.Name),
+		)...)
 	}
 	return seeds
 }
@@ -271,6 +304,7 @@ func transformThreatModels(tms []SeedSpecThreatModel, users map[string]userInfo,
 		seeds = append(seeds, transformDocuments(tm.Documents, ref, tm.Name)...)
 		seeds = append(seeds, transformNotes(tm.Notes, ref, tm.Name)...)
 		seeds = append(seeds, transformRepositories(tm.Repositories, ref, tm.Name)...)
+		seeds = append(seeds, transformFeedback(tm.Feedback, ref, tm.Name)...)
 
 		diagramSeeds, err := transformDiagrams(tm.Diagrams, ref, tm.Name)
 		if err != nil {
@@ -459,6 +493,32 @@ func transformNotes(notes []SeedSpecNote, ref, tmName string) []SeedEntry {
 	return seeds
 }
 
+// transformFeedback converts content-feedback entries on a threat model.
+// TargetRef is passed through as-is; the API seeder resolves it against the
+// ref map, since the artifact it points at is created by an earlier entry.
+// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: convert seed spec feedback to content-feedback seed entries linked to a threat model (pure)
+func transformFeedback(feedback []SeedSpecFeedback, ref, tmName string) []SeedEntry {
+	var seeds []SeedEntry
+	for i, f := range feedback {
+		data := map[string]any{
+			"threat_model_ref": ref,
+			"sentiment":        f.Sentiment,
+			"target_type":      f.TargetType,
+			"target_ref":       f.TargetRef,
+			"client_id":        f.ClientID,
+		}
+		if f.Verbatim != "" {
+			data["verbatim"] = f.Verbatim
+		}
+		seeds = append(seeds, SeedEntry{
+			Kind: kindFeedback,
+			Ref:  fmt.Sprintf("feedback:%s:%d", sanitizeName(tmName), i),
+			Data: data,
+		})
+	}
+	return seeds
+}
+
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert seed spec repositories to repository seed entries linked to a threat model (pure)
 func transformRepositories(repos []SeedSpecRepository, ref, tmName string) []SeedEntry {
 	var seeds []SeedEntry
@@ -591,11 +651,23 @@ func transformSurveyResponses(responses []SeedSpecSurveyResp, users map[string]u
 				},
 			}
 		}
+		responseRef := fmt.Sprintf("survey-response:%d", i)
 		seeds = append(seeds, SeedEntry{
 			Kind: kindSurveyResponse,
-			Ref:  fmt.Sprintf("survey-response:%d", i),
+			Ref:  responseRef,
 			Data: data,
 		})
+		for j, n := range sr.TriageNotes {
+			seeds = append(seeds, SeedEntry{
+				Kind: kindTriageNote,
+				Ref:  fmt.Sprintf("triage-note:%d:%d", i, j),
+				Data: map[string]any{
+					"name":                n.Name,
+					"content":             n.Content,
+					"survey_response_ref": responseRef,
+				},
+			})
+		}
 	}
 	return seeds
 }

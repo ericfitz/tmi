@@ -395,3 +395,142 @@ func TestRefHelpers(t *testing.T) {
 	assert.Equal(t, "webhook:my-hook", webhookRef("My Hook"))
 	assert.Equal(t, "threat:tm1:t1", childRef("threat", "TM1", "T1"))
 }
+
+// The four resources below were the last seedable path parameters with no
+// refData coverage at all, so their happy paths had never been fuzzed (#597).
+// Each needs both a seed entry here and emission in reference.go.
+
+func findSeedByKind(seeds []SeedEntry, kind string) *SeedEntry {
+	for i := range seeds {
+		if seeds[i].Kind == kind {
+			return &seeds[i]
+		}
+	}
+	return nil
+}
+
+func TestTransformSeedSpec_TeamNotes(t *testing.T) {
+	spec := &SeedSpecFile{
+		Version: "1.0",
+		Teams: []SeedSpecTeam{{
+			Name: "My Team",
+			Notes: []SeedSpecTeamProjectNote{
+				{Name: "Note A", Content: "body", Description: "why"},
+			},
+		}},
+	}
+
+	result, err := transformSeedSpec(spec)
+	require.NoError(t, err)
+
+	seed := findSeedByKind(result.Seeds, kindTeamNote)
+	require.NotNil(t, seed)
+	assert.Equal(t, "team-note:my-team:0", seed.Ref)
+	assert.Equal(t, "team:my-team", seed.Data["team_ref"])
+	assert.Equal(t, "Note A", seed.Data["name"])
+	assert.Equal(t, "body", seed.Data["content"])
+	assert.Equal(t, "why", seed.Data["description"])
+}
+
+func TestTransformSeedSpec_ProjectNotes(t *testing.T) {
+	spec := &SeedSpecFile{
+		Version: "1.0",
+		Projects: []SeedSpecProject{{
+			Name:  "My Project",
+			Notes: []SeedSpecTeamProjectNote{{Name: "Note B", Content: "body"}},
+		}},
+	}
+
+	result, err := transformSeedSpec(spec)
+	require.NoError(t, err)
+
+	seed := findSeedByKind(result.Seeds, kindProjectNote)
+	require.NotNil(t, seed)
+	assert.Equal(t, "project-note:my-project:0", seed.Ref)
+	assert.Equal(t, "project:my-project", seed.Data["project_ref"])
+	// TeamProjectNoteBase requires content; an omitted description must not
+	// become an empty string, which the pattern would still accept but which
+	// misrepresents the seed.
+	assert.NotContains(t, seed.Data, "description")
+}
+
+func TestTransformSeedSpec_TeamAndProjectNotesFollowTheirParents(t *testing.T) {
+	spec := &SeedSpecFile{
+		Version:  "1.0",
+		Teams:    []SeedSpecTeam{{Name: "T", Notes: []SeedSpecTeamProjectNote{{Name: "n", Content: "c"}}}},
+		Projects: []SeedSpecProject{{Name: "P", Notes: []SeedSpecTeamProjectNote{{Name: "n", Content: "c"}}}},
+	}
+
+	result, err := transformSeedSpec(spec)
+	require.NoError(t, err)
+
+	index := map[string]int{}
+	for i, s := range result.Seeds {
+		index[s.Kind] = i
+	}
+	assert.Less(t, index[kindTeam], index[kindTeamNote], "a note cannot be created before its team")
+	assert.Less(t, index[kindProject], index[kindProjectNote], "a note cannot be created before its project")
+}
+
+func TestTransformSeedSpec_Feedback(t *testing.T) {
+	spec := &SeedSpecFile{
+		Version: "1.0",
+		ThreatModels: []SeedSpecThreatModel{{
+			Name:  "TM",
+			Notes: []SeedSpecNote{{Name: "N", Content: "c"}},
+			Feedback: []SeedSpecFeedback{{
+				Sentiment:  "up",
+				TargetType: "note",
+				TargetRef:  "note:tm:n",
+				ClientID:   "cats-seed",
+				Verbatim:   "looks right",
+			}},
+		}},
+	}
+
+	result, err := transformSeedSpec(spec)
+	require.NoError(t, err)
+
+	seed := findSeedByKind(result.Seeds, kindFeedback)
+	require.NotNil(t, seed)
+	assert.Equal(t, "feedback:tm:0", seed.Ref)
+	assert.Equal(t, "tm:tm", seed.Data["threat_model_ref"])
+	assert.Equal(t, "up", seed.Data["sentiment"])
+	assert.Equal(t, "note", seed.Data["target_type"])
+	// target_ref stays symbolic here; the API seeder resolves it to target_id
+	// once the note it names has actually been created.
+	assert.Equal(t, "note:tm:n", seed.Data["target_ref"])
+	assert.NotContains(t, seed.Data, "target_id")
+}
+
+func TestTransformSeedSpec_TriageNotes(t *testing.T) {
+	spec := &SeedSpecFile{
+		Version: "1.0",
+		Users:   []SeedSpecUser{{ID: "charlie"}},
+		SurveyResponses: []SeedSpecSurveyResp{{
+			Survey:      "S",
+			User:        "charlie",
+			TriageNotes: []SeedSpecTriageNote{{Name: "Triage", Content: "c"}},
+		}},
+	}
+
+	result, err := transformSeedSpec(spec)
+	require.NoError(t, err)
+
+	seed := findSeedByKind(result.Seeds, kindTriageNote)
+	require.NotNil(t, seed)
+	assert.Equal(t, "triage-note:0:0", seed.Ref)
+	assert.Equal(t, "survey-response:0", seed.Data["survey_response_ref"])
+	assert.Equal(t, "Triage", seed.Data["name"])
+
+	respIdx, noteIdx := -1, -1
+	for i, s := range result.Seeds {
+		if s.Kind == kindSurveyResponse {
+			respIdx = i
+		}
+		if s.Kind == kindTriageNote {
+			noteIdx = i
+		}
+	}
+	assert.Less(t, respIdx, noteIdx, "a triage note cannot be created before its survey response")
+}

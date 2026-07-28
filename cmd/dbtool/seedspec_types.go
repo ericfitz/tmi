@@ -54,10 +54,11 @@ type SeedSpecQuota struct {
 // SeedSpecTeam defines a team to seed.
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: team definition with members and metadata for seeding (pure)
 type SeedSpecTeam struct {
-	Name     string               `json:"name"`
-	Status   string               `json:"status,omitempty"`
-	Members  []SeedSpecTeamMember `json:"members,omitempty"`
-	Metadata []SeedSpecKV         `json:"metadata,omitempty"`
+	Name     string                    `json:"name"`
+	Status   string                    `json:"status,omitempty"`
+	Members  []SeedSpecTeamMember      `json:"members,omitempty"`
+	Metadata []SeedSpecKV              `json:"metadata,omitempty"`
+	Notes    []SeedSpecTeamProjectNote `json:"notes,omitempty"`
 }
 
 // SeedSpecTeamMember defines a member within a team.
@@ -70,10 +71,40 @@ type SeedSpecTeamMember struct {
 // SeedSpecProject defines a project to seed.
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: project definition with team assignment and metadata for seeding (pure)
 type SeedSpecProject struct {
-	Name     string       `json:"name"`
-	Team     string       `json:"team,omitempty"`
-	Status   string       `json:"status,omitempty"`
-	Metadata []SeedSpecKV `json:"metadata,omitempty"`
+	Name     string                    `json:"name"`
+	Team     string                    `json:"team,omitempty"`
+	Status   string                    `json:"status,omitempty"`
+	Metadata []SeedSpecKV              `json:"metadata,omitempty"`
+	Notes    []SeedSpecTeamProjectNote `json:"notes,omitempty"`
+}
+
+// SeedSpecTeamProjectNote defines a note nested within a team or project.
+// Distinct from SeedSpecNote (threat-model notes): TeamProjectNoteBase
+// requires both name and content, and has no include_in_report field.
+// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: note entry attached to a team or project for seeding (pure)
+type SeedSpecTeamProjectNote struct {
+	Name        string `json:"name"`
+	Content     string `json:"content"`
+	Description string `json:"description,omitempty"`
+}
+
+// SeedSpecFeedback defines a content-feedback entry on a threat model.
+// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: content-feedback entry targeting a seeded artifact (pure)
+type SeedSpecFeedback struct {
+	Sentiment  string `json:"sentiment"`
+	TargetType string `json:"target_type"`
+	// TargetRef names a seed ref (e.g. "note:cats-test-note") resolved to
+	// target_id at seed time; a literal UUID here would 404.
+	TargetRef string `json:"target_ref"`
+	ClientID  string `json:"client_id"`
+	Verbatim  string `json:"verbatim,omitempty"`
+}
+
+// SeedSpecTriageNote defines a triage note on a survey response.
+// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: triage note attached to a survey response for seeding (pure)
+type SeedSpecTriageNote struct {
+	Name    string `json:"name"`
+	Content string `json:"content"`
 }
 
 // SeedSpecThreatModel defines a threat model with all nested children.
@@ -97,6 +128,7 @@ type SeedSpecThreatModel struct {
 	Repositories         []SeedSpecRepository `json:"repositories,omitempty"`
 	Notes                []SeedSpecNote       `json:"notes,omitempty"`
 	Diagrams             []SeedSpecDiagram    `json:"diagrams,omitempty"`
+	Feedback             []SeedSpecFeedback   `json:"feedback,omitempty"`
 }
 
 // SeedSpecAuthz defines an authorization entry on a threat model.
@@ -214,10 +246,11 @@ type SeedSpecSurvey struct {
 // SeedSpecSurveyResp defines a survey response to seed.
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: survey response entry linking a user response to a survey for seeding (pure)
 type SeedSpecSurveyResp struct {
-	Survey    string          `json:"survey"`
-	User      string          `json:"user,omitempty"`
-	Status    string          `json:"status,omitempty"`
-	Responses json.RawMessage `json:"responses,omitempty"`
+	Survey      string               `json:"survey"`
+	User        string               `json:"user,omitempty"`
+	Status      string               `json:"status,omitempty"`
+	Responses   json.RawMessage      `json:"responses,omitempty"`
+	TriageNotes []SeedSpecTriageNote `json:"triage_notes,omitempty"`
 }
 
 // SeedSpecAdmin groups admin-only entities.

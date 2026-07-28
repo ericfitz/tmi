@@ -32,14 +32,28 @@
   "teams": [
     {
       "name": "CATS Test Team",
-      "status": "active"
+      "status": "active",
+      "notes": [
+        {
+          "name": "CATS Test Team Note",
+          "content": "Team note for CATS fuzzing coverage of team_note_id.",
+          "description": "Seeded for CATS"
+        }
+      ]
     }
   ],
   "projects": [
     {
       "name": "CATS Test Project",
       "team": "CATS Test Team",
-      "status": "active"
+      "status": "active",
+      "notes": [
+        {
+          "name": "CATS Test Project Note",
+          "content": "Project note for CATS fuzzing coverage of project_note_id.",
+          "description": "Seeded for CATS"
+        }
+      ]
     }
   ],
   "threat_models": [
@@ -100,6 +114,15 @@
         {
           "uri": "https://github.com/example/cats-test-repo"
         }
+      ],
+      "feedback": [
+        {
+          "sentiment": "up",
+          "target_type": "note",
+          "target_ref": "note:cats-test-threat-model:cats-test-note",
+          "client_id": "cats-seed",
+          "verbatim": "Seeded for CATS fuzzing coverage of feedback_id."
+        }
       ]
     }
   ],
@@ -134,7 +157,13 @@
       "user": "charlie",
       "responses": {
         "project_name": "CATS Test Project"
-      }
+      },
+      "triage_notes": [
+        {
+          "name": "CATS Test Triage Note",
+          "content": "Triage note for CATS fuzzing coverage of triage_note_id."
+        }
+      ]
     }
   ],
   "admin_entities": {

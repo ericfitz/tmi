@@ -115,6 +115,10 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	documentID := findRefByKind(refs, "document")
 	assetID := findRefByKind(refs, "asset")
 	noteID := findRefByKind(refs, "note")
+	teamNoteID := findRefByKind(refs, kindTeamNote)
+	projectNoteID := findRefByKind(refs, kindProjectNote)
+	feedbackID := findRefByKind(refs, kindFeedback)
+	triageNoteID := findRefByKind(refs, kindTriageNote)
 	repoID := findRefByKind(refs, "repository")
 	webhookID := findRefByKind(refs, "webhook")
 	deliveryID := findRefByKind(refs, "webhook_test_delivery")
@@ -177,6 +181,13 @@ all:
   document_id: %s
   asset_id: %s
   note_id: %s
+  # Notes on teams and projects are separate resources from threat-model notes
+  # and have their own path parameters (#597).
+  team_note_id: %s
+  project_note_id: %s
+  # Content feedback on a threat model, and triage notes on a survey response.
+  feedback_id: %s
+  triage_note_id: %s
   repository_id: %s
   webhook_id: %s
   delivery_id: %s
@@ -292,7 +303,8 @@ all:
 `,
 		time.Now().UTC().Format(time.RFC3339),
 		tmID, tmID,
-		threatID, diagramID, documentID, assetID, noteID, repoID,
+		threatID, diagramID, documentID, assetID, noteID,
+		teamNoteID, projectNoteID, feedbackID, triageNoteID, repoID,
 		webhookID, deliveryID, addonID, credID,
 		credID,
 		surveyID, responseID,
