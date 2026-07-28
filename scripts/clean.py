@@ -68,11 +68,12 @@ def clean_files() -> None:
     destroy campaign corpora that cost ~40 minutes each to reproduce.
 
     This also no longer kills CATS processes. `pkill -f cats` matched on a bare
-    substring, so it hit the plugin's own path
-    (~/Projects/skills/cats/scripts/cats_tool.py), any unrelated process whose
-    command line happens to contain "cats", and — as the pgrep self-match trap
-    showed — potentially the invoking shell. Killing an in-flight campaign is
-    not what "clean files" means; stopping processes is `clean_process`'s job.
+    substring, so it hit the plugin's own path — wherever it resolves, the
+    installed plugin cache or a development checkout, both of which contain
+    "cats" — any unrelated process whose command line happens to contain "cats",
+    and — as the pgrep self-match trap showed — potentially the invoking shell.
+    Killing an in-flight campaign is not what "clean files" means; stopping
+    processes is `clean_process`'s job.
     """
     clean_logs()
 

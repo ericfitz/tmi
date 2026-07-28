@@ -107,14 +107,18 @@ This takes approximately 30-40 minutes. The output will show progress through va
 ### Step 5: Analyze CATS Results
 
 `make cats-fuzz` (Step 4) already parses and classifies results as part of the run —
-there is no separate parse step. Query the results database directly; see the cats
-plugin's `report` skill (`~/Projects/skills/cats/skills/report/SKILL.md`) for the full
-schema (tables, views, worked queries):
+there is no separate parse step. Query the results database directly. The cats plugin
+is installed, so invoke the `/cats:report` skill for the full schema (tables, views,
+worked queries) and for ad-hoc queries; `/cats:analyze` triages the findings.
+
+For a quick shape-of-the-run check without loading a skill:
 
 ```bash
-uv run ~/Projects/skills/cats/scripts/cats_tool.py query --db latest --sql \
-  "SELECT result, COUNT(*) AS count FROM test_results_filtered_view GROUP BY result ORDER BY count DESC;"
+make query-cats-results
 ```
+
+That target resolves the plugin the same way `/cats:*` does (installed copy first,
+development checkout as fallback), so both run the same implementation.
 
 **Analysis**:
 
@@ -154,5 +158,5 @@ If any stage fails:
 
 ## Database Schema Reference
 
-See the cats plugin's `report` skill (`~/Projects/skills/cats/skills/report/SKILL.md`)
-for the full results database schema — tables, views, and worked queries.
+Invoke the `/cats:report` skill for the full results database schema — tables, views,
+and worked queries.

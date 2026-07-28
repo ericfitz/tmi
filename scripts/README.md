@@ -44,8 +44,10 @@ This directory contains scripts that are actively used by the refactored build s
 
 ## CATS Fuzzing Tools
 
-CATS fuzzing itself runs through the portable cats plugin (`~/Projects/skills/cats`,
-invoked via `make cats-fuzz`), not a script in this directory. These three scripts are
+CATS fuzzing itself runs through the portable cats plugin, not a script in this
+directory. Invoke it as `make cats-fuzz` from a shell or `/cats:run` from Claude Code —
+the Makefile resolves the installed plugin first and falls back to a `~/Projects/skills`
+development checkout, so both paths run the same implementation. These three scripts are
 hook commands the plugin shells out to, per `.local/cats/config.yaml`:
 
 - **`cats-token.py`** - `token` hook: authenticates via the OAuth stub and prints a bearer token for the plugin to use

@@ -436,11 +436,32 @@ stop-all: stop-oauth-stub dev-down  ## Stop the OAuth stub and tear down the dev
 
 # The cats plugin (scripts/cats_tool.py) is a portable tool that replaces the
 # former run-cats-fuzz.py / parse_cats_results.py / query-cats-results.py
-# pipeline. It is NOT installed into the Claude plugin cache
-# (~/.claude/plugins/cache/... does not exist for this plugin) -- point
-# directly at the checkout instead. Config lives at .local/cats/config.yaml
-# (gitignored; discovered by walking up from cwd).
-CATS := uv run $(HOME)/Projects/skills/cats/scripts/cats_tool.py
+# pipeline. Config lives at .local/cats/config.yaml (gitignored; discovered by
+# walking up from cwd).
+#
+# Resolution order is load-bearing. The /cats:* skills invoke
+# $(CLAUDE_PLUGIN_ROOT)/scripts/cats_tool.py -- the installed plugin -- so these
+# targets prefer that same copy: `make cats-fuzz` and `/cats:run` running two
+# different implementations of the run-validity gates is precisely the class of
+# bug those gates exist to catch. The development checkout is the fallback for a
+# machine where the plugin is not installed (CI, another contributor).
+#
+# The cache holds one version per plugin, so the wildcard resolves to a single
+# path; lastword+sort keeps it deterministic if that ever stops being true.
+# Override either path with `make ... CATS_TOOL=/path/to/cats_tool.py`.
+CATS_PLUGIN_TOOL := $(lastword $(sort $(wildcard $(HOME)/.claude/plugins/cache/efitz-skills/cats/*/scripts/cats_tool.py)))
+CATS_CHECKOUT_TOOL := $(wildcard $(HOME)/Projects/skills/cats/scripts/cats_tool.py)
+CATS_TOOL ?= $(firstword $(CATS_PLUGIN_TOOL) $(CATS_CHECKOUT_TOOL))
+CATS := uv run $(CATS_TOOL)
+
+# Fail with the reason rather than letting `uv run` report a missing file, which
+# reads as a broken target instead of an uninstalled plugin.
+define CATS_TOOL_GUARD
+if [ -z "$(CATS_TOOL)" ] || [ ! -f "$(CATS_TOOL)" ]; then \
+	echo "Error: cats plugin not found. Install it with /plugin (cats@efitz-skills), check out ~/Projects/skills, or pass CATS_TOOL=/path/to/cats_tool.py." >&2; \
+	exit 1; \
+fi
+endef
 CATS_CONFIG ?= config-development.yml
 CATS_USER ?= charlie
 CATS_PROVIDER ?= tmi
@@ -469,6 +490,7 @@ fi
 endef
 
 cats-fuzz:  ## Run CATS API fuzzing (seeds via the plugin's seed hook, fuzzes, parses, classifies)
+	@$(CATS_TOOL_GUARD)
 	@$(CATS_FUZZ_VAR_NOTE)
 	@$(CATS) run $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)
 
@@ -480,15 +502,18 @@ cats-fuzz:  ## Run CATS API fuzzing (seeds via the plugin's seed hook, fuzzes, p
 # by seeding through cats-seed-oci first and telling the plugin to skip its
 # own seed hook.
 cats-fuzz-oci: cats-seed-oci  ## Run CATS API fuzzing with OCI ADB (auto-parses results)
+	@$(CATS_TOOL_GUARD)
 	@$(CATS_FUZZ_VAR_NOTE)
 	@$(CATS) run --skip-seed $(if $(ENDPOINT),--path $(ENDPOINT),) $(if $(filter true,$(BLACKBOX)),--blackbox,)
 
 query-cats-results:  ## Query parsed CATS results
+	@$(CATS_TOOL_GUARD)
 	@$(CATS) query
 
 analyze-cats-results: query-cats-results  ## Analyze CATS results
 
 cats-report:  ## Generate an HTML report from the latest run
+	@$(CATS_TOOL_GUARD)
 	@$(CATS) report --open
 
 
