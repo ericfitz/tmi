@@ -138,7 +138,7 @@ If any stage fails:
 ## Important Notes
 
 - **Oracle Support**: The server must be built with `-tags oracle` for OCI support. The `make dev-up DB=oracle` target handles this automatically.
-- **CATS Seeding Tool**: The CATS seeding tool (`bin/cats-seed`) must also be built with Oracle support. Use `make build-cats-seed-oci` or let `make cats-seed-oci` (called by `make cats-fuzz-oci`) build it automatically.
+- **CATS Seeding Tool**: Seeding runs through `bin/tmi-dbtool`, which must also be built with Oracle support. `make cats-seed-oci` (a prerequisite of `make cats-fuzz-oci`) calls `scripts/run-dbtool.py --oci`, which builds it with `-tags oracle` automatically after sourcing `scripts/oci-env.sh`. There is no separate build target, and `bin/cats-seed` is a pre-migration artifact that is no longer built or used.
 - **False positives**: CATS will flag some responses (e.g. 401/403 from auth testing) as "errors" but these are expected. The rule set in `test/cats/false-positives.yaml` classifies these; matched rows are flagged via the `is_false_positive` column.
 - **CATS duration**: The fuzzing stage takes ~9 minutes - this is normal
 - **Server must be running**: All tests except unit tests require the dev server (`make dev-up DB=oracle`)
