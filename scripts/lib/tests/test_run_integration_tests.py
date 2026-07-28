@@ -76,5 +76,48 @@ class TestRunnersReturnAPair(unittest.TestCase):
             self.assertEqual(fn.__annotations__["return"], "tuple[int, str | None]")
 
 
+
+class TestBuildFailureDetection(unittest.TestCase):
+    """#607: a nested-module build failure emits no test output, so every
+    count-based signal reads as though the package simply wasn't in the run."""
+
+    def _log(self, text):
+        import tempfile
+        fd, path = tempfile.mkstemp()
+        with open(fd, "w") as fh:
+            fh.write(text)
+        self.addCleanup(lambda: Path(path).unlink(missing_ok=True))
+        return path
+
+    def test_detects_the_untidied_nested_module(self):
+        # The exact tail seen when #577's bump did not reach test/integration.
+        path = self._log("ok  \tgithub.com/ericfitz/tmi/api\t1.596s\n"
+                         "go: updates to go.mod needed; to update it:\n"
+                         "\tgo mod tidy\n")
+        self.assertEqual(rit.build_failure_reason(path), "go: updates to go.mod needed; to update it:")
+
+    def test_detects_a_compile_error(self):
+        path = self._log("# github.com/ericfitz/tmi/api\n"
+                         "api/foo.go:12:3: undefined: Bar\n")
+        self.assertIsNotNone(rit.build_failure_reason(path))
+
+    def test_detects_a_missing_gosum_entry(self):
+        path = self._log("missing go.sum entry for module providing package x\n")
+        self.assertIsNotNone(rit.build_failure_reason(path))
+
+    def test_ordinary_test_failure_is_not_a_build_failure(self):
+        # A failing assertion must NOT be reported as "failed to build" — that
+        # would send the reader looking for a toolchain problem.
+        path = self._log("--- FAIL: TestThing (0.01s)\n"
+                         "    thing_test.go:9: expected 1, got 2\n"
+                         "FAIL\tgithub.com/ericfitz/tmi/api\t0.2s\n")
+        self.assertIsNone(rit.build_failure_reason(path))
+
+    def test_clean_log_is_not_a_build_failure(self):
+        self.assertIsNone(rit.build_failure_reason(self._log("ok  \tpkg\t1s\nPASS\n")))
+
+    def test_unreadable_log_is_not_a_build_failure(self):
+        self.assertIsNone(rit.build_failure_reason("/nonexistent/path/xyz"))
+
 if __name__ == "__main__":
     unittest.main()

@@ -144,6 +144,37 @@ def run_go_test(cmd: list[str], cwd: Path, env: dict, log_path: str) -> int:
     return result.returncode
 
 
+BUILD_FAILURE_MARKERS = (
+    "go: updates to go.mod needed",
+    "no required module provides package",
+    "missing go.sum entry",
+    "cannot find module providing package",
+    "build constraints exclude all Go files",
+    "# github.com/",  # a compile error header from `go build`/`go vet`
+)
+
+
+def build_failure_reason(log_path: str) -> str | None:
+    """Return the line explaining a Go build failure in the run log, or None.
+
+    Distinguishes "the tests failed" from "the package never compiled". The
+    latter emits no test output, so every count-based signal reads as though
+    that package simply wasn't part of the run — see #607, where a nested
+    module left un-tidied by a dependency bump took the entire end-to-end
+    suite offline behind a summary reading "22 passed, 0 failed".
+    """
+    try:
+        with open(log_path) as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return None
+    for line in reversed(lines[-200:]):
+        stripped = line.strip()
+        if any(marker in stripped for marker in BUILD_FAILURE_MARKERS):
+            return stripped
+    return None
+
+
 def wait_for_server(url: str, timeout: int = 60) -> bool:
     """Poll url until it answers (status < 500) or timeout elapses."""
     deadline = time.monotonic() + timeout
@@ -436,6 +467,15 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
                 workflow_exit = run_go_test(
                     wf_cmd, project_root / "test" / "integration", wf_env, log_path,
                 )
+                # A build failure in the nested module produces no parseable
+                # test output at all, so the summary shows only the api/
+                # package's counts and reads like a near-pass while the whole
+                # end-to-end suite never ran (#607). The exit code is non-zero,
+                # but nothing in the summary says why — name it explicitly.
+                if workflow_exit != 0:
+                    reason = build_failure_reason(log_path)
+                    if reason:
+                        workflows_skipped = f"workflows package failed to build: {reason}"
         finally:
             dump_test_server_logs(server_log)
             stop_test_server_container()

@@ -28,6 +28,74 @@ updates:
       # Will disappear when upstream deps drop it. Cannot pin in go.mod (go mod tidy removes it).
       - dependency-name: "github.com/golang/protobuf"
 
+  # Nested Go modules. The repo has four go.mod files, and a bump that reaches
+  # only "/" leaves the others pinned to older versions of the same packages.
+  # wstest/ and test/integration/ additionally `replace github.com/ericfitz/tmi
+  # => ..`, so they compile the ROOT module's source against their OWN pins —
+  # when the two disagree the build fails outright with "go: updates to go.mod
+  # needed", which is how the entire workflow integration suite went
+  # unbuildable after #577 (see #607).
+  #
+  # A go.work file would keep them in lockstep automatically and is the better
+  # long-term answer; these entries are the mechanical fix in the meantime.
+  - package-ecosystem: "gomod"
+    directory: "/test/integration"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+      - "go"
+    groups:
+      go-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "github.com/golang/protobuf"
+
+  - package-ecosystem: "gomod"
+    directory: "/wstest"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+      - "go"
+    groups:
+      go-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "github.com/golang/protobuf"
+
+  - package-ecosystem: "gomod"
+    directory: "/functions/certmgr"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+      - "go"
+    groups:
+      go-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
   # GitHub Actions - keep workflows up to date
   - package-ecosystem: "github-actions"
     directory: "/"
