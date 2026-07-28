@@ -7656,12 +7656,6 @@
               "binding": "required"
             }
           },
-          "survey_version": {
-            "description": "Survey version captured at creation time - responses always complete on the original version",
-            "type": "string",
-            "maxLength": 64,
-            "readOnly": true
-          },
           "project_id": {
             "type": "string",
             "format": "uuid",
@@ -7852,6 +7846,12 @@
                 "minimum": 1,
                 "readOnly": true,
                 "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
+              },
+              "survey_version": {
+                "description": "Survey version captured at creation time - responses always complete on the original version (server-set; response only)",
+                "type": "string",
+                "maxLength": 64,
+                "readOnly": true
               }
             }
           }
