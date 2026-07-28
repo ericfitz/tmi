@@ -763,6 +763,26 @@ func TestStoreErrorToRequestError_DuplicateUsesGenericMessage(t *testing.T) {
 	assert.Equal(t, "resource already exists", reqErr.Message)
 }
 
+// TestStoreErrorToRequestError_ConstraintDoesNotLeakDriverText verifies that a
+// constraint violation returns a fixed message rather than the raw driver
+// string. This branch used to return err.Error(), which on Oracle is ORA-…
+// text carrying table, constraint and column names, and on PostgreSQL the
+// SQLSTATE detail — the only branch in the function that revealed anything
+// about the schema (#602).
+func TestStoreErrorToRequestError_ConstraintDoesNotLeakDriverText(t *testing.T) {
+	driverText := "ORA-02290: check constraint (TMI.CK_THREATS_SEVERITY) violated"
+	conErr := fmt.Errorf("%s: %w", driverText, dberrors.ErrConstraint)
+
+	reqErr := StoreErrorToRequestError(conErr, "Threat not found", "Failed to update threat")
+
+	require.NotNil(t, reqErr)
+	assert.Equal(t, http.StatusBadRequest, reqErr.Status, "constraint violation is still a 400")
+	assert.Equal(t, "request violates a data constraint", reqErr.Message)
+	assert.NotContains(t, reqErr.Message, "ORA-02290")
+	assert.NotContains(t, reqErr.Message, "CK_THREATS_SEVERITY")
+	assert.NotContains(t, reqErr.Message, "TMI.")
+}
+
 // TestStoreErrorToRequestError_NotFoundUsesNotFoundMessage verifies the
 // happy path still uses the supplied notFoundMsg for 404 responses.
 func TestStoreErrorToRequestError_NotFoundUsesNotFoundMessage(t *testing.T) {

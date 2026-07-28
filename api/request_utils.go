@@ -580,7 +580,14 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 		return ConflictError("resource already exists")
 	}
 	if errors.Is(err, dberrors.ErrConstraint) {
-		return InvalidInputError(err.Error())
+		// Fixed message, not err.Error(): the wrapped value is the raw driver
+		// string, so this branch was returning ORA-… text (table, constraint
+		// and column names) or the PostgreSQL SQLSTATE detail straight to the
+		// caller — the only branch in this function that leaked anything
+		// (#602). The underlying error is logged instead, where it is still
+		// available for diagnosis.
+		slogging.Get().Error("constraint violation returned to client as 400: %v", err)
+		return InvalidInputError("request violates a data constraint")
 	}
 	if errors.Is(err, dberrors.ErrTransient) {
 		return ServerError(serverErrorMsg)
