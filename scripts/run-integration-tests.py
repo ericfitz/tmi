@@ -296,7 +296,7 @@ def dump_test_server_logs(server_log: str) -> None:
         pass
 
 
-def run_pg(project_root: Path, log_path: str) -> int:
+def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
     # Bring up the ISOLATED test database container (tmi-postgresql-test on the
     # config-test.yml port, db tmi_test) and migrate it. This never touches the
     # dev container, and does not require `make dev-up` (#477).
@@ -377,14 +377,24 @@ def run_pg(project_root: Path, log_path: str) -> int:
     # CONTAINER bound to the isolated test DB (never the dev-up server),
     # mirroring the dev pod topology so non-loopback-dependent behaviour
     # (rate-limiting, webhook SSRF) works (#477).
+    # A skip here is a FAILURE, not a pass. The workflows package holds the
+    # end-to-end API tests, so a run that quietly omits it and still exits 0
+    # tells CI (or a person) the API contract was verified when it never was
+    # (#601). workflow_exit alone could not express this: it stayed 0 through
+    # every skip branch below. `workflows_skipped` records why, and the caller
+    # turns it into a non-zero exit and a summary line that does not read like
+    # a clean pass.
     workflow_exit = 0
+    workflows_skipped: str | None = None
     server_log = str((project_root / "logs" / "tmi-test-server.log"))
     (project_root / "logs").mkdir(exist_ok=True)
     oauth_running = ensure_oauth_stub(project_root)
     if not oauth_running:
-        log_warn("OAuth stub not available — workflow tests will be skipped")
+        workflows_skipped = "OAuth stub not available"
+        log_warn(f"{workflows_skipped} — workflow tests will be skipped")
     elif not build_server_image(project_root):
-        log_warn("test server image build failed — workflow tests will be skipped")
+        workflows_skipped = "test server image build failed"
+        log_warn(f"{workflows_skipped} — workflow tests will be skipped")
     else:
         server_url = f"http://localhost:{TEST_SERVER_HOST_PORT}"
         # The container reaches the host-published test DB and dev Redis via
@@ -407,10 +417,8 @@ def run_pg(project_root: Path, log_path: str) -> int:
         try:
             if container is None or not wait_for_server(f"{server_url}/", timeout=90):
                 dump_test_server_logs(server_log)
-                log_warn(
-                    f"Test server did not become ready (see {server_log}) — "
-                    "skipping workflow tests"
-                )
+                workflows_skipped = f"test server did not become ready (see {server_log})"
+                log_warn(f"{workflows_skipped} — skipping workflow tests")
             else:
                 log_info(f"Test server ready on {server_url}")
                 clear_redis_rate_limits(redis_db)
@@ -432,21 +440,23 @@ def run_pg(project_root: Path, log_path: str) -> int:
             dump_test_server_logs(server_log)
             stop_test_server_container()
 
-    return api_exit if api_exit != 0 else workflow_exit
+    if api_exit != 0:
+        return api_exit, workflows_skipped
+    return workflow_exit, workflows_skipped
 
 
-def run_oci(project_root: Path, log_path: str) -> int:
+def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
     oci_env_file = project_root / "scripts" / "oci-env.sh"
     if not oci_env_file.exists():
         log_error(f"OCI environment file not found: {oci_env_file}")
         log_info("Set up with: cp scripts/oci-env.sh.example scripts/oci-env.sh")
-        return 2
+        return 2, None
 
     server_url = "http://localhost:8080"
     if not server_is_running(f"{server_url}/"):
         log_error(f"TMI server is not running on {server_url}")
         log_info("Start the server first with: make dev-up DB=oracle")
-        return 2
+        return 2, None
 
     log_info("Server is ready")
     ensure_oauth_stub(project_root)
@@ -498,7 +508,7 @@ def run_oci(project_root: Path, log_path: str) -> int:
             cwd=str(project_root),
         )
 
-    return http_exit if http_exit != 0 else oracle_result.returncode
+    return (http_exit if http_exit != 0 else oracle_result.returncode), None
 
 
 def main() -> int:
@@ -513,9 +523,9 @@ def main() -> int:
     log_info(f"Integration tests target={args.target}; raw log={log_path}")
 
     if args.target == "pg":
-        exit_code = run_pg(project_root, log_path)
+        exit_code, workflows_skipped = run_pg(project_root, log_path)
     else:
-        exit_code = run_oci(project_root, log_path)
+        exit_code, workflows_skipped = run_oci(project_root, log_path)
 
     stats = parse_output(log_path)
     failed_output: list[str] = []
@@ -533,7 +543,21 @@ def main() -> int:
             f"Integration tests failed "
             f"(go test exit={exit_code}, failed_tests={stats['failed']}, failed_pkgs={stats['pkg_fail']})"
         )
+        if workflows_skipped:
+            log_error(f"Workflow tests were also SKIPPED: {workflows_skipped}")
         return exit_code if exit_code != 0 else 1
+
+    # Everything that ran passed -- but if the workflows package never ran,
+    # this is not a pass. It holds the end-to-end API tests; reporting success
+    # without them tells the caller the API contract was verified when only
+    # the in-process api/ suite was (#601).
+    if workflows_skipped:
+        log_error(
+            f"Workflow tests were SKIPPED ({workflows_skipped}) — the end-to-end "
+            "API suite did not run, so this is NOT a pass. Everything that did "
+            "run passed."
+        )
+        return 1
 
     log_success("All integration tests passed")
     return 0
