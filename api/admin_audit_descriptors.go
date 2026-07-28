@@ -72,27 +72,27 @@ func adminAuditDescriptors(reader SystemSettingReader) []auditDescriptor {
 		// /admin/users/*
 		{
 			Method:      "PATCH",
-			PathTpl:     "/admin/users/{internal_uuid}",
-			FieldPathFn: func(c *gin.Context) string { return "users." + c.Param("internal_uuid") },
+			PathTpl:     "/admin/users/{user_id}",
+			FieldPathFn: func(c *gin.Context) string { return "users." + c.Param("user_id") },
 			OldValueFn:  func(c *gin.Context) string { return "" },
 			NewValueFn:  func(c *gin.Context, body []byte) string { return string(body) },
-			SummaryFn:   func(c *gin.Context) string { return "PATCH user " + c.Param("internal_uuid") },
+			SummaryFn:   func(c *gin.Context) string { return "PATCH user " + c.Param("user_id") },
 		},
 		{
 			Method:      "DELETE",
-			PathTpl:     "/admin/users/{internal_uuid}",
-			FieldPathFn: func(c *gin.Context) string { return "users." + c.Param("internal_uuid") },
+			PathTpl:     "/admin/users/{user_id}",
+			FieldPathFn: func(c *gin.Context) string { return "users." + c.Param("user_id") },
 			OldValueFn:  func(c *gin.Context) string { return "" },
 			NewValueFn:  func(c *gin.Context, body []byte) string { return "" },
-			SummaryFn:   func(c *gin.Context) string { return "DELETE user " + c.Param("internal_uuid") },
+			SummaryFn:   func(c *gin.Context) string { return "DELETE user " + c.Param("user_id") },
 		},
 		{
 			Method:      "POST",
-			PathTpl:     "/admin/users/{internal_uuid}/transfer",
-			FieldPathFn: func(c *gin.Context) string { return "users." + c.Param("internal_uuid") + ".ownership_transfer" },
+			PathTpl:     "/admin/users/{user_id}/transfer",
+			FieldPathFn: func(c *gin.Context) string { return "users." + c.Param("user_id") + ".ownership_transfer" },
 			OldValueFn:  func(c *gin.Context) string { return "" },
 			NewValueFn:  func(c *gin.Context, body []byte) string { return string(body) },
-			SummaryFn:   func(c *gin.Context) string { return "TRANSFER ownership for user " + c.Param("internal_uuid") },
+			SummaryFn:   func(c *gin.Context) string { return "TRANSFER ownership for user " + c.Param("user_id") },
 		},
 		{
 			Method:      "POST",
@@ -104,24 +104,24 @@ func adminAuditDescriptors(reader SystemSettingReader) []auditDescriptor {
 		},
 		{
 			Method:      "POST",
-			PathTpl:     "/admin/users/{internal_uuid}/client_credentials",
-			FieldPathFn: func(c *gin.Context) string { return "users." + c.Param("internal_uuid") + ".client_credentials.create" },
+			PathTpl:     "/admin/users/{user_id}/client_credentials",
+			FieldPathFn: func(c *gin.Context) string { return "users." + c.Param("user_id") + ".client_credentials.create" },
 			OldValueFn:  func(c *gin.Context) string { return "" },
 			NewValueFn:  func(c *gin.Context, body []byte) string { return string(body) },
 			SummaryFn: func(c *gin.Context) string {
-				return "CREATE client credential for user " + c.Param("internal_uuid")
+				return "CREATE client credential for user " + c.Param("user_id")
 			},
 		},
 		{
 			Method:  "DELETE",
-			PathTpl: "/admin/users/{internal_uuid}/client_credentials/{credential_id}",
+			PathTpl: "/admin/users/{user_id}/client_credentials/{credential_id}",
 			FieldPathFn: func(c *gin.Context) string {
-				return "users." + c.Param("internal_uuid") + ".client_credentials." + c.Param("credential_id")
+				return "users." + c.Param("user_id") + ".client_credentials." + c.Param("credential_id")
 			},
 			OldValueFn: func(c *gin.Context) string { return "" },
 			NewValueFn: func(c *gin.Context, body []byte) string { return "" },
 			SummaryFn: func(c *gin.Context) string {
-				return "DELETE client credential " + c.Param("credential_id") + " for user " + c.Param("internal_uuid")
+				return "DELETE client credential " + c.Param("credential_id") + " for user " + c.Param("user_id")
 			},
 		},
 
@@ -136,42 +136,42 @@ func adminAuditDescriptors(reader SystemSettingReader) []auditDescriptor {
 		},
 		{
 			Method:      "PATCH",
-			PathTpl:     "/admin/groups/{internal_uuid}",
-			FieldPathFn: func(c *gin.Context) string { return "groups." + c.Param("internal_uuid") },
+			PathTpl:     "/admin/groups/{group_id}",
+			FieldPathFn: func(c *gin.Context) string { return "groups." + c.Param("group_id") },
 			OldValueFn:  func(c *gin.Context) string { return "" },
 			NewValueFn:  func(c *gin.Context, body []byte) string { return string(body) },
-			SummaryFn:   func(c *gin.Context) string { return "PATCH group " + c.Param("internal_uuid") },
+			SummaryFn:   func(c *gin.Context) string { return "PATCH group " + c.Param("group_id") },
 		},
 		{
 			Method:      "DELETE",
-			PathTpl:     "/admin/groups/{internal_uuid}",
-			FieldPathFn: func(c *gin.Context) string { return "groups." + c.Param("internal_uuid") },
+			PathTpl:     "/admin/groups/{group_id}",
+			FieldPathFn: func(c *gin.Context) string { return "groups." + c.Param("group_id") },
 			OldValueFn:  func(c *gin.Context) string { return "" },
 			NewValueFn:  func(c *gin.Context, body []byte) string { return "" },
-			SummaryFn:   func(c *gin.Context) string { return "DELETE group " + c.Param("internal_uuid") },
+			SummaryFn:   func(c *gin.Context) string { return "DELETE group " + c.Param("group_id") },
 		},
 		{
 			Method:  "POST",
-			PathTpl: "/admin/groups/{internal_uuid}/members",
+			PathTpl: "/admin/groups/{group_id}/members",
 			FieldPathFn: func(c *gin.Context) string {
-				return "groups." + c.Param("internal_uuid") + ".members.add"
+				return "groups." + c.Param("group_id") + ".members.add"
 			},
 			OldValueFn: func(c *gin.Context) string { return "" },
 			NewValueFn: func(c *gin.Context, body []byte) string { return string(body) },
 			SummaryFn: func(c *gin.Context) string {
-				return "ADD member to group " + c.Param("internal_uuid")
+				return "ADD member to group " + c.Param("group_id")
 			},
 		},
 		{
 			Method:  "DELETE",
-			PathTpl: "/admin/groups/{internal_uuid}/members/{member_uuid}",
+			PathTpl: "/admin/groups/{group_id}/members/{member_uuid}",
 			FieldPathFn: func(c *gin.Context) string {
-				return "groups." + c.Param("internal_uuid") + ".members." + c.Param("member_uuid")
+				return "groups." + c.Param("group_id") + ".members." + c.Param("member_uuid")
 			},
 			OldValueFn: func(c *gin.Context) string { return "" },
 			NewValueFn: func(c *gin.Context, body []byte) string { return "" },
 			SummaryFn: func(c *gin.Context) string {
-				return "REMOVE member " + c.Param("member_uuid") + " from group " + c.Param("internal_uuid")
+				return "REMOVE member " + c.Param("member_uuid") + " from group " + c.Param("group_id")
 			},
 		},
 

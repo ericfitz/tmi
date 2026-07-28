@@ -77,7 +77,7 @@ func (h *OwnershipTransferHandler) TransferCurrentUserOwnership(c *gin.Context) 
 	c.JSON(http.StatusOK, buildTransferResponse(result))
 }
 
-// TransferAdminUserOwnership handles POST /admin/users/{internal_uuid}/transfer
+// TransferAdminUserOwnership handles POST /admin/users/{user_id}/transfer
 // SEM@36c1f84217ecf3f5087ad65186cd974b9b4df275: transfer a specified user's owned resources to a target user on behalf of an admin (reads DB)
 func (h *OwnershipTransferHandler) TransferAdminUserOwnership(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)

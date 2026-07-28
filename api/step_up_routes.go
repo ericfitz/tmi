@@ -16,7 +16,7 @@ import (
 // Examples:
 //
 //	/admin/settings/:key               → /admin/settings/{key}
-//	/admin/groups/:internal_uuid/members/:member_uuid → /admin/groups/{internal_uuid}/members/{member_uuid}
+//	/admin/groups/:group_id/members/:member_uuid → /admin/groups/{group_id}/members/{member_uuid}
 //
 // SEM@e005ee4f6bf927c842fe7fae5363929a8ad0d794: convert a Gin colon-param route template to OpenAPI curly-brace form (pure)
 func ginPathToOpenAPI(p string) string {

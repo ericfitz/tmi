@@ -61,8 +61,8 @@ func setupAdminUserCredentialsRouter() (*gin.Engine, *Server) {
 		c.Next()
 	})
 
-	r.GET("/admin/users/:internal_uuid/client_credentials", func(c *gin.Context) {
-		uuidStr := c.Param("internal_uuid")
+	r.GET("/admin/users/:user_id/client_credentials", func(c *gin.Context) {
+		uuidStr := c.Param("user_id")
 		parsedUUID, err := uuid.Parse(uuidStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID"})
@@ -71,8 +71,8 @@ func setupAdminUserCredentialsRouter() (*gin.Engine, *Server) {
 		server.ListAdminUserClientCredentials(c, parsedUUID, ListAdminUserClientCredentialsParams{})
 	})
 
-	r.POST("/admin/users/:internal_uuid/client_credentials", func(c *gin.Context) {
-		uuidStr := c.Param("internal_uuid")
+	r.POST("/admin/users/:user_id/client_credentials", func(c *gin.Context) {
+		uuidStr := c.Param("user_id")
 		parsedUUID, err := uuid.Parse(uuidStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID"})
@@ -81,8 +81,8 @@ func setupAdminUserCredentialsRouter() (*gin.Engine, *Server) {
 		server.CreateAdminUserClientCredential(c, parsedUUID)
 	})
 
-	r.DELETE("/admin/users/:internal_uuid/client_credentials/:credential_id", func(c *gin.Context) {
-		uuidStr := c.Param("internal_uuid")
+	r.DELETE("/admin/users/:user_id/client_credentials/:credential_id", func(c *gin.Context) {
+		uuidStr := c.Param("user_id")
 		parsedUUID, err := uuid.Parse(uuidStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID"})
@@ -268,8 +268,8 @@ func setupAdminUserCredentialsRouterWithDeleter(deleter credentialDeleter) (*gin
 		c.Next()
 	})
 
-	r.DELETE("/admin/users/:internal_uuid/client_credentials/:credential_id", func(c *gin.Context) {
-		uuidStr := c.Param("internal_uuid")
+	r.DELETE("/admin/users/:user_id/client_credentials/:credential_id", func(c *gin.Context) {
+		uuidStr := c.Param("user_id")
 		parsedUUID, err := uuid.Parse(uuidStr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid UUID"})

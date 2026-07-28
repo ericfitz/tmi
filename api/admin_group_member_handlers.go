@@ -12,7 +12,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// ListGroupMembers handles GET /admin/groups/{internal_uuid}/members
+// ListGroupMembers handles GET /admin/groups/{group_id}/members
 // SEM@0734f383e8c73aef4842c88dc88e90d0440f048a: list paginated members of a group (reads DB)
 func (s *Server) ListGroupMembers(c *gin.Context, internalUuid openapi_types.UUID, params ListGroupMembersParams) {
 	logger := slogging.Get().WithContext(c)
@@ -97,7 +97,7 @@ func (s *Server) ListGroupMembers(c *gin.Context, internalUuid openapi_types.UUI
 	})
 }
 
-// AddGroupMember handles POST /admin/groups/{internal_uuid}/members
+// AddGroupMember handles POST /admin/groups/{group_id}/members
 // SEM@0734f383e8c73aef4842c88dc88e90d0440f048a: add a user or group as a member of an admin group (mutates shared state)
 func (s *Server) AddGroupMember(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
@@ -209,7 +209,7 @@ func (s *Server) AddGroupMember(c *gin.Context, internalUuid openapi_types.UUID)
 	c.JSON(http.StatusCreated, member)
 }
 
-// RemoveGroupMember handles DELETE /admin/groups/{internal_uuid}/members/{member_uuid}
+// RemoveGroupMember handles DELETE /admin/groups/{group_id}/members/{member_uuid}
 // SEM@0734f383e8c73aef4842c88dc88e90d0440f048a: delete a user or group membership from an admin group (mutates shared state)
 func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UUID, memberUuid openapi_types.UUID, params RemoveGroupMemberParams) {
 	logger := slogging.Get().WithContext(c)

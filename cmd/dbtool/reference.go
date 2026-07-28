@@ -148,7 +148,7 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	}
 
 	// targetUUID identifies the account used for destructive/mutating admin
-	// user endpoints (PATCH/DELETE /admin/users/{internal_uuid}, quota PUT/DELETE,
+	// user endpoints (PATCH/DELETE /admin/users/{user_id}, quota PUT/DELETE,
 	// ownership transfer, client-credential deletion, ...). It must NEVER be the
 	// fuzzing identity's own account (#591): a successful mutation against the
 	// live identity (e.g. a 200 from an injection fuzzer) invalidates its bearer
@@ -161,12 +161,11 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 		targetUUID = r.ID
 	}
 
-	// The group family of /admin routes reuses the SAME path-parameter name as the
-	// user family ({internal_uuid}), so a single global refData value cannot satisfy
-	// both and whichever family loses gets a well-formed UUID of the wrong kind and
-	// permanently 404s (#603). The global value stays pointed at a user, because far
-	// more operations need it; the per-path sections emitted at the bottom of this
-	// file override it to the group for the three /admin/groups routes.
+	// The group routes used to share the user routes' {internal_uuid} parameter
+	// name, so a single global refData value could not satisfy both and the
+	// group family permanently 404d. The spec now names them {group_id} and
+	// {user_id} (#603), so this is just an ordinary global value again — the
+	// per-path override sections this file used to emit are gone.
 	adminGroupID := findRefByKind(refs, kindGroup)
 
 	// Per-path sections for the harvested audit entry ids. Emitting a section
@@ -217,7 +216,7 @@ all:
   client_credential_id: %s
   # credential_id is the spec's actual path parameter name for
   # /me/client_credentials/{credential_id} and
-  # /admin/users/{internal_uuid}/client_credentials/{credential_id} (#590);
+  # /admin/users/{user_id}/client_credentials/{credential_id} (#590);
   # client_credential_id above is kept for backward compatibility.
   credential_id: %s
   survey_id: %s
@@ -262,13 +261,15 @@ all:
   related_teams: cats_remove_field
   responsible_parties: cats_remove_field
   members: cats_remove_field
-  # Admin resource identifiers
+  # Admin resource identifiers. group_id serves /admin/groups/{group_id}* and
+  # /me/groups/{group_id}/members; both used to be spelled {internal_uuid},
+  # which collided with the user routes and made every group happy path
+  # unreachable (#603). The rename removed the collision, so the per-path
+  # override sections this file used to emit are gone.
   group_id: %s
-  # internal_uuid for /admin/users/{internal_uuid} and /admin/groups/{internal_uuid} endpoints.
-  # Deliberately NOT the fuzzing identity's own account (#591): a successful
-  # mutation here (PATCH/DELETE) would invalidate the identity's own bearer
-  # token mid-campaign. Points at a dedicated throwaway seeded user instead.
-  internal_uuid: %s
+  # member_uuid identifies the USER being added to or removed from a group,
+  # so it points at the throwaway target for the same reason user_id does.
+  member_uuid: %s
   # User identity uses provider:provider_id format
   user_provider: %s
   user_provider_id: %s
@@ -277,9 +278,11 @@ all:
   # SAML/OAuth provider endpoints - uses the IDP name directly
   provider: %s
   idp: %s
-  # Admin quota endpoints - user_id is internal UUID (OpenAPI spec defines it as UUID
-  # format). Also points at the throwaway target user (#591) so quota-mutating
-  # fuzzers can't throttle the fuzzing identity's own account mid-campaign.
+  # user_id is the user's internal UUID. It now serves BOTH the admin quota
+  # endpoints and /admin/users/{user_id}* (formerly {internal_uuid}, #603).
+  # Deliberately NOT the fuzzing identity's own account (#591): a successful
+  # mutation here (PATCH/DELETE) would invalidate the identity's own bearer
+  # token mid-campaign. Points at a dedicated throwaway seeded user instead.
   user_id: %s
   # Group member endpoints - user_uuid is the internal UUID of the test user.
   # Not currently a real path parameter name in the spec (see member_uuid),
@@ -303,28 +306,9 @@ all:
   actor_provider: %s
   created_after: "2020-01-01T00:00:00Z"
   created_before: "2035-01-01T00:00:00Z"
-# /admin/groups/* reuses {internal_uuid} for a GROUP id while /admin/users/*
-# uses it for a USER id (#603). refData is keyed by parameter name, so the
-# global 'internal_uuid' above can only ever be one of the two -- it is the
-# user, leaving every /admin/groups/* happy path 404ing on a user UUID. These
-# per-path sections override it back to the seeded group; CATS resolves the
-# most specific match, verified against 13.8.0.
-#
-# This is a workaround, not the fix. The parameter name describes the storage
-# shape rather than the resource it identifies, which is what makes the
-# collision possible at all; renaming to {group_id}/{user_id} in the spec is
-# the real answer and is still tracked on #603.
-/admin/groups/{internal_uuid}:
-  internal_uuid: %s
-/admin/groups/{internal_uuid}/members:
-  internal_uuid: %s
-  member_uuid: %s
-/admin/groups/{internal_uuid}/members/{member_uuid}:
-  internal_uuid: %s
-  member_uuid: %s
 # entry_id names three different audit families (system, admin threat-model,
-# and a threat model's own trail), so it has the same one-name-many-resources
-# collision as internal_uuid above (#597/#603). These ids are harvested after
+# and a threat model's own trail) — the one-name-many-resources problem #603
+# fixed for groups vs users, still present here. These ids are harvested after
 # seeding rather than seeded, because audit entries are a side effect of the
 # seeding itself. A section is omitted entirely when its listing was empty, in
 # which case that family stays uncovered exactly as before.
@@ -345,9 +329,6 @@ all:
 		targetUUID, targetUUID,
 		actorEmail, provider, tmID,
 		actorEmail, provider,
-		adminGroupID,
-		adminGroupID, targetUUID,
-		adminGroupID, targetUUID,
 		auditSections,
 	)
 

@@ -49,7 +49,7 @@ func (s *Server) getAutomationUser(c *gin.Context, internalUuid openapi_types.UU
 	return user
 }
 
-// ListAdminUserClientCredentials handles GET /admin/users/{internal_uuid}/client_credentials
+// ListAdminUserClientCredentials handles GET /admin/users/{user_id}/client_credentials
 // SEM@469dc723f406bfcd7fd46bc19ba3a1f279f40f25: list client credentials for an automation user account with pagination (reads DB)
 func (s *Server) ListAdminUserClientCredentials(c *gin.Context, internalUuid openapi_types.UUID, params ListAdminUserClientCredentialsParams) {
 	logger := slogging.Get().WithContext(c)
@@ -138,7 +138,7 @@ func (s *Server) ListAdminUserClientCredentials(c *gin.Context, internalUuid ope
 	})
 }
 
-// CreateAdminUserClientCredential handles POST /admin/users/{internal_uuid}/client_credentials
+// CreateAdminUserClientCredential handles POST /admin/users/{user_id}/client_credentials
 // SEM@469dc723f406bfcd7fd46bc19ba3a1f279f40f25: build and store a new client credential for an automation user account, bypassing quota (mutates shared state)
 func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
@@ -255,7 +255,7 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 	})
 }
 
-// DeleteAdminUserClientCredential handles DELETE /admin/users/{internal_uuid}/client_credentials/{credential_id}
+// DeleteAdminUserClientCredential handles DELETE /admin/users/{user_id}/client_credentials/{credential_id}
 // SEM@469dc723f406bfcd7fd46bc19ba3a1f279f40f25: delete a client credential belonging to an automation user account (mutates shared state)
 func (s *Server) DeleteAdminUserClientCredential(c *gin.Context, internalUuid openapi_types.UUID, credentialId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
