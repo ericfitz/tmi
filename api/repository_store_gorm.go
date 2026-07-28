@@ -197,7 +197,7 @@ func (s *GormRepositoryRepository) Get(ctx context.Context, id string) (*Reposit
 }
 
 // Update updates an existing repository
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: update an existing repository's fields and metadata, refreshing the cache (reads DB)
+// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: update a repository's fields, set modified_at explicitly, and refresh cache (mutates shared state)
 func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -555,7 +555,7 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 }
 
 // Patch applies JSON patch operations to a repository
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply JSON Patch operations to a repository and persist the result (reads DB)
+// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON Patch operations to a repository and persist the result (reads DB)
 func (s *GormRepositoryRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Repository, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching repository %s with %d operations", id, len(operations))
@@ -722,7 +722,7 @@ func (s *GormRepositoryRepository) updateMetadata(ctx context.Context, repositor
 }
 
 // applyPatchOperation applies a single patch operation to a repository
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply a single JSON Patch operation to a repository's mutable fields (pure)
+// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: validate and apply a single JSON Patch operation to a repository's mutable fields (pure)
 func (s *GormRepositoryRepository) applyPatchOperation(repository *Repository, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:

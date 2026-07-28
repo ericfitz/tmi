@@ -190,7 +190,7 @@ func (s *GormDocumentRepository) Get(ctx context.Context, id string) (*Document,
 }
 
 // Update updates an existing document
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: update a document's fields and metadata in DB and cache (reads DB)
+// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: update a document's fields, set modified_at explicitly, and refresh cache (mutates shared state)
 func (s *GormDocumentRepository) Update(ctx context.Context, document *Document, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -520,7 +520,7 @@ func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Doc
 }
 
 // Patch applies JSON patch operations to a document
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply JSON patch operations to a document and persist the result (reads DB)
+// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON patch operations to a document and persist the result (reads DB)
 func (s *GormDocumentRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Document, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching document %s with %d operations", id, len(operations))
@@ -945,7 +945,7 @@ func (s *GormDocumentRepository) updateMetadata(ctx context.Context, documentID 
 }
 
 // applyPatchOperation applies a single patch operation to a document
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply a single JSON patch operation to a document's mutable fields (pure)
+// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: validate and apply a single JSON patch operation to a document's mutable fields (pure)
 func (s *GormDocumentRepository) applyPatchOperation(document *Document, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:

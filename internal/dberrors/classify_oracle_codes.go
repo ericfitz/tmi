@@ -123,7 +123,7 @@ var oracleCodeSentinels = map[int]error{
 // observed occurrence rate. ORA-01555 occurrences are counted in
 // ora01555Counter and emit a WARN log so operators can decide whether the
 // rate justifies reclassification.
-// SEM@178dbd0418cfb7e057d4297c7a88c5879cb64c7f: map an Oracle ORA- error code to a typed sentinel error; instrument ORA-01555 with counter and warn log (pure)
+// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: look up an Oracle ORA- error code in a table to classify its sentinel error; instrument ORA-01555 with counter and warn log (pure)
 func classifyOracleCode(err error, code int) error {
 	if sentinel, ok := oracleCodeSentinels[code]; ok {
 		return Wrap(err, sentinel)

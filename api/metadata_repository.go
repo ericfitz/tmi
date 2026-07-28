@@ -163,7 +163,7 @@ func (r *GormMetadataRepository) Get(ctx context.Context, entityType, entityID, 
 }
 
 // Update updates an existing metadata entry
-// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: update the value of an existing metadata entry by key (mutates shared state)
+// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: update a metadata entry's value, setting modified_at explicitly (mutates shared state)
 func (r *GormMetadataRepository) Update(ctx context.Context, entityType, entityID string, metadata *Metadata) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
