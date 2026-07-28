@@ -130,7 +130,12 @@ func (s *Server) CreateProjectNote(c *gin.Context, projectId openapi_types.UUID)
 
 	// Sanitize text fields
 	req.Name = SanitizePlainText(req.Name)
-	req.Content = SanitizeMarkdownContent(req.Content)
+	sanitizedContent, contentErr := SanitizeRequiredMarkdownContent("content", req.Content)
+	if contentErr != nil {
+		HandleRequestError(c, contentErr)
+		return
+	}
+	req.Content = sanitizedContent
 	req.Description = SanitizeOptionalString(req.Description)
 
 	note := ProjectNote{
@@ -259,7 +264,12 @@ func (s *Server) UpdateProjectNote(c *gin.Context, projectId openapi_types.UUID,
 
 	// Sanitize text fields
 	req.Name = SanitizePlainText(req.Name)
-	req.Content = SanitizeMarkdownContent(req.Content)
+	sanitizedContent, contentErr := SanitizeRequiredMarkdownContent("content", req.Content)
+	if contentErr != nil {
+		HandleRequestError(c, contentErr)
+		return
+	}
+	req.Content = sanitizedContent
 	req.Description = SanitizeOptionalString(req.Description)
 
 	note := ProjectNote{

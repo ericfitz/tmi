@@ -1,8 +1,10 @@
 package api
 
 import (
+	"fmt"
 	"html"
 	"regexp"
+	"strings"
 
 	"github.com/microcosm-cc/bluemonday"
 )
@@ -95,6 +97,34 @@ func SanitizeMarkdownContent(content string) string {
 		return content
 	}
 	return markdownPolicy.Sanitize(content)
+}
+
+// SanitizeRequiredMarkdownContent sanitizes a markdown field the schema
+// declares required with minLength 1, and reports a 400 when sanitization
+// emptied it.
+//
+// The schema's own `pattern` for these fields only excludes control
+// characters, so a body like `{"content": "<script>alert(1)</script>"}` passes
+// OpenAPI validation, reaches the handler, and is then reduced to "" by the
+// policy. Every caller previously handed that empty string straight to its
+// store, whose non-empty check failed and surfaced as a 500 — a client input
+// problem reported as a server fault, and a Zero-500 policy violation (#605).
+// (The sibling `name` field is unaffected because its pattern already rejects
+// `<` and `>` at the validation layer.)
+//
+// This lives here rather than in each handler so the create, update and patch
+// paths across all four note resources cannot drift on it — the update paths
+// had no such check at all and silently persisted the empty value.
+// SEM@e1f2a3b4c5d6e7f8091a2b3c4d5e6f7081929304: sanitize a required markdown field, returning a 400 error when sanitization empties it (pure)
+func SanitizeRequiredMarkdownContent(field, content string) (string, *RequestError) {
+	sanitized := SanitizeMarkdownContent(content)
+	if strings.TrimSpace(sanitized) == "" && strings.TrimSpace(content) != "" {
+		return "", InvalidInputError(fmt.Sprintf(
+			"%s is empty after sanitization; it consisted entirely of markup that is not permitted",
+			field,
+		))
+	}
+	return sanitized, nil
 }
 
 // SanitizePlainText strips ALL HTML tags from a string, leaving only text content.

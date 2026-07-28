@@ -141,7 +141,12 @@ func (s *Server) CreateTeamNote(c *gin.Context, teamId openapi_types.UUID) {
 
 	// Sanitize text fields
 	req.Name = SanitizePlainText(req.Name)
-	req.Content = SanitizeMarkdownContent(req.Content)
+	sanitizedContent, contentErr := SanitizeRequiredMarkdownContent("content", req.Content)
+	if contentErr != nil {
+		HandleRequestError(c, contentErr)
+		return
+	}
+	req.Content = sanitizedContent
 	req.Description = SanitizeOptionalString(req.Description)
 
 	note := TeamNote{
@@ -270,7 +275,12 @@ func (s *Server) UpdateTeamNote(c *gin.Context, teamId openapi_types.UUID, teamN
 
 	// Sanitize text fields
 	req.Name = SanitizePlainText(req.Name)
-	req.Content = SanitizeMarkdownContent(req.Content)
+	sanitizedContent, contentErr := SanitizeRequiredMarkdownContent("content", req.Content)
+	if contentErr != nil {
+		HandleRequestError(c, contentErr)
+		return
+	}
+	req.Content = sanitizedContent
 	req.Description = SanitizeOptionalString(req.Description)
 
 	note := TeamNote{
