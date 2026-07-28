@@ -184,11 +184,21 @@ func SetETagHeader(c *gin.Context, version int) {
 //     resulting version — see the wildcard branch below for why.
 //   - other GORM errors are returned wrapped via dberrors.Classify.
 //
-// This is intended to be called BEFORE the entity's content UPDATE inside
-// the same transaction. Concurrent writers race on this single UPDATE: the
-// first to commit wins and the loser sees rows-affected = 0, which we map
-// to ErrVersionMismatch (after a separate existence probe to distinguish
-// 404 from 409).
+// Concurrent writers race on this single UPDATE: the first to commit wins and
+// the loser sees rows-affected = 0, which we map to ErrVersionMismatch (after
+// a separate existence probe to distinguish 404 from 409).
+//
+// WARNING — this comment used to claim the CAS runs "BEFORE the entity's
+// content UPDATE inside the same transaction". It does not, at any of the 16
+// call sites: ApplyOptimisticLock runs the CAS on the store's root *gorm.DB
+// in autocommit, and the content UPDATE follows in a separate transaction
+// (#594). The version bump therefore does NOT guard the content write — two
+// writers can both pass the CAS and then interleave their updates.
+//
+// The corrected description is deliberately left here rather than quietly
+// removed: a reader who trusts the old wording will build on a guarantee that
+// does not exist. Fixing it for real means threading a transaction handle
+// through ApplyOptimisticLock and every caller, which is tracked on #594.
 //
 // tableName must be the physical DB table name (e.g. "threat_models").
 // On Oracle, GORM lowercases the WHERE column references; the column is
