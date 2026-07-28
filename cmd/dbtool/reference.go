@@ -290,14 +290,15 @@ all:
   #     required, every generated item fails validation.
   #
   #   responsible_parties[] / members[]  (#604)
-  #     CATS ignores "readOnly: true" on request-body properties, so it emits
-  #     the server-populated "user" object inside each item and TMI's OpenAPI
-  #     validation middleware rejects the request. refData cannot remove a
-  #     nested field (only top-level ones), so the whole array goes.
-  #
-  # Cost: these four arrays are not fuzzed. Before this, POST /projects and
-  # POST /teams returned 400 on EVERY test, so no part of either resource was
-  # fuzzed at all. Drop the entries below as each defect is resolved.
+  #     No longer a SCHEMA problem: the spec now splits request and response
+  #     shapes (TeamMemberInput / ResponsiblePartyInput have no "user" at all),
+  #     so CATS generates structurally valid items and the readOnly rejection
+  #     is gone. They stay removed for a different reason -- CATS fills the
+  #     nested user_id with a random UUID that refData does not substitute, so
+  #     the server correctly answers "user not found for responsible party" and
+  #     POST /projects + POST /teams go back to 400 on every test. Removing
+  #     them is now a coverage trade, not a workaround for a blocker: drop
+  #     these two the moment refData reaches nested array items.
   related_projects: cats_remove_field
   related_teams: cats_remove_field
   responsible_parties: cats_remove_field

@@ -8884,7 +8884,7 @@
           "members": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/TeamMember"
+              "$ref": "#/components/schemas/TeamMemberInput"
             },
             "maxItems": 1000,
             "description": "List of team members with their roles",
@@ -8898,7 +8898,7 @@
           "responsible_parties": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ResponsibleParty"
+              "$ref": "#/components/schemas/ResponsiblePartyInput"
             },
             "maxItems": 100,
             "description": "Responsible parties for this team (in lieu of owner)",
@@ -9040,6 +9040,29 @@
                 "minimum": 1,
                 "readOnly": true,
                 "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
+              },
+              "members": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/TeamMember"
+                },
+                "maxItems": 1000,
+                "description": "List of team members with their roles (resolved on read)",
+                "example": [
+                  {
+                    "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "role": "engineering_lead"
+                  }
+                ]
+              },
+              "responsible_parties": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ResponsibleParty"
+                },
+                "maxItems": 100,
+                "description": "Responsible parties for this team (in lieu of owner) (resolved on read)",
+                "example": []
               }
             }
           }
@@ -9201,7 +9224,7 @@
           "responsible_parties": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ResponsibleParty"
+              "$ref": "#/components/schemas/ResponsiblePartyInput"
             },
             "maxItems": 100,
             "description": "Responsible parties for this project",
@@ -9345,6 +9368,15 @@
                 "minimum": 1,
                 "readOnly": true,
                 "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
+              },
+              "responsible_parties": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ResponsibleParty"
+                },
+                "maxItems": 100,
+                "description": "Responsible parties for this project (resolved on read)",
+                "example": []
               }
             }
           }
@@ -12077,6 +12109,58 @@
           }
         ],
         "description": "Asset data for bulk update operations, including required ID field"
+      },
+      "TeamMemberInput": {
+        "type": "object",
+        "description": "Client-writable fields of TeamMember (excludes the server-resolved user).",
+        "required": [
+          "user_id"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "maxLength": 36,
+            "description": "UUID of the team member user",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TeamMemberRole"
+          },
+          "custom_role": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "description": "Custom role description when role is 'other'"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ResponsiblePartyInput": {
+        "type": "object",
+        "description": "Client-writable fields of ResponsibleParty (excludes the server-resolved user).",
+        "required": [
+          "user_id"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "maxLength": 36,
+            "description": "UUID of the responsible party user",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "role": {
+            "$ref": "#/components/schemas/TeamMemberRole"
+          },
+          "custom_role": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "description": "Custom role description when role is 'other'"
+          }
+        },
+        "additionalProperties": false
       }
     },
     "responses": {

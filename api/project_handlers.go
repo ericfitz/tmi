@@ -119,7 +119,7 @@ func (s *Server) CreateProject(c *gin.Context) {
 		Description:        req.Description,
 		TeamId:             req.TeamId,
 		RelatedProjects:    req.RelatedProjects,
-		ResponsibleParties: req.ResponsibleParties,
+		ResponsibleParties: responsiblePartiesFromInput(req.ResponsibleParties),
 		Status:             req.Status,
 		Uri:                req.Uri,
 	}
@@ -243,7 +243,7 @@ func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID, _ U
 		Description:        req.Description,
 		TeamId:             req.TeamId,
 		RelatedProjects:    req.RelatedProjects,
-		ResponsibleParties: req.ResponsibleParties,
+		ResponsibleParties: responsiblePartiesFromInput(req.ResponsibleParties),
 		Status:             req.Status,
 		Uri:                req.Uri,
 	}
