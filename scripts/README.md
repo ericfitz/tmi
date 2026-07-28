@@ -65,7 +65,7 @@ clean targets — a second retention policy races the plugin's and destroys corp
   - Builds TMI containers using Chainguard base images for enhanced security
   - Supports individual container builds: `./build-containers.sh postgresql|redis|application`
   - Generates SBOMs (Software Bill of Materials) for all containers
-  - **Make targets**: `make build-container-db`, `make build-container-redis`, `make build-container-tmi`, `make build-containers`
+  - **Make targets**: `make build-db`, `make build-redis-container`, `make build-server-container`, `make build-containers`
 - **`build-promtail-container.sh`** - Builds Promtail container with Chainguard static base for logging infrastructure
 - **`make-containers-dev-local.sh`** - Local development container setup with security scanning
 
@@ -119,17 +119,17 @@ uv run scripts/validate-asyncapi.py api-schema/tmi-asyncapi.yaml
 
 ```bash
 make start-oauth-stub          # Start OAuth callback handler
-make oauth-stub-status         # Check if running
-make oauth-stub-stop           # Stop gracefully
+make check-oauth-stub          # Check if running
+make stop-oauth-stub           # Stop gracefully
 ```
 
 ### For Container Management
 
 ```bash
 # Build individual containers (faster for iterative development)
-make build-container-db      # PostgreSQL only
-make build-container-redis   # Redis only
-make build-container-tmi     # TMI server only
+make build-db                # PostgreSQL only
+make build-redis-container   # Redis only
+make build-server-container  # TMI server only
 
 # Build all containers
 make build-containers

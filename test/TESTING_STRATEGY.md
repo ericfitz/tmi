@@ -200,7 +200,7 @@ test/
 ```makefile
 # Unit tests
 make test-unit                    # Run all unit tests
-make test-unit-coverage          # Generate coverage report
+make test-coverage               # Generate coverage report
 
 # Integration tests
 make test-integration            # Run all integration tests
@@ -208,7 +208,7 @@ make test-integration-workflow WORKFLOW=oauth_flow  # Run specific workflow
 
 # Tools
 make wstest                      # Run WebSocket test harness
-make oauth-stub                  # Start OAuth callback stub
+make start-oauth-stub            # Start OAuth callback stub
 
 # CATS fuzzing
 make cats-fuzz                   # Run CATS fuzzing
