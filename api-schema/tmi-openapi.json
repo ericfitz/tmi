@@ -11406,17 +11406,17 @@
           },
           "developer_key": {
             "type": "string",
-            "description": "Google Picker developer key. Deprecated — prefer provider_config.developer_key. Populated only for provider_id=google_workspace.",
+            "description": "Google Picker developer key. Deprecated \u2014 prefer provider_config.developer_key. Populated only for provider_id=google_workspace.",
             "example": "AIzaSyB-1234example"
           },
           "app_id": {
             "type": "string",
-            "description": "Google Cloud app id. Deprecated — prefer provider_config.app_id. Populated only for provider_id=google_workspace.",
+            "description": "Google Cloud app id. Deprecated \u2014 prefer provider_config.app_id. Populated only for provider_id=google_workspace.",
             "example": "123456789012"
           },
           "provider_config": {
             "type": "object",
-            "description": "Provider-specific public configuration values for picker initialization. Keys vary by provider — see provider documentation. For google_workspace: developer_key, app_id. For microsoft: client_id, tenant_id, picker_origin.",
+            "description": "Provider-specific public configuration values for picker initialization. Keys vary by provider \u2014 see provider documentation. For google_workspace: developer_key, app_id. For microsoft: client_id, tenant_id, picker_origin.",
             "additionalProperties": {
               "type": "string"
             }
@@ -11636,7 +11636,7 @@
           "user_agent_data": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Optional NavigatorUAData payload (≤ 4 KB serialized)"
+            "description": "Optional NavigatorUAData payload (\u2264 4 KB serialized)"
           },
           "viewport": {
             "type": "string",
@@ -12520,7 +12520,7 @@
         }
       },
       "Conflict": {
-        "description": "Conflict — the supplied version does not match the resource's current version. Refetch and retry.",
+        "description": "Conflict \u2014 the supplied version does not match the resource's current version. Refetch and retry.",
         "content": {
           "application/json": {
             "schema": {
@@ -12553,7 +12553,7 @@
         }
       },
       "PreconditionRequired": {
-        "description": "Precondition Required — the request did not include an If-Match header. This response is returned only when the server has flipped the RequireIfMatch config flag (planned for a future release).",
+        "description": "Precondition Required \u2014 the request did not include an If-Match header. This response is returned only when the server has flipped the RequireIfMatch config flag (planned for a future release).",
         "content": {
           "application/json": {
             "schema": {
@@ -12915,7 +12915,7 @@
         "required": true,
         "schema": {
           "type": "string",
-          "description": "RFC 6749 §A.11 authorization-code = 1*VSCHAR; VSCHAR = %x20-7E. Microsoft codes can exceed 1500 chars and contain *, !, $.",
+          "description": "RFC 6749 \u00a7A.11 authorization-code = 1*VSCHAR; VSCHAR = %x20-7E. Microsoft codes can exceed 1500 chars and contain *, !, $.",
           "pattern": "^[ -~]+$",
           "minLength": 1,
           "maxLength": 4096
@@ -19822,7 +19822,7 @@
               "schema": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Threat"
+                  "$ref": "#/components/schemas/ThreatInput"
                 },
                 "maxItems": 20,
                 "description": "Array of threats to create"
@@ -22571,7 +22571,7 @@
               "schema": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Document"
+                  "$ref": "#/components/schemas/DocumentInput"
                 },
                 "maxItems": 20,
                 "description": "Array of documents to create"
@@ -25026,7 +25026,7 @@
               "schema": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Repository"
+                  "$ref": "#/components/schemas/RepositoryInput"
                 },
                 "maxItems": 20,
                 "description": "Array of source references to create"
@@ -42548,7 +42548,7 @@
       "get": {
         "operationId": "getDiagramModel",
         "summary": "Get minimal diagram model for automated analysis",
-        "description": "Returns a minimal representation of the diagram optimized for automated threat modeling. Strips all visual styling, layout, and rendering properties. Includes threat model context, computed parent-child relationships, and flattened metadata.\n\nContent negotiation: use the Accept header to select the response format — application/json (default), application/yaml, or application/graphml+xml. An Accept header that matches none of these yields 406 Not Acceptable.",
+        "description": "Returns a minimal representation of the diagram optimized for automated threat modeling. Strips all visual styling, layout, and rendering properties. Includes threat model context, computed parent-child relationships, and flattened metadata.\n\nContent negotiation: use the Accept header to select the response format \u2014 application/json (default), application/yaml, or application/graphml+xml. An Accept header that matches none of these yields 406 Not Acceptable.",
         "tags": [
           "Threat Model Sub-Resources"
         ],
@@ -47313,7 +47313,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements — for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
+            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements \u2014 for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -48018,7 +48018,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements — for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
+            "description": "Unprocessable Entity. Returned when a status transition has unmet requirements \u2014 for example, transitioning to needs_revision requires revision_notes to be set on the survey response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -66151,7 +66151,7 @@
           "Timmy Chat"
         ],
         "summary": "Send a message to Timmy",
-        "description": "Sends a user message to the Timmy AI assistant and returns an SSE stream of the assistant response.\n\n**SSE event types emitted by this endpoint:**\n\n- `status` (zero or more) — Phase-transition events fired BEFORE `message_start` so clients can show \"Timmy is …\" affordances during the often-multi-second pre-token latency. Payload: `{\"phase\": \"<snake_case>\", \"entity_type\": \"<optional>\", \"entity_name\": \"<optional>\", \"detail\": \"<optional>\"}`. `phase` is a stable identifier the client can map to localized strings; the server is free to add or rename phases as the pipeline evolves, so unknown phases should be treated as opaque labels. Current phases include `building_context`, `loading_history`, `querying_embeddings`, `waiting_for_llm`. Once tokens begin streaming, no further `status` events are emitted.\n- `message_start` (exactly one, after any `status` events) — Signals that the server is about to (or has just begun) streaming tokens. Payload: `{\"status\": \"processing\"}`.\n- `token` (zero or more) — Individual tokens streamed from the LLM. Payload: token text.\n- `message_end` (exactly one, terminal) — The full persisted assistant message. Payload: `TimmyChatMessage` object.\n- `error` (terminal in the failure case) — Emitted instead of `message_end` if the request fails after the SSE stream has begun.\n\n**Auto-generated session title.** After the first user message in a fresh session is processed successfully, the server may asynchronously generate a short title (≤ 60 characters) from that message and persist it to the session's `title` field. This only happens when the existing title is empty or matches the client's default placeholder (e.g. `Chat — <date>, <time>`); a user-set title is never overwritten. Title generation runs out-of-band and never blocks or fails the message response — clients see the new title on the next `getTimmyChatSession` / `listTimmyChatSessions` call.",
+        "description": "Sends a user message to the Timmy AI assistant and returns an SSE stream of the assistant response.\n\n**SSE event types emitted by this endpoint:**\n\n- `status` (zero or more) \u2014 Phase-transition events fired BEFORE `message_start` so clients can show \"Timmy is \u2026\" affordances during the often-multi-second pre-token latency. Payload: `{\"phase\": \"<snake_case>\", \"entity_type\": \"<optional>\", \"entity_name\": \"<optional>\", \"detail\": \"<optional>\"}`. `phase` is a stable identifier the client can map to localized strings; the server is free to add or rename phases as the pipeline evolves, so unknown phases should be treated as opaque labels. Current phases include `building_context`, `loading_history`, `querying_embeddings`, `waiting_for_llm`. Once tokens begin streaming, no further `status` events are emitted.\n- `message_start` (exactly one, after any `status` events) \u2014 Signals that the server is about to (or has just begun) streaming tokens. Payload: `{\"status\": \"processing\"}`.\n- `token` (zero or more) \u2014 Individual tokens streamed from the LLM. Payload: token text.\n- `message_end` (exactly one, terminal) \u2014 The full persisted assistant message. Payload: `TimmyChatMessage` object.\n- `error` (terminal in the failure case) \u2014 Emitted instead of `message_end` if the request fails after the SSE stream has begun.\n\n**Auto-generated session title.** After the first user message in a fresh session is processed successfully, the server may asynchronously generate a short title (\u2264 60 characters) from that message and persist it to the session's `title` field. This only happens when the existing title is empty or matches the client's default placeholder (e.g. `Chat \u2014 <date>, <time>`); a user-set title is never overwritten. Title generation runs out-of-band and never blocks or fails the message response \u2014 clients see the new title on the next `getTimmyChatSession` / `listTimmyChatSessions` call.",
         "operationId": "createTimmyChatMessage",
         "security": [
           {
@@ -69023,7 +69023,7 @@
         ],
         "responses": {
           "400": {
-            "description": "Validation or pre-flight rejection (RFC 6749 §4.1.2.1-aligned error codes).",
+            "description": "Validation or pre-flight rejection (RFC 6749 \u00a74.1.2.1-aligned error codes).",
             "content": {
               "application/json": {
                 "schema": {
@@ -69123,7 +69123,7 @@
             }
           },
           "200": {
-            "description": "JSON outcome of the step-up call. Two shapes, distinguished by the 'result' field:\n- 'step_up_weak_complete' — weak-provider short-circuit: tokens rotated in-place; Set-Cookie headers carry new HttpOnly access and refresh tokens. Returned only when the JWT-bound provider is classified as 'weak' (e.g., github).\n- 'step_up_redirect' — strong-provider path negotiated to JSON: returned in place of the 302 when the caller sends 'Accept: application/json' (XHR/fetch). 'redirect_url' carries the upstream IdP authorize URL the client must top-level navigate to; server-side state and PKCE are already stored, so the redirect proceeds exactly as the 302 path. A bare '*/*' Accept does not trigger this — browser top-level navigations still receive the 302.",
+            "description": "JSON outcome of the step-up call. Two shapes, distinguished by the 'result' field:\n- 'step_up_weak_complete' \u2014 weak-provider short-circuit: tokens rotated in-place; Set-Cookie headers carry new HttpOnly access and refresh tokens. Returned only when the JWT-bound provider is classified as 'weak' (e.g., github).\n- 'step_up_redirect' \u2014 strong-provider path negotiated to JSON: returned in place of the 302 when the caller sends 'Accept: application/json' (XHR/fetch). 'redirect_url' carries the upstream IdP authorize URL the client must top-level navigate to; server-side state and PKCE are already stored, so the redirect proceeds exactly as the 302 path. A bare '*/*' Accept does not trigger this \u2014 browser top-level navigations still receive the 302.",
             "content": {
               "application/json": {
                 "schema": {
@@ -69162,7 +69162,7 @@
                 },
                 "examples": {
                   "step_up_weak_complete": {
-                    "summary": "Weak provider — tokens rotated in-place",
+                    "summary": "Weak provider \u2014 tokens rotated in-place",
                     "value": {
                       "result": "step_up_weak_complete",
                       "provider": "github",
