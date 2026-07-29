@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"regexp"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
 	tmiotel "github.com/ericfitz/tmi/internal/otel"
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // sseEventNameRe restricts SSE event names to safe alphanumeric/underscore characters.
@@ -22,6 +25,11 @@ var sseEventNameRe = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 type SSEWriter struct {
 	c       *gin.Context
 	flusher func()
+	// writeErr latches the first failed write. Once set, the client is
+	// unreachable and every later send short-circuits instead of retrying a
+	// socket that will not recover. Callers observe it through IsClientGone /
+	// Err, which is what lets an in-flight LLM stream stop early.
+	writeErr error
 }
 
 // NewSSEWriter initializes an SSE response stream
@@ -29,8 +37,33 @@ type SSEWriter struct {
 func NewSSEWriter(c *gin.Context) *SSEWriter {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no") // Disable nginx buffering
+
+	// Clear the connection's write deadline for the life of this response.
+	//
+	// http.Server.WriteTimeout (10s by default here) bounds the ENTIRE response
+	// write, and Go arms it when the request header is read — not per write. A
+	// stream that outlives it has every subsequent write fail with i/o timeout,
+	// silently: the handler keeps producing events into a dead socket and still
+	// returns 200, and the abrupt close at handler return is what the browser
+	// reports as ERR_HTTP2_PROTOCOL_ERROR. Measured against the AWS deployment,
+	// the last byte reached the browser at 10.055s against the 10s timeout while
+	// the server logged "200 (24.0s)" with no error anywhere.
+	//
+	// A zero time.Time means "no deadline", which is the correct posture for an
+	// open-ended stream; request duration is bounded by the LLM timeout and the
+	// request context instead. Failure is logged rather than fatal: a writer
+	// that cannot be unwrapped (some test recorders) still streams correctly
+	// under no deadline at all.
+	//
+	// NOTE: c.Header("Connection", "keep-alive") deliberately removed. It is
+	// redundant on HTTP/1.1, where Go manages keep-alive, and it is a
+	// connection-specific header that RFC 9113 §8.2.2 forbids in HTTP/2.
+	if err := http.NewResponseController(c.Writer).SetWriteDeadline(time.Time{}); err != nil {
+		slogging.Get().WithContext(c).Warn(
+			"SSE: could not clear the write deadline (%v); a stream longer than "+
+				"the server WriteTimeout will be truncated", err)
+	}
 
 	return &SSEWriter{
 		c: c,
@@ -43,26 +76,34 @@ func NewSSEWriter(c *gin.Context) *SSEWriter {
 // SendEvent sends a named SSE event with JSON data
 // SEM@de94ca8de4d9f1541750217c9a701b38bf923214: serialize data as JSON and send a named SSE event to the client
 func (w *SSEWriter) SendEvent(event string, data any) error {
+	// Once a write has failed the connection does not recover, and every
+	// further attempt is a syscall that fails the same way. Short-circuit so a
+	// long token stream against a dead client costs nothing.
+	if w.writeErr != nil {
+		return w.writeErr
+	}
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
+		// A marshalling failure is a bug in the payload, not a broken
+		// connection: do not latch it, the stream is still usable.
 		return fmt.Errorf("failed to marshal SSE data: %w", err)
 	}
 	safeEvent := sseEventNameRe.ReplaceAllString(event, "")
 	writer := w.c.Writer
 	if _, err = io.WriteString(writer, "event: "); err != nil {
-		return fmt.Errorf("failed to write SSE event: %w", err)
+		return w.failed(err)
 	}
 	if _, err = io.WriteString(writer, safeEvent); err != nil { // #nosec G705 -- safeEvent sanitized by sseEventNameRe (alphanumeric+underscore only)
-		return fmt.Errorf("failed to write SSE event: %w", err)
+		return w.failed(err)
 	}
 	if _, err = io.WriteString(writer, "\ndata: "); err != nil {
-		return fmt.Errorf("failed to write SSE event: %w", err)
+		return w.failed(err)
 	}
 	if _, err = writer.Write(jsonBytes); err != nil {
-		return fmt.Errorf("failed to write SSE event: %w", err)
+		return w.failed(err)
 	}
 	if _, err = io.WriteString(writer, "\n\n"); err != nil {
-		return fmt.Errorf("failed to write SSE event: %w", err)
+		return w.failed(err)
 	}
 	w.flusher()
 
@@ -85,9 +126,35 @@ func (w *SSEWriter) SendError(code, message string) error {
 	return w.SendEvent("error", map[string]string{"code": code, "message": message})
 }
 
-// IsClientGone checks if the client has disconnected
-// SEM@4c239c4f250b659952e70e3af2276d2651e420e9: report whether the SSE client has disconnected by checking request context cancellation (pure)
+// failed latches the first write error and logs it once. Subsequent sends
+// short-circuit on the latch rather than logging per event, which matters for a
+// token stream that would otherwise emit hundreds of identical lines.
+// SEM@0000000000000000000000000000000000000000: latch and log the first SSE write failure, returning it wrapped
+func (w *SSEWriter) failed(err error) error {
+	w.writeErr = fmt.Errorf("failed to write SSE event: %w", err)
+	slogging.Get().WithContext(w.c).Warn(
+		"SSE: client unreachable, abandoning stream: %v", err)
+	return w.writeErr
+}
+
+// Err returns the first write failure, or nil while the stream is healthy.
+// SEM@0000000000000000000000000000000000000000: return the first SSE write failure, or nil if none (pure)
+func (w *SSEWriter) Err() error { return w.writeErr }
+
+// IsClientGone reports whether the client can no longer receive events.
+//
+// Two distinct conditions, and the second is why write errors are latched. A
+// client that closes cleanly cancels the request context. A client whose writes
+// fail — the server's own WriteTimeout expiring mid-stream being the case that
+// motivated this — does NOT cancel the context: from Go's side the request is
+// still in flight, so the context check alone reports a healthy client and the
+// handler keeps generating LLM tokens nobody will receive. Checking the latched
+// write error covers that.
+// SEM@0000000000000000000000000000000000000000: report whether the SSE client is unreachable, via context cancellation or a latched write failure (pure)
 func (w *SSEWriter) IsClientGone() bool {
+	if w.writeErr != nil {
+		return true
+	}
 	select {
 	case <-w.c.Request.Context().Done():
 		return true
