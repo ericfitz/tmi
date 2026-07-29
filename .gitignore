@@ -170,3 +170,6 @@ terraform/environments/aws-public/vendor/
 # re-includes every markdown file, which would otherwise make this per-developer
 # scratch file show up as untracked in every `git status`.
 CLAUDE.local.md
+
+# Session handoff notes: local scratch, deliberately not tracked.
+CATS-HANDOFF.md
