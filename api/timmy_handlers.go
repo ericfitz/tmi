@@ -72,13 +72,19 @@ func (s *Server) CreateTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 		if sse.IsClientGone() {
 			return
 		}
-		_ = sse.SendEvent("progress", map[string]any{
+		if err := sse.SendEvent("progress", map[string]any{
 			"phase":       phase,
 			"entity_type": entityType,
 			"entity_name": entityName,
 			"progress":    progress,
 			"detail":      detail,
-		})
+		}); err != nil {
+			// Latched by the writer, so the IsClientGone check above
+			// short-circuits every later callback: snapshotting continues (the
+			// session is still worth creating and is readable via
+			// GET .../chat/sessions) but we stop writing to a dead socket.
+			logger.Warn("Timmy: progress event not delivered (%s): %v", phase, err)
+		}
 	}
 
 	session, skipped, createErr := rt.SessionManager.CreateSession(
@@ -86,7 +92,9 @@ func (s *Server) CreateTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 	)
 	if createErr != nil {
 		logger.Error("Failed to create Timmy session: %v", createErr)
-		_ = sse.SendError("session_creation_failed", createErr.Error())
+		if err := sse.SendError("session_creation_failed", createErr.Error()); err != nil {
+			logger.Warn("Timmy: could not deliver session_creation_failed: %v", err)
+		}
 		return
 	}
 
@@ -96,15 +104,24 @@ func (s *Server) CreateTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 
 	// Send skipped_sources event if any documents were excluded
 	if len(skipped) > 0 {
-		_ = sse.SendEvent("skipped_sources", skipped)
+		if err := sse.SendEvent("skipped_sources", skipped); err != nil {
+			logger.Warn("Timmy: skipped_sources not delivered: %v", err)
+		}
 	}
 
-	// Send session_created event with the session data
+	// Send session_created event with the session data. The session exists in
+	// the database either way — a client that misses this event recovers by
+	// listing sessions — but losing it is worth a log line, not silence.
 	apiSession := timmySessionToAPI(session)
-	_ = sse.SendEvent("session_created", apiSession)
+	if err := sse.SendEvent("session_created", apiSession); err != nil {
+		logger.Warn("Timmy: session created but session_created was not delivered: %v", err)
+		return // ready would fail identically
+	}
 
 	// Send ready event
-	_ = sse.SendEvent("ready", map[string]string{"status": "ready"})
+	if err := sse.SendEvent("ready", map[string]string{"status": "ready"}); err != nil {
+		logger.Warn("Timmy: ready event not delivered: %v", err)
+	}
 }
 
 // ListTimmyChatSessions lists the current user's sessions for a threat model.
@@ -265,22 +282,52 @@ func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatMode
 		if detail != "" {
 			payload["detail"] = detail
 		}
-		_ = sse.SendEvent("status", payload)
+		if err := sse.SendEvent("status", payload); err != nil {
+			// Latched by the writer; the token callback aborts generation on
+			// the next call. Nothing useful to do here beyond not pretending
+			// the event was delivered.
+			logger.Warn("Timmy: status event not delivered (%s): %v", phase, err)
+		}
 	}
+
+	// llmCancel is assigned below, once the LLM context exists. The token
+	// callback captures it so a client that stops receiving also stops
+	// generation — see the abort path inside tokenCb.
+	var llmCancel context.CancelFunc
 
 	// Token callback sends SSE token events. message_start is deferred
 	// until the first token arrives so it appears AFTER any status events
 	// (matching the recommended ordering in the OpenAPI spec).
 	messageStartSent := false
+	// abortIfUnreachable stops the in-flight LLM call when the client can no
+	// longer receive. Returning early only stops us WRITING; the model keeps
+	// generating, and every one of those tokens is billed for a stream nobody
+	// is reading. Production showed 15.7s of exactly that after a mid-stream
+	// write failure. Cancelling the LLM context ends generation instead.
+	abortIfUnreachable := func() bool {
+		if !sse.IsClientGone() {
+			return false
+		}
+		if llmCancel != nil {
+			logger.Warn("Timmy: client unreachable (%v); cancelling LLM generation", sse.Err())
+			llmCancel()
+		}
+		return true
+	}
 	tokenCb := func(token string) {
-		if sse.IsClientGone() {
+		if abortIfUnreachable() {
 			return
 		}
 		if !messageStartSent {
 			messageStartSent = true
-			_ = sse.SendEvent("message_start", map[string]string{"status": "processing"})
+			if err := sse.SendEvent("message_start", map[string]string{"status": "processing"}); err != nil {
+				abortIfUnreachable()
+				return
+			}
 		}
-		_ = sse.SendToken(token)
+		if err := sse.SendToken(token); err != nil {
+			abortIfUnreachable()
+		}
 	}
 
 	// Create a dedicated context for the LLM call. Two important properties:
@@ -296,12 +343,16 @@ func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatMode
 	//  2. Client-disconnect handling stays in the SSE writer: the token callback
 	//     short-circuits via `sse.IsClientGone()`, so we don't lose the
 	//     "stop work when client disappears" behaviour by detaching from the
-	//     request context's cancellation.
+	//     request context's cancellation. Because this context is detached, that
+	//     callback is also the ONLY thing that can end generation early — which
+	//     is why it cancels this context (via llmCancel, declared above and
+	//     assigned here) rather than merely returning.
 	llmTimeout := 120 * time.Second
 	if rt.SessionManager.config.LLMTimeoutSeconds > 0 {
 		llmTimeout = time.Duration(rt.SessionManager.config.LLMTimeoutSeconds) * time.Second
 	}
-	llmCtx, llmCancel := context.WithTimeout(context.WithoutCancel(ctx), llmTimeout)
+	llmCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), llmTimeout)
+	llmCancel = cancel
 	defer llmCancel()
 
 	assistantMsg, handleErr := rt.SessionManager.HandleMessage(
@@ -309,7 +360,9 @@ func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatMode
 	)
 	if handleErr != nil {
 		logger.Error("Failed to handle Timmy message: %v", handleErr)
-		_ = sse.SendError("message_failed", handleErr.Error())
+		if err := sse.SendError("message_failed", handleErr.Error()); err != nil {
+			logger.Warn("Timmy: could not deliver message_failed to the client: %v", err)
+		}
 		return
 	}
 
@@ -317,12 +370,20 @@ func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatMode
 	// emitted), the deferred message_start above never fired. Emit it now
 	// so clients always see message_start before message_end.
 	if !messageStartSent {
-		_ = sse.SendEvent("message_start", map[string]string{"status": "processing"})
+		if err := sse.SendEvent("message_start", map[string]string{"status": "processing"}); err != nil {
+			logger.Warn("Timmy: could not deliver message_start: %v", err)
+		}
 	}
 
-	// Send message_end event with the assistant message
+	// Send message_end event with the assistant message. A failure here is the
+	// signature the browser saw as a truncated answer: the message IS persisted
+	// and readable via GET .../messages, but this client never received it, so
+	// log it at warn rather than dropping it silently.
 	apiMsg := timmyMessageToAPI(assistantMsg)
-	_ = sse.SendEvent("message_end", apiMsg)
+	if err := sse.SendEvent("message_end", apiMsg); err != nil {
+		logger.Warn("Timmy: message completed but message_end was not delivered "+
+			"(client will appear to have been cut off mid-answer): %v", err)
+	}
 }
 
 // ListTimmyChatMessages lists message history for a session.

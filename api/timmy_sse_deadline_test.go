@@ -3,6 +3,7 @@ package api
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -124,3 +125,57 @@ func TestBufferedResponseWriter_UnwrapReachesUnderlyingWriter(t *testing.T) {
 
 // newBuf mirrors how JSONErrorHandler constructs the buffer.
 func newBuf() *bytes.Buffer { return bytes.NewBufferString("") }
+
+// failingWriter fails every write, standing in for a socket whose deadline has
+// expired: writes error but the request context is NOT cancelled, which is the
+// condition the old IsClientGone could not see.
+type failingWriter struct {
+	gin.ResponseWriter
+	writes int
+}
+
+func (f *failingWriter) Write(b []byte) (int, error) {
+	f.writes++
+	return 0, errors.New("i/o timeout")
+}
+
+func (f *failingWriter) WriteString(s string) (int, error) {
+	f.writes++
+	return 0, errors.New("i/o timeout")
+}
+
+func TestSSEWriter_LatchesWriteFailureAndReportsClientGone(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/stream", nil)
+	fw := &failingWriter{ResponseWriter: c.Writer}
+	c.Writer = fw
+
+	w := &SSEWriter{c: c, flusher: func() {}}
+
+	if w.IsClientGone() {
+		t.Fatal("client should look reachable before any write")
+	}
+	if err := w.SendEvent("token", map[string]string{"content": "a"}); err == nil {
+		t.Fatal("SendEvent should surface the write failure")
+	}
+	if !w.IsClientGone() {
+		t.Fatal("after a failed write the client is unreachable — without this the " +
+			"handler keeps generating LLM tokens for a dead socket")
+	}
+	if w.Err() == nil {
+		t.Fatal("Err() should expose the latched failure")
+	}
+
+	// Subsequent sends must short-circuit rather than retry the socket.
+	before := fw.writes
+	for i := 0; i < 5; i++ {
+		if err := w.SendToken("x"); err == nil {
+			t.Fatal("send after a latched failure should keep returning the error")
+		}
+	}
+	if fw.writes != before {
+		t.Errorf("made %d further write syscalls after latching; want 0", fw.writes-before)
+	}
+}

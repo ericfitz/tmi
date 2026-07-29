@@ -25,6 +25,11 @@ var sseEventNameRe = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 type SSEWriter struct {
 	c       *gin.Context
 	flusher func()
+	// writeErr latches the first failed write. Once set, the client is
+	// unreachable and every later send short-circuits instead of retrying a
+	// socket that will not recover. Callers observe it through IsClientGone /
+	// Err, which is what lets an in-flight LLM stream stop early.
+	writeErr error
 }
 
 // NewSSEWriter initializes an SSE response stream
@@ -71,26 +76,34 @@ func NewSSEWriter(c *gin.Context) *SSEWriter {
 // SendEvent sends a named SSE event with JSON data
 // SEM@de94ca8de4d9f1541750217c9a701b38bf923214: serialize data as JSON and send a named SSE event to the client
 func (w *SSEWriter) SendEvent(event string, data any) error {
+	// Once a write has failed the connection does not recover, and every
+	// further attempt is a syscall that fails the same way. Short-circuit so a
+	// long token stream against a dead client costs nothing.
+	if w.writeErr != nil {
+		return w.writeErr
+	}
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
+		// A marshalling failure is a bug in the payload, not a broken
+		// connection: do not latch it, the stream is still usable.
 		return fmt.Errorf("failed to marshal SSE data: %w", err)
 	}
 	safeEvent := sseEventNameRe.ReplaceAllString(event, "")
 	writer := w.c.Writer
 	if _, err = io.WriteString(writer, "event: "); err != nil {
-		return fmt.Errorf("failed to write SSE event: %w", err)
+		return w.failed(err)
 	}
 	if _, err = io.WriteString(writer, safeEvent); err != nil { // #nosec G705 -- safeEvent sanitized by sseEventNameRe (alphanumeric+underscore only)
-		return fmt.Errorf("failed to write SSE event: %w", err)
+		return w.failed(err)
 	}
 	if _, err = io.WriteString(writer, "\ndata: "); err != nil {
-		return fmt.Errorf("failed to write SSE event: %w", err)
+		return w.failed(err)
 	}
 	if _, err = writer.Write(jsonBytes); err != nil {
-		return fmt.Errorf("failed to write SSE event: %w", err)
+		return w.failed(err)
 	}
 	if _, err = io.WriteString(writer, "\n\n"); err != nil {
-		return fmt.Errorf("failed to write SSE event: %w", err)
+		return w.failed(err)
 	}
 	w.flusher()
 
@@ -113,9 +126,35 @@ func (w *SSEWriter) SendError(code, message string) error {
 	return w.SendEvent("error", map[string]string{"code": code, "message": message})
 }
 
-// IsClientGone checks if the client has disconnected
-// SEM@4c239c4f250b659952e70e3af2276d2651e420e9: report whether the SSE client has disconnected by checking request context cancellation (pure)
+// failed latches the first write error and logs it once. Subsequent sends
+// short-circuit on the latch rather than logging per event, which matters for a
+// token stream that would otherwise emit hundreds of identical lines.
+// SEM@0000000000000000000000000000000000000000: latch and log the first SSE write failure, returning it wrapped
+func (w *SSEWriter) failed(err error) error {
+	w.writeErr = fmt.Errorf("failed to write SSE event: %w", err)
+	slogging.Get().WithContext(w.c).Warn(
+		"SSE: client unreachable, abandoning stream: %v", err)
+	return w.writeErr
+}
+
+// Err returns the first write failure, or nil while the stream is healthy.
+// SEM@0000000000000000000000000000000000000000: return the first SSE write failure, or nil if none (pure)
+func (w *SSEWriter) Err() error { return w.writeErr }
+
+// IsClientGone reports whether the client can no longer receive events.
+//
+// Two distinct conditions, and the second is why write errors are latched. A
+// client that closes cleanly cancels the request context. A client whose writes
+// fail — the server's own WriteTimeout expiring mid-stream being the case that
+// motivated this — does NOT cancel the context: from Go's side the request is
+// still in flight, so the context check alone reports a healthy client and the
+// handler keeps generating LLM tokens nobody will receive. Checking the latched
+// write error covers that.
+// SEM@0000000000000000000000000000000000000000: report whether the SSE client is unreachable, via context cancellation or a latched write failure (pure)
 func (w *SSEWriter) IsClientGone() bool {
+	if w.writeErr != nil {
+		return true
+	}
 	select {
 	case <-w.c.Request.Context().Done():
 		return true
