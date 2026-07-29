@@ -268,11 +268,16 @@ func TestCheckAndBumpVersion_WildcardReadBackNoRows(t *testing.T) {
 	assert.True(t, errors.Is(err, dberrors.ErrNotFound),
 		"read-back sql.ErrNoRows must classify to dberrors.ErrNotFound (404), not surface bare (500), got: %v", err)
 
-	// The bump itself must still have committed even though the read-back failed.
+	// The version must be UNCHANGED. Under read-then-CAS (#593) the SELECT comes
+	// FIRST, so a failure here happens before anything is written — there is no
+	// orphaned bump to reconcile. The old bump-then-read-back shape committed the
+	// increment and only then discovered it could not report the result, which
+	// left the row advanced for a request that returned an error.
 	require.NoError(t, db.Callback().Query().Remove("test:inject_readback_norows"))
 	var fresh models.ThreatModel
 	require.NoError(t, db.First(&fresh, "id = ?", id).Error)
-	assert.Equal(t, 4, fresh.Version, "the version bump commits independently of the read-back")
+	assert.Equal(t, 3, fresh.Version,
+		"a failed read must leave the version untouched; nothing is written until the CAS")
 }
 
 // TestCheckAndBumpVersion_WildcardReadBackTransient covers the sibling case:
@@ -314,7 +319,8 @@ func TestCheckAndBumpVersion_WildcardReadBackTransient(t *testing.T) {
 	require.NoError(t, db.Callback().Query().Remove("test:inject_readback_transient"))
 	var fresh models.ThreatModel
 	require.NoError(t, db.First(&fresh, "id = ?", id).Error)
-	assert.Equal(t, 10, fresh.Version, "the version bump commits independently of the read-back")
+	assert.Equal(t, 9, fresh.Version,
+		"a failed read must leave the version untouched; nothing is written until the CAS (#593)")
 }
 
 // TestParseIfMatchHeader covers the header parsing surface: missing, bare
@@ -490,4 +496,61 @@ func TestGormOracleAddColumnEmitsSingleStatement(t *testing.T) {
 	}
 	require.NotContains(t, tail, "MODIFY",
 		"Migrator.AddColumn now references MODIFY; the migrator may have switched to the two-statement form, breaking the metadata-only-default rollout property")
+}
+
+// TestCheckAndBumpVersion_WildcardRetriesInsteadOfAdoptingAnotherVersion pins
+// the defect #593 describes.
+//
+// The old wildcard path bumped unconditionally and then SELECTed the result for
+// the ETag — two statements in autocommit. With two concurrent wildcard writers
+// that interleaves: A bumps 5->6 and commits, B bumps 6->7, and A's read-back
+// returns 7. A is handed an ETag describing B's representation, and A's next
+// `If-Match: 7` then succeeds where it should have conflicted — a lost update
+// beyond what opting out of version checking asked for.
+//
+// Read-then-CAS makes that impossible: the UPDATE carries `version = <what we
+// read>`, so if the value we read is not the value in the row, it matches zero
+// rows and we re-read rather than adopting anything. Here the first read is
+// forced to return a STALE version, which is exactly the state a racing writer
+// would leave us in; the helper must retry and still return the version it
+// actually produced.
+func TestCheckAndBumpVersion_WildcardRetriesInsteadOfAdoptingAnotherVersion(t *testing.T) {
+	db, _ := setupThreatModelAliasTestDB(t)
+	id := uuid.New().String()
+	tm := &models.ThreatModel{
+		ID:                    models.DBVarchar(id),
+		Name:                  "Wildcard CAS Retry Test",
+		OwnerInternalUUID:     models.DBVarchar(uuid.New().String()),
+		CreatedByInternalUUID: models.DBVarchar(uuid.New().String()),
+		ThreatModelFramework:  "STRIDE",
+		Status:                "not_started",
+		Version:               5,
+	}
+	require.NoError(t, db.Create(tm).Error)
+
+	// Corrupt only the FIRST version read, standing in for a racing writer that
+	// moved the row between our SELECT and our UPDATE. The CAS then matches no
+	// rows, and the loop must re-read rather than trusting the stale value.
+	var poisoned bool
+	require.NoError(t, db.Callback().Query().After("gorm:query").Register("test:stale_read", func(tx *gorm.DB) {
+		dest, ok := tx.Statement.Dest.(*sql.NullInt64)
+		if !ok || poisoned || !dest.Valid {
+			return
+		}
+		poisoned = true
+		dest.Int64-- // report a version that is no longer current
+	}))
+	t.Cleanup(func() { _ = db.Callback().Query().Remove("test:stale_read") })
+
+	got, err := CheckAndBumpVersion(context.Background(), db, "threat_models", id, VersionWildcard)
+	require.NoError(t, err, "one stale read must be absorbed by the retry loop")
+
+	var fresh models.ThreatModel
+	require.NoError(t, db.First(&fresh, "id = ?", id).Error)
+
+	assert.Equal(t, fresh.Version, got,
+		"the returned ETag version must be the row's ACTUAL version — the old "+
+			"read-back could hand back a value produced by a different writer")
+	assert.Equal(t, 6, got, "5 -> 6, exactly one bump by this writer")
+	assert.True(t, poisoned, "the stale-read injection must actually have fired")
 }
