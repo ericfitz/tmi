@@ -10,6 +10,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/worker"
 )
@@ -185,6 +186,14 @@ type MigratableSetting struct {
 	Description string
 	Secret      bool   // true = mask value in API responses
 	Source      string // "config" or "environment"
+	// Explicit reports whether an operator actually supplied this value (env
+	// var set, or key written in the YAML file) rather than it being the
+	// struct default. The settings service uses it to decide whether a
+	// database value may apply — see getConfigSetting (#415).
+	Explicit bool
+	// Class carries the setting's classification; Category distinguishes
+	// bootstrap settings (never database-backed) from operational ones.
+	Class config.ConfigClass
 }
 
 // NewServer creates a new API server instance

@@ -27,6 +27,8 @@ func (a *ConfigProviderAdapter) GetMigratableSettings() []MigratableSetting {
 			Description: s.Description,
 			Secret:      s.Secret,
 			Source:      s.Source,
+			Explicit:    s.Explicit,
+			Class:       s.Class,
 		}
 	}
 	return settings

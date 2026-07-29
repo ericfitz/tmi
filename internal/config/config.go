@@ -32,6 +32,12 @@ type AdministratorConfig struct {
 // Config holds all application configuration
 // SEM@13c4215bf8e204da342579717f97f7393bb5fe2f: top-level application configuration aggregating all subsystem config structs (pure)
 type Config struct {
+	// explicitFileKeys holds the dotted keys the YAML file actually named, so
+	// GetMigratableSettings can mark them Explicit. Unexported and yaml:"-" so
+	// it never round-trips through a config file. Nil when no file was loaded,
+	// which is correct: nothing was explicitly configured.
+	explicitFileKeys map[string]bool `yaml:"-"`
+
 	Server                    ServerConfig            `yaml:"server"`
 	Database                  DatabaseConfig          `yaml:"database"`
 	Auth                      AuthConfig              `yaml:"auth"`
@@ -357,6 +363,15 @@ func Load(configFile string) (*Config, error) {
 	if configFile != "" {
 		if err := loadFromYAML(config, configFile); err != nil {
 			return nil, fmt.Errorf("failed to load config from YAML: %w", err)
+		}
+		// Record every key the file named, not just the operational ones: the
+		// settings service uses this to tell "the operator wrote this value"
+		// from "this is the struct default", which decides whether the
+		// database value applies (#415).
+		if allKeys, kErr := KeysInFile(configFile); kErr != nil {
+			slogging.Get().Debug("explicit-key scan skipped for %s: %v", configFile, kErr)
+		} else {
+			config.explicitFileKeys = allKeys
 		}
 		if opKeys, dErr := OperationalKeysInFile(configFile); dErr != nil {
 			slogging.Get().Debug("config drift check skipped for %s: %v", configFile, dErr)
@@ -1333,6 +1348,25 @@ func (c *Config) IsSecureCookies() bool {
 // SEM@314b7ae8fe586a75ecee2e8fa7103d3193f15f7c: return only the explicitly configured cookie domain, else empty for a host-only cookie (pure)
 func (c *Config) GetCookieDomain() string {
 	return c.Auth.Cookie.Domain
+}
+
+// KeysInFile returns every dotted leaf key present in a YAML config file, as a
+// set. Used to distinguish a value an operator actually wrote from the struct
+// default that every setting otherwise carries — the distinction the settings
+// service needs to know whether a database value may apply (#415).
+// SEM@0000000000000000000000000000000000000000: list every dotted leaf key present in a YAML config file as a set (reads file)
+func KeysInFile(path string) (map[string]bool, error) {
+	raw := map[string]any{}
+	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied config path
+	if err != nil {
+		return nil, fmt.Errorf("read config file: %w", err)
+	}
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("parse config file: %w", err)
+	}
+	keys := map[string]bool{}
+	walkYAMLKeys(raw, "", func(dotted string) { keys[dotted] = true })
+	return keys, nil
 }
 
 // OperationalKeysInFile returns the operational-category setting keys present

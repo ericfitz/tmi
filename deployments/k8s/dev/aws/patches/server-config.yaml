@@ -124,3 +124,26 @@ spec:
                 secretKeyRef:
                   name: tmi-secrets
                   key: TMI_SECRET_SETTINGS_ENCRYPTION_KEY
+            # Timmy LLM/embedding credentials. Kept in their own out-of-band
+            # Secret rather than tmi-secrets (which Terraform owns) for the same
+            # reason as tmi-embedding: the provider key is rotated by the
+            # operator and must not land in Terraform state. Create/rotate with
+            # scripts/set-timmy-secret.sh. The non-secret Timmy settings
+            # (provider, model, base URL, dimension) come from the
+            # tmi-server-config ConfigMap via envFrom above.
+            #
+            # These must be environment variables, not database settings: the
+            # config layer only yields to the database for values nobody
+            # configured (#415, see getConfigSetting), and more importantly the
+            # embedding model here must match TMI_EMBEDDING_MODEL on the
+            # tmi-chunk-embed worker or retrieval silently returns nothing.
+            - name: TMI_TIMMY_LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tmi-timmy
+                  key: llm-api-key
+            - name: TMI_TIMMY_TEXT_EMBEDDING_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tmi-timmy
+                  key: text-embedding-api-key

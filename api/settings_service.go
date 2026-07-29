@@ -147,7 +147,33 @@ func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool)
 	defer s.configSettingsCacheMu.RUnlock()
 
 	setting, found := s.configSettingsCache[key]
-	return setting, found
+	if !found {
+		return MigratableSetting{}, false
+	}
+
+	// Bootstrap settings (database URL, JWT secret, listen port) are never
+	// database-backed, so the config layer is their only source.
+	if setting.Class.Category == config.CategoryBootstrap {
+		return setting, true
+	}
+
+	// Operational settings are database-backed (#415). The config layer wins
+	// only when an operator actually supplied the value — env var set, or the
+	// key written in the YAML file.
+	//
+	// Without the Explicit check this returns the struct default for every
+	// operational key, since GetMigratableSettings emits all of them. That
+	// made the settings database unreachable: timmy.enabled was true in the
+	// table while the server reported Timmy disabled, because the default
+	// false shadowed it. Yielding here is what lets a database value apply,
+	// and keeping the Explicit escape hatch is what stops it silently
+	// discarding live configuration — on AWS every ConfigMap key arrives as
+	// an env var via envFrom, and config-development.yml sets
+	// server.disable_rate_limiting=true, which the database has as false.
+	if !setting.Explicit {
+		return MigratableSetting{}, false
+	}
+	return setting, true
 }
 
 // Get retrieves a setting by key, checking cache first

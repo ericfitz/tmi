@@ -130,6 +130,36 @@ resource "kubernetes_config_map_v1" "tmi" {
       # hostname — moving the API to api.tmi.dev does not change it. Same-origin
       # requests carry no Origin header and are never subject to this list.
       TMI_CORS_ALLOWED_ORIGINS = "https://www.tmi.dev"
+
+      # ---- Timmy AI assistant (non-secret half) --------------------------
+      # The two API keys live in the out-of-band `tmi-timmy` Secret
+      # (scripts/set-timmy-secret.sh), referenced from the overlay's
+      # server-config.yaml patch — they are deliberately not here, so the
+      # provider credential never lands in Terraform state.
+      #
+      # These are environment variables rather than database settings for two
+      # reasons. The config layer only defers to the database for values
+      # nobody configured (#415, api/settings_service.go getConfigSetting), so
+      # a database row alone would not switch Timmy on. And
+      # TMI_TIMMY_TEXT_EMBEDDING_MODEL must stay in lockstep with
+      # TMI_EMBEDDING_MODEL on the tmi-chunk-embed worker
+      # (deployments/k8s/platform/components/tmi-chunk-embed.yml): the worker
+      # embeds documents at ingest and the server embeds the query, and
+      # vectors of different dimension score 0 against each other — retrieval
+      # fails silently, with no error anywhere.
+      #
+      # embedding_dimension is 3072 because that is what text-embedding-3-large
+      # actually returns (measured, not assumed). It must be > 0 or
+      # EmbeddingProfile.Validate rejects every job envelope the monolith
+      # stamps for the workers.
+      TMI_TIMMY_ENABLED                 = "true"
+      TMI_TIMMY_LLM_PROVIDER            = "openai"
+      TMI_TIMMY_LLM_MODEL               = "gpt-5.5"
+      TMI_TIMMY_LLM_BASE_URL            = "https://api.openai.com/v1"
+      TMI_TIMMY_TEXT_EMBEDDING_PROVIDER = "openai"
+      TMI_TIMMY_TEXT_EMBEDDING_MODEL    = "text-embedding-3-large"
+      TMI_TIMMY_TEXT_EMBEDDING_BASE_URL = "https://api.openai.com/v1"
+      TMI_TIMMY_EMBEDDING_DIMENSION     = "3072"
     },
     # everyone_is_a_reviewer is decoupled from build_mode (a plain runtime flag)
     # so it stays on under production build mode. AuthConfig.EveryoneIsAReviewer,
