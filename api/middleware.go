@@ -931,6 +931,20 @@ func (w *bufferedResponseWriter) WriteHeader(statusCode int) {
 	w.statusCode = statusCode
 }
 
+// Unwrap exposes the wrapped writer so http.NewResponseController can walk the
+// chain down to the connection.
+//
+// This is load-bearing for SSE. gin.ResponseWriter is an interface that does
+// not declare Unwrap, so embedding it promotes no such method and the
+// controller stops here and reports ErrNotSupported — which meant the SSE
+// write-deadline clear silently did nothing and streams were still cut at
+// http.Server.WriteTimeout. gin's own *responseWriter does implement Unwrap,
+// so with this one hop the chain reaches the real http.ResponseWriter.
+// SEM@0000000000000000000000000000000000000000: expose the wrapped response writer so a ResponseController can reach the connection (pure)
+func (w *bufferedResponseWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 // SEM@fe66a81c53a1025335c2af395233d4ab46ed6d0f: write a string response to the buffer or directly to the wire in streaming mode
 func (w *bufferedResponseWriter) WriteString(s string) (int, error) {
 	w.maybeSwitchToStreaming()

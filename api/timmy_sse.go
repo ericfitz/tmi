@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"regexp"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
 	tmiotel "github.com/ericfitz/tmi/internal/otel"
+	"github.com/ericfitz/tmi/internal/slogging"
 )
 
 // sseEventNameRe restricts SSE event names to safe alphanumeric/underscore characters.
@@ -29,8 +32,33 @@ type SSEWriter struct {
 func NewSSEWriter(c *gin.Context) *SSEWriter {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no") // Disable nginx buffering
+
+	// Clear the connection's write deadline for the life of this response.
+	//
+	// http.Server.WriteTimeout (10s by default here) bounds the ENTIRE response
+	// write, and Go arms it when the request header is read — not per write. A
+	// stream that outlives it has every subsequent write fail with i/o timeout,
+	// silently: the handler keeps producing events into a dead socket and still
+	// returns 200, and the abrupt close at handler return is what the browser
+	// reports as ERR_HTTP2_PROTOCOL_ERROR. Measured against the AWS deployment,
+	// the last byte reached the browser at 10.055s against the 10s timeout while
+	// the server logged "200 (24.0s)" with no error anywhere.
+	//
+	// A zero time.Time means "no deadline", which is the correct posture for an
+	// open-ended stream; request duration is bounded by the LLM timeout and the
+	// request context instead. Failure is logged rather than fatal: a writer
+	// that cannot be unwrapped (some test recorders) still streams correctly
+	// under no deadline at all.
+	//
+	// NOTE: c.Header("Connection", "keep-alive") deliberately removed. It is
+	// redundant on HTTP/1.1, where Go manages keep-alive, and it is a
+	// connection-specific header that RFC 9113 §8.2.2 forbids in HTTP/2.
+	if err := http.NewResponseController(c.Writer).SetWriteDeadline(time.Time{}); err != nil {
+		slogging.Get().WithContext(c).Warn(
+			"SSE: could not clear the write deadline (%v); a stream longer than "+
+				"the server WriteTimeout will be truncated", err)
+	}
 
 	return &SSEWriter{
 		c: c,
