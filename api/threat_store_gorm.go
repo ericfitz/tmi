@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/validation"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -640,6 +641,11 @@ func (s *GormThreatRepository) applyPatchOperation(threat *Threat, op PatchOpera
 	case PatchPathName:
 		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
+				// THREATS.NAME is NOT NULL. PostgreSQL stores '', Oracle raises
+				// ORA-01407 -- a dialect divergence, not just bad data (#614).
+				if err := validation.ValidateNonEmpty("name", name); err != nil {
+					return err
+				}
 				threat.Name = name
 				return nil
 			}

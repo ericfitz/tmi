@@ -191,10 +191,10 @@ func (r *GormMetadataRepository) Update(ctx context.Context, entityType, entityI
 		// hooks would raise ORA-00957 on Oracle but not PostgreSQL.
 		result := tx.Session(&gorm.Session{SkipHooks: true}).Model(&models.Metadata{}).
 			Where("entity_type = ? AND entity_id = ? AND key = ?", entityType, entityID, metadata.Key).
-			Updates(map[string]any{
+			Updates(AssignmentMap(tx.Name(), map[string]any{
 				"value":       metadata.Value,
 				"modified_at": time.Now().UTC(),
-			})
+			}))
 
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)

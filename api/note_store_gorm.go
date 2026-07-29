@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/validation"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -544,6 +545,13 @@ func (s *GormNoteRepository) applyPatchOperation(note *Note, op PatchOperation) 
 	case PatchPathName:
 		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
+				// NOTES.NAME is NOT NULL and Note validation lives in
+				// BeforeCreate only, so the update path has no hook fallback.
+				// PostgreSQL stores '', Oracle raises ORA-01407 -- same request,
+				// different answer per dialect (#614).
+				if err := validation.ValidateNonEmpty("name", name); err != nil {
+					return err
+				}
 				note.Name = name
 			} else {
 				return fmt.Errorf("invalid value type for name: expected string")
@@ -552,6 +560,11 @@ func (s *GormNoteRepository) applyPatchOperation(note *Note, op PatchOperation) 
 	case patchPathContent:
 		if op.Op == string(Replace) {
 			if content, ok := op.Value.(string); ok {
+				// NOTES.CONTENT is NOT NULL and DBText -> CLOB on Oracle, which
+				// binds '' as NULL exactly as VARCHAR2 does (#614).
+				if err := validation.ValidateNonEmpty("content", content); err != nil {
+					return err
+				}
 				note.Content = content
 			} else {
 				return fmt.Errorf("invalid value type for content: expected string")

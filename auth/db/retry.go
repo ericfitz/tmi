@@ -191,3 +191,49 @@ func IsPermissionError(err error) bool {
 	}
 	return dberrors.IsFatal(dberrors.Classify(err))
 }
+
+// WithRetryableGormRead retries a read against transient database errors WITHOUT
+// opening a transaction.
+//
+// WithRetryableGormTransaction is the wrong tool for a single-statement lookup:
+// it begins a SERIALIZABLE transaction, which on Autonomous Database costs extra
+// round trips for a read that needs no isolation guarantee at all. But leaving
+// such reads entirely unretried is also wrong — dberrors.Classify tags
+// ORA-03113/12519/12520/12537 as transient precisely because ADB raises them
+// during autoscale, and with nothing retrying them a handler maps a momentary
+// listener hiccup to a 500 (#616 note 6).
+//
+// Same backoff and retry classification as the transactional variant; only the
+// transaction is dropped. Use it for idempotent reads only — the closure may run
+// more than once.
+// SEM@0000000000000000000000000000000000000000: run a read closure, retrying transient database errors with jittered backoff and no transaction (reads DB)
+func WithRetryableGormRead(ctx context.Context, cfg RetryConfig, fn func() error) error {
+	logger := slogging.Get()
+	var lastErr error
+
+	for attempt := 0; attempt < cfg.MaxRetries; attempt++ {
+		if attempt > 0 {
+			delay := jitteredBackoff(cfg, attempt, jitterRandN)
+			logger.Debug("Retrying GORM read in %v (attempt %d/%d)", delay, attempt+1, cfg.MaxRetries)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+
+		err := fn()
+		if err == nil {
+			return nil
+		}
+		if IsRetryableError(err) {
+			lastErr = err
+			logger.Warn("GORM read failed with retryable error (attempt %d/%d): %v",
+				attempt+1, cfg.MaxRetries, err)
+			continue
+		}
+		return err
+	}
+
+	return fmt.Errorf("read failed after %d attempts: %w", cfg.MaxRetries, lastErr)
+}

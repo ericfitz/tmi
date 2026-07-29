@@ -205,6 +205,9 @@ func SetETagHeader(c *gin.Context, version int) {
 // "version" on both PostgreSQL and Oracle (case-insensitive identifier).
 // SEM@bacedc2fda0d7e7c4267e5fef6abc1a24bafed1a: validate and bump a row version, bumping unconditionally on wildcard (reads DB)
 func CheckAndBumpVersion(ctx context.Context, db *gorm.DB, tableName, id string, expected int) (int, error) {
+	if expected == VersionWildcard {
+		return casFromCurrentVersion(ctx, db, tableName, id)
+	}
 	query := db.WithContext(ctx).Table(tableName).Where("id = ?", id)
 	if expected != VersionWildcard {
 		query = query.Where("version = ?", expected)
@@ -252,49 +255,86 @@ func CheckAndBumpVersion(ctx context.Context, db *gorm.DB, tableName, id string,
 		}
 		return 0, ErrVersionMismatch
 	}
-	if expected == VersionWildcard {
-		// The bump above committed (RowsAffected == 1); this SELECT only
-		// recovers the resulting value for the ETag. Use a GORM finisher
-		// (Pluck) rather than .Row().Scan(): the latter returns a bare
-		// *sql.Row whose Scan panics on a nil receiver if GORM's row
-		// callback short-circuits, and its only error signal is
-		// sql.ErrNoRows, which dberrors.Classify did not previously
-		// recognize (#581 finding 1c). Pluck runs the normal "gorm:query"
-		// callback chain and exposes both Error and RowsAffected on its
-		// returned *gorm.DB. Scanning into sql.NullInt64 (the pattern
-		// already used at cmd/server/main.go:1543) also means a NULL
-		// version column cannot produce an unclassified "converting NULL to
-		// int is unsupported" scan error (#581 finding 1c).
-		var newVersion sql.NullInt64
-		readTx := db.WithContext(ctx).Table(tableName).Where("id = ?", id).Pluck("version", &newVersion)
-		if readTx.Error != nil {
-			classified := dberrors.Classify(readTx.Error)
+	// The wildcard never reaches here: it is routed to casFromCurrentVersion at
+	// the top of the function, so `expected` is always a concrete version by
+	// this point and the new value is simply expected+1 — no read-back, and no
+	// second round trip to get it wrong.
+	return expected + 1, nil
+}
+
+// wildcardCASAttempts bounds the read-then-CAS retry loop. Each attempt costs a
+// SELECT plus a conditional UPDATE; contention on a single resource deep enough
+// to exhaust this is a genuine conflict the client should be told about, not
+// something to keep grinding on.
+const wildcardCASAttempts = 3
+
+// casFromCurrentVersion implements `If-Match: *` as read-then-CAS instead of an
+// unconditional bump followed by a read-back (#593).
+//
+// The old shape was two statements in autocommit: bump, then SELECT the result
+// for the ETag. With two concurrent wildcard writers that interleaves —
+// A bumps 5->6 and commits, B bumps 6->7, and A's read-back returns 7. A is
+// handed an ETag describing B's representation, and A's next `If-Match: 7`
+// then succeeds where it should have conflicted. The client did opt out of
+// version checking by sending `*`, but the wildcard was masking a lost update
+// beyond what it asked for.
+//
+// Reading first and then reusing the ordinary conditional path fixes that: the
+// UPDATE carries `version = <what we read>`, so a racing writer makes it match
+// zero rows and we retry against the new value rather than silently adopting
+// it. The returned version is exactly the one this writer produced.
+//
+// RETURNING is not available as an alternative here: gorm-oracle@v1.1.3 only
+// builds the `RETURNING ... INTO` form when stmt.Schema != nil, and this call
+// uses Table() with no model, so a clause.Returning would be silently ignored —
+// no error, no value.
+// SEM@0000000000000000000000000000000000000000: bump a row version via read-then-CAS with bounded retry, returning the version this writer produced (reads DB)
+func casFromCurrentVersion(ctx context.Context, db *gorm.DB, tableName, id string) (int, error) {
+	for attempt := 0; attempt < wildcardCASAttempts; attempt++ {
+		var current sql.NullInt64
+		// Pluck rather than .Row().Scan() for the same reasons as the old
+		// read-back: it runs the normal query callback chain and surfaces both
+		// Error and RowsAffected, and sql.NullInt64 keeps a NULL version from
+		// becoming an unclassified scan error (#581 finding 1c).
+		read := db.WithContext(ctx).Table(tableName).Where("id = ?", id).Pluck("version", &current)
+		if read.Error != nil {
+			classified := dberrors.Classify(read.Error)
 			if errors.Is(classified, dberrors.ErrNotFound) {
-				// The row existed a moment ago (the UPDATE above matched
-				// it) but is gone now — a hard delete raced the read-back.
 				return 0, dberrors.ErrNotFound
 			}
-			// Any other classified error (transient ADB blip, permission
-			// oddity, etc., #581 finding 1b) must not be returned bare:
-			// ApplyOptimisticLock only special-cases ErrNotFound and
-			// ErrVersionMismatch, so anything else reaches
-			// HandleRequestError's else-branch and becomes an
-			// undocumented, policy-violating 500 — and unlike a pre-commit
-			// failure, the version bump here already committed, so there is
-			// nothing left to roll back. We cannot honestly report the
-			// resulting version, so treat this the same as a version
-			// mismatch: the caller's view of the resource is stale
-			// regardless of *why* we can't confirm it, and 409's
-			// refetch-and-retry response is already documented for every
-			// operation that reaches this path, unlike any 5xx code.
+			// Anything else (transient ADB blip, permission oddity) must not be
+			// returned bare: ApplyOptimisticLock only special-cases ErrNotFound
+			// and ErrVersionMismatch, so a classified transient error reaches
+			// HandleRequestError's else-branch and becomes an undocumented,
+			// policy-violating 500 (#581 finding 1b).
+			//
+			// Unlike the old read-back this happens BEFORE anything is written,
+			// so there is no committed bump to reconcile — we simply could not
+			// establish the current version, which leaves the caller's view
+			// unverifiable. 409's refetch-and-retry is documented for every
+			// operation reaching this path; no 5xx code is.
 			return 0, ErrVersionMismatch
 		}
-		if readTx.RowsAffected == 0 || !newVersion.Valid {
+		if read.RowsAffected == 0 || !current.Valid {
 			return 0, dberrors.ErrNotFound
 		}
-		return int(newVersion.Int64), nil
+
+		newVersion, err := CheckAndBumpVersion(ctx, db, tableName, id, int(current.Int64))
+		if err == nil {
+			return newVersion, nil
+		}
+		if errors.Is(err, ErrVersionMismatch) {
+			// Another writer moved the version between our read and our CAS.
+			// Re-read and try again — unlike the old code we do NOT adopt
+			// their version as ours.
+			continue
+		}
+		return 0, err
 	}
-	return expected + 1, nil
+	// Sustained contention. ErrVersionMismatch maps to 409, whose
+	// refetch-and-retry semantics are already documented for every operation
+	// that reaches this path.
+	return 0, ErrVersionMismatch
 }
 
 // MapVersionError converts a store-layer error into the appropriate HTTP
