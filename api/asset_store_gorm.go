@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/validation"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -554,6 +555,15 @@ func (s *GormAssetRepository) applyPatchOperation(asset *Asset, op PatchOperatio
 	case PatchPathName:
 		if op.Op == string(Replace) {
 			if name, ok := op.Value.(string); ok {
+				// ASSETS.NAME is NOT NULL and Asset validation lives in
+				// BeforeCreate only, so the update path has no hook fallback.
+				// PostgreSQL stores '' happily; Oracle binds '' as NULL and
+				// raises ORA-01407 -- the same request, two different answers
+				// on dev and prod. Rejecting here surfaces as a clean 400 via
+				// the existing patch_failed path (#614).
+				if err := validation.ValidateNonEmpty("name", name); err != nil {
+					return err
+				}
 				asset.Name = name
 			} else {
 				return fmt.Errorf("invalid value type for name: expected string")
@@ -562,6 +572,15 @@ func (s *GormAssetRepository) applyPatchOperation(asset *Asset, op PatchOperatio
 	case PatchPathType:
 		if op.Op == string(Replace) {
 			if assetType, ok := op.Value.(string); ok {
+				// ASSETS.TYPE is NOT NULL and, unlike repositories, had no enum
+				// check at all on this path -- the exact defect
+				// ValidateRepositoryType was re-added to close (#614).
+				if err := validation.ValidateNonEmpty("type", assetType); err != nil {
+					return err
+				}
+				if err := validation.ValidateAssetType(assetType); err != nil {
+					return err
+				}
 				asset.Type = AssetType(assetType)
 			} else {
 				return fmt.Errorf("invalid value type for type: expected string")
