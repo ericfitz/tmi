@@ -31,7 +31,13 @@ func requireProjectTeamMemberOrAdmin(
 	// IsProjectTeamMemberOrAdmin returns true without ever resolving the
 	// project, so without this an admin got 200-with-an-empty-list where a
 	// regular user correctly got 404 (#609).
-	if _, err := GetProjectTeamID(ctx, projectID); err != nil {
+	// The resolved teamID is reused below rather than discarded.
+	// IsProjectTeamMemberOrAdmin re-fetches the same project row to get exactly
+	// this value, so calling it here would make two round trips where one
+	// suffices — on ADB every round trip is a cloud network hop, and this runs
+	// on all six project-note operations (#616 note 5).
+	teamID, err := GetProjectTeamID(ctx, projectID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			HandleRequestError(c, NotFoundError("Project not found"))
 			return false
@@ -41,7 +47,7 @@ func requireProjectTeamMemberOrAdmin(
 		return false
 	}
 
-	authorized, err := IsProjectTeamMemberOrAdmin(ctx, projectID, userUUID, c)
+	authorized, err := IsTeamMemberOrAdmin(ctx, teamID, userUUID, c)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			HandleRequestError(c, NotFoundError("Project not found"))

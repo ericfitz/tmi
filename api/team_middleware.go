@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -143,11 +144,20 @@ func TeamExists(ctx context.Context, teamID string) (bool, error) {
 		return false, fmt.Errorf("database not initialized") //nolint:goerr113
 	}
 	var count int64
-	result := teamAuthDB.WithContext(ctx).Model(&models.TeamRecord{}).
-		Where(ColumnMap(teamAuthDB.Name(), map[string]any{"id": teamID})).
-		Count(&count)
-	if result.Error != nil {
-		return false, dberrors.Classify(result.Error)
+	// Retried without a transaction: ADB raises ORA-12519/12520 during autoscale
+	// and Classify tags those transient, but nothing retried them here, so a
+	// momentary listener hiccup surfaced to the caller as a 500 (#616 note 6).
+	err := authdb.WithRetryableGormRead(ctx, authdb.DefaultRetryConfig(), func() error {
+		result := teamAuthDB.WithContext(ctx).Model(&models.TeamRecord{}).
+			Where(ColumnMap(teamAuthDB.Name(), map[string]any{"id": teamID})).
+			Count(&count)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		return nil
+	})
+	if err != nil {
+		return false, err
 	}
 	return count > 0, nil
 }
@@ -160,12 +170,22 @@ func GetProjectTeamID(ctx context.Context, projectID string) (string, error) {
 	}
 
 	var project models.ProjectRecord
-	result := teamAuthDB.WithContext(ctx).
-		Where(ColumnMap(teamAuthDB.Name(), map[string]any{"id": projectID})).
-		Select("team_id").
-		First(&project)
-	if result.Error != nil {
-		return "", dberrors.Classify(result.Error)
+	// Retried for the same reason as TeamExists: transient ADB errors here
+	// otherwise become a 500 on every project-note operation (#616 note 6).
+	// gorm.ErrRecordNotFound is not retryable, so a genuinely missing project
+	// still returns immediately and maps to 404.
+	err := authdb.WithRetryableGormRead(ctx, authdb.DefaultRetryConfig(), func() error {
+		result := teamAuthDB.WithContext(ctx).
+			Where(ColumnMap(teamAuthDB.Name(), map[string]any{"id": projectID})).
+			Select("team_id").
+			First(&project)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
 	}
 
 	return string(project.TeamID), nil
