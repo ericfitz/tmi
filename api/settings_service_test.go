@@ -298,6 +298,11 @@ func TestSettingsService_CacheSelection(t *testing.T) {
 
 // Note: MockConfigProvider is defined in config_handlers_test.go
 
+// The stub settings below carry Explicit: true because they stand for values
+// an operator actually supplied — which is the premise of "config priority".
+// Config only outranks the database for explicitly-configured operational
+// values; a bare struct default must yield, or the settings database is
+// unreachable (#415). See settings_precedence_test.go for that half.
 func TestSettingsService_ConfigPriority(t *testing.T) {
 	t.Run("GetString returns config value over database", func(t *testing.T) {
 		service := &SettingsService{
@@ -310,7 +315,7 @@ func TestSettingsService_ConfigPriority(t *testing.T) {
 		// Set up config provider with a value
 		mockProvider := &MockConfigProvider{
 			settings: []MigratableSetting{
-				{Key: "test.key", Value: "config-value", Type: "string", Source: "config"},
+				{Key: "test.key", Value: "config-value", Type: "string", Source: "config", Explicit: true},
 			},
 		}
 		service.SetConfigProvider(mockProvider)
@@ -339,7 +344,7 @@ func TestSettingsService_ConfigPriority(t *testing.T) {
 
 		mockProvider := &MockConfigProvider{
 			settings: []MigratableSetting{
-				{Key: "test.int", Value: "42", Type: "int", Source: "config"},
+				{Key: "test.int", Value: "42", Type: "int", Source: "config", Explicit: true},
 			},
 		}
 		service.SetConfigProvider(mockProvider)
@@ -367,7 +372,7 @@ func TestSettingsService_ConfigPriority(t *testing.T) {
 
 		mockProvider := &MockConfigProvider{
 			settings: []MigratableSetting{
-				{Key: "test.bool", Value: "true", Type: "bool", Source: "config"},
+				{Key: "test.bool", Value: "true", Type: "bool", Source: "config", Explicit: true},
 			},
 		}
 		service.SetConfigProvider(mockProvider)

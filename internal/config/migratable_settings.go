@@ -17,6 +17,15 @@ type MigratableSetting struct {
 	Source      string // "config" or "environment"
 	EnvVar      string // TMI_* environment variable that overrides this setting ("" if none)
 	Class       ConfigClass
+	// Explicit reports whether an operator actually supplied this value —
+	// the env var is set, or the key was present in the YAML file — as
+	// opposed to it being the struct default that every key carries.
+	//
+	// The settings service needs this to decide precedence. Source alone
+	// cannot: it reports "config" both for "written in the file" and for
+	// "nobody ever set this", and treating the latter as configured is what
+	// made every operational database value unreachable (#415).
+	Explicit bool
 }
 
 // settingSource returns "environment" if the given env var is set, otherwise "config".
@@ -59,6 +68,13 @@ func (c *Config) GetMigratableSettings() []MigratableSetting {
 		if settings[i].Class.Secret {
 			settings[i].Secret = true
 		}
+		// Explicit = an operator actually supplied this value, rather than it
+		// being the struct default every key carries. Source already reports
+		// "environment" when the env var is set; explicitFileKeys records the
+		// keys the YAML file named. See the Explicit field's doc comment for
+		// why Source alone is not enough.
+		settings[i].Explicit = settings[i].Source == "environment" ||
+			c.explicitFileKeys[settings[i].Key]
 	}
 
 	return settings
