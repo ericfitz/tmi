@@ -278,7 +278,7 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Session(&gorm.Session{SkipHooks: true}).Model(&models.Repository{}).
 			Where("id = ? AND threat_model_id = ?", repository.Id.String(), threatModelID).
-			Updates(updates)
+			Updates(AssignmentMap(tx.Name(), updates))
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}

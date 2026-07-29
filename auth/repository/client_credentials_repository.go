@@ -116,9 +116,12 @@ func (r *GormClientCredentialRepository) UpdateLastUsed(ctx context.Context, id 
 func (r *GormClientCredentialRepository) Deactivate(ctx context.Context, id, ownerUUID uuid.UUID) error {
 	result := r.db.WithContext(ctx).Model(&models.ClientCredential{}).
 		Where("id = ? AND owner_uuid = ?", id.String(), ownerUUID.String()).
+		// modified_at omitted: ClientCredential.ModifiedAt has autoUpdateTime and
+		// hooks are enabled, so GORM sets it under the schema DBName. A manual
+		// lowercase key defeats the injector's dedup on Oracle and duplicates the
+		// column assignment (ORA-00957), while PostgreSQL stays green (#615).
 		Updates(map[string]any{
-			"is_active":   false,
-			"modified_at": time.Now(),
+			"is_active": false,
 		})
 
 	if result.Error != nil {

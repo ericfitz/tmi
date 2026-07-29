@@ -243,7 +243,7 @@ func (s *GormDocumentRepository) Update(ctx context.Context, document *Document,
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Session(&gorm.Session{SkipHooks: true}).Model(&models.Document{}).
 			Where("id = ? AND threat_model_id = ?", document.Id.String(), threatModelID).
-			Updates(updates)
+			Updates(AssignmentMap(tx.Name(), updates))
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -631,7 +631,8 @@ func (s *GormDocumentRepository) UpdateAccessStatus(ctx context.Context, id stri
 		"content_source": contentSource,
 	}
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Table(models.Document{}.TableName()).Where("id = ?", id).Updates(updates)
+		result := tx.Table(models.Document{}.TableName()).Where("id = ?", id).
+			Updates(AssignmentMap(tx.Name(), updates))
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -686,7 +687,8 @@ func (s *GormDocumentRepository) UpdateAccessStatusWithDiagnostics(
 		}
 	}
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Table(models.Document{}.TableName()).Where("id = ?", id).Updates(updates)
+		result := tx.Table(models.Document{}.TableName()).Where("id = ?", id).
+			Updates(AssignmentMap(tx.Name(), updates))
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -827,7 +829,7 @@ func (s *GormDocumentRepository) SetPickerMetadata(
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Table(models.Document{}.TableName()).
 			Where("id = ? AND deleted_at IS NULL", id).
-			Updates(updates)
+			Updates(AssignmentMap(tx.Name(), updates))
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -872,7 +874,7 @@ func (s *GormDocumentRepository) ClearPickerMetadataForOwner(
 				providerID,
 				tx.Table(models.ThreatModel{}.TableName()).Select("id").Where("owner_internal_uuid = ?", ownerInternalUUID),
 			).
-			Updates(updates)
+			Updates(AssignmentMap(tx.Name(), updates))
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}

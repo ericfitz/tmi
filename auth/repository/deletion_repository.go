@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/api/validation"
@@ -142,9 +141,14 @@ func (r *GormDeletionRepository) deleteUserCore(tx *gorm.DB, user *models.User, 
 			return fmt.Errorf("failed to find alternate owner for threat model %s: %w", tm.ID, dberrors.Classify(err))
 		default:
 			// Transfer ownership to alternate owner
+			// modified_at is deliberately NOT set here: ThreatModel.ModifiedAt
+			// carries autoUpdateTime and SkipHooks is not in play, so GORM's
+			// injector sets it under the schema's own DBName. Setting it by hand
+			// with a lowercase key made the injector's dedup miss on Oracle
+			// (it tests "ModifiedAt"/"MODIFIED_AT") and emit a SECOND assignment
+			// to the same column -- ORA-00957, PostgreSQL-invisible (#615).
 			if err := tx.Model(&tm).Updates(map[string]any{
 				"owner_internal_uuid": access.UserInternalUUID,
-				"modified_at":         time.Now().UTC(),
 			}).Error; err != nil {
 				return fmt.Errorf("failed to transfer ownership of threat model %s: %w", tm.ID, dberrors.Classify(err))
 			}
@@ -902,9 +906,10 @@ func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUs
 
 		for _, tm := range threatModels {
 			// Update threat model ownership
+			// modified_at omitted: autoUpdateTime sets it. See the note at the
+			// ownership-transfer site above (#615, ORA-00957).
 			if err := tx.Model(&tm).Updates(map[string]any{
 				"owner_internal_uuid": targetUserUUID,
-				"modified_at":         time.Now().UTC(),
 			}).Error; err != nil {
 				return fmt.Errorf("failed to transfer ownership of threat model %s: %w", tm.ID, dberrors.Classify(err))
 			}
@@ -931,9 +936,9 @@ func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUs
 
 		for _, sr := range surveyResponses {
 			// Update survey response ownership
+			// modified_at omitted: autoUpdateTime sets it (#615, ORA-00957).
 			if err := tx.Model(&sr).Updates(map[string]any{
 				"owner_internal_uuid": targetUserUUID,
-				"modified_at":         time.Now().UTC(),
 			}).Error; err != nil {
 				return fmt.Errorf("failed to transfer ownership of survey response %s: %w", sr.ID, dberrors.Classify(err))
 			}

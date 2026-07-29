@@ -144,11 +144,14 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 		}
 
 		if exists {
+			// modified_at omitted: SystemSetting.ModifiedAt has autoUpdateTime
+			// and hooks are enabled here, so GORM sets it itself. Setting it by
+			// hand with a lowercase key duplicates the column assignment on
+			// Oracle (ORA-00957) (#615).
 			if updateErr := db.DB().Model(&existing).Updates(map[string]any{
 				"value":        value,
 				"setting_type": s.Type,
 				"description":  description,
-				"modified_at":  time.Now(),
 			}).Error; updateErr != nil {
 				return fmt.Errorf("failed to update setting %s: %w", s.Key, updateErr)
 			}
