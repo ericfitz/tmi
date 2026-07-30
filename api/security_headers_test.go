@@ -533,6 +533,64 @@ func TestAcceptHeaderValidation(t *testing.T) {
 		assert.Equal(t, http.StatusNotAcceptable, w.Code)
 	})
 
+	// A media type only some operations produce must not be accepted on an
+	// operation that does not produce it. This used to pass the gate
+	// server-wide and the handler then answered 200 with JSON to a client that
+	// asked for CSV -- 93 CATS findings in run 20260730T174620Z.
+	t.Run("rejects a negotiated media type on a route that does not offer it", func(t *testing.T) {
+		for _, mediaType := range []string{
+			"text/csv", "application/x-ndjson", "application/yaml", "application/graphml+xml",
+		} {
+			router := gin.New()
+			router.Use(AcceptHeaderValidation())
+			router.GET("/threat_models/:threat_model_id", func(c *gin.Context) {
+				c.JSON(http.StatusOK, gin.H{"status": "ok"})
+			})
+
+			req := httptest.NewRequest("GET", "/threat_models/abc", nil)
+			req.Header.Set("Accept", mediaType)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusNotAcceptable, w.Code,
+				"Accept: %s should be 406 on a route that does not produce it", mediaType)
+		}
+	})
+
+	// ...but the routes that do produce it still reach their handler, which runs
+	// negotiateContentType and picks the representation.
+	t.Run("allows a negotiated media type on the route that offers it", func(t *testing.T) {
+		cases := []struct{ mediaType, pattern, url string }{
+			{"text/csv", "/admin/audit/system", "/admin/audit/system"},
+			{"application/x-ndjson", "/admin/audit/system", "/admin/audit/system"},
+			{
+				"application/yaml",
+				"/threat_models/:threat_model_id/diagrams/:diagram_id/model",
+				"/threat_models/tm1/diagrams/d1/model",
+			},
+			{
+				"application/graphml+xml",
+				"/threat_models/:threat_model_id/diagrams/:diagram_id/model",
+				"/threat_models/tm1/diagrams/d1/model",
+			},
+		}
+		for _, tc := range cases {
+			router := gin.New()
+			router.Use(AcceptHeaderValidation())
+			router.GET(tc.pattern, func(c *gin.Context) {
+				c.JSON(http.StatusOK, gin.H{"status": "ok"})
+			})
+
+			req := httptest.NewRequest("GET", tc.url, nil)
+			req.Header.Set("Accept", tc.mediaType)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code,
+				"Accept: %s should reach the handler on %s", tc.mediaType, tc.pattern)
+		}
+	})
+
 	t.Run("accepts application/json with quality parameter", func(t *testing.T) {
 		router := gin.New()
 		router.Use(AcceptHeaderValidation())
@@ -578,15 +636,19 @@ func TestAcceptHeaderValidation(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
-	// Content-negotiated representations are now allowed through the coarse
-	// gate so the diagram-model and audit-export endpoints can serve them.
+	// Content-negotiated representations used to be allowed through this gate
+	// server-wide, so that the diagram-model and audit-export endpoints could
+	// serve them. That let every other endpoint accept them too and answer 200
+	// with JSON. They are now scoped to the routes that produce them (see
+	// negotiatedMediaTypeRoutes and the two subtests above), so on an arbitrary
+	// route they are correctly Not Acceptable.
 	for _, ct := range []string{
 		"application/yaml",
 		"application/graphml+xml",
 		"text/csv",
 		"application/x-ndjson",
 	} {
-		t.Run("accepts "+ct, func(t *testing.T) {
+		t.Run("rejects "+ct+" on a route that does not produce it", func(t *testing.T) {
 			router := gin.New()
 			router.Use(AcceptHeaderValidation())
 			router.GET("/test", func(c *gin.Context) {
@@ -598,7 +660,7 @@ func TestAcceptHeaderValidation(t *testing.T) {
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 
-			assert.Equal(t, http.StatusOK, w.Code)
+			assert.Equal(t, http.StatusNotAcceptable, w.Code)
 		})
 	}
 }

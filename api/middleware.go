@@ -1057,6 +1057,41 @@ func JSONErrorHandler() gin.HandlerFunc {
 	}
 }
 
+// negotiatedMediaTypeRoutes maps a media type only some operations produce to
+// the Gin routes ("METHOD /path") that produce it. Kept in step with the
+// handlers that call negotiateContentType (admin_audit_handlers.go,
+// diagram_model_transform.go) and with the response content types declared in
+// api-schema/tmi-openapi.json.
+var negotiatedMediaTypeRoutes = map[string]map[string]bool{
+	// System-audit export.
+	"text/csv": {
+		"GET /admin/audit/system": true,
+	},
+	"application/x-ndjson": {
+		"GET /admin/audit/system": true,
+	},
+	// Diagram model representations.
+	"application/yaml": {
+		"GET /threat_models/:threat_model_id/diagrams/:diagram_id/model": true,
+	},
+	"application/graphml+xml": {
+		"GET /threat_models/:threat_model_id/diagrams/:diagram_id/model": true,
+	},
+}
+
+// acceptsAnyOf reports whether the Accept header mentions any of the media
+// types. Substring matching, so it tolerates quality parameters and multi-type
+// headers.
+// SEM@0: report whether an Accept header mentions any of the given media types (pure)
+func acceptsAnyOf(acceptHeader string, mediaTypes []string) bool {
+	for _, t := range mediaTypes {
+		if strings.Contains(acceptHeader, t) {
+			return true
+		}
+	}
+	return false
+}
+
 // AcceptHeaderValidation middleware validates that the Accept header is application/json
 // Returns 406 Not Acceptable for unsupported media types
 // SEM@29f63eb500c26288d0d3fe23737adf6fd94bdf9c: build middleware that rejects requests with unsupported Accept media types
@@ -1080,29 +1115,35 @@ func AcceptHeaderValidation() gin.HandlerFunc {
 			return
 		}
 
-		// Coarse server-wide allowlist of producible media types. This is a
-		// blunt gate; per-endpoint content negotiation (e.g. the diagram model
-		// and system-audit export) does the precise selection and may still
-		// return 406 for a type it doesn't offer. Substring matching keeps it
+		// Media types every operation can produce. Substring matching keeps this
 		// lenient about quality parameters and multi-type Accept headers.
 		supportedAcceptTypes := []string{
 			"application/json",
 			"*/*",
 			"application/*",
 			"text/event-stream",
-			// Content-negotiated representations (see negotiateContentType):
-			"application/yaml",        // diagram model (YAML)
-			"application/graphml+xml", // diagram model (GraphML)
-			"text/csv",                // system-audit export (CSV)
-			"application/x-ndjson",    // system-audit export (NDJSON)
 		}
-		acceptsSupported := false
-		for _, t := range supportedAcceptTypes {
-			if strings.Contains(acceptHeader, t) {
-				acceptsSupported = true
-				break
+		// Representations only specific operations offer. These used to sit in
+		// the list above, which made the gate accept them server-wide: an
+		// endpoint that does no negotiation of its own passed the check and then
+		// returned JSON with 200, where RFC 9110 (and the spec, which documents
+		// 406 on these operations) calls for 406. CATS run 20260730T174620Z hit
+		// that 93 times with `Accept: text/csv` across 83 unrelated paths.
+		//
+		// Scope each type to the routes that actually produce it. The handlers
+		// there call negotiateContentType and return 406 themselves for a type
+		// they don't offer, so this gate only has to stop the type from being
+		// waved through everywhere else.
+		if !acceptsAnyOf(acceptHeader, supportedAcceptTypes) {
+			route := c.Request.Method + " " + c.FullPath()
+			for mediaType, routes := range negotiatedMediaTypeRoutes {
+				if strings.Contains(acceptHeader, mediaType) && routes[route] {
+					c.Next()
+					return
+				}
 			}
 		}
+		acceptsSupported := acceptsAnyOf(acceptHeader, supportedAcceptTypes)
 
 		if !acceptsSupported {
 			logger.Debug("Rejecting request with unsupported Accept header: %s", acceptHeader)
