@@ -944,3 +944,14 @@ rules:
     when:
       response_code: 409
       json_body.error_description: { contains: "already been created from this survey" }
+
+  # rule 60: SSE stream validated against a JSON schema (run 20260730T174620Z)
+  # POST /threat_models/{id}/chat/sessions streams text/event-stream, which is
+  # the only content type its 200 declares. CATS wraps the non-JSON body in a
+  # notAJson envelope and then reports it does not match "the corresponding
+  # schema" -- there is no application/json schema for it to match.
+  - id: SSE_STREAM_VALIDATED_AS_JSON_SCHEMA
+    why: "The endpoint streams text/event-stream exactly as the spec declares, and declares no application/json schema. CATS wraps the non-JSON body in a notAJson envelope and then reports it does not match a JSON schema that does not exist."
+    when:
+      result_reason: { equals: Not matching response schema }
+      response_content_type: { contains: text/event-stream }
