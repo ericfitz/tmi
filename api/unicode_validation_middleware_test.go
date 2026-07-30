@@ -29,6 +29,79 @@ func TestUnicodeNormalizationMiddleware(t *testing.T) {
 		assert.Equal(t, http.StatusOK, w.Code)
 	})
 
+	// The middleware used to scan only the raw body text, where a \uXXXX escape
+	// is plain ASCII -- so every check it performs could be evaded by escaping
+	// the character instead of emitting it literally. Verified against a running
+	// server: the literal form was rejected 400 while the escaped form created a
+	// team whose stored name contained U+200B.
+	//
+	// The bodies below carry the escape as six ASCII bytes; the JSON decoder
+	// turns it into the real character. Writing the character literally here
+	// would exercise the check that already worked.
+	t.Run("rejects problematic Unicode written as a JSON escape", func(t *testing.T) {
+		cases := []struct{ name, body string }{
+			{"zero-width space in a value", "{\"name\": \"Team\\u200bName\"}"},
+			{"zero-width space in a key", "{\"responsib\\u200ble_parties\": []}"},
+			{"BOM in a value", "{\"name\": \"Team\\ufeffName\"}"},
+			{"RLM in a value", "{\"name\": \"Team\\u200fName\"}"},
+			{"nested in an array of objects", "{\"items\": [{\"na\\u200bme\": \"x\"}]}"},
+			{"nested in an object value", "{\"outer\": {\"inner\": \"a\\u200bb\"}}"},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				router := gin.New()
+				router.Use(UnicodeNormalizationMiddleware())
+				router.POST("/test", func(c *gin.Context) {
+					c.JSON(http.StatusOK, gin.H{"status": "ok"})
+				})
+
+				req := httptest.NewRequest("POST", "/test", bytes.NewBufferString(tc.body))
+				req.Header.Set("Content-Type", "application/json")
+				w := httptest.NewRecorder()
+				router.ServeHTTP(w, req)
+
+				assert.Equal(t, http.StatusBadRequest, w.Code,
+					"escaped form must be rejected just like the literal one")
+			})
+		}
+	})
+
+	// A body that does not parse must still reach the handler, so ordinary
+	// request validation produces the error rather than this middleware.
+	t.Run("malformed JSON is left to normal validation", func(t *testing.T) {
+		router := gin.New()
+		router.Use(UnicodeNormalizationMiddleware())
+		router.POST("/test", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		req := httptest.NewRequest("POST", "/test", bytes.NewBufferString(`{"name": "unterminated`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	// Escaped characters that are not problematic must still pass, so the deep
+	// scan does not start rejecting ordinary international text.
+	t.Run("benign escapes still pass", func(t *testing.T) {
+		router := gin.New()
+		router.Use(UnicodeNormalizationMiddleware())
+		router.POST("/test", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		})
+
+		// Accented Latin, CJK, and an emoji, all written as escapes.
+		body := "{\"name\": \"caf\\u00e9 \\u6771\\u4eac \\ud83d\\ude80\"}"
+		req := httptest.NewRequest("POST", "/test", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
 	t.Run("GET requests bypass validation", func(t *testing.T) {
 		router := gin.New()
 		router.Use(UnicodeNormalizationMiddleware())

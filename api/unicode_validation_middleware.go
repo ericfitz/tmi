@@ -50,7 +50,8 @@ func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 		bodyStr := string(bodyBytes)
 		normalizedStr := norm.NFC.String(bodyStr)
 
-		// Check for problematic Unicode characters on the normalized form
+		// Check for problematic Unicode characters on the normalized form.
+		// This catches characters written literally in the body bytes.
 		if hasProblematicUnicode(normalizedStr) {
 			logger.Warn("Request contains problematic Unicode characters")
 			c.JSON(http.StatusBadRequest, Error{
@@ -59,6 +60,29 @@ func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 			})
 			c.Abort()
 			return
+		}
+
+		// The check above scans the body as raw text, where a character written
+		// as a JSON \uXXXX escape is just ASCII -- so every check it performs
+		// could be evaded by escaping the character instead of emitting it
+		// literally. A team name of "Team​Name" was created with a stored
+		// zero-width space while the byte-identical literal form was rejected.
+		// Re-run the same checks on the decoded strings, covering object keys as
+		// well as values (CATS's ZeroWidthCharsInNamesFields injects into keys,
+		// where an unrecognized field is otherwise silently dropped).
+		//
+		// A body that does not parse is left to the normal request validation to
+		// reject; this pass only adds checks, it never accepts.
+		if decoded, ok := decodeJSONForUnicodeScan(normalizedStr); ok {
+			if hasProblematicUnicodeDeep(decoded) {
+				logger.Warn("Request contains problematic Unicode characters in escaped form")
+				c.JSON(http.StatusBadRequest, Error{
+					Error:            "invalid_request",
+					ErrorDescription: "Request contains unsupported Unicode characters (zero-width, bidirectional overrides, excessive combining marks, or control characters)",
+				})
+				c.Abort()
+				return
+			}
 		}
 
 		// Reset the request body with normalized content
@@ -80,6 +104,44 @@ func hasProblematicUnicode(s string) bool {
 		unicodecheck.ContainsFullwidthStructuralChars(s) ||
 		unicodecheck.ContainsControlChars(s) ||
 		unicodecheck.HasExcessiveCombiningMarks(s, 3)
+}
+
+// decodeJSONForUnicodeScan parses a request body so its strings can be checked
+// after JSON escape sequences have been resolved. Reports false when the body is
+// not valid JSON, in which case the caller skips the deep scan and lets ordinary
+// request validation reject it.
+// SEM@0: parse a JSON request body for post-unescape Unicode scanning (pure)
+func decodeJSONForUnicodeScan(body string) (any, bool) {
+	var decoded any
+	if err := json.Unmarshal([]byte(body), &decoded); err != nil {
+		return nil, false
+	}
+	return decoded, true
+}
+
+// hasProblematicUnicodeDeep walks a decoded JSON value and reports whether any
+// object key or string value contains problematic Unicode. Keys matter as much
+// as values: a zero-width character inside a field name makes the field
+// unrecognized, so it is silently dropped and the request still succeeds.
+// SEM@0: report whether any decoded JSON key or string value contains problematic Unicode (pure)
+func hasProblematicUnicodeDeep(v any) bool {
+	switch t := v.(type) {
+	case string:
+		return hasProblematicUnicode(t)
+	case map[string]any:
+		for key, val := range t {
+			if hasProblematicUnicode(key) || hasProblematicUnicodeDeep(val) {
+				return true
+			}
+		}
+	case []any:
+		for _, val := range t {
+			if hasProblematicUnicodeDeep(val) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ContentTypeValidationMiddleware validates Content-Type header and rejects unsupported types
