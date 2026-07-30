@@ -1083,7 +1083,9 @@ func (h *DocumentSubResourceHandler) BulkUpdateDocuments(c *gin.Context) {
 			// Document doesn't exist, create it
 			if err := h.documentStore.Create(c.Request.Context(), &document, threatModelID); err != nil {
 				logger.Error("Failed to create document %s: %v", document.Id.String(), err)
-				HandleRequestError(c, ServerError(fmt.Sprintf("Failed to create document %s", document.Id.String())))
+				HandleRequestError(c, StoreErrorToRequestError(err,
+					fmt.Sprintf("Document %s not found", document.Id.String()),
+					fmt.Sprintf("Failed to create document %s", document.Id.String())))
 				return
 			}
 			upsertedDocuments = append(upsertedDocuments, document)
@@ -1091,7 +1093,9 @@ func (h *DocumentSubResourceHandler) BulkUpdateDocuments(c *gin.Context) {
 			// Document exists, update it
 			if err := h.documentStore.Update(c.Request.Context(), &document, threatModelID); err != nil {
 				logger.Error("Failed to update document %s: %v", document.Id.String(), err)
-				HandleRequestError(c, ServerError(fmt.Sprintf("Failed to update document %s", document.Id.String())))
+				HandleRequestError(c, StoreErrorToRequestError(err,
+					fmt.Sprintf("Document %s not found", document.Id.String()),
+					fmt.Sprintf("Failed to update document %s", document.Id.String())))
 				return
 			}
 			upsertedDocuments = append(upsertedDocuments, document)

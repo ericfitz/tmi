@@ -626,7 +626,9 @@ func (h *AssetSubResourceHandler) BulkUpdateAssets(c *gin.Context) {
 			// Asset doesn't exist, create it
 			if err := h.assetStore.Create(c.Request.Context(), &asset, threatModelID); err != nil {
 				logger.Error("Failed to create asset %s: %v", asset.Id.String(), err)
-				HandleRequestError(c, ServerError(fmt.Sprintf("Failed to create asset %s", asset.Id.String())))
+				HandleRequestError(c, StoreErrorToRequestError(err,
+					fmt.Sprintf("Asset %s not found", asset.Id.String()),
+					fmt.Sprintf("Failed to create asset %s", asset.Id.String())))
 				return
 			}
 			upsertedAssets = append(upsertedAssets, asset)
@@ -634,7 +636,9 @@ func (h *AssetSubResourceHandler) BulkUpdateAssets(c *gin.Context) {
 			// Asset exists, update it
 			if err := h.assetStore.Update(c.Request.Context(), &asset, threatModelID); err != nil {
 				logger.Error("Failed to update asset %s: %v", asset.Id.String(), err)
-				HandleRequestError(c, ServerError(fmt.Sprintf("Failed to update asset %s", asset.Id.String())))
+				HandleRequestError(c, StoreErrorToRequestError(err,
+					fmt.Sprintf("Asset %s not found", asset.Id.String()),
+					fmt.Sprintf("Failed to update asset %s", asset.Id.String())))
 				return
 			}
 			upsertedAssets = append(upsertedAssets, asset)
