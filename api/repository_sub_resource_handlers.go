@@ -619,7 +619,9 @@ func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
 			// Repository doesn't exist, create it
 			if err := h.repositoryStore.Create(c.Request.Context(), &repository, threatModelID); err != nil {
 				logger.Error("Failed to create repository %s: %v", repository.Id.String(), err)
-				HandleRequestError(c, ServerError(fmt.Sprintf("Failed to create repository %s", repository.Id.String())))
+				HandleRequestError(c, StoreErrorToRequestError(err,
+					fmt.Sprintf("Repository %s not found", repository.Id.String()),
+					fmt.Sprintf("Failed to create repository %s", repository.Id.String())))
 				return
 			}
 			upsertedRepositories = append(upsertedRepositories, repository)
@@ -627,7 +629,9 @@ func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
 			// Repository exists, update it
 			if err := h.repositoryStore.Update(c.Request.Context(), &repository, threatModelID); err != nil {
 				logger.Error("Failed to update repository %s: %v", repository.Id.String(), err)
-				HandleRequestError(c, ServerError(fmt.Sprintf("Failed to update repository %s", repository.Id.String())))
+				HandleRequestError(c, StoreErrorToRequestError(err,
+					fmt.Sprintf("Repository %s not found", repository.Id.String()),
+					fmt.Sprintf("Failed to update repository %s", repository.Id.String())))
 				return
 			}
 			upsertedRepositories = append(upsertedRepositories, repository)

@@ -913,10 +913,19 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 			return
 		}
 
-		// Apply patch
+		// Apply patch. Classify the error rather than calling everything a
+		// server fault: ApplyPatchOperations returns a *RequestError carrying
+		// 400 for a patch document the client got wrong (malformed JSON
+		// Pointer, replace on a missing path), and the store returns typed
+		// dberrors for not-found and constraint violations.
+		// StoreErrorToRequestError preserves all of those, exactly as the
+		// single-threat PATCH above already does.
 		updatedThreat, err := h.threatStore.Patch(c.Request.Context(), patch.ID, patch.Operations)
 		if err != nil {
-			HandleRequestError(c, ServerError(fmt.Sprintf("Failed to patch threat %s", patch.ID)))
+			logger.Error("Failed to patch threat %s: %v", patch.ID, err)
+			HandleRequestError(c, StoreErrorToRequestError(err,
+				fmt.Sprintf("Threat %s not found", patch.ID),
+				fmt.Sprintf("Failed to patch threat %s", patch.ID)))
 			return
 		}
 		updatedThreats = append(updatedThreats, *updatedThreat)
