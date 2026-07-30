@@ -222,7 +222,7 @@ func transformTeams(teams []SeedSpecTeam) []SeedEntry {
 			Data: data,
 		})
 		seeds = append(seeds, transformTeamProjectNotes(
-			t.Notes, kindTeamNote, "team_ref", teamRef(t.Name), "team-note:"+sanitizeName(t.Name),
+			t.Notes, kindTeamNote, "team_ref", teamRef(t.Name), teamNotePrefix(t.Name),
 		)...)
 	}
 	return seeds
@@ -910,6 +910,18 @@ func surveyRef(name string) string { return "survey:" + sanitizeName(name) }
 
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a stable lookup key for a webhook by sanitized name (pure)
 func webhookRef(name string) string { return "webhook:" + sanitizeName(name) }
+
+// teamNotePrefix is the ref prefix transformTeams passes for a team's notes.
+// SEM@0: build the seed ref prefix for a team's notes (pure)
+func teamNotePrefix(teamName string) string { return "team-note:" + sanitizeName(teamName) }
+
+// teamNoteRef addresses one of a team's notes by its position in the seed file.
+// Team notes are seeded positionally, so the index is the only stable handle;
+// reference.go relies on that to tell the real fixture (0) from the #608 decoy (1).
+// SEM@0: build a deterministic seed ref key for a team note by team name and index (pure)
+func teamNoteRef(teamName string, i int) string {
+	return fmt.Sprintf("%s:%d", teamNotePrefix(teamName), i)
+}
 
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a scoped lookup key for a threat-model child entity by kind, threat model, and child name (pure)
 func childRef(kind, tmName, childName string) string {
