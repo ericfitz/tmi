@@ -29,6 +29,11 @@ type MigratableSetting struct {
 }
 
 // settingSource returns "environment" if the given env var is set, otherwise "config".
+//
+// The env var named here must be one this package's struct tags actually bind.
+// Reporting "environment" for a name the struct does not read would mark the
+// struct DEFAULT as Explicit, and an Explicit default outranks the database —
+// turning a fallback into an override.
 // SEM@ef979cc7527137e0448782341a4ffe8e944571f5: return 'environment' when the given env var is set, otherwise 'config' (pure)
 func settingSource(envVar string) string {
 	if os.Getenv(envVar) != "" {
@@ -185,14 +190,30 @@ func (c *Config) getMigratableFeatureFlags() []MigratableSetting {
 func (c *Config) getMigratableOAuthSettings() []MigratableSetting {
 	settings := []MigratableSetting{}
 
-	// OAuth callback URL (non-sensitive, useful for diagnostics)
+	// OAuth callback URL (non-sensitive, useful for diagnostics).
+	//
+	// Source MUST go through settingSource, not a hardcoded "config". This is an
+	// operational (database-backed) key, and SettingsService.getConfigSetting
+	// discards any operational setting that is not Explicit — so a hardcoded
+	// "config" made GetString("auth.oauth_callback_url") always fall through to
+	// the database, no matter what the operator set. On AWS that let a stale
+	// http://localhost:8080/oauth2/callback row outrank a correctly-set
+	// TMI_OAUTH_CALLBACK_URL, and every provider (Google, GitHub, Microsoft)
+	// advertised a localhost redirect_uri, so OAuth sign-in could not complete.
+	//
+	// Only TMI_OAUTH_CALLBACK_URL is named, matching the OAuthConfig.CallbackURL
+	// struct tag. auth/config.go additionally honors a legacy OAUTH_CALLBACK_URL,
+	// but this package does not bind it, so counting it here would report
+	// "environment" while Value was still the localhost default — making that
+	// default Explicit and letting it outrank a correct database row.
 	if c.Auth.OAuth.CallbackURL != "" {
 		settings = append(settings, MigratableSetting{
 			Key:         "auth.oauth_callback_url",
 			Value:       c.Auth.OAuth.CallbackURL,
 			Type:        "string",
 			Description: "OAuth callback URL",
-			Source:      "config",
+			Source:      settingSource("TMI_OAUTH_CALLBACK_URL"),
+			EnvVar:      "TMI_OAUTH_CALLBACK_URL",
 		})
 	}
 
