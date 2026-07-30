@@ -848,3 +848,99 @@ rules:
       result_reason: { contains: SSRF payload reflected in response }
       contract_path:
         in: ["/teams", "/teams/{team_id}", "/projects", "/projects/{project_id}"]
+
+  # rule 50: "unauthorized" is an error code, not leaked internals (run 20260730T174620Z)
+  # All 39 hits are /saml/providers/{idp}/users returning the standard 401 body.
+  # CATS's leak heuristic matched the word "unauthorized" in it.
+  - id: AUTH_ERROR_CODE_IS_NOT_A_DETAILS_LEAK
+    why: CATS flags the keyword "unauthorized" as a possible error-details leak, but that is the RFC 6749 error code itself and the body is the generic {"error":"unauthorized","error_description":"Authentication required"}. No internals are disclosed.
+    when:
+      result_reason: { contains: Error details leak }
+      response_code: 401
+      json_body.error: { equals: unauthorized }
+
+  # rule 51: SSTI payload stored verbatim, never evaluated (run 20260730T174620Z)
+  # 0 of 33 responses contained 8051 (the evaluated 83*97); all 33 contained the
+  # literal payload. CATS's "engine" keyword matched our seeded member role
+  # "engineering_lead". Requiring the unevaluated payload is what keeps this rule
+  # honest: if a template engine ever does evaluate it, the body carries the
+  # computed value instead, the rule stops matching, and the finding surfaces.
+  - id: SSTI_PAYLOAD_REFLECTED_NOT_EVALUATED
+    why: The SSTI payload comes back verbatim, so no template engine evaluated it. CATS matches its "engine" keyword against our own seeded member role engineering_lead. Requiring the unevaluated payload in the body keeps a genuine evaluation (which would show the computed value instead) surfacing.
+    when:
+      fuzzer: SstiInjectionInStringFields
+      result_reason: { contains: SSTI injection error detected }
+      response_code: { in: [200, 201] }
+      response_body: { contains: "83*97" }
+
+  # rule 52: unknown request fields are dropped, not bound (run 20260730T174620Z)
+  # MassAssignment injects fields like price/discountPercent and flags the 2xx.
+  # TMI ignores unknown fields rather than binding them: 0 of 661 responses
+  # echoed the injected field, so nothing was assigned and there is no mass
+  # assignment. Staying permissive about unknown fields is the deliberate policy
+  # choice here (the alternative, additionalProperties:false plus 400, is a
+  # breaking change for clients).
+  #
+  # The /admin/ exclusion is forward-looking: no /admin/ path appears in this
+  # bucket today, but silently accepting an undeclared field on a
+  # privilege-bearing endpoint is exactly the case worth hearing about, so it
+  # must not be swept up by this rule later.
+  - id: UNDECLARED_FIELD_DROPPED_NOT_BOUND
+    why: TMI ignores unknown request fields rather than binding them, so MassAssignment's injected fields are dropped, not assigned. Verified on run 20260730T174620Z - 0 of 661 responses echoed the injected field. Excludes /admin/ so silent acceptance on privilege-bearing endpoints still surfaces.
+    when:
+      fuzzer: MassAssignment
+      result_reason: { equals: Undeclared field accepted }
+      contract_path: { matches: "^(?!/admin/)" }
+
+  # rules 53-59: correct 4xx rejections the fuzzer expected to succeed
+  # (run 20260730T174620Z). Each is keyed on the specific error the server
+  # returned rather than on the fuzzer name, so an unrelated 400/409 on the same
+  # path still surfaces. CATS expects 2xx from these fuzzers because it does not
+  # model nested schema constraints or resource state.
+
+  - id: NESTED_SCHEMA_VALIDATION_400
+    why: The fuzzer mangled a nested object (color_palette colour pattern, cvss score range, diagram cells) and the server rejected it against the schema. A 400 is correct; CATS expected 2xx because it does not model nested constraints.
+    when:
+      response_code: 400
+      json_body.error_description: { contains: 'multiple errors encountered: Error at "/' }
+
+  - id: SCREENSHOT_BASE64_INVALID_400
+    why: The fuzzer corrupted the base64 screenshot payload and the server rejected it. A 400 is the correct response to undecodable base64.
+    when:
+      response_code: 400
+      json_body.error_description: { contains: "screenshot base64 body is not valid" }
+
+  # This one is the SSRF protection reporting itself. api/ssrf_validator.go
+  # resolves the host and checks every returned IP against the blocklist, and
+  # api/safe_http_client.go then dials the validated IP rather than re-resolving,
+  # so the lookup cannot be raced. Refusing a host it cannot resolve is the
+  # control working, not a finding.
+  - id: SSRF_URI_VALIDATION_REJECTS_UNRESOLVABLE_400
+    why: The URI validator refuses a host it cannot resolve, which is the SSRF protection working (api/ssrf_validator.go resolves and checks every IP against the blocklist). The fuzzer supplies random hostnames, so a 400 is correct.
+    when:
+      response_code: 400
+      json_body.error_description: { contains: "invalid uri: cannot resolve hostname" }
+
+  - id: PAGINATION_CURSOR_INVALID_400
+    why: The fuzzer corrupted an opaque pagination cursor; rejecting it with 400 is correct.
+    when:
+      response_code: 400
+      json_body.error_description: { contains: "Invalid pagination cursor" }
+
+  - id: METADATA_KEY_CONFLICT_409
+    why: The fuzzer reuses one metadata key across repeated requests, so the second write is a genuine conflict. 409 is the correct optimistic-concurrency outcome.
+    when:
+      response_code: 409
+      json_body.error_description: { contains: "Metadata key already exists" }
+
+  - id: RESTORE_NON_DELETED_ENTITY_409
+    why: Restore only applies to a soft-deleted entity; calling it on a live one is a state conflict, and 409 is correct.
+    when:
+      response_code: 409
+      json_body.error_description: { contains: "not in a deleted state" }
+
+  - id: SURVEY_THREAT_MODEL_ALREADY_CREATED_409
+    why: A survey response yields at most one threat model; a second creation attempt is a genuine conflict and 409 is correct.
+    when:
+      response_code: 409
+      json_body.error_description: { contains: "already been created from this survey" }
