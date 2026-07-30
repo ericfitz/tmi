@@ -410,6 +410,25 @@ def _which(cmd: str) -> str | None:
     return shutil.which(cmd)
 
 
+def _image_present_locally(image_name: str) -> bool:
+    """True if the Docker daemon already holds this image.
+
+    Used only to tell two failure modes apart in scan output: an image that was
+    never built (so grype fell through to a remote registry and was refused)
+    versus a scanner problem on an image that is right there. Silent about its
+    own failure — docker being unavailable just means "cannot tell", and the
+    caller's message degrades to the generic form.
+    """
+    try:
+        return subprocess.run(
+            ["docker", "image", "inspect", image_name],
+            capture_output=True,
+            check=False,
+        ).returncode == 0
+    except OSError:
+        return False
+
+
 # --- Docker Build ---
 
 BUILDX_BUILDER_NAME = "tmi-multiarch"
@@ -634,67 +653,105 @@ def scan_image(image_name: str, reports_dir: Path) -> bool:
 
     log_info(f"Scanning {image_name} for vulnerabilities...")
 
-    # Grype SARIF report
-    run(
-        ["grype", image_name, "-o", "sarif"],
-        check=False,
-        capture=False,  # Let it print to stdout for redirection by caller
-    )
-    sarif_result = run(
-        ["grype", image_name, "-o", "sarif"],
-        capture=True,
-        check=False,
-    )
-    sarif_file = reports_dir / f"{report_name}-scan.sarif"
-    sarif_file.write_text(sarif_result.stdout)
-
-    # Grype table report
-    table_result = run(
-        ["grype", image_name, "-o", "table"],
-        capture=True,
-        check=False,
-    )
-    table_file = reports_dir / f"{report_name}-scan.txt"
-    table_file.write_text(table_result.stdout)
-    # Print table to console
-    print(table_result.stdout)
-
-    # Count CVEs from JSON output
+    # The JSON scan runs FIRST and is authoritative, because the thresholds
+    # below are computed from it.
+    #
+    # This used to run last, with every grype invocation on check=False and the
+    # counts initialized to 0 and only filled in `if returncode == 0`. So when
+    # grype could not resolve the image at all — the common case being an image
+    # that was never built locally, where grype falls through to Docker Hub and
+    # gets UNAUTHORIZED — the counts stayed 0, the thresholds passed, and the
+    # function returned True. `make scan-containers` printed "Found 0 critical
+    # and 0 high" followed by "All scans completed" for images it had never
+    # read. A security control that reports success without scanning anything is
+    # worse than one that is switched off, because nobody goes looking for it.
     json_result = run(
         ["grype", image_name, "-o", "json"],
         capture=True,
         check=False,
     )
+    if json_result.returncode != 0:
+        log_error(f"Grype could not scan {image_name} — NOT scanned; treating as a failure.")
+        if _image_present_locally(image_name):
+            log_error("  The image exists locally, so this is a scanner problem, not a")
+            log_error("  missing image. Check grype's output above (a stale or")
+            log_error("  undownloadable vulnerability database will do this).")
+        else:
+            log_error(f"  {image_name} is not present in the local Docker daemon, so grype")
+            log_error("  tried remote registries and was refused. Build it first:")
+            log_error("    make build-all          # all components")
+            log_error("    make build-server-container")
+        return False
+
+    try:
+        data = json.loads(json_result.stdout)
+    except json.JSONDecodeError:
+        log_error(f"Grype returned unparseable JSON for {image_name} — treating as a failure.")
+        return False
+
+    # A scan that actually read an image always reports what it read. An absent
+    # or empty `source` means grype produced a document without resolving the
+    # target, which must not be mistaken for "no vulnerabilities found".
+    if not data.get("source"):
+        log_error(
+            f"Grype produced no source metadata for {image_name} — the image was not "
+            "actually read; treating as a failure."
+        )
+        return False
+
     critical_count = 0
     high_count = 0
-    if json_result.returncode == 0:
-        try:
-            data = json.loads(json_result.stdout)
-            for match in data.get("matches", []):
-                severity = match.get("vulnerability", {}).get("severity", "")
-                if severity == "Critical":
-                    critical_count += 1
-                elif severity == "High":
-                    high_count += 1
-        except json.JSONDecodeError:
-            log_warn("Failed to parse Grype JSON output")
+    for match in data.get("matches", []):
+        severity = match.get("vulnerability", {}).get("severity", "")
+        if severity == "Critical":
+            critical_count += 1
+        elif severity == "High":
+            high_count += 1
 
     log_info(f"Found {critical_count} critical and {high_count} high severity vulnerabilities")
 
-    # Syft SBOM
+    # Report artifacts. These are secondary — the gate above already ran — so a
+    # failure here is a warning rather than a verdict, but it is still reported
+    # instead of being written as an empty file that looks like a clean scan.
+    sarif_result = run(
+        ["grype", image_name, "-o", "sarif"],
+        capture=True,
+        check=False,
+    )
+    if sarif_result.returncode == 0 and sarif_result.stdout.strip():
+        (reports_dir / f"{report_name}-scan.sarif").write_text(sarif_result.stdout)
+    else:
+        log_warn(f"Could not write SARIF report for {image_name}")
+
+    table_result = run(
+        ["grype", image_name, "-o", "table"],
+        capture=True,
+        check=False,
+    )
+    if table_result.returncode == 0 and table_result.stdout.strip():
+        (reports_dir / f"{report_name}-scan.txt").write_text(table_result.stdout)
+        print(table_result.stdout)
+    else:
+        log_warn(f"Could not write table report for {image_name}")
+
+    # Syft SBOM. Success is claimed only when a non-empty file actually landed:
+    # this used to log "SBOM generated" unconditionally, so two failed syft runs
+    # were still reported as a success and a stale SBOM from an earlier build
+    # looked current.
     if _which("syft"):
         log_info(f"Generating SBOM for {image_name}...")
-        sbom_json = sbom_dir / f"{report_name}-sbom.json"
-        run(
-            ["syft", image_name, "-o", f"cyclonedx-json={sbom_json}"],
-            check=False,
-        )
-        sbom_xml = sbom_dir / f"{report_name}-sbom.xml"
-        run(
-            ["syft", image_name, "-o", f"cyclonedx-xml={sbom_xml}"],
-            check=False,
-        )
-        log_success(f"SBOM generated: {sbom_json.name}")
+        for fmt, path in (
+            ("cyclonedx-json", sbom_dir / f"{report_name}-sbom.json"),
+            ("cyclonedx-xml", sbom_dir / f"{report_name}-sbom.xml"),
+        ):
+            # Remove any previous artifact first, so a failed run cannot leave
+            # last build's file sitting there looking freshly generated.
+            path.unlink(missing_ok=True)
+            result = run(["syft", image_name, "-o", f"{fmt}={path}"], check=False)
+            if result.returncode == 0 and path.exists() and path.stat().st_size > 0:
+                log_success(f"SBOM generated: {path.name}")
+            else:
+                log_warn(f"SBOM ({fmt}) not generated for {image_name}")
 
     # Check thresholds
     passed = True

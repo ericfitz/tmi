@@ -103,6 +103,70 @@ AUTO_APPROVE=false
 PF_PID=""
 RDS_PROXY_STARTED=false
 TMPDIR_TO_CLEAN=""
+KUBECONFIG_TO_CLEAN=""
+
+# ----------------------------------------------------------------------------
+# Cluster targeting
+#
+# This script used to call bare `kubectl`, which resolves against the *global*
+# kubeconfig current-context. That is a footgun in two directions:
+#
+#   1. Anything that switches your context while this runs (`make dev-up`,
+#      a stray `kubectl config use-context`) silently retargets the applies
+#      below — an AWS workload overlay landing on a local cluster.
+#   2. `aws eks update-kubeconfig` mutated the operator's own kubeconfig as a
+#      side effect, so after a deploy your shell was quietly pointed at
+#      production.
+#
+# Both are fixed by giving the deploy its own throwaway kubeconfig (below), so
+# every kubectl/helm child process can only ever see the EKS cluster, and the
+# operator's kubeconfig is never touched. assert_cluster_identity() is the
+# belt-and-braces check for the case an isolated kubeconfig cannot cover: a
+# kubeconfig that points somewhere unexpected in the first place.
+# ----------------------------------------------------------------------------
+
+# Point KUBECONFIG at a private throwaway file for the rest of this process.
+# Must run before configure_kubeconfig(). Exported so kubectl, kustomize and
+# helm inherit it.
+isolate_kubeconfig() {
+    KUBECONFIG_TO_CLEAN="$(mktemp -t tmi-deploy-kubeconfig)"
+    chmod 600 "${KUBECONFIG_TO_CLEAN}"
+    export KUBECONFIG="${KUBECONFIG_TO_CLEAN}"
+    log_info "Using an isolated kubeconfig for this deploy; your own is untouched"
+}
+
+# Refuse to continue unless the cluster kubectl would talk to is really the
+# EKS cluster we mean to deploy to.
+#
+# Compares the API server URL, NOT the context name: context names are
+# arbitrary local labels that can be renamed or reused, so matching on one
+# proves nothing about which cluster is on the other end. The endpoint comes
+# from the AWS API, so it is authoritative.
+#
+# Call this immediately before any mutating apply.
+assert_cluster_identity() {
+    local expected actual
+    expected="$(aws eks describe-cluster --name "${CLUSTER_NAME}" --region "${REGION}" \
+        --query 'cluster.endpoint' --output text 2>/dev/null || true)"
+    if [[ -z "${expected}" ]] || [[ "${expected}" == "None" ]]; then
+        log_error "Could not read the API endpoint for EKS cluster ${CLUSTER_NAME} from AWS."
+        echo "  Refusing to apply anything: without it there is no way to prove which"
+        echo "  cluster kubectl is pointed at."
+        exit 1
+    fi
+
+    actual="$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null || true)"
+    if [[ "${actual}" != "${expected}" ]]; then
+        log_error "Refusing to apply: kubectl is not pointed at ${CLUSTER_NAME}."
+        echo "  expected API server: ${expected}"
+        echo "  actual API server:   ${actual:-<none>}"
+        echo
+        echo "  Applying the AWS overlay to the wrong cluster is the failure this check"
+        echo "  exists to stop. Nothing has been applied."
+        exit 1
+    fi
+    log_success "Verified kubectl targets ${CLUSTER_NAME} (${expected})"
+}
 
 # Parse command line arguments
 parse_args() {
@@ -163,6 +227,9 @@ cleanup() {
     fi
     if [[ -n "${TMPDIR_TO_CLEAN}" ]] && [[ -d "${TMPDIR_TO_CLEAN}" ]]; then
         rm -rf "${TMPDIR_TO_CLEAN}"
+    fi
+    if [[ -n "${KUBECONFIG_TO_CLEAN}" ]] && [[ -f "${KUBECONFIG_TO_CLEAN}" ]]; then
+        rm -f "${KUBECONFIG_TO_CLEAN}"
     fi
     rm -f "${TF_DIR}/tfplan"
     return "${exit_code}"
@@ -440,11 +507,21 @@ pre_destroy_cleanup() {
         return 0
     fi
 
-    aws eks update-kubeconfig --name "${cluster_name}" --region "${REGION}" &>/dev/null || true
+    # Isolated kubeconfig here too: this path DELETES an ingress, so it must
+    # never resolve against whatever the operator's context happens to be. It
+    # also must not mutate their kubeconfig on the way to a destroy.
+    isolate_kubeconfig
+    aws eks update-kubeconfig --name "${cluster_name}" --region "${REGION}" \
+        --kubeconfig "${KUBECONFIG}" &>/dev/null || true
     if ! kubectl cluster-info &>/dev/null; then
         log_info "Cluster ${cluster_name} not reachable — skipping ingress/ALB/DNS cleanup"
         return 0
     fi
+
+    # CLUSTER_NAME drives assert_cluster_identity; on the destroy path the name
+    # comes from Terraform state, so align them before asserting.
+    CLUSTER_NAME="${cluster_name}"
+    assert_cluster_identity
 
     local alb_host
     alb_host=$(kubectl get ingress tmi-server -n "${NAMESPACE}" \
@@ -623,8 +700,13 @@ build_and_push_images() {
 
 configure_kubeconfig() {
     log_info "Configuring kubectl for EKS cluster ${CLUSTER_NAME}..."
-    aws eks update-kubeconfig --name "${CLUSTER_NAME}" --region "${REGION}"
+    isolate_kubeconfig
+    # --kubeconfig is explicit rather than relying on the exported KUBECONFIG,
+    # so this can never fall back to writing the operator's real kubeconfig.
+    aws eks update-kubeconfig --name "${CLUSTER_NAME}" --region "${REGION}" \
+        --kubeconfig "${KUBECONFIG}"
     log_success "kubectl configured"
+    assert_cluster_identity
 }
 
 # ============================================================================
@@ -633,6 +715,11 @@ configure_kubeconfig() {
 
 apply_platform_base() {
     log_step "Phase 4: Platform Base (NATS, KEDA, TMIComponent CRD)"
+
+    # Re-asserted here rather than trusting the check in configure_kubeconfig:
+    # this is the first mutating apply, and the two are separated by the image
+    # build/push phase, which takes long enough for the environment to change.
+    assert_cluster_identity
 
     kubectl apply -f "${PLATFORM_DIR}/nats.yml"
     kubectl apply --server-side -f "${PLATFORM_DIR}/keda.yml"
@@ -682,6 +769,10 @@ create_embedding_secret() {
 
 apply_overlay() {
     log_step "Phase 5: AWS Kustomize Overlay"
+
+    # This is the apply that would do real damage on the wrong cluster: it owns
+    # every workload (server, redis, controller, extractor, chunkembed, ingress).
+    assert_cluster_identity
 
     # Rewrite account-specific placeholders into the rendered kustomize
     # stream (never onto tracked files on disk, and never as generated files

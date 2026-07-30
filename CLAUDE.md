@@ -469,16 +469,31 @@ TMI uses staticcheck for Go code quality analysis. The project has intentionally
   - `test(integration): add database connection pooling tests`
   - `deps: update Gin framework to v1.11.0`
 
-### Automatic Versioning
+### Versioning — currently MANUAL (see #627)
 
-TMI uses automatic semantic versioning (0.MINOR.PATCH) based on conventional commits:
+**Automatic versioning is disabled.** `scripts/hooks/post-commit` is an
+explanatory no-op. It could not fire under the PR-only workflow: it exited early
+unless `HEAD` was on `main` (commits are authored on `fix/*`/`dev/*` branches),
+and the commit that lands on `main` comes from GitHub's squash-merge, where no
+local hook runs. It had been silently doing nothing — `main` sat at 1.5.0 across
+several `feat:` merges.
 
-- **Feature commits** (`feat:`): Post-commit hook increments MINOR version, resets PATCH to 0 (0.9.3 -> 0.10.0)
-- **All other commits** (`fix:`, `refactor:`, etc.): Post-commit hook increments PATCH version (0.9.0 -> 0.9.1)
-- **Version file**: `.version` (JSON) tracks current state
-- **Script**: `scripts/update-version.sh --commit` (automatically called by post-commit hook)
+Until #627 lands, **bump versions by hand as part of the change**, and keep all
+three in step (they are independent and have already drifted):
 
-Version updates are fully automated. All feature development occurs in dev/<semver>/<feature-name> branches or in feature/<feature-name> branches that are children of dev/<semver> branches; those branches are not auto-versioned so that new features don't bump the semantic version multiple times during development of a single feature or release. The main branch only gets direct commits for patching, security fixes, and merging of release branches.
+- `.version` (JSON) — the source of the server build version
+- `api-schema/tmi-openapi.json` → `info.version`
+- verify with `make build-server`, which prints the version it embedded
+
+Intended scheme once automated: `feat:` → MINOR (reset PATCH), everything else →
+PATCH. With squash-merge the PR title is the conventional-commit subject, so that
+is the string to parse. `scripts/update-version.sh` still works when invoked
+directly.
+
+All feature development occurs in dev/<semver>/<feature-name> branches or in
+feature/<feature-name> branches that are children of dev/<semver> branches. The
+main branch only gets direct commits for patching, security fixes, and merging of
+release branches.
 
 ## Custom Tools
 

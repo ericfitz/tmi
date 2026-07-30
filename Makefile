@@ -22,8 +22,31 @@ SERVER_PORT ?= 8080
 # Default database backend for dev environment (postgres|oracle)
 DB ?= postgres
 
-# Default kube cluster target for dev environment (docker-desktop|k3s|kind)
-CLUSTER ?= docker-desktop
+# Kube cluster target for the dev environment (docker-desktop|k3s).
+#
+# DELIBERATELY NO DEFAULT. A wrong-cluster operation is silent and expensive:
+# `make dev-up` used to default to docker-desktop, so running it while the
+# server under test lived on k3s rebuilt and rolled a cluster nobody was
+# looking at, leaving the real target stale — and `make dev-status` reported
+# against a different cluster than the one just deployed. The destructive
+# targets (dev-nuke, dev-down) make the same mistake unrecoverable.
+#
+# Every dev-* target guards on this via REQUIRE_CLUSTER.
+CLUSTER ?=
+
+# Fail with an actionable hint when a cluster-targeting target is invoked
+# without CLUSTER. $@ is the target being run, so the hint is copy-pasteable.
+define REQUIRE_CLUSTER
+if [ -z "$(CLUSTER)" ]; then \
+	printf 'Error: CLUSTER is required for `make %s` — there is no default.\n\n' "$@" >&2; \
+	printf '  make %s CLUSTER=docker-desktop   # local Docker Desktop Kubernetes\n' "$@" >&2; \
+	printf '  make %s CLUSTER=k3s              # remote k3s cluster\n\n' "$@" >&2; \
+	printf 'Picking for you is how a deploy lands on the wrong cluster: the target\n' >&2; \
+	printf 'you are not watching gets rebuilt while the one under test stays stale.\n' >&2; \
+	printf 'Current kube context is %s (informational only — it does NOT set the target).\n' "$$(kubectl config current-context 2>/dev/null || echo unknown)" >&2; \
+	exit 2; \
+fi
+endef
 
 # ============================================================================
 # ATOMIC COMPONENTS - Infrastructure Management
@@ -330,33 +353,43 @@ tilt-down:  ## Stop Tilt and restore the prod-shaped server
 # ============================================================================
 
 dev-up:  ## Bring up the full dev environment (cluster + deploy). DB=postgres|oracle CLUSTER=docker-desktop|k3s
+	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) up
 
 dev-down:  ## Tear down the dev environment; KEEP db data
+	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) down
 
 dev-restart:  ## Rebuild the server image + roll the server pod (cluster + db untouched)
+	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) restart
 
 dev-reset:  ## Soft known-state: redeploy the stack with fresh images; KEEP db data
+	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) reset
 
 dev-nuke:  ## Hard known-state: destroy everything incl. db data + images, rebuild
+	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) nuke
 
 dev-status:  ## dev environment status dashboard
+	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --cluster $(CLUSTER) status
 
 dev-logs:  ## Stream the tmi-server pod logs
+	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --cluster $(CLUSTER) logs
 
 dev-deploy:  ## (Re)apply manifests + rollout without recreating cluster/db
+	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) deploy
 
 dev-cluster-up:  ## Switch to the cluster kube context (docker-desktop or k3s)
+	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --cluster $(CLUSTER) cluster up
 
 dev-cluster-down:  ## No-op for docker-desktop and k3s (clusters are not owned)
+	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --cluster $(CLUSTER) cluster down
 
 # --- deprecated aliases (removable next release) ---
