@@ -83,9 +83,13 @@ func TestFixtureManifestMarksDecoyedAnchors(t *testing.T) {
 	decoyed := map[string]bool{
 		"threat_model_id": true, "team_id": true, "project_id": true,
 		"group_id": true, "user_id": true, "survey_response_id": true,
-		// Nested fixtures have no anchor decoy.
-		"threat_id": false, "note_id": false, "team_note_id": false,
-		"survey_id": false, "webhook_id": false,
+		// team_note_id and webhook_id are leaves rather than anchors, but run
+		// 20260730T153736Z showed an undecoyed leaf is consumed just as readily:
+		// an ordinary DELETE took the only seeded record and the run went INVALID.
+		// They now get decoys of their own.
+		"team_note_id": true, "webhook_id": true,
+		// Nested fixtures with no decoy.
+		"threat_id": false, "note_id": false, "survey_id": false,
 	}
 	for _, f := range m.Fixtures {
 		want, tracked := decoyed[f.Key]

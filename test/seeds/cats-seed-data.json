@@ -47,6 +47,11 @@
           "name": "CATS Test Team Note",
           "content": "Team note for CATS fuzzing coverage of team_note_id.",
           "description": "Seeded for CATS"
+        },
+        {
+          "name": "CATS Throwaway Team Note",
+          "content": "Destructive-fuzz decoy for team_note_id (#608). Index 1; DELETE consumes this instead of the real note.",
+          "description": "Seeded for CATS"
         }
       ]
     },
@@ -241,6 +246,13 @@
         "events": [
           "threat_model.created",
           "threat.created"
+        ]
+      },
+      {
+        "name": "CATS Throwaway Webhook",
+        "url": "https://webhook.site/cats-throwaway-webhook",
+        "events": [
+          "threat_model.created"
         ]
       }
     ],

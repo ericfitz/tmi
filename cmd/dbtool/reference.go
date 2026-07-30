@@ -115,7 +115,11 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	documentID := findRefByKind(refs, "document")
 	assetID := findRefByKind(refs, "asset")
 	noteID := findRefByKind(refs, "note")
-	teamNoteID := findRefByKind(refs, kindTeamNote)
+	// Index 0 explicitly, for the same reason as survey-response:0 below: team
+	// notes are seeded positionally and findRefByKind ranges over a map, so once
+	// the #608 decoy note exists this could return either one — and the decoy is
+	// the one DELETE consumes.
+	teamNoteID := findRefByName(refs, teamNoteRef(realTeamName, 0), kindTeamNote)
 	projectNoteID := findRefByKind(refs, kindProjectNote)
 	feedbackID := findRefByKind(refs, kindFeedback)
 	// TriageNote.id is a per-survey-response sequential INTEGER, not a UUID, so
@@ -126,7 +130,10 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 		triageNoteID = "0"
 	}
 	repoID := findRefByKind(refs, "repository")
-	webhookID := findRefByKind(refs, "webhook")
+	// By name, not by kind: the #608 decoy webhook makes a map-ranging lookup
+	// nondeterministic, and returning the decoy here would leave the real
+	// subscription unfuzzed while the decoy absorbed both roles.
+	webhookID := findRefByName(refs, webhookRef(realWebhookName), "webhook")
 	deliveryID := findRefByKind(refs, "webhook_test_delivery")
 	addonID := findRefByKind(refs, "addon")
 	credID := findRefByKind(refs, "client_credential")
@@ -197,6 +204,16 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 		// Survey responses are seeded positionally; index 1 is the decoy.
 		{"/intake/survey_responses/{survey_response_id}", "survey_response_id",
 			findRefByName(refs, "survey-response:1", "")},
+		// Run 20260730T153736Z lost team_note_id and webhook_id to ordinary
+		// (non-collapsed) DELETEs: both paths are leaves with no decoy, so the
+		// fuzzer consumed the only seeded record. Team notes are positional like
+		// survey responses, so index 1 is the decoy; it must hang off the REAL
+		// team, because only the /teams/{team_id} anchor is overridden and the
+		// nested path keeps the real team_id.
+		{"/teams/{team_id}/notes/{team_note_id}", "team_note_id",
+			findRefByName(refs, teamNoteRef(realTeamName, 1), "")},
+		{"/admin/webhooks/subscriptions/{webhook_id}", "webhook_id",
+			findRefByName(refs, webhookRef(throwawayWebhookName), "")},
 	}
 	decoySections := ""
 	for _, d := range decoys {
@@ -449,6 +466,8 @@ func writeFixtureManifest(path string, ids fixtureIDs) error {
 		"/admin/groups/{group_id}":                      true,
 		"/admin/users/{user_id}":                        true,
 		"/intake/survey_responses/{survey_response_id}": true,
+		"/teams/{team_id}/notes/{team_note_id}":         true,
+		"/admin/webhooks/subscriptions/{webhook_id}":    true,
 	}
 
 	candidates := []referenceFixture{
@@ -528,7 +547,9 @@ const (
 	throwawayProjectName     = "CATS Throwaway Project"
 	throwawayGroupName       = "CATS Throwaway Group"
 	throwawayThreatModelName = "CATS Throwaway Threat Model"
+	throwawayWebhookName     = "CATS Throwaway Webhook"
 	realTeamName             = "CATS Test Team"
+	realWebhookName          = "CATS Test Webhook"
 	realProjectName          = "CATS Test Project"
 	realGroupName            = "CATS Test Group"
 	realThreatModelName      = "CATS Test Threat Model"
