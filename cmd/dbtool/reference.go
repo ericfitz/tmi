@@ -375,7 +375,148 @@ all:
 		auditSections,
 	)
 
-	return os.WriteFile(path, []byte(yaml), 0o600)
+	if err := os.WriteFile(path, []byte(yaml), 0o600); err != nil {
+		return err
+	}
+
+	// Fixture manifest for the CATS runner's fixture-integrity gates (#608).
+	// Written alongside the refData it describes so the two can never disagree
+	// about which ids a campaign depends on.
+	return writeFixtureManifest(
+		filepath.Join(filepath.Dir(path), "cats-fixtures.json"),
+		fixtureIDs{
+			threatModelID: tmID, threatID: threatID, diagramID: diagramID,
+			documentID: documentID, assetID: assetID, noteID: noteID,
+			feedbackID: feedbackID, repositoryID: repoID,
+			teamID: teamID, projectID: projectID,
+			teamNoteID: teamNoteID, projectNoteID: projectNoteID,
+			groupID: adminGroupID, userID: targetUUID,
+			surveyID: surveyID, surveyResponseID: responseID,
+			triageNoteID: triageNoteID, webhookID: webhookID, deliveryID: deliveryID,
+		},
+	)
+}
+
+// SEM@0: resolved seeded ids the fixture manifest is built from (pure)
+type fixtureIDs struct {
+	threatModelID, threatID, diagramID, documentID, assetID, noteID string
+	feedbackID, repositoryID                                        string
+	teamID, projectID, teamNoteID, projectNoteID                    string
+	groupID, userID                                                 string
+	surveyID, surveyResponseID, triageNoteID                        string
+	webhookID, deliveryID                                           string
+}
+
+// SEM@0: one seeded fixture the campaign depends on, plus how to check it is still alive (pure)
+type referenceFixture struct {
+	// Key is the refData key CATS substitutes this id into.
+	Key string `json:"key"`
+	ID  string `json:"id"`
+	// VerifyURL is a server-relative GET that returns 200 iff the fixture
+	// still exists. Parent ids are already resolved.
+	VerifyURL string `json:"verify_url"`
+	// AnchorPath is the CATS path template whose DELETE would consume this
+	// fixture. Named in the gate's failure message so the fix (add a decoy
+	// override for that anchor) is obvious from the error alone.
+	AnchorPath string `json:"anchor_path"`
+	// Decoyed records whether AnchorPath already has a decoy override, so a
+	// fixture that dies anyway is reported as "decoy not working" rather than
+	// "decoy missing".
+	Decoyed bool `json:"decoyed"`
+}
+
+// SEM@0: fixture manifest file structure listing verifiable and unverifiable seeded fixtures (pure)
+type fixtureManifest struct {
+	Version   string             `json:"version"`
+	CreatedAt string             `json:"created_at"`
+	Fixtures  []referenceFixture `json:"fixtures"`
+	// Unverifiable names fixtures the gates cannot check, with the reason.
+	// Recorded explicitly rather than omitted: a gate that silently skips
+	// part of the fixture set reads as "all fixtures survived" when it is
+	// really "the ones I could see survived".
+	Unverifiable map[string]string `json:"unverifiable"`
+}
+
+// SEM@0: serialize the seeded-fixture integrity manifest consumed by the CATS runner gates (mutates shared state)
+func writeFixtureManifest(path string, ids fixtureIDs) error {
+	tm := ids.threatModelID
+	// Anchors that writeYAMLReference emits a decoy override for. Keep in step
+	// with the `decoys` slice above.
+	decoyed := map[string]bool{
+		"/teams/{team_id}":                              true,
+		"/projects/{project_id}":                        true,
+		"/threat_models/{threat_model_id}":              true,
+		"/admin/groups/{group_id}":                      true,
+		"/admin/users/{user_id}":                        true,
+		"/intake/survey_responses/{survey_response_id}": true,
+	}
+
+	candidates := []referenceFixture{
+		{"threat_model_id", tm, "/threat_models/" + tm, "/threat_models/{threat_model_id}", false},
+		{"threat_id", ids.threatID, "/threat_models/" + tm + "/threats/" + ids.threatID,
+			"/threat_models/{threat_model_id}/threats/{threat_id}", false},
+		{"diagram_id", ids.diagramID, "/threat_models/" + tm + "/diagrams/" + ids.diagramID,
+			"/threat_models/{threat_model_id}/diagrams/{diagram_id}", false},
+		{"document_id", ids.documentID, "/threat_models/" + tm + "/documents/" + ids.documentID,
+			"/threat_models/{threat_model_id}/documents/{document_id}", false},
+		{"asset_id", ids.assetID, "/threat_models/" + tm + "/assets/" + ids.assetID,
+			"/threat_models/{threat_model_id}/assets/{asset_id}", false},
+		{"note_id", ids.noteID, "/threat_models/" + tm + "/notes/" + ids.noteID,
+			"/threat_models/{threat_model_id}/notes/{note_id}", false},
+		{"feedback_id", ids.feedbackID, "/threat_models/" + tm + "/feedback/" + ids.feedbackID,
+			"/threat_models/{threat_model_id}/feedback/{feedback_id}", false},
+		{"repository_id", ids.repositoryID, "/threat_models/" + tm + "/repositories/" + ids.repositoryID,
+			"/threat_models/{threat_model_id}/repositories/{repository_id}", false},
+		{"team_id", ids.teamID, "/teams/" + ids.teamID, "/teams/{team_id}", false},
+		{"project_id", ids.projectID, "/projects/" + ids.projectID, "/projects/{project_id}", false},
+		{"team_note_id", ids.teamNoteID, "/teams/" + ids.teamID + "/notes/" + ids.teamNoteID,
+			"/teams/{team_id}/notes/{team_note_id}", false},
+		{"project_note_id", ids.projectNoteID, "/projects/" + ids.projectID + "/notes/" + ids.projectNoteID,
+			"/projects/{project_id}/notes/{project_note_id}", false},
+		{"group_id", ids.groupID, "/admin/groups/" + ids.groupID, "/admin/groups/{group_id}", false},
+		{"user_id", ids.userID, "/admin/users/" + ids.userID, "/admin/users/{user_id}", false},
+		{"survey_id", ids.surveyID, "/admin/surveys/" + ids.surveyID, "/admin/surveys/{survey_id}", false},
+		{"survey_response_id", ids.surveyResponseID, "/intake/survey_responses/" + ids.surveyResponseID,
+			"/intake/survey_responses/{survey_response_id}", false},
+		{"triage_note_id", ids.triageNoteID,
+			"/intake/survey_responses/" + ids.surveyResponseID + "/triage_notes/" + ids.triageNoteID,
+			"/intake/survey_responses/{survey_response_id}/triage_notes/{triage_note_id}", false},
+		{"webhook_id", ids.webhookID, "/admin/webhooks/subscriptions/" + ids.webhookID,
+			"/admin/webhooks/subscriptions/{webhook_id}", false},
+		{"delivery_id", ids.deliveryID, "/admin/webhooks/deliveries/" + ids.deliveryID,
+			"/admin/webhooks/deliveries/{delivery_id}", false},
+	}
+
+	// #nosec G101 -- these are refData key names and prose reasons, not credentials
+	unverifiable := map[string]string{
+		"credential_id": "spec has no GET for /me/client_credentials/{credential_id} (delete-only)",
+		"addon_id":      "no spec path uses {addon_id}",
+		"key":           "metadata key is not an addressable resource",
+		"entry_id":      "audit entries are harvested after seeding, not seeded, and are not deletable fixtures",
+	}
+
+	fixtures := make([]referenceFixture, 0, len(candidates))
+	for _, f := range candidates {
+		// A fixture that was never seeded has no integrity to check, and
+		// including it would make the gate fail every run on a false death.
+		if f.ID == "" || f.ID == nilUUID {
+			unverifiable[f.Key] = "not present in this seed run"
+			continue
+		}
+		f.Decoyed = decoyed[f.AnchorPath]
+		fixtures = append(fixtures, f)
+	}
+
+	data, err := json.MarshalIndent(fixtureManifest{
+		Version:      "1.0.0",
+		CreatedAt:    time.Now().UTC().Format(time.RFC3339),
+		Fixtures:     fixtures,
+		Unverifiable: unverifiable,
+	}, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal fixture manifest: %w", err)
+	}
+	return os.WriteFile(path, append(data, '\n'), 0o600)
 }
 
 // Seed refs for the destructive-fuzz decoys. Anchor paths (/teams/{team_id},
