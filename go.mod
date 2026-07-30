@@ -4,7 +4,7 @@ go 1.26.2
 
 toolchain go1.26.5
 
-replace github.com/ericfitz/tmi-clients/go-client-generated/v1_5_0 => ../tmi-clients/go-client-generated/v1_5_0
+replace github.com/ericfitz/tmi-clients/go-client-generated/v1_6_0 => ../tmi-clients/go-client-generated/v1_6_0
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -14,7 +14,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.44.1
 	github.com/coreos/go-oidc/v3 v3.20.0
 	github.com/crewjam/saml v0.5.1
-	github.com/ericfitz/tmi-clients/go-client-generated/v1_5_0 v0.0.0-20260701025703-ad400e64ba0c
+	github.com/ericfitz/tmi-clients/go-client-generated/v1_6_0 v0.0.0-20260701025703-ad400e64ba0c
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/getkin/kin-openapi v0.145.0
