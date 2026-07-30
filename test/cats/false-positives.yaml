@@ -834,3 +834,17 @@ rules:
       path: { starts_with: /admin/users/, contains: client_credentials }
       json_body.error_description:
         contains: only available for automation accounts
+
+  # rule 49 of 49: Team/project uri field is stored, never fetched (#608 run 20260730T174620Z)
+  # SSRFInUrlFields sets uri to an internal address and flags the echo in the
+  # response body. Teams and projects only persist and serialize that field
+  # (team_store_gorm.go:954) -- nothing dereferences it. Deliberately scoped to
+  # these four contract paths: URIs ARE fetched for Timmy document/diagram
+  # content (timmy_content_provider_http.go), and those findings must stay live.
+  - id: TEAM_PROJECT_URI_REFLECTED_NOT_FETCHED
+    why: Teams and projects store the user-supplied uri field and echo it back without ever dereferencing it, so a reflected SSRF payload is not a request the server made. Scoped to team/project paths only; Timmy content URIs are fetched and stay in scope.
+    when:
+      fuzzer: SSRFInUrlFields
+      result_reason: { contains: SSRF payload reflected in response }
+      contract_path:
+        in: ["/teams", "/teams/{team_id}", "/projects", "/projects/{project_id}"]
