@@ -1029,7 +1029,11 @@
                   "pm.test('Modified timestamp is updated', function () {",
                   "    const responseData = pm.response.json();",
                   "    pm.expect(responseData.modified_at).to.exist;",
-                  "    pm.expect(new Date(responseData.modified_at)).to.be.at.most(new Date());",
+                  "    // Allow for clock skew: the server may run on a different host than",
+                  "    // the test runner (e.g. CLUSTER=k3s), so modified_at can read a few ms",
+                  "    // ahead of the local clock. Still catches a genuinely wrong timestamp.",
+                  "    const skewToleranceMs = 5000;",
+                  "    pm.expect(new Date(responseData.modified_at).getTime()).to.be.at.most(Date.now() + skewToleranceMs);",
                   "});"
                 ]
               }
