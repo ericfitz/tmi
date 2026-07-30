@@ -21,8 +21,14 @@ Usage:
     scripts/set-server-setting.py --server https://api.tmi.dev --idp microsoft \
         get auth.oauth.providers.google.client_id
 
-Secret values: pass --value-file rather than putting the value on the command
-line, so it never lands in argv, shell history, or process listings.
+Secrets never go on the command line. Pass a setting's value with --value-file
+and an existing bearer token with --token-file, so neither lands in argv, shell
+history, or another user's `ps` output.
+
+The browser login requires the callback to carry back the exact `state` this
+process issued, and requires an authorization code: a token delivered straight
+to the callback is not bound to this flow's PKCE verifier, so it is refused
+rather than used.
 
 A caveat this tool cannot work around: settings supplied through the
 environment or a config file outrank the database (env > config > DB, see
@@ -51,7 +57,9 @@ import requests
 
 DEFAULT_SERVER = "http://localhost:8080"
 DEFAULT_IDP = "google"
-CALLBACK_HOST = "localhost"
+# Bind the loopback address explicitly rather than the "localhost" name, so the
+# listener cannot end up on a non-loopback interface if the name resolves oddly.
+CALLBACK_HOST = "127.0.0.1"
 AUTH_TIMEOUT_SECONDS = 300
 
 
@@ -78,9 +86,23 @@ class _CallbackHandler(http.server.BaseHTTPRequestHandler):
     result: dict[str, str] = {}
     done = threading.Event()
 
+    # The state this flow issued. A callback that does not carry it back is not
+    # this flow's callback and is ignored outright, so a forged request cannot
+    # even reach the exchange logic.
+    expected_state: str = ""
+
     def do_GET(self) -> None:  # noqa: N802 - stdlib naming
         params = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         flat = {k: v[0] for k, v in params.items() if v}
+
+        # Reject anything not bound to this flow before looking at its contents.
+        # secrets.compare_digest over a value we generated ourselves, so the
+        # comparison is constant-time and a missing state fails like a wrong one.
+        if not secrets.compare_digest(flat.get("state", ""), _CallbackHandler.expected_state):
+            self.send_response(400)
+            self.end_headers()
+            return
+
         # TMI may hand back either an authorization code or, when it has
         # already completed the exchange itself, the tokens directly.
         if "code" in flat or "access_token" in flat or "error" in flat:
@@ -124,6 +146,7 @@ def authenticate(server: str, idp: str) -> str:
 
     _CallbackHandler.result = {}
     _CallbackHandler.done = threading.Event()
+    _CallbackHandler.expected_state = state
     httpd = http.server.HTTPServer((CALLBACK_HOST, port), _CallbackHandler)
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
@@ -143,11 +166,22 @@ def authenticate(server: str, idp: str) -> str:
             f"Authentication failed: {result['error']} "
             f"{result.get('error_description', '')}".strip()
         )
-    if result.get("state") not in (None, state):
-        raise SystemExit("State mismatch on OAuth callback -- aborting.")
+    # The handler already refused anything whose state did not match, so reaching
+    # here means the callback is bound to this flow. Re-check rather than trust
+    # that, since the two are far apart in the file.
+    if not secrets.compare_digest(result.get("state", ""), state):
+        raise SystemExit("State missing or mismatched on OAuth callback -- aborting.")
 
-    if "access_token" in result:
-        return result["access_token"]
+    # Only accept a token the server minted in exchange for OUR code and
+    # verifier. A token arriving in the callback is not bound to the PKCE
+    # verifier this process generated, so taking it on trust would let anyone
+    # who reaches the listener choose the identity the rest of the run acts as.
+    if "code" not in result:
+        raise SystemExit(
+            "OAuth callback carried no authorization code. Refusing to use a "
+            "token handed straight to the callback: it is not bound to this "
+            "flow's PKCE verifier."
+        )
 
     resp = requests.post(
         f"{server.rstrip('/')}/oauth2/token",
@@ -267,7 +301,13 @@ def main() -> int:
     )
     parser.add_argument("--server", default=DEFAULT_SERVER, help=f"TMI base URL (default: {DEFAULT_SERVER})")
     parser.add_argument("--idp", default=DEFAULT_IDP, help=f"OAuth provider id (default: {DEFAULT_IDP})")
-    parser.add_argument("--token", help="Existing bearer token; skips the browser login")
+    # A token is a credential, so it is read from a file rather than argv: argv
+    # is world-readable via ps and lands in shell history. Same reasoning as
+    # --value-file below.
+    parser.add_argument(
+        "--token-file",
+        help="File containing an existing bearer token; skips the browser login",
+    )
 
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -289,7 +329,14 @@ def main() -> int:
     args = parser.parse_args()
     server = args.server.rstrip("/")
 
-    token = args.token or authenticate(server, args.idp)
+    if args.token_file:
+        with open(args.token_file, encoding="utf-8") as fh:
+            token = fh.read().strip()
+        if not token:
+            print(f"error: {args.token_file} is empty", file=sys.stderr)
+            return 2
+    else:
+        token = authenticate(server, args.idp)
 
     handlers = {
         "list": cmd_list,
