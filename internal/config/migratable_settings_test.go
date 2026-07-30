@@ -184,3 +184,60 @@ func TestDefaultOperationalSettings_OnlyOperational(t *testing.T) {
 		t.Error("expected websocket.inactivity_timeout_seconds among operational settings")
 	}
 }
+
+// A callback URL supplied via TMI_OAUTH_CALLBACK_URL must be reported as
+// Source "environment" so GetMigratableSettings marks it Explicit.
+//
+// This is load-bearing, not cosmetic. SettingsService.getConfigSetting drops
+// any non-Explicit operational setting, so GetString("auth.oauth_callback_url")
+// falls through to the database. On AWS that meant a stale
+// http://localhost:8080/oauth2/callback row won over a correctly-set
+// TMI_OAUTH_CALLBACK_URL, and every provider's redirect_uri (Google, GitHub,
+// Microsoft) was advertised as localhost — OAuth sign-in could not complete.
+// The setting used to hardcode Source: "config", unlike the 130 others that
+// route through settingSource().
+func TestGetMigratableSettings_OAuthCallbackURLHonorsEnvironment(t *testing.T) {
+	t.Setenv("TMI_OAUTH_CALLBACK_URL", "https://api.example.test/oauth2/callback")
+	cfg := &Config{Auth: AuthConfig{OAuth: OAuthConfig{
+		CallbackURL: "https://api.example.test/oauth2/callback",
+	}}}
+	found := findSetting(cfg.GetMigratableSettings(), "auth.oauth_callback_url")
+	require.NotNil(t, found)
+	assert.Equal(t, "environment", found.Source)
+	assert.True(t, found.Explicit, "env-supplied callback URL must outrank the database row")
+	assert.Equal(t, "TMI_OAUTH_CALLBACK_URL", found.EnvVar)
+}
+
+// With no env var set, the struct default must stay non-Explicit so the
+// database remains reachable for this admin-only, hot-reloadable setting.
+func TestGetMigratableSettings_OAuthCallbackURLDefaultDefersToDatabase(t *testing.T) {
+	t.Setenv("TMI_OAUTH_CALLBACK_URL", "")
+	t.Setenv("OAUTH_CALLBACK_URL", "")
+	cfg := &Config{Auth: AuthConfig{OAuth: OAuthConfig{
+		CallbackURL: "http://localhost:8080/oauth2/callback",
+	}}}
+	found := findSetting(cfg.GetMigratableSettings(), "auth.oauth_callback_url")
+	require.NotNil(t, found)
+	assert.Equal(t, "config", found.Source)
+	assert.False(t, found.Explicit, "an unset callback URL must not shadow the database")
+}
+
+// The legacy OAUTH_CALLBACK_URL is honored by auth/config.go but is NOT bound by
+// this package's OAuthConfig.CallbackURL struct tag. It must therefore NOT count
+// as "environment" here: doing so would report Explicit while Value was still the
+// localhost struct default, and an Explicit default outranks the database — the
+// fallback would become an override, which is a worse failure than the bug this
+// fix addresses.
+func TestGetMigratableSettings_OAuthCallbackURLIgnoresUnboundLegacyEnvName(t *testing.T) {
+	t.Setenv("TMI_OAUTH_CALLBACK_URL", "")
+	t.Setenv("OAUTH_CALLBACK_URL", "https://legacy.example.test/oauth2/callback")
+	// Value is the struct default, because this package never reads the legacy name.
+	cfg := &Config{Auth: AuthConfig{OAuth: OAuthConfig{
+		CallbackURL: "http://localhost:8080/oauth2/callback",
+	}}}
+	found := findSetting(cfg.GetMigratableSettings(), "auth.oauth_callback_url")
+	require.NotNil(t, found)
+	assert.Equal(t, "config", found.Source)
+	assert.False(t, found.Explicit,
+		"an env name this package does not bind must not make the default Explicit")
+}
