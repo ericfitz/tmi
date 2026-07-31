@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 import unittest
@@ -178,17 +179,39 @@ class TestNodePortExposure(unittest.TestCase):
         cmd_lines = re.findall(r'port-forward".*svc/tmi-server', src)
         self.assertEqual(len(cmd_lines), 1,
                          "exactly one server port-forward command (the no-own-cluster helper)")
-        # Every call site (excluding the def) must be immediately gated on the tuple.
+        # Every call site (excluding the def) must be guarded. There are two
+        # legitimate guard forms:
+        #
+        #   1. The deploy orchestration paths (dev-up / dev-restart), gated on
+        #      cluster_target in ("k3s", "docker-desktop") -- the original #463
+        #      invariant.
+        #   2. The single dispatch inside ensure_port_forward(), which starts a
+        #      forward only when a caller asked for one BY NAME. Its callers
+        #      (currently only seeding, via scripts/run-dbtool.py) do not know
+        #      cluster_target; they know the server URL is loopback, which is
+        #      the equivalent signal. This path is low-volume seeding traffic,
+        #      never the fuzzing campaign -- the campaign still hits the
+        #      NodePort directly, which is what #463/#578 actually protect.
+        #
+        # Anything else -- a new, unguarded call site -- must still fail here.
         call_sites = re.findall(r"(?<!def )start_server_port_forward\(\)", src)
         guarded = re.findall(
             r'if cluster_target in \("k3s", "docker-desktop"\):\n\s+start_server_port_forward\(\)',
             src,
         )
+        by_name = re.findall(
+            r'if name == "server":\n\s+start_server_port_forward\(\)', src,
+        )
         self.assertGreaterEqual(len(call_sites), 1)
+        self.assertLessEqual(
+            len(by_name), 1,
+            "only ensure_port_forward() may dispatch the server forward by name",
+        )
         self.assertEqual(
-            len(call_sites), len(guarded),
+            len(call_sites), len(guarded) + len(by_name),
             "every start_server_port_forward() call must be gated on "
-            "cluster_target in ('k3s', 'docker-desktop')",
+            "cluster_target in ('k3s', 'docker-desktop'), or be the single "
+            "by-name dispatch inside ensure_port_forward()",
         )
         self.assertIn("svc/redis", src, "deploy.py should still forward redis")
 
@@ -210,6 +233,119 @@ class TestNodePortExposure(unittest.TestCase):
                       "supervised forward must run in its own session for group teardown")
         self.assertIn("killpg", src,
                       "teardown must signal the process group to stop the kubectl child")
+
+
+class TestPostgresPortForward(unittest.TestCase):
+    """Seeding opens a direct connection to localhost:5432, so the in-cluster
+    Postgres needs a forward. It is on-demand (never started by dev-up, whose
+    5432 would collide with a locally installed PostgreSQL) and pidfile-tracked
+    so stop_port_forward() tears it down deliberately instead of the legacy
+    reaper killing it as an orphan -- the reason a hand-started forward never
+    survived a dev-restart."""
+
+    def test_postgres_forward_command_exists_and_pins_context(self):
+        src = (Path(deploy.__file__)).read_text()
+        cmd = re.findall(r'port-forward".*svc/postgres', src)
+        self.assertEqual(len(cmd), 1,
+                         "exactly one postgres port-forward command")
+        # #580: an unpinned kubectl resolves the CURRENT context on every
+        # respawn, so a context switch would silently retarget localhost.
+        self.assertIn(
+            '["kubectl", "--context", ctx, "-n", NS, "port-forward", "svc/postgres"',
+            src,
+            "postgres forward must pin --context like the redis/server forwards",
+        )
+
+    def test_dev_up_does_not_start_postgres_forward(self):
+        """It is on-demand only: 5432 collides with a local PostgreSQL install,
+        and a developer who never runs CATS should not have to care."""
+        src = (Path(deploy.__file__)).read_text()
+        wait_body = src.split("def wait_and_forward")[1].split("\ndef ")[0]
+        self.assertNotIn("start_postgres_port_forward()", wait_body,
+                         "dev-up must not start the postgres forward")
+
+    def test_stop_port_forward_tears_down_postgres(self):
+        src = (Path(deploy.__file__)).read_text()
+        stop_body = src.split("def stop_port_forward()")[1].split("\ndef ")[0]
+        self.assertIn("POSTGRES_PORT_FORWARD_PID", stop_body,
+                      "stop_port_forward must tear the postgres forward down by pidfile")
+
+    def test_each_starter_stops_only_its_own_pidfile(self):
+        """The blanket stop_port_forward() used to run inside
+        start_redis_port_forward(), which cleared every pidfile and forced an
+        ordering constraint between forwards (and destroyed the postgres one on
+        every dev-up)."""
+        src = (Path(deploy.__file__)).read_text()
+        for fn in ("start_redis_port_forward", "start_server_port_forward",
+                   "start_postgres_port_forward"):
+            body = src.split(f"def {fn}()")[1].split("\ndef ")[0]
+            # A bare call statement on its own line -- so a docstring that
+            # merely mentions stop_port_forward() in prose does not trip this.
+            self.assertIsNone(
+                re.search(r"^\s*stop_port_forward\(\)\s*$", body, re.MULTILINE),
+                f"{fn} must not call the blanket stop_port_forward()",
+            )
+
+
+class TestEnsurePortForward(unittest.TestCase):
+    """ensure_port_forward() is the reusable entry point routines call instead
+    of assuming a developer started a forward by hand (modelled on
+    tmi_common.ensure_oauth_stub)."""
+
+    def test_known_names(self):
+        self.assertEqual(
+            set(deploy._FORWARDS), {"server", "redis", "postgres"},
+        )
+
+    def test_unknown_name_exits(self):
+        with self.assertRaises(SystemExit):
+            deploy.ensure_port_forward("nope")
+
+    def test_healthy_forward_is_not_restarted(self):
+        """Idempotence matters: callers invoke this unconditionally, and it must
+        not churn a forward that dev-up already established."""
+        started = []
+        with mock.patch.object(deploy, "_forward_is_healthy", return_value=True), \
+             mock.patch.object(deploy, "start_postgres_port_forward",
+                               side_effect=lambda: started.append("postgres")):
+            deploy.ensure_port_forward("postgres")
+        self.assertEqual(started, [], "a healthy forward must not be restarted")
+
+    def test_unhealthy_forward_is_started(self):
+        started = []
+        with mock.patch.object(deploy, "_forward_is_healthy", return_value=False), \
+             mock.patch.object(deploy, "wait_for_port"), \
+             mock.patch.object(deploy, "start_postgres_port_forward",
+                               side_effect=lambda: started.append("postgres")):
+            deploy.ensure_port_forward("postgres")
+        self.assertEqual(started, ["postgres"])
+
+    def test_start_waits_for_the_port_to_bind(self):
+        """The supervisor is spawned asynchronously (~3s to bind for postgres),
+        so returning right after the starter would hand the caller a forward
+        that is not yet usable."""
+        with mock.patch.object(deploy, "_forward_is_healthy", return_value=False), \
+             mock.patch.object(deploy, "start_postgres_port_forward"), \
+             mock.patch.object(deploy, "wait_for_port") as waited:
+            deploy.ensure_port_forward("postgres")
+        waited.assert_called_once()
+        self.assertEqual(waited.call_args.args[0], deploy.POSTGRES_PORT)
+
+    def test_healthy_forward_does_not_wait(self):
+        """The early return must be cheap -- no polling when nothing started."""
+        with mock.patch.object(deploy, "_forward_is_healthy", return_value=True), \
+             mock.patch.object(deploy, "wait_for_port") as waited:
+            deploy.ensure_port_forward("postgres")
+        waited.assert_not_called()
+
+    def test_forward_on_another_context_is_not_healthy(self):
+        """#580: a live supervisor pointing localhost at a DIFFERENT cluster is
+        worse than none -- it must be replaced, not reused."""
+        record = mock.Mock(pid=os.getpid(), context="some-other-context")
+        with mock.patch.object(deploy.portfwd, "read_pidfile", return_value=record), \
+             mock.patch.object(deploy, "current_kube_context", return_value="k3s-rp"), \
+             mock.patch.object(deploy.portfwd, "port_listeners", return_value=[(1, "x")]):
+            self.assertFalse(deploy._forward_is_healthy("postgres"))
 
 
 class TestServerRolloutTimeout(unittest.TestCase):

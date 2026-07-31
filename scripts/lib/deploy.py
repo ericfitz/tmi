@@ -22,7 +22,7 @@ import cluster
 import portfwd
 from tmi_common import (
     check_tool, container_exists, container_is_running, get_project_root,
-    log_error, log_info, log_success, run_cmd,
+    log_error, log_info, log_success, run_cmd, wait_for_port,
 )
 
 # ---------------------------------------------------------------------------
@@ -57,6 +57,21 @@ PORT_FORWARD_PID = "/tmp/tmi-dev-portforward.pid"
 # localhost:6379 — so forward the in-cluster Redis to the host as well. Redis is
 # low-throughput from the host (test setup only), so a port-forward is fine here.
 REDIS_PORT_FORWARD_PID = "/tmp/tmi-dev-redis-portforward.pid"
+# Postgres is an in-cluster StatefulSet reachable only as a ClusterIP Service.
+# Seeding (scripts/run-dbtool.py, which the cats plugin also calls as its `seed`
+# hook) opens a DIRECT database connection using config-development.yml's
+# localhost:5432, so it needs this forward on top of the server one.
+#
+# Unlike the redis and server forwards, this one is NOT started by dev-up: 5432
+# collides with a locally installed PostgreSQL on many machines, and a developer
+# who never runs CATS should not have to care. It is established on demand by
+# ensure_port_forward("postgres"). It is tracked by a pidfile like the others so
+# stop_port_forward() tears it down deliberately -- a hand-started forward is
+# instead matched by that function's legacy reaper (its "-n tmi-platform
+# port-forward svc/" pattern) and killed as an orphan on the next dev-up /
+# dev-restart / dev-down, which is exactly why seeding could not rely on one.
+POSTGRES_PORT_FORWARD_PID = "/tmp/tmi-dev-postgres-portforward.pid"
+POSTGRES_PORT = 5432
 
 # Public base images the docker-desktop node would otherwise pull from cgr.dev on
 # first bring-up. Docker Desktop Kubernetes' containerd pulls these independently
@@ -570,8 +585,9 @@ def wait_and_forward(db: str = "postgres", cluster_target: str = "docker-desktop
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", f"--timeout={server_rollout_timeout(db)}"])
     start_redis_port_forward()
     # k3s and docker-desktop have no extraPortMappings, so preserve localhost:8080
-    # with a server port-forward. Start it AFTER the redis forward, whose
-    # stop_port_forward() clears both pidfiles, so this one survives.
+    # with a server port-forward. Order no longer matters here: each starter now
+    # stops only its own pidfile, so these two (and the on-demand postgres
+    # forward) cannot clobber each other.
     if cluster_target in ("k3s", "docker-desktop"):
         start_server_port_forward()
     wait_for_server()
@@ -627,9 +643,17 @@ def _preflight_port(port: int) -> None:
     time.sleep(0.5)
     for pid, command in portfwd.port_listeners(port):
         if not portfwd.is_kubectl_forward(command):
+            hint = ""
+            if port == POSTGRES_PORT:
+                hint = (
+                    f"\nA locally installed PostgreSQL commonly listens on {POSTGRES_PORT}. "
+                    "Stop it (or free the port) and retry — seeding talks to the in-cluster "
+                    "database, so silently using the local one would seed the wrong database."
+                )
             log_error(
                 f"Port {port} is held by an unrelated process (PID {pid}): {command}\n"
                 "Refusing to start a port-forward that would not reach the dev cluster."
+                f"{hint}"
             )
             sys.exit(1)
 
@@ -683,8 +707,16 @@ def start_redis_port_forward() -> None:
     to whatever context is CURRENT at each respawn, so switching context (say,
     to a remote EKS cluster) after this forward starts would re-point "local"
     Redis at the wrong cluster without any visible error (#580).
+
+    Stops only its OWN forward, via _spawn_supervised_forward's per-pidfile
+    stop. This used to call the blanket stop_port_forward(), which cleared
+    every pidfile — forcing the server forward to be started afterwards to
+    survive, an ordering constraint that would silently extend to any third
+    forward, and destroying an on-demand postgres forward (see
+    POSTGRES_PORT_FORWARD_PID) on every dev-up/dev-restart. Squatters are
+    still handled: _spawn_supervised_forward reaps marker-scoped orphans and
+    _preflight_port reclaims the port from any other kubectl forward.
     """
-    stop_port_forward()
     ctx = current_kube_context()
     _spawn_supervised_forward(
         ["kubectl", "--context", ctx, "-n", NS, "port-forward", "svc/redis", "6379:6379"],
@@ -719,6 +751,99 @@ def start_server_port_forward() -> None:
     )
 
 
+def start_postgres_port_forward() -> None:
+    """Forward the in-cluster Postgres to localhost:5432 for host-side seeding.
+
+    Seeding is low-volume (a few hundred inserts), so the userspace forward's
+    throughput ceiling -- the #463/#578 problem that bans a forward for the
+    fuzzing campaign itself -- does not apply. The campaign still hits the
+    NodePort directly; this forward only ever serves seeding and prep.
+
+    The kube context is pinned via --context for the same reason as the redis
+    and server forwards: the supervisor re-execs kubectl on every pod roll, and
+    an unpinned kubectl would resolve whatever context is CURRENT at each
+    respawn -- so switching context mid-run would silently re-point "localhost"
+    Postgres at another cluster (#580).
+    """
+    ctx = current_kube_context()
+    _spawn_supervised_forward(
+        ["kubectl", "--context", ctx, "-n", NS, "port-forward", "svc/postgres",
+         f"{POSTGRES_PORT}:{POSTGRES_PORT}"],
+        POSTGRES_PORT_FORWARD_PID,
+        f"localhost:{POSTGRES_PORT} -> svc/postgres:{POSTGRES_PORT}",
+        port=POSTGRES_PORT,
+        context=ctx,
+    )
+
+
+# Named dev port-forwards that ensure_port_forward() knows how to establish.
+# The starter functions own their kubectl argv; this table only maps a name to
+# the pidfile/port used for the health check and to the starter itself.
+_FORWARDS: dict[str, tuple[str, int]] = {
+    "server": (PORT_FORWARD_PID, HOST_PORT),
+    "redis": (REDIS_PORT_FORWARD_PID, 6379),
+    "postgres": (POSTGRES_PORT_FORWARD_PID, POSTGRES_PORT),
+}
+
+
+def _forward_is_healthy(name: str) -> bool:
+    """True when the named forward is already up, on-target, and listening.
+
+    All three conditions matter. A live supervisor whose recorded context is
+    not the current one is NOT healthy: it is forwarding localhost to a
+    different cluster, which is the #580 failure mode, so it must be replaced
+    rather than reused.
+    """
+    pid_path, port = _FORWARDS[name]
+    record = portfwd.read_pidfile(pid_path)
+    if record is None:
+        return False
+    try:
+        os.killpg(os.getpgid(record.pid), 0)
+    except (ProcessLookupError, PermissionError, OSError):
+        return False
+    if record.context and record.context != current_kube_context():
+        return False
+    return bool(portfwd.port_listeners(port))
+
+
+def ensure_port_forward(name: str) -> None:
+    """Ensure the named dev port-forward is up, starting it only if needed.
+
+    The routine that needs a forward should call this rather than relying on a
+    developer having started one by hand -- a hand-started forward does not
+    survive the next dev-up/dev-restart/dev-down (see POSTGRES_PORT_FORWARD_PID)
+    and nothing detects its absence until a confusing downstream failure.
+
+    Modelled on tmi_common.ensure_oauth_stub: probe, return quietly if already
+    healthy, otherwise start and let the underlying helpers hard-fail loudly.
+    Idempotent by design, so callers can invoke it unconditionally without
+    churning forwards that dev-up already established.
+
+    Hard-fails (via _preflight_port) if an unrelated process holds the port,
+    rather than binding elsewhere or proceeding against the wrong target.
+    """
+    if name not in _FORWARDS:
+        log_error(f"Unknown port-forward '{name}' (known: {', '.join(sorted(_FORWARDS))})")
+        sys.exit(1)
+    if _forward_is_healthy(name):
+        log_info(f"Port-forward already running: {name}")
+        return
+    log_info(f"Port-forward for {name} not running, starting it...")
+    if name == "server":
+        start_server_port_forward()
+    elif name == "redis":
+        start_redis_port_forward()
+    else:
+        start_postgres_port_forward()
+    # The supervisor is spawned asynchronously, so the port is not bound the
+    # instant the starter returns -- measured ~3s for postgres. Without this
+    # wait the contract would be "started", not "usable", and an immediate
+    # connect would race it. ensure_oauth_stub does the same for the same
+    # reason. Callers may then connect as soon as this returns.
+    wait_for_port(_FORWARDS[name][1], timeout=30, label=f"{name} port-forward")
+
+
 def _stop_port_forward_pidfile(pid_path: str) -> None:
     record = portfwd.read_pidfile(pid_path)
     if record is not None:
@@ -747,6 +872,11 @@ def _stop_port_forward_pidfile(pid_path: str) -> None:
 def stop_port_forward() -> None:
     _stop_port_forward_pidfile(PORT_FORWARD_PID)
     _stop_port_forward_pidfile(REDIS_PORT_FORWARD_PID)
+    # Tear the on-demand postgres forward down deliberately here, by pidfile,
+    # rather than leaving it to the legacy reaper below — whose pattern does
+    # match it, but which would report it as an "orphan" and, being a blanket
+    # sweep, gives no way to distinguish a tracked forward from a stray one.
+    _stop_port_forward_pidfile(POSTGRES_PORT_FORWARD_PID)
     # Legacy tier (#580): reap any kubectl port-forward supervisor for a
     # tmi-platform Service that predates marker-based pidfile tracking
     # entirely — e.g. a forward started before this module existed, or one
