@@ -955,3 +955,103 @@ rules:
     when:
       result_reason: { equals: Not matching response schema }
       response_content_type: { contains: text/event-stream }
+
+  # rule 61: XXE payloads stored as opaque note content (run 20260730T220551Z)
+  # TMI has no XML parser; note `content` is a JSON string that is stored and
+  # returned HTML-escaped. Verified across all 20 findings in the run: zero
+  # responses expanded an entity (no XXE_TEST_SUCCESS, no /etc/* content) --
+  # the payload comes back as "]&gt;&amp;test;".
+  - id: XXE_NOTES_CONTENT_NOT_PARSED
+    why: "Note content is stored as an opaque, HTML-escaped string and never parsed as XML. All 20 findings in run 20260730T220551Z returned the payload escaped with no entity expansion."
+    when:
+      result_reason: { equals: Potential XXE vulnerability detected }
+      contract_path: { contains: /notes }
+
+  # rule 62: mass assignment flagged on a declared, writable property
+  # CATS treats a field named like `*_enabled` as privileged. `timmy_enabled`
+  # is a documented, non-readOnly property of TeamProjectNoteBase and AssetBase,
+  # so a client is supposed to be able to set it and see it echoed back.
+  - id: MASS_ASSIGNMENT_DECLARED_WRITABLE_FIELD
+    why: "timmy_enabled is a declared, non-readOnly property in the spec; the client is meant to set it. CATS flags it only because the name pattern looks privilege-like."
+    when:
+      result_reason: { equals: Mass Assignment vulnerability detected }
+      response_body: { contains: timmy_enabled }
+
+  # rule 63: mass assignment heuristic run against an SSE stream
+  # POST /threat_models/{id}/chat/sessions streams text/event-stream. CATS wraps
+  # the non-JSON body in a notAJson envelope, then runs its echo heuristic over
+  # the raw stream text -- there is no JSON object whose fields could have been
+  # mass-assigned.
+  - id: MASS_ASSIGNMENT_SSE_STREAM_ENVELOPE
+    why: "The endpoint streams text/event-stream as the spec declares. CATS wraps it in a notAJson envelope and runs a field-echo heuristic over stream text, where no assignable JSON object exists."
+    when:
+      result_reason: { equals: Mass Assignment vulnerability detected }
+      response_body: { contains: notAJson }
+
+  # rule 64: IDOR heuristic on a filtered list that returned nothing
+  # CATS substitutes a foreign id into a list filter and flags the 200. The
+  # response is an empty page (total 0) -- the filter matched no rows, so no
+  # other user's data was disclosed. Scoped to total==0 so a response that
+  # actually leaks rows still surfaces.
+  - id: IDOR_EMPTY_RESULT_SET
+    why: "The list endpoint returned an empty page (total 0) for the substituted id, so nothing was disclosed. Scoped to total==0 so any response that actually returns rows is still reported."
+    when:
+      result_reason: { equals: Potential IDOR vulnerability detected }
+      json_body.total: { equals: 0 }
+
+  # rule 65: cross-field business rule CATS cannot infer
+  # POST /threat_models/{id}/feedback rejects target_field unless
+  # target_type=threat_classification. That constraint is not expressible in
+  # the schema, so CATS generates combinations the server correctly refuses.
+  - id: FEEDBACK_TARGET_FIELD_CROSS_FIELD_400
+    why: "target_field is only valid with target_type=threat_classification -- a cross-field rule not expressible in OpenAPI. The 400 is the server correctly rejecting a combination CATS cannot know is invalid."
+    when:
+      response_code: 400
+      json_body.error_description: { contains: "target_field is allowed only for" }
+
+  # rule 66: unknown field names with injected whitespace are ignored
+  # The fuzzer renames a field (e.g. "description" -> "descr \tiption").
+  # Go's decoder does not match the mangled key, so the field is ignored and the
+  # resource is created without it. TMI declares no additionalProperties:false,
+  # so accepting the request is the documented contract.
+  #
+  # Verified in run 20260730T220551Z: all 29 findings mangle an OPTIONAL field
+  # only -- zero mangle a required field, so this never hides a required-field
+  # validation bypass. RE-VERIFY that property before keeping this rule if the
+  # request models change (a mangled required field must still yield 400).
+  - id: WHITESPACE_FIELD_NAMES_IGNORED_2XX
+    why: "A field name with injected whitespace is an unknown key, which the decoder ignores; TMI declares no additionalProperties:false so the 2xx is the documented contract. Verified all 29 findings mangled only optional fields -- no required field was bypassed."
+    when:
+      fuzzer: { equals: InsertWhitespacesInFieldNamesField }
+      response_code: { in: [200, 201] }
+
+  # rule 67: POST to an existing singleton resource
+  # /me/preferences is a per-user singleton; POST creates and PUT updates. Once
+  # the fuzzing identity has preferences, every later POST is correctly a 409.
+  - id: PREFERENCES_ALREADY_EXIST_409
+    why: "/me/preferences is a per-user singleton: POST creates, PUT updates. After the first successful POST every subsequent one is correctly a conflict."
+    when:
+      response_code: 409
+      json_body.error_description: { contains: "preferences already exist" }
+
+  # rule 68: free-form preferences payload echoed back
+  # UserPreferences is declared additionalProperties: {type: object,
+  # additionalProperties: true} with maxProperties 20, so arbitrary client keys
+  # holding arbitrary objects are the design. The server still enforces the 1KB
+  # size, the 20-client cap and the ^[a-zA-Z0-9_-]{1,64}$ key pattern in
+  # api/user_preferences_handlers.go, so this is not unbounded storage.
+  - id: PREFERENCES_FREEFORM_JSON_ECHO
+    why: "UserPreferences declares free-form per-client objects, so echoing an arbitrary JSON payload is correct. Size, client-count and key-pattern limits are still enforced server-side."
+    when:
+      contract_path: { equals: /me/preferences }
+      method: { equals: PUT }
+      response_code: 200
+
+  # rule 69: restore of a threat model that is not deleted
+  # Supersedes the wording in the older "not in a deleted state" rule, which no
+  # longer matches -- the server now answers "Threat model is not deleted".
+  - id: THREAT_MODEL_RESTORE_NOT_DELETED_409
+    why: "Restoring a threat model that was never deleted is correctly a conflict. The existing 'not in a deleted state' rule no longer matches the server's current wording."
+    when:
+      response_code: 409
+      json_body.error_description: { contains: "is not deleted" }
