@@ -228,8 +228,10 @@
     "groups": [
       {
         "name": "CATS Test Group",
+        "_comment": "charlie is the fuzzing identity and must be a MEMBER here, not just an admin: GET /me/groups/{group_id}/members answers from the caller's own membership and 403s ('Not a member of this group') otherwise. Without this, all 12 findings on that path were 403s misread as a configuration gap. Both /me/groups routes are read-only, so the campaign cannot remove charlie and re-break itself.",
         "members": [
-          "cats-target"
+          "cats-target",
+          "charlie"
         ]
       },
       {
