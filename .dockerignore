@@ -83,5 +83,28 @@ test/outputs/
 # test/outputs/ in the cats-plugin migration but the exclusion was never
 # carried over, so the build context had grown to 14 GB.
 test/results/
+# test/postman/test-results/ is newman run output (~400 MB), already gitignored
+# and regenerable -- same class as test/results/ above. The collections
+# themselves are tracked source and stay in the context.
+test/postman/test-results/
 security-reports/
 *.backup
+
+# Infrastructure-as-code. No Dockerfile references terraform/, and `terraform
+# init` caches provider binaries under .terraform/ -- 4.3 GB across eight
+# directories on a machine that has init'd every environment (aws-public alone
+# is 1.6 GB). That was enough to fail `docker build` outright with "no space
+# left on device" while copying terraform-provider-aws into the context.
+# Excluding the whole tree, not just **/.terraform/, keeps it from regrowing
+# the next time a new environment is init'd.
+terraform/
+
+# Node dependencies: regenerable from package-lock.json and not referenced by
+# any Dockerfile (no image runs a JS build).
+node_modules/
+
+# Coverage and tooling caches -- regenerable test output, same rationale as
+# test/outputs/ above.
+coverage/
+coverage_html/
+.dedupe/
