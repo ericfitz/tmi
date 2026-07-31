@@ -433,7 +433,9 @@ func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 	// Create repositorys in store
 	if err := h.repositoryStore.BulkCreate(c.Request.Context(), repositorys, threatModelID); err != nil {
 		logger.Error("Failed to bulk create repository code references: %v", err)
-		HandleRequestError(c, ServerError("Failed to create repository code references"))
+		HandleRequestError(c, StoreErrorToRequestError(err,
+			fmt.Sprintf("Threat model %s not found", threatModelID),
+			"Failed to create repository code references"))
 		return
 	}
 
@@ -445,7 +447,7 @@ func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 
 // PatchRepository applies JSON patch operations to a repository
 // PATCH /threat_models/{threat_model_id}/repositories/{repository_id}
-// SEM@270f55053109ed75ccf6cdf123884b9edf831d15: apply JSON patch operations to a repository code reference, with authorization and audit (mutates DB)
+// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON patch operations to a repository reference, with audit (mutates DB)
 func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchRepository - applying patch operations to repository")
@@ -538,7 +540,7 @@ func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 
 // BulkUpdateRepositorys updates or creates multiple repositories (upsert operation)
 // PUT /threat_models/{threat_model_id}/repositories/bulk
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: upsert up to 50 repository code references under a threat model (mutates DB)
+// SEM@2de6d9ced98fa6de4821500a03f276a35f1c450e: upsert multiple repository references under a threat model (mutates DB)
 func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkUpdateRepositorys - upserting multiple repositories")

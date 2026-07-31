@@ -883,7 +883,9 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 	// Create documents in store
 	if err := h.documentStore.BulkCreate(c.Request.Context(), documents, threatModelID); err != nil {
 		logger.Error("Failed to bulk create documents: %v", err)
-		HandleRequestError(c, ServerError("Failed to create documents"))
+		HandleRequestError(c, StoreErrorToRequestError(err,
+			fmt.Sprintf("Threat model %s not found", threatModelID),
+			"Failed to create documents"))
 		return
 	}
 
@@ -895,7 +897,7 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 
 // PatchDocument applies JSON patch operations to a document
 // PATCH /threat_models/{threat_model_id}/documents/{document_id}
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: apply JSON patch operations to a document with role-based authorization and optimistic locking (reads DB)
+// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON patch operations to a document with optimistic locking (mutates DB)
 func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchDocument - applying patch operations to document")
@@ -1002,7 +1004,7 @@ func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 
 // BulkUpdateDocuments updates or creates multiple documents (upsert operation)
 // PUT /threat_models/{threat_model_id}/documents/bulk
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: upsert up to 50 documents for a threat model in a single request (reads DB)
+// SEM@2de6d9ced98fa6de4821500a03f276a35f1c450e: upsert multiple documents under a threat model in one request (mutates DB)
 func (h *DocumentSubResourceHandler) BulkUpdateDocuments(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkUpdateDocuments - upserting multiple documents")

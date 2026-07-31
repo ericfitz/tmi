@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -931,6 +932,54 @@ func TestBulkPatchThreats_ErrorClassification(t *testing.T) {
 			Return(nil, fmt.Errorf("connection reset by peer"))
 
 		req := httptest.NewRequest("PATCH", "/threat_models/"+threatModelID+"/threats/bulk", bytes.NewBuffer(patchBody()))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		mockStore.AssertExpectations(t)
+	})
+}
+
+// BulkCreate wrapped every store error in a 500, the same defect #636 fixed in
+// the bulk PATCH and the BulkUpdate upsert loops but not in the BulkCreate call
+// sites. CATS reached it by posting an array whose items shared one id, which
+// the store answers with dberrors.ErrDuplicate -- a client error that came back
+// as 500 server_error (#637 campaign, POST .../repositories/bulk).
+func TestBulkCreateThreats_ErrorClassification(t *testing.T) {
+	threatModelID := testUUID1
+
+	createBody := func() []byte {
+		body, _ := json.Marshal([]map[string]any{
+			{"name": "Bulk Threat", "description": "d", "severity": "high"},
+		})
+		return body
+	}
+
+	// A duplicate is the caller's problem, not a server fault.
+	t.Run("duplicate from the store is 409, not 500", func(t *testing.T) {
+		r, mockStore := setupThreatSubResourceHandler()
+		mockStore.On("BulkCreate", mock.Anything, mock.AnythingOfType("[]api.Threat")).
+			Return(fmt.Errorf("insert failed: %w", dberrors.ErrDuplicate))
+
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/threats/bulk", bytes.NewBuffer(createBody()))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusConflict, w.Code,
+			"a duplicate key must not be reported as a server fault")
+		mockStore.AssertExpectations(t)
+	})
+
+	// A genuine server fault must still be a 500 -- the fix must not turn every
+	// failure into a client error.
+	t.Run("untyped store failure is still 500", func(t *testing.T) {
+		r, mockStore := setupThreatSubResourceHandler()
+		mockStore.On("BulkCreate", mock.Anything, mock.AnythingOfType("[]api.Threat")).
+			Return(fmt.Errorf("connection reset by peer"))
+
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/threats/bulk", bytes.NewBuffer(createBody()))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)

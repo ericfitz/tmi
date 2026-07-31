@@ -439,7 +439,9 @@ func (h *AssetSubResourceHandler) BulkCreateAssets(c *gin.Context) {
 	// Create assets in store
 	if err := h.assetStore.BulkCreate(c.Request.Context(), assets, threatModelID); err != nil {
 		logger.Error("Failed to bulk create assets: %v", err)
-		HandleRequestError(c, ServerError("Failed to create assets"))
+		HandleRequestError(c, StoreErrorToRequestError(err,
+			fmt.Sprintf("Threat model %s not found", threatModelID),
+			"Failed to create assets"))
 		return
 	}
 
@@ -550,7 +552,7 @@ func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 
 // BulkUpdateAssets updates or creates multiple assets (upsert operation)
 // PUT /threat_models/{threat_model_id}/assets/bulk
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: handle PUT /threat_models/{id}/assets/bulk: replace multiple assets in a single operation (reads DB)
+// SEM@2de6d9ced98fa6de4821500a03f276a35f1c450e: upsert multiple assets under a threat model in one request (mutates DB)
 func (h *AssetSubResourceHandler) BulkUpdateAssets(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkUpdateAssets - upserting multiple assets")
