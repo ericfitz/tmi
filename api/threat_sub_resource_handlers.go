@@ -746,7 +746,9 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 	// Create threats in store
 	if err := h.threatStore.BulkCreate(c.Request.Context(), threats); err != nil {
 		logger.Error("Failed to bulk create threats: %v", err)
-		HandleRequestError(c, ServerError("Failed to create threats"))
+		HandleRequestError(c, StoreErrorToRequestError(err,
+			fmt.Sprintf("Threat model %s not found", threatModelID),
+			"Failed to create threats"))
 		return
 	}
 
@@ -854,7 +856,7 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 
 // BulkPatchThreats applies JSON patch operations to multiple threats
 // PATCH /threat_models/{threat_model_id}/threats/bulk
-// SEM@f34985e914fe8d55039296cf4302878c88329818: apply JSON patch operations to multiple threats with per-threat authorization checks (mutates shared state)
+// SEM@2de6d9ced98fa6de4821500a03f276a35f1c450e: apply JSON patch operations to multiple threats, authorizing each (mutates DB)
 func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkPatchThreats - applying patch operations to multiple threats")
