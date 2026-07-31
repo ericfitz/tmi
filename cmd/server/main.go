@@ -133,7 +133,16 @@ var publicPaths = map[string]bool{
 	"/favicon-16x16.png":            true,
 	"/favicon-32x32.png":            true,
 	"/favicon-96x96.png":            true,
-	// Note: /.well-known/* and /saml/* paths are handled by publicPathPrefixes below
+	// SAML endpoints that carry no user session yet. This list mirrors the
+	// x-public-endpoint markings in api-schema/tmi-openapi.json exactly; the
+	// provider-scoped /saml/{provider}/login and /saml/{provider}/metadata
+	// routes have a variable segment and are matched by isPublicSAMLPath.
+	// NOT public: GET /saml/providers/{idp}/users, which the spec declares
+	// with bearerAuth and whose handler needs the JWT context (see #650).
+	"/saml/acs":       true,
+	"/saml/slo":       true,
+	"/saml/providers": true,
+	// Note: /.well-known/* paths are handled by publicPathPrefixes below
 }
 
 // publicPathPrefixes is a list of path prefixes that don't require authentication
@@ -141,8 +150,31 @@ var publicPathPrefixes = []string{
 	"/oauth2/token",
 	"/static/",
 	"/.well-known/",        // All OAuth/OIDC discovery endpoints
-	"/saml/",               // All SAML endpoints including provider-specific routes like /saml/{provider}/login
 	"/webhook-deliveries/", // Webhook delivery status endpoints (HMAC-authenticated, x-public-endpoint in OpenAPI)
+}
+
+// isPublicSAMLPath reports whether path is one of the two provider-scoped SAML
+// routes that are public: /saml/{provider}/login and /saml/{provider}/metadata.
+//
+// These cannot go in publicPathPrefixes because the provider is a variable
+// segment. A blanket "/saml/" prefix used to cover them, which also swallowed
+// GET /saml/providers/{idp}/users -- that route's handler requires an
+// authenticated user, so it failed closed and returned 401 to every caller,
+// making the endpoint permanently unreachable (#650). Matching exactly three
+// segments keeps any future /saml/ route private until it is added here
+// deliberately.
+//
+// SEM@2cab847bf088e414c70c5e5f9546cb9a7b9a2ac8: report whether a SAML path is one of the two public provider-scoped routes (pure)
+func isPublicSAMLPath(path string) bool {
+	rest, ok := strings.CutPrefix(path, "/saml/")
+	if !ok {
+		return false
+	}
+	provider, action, ok := strings.Cut(rest, "/")
+	if !ok || provider == "" {
+		return false
+	}
+	return action == "login" || action == "metadata"
 }
 
 // PublicPathsMiddleware identifies paths that don't require authentication
@@ -157,7 +189,8 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 		logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] Full URL: %s", c.Request.URL.String())
 		logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] Query params: %s", c.Request.URL.RawQuery)
 
-		// Check if path is public (exact match or prefix match)
+		// Check if path is public (exact match, prefix match, or a
+		// provider-scoped public SAML route)
 		isPublic := publicPaths[c.Request.URL.Path]
 		if !isPublic {
 			for _, prefix := range publicPathPrefixes {
@@ -166,6 +199,9 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 					break
 				}
 			}
+		}
+		if !isPublic {
+			isPublic = isPublicSAMLPath(c.Request.URL.Path)
 		}
 
 		// Note: /webhook-deliveries/ paths are public (HMAC-authenticated).

@@ -3,7 +3,7 @@
   "info": {
     "title": "TMI (Threat Modeling Improved) API",
     "description": "A RESTful API for collaborative threat modeling with full X6 graph library compatibility. This API provides schemas that align with AntV X6 cell object models for seamless integration with modern diagramming libraries. Supports OAuth 2.0 authentication with client callback integration for seamless single-page application authentication flows.\n\n## API Design v1.1.0\n\n### Authorization Model\nTMI uses hierarchical authorization: access control is defined at the ThreatModel level via the authorization field (readers, writers, owners). All child resources (Assets, Diagrams, Documents, Notes, Repositories, Threats) inherit permissions from their parent ThreatModel. This simplifies permission management and ensures consistent access control.\n\n### Bulk Operations\nNotes and Diagrams do not support bulk operations due to their unique creation workflows and lack of valid bulk use cases. All other resources (Threats, Assets, Documents, Repositories) support full bulk operations: POST (create), PUT (upsert), PATCH (partial update), DELETE (batch delete).\n\nAll resources support bulk metadata operations regardless of resource-level bulk support.\n\n### List Response Strategy\n- ThreatModels return summary information (TMListItem) because they contain many child objects that can be large.\n- Diagrams return summary information (DiagramListItem) because diagram data (cells, images) can be large.\n- Notes return summary information (NoteListItem) because the content field can be large.\n- Threats, Assets, Documents, Repositories return full schemas as they are relatively small and static.\n\n### PATCH Support\nAll resources support PATCH for partial updates using JSON Patch (RFC 6902). This is particularly useful for:\n- Assets: Array field updates (affected_assets, trust_boundaries) ensuring no duplicates\n- Notes: Updating name/description without changing content field\n- All resources: Efficient updates without full object replacement\n",
-    "version": "1.6.3",
+    "version": "1.6.4",
     "contact": {
       "name": "TMI Development Team",
       "url": "https://github.com/ericfitz/tmi",
@@ -440,7 +440,8 @@
           "include_in_report": true,
           "timmy_enabled": true,
           "access_status": "accessible",
-          "content_source": "http"
+          "content_source": "http",
+          "alias": 1
         },
         "properties": {
           "version": {
@@ -6007,7 +6008,16 @@
             "environment": "production",
             "compliance": "PCI-DSS"
           },
-          "cells": [],
+          "cells": [
+            {
+              "children": [],
+              "id": "550e8400-e29b-41d4-a716-446655440000",
+              "labels": [],
+              "metadata": {},
+              "security_boundary": false,
+              "shape": "process"
+            }
+          ],
           "assets": []
         }
       },
@@ -12091,7 +12101,7 @@
           },
           {
             "type": "object",
-            "description": "Repository update item with required ID for bulk operations",
+            "description": "Repository update item with required ID and name for bulk operations",
             "properties": {
               "id": {
                 "type": "string",
@@ -12102,7 +12112,8 @@
               }
             },
             "required": [
-              "id"
+              "id",
+              "name"
             ]
           }
         ],
@@ -16963,7 +16974,15 @@
                   "documents": [],
                   "repositories": [],
                   "notes": [],
-                  "assets": []
+                  "assets": [],
+                  "issue_uri": "https://example.com/resource",
+                  "metadata": [
+                    {
+                      "key": "environment",
+                      "value": "production"
+                    }
+                  ],
+                  "status_updated": "2026-02-01T09:00:00Z"
                 }
               }
             }
@@ -27979,7 +27998,9 @@
         },
         "x-tmi-authz": {
           "ownership": "reader"
-        }
+        },
+        "x-skip-deleted-resource-check": true,
+        "x-skip-deleted-resource-check-reason": "Collaboration sessions are not CRUD resources: DELETE ends the current session and a later POST starts a new one on the same diagram, so a 200 after a DELETE is correct rather than a stale-resource leak. CATS CheckDeletedResourcesNotAvailable assumed otherwise and reported 2 false positives."
       },
       "post": {
         "tags": [
@@ -30023,7 +30044,11 @@
                   "name": "Security Analysis Notes",
                   "content": "Initial security analysis of the authentication flow.",
                   "created_at": "2026-01-15T10:00:00Z",
-                  "modified_at": "2026-01-15T10:00:00Z"
+                  "modified_at": "2026-01-15T10:00:00Z",
+                  "alias": 1,
+                  "description": "Notes from initial security review session",
+                  "include_in_report": true,
+                  "timmy_enabled": true
                 }
               }
             },
@@ -30158,7 +30183,13 @@
                   "name": "Security Analysis Notes",
                   "content": "Initial security analysis of the authentication flow.",
                   "created_at": "2026-01-15T10:00:00Z",
-                  "modified_at": "2026-01-16T14:30:00Z"
+                  "modified_at": "2026-01-16T14:30:00Z",
+                  "alias": 1,
+                  "auto_generated": false,
+                  "description": "Notes from initial security review session",
+                  "include_in_report": true,
+                  "metadata": [],
+                  "timmy_enabled": true
                 }
               }
             },
@@ -30304,7 +30335,10 @@
                   "name": "Security Analysis Notes - Replaced",
                   "content": "Completely revised security analysis document.",
                   "created_at": "2026-01-15T10:00:00Z",
-                  "modified_at": "2026-01-17T09:00:00Z"
+                  "modified_at": "2026-01-17T09:00:00Z",
+                  "description": "Notes from initial security review session",
+                  "include_in_report": true,
+                  "timmy_enabled": true
                 }
               }
             },
@@ -30580,7 +30614,13 @@
                   "name": "Security Analysis Notes - Updated",
                   "content": "Updated security analysis with additional findings.",
                   "created_at": "2026-01-15T10:00:00Z",
-                  "modified_at": "2026-01-17T09:00:00Z"
+                  "modified_at": "2026-01-17T09:00:00Z",
+                  "alias": 1,
+                  "auto_generated": false,
+                  "description": "Notes from initial security review session",
+                  "include_in_report": true,
+                  "metadata": [],
+                  "timmy_enabled": true
                 }
               }
             },
@@ -32078,7 +32118,15 @@
                   "type": "data",
                   "description": "Primary database storing user credentials",
                   "created_at": "2026-01-15T10:00:00Z",
-                  "modified_at": "2026-01-16T14:30:00Z"
+                  "modified_at": "2026-01-16T14:30:00Z",
+                  "alias": 1,
+                  "classification": [
+                    "classification"
+                  ],
+                  "criticality": "high",
+                  "include_in_report": true,
+                  "sensitivity": "high",
+                  "timmy_enabled": true
                 }
               }
             },
@@ -32246,7 +32294,15 @@
                     "type": "software",
                     "description": "Main API gateway service",
                     "created_at": "2026-01-17T10:00:00Z",
-                    "modified_at": "2026-01-17T10:00:00Z"
+                    "modified_at": "2026-01-17T10:00:00Z",
+                    "alias": 1,
+                    "classification": [
+                      "classification"
+                    ],
+                    "criticality": "high",
+                    "include_in_report": true,
+                    "sensitivity": "high",
+                    "timmy_enabled": true
                   },
                   {
                     "id": "550e8400-e29b-41d4-a716-446655440002",
@@ -32476,7 +32532,14 @@
                     "type": "software",
                     "description": "Updated gateway service",
                     "created_at": "2026-01-17T10:00:00Z",
-                    "modified_at": "2026-01-17T11:00:00Z"
+                    "modified_at": "2026-01-17T11:00:00Z",
+                    "classification": [
+                      "classification"
+                    ],
+                    "criticality": "high",
+                    "include_in_report": true,
+                    "sensitivity": "high",
+                    "timmy_enabled": true
                   }
                 ]
               }
@@ -32607,7 +32670,16 @@
                   "type": "data",
                   "description": "Primary database storing user credentials",
                   "created_at": "2026-01-15T10:00:00Z",
-                  "modified_at": "2026-01-16T14:30:00Z"
+                  "modified_at": "2026-01-16T14:30:00Z",
+                  "alias": 1,
+                  "classification": [
+                    "classification"
+                  ],
+                  "criticality": "high",
+                  "include_in_report": true,
+                  "metadata": [],
+                  "sensitivity": "high",
+                  "timmy_enabled": true
                 }
               }
             },
@@ -32763,7 +32835,14 @@
                   "type": "data",
                   "description": "Primary database storing user credentials - replaced",
                   "created_at": "2026-01-15T10:00:00Z",
-                  "modified_at": "2026-01-17T09:00:00Z"
+                  "modified_at": "2026-01-17T09:00:00Z",
+                  "classification": [
+                    "classification"
+                  ],
+                  "criticality": "high",
+                  "include_in_report": true,
+                  "sensitivity": "high",
+                  "timmy_enabled": true
                 }
               }
             },
@@ -33055,7 +33134,11 @@
                   "type": "data",
                   "description": "Primary database storing user credentials - updated",
                   "created_at": "2026-01-15T10:00:00Z",
-                  "modified_at": "2026-01-17T09:00:00Z"
+                  "modified_at": "2026-01-17T09:00:00Z",
+                  "alias": 1,
+                  "include_in_report": true,
+                  "metadata": [],
+                  "timmy_enabled": true
                 }
               }
             },
@@ -45584,6 +45667,29 @@
                     "provider_id": "109876543210987654321",
                     "display_name": "Alice Developer",
                     "email": "alice@example.com"
+                  },
+                  "created_threat_model_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                  "reviewed_at": "2026-02-01T09:00:00Z",
+                  "reviewed_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "survey_json": {
+                    "pages": [
+                      {
+                        "elements": [
+                          {
+                            "name": "project_name",
+                            "title": "Project Name",
+                            "type": "text"
+                          }
+                        ],
+                        "name": "page1"
+                      }
+                    ]
                   }
                 }
               }
@@ -45764,6 +45870,29 @@
                     "provider_id": "109876543210987654321",
                     "display_name": "Alice Developer",
                     "email": "alice@example.com"
+                  },
+                  "created_threat_model_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                  "reviewed_at": "2026-02-01T09:00:00Z",
+                  "reviewed_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "survey_json": {
+                    "pages": [
+                      {
+                        "elements": [
+                          {
+                            "name": "project_name",
+                            "title": "Project Name",
+                            "type": "text"
+                          }
+                        ],
+                        "name": "page1"
+                      }
+                    ]
                   }
                 }
               }
@@ -50156,7 +50285,32 @@
                   "description": "Core platform infrastructure team",
                   "status": "active",
                   "created_at": "2025-01-15T10:30:00Z",
-                  "modified_at": "2025-01-15T10:30:00Z"
+                  "modified_at": "2025-01-15T10:30:00Z",
+                  "created_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "email_address": "platform-eng@example.com",
+                  "members": [
+                    {
+                      "role": "engineering_lead",
+                      "user": {
+                        "display_name": "Alice Johnson",
+                        "email": "alice@example.com",
+                        "principal_type": "user",
+                        "provider": "github",
+                        "provider_id": "alice@example.com"
+                      },
+                      "user_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                    }
+                  ],
+                  "metadata": [],
+                  "related_teams": [],
+                  "responsible_parties": [],
+                  "uri": "https://wiki.example.com/teams/platform-engineering"
                 }
               }
             },
@@ -50340,7 +50494,28 @@
                   "description": "Core platform infrastructure team",
                   "status": "active",
                   "created_at": "2025-01-15T10:30:00Z",
-                  "modified_at": "2025-06-20T14:22:00Z"
+                  "modified_at": "2025-06-20T14:22:00Z",
+                  "created_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "email_address": "platform-eng@example.com",
+                  "members": [],
+                  "metadata": [],
+                  "modified_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "notes": [],
+                  "related_teams": [],
+                  "responsible_parties": [],
+                  "uri": "https://wiki.example.com/teams/platform-engineering"
                 }
               }
             },
@@ -50582,7 +50757,27 @@
                   "description": "Core platform infrastructure team - updated",
                   "status": "active",
                   "created_at": "2025-01-15T10:30:00Z",
-                  "modified_at": "2025-08-01T11:00:00Z"
+                  "modified_at": "2025-08-01T11:00:00Z",
+                  "created_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "email_address": "platform-eng@example.com",
+                  "members": [],
+                  "metadata": [],
+                  "modified_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "related_teams": [],
+                  "responsible_parties": [],
+                  "uri": "https://wiki.example.com/teams/platform-engineering"
                 }
               }
             },
@@ -50863,7 +51058,25 @@
                   "description": "Updated team description",
                   "status": "active",
                   "created_at": "2025-01-15T10:30:00Z",
-                  "modified_at": "2025-08-01T11:00:00Z"
+                  "modified_at": "2025-08-01T11:00:00Z",
+                  "created_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "members": [],
+                  "metadata": [],
+                  "modified_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "related_teams": [],
+                  "responsible_parties": []
                 }
               }
             },
@@ -52990,7 +53203,19 @@
                   "team_id": "550e8400-e29b-41d4-a716-446655440000",
                   "status": "active",
                   "created_at": "2025-02-01T09:00:00Z",
-                  "modified_at": "2025-02-01T09:00:00Z"
+                  "modified_at": "2025-02-01T09:00:00Z",
+                  "created_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "team": {
+                    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                    "name": "Platform Engineering"
+                  },
+                  "uri": "https://wiki.example.com/projects/api-gateway"
                 }
               }
             },
@@ -53208,7 +53433,27 @@
                   "team_id": "550e8400-e29b-41d4-a716-446655440000",
                   "status": "active",
                   "created_at": "2025-02-01T09:00:00Z",
-                  "modified_at": "2025-07-10T16:45:00Z"
+                  "modified_at": "2025-07-10T16:45:00Z",
+                  "created_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "modified_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "notes": [],
+                  "team": {
+                    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                    "name": "Platform Engineering"
+                  },
+                  "uri": "https://wiki.example.com/projects/api-gateway"
                 }
               }
             },
@@ -53452,7 +53697,26 @@
                   "team_id": "550e8400-e29b-41d4-a716-446655440000",
                   "status": "active",
                   "created_at": "2025-02-01T09:00:00Z",
-                  "modified_at": "2025-08-05T13:30:00Z"
+                  "modified_at": "2025-08-05T13:30:00Z",
+                  "created_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "modified_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "team": {
+                    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                    "name": "Platform Engineering"
+                  },
+                  "uri": "https://wiki.example.com/projects/api-gateway"
                 }
               }
             },
@@ -53734,7 +53998,25 @@
                   "team_id": "550e8400-e29b-41d4-a716-446655440000",
                   "status": "active",
                   "created_at": "2025-02-01T09:00:00Z",
-                  "modified_at": "2025-08-05T13:30:00Z"
+                  "modified_at": "2025-08-05T13:30:00Z",
+                  "created_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "modified_by": {
+                    "display_name": "Alice Johnson",
+                    "email": "alice@example.com",
+                    "principal_type": "user",
+                    "provider": "github",
+                    "provider_id": "alice@example.com"
+                  },
+                  "team": {
+                    "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                    "name": "Platform Engineering"
+                  }
                 }
               }
             },
