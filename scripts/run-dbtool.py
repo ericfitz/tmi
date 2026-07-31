@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+from deploy import ensure_port_forward  # noqa: E402
 from tmi_common import (  # noqa: E402
     add_config_arg,
     add_verbosity_args,
@@ -108,6 +109,38 @@ def run_dbtool(config: str, user: str, provider: str, server: str, input_file: s
     log_success("Seeding completed")
 
 
+def _ensure_forwards(args: argparse.Namespace) -> None:
+    """Establish the port-forwards seeding needs, rather than assuming them.
+
+    Seeding talks to the API over --server and, for a Postgres target, opens a
+    direct database connection using the bootstrap config's localhost:5432.
+    Both paths reach in-cluster ClusterIP Services, so both need a forward.
+
+    This is the single wiring point that covers every way seeding is invoked:
+    `make cats-seed`, `make e2e-seed`, and the cats plugin's `seed` hook (hence
+    `make cats-fuzz`). Requiring a developer to have started these by hand was
+    never workable -- a hand-started forward is killed as an orphan by the next
+    dev-up/dev-restart/dev-down (see deploy.POSTGRES_PORT_FORWARD_PID), so it
+    reliably disappears and the failure surfaces later as a confusing seed
+    error rather than a missing prerequisite.
+
+    Skipped for --oci: that target is an external managed Oracle ADB reached
+    over the internet, with no in-cluster Service to forward. Also skipped when
+    --server is not loopback, which means the caller is deliberately driving a
+    remote deployment.
+    """
+    if args.oci:
+        log_info("Oracle target: skipping port-forwards (ADB is external)")
+        return
+
+    ensure_port_forward("postgres")
+
+    if "localhost" in args.server or "127.0.0.1" in args.server:
+        ensure_port_forward("server")
+    else:
+        log_info(f"Server URL is not loopback ({args.server}); skipping server port-forward")
+
+
 def main() -> None:
     args = parse_args()
     apply_verbosity(args)
@@ -118,6 +151,8 @@ def main() -> None:
     # The Oracle backend is selected via TMI_DATABASE_URL from oci-env.sh, not
     # by switching config files.
     config = args.config
+
+    _ensure_forwards(args)
 
     build_dbtool(args.oci, project_root)
     run_dbtool(config, args.user, args.provider, args.server, args.input_file, project_root)
