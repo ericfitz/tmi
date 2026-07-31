@@ -164,7 +164,7 @@ var publicPathPrefixes = []string{
 // segments keeps any future /saml/ route private until it is added here
 // deliberately.
 //
-// SEM@0000000: report whether a SAML path is one of the two public provider-scoped routes (pure)
+// SEM@2cab847bf088e414c70c5e5f9546cb9a7b9a2ac8: report whether a SAML path is one of the two public provider-scoped routes (pure)
 func isPublicSAMLPath(path string) bool {
 	rest, ok := strings.CutPrefix(path, "/saml/")
 	if !ok {
