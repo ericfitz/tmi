@@ -175,6 +175,7 @@ const fakeSpecSubResources = `{
 // newSubResourceAuthzRouter builds a Gin engine wiring AuthzMiddleware against
 // the sub-resource fake spec. Stub handlers return 200 so any non-OK response
 // observable in tests is from the middleware.
+// SEM@7f216c7be7d4991ba496b3f2f0938b5f241a4340: build a test Gin router wired with sub-resource authz middleware
 func newSubResourceAuthzRouter(t *testing.T, kind authzOwnershipUser) *gin.Engine {
 	t.Helper()
 	tbl, err := loadAuthzTableFromJSON([]byte(fakeSpecSubResources))
@@ -222,6 +223,7 @@ func newSubResourceAuthzRouter(t *testing.T, kind authzOwnershipUser) *gin.Engin
 // sub-resource type for reader/writer/owner outcomes" against the shared
 // TestFixtures threat model. Sub-resources inherit the parent threat
 // model's ACL, so the same reader/writer/owner users from #365 apply.
+// SEM@40dd616cc1289c54acdc0cb9f8bdffe6bab14d10: verify reader/writer/owner outcomes across sub-resource route families
 func TestAuthzMiddleware_SubResources_RoleMatrix(t *testing.T) {
 	InitTestFixtures()
 
@@ -319,6 +321,7 @@ func TestAuthzMiddleware_SubResources_RoleMatrix(t *testing.T) {
 // owner-driven recovery. This mirrors the legacy ThreatModelMiddleware
 // branch (lines 345-359 pre-#365) which is now expressed through the
 // `isRestoreRoute` flag inside enforceOwnership.
+// SEM@3d0ccf334e45154cef2d4b2ebb21927e661dd959: verify nested restore routes require owner, not writer, role
 func TestAuthzMiddleware_SubResources_RestoreDetectsTrailingSegment(t *testing.T) {
 	InitTestFixtures()
 
@@ -342,11 +345,13 @@ func TestAuthzMiddleware_SubResources_RestoreDetectsTrailingSegment(t *testing.T
 // parent-ACL check passes, the middleware must verify the child id in the
 // path belongs to the parent threat model, answering 404 (not 403) on
 // mismatch so foreign ids are indistinguishable from nonexistent ones.
+// SEM@7f216c7be7d4991ba496b3f2f0938b5f241a4340: verify child-parentage mismatches answer 404, never 403
 func TestAuthzMiddleware_ChildParentage(t *testing.T) {
 	InitTestFixtures()
 	tmID := TestFixtures.ThreatModelID
 	const childID = "22222222-2222-2222-2222-222222222222"
 
+	// SEM@82fc85d0e9672cc2cfbf829784973d1c6a3866c0: record a child-parentage checker call's arguments for assertions
 	type call struct {
 		family, childID, tmID string
 		includeDeleted        bool

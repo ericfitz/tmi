@@ -56,7 +56,7 @@ func AuthzMiddleware() gin.HandlerFunc {
 	return authzMiddlewareWithTable(tbl)
 }
 
-// SEM@e6be8a8f816c564356a656ac18f3693ac7f10369: enforce public, subject-authority, role, and ownership gates for each request using a pre-loaded AuthzTable
+// SEM@82fc85d0e9672cc2cfbf829784973d1c6a3866c0: authorize requests via public, role, ownership, and child-parentage gates (reads DB)
 func authzMiddlewareWithTable(tbl *AuthzTable) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
@@ -415,6 +415,7 @@ var subResourceChildFamilies = map[string]struct {
 // childParentageChecker reports whether the child row exists under the given
 // threat model. includeDeleted widens the probe to soft-deleted rows (restore
 // routes). Package-var seam so unit tests can inject a fake.
+// SEM@82fc85d0e9672cc2cfbf829784973d1c6a3866c0: define signature for verifying a child row's parent threat model
 type childParentageChecker func(ctx context.Context, family, childID, threatModelID string, includeDeleted bool) (bool, error)
 
 var checkChildParentage childParentageChecker = gormChildParentageCheck
