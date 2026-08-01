@@ -65,6 +65,13 @@ const fakeSpecSubResources = `{
         "x-tmi-authz": {"ownership": "reader"}
       }
     },
+    "/threat_models/{threat_model_id}/threats/{threat_id}/audit_trail": {
+      "get": {
+        "operationId": "getThreatAuditTrail",
+        "responses": {"200": {"description": "ok"}},
+        "x-tmi-authz": {"ownership": "reader"}
+      }
+    },
     "/threat_models/{threat_model_id}/threats/bulk": {
       "delete": {
         "operationId": "bulkDeleteThreats",
@@ -191,6 +198,7 @@ func newSubResourceAuthzRouter(t *testing.T, kind authzOwnershipUser) *gin.Engin
 	r.DELETE("/threat_models/:threat_model_id/threats/:threat_id", ok)
 	r.POST("/threat_models/:threat_model_id/threats/:threat_id/restore", ok)
 	r.GET("/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", ok)
+	r.GET("/threat_models/:threat_model_id/threats/:threat_id/audit_trail", ok)
 	r.DELETE("/threat_models/:threat_model_id/threats/bulk", ok)
 	r.GET("/threat_models/:threat_model_id/documents/:document_id", ok)
 	r.PUT("/threat_models/:threat_model_id/documents/:document_id", ok)
@@ -386,6 +394,15 @@ func TestAuthzMiddleware_ChildParentage(t *testing.T) {
 	t.Run("restore route includes soft-deleted rows", func(t *testing.T) {
 		setChecker(true, nil)
 		w := do(http.MethodPost, "/threat_models/"+tmID+"/threats/"+childID+"/restore", authzUserOwner)
+		assert.Equal(t, http.StatusOK, w.Code)
+		if assert.Len(t, calls, 1) {
+			assert.True(t, calls[0].includeDeleted)
+		}
+	})
+
+	t.Run("audit_trail route includes soft-deleted rows", func(t *testing.T) {
+		setChecker(true, nil)
+		w := do(http.MethodGet, "/threat_models/"+tmID+"/threats/"+childID+"/audit_trail", authzUserReader)
 		assert.Equal(t, http.StatusOK, w.Code)
 		if assert.Len(t, calls, 1) {
 			assert.True(t, calls[0].includeDeleted)

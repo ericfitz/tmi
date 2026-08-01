@@ -483,8 +483,14 @@ func enforceChildParentage(c *gin.Context) bool {
 		return true
 	}
 	tmID := parts[1]
-	includeDeleted := c.Request.Method == http.MethodPost &&
-		strings.HasSuffix(strings.TrimRight(path, "/"), "/restore")
+	trimmedPath := strings.TrimRight(path, "/")
+	// /restore (POST) and /audit_trail (GET) both need to see a
+	// soft-deleted child: restore is how a deleted child comes back, and a
+	// deleted child's audit history — including the delete event itself —
+	// must stay readable rather than 404ing the moment the row is
+	// soft-deleted (#664 fix-up).
+	includeDeleted := (c.Request.Method == http.MethodPost && strings.HasSuffix(trimmedPath, "/restore")) ||
+		(c.Request.Method == http.MethodGet && strings.HasSuffix(trimmedPath, "/audit_trail"))
 	ok, err := checkChildParentage(c.Request.Context(), family, childID, tmID, includeDeleted)
 	if err != nil {
 		logger.Error("AuthzMiddleware: parentage check failed for %s %s: %v",
