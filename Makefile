@@ -119,7 +119,7 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-genconfig generate-config-example build-genconfigdocs generate-config-docs clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz check-oracle-unsafe-map-keys check-oracle-table-names check-sensitive-log-args
+.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-genconfig generate-config-example build-genconfigdocs generate-config-docs clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz check-response-examples check-oracle-unsafe-map-keys check-oracle-table-names check-sensitive-log-args
 
 build-server:
 	@uv run scripts/build-server.py
@@ -177,6 +177,15 @@ check-direct-http-client:
 # removes the prefix list and enforces this on every operation.
 check-x-tmi-authz:
 	@uv run scripts/check-x-tmi-authz.py
+
+# Check that every 2xx response example covers the properties its schema
+# declares. CATS validates responses against the example, not the schema
+# (Endava/cats#206), so an omitted property is a latent "Not matching response
+# schema" finding -- one such gap on PATCH /teams/{team_id} produced 54 findings
+# in the 20260731 campaign. Baselined gaps live in
+# api-schema/response-example-baseline.json and the check is a ratchet.
+check-response-examples:
+	@uv run scripts/check-response-examples.py
 
 # Check that GORM map-keyed WHERE/condition predicates in api/ route through
 # ColumnMap() so column identifiers are uppercased on Oracle. GORM emits map
@@ -798,7 +807,7 @@ OPENAPI_VALIDATION_DB := test/outputs/api-validation/openapi-validation.db
 ASYNCAPI_SPEC := api-schema/tmi-asyncapi.yml
 ASYNCAPI_VALIDATION_REPORT := test/outputs/api-validation/asyncapi-validation-report.json
 
-validate-openapi: check-x-tmi-authz
+validate-openapi: check-x-tmi-authz check-response-examples
 	@uv run scripts/validate-openapi-spec.py --spec $(OPENAPI_SPEC) --report $(OPENAPI_VALIDATION_REPORT) --db $(OPENAPI_VALIDATION_DB)
 
 parse-openapi-validation:
