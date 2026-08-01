@@ -1055,3 +1055,19 @@ rules:
     when:
       response_code: 409
       json_body.error_description: { contains: "is not deleted" }
+
+  # rule 70: cross-provider SAML user listing is refused with 403, not 404
+  # RandomResources substitutes a nonexistent idp into the path and expects a
+  # 404. ListSAMLUsers (api/saml_user_handlers.go) compares the requested idp
+  # against the caller's own provider *before* looking anything up, so every
+  # foreign idp -- existent or not -- gets the same 403. That is deliberate:
+  # answering 404 for an unknown provider and 403 for a known one would turn
+  # this endpoint into a provider-existence oracle. This only became reachable
+  # in 1.6.4; before #650 the route returned 401 to everyone.
+  - id: SAML_USERS_CROSS_PROVIDER_403
+    why: "Cross-provider SAML user listing is correctly 403, and deliberately does not distinguish a nonexistent provider from a foreign one -- 404 here would leak which providers exist. RandomResources expects 404."
+    when:
+      contract_path: { equals: "/saml/providers/{idp}/users" }
+      method: { equals: GET }
+      response_code: 403
+      json_body.error_description: { contains: "different SAML provider" }
