@@ -479,8 +479,12 @@ func enforceChildParentage(c *gin.Context) bool {
 		return true
 	}
 	if _, err := uuid.Parse(childID); err != nil {
-		// Literal segments like "bulk" and malformed ids are not child
-		// lookups; downstream validation answers those.
+		// Literal segments like "bulk" and malformed ids are not
+		// single-child lookups; the bulk handlers scope their writes to
+		// {threat_model_id} at the store layer instead (see
+		// GormThreatRepository.BulkUpdate / Patch and the equivalent
+		// asset/document/note/repository store methods), so this gate
+		// intentionally does not inspect them.
 		return true
 	}
 	tmID := parts[1]

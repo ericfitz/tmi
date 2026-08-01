@@ -170,6 +170,13 @@ func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error
 	logger := slogging.Get()
 	logger.Debug("Updating threat: %s", threat.Id)
 
+	// The predicate below scopes by parent threat model; guard against a nil
+	// pointer dereference (a caller bug, not a client input) surfacing as a
+	// panic/500 inside the retryable transaction (Zero-500 policy).
+	if threat.ThreatModelId == nil {
+		return ErrThreatNotFound
+	}
+
 	// Update modified timestamp
 	now := time.Now().UTC()
 	threat.ModifiedAt = &now
@@ -186,7 +193,9 @@ func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error
 	updates := s.buildThreatUpdateMap(threat, now)
 
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Model(&models.Threat{}).Where("id = ?", threat.Id.String()).Updates(updates)
+		result := tx.Model(&models.Threat{}).
+			Where("id = ? AND threat_model_id = ?", threat.Id.String(), threat.ThreatModelId.String()).
+			Updates(updates)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -594,9 +603,11 @@ func (s *GormThreatRepository) buildOrderBy(sort string) string {
 	return ColumnName(GetDialectName(s.db), safeColumn) + " " + direction
 }
 
-// Patch applies JSON patch operations to a threat using GORM
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply JSON Patch operations to a threat and persist the result (reads DB)
-func (s *GormThreatRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Threat, error) {
+// Patch applies JSON patch operations to a threat using GORM, scoped to the
+// parent threat model so a bulk-patch caller supplying only a child id
+// cannot load and overwrite a threat belonging to a different threat model
+// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply JSON Patch operations to a threat scoped to its parent threat model and persist the result (reads DB)
+func (s *GormThreatRepository) Patch(ctx context.Context, threatModelID string, id string, operations []PatchOperation) (*Threat, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching threat %s with %d operations", id, len(operations))
 
@@ -604,6 +615,19 @@ func (s *GormThreatRepository) Patch(ctx context.Context, id string, operations 
 	threat, err := s.Get(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+
+	// Verify the threat belongs to the caller's parent threat model. A
+	// foreign or nonexistent child must not be found -- this is the
+	// load-bearing check for bulk-patch, which supplies only the child id
+	// and would otherwise load and patch a cross-tenant row in place.
+	// Parsed comparison rather than raw string equality: threatModelID
+	// comes straight from the URL path parameter, and a differently-cased
+	// or otherwise non-canonical (but still valid) UUID there must not be
+	// treated as a mismatch against the canonical lowercase value Get loaded.
+	parsedThreatModelID, err := uuid.Parse(threatModelID)
+	if err != nil || threat.ThreatModelId == nil || *threat.ThreatModelId != parsedThreatModelID {
+		return nil, ErrThreatNotFound
 	}
 
 	// Apply patch operations (reuse the same patch logic)
@@ -861,6 +885,14 @@ func (s *GormThreatRepository) BulkUpdate(ctx context.Context, threats []Threat)
 			threat := &threats[i]
 			threat.ModifiedAt = &now
 
+			// The predicate below scopes by parent threat model; guard
+			// against a nil pointer dereference (a caller bug, not a client
+			// input) surfacing as a panic/500 inside the retryable
+			// transaction (Zero-500 policy).
+			if threat.ThreatModelId == nil {
+				return ErrThreatNotFound
+			}
+
 			if threat.Severity != nil {
 				normalized := normalizeSeverity(*threat.Severity)
 				threat.Severity = &normalized
@@ -871,8 +903,26 @@ func (s *GormThreatRepository) BulkUpdate(ctx context.Context, threats []Threat)
 			}
 
 			updates := s.buildThreatUpdateMap(threat, now)
-			if err := tx.Model(&models.Threat{}).Where("id = ?", threat.Id.String()).Updates(updates).Error; err != nil {
-				return dberrors.Classify(err)
+			result := tx.Model(&models.Threat{}).
+				Where("id = ? AND threat_model_id = ?", threat.Id.String(), threat.ThreatModelId.String()).
+				Updates(updates)
+			if result.Error != nil {
+				return dberrors.Classify(result.Error)
+			}
+			if result.RowsAffected == 0 {
+				// A foreign-parent id matched no row -- a safe no-op for the
+				// threat row itself (see the Where clause above), but
+				// metadata is keyed on (entity_type, entity_id) alone with
+				// no threat_model_id column to scope it. Writing metadata
+				// unconditionally here would silently delete or overwrite a
+				// cross-tenant threat's metadata even though its own row was
+				// left untouched -- the same IDOR class this predicate
+				// exists to close, just one table over. Skip it rather than
+				// failing the whole bulk transaction (the brief intentionally
+				// keeps a foreign id a silent no-op, not an error).
+				logger.Debug("Bulk update skipped threat %s: not found under threat model %s",
+					threat.Id.String(), threat.ThreatModelId.String())
+				continue
 			}
 
 			// Save metadata
@@ -1078,7 +1128,6 @@ func (s *GormThreatRepository) buildThreatUpdateMap(threat *Threat, now time.Tim
 
 	return map[string]any{
 		"name":              threat.Name,
-		"threat_model_id":   threat.ThreatModelId.String(),
 		"description":       threat.Description,                      // nil writes NULL
 		"severity":          threat.Severity,                         // nil writes NULL
 		"mitigation":        threat.Mitigation,                       // nil writes NULL

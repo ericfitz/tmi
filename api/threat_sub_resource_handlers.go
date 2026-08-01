@@ -509,12 +509,13 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchThreat - applying patch operations to threat")
 
-	// Extract threat ID from URL
+	// Extract threat ID and parent threat model ID from URL
 	threatID := c.Param("threat_id")
 	if threatID == "" {
 		HandleRequestError(c, InvalidIDError("Missing threat ID"))
 		return
 	}
+	threatModelID := c.Param("threat_model_id")
 
 	// Validate threat ID format
 	if _, err := ParseUUID(threatID); err != nil {
@@ -587,7 +588,7 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 	}
 
 	// Apply patch operations
-	updatedThreat, err := h.threatStore.Patch(c.Request.Context(), threatID, operations)
+	updatedThreat, err := h.threatStore.Patch(c.Request.Context(), threatModelID, threatID, operations)
 	if err != nil {
 		logger.Error("Failed to patch threat %s: %v", threatID, err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Threat not found", "Failed to apply patch operations"))
@@ -598,7 +599,6 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 	}
 
 	// Record audit entry for patch
-	threatModelID := c.Param("threat_model_id")
 	RecordAuditUpdate(c, "patched", threatModelID, "threat", threatID, preState, updatedThreat)
 	invalidateThreatModelCaches(c, threatModelID)
 
@@ -843,10 +843,14 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 	logger.Debug("Bulk updating %d threats in threat model %s (user: %s)",
 		len(threats), threatModelID, user.Email)
 
-	// Update threats in store
+	// Update threats in store. Classify rather than blanket-500: a caller
+	// bug that somehow reaches the store's nil-threat-model-id guard (or any
+	// other typed not-found/constraint error) must not surface as a server
+	// fault (Zero-500 policy), matching how BulkPatchThreats below already
+	// classifies its store errors.
 	if err := h.threatStore.BulkUpdate(c.Request.Context(), threats); err != nil {
 		logger.Error("Failed to bulk update threats: %v", err)
-		HandleRequestError(c, ServerError("Failed to update threats"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Threat not found", "Failed to update threats"))
 		return
 	}
 
@@ -862,6 +866,8 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkPatchThreats - applying patch operations to multiple threats")
+
+	threatModelID := c.Param("threat_model_id")
 
 	// Get authenticated user
 	user, err := GetAuthenticatedUser(c)
@@ -930,7 +936,7 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 		// dberrors for not-found and constraint violations.
 		// StoreErrorToRequestError preserves all of those, exactly as the
 		// single-threat PATCH above already does.
-		updatedThreat, err := h.threatStore.Patch(c.Request.Context(), patch.ID, patch.Operations)
+		updatedThreat, err := h.threatStore.Patch(c.Request.Context(), threatModelID, patch.ID, patch.Operations)
 		if err != nil {
 			logger.Error("Failed to patch threat %s: %v", patch.ID, err)
 			HandleRequestError(c, StoreErrorToRequestError(err,
@@ -941,7 +947,7 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 		updatedThreats = append(updatedThreats, *updatedThreat)
 	}
 
-	invalidateThreatModelCaches(c, c.Param("threat_model_id"))
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Info("Successfully bulk patched %d threats (user: %s)", len(updatedThreats), user.Email)
 	c.JSON(http.StatusOK, updatedThreats)

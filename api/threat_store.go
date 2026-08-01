@@ -64,8 +64,10 @@ type ThreatRepository interface {
 	// Returns: items, total count (before pagination), error
 	List(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, int, error)
 
-	// PATCH operations for granular updates
-	Patch(ctx context.Context, id string, operations []PatchOperation) (*Threat, error)
+	// PATCH operations for granular updates. threatModelID scopes the load and
+	// write-back to the parent threat model so a bulk-patch caller cannot
+	// reach a child of a different threat model by id alone (#664 follow-up).
+	Patch(ctx context.Context, threatModelID string, id string, operations []PatchOperation) (*Threat, error)
 
 	// Bulk operations
 	BulkCreate(ctx context.Context, threats []Threat) error

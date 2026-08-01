@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
@@ -251,6 +252,135 @@ func TestSubResourceTenancy_Integration(t *testing.T) {
 			})
 		})
 	}
+
+	// ThreatsBulkWriteScoping proves the Task 4b fix: the threats bulk routes
+	// (PUT/PATCH /threat_models/{id}/threats/bulk) have a literal "bulk"
+	// segment where a child id would be, so enforceChildParentage's UUID
+	// check never inspects them -- the child ids arrive inside the request
+	// body instead. Before this fix, the threat store's BulkUpdate and Patch
+	// predicated on the child id alone: a PUT bulk item naming a victim's
+	// threat id re-parented that row into the attacker's threat model (the
+	// handler stamps threat_model_id from the URL onto every item before the
+	// store call), and a PATCH bulk item overwrote the victim's row in place.
+	// Threats are the only family with a bulk-PATCH route, and single-item
+	// routes are already covered by enforceChildParentage -- this test only
+	// needs to cover the two bulk verbs.
+	t.Run("ThreatsBulkWriteScoping", func(t *testing.T) {
+		victimThreatID := createChild(victim, tmVictim, "threats", map[string]interface{}{
+			"name":        "Victim Bulk Threat",
+			"description": "created by TestSubResourceTenancy_Integration (bulk scoping)",
+			"threat_type": []string{"Spoofing"},
+			"severity":    "low",
+			"status":      "Open",
+		})
+
+		victimThreatPath := fmt.Sprintf("/threat_models/%s/threats/%s", tmVictim, victimThreatID)
+		attackerThreatPath := fmt.Sprintf("/threat_models/%s/threats/%s", tmAttacker, victimThreatID)
+		attackerBulkPath := fmt.Sprintf("/threat_models/%s/threats/bulk", tmAttacker)
+
+		// Threat creation does not persist the "metadata" field (it's a
+		// separate child resource), so seed it via the dedicated metadata
+		// endpoint before exercising the bulk writes below.
+		metadataResp, err := victim.Do(framework.Request{
+			Method: "POST",
+			Path:   victimThreatPath + "/metadata",
+			Body:   map[string]interface{}{"key": "sensitivity", "value": "victim-secret"},
+		})
+		framework.AssertNoError(t, err, "Failed to seed victim threat metadata")
+		framework.AssertStatusCreated(t, metadataResp)
+
+		// assertVictimThreatIntact re-reads the victim's threat as the victim
+		// and checks both its name and its metadata. Metadata is asserted
+		// separately from name because it is stored in a child table keyed
+		// only on (entity_type, entity_id) -- BulkUpdate's per-item metadata
+		// save used to run unconditionally, even when the threat row itself
+		// correctly no-opped for a foreign parent, so a bulk PUT naming the
+		// victim's threat id could wipe the victim's metadata to empty
+		// (delete-then-insert-nothing) without ever touching the threat row.
+		assertVictimThreatIntact := func(t *testing.T, context string) {
+			t.Helper()
+			resp, err := victim.Do(framework.Request{Method: "GET", Path: victimThreatPath})
+			framework.AssertNoError(t, err, "Failed to read victim's threat "+context)
+			framework.AssertStatusOK(t, resp)
+
+			var body struct {
+				Name     string `json:"name"`
+				Metadata []struct {
+					Key   string `json:"key"`
+					Value string `json:"value"`
+				} `json:"metadata"`
+			}
+			if err := json.Unmarshal(resp.Body, &body); err != nil {
+				t.Fatalf("Failed to parse victim threat response %s: %v\nBody: %s", context, err, resp.Body)
+			}
+			if body.Name != "Victim Bulk Threat" {
+				t.Errorf("%s: victim threat name changed, got %q", context, body.Name)
+			}
+			if len(body.Metadata) != 1 || body.Metadata[0].Key != "sensitivity" || body.Metadata[0].Value != "victim-secret" {
+				t.Errorf("%s: victim threat metadata not intact, got %+v", context, body.Metadata)
+			}
+		}
+
+		t.Run("PutBulkCannotReparent", func(t *testing.T) {
+			putResp, err := attacker.Do(framework.Request{
+				Method: "PUT",
+				Path:   attackerBulkPath,
+				Body: []map[string]interface{}{
+					{
+						"id":          victimThreatID,
+						"name":        "pwned via bulk PUT",
+						"threat_type": []string{"Tampering"},
+					},
+				},
+			})
+			framework.AssertNoError(t, err, "PUT bulk request failed")
+			// The handler echoes the (unpersisted) item back at 200 even
+			// though the store silently no-ops the foreign-parent row; the
+			// real assertions are the victim's and attacker's post-state
+			// below, not this response.
+			framework.AssertStatusOK(t, putResp)
+
+			// The victim's threat must still exist under its own threat
+			// model, unrenamed, and its metadata must be untouched -- not
+			// just the threat row (see assertVictimThreatIntact above).
+			assertVictimThreatIntact(t, "after attacker PUT bulk")
+
+			// It must not be reachable through the attacker's threat model.
+			// A 200 here would mean the row was actually re-parented.
+			attackerGetResp, err := attacker.Do(framework.Request{Method: "GET", Path: attackerThreatPath})
+			framework.AssertNoError(t, err, "GET request failed")
+			assertCrossParentBlocked(t, attackerGetResp, "GET "+attackerThreatPath)
+		})
+
+		t.Run("PatchBulkCannotOverwriteCrossTenant", func(t *testing.T) {
+			patchResp, err := attacker.Do(framework.Request{
+				Method: "PATCH",
+				Path:   attackerBulkPath,
+				// The bulk-patch body is a BulkPatchRequest object (a "patches"
+				// envelope), not a raw JSON Patch document, so it needs plain
+				// application/json -- the framework defaults PATCH requests to
+				// application/json-patch+json, which the spec does not declare
+				// for this operation and the server 415s.
+				Headers: map[string]string{"Content-Type": "application/json"},
+				Body: map[string]interface{}{
+					"patches": []map[string]interface{}{
+						{
+							"id": victimThreatID,
+							"operations": []map[string]interface{}{
+								{"op": "replace", "path": "/name", "value": "pwned"},
+							},
+						},
+					},
+				},
+			})
+			framework.AssertNoError(t, err, "PATCH bulk request failed")
+			assertCrossParentBlocked(t, patchResp, "PATCH "+attackerBulkPath)
+
+			// The victim's threat must be unchanged -- not overwritten in
+			// place by a patch applied through the attacker's threat model.
+			assertVictimThreatIntact(t, "after attacker PATCH bulk")
+		})
+	})
 
 	// Non-family control: /threat_models/{id}/metadata/{key} is the
 	// threat-model-level metadata route, not a family child path
