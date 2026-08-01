@@ -38,12 +38,15 @@ HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
 MAX_DEPTH = 8
 
 
+# SEM@746aa587013953beb72c3f38c9643442ca4cca0d: resolve schema references and compare examples to declared properties
 class SpecWalker:
     """Resolves `$ref`s against one loaded spec document."""
 
+    # SEM@746aa587013953beb72c3f38c9643442ca4cca0d: store the specification document for reference resolution (pure)
     def __init__(self, spec: dict[str, Any]) -> None:
         self.spec = spec
 
+    # SEM@746aa587013953beb72c3f38c9643442ca4cca0d: dereference a schema reference chain, returning target and cycle guard (pure)
     def resolve(
         self, node: Any, seen: frozenset[str] = frozenset()
     ) -> tuple[Any, frozenset[str]]:
@@ -68,10 +71,12 @@ class SpecWalker:
             node = cur
         return (node if isinstance(node, dict) else {}), seen
 
+    # SEM@746aa587013953beb72c3f38c9643442ca4cca0d: dereference a schema reference, discarding the cycle guard (pure)
     def deref(self, node: Any, seen: frozenset[str] = frozenset()) -> Any:
         """`resolve` when the caller does not need the updated guard."""
         return self.resolve(node, seen)[0]
 
+    # SEM@746aa587013953beb72c3f38c9643442ca4cca0d: collect declared properties of a composed object schema (pure)
     def object_properties(
         self, schema: Any, seen: frozenset[str] = frozenset(), depth: int = 0
     ) -> dict[str, Any]:
@@ -96,6 +101,7 @@ class SpecWalker:
             props.update(declared)
         return props
 
+    # SEM@746aa587013953beb72c3f38c9643442ca4cca0d: extract the item schema of an array through composition (pure)
     def item_schema(self, schema: Any, seen: frozenset[str] = frozenset()) -> Any:
         """The `items` schema of an array, looking through composition."""
         schema = self.deref(schema, seen)
@@ -110,6 +116,7 @@ class SpecWalker:
                     return found
         return {}
 
+    # SEM@746aa587013953beb72c3f38c9643442ca4cca0d: report whether a schema describes an array (pure)
     def is_array(self, schema: Any, seen: frozenset[str] = frozenset()) -> bool:
         resolved = self.deref(schema, seen)
         if not isinstance(resolved, dict):
@@ -122,6 +129,7 @@ class SpecWalker:
                     return True
         return False
 
+    # SEM@746aa587013953beb72c3f38c9643442ca4cca0d: list declared property paths an example omits (pure)
     def missing_paths(
         self,
         schema: Any,
@@ -169,6 +177,7 @@ class SpecWalker:
         return missing
 
 
+# SEM@746aa587013953beb72c3f38c9643442ca4cca0d: iterate successful response examples declared in a specification (pure)
 def iter_response_examples(spec: dict[str, Any]):
     """Yield (path, method, code, media_object, schema, example, source).
 

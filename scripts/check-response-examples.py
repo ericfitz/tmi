@@ -38,6 +38,7 @@ SPEC_PATH = "api-schema/tmi-openapi.json"
 BASELINE_PATH = "api-schema/response-example-baseline.json"
 
 
+# SEM@746aa587013953beb72c3f38c9643442ca4cca0d: validate response examples cover declared schema properties against a baseline
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
