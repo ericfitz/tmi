@@ -229,6 +229,15 @@ func TestSubResourceTenancy_Integration(t *testing.T) {
 				framework.AssertNoError(t, err, "Cross-parent restore request failed")
 				assertCrossParentBlocked(t, attackerRestoreResp, "POST "+attackerPath+"/restore")
 
+				// The blocked restore must not have actually un-deleted the
+				// child -- restore's checker probe is the one special-cased
+				// to see soft-deleted rows, so this is the verb most able to
+				// silently succeed behind a 404. Confirm the child is still
+				// gone before the victim restores it themselves.
+				postBlockedRestoreGetResp, err := victim.Do(framework.Request{Method: "GET", Path: victimPath})
+				framework.AssertNoError(t, err, "GET after blocked cross-parent restore failed")
+				framework.AssertStatusNotFound(t, postBlockedRestoreGetResp)
+
 				// The victim's own restore succeeds and un-deletes the child.
 				victimRestoreResp, err := victim.Do(framework.Request{Method: "POST", Path: victimPath + "/restore"})
 				framework.AssertNoError(t, err, "Victim's own restore request failed")
