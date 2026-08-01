@@ -1,11 +1,16 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
+	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // AuthzMiddleware is the unified declarative authorization gate. It looks up
@@ -94,6 +99,10 @@ func authzMiddlewareWithTable(tbl *AuthzTable) gin.HandlerFunc {
 		// and we fall through to legacy middleware so we don't miscount auth.
 		if rule.Ownership != OwnershipNone {
 			if !enforceOwnership(c, rule.Ownership) {
+				c.Abort()
+				return
+			}
+			if !enforceChildParentage(c) {
 				c.Abort()
 				return
 			}
@@ -383,4 +392,118 @@ func extractParentThreatModelID(path string) string {
 		return ""
 	}
 	return parts[1]
+}
+
+// subResourceChildFamilies maps the path segment of every child family
+// nested under /threat_models/{id}/ to its display name and GORM model.
+// Families whose handlers already verify parentage (diagrams, and the
+// non-family children chat sessions / audit entries / feedback) keep those
+// checks; diagrams are ALSO listed here because their /metadata and
+// /audit_trail sub-routes have no handler-level check (#664).
+var subResourceChildFamilies = map[string]struct {
+	singular string
+	model    func() interface{}
+}{
+	"threats":      {"Threat", func() interface{} { return &models.Threat{} }},
+	"assets":       {"Asset", func() interface{} { return &models.Asset{} }},
+	"documents":    {"Document", func() interface{} { return &models.Document{} }},
+	"notes":        {"Note", func() interface{} { return &models.Note{} }},
+	"repositories": {"Repository", func() interface{} { return &models.Repository{} }},
+	"diagrams":     {"Diagram", func() interface{} { return &models.Diagram{} }},
+}
+
+// childParentageChecker reports whether the child row exists under the given
+// threat model. includeDeleted widens the probe to soft-deleted rows (restore
+// routes). Package-var seam so unit tests can inject a fake.
+type childParentageChecker func(ctx context.Context, family, childID, threatModelID string, includeDeleted bool) (bool, error)
+
+var checkChildParentage childParentageChecker = gormChildParentageCheck
+
+// SEM@7383e0ea: verify a sub-resource child row belongs to a threat model (reads DB)
+func gormChildParentageCheck(ctx context.Context, family, childID, threatModelID string, includeDeleted bool) (bool, error) {
+	if adminDB == nil {
+		// In-memory mode (unit tests): no relational store to consult.
+		return true, nil
+	}
+	fam, ok := subResourceChildFamilies[family]
+	if !ok {
+		return true, nil
+	}
+	var count int64
+	// Retried without a transaction: ADB raises ORA-12519/12520/03113/12537
+	// during autoscale and Classify tags those transient. This gate runs on
+	// every sub-resource request, so leaving the read unretried would turn a
+	// momentary listener hiccup into a burst of 503s across the whole
+	// sub-resource surface (mirrors TeamExists, api/team_middleware.go, #616
+	// note 6).
+	err := authdb.WithRetryableGormRead(ctx, authdb.DefaultRetryConfig(), func() error {
+		q := adminDB.WithContext(ctx).Model(fam.model()).
+			Where("id = ? AND threat_model_id = ?", childID, threatModelID)
+		if !includeDeleted {
+			// These models use *time.Time for DeletedAt, not gorm.DeletedAt, so
+			// GORM applies no automatic soft-delete scoping — this explicit
+			// clause is what makes restore's includeDeleted=true actually widen
+			// the probe. If a model ever migrates to gorm.DeletedAt, this branch
+			// needs .Unscoped() on the includeDeleted path or restore starts
+			// 404ing on both engines.
+			q = q.Where("deleted_at IS NULL")
+		}
+		if result := q.Count(&count); result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// enforceChildParentage checks that the child id in a sub-resource path
+// under /threat_models/{id}/{family}/{child_id}[...] belongs to that threat
+// model. It runs after enforceOwnership so it never leaks whether a child
+// exists to a caller who lacks parent-level access. Non-family segments and
+// non-UUID child segments (e.g. "bulk") pass through untouched.
+// SEM@7383e0ea: enforce that the child id in a sub-resource path belongs to the parent threat model, answering 404 on mismatch
+func enforceChildParentage(c *gin.Context) bool {
+	logger := slogging.Get().WithContext(c)
+	path := c.Request.URL.Path
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) < 4 || parts[0] != "threat_models" {
+		return true
+	}
+	family, childID := parts[2], parts[3]
+	fam, known := subResourceChildFamilies[family]
+	if !known {
+		return true
+	}
+	if _, err := uuid.Parse(childID); err != nil {
+		// Literal segments like "bulk" and malformed ids are not child
+		// lookups; downstream validation answers those.
+		return true
+	}
+	tmID := parts[1]
+	includeDeleted := c.Request.Method == http.MethodPost &&
+		strings.HasSuffix(strings.TrimRight(path, "/"), "/restore")
+	ok, err := checkChildParentage(c.Request.Context(), family, childID, tmID, includeDeleted)
+	if err != nil {
+		logger.Error("AuthzMiddleware: parentage check failed for %s %s: %v",
+			c.Request.Method, path, err)
+		c.Header("Retry-After", "30")
+		c.AbortWithStatusJSON(http.StatusServiceUnavailable, Error{
+			Error:            "service_unavailable",
+			ErrorDescription: "Storage service temporarily unavailable - please retry",
+		})
+		return false
+	}
+	if !ok {
+		logger.Warn("AuthzMiddleware: %s %s not in threat model %s (404 for %s %s)",
+			family, childID, tmID, c.Request.Method, path)
+		c.AbortWithStatusJSON(http.StatusNotFound, Error{
+			Error:            "not_found",
+			ErrorDescription: fam.singular + " not found",
+		})
+		return false
+	}
+	return true
 }

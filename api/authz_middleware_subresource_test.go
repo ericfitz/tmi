@@ -1,11 +1,14 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 )
 
 // fakeSpecSubResources covers a representative slice of the operations
@@ -55,6 +58,20 @@ const fakeSpecSubResources = `{
         "x-tmi-authz": {"ownership": "owner"}
       }
     },
+    "/threat_models/{threat_model_id}/threats/{threat_id}/metadata/{key}": {
+      "get": {
+        "operationId": "getThreatMetadataKey",
+        "responses": {"200": {"description": "ok"}},
+        "x-tmi-authz": {"ownership": "reader"}
+      }
+    },
+    "/threat_models/{threat_model_id}/threats/bulk": {
+      "delete": {
+        "operationId": "bulkDeleteThreats",
+        "responses": {"200": {"description": "ok"}},
+        "x-tmi-authz": {"ownership": "writer"}
+      }
+    },
     "/threat_models/{threat_model_id}/documents/{document_id}": {
       "get": {
         "operationId": "getDocument",
@@ -75,6 +92,11 @@ const fakeSpecSubResources = `{
       }
     },
     "/threat_models/{threat_model_id}/assets/{asset_id}": {
+      "get": {
+        "operationId": "getAsset",
+        "responses": {"200": {"description": "ok"}},
+        "x-tmi-authz": {"ownership": "reader"}
+      },
       "patch": {
         "operationId": "patchAsset",
         "responses": {"200": {"description": "ok"}},
@@ -168,9 +190,12 @@ func newSubResourceAuthzRouter(t *testing.T, kind authzOwnershipUser) *gin.Engin
 	r.PATCH("/threat_models/:threat_model_id/threats/:threat_id", ok)
 	r.DELETE("/threat_models/:threat_model_id/threats/:threat_id", ok)
 	r.POST("/threat_models/:threat_model_id/threats/:threat_id/restore", ok)
+	r.GET("/threat_models/:threat_model_id/threats/:threat_id/metadata/:key", ok)
+	r.DELETE("/threat_models/:threat_model_id/threats/bulk", ok)
 	r.GET("/threat_models/:threat_model_id/documents/:document_id", ok)
 	r.PUT("/threat_models/:threat_model_id/documents/:document_id", ok)
 	r.GET("/threat_models/:threat_model_id/notes/:note_id", ok)
+	r.GET("/threat_models/:threat_model_id/assets/:asset_id", ok)
 	r.PATCH("/threat_models/:threat_model_id/assets/:asset_id", ok)
 	r.DELETE("/threat_models/:threat_model_id/repositories/:repository_id", ok)
 	r.GET("/threat_models/:threat_model_id/audit_trail", ok)
@@ -194,7 +219,7 @@ func TestAuthzMiddleware_SubResources_RoleMatrix(t *testing.T) {
 
 	tmID := TestFixtures.ThreatModelID
 	diagID := TestFixtures.DiagramID
-	const subID = "11111111-1111-1111-1111-111111111111" // child IDs aren't checked by middleware
+	const subID = "11111111-1111-1111-1111-111111111111" // nonexistent child: the #664 parentage gate passes in unit tests (adminDB == nil)
 
 	cases := []struct {
 		name       string
@@ -303,4 +328,94 @@ func TestAuthzMiddleware_SubResources_RestoreDetectsTrailingSegment(t *testing.T
 	if w.Code != http.StatusForbidden {
 		t.Errorf("writer attempting nested restore: got %d, want 403; body=%s", w.Code, w.Body.String())
 	}
+}
+
+// TestAuthzMiddleware_ChildParentage exercises the #664 gate: after the
+// parent-ACL check passes, the middleware must verify the child id in the
+// path belongs to the parent threat model, answering 404 (not 403) on
+// mismatch so foreign ids are indistinguishable from nonexistent ones.
+func TestAuthzMiddleware_ChildParentage(t *testing.T) {
+	InitTestFixtures()
+	tmID := TestFixtures.ThreatModelID
+	const childID = "22222222-2222-2222-2222-222222222222"
+
+	type call struct {
+		family, childID, tmID string
+		includeDeleted        bool
+	}
+	var calls []call
+	restore := checkChildParentage
+	t.Cleanup(func() { checkChildParentage = restore })
+
+	setChecker := func(ok bool, err error) {
+		calls = nil
+		checkChildParentage = func(_ context.Context, family, cid, tid string, incDel bool) (bool, error) {
+			calls = append(calls, call{family, cid, tid, incDel})
+			return ok, err
+		}
+	}
+
+	// newSubResourceAuthzRouter bakes the caller identity in at construction
+	// (mirrors TestAuthzMiddleware_SubResources_RoleMatrix above), so each
+	// call here builds a fresh router for the requested user rather than
+	// attaching identity per-request.
+	do := func(method, path string, u authzOwnershipUser) *httptest.ResponseRecorder {
+		r := newSubResourceAuthzRouter(t, u)
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(method, path, nil)
+		r.ServeHTTP(w, req)
+		return w
+	}
+
+	t.Run("mismatch answers 404 not 403", func(t *testing.T) {
+		setChecker(false, nil)
+		w := do(http.MethodGet, "/threat_models/"+tmID+"/threats/"+childID, authzUserReader)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		assert.Contains(t, w.Body.String(), "not_found")
+	})
+
+	t.Run("match passes through", func(t *testing.T) {
+		setChecker(true, nil)
+		w := do(http.MethodGet, "/threat_models/"+tmID+"/threats/"+childID, authzUserReader)
+		assert.Equal(t, http.StatusOK, w.Code)
+		if assert.Len(t, calls, 1) {
+			assert.Equal(t, call{"threats", childID, tmID, false}, calls[0])
+		}
+	})
+
+	t.Run("restore route includes soft-deleted rows", func(t *testing.T) {
+		setChecker(true, nil)
+		w := do(http.MethodPost, "/threat_models/"+tmID+"/threats/"+childID+"/restore", authzUserOwner)
+		assert.Equal(t, http.StatusOK, w.Code)
+		if assert.Len(t, calls, 1) {
+			assert.True(t, calls[0].includeDeleted)
+		}
+	})
+
+	t.Run("checker error answers 503", func(t *testing.T) {
+		setChecker(false, errors.New("db down"))
+		w := do(http.MethodGet, "/threat_models/"+tmID+"/assets/"+childID, authzUserReader)
+		assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+		assert.Equal(t, "30", w.Header().Get("Retry-After"))
+	})
+
+	t.Run("child metadata routes are gated", func(t *testing.T) {
+		setChecker(false, nil)
+		w := do(http.MethodGet, "/threat_models/"+tmID+"/threats/"+childID+"/metadata/somekey", authzUserReader)
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("literal bulk segment is not a child lookup", func(t *testing.T) {
+		setChecker(false, nil)
+		w := do(http.MethodDelete, "/threat_models/"+tmID+"/threats/bulk?threat_ids="+childID, authzUserOwner)
+		assert.NotEqual(t, http.StatusNotFound, w.Code)
+		assert.Empty(t, calls)
+	})
+
+	t.Run("non-family segments skip the check", func(t *testing.T) {
+		setChecker(false, nil)
+		w := do(http.MethodGet, "/threat_models/"+tmID+"/metadata/somekey", authzUserReader)
+		assert.NotEqual(t, http.StatusNotFound, w.Code)
+		assert.Empty(t, calls)
+	})
 }
