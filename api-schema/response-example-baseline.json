@@ -1,177 +1,16 @@
 {
-  "_comment": "Accepted response-example gaps. CATS compares a 2xx response to the operation's example, not its schema (Endava/cats#206), so a property the schema declares but the example omits becomes a finding once the server returns it. Every entry here was checked against a 107k-response corpus and never observed, so none fires today. They are still debt: some are simply unexercised, and some mean the schema declares more than the server returns (the Project.team divergence). Tracked in #659. This file is a ratchet -- it may shrink, never grow, and a new gap fails the build.",
+  "_comment": "Accepted response-example gaps. CATS compares a 2xx response to the operation's example, not its schema (Endava/cats#206), so a property the schema declares but the example omits becomes a finding once the server returns it. This file is a ratchet -- it may shrink, never grow, and a new gap fails the build. Down from 611 gaps across 93 operations to 96 across 13 (#659); what is left is not merely unexercised, it is unsatisfiable, in three classes. (1) 90 entries under a oneOf/anyOf union: the checker unions every branch's properties because a response may be any branch, so satisfying it would mean one example cell carrying both node-only properties (position, size, ports) and edge-only ones (source, target, vertices). That document would satisfy CATS and describe nothing real. Covers cells.* on the six diagram operations and diagrams.* on GET /threat_models/{id}. (2) 5 entries whose schema is a free-form object with no declared properties -- deliveries.payload, survey_json, provider_config -- the same class as MinimalDiagramModel.metadata and RollbackResponse.restored_entity. (3) 1 entry where the schema is simply wrong rather than unexercised: subscriptions.secret is declared on the read schema but webhook_handlers.go passes includeSecret=false on both GET paths, and the property's own description says it is not returned. Completing that example would document a secret the endpoint never emits, which is worse than the gap.",
   "gaps": {
-    "DELETE /threat_models/{threat_model_id}/threats/bulk -> 200": [
-      "deleted_ids"
-    ],
-    "GET / -> 200": [
-      "health"
-    ],
-    "GET /addons -> 200": [
-      "addons.icon",
-      "addons.objects",
-      "addons.parameters",
-      "addons.threat_model_id"
-    ],
-    "GET /addons/{id} -> 200": [
-      "parameters"
-    ],
-    "GET /admin/groups -> 200": [
-      "groups.used_in_admin_grants"
-    ],
-    "GET /admin/groups/{group_id} -> 200": [
-      "used_in_admin_grants",
-      "used_in_authorizations"
-    ],
-    "GET /admin/groups/{group_id}/members -> 200": [
-      "members.added_by_email",
-      "members.added_by_internal_uuid",
-      "members.member_group_internal_uuid",
-      "members.member_group_name",
-      "members.notes"
-    ],
-    "GET /admin/quotas/users -> 200": [
-      "quotas.max_requests_per_hour"
-    ],
-    "GET /admin/quotas/users/{user_id} -> 200": [
-      "max_requests_per_hour"
-    ],
-    "GET /admin/users -> 200": [
-      "users.active_threat_models",
-      "users.automation",
-      "users.groups",
-      "users.last_login"
-    ],
-    "GET /admin/users/{user_id} -> 200": [
-      "active_threat_models",
-      "groups",
-      "last_login"
-    ],
     "GET /admin/webhooks/deliveries -> 200": [
-      "deliveries.addon_id",
-      "deliveries.invoked_by",
-      "deliveries.last_activity_at",
-      "deliveries.last_error",
-      "deliveries.next_retry_at",
-      "deliveries.payload",
-      "deliveries.status_message",
-      "deliveries.status_percent"
-    ],
-    "GET /admin/webhooks/deliveries/{delivery_id} -> 200": [
-      "addon_id",
-      "invoked_by",
-      "last_activity_at",
-      "last_error",
-      "next_retry_at",
-      "status_message",
-      "status_percent"
+      "deliveries.payload"
     ],
     "GET /admin/webhooks/subscriptions -> 200": [
-      "subscriptions.challenges_sent",
-      "subscriptions.last_successful_use",
-      "subscriptions.publication_failures",
-      "subscriptions.secret",
-      "subscriptions.threat_model_id"
-    ],
-    "GET /automation/embeddings/{threat_model_id}/config -> 200": [
-      "code_embedding",
-      "text_embedding.api_key",
-      "text_embedding.base_url"
-    ],
-    "GET /config -> 200": [
-      "content_providers.picker_config"
+      "subscriptions.secret"
     ],
     "GET /intake/survey_responses/{survey_response_id} -> 200": [
-      "authorization.display_name",
-      "authorization.email",
-      "created_threat_model_id",
-      "linked_threat_model_id",
-      "project_id",
-      "reviewed_at",
-      "reviewed_by",
-      "revision_notes",
-      "survey_json",
-      "ui_state",
-      "version"
-    ],
-    "GET /me/client_credentials -> 200": [
-      "credentials.expires_at",
-      "credentials.last_used_at"
-    ],
-    "GET /me/groups/{group_id}/members -> 200": [
-      "members.added_by_email",
-      "members.added_by_internal_uuid",
-      "members.member_group_internal_uuid",
-      "members.member_group_name",
-      "members.notes"
-    ],
-    "GET /oauth2/providers/{idp}/groups -> 200": [
-      "groups.display_name",
-      "groups.used_in_authorizations"
-    ],
-    "GET /oauth2/userinfo -> 200": [
-      "groups"
-    ],
-    "GET /projects -> 200": [
-      "projects.note_count",
-      "projects.team_name"
-    ],
-    "GET /projects/{project_id} -> 200": [
-      "metadata",
-      "related_projects",
-      "responsible_parties",
-      "reviewed_at",
-      "reviewed_by",
-      "team.created_at",
-      "team.created_by",
-      "team.description",
-      "team.email_address",
-      "team.members",
-      "team.metadata",
-      "team.modified_at",
-      "team.modified_by",
-      "team.notes",
-      "team.related_teams",
-      "team.responsible_parties",
-      "team.reviewed_at",
-      "team.reviewed_by",
-      "team.status",
-      "team.uri",
-      "team.version",
-      "version"
-    ],
-    "GET /projects/{project_id}/notes -> 200": [
-      "notes.sharable",
-      "notes.timmy_enabled"
-    ],
-    "GET /saml/providers -> 200": [
-      "providers.slo_url"
-    ],
-    "GET /teams -> 200": [
-      "teams.member_count",
-      "teams.note_count",
-      "teams.project_count"
-    ],
-    "GET /teams/{team_id} -> 200": [
-      "reviewed_at",
-      "reviewed_by",
-      "version"
-    ],
-    "GET /teams/{team_id}/notes -> 200": [
-      "notes.sharable",
-      "notes.timmy_enabled"
-    ],
-    "GET /threat_models -> 200": [
-      "threat_models.alias",
-      "threat_models.deleted_at",
-      "threat_models.description",
-      "threat_models.issue_uri",
-      "threat_models.security_reviewer",
-      "threat_models.status",
-      "threat_models.status_updated"
+      "survey_json"
     ],
     "GET /threat_models/{threat_model_id} -> 200": [
-      "deleted_at",
       "diagrams.alias",
       "diagrams.auto_generated",
       "diagrams.color_palette",
@@ -182,60 +21,7 @@
       "diagrams.metadata",
       "diagrams.timmy_enabled",
       "diagrams.update_vector",
-      "diagrams.version",
-      "metadata",
-      "project_id",
-      "security_reviewer",
-      "status_updated",
-      "threats.alias",
-      "threats.asset_id",
-      "threats.auto_generated",
-      "threats.cell_id",
-      "threats.created_at",
-      "threats.cvss",
-      "threats.cwe_id",
-      "threats.deleted_at",
-      "threats.description",
-      "threats.diagram_id",
-      "threats.include_in_report",
-      "threats.issue_uri",
-      "threats.metadata",
-      "threats.mitigated",
-      "threats.mitigation",
-      "threats.modified_at",
-      "threats.priority",
-      "threats.score",
-      "threats.ssvc",
-      "threats.threat_model_id",
-      "threats.timmy_enabled",
-      "threats.version",
-      "version"
-    ],
-    "GET /threat_models/{threat_model_id}/assets -> 200": [
-      "assets.alias",
-      "assets.classification",
-      "assets.criticality",
-      "assets.deleted_at",
-      "assets.include_in_report",
-      "assets.metadata",
-      "assets.sensitivity",
-      "assets.timmy_enabled",
-      "assets.version"
-    ],
-    "GET /threat_models/{threat_model_id}/assets/{asset_id} -> 200": [
-      "deleted_at",
-      "version"
-    ],
-    "GET /threat_models/{threat_model_id}/chat/sessions/{session_id} -> 200": [
-      "source_snapshot",
-      "system_prompt_hash",
-      "title"
-    ],
-    "GET /threat_models/{threat_model_id}/diagrams -> 200": [
-      "diagrams.alias",
-      "diagrams.deleted_at",
-      "diagrams.include_in_report",
-      "diagrams.timmy_enabled"
+      "diagrams.version"
     ],
     "GET /threat_models/{threat_model_id}/diagrams/{diagram_id} -> 200": [
       "cells.angle",
@@ -252,10 +38,7 @@
       "cells.size",
       "cells.source",
       "cells.target",
-      "cells.vertices",
-      "color_palette",
-      "deleted_at",
-      "version"
+      "cells.vertices"
     ],
     "GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/model -> 200": [
       "cells.data_asset_ids",
@@ -263,132 +46,8 @@
       "cells.source",
       "cells.target"
     ],
-    "GET /threat_models/{threat_model_id}/documents/{document_id} -> 200": [
-      "access_diagnostics",
-      "access_status_updated_at",
-      "deleted_at",
-      "version"
-    ],
-    "GET /threat_models/{threat_model_id}/notes -> 200": [
-      "notes.alias",
-      "notes.deleted_at",
-      "notes.description",
-      "notes.include_in_report",
-      "notes.metadata",
-      "notes.timmy_enabled"
-    ],
-    "GET /threat_models/{threat_model_id}/notes/{note_id} -> 200": [
-      "deleted_at"
-    ],
-    "GET /threat_models/{threat_model_id}/repositories/{repository_id} -> 200": [
-      "alias",
-      "deleted_at",
-      "parameters",
-      "type"
-    ],
-    "GET /threat_models/{threat_model_id}/threats/{threat_id} -> 200": [
-      "alias",
-      "asset_id",
-      "auto_generated",
-      "cell_id",
-      "cvss",
-      "cwe_id",
-      "deleted_at",
-      "diagram_id",
-      "issue_uri",
-      "mitigated",
-      "mitigation",
-      "priority",
-      "score",
-      "version"
-    ],
-    "GET /triage/survey_responses/{survey_response_id} -> 200": [
-      "authorization.display_name",
-      "authorization.email",
-      "linked_threat_model_id",
-      "project_id",
-      "revision_notes",
-      "ui_state",
-      "version"
-    ],
-    "GET /webhook-deliveries/{delivery_id} -> 200": [
-      "addon_id",
-      "invoked_by",
-      "last_activity_at",
-      "last_error",
-      "next_retry_at",
-      "status_message",
-      "status_percent"
-    ],
-    "PATCH /admin/groups/{group_id} -> 200": [
-      "used_in_admin_grants",
-      "used_in_authorizations"
-    ],
-    "PATCH /admin/users/{user_id} -> 200": [
-      "active_threat_models",
-      "groups",
-      "last_login"
-    ],
     "PATCH /intake/survey_responses/{survey_response_id} -> 200": [
-      "authorization.display_name",
-      "authorization.email",
-      "created_threat_model_id",
-      "linked_threat_model_id",
-      "project_id",
-      "reviewed_at",
-      "reviewed_by",
-      "revision_notes",
-      "survey_json",
-      "ui_state",
-      "version"
-    ],
-    "PATCH /projects/{project_id} -> 200": [
-      "metadata",
-      "notes",
-      "related_projects",
-      "responsible_parties",
-      "reviewed_at",
-      "reviewed_by",
-      "team.created_at",
-      "team.created_by",
-      "team.description",
-      "team.email_address",
-      "team.members",
-      "team.metadata",
-      "team.modified_at",
-      "team.modified_by",
-      "team.notes",
-      "team.related_teams",
-      "team.responsible_parties",
-      "team.reviewed_at",
-      "team.reviewed_by",
-      "team.status",
-      "team.uri",
-      "team.version",
-      "uri",
-      "version"
-    ],
-    "PATCH /teams/{team_id} -> 200": [
-      "notes",
-      "reviewed_at",
-      "reviewed_by",
-      "version"
-    ],
-    "PATCH /threat_models/{threat_model_id} -> 200": [
-      "deleted_at",
-      "issue_uri",
-      "metadata",
-      "project_id",
-      "security_reviewer",
-      "status_updated",
-      "version"
-    ],
-    "PATCH /threat_models/{threat_model_id}/assets/{asset_id} -> 200": [
-      "classification",
-      "criticality",
-      "deleted_at",
-      "sensitivity",
-      "version"
+      "survey_json"
     ],
     "PATCH /threat_models/{threat_model_id}/diagrams/{diagram_id} -> 200": [
       "cells.angle",
@@ -405,140 +64,10 @@
       "cells.size",
       "cells.source",
       "cells.target",
-      "cells.vertices",
-      "color_palette",
-      "deleted_at",
-      "version"
-    ],
-    "PATCH /threat_models/{threat_model_id}/documents/{document_id} -> 200": [
-      "access_diagnostics",
-      "access_status_updated_at",
-      "deleted_at",
-      "version"
-    ],
-    "PATCH /threat_models/{threat_model_id}/notes/{note_id} -> 200": [
-      "deleted_at"
-    ],
-    "PATCH /threat_models/{threat_model_id}/repositories/{repository_id} -> 200": [
-      "alias",
-      "deleted_at",
-      "parameters",
-      "type"
-    ],
-    "PATCH /threat_models/{threat_model_id}/threats/{threat_id} -> 200": [
-      "alias",
-      "asset_id",
-      "auto_generated",
-      "cell_id",
-      "cvss",
-      "cwe_id",
-      "deleted_at",
-      "diagram_id",
-      "issue_uri",
-      "mitigated",
-      "mitigation",
-      "priority",
-      "score",
-      "version"
-    ],
-    "PATCH /triage/survey_responses/{survey_response_id} -> 200": [
-      "authorization.display_name",
-      "authorization.email",
-      "linked_threat_model_id",
-      "project_id",
-      "revision_notes",
-      "ui_state",
-      "version"
-    ],
-    "POST /addons -> 201": [
-      "parameters"
-    ],
-    "POST /admin/groups -> 201": [
-      "used_in_admin_grants",
-      "used_in_authorizations"
-    ],
-    "POST /admin/groups/{group_id}/members -> 201": [
-      "added_by_email",
-      "added_by_internal_uuid",
-      "member_group_internal_uuid",
-      "member_group_name",
-      "notes"
-    ],
-    "POST /admin/users/automation -> 201": [
-      "client_credential.description",
-      "client_credential.expires_at",
-      "user.active_threat_models",
-      "user.groups",
-      "user.is_admin",
-      "user.last_login"
-    ],
-    "POST /intake/survey_responses -> 201": [
-      "authorization.display_name",
-      "authorization.email",
-      "project_id",
-      "reviewed_by",
-      "version"
+      "cells.vertices"
     ],
     "POST /me/picker_tokens/{provider_id} -> 200": [
       "provider_config"
-    ],
-    "POST /projects -> 201": [
-      "metadata",
-      "modified_by",
-      "notes",
-      "related_projects",
-      "responsible_parties",
-      "reviewed_at",
-      "reviewed_by",
-      "team.created_at",
-      "team.created_by",
-      "team.description",
-      "team.email_address",
-      "team.members",
-      "team.metadata",
-      "team.modified_at",
-      "team.modified_by",
-      "team.notes",
-      "team.related_teams",
-      "team.responsible_parties",
-      "team.reviewed_at",
-      "team.reviewed_by",
-      "team.status",
-      "team.uri",
-      "team.version",
-      "version"
-    ],
-    "POST /teams -> 201": [
-      "members.custom_role",
-      "modified_by",
-      "notes",
-      "reviewed_at",
-      "reviewed_by",
-      "version"
-    ],
-    "POST /threat_models -> 201": [
-      "deleted_at",
-      "project_id",
-      "security_reviewer",
-      "version"
-    ],
-    "POST /threat_models/{threat_model_id}/assets -> 201": [
-      "deleted_at",
-      "metadata",
-      "version"
-    ],
-    "POST /threat_models/{threat_model_id}/assets/bulk -> 201": [
-      "deleted_at",
-      "metadata",
-      "version"
-    ],
-    "POST /threat_models/{threat_model_id}/assets/{asset_id}/restore -> 200": [
-      "alias",
-      "deleted_at",
-      "include_in_report",
-      "metadata",
-      "timmy_enabled",
-      "version"
     ],
     "POST /threat_models/{threat_model_id}/diagrams -> 201": [
       "cells.angle",
@@ -555,10 +84,7 @@
       "cells.size",
       "cells.source",
       "cells.target",
-      "cells.vertices",
-      "color_palette",
-      "deleted_at",
-      "version"
+      "cells.vertices"
     ],
     "POST /threat_models/{threat_model_id}/diagrams/{diagram_id}/restore -> 200": [
       "cells.angle",
@@ -575,174 +101,10 @@
       "cells.size",
       "cells.source",
       "cells.target",
-      "cells.vertices",
-      "color_palette",
-      "deleted_at",
-      "version"
-    ],
-    "POST /threat_models/{threat_model_id}/documents -> 201": [
-      "access_diagnostics",
-      "access_status_updated_at",
-      "deleted_at",
-      "version"
-    ],
-    "POST /threat_models/{threat_model_id}/documents/{document_id}/restore -> 200": [
-      "access_diagnostics",
-      "access_status_updated_at",
-      "deleted_at",
-      "version"
-    ],
-    "POST /threat_models/{threat_model_id}/notes -> 201": [
-      "auto_generated",
-      "deleted_at",
-      "metadata"
-    ],
-    "POST /threat_models/{threat_model_id}/notes/{note_id}/restore -> 200": [
-      "alias",
-      "auto_generated",
-      "deleted_at",
-      "include_in_report",
-      "metadata",
-      "timmy_enabled"
-    ],
-    "POST /threat_models/{threat_model_id}/repositories -> 201": [
-      "alias",
-      "deleted_at",
-      "parameters",
-      "type"
-    ],
-    "POST /threat_models/{threat_model_id}/repositories/{repository_id}/restore -> 200": [
-      "alias",
-      "deleted_at",
-      "parameters",
-      "type"
-    ],
-    "POST /threat_models/{threat_model_id}/restore -> 200": [
-      "alias",
-      "assets",
-      "created_by",
-      "deleted_at",
-      "diagrams",
-      "documents",
-      "is_confidential",
-      "issue_uri",
-      "metadata",
-      "notes",
-      "project_id",
-      "repositories",
-      "security_reviewer",
-      "status_updated",
-      "threats",
-      "version"
-    ],
-    "POST /threat_models/{threat_model_id}/threats -> 201": [
-      "alias",
-      "asset_id",
-      "auto_generated",
-      "cell_id",
-      "cvss",
-      "cwe_id",
-      "deleted_at",
-      "diagram_id",
-      "issue_uri",
-      "mitigated",
-      "mitigation",
-      "priority",
-      "score",
-      "version"
-    ],
-    "POST /threat_models/{threat_model_id}/threats/{threat_id}/restore -> 200": [
-      "alias",
-      "asset_id",
-      "auto_generated",
-      "cell_id",
-      "cvss",
-      "cwe_id",
-      "deleted_at",
-      "diagram_id",
-      "issue_uri",
-      "mitigated",
-      "mitigation",
-      "priority",
-      "score",
-      "version"
-    ],
-    "PUT /admin/quotas/users/{user_id} -> 200": [
-      "max_requests_per_hour"
-    ],
-    "PUT /admin/quotas/users/{user_id} -> 201": [
-      "max_requests_per_hour"
+      "cells.vertices"
     ],
     "PUT /intake/survey_responses/{survey_response_id} -> 200": [
-      "authorization.display_name",
-      "authorization.email",
-      "created_threat_model_id",
-      "linked_threat_model_id",
-      "project_id",
-      "reviewed_at",
-      "reviewed_by",
-      "revision_notes",
-      "survey_json",
-      "ui_state",
-      "version"
-    ],
-    "PUT /projects/{project_id} -> 200": [
-      "metadata",
-      "notes",
-      "related_projects",
-      "responsible_parties",
-      "reviewed_at",
-      "reviewed_by",
-      "team.created_at",
-      "team.created_by",
-      "team.description",
-      "team.email_address",
-      "team.members",
-      "team.metadata",
-      "team.modified_at",
-      "team.modified_by",
-      "team.notes",
-      "team.related_teams",
-      "team.responsible_parties",
-      "team.reviewed_at",
-      "team.reviewed_by",
-      "team.status",
-      "team.uri",
-      "team.version",
-      "version"
-    ],
-    "PUT /teams/{team_id} -> 200": [
-      "notes",
-      "reviewed_at",
-      "reviewed_by",
-      "version"
-    ],
-    "PUT /threat_models/{threat_model_id} -> 200": [
-      "deleted_at",
-      "issue_uri",
-      "metadata",
-      "project_id",
-      "security_reviewer",
-      "status_updated",
-      "version"
-    ],
-    "PUT /threat_models/{threat_model_id}/assets/bulk -> 200": [
-      "alias",
-      "deleted_at",
-      "metadata",
-      "version"
-    ],
-    "PUT /threat_models/{threat_model_id}/assets/bulk -> 201": [
-      "alias",
-      "deleted_at",
-      "metadata",
-      "version"
-    ],
-    "PUT /threat_models/{threat_model_id}/assets/{asset_id} -> 200": [
-      "alias",
-      "deleted_at",
-      "metadata",
-      "version"
+      "survey_json"
     ],
     "PUT /threat_models/{threat_model_id}/diagrams/{diagram_id} -> 200": [
       "cells.angle",
@@ -759,44 +121,7 @@
       "cells.size",
       "cells.source",
       "cells.target",
-      "cells.vertices",
-      "color_palette",
-      "deleted_at",
-      "version"
-    ],
-    "PUT /threat_models/{threat_model_id}/documents/{document_id} -> 200": [
-      "access_diagnostics",
-      "access_status_updated_at",
-      "deleted_at",
-      "version"
-    ],
-    "PUT /threat_models/{threat_model_id}/notes/{note_id} -> 200": [
-      "alias",
-      "auto_generated",
-      "deleted_at",
-      "metadata"
-    ],
-    "PUT /threat_models/{threat_model_id}/repositories/{repository_id} -> 200": [
-      "alias",
-      "deleted_at",
-      "parameters",
-      "type"
-    ],
-    "PUT /threat_models/{threat_model_id}/threats/{threat_id} -> 200": [
-      "alias",
-      "asset_id",
-      "auto_generated",
-      "cell_id",
-      "cvss",
-      "cwe_id",
-      "deleted_at",
-      "diagram_id",
-      "issue_uri",
-      "mitigated",
-      "mitigation",
-      "priority",
-      "score",
-      "version"
+      "cells.vertices"
     ]
   }
 }

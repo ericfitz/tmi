@@ -397,8 +397,9 @@ func (h *GenericMetadataHandler) BulkCreate(c *gin.Context) {
 		return
 	}
 
-	if len(metadataList) > 20 {
-		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
+	if maxEntries := MaxBulkMetadataFor(h.entityType); len(metadataList) > maxEntries {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Maximum %d metadata entries allowed per bulk operation", maxEntries)))
 		return
 	}
 
@@ -483,8 +484,9 @@ func (h *GenericMetadataHandler) BulkUpsert(c *gin.Context) {
 		return
 	}
 
-	if len(metadataList) > 20 {
-		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
+	if maxEntries := MaxBulkMetadataFor(h.entityType); len(metadataList) > maxEntries {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Maximum %d metadata entries allowed per bulk operation", maxEntries)))
 		return
 	}
 
@@ -561,8 +563,9 @@ func (h *GenericMetadataHandler) BulkReplace(c *gin.Context) {
 		return
 	}
 
-	if len(metadataList) > 20 {
-		HandleRequestError(c, InvalidInputError("Maximum 20 metadata entries allowed per bulk operation"))
+	if maxEntries := MaxBulkMetadataFor(h.entityType); len(metadataList) > maxEntries {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Maximum %d metadata entries allowed per bulk operation", maxEntries)))
 		return
 	}
 

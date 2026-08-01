@@ -3,7 +3,7 @@
   "info": {
     "title": "TMI (Threat Modeling Improved) API",
     "description": "A RESTful API for collaborative threat modeling with full X6 graph library compatibility. This API provides schemas that align with AntV X6 cell object models for seamless integration with modern diagramming libraries. Supports OAuth 2.0 authentication with client callback integration for seamless single-page application authentication flows.\n\n## API Design v1.1.0\n\n### Authorization Model\nTMI uses hierarchical authorization: access control is defined at the ThreatModel level via the authorization field (readers, writers, owners). All child resources (Assets, Diagrams, Documents, Notes, Repositories, Threats) inherit permissions from their parent ThreatModel. This simplifies permission management and ensures consistent access control.\n\n### Bulk Operations\nNotes and Diagrams do not support bulk operations due to their unique creation workflows and lack of valid bulk use cases. All other resources (Threats, Assets, Documents, Repositories) support full bulk operations: POST (create), PUT (upsert), PATCH (partial update), DELETE (batch delete).\n\nAll resources support bulk metadata operations regardless of resource-level bulk support.\n\n### List Response Strategy\n- ThreatModels return summary information (TMListItem) because they contain many child objects that can be large.\n- Diagrams return summary information (DiagramListItem) because diagram data (cells, images) can be large.\n- Notes return summary information (NoteListItem) because the content field can be large.\n- Threats, Assets, Documents, Repositories return full schemas as they are relatively small and static.\n\n### PATCH Support\nAll resources support PATCH for partial updates using JSON Patch (RFC 6902). This is particularly useful for:\n- Assets: Array field updates (affected_assets, trust_boundaries) ensuring no duplicates\n- Notes: Updating name/description without changing content field\n- All resources: Efficient updates without full object replacement\n",
-    "version": "1.6.5",
+    "version": "1.7.0",
     "contact": {
       "name": "TMI Development Team",
       "url": "https://github.com/ericfitz/tmi",
@@ -194,6 +194,18 @@
           "operator": {
             "name": "Example Organization",
             "contact": "api-support@example.com"
+          },
+          "health": {
+            "database": {
+              "status": "healthy",
+              "latency_ms": 5,
+              "message": "example"
+            },
+            "redis": {
+              "status": "healthy",
+              "latency_ms": 2,
+              "message": "example"
+            }
           }
         },
         "additionalProperties": false
@@ -441,7 +453,15 @@
           "timmy_enabled": true,
           "access_status": "accessible",
           "content_source": "http",
-          "alias": 1
+          "alias": 1,
+          "access_diagnostics": {
+            "reason_code": "token_not_linked",
+            "reason_detail": "example",
+            "remediations": []
+          },
+          "access_status_updated_at": "2026-01-01T00:00:00Z",
+          "deleted_at": "2026-01-01T00:00:00Z",
+          "version": 1
         },
         "properties": {
           "version": {
@@ -780,7 +800,10 @@
           "image": null,
           "metadata": null,
           "update_vector": 0,
-          "auto_generated": false
+          "auto_generated": false,
+          "color_palette": [],
+          "deleted_at": "2026-01-01T00:00:00Z",
+          "version": 1
         },
         "description": "Data Flow Diagram with cells, edges, and visual styling for JointJS rendering",
         "properties": {
@@ -1380,7 +1403,35 @@
           "threat_model_framework": "STRIDE",
           "status": "in_progress",
           "created_at": "2026-01-10T08:00:00Z",
-          "modified_at": "2026-01-15T10:30:00Z"
+          "modified_at": "2026-01-15T10:30:00Z",
+          "alias": 1,
+          "assets": [],
+          "created_by": {
+            "principal_type": "user",
+            "provider": "example",
+            "provider_id": "example",
+            "display_name": "example",
+            "email": "user@example.com"
+          },
+          "deleted_at": "2026-01-01T00:00:00Z",
+          "diagrams": [],
+          "documents": [],
+          "is_confidential": false,
+          "issue_uri": "https://example.com/resource",
+          "metadata": [],
+          "notes": [],
+          "project_id": "00000000-0000-0000-0000-000000000000",
+          "repositories": [],
+          "security_reviewer": {
+            "principal_type": "user",
+            "provider": "example",
+            "provider_id": "example",
+            "display_name": "example",
+            "email": "user@example.com"
+          },
+          "status_updated": "2026-01-01T00:00:00Z",
+          "threats": [],
+          "version": 1
         },
         "properties": {
           "version": {
@@ -1489,7 +1540,21 @@
             "vector": "SSVCv2/E:A/U:S/T:T/P:S/2026-04-08/",
             "decision": "Immediate",
             "methodology": "Supplier"
-          }
+          },
+          "alias": 1,
+          "asset_id": "00000000-0000-0000-0000-000000000000",
+          "auto_generated": false,
+          "cell_id": "00000000-0000-0000-0000-000000000000",
+          "cvss": [],
+          "cwe_id": [],
+          "deleted_at": "2026-01-01T00:00:00Z",
+          "diagram_id": "00000000-0000-0000-0000-000000000000",
+          "issue_uri": "https://example.com/resource",
+          "mitigated": false,
+          "mitigation": "example",
+          "priority": "example",
+          "score": 0.0,
+          "version": 1
         },
         "description": "A security threat identified during threat modeling, with severity, status, and mitigation details",
         "properties": {
@@ -3433,7 +3498,15 @@
           "modified_at": "2024-01-15T10:00:00Z",
           "uri": "https://github.com/example/repo",
           "include_in_report": true,
-          "timmy_enabled": true
+          "timmy_enabled": true,
+          "alias": 1,
+          "deleted_at": "2026-01-01T00:00:00Z",
+          "parameters": {
+            "refType": "branch",
+            "refValue": "example",
+            "subPath": "example"
+          },
+          "type": "git"
         }
       },
       "Note": {
@@ -3511,7 +3584,13 @@
           "content": "Reviewed authentication flow. Identified potential session fixation risk.",
           "description": "Notes from initial security review session",
           "created_at": "2026-01-12T11:00:00Z",
-          "modified_at": "2026-01-13T16:00:00Z"
+          "modified_at": "2026-01-13T16:00:00Z",
+          "alias": 1,
+          "auto_generated": false,
+          "deleted_at": "2026-01-01T00:00:00Z",
+          "include_in_report": true,
+          "metadata": [],
+          "timmy_enabled": true
         }
       },
       "Asset": {
@@ -3596,7 +3675,13 @@
           "criticality": "high",
           "sensitivity": "high",
           "created_at": "2026-01-11T09:00:00Z",
-          "modified_at": "2026-01-14T14:00:00Z"
+          "modified_at": "2026-01-14T14:00:00Z",
+          "alias": 1,
+          "deleted_at": "2026-01-01T00:00:00Z",
+          "include_in_report": true,
+          "metadata": [],
+          "timmy_enabled": true,
+          "version": 1
         },
         "properties": {
           "version": {
@@ -4434,7 +4519,20 @@
           "attempts": 1,
           "created_at": "2024-01-20T15:45:30Z",
           "delivered_at": "2024-01-20T15:45:31Z",
-          "payload": {}
+          "payload": {},
+          "addon_id": "00000000-0000-0000-0000-000000000000",
+          "invoked_by": {
+            "principal_type": "user",
+            "provider": "example",
+            "provider_id": "example",
+            "display_name": "example",
+            "email": "user@example.com"
+          },
+          "last_activity_at": "2026-01-01T00:00:00Z",
+          "last_error": "example",
+          "next_retry_at": "2026-01-01T00:00:00Z",
+          "status_message": "example",
+          "status_percent": 0
         },
         "description": "Record of a webhook delivery attempt including status and response"
       },
@@ -4685,7 +4783,8 @@
             "threat_model",
             "diagram"
           ],
-          "created_at": "2024-01-15T10:30:00Z"
+          "created_at": "2024-01-15T10:30:00Z",
+          "parameters": []
         },
         "description": "Addon details including configuration and status"
       },
@@ -4725,7 +4824,11 @@
               "name": "Security Scanner",
               "description": "Automated security vulnerability scanner",
               "webhook_id": "550e8400-e29b-41d4-a716-446655440000",
-              "created_at": "2024-01-15T10:30:00Z"
+              "created_at": "2024-01-15T10:30:00Z",
+              "icon": "example",
+              "objects": [],
+              "parameters": [],
+              "threat_model_id": "00000000-0000-0000-0000-000000000000"
             }
           ],
           "total": 1,
@@ -5048,7 +5151,8 @@
           "user_id": "550e8400-e29b-41d4-a716-446655440000",
           "max_requests_per_minute": 60,
           "created_at": "2024-01-01T00:00:00Z",
-          "modified_at": "2024-01-01T00:00:00Z"
+          "modified_at": "2024-01-01T00:00:00Z",
+          "max_requests_per_hour": 1
         },
         "description": "API rate limit and quota configuration for a user"
       },
@@ -5209,7 +5313,10 @@
           "is_admin": false,
           "created_at": "2024-01-01T00:00:00Z",
           "modified_at": "2024-01-01T00:00:00Z",
-          "automation": null
+          "automation": null,
+          "active_threat_models": 0,
+          "groups": [],
+          "last_login": "2026-01-01T00:00:00Z"
         }
       },
       "AdminUserListResponse": {
@@ -5257,7 +5364,11 @@
               "internal_uuid": "123e4567-e89b-12d3-a456-426614174000",
               "provider_user_id": "github_123456",
               "email_verified": true,
-              "modified_at": "2024-01-15T00:00:00Z"
+              "modified_at": "2024-01-15T00:00:00Z",
+              "active_threat_models": 0,
+              "automation": false,
+              "groups": [],
+              "last_login": "2026-01-01T00:00:00Z"
             }
           ],
           "total": 1,
@@ -5374,7 +5485,9 @@
           "last_used": "2024-01-20T15:00:00Z",
           "usage_count": 150,
           "created_at": "2024-01-02T10:00:00Z",
-          "modified_at": "2024-01-02T10:00:00Z"
+          "modified_at": "2024-01-02T10:00:00Z",
+          "used_in_admin_grants": false,
+          "used_in_authorizations": false
         }
       },
       "AdminGroupListResponse": {
@@ -5425,7 +5538,8 @@
               "first_used": "2024-01-02T10:00:00Z",
               "last_used": "2024-01-15T14:30:00Z",
               "usage_count": 150,
-              "used_in_authorizations": true
+              "used_in_authorizations": true,
+              "used_in_admin_grants": false
             }
           ],
           "total": 1,
@@ -5695,7 +5809,12 @@
           "user_provider": "github",
           "user_provider_user_id": "bob-github-456",
           "added_at": "2024-01-06T09:00:00Z",
-          "subject_type": "user"
+          "subject_type": "user",
+          "added_by_email": "user@example.com",
+          "added_by_internal_uuid": "00000000-0000-0000-0000-000000000000",
+          "member_group_internal_uuid": "00000000-0000-0000-0000-000000000000",
+          "member_group_name": "example",
+          "notes": "example"
         },
         "description": "Member of a group with role information"
       },
@@ -5739,7 +5858,12 @@
               "user_provider": "github",
               "user_provider_user_id": "github_456789",
               "added_at": "2024-01-06T09:00:00Z",
-              "subject_type": "user"
+              "subject_type": "user",
+              "added_by_email": "user@example.com",
+              "added_by_internal_uuid": "00000000-0000-0000-0000-000000000000",
+              "member_group_internal_uuid": "00000000-0000-0000-0000-000000000000",
+              "member_group_name": "example",
+              "notes": "example"
             }
           ],
           "total": 1,
@@ -6807,13 +6931,23 @@
               "id": "http",
               "name": "HTTP",
               "kind": "direct",
-              "icon": "fa-solid fa-globe"
+              "icon": "fa-solid fa-globe",
+              "picker_config": {
+                "client_id": "1234567890-abc.apps.googleusercontent.com",
+                "developer_key": "AIzaSyB-1234example",
+                "app_id": "1234567890"
+              }
             },
             {
               "id": "google_workspace",
               "name": "Google Workspace",
               "kind": "delegated",
-              "icon": "fa-brands fa-google"
+              "icon": "fa-brands fa-google",
+              "picker_config": {
+                "client_id": "1234567890-abc.apps.googleusercontent.com",
+                "developer_key": "AIzaSyB-1234example",
+                "app_id": "1234567890"
+              }
             }
           ]
         }
@@ -9073,6 +9207,41 @@
           }
         }
       },
+      "TeamSummary": {
+        "type": "object",
+        "description": "Minimal team reference embedded in other resources. Only the identifying fields are resolved; fetch /teams/{team_id} for the complete team.",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Unique identifier for the team (UUID)",
+            "maxLength": 36,
+            "readOnly": true,
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "description": "Team name",
+            "example": "Platform Engineering"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2048,
+            "pattern": "^[^\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F]*$",
+            "description": "Team description",
+            "example": "Core platform infrastructure team",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "TeamListItem": {
         "type": "object",
         "description": "Summary of a team for list views",
@@ -9299,7 +9468,7 @@
               "team": {
                 "allOf": [
                   {
-                    "$ref": "#/components/schemas/Team"
+                    "$ref": "#/components/schemas/TeamSummary"
                   }
                 ],
                 "description": "The team this project belongs to (resolved)",
@@ -10151,14 +10320,20 @@
             "email_verified": true,
             "automation": true,
             "created_at": "2024-01-01T00:00:00Z",
-            "modified_at": "2024-01-01T00:00:00Z"
+            "modified_at": "2024-01-01T00:00:00Z",
+            "active_threat_models": 0,
+            "groups": [],
+            "is_admin": false,
+            "last_login": "2026-01-01T00:00:00Z"
           },
           "client_credential": {
             "id": "990eabcd-e89b-41d4-a716-446655440008",
             "client_id": "tmi_cc_abcdef1234567890",
             "client_secret": "base64url-encoded-secret-shown-only-once",
             "name": "webhook-analyzer",
-            "created_at": "2024-01-01T00:00:00Z"
+            "created_at": "2024-01-01T00:00:00Z",
+            "description": "example",
+            "expires_at": "2026-01-01T00:00:00Z"
           }
         }
       },
@@ -13365,7 +13540,8 @@
           "example": [
             "550e8400-e29b-41d4-a716-446655440001",
             "550e8400-e29b-41d4-a716-446655440002"
-          ]
+          ],
+          "uniqueItems": true
         },
         "description": "Comma-separated list of threat IDs to delete (UUID format)",
         "style": "form",
@@ -13971,6 +14147,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [],
@@ -15199,10 +15378,14 @@
                   "idp": "azure",
                   "groups": [
                     {
-                      "name": "Security Team"
+                      "name": "Security Team",
+                      "display_name": "example",
+                      "used_in_authorizations": false
                     },
                     {
-                      "name": "Developers"
+                      "name": "Developers",
+                      "display_name": "example",
+                      "used_in_authorizations": false
                     }
                   ]
                 }
@@ -16094,7 +16277,11 @@
                   "sub": "alice",
                   "name": "Alice Smith",
                   "email": "alice@example.com",
-                  "idp": "github"
+                  "idp": "github",
+                  "groups": [
+                    "admins",
+                    "users"
+                  ]
                 }
               }
             },
@@ -16618,6 +16805,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -16780,7 +16970,20 @@
                       "diagram_count": 1,
                       "threat_count": 5,
                       "asset_count": 4,
-                      "note_count": 2
+                      "note_count": 2,
+                      "alias": 1,
+                      "deleted_at": "2026-01-01T00:00:00Z",
+                      "description": "example",
+                      "issue_uri": "https://example.com/resource",
+                      "security_reviewer": {
+                        "principal_type": "user",
+                        "provider": "example",
+                        "provider_id": "example",
+                        "display_name": "example",
+                        "email": "user@example.com"
+                      },
+                      "status": "not_started",
+                      "status_updated": "2026-01-01T00:00:00Z"
                     }
                   ],
                   "total": 42,
@@ -16815,6 +17018,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -16988,13 +17194,26 @@
                       "value": "production"
                     }
                   ],
-                  "status_updated": "2026-02-01T09:00:00Z"
+                  "status_updated": "2026-02-01T09:00:00Z",
+                  "deleted_at": "2026-01-01T00:00:00Z",
+                  "project_id": "00000000-0000-0000-0000-000000000000",
+                  "security_reviewer": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "version": 1
                 }
               }
             }
           },
           "401": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -17146,13 +17365,51 @@
                         "Tampering"
                       ],
                       "severity": "high",
-                      "status": "open"
+                      "status": "open",
+                      "alias": 1,
+                      "asset_id": "00000000-0000-0000-0000-000000000000",
+                      "auto_generated": false,
+                      "cell_id": "00000000-0000-0000-0000-000000000000",
+                      "created_at": "2026-01-01T00:00:00Z",
+                      "cvss": [],
+                      "cwe_id": [],
+                      "deleted_at": "2026-01-01T00:00:00Z",
+                      "description": "example",
+                      "diagram_id": "00000000-0000-0000-0000-000000000000",
+                      "include_in_report": true,
+                      "issue_uri": "https://example.com/resource",
+                      "metadata": [],
+                      "mitigated": false,
+                      "mitigation": "example",
+                      "modified_at": "2026-01-01T00:00:00Z",
+                      "priority": "example",
+                      "score": 0.0,
+                      "ssvc": {
+                        "vector": "example",
+                        "decision": "Defer",
+                        "methodology": "example"
+                      },
+                      "threat_model_id": "00000000-0000-0000-0000-000000000000",
+                      "timmy_enabled": true,
+                      "version": 1
                     }
                   ],
                   "documents": [],
                   "repositories": [],
                   "notes": [],
-                  "assets": []
+                  "assets": [],
+                  "deleted_at": "2026-01-01T00:00:00Z",
+                  "metadata": [],
+                  "project_id": "00000000-0000-0000-0000-000000000000",
+                  "security_reviewer": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "status_updated": "2026-01-01T00:00:00Z",
+                  "version": 1
                 }
               }
             },
@@ -17194,6 +17451,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -17338,7 +17598,20 @@
                   "documents": [],
                   "repositories": [],
                   "notes": [],
-                  "assets": []
+                  "assets": [],
+                  "deleted_at": "2026-01-01T00:00:00Z",
+                  "issue_uri": "https://example.com/resource",
+                  "metadata": [],
+                  "project_id": "00000000-0000-0000-0000-000000000000",
+                  "security_reviewer": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "status_updated": "2026-01-01T00:00:00Z",
+                  "version": 1
                 }
               }
             },
@@ -17386,6 +17659,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -17542,7 +17818,20 @@
                   "documents": [],
                   "repositories": [],
                   "notes": [],
-                  "assets": []
+                  "assets": [],
+                  "deleted_at": "2026-01-01T00:00:00Z",
+                  "issue_uri": "https://example.com/resource",
+                  "metadata": [],
+                  "project_id": "00000000-0000-0000-0000-000000000000",
+                  "security_reviewer": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "status_updated": "2026-01-01T00:00:00Z",
+                  "version": 1
                 }
               }
             },
@@ -17590,6 +17879,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -17742,6 +18034,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -17759,7 +18054,9 @@
         "x-tmi-authz": {
           "ownership": "owner",
           "subject_authority": "invoker"
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the resource every later GET/PATCH/PUT on this path depends on, and the rest of the ~2,300-request block runs against a 404. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issue #651."
       }
     },
     "/threat_models/{threat_model_id}/threats": {
@@ -17979,6 +18276,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -18115,6 +18415,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -18249,6 +18552,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -18403,6 +18709,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -18656,6 +18965,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -18778,6 +19090,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -18910,6 +19225,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -19082,6 +19400,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -19213,6 +19534,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -19374,6 +19698,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -19499,6 +19826,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -19682,6 +20012,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -19830,6 +20163,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -19978,6 +20314,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -20162,6 +20501,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -20336,6 +20678,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -20459,6 +20804,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -20548,7 +20896,11 @@
                   "additionalProperties": false
                 },
                 "example": {
-                  "deleted_count": 3
+                  "deleted_count": 3,
+                  "deleted_ids": [
+                    "550e8400-e29b-41d4-a716-446655440001",
+                    "550e8400-e29b-41d4-a716-446655440002"
+                  ]
                 }
               }
             },
@@ -20584,6 +20936,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -20752,6 +21107,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -20956,6 +21314,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -21090,6 +21451,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -21244,6 +21608,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -21366,6 +21733,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -21528,6 +21898,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -21665,6 +22038,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -21837,6 +22213,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -21968,6 +22347,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -22129,6 +22511,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -22254,6 +22639,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -22437,6 +22825,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -22585,6 +22976,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -22733,6 +23127,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -22949,6 +23346,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -23163,6 +23563,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -23317,6 +23720,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -23453,6 +23859,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -23581,6 +23990,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -23720,6 +24132,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -23842,6 +24257,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -23989,6 +24407,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -24126,6 +24547,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -24298,6 +24722,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -24429,6 +24856,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -24590,6 +25020,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -24715,6 +25148,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -24898,6 +25334,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -25046,6 +25485,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -25194,6 +25636,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -25410,6 +25855,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -25694,6 +26142,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -25823,6 +26274,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -25992,6 +26446,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -26120,6 +26577,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -26278,6 +26738,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -26400,6 +26863,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -26580,6 +27046,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -26725,6 +27194,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -26870,6 +27342,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -26979,7 +27454,11 @@
                       "description": "Data flow diagram showing payment processing flow",
                       "created_at": "2025-01-15T10:30:00Z",
                       "modified_at": "2025-01-15T14:22:00Z",
-                      "image": null
+                      "image": null,
+                      "alias": 1,
+                      "deleted_at": "2026-01-01T00:00:00Z",
+                      "include_in_report": true,
+                      "timmy_enabled": true
                     }
                   ],
                   "total": 5,
@@ -27020,6 +27499,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -27156,6 +27638,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -27290,6 +27775,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -27474,6 +27962,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -27705,6 +28196,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -27860,6 +28354,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -27988,6 +28485,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -28178,6 +28678,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -28300,6 +28803,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -28432,6 +28938,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -28604,6 +29113,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -28735,6 +29247,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -28896,6 +29411,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -29021,6 +29539,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -29204,6 +29725,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -29352,6 +29876,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -29500,6 +30027,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -29902,7 +30432,13 @@
                       "id": "ff0e8400-e29b-41d4-a716-44665544000a",
                       "name": "Security Review Notes",
                       "created_at": "2024-01-17T14:30:00Z",
-                      "modified_at": "2024-01-17T15:00:00Z"
+                      "modified_at": "2024-01-17T15:00:00Z",
+                      "alias": 1,
+                      "deleted_at": "2026-01-01T00:00:00Z",
+                      "description": "example",
+                      "include_in_report": true,
+                      "metadata": [],
+                      "timmy_enabled": true
                     }
                   ],
                   "total": 12,
@@ -29943,6 +30479,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -30054,7 +30593,10 @@
                   "alias": 1,
                   "description": "Notes from initial security review session",
                   "include_in_report": true,
-                  "timmy_enabled": true
+                  "timmy_enabled": true,
+                  "auto_generated": false,
+                  "deleted_at": "2026-01-01T00:00:00Z",
+                  "metadata": []
                 }
               }
             },
@@ -30090,6 +30632,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -30195,7 +30740,8 @@
                   "description": "Notes from initial security review session",
                   "include_in_report": true,
                   "metadata": [],
-                  "timmy_enabled": true
+                  "timmy_enabled": true,
+                  "deleted_at": "2026-01-01T00:00:00Z"
                 }
               }
             },
@@ -30231,6 +30777,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -30344,7 +30893,11 @@
                   "modified_at": "2026-01-17T09:00:00Z",
                   "description": "Notes from initial security review session",
                   "include_in_report": true,
-                  "timmy_enabled": true
+                  "timmy_enabled": true,
+                  "alias": 1,
+                  "auto_generated": false,
+                  "deleted_at": "2026-01-01T00:00:00Z",
+                  "metadata": []
                 }
               }
             },
@@ -30380,6 +30933,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -30502,6 +31058,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -30626,7 +31185,8 @@
                   "description": "Notes from initial security review session",
                   "include_in_report": true,
                   "metadata": [],
-                  "timmy_enabled": true
+                  "timmy_enabled": true,
+                  "deleted_at": "2026-01-01T00:00:00Z"
                 }
               }
             },
@@ -30662,6 +31222,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -30799,6 +31362,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -30971,6 +31537,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -31102,6 +31671,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -31263,6 +31835,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -31388,6 +31963,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -31538,6 +32116,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -31719,6 +32300,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -31867,6 +32451,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -31975,7 +32562,16 @@
                       "type": "data",
                       "description": "Primary database storing user credentials",
                       "created_at": "2026-01-15T10:00:00Z",
-                      "modified_at": "2026-01-16T14:30:00Z"
+                      "modified_at": "2026-01-16T14:30:00Z",
+                      "alias": 1,
+                      "classification": [],
+                      "criticality": "example",
+                      "deleted_at": "2026-01-01T00:00:00Z",
+                      "include_in_report": true,
+                      "metadata": [],
+                      "sensitivity": "example",
+                      "timmy_enabled": true,
+                      "version": 1
                     }
                   ],
                   "total": 1,
@@ -32016,6 +32612,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -32132,7 +32731,10 @@
                   "criticality": "high",
                   "include_in_report": true,
                   "sensitivity": "high",
-                  "timmy_enabled": true
+                  "timmy_enabled": true,
+                  "deleted_at": "2026-01-01T00:00:00Z",
+                  "metadata": [],
+                  "version": 1
                 }
               }
             },
@@ -32168,6 +32770,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -32308,7 +32913,10 @@
                     "criticality": "high",
                     "include_in_report": true,
                     "sensitivity": "high",
-                    "timmy_enabled": true
+                    "timmy_enabled": true,
+                    "deleted_at": "2026-01-01T00:00:00Z",
+                    "metadata": [],
+                    "version": 1
                   },
                   {
                     "id": "550e8400-e29b-41d4-a716-446655440002",
@@ -32322,7 +32930,10 @@
                     "criticality": null,
                     "include_in_report": true,
                     "sensitivity": null,
-                    "timmy_enabled": true
+                    "timmy_enabled": true,
+                    "deleted_at": "2026-01-01T00:00:00Z",
+                    "metadata": [],
+                    "version": 1
                   }
                 ]
               }
@@ -32362,6 +32973,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -32493,7 +33107,11 @@
                     "criticality": null,
                     "include_in_report": true,
                     "sensitivity": null,
-                    "timmy_enabled": true
+                    "timmy_enabled": true,
+                    "alias": 1,
+                    "deleted_at": "2026-01-01T00:00:00Z",
+                    "metadata": [],
+                    "version": 1
                   }
                 ]
               }
@@ -32556,7 +33174,11 @@
                     "criticality": "high",
                     "include_in_report": true,
                     "sensitivity": "high",
-                    "timmy_enabled": true
+                    "timmy_enabled": true,
+                    "alias": 1,
+                    "deleted_at": "2026-01-01T00:00:00Z",
+                    "metadata": [],
+                    "version": 1
                   }
                 ]
               }
@@ -32587,6 +33209,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -32696,7 +33321,9 @@
                   "include_in_report": true,
                   "metadata": [],
                   "sensitivity": "high",
-                  "timmy_enabled": true
+                  "timmy_enabled": true,
+                  "deleted_at": "2026-01-01T00:00:00Z",
+                  "version": 1
                 }
               }
             },
@@ -32738,6 +33365,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -32859,7 +33489,11 @@
                   "criticality": "high",
                   "include_in_report": true,
                   "sensitivity": "high",
-                  "timmy_enabled": true
+                  "timmy_enabled": true,
+                  "alias": 1,
+                  "deleted_at": "2026-01-01T00:00:00Z",
+                  "metadata": [],
+                  "version": 1
                 }
               }
             },
@@ -32907,6 +33541,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -33029,6 +33666,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -33155,7 +33795,12 @@
                   "alias": 1,
                   "include_in_report": true,
                   "metadata": [],
-                  "timmy_enabled": true
+                  "timmy_enabled": true,
+                  "classification": [],
+                  "criticality": "example",
+                  "deleted_at": "2026-01-01T00:00:00Z",
+                  "sensitivity": "example",
+                  "version": 1
                 }
               }
             },
@@ -33203,6 +33848,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -33340,6 +33988,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -33512,6 +34163,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -33643,6 +34297,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -33788,6 +34445,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -33913,6 +34573,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -34096,6 +34759,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -34244,6 +34910,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -34392,6 +35061,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -34557,6 +35229,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [],
@@ -34714,6 +35389,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [],
@@ -34880,6 +35558,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [],
@@ -35148,6 +35829,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -35303,6 +35987,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -35484,6 +36171,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -35725,6 +36415,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -35960,6 +36653,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -36033,7 +36729,8 @@
                       "metadata_url": "http://localhost:8080/saml/okta/metadata",
                       "entity_id": "urn:example:tmi",
                       "acs_url": "http://localhost:8080/saml/acs",
-                      "initialized": true
+                      "initialized": true,
+                      "slo_url": "https://example.com/resource"
                     }
                   ]
                 }
@@ -36062,6 +36759,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [],
@@ -36162,6 +36862,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [],
@@ -36312,6 +37015,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [],
@@ -36562,6 +37268,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -36850,6 +37559,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -37106,6 +37818,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -37338,6 +38053,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -37628,6 +38346,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -37884,6 +38605,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -38153,6 +38877,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -38414,6 +39141,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -38690,6 +39420,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -38996,6 +39729,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-same-provider-required": true,
@@ -39140,7 +39876,8 @@
                       "user_id": "550e8400-e29b-41d4-a716-446655440000",
                       "max_requests_per_minute": 60,
                       "created_at": "2024-01-01T00:00:00Z",
-                      "modified_at": "2024-01-01T00:00:00Z"
+                      "modified_at": "2024-01-01T00:00:00Z",
+                      "max_requests_per_hour": 1
                     }
                   ],
                   "total": 25,
@@ -39238,6 +39975,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -39486,6 +40226,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -39732,6 +40475,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -39964,6 +40710,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -40252,6 +41001,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -40508,6 +41260,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -40769,6 +41524,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -41184,7 +41942,9 @@
                       "client_id": "tmi_cc_monitoring123",
                       "is_active": true,
                       "created_at": "2024-01-15T10:00:00Z",
-                      "modified_at": "2024-01-15T10:00:00Z"
+                      "modified_at": "2024-01-15T10:00:00Z",
+                      "expires_at": "2026-01-01T00:00:00Z",
+                      "last_used_at": "2026-01-01T00:00:00Z"
                     }
                   ],
                   "total": 4,
@@ -41458,6 +42218,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit-tier": "user",
@@ -41703,6 +42466,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit-tier": "user",
@@ -41915,6 +42681,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit-tier": "user",
@@ -42078,6 +42847,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -42190,6 +42962,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [],
@@ -42359,6 +43134,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -42542,6 +43320,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -42707,6 +43488,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -42884,6 +43668,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -43045,6 +43832,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -43244,6 +44034,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -43407,6 +44200,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -43614,6 +44410,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -43834,6 +44633,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -44000,6 +44802,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -44164,6 +44969,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -44319,6 +45127,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -44489,6 +45300,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -44602,7 +45416,9 @@
                       "principal_type": "user",
                       "provider": "google",
                       "provider_id": "109876543210987654321",
-                      "role": "owner"
+                      "role": "owner",
+                      "display_name": "example",
+                      "email": "user@example.com"
                     }
                   ],
                   "survey_json": {
@@ -44641,7 +45457,16 @@
                   "revision_notes": null,
                   "created_threat_model_id": null,
                   "linked_threat_model_id": null,
-                  "ui_state": null
+                  "ui_state": null,
+                  "project_id": "00000000-0000-0000-0000-000000000000",
+                  "reviewed_by": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "version": 1
                 }
               }
             },
@@ -44674,6 +45499,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -44779,7 +45607,9 @@
                       "principal_type": "user",
                       "provider": "google",
                       "provider_id": "109876543210987654321",
-                      "role": "writer"
+                      "role": "writer",
+                      "display_name": "example",
+                      "email": "user@example.com"
                     }
                   ],
                   "metadata": [],
@@ -44799,7 +45629,21 @@
                     "provider_id": "109876543210987654321",
                     "display_name": "Alice Developer",
                     "email": "alice@example.com"
-                  }
+                  },
+                  "created_threat_model_id": "00000000-0000-0000-0000-000000000000",
+                  "linked_threat_model_id": "00000000-0000-0000-0000-000000000000",
+                  "project_id": "00000000-0000-0000-0000-000000000000",
+                  "reviewed_at": "2026-01-01T00:00:00Z",
+                  "reviewed_by": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "revision_notes": "example",
+                  "ui_state": null,
+                  "version": 1
                 }
               }
             },
@@ -44841,6 +45685,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -44961,7 +45808,9 @@
                       "principal_type": "user",
                       "provider": "google",
                       "provider_id": "109876543210987654321",
-                      "role": "writer"
+                      "role": "writer",
+                      "display_name": "example",
+                      "email": "user@example.com"
                     }
                   ],
                   "metadata": [],
@@ -44981,7 +45830,21 @@
                     "provider_id": "109876543210987654321",
                     "display_name": "Alice Developer",
                     "email": "alice@example.com"
-                  }
+                  },
+                  "created_threat_model_id": "00000000-0000-0000-0000-000000000000",
+                  "linked_threat_model_id": "00000000-0000-0000-0000-000000000000",
+                  "project_id": "00000000-0000-0000-0000-000000000000",
+                  "reviewed_at": "2026-01-01T00:00:00Z",
+                  "reviewed_by": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "revision_notes": "example",
+                  "ui_state": null,
+                  "version": 1
                 }
               }
             },
@@ -45059,6 +45922,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -45191,7 +46057,9 @@
                       "principal_type": "user",
                       "provider": "google",
                       "provider_id": "109876543210987654321",
-                      "role": "writer"
+                      "role": "writer",
+                      "display_name": "example",
+                      "email": "user@example.com"
                     }
                   ],
                   "metadata": [],
@@ -45211,7 +46079,21 @@
                     "provider_id": "109876543210987654321",
                     "display_name": "Alice Developer",
                     "email": "alice@example.com"
-                  }
+                  },
+                  "created_threat_model_id": "00000000-0000-0000-0000-000000000000",
+                  "linked_threat_model_id": "00000000-0000-0000-0000-000000000000",
+                  "project_id": "00000000-0000-0000-0000-000000000000",
+                  "reviewed_at": "2026-01-01T00:00:00Z",
+                  "reviewed_by": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "revision_notes": "example",
+                  "ui_state": null,
+                  "version": 1
                 }
               }
             },
@@ -45326,6 +46208,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -45444,6 +46329,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -45460,7 +46348,9 @@
         },
         "x-tmi-authz": {
           "ownership": "none"
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the resource every later GET/PATCH/PUT on this path depends on, and the rest of the ~2,300-request block runs against a 404. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issue #651."
       }
     },
     "/triage/survey_responses": {
@@ -45617,6 +46507,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -45722,7 +46615,9 @@
                       "principal_type": "user",
                       "provider": "google",
                       "provider_id": "109876543210987654321",
-                      "role": "writer"
+                      "role": "writer",
+                      "display_name": "example",
+                      "email": "user@example.com"
                     }
                   ],
                   "metadata": [],
@@ -45765,7 +46660,12 @@
                         "name": "page1"
                       }
                     ]
-                  }
+                  },
+                  "linked_threat_model_id": "00000000-0000-0000-0000-000000000000",
+                  "project_id": "00000000-0000-0000-0000-000000000000",
+                  "revision_notes": "example",
+                  "ui_state": null,
+                  "version": 1
                 }
               }
             },
@@ -45801,6 +46701,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -45925,7 +46828,9 @@
                       "principal_type": "user",
                       "provider": "google",
                       "provider_id": "109876543210987654321",
-                      "role": "writer"
+                      "role": "writer",
+                      "display_name": "example",
+                      "email": "user@example.com"
                     }
                   ],
                   "metadata": [],
@@ -45968,7 +46873,12 @@
                         "name": "page1"
                       }
                     ]
-                  }
+                  },
+                  "linked_threat_model_id": "00000000-0000-0000-0000-000000000000",
+                  "project_id": "00000000-0000-0000-0000-000000000000",
+                  "revision_notes": "example",
+                  "ui_state": null,
+                  "version": 1
                 }
               }
             },
@@ -46074,6 +46984,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -46235,6 +47148,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -46363,6 +47279,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -46536,6 +47455,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -46668,6 +47590,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -46814,6 +47739,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -46940,6 +47868,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -47124,6 +48055,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -47273,6 +48207,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -47422,6 +48359,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -47555,6 +48495,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -47724,6 +48667,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -47851,6 +48797,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -47993,6 +48942,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -48114,6 +49066,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -48293,6 +49248,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -48437,6 +49395,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -48581,6 +49542,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -48709,6 +49673,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -48836,6 +49803,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -48966,6 +49936,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -49117,6 +50090,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -49265,6 +50241,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -49395,6 +50374,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -49543,6 +50525,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -49804,6 +50789,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -50201,7 +51189,10 @@
                       "description": "Core platform infrastructure team",
                       "status": "active",
                       "created_at": "2025-01-15T10:30:00Z",
-                      "modified_at": "2025-06-20T14:22:00Z"
+                      "modified_at": "2025-06-20T14:22:00Z",
+                      "member_count": 1,
+                      "note_count": 0,
+                      "project_count": 1
                     }
                   ],
                   "total": 1,
@@ -50266,6 +51257,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -50380,13 +51374,31 @@
                         "provider": "github",
                         "provider_id": "alice@example.com"
                       },
-                      "user_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                      "user_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                      "custom_role": "example"
                     }
                   ],
                   "metadata": [],
                   "related_teams": [],
                   "responsible_parties": [],
-                  "uri": "https://wiki.example.com/teams/platform-engineering"
+                  "uri": "https://wiki.example.com/teams/platform-engineering",
+                  "modified_by": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "notes": [],
+                  "reviewed_at": "2026-01-01T00:00:00Z",
+                  "reviewed_by": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "version": 1
                 }
               }
             },
@@ -50479,6 +51491,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -50591,7 +51606,16 @@
                   "notes": [],
                   "related_teams": [],
                   "responsible_parties": [],
-                  "uri": "https://wiki.example.com/teams/platform-engineering"
+                  "uri": "https://wiki.example.com/teams/platform-engineering",
+                  "reviewed_at": "2026-01-01T00:00:00Z",
+                  "reviewed_by": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "version": 1
                 }
               }
             },
@@ -50723,6 +51747,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -50853,7 +51880,17 @@
                   },
                   "related_teams": [],
                   "responsible_parties": [],
-                  "uri": "https://wiki.example.com/teams/platform-engineering"
+                  "uri": "https://wiki.example.com/teams/platform-engineering",
+                  "notes": [],
+                  "reviewed_at": "2026-01-01T00:00:00Z",
+                  "reviewed_by": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "version": 1
                 }
               }
             },
@@ -51021,6 +52058,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -51154,7 +52194,17 @@
                   "related_teams": [],
                   "responsible_parties": [],
                   "uri": "https://wiki.example.com/teams/platform-engineering",
-                  "email_address": "platform-eng@example.com"
+                  "email_address": "platform-eng@example.com",
+                  "notes": [],
+                  "reviewed_at": "2026-01-01T00:00:00Z",
+                  "reviewed_by": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "version": 1
                 }
               }
             },
@@ -51322,6 +52372,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -51558,6 +52611,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -51567,7 +52623,9 @@
         ],
         "x-tmi-authz": {
           "ownership": "none"
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the resource every later GET/PATCH/PUT on this path depends on, and the rest of the ~2,300-request block runs against a 404. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issue #651."
       }
     },
     "/teams/{team_id}/metadata": {
@@ -51737,6 +52795,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -51958,6 +53019,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -52161,6 +53225,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -52341,6 +53408,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -52572,6 +53642,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -52764,6 +53837,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -52960,6 +54036,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -53119,7 +54198,9 @@
                       "team_id": "550e8400-e29b-41d4-a716-446655440000",
                       "status": "active",
                       "created_at": "2025-02-01T09:00:00Z",
-                      "modified_at": "2025-07-10T16:45:00Z"
+                      "modified_at": "2025-07-10T16:45:00Z",
+                      "note_count": 0,
+                      "team_name": "example"
                     }
                   ],
                   "total": 1,
@@ -53184,6 +54265,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -53291,9 +54375,30 @@
                   },
                   "team": {
                     "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-                    "name": "Platform Engineering"
+                    "name": "Platform Engineering",
+                    "description": "Core platform infrastructure team"
                   },
-                  "uri": "https://wiki.example.com/projects/api-gateway"
+                  "uri": "https://wiki.example.com/projects/api-gateway",
+                  "metadata": [],
+                  "modified_by": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "notes": [],
+                  "related_projects": [],
+                  "responsible_parties": [],
+                  "reviewed_at": "2026-01-01T00:00:00Z",
+                  "reviewed_by": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "version": 1
                 }
               }
             },
@@ -53419,6 +54524,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -53529,9 +54637,22 @@
                   "notes": [],
                   "team": {
                     "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-                    "name": "Platform Engineering"
+                    "name": "Platform Engineering",
+                    "description": "Core platform infrastructure team"
                   },
-                  "uri": "https://wiki.example.com/projects/api-gateway"
+                  "uri": "https://wiki.example.com/projects/api-gateway",
+                  "metadata": [],
+                  "related_projects": [],
+                  "responsible_parties": [],
+                  "reviewed_at": "2026-01-01T00:00:00Z",
+                  "reviewed_by": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "version": 1
                 }
               }
             },
@@ -53663,6 +54784,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -53792,9 +54916,23 @@
                   },
                   "team": {
                     "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-                    "name": "Platform Engineering"
+                    "name": "Platform Engineering",
+                    "description": "Core platform infrastructure team"
                   },
-                  "uri": "https://wiki.example.com/projects/api-gateway"
+                  "uri": "https://wiki.example.com/projects/api-gateway",
+                  "metadata": [],
+                  "notes": [],
+                  "related_projects": [],
+                  "responsible_parties": [],
+                  "reviewed_at": "2026-01-01T00:00:00Z",
+                  "reviewed_by": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "version": 1
                 }
               }
             },
@@ -53962,6 +55100,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -54093,8 +55234,23 @@
                   },
                   "team": {
                     "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-                    "name": "Platform Engineering"
-                  }
+                    "name": "Platform Engineering",
+                    "description": "Core platform infrastructure team"
+                  },
+                  "metadata": [],
+                  "notes": [],
+                  "related_projects": [],
+                  "responsible_parties": [],
+                  "reviewed_at": "2026-01-01T00:00:00Z",
+                  "reviewed_by": {
+                    "principal_type": "user",
+                    "provider": "example",
+                    "provider_id": "example",
+                    "display_name": "example",
+                    "email": "user@example.com"
+                  },
+                  "uri": "https://wiki.example.com/projects/api-gateway",
+                  "version": 1
                 }
               }
             },
@@ -54262,6 +55418,9 @@
           },
           "428": {
             "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -54498,6 +55657,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -54507,7 +55669,9 @@
         ],
         "x-tmi-authz": {
           "ownership": "none"
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the resource every later GET/PATCH/PUT on this path depends on, and the rest of the ~2,300-request block runs against a 404. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issue #651."
       }
     },
     "/projects/{project_id}/metadata": {
@@ -54677,6 +55841,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -54898,6 +56065,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -55101,6 +56271,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -55281,6 +56454,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -55512,6 +56688,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -55704,6 +56883,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -55900,6 +57082,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -56074,6 +57259,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit-tier": "user",
@@ -56180,6 +57368,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -56277,6 +57468,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -56398,6 +57592,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -56490,6 +57687,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -56581,6 +57781,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -56672,6 +57875,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -56763,6 +57969,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -56854,6 +58063,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -56945,6 +58157,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -57093,6 +58308,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -57257,6 +58475,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -57421,6 +58642,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -57585,6 +58809,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -57749,6 +58976,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -57913,6 +59143,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -58077,6 +59310,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -58284,6 +59520,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -58525,6 +59764,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -58856,7 +60098,11 @@
                       ],
                       "status": "active",
                       "created_at": "2024-01-15T10:30:00Z",
-                      "modified_at": "2024-01-15T10:30:00Z"
+                      "modified_at": "2024-01-15T10:30:00Z",
+                      "challenges_sent": 0,
+                      "last_successful_use": "2026-01-01T00:00:00Z",
+                      "publication_failures": 0,
+                      "threat_model_id": "00000000-0000-0000-0000-000000000000"
                     }
                   ],
                   "total": 6,
@@ -59644,7 +60890,9 @@
             "admin"
           ]
         },
-        "x-tmi-authz-step-up": "optional"
+        "x-tmi-authz-step-up": "optional",
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the resource every later GET/PATCH/PUT on this path depends on, and the rest of the ~2,300-request block runs against a 404. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issue #651."
       }
     },
     "/admin/webhooks/subscriptions/{webhook_id}/test": {
@@ -60004,7 +61252,20 @@
                       "status": "delivered",
                       "attempts": 1,
                       "created_at": "2024-01-20T15:45:30Z",
-                      "delivered_at": "2024-01-20T15:45:31Z"
+                      "delivered_at": "2024-01-20T15:45:31Z",
+                      "addon_id": "00000000-0000-0000-0000-000000000000",
+                      "invoked_by": {
+                        "principal_type": "user",
+                        "provider": "example",
+                        "provider_id": "example",
+                        "display_name": "example",
+                        "email": "user@example.com"
+                      },
+                      "last_activity_at": "2026-01-01T00:00:00Z",
+                      "last_error": "example",
+                      "next_retry_at": "2026-01-01T00:00:00Z",
+                      "status_message": "example",
+                      "status_percent": 0
                     }
                   ],
                   "total": 100,
@@ -60417,7 +61678,9 @@
                       "name": "Security Review Notes",
                       "description": "Notes from quarterly security review",
                       "created_at": "2026-01-15T10:30:00Z",
-                      "modified_at": "2026-01-15T10:30:00Z"
+                      "modified_at": "2026-01-15T10:30:00Z",
+                      "sharable": false,
+                      "timmy_enabled": true
                     }
                   ],
                   "total": 1,
@@ -60458,6 +61721,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -60605,6 +61871,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -60739,6 +62008,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -60889,6 +62161,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -61042,6 +62317,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -61170,6 +62448,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -61186,7 +62467,9 @@
         },
         "x-tmi-authz": {
           "ownership": "none"
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the resource every later GET/PATCH/PUT on this path depends on, and the rest of the ~2,300-request block runs against a 404. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issue #651."
       }
     },
     "/projects/{project_id}/notes": {
@@ -61280,7 +62563,9 @@
                       "name": "Architecture Decision Record",
                       "description": "ADR for authentication redesign",
                       "created_at": "2026-02-01T14:00:00Z",
-                      "modified_at": "2026-02-01T14:00:00Z"
+                      "modified_at": "2026-02-01T14:00:00Z",
+                      "sharable": false,
+                      "timmy_enabled": true
                     }
                   ],
                   "total": 1,
@@ -61321,6 +62606,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -61468,6 +62756,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -61602,6 +62893,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -61752,6 +63046,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -61905,6 +63202,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -62033,6 +63333,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -62239,6 +63542,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -62482,6 +63788,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -62856,7 +64165,10 @@
                   "user_id": "323e4567-e89b-12d3-a456-426614174002",
                   "status": "active",
                   "created_at": "2026-04-19T12:00:00Z",
-                  "modified_at": "2026-04-19T12:34:56Z"
+                  "modified_at": "2026-04-19T12:34:56Z",
+                  "source_snapshot": [],
+                  "system_prompt_hash": "sha256:abc123def456789",
+                  "title": "Payment flow threat analysis"
                 }
               }
             },
@@ -63902,6 +65214,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -63957,7 +65272,15 @@
                 "example": {
                   "text_embedding": {
                     "provider": "openai",
-                    "model": "text-embedding-3-small"
+                    "model": "text-embedding-3-small",
+                    "api_key": "example",
+                    "base_url": ""
+                  },
+                  "code_embedding": {
+                    "provider": "openai",
+                    "model": "text-embedding-3-small",
+                    "api_key": "example",
+                    "base_url": ""
                   }
                 }
               }
@@ -65116,6 +66439,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       },
@@ -65258,6 +66584,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -65348,6 +66677,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -65446,6 +66778,9 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       },
@@ -65596,6 +66931,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -65686,6 +67024,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -66319,6 +67660,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -66591,6 +67935,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -66883,6 +68230,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -67155,6 +68505,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -67925,6 +69278,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -68348,6 +69704,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -68610,6 +69969,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -68891,6 +70253,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -69157,6 +70522,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -69165,7 +70533,9 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the resource every later GET/PATCH/PUT on this path depends on, and the rest of the ~2,300-request block runs against a 404. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issue #651."
       }
     },
     "/admin/groups/{group_id}": {
@@ -69426,6 +70796,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -69707,6 +71080,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -69970,6 +71346,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -69978,7 +71357,9 @@
           "roles": [
             "admin"
           ]
-        }
+        },
+        "x-preserve-fixture": "true",
+        "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the resource every later GET/PATCH/PUT on this path depends on, and the rest of the ~2,300-request block runs against a 404. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issue #651."
       }
     },
     "/admin/groups/{group_id}/members": {
@@ -70245,6 +71626,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -70559,6 +71943,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -70841,6 +72228,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -71124,6 +72514,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-admin-only": true,
@@ -71403,6 +72796,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-rate-limit-tier": "user",

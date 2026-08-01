@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/test/integration/framework"
+	"github.com/google/uuid"
 )
 
 func TestIdentityLink(t *testing.T) {
@@ -53,11 +54,18 @@ func TestIdentityLink(t *testing.T) {
 
 	// Use unique suffixes so repeated runs don't clash.
 	// login_hint must match ^[a-zA-Z0-9-]{3,20}$ and must be 3-20 chars.
-	// Format: "il" + 4-digit suffix keeps total well under 20 chars.
-	suffix := fmt.Sprintf("%04d", time.Now().UnixNano()%10000)
-	aliceID := "il-alice-" + suffix  // e.g. il-alice-1234  (14 chars)
-	aliceAltID := "il-alt-" + suffix  // e.g. il-alt-1234   (12 chars)
-	bobID := "il-bob-" + suffix       // e.g. il-bob-1234   (13 chars)
+	//
+	// This was `UnixNano()%10000`, which is only 10,000 distinct values and
+	// collided across runs often enough to make the test flake on
+	// identity_already_bound: a suffix reused from an earlier run finds alice
+	// already linked (#653). Identities persist, so the suffix has to be unique
+	// over the lifetime of the database, not just within a run. 8 hex chars is
+	// the same entropy framework.UniqueUserID uses, and keeps the longest id at
+	// 17 characters.
+	suffix := uuid.New().String()[:8]
+	aliceID := "il-alice-" + suffix  // e.g. il-alice-a1b2c3d4 (17 chars)
+	aliceAltID := "il-alt-" + suffix // e.g. il-alt-a1b2c3d4   (15 chars)
+	bobID := "il-bob-" + suffix      // e.g. il-bob-a1b2c3d4   (15 chars)
 
 	// ---------------------------------------------------------------
 	// Step 1: Authenticate alice, get her account UUID.
@@ -460,9 +468,10 @@ func TestIdentityLink_SecondConfirmRejected(t *testing.T) {
 		t.Fatalf("OAuth stub not running: %v", err)
 	}
 
-	suffix := fmt.Sprintf("%04d", time.Now().UnixNano()%10000)
-	aliceID := "il2-alice-" + suffix // e.g. il2-alice-1234 (14 chars)
-	altID := "il2-alt-" + suffix     // e.g. il2-alt-1234   (12 chars)
+	// 8 hex chars rather than UnixNano()%10000, for the reason in #653 above.
+	suffix := uuid.New().String()[:8]
+	aliceID := "il2-alice-" + suffix // e.g. il2-alice-a1b2c3d4 (18 chars)
+	altID := "il2-alt-" + suffix     // e.g. il2-alt-a1b2c3d4   (16 chars)
 
 	aliceTokens, err := framework.AuthenticateUser(aliceID)
 	framework.AssertNoError(t, err, "AuthenticateUser(alice)")

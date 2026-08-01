@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -255,6 +256,9 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 			var authErr *AuthError
 			if errors.As(err, &authErr) {
 				logger.Debug("[JWT_MIDDLEWARE] Authentication failed: %v", err)
+				if authErr.RetryAfter > 0 {
+					c.Header("Retry-After", strconv.Itoa(authErr.RetryAfter))
+				}
 				c.JSON(authErr.StatusCode, api.Error{
 					Error:            authErr.Code,
 					ErrorDescription: authErr.Description,

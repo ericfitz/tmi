@@ -60,3 +60,64 @@ If you intentionally change a rule's conditions (not just comments), update
 
 Do not hand-edit the counts in `rule-baseline.json`; they should always come
 from an actual run against a real corpus.
+
+## Spec vendor extensions that shape a campaign
+
+The campaign config (`.local/cats/config.yaml`, gitignored and machine-local)
+maps operation-level `x-` extensions in `api-schema/tmi-openapi.json` to fuzzers
+that should not run against that operation. Because the extension sits on an
+**operation**, not a path, this is the only mechanism available for scoping
+campaign behaviour to a single HTTP method — CATS `refData` is per-path and has
+no method qualifier (the format's only special keys are `all`, `#` json-path
+separators, `$$` environment variables, `cats_remove_field` and
+`additionalProperties`).
+
+| extension | skips | why |
+|---|---|---|
+| `x-public-endpoint` | `BypassAuthentication` | Endpoint is intentionally unauthenticated per RFC. |
+| `x-cacheable-endpoint` | `CheckSecurityHeaders` | Cache headers are intentional. |
+| `x-skip-deleted-resource-check` | `CheckDeletedResourcesNotAvailable` | Resource is legitimately readable after deletion. |
+| `x-skip-idor-check` | `InsecureDirectObjectReferences` | Identifier is not an object reference. |
+| `x-preserve-fixture` | `AcceptLanguageHeaders`, `ExtraHeaders`, `CheckSecurityHeaders`, `NewFields`, `HappyPath` | Keeps a seeded anchor alive for the rest of its path's tests (#651). |
+
+### `x-preserve-fixture` (#651)
+
+`refData` binds one id per path, so the decoy seeded for an anchor path is also
+the id every `GET`/`PATCH`/`PUT` on that path uses. A `DELETE` that *succeeds*
+therefore removes the resource the rest of the path's tests depend on. In run
+`20260730T220551Z` the decoy for `/threat_models/{threat_model_id}` was consumed
+7 requests into a ~2,300-request block, so roughly **97%** of that path's tests
+ran against a 404 and neither `PATCH` nor `PUT` ever recorded a single 2xx.
+
+The extension is set on the **`delete` operation only** of each anchor that has
+a decoy, and withholds just the fuzzers that issue an otherwise-valid `DELETE`.
+Over run `20260731T200650Z` those five fuzzers accounted for every one of the 41
+successful anchor deletes, and represent 72 of 424 anchor `DELETE` tests — 17%
+of `DELETE` coverage traded for the other ~97% of each path's coverage. Every
+other `DELETE` fuzzer still runs and still gets its 4xx.
+
+Anchors currently carrying it:
+
+    /teams/{team_id}                             /admin/groups/{group_id}
+    /projects/{project_id}                       /admin/users/{user_id}
+    /threat_models/{threat_model_id}             /intake/survey_responses/{survey_response_id}
+    /teams/{team_id}/notes/{team_note_id}        /admin/webhooks/subscriptions/{webhook_id}
+
+Destructive `DELETE` coverage of these paths is not lost permanently — run it
+scoped, where consuming the fixture at the end costs nothing:
+
+    cats run --path /threat_models/{threat_model_id}
+
+To confirm the fix held after a campaign, check that the anchor recorded 2xx on
+the methods that previously could not:
+
+```sql
+SELECT m.method, r.response_code, COUNT(*)
+FROM tests t
+JOIN paths p        ON p.id = t.path_id
+JOIN responses r    ON r.test_id = t.id
+JOIN http_methods m ON m.id = r.http_method_id
+WHERE p.path = '/threat_models/{threat_model_id}'
+GROUP BY m.method, r.response_code
+ORDER BY m.method, r.response_code;
+```

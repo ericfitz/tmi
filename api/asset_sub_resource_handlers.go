@@ -389,8 +389,9 @@ func (h *AssetSubResourceHandler) BulkCreateAssets(c *gin.Context) {
 		return
 	}
 
-	if len(assets) > 50 {
-		HandleRequestError(c, InvalidInputError("Maximum 50 assets allowed per bulk operation"))
+	if len(assets) > MaxBulkAssets {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Maximum %d assets allowed per bulk operation", MaxBulkAssets)))
 		return
 	}
 
@@ -590,8 +591,9 @@ func (h *AssetSubResourceHandler) BulkUpdateAssets(c *gin.Context) {
 		return
 	}
 
-	if len(assets) > 50 {
-		HandleRequestError(c, InvalidInputError("Maximum 50 assets allowed per bulk operation"))
+	if len(assets) > MaxBulkAssets {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Maximum %d assets allowed per bulk operation", MaxBulkAssets)))
 		return
 	}
 

@@ -391,8 +391,9 @@ func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 		return
 	}
 
-	if len(repositorys) > 50 {
-		HandleRequestError(c, InvalidInputError("Maximum 50 repository code references allowed per bulk operation"))
+	if len(repositorys) > MaxBulkRepositories {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Maximum %d repository code references allowed per bulk operation", MaxBulkRepositories)))
 		return
 	}
 
@@ -578,8 +579,9 @@ func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
 		return
 	}
 
-	if len(repositories) > 50 {
-		HandleRequestError(c, InvalidInputError("Maximum 50 repositories allowed per bulk operation"))
+	if len(repositories) > MaxBulkRepositories {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Maximum %d repositories allowed per bulk operation", MaxBulkRepositories)))
 		return
 	}
 

@@ -72,6 +72,11 @@ func (m *MockThreatStore) BulkUpdate(ctx context.Context, threats []Threat) erro
 	return args.Error(0)
 }
 
+func (m *MockThreatStore) BulkSoftDelete(ctx context.Context, threatModelID string, ids []string) error {
+	args := m.Called(ctx, threatModelID, ids)
+	return args.Error(0)
+}
+
 func (m *MockThreatStore) InvalidateCache(ctx context.Context, id string) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
@@ -1104,4 +1109,146 @@ func TestPutThreat_RejectsAliasInBody(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "invalid_input", errResp.Error)
 	assert.Contains(t, errResp.ErrorDescription, "alias")
+}
+
+// setupBulkDeleteThreatsHandler wires DELETE .../threats/bulk the way the
+// generated router does: the ids come from the `threat_ids` query parameter
+// (style: form, explode: false), never from a request body. See issue #658.
+func setupBulkDeleteThreatsHandler() (*gin.Engine, *MockThreatStore) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	mockThreatStore := &MockThreatStore{}
+	handler := NewThreatSubResourceHandler(mockThreatStore, nil, nil, nil)
+
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userID", "test-provider-id")
+		c.Set("userRole", RoleWriter)
+		c.Next()
+	})
+
+	r.DELETE("/threat_models/:threat_model_id/threats/bulk", func(c *gin.Context) {
+		var ids ThreatIdsQueryParam
+		if raw := c.Query("threat_ids"); raw != "" {
+			for _, part := range strings.Split(raw, ",") {
+				parsed, err := uuid.Parse(part)
+				if err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_input"})
+					return
+				}
+				ids = append(ids, parsed)
+			}
+		}
+		handler.BulkDeleteThreats(c, ids)
+	})
+
+	return r, mockThreatStore
+}
+
+func TestBulkDeleteThreats(t *testing.T) {
+	threatModelID := "00000000-0000-0000-0000-000000000001"
+	idA := "00000000-0000-0000-0000-00000000000a"
+	idB := "00000000-0000-0000-0000-00000000000b"
+
+	t.Run("DeletesViaQueryParamScopedToThreatModel", func(t *testing.T) {
+		r, mockStore := setupBulkDeleteThreatsHandler()
+
+		mockStore.On("Get", mock.Anything, mock.Anything).
+			Return((*Threat)(nil), fmt.Errorf("not found"))
+		// The threat model from the path must reach the store, otherwise the
+		// delete would match on threat id alone and could reach threats owned
+		// by a different threat model.
+		mockStore.On("BulkSoftDelete", mock.Anything, threatModelID, []string{idA, idB}).
+			Return(nil)
+
+		req := httptest.NewRequest("DELETE",
+			"/threat_models/"+threatModelID+"/threats/bulk?threat_ids="+idA+","+idB, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var body map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, float64(2), body["deleted_count"])
+		assert.Equal(t, []any{idA, idB}, body["deleted_ids"])
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("UnknownOrForeignIDIs404AndDeletesNothing", func(t *testing.T) {
+		r, mockStore := setupBulkDeleteThreatsHandler()
+
+		mockStore.On("Get", mock.Anything, mock.Anything).
+			Return((*Threat)(nil), fmt.Errorf("not found"))
+		// The store is all-or-nothing: an id that is unknown, already deleted,
+		// or owned by another threat model rolls the whole batch back.
+		mockStore.On("BulkSoftDelete", mock.Anything, threatModelID, []string{idA, idB}).
+			Return(ErrThreatNotFound)
+
+		req := httptest.NewRequest("DELETE",
+			"/threat_models/"+threatModelID+"/threats/bulk?threat_ids="+idA+","+idB, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("DuplicateIDsCollapseInsteadOf404", func(t *testing.T) {
+		r, mockStore := setupBulkDeleteThreatsHandler()
+
+		mockStore.On("Get", mock.Anything, mock.Anything).
+			Return((*Threat)(nil), fmt.Errorf("not found"))
+		// The store's all-or-nothing check compares RowsAffected to len(ids),
+		// so passing the same row twice would see 1 affected for 2 ids and
+		// answer 404 for a request in which every id was valid. The handler
+		// dedupes first. Uppercase hex normalises to the same id.
+		mockStore.On("BulkSoftDelete", mock.Anything, threatModelID, []string{idA}).
+			Return(nil)
+
+		req := httptest.NewRequest("DELETE",
+			"/threat_models/"+threatModelID+"/threats/bulk?threat_ids="+idA+","+strings.ToUpper(idA), nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var body map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, float64(1), body["deleted_count"])
+		assert.Equal(t, []any{idA}, body["deleted_ids"])
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("NoIDsIsRejected", func(t *testing.T) {
+		r, mockStore := setupBulkDeleteThreatsHandler()
+
+		req := httptest.NewRequest("DELETE",
+			"/threat_models/"+threatModelID+"/threats/bulk", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		mockStore.AssertNotCalled(t, "BulkSoftDelete", mock.Anything, mock.Anything, mock.Anything)
+	})
+
+	t.Run("OverTheCapIsRejectedWithoutTouchingTheStore", func(t *testing.T) {
+		r, mockStore := setupBulkDeleteThreatsHandler()
+
+		ids := make([]string, MaxBulkThreatDeletes+1)
+		for i := range ids {
+			ids[i] = uuid.New().String()
+		}
+
+		req := httptest.NewRequest("DELETE",
+			"/threat_models/"+threatModelID+"/threats/bulk?threat_ids="+strings.Join(ids, ","), nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		mockStore.AssertNotCalled(t, "BulkSoftDelete", mock.Anything, mock.Anything, mock.Anything)
+	})
 }

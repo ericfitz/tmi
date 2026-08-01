@@ -4,13 +4,52 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"net"
+	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/redis/go-redis/v9"
 )
+
+const (
+	// blacklistCheckRetries is how many times a transient Redis failure on the
+	// blacklist lookup is retried before the request is failed. Kept small
+	// because this runs inline on every authenticated request.
+	blacklistCheckRetries = 2
+	// blacklistCheckBackoff is the delay before the first retry; it doubles on
+	// each subsequent attempt (20ms, then 40ms).
+	blacklistCheckBackoff = 20 * time.Millisecond
+)
+
+// isRetryableRedisError reports whether a Redis failure is transient enough to
+// be worth retrying. Redis answering with an application-level error (a wrong
+// type, a rejected command) will answer identically next time, so only
+// connectivity failures qualify.
+// SEM@new: classify a Redis error as transient and worth retrying (pure)
+func isRetryableRedisError(err error) bool {
+	if err == nil || errors.Is(err, redis.Nil) {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	// go-redis wraps pool exhaustion and shutdown as plain errors.
+	msg := err.Error()
+	return strings.Contains(msg, "i/o timeout") ||
+		strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "connection reset") ||
+		strings.Contains(msg, "broken pipe") ||
+		strings.Contains(msg, "EOF") ||
+		strings.Contains(msg, "connection pool timeout")
+}
 
 // TokenBlacklist manages blacklisted JWT tokens using Redis
 // SEM@41fea1c48a3526015f75a5e401ec4970c6c9dfcf: Redis-backed store for revoked JWT tokens to prevent reuse after logout (reads DB)
@@ -98,11 +137,30 @@ func (tb *TokenBlacklist) IsTokenBlacklisted(ctx context.Context, tokenString st
 
 	logger.Debug("Checking token blacklist status token_hash=%v", tokenHash[:16]+"...")
 
-	// Check if key exists in Redis
-	exists, err := tb.redis.Exists(ctx, key).Result()
-	if err != nil {
-		logger.Error("Failed to check token blacklist token_hash=%v error=%v", tokenHash[:16]+"...", err)
-		return false, fmt.Errorf("failed to check token blacklist: %w", err)
+	// Check if key exists in Redis. This sits on the authenticated path of every
+	// request, so a brief Redis blip would otherwise fail an otherwise valid
+	// request outright. Retry transient failures a bounded number of times
+	// before giving up; a genuine outage still surfaces, just as 503 rather
+	// than 500 (see issue #660).
+	var exists int64
+	var err error
+	for attempt := 0; ; attempt++ {
+		exists, err = tb.redis.Exists(ctx, key).Result()
+		if err == nil {
+			break
+		}
+		if attempt >= blacklistCheckRetries || !isRetryableRedisError(err) {
+			logger.Error("Failed to check token blacklist token_hash=%v attempts=%d error=%v",
+				tokenHash[:16]+"...", attempt+1, err)
+			return false, fmt.Errorf("failed to check token blacklist: %w", err)
+		}
+		logger.Warn("Transient Redis failure checking token blacklist, retrying token_hash=%v attempt=%d error=%v",
+			tokenHash[:16]+"...", attempt+1, err)
+		select {
+		case <-ctx.Done():
+			return false, fmt.Errorf("failed to check token blacklist: %w", ctx.Err())
+		case <-time.After(blacklistCheckBackoff << attempt):
+		}
 	}
 
 	isBlacklisted := exists > 0

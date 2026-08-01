@@ -71,6 +71,16 @@ type ThreatRepository interface {
 	BulkCreate(ctx context.Context, threats []Threat) error
 	BulkUpdate(ctx context.Context, threats []Threat) error
 
+	// BulkSoftDelete soft-deletes every id in one transaction, scoped to the
+	// owning threat model. It is all-or-nothing: if any id is missing, already
+	// deleted, or belongs to a different threat model, nothing is deleted and
+	// ErrThreatNotFound is returned. Deleting per id in a loop instead would
+	// commit each one separately, so a failure partway through would leave the
+	// batch half-applied with no way for the caller to find out which half --
+	// and on Oracle a mid-batch abort (ORA-08177 under SERIALIZABLE, ORA-00060,
+	// or an ADB autoscale connection drop) is routine rather than exotic.
+	BulkSoftDelete(ctx context.Context, threatModelID string, ids []string) error
+
 	// Cache management
 	InvalidateCache(ctx context.Context, id string) error
 	WarmCache(ctx context.Context, threatModelID string) error

@@ -699,8 +699,9 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 		return
 	}
 
-	if len(threats) > 50 {
-		HandleRequestError(c, InvalidInputError("Maximum 50 threats allowed per bulk operation"))
+	if len(threats) > MaxBulkThreats {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Maximum %d threats allowed per bulk operation", MaxBulkThreats)))
 		return
 	}
 
@@ -799,8 +800,9 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 		return
 	}
 
-	if len(threats) > 50 {
-		HandleRequestError(c, InvalidInputError("Maximum 50 threats allowed per bulk operation"))
+	if len(threats) > MaxBulkThreats {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Maximum %d threats allowed per bulk operation", MaxBulkThreats)))
 		return
 	}
 
@@ -891,6 +893,12 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 		return
 	}
 
+	if len(bulkPatchRequest.Patches) > MaxBulkThreatPatches {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Maximum %d threat patches allowed per bulk operation", MaxBulkThreatPatches)))
+		return
+	}
+
 	logger.Debug("Bulk patching %d threats (user: %s)", len(bulkPatchRequest.Patches), user.Email)
 
 	// Apply patches to each threat
@@ -942,7 +950,7 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 // BulkDeleteThreats deletes multiple threats
 // DELETE /threat_models/{threat_model_id}/threats/bulk
 // SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: delete up to 20 threats by ID in a single request and return the deleted IDs (mutates shared state)
-func (h *ThreatSubResourceHandler) BulkDeleteThreats(c *gin.Context) {
+func (h *ThreatSubResourceHandler) BulkDeleteThreats(c *gin.Context, threatIDs ThreatIdsQueryParam) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkDeleteThreats - deleting multiple threats")
 
@@ -953,43 +961,80 @@ func (h *ThreatSubResourceHandler) BulkDeleteThreats(c *gin.Context) {
 		return
 	}
 
-	// Parse bulk delete request
-	var bulkDeleteRequest struct {
-		ThreatIDs []string `json:"threat_ids" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&bulkDeleteRequest); err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid bulk delete request format"))
-		return
-	}
-
-	if len(bulkDeleteRequest.ThreatIDs) == 0 {
+	// The IDs arrive in the `threat_ids` query parameter, already parsed and
+	// UUID-validated by the generated binding. The spec declares this operation
+	// with no request body (style: form, explode: false -> ?threat_ids=a,b), so
+	// reading them from a JSON body instead made every spec-conforming request
+	// fail with 400. See issue #658.
+	if len(threatIDs) == 0 {
 		HandleRequestError(c, InvalidInputError("No threat IDs provided"))
 		return
 	}
 
-	if len(bulkDeleteRequest.ThreatIDs) > 20 {
-		HandleRequestError(c, InvalidInputError("Maximum 20 threats can be deleted at once"))
+	if len(threatIDs) > MaxBulkThreatDeletes {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Maximum %d threats can be deleted at once", MaxBulkThreatDeletes)))
 		return
 	}
 
-	logger.Debug("Bulk deleting %d threats (user: %s)", len(bulkDeleteRequest.ThreatIDs), user.Email)
+	threatModelID := c.Param("threat_model_id")
+	logger.Debug("Bulk deleting %d threats from threat model %s (user: %s)",
+		len(threatIDs), threatModelID, user.Email)
 
-	// Delete each threat
-	deletedIDs := make([]string, 0, len(bulkDeleteRequest.ThreatIDs))
-	for _, threatID := range bulkDeleteRequest.ThreatIDs {
-		// Validate threat ID
-		if _, err := ParseUUID(threatID); err != nil {
-			HandleRequestError(c, InvalidIDError(fmt.Sprintf("Invalid threat ID format: %s", threatID)))
-			return
+	// Deduplicate, preserving order. uuid.Parse accepts uppercase hex and
+	// String() normalises to lowercase, so ?threat_ids=ABCD...,abcd... arrives
+	// as two ids naming one row. Without this the store's all-or-nothing
+	// RowsAffected check would see 1 affected for 2 ids and answer 404 for a
+	// request in which every id was valid.
+	deletedIDs := make([]string, 0, len(threatIDs))
+	seen := make(map[string]struct{}, len(threatIDs))
+	for _, threatUUID := range threatIDs {
+		id := threatUUID.String()
+		if _, dup := seen[id]; dup {
+			continue
 		}
+		seen[id] = struct{}{}
+		deletedIDs = append(deletedIDs, id)
+	}
 
-		// Delete threat
-		if err := h.threatStore.Delete(c.Request.Context(), threatID); err != nil {
-			HandleRequestError(c, ServerError(fmt.Sprintf("Failed to delete threat %s", threatID)))
-			return
+	// Capture pre-deletion state for the audit trail before the rows are
+	// tombstoned, mirroring DeleteThreat.
+	//
+	// The read is by id alone, so discard anything that turns out to belong to
+	// a different threat model: the delete below would reject such an id
+	// anyway, and serialising it here would put another tenant's threat into
+	// this request's memory for no reason. Failures are non-fatal but logged --
+	// swallowing them silently would let a transient database blip produce an
+	// audit record with no pre-state, which is a quiet hole in an append-only
+	// trail rather than a visible error.
+	preStates := make(map[string][]byte, len(deletedIDs))
+	for _, id := range deletedIDs {
+		existing, getErr := h.threatStore.Get(c.Request.Context(), id)
+		if getErr != nil {
+			logger.Warn("Could not read pre-deletion state for threat %s; audit entry will have none: %v", id, getErr)
+			continue
 		}
-		deletedIDs = append(deletedIDs, threatID)
+		if existing == nil || existing.ThreatModelId == nil || existing.ThreatModelId.String() != threatModelID {
+			continue
+		}
+		preStates[id], _ = SerializeForAudit(existing)
+	}
+
+	// One transaction, scoped to this threat model. Not a per-id loop: that
+	// would commit each delete separately and leave a failed batch partly
+	// applied, and it would match on threat id alone, letting a caller with
+	// access to this threat model delete threats out of another one.
+	// A caller naming an unknown, already-deleted, or foreign id gets 404 and
+	// nothing is deleted.
+	if err := h.threatStore.BulkSoftDelete(c.Request.Context(), threatModelID, deletedIDs); err != nil {
+		logger.Error("Failed to bulk delete threats from threat model %s: %v", threatModelID, err)
+		HandleRequestError(c, StoreErrorToRequestError(err,
+			"One or more threats not found in this threat model", "Failed to delete threats"))
+		return
+	}
+
+	for _, id := range deletedIDs {
+		RecordAuditDelete(c, threatModelID, "threat", id, preStates[id])
 	}
 
 	response := map[string]any{
@@ -997,7 +1042,7 @@ func (h *ThreatSubResourceHandler) BulkDeleteThreats(c *gin.Context) {
 		"deleted_ids":   deletedIDs,
 	}
 
-	invalidateThreatModelCaches(c, c.Param("threat_model_id"))
+	invalidateThreatModelCaches(c, threatModelID)
 
 	logger.Info("Successfully bulk deleted %d threats (user: %s)", len(deletedIDs), user.Email)
 	c.JSON(http.StatusOK, response)

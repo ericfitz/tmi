@@ -1,124 +1,130 @@
-# Handoff — CATS campaign 20260731T200650Z, 2026-08-01
+# Handoff — 1.7.0 CATS follow-ups, 2026-08-01
 
-## Where things stand
+## PUSH IS PENDING
 
-`main` is at **1.6.5**. The 1.6.4 work (#650 SAML auth fix + 23 completed response examples) merged
-as `39d2d938` via PR #654, and the follow-up campaign it existed to prove has now run.
+Two commits are on `dev/1.7.0/cats-followup` and **not pushed**. `git push` failed with
 
-### The campaign: 542 → 162
+```
+sign_and_send_pubkey: signing failed for ED25519 "/Users/efitz/.ssh/github-ericfitz" from agent
+git@github.com: Permission denied (publickey).
+```
 
-Run `20260731T200650Z`, 107,608 requests, 38m. **Valid run** — both gates passed (transport errors
-0.07% vs 1% limit; non-FP 401s 0.08% vs 5% limit) and all 6 seeded fixtures survived.
+which is the expected touch-required behaviour, not a repo problem. Re-run:
 
-| category | 20260730 baseline | predicted | actual |
-|---|---|---|---|
-| Not matching response schema | 428 | ~4 | 72 |
-| Unexpected 401 (`/saml/providers/{idp}/users`) | 19 | 0 | **0** |
-| Unexpected 403 (`/me/groups/{id}/members`) | 12 | 0 | **0** |
-| Unexpected 200 (`CheckDeletedResourcesNotAvailable`) | 2 | 0 | **0** |
-| Unexpected 500 | 1 | 0 | **0** |
-| everything else | ~79 | ~79 | ~99 |
+```
+git push -u origin dev/1.7.0/cats-followup
+```
 
-Every 1.6.4 remediation landed. **Zero 500s in the entire run.** `/saml/providers/{idp}/users` went
-from 69/69 × 401 to **58 × 200** — genuinely reachable for the first time, and it immediately
-produced 18 new findings, all now resolved.
+then open a PR. `Closes #651 #658 #659 #660` are in the first commit body and `Closes #653` in the
+second, but they only auto-close from `main` — with squash-merge the PR body is what counts, so
+repeat them there.
 
-172 → **162** after the one false-positive rule added this session.
+## What landed
 
-## Why the schema count was 72, not 4
+`main` was at 1.6.5; this branch is **1.7.0** (`.version` and `info.version` both bumped by hand —
+versioning is still manual, #627). MINOR rather than PATCH because `Project.team`'s generated type
+changes.
 
-The specific prediction held exactly: 4 findings on `GET .../diagrams/{id}/model`, the unfixable
-`MinimalDiagramModel.metadata` residual. The other 68 were the *same* #637 mechanism on operations
-the previous run never got a 2xx from.
-
-The 1.6.4 fix built examples from **observed response bodies** — accurate, but a property that was
-null or absent in the fixture never entered the example. Absent-in-fixture is not absent-in-schema.
-`PATCH /teams/{team_id}` produced 54 findings purely because its example lacked `email_address` and
-`uri`.
-
-**This is now a build gate.** `make check-response-examples` (wired into `make validate-openapi`)
-fails when a 2xx response example omits a property its schema declares. It is a ratchet in both
-directions: a new gap fails, and a baselined gap that no longer reproduces must be retired.
-
-## What's in 1.6.5
-
-| Change | Why |
+| # | Change |
 |---|---|
-| `scripts/lib/openapi_examples.py` + `scripts/check-response-examples.py` | The gate. 13 unit tests in `scripts/lib/tests/`. |
-| `api-schema/response-example-baseline.json` | 611 accepted gaps across 93 operations, none of which fires today (checked against all 107k responses). Tracked in **#659**. |
-| `api-schema/tmi-openapi.json` — 24 example properties | The gaps the server demonstrably returns. Kills the 54 + others. |
-| `api-schema/tmi-openapi.json` — real schema for `GET /saml/providers/{idp}/users` | Its response schema was literally `{"type":"object"}`. Kills 8. |
-| `test/cats/false-positives.yaml` — `SAML_USERS_CROSS_PROVIDER_403` | Kills 10. |
+| #659 | `TeamSummary` schema; `Project.team` narrowed to `{id, name, description}` |
+| #659 | Response examples completed: **611 baselined gaps → 96**, 93 → 13 operations |
+| #658 | `DELETE .../threats/bulk` reads the query parameter the spec declares, atomically and scoped to its parent |
+| #660 | Redis blacklist failures retry, then answer 503 + `Retry-After` instead of 500 |
+| #651 | `x-preserve-fixture` keeps anchor decoys alive through their own campaign |
+| — | Bulk handler limits moved to `api/bulk_limits.go` and aligned to the spec's `maxItems` |
+| #653 | `TestIdentityLink` suffix entropy (separate commit) |
 
 ### Verification
 
-`make validate-openapi` (0 errors) · `make generate-api` (v2.7.1; embedded spec only, no type
-changes) · `make build-server` · `make lint` (0 issues) · `make test-unit` (**2451 passed**) ·
-`make test-dev-scripts` (**177 passed**) · `make test-integration` (**82 passed**) · security
-review — no HIGH or MEDIUM findings.
+`make validate-openapi` (0 errors) · `make generate-api` (v2.7.1) · `make build-server` ·
+`make lint` (0 issues) · `make test-unit` (**2457 passed**) · `make test-dev-scripts` (**177
+passed**) · `make test-integration` (**83 passed, 0 failed**) · `oracle-db-admin` **APPROVED WITH
+NOTES** · security review **no HIGH or MEDIUM findings**.
 
-## Triage conclusions worth not re-deriving
+## Three things worth not re-deriving
 
-Everything in the 1.6.4 handoff's verified-correct list still holds. Added this session:
+**The previous session's #658 triage was half wrong.** It recorded all 10 findings as a CATS defect
+and said "do not re-triage these". `ThreatIdsQueryParam` declares `explode: false`, so the
+comma-joined value CATS sent was *correct* and the 3 `threats/bulk` findings were our bug:
+`BulkDeleteThreats` read `threat_ids` from a JSON body while the spec declares a required query
+parameter and no body. **Every spec-conforming bulk delete had been failing with 400** — the
+endpoint had never once served a successful call, including from tmi-ux, which generates its types
+from the spec. The other 7 findings (`explode: true` params) are the genuine CATS defect, now
+Endava/cats#207.
 
-- **`GET .../threats` × 7 and `DELETE .../threats/bulk` × 3** — the CATS array-query-param defect,
-  now **#658**. CATS comma-joins array params despite `explode: true`
-  (`?severity=low%2Clow`), the server correctly 400s. Three of these are `HappyPath`, which reads
-  exactly like a real regression until you look at the raw URL. **Do not re-triage these.**
-- **`RandomResources` → 403 on `/saml/providers/{idp}/users` × 10** — 403 *is* documented; the
-  fuzzer expects 404. Answering 404 for an unknown provider would make the endpoint a
-  provider-existence oracle. Suppressed by rule, not fixed.
-- **`RollbackResponse.restored_entity`** — `{"type":"object"}` holding whichever entity was rolled
-  back; its example documents a threat model, the observed response was a diagram. Same
-  unsatisfiable class as `MinimalDiagramModel.metadata`. 4 findings, left alone deliberately.
+**The Oracle review caught two blocking issues in that fix, both real.** The first implementation
+looped `Delete` per id: each committed separately, so an abort partway through left the batch
+applied to an arbitrary prefix that could never be retried (the survivors no longer satisfy
+`deleted_at IS NULL`, so a retry 404s forever), and on ADB a mid-batch abort is routine —
+`ORA-08177` under SERIALIZABLE, `ORA-00060`, autoscale connection drops. Worse, it matched on threat
+id alone, so a caller with writer access to one threat model could delete threats out of another.
+`ThreatRepository.BulkSoftDelete` now does one `UPDATE` predicated on `threat_model_id` in one
+transaction and rolls the whole batch back unless every id matches. The re-review confirmed the SQL
+by dry-running GORM's statement builder.
+
+**The residual 96 example gaps are unsatisfiable, not unexercised.** 90 sit under a `oneOf`/`anyOf`
+union — the checker unions every branch, so one example cell would have to carry both node-only
+(`position`, `size`, `ports`) and edge-only (`source`, `target`, `vertices`) properties, producing a
+document that satisfies CATS and describes nothing real. 5 are free-form objects with no declared
+properties. 1 is `subscriptions.secret`, declared on the read schema but never emitted
+(`webhook_handlers.go` passes `includeSecret=false` on both GET paths). Do not "finish" these.
 
 ## DO NEXT
 
-Nothing is blocking. In rough priority:
-
-1. **#659** — decide `Project.team`. The schema declares a full `Team`; the server returns
-   `{id, name}` and `team.created_at` appears in **0** of 107,608 responses. This is the single
-   largest chunk of the baseline (~93 entries across the 4 project operations). A `TeamSummary`
-   schema fixes it, but changes generated types, so it needs a decision.
-2. **#658** — report the array-param defect upstream. It is not just noise: because every array-param
-   request is malformed, the `severity` / `priority` / `threat_type` / `threat_ids` filters have
-   **never been fuzzed with valid input**. Same class of hidden coverage loss as #651.
-3. **#660** — Redis `i/o timeout` on the token-blacklist check returns 500. Found via a cascading
-   `TestDiagramCRUD` failure; re-run passed 82/82. Fails closed, which is right, but 500 is the wrong
-   code and there is no retry.
-4. **#651** — anchor-path decoys still erase ~97% of the anchor's coverage. Still zero 2xx on
-   `PATCH`/`PUT /threat_models/{id}`. Affects all 8 decoyed anchors.
-5. Burn down the #659 baseline so the ratchet tightens.
+1. **Push, PR, merge.** Nothing else is blocked on it.
+2. **#664 — cross-tenant sub-resource access.** The one finding here that is a live security bug.
+   Authorization is granted against `{threat_model_id}`, but **no** single-item sub-resource handler
+   verifies the child belongs to that parent — 20 handlers across threat, document, asset,
+   repository and note. `authz_middleware_subresource_test.go:197` says so in a comment
+   (`// child IDs aren't checked by middleware`). The bulk-delete path is fixed; the rest is not.
+   Prefer centralized enforcement, and answer 404 rather than 403 so it does not become an existence
+   oracle.
+3. **Re-run CATS** against 1.7.0. Four of this branch's changes should move the numbers, and #651 is
+   the interesting one: check that `PATCH`/`PUT /threat_models/{id}` finally record a 2xx. The
+   verification query is in `test/cats/README.md`.
+4. **#662** — the spec-vs-middleware lint. The previous handoff listed this as "believed correct,
+   unverified"; it is **not** correct. Two real divergences, both middleware-more-permissive:
+   `POST /oauth2/revoke` (fine in substance, `security: []` but no `x-public-endpoint` — the two
+   spec signals disagree with each other) and `GET /webhook-deliveries/{delivery_id}` (dual-auth
+   HMAC-or-JWT enforced in the handler; the comment at `cmd/server/main.go:154` claiming it is
+   `x-public-endpoint` in OpenAPI is simply false).
+5. **#665** (`ErrTransient` → 503) is now cheap, because 503 is documented on all 328 operations.
 
 ### Open issues
 
-**Filed this session**: #657 (upstream `example`-vs-`schema`, Endava/cats#206) · #658 (array query
-params) · #659 (schema/server divergence + baseline) · #660 (Redis 500)
+**Filed this session**: #662 (public-path lint) · #663 (bulk-limit drift guard) · #664 (cross-tenant
+sub-resources, **security**) · #665 (`ErrTransient` → 503) · #666 (metadata bulk write
+amplification) · #667 (CATS rule numbering: 70 rules, docs say 48) · Endava/cats#207 (upstream)
 
-**Older, unchanged**: #653 `TestIdentityLink` flake · #652 `chat/sessions` SSE error envelope ·
-#651 anchor decoys · #642 test-artifact disk retention · #633 restore `/me` coverage · #634 rewrite
-`set-server-setting.py` · #631 k8s Secrets vs DB config · #608 CATS deletes its own fixtures ·
-#596 CATS drops required nested array-item uuid fields · #627 automated versioning
+**Closed by this branch**: #651 · #653 · #658 · #659 · #660
+
+**Older, unchanged**: #652 `chat/sessions` SSE error envelope · #642 test-artifact disk retention ·
+#633 restore `/me` coverage · #634 rewrite `set-server-setting.py` · #631 k8s Secrets vs DB config ·
+#608 CATS deletes its own fixtures · #596 CATS drops required nested array-item uuid fields · #627
+automated versioning
 
 ### Still not filed
 
-- **Spec-vs-middleware consistency lint.** #650's root cause was a coarse public-path prefix
-  contradicting `x-public-endpoint`. `/webhook-deliveries/` and `/.well-known/` are still
-  prefix-matched — believed correct, unverified.
-- **Bulk-limit spec/code mismatch.** Handlers check `len > 50` while the spec caps `maxItems` at 20
-  for threats/documents/repositories, so those branches are unreachable. Assets is consistent at 50.
-  `threats/bulk` PATCH/DELETE and `teams|projects/{id}/metadata/bulk` PATCH declare no `maxItems`.
-  Produces no finding; needs a decision on which number is intended.
+- **Bulk-limit spec/code mismatch is resolved, but the caps themselves were never designed.** The
+  spec caps metadata bulk at 20 for the threat-model subtree and 100 everywhere else, while every
+  entity schema allows `maxItems: 100` on its own `metadata`. The handler now mirrors that split
+  faithfully, but nobody has decided whether the split is intended.
+
+## Gotcha for the next session
+
+**Never run two integration suites at once.** Both use the same test server and database; the
+second run's teardown kills the first's server, and you get a wall of `connection refused` that
+looks like 38 real failures. One run cost ~10 minutes to re-do for exactly this reason.
 
 ## Reproducing the analysis
-
-The gate itself replaces most of the previous session's ad-hoc tooling:
 
 ```
 uv run scripts/check-response-examples.py                    # what is missing
 uv run scripts/check-response-examples.py --update-baseline  # after fixing gaps
 ```
 
-To re-derive which baseline entries actually fire, join `true_positives_view` against the response
-bodies in a run database and compare recursive property-name sets — that is what established that
-all 611 are currently dormant.
+The example-completion pass was a one-off script, not committed. It walked the baseline, synthesised
+a schema-valid value per gap, and refused any gap under a union, any free-form object, and
+`subscriptions.secret`. Re-deriving it is not necessary — the remaining 96 are the ones it correctly
+declined.
