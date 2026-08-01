@@ -681,6 +681,61 @@ func (s *GormThreatRepository) SoftDelete(ctx context.Context, id string) error 
 	return nil
 }
 
+// BulkSoftDelete soft-deletes every id in a single transaction, scoped to the
+// threat model that owns them.
+//
+// Two properties matter here and neither is optional:
+//
+//   - Scoping. The predicate includes threat_model_id, so an id belonging to a
+//     different threat model simply does not match. Authorization is granted
+//     against the {threat_model_id} path segment, so without this a caller with
+//     writer access to one threat model could delete threats out of another.
+//     (Compare the check at api/audit_handlers.go:127.)
+//
+//   - Atomicity. One UPDATE, one commit. A per-id loop would commit each delete
+//     separately, so an abort partway through would leave the batch applied to
+//     an arbitrary prefix -- and because the surviving rows no longer satisfy
+//     "deleted_at IS NULL", retrying the same request would then fail forever
+//     with 404. On Oracle a mid-batch abort is routine: ORA-08177 under the
+//     SERIALIZABLE isolation these transactions request, ORA-00060, and the
+//     connection drops ADB raises while autoscaling.
+//
+// SEM@new: soft-delete a batch of threats atomically within one threat model (mutates DB)
+func (s *GormThreatRepository) BulkSoftDelete(ctx context.Context, threatModelID string, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	now := time.Now().UTC()
+	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Threat{}).
+			Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID).
+			Where("id IN ?", ids).
+			UpdateColumn("deleted_at", now)
+		if result.Error != nil {
+			return dberrors.Classify(result.Error)
+		}
+		// All-or-nothing: anything short of a full match means at least one id
+		// is missing, already deleted, or owned by another threat model. Return
+		// an error so the transaction rolls back rather than partially applying.
+		if result.RowsAffected != int64(len(ids)) {
+			return ErrThreatNotFound
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if s.cache != nil {
+		for _, id := range ids {
+			if err := s.cache.InvalidateEntity(ctx, "threat", id); err != nil {
+				slogging.Get().Error("Failed to invalidate threat cache after bulk soft-delete: %v", err)
+			}
+		}
+	}
+	return nil
+}
+
 // SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: restore a soft-deleted threat by clearing its deleted_at timestamp (mutates DB)
 func (s *GormThreatRepository) Restore(ctx context.Context, id string) error {
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {

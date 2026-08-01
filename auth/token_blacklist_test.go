@@ -2,6 +2,9 @@ package auth
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -159,4 +162,107 @@ func TestNewTokenBlacklist(t *testing.T) {
 
 	assert.NotNil(t, tb)
 	assert.Equal(t, rdb, tb.redis)
+}
+
+// TestIsRetryableRedisError pins which Redis failures the blacklist lookup
+// retries. Only connectivity failures qualify: an application-level error will
+// answer identically on the next attempt, so retrying it just adds latency to a
+// request that is going to fail anyway. See issue #660.
+func TestIsRetryableRedisError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"redis.Nil is a miss, not a failure", redis.Nil, false},
+		{"context canceled", context.Canceled, false},
+		{"context deadline exceeded", context.DeadlineExceeded, false},
+		{"application-level error", errors.New("WRONGTYPE Operation against a key"), false},
+		{"i/o timeout (the observed failure)", errors.New("dial tcp 10.1.2.3:6379: i/o timeout"), true},
+		{"connection refused", errors.New("dial tcp 10.1.2.3:6379: connect: connection refused"), true},
+		{"connection reset", errors.New("read tcp: connection reset by peer"), true},
+		{"broken pipe", errors.New("write tcp: broken pipe"), true},
+		{"EOF", errors.New("EOF"), true},
+		{"pool timeout", errors.New("redis: connection pool timeout"), true},
+		{"wrapped net.Error", fmt.Errorf("checking key: %w", &net.OpError{
+			Op: "dial", Err: errors.New("no route to host"),
+		}), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isRetryableRedisError(tt.err))
+		})
+	}
+}
+
+// TestIsTokenBlacklistedRetriesTransientFailure verifies the lookup does not
+// give up on the first connectivity error. With Redis down the call must still
+// fail, but only after exhausting its retries -- measured via the mandatory
+// backoff between attempts.
+func TestIsTokenBlacklistedRetriesTransientFailure(t *testing.T) {
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+	addr := mr.Addr()
+	mr.Close() // Redis is now unreachable at this address.
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr:        addr,
+		DialTimeout: 50 * time.Millisecond,
+		MaxRetries:  -1, // disable go-redis' own retries so we measure ours
+	})
+	defer func() { _ = rdb.Close() }()
+
+	testKeyManager, err := NewJWTKeyManager(JWTConfig{
+		SigningMethod: "HS256",
+		Secret:        "test-secret",
+	})
+	require.NoError(t, err)
+	tb := NewTokenBlacklist(rdb, testKeyManager)
+
+	// Minimum time spent sleeping between attempts: 20ms + 40ms.
+	var minBackoff time.Duration
+	for attempt := 0; attempt < blacklistCheckRetries; attempt++ {
+		minBackoff += blacklistCheckBackoff << attempt
+	}
+
+	start := time.Now()
+	isBlacklisted, err := tb.IsTokenBlacklisted(context.Background(), "some-token")
+	elapsed := time.Since(start)
+
+	require.Error(t, err, "an unreachable Redis must still surface as an error")
+	assert.False(t, isBlacklisted, "must not report a token as clean when the check failed")
+	assert.GreaterOrEqual(t, elapsed, minBackoff,
+		"expected %d retries totalling at least %v of backoff, took %v",
+		blacklistCheckRetries, minBackoff, elapsed)
+}
+
+// TestIsTokenBlacklistedHonoursCancelledContext verifies a cancelled request
+// aborts the retry loop instead of sleeping out the full backoff.
+func TestIsTokenBlacklistedHonoursCancelledContext(t *testing.T) {
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+	addr := mr.Addr()
+	mr.Close()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr:        addr,
+		DialTimeout: 50 * time.Millisecond,
+		MaxRetries:  -1,
+	})
+	defer func() { _ = rdb.Close() }()
+
+	testKeyManager, err := NewJWTKeyManager(JWTConfig{
+		SigningMethod: "HS256",
+		Secret:        "test-secret",
+	})
+	require.NoError(t, err)
+	tb := NewTokenBlacklist(rdb, testKeyManager)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err = tb.IsTokenBlacklisted(ctx, "some-token")
+	require.Error(t, err)
 }

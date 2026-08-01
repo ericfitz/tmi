@@ -1634,9 +1634,11 @@ func TestNoteMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			noteID := testUUID2
 
-			// Create 21 metadata entries (over the limit of 20)
-			metadata := make([]map[string]any, 21)
-			for i := range 21 {
+			// Notes cap at 100, not 20: /threat_models/{id}/notes/{id}/metadata/bulk
+			// declares maxItems 100 in the spec (see MaxBulkMetadataFor).
+			over := MaxBulkMetadataFor("note") + 1
+			metadata := make([]map[string]any, over)
+			for i := range over {
 				metadata[i] = map[string]any{
 					"key":   fmt.Sprintf("key%d", i),
 					"value": fmt.Sprintf("value%d", i),
@@ -1912,9 +1914,11 @@ func TestAssetMetadata(t *testing.T) {
 			threatModelID := testUUID1
 			assetID := testUUID2
 
-			// Create 21 metadata entries (over the limit of 20)
-			metadata := make([]map[string]any, 21)
-			for i := range 21 {
+			// Assets cap at 100, not 20: /threat_models/{id}/assets/{id}/metadata/bulk
+			// declares maxItems 100 in the spec (see MaxBulkMetadataFor).
+			over := MaxBulkMetadataFor("asset") + 1
+			metadata := make([]map[string]any, over)
+			for i := range over {
 				metadata[i] = map[string]any{
 					"key":   fmt.Sprintf("key%d", i),
 					"value": fmt.Sprintf("value%d", i),

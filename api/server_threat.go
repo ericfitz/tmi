@@ -46,7 +46,7 @@ func (s *Server) BulkPatchThreatModelThreats(c *gin.Context, threatModelId opena
 // BulkDeleteThreatModelThreats bulk deletes threats
 // SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route bulk threat deletion to the threat handler
 func (s *Server) BulkDeleteThreatModelThreats(c *gin.Context, threatModelId openapi_types.UUID, params BulkDeleteThreatModelThreatsParams) {
-	s.threatHandler.BulkDeleteThreats(c)
+	s.threatHandler.BulkDeleteThreats(c, params.ThreatIds)
 }
 
 // DeleteThreatModelThreat deletes a threat

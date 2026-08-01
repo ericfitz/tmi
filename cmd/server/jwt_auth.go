@@ -99,6 +99,12 @@ func (v *TokenValidator) ValidateToken(c *gin.Context, tokenStr string) (*jwt.To
 	return token, nil
 }
 
+// blacklistUnavailableRetryAfterSeconds is the Retry-After advertised when the
+// token revocation store cannot be reached. The underlying lookup already
+// retries transient failures, so reaching this point means Redis has been
+// unreachable for long enough that an immediate client retry is pointless.
+const blacklistUnavailableRetryAfterSeconds = 5
+
 // TokenBlacklistChecker handles checking if a token is blacklisted
 // SEM@4544fe064a8e91cf6d4c8a495f43f7f7830f6fe7: component that checks whether a token has been revoked (reads DB)
 type TokenBlacklistChecker struct {
@@ -502,11 +508,16 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 				StatusCode:  http.StatusUnauthorized,
 			}
 		}
+		// The token itself is fine; the revocation store is unreachable. This
+		// fails closed (the request is refused rather than admitted unchecked),
+		// but it is a dependency outage, not a bug in handling this request, so
+		// it gets 503 with a Retry-After rather than 500. See issue #660.
 		logger.Error("Failed to check token blacklist: %v", err)
 		return &AuthError{
-			Code:        "server_error",
-			Description: "Authentication service error",
-			StatusCode:  http.StatusInternalServerError,
+			Code:        "service_unavailable",
+			Description: "Authentication service temporarily unavailable - please retry",
+			StatusCode:  http.StatusServiceUnavailable,
+			RetryAfter:  blacklistUnavailableRetryAfterSeconds,
 		}
 	}
 
@@ -666,6 +677,9 @@ type AuthError struct {
 	Code        string
 	Description string
 	StatusCode  int
+	// RetryAfter, when non-zero, is emitted as the Retry-After response header
+	// in seconds. Only meaningful for transient failures such as 503.
+	RetryAfter int
 }
 
 // Error implements the error interface

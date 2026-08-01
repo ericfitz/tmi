@@ -833,11 +833,13 @@ func (s *GormProjectStore) recordToAPI(record *models.ProjectRecord, responsible
 	return project
 }
 
-// teamRecordToTeamRef converts a TeamRecord to an API Team reference (minimal)
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a team DB record to a minimal API Team reference (pure)
-func (s *GormProjectStore) teamRecordToTeamRef(record *models.TeamRecord) *Team {
+// teamRecordToTeamRef converts a TeamRecord to an API TeamSummary reference.
+// The embedded reference is deliberately minimal: clients fetch /teams/{team_id}
+// for the full team. See issue #659.
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a team DB record to a minimal API team summary reference (pure)
+func (s *GormProjectStore) teamRecordToTeamRef(record *models.TeamRecord) *TeamSummary {
 	teamID := uuid.MustParse(string(record.ID))
-	return &Team{
+	return &TeamSummary{
 		Id:          &teamID,
 		Name:        string(record.Name),
 		Description: record.Description.Ptr(),

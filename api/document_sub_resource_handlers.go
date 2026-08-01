@@ -837,8 +837,9 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 		return
 	}
 
-	if len(documents) > 50 {
-		HandleRequestError(c, InvalidInputError("Maximum 50 documents allowed per bulk operation"))
+	if len(documents) > MaxBulkDocuments {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Maximum %d documents allowed per bulk operation", MaxBulkDocuments)))
 		return
 	}
 
@@ -1042,8 +1043,9 @@ func (h *DocumentSubResourceHandler) BulkUpdateDocuments(c *gin.Context) {
 		return
 	}
 
-	if len(documents) > 50 {
-		HandleRequestError(c, InvalidInputError("Maximum 50 documents allowed per bulk operation"))
+	if len(documents) > MaxBulkDocuments {
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf(
+			"Maximum %d documents allowed per bulk operation", MaxBulkDocuments)))
 		return
 	}
 
