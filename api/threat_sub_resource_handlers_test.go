@@ -54,8 +54,8 @@ func (m *MockThreatStore) List(ctx context.Context, threatModelID string, filter
 	return args.Get(0).([]Threat), args.Int(1), args.Error(2)
 }
 
-func (m *MockThreatStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Threat, error) {
-	args := m.Called(ctx, id, operations)
+func (m *MockThreatStore) Patch(ctx context.Context, threatModelID string, id string, operations []PatchOperation) (*Threat, error) {
+	args := m.Called(ctx, threatModelID, id, operations)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -615,7 +615,7 @@ func TestPatchThreat(t *testing.T) {
 		updatedThreat.Id = &threatUUID
 
 		mockStore.On("Get", mock.Anything, threatID).Return((*Threat)(nil), nil)
-		mockStore.On("Patch", mock.Anything, threatID, patchOps).Return(updatedThreat, nil)
+		mockStore.On("Patch", mock.Anything, threatModelID, threatID, patchOps).Return(updatedThreat, nil)
 
 		body, _ := json.Marshal(patchOps)
 		req := httptest.NewRequest("PATCH", "/threat_models/"+threatModelID+"/threats/"+threatID, bytes.NewBuffer(body))
@@ -652,7 +652,7 @@ func TestPatchThreat(t *testing.T) {
 		// Expect the store to be called with invalid operations and return an error
 		// Handler preserves RequestError status codes (400 for InvalidInputError)
 		mockStore.On("Get", mock.Anything, threatID).Return((*Threat)(nil), nil)
-		mockStore.On("Patch", mock.Anything, threatID, mock.AnythingOfType("[]api.PatchOperation")).Return(nil, InvalidInputError("Invalid patch operation: path is required"))
+		mockStore.On("Patch", mock.Anything, threatModelID, threatID, mock.AnythingOfType("[]api.PatchOperation")).Return(nil, InvalidInputError("Invalid patch operation: path is required"))
 
 		body, _ := json.Marshal(invalidPatchOps)
 		req := httptest.NewRequest("PATCH", "/threat_models/"+threatModelID+"/threats/"+threatID, bytes.NewBuffer(body))
@@ -908,7 +908,7 @@ func TestBulkPatchThreats_ErrorClassification(t *testing.T) {
 	// as a server fault.
 	t.Run("client error from the store is not reported as 500", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
-		mockStore.On("Patch", mock.Anything, threatID, mock.Anything).
+		mockStore.On("Patch", mock.Anything, threatModelID, threatID, mock.Anything).
 			Return(nil, &RequestError{
 				Status:  http.StatusBadRequest,
 				Code:    "patch_failed",
@@ -933,7 +933,7 @@ func TestBulkPatchThreats_ErrorClassification(t *testing.T) {
 	// failure into a client error.
 	t.Run("untyped store failure is still 500", func(t *testing.T) {
 		r, mockStore := setupThreatSubResourceHandler()
-		mockStore.On("Patch", mock.Anything, threatID, mock.Anything).
+		mockStore.On("Patch", mock.Anything, threatModelID, threatID, mock.Anything).
 			Return(nil, fmt.Errorf("connection reset by peer"))
 
 		req := httptest.NewRequest("PATCH", "/threat_models/"+threatModelID+"/threats/bulk", bytes.NewBuffer(patchBody()))
