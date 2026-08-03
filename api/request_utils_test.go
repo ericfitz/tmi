@@ -793,3 +793,31 @@ func TestStoreErrorToRequestError_NotFoundUsesNotFoundMessage(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, reqErr.Status)
 	assert.Equal(t, "User not found", reqErr.Message)
 }
+
+// TestStoreErrorToRequestError_TransientMapsTo503 verifies a transient DB fault
+// is surfaced as 503 (not 500), and that the mapping survives the retry
+// helper's "transaction failed after N attempts: %w" wrapper so errors.Is still
+// matches (#665). The 503 carries a retry_after hint so HandleRequestError emits
+// Retry-After.
+func TestStoreErrorToRequestError_TransientMapsTo503(t *testing.T) {
+	// Mimic auth/db/retry.go exhausting its attempts and wrapping ErrTransient.
+	wrapped := fmt.Errorf("transaction failed after 3 attempts: %w", dberrors.ErrTransient)
+	reqErr := StoreErrorToRequestError(wrapped, "Threat not found", "Failed to update threat")
+
+	require.NotNil(t, reqErr)
+	assert.Equal(t, http.StatusServiceUnavailable, reqErr.Status, "transient DB fault should map to 503")
+	assert.Equal(t, "service_unavailable", reqErr.Code)
+	assert.NotEqual(t, "Failed to update threat", reqErr.Message, "503 should not reuse the 500 message")
+}
+
+// TestStoreErrorToRequestError_UnclassifiedStays500 verifies a genuinely
+// unclassified store error still maps to 500, so the transient->503 change did
+// not widen the 503 surface.
+func TestStoreErrorToRequestError_UnclassifiedStays500(t *testing.T) {
+	reqErr := StoreErrorToRequestError(fmt.Errorf("some unexpected failure"), "User not found", "Failed to create user")
+
+	require.NotNil(t, reqErr)
+	assert.Equal(t, http.StatusInternalServerError, reqErr.Status)
+	assert.Equal(t, "server_error", reqErr.Code)
+	assert.Equal(t, "Failed to create user", reqErr.Message)
+}

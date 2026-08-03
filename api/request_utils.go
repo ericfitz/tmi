@@ -440,6 +440,21 @@ func HandleRequestError(c *gin.Context, err error) {
 			}
 		}
 
+		// Add Retry-After header for 503 Service Unavailable responses (#665),
+		// consistent with the 429 path and the auth/cache 503s. Defaults to 30s
+		// when no explicit hint is carried in Details.Context.
+		if reqErr.Status == http.StatusServiceUnavailable {
+			retryAfter := 30
+			if reqErr.Details != nil {
+				if ra, ok := reqErr.Details.Context["retry_after"]; ok {
+					if raInt, ok := ra.(int); ok {
+						retryAfter = raInt
+					}
+				}
+			}
+			c.Header("Retry-After", fmt.Sprintf("%d", retryAfter))
+		}
+
 		c.JSON(reqErr.Status, response)
 		c.Abort()
 	} else {
@@ -564,7 +579,7 @@ func ServiceUnavailableError(message string) *RequestError {
 // StoreErrorToRequestError converts a store error to an appropriate RequestError.
 // If the error is already a *RequestError, it is returned as-is (preserving its status code).
 // All store errors must use typed dberrors sentinels (#271 umbrella migration is complete).
-// SEM@68d73fcadaf792000c17911f4a8fa4bfa931ac65: convert a store or dberrors error to the appropriate HTTP RequestError (pure)
+// SEM@53e5dbb80f05c732363f66086fc9ba5e4b2c4e9f: convert a store or dberrors error to the appropriate HTTP RequestError (pure)
 func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *RequestError {
 	// If already a RequestError, return it directly to preserve its status code
 	var reqErr *RequestError
@@ -590,7 +605,13 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 		return InvalidInputError("request violates a data constraint")
 	}
 	if errors.Is(err, dberrors.ErrTransient) {
-		return ServerError(serverErrorMsg)
+		// A transient DB fault -- serialization failure (ORA-08177), deadlock
+		// (ORA-00060), or an ADB autoscale connection drop -- is a temporary
+		// backend-unavailability condition, not a server bug, so it surfaces as
+		// 503 with Retry-After (consistent with the Redis path) rather than 500
+		// (#665). errors.Is matches through the retry helper's
+		// "transaction failed after N attempts: %w" wrapper.
+		return ServiceUnavailableError("Storage service temporarily unavailable - please retry")
 	}
 
 	return ServerError(serverErrorMsg)
