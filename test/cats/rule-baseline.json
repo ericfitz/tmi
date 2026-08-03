@@ -1,40 +1,40 @@
 {
-  "_comment": "Golden baseline of per-rule firing counts for test/cats/false-positives.yaml, captured against CATS run 20260728T042755Z (121,673 tests) on 2026-07-28. This is the first baseline taken from a corpus that passes BOTH run-validity gates (connection errors 0.06%, non-false-positive 401s 0.17%); the previous baseline came from a run that lost its bearer token 21% of the way in and ran the rest unauthenticated (#591), which is why its OAUTH_AUTH_401_403 count was 52,804. Rules are evaluated in file order, first match wins (see false-positives.yaml header). `matched` = records the rule condition matches in isolation (regardless of earlier rules), computed with `cats_tool.py classify --rules <single-rule> --dry-run`; `fired` = records where this rule is the first match under first-match-wins. Regenerate after any deliberate rule change per test/cats/README.md.",
-  "corpus_run": "20260728T042755Z",
-  "corpus_date": "2026-07-28",
-  "total_records": 121673,
-  "classified_records": 10029,
-  "suppressed_records": 8187,
+  "_comment": "Golden baseline of per-rule firing counts for test/cats/false-positives.yaml, captured against CATS run 20260802T184152Z (107,570 tests) on 2026-08-02. Rules are evaluated in file order, first match wins (see false-positives.yaml header). `matched` = records the rule condition matches in isolation (regardless of earlier rules); `fired` = records where this rule is the first match under first-match-wins. Regenerate after any deliberate rule change per test/cats/README.md.",
+  "corpus_run": "20260802T184152Z",
+  "corpus_date": "2026-08-02",
+  "total_records": 107570,
+  "classified_records": 9402,
+  "suppressed_records": 9401,
   "rules": [
     {
       "id": "CONNECTION_ERROR_999",
       "position": 1,
-      "matched": 78,
-      "fired": 78
+      "matched": 0,
+      "fired": 0
     },
     {
       "id": "RATE_LIMIT_429",
       "position": 2,
-      "matched": 13,
-      "fired": 13
+      "matched": 16,
+      "fired": 16
     },
     {
       "id": "AUTH_BYPASS_401_403",
       "position": 3,
-      "matched": 442,
-      "fired": 442
+      "matched": 440,
+      "fired": 440
     },
     {
       "id": "VALIDATION_400",
       "position": 4,
-      "matched": 1087,
-      "fired": 1087
+      "matched": 1364,
+      "fired": 1364
     },
     {
       "id": "NOT_FOUND_404",
       "position": 5,
-      "matched": 3288,
-      "fired": 3288
+      "matched": 1338,
+      "fired": 1338
     },
     {
       "id": "IDOR_ADMIN",
@@ -51,44 +51,44 @@
     {
       "id": "HTTP_METHODS",
       "position": 8,
-      "matched": 17,
-      "fired": 17
+      "matched": 21,
+      "fired": 21
     },
     {
       "id": "CONTENT_TYPE_GO_HTTP",
       "position": 9,
-      "matched": 97,
-      "fired": 97
+      "matched": 115,
+      "fired": 115
     },
     {
       "id": "INJECTION_JSON_API",
       "position": 10,
-      "matched": 98,
-      "fired": 26
+      "matched": 123,
+      "fired": 45
     },
     {
       "id": "XSS_QUERY_PARAMS",
       "position": 11,
-      "matched": 460,
-      "fired": 377
+      "matched": 566,
+      "fired": 465
     },
     {
       "id": "HEADER_VALIDATION_400",
       "position": 12,
-      "matched": 723,
-      "fired": 723
+      "matched": 1160,
+      "fired": 1160
     },
     {
       "id": "STRING_BOUNDARY_OPTIONAL",
       "position": 13,
-      "matched": 34,
-      "fired": 34
+      "matched": 47,
+      "fired": 47
     },
     {
       "id": "DELETED_RESOURCE_LIST",
       "position": 14,
-      "matched": 15,
-      "fired": 15
+      "matched": 3,
+      "fired": 3
     },
     {
       "id": "FORM_URLENCODED_JSON_TEST",
@@ -99,14 +99,14 @@
     {
       "id": "DELETE_ME_CHALLENGE",
       "position": 16,
-      "matched": 10,
-      "fired": 4
+      "matched": 0,
+      "fired": 0
     },
     {
       "id": "PATH_PARAM_VALIDATION",
       "position": 17,
-      "matched": 415,
-      "fired": 299
+      "matched": 411,
+      "fired": 295
     },
     {
       "id": "EMPTY_BODY_REQUIRED_FIELDS",
@@ -117,38 +117,38 @@
     {
       "id": "EMPTY_JSON_BODY_NOT_FOUND",
       "position": 19,
-      "matched": 3,
-      "fired": 3
+      "matched": 2,
+      "fired": 2
     },
     {
       "id": "STRING_BOUNDARY_EMPTY_PATH",
       "position": 20,
-      "matched": 43,
-      "fired": 16
+      "matched": 57,
+      "fired": 22
     },
     {
       "id": "NO_BODY_ENDPOINT",
       "position": 21,
-      "matched": 10,
-      "fired": 4
+      "matched": 9,
+      "fired": 3
     },
     {
       "id": "SURVEY_VALIDATION_400",
       "position": 22,
-      "matched": 72,
-      "fired": 38
+      "matched": 68,
+      "fired": 34
     },
     {
       "id": "SURVEY_DELETE_CONFLICT_409",
       "position": 23,
-      "matched": 12,
-      "fired": 12
+      "matched": 11,
+      "fired": 11
     },
     {
       "id": "JSONPATCH_INVALID_400",
       "position": 24,
-      "matched": 729,
-      "fired": 334
+      "matched": 1180,
+      "fired": 449
     },
     {
       "id": "SURVEY_RESPONSE_VALIDATION_400",
@@ -159,14 +159,14 @@
     {
       "id": "METADATA_BULK_VALIDATION_400",
       "position": 26,
-      "matched": 94,
-      "fired": 24
+      "matched": 223,
+      "fired": 46
     },
     {
       "id": "SCHEMA_MISMATCH_VALID_ERROR",
       "position": 27,
-      "matched": 897,
-      "fired": 593
+      "matched": 1024,
+      "fired": 601
     },
     {
       "id": "SSRF_VALIDATION_400",
@@ -183,26 +183,26 @@
     {
       "id": "SURVEY_METADATA_CONFLICT_409",
       "position": 30,
-      "matched": 23,
-      "fired": 22
+      "matched": 22,
+      "fired": 21
     },
     {
       "id": "EMPTY_ARRAY_BODY_200",
       "position": 31,
-      "matched": 2,
-      "fired": 2
+      "matched": 9,
+      "fired": 9
     },
     {
       "id": "ADDON_PARAMETER_VALIDATION_400",
       "position": 32,
-      "matched": 19,
-      "fired": 11
+      "matched": 18,
+      "fired": 10
     },
     {
       "id": "REVOKE_STRING_BOUNDARY_RFC7009",
       "position": 33,
-      "matched": 9,
-      "fired": 9
+      "matched": 7,
+      "fired": 7
     },
     {
       "id": "REVOKE_TYPE_COERCION_RFC7009",
@@ -219,20 +219,20 @@
     {
       "id": "AUTOMATION_ACCOUNT_CONFLICT_409",
       "position": 36,
-      "matched": 10,
-      "fired": 10
+      "matched": 9,
+      "fired": 9
     },
     {
       "id": "INTROSPECT_RFC7662",
       "position": 37,
-      "matched": 85,
-      "fired": 81
+      "matched": 84,
+      "fired": 80
     },
     {
       "id": "OAUTH_TOKEN_VALIDATION_400",
       "position": 38,
-      "matched": 74,
-      "fired": 28
+      "matched": 71,
+      "fired": 25
     },
     {
       "id": "OAUTH_TOKEN_INVALID_CLIENT_401",
@@ -243,20 +243,20 @@
     {
       "id": "TYPE_COERCION_STRING",
       "position": 40,
-      "matched": 74,
-      "fired": 34
+      "matched": 134,
+      "fired": 94
     },
     {
       "id": "WEBHOOK_DELIVERY_AUTH_404",
       "position": 41,
-      "matched": 44,
-      "fired": 6
+      "matched": 42,
+      "fired": 4
     },
     {
       "id": "WEBHOOK_TEST_VALIDATION",
       "position": 42,
-      "matched": 43,
-      "fired": 3
+      "matched": 3,
+      "fired": 1
     },
     {
       "id": "SELF_DELETION_409",
@@ -267,32 +267,278 @@
     {
       "id": "CHECK_DELETED_405",
       "position": 44,
-      "matched": 17,
-      "fired": 17
+      "matched": 16,
+      "fired": 15
     },
     {
       "id": "AUDIT_QUERY_VALIDATION_400",
       "position": 45,
-      "matched": 63,
-      "fired": 26
+      "matched": 62,
+      "fired": 25
     },
     {
       "id": "STEP_UP_AUTH_401",
       "position": 46,
-      "matched": 92,
-      "fired": 92
+      "matched": 49,
+      "fired": 49
     },
     {
       "id": "AUTOMATION_ONLY_ENDPOINT_403",
       "position": 47,
-      "matched": 171,
-      "fired": 171
+      "matched": 163,
+      "fired": 163
     },
     {
       "id": "ADMIN_CLIENT_CREDENTIALS_AUTOMATION_ONLY_403",
       "position": 48,
-      "matched": 0,
+      "matched": 180,
+      "fired": 180
+    },
+    {
+      "id": "TEAM_PROJECT_URI_REFLECTED_NOT_FETCHED",
+      "position": 49,
+      "matched": 172,
+      "fired": 172
+    },
+    {
+      "id": "AUTH_ERROR_CODE_IS_NOT_A_DETAILS_LEAK",
+      "position": 50,
+      "matched": 440,
       "fired": 0
+    },
+    {
+      "id": "SSTI_PAYLOAD_REFLECTED_NOT_EVALUATED",
+      "position": 51,
+      "matched": 30,
+      "fired": 30
+    },
+    {
+      "id": "UNDECLARED_FIELD_DROPPED_NOT_BOUND",
+      "position": 52,
+      "matched": 704,
+      "fired": 661
+    },
+    {
+      "id": "NESTED_SCHEMA_VALIDATION_400",
+      "position": 53,
+      "matched": 2126,
+      "fired": 576
+    },
+    {
+      "id": "SCREENSHOT_BASE64_INVALID_400",
+      "position": 54,
+      "matched": 66,
+      "fired": 44
+    },
+    {
+      "id": "SSRF_URI_VALIDATION_REJECTS_UNRESOLVABLE_400",
+      "position": 55,
+      "matched": 148,
+      "fired": 66
+    },
+    {
+      "id": "PAGINATION_CURSOR_INVALID_400",
+      "position": 56,
+      "matched": 92,
+      "fired": 17
+    },
+    {
+      "id": "METADATA_KEY_CONFLICT_409",
+      "position": 57,
+      "matched": 176,
+      "fired": 154
+    },
+    {
+      "id": "RESTORE_NON_DELETED_ENTITY_409",
+      "position": 58,
+      "matched": 81,
+      "fired": 81
+    },
+    {
+      "id": "SURVEY_THREAT_MODEL_ALREADY_CREATED_409",
+      "position": 59,
+      "matched": 14,
+      "fired": 14
+    },
+    {
+      "id": "SSE_STREAM_VALIDATED_AS_JSON_SCHEMA",
+      "position": 60,
+      "matched": 12,
+      "fired": 12
+    },
+    {
+      "id": "XXE_NOTES_CONTENT_NOT_PARSED",
+      "position": 61,
+      "matched": 20,
+      "fired": 20
+    },
+    {
+      "id": "MASS_ASSIGNMENT_DECLARED_WRITABLE_FIELD",
+      "position": 62,
+      "matched": 10,
+      "fired": 10
+    },
+    {
+      "id": "MASS_ASSIGNMENT_SSE_STREAM_ENVELOPE",
+      "position": 63,
+      "matched": 3,
+      "fired": 3
+    },
+    {
+      "id": "IDOR_EMPTY_RESULT_SET",
+      "position": 64,
+      "matched": 9,
+      "fired": 9
+    },
+    {
+      "id": "FEEDBACK_TARGET_FIELD_CROSS_FIELD_400",
+      "position": 65,
+      "matched": 3,
+      "fired": 3
+    },
+    {
+      "id": "WHITESPACE_FIELD_NAMES_IGNORED_2XX",
+      "position": 66,
+      "matched": 37,
+      "fired": 36
+    },
+    {
+      "id": "PREFERENCES_ALREADY_EXIST_409",
+      "position": 67,
+      "matched": 11,
+      "fired": 11
+    },
+    {
+      "id": "PREFERENCES_FREEFORM_JSON_ECHO",
+      "position": 68,
+      "matched": 1,
+      "fired": 1
+    },
+    {
+      "id": "THREAT_MODEL_RESTORE_NOT_DELETED_409",
+      "position": 69,
+      "matched": 14,
+      "fired": 14
+    },
+    {
+      "id": "SAML_USERS_CROSS_PROVIDER_403",
+      "position": 70,
+      "matched": 10,
+      "fired": 10
+    },
+    {
+      "id": "OPENAPI3FILTER_REQUEST_VALIDATION_400",
+      "position": 71,
+      "matched": 920,
+      "fired": 14
+    },
+    {
+      "id": "DUPLICATE_AUTHZ_SUBJECT_400",
+      "position": 72,
+      "matched": 39,
+      "fired": 15
+    },
+    {
+      "id": "CONDITIONAL_REQUIRED_FIELD_400",
+      "position": 73,
+      "matched": 2,
+      "fired": 1
+    },
+    {
+      "id": "SURVEY_RESPONSE_STATUS_LOCKED_409",
+      "position": 74,
+      "matched": 14,
+      "fired": 14
+    },
+    {
+      "id": "BULK_RESOURCE_ALREADY_EXISTS_409",
+      "position": 75,
+      "matched": 1,
+      "fired": 1
+    },
+    {
+      "id": "RESPONSE_SCHEMA_COMPOSITION_FP_674",
+      "position": 76,
+      "matched": 14,
+      "fired": 14
+    },
+    {
+      "id": "OAUTH_AUTHORIZE_CALLBACK_404_FP",
+      "position": 77,
+      "matched": 19,
+      "fired": 4
+    },
+    {
+      "id": "INVALID_JSON_IGNORED_ON_ACTION_2XX",
+      "position": 78,
+      "matched": 11,
+      "fired": 11
+    },
+    {
+      "id": "SSTI_TEMPLATE_STORED_VERBATIM_FP",
+      "position": 79,
+      "matched": 7,
+      "fired": 1
+    },
+    {
+      "id": "EMPTY_BODY_REJECTED_400",
+      "position": 80,
+      "matched": 2,
+      "fired": 1
+    },
+    {
+      "id": "DELETED_CHECK_LIVE_DIAGRAM_METADATA_200",
+      "position": 81,
+      "matched": 2,
+      "fired": 2
+    },
+    {
+      "id": "UNKNOWN_FIELDS_ACCEPTED_2XX",
+      "position": 82,
+      "matched": 20,
+      "fired": 18
+    },
+    {
+      "id": "STRING_FORMAT_NOT_ENFORCED_2XX",
+      "position": 83,
+      "matched": 8,
+      "fired": 8
+    },
+    {
+      "id": "LARGE_STRINGS_ACCEPTED_2XX",
+      "position": 84,
+      "matched": 17,
+      "fired": 9
+    },
+    {
+      "id": "ZEROWIDTH_HEADER_TOLERATED_2XX",
+      "position": 85,
+      "matched": 9,
+      "fired": 9
+    },
+    {
+      "id": "HOMOGLYPH_FIELD_ACCEPTED_2XX",
+      "position": 86,
+      "matched": 1,
+      "fired": 1
+    },
+    {
+      "id": "DUMMY_REQUEST_ACCEPTED_2XX",
+      "position": 87,
+      "matched": 1,
+      "fired": 1
+    },
+    {
+      "id": "PATCH_FIELD_NOT_ALLOWED_400",
+      "position": 88,
+      "matched": 48,
+      "fired": 12
+    },
+    {
+      "id": "FEEDBACK_CROSS_FIELD_TARGET_TYPE_400",
+      "position": 89,
+      "matched": 1,
+      "fired": 1
     }
   ]
 }
