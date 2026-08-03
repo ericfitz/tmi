@@ -102,6 +102,46 @@ func TestSSE_SurvivesWriteTimeout(t *testing.T) {
 	}
 }
 
+// NewSSEWriter must not weaken the Cache-Control that SecurityHeaders set. It
+// used to overwrite "no-store, no-cache, must-revalidate" with a bare
+// "no-cache", dropping no-store — the sole finding CATS' CheckSecurityHeaders
+// flagged on POST /threat_models/{id}/chat/sessions. This pins that the SSE
+// path keeps the middleware's stronger value.
+func TestSSE_PreservesStrongCacheControl(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(SecurityHeaders())
+	r.POST("/stream", func(c *gin.Context) {
+		sse := NewSSEWriter(c)
+		_ = sse.SendEvent("token", map[string]any{"content": "x"})
+	})
+
+	srv := httptest.NewServer(r)
+	defer srv.Close()
+
+	req, err := http.NewRequest(http.MethodPost, srv.URL+"/stream", nil)
+	if err != nil {
+		t.Fatalf("build request: %v", err)
+	}
+	req.Header.Set("Accept", "text/event-stream")
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	cc := resp.Header.Get("Cache-Control")
+	if !strings.Contains(cc, "no-store") {
+		t.Errorf("Cache-Control = %q, want it to contain no-store (SSE writer clobbered the middleware value)", cc)
+	}
+	if !strings.Contains(cc, "no-cache") {
+		t.Errorf("Cache-Control = %q, want it to contain no-cache", cc)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.Contains(ct, "text/event-stream") {
+		t.Errorf("Content-Type = %q, want text/event-stream", ct)
+	}
+}
+
 // The deadline clear has to traverse bufferedResponseWriter. gin.ResponseWriter
 // is an interface that does not declare Unwrap, so embedding it promotes no
 // such method and http.NewResponseController stops at the wrapper and returns
