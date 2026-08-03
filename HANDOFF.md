@@ -1,98 +1,73 @@
-# Handoff — 1.7.1 sub-resource tenancy (#664), 2026-08-01
+# Handoff — 1.7.2 CATS triage + #662/#665, 2026-08-03
 
-## Where things are
+## What this branch (`dev/1.7.2/cats-triage-662-665`) contains
 
-**PR #672 is open** (`dev/1.7.1/subresource-tenancy` → `main`, version 1.7.1) and CI is
-running. The user chose **merge-after-CI**: squash-merge #672 the moment CI is green — the
-Oracle-verification gap below is a documented follow-up (#671), not a merge blocker. After
-merge, verify #664 auto-closed (squash-merge reads the PR body, which carries `Closes #664`).
+Four bundled pieces, all local-validated (build, unit 2460+, lint 0, PG integration
+84/0, security-review clean). Version bumped **1.7.1 → 1.7.2** (`.version` + spec
+`info.version`, verified by `make build-server`).
 
-```
-gh pr checks 672            # confirm green
-gh pr merge 672 --squash --delete-branch
-gh issue view 664 --json state -q .state   # expect CLOSED
-```
+1. **CATS re-run against 1.7.1 + triage (no code, test data only).** Ran a full valid
+   campaign (`20260802T184152Z`, 107,570 requests, 0 transport / 0.08% unauth, all 6
+   preserved anchors survived). **Zero 500s.** #651 confirmed fixed
+   (`PATCH`/`PUT /threat_models/{id}` now record 2xx). Every true positive verified benign.
+   Added **19 false-positive rules** to `test/cats/false-positives.yaml` (70 → 89), split
+   per-fuzzer, each dry-run-verified with **no 5xx suppression**; true positives 138 → 1.
+   Regenerated `test/cats/rule-baseline.json` from the valid run and renumbered all 89
+   `# rule N of 89:` comments. Doc counts updated (README, CLAUDE.md).
 
-If CI fails, read the failing job; nothing on this branch is expected to fail (lint 0,
-test-unit 2458, PG integration full suite + new tenancy tests all passed locally).
+   The **one remaining true positive** is a minor real observation, left surfaced (not
+   suppressed): `POST /threat_models/{id}/chat/sessions` (SSE) is missing recommended
+   security headers — its streaming response likely bypasses the header middleware.
 
-## What #672 does (the whole review process ran; it's solid)
+2. **#665 — `dberrors.ErrTransient` → 503 (fix).** `StoreErrorToRequestError` now maps a
+   transient DB fault to 503 with `Retry-After` (was 500), via `errors.Is` so it survives
+   the retry helper's `%w` wrapper. `HandleRequestError` emits `Retry-After` for any 503
+   (default 30s). Also routed `ListMyIdentities`/`DeleteMyIdentity` through
+   `HandleRequestError` (they rendered errors manually and so lacked the header +
+   sanitization). Tests updated/renamed to the 503 contract.
 
-Two-layer fix for #664 (a caller with any role on threat model A could read/update/patch/
-delete — and via bulk, re-parent/overwrite — children of threat model B by naming B's child
-id under A's path):
+3. **#662 — public-path lint (chore).** Extracted the middleware's public decision into
+   `isPublicPath()` (same-package, so `TestPublicPathLint` calls the exact function the
+   server uses). New `cmd/server/publicpath_lint_test.go` compares every spec operation's
+   auth marking (`security: []` ≡ `x-public-endpoint: true`) against `isPublicPath`, plus a
+   prefix-over-reach check. Divergences resolved: added `x-public-endpoint: true` to
+   `POST /oauth2/revoke`; converted `/oauth2/token` from a prefix to an exact entry (narrows
+   the unauthenticated surface); introduced a new **`x-auth-in-handler: true`** vendor
+   extension on `GET /webhook-deliveries/{delivery_id}` (dual HMAC-or-JWT, auth in handler)
+   and taught the lint to honor it; fixed the false comment at the old `main.go:154`.
 
-1. **Centralized parentage gate** (`api/authz_middleware.go`, `enforceChildParentage` +
-   `gormChildParentageCheck`, called from `authzMiddlewareWithTable`). After the parent-ACL
-   check, verifies the child id belongs to `{threat_model_id}` for all six families
-   (threats, assets, documents, notes, repositories, diagrams) and every child sub-route
-   (metadata, metadata/{key}, audit_trail, restore, request_access, collaborate). **404 not
-   403** (no existence oracle). DB probe wrapped in `WithRetryableGormRead` + `dberrors.Classify`.
-   `/restore` and `/audit_trail` are exempt from the `deleted_at IS NULL` filter so
-   delete-recovery and audit history of soft-deleted children stay reachable.
-2. **Threat bulk store scoping** (`api/threat_store_gorm.go`). The gate's non-UUID skip
-   branch (`/threats/bulk`) left a **HIGH IDOR the security review caught**: threat
-   `Update`/`BulkUpdate`/`Patch` predicated on `id` alone and `buildThreatUpdateMap` wrote
-   `threat_model_id`, so `PUT /threat_models/{A}/threats/bulk` naming B's threat id
-   re-parented it into A; `PATCH` overwrote in place. All three now scope by
-   `threat_model_id`, `Patch` takes the parent id (interface + mock + both call sites
-   updated), and the update map no longer writes `threat_model_id`. The metadata save is
-   gated on `RowsAffected` to close a **second-order metadata IDOR** (metadata keyed on
-   entity_id alone) caught by oracle-db-admin. Sibling families were already parent-scoped;
-   threats were the sole outlier and the only family with a bulk-PATCH route.
+4. **Docs (pre-existing, carried from last session):**
+   `docs/superpowers/plans/2026-08-01-subresource-tenancy.md` (the #664 plan) and this
+   HANDOFF.
 
-New tests: `test/integration/workflows/subresource_tenancy_test.go`
-(`TestSubResourceTenancy_Integration`) — cross-parent 404 across six families and verbs,
-victim child intact, plus `PutBulkCannotReparent`/`PatchBulkCannotOverwrite`; unit coverage
-in `api/authz_middleware_subresource_test.go`. All fail on revert of either layer.
+## Issues
 
-Verified: lint 0 · test-unit 2458 · PG integration full suite + tenancy tests · oracle-db-admin
-APPROVED WITH NOTES (its two blocking findings both fixed) · whole-branch review ready-to-merge.
+- **#674** (filed this session, Backlog) — schema-composition hygiene: `additionalProperties:
+  false` under `allOf` (`RepositoryBase`, `MinimalNode/Edge`) + `oneOf`/discriminator
+  (`MinimalCell`) trip CATS' networknt validator, producing 6 "schema mismatch" false
+  positives even though the response bodies conform. Currently suppressed by the FP rule
+  `RESPONSE_SCHEMA_COMPOSITION_FP_674`. Evaluate restructuring the schemas later.
+- **#662, #665** — resolved on this branch; close after the PR merges (squash-merge from a
+  branch does not auto-close; comment + `gh issue close`).
 
-## The one caveat (accepted by the user)
+## DO NEXT
 
-The new bulk-scoping subtests are **PostgreSQL-verified, not Oracle-executed**. The metadata
-gate depends on `RowsAffected == 0` accuracy on ADB. This is blocked by **pre-existing OCI
-infrastructure**, not by the change — see #671. oracle-db-admin reviewed the code. When #671
-is fixed, run the tenancy subtests on ADB to close this out.
-
-## Issues filed this session
-- **#669** — `Threat.DeletedAt` is not `gorm.DeletedAt`; raw predicates on these models must
-  spell out `deleted_at IS NULL` (audit the models or migrate the type).
-- **#670** — `deleteAndSaveEntityMetadata` can commit a bare metadata delete if the insert
-  half errors; more reachable on Oracle BYTE length semantics.
-- **#671** — `make test-integration-oci`: an unrelated oracle test
-  (`TestThreatModelAliasSequenceOracleIntegration`) hangs the OCI run for 10m via the
-  fsnotify file-watchdog, AND `run_oci` never runs the `test/integration/workflows` package,
-  so no workflow-level test is ever Oracle-executed. Both should be fixed so security/driver
-  changes can be pinned on ADB.
-
-## Closed this session
-- **PR #668** merged → #651, #653, #658, #659, #660 closed (1.7.0 CATS follow-ups).
-- **#664** — closing via #672 (merge pending CI).
-
-## DO NEXT (after #672 merges), from the original session backlog
-
-1. **Re-run CATS against 1.7.1.** Four 1.7.0 changes plus this branch should move the numbers.
-   Check specifically that `PATCH`/`PUT /threat_models/{id}` now record a 2xx (#651
-   `x-preserve-fixture`) — verification query in `test/cats/README.md`. Fuzz the cluster
-   directly at `http://rp2:30080`, never through a port-forward.
-2. **#662** — spec-vs-middleware public-path lint. Two real divergences documented in the
-   issue: `POST /oauth2/revoke` (`security: []` but no `x-public-endpoint`) and
-   `GET /webhook-deliveries/{delivery_id}` (dual-auth HMAC-or-JWT in the handler; the comment
-   at `cmd/server/main.go:154` claiming `x-public-endpoint` is false).
-3. **#665** — `ErrTransient` → 503. Cheap now: 503 is documented on all operations.
+1. **`git push` needs a physical SSH-key touch** on this machine — that is expected, not a
+   repo problem. Push `dev/1.7.2/cats-triage-662-665`, open the PR, let CI run.
+2. **Re-run CATS against the deployed 1.7.2** once it is redeployed to the cluster — the
+   campaign this session fuzzed the still-1.7.1 cluster (for the baseline corpus), so it did
+   NOT exercise the #662/#665 changes. Fuzz `http://rp2:30080` directly, never a
+   port-forward.
+3. Consider filing a CATS test-infra follow-up: the retained baseline run went **invalid**
+   because the `webhook_id` fixture decoy for `/admin/webhooks/subscriptions/{webhook_id}`
+   isn't working (the decoy override is present but the throwaway isn't seeded / the per-path
+   section names the wrong parameter). Not a TMI bug; a `.local/cats` seed/config gap.
 
 ## Gotchas carried forward
-- **git push needs a physical touch** on the SSH key (`sign_and_send_pubkey ... signing failed`
-  is the expected touch-required behavior on this machine, not a repo problem). Retry when the
-  user is present; never work around it.
-- **Never run two integration suites concurrently** — shared server/DB; the second run's
-  teardown kills the first's and produces a wall of `connection refused`.
-- **`make test-integration-oci` currently can't complete** (see #671) — don't trust an OCI
-  integration gate until #671 lands.
 
-## SDD workspace (delete after #672 merges + is confirmed)
-`.superpowers/sdd/2026-08-01-subresource-tenancy/` holds the ledger (`progress.md`), per-task
-briefs/reports, review packages, and the PR body. The plan is
-`docs/superpowers/plans/2026-08-01-subresource-tenancy.md`.
+- **git push needs a physical touch** on the SSH key; retry when the user is present, never
+  work around it.
+- **Never run two integration suites concurrently** (shared server/DB).
+- **CATS baseline can be regenerated from any *valid* parsed DB** (`rule-baseline.json` is
+  derived from the DB records, not the raw report) — a retained raw report is not required.
+  Use `latest.db` only if the run it points at passed all three validity gates.
