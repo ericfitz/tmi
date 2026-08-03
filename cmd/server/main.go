@@ -119,7 +119,8 @@ var publicPaths = map[string]bool{
 	"/oauth2/refresh":               true,
 	"/oauth2/authorize":             true,
 	"/oauth2/step_up":               true,
-	"/oauth2/revoke":                true,
+	"/oauth2/revoke":                true, // Token revocation per RFC 7009 (client authenticates with the token it revokes)
+	"/oauth2/token":                 true, // Token endpoint (exact match; see publicPathPrefixes note)
 	"/oauth2/introspect":            true, // Token introspection per RFC 7662 (x-public-endpoint in OpenAPI)
 	"/robots.txt":                   true,
 	"/site.webmanifest":             true,
@@ -146,12 +147,23 @@ var publicPaths = map[string]bool{
 	// Note: /.well-known/* paths are handled by publicPathPrefixes below
 }
 
-// publicPathPrefixes is a list of path prefixes that don't require authentication
+// publicPathPrefixes is a list of path prefixes that don't require authentication.
+//
+// A prefix must not match any operation the spec declares private -- that is what
+// TestPublicPathLint's over-reach check enforces. /oauth2/token is therefore an
+// exact publicPaths entry rather than a prefix here, so it cannot also swallow a
+// hypothetical /oauth2/tokenXYZ (#662).
+//
+// /webhook-deliveries/ is a deliberate exception: GET /webhook-deliveries/{delivery_id}
+// authenticates *in the handler* (HMAC via X-Webhook-Signature, or JWT via
+// verifyDeliveryJWTAccess), so the middleware must pass it through as public for the
+// HMAC-only path to reach the handler. That intent is recorded in the spec as
+// x-auth-in-handler: true, which the lint recognizes instead of treating the
+// non-empty `security` as drift.
 var publicPathPrefixes = []string{
-	"/oauth2/token",
 	"/static/",
 	"/.well-known/",        // All OAuth/OIDC discovery endpoints
-	"/webhook-deliveries/", // Webhook delivery status endpoints (HMAC-authenticated, x-public-endpoint in OpenAPI)
+	"/webhook-deliveries/", // Auth enforced in handler (HMAC or JWT); see note above and x-auth-in-handler in the spec
 }
 
 // isPublicSAMLPath reports whether path is one of the two provider-scoped SAML
@@ -178,8 +190,26 @@ func isPublicSAMLPath(path string) bool {
 	return action == "login" || action == "metadata"
 }
 
+// isPublicPath reports whether a request path is exempt from the JWT
+// authentication middleware: an exact public path, a public prefix, or a
+// provider-scoped public SAML route. This is the single source of truth for the
+// middleware's public decision; TestPublicPathLint calls this exact function so
+// the lint can never drift from what the server does (#662).
+// SEM@9ffe1829793344f52be7f61113f1caad660e10d5: report whether a request path is exempt from JWT authentication (pure)
+func isPublicPath(path string) bool {
+	if publicPaths[path] {
+		return true
+	}
+	for _, prefix := range publicPathPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return isPublicSAMLPath(path)
+}
+
 // PublicPathsMiddleware identifies paths that don't require authentication
-// SEM@eaa8ce75824cc84e964a0ae075390641e6aa71ee: build middleware that marks unauthenticated-friendly paths in the request context
+// SEM@39d2d9380ea57c07e1ce59357b148f1367e38464: build middleware that marks unauthenticated-friendly paths in the request context
 func PublicPathsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get a context-aware logger
@@ -192,21 +222,7 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 
 		// Check if path is public (exact match, prefix match, or a
 		// provider-scoped public SAML route)
-		isPublic := publicPaths[c.Request.URL.Path]
-		if !isPublic {
-			for _, prefix := range publicPathPrefixes {
-				if strings.HasPrefix(c.Request.URL.Path, prefix) {
-					isPublic = true
-					break
-				}
-			}
-		}
-		if !isPublic {
-			isPublic = isPublicSAMLPath(c.Request.URL.Path)
-		}
-
-		// Note: /webhook-deliveries/ paths are public (HMAC-authenticated).
-		// JWT auth for these endpoints is not supported (use /admin/webhooks/deliveries/ for JWT).
+		isPublic := isPublicPath(c.Request.URL.Path)
 
 		if isPublic {
 			logger.Debug("[PUBLIC_PATHS_MIDDLEWARE] ✅ Public path identified: %s", c.Request.URL.Path)
@@ -230,7 +246,7 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 }
 
 // JWT Middleware factory function that takes config, token blacklist, auth handlers, and ticket validator
-// SEM@834ed0d09c836060ae9619f32b156a5d710fd22e: build middleware that validates JWT tokens and aborts unauthenticated requests to protected paths
+// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: build middleware that validates JWT tokens and aborts unauthenticated requests to protected paths
 func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, authHandlers *auth.Handlers, ticketValidator *TicketValidator) gin.HandlerFunc {
 	// Initialize authentication components
 	publicPathChecker := &PublicPathChecker{}
