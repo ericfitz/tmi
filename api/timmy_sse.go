@@ -21,7 +21,7 @@ import (
 var sseEventNameRe = regexp.MustCompile(`[^a-zA-Z0-9_]`)
 
 // SSEWriter provides helpers for writing Server-Sent Events to a Gin response
-// SEM@4c239c4f250b659952e70e3af2276d2651e420e9: holds a Gin context and flush function for writing Server-Sent Events (pure)
+// SEM@e2f78925781ef0a3d3eb6ea222688508cec07972: holds a Gin context and flush function for writing Server-Sent Events (pure)
 type SSEWriter struct {
 	c       *gin.Context
 	flusher func()
@@ -33,10 +33,14 @@ type SSEWriter struct {
 }
 
 // NewSSEWriter initializes an SSE response stream
-// SEM@4c239c4f250b659952e70e3af2276d2651e420e9: initialize an SSE response stream with required headers on the Gin response
+// SEM@495d0e707e286e7230e11759448f784ebb220018: initialize an SSE response stream with required headers on the Gin response
 func NewSSEWriter(c *gin.Context) *SSEWriter {
 	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
+	// Do NOT override Cache-Control here. The SecurityHeaders middleware already
+	// set "no-store, no-cache, must-revalidate" earlier in the chain, which is
+	// both correct for a sensitive stream (no-store) and sufficient to keep SSE
+	// uncached (no-cache). Setting a bare "no-cache" here dropped no-store and
+	// was the sole finding CATS' CheckSecurityHeaders flagged on this path.
 	c.Header("X-Accel-Buffering", "no") // Disable nginx buffering
 
 	// Clear the connection's write deadline for the life of this response.
@@ -74,7 +78,7 @@ func NewSSEWriter(c *gin.Context) *SSEWriter {
 }
 
 // SendEvent sends a named SSE event with JSON data
-// SEM@de94ca8de4d9f1541750217c9a701b38bf923214: serialize data as JSON and send a named SSE event to the client
+// SEM@e2f78925781ef0a3d3eb6ea222688508cec07972: serialize data as JSON and send a named SSE event to the client
 func (w *SSEWriter) SendEvent(event string, data any) error {
 	// Once a write has failed the connection does not recover, and every
 	// further attempt is a syscall that fails the same way. Short-circuit so a
@@ -129,7 +133,7 @@ func (w *SSEWriter) SendError(code, message string) error {
 // failed latches the first write error and logs it once. Subsequent sends
 // short-circuit on the latch rather than logging per event, which matters for a
 // token stream that would otherwise emit hundreds of identical lines.
-// SEM@0000000000000000000000000000000000000000: latch and log the first SSE write failure, returning it wrapped
+// SEM@e2f78925781ef0a3d3eb6ea222688508cec07972: latch and log the first SSE write failure, returning it wrapped
 func (w *SSEWriter) failed(err error) error {
 	w.writeErr = fmt.Errorf("failed to write SSE event: %w", err)
 	slogging.Get().WithContext(w.c).Warn(
@@ -138,7 +142,7 @@ func (w *SSEWriter) failed(err error) error {
 }
 
 // Err returns the first write failure, or nil while the stream is healthy.
-// SEM@0000000000000000000000000000000000000000: return the first SSE write failure, or nil if none (pure)
+// SEM@e2f78925781ef0a3d3eb6ea222688508cec07972: return the first SSE write failure, or nil if none (pure)
 func (w *SSEWriter) Err() error { return w.writeErr }
 
 // IsClientGone reports whether the client can no longer receive events.
@@ -150,7 +154,7 @@ func (w *SSEWriter) Err() error { return w.writeErr }
 // still in flight, so the context check alone reports a healthy client and the
 // handler keeps generating LLM tokens nobody will receive. Checking the latched
 // write error covers that.
-// SEM@0000000000000000000000000000000000000000: report whether the SSE client is unreachable, via context cancellation or a latched write failure (pure)
+// SEM@e2f78925781ef0a3d3eb6ea222688508cec07972: report whether the SSE client is unreachable, via context cancellation or a latched write failure (pure)
 func (w *SSEWriter) IsClientGone() bool {
 	if w.writeErr != nil {
 		return true
