@@ -291,6 +291,7 @@ curl -X POST http://localhost:8080/oauth2/token \
 ## Bump Exclusions
 
 - `github.com/golang/protobuf` — deprecated transitive dependency, cannot pin in go.mod (go mod tidy removes it), ignored in Dependabot
+- `github.com/mattn/go-sqlite3` — must stay on the **v1.x** line. The repo's `v2.0.3+incompatible` tag is mis-tagged (it predates v1.14.x yet Go's version ordering treats `+incompatible` v2 as newest), so `go get -u`/`go mod tidy` will latch it and break the SQLite-backed tests (e.g. `TestPruneAuditEntries_ManyRows`). Guarded by an `exclude github.com/mattn/go-sqlite3 v2.0.3+incompatible` directive in `go.mod`; keep that directive and never accept a v2 bump.
 
 ## Development Guidelines
 
