@@ -334,6 +334,34 @@ func TestHandleRequestError_Extended(t *testing.T) {
 		assert.Equal(t, "30", w.Header().Get("Retry-After"))
 	})
 
+	t.Run("503_sets_retry_after_header", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/", nil)
+
+		HandleRequestError(c, ServiceUnavailableError("Storage service temporarily unavailable - please retry"))
+
+		assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+		assert.Equal(t, "30", w.Header().Get("Retry-After"))
+	})
+
+	t.Run("503_without_details_defaults_retry_after", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest("GET", "/", nil)
+
+		// A bare 503 RequestError with no Details still gets the default hint.
+		err := &RequestError{
+			Status:  http.StatusServiceUnavailable,
+			Code:    "service_unavailable",
+			Message: "Cache service temporarily unavailable - please retry",
+		}
+		HandleRequestError(c, err)
+
+		assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+		assert.Equal(t, "30", w.Header().Get("Retry-After"))
+	})
+
 	t.Run("429_without_retry_after_in_context", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)

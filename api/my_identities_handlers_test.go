@@ -92,9 +92,9 @@ func newMyIdentitiesContext(t *testing.T, userUUID string) (*gin.Context, *httpt
 // ListMyIdentities tests
 // ---------------------------------------------------------------------------
 
-func TestListMyIdentities_StoreConstraintError_Returns500(t *testing.T) {
-	// A transient store error (ErrTransient) should surface as 500 via
-	// StoreErrorToRequestError.
+func TestListMyIdentities_TransientError_Returns503(t *testing.T) {
+	// A transient store error (ErrTransient) is a temporary backend fault, so it
+	// surfaces as 503 with Retry-After via StoreErrorToRequestError (#665), not 500.
 	store := &stubAPILinkedIdentityStore{
 		listErr: dberrors.Wrap(errors.New("connection reset"), dberrors.ErrTransient),
 	}
@@ -104,7 +104,8 @@ func TestListMyIdentities_StoreConstraintError_Returns500(t *testing.T) {
 	c, w := newMyIdentitiesContext(t, userUUID)
 	server.ListMyIdentities(c)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, "30", w.Header().Get("Retry-After"))
 	var body map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 	assert.NotEmpty(t, body["error"])
@@ -171,7 +172,8 @@ func newDeleteIdentityContext(t *testing.T, userUUID string) (*gin.Context, *htt
 	return c, w
 }
 
-func TestDeleteMyIdentity_TransientError_Returns500(t *testing.T) {
+func TestDeleteMyIdentity_TransientError_Returns503(t *testing.T) {
+	// A transient store fault surfaces as 503 with Retry-After, not 500 (#665).
 	store := &stubAPILinkedIdentityStore{
 		deleteErr: dberrors.Wrap(errors.New("db unavailable"), dberrors.ErrTransient),
 	}
@@ -183,7 +185,8 @@ func TestDeleteMyIdentity_TransientError_Returns500(t *testing.T) {
 	c, w := newDeleteIdentityContext(t, userUUID)
 	server.DeleteMyIdentity(c, linkID)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, "30", w.Header().Get("Retry-After"))
 }
 
 func TestDeleteMyIdentity_ConstraintError_Returns400(t *testing.T) {

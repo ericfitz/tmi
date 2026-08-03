@@ -61,11 +61,9 @@ func (s *Server) ListMyIdentities(c *gin.Context) {
 	rows, err := s.linkedIdentityStore.ListByUser(ctx, userUUID)
 	if err != nil {
 		logger.Error("ListMyIdentities: store error: %v", err)
-		reqErr := StoreErrorToRequestError(err, "linked identities not found", "Failed to retrieve linked identities")
-		c.JSON(reqErr.Status, Error{
-			Error:            reqErr.Code,
-			ErrorDescription: reqErr.Message,
-		})
+		// Route through HandleRequestError so 503s carry Retry-After and errors
+		// are sanitized/truncated consistently with the rest of the API (#665).
+		HandleRequestError(c, StoreErrorToRequestError(err, "linked identities not found", "Failed to retrieve linked identities"))
 		return
 	}
 
@@ -181,11 +179,9 @@ func (s *Server) DeleteMyIdentity(c *gin.Context, id openapi_types.UUID) {
 			return
 		}
 		logger.Error("DeleteMyIdentity: delete failed: %v", err)
-		reqErr := StoreErrorToRequestError(err, "linked identity not found", "Failed to delete linked identity")
-		c.JSON(reqErr.Status, Error{
-			Error:            reqErr.Code,
-			ErrorDescription: reqErr.Message,
-		})
+		// Route through HandleRequestError so 503s carry Retry-After and errors
+		// are sanitized/truncated consistently with the rest of the API (#665).
+		HandleRequestError(c, StoreErrorToRequestError(err, "linked identity not found", "Failed to delete linked identity"))
 		return
 	}
 
