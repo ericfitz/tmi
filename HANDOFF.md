@@ -1,73 +1,66 @@
-# Handoff — 1.7.2 CATS triage + #662/#665, 2026-08-03
+# Handoff — 1.7.2 shipped (CATS triage + #662/#665), 2026-08-03
 
-## What this branch (`dev/1.7.2/cats-triage-662-665`) contains
+## Where things are
 
-Four bundled pieces, all local-validated (build, unit 2460+, lint 0, PG integration
-84/0, security-review clean). Version bumped **1.7.1 → 1.7.2** (`.version` + spec
-`info.version`, verified by `make build-server`).
+**1.7.2 is merged.** PR #677 squash-merged to `main` (commit `5e107bce`). **#662 and
+#665 are CLOSED.** All 12 CI checks were green; locally the branch also passed build,
+unit (2460+), lint (0), PG integration (84/0), and a clean security review.
 
-1. **CATS re-run against 1.7.1 + triage (no code, test data only).** Ran a full valid
-   campaign (`20260802T184152Z`, 107,570 requests, 0 transport / 0.08% unauth, all 6
-   preserved anchors survived). **Zero 500s.** #651 confirmed fixed
-   (`PATCH`/`PUT /threat_models/{id}` now record 2xx). Every true positive verified benign.
-   Added **19 false-positive rules** to `test/cats/false-positives.yaml` (70 → 89), split
-   per-fuzzer, each dry-run-verified with **no 5xx suppression**; true positives 138 → 1.
-   Regenerated `test/cats/rule-baseline.json` from the valid run and renumbered all 89
-   `# rule N of 89:` comments. Doc counts updated (README, CLAUDE.md).
+What shipped in 1.7.2 (version bumped 1.7.1 → 1.7.2):
 
-   The **one remaining true positive** is a minor real observation, left surfaced (not
-   suppressed): `POST /threat_models/{id}/chat/sessions` (SSE) is missing recommended
-   security headers — its streaming response likely bypasses the header middleware.
+1. **#665 — `dberrors.ErrTransient` → 503.** `StoreErrorToRequestError` maps a transient
+   DB fault to 503 with `Retry-After` (was 500), via `errors.Is` so it survives the retry
+   helper's `%w` wrapper. `HandleRequestError` emits `Retry-After` for any 503 (default
+   30s). `ListMyIdentities`/`DeleteMyIdentity` now render through `HandleRequestError`
+   (they rendered manually and lacked the header + sanitization). Non-transient errors
+   unaffected.
 
-2. **#665 — `dberrors.ErrTransient` → 503 (fix).** `StoreErrorToRequestError` now maps a
-   transient DB fault to 503 with `Retry-After` (was 500), via `errors.Is` so it survives
-   the retry helper's `%w` wrapper. `HandleRequestError` emits `Retry-After` for any 503
-   (default 30s). Also routed `ListMyIdentities`/`DeleteMyIdentity` through
-   `HandleRequestError` (they rendered errors manually and so lacked the header +
-   sanitization). Tests updated/renamed to the 503 contract.
+2. **#662 — public-path lint.** `isPublicPath()` is the middleware's single source of
+   truth and `cmd/server/publicpath_lint_test.go` calls the same function, comparing every
+   spec operation's auth marking (`security: []` ≡ `x-public-endpoint: true`) against it,
+   plus a prefix-over-reach check. Divergences resolved: `x-public-endpoint: true` on
+   `POST /oauth2/revoke`; `/oauth2/token` prefix → exact (narrows the unauthenticated
+   surface); new **`x-auth-in-handler: true`** vendor extension on
+   `GET /webhook-deliveries/{delivery_id}` (dual HMAC-or-JWT, auth in handler), honored by
+   the lint.
 
-3. **#662 — public-path lint (chore).** Extracted the middleware's public decision into
-   `isPublicPath()` (same-package, so `TestPublicPathLint` calls the exact function the
-   server uses). New `cmd/server/publicpath_lint_test.go` compares every spec operation's
-   auth marking (`security: []` ≡ `x-public-endpoint: true`) against `isPublicPath`, plus a
-   prefix-over-reach check. Divergences resolved: added `x-public-endpoint: true` to
-   `POST /oauth2/revoke`; converted `/oauth2/token` from a prefix to an exact entry (narrows
-   the unauthenticated surface); introduced a new **`x-auth-in-handler: true`** vendor
-   extension on `GET /webhook-deliveries/{delivery_id}` (dual HMAC-or-JWT, auth in handler)
-   and taught the lint to honor it; fixed the false comment at the old `main.go:154`.
+3. **CATS 1.7.1 triage + FP rules.** Valid run `20260802T184152Z` (107,570 requests, 0
+   transport / 0.08% unauth). **Zero 500s**; #651 confirmed fixed. 19 per-fuzzer FP rules
+   added (70 → 89), true positives 138 → 1. `rule-baseline.json` regenerated from the valid
+   run; all 89 `# rule N of 89:` comments renumbered.
 
-4. **Docs (pre-existing, carried from last session):**
-   `docs/superpowers/plans/2026-08-01-subresource-tenancy.md` (the #664 plan) and this
-   HANDOFF.
+## Open follow-ups
 
-## Issues
+1. **Re-run CATS against the deployed 1.7.2.** The 1.7.1 cluster was still what got fuzzed
+   this cycle (for the baseline corpus), so the #662/#665 changes were NOT exercised by a
+   campaign. Redeploy 1.7.2 to the cluster (`make dev-restart CLUSTER=k3s`), confirm the
+   root endpoint reports `1.7.2-development`, then fuzz `http://rp2:30080` directly (never a
+   port-forward).
 
-- **#674** (filed this session, Backlog) — schema-composition hygiene: `additionalProperties:
-  false` under `allOf` (`RepositoryBase`, `MinimalNode/Edge`) + `oneOf`/discriminator
-  (`MinimalCell`) trip CATS' networknt validator, producing 6 "schema mismatch" false
-  positives even though the response bodies conform. Currently suppressed by the FP rule
-  `RESPONSE_SCHEMA_COMPOSITION_FP_674`. Evaluate restructuring the schemas later.
-- **#662, #665** — resolved on this branch; close after the PR merges (squash-merge from a
-  branch does not auto-close; comment + `gh issue close`).
+2. **#674 (Backlog)** — schema-composition hygiene: `additionalProperties: false` under
+   `allOf` (`RepositoryBase`, `MinimalNode/Edge`) + `oneOf`/discriminator (`MinimalCell`)
+   trip CATS' networknt validator, yielding 6 "schema mismatch" false positives even though
+   the bodies conform. Currently suppressed by `RESPONSE_SCHEMA_COMPOSITION_FP_674`.
+   Evaluate restructuring the schemas as deliberate future work.
 
-## DO NEXT
+3. **The one surfaced CATS true positive** (left unsuppressed on purpose): `POST
+   /threat_models/{id}/chat/sessions` (SSE) is missing recommended security headers — the
+   streaming response likely bypasses the header middleware. Decide: add the headers to the
+   SSE path, or accept as a documented low-risk exception.
 
-1. **`git push` needs a physical SSH-key touch** on this machine — that is expected, not a
-   repo problem. Push `dev/1.7.2/cats-triage-662-665`, open the PR, let CI run.
-2. **Re-run CATS against the deployed 1.7.2** once it is redeployed to the cluster — the
-   campaign this session fuzzed the still-1.7.1 cluster (for the baseline corpus), so it did
-   NOT exercise the #662/#665 changes. Fuzz `http://rp2:30080` directly, never a
-   port-forward.
-3. Consider filing a CATS test-infra follow-up: the retained baseline run went **invalid**
-   because the `webhook_id` fixture decoy for `/admin/webhooks/subscriptions/{webhook_id}`
-   isn't working (the decoy override is present but the throwaway isn't seeded / the per-path
-   section names the wrong parameter). Not a TMI bug; a `.local/cats` seed/config gap.
+4. **CATS `webhook_id` fixture-decoy gap** (test-infra, not a TMI bug). The retained
+   baseline run went invalid because the decoy for
+   `/admin/webhooks/subscriptions/{webhook_id}` isn't working — the decoy override is
+   present but the throwaway isn't seeded / the per-path section names the wrong parameter.
+   A `.local/cats` seed/config fix; worth filing if it recurs.
 
 ## Gotchas carried forward
 
-- **git push needs a physical touch** on the SSH key; retry when the user is present, never
-  work around it.
+- **git push needs a physical SSH-key touch** on this machine; retry when the user is
+  present, never work around it.
 - **Never run two integration suites concurrently** (shared server/DB).
-- **CATS baseline can be regenerated from any *valid* parsed DB** (`rule-baseline.json` is
-  derived from the DB records, not the raw report) — a retained raw report is not required.
-  Use `latest.db` only if the run it points at passed all three validity gates.
+- **`rule-baseline.json` can be regenerated from any *valid* parsed DB** — it is derived
+  from the DB records, not the raw report, so a retained raw report is not required. Only
+  use a DB whose run passed all three validity gates (transport, credential, fixture).
+- **Versioning is manual (#627):** keep `.version`, spec `info.version`, and the build in
+  step; `feat:` → MINOR, else PATCH. 1.7.2 was a PATCH bump.
