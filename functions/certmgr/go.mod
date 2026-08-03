@@ -3,7 +3,7 @@ module github.com/ericfitz/tmi/functions/certmgr
 go 1.25.0
 
 require (
-	github.com/fnproject/fdk-go v0.1.11
+	github.com/fnproject/fdk-go v0.1.15
 	github.com/oracle/oci-go-sdk/v65 v65.122.0
 	golang.org/x/crypto v0.54.0
 )
