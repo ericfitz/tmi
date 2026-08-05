@@ -351,7 +351,7 @@ func (r *GormGroupRepository) UpsertGroup(ctx context.Context, group Group) erro
 }
 
 // convertToGroup converts a GORM Group model to API Group
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a GORM Group model to the API Group DTO (pure)
+// SEM@bd2649370a397ca1c5a2e6a68d5d431ba4132bc6: convert a GORM Group model to the API Group DTO (pure)
 func (r *GormGroupRepository) convertToGroup(gg *models.Group) Group {
 	internalUUID, _ := uuid.Parse(string(gg.InternalUUID))
 
