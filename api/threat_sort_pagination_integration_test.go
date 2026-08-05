@@ -46,14 +46,21 @@ func openSortPaginationIntegrationDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-// TestSortPaginationStability_Integration is the behavioral regression guard
-// for the #645 ORDER BY tiebreaker: it reproduces TestSortPaginationStability
+// TestSortPaginationStability_Integration is an end-to-end exercise of
+// paginated semantic sorting for #645, reproducing TestSortPaginationStability
 // (api/threat_store_semantic_sort_e2e_test.go) against PostgreSQL instead of
-// SQLite. SQLite happens to break ties on rowid deterministically, so that
-// test passes even without a tiebreaker; PostgreSQL does not make that
-// promise, so a regression here (e.g. reverting buildOrderBy to drop the
-// ", id ASC" suffix) can surface as duplicate or missing rows across
-// LIMIT/OFFSET pages.
+// SQLite. It is NOT a proven regression guard against a reverted tiebreaker:
+// mutation-tested by hand (temporarily dropping orderTiebreaker's ", id ASC"
+// suffix and rerunning this test against the real integration harness), this
+// test still passed -- PostgreSQL's tuplesort was stable enough on this
+// fresh, sequentially-inserted 25-row fixture that removing the tiebreaker
+// did not produce a visible duplicate or missing row. It is kept because it
+// does verify the full store-to-database round trip for a semantic sort
+// under pagination, which is real coverage the unit tests don't have; just
+// not coverage of the tiebreaker specifically. The property that IS proven
+// to catch a reverted tiebreaker is the exact ORDER BY / CASE WHEN text
+// pinned in TestBuildOrderBy and TestBuildSemanticOrderExpr
+// (api/threat_store_gorm_test.go) -- those are the real regression guards.
 // SEM@78155d54: verify LIMIT/OFFSET pagination never drops or duplicates PostgreSQL rows tied on the sort key (reads DB)
 func TestSortPaginationStability_Integration(t *testing.T) {
 	ctx := context.Background()

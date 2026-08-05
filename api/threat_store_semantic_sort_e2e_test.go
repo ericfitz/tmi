@@ -97,13 +97,18 @@ func TestSemanticSortEndToEnd(t *testing.T) {
 }
 
 // TestSortPaginationStability is an intent-documenting smoke test, not a
-// behavioral regression guard: SQLite orders rows tied on the sort key by
-// rowid deterministically, so this passes whether or not buildOrderBy emits
-// an id tiebreaker. The actual guard against a regressed tiebreaker is
-// TestSortPaginationStability_Integration (api/threat_sort_pagination_integration_test.go),
-// which runs the same scenario against PostgreSQL, where tied rows are not
-// guaranteed to come back in any stable order across separate queries
-// without an explicit tiebreaker column.
+// proven regression guard: SQLite orders rows tied on the sort key by rowid
+// deterministically, so this passes whether or not buildOrderBy emits an id
+// tiebreaker. TestSortPaginationStability_Integration
+// (api/threat_sort_pagination_integration_test.go) runs the same scenario
+// end-to-end against PostgreSQL, but empirically (mutation-tested by hand:
+// temporarily dropping the ", id ASC" suffix and rerunning it) PostgreSQL's
+// tuplesort was also stable enough on this fresh, sequentially-inserted data
+// that it passed without the tiebreaker too -- so neither pagination test
+// should be relied on to catch a regression here. The property that IS
+// proven to catch a reverted tiebreaker is the exact ORDER BY / CASE WHEN
+// text pinned in TestBuildOrderBy and TestBuildSemanticOrderExpr
+// (api/threat_store_gorm_test.go); those are the real regression guards.
 // SEM@78155d54: verify LIMIT/OFFSET pagination never drops or duplicates rows tied on the sort key (reads DB)
 func TestSortPaginationStability(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
