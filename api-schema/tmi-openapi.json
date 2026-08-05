@@ -5471,6 +5471,11 @@
             "minimum": 0,
             "description": "Number of members in the group from IdP (enriched, if available)",
             "readOnly": true
+          },
+          "is_builtin": {
+            "type": "boolean",
+            "readOnly": true,
+            "description": "True only for server-seeded built-in groups; false for admin-created groups (which also use provider \"tmi\")"
           }
         },
         "example": {
@@ -5487,7 +5492,8 @@
           "created_at": "2024-01-02T10:00:00Z",
           "modified_at": "2024-01-02T10:00:00Z",
           "used_in_admin_grants": false,
-          "used_in_authorizations": false
+          "used_in_authorizations": false,
+          "is_builtin": false
         }
       },
       "AdminGroupListResponse": {
@@ -5539,7 +5545,8 @@
               "last_used": "2024-01-15T14:30:00Z",
               "usage_count": 150,
               "used_in_authorizations": true,
-              "used_in_admin_grants": false
+              "used_in_admin_grants": false,
+              "is_builtin": false
             }
           ],
           "total": 1,
@@ -13820,6 +13827,15 @@
           "type": "boolean"
         },
         "description": "Filter groups used (true) or not used (false) in authorizations"
+      },
+      "BuiltInQueryParam": {
+        "name": "built_in",
+        "in": "query",
+        "required": false,
+        "description": "Filter groups by built-in (server-seeded) status",
+        "schema": {
+          "type": "boolean"
+        }
       },
       "MemberUuidPathParam": {
         "name": "member_uuid",
@@ -38989,6 +39005,9 @@
           },
           {
             "$ref": "#/components/parameters/UsedInAuthorizationsQueryParam"
+          },
+          {
+            "$ref": "#/components/parameters/BuiltInQueryParam"
           },
           {
             "$ref": "#/components/parameters/LimitQueryParam"

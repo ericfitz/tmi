@@ -96,6 +96,7 @@ func (s *Server) ListAdminGroups(c *gin.Context, params ListAdminGroupsParams) {
 		Provider:             provider,
 		GroupName:            groupName,
 		UsedInAuthorizations: params.UsedInAuthorizations,
+		BuiltIn:              params.BuiltIn,
 		Limit:                limit,
 		Offset:               offset,
 		SortBy:               sortBy,

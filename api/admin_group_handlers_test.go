@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/validation"
 	"github.com/ericfitz/tmi/auth"
 	repository "github.com/ericfitz/tmi/auth/repository"
 )
@@ -72,6 +73,10 @@ func (m *mockGroupStoreForAdminHandlers) List(_ context.Context, filter GroupFil
 			strings.ToLower(g.GroupName),
 			strings.ToLower(filter.GroupName),
 		) {
+			continue
+		}
+		// Apply built_in filter
+		if filter.BuiltIn != nil && g.IsBuiltin != *filter.BuiltIn {
 			continue
 		}
 		result = append(result, g)
@@ -153,6 +158,9 @@ func (m *mockGroupStoreForAdminHandlers) Count(_ context.Context, filter GroupFi
 			strings.ToLower(g.GroupName),
 			strings.ToLower(filter.GroupName),
 		) {
+			continue
+		}
+		if filter.BuiltIn != nil && g.IsBuiltin != *filter.BuiltIn {
 			continue
 		}
 		count++
@@ -306,6 +314,12 @@ func setupAdminGroupRouter() (*gin.Engine, *Server, *mockGroupStoreForAdminHandl
 		}
 		if groupName := c.Query("group_name"); groupName != "" {
 			params.GroupName = &groupName
+		}
+		if builtInStr := c.Query("built_in"); builtInStr != "" {
+			var b bool
+			if err := json.Unmarshal([]byte(builtInStr), &b); err == nil {
+				params.BuiltIn = &b
+			}
 		}
 		server.ListAdminGroups(c, params)
 	})
@@ -708,6 +722,121 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 		groups, ok := resp["groups"].([]any)
 		require.True(t, ok)
 		assert.Len(t, groups, 1)
+	})
+}
+
+func TestListAdminGroups_IsBuiltinExposed(t *testing.T) {
+	defer saveAndRestoreAdminGroupStores()()
+
+	r, _, groupStore, memberStore := setupAdminGroupRouter()
+	GlobalGroupRepository = groupStore
+	GlobalGroupMemberRepository = memberStore
+
+	builtinID := uuid.MustParse(validation.EveryonePseudoGroupUUID)
+	randomID := uuid.New()
+	groupStore.groups[builtinID.String()] = Group{
+		InternalUUID: builtinID,
+		Provider:     BuiltInProvider,
+		GroupName:    "everyone",
+		IsBuiltin:    validation.IsBuiltInGroup(builtinID.String()),
+	}
+	groupStore.groups[randomID.String()] = Group{
+		InternalUUID: randomID,
+		Provider:     "github",
+		GroupName:    "admin-created-group",
+		IsBuiltin:    validation.IsBuiltInGroup(randomID.String()),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/groups", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	groups, ok := resp["groups"].([]any)
+	require.True(t, ok)
+	require.Len(t, groups, 2)
+
+	seen := map[string]bool{}
+	for _, gAny := range groups {
+		g, ok := gAny.(map[string]any)
+		require.True(t, ok)
+		uuidStr, ok := g["internal_uuid"].(string)
+		require.True(t, ok)
+		isBuiltin, ok := g["is_builtin"].(bool)
+		require.True(t, ok, "is_builtin must be present in the response")
+		seen[uuidStr] = isBuiltin
+	}
+
+	assert.True(t, seen[builtinID.String()], "seeded built-in group must report is_builtin true")
+	assert.False(t, seen[randomID.String()], "admin-created group must report is_builtin false")
+}
+
+func TestListAdminGroups_BuiltInFilter(t *testing.T) {
+	defer saveAndRestoreAdminGroupStores()()
+
+	setupGroups := func(groupStore *mockGroupStoreForAdminHandlers) (builtinID, randomID uuid.UUID) {
+		builtinID = uuid.MustParse(validation.EveryonePseudoGroupUUID)
+		randomID = uuid.New()
+		groupStore.groups[builtinID.String()] = Group{
+			InternalUUID: builtinID,
+			Provider:     BuiltInProvider,
+			GroupName:    "everyone",
+			IsBuiltin:    validation.IsBuiltInGroup(builtinID.String()),
+		}
+		groupStore.groups[randomID.String()] = Group{
+			InternalUUID: randomID,
+			Provider:     "github",
+			GroupName:    "admin-created-group",
+			IsBuiltin:    validation.IsBuiltInGroup(randomID.String()),
+		}
+		return builtinID, randomID
+	}
+
+	t.Run("built_in=true returns only the seeded-UUID group", func(t *testing.T) {
+		r, _, groupStore, memberStore := setupAdminGroupRouter()
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
+		builtinID, _ := setupGroups(groupStore)
+
+		req := httptest.NewRequest(http.MethodGet, "/admin/groups?built_in=true", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		var resp map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		groups, ok := resp["groups"].([]any)
+		require.True(t, ok)
+		require.Len(t, groups, 1)
+		g, ok := groups[0].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, builtinID.String(), g["internal_uuid"])
+		assert.Equal(t, float64(1), resp["total"])
+	})
+
+	t.Run("built_in=false returns only the random-UUID group", func(t *testing.T) {
+		r, _, groupStore, memberStore := setupAdminGroupRouter()
+		GlobalGroupRepository = groupStore
+		GlobalGroupMemberRepository = memberStore
+		_, randomID := setupGroups(groupStore)
+
+		req := httptest.NewRequest(http.MethodGet, "/admin/groups?built_in=false", nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+		var resp map[string]any
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+		groups, ok := resp["groups"].([]any)
+		require.True(t, ok)
+		require.Len(t, groups, 1)
+		g, ok := groups[0].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, randomID.String(), g["internal_uuid"])
+		assert.Equal(t, float64(1), resp["total"])
 	})
 }
 

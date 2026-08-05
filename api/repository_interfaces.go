@@ -43,6 +43,9 @@ type Group struct {
 	UsedInAuthorizations bool `json:"used_in_authorizations,omitempty"`
 	UsedInAdminGrants    bool `json:"used_in_admin_grants,omitempty"`
 	MemberCount          int  `json:"member_count,omitempty"` // If available from IdP
+	// IsBuiltin is derived from the UUID allowlist (validation.IsBuiltInGroup), not persisted.
+	// No omitempty: false is meaningful (distinguishes admin-created groups sharing provider "tmi").
+	IsBuiltin bool `json:"is_builtin"`
 }
 
 // GroupFilter defines filtering options for group queries
@@ -51,6 +54,7 @@ type GroupFilter struct {
 	Provider             string
 	GroupName            string // Case-insensitive ILIKE %name%
 	UsedInAuthorizations *bool
+	BuiltIn              *bool // Filter by validation.IsBuiltInGroup(internal_uuid) membership
 	Limit                int
 	Offset               int
 	SortBy               string // group_name, first_used, last_used, usage_count
