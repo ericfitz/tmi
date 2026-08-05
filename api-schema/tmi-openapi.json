@@ -6838,6 +6838,10 @@
               "webhooks_enabled": {
                 "type": "boolean",
                 "description": "Whether webhook subscriptions are enabled"
+              },
+              "timmy_enabled": {
+                "type": "boolean",
+                "description": "Whether Timmy (AI chat) is enabled and fully configured on this server"
               }
             },
             "additionalProperties": false
@@ -6912,7 +6916,8 @@
           "features": {
             "websocket_enabled": true,
             "saml_enabled": false,
-            "webhooks_enabled": true
+            "webhooks_enabled": true,
+            "timmy_enabled": false
           },
           "operator": {
             "name": "TMI Project",

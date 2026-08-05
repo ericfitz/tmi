@@ -91,6 +91,7 @@ type Server struct {
 	timmySessionManager *TimmySessionManager
 	vectorManager       *VectorIndexManager
 	timmyCore           *TimmyCore
+	timmyConfigReader   TimmyConfigReader
 	contentPipeline     *ContentPipeline
 	// Trusted proxy configuration
 	trustedProxiesConfigured bool
@@ -454,6 +455,10 @@ func (s *Server) SetVectorManager(manager *VectorIndexManager) {
 func (s *Server) SetTimmyCore(core *TimmyCore) {
 	s.timmyCore = core
 }
+
+// SetTimmyConfigReader provides the live Timmy config source used to advertise availability.
+// SEM@7067d4db: register the Timmy config reader used to advertise availability in GET /config (mutates shared state)
+func (s *Server) SetTimmyConfigReader(r TimmyConfigReader) { s.timmyConfigReader = r }
 
 // getTimmyRuntime returns the live TimmyRuntime. When a TimmyCore is wired it
 // resolves (and lazily rebuilds) from the database; otherwise it falls back to

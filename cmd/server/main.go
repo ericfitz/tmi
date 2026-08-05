@@ -1118,6 +1118,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	// Apply Timmy feature gate middleware
 	timmyConfigProvider := api.NewTimmyConfigProvider(settingsService)
 	r.Use(api.TimmyEnabledMiddleware(timmyConfigProvider))
+	apiServer.SetTimmyConfigReader(timmyConfigProvider)
 	logger.Info("Timmy middleware configured (DB-backed runtime config)")
 
 	// Apply automation group membership middleware for /automation/* routes
