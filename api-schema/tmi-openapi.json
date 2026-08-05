@@ -7597,7 +7597,8 @@
           "quotas",
           "total",
           "limit",
-          "offset"
+          "offset",
+          "defaults"
         ],
         "properties": {
           "quotas": {
@@ -7629,6 +7630,25 @@
             "type": "integer",
             "description": "Pagination offset",
             "example": 0
+          },
+          "defaults": {
+            "type": "object",
+            "description": "Server default quota values applied when a user has no quota row",
+            "additionalProperties": false,
+            "required": [
+              "max_requests_per_minute",
+              "max_requests_per_hour"
+            ],
+            "properties": {
+              "max_requests_per_minute": {
+                "type": "integer",
+                "description": "Default requests-per-minute limit"
+              },
+              "max_requests_per_hour": {
+                "type": "integer",
+                "description": "Default requests-per-hour limit"
+              }
+            }
           }
         }
       },
@@ -7639,7 +7659,8 @@
           "quotas",
           "total",
           "limit",
-          "offset"
+          "offset",
+          "defaults"
         ],
         "properties": {
           "quotas": {
@@ -7674,6 +7695,35 @@
             "type": "integer",
             "description": "Pagination offset",
             "example": 0
+          },
+          "defaults": {
+            "type": "object",
+            "description": "Server default quota values applied when a user has no quota row",
+            "additionalProperties": false,
+            "required": [
+              "max_subscriptions",
+              "max_events_per_minute",
+              "max_subscription_requests_per_minute",
+              "max_subscription_requests_per_day"
+            ],
+            "properties": {
+              "max_subscriptions": {
+                "type": "integer",
+                "description": "Default max subscriptions limit"
+              },
+              "max_events_per_minute": {
+                "type": "integer",
+                "description": "Default max events-per-minute limit"
+              },
+              "max_subscription_requests_per_minute": {
+                "type": "integer",
+                "description": "Default max subscription requests-per-minute limit"
+              },
+              "max_subscription_requests_per_day": {
+                "type": "integer",
+                "description": "Default max subscription requests-per-day limit"
+              }
+            }
           }
         }
       },
@@ -7684,7 +7734,8 @@
           "quotas",
           "total",
           "limit",
-          "offset"
+          "offset",
+          "defaults"
         ],
         "properties": {
           "quotas": {
@@ -7717,6 +7768,25 @@
             "type": "integer",
             "description": "Pagination offset",
             "example": 0
+          },
+          "defaults": {
+            "type": "object",
+            "description": "Server default quota values applied when a user has no quota row",
+            "additionalProperties": false,
+            "required": [
+              "max_active_invocations",
+              "max_invocations_per_hour"
+            ],
+            "properties": {
+              "max_active_invocations": {
+                "type": "integer",
+                "description": "Default max active invocations limit"
+              },
+              "max_invocations_per_hour": {
+                "type": "integer",
+                "description": "Default max invocations-per-hour limit"
+              }
+            }
           }
         }
       },
@@ -39883,7 +39953,11 @@
                   ],
                   "total": 25,
                   "limit": 20,
-                  "offset": 0
+                  "offset": 0,
+                  "defaults": {
+                    "max_requests_per_minute": 1000,
+                    "max_requests_per_hour": 60000
+                  }
                 }
               }
             },
@@ -40134,7 +40208,13 @@
                   ],
                   "total": 15,
                   "limit": 20,
-                  "offset": 0
+                  "offset": 0,
+                  "defaults": {
+                    "max_subscriptions": 10,
+                    "max_events_per_minute": 12,
+                    "max_subscription_requests_per_minute": 10,
+                    "max_subscription_requests_per_day": 20
+                  }
                 }
               }
             },
@@ -40383,7 +40463,11 @@
                   ],
                   "total": 8,
                   "limit": 20,
-                  "offset": 0
+                  "offset": 0,
+                  "defaults": {
+                    "max_active_invocations": 3,
+                    "max_invocations_per_hour": 10
+                  }
                 }
               }
             },

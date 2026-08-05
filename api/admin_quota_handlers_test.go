@@ -487,6 +487,25 @@ func TestListUserAPIQuotas(t *testing.T) {
 	})
 }
 
+func TestListUserAPIQuotas_IncludesDefaults(t *testing.T) {
+	server, _, _, _, cleanup := setupAdminQuotaTest(t)
+	defer cleanup()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request, _ = http.NewRequest("GET", "/admin/quotas/api", nil)
+
+	server.ListUserAPIQuotas(c, ListUserAPIQuotasParams{})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp ListUserQuotasResponse
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, DefaultMaxRequestsPerMinute, resp.Defaults.MaxRequestsPerMinute)
+	assert.Equal(t, DefaultMaxRequestsPerHour, resp.Defaults.MaxRequestsPerHour)
+}
+
 // =============================================================================
 // GetUserAPIQuota Tests
 // =============================================================================
@@ -974,6 +993,27 @@ func TestListWebhookQuotas(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+}
+
+func TestListWebhookQuotas_IncludesDefaults(t *testing.T) {
+	server, _, _, _, cleanup := setupAdminQuotaTest(t)
+	defer cleanup()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request, _ = http.NewRequest("GET", "/admin/quotas/webhooks", nil)
+
+	server.ListWebhookQuotas(c, ListWebhookQuotasParams{})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp ListWebhookQuotasResponse
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, DefaultMaxSubscriptions, resp.Defaults.MaxSubscriptions)
+	assert.Equal(t, DefaultMaxEventsPerMinute, resp.Defaults.MaxEventsPerMinute)
+	assert.Equal(t, DefaultMaxSubscriptionRequestsPerMinute, resp.Defaults.MaxSubscriptionRequestsPerMinute)
+	assert.Equal(t, DefaultMaxSubscriptionRequestsPerDay, resp.Defaults.MaxSubscriptionRequestsPerDay)
 }
 
 // =============================================================================
@@ -1509,6 +1549,25 @@ func TestListAddonInvocationQuotas(t *testing.T) {
 		assert.Len(t, resp.Quotas, 0)
 		assert.Equal(t, 0, resp.Total)
 	})
+}
+
+func TestListAddonInvocationQuotas_IncludesDefaults(t *testing.T) {
+	server, _, _, _, cleanup := setupAdminQuotaTest(t)
+	defer cleanup()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request, _ = http.NewRequest("GET", "/admin/quotas/addon-invocations", nil)
+
+	server.ListAddonInvocationQuotas(c, ListAddonInvocationQuotasParams{})
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp ListAddonQuotasResponse
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	require.NoError(t, err)
+	assert.Equal(t, DefaultMaxActiveInvocations, resp.Defaults.MaxActiveInvocations)
+	assert.Equal(t, DefaultMaxInvocationsPerHour, resp.Defaults.MaxInvocationsPerHour)
 }
 
 // =============================================================================

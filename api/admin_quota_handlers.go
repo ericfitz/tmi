@@ -11,7 +11,7 @@ import (
 )
 
 // ListUserAPIQuotas retrieves all custom user API quotas (admin only)
-// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: list all custom per-user API rate quotas with pagination (reads DB)
+// SEM@62e0b9c8fbee3421336265984902230df451660d: list per-user API rate quotas with pagination and server defaults (reads DB)
 func (s *Server) ListUserAPIQuotas(c *gin.Context, params ListUserAPIQuotasParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -51,6 +51,13 @@ func (s *Server) ListUserAPIQuotas(c *gin.Context, params ListUserAPIQuotasParam
 		Total:  total,
 		Limit:  limit,
 		Offset: offset,
+		Defaults: struct {
+			MaxRequestsPerHour   int `json:"max_requests_per_hour"`
+			MaxRequestsPerMinute int `json:"max_requests_per_minute"`
+		}{
+			MaxRequestsPerMinute: DefaultMaxRequestsPerMinute,
+			MaxRequestsPerHour:   DefaultMaxRequestsPerHour,
+		},
 	})
 }
 
@@ -183,7 +190,7 @@ func (s *Server) DeleteUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 }
 
 // ListWebhookQuotas retrieves all custom webhook quotas (admin only)
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: list all custom per-user webhook quotas with pagination (reads DB)
+// SEM@62e0b9c8fbee3421336265984902230df451660d: list per-user webhook quotas with pagination and server defaults (reads DB)
 func (s *Server) ListWebhookQuotas(c *gin.Context, params ListWebhookQuotasParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -237,6 +244,17 @@ func (s *Server) ListWebhookQuotas(c *gin.Context, params ListWebhookQuotasParam
 		Total:  total,
 		Limit:  limit,
 		Offset: offset,
+		Defaults: struct {
+			MaxEventsPerMinute               int `json:"max_events_per_minute"`
+			MaxSubscriptionRequestsPerDay    int `json:"max_subscription_requests_per_day"`
+			MaxSubscriptionRequestsPerMinute int `json:"max_subscription_requests_per_minute"`
+			MaxSubscriptions                 int `json:"max_subscriptions"`
+		}{
+			MaxSubscriptions:                 DefaultMaxSubscriptions,
+			MaxEventsPerMinute:               DefaultMaxEventsPerMinute,
+			MaxSubscriptionRequestsPerMinute: DefaultMaxSubscriptionRequestsPerMinute,
+			MaxSubscriptionRequestsPerDay:    DefaultMaxSubscriptionRequestsPerDay,
+		},
 	})
 }
 
@@ -381,7 +399,7 @@ func (s *Server) DeleteWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 }
 
 // ListAddonInvocationQuotas retrieves all custom addon invocation quotas (admin only)
-// SEM@503212a05958ba0c15d423fab4dbceb92b747ed9: list all custom per-user addon invocation quotas with pagination (reads DB)
+// SEM@62e0b9c8fbee3421336265984902230df451660d: list per-user addon invocation quotas with pagination and server defaults (reads DB)
 func (s *Server) ListAddonInvocationQuotas(c *gin.Context, params ListAddonInvocationQuotasParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -427,6 +445,13 @@ func (s *Server) ListAddonInvocationQuotas(c *gin.Context, params ListAddonInvoc
 		Total:  total,
 		Limit:  limit,
 		Offset: offset,
+		Defaults: struct {
+			MaxActiveInvocations  int `json:"max_active_invocations"`
+			MaxInvocationsPerHour int `json:"max_invocations_per_hour"`
+		}{
+			MaxActiveInvocations:  DefaultMaxActiveInvocations,
+			MaxInvocationsPerHour: DefaultMaxInvocationsPerHour,
+		},
 	})
 }
 
