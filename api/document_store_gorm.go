@@ -369,7 +369,7 @@ func (s *GormDocumentRepository) hardDeleteDocument(ctx context.Context, id stri
 }
 
 // List retrieves documents for a threat model with pagination
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: list paginated documents for a threat model from cache or DB with metadata (reads DB)
+// SEM@78155d54: list paginated documents for a threat model from cache or DB with metadata (reads DB)
 func (s *GormDocumentRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Document, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -401,7 +401,7 @@ func (s *GormDocumentRepository) List(ctx context.Context, threatModelID string,
 		query = query.Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID)
 	}
 	result := query.
-		Order("created_at DESC").
+		Order("created_at DESC, id ASC").
 		Limit(limit).
 		Offset(offset).
 		Find(&modelList)

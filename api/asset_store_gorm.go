@@ -338,7 +338,7 @@ func (s *GormAssetRepository) hardDeleteAsset(ctx context.Context, id string) er
 }
 
 // List retrieves assets for a threat model with pagination and caching using GORM
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: list paginated assets for a threat model with cache-first strategy (reads DB)
+// SEM@78155d54: list paginated assets for a threat model with cache-first strategy (reads DB)
 func (s *GormAssetRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Asset, error) {
 	logger := slogging.Get()
 	logger.Debug("Listing assets for threat model %s (offset: %d, limit: %d)", threatModelID, offset, limit)
@@ -372,7 +372,7 @@ func (s *GormAssetRepository) List(ctx context.Context, threatModelID string, of
 	} else {
 		query = query.Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID)
 	}
-	query = query.Order("created_at DESC")
+	query = query.Order("created_at DESC, id ASC")
 
 	if limit > 0 {
 		query = query.Limit(limit)

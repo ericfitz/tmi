@@ -383,7 +383,7 @@ func (s *GormThreatRepository) executeListQuery(ctx context.Context, threatModel
 	query = s.applyFilters(query, filter)
 
 	// Apply sorting
-	orderBy := DefaultSortOrderCreatedAtDesc
+	orderBy := s.defaultOrder()
 	if filter.Sort != nil {
 		orderBy = s.buildOrderBy(*filter.Sort)
 	}
@@ -529,15 +529,24 @@ var priorityOrder = map[string]int{
 	"immediate": 4,
 }
 
-// statusOrder maps threat status values to their workflow progression for sorting.
+// statusOrder ranks threat status values by workflow progression for sorting.
+// Primary vocabulary matches the client (tmi-ux threatEditor.threatStatus);
+// legacy values kept at nearby ranks so old rows keep sorting sensibly.
 var statusOrder = map[string]int{
-	"identified":     0,
-	"investigating":  1,
-	"in_progress":    2,
-	"mitigated":      3,
-	"resolved":       4,
-	"accepted":       5,
-	"false_positive": 6,
+	"open":                   0,
+	"identified":             0, // legacy
+	"confirmed":              1,
+	"investigating":          1, // legacy
+	"deferred":               2,
+	"mitigation_planned":     3,
+	"mitigation_in_progress": 4,
+	"in_progress":            4, // legacy
+	"verification_pending":   5,
+	"mitigated":              6, // legacy
+	"resolved":               7,
+	"accepted":               8,
+	"closed":                 9,
+	"false_positive":         10,
 }
 
 // semanticOrderMaps maps column names to their ordinal ranking maps.
@@ -561,10 +570,23 @@ func buildSemanticOrderExpr(column string, orderMap map[string]int, dialectName 
 	return b.String()
 }
 
+// SEM@78155d54: build the dialect-aware unique tiebreaker suffix for list ordering (pure)
+func (s *GormThreatRepository) orderTiebreaker() string {
+	return ", " + ColumnName(GetDialectName(s.db), "id") + " ASC"
+}
+
+// SEM@78155d54: build the default created_at DESC ordering with unique tiebreaker (pure)
+func (s *GormThreatRepository) defaultOrder() string {
+	d := GetDialectName(s.db)
+	return ColumnName(d, "created_at") + " DESC" + s.orderTiebreaker()
+}
+
 // buildOrderBy constructs a safe ORDER BY clause from sort parameter.
 // For severity, priority, and status fields, it generates a CASE WHEN
 // expression that sorts by semantic rank instead of alphabetical order.
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: construct a safe ORDER BY clause, using semantic ranking for enum fields (pure)
+// Every returned clause carries a unique id-column tiebreaker so rows tied
+// on the sort key cannot shuffle between LIMIT/OFFSET pagination windows.
+// SEM@78155d54: construct a safe, uniquely tiebroken ORDER BY clause, using semantic ranking for enum fields (pure)
 func (s *GormThreatRepository) buildOrderBy(sort string) string {
 	validColumns := map[string]string{
 		"name":        "name",
@@ -579,14 +601,14 @@ func (s *GormThreatRepository) buildOrderBy(sort string) string {
 
 	parts := strings.Split(sort, ":")
 	if len(parts) != 2 {
-		return DefaultSortOrderCreatedAtDesc
+		return s.defaultOrder()
 	}
 
 	column, direction := parts[0], strings.ToUpper(parts[1])
 
 	safeColumn, exists := validColumns[column]
 	if !exists {
-		return DefaultSortOrderCreatedAtDesc
+		return s.defaultOrder()
 	}
 
 	if direction != SortDirectionASC && direction != SortDirectionDESC {
@@ -597,10 +619,10 @@ func (s *GormThreatRepository) buildOrderBy(sort string) string {
 	if orderMap, ok := semanticOrderMaps[safeColumn]; ok {
 		dialectName := GetDialectName(s.db)
 		expr := buildSemanticOrderExpr(safeColumn, orderMap, dialectName)
-		return expr + " " + direction
+		return expr + " " + direction + s.orderTiebreaker()
 	}
 
-	return ColumnName(GetDialectName(s.db), safeColumn) + " " + direction
+	return ColumnName(GetDialectName(s.db), safeColumn) + " " + direction + s.orderTiebreaker()
 }
 
 // Patch applies JSON patch operations to a threat using GORM, scoped to the

@@ -24,11 +24,11 @@ func TestBuildOrderBy(t *testing.T) {
 	store := newTestGormThreatStore(t)
 
 	t.Run("default fallback for invalid format", func(t *testing.T) {
-		assert.Equal(t, DefaultSortOrderCreatedAtDesc, store.buildOrderBy("invalid"))
+		assert.Equal(t, "created_at DESC, id ASC", store.buildOrderBy("invalid"))
 	})
 
 	t.Run("default fallback for unknown column", func(t *testing.T) {
-		assert.Equal(t, DefaultSortOrderCreatedAtDesc, store.buildOrderBy("nonexistent:asc"))
+		assert.Equal(t, "created_at DESC, id ASC", store.buildOrderBy("nonexistent:asc"))
 	})
 
 	t.Run("default fallback for invalid direction", func(t *testing.T) {
@@ -36,32 +36,43 @@ func TestBuildOrderBy(t *testing.T) {
 		assert.Contains(t, result, "DESC")
 	})
 
-	t.Run("plain column sorts unchanged", func(t *testing.T) {
-		assert.Equal(t, "name ASC", store.buildOrderBy("name:asc"))
-		assert.Equal(t, "created_at DESC", store.buildOrderBy("created_at:desc"))
-		assert.Equal(t, "score ASC", store.buildOrderBy("score:asc"))
+	t.Run("plain column sorts carry tiebreaker", func(t *testing.T) {
+		assert.Equal(t, "name ASC, id ASC", store.buildOrderBy("name:asc"))
+		assert.Equal(t, "created_at DESC, id ASC", store.buildOrderBy("created_at:desc"))
+		assert.Equal(t, "score ASC, id ASC", store.buildOrderBy("score:asc"))
 	})
 
-	t.Run("severity uses CASE expression", func(t *testing.T) {
+	t.Run("malformed sort falls back to default with tiebreaker", func(t *testing.T) {
+		assert.Equal(t, "created_at DESC, id ASC", store.buildOrderBy("bogus"))
+	})
+
+	t.Run("unknown column falls back to default with tiebreaker", func(t *testing.T) {
+		assert.Equal(t, "created_at DESC, id ASC", store.buildOrderBy("nope:asc"))
+	})
+
+	t.Run("severity uses CASE expression with tiebreaker", func(t *testing.T) {
 		result := store.buildOrderBy("severity:asc")
 		assert.Contains(t, result, "CASE")
 		assert.Contains(t, result, "critical")
 		assert.Contains(t, result, "ASC")
 		assert.NotEqual(t, "severity ASC", result)
+		assert.True(t, strings.HasSuffix(result, " ASC, id ASC"))
 	})
 
-	t.Run("priority uses CASE expression", func(t *testing.T) {
+	t.Run("priority uses CASE expression with tiebreaker", func(t *testing.T) {
 		result := store.buildOrderBy("priority:desc")
 		assert.Contains(t, result, "CASE")
 		assert.Contains(t, result, "immediate")
 		assert.Contains(t, result, "DESC")
+		assert.True(t, strings.HasSuffix(result, " DESC, id ASC"))
 	})
 
-	t.Run("status uses CASE expression", func(t *testing.T) {
+	t.Run("status uses CASE expression with tiebreaker", func(t *testing.T) {
 		result := store.buildOrderBy("status:asc")
 		assert.Contains(t, result, "CASE")
-		assert.Contains(t, result, "identified")
+		assert.Contains(t, result, "open")
 		assert.Contains(t, result, "ASC")
+		assert.True(t, strings.HasSuffix(result, " ASC, id ASC"))
 	})
 }
 
@@ -109,10 +120,28 @@ func TestSemanticOrderMaps(t *testing.T) {
 	})
 
 	t.Run("status order is correct", func(t *testing.T) {
-		expected := []string{"identified", "investigating", "in_progress", "mitigated", "resolved", "accepted", "false_positive"}
-		for i, val := range expected {
-			assert.Equal(t, i, statusOrder[val], "status %q should have rank %d", val, i)
+		expected := map[string]int{
+			"open":                   0,
+			"confirmed":              1,
+			"deferred":               2,
+			"mitigation_planned":     3,
+			"mitigation_in_progress": 4,
+			"verification_pending":   5,
+			"mitigated":              6,
+			"resolved":               7,
+			"accepted":               8,
+			"closed":                 9,
+			"false_positive":         10,
 		}
+		for val, rank := range expected {
+			assert.Equal(t, rank, statusOrder[val], "status %q should have rank %d", val, rank)
+		}
+	})
+
+	t.Run("legacy status values rank alongside their current equivalents", func(t *testing.T) {
+		assert.Equal(t, statusOrder["open"], statusOrder["identified"])
+		assert.Equal(t, statusOrder["confirmed"], statusOrder["investigating"])
+		assert.Equal(t, statusOrder["mitigation_in_progress"], statusOrder["in_progress"])
 	})
 }
 

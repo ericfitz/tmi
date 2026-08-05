@@ -406,7 +406,7 @@ func (s *GormRepositoryRepository) hardDeleteRepository(ctx context.Context, id 
 }
 
 // List retrieves repositories for a threat model with pagination
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: list repositories for a threat model with pagination from cache or DB (reads DB)
+// SEM@78155d54: list repositories for a threat model with pagination from cache or DB (reads DB)
 func (s *GormRepositoryRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Repository, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -438,7 +438,7 @@ func (s *GormRepositoryRepository) List(ctx context.Context, threatModelID strin
 		query = query.Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID)
 	}
 	result := query.
-		Order("created_at DESC").
+		Order("created_at DESC, id ASC").
 		Limit(limit).
 		Offset(offset).
 		Find(&modelList)

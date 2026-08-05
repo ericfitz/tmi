@@ -329,7 +329,7 @@ func (s *GormNoteRepository) hardDeleteNote(ctx context.Context, id string) erro
 }
 
 // List retrieves notes for a threat model with pagination
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: list paginated notes for a threat model from cache or DB (reads DB)
+// SEM@78155d54: list paginated notes for a threat model from cache or DB (reads DB)
 func (s *GormNoteRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Note, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -361,7 +361,7 @@ func (s *GormNoteRepository) List(ctx context.Context, threatModelID string, off
 		query = query.Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID)
 	}
 	result := query.
-		Order("created_at DESC").
+		Order("created_at DESC, id ASC").
 		Limit(limit).
 		Offset(offset).
 		Find(&modelList)
