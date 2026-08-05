@@ -389,11 +389,17 @@ func processSAMLUser(ctx context.Context, r samlUserResolver, userInfo *saml.Use
 // not overwrite a real stored value, or the stored field is empty — a
 // sparse, admin-precreated record (Tier 3: samlMatchEmailOnly) has nothing
 // real to protect, so even a synthesized name is better than none. Email is
-// stricter: it is only ever applied on the strongest match tiers (provider-id
-// or linked identity). Email-tier and email-only matches found the user BY
+// stricter: it is only ever applied on a provider-id match. A linked
+// identity's asserted email is display-cache only, not authoritative, per
+// the #383 identity-link design — the primary record's email must never be
+// rewritten by logging in through a secondary/linked identity (an attacker
+// could link a secondary IdP asserting a victim's email and hijack the
+// primary account). This matches the OAuth path (updateUserOnLogin in
+// handlers_oauth_user.go), which defines userMatchLinkedIdentity but has no
+// update case for it. Email-tier and email-only matches found the user BY
 // email, so there is nothing to "update" and a synthesized value must never
 // replace a real one.
-// SEM@78155d54490599e00095eb72b817575bb1e8da5b: apply guarded tier-aware profile updates to a matched SAML user (reads DB)
+// SEM@35e7df01f7b0711718a863acbbc1fd63412f5120: apply guarded tier-aware profile updates to a matched SAML user (reads DB)
 func updateSAMLUserOnLogin(ctx context.Context, r samlUserResolver, user User, userInfo *saml.UserInfo, match samlMatchType) (*User, error) {
 	logger := slogging.Get()
 	now := time.Now()
@@ -405,9 +411,13 @@ func updateSAMLUserOnLogin(ctx context.Context, r samlUserResolver, user User, u
 		user.Name = userInfo.Name
 	}
 
-	// Email only on the strongest tiers; email-tier matches matched BY email,
-	// and a synthesized email must never replace a real one.
-	strongMatch := match == samlMatchProviderID || match == samlMatchLinkedIdentity
+	// Email only on a provider-id match: only that tier is authoritative for
+	// email. A linked identity's asserted email is display-cache only (per
+	// the #383 identity-link design) and must not overwrite the primary
+	// record's email — matching the OAuth path, which has no update case for
+	// userMatchLinkedIdentity. Email-tier and email-only matches matched BY
+	// email, and a synthesized email must never replace a real one.
+	strongMatch := match == samlMatchProviderID
 	if strongMatch && userInfo.Email != "" && !userInfo.EmailSynthesized && user.Email != userInfo.Email {
 		logger.Info("Updating user email from SAML assertion: %s -> %s", user.Email, userInfo.Email)
 		user.Email = userInfo.Email

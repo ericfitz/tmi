@@ -139,4 +139,27 @@ func TestUpdateSAMLUserOnLogin_GuardsAndTiers(t *testing.T) {
 		require.Len(t, resolver.updatedUsers, 1)
 		assert.Equal(t, "sub-2", resolver.updatedUsers[0].Name)
 	})
+
+	// A linked (secondary) identity must never overwrite the primary record's
+	// email, even when the asserted email is real (not synthesized) and
+	// different from the stored one. A linked identity's email is
+	// display-cache only per the #383 identity-link design; treating it as
+	// authoritative would let an attacker link a secondary IdP asserting a
+	// victim's email and hijack the primary account (users.email has no
+	// unique index, so a later email-addressed grant could bind to the
+	// attacker). Name updates on this tier are unchanged and intended, so
+	// this pins both halves of the behavior.
+	t.Run("linked identity never updates email, but does update name", func(t *testing.T) {
+		resolver := &fakeSAMLUserResolver{}
+		userInfo := &saml.UserInfo{ID: "sub-1",
+			Email: "attacker-controlled@evil.example", Name: "Alice B. Real"}
+
+		got, err := updateSAMLUserOnLogin(context.Background(), resolver, stored, userInfo, samlMatchLinkedIdentity)
+		require.NoError(t, err)
+		assert.Equal(t, "alice@corp.example", got.Email, "linked identity must not overwrite primary email")
+		assert.Equal(t, "Alice B. Real", got.Name, "name updates are still allowed on a linked-identity match")
+		require.Len(t, resolver.updatedUsers, 1)
+		assert.Equal(t, "alice@corp.example", resolver.updatedUsers[0].Email)
+		assert.Equal(t, "Alice B. Real", resolver.updatedUsers[0].Name)
+	})
 }
