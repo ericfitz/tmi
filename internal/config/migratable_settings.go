@@ -354,6 +354,8 @@ func (c *Config) getMigratableSAMLProviderSettings(providerKey string, p SAMLPro
 		{".name_id_attribute", p.NameIDAttribute, "SAML NameID attribute"},
 		{".email_attribute", p.EmailAttribute, "SAML email attribute"},
 		{".name_attribute", p.NameAttribute, "SAML name attribute"},
+		{".given_name_attribute", p.GivenNameAttribute, "SAML given name attribute"},
+		{".family_name_attribute", p.FamilyNameAttribute, "SAML family name attribute"},
 		{".groups_attribute", p.GroupsAttribute, "SAML groups attribute"},
 	}
 

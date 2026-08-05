@@ -15,13 +15,17 @@ type UserInfo struct {
 	IDType        string // Type of identifier: "subject-id", "pairwise-id", "nameid"
 	Email         string
 	EmailVerified bool
-	Name          string
-	GivenName     string
-	FamilyName    string
-	Picture       string
-	Locale        string
-	IdP           string
-	Groups        []string
+	// EmailSynthesized is true when Email was fabricated by a fallback, not asserted by the IdP.
+	EmailSynthesized bool
+	Name             string
+	// NameSynthesized is true when Name was fabricated by a fallback, not asserted by the IdP.
+	NameSynthesized bool
+	GivenName       string
+	FamilyName      string
+	Picture         string
+	Locale          string
+	IdP             string
+	Groups          []string
 }
 
 // buildAttributeMap extracts all attributes from the assertion into a map
@@ -227,7 +231,7 @@ func extractGroups(userInfo *UserInfo, attributeMap map[string][]string, config 
 }
 
 // applyEmailFallback generates email if not present
-// SEM@9ac96b66b2dc5ce7f86c35a154930a7943750f92: derive or synthesize a user email from the identifier if email is absent (pure)
+// SEM@122ce250fa05684ec3cc6f61e7454fd3a4a76b93: derive or synthesize a user email from the identifier, flagging fabricated values (pure)
 func applyEmailFallback(userInfo *UserInfo, config *SAMLConfig) {
 	if userInfo.Email != "" || userInfo.ID == "" {
 		return
@@ -239,15 +243,17 @@ func applyEmailFallback(userInfo *UserInfo, config *SAMLConfig) {
 	} else {
 		// Generate a synthetic email
 		userInfo.Email = fmt.Sprintf("%s@%s.saml.tmi", userInfo.ID, config.ID)
+		userInfo.EmailSynthesized = true
 	}
 }
 
 // applyNameFallback generates name from email prefix if not present
-// SEM@9ac96b66b2dc5ce7f86c35a154930a7943750f92: derive a display name from the email local-part when no name is available (pure)
+// SEM@122ce250fa05684ec3cc6f61e7454fd3a4a76b93: derive a display name from the email local-part, flagging it as fabricated (pure)
 func applyNameFallback(userInfo *UserInfo) {
 	if userInfo.Name == "" && userInfo.Email != "" {
 		parts := strings.Split(userInfo.Email, "@")
 		userInfo.Name = parts[0]
+		userInfo.NameSynthesized = true
 	}
 }
 

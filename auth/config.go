@@ -121,28 +121,30 @@ type SAMLConfig struct {
 // SAMLProviderConfig holds configuration for a SAML provider
 // SEM@7e40aae7f066b1d045faeff914884107bde40f0e: full configuration for a single SAML provider including SP/IDP keys, endpoints, and attribute mappings (pure)
 type SAMLProviderConfig struct {
-	ID                string `json:"id"`
-	Name              string `json:"name"`
-	Enabled           bool   `json:"enabled"`
-	Icon              string `json:"icon"`
-	EntityID          string `json:"entity_id"`
-	MetadataURL       string `json:"metadata_url"`
-	MetadataXML       string `json:"metadata_xml"`
-	ACSURL            string `json:"acs_url"`
-	SLOURL            string `json:"slo_url"`
-	SPPrivateKey      string `json:"sp_private_key"`
-	SPPrivateKeyPath  string `json:"sp_private_key_path"`
-	SPCertificate     string `json:"sp_certificate"`
-	SPCertificatePath string `json:"sp_certificate_path"`
-	IDPMetadataURL    string `json:"idp_metadata_url"`
-	IDPMetadataB64XML string `json:"idp_metadata_b64xml"`
-	AllowIDPInitiated bool   `json:"allow_idp_initiated"`
-	ForceAuthn        bool   `json:"force_authn"`
-	SignRequests      bool   `json:"sign_requests"`
-	NameIDAttribute   string `json:"name_id_attribute"`
-	EmailAttribute    string `json:"email_attribute"`
-	NameAttribute     string `json:"name_attribute"`
-	GroupsAttribute   string `json:"groups_attribute"`
+	ID                  string `json:"id"`
+	Name                string `json:"name"`
+	Enabled             bool   `json:"enabled"`
+	Icon                string `json:"icon"`
+	EntityID            string `json:"entity_id"`
+	MetadataURL         string `json:"metadata_url"`
+	MetadataXML         string `json:"metadata_xml"`
+	ACSURL              string `json:"acs_url"`
+	SLOURL              string `json:"slo_url"`
+	SPPrivateKey        string `json:"sp_private_key"`
+	SPPrivateKeyPath    string `json:"sp_private_key_path"`
+	SPCertificate       string `json:"sp_certificate"`
+	SPCertificatePath   string `json:"sp_certificate_path"`
+	IDPMetadataURL      string `json:"idp_metadata_url"`
+	IDPMetadataB64XML   string `json:"idp_metadata_b64xml"`
+	AllowIDPInitiated   bool   `json:"allow_idp_initiated"`
+	ForceAuthn          bool   `json:"force_authn"`
+	SignRequests        bool   `json:"sign_requests"`
+	NameIDAttribute     string `json:"name_id_attribute"`
+	EmailAttribute      string `json:"email_attribute"`
+	NameAttribute       string `json:"name_attribute"`
+	GivenNameAttribute  string `json:"given_name_attribute"`
+	FamilyNameAttribute string `json:"family_name_attribute"`
+	GroupsAttribute     string `json:"groups_attribute"`
 }
 
 // LoadConfig loads configuration from environment variables.

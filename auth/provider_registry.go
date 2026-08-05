@@ -403,6 +403,10 @@ func AssembleSAMLProviders(settings []ProviderSetting) map[string]SAMLProviderCo
 				p.EmailAttribute = value
 			case "name_attribute":
 				p.NameAttribute = value
+			case "given_name_attribute":
+				p.GivenNameAttribute = value
+			case "family_name_attribute":
+				p.FamilyNameAttribute = value
 			case "groups_attribute":
 				p.GroupsAttribute = value
 			default:

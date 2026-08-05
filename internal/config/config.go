@@ -226,28 +226,30 @@ type SAMLConfig struct {
 // SAMLProviderConfig holds configuration for a SAML provider
 // SEM@7e40aae7f066b1d045faeff914884107bde40f0e: configuration struct for a single SAML provider's SP/IdP metadata, keys, and attribute mappings (pure)
 type SAMLProviderConfig struct {
-	ID                string `yaml:"id"`
-	Name              string `yaml:"name"`
-	Enabled           bool   `yaml:"enabled"`
-	Icon              string `yaml:"icon"`
-	EntityID          string `yaml:"entity_id" env:"TMI_SAML_ENTITY_ID"`
-	MetadataURL       string `yaml:"metadata_url" env:"TMI_SAML_METADATA_URL"`
-	MetadataXML       string `yaml:"metadata_xml" env:"TMI_SAML_METADATA_XML"`
-	ACSURL            string `yaml:"acs_url" env:"TMI_SAML_ACS_URL"`
-	SLOURL            string `yaml:"slo_url" env:"TMI_SAML_SLO_URL"`
-	SPPrivateKey      string `yaml:"sp_private_key" env:"TMI_SAML_SP_PRIVATE_KEY"`
-	SPPrivateKeyPath  string `yaml:"sp_private_key_path" env:"TMI_SAML_SP_PRIVATE_KEY_PATH"`
-	SPCertificate     string `yaml:"sp_certificate" env:"TMI_SAML_SP_CERTIFICATE"`
-	SPCertificatePath string `yaml:"sp_certificate_path" env:"TMI_SAML_SP_CERTIFICATE_PATH"`
-	IDPMetadataURL    string `yaml:"idp_metadata_url" env:"TMI_SAML_IDP_METADATA_URL"`
-	IDPMetadataB64XML string `yaml:"idp_metadata_b64xml" env:"TMI_SAML_IDP_METADATA_B64XML"` // Base64-encoded IdP metadata XML
-	AllowIDPInitiated bool   `yaml:"allow_idp_initiated" env:"TMI_SAML_ALLOW_IDP_INITIATED"`
-	ForceAuthn        bool   `yaml:"force_authn" env:"TMI_SAML_FORCE_AUTHN"`
-	SignRequests      bool   `yaml:"sign_requests" env:"TMI_SAML_SIGN_REQUESTS"`
-	NameIDAttribute   string `yaml:"name_id_attribute" env:"TMI_SAML_NAME_ID_ATTRIBUTE"`
-	EmailAttribute    string `yaml:"email_attribute" env:"TMI_SAML_EMAIL_ATTRIBUTE"`
-	NameAttribute     string `yaml:"name_attribute" env:"TMI_SAML_NAME_ATTRIBUTE"`
-	GroupsAttribute   string `yaml:"groups_attribute" env:"TMI_SAML_GROUPS_ATTRIBUTE"`
+	ID                  string `yaml:"id"`
+	Name                string `yaml:"name"`
+	Enabled             bool   `yaml:"enabled"`
+	Icon                string `yaml:"icon"`
+	EntityID            string `yaml:"entity_id" env:"TMI_SAML_ENTITY_ID"`
+	MetadataURL         string `yaml:"metadata_url" env:"TMI_SAML_METADATA_URL"`
+	MetadataXML         string `yaml:"metadata_xml" env:"TMI_SAML_METADATA_XML"`
+	ACSURL              string `yaml:"acs_url" env:"TMI_SAML_ACS_URL"`
+	SLOURL              string `yaml:"slo_url" env:"TMI_SAML_SLO_URL"`
+	SPPrivateKey        string `yaml:"sp_private_key" env:"TMI_SAML_SP_PRIVATE_KEY"`
+	SPPrivateKeyPath    string `yaml:"sp_private_key_path" env:"TMI_SAML_SP_PRIVATE_KEY_PATH"`
+	SPCertificate       string `yaml:"sp_certificate" env:"TMI_SAML_SP_CERTIFICATE"`
+	SPCertificatePath   string `yaml:"sp_certificate_path" env:"TMI_SAML_SP_CERTIFICATE_PATH"`
+	IDPMetadataURL      string `yaml:"idp_metadata_url" env:"TMI_SAML_IDP_METADATA_URL"`
+	IDPMetadataB64XML   string `yaml:"idp_metadata_b64xml" env:"TMI_SAML_IDP_METADATA_B64XML"` // Base64-encoded IdP metadata XML
+	AllowIDPInitiated   bool   `yaml:"allow_idp_initiated" env:"TMI_SAML_ALLOW_IDP_INITIATED"`
+	ForceAuthn          bool   `yaml:"force_authn" env:"TMI_SAML_FORCE_AUTHN"`
+	SignRequests        bool   `yaml:"sign_requests" env:"TMI_SAML_SIGN_REQUESTS"`
+	NameIDAttribute     string `yaml:"name_id_attribute" env:"TMI_SAML_NAME_ID_ATTRIBUTE"`
+	EmailAttribute      string `yaml:"email_attribute" env:"TMI_SAML_EMAIL_ATTRIBUTE"`
+	NameAttribute       string `yaml:"name_attribute" env:"TMI_SAML_NAME_ATTRIBUTE"`
+	GivenNameAttribute  string `yaml:"given_name_attribute" env:"TMI_SAML_GIVEN_NAME_ATTRIBUTE"`
+	FamilyNameAttribute string `yaml:"family_name_attribute" env:"TMI_SAML_FAMILY_NAME_ATTRIBUTE"`
+	GroupsAttribute     string `yaml:"groups_attribute" env:"TMI_SAML_GROUPS_ATTRIBUTE"`
 }
 
 // LoggingConfig holds configuration for the slog-based logger and its
@@ -744,6 +746,8 @@ func overrideSAMLProviders(mapField reflect.Value) error {
 		// Read attribute mapping environment variables
 		nameAttr := os.Getenv(envPrefix + "NAME_ATTRIBUTE")
 		emailAttr := os.Getenv(envPrefix + "EMAIL_ATTRIBUTE")
+		givenNameAttr := os.Getenv(envPrefix + "GIVEN_NAME_ATTRIBUTE")
+		familyNameAttr := os.Getenv(envPrefix + "FAMILY_NAME_ATTRIBUTE")
 		groupsAttr := os.Getenv(envPrefix + "GROUPS_ATTRIBUTE")
 
 		// DEBUG: Log attribute environment variable values
@@ -752,25 +756,27 @@ func overrideSAMLProviders(mapField reflect.Value) error {
 
 		// Create new SAML provider config
 		provider := SAMLProviderConfig{
-			ID:                os.Getenv(envPrefix + "ID"),
-			Name:              os.Getenv(envPrefix + "NAME"),
-			Enabled:           true,
-			Icon:              os.Getenv(envPrefix + "ICON"),
-			EntityID:          os.Getenv(envPrefix + "ENTITY_ID"),
-			MetadataURL:       os.Getenv(envPrefix + "METADATA_URL"),
-			MetadataXML:       os.Getenv(envPrefix + "METADATA_XML"),
-			ACSURL:            os.Getenv(envPrefix + "ACS_URL"),
-			SLOURL:            os.Getenv(envPrefix + "SLO_URL"),
-			SPPrivateKey:      os.Getenv(envPrefix + "SP_PRIVATE_KEY"),
-			SPPrivateKeyPath:  os.Getenv(envPrefix + "SP_PRIVATE_KEY_PATH"),
-			SPCertificate:     os.Getenv(envPrefix + "SP_CERTIFICATE"),
-			SPCertificatePath: os.Getenv(envPrefix + "SP_CERTIFICATE_PATH"),
-			IDPMetadataURL:    os.Getenv(envPrefix + "IDP_METADATA_URL"),
-			IDPMetadataB64XML: os.Getenv(envPrefix + "IDP_METADATA_B64XML"),
-			NameIDAttribute:   os.Getenv(envPrefix + "NAME_ID_ATTRIBUTE"),
-			EmailAttribute:    emailAttr,
-			NameAttribute:     nameAttr,
-			GroupsAttribute:   groupsAttr,
+			ID:                  os.Getenv(envPrefix + "ID"),
+			Name:                os.Getenv(envPrefix + "NAME"),
+			Enabled:             true,
+			Icon:                os.Getenv(envPrefix + "ICON"),
+			EntityID:            os.Getenv(envPrefix + "ENTITY_ID"),
+			MetadataURL:         os.Getenv(envPrefix + "METADATA_URL"),
+			MetadataXML:         os.Getenv(envPrefix + "METADATA_XML"),
+			ACSURL:              os.Getenv(envPrefix + "ACS_URL"),
+			SLOURL:              os.Getenv(envPrefix + "SLO_URL"),
+			SPPrivateKey:        os.Getenv(envPrefix + "SP_PRIVATE_KEY"),
+			SPPrivateKeyPath:    os.Getenv(envPrefix + "SP_PRIVATE_KEY_PATH"),
+			SPCertificate:       os.Getenv(envPrefix + "SP_CERTIFICATE"),
+			SPCertificatePath:   os.Getenv(envPrefix + "SP_CERTIFICATE_PATH"),
+			IDPMetadataURL:      os.Getenv(envPrefix + "IDP_METADATA_URL"),
+			IDPMetadataB64XML:   os.Getenv(envPrefix + "IDP_METADATA_B64XML"),
+			NameIDAttribute:     os.Getenv(envPrefix + "NAME_ID_ATTRIBUTE"),
+			EmailAttribute:      emailAttr,
+			NameAttribute:       nameAttr,
+			GivenNameAttribute:  givenNameAttr,
+			FamilyNameAttribute: familyNameAttr,
+			GroupsAttribute:     groupsAttr,
 		}
 
 		// Parse boolean fields
