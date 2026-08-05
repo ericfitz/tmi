@@ -758,7 +758,7 @@ func (a *Addon) BeforeCreate(tx *gorm.DB) error {
 
 // AddonInvocationQuota represents per-user addon invocation quotas
 // Note: Explicit column tags removed for Oracle compatibility
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for per-user addon concurrency and hourly invocation limits
+// SEM@41b5c38bfd158370f52ee766875ea5d46d603cbd: DB model for per-user addon concurrency and hourly invocation limits
 type AddonInvocationQuota struct {
 	OwnerInternalUUID     DBVarchar `gorm:"primaryKey;not null;size:36"`
 	MaxActiveInvocations  int       `gorm:"default:3"`
@@ -778,7 +778,7 @@ func (AddonInvocationQuota) TableName() string {
 
 // UserAPIQuota represents per-user API rate limits
 // Note: Explicit column tags removed for Oracle compatibility
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for per-user API request rate limits
+// SEM@41b5c38bfd158370f52ee766875ea5d46d603cbd: DB model for per-user API request rate limits
 type UserAPIQuota struct {
 	UserInternalUUID     DBVarchar `gorm:"primaryKey;not null;size:36"`
 	MaxRequestsPerMinute int       `gorm:"default:1000"`

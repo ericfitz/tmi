@@ -165,7 +165,7 @@ func (s *GormThreatRepository) Get(ctx context.Context, id string) (*Threat, err
 }
 
 // Update updates an existing threat with write-through caching using GORM
-// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: store updated threat fields and metadata, then refresh the cache (reads DB)
+// SEM@436c1840b3eef9687193078750dec3e22874f10e: store updated threat fields and metadata, then refresh the cache (reads DB)
 func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Updating threat: %s", threat.Id)
@@ -368,7 +368,7 @@ func (s *GormThreatRepository) countWithFilter(ctx context.Context, threatModelI
 }
 
 // executeListQuery builds and executes the GORM query for listing threats
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build and execute a filtered, sorted, paginated DB query for threats (reads DB)
+// SEM@a0c806e5d0aac29d4d69bc6592f4abf9ba717819: build and execute a filtered, sorted, paginated DB query for threats (reads DB)
 func (s *GormThreatRepository) executeListQuery(ctx context.Context, threatModelID string, filter ThreatFilter) ([]Threat, error) {
 	logger := slogging.Get()
 
@@ -563,7 +563,7 @@ var semanticOrderMaps = map[string]map[string]int{
 // random clause order per call, which defeats prepared-statement caching and
 // exhausts open cursors on Oracle (ORA-01000) since every status/severity/
 // priority sort becomes a distinct SQL text.
-// SEM@43d58a88: build a deterministic CASE WHEN SQL expression that ranks enum column values semantically (pure)
+// SEM@a0ec4b47090b63e92de87a084c71bc5d71605e44: build a deterministic CASE WHEN SQL expression that ranks enum column values semantically (pure)
 func buildSemanticOrderExpr(column string, orderMap map[string]int, dialectName string) string {
 	col := ColumnName(dialectName, column)
 	values := make([]string, 0, len(orderMap))
@@ -597,7 +597,7 @@ func (s *GormThreatRepository) defaultOrder() string {
 // expression that sorts by semantic rank instead of alphabetical order.
 // Every returned clause carries a unique id-column tiebreaker so rows tied
 // on the sort key cannot shuffle between LIMIT/OFFSET pagination windows.
-// SEM@78155d54: construct a safe, uniquely tiebroken ORDER BY clause, using semantic ranking for enum fields (pure)
+// SEM@a0ec4b47090b63e92de87a084c71bc5d71605e44: construct a safe, uniquely tiebroken ORDER BY clause, using semantic ranking for enum fields (pure)
 func (s *GormThreatRepository) buildOrderBy(sort string) string {
 	validColumns := map[string]string{
 		"name":        "name",
@@ -641,7 +641,7 @@ func (s *GormThreatRepository) buildOrderBy(sort string) string {
 // Patch applies JSON patch operations to a threat using GORM, scoped to the
 // parent threat model so a bulk-patch caller supplying only a child id
 // cannot load and overwrite a threat belonging to a different threat model
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply JSON Patch operations to a threat scoped to its parent threat model and persist the result (reads DB)
+// SEM@436c1840b3eef9687193078750dec3e22874f10e: apply JSON Patch operations to a threat scoped to its parent threat model and persist the result (reads DB)
 func (s *GormThreatRepository) Patch(ctx context.Context, threatModelID string, id string, operations []PatchOperation) (*Threat, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching threat %s with %d operations", id, len(operations))
@@ -694,7 +694,7 @@ func (s *GormThreatRepository) Patch(ctx context.Context, threatModelID string, 
 }
 
 // applyPatchOperation applies a single patch operation to a threat
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply a single JSON Patch operation to a threat's in-memory fields (pure)
+// SEM@19668dc6d5b4991c9b461b7b41f18a37d90dfacc: apply a single JSON Patch operation to a threat's in-memory fields (pure)
 func (s *GormThreatRepository) applyPatchOperation(threat *Threat, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:
@@ -903,7 +903,7 @@ func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat)
 }
 
 // BulkUpdate updates multiple threats in a single transaction using GORM
-// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: atomically update multiple threats and their metadata in one transaction (reads DB)
+// SEM@436c1840b3eef9687193078750dec3e22874f10e: atomically update multiple threats and their metadata in one transaction (reads DB)
 func (s *GormThreatRepository) BulkUpdate(ctx context.Context, threats []Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk updating %d threats", len(threats))
@@ -1097,7 +1097,7 @@ func (s *GormThreatRepository) convertUUIDToString(id *uuid.UUID) *string {
 // as NULL to the database, unlike struct-based Updates() which skips zero values.
 // Custom types (StringArray, CVSSArray, DBBool) are handled explicitly since map-based
 // Updates() bypasses GORM's Value() methods.
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build a map of all threat fields for GORM map-based update including nil-as-NULL (pure)
+// SEM@436c1840b3eef9687193078750dec3e22874f10e: build a map of all threat fields for GORM map-based update including nil-as-NULL (pure)
 func (s *GormThreatRepository) buildThreatUpdateMap(threat *Threat, now time.Time) map[string]any {
 	// Handle boolean fields: default to false if nil
 	mitigated := models.DBBool(false)

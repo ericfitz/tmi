@@ -237,7 +237,7 @@ func (s *Server) GetClientConfig(c *gin.Context) {
 }
 
 // buildClientConfig constructs the ClientConfig response from server config and settings
-// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: construct the ClientConfig response from server config and settings service (reads DB)
+// SEM@42ef5843bbac0234c5e9af2e1ed89f0c5f366f44: construct the ClientConfig response from server config and settings service (reads DB)
 func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientConfig {
 	logger := slogging.Get()
 

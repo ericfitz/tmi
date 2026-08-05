@@ -190,7 +190,7 @@ func (s *GormDocumentRepository) Get(ctx context.Context, id string) (*Document,
 }
 
 // Update updates an existing document
-// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: update a document's fields, set modified_at explicitly, and refresh cache (mutates shared state)
+// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: update a document's fields, set modified_at explicitly, and refresh cache (mutates shared state)
 func (s *GormDocumentRepository) Update(ctx context.Context, document *Document, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -369,7 +369,7 @@ func (s *GormDocumentRepository) hardDeleteDocument(ctx context.Context, id stri
 }
 
 // List retrieves documents for a threat model with pagination
-// SEM@78155d54: list paginated documents for a threat model from cache or DB with metadata (reads DB)
+// SEM@a0c806e5d0aac29d4d69bc6592f4abf9ba717819: list paginated documents for a threat model from cache or DB with metadata (reads DB)
 func (s *GormDocumentRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Document, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -621,7 +621,7 @@ func (s *GormDocumentRepository) WarmCache(ctx context.Context, threatModelID st
 }
 
 // UpdateAccessStatus sets the access tracking fields on a document.
-// SEM@f8417a5cf7ccccd973f67a4a09364e8065dddf5f: update access_status and content_source on a document and invalidate its cache entry (reads DB)
+// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: update access_status and content_source on a document and invalidate its cache entry (mutates shared state)
 func (s *GormDocumentRepository) UpdateAccessStatus(ctx context.Context, id string, accessStatus string, contentSource string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -656,7 +656,7 @@ func (s *GormDocumentRepository) UpdateAccessStatus(ctx context.Context, id stri
 // the Document.BeforeSave hook, which validates Name/URI on the empty struct and
 // would produce false "cannot be empty" errors for map-based updates — same
 // pattern as UpdateAccessStatus.
-// SEM@f8417a5cf7ccccd973f67a4a09364e8065dddf5f: update access status and diagnostic reason fields on a document and invalidate its cache entry (reads DB)
+// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: update access status and diagnostic reason fields on a document and invalidate its cache entry (mutates shared state)
 func (s *GormDocumentRepository) UpdateAccessStatusWithDiagnostics(
 	ctx context.Context,
 	id string,
@@ -811,7 +811,7 @@ func (s *GormDocumentRepository) GetPickerDispatch(
 // failure-handling contract.
 //
 // See DocumentStore.SetPickerMetadata.
-// SEM@f8417a5cf7ccccd973f67a4a09364e8065dddf5f: persist picker provider/file/mime fields on a document and reset access status to unknown (reads DB)
+// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: persist picker provider/file/mime fields on a document and reset access status to unknown (mutates shared state)
 func (s *GormDocumentRepository) SetPickerMetadata(
 	ctx context.Context, id string, providerID, fileID, mimeType string,
 ) error {
@@ -851,7 +851,7 @@ func (s *GormDocumentRepository) SetPickerMetadata(
 // fields on all documents owned by the given user (via threat-model owner)
 // that were picker-registered under the given provider.
 // See DocumentStore.ClearPickerMetadataForOwner.
-// SEM@f8417a5cf7ccccd973f67a4a09364e8065dddf5f: null picker metadata and access diagnostics for all documents owned by a user under a given provider (reads DB)
+// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: null picker metadata and access diagnostics for all documents owned by a user under a given provider (mutates shared state)
 func (s *GormDocumentRepository) ClearPickerMetadataForOwner(
 	ctx context.Context, ownerInternalUUID, providerID string,
 ) (int64, error) {

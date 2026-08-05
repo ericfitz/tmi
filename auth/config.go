@@ -74,7 +74,7 @@ type JWTConfig struct {
 }
 
 // OAuthConfig holds OAuth configuration
-// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: OAuth callback URL, provider map, and client-callback allowlist settings (pure)
+// SEM@d5abf2700f59ec278f7e45a485c9d19c90b0050f: OAuth callback URL, provider map, and client-callback allowlist settings (pure)
 type OAuthConfig struct {
 	CallbackURL string
 	Providers   map[string]OAuthProviderConfig
@@ -119,7 +119,7 @@ type SAMLConfig struct {
 }
 
 // SAMLProviderConfig holds configuration for a SAML provider
-// SEM@7e40aae7f066b1d045faeff914884107bde40f0e: full configuration for a single SAML provider including SP/IDP keys, endpoints, and attribute mappings (pure)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: full configuration for a single SAML provider including SP/IDP keys, endpoints, and attribute mappings (pure)
 type SAMLProviderConfig struct {
 	ID                  string `json:"id"`
 	Name                string `json:"name"`
@@ -369,7 +369,7 @@ func loadOAuthProviders() map[string]OAuthProviderConfig {
 //	OAUTH_PROVIDERS_GOOGLE_USERINFO_CLAIMS_SUBJECT_CLAIM=sub
 //	OAUTH_PROVIDERS_GOOGLE_USERINFO_CLAIMS_EMAIL_CLAIM=email
 //
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: scan environment variables under a prefix and return a lowercase claim-name-to-value map (reads env)
+// SEM@f622b659f3a1f536265633cbf9dc2ff0ec703170: scan environment variables under a prefix and return a lowercase claim-name-to-value map (reads env)
 func parseClaimMappings(prefix string) map[string]string {
 	return envutil.ScanPrefixedMap(prefix)
 }
@@ -380,7 +380,7 @@ func parseClaimMappings(prefix string) map[string]string {
 //	OAUTH_PROVIDERS_GOOGLE_ADDITIONAL_PARAMS_ACCESS_TYPE=offline
 //	OAUTH_PROVIDERS_GOOGLE_ADDITIONAL_PARAMS_PROMPT=consent
 //
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: scan environment variables under a prefix and return a lowercase param-name-to-value map (reads env)
+// SEM@f622b659f3a1f536265633cbf9dc2ff0ec703170: scan environment variables under a prefix and return a lowercase param-name-to-value map (reads env)
 func parseAdditionalParams(prefix string) map[string]string {
 	return envutil.ScanPrefixedMap(prefix)
 }

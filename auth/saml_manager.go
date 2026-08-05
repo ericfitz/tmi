@@ -31,7 +31,7 @@ func NewSAMLManager(service *Service) *SAMLManager {
 }
 
 // InitializeProviders initializes all configured SAML providers
-// SEM@8af03cfea628820f921f3922831bbb27c7aa2b02: register all enabled SAML providers from config, skipping failures without aborting (mutates shared state)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: register all enabled SAML providers from config, skipping failures without aborting (mutates shared state)
 func (m *SAMLManager) InitializeProviders(config SAMLConfig, stateStore StateStore) error {
 	logger := slogging.Get()
 
@@ -145,7 +145,7 @@ func (m *SAMLManager) IsProviderInitialized(id string) bool {
 // EnsureProvider lazily initializes a SAML provider if not already initialized.
 // Idempotent: if the provider is already initialized, returns immediately.
 // Thread-safe: uses the manager's mutex to prevent concurrent initialization.
-// SEM@d77b0b7e777e70cbe8eaaa1625f7dbeffe99fe9d: lazily initialize and register a SAML provider if not already present, thread-safe (mutates shared state)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: lazily initialize and register a SAML provider if not already present, thread-safe (mutates shared state)
 func (m *SAMLManager) EnsureProvider(id string, config SAMLProviderConfig) error {
 	m.mu.RLock()
 	_, exists := m.providers[id]
@@ -307,7 +307,7 @@ const (
 //     not a trust boundary across providers, and returning the matched user
 //     would mint tokens for the victim's account.
 //
-// SEM@098cfdc305fee6401384fe403fac69e5c063ac5e: find or create a user from a SAML assertion using tiered provider/email matching (reads DB)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: find or create a user from a SAML assertion using tiered provider/email matching (reads DB)
 func processSAMLUser(ctx context.Context, r samlUserResolver, userInfo *saml.UserInfo, providerID string) (*User, error) {
 	logger := slogging.Get()
 
@@ -393,7 +393,7 @@ func processSAMLUser(ctx context.Context, r samlUserResolver, userInfo *saml.Use
 // or linked identity). Email-tier and email-only matches found the user BY
 // email, so there is nothing to "update" and a synthesized value must never
 // replace a real one.
-// SEM@122ce250fa05684ec3cc6f61e7454fd3a4a76b93: apply guarded tier-aware profile updates to a matched SAML user (reads DB)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: apply guarded tier-aware profile updates to a matched SAML user (reads DB)
 func updateSAMLUserOnLogin(ctx context.Context, r samlUserResolver, user User, userInfo *saml.UserInfo, match samlMatchType) (*User, error) {
 	logger := slogging.Get()
 	now := time.Now()

@@ -9,7 +9,7 @@ import (
 )
 
 // UserInfo represents user information extracted from SAML assertion
-// SEM@030aaa2923161b7c5dfe9639220a91dbf56f07a2: user identity fields extracted from a SAML assertion (pure)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: user identity fields extracted from a SAML assertion (pure)
 type UserInfo struct {
 	ID            string
 	IDType        string // Type of identifier: "subject-id", "pairwise-id", "nameid"
@@ -231,7 +231,7 @@ func extractGroups(userInfo *UserInfo, attributeMap map[string][]string, config 
 }
 
 // applyEmailFallback generates email if not present
-// SEM@122ce250fa05684ec3cc6f61e7454fd3a4a76b93: derive or synthesize a user email from the identifier, flagging fabricated values (pure)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: derive or synthesize a user email from the identifier, flagging fabricated values (pure)
 func applyEmailFallback(userInfo *UserInfo, config *SAMLConfig) {
 	if userInfo.Email != "" || userInfo.ID == "" {
 		return
@@ -248,7 +248,7 @@ func applyEmailFallback(userInfo *UserInfo, config *SAMLConfig) {
 }
 
 // applyNameFallback generates name from email prefix if not present
-// SEM@122ce250fa05684ec3cc6f61e7454fd3a4a76b93: derive a display name from the email local-part, flagging it as fabricated (pure)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: derive a display name from the email local-part, flagging it as fabricated (pure)
 func applyNameFallback(userInfo *UserInfo) {
 	if userInfo.Name == "" && userInfo.Email != "" {
 		parts := strings.Split(userInfo.Email, "@")

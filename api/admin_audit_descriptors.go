@@ -33,7 +33,7 @@ type SystemSettingReader interface {
 // adminAuditDescriptors returns the descriptors for all gated admin routes.
 // Adding a gated route requires adding an entry here; a unit test asserts
 // coverage (#355).
-// SEM@ce0791bb8871a87b7b663d6635564ffd28e00c3f: build the full audit descriptor table for all gated admin routes (pure)
+// SEM@8fea5846720531ac31af62d5550f7e8fe865ec33: build the full audit descriptor table for all gated admin routes (pure)
 func adminAuditDescriptors(reader SystemSettingReader) []auditDescriptor {
 	read := func(c *gin.Context, key string) string {
 		if reader == nil {

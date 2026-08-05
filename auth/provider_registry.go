@@ -350,7 +350,7 @@ func AssembleOAuthProviders(settings []ProviderSetting) map[string]OAuthProvider
 
 // AssembleSAMLProviders groups settings by provider ID and assembles SAMLProviderConfig structs.
 // Exported so the api package can use it for enable-validation.
-// SEM@01c02cfa6ab0177d2afcd8cdcc078f4a59973080: convert flat provider settings into a map of SAML provider configs keyed by ID (pure)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: convert flat provider settings into a map of SAML provider configs keyed by ID (pure)
 func AssembleSAMLProviders(settings []ProviderSetting) map[string]SAMLProviderConfig {
 	logger := slogging.Get()
 	grouped := groupSettingsByProvider(settings, samlPrefix)

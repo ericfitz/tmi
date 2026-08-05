@@ -329,7 +329,7 @@ func (s *GormNoteRepository) hardDeleteNote(ctx context.Context, id string) erro
 }
 
 // List retrieves notes for a threat model with pagination
-// SEM@78155d54: list paginated notes for a threat model from cache or DB (reads DB)
+// SEM@a0c806e5d0aac29d4d69bc6592f4abf9ba717819: list paginated notes for a threat model from cache or DB (reads DB)
 func (s *GormNoteRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Note, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -398,7 +398,7 @@ func (s *GormNoteRepository) List(ctx context.Context, threatModelID string, off
 }
 
 // Patch applies JSON patch operations to a note
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply JSON patch operations to a note and persist the result (reads DB)
+// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON patch operations to a note and persist the result (mutates shared state)
 func (s *GormNoteRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Note, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching note %s with %d operations", id, len(operations))
@@ -539,7 +539,7 @@ func (s *GormNoteRepository) updateMetadata(ctx context.Context, noteID string, 
 }
 
 // applyPatchOperation applies a single patch operation to a note
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply a single JSON patch operation to a note struct in memory (pure)
+// SEM@19668dc6d5b4991c9b461b7b41f18a37d90dfacc: apply a single JSON patch operation to a note struct in memory (pure)
 func (s *GormNoteRepository) applyPatchOperation(note *Note, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:

@@ -90,7 +90,7 @@ func convertOAuthProviders(unified map[string]config.OAuthProviderConfig) map[st
 }
 
 // convertSAMLProviders converts unified SAML providers to auth-specific format
-// SEM@7e40aae7f066b1d045faeff914884107bde40f0e: convert unified SAML provider configs to auth-package SAMLProviderConfig map (pure)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: convert unified SAML provider configs to auth-package SAMLProviderConfig map (pure)
 func convertSAMLProviders(unified map[string]config.SAMLProviderConfig) map[string]SAMLProviderConfig {
 	providers := make(map[string]SAMLProviderConfig)
 

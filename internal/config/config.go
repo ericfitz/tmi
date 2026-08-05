@@ -30,7 +30,7 @@ type AdministratorConfig struct {
 }
 
 // Config holds all application configuration
-// SEM@13c4215bf8e204da342579717f97f7393bb5fe2f: top-level application configuration aggregating all subsystem config structs (pure)
+// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: top-level application configuration aggregating all subsystem config structs (pure)
 type Config struct {
 	// explicitFileKeys holds the dotted keys the YAML file actually named, so
 	// GetMigratableSettings can mark them Explicit. Unexported and yaml:"-" so
@@ -224,7 +224,7 @@ type SAMLConfig struct {
 }
 
 // SAMLProviderConfig holds configuration for a SAML provider
-// SEM@7e40aae7f066b1d045faeff914884107bde40f0e: configuration struct for a single SAML provider's SP/IdP metadata, keys, and attribute mappings (pure)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: configuration struct for a single SAML provider's SP/IdP metadata, keys, and attribute mappings (pure)
 type SAMLProviderConfig struct {
 	ID                  string `yaml:"id"`
 	Name                string `yaml:"name"`
@@ -357,7 +357,7 @@ type SecretsConfig struct {
 }
 
 // Load loads configuration from YAML file with environment variable overrides
-// SEM@b4834203783bf0a76ea4b6d187622b91f43a018b: load and validate server configuration from a YAML file with env-var overrides (reads files, reads env)
+// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: load and validate server configuration from a YAML file with env-var overrides (reads files, reads env)
 func Load(configFile string) (*Config, error) {
 	config := getDefaultConfig()
 
@@ -613,7 +613,7 @@ func overrideStructWithEnv(v reflect.Value) error {
 }
 
 // overrideOAuthProviders handles environment variable overrides for OAuth providers
-// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: discover and populate enabled OAuth provider configs from env vars (reads env, mutates shared state)
+// SEM@f622b659f3a1f536265633cbf9dc2ff0ec703170: discover and populate enabled OAuth provider configs from env vars (reads env, mutates shared state)
 func overrideOAuthProviders(mapField reflect.Value) error {
 	logger := slogging.Get()
 	logger.Info("[CONFIG] overrideOAuthProviders called - starting dynamic OAuth provider discovery")
@@ -715,7 +715,7 @@ func overrideOAuthProviders(mapField reflect.Value) error {
 }
 
 // overrideSAMLProviders handles environment variable overrides for SAML providers
-// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: discover and populate enabled SAML provider configs from env vars (reads env, mutates shared state)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: discover and populate enabled SAML provider configs from env vars (reads env, mutates shared state)
 func overrideSAMLProviders(mapField reflect.Value) error {
 	logger := slogging.Get()
 	logger.Info("[CONFIG] overrideSAMLProviders called - starting dynamic SAML provider discovery")
@@ -1351,7 +1351,7 @@ func (c *Config) IsSecureCookies() bool {
 // strictly more secure default in production -- it cannot leak to sibling
 // subdomains -- so omitting Domain is correct everywhere unless an operator
 // explicitly needs cross-host scoping.
-// SEM@314b7ae8fe586a75ecee2e8fa7103d3193f15f7c: return only the explicitly configured cookie domain, else empty for a host-only cookie (pure)
+// SEM@99bccde8ec15f1645b5b007b4a0aecd710743633: return only the explicitly configured cookie domain, else empty for a host-only cookie (pure)
 func (c *Config) GetCookieDomain() string {
 	return c.Auth.Cookie.Domain
 }
@@ -1360,7 +1360,7 @@ func (c *Config) GetCookieDomain() string {
 // set. Used to distinguish a value an operator actually wrote from the struct
 // default that every setting otherwise carries — the distinction the settings
 // service needs to know whether a database value may apply (#415).
-// SEM@0000000000000000000000000000000000000000: list every dotted leaf key present in a YAML config file as a set (reads file)
+// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: list every dotted leaf key present in a YAML config file as a set (reads file)
 func KeysInFile(path string) (map[string]bool, error) {
 	raw := map[string]any{}
 	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied config path
