@@ -488,9 +488,6 @@ const (
 	SortDirectionASC  = "ASC"
 )
 
-// Default sort order for list queries
-const DefaultSortOrderCreatedAtDesc = "created_at DESC"
-
 // JSON Patch path constants for common resource fields
 const (
 	PatchPathName        = "/name"
