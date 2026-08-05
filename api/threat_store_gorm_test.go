@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm/schema"
 )
 
 func newTestGormThreatStore(t *testing.T) *GormThreatRepository {
@@ -20,15 +22,53 @@ func newTestGormThreatStore(t *testing.T) *GormThreatRepository {
 	return &GormThreatRepository{db: db}
 }
 
+// fakeOracleDialector is a minimal gorm.Dialector stub that reports itself as
+// "oracle" without opening any real database connection, so buildOrderBy's
+// dialect-aware column casing (ColumnName uppercases columns on Oracle) can
+// be exercised from a unit test. buildOrderBy/defaultOrder only ever read
+// s.db.Name() -- they never execute a query -- so every method below besides
+// Name and Initialize is unreachable and panics if that assumption breaks.
+type fakeOracleDialector struct{}
+
+func (fakeOracleDialector) Name() string              { return "oracle" }
+func (fakeOracleDialector) Initialize(*gorm.DB) error { return nil }
+func (fakeOracleDialector) Migrator(*gorm.DB) gorm.Migrator {
+	panic("fakeOracleDialector: Migrator unexpectedly called")
+}
+func (fakeOracleDialector) DataTypeOf(*schema.Field) string {
+	panic("fakeOracleDialector: DataTypeOf unexpectedly called")
+}
+func (fakeOracleDialector) DefaultValueOf(*schema.Field) clause.Expression {
+	panic("fakeOracleDialector: DefaultValueOf unexpectedly called")
+}
+func (fakeOracleDialector) BindVarTo(clause.Writer, *gorm.Statement, interface{}) {
+	panic("fakeOracleDialector: BindVarTo unexpectedly called")
+}
+func (fakeOracleDialector) QuoteTo(clause.Writer, string) {
+	panic("fakeOracleDialector: QuoteTo unexpectedly called")
+}
+func (fakeOracleDialector) Explain(sql string, vars ...interface{}) string {
+	panic("fakeOracleDialector: Explain unexpectedly called")
+}
+
+// newTestGormThreatStoreOracle builds a store whose dialect name is "oracle"
+// without any real Oracle connection, to unit-test Oracle-specific casing.
+func newTestGormThreatStoreOracle(t *testing.T) *GormThreatRepository {
+	t.Helper()
+	db, err := gorm.Open(fakeOracleDialector{}, &gorm.Config{})
+	require.NoError(t, err)
+	return &GormThreatRepository{db: db}
+}
+
 func TestBuildOrderBy(t *testing.T) {
 	store := newTestGormThreatStore(t)
 
 	t.Run("default fallback for invalid format", func(t *testing.T) {
-		assert.Equal(t, DefaultSortOrderCreatedAtDesc, store.buildOrderBy("invalid"))
+		assert.Equal(t, "created_at DESC, id ASC", store.buildOrderBy("invalid"))
 	})
 
 	t.Run("default fallback for unknown column", func(t *testing.T) {
-		assert.Equal(t, DefaultSortOrderCreatedAtDesc, store.buildOrderBy("nonexistent:asc"))
+		assert.Equal(t, "created_at DESC, id ASC", store.buildOrderBy("nonexistent:asc"))
 	})
 
 	t.Run("default fallback for invalid direction", func(t *testing.T) {
@@ -36,32 +76,55 @@ func TestBuildOrderBy(t *testing.T) {
 		assert.Contains(t, result, "DESC")
 	})
 
-	t.Run("plain column sorts unchanged", func(t *testing.T) {
-		assert.Equal(t, "name ASC", store.buildOrderBy("name:asc"))
-		assert.Equal(t, "created_at DESC", store.buildOrderBy("created_at:desc"))
-		assert.Equal(t, "score ASC", store.buildOrderBy("score:asc"))
+	t.Run("plain column sorts carry tiebreaker", func(t *testing.T) {
+		assert.Equal(t, "name ASC, id ASC", store.buildOrderBy("name:asc"))
+		assert.Equal(t, "created_at DESC, id ASC", store.buildOrderBy("created_at:desc"))
+		assert.Equal(t, "score ASC, id ASC", store.buildOrderBy("score:asc"))
 	})
 
-	t.Run("severity uses CASE expression", func(t *testing.T) {
+	t.Run("malformed sort falls back to default with tiebreaker", func(t *testing.T) {
+		assert.Equal(t, "created_at DESC, id ASC", store.buildOrderBy("bogus"))
+	})
+
+	t.Run("unknown column falls back to default with tiebreaker", func(t *testing.T) {
+		assert.Equal(t, "created_at DESC, id ASC", store.buildOrderBy("nope:asc"))
+	})
+
+	t.Run("severity uses CASE expression with tiebreaker", func(t *testing.T) {
 		result := store.buildOrderBy("severity:asc")
 		assert.Contains(t, result, "CASE")
 		assert.Contains(t, result, "critical")
 		assert.Contains(t, result, "ASC")
 		assert.NotEqual(t, "severity ASC", result)
+		assert.True(t, strings.HasSuffix(result, " ASC, id ASC"))
 	})
 
-	t.Run("priority uses CASE expression", func(t *testing.T) {
+	t.Run("priority uses CASE expression with tiebreaker", func(t *testing.T) {
 		result := store.buildOrderBy("priority:desc")
 		assert.Contains(t, result, "CASE")
 		assert.Contains(t, result, "immediate")
 		assert.Contains(t, result, "DESC")
+		assert.True(t, strings.HasSuffix(result, " DESC, id ASC"))
 	})
 
-	t.Run("status uses CASE expression", func(t *testing.T) {
+	t.Run("status uses CASE expression with tiebreaker", func(t *testing.T) {
 		result := store.buildOrderBy("status:asc")
 		assert.Contains(t, result, "CASE")
-		assert.Contains(t, result, "identified")
+		assert.Contains(t, result, "open")
 		assert.Contains(t, result, "ASC")
+		assert.True(t, strings.HasSuffix(result, " ASC, id ASC"))
+	})
+
+	t.Run("threat_type is not sortable (StringArray maps to CLOB on Oracle)", func(t *testing.T) {
+		// threat_type must fall back to defaultOrder(), the same as any other
+		// unrecognized column -- it must never reach ColumnName/ORDER BY,
+		// since Oracle rejects ORDER BY on a LOB column (ORA-00932).
+		assert.Equal(t, "created_at DESC, id ASC", store.buildOrderBy("threat_type:asc"))
+	})
+
+	t.Run("oracle dialect renders uppercase columns in default order", func(t *testing.T) {
+		oracleStore := newTestGormThreatStoreOracle(t)
+		assert.Equal(t, "CREATED_AT DESC, ID ASC", oracleStore.defaultOrder())
 	})
 }
 
@@ -91,6 +154,25 @@ func TestBuildSemanticOrderExpr(t *testing.T) {
 		expr := buildSemanticOrderExpr("severity", severityOrder, "oracle")
 		assert.Contains(t, expr, "LOWER(SEVERITY)")
 	})
+
+	t.Run("output is deterministic across calls (regression guard for #645 Oracle fix)", func(t *testing.T) {
+		// Pins the exact WHEN-clause order (sorted by value, not map iteration
+		// order). Without the slices.Sort fix, this string's clause order would
+		// vary randomly between calls -- on Oracle, a different SQL text per
+		// call means every semantic sort misses the prepared-statement cache
+		// and opens a fresh cursor (ORA-01000 once enough accumulate).
+		expected := "CASE" +
+			" WHEN LOWER(severity) = 'critical' THEN 5" +
+			" WHEN LOWER(severity) = 'high' THEN 4" +
+			" WHEN LOWER(severity) = 'informational' THEN 1" +
+			" WHEN LOWER(severity) = 'low' THEN 2" +
+			" WHEN LOWER(severity) = 'medium' THEN 3" +
+			" WHEN LOWER(severity) = 'unknown' THEN 0" +
+			" ELSE -1 END"
+		for i := 0; i < 50; i++ {
+			assert.Equal(t, expected, buildSemanticOrderExpr("severity", severityOrder, "sqlite"))
+		}
+	})
 }
 
 func TestSemanticOrderMaps(t *testing.T) {
@@ -109,10 +191,28 @@ func TestSemanticOrderMaps(t *testing.T) {
 	})
 
 	t.Run("status order is correct", func(t *testing.T) {
-		expected := []string{"identified", "investigating", "in_progress", "mitigated", "resolved", "accepted", "false_positive"}
-		for i, val := range expected {
-			assert.Equal(t, i, statusOrder[val], "status %q should have rank %d", val, i)
+		expected := map[string]int{
+			"open":                   0,
+			"confirmed":              1,
+			"deferred":               2,
+			"mitigation_planned":     3,
+			"mitigation_in_progress": 4,
+			"verification_pending":   5,
+			"mitigated":              6,
+			"resolved":               7,
+			"accepted":               8,
+			"closed":                 9,
+			"false_positive":         10,
 		}
+		for val, rank := range expected {
+			assert.Equal(t, rank, statusOrder[val], "status %q should have rank %d", val, rank)
+		}
+	})
+
+	t.Run("legacy status values rank alongside their current equivalents", func(t *testing.T) {
+		assert.Equal(t, statusOrder["open"], statusOrder["identified"])
+		assert.Equal(t, statusOrder["confirmed"], statusOrder["investigating"])
+		assert.Equal(t, statusOrder["mitigation_in_progress"], statusOrder["in_progress"])
 	})
 }
 

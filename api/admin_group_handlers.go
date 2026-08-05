@@ -50,7 +50,7 @@ func isDBValidationError(err error) bool {
 }
 
 // ListAdminGroups handles GET /admin/groups
-// SEM@0734f383e8c73aef4842c88dc88e90d0440f048a: list admin groups with pagination, filtering, and enriched membership data (reads DB)
+// SEM@bd2649370a397ca1c5a2e6a68d5d431ba4132bc6: list admin groups with pagination, filtering, and enriched membership data (reads DB)
 func (s *Server) ListAdminGroups(c *gin.Context, params ListAdminGroupsParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -96,6 +96,7 @@ func (s *Server) ListAdminGroups(c *gin.Context, params ListAdminGroupsParams) {
 		Provider:             provider,
 		GroupName:            groupName,
 		UsedInAuthorizations: params.UsedInAuthorizations,
+		BuiltIn:              params.BuiltIn,
 		Limit:                limit,
 		Offset:               offset,
 		SortBy:               sortBy,

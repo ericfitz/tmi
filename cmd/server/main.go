@@ -209,7 +209,7 @@ func isPublicPath(path string) bool {
 }
 
 // PublicPathsMiddleware identifies paths that don't require authentication
-// SEM@39d2d9380ea57c07e1ce59357b148f1367e38464: build middleware that marks unauthenticated-friendly paths in the request context
+// SEM@5e107bce8eca9a7b10483bef568d3497a8b76f93: build middleware that marks unauthenticated-friendly paths in the request context
 func PublicPathsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get a context-aware logger
@@ -604,7 +604,7 @@ func newSystemAuditRepo(db *gorm.DB, operatorName string) api.SystemAuditReposit
 	return repo
 }
 
-// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: initialize database connections, all subsystems, and register all API routes, returning the configured Gin engine
+// SEM@42ef5843bbac0234c5e9af2e1ed89f0c5f366f44: initialize database connections, all subsystems, and register all API routes, returning the configured Gin engine
 func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.EmbeddingCleaner) {
 	// Create a gin router without default middleware
 	r := gin.New()
@@ -1118,6 +1118,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	// Apply Timmy feature gate middleware
 	timmyConfigProvider := api.NewTimmyConfigProvider(settingsService)
 	r.Use(api.TimmyEnabledMiddleware(timmyConfigProvider))
+	apiServer.SetTimmyConfigReader(timmyConfigProvider)
 	logger.Info("Timmy middleware configured (DB-backed runtime config)")
 
 	// Apply automation group membership middleware for /automation/* routes

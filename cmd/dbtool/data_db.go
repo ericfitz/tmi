@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/test/testdb"
@@ -130,7 +131,7 @@ func grantAdmin(db *testdb.TestDB, user *models.User) error {
 	return nil
 }
 
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: upsert API rate-limit quotas for a user by internal UUID (reads DB)
+// SEM@41b5c38bfd158370f52ee766875ea5d46d603cbd: upsert API rate-limit quotas for a user, defaulting unset rpm (reads DB)
 func setQuotas(db *testdb.TestDB, userInternalUUID string, quota map[string]any) error {
 	log := slogging.Get()
 
@@ -139,6 +140,12 @@ func setQuotas(db *testdb.TestDB, userInternalUUID string, quota map[string]any)
 
 	if rpm == 0 && rph == 0 {
 		return nil
+	}
+	if rpm == 0 {
+		// Without this, a seed entry that only supplies rph would leave rpm
+		// at the Go zero value, which GORM treats as "unset" and silently
+		// backfills from the DB column default instead of the app constant.
+		rpm = api.DefaultMaxRequestsPerMinute
 	}
 
 	var existing models.UserAPIQuota

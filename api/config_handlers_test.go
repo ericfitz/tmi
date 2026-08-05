@@ -256,6 +256,78 @@ func TestGetClientConfig_MissingFlagKeepsDefault(t *testing.T) {
 	assert.False(t, *config.Features.SamlEnabled)
 }
 
+// TestGetClientConfig_TimmyEnabled verifies features.timmy_enabled mirrors the
+// same two-stage gate as TimmyEnabledMiddleware: true only when Timmy is both
+// enabled and fully configured.
+func TestGetClientConfig_TimmyEnabled(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  config.TimmyConfig
+		want bool
+	}{
+		{"enabled and configured", config.TimmyConfig{
+			Enabled: true, LLMProvider: "p", LLMModel: "m",
+			TextEmbeddingProvider: "p", TextEmbeddingModel: "m",
+		}, true},
+		{"enabled but unconfigured", config.TimmyConfig{Enabled: true}, false},
+		{"disabled", config.TimmyConfig{}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			r := gin.New()
+
+			server := &Server{
+				settingsService:   NewMockSettingsService(),
+				timmyConfigReader: stubTimmyConfigReader{cfg: tt.cfg},
+			}
+
+			r.GET("/config", server.GetClientConfig)
+
+			req, _ := http.NewRequest("GET", "/config", nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+
+			var cfg ClientConfig
+			err := json.Unmarshal(w.Body.Bytes(), &cfg)
+			require.NoError(t, err)
+
+			require.NotNil(t, cfg.Features)
+			require.NotNil(t, cfg.Features.TimmyEnabled)
+			assert.Equal(t, tt.want, *cfg.Features.TimmyEnabled)
+		})
+	}
+}
+
+// TestGetClientConfig_TimmyReaderAbsent verifies a Server with no
+// timmyConfigReader wired (e.g. most unit tests) still reports
+// features.timmy_enabled as present and false, never nil or a panic.
+func TestGetClientConfig_TimmyReaderAbsent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	server := &Server{settingsService: NewMockSettingsService()}
+
+	r.GET("/config", server.GetClientConfig)
+
+	req, _ := http.NewRequest("GET", "/config", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var cfg ClientConfig
+	err := json.Unmarshal(w.Body.Bytes(), &cfg)
+	require.NoError(t, err)
+
+	require.NotNil(t, cfg.Features)
+	require.NotNil(t, cfg.Features.TimmyEnabled)
+	assert.False(t, *cfg.Features.TimmyEnabled)
+}
+
 func TestListSystemSettings_AdminRequired(t *testing.T) {
 	// Save original admin store
 	originalAdminStore := GlobalGroupMemberRepository

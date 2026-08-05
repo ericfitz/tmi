@@ -197,7 +197,7 @@ func (s *GormRepositoryRepository) Get(ctx context.Context, id string) (*Reposit
 }
 
 // Update updates an existing repository
-// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: update a repository's fields, set modified_at explicitly, and refresh cache (mutates shared state)
+// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: update a repository's fields, set modified_at explicitly, and refresh cache (mutates shared state)
 func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -406,7 +406,7 @@ func (s *GormRepositoryRepository) hardDeleteRepository(ctx context.Context, id 
 }
 
 // List retrieves repositories for a threat model with pagination
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: list repositories for a threat model with pagination from cache or DB (reads DB)
+// SEM@a0c806e5d0aac29d4d69bc6592f4abf9ba717819: list repositories for a threat model with pagination from cache or DB (reads DB)
 func (s *GormRepositoryRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Repository, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -438,7 +438,7 @@ func (s *GormRepositoryRepository) List(ctx context.Context, threatModelID strin
 		query = query.Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID)
 	}
 	result := query.
-		Order("created_at DESC").
+		Order("created_at DESC, id ASC").
 		Limit(limit).
 		Offset(offset).
 		Find(&modelList)

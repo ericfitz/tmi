@@ -7,7 +7,7 @@ import (
 )
 
 // MigratableSetting represents a setting that can be migrated from config to database
-// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: DTO representing a single config setting eligible for database migration (pure)
+// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: DTO representing a single config setting eligible for database migration (pure)
 type MigratableSetting struct {
 	Key         string
 	Value       string
@@ -44,7 +44,7 @@ func settingSource(envVar string) string {
 
 // GetMigratableSettings returns all settings from the config formatted for database storage.
 // Secret fields are included with Secret=true so the API layer can mask their values.
-// SEM@13c4215bf8e204da342579717f97f7393bb5fe2f: list all config settings eligible for database migration with classification applied (pure)
+// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: list all config settings eligible for database migration with classification applied (pure)
 func (c *Config) GetMigratableSettings() []MigratableSetting {
 	settings := []MigratableSetting{}
 
@@ -186,7 +186,7 @@ func (c *Config) getMigratableFeatureFlags() []MigratableSetting {
 }
 
 // getMigratableOAuthSettings returns OAuth provider settings
-// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: build migratable settings list for OAuth callback URL and enabled providers (pure)
+// SEM@98d8987e5ea3f04c1ab0ce15c2ebfc210f3794db: build migratable settings list for OAuth callback URL and enabled providers (pure)
 func (c *Config) getMigratableOAuthSettings() []MigratableSetting {
 	settings := []MigratableSetting{}
 
@@ -332,7 +332,7 @@ func (c *Config) getMigratableSAMLSettings() []MigratableSetting {
 }
 
 // getMigratableSAMLProviderSettings returns settings for a single SAML provider
-// SEM@ef979cc7527137e0448782341a4ffe8e944571f5: build migratable settings list for a single SAML provider's endpoints, flags, and secrets (pure)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: build migratable settings list for a single SAML provider's endpoints, flags, and secrets (pure)
 func (c *Config) getMigratableSAMLProviderSettings(providerKey string, p SAMLProviderConfig) []MigratableSetting {
 	prefix := "auth.saml.providers." + providerKey
 	settings := []MigratableSetting{
@@ -354,6 +354,8 @@ func (c *Config) getMigratableSAMLProviderSettings(providerKey string, p SAMLPro
 		{".name_id_attribute", p.NameIDAttribute, "SAML NameID attribute"},
 		{".email_attribute", p.EmailAttribute, "SAML email attribute"},
 		{".name_attribute", p.NameAttribute, "SAML name attribute"},
+		{".given_name_attribute", p.GivenNameAttribute, "SAML given name attribute"},
+		{".family_name_attribute", p.FamilyNameAttribute, "SAML family name attribute"},
 		{".groups_attribute", p.GroupsAttribute, "SAML groups attribute"},
 	}
 

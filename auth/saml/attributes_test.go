@@ -188,3 +188,76 @@ func TestExtractUserInfo_SyntheticFallbackOnlyWhenNothingAvailable(t *testing.T)
 		t.Errorf("Name: want %q (derived from synthetic email), got %q", "opaque-id", got.Name)
 	}
 }
+
+// TestExtractUserInfo_GivenFamilyNameMappable verifies that an operator can
+// map given_name/family_name to arbitrary SAML attribute names via
+// AttributeMapping (#648), and that mapUserAttributes honors those names.
+func TestExtractUserInfo_GivenFamilyNameMappable(t *testing.T) {
+	assertion := makeAssertion("nameid-gf", map[string]string{
+		"custom_given_attr":  "Dana",
+		"custom_family_attr": "Example",
+	})
+
+	cfg := &SAMLConfig{
+		ID: "custom-idp",
+		AttributeMapping: map[string]string{
+			"given_name":  "custom_given_attr",
+			"family_name": "custom_family_attr",
+		},
+	}
+
+	got, err := ExtractUserInfo(assertion, cfg)
+	if err != nil {
+		t.Fatalf("ExtractUserInfo returned error: %v", err)
+	}
+	if got.GivenName != "Dana" {
+		t.Errorf("GivenName: want %q, got %q", "Dana", got.GivenName)
+	}
+	if got.FamilyName != "Example" {
+		t.Errorf("FamilyName: want %q, got %q", "Example", got.FamilyName)
+	}
+}
+
+// TestExtractUserInfo_SyntheticFallbackSetsFlags proves that when neither
+// email nor name attributes are present, the synthesized values are flagged
+// via EmailSynthesized/NameSynthesized so callers (e.g. updateSAMLUserOnLogin)
+// know not to persist them over real stored values (#648).
+func TestExtractUserInfo_SyntheticFallbackSetsFlags(t *testing.T) {
+	assertion := makeAssertion("opaque-id-2", map[string]string{
+		"some.unrecognized.attribute": "irrelevant",
+	})
+	cfg := &SAMLConfig{ID: "minimal-idp"}
+
+	got, err := ExtractUserInfo(assertion, cfg)
+	if err != nil {
+		t.Fatalf("ExtractUserInfo returned error: %v", err)
+	}
+	if !got.EmailSynthesized {
+		t.Errorf("EmailSynthesized: want true, got false")
+	}
+	if !got.NameSynthesized {
+		t.Errorf("NameSynthesized: want true, got false")
+	}
+}
+
+// TestExtractUserInfo_RealAttributesDoNotSetFlags is the inverse of
+// TestExtractUserInfo_SyntheticFallbackSetsFlags: when the IdP asserts real
+// email and name attributes, neither synthesized flag should be set.
+func TestExtractUserInfo_RealAttributesDoNotSetFlags(t *testing.T) {
+	assertion := makeAssertion("nameid-real", map[string]string{
+		"http://schemas.microsoft.com/identity/claims/displayname":           "Real Name",
+		"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress": "real@example.com",
+	})
+	cfg := &SAMLConfig{ID: "entra-tmidev-saml"}
+
+	got, err := ExtractUserInfo(assertion, cfg)
+	if err != nil {
+		t.Fatalf("ExtractUserInfo returned error: %v", err)
+	}
+	if got.EmailSynthesized {
+		t.Errorf("EmailSynthesized: want false, got true")
+	}
+	if got.NameSynthesized {
+		t.Errorf("NameSynthesized: want false, got true")
+	}
+}

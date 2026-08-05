@@ -338,7 +338,7 @@ func (s *GormAssetRepository) hardDeleteAsset(ctx context.Context, id string) er
 }
 
 // List retrieves assets for a threat model with pagination and caching using GORM
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: list paginated assets for a threat model with cache-first strategy (reads DB)
+// SEM@a0c806e5d0aac29d4d69bc6592f4abf9ba717819: list paginated assets for a threat model with cache-first strategy (reads DB)
 func (s *GormAssetRepository) List(ctx context.Context, threatModelID string, offset, limit int) ([]Asset, error) {
 	logger := slogging.Get()
 	logger.Debug("Listing assets for threat model %s (offset: %d, limit: %d)", threatModelID, offset, limit)
@@ -372,7 +372,7 @@ func (s *GormAssetRepository) List(ctx context.Context, threatModelID string, of
 	} else {
 		query = query.Where("threat_model_id = ? AND deleted_at IS NULL", threatModelID)
 	}
-	query = query.Order("created_at DESC")
+	query = query.Order("created_at DESC, id ASC")
 
 	if limit > 0 {
 		query = query.Limit(limit)
@@ -503,7 +503,7 @@ func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, th
 }
 
 // Patch applies JSON patch operations to an asset using GORM
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply JSON patch operations to an asset and persist the result (mutates shared state)
+// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON patch operations to an asset and persist the result (mutates shared state)
 func (s *GormAssetRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Asset, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching asset %s with %d operations", id, len(operations))
@@ -549,7 +549,7 @@ func (s *GormAssetRepository) Patch(ctx context.Context, id string, operations [
 }
 
 // applyPatchOperation applies a single patch operation to an asset
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply a single JSON patch operation to an in-memory asset struct (pure)
+// SEM@19668dc6d5b4991c9b461b7b41f18a37d90dfacc: apply a single JSON patch operation to an in-memory asset struct (pure)
 func (s *GormAssetRepository) applyPatchOperation(asset *Asset, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:

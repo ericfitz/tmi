@@ -237,7 +237,7 @@ func (s *Server) GetClientConfig(c *gin.Context) {
 }
 
 // buildClientConfig constructs the ClientConfig response from server config and settings
-// SEM@8429fbdd74c6f347eff47e11551b900e16a1dc06: construct the ClientConfig response from server config and settings service (reads DB)
+// SEM@42ef5843bbac0234c5e9af2e1ed89f0c5f366f44: construct the ClientConfig response from server config and settings service (reads DB)
 func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientConfig {
 	logger := slogging.Get()
 
@@ -260,6 +260,15 @@ func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientCo
 		if val, ok := s.boolSettingIfPresent(ctx, "features.websocket_enabled"); ok {
 			websocketEnabled = val
 		}
+	}
+
+	// Timmy availability mirrors TimmyEnabledMiddleware's two-stage gate: only
+	// advertised as enabled when it is both switched on and fully configured
+	// (LLM + embedding providers present), so clients can gate the launcher UI.
+	timmyEnabled := false
+	if s.timmyConfigReader != nil {
+		tc := s.timmyConfigReader.Current(ctx)
+		timmyEnabled = tc.Enabled && tc.IsConfigured()
 	}
 
 	// Operator info from settings service (config file/env > database).
@@ -325,11 +334,13 @@ func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientCo
 	return ClientConfig{
 		Features: &struct {
 			SamlEnabled      *bool `json:"saml_enabled,omitempty"`
+			TimmyEnabled     *bool `json:"timmy_enabled,omitempty"`
 			WebhooksEnabled  *bool `json:"webhooks_enabled,omitempty"`
 			WebsocketEnabled *bool `json:"websocket_enabled,omitempty"`
 		}{
 			WebsocketEnabled: &websocketEnabled,
 			SamlEnabled:      &samlEnabled,
+			TimmyEnabled:     &timmyEnabled,
 			WebhooksEnabled:  &webhooksEnabled,
 		},
 		Operator: &struct {

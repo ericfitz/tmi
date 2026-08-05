@@ -31,7 +31,7 @@ type SettingsServiceInterface interface {
 }
 
 // Server is the main API server instance
-// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: main API server holding all handlers, services, and subsystem dependencies
+// SEM@42ef5843bbac0234c5e9af2e1ed89f0c5f366f44: main API server holding all handlers, services, and subsystem dependencies
 type Server struct {
 	// Handlers
 	threatModelHandler *ThreatModelHandler
@@ -91,6 +91,7 @@ type Server struct {
 	timmySessionManager *TimmySessionManager
 	vectorManager       *VectorIndexManager
 	timmyCore           *TimmyCore
+	timmyConfigReader   TimmyConfigReader
 	contentPipeline     *ContentPipeline
 	// Trusted proxy configuration
 	trustedProxiesConfigured bool
@@ -178,7 +179,7 @@ type ConfigProvider interface {
 }
 
 // MigratableSetting represents a setting that can be migrated from config to database
-// SEM@33a84a2f45e6081d58584c7c6233564fb6bbf063: a typed key-value setting that can be promoted from config file to the database
+// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: a typed key-value setting that can be promoted from config file to the database
 type MigratableSetting struct {
 	Key         string
 	Value       string
@@ -454,6 +455,10 @@ func (s *Server) SetVectorManager(manager *VectorIndexManager) {
 func (s *Server) SetTimmyCore(core *TimmyCore) {
 	s.timmyCore = core
 }
+
+// SetTimmyConfigReader provides the live Timmy config source used to advertise availability.
+// SEM@7067d4db: register the Timmy config reader used to advertise availability in GET /config (mutates shared state)
+func (s *Server) SetTimmyConfigReader(r TimmyConfigReader) { s.timmyConfigReader = r }
 
 // getTimmyRuntime returns the live TimmyRuntime. When a TimmyCore is wired it
 // resolves (and lazily rebuilds) from the database; otherwise it falls back to

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/api/validation"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -66,6 +67,20 @@ func (r *GormGroupRepository) List(ctx context.Context, filter GroupFilter) ([]G
 			query = query.Where("EXISTS (SELECT 1 FROM threat_model_access WHERE group_internal_uuid = groups.internal_uuid)")
 		} else {
 			query = query.Where("NOT EXISTS (SELECT 1 FROM threat_model_access WHERE group_internal_uuid = groups.internal_uuid)")
+		}
+	}
+
+	if filter.BuiltIn != nil {
+		if *filter.BuiltIn {
+			query = query.Where(
+				clause.Expr{SQL: "? IN ?",
+					Vars: []any{Col(r.db.Name(), "internal_uuid"), validation.BuiltInGroupUUIDs}},
+			)
+		} else {
+			query = query.Where(
+				clause.Expr{SQL: "? NOT IN ?",
+					Vars: []any{Col(r.db.Name(), "internal_uuid"), validation.BuiltInGroupUUIDs}},
+			)
 		}
 	}
 
@@ -239,6 +254,20 @@ func (r *GormGroupRepository) Count(ctx context.Context, filter GroupFilter) (in
 		}
 	}
 
+	if filter.BuiltIn != nil {
+		if *filter.BuiltIn {
+			query = query.Where(
+				clause.Expr{SQL: "? IN ?",
+					Vars: []any{Col(r.db.Name(), "internal_uuid"), validation.BuiltInGroupUUIDs}},
+			)
+		} else {
+			query = query.Where(
+				clause.Expr{SQL: "? NOT IN ?",
+					Vars: []any{Col(r.db.Name(), "internal_uuid"), validation.BuiltInGroupUUIDs}},
+			)
+		}
+	}
+
 	var count int64
 	if err := query.Count(&count).Error; err != nil {
 		return 0, dberrors.Classify(err)
@@ -322,7 +351,7 @@ func (r *GormGroupRepository) UpsertGroup(ctx context.Context, group Group) erro
 }
 
 // convertToGroup converts a GORM Group model to API Group
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a GORM Group model to the API Group DTO (pure)
+// SEM@bd2649370a397ca1c5a2e6a68d5d431ba4132bc6: convert a GORM Group model to the API Group DTO (pure)
 func (r *GormGroupRepository) convertToGroup(gg *models.Group) Group {
 	internalUUID, _ := uuid.Parse(string(gg.InternalUUID))
 
@@ -335,6 +364,7 @@ func (r *GormGroupRepository) convertToGroup(gg *models.Group) Group {
 		FirstUsed:    gg.FirstUsed,
 		LastUsed:     gg.LastUsed,
 		UsageCount:   gg.UsageCount,
+		IsBuiltin:    validation.IsBuiltInGroup(string(gg.InternalUUID)),
 	}
 }
 

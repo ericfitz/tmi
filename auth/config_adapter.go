@@ -90,34 +90,36 @@ func convertOAuthProviders(unified map[string]config.OAuthProviderConfig) map[st
 }
 
 // convertSAMLProviders converts unified SAML providers to auth-specific format
-// SEM@7e40aae7f066b1d045faeff914884107bde40f0e: convert unified SAML provider configs to auth-package SAMLProviderConfig map (pure)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: convert unified SAML provider configs to auth-package SAMLProviderConfig map (pure)
 func convertSAMLProviders(unified map[string]config.SAMLProviderConfig) map[string]SAMLProviderConfig {
 	providers := make(map[string]SAMLProviderConfig)
 
 	for id, provider := range unified {
 		providers[id] = SAMLProviderConfig{
-			ID:                id,
-			Name:              provider.Name,
-			Enabled:           provider.Enabled,
-			Icon:              provider.Icon,
-			EntityID:          provider.EntityID,
-			MetadataURL:       provider.MetadataURL,
-			MetadataXML:       provider.MetadataXML,
-			ACSURL:            provider.ACSURL,
-			SLOURL:            provider.SLOURL,
-			SPPrivateKey:      provider.SPPrivateKey,
-			SPPrivateKeyPath:  provider.SPPrivateKeyPath,
-			SPCertificate:     provider.SPCertificate,
-			SPCertificatePath: provider.SPCertificatePath,
-			IDPMetadataURL:    provider.IDPMetadataURL,
-			IDPMetadataB64XML: provider.IDPMetadataB64XML,
-			AllowIDPInitiated: provider.AllowIDPInitiated,
-			ForceAuthn:        provider.ForceAuthn,
-			SignRequests:      provider.SignRequests,
-			NameIDAttribute:   provider.NameIDAttribute,
-			EmailAttribute:    provider.EmailAttribute,
-			NameAttribute:     provider.NameAttribute,
-			GroupsAttribute:   provider.GroupsAttribute,
+			ID:                  id,
+			Name:                provider.Name,
+			Enabled:             provider.Enabled,
+			Icon:                provider.Icon,
+			EntityID:            provider.EntityID,
+			MetadataURL:         provider.MetadataURL,
+			MetadataXML:         provider.MetadataXML,
+			ACSURL:              provider.ACSURL,
+			SLOURL:              provider.SLOURL,
+			SPPrivateKey:        provider.SPPrivateKey,
+			SPPrivateKeyPath:    provider.SPPrivateKeyPath,
+			SPCertificate:       provider.SPCertificate,
+			SPCertificatePath:   provider.SPCertificatePath,
+			IDPMetadataURL:      provider.IDPMetadataURL,
+			IDPMetadataB64XML:   provider.IDPMetadataB64XML,
+			AllowIDPInitiated:   provider.AllowIDPInitiated,
+			ForceAuthn:          provider.ForceAuthn,
+			SignRequests:        provider.SignRequests,
+			NameIDAttribute:     provider.NameIDAttribute,
+			EmailAttribute:      provider.EmailAttribute,
+			NameAttribute:       provider.NameAttribute,
+			GivenNameAttribute:  provider.GivenNameAttribute,
+			FamilyNameAttribute: provider.FamilyNameAttribute,
+			GroupsAttribute:     provider.GroupsAttribute,
 		}
 	}
 

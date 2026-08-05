@@ -30,7 +30,7 @@ type AdministratorConfig struct {
 }
 
 // Config holds all application configuration
-// SEM@13c4215bf8e204da342579717f97f7393bb5fe2f: top-level application configuration aggregating all subsystem config structs (pure)
+// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: top-level application configuration aggregating all subsystem config structs (pure)
 type Config struct {
 	// explicitFileKeys holds the dotted keys the YAML file actually named, so
 	// GetMigratableSettings can mark them Explicit. Unexported and yaml:"-" so
@@ -224,30 +224,32 @@ type SAMLConfig struct {
 }
 
 // SAMLProviderConfig holds configuration for a SAML provider
-// SEM@7e40aae7f066b1d045faeff914884107bde40f0e: configuration struct for a single SAML provider's SP/IdP metadata, keys, and attribute mappings (pure)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: configuration struct for a single SAML provider's SP/IdP metadata, keys, and attribute mappings (pure)
 type SAMLProviderConfig struct {
-	ID                string `yaml:"id"`
-	Name              string `yaml:"name"`
-	Enabled           bool   `yaml:"enabled"`
-	Icon              string `yaml:"icon"`
-	EntityID          string `yaml:"entity_id" env:"TMI_SAML_ENTITY_ID"`
-	MetadataURL       string `yaml:"metadata_url" env:"TMI_SAML_METADATA_URL"`
-	MetadataXML       string `yaml:"metadata_xml" env:"TMI_SAML_METADATA_XML"`
-	ACSURL            string `yaml:"acs_url" env:"TMI_SAML_ACS_URL"`
-	SLOURL            string `yaml:"slo_url" env:"TMI_SAML_SLO_URL"`
-	SPPrivateKey      string `yaml:"sp_private_key" env:"TMI_SAML_SP_PRIVATE_KEY"`
-	SPPrivateKeyPath  string `yaml:"sp_private_key_path" env:"TMI_SAML_SP_PRIVATE_KEY_PATH"`
-	SPCertificate     string `yaml:"sp_certificate" env:"TMI_SAML_SP_CERTIFICATE"`
-	SPCertificatePath string `yaml:"sp_certificate_path" env:"TMI_SAML_SP_CERTIFICATE_PATH"`
-	IDPMetadataURL    string `yaml:"idp_metadata_url" env:"TMI_SAML_IDP_METADATA_URL"`
-	IDPMetadataB64XML string `yaml:"idp_metadata_b64xml" env:"TMI_SAML_IDP_METADATA_B64XML"` // Base64-encoded IdP metadata XML
-	AllowIDPInitiated bool   `yaml:"allow_idp_initiated" env:"TMI_SAML_ALLOW_IDP_INITIATED"`
-	ForceAuthn        bool   `yaml:"force_authn" env:"TMI_SAML_FORCE_AUTHN"`
-	SignRequests      bool   `yaml:"sign_requests" env:"TMI_SAML_SIGN_REQUESTS"`
-	NameIDAttribute   string `yaml:"name_id_attribute" env:"TMI_SAML_NAME_ID_ATTRIBUTE"`
-	EmailAttribute    string `yaml:"email_attribute" env:"TMI_SAML_EMAIL_ATTRIBUTE"`
-	NameAttribute     string `yaml:"name_attribute" env:"TMI_SAML_NAME_ATTRIBUTE"`
-	GroupsAttribute   string `yaml:"groups_attribute" env:"TMI_SAML_GROUPS_ATTRIBUTE"`
+	ID                  string `yaml:"id"`
+	Name                string `yaml:"name"`
+	Enabled             bool   `yaml:"enabled"`
+	Icon                string `yaml:"icon"`
+	EntityID            string `yaml:"entity_id" env:"TMI_SAML_ENTITY_ID"`
+	MetadataURL         string `yaml:"metadata_url" env:"TMI_SAML_METADATA_URL"`
+	MetadataXML         string `yaml:"metadata_xml" env:"TMI_SAML_METADATA_XML"`
+	ACSURL              string `yaml:"acs_url" env:"TMI_SAML_ACS_URL"`
+	SLOURL              string `yaml:"slo_url" env:"TMI_SAML_SLO_URL"`
+	SPPrivateKey        string `yaml:"sp_private_key" env:"TMI_SAML_SP_PRIVATE_KEY"`
+	SPPrivateKeyPath    string `yaml:"sp_private_key_path" env:"TMI_SAML_SP_PRIVATE_KEY_PATH"`
+	SPCertificate       string `yaml:"sp_certificate" env:"TMI_SAML_SP_CERTIFICATE"`
+	SPCertificatePath   string `yaml:"sp_certificate_path" env:"TMI_SAML_SP_CERTIFICATE_PATH"`
+	IDPMetadataURL      string `yaml:"idp_metadata_url" env:"TMI_SAML_IDP_METADATA_URL"`
+	IDPMetadataB64XML   string `yaml:"idp_metadata_b64xml" env:"TMI_SAML_IDP_METADATA_B64XML"` // Base64-encoded IdP metadata XML
+	AllowIDPInitiated   bool   `yaml:"allow_idp_initiated" env:"TMI_SAML_ALLOW_IDP_INITIATED"`
+	ForceAuthn          bool   `yaml:"force_authn" env:"TMI_SAML_FORCE_AUTHN"`
+	SignRequests        bool   `yaml:"sign_requests" env:"TMI_SAML_SIGN_REQUESTS"`
+	NameIDAttribute     string `yaml:"name_id_attribute" env:"TMI_SAML_NAME_ID_ATTRIBUTE"`
+	EmailAttribute      string `yaml:"email_attribute" env:"TMI_SAML_EMAIL_ATTRIBUTE"`
+	NameAttribute       string `yaml:"name_attribute" env:"TMI_SAML_NAME_ATTRIBUTE"`
+	GivenNameAttribute  string `yaml:"given_name_attribute" env:"TMI_SAML_GIVEN_NAME_ATTRIBUTE"`
+	FamilyNameAttribute string `yaml:"family_name_attribute" env:"TMI_SAML_FAMILY_NAME_ATTRIBUTE"`
+	GroupsAttribute     string `yaml:"groups_attribute" env:"TMI_SAML_GROUPS_ATTRIBUTE"`
 }
 
 // LoggingConfig holds configuration for the slog-based logger and its
@@ -355,7 +357,7 @@ type SecretsConfig struct {
 }
 
 // Load loads configuration from YAML file with environment variable overrides
-// SEM@b4834203783bf0a76ea4b6d187622b91f43a018b: load and validate server configuration from a YAML file with env-var overrides (reads files, reads env)
+// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: load and validate server configuration from a YAML file with env-var overrides (reads files, reads env)
 func Load(configFile string) (*Config, error) {
 	config := getDefaultConfig()
 
@@ -611,7 +613,7 @@ func overrideStructWithEnv(v reflect.Value) error {
 }
 
 // overrideOAuthProviders handles environment variable overrides for OAuth providers
-// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: discover and populate enabled OAuth provider configs from env vars (reads env, mutates shared state)
+// SEM@f622b659f3a1f536265633cbf9dc2ff0ec703170: discover and populate enabled OAuth provider configs from env vars (reads env, mutates shared state)
 func overrideOAuthProviders(mapField reflect.Value) error {
 	logger := slogging.Get()
 	logger.Info("[CONFIG] overrideOAuthProviders called - starting dynamic OAuth provider discovery")
@@ -713,7 +715,7 @@ func overrideOAuthProviders(mapField reflect.Value) error {
 }
 
 // overrideSAMLProviders handles environment variable overrides for SAML providers
-// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: discover and populate enabled SAML provider configs from env vars (reads env, mutates shared state)
+// SEM@78155d54490599e00095eb72b817575bb1e8da5b: discover and populate enabled SAML provider configs from env vars (reads env, mutates shared state)
 func overrideSAMLProviders(mapField reflect.Value) error {
 	logger := slogging.Get()
 	logger.Info("[CONFIG] overrideSAMLProviders called - starting dynamic SAML provider discovery")
@@ -744,6 +746,8 @@ func overrideSAMLProviders(mapField reflect.Value) error {
 		// Read attribute mapping environment variables
 		nameAttr := os.Getenv(envPrefix + "NAME_ATTRIBUTE")
 		emailAttr := os.Getenv(envPrefix + "EMAIL_ATTRIBUTE")
+		givenNameAttr := os.Getenv(envPrefix + "GIVEN_NAME_ATTRIBUTE")
+		familyNameAttr := os.Getenv(envPrefix + "FAMILY_NAME_ATTRIBUTE")
 		groupsAttr := os.Getenv(envPrefix + "GROUPS_ATTRIBUTE")
 
 		// DEBUG: Log attribute environment variable values
@@ -752,25 +756,27 @@ func overrideSAMLProviders(mapField reflect.Value) error {
 
 		// Create new SAML provider config
 		provider := SAMLProviderConfig{
-			ID:                os.Getenv(envPrefix + "ID"),
-			Name:              os.Getenv(envPrefix + "NAME"),
-			Enabled:           true,
-			Icon:              os.Getenv(envPrefix + "ICON"),
-			EntityID:          os.Getenv(envPrefix + "ENTITY_ID"),
-			MetadataURL:       os.Getenv(envPrefix + "METADATA_URL"),
-			MetadataXML:       os.Getenv(envPrefix + "METADATA_XML"),
-			ACSURL:            os.Getenv(envPrefix + "ACS_URL"),
-			SLOURL:            os.Getenv(envPrefix + "SLO_URL"),
-			SPPrivateKey:      os.Getenv(envPrefix + "SP_PRIVATE_KEY"),
-			SPPrivateKeyPath:  os.Getenv(envPrefix + "SP_PRIVATE_KEY_PATH"),
-			SPCertificate:     os.Getenv(envPrefix + "SP_CERTIFICATE"),
-			SPCertificatePath: os.Getenv(envPrefix + "SP_CERTIFICATE_PATH"),
-			IDPMetadataURL:    os.Getenv(envPrefix + "IDP_METADATA_URL"),
-			IDPMetadataB64XML: os.Getenv(envPrefix + "IDP_METADATA_B64XML"),
-			NameIDAttribute:   os.Getenv(envPrefix + "NAME_ID_ATTRIBUTE"),
-			EmailAttribute:    emailAttr,
-			NameAttribute:     nameAttr,
-			GroupsAttribute:   groupsAttr,
+			ID:                  os.Getenv(envPrefix + "ID"),
+			Name:                os.Getenv(envPrefix + "NAME"),
+			Enabled:             true,
+			Icon:                os.Getenv(envPrefix + "ICON"),
+			EntityID:            os.Getenv(envPrefix + "ENTITY_ID"),
+			MetadataURL:         os.Getenv(envPrefix + "METADATA_URL"),
+			MetadataXML:         os.Getenv(envPrefix + "METADATA_XML"),
+			ACSURL:              os.Getenv(envPrefix + "ACS_URL"),
+			SLOURL:              os.Getenv(envPrefix + "SLO_URL"),
+			SPPrivateKey:        os.Getenv(envPrefix + "SP_PRIVATE_KEY"),
+			SPPrivateKeyPath:    os.Getenv(envPrefix + "SP_PRIVATE_KEY_PATH"),
+			SPCertificate:       os.Getenv(envPrefix + "SP_CERTIFICATE"),
+			SPCertificatePath:   os.Getenv(envPrefix + "SP_CERTIFICATE_PATH"),
+			IDPMetadataURL:      os.Getenv(envPrefix + "IDP_METADATA_URL"),
+			IDPMetadataB64XML:   os.Getenv(envPrefix + "IDP_METADATA_B64XML"),
+			NameIDAttribute:     os.Getenv(envPrefix + "NAME_ID_ATTRIBUTE"),
+			EmailAttribute:      emailAttr,
+			NameAttribute:       nameAttr,
+			GivenNameAttribute:  givenNameAttr,
+			FamilyNameAttribute: familyNameAttr,
+			GroupsAttribute:     groupsAttr,
 		}
 
 		// Parse boolean fields
@@ -1345,7 +1351,7 @@ func (c *Config) IsSecureCookies() bool {
 // strictly more secure default in production -- it cannot leak to sibling
 // subdomains -- so omitting Domain is correct everywhere unless an operator
 // explicitly needs cross-host scoping.
-// SEM@314b7ae8fe586a75ecee2e8fa7103d3193f15f7c: return only the explicitly configured cookie domain, else empty for a host-only cookie (pure)
+// SEM@99bccde8ec15f1645b5b007b4a0aecd710743633: return only the explicitly configured cookie domain, else empty for a host-only cookie (pure)
 func (c *Config) GetCookieDomain() string {
 	return c.Auth.Cookie.Domain
 }
@@ -1354,7 +1360,7 @@ func (c *Config) GetCookieDomain() string {
 // set. Used to distinguish a value an operator actually wrote from the struct
 // default that every setting otherwise carries — the distinction the settings
 // service needs to know whether a database value may apply (#415).
-// SEM@0000000000000000000000000000000000000000: list every dotted leaf key present in a YAML config file as a set (reads file)
+// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: list every dotted leaf key present in a YAML config file as a set (reads file)
 func KeysInFile(path string) (map[string]bool, error) {
 	raw := map[string]any{}
 	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied config path
