@@ -12333,6 +12333,47 @@
           }
         }
       },
+      "AdminUserIdentitiesResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "primary"
+        ],
+        "description": "A user's primary sign-in identity plus any linked identities, as seen by an administrator",
+        "properties": {
+          "primary": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "provider",
+              "email",
+              "name"
+            ],
+            "properties": {
+              "provider": {
+                "type": "string",
+                "description": "Identity provider of the primary sign-in identity"
+              },
+              "email": {
+                "type": "string",
+                "description": "Email on the user record"
+              },
+              "name": {
+                "type": "string",
+                "description": "Display name on the user record"
+              }
+            }
+          },
+          "linked": {
+            "type": "array",
+            "maxItems": 500,
+            "description": "Linked sign-in identities; the primary identity is not deletable and does not appear here",
+            "items": {
+              "$ref": "#/components/schemas/LinkedIdentity"
+            }
+          }
+        }
+      },
       "DocumentBulkUpdateItem": {
         "allOf": [
           {
@@ -73876,6 +73917,184 @@
           ]
         },
         "x-tmi-authz-step-up": "optional"
+      }
+    },
+    "/admin/users/{user_id}/identities": {
+      "get": {
+        "operationId": "adminListUserIdentities",
+        "summary": "List a user's primary and linked sign-in identities (admin)",
+        "description": "Administrator-only listing of a target user's primary sign-in identity (from the user record) and linked identities.",
+        "tags": [
+          "Admin - Users"
+        ],
+        "x-admin-only": true,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserIdPathParam"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The target user's primary and linked sign-in identities.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserIdentitiesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
+      }
+    },
+    "/admin/users/{user_id}/identities/{identity_id}": {
+      "delete": {
+        "operationId": "adminDeleteUserIdentity",
+        "summary": "Unlink a user's linked sign-in identity (admin)",
+        "description": "Administrator-only removal of a target user's linked sign-in identity. The primary identity lives on the user record and cannot be addressed by this operation; unknown identity ids return 404.",
+        "tags": [
+          "Admin - Users"
+        ],
+        "x-admin-only": true,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/UserIdPathParam"
+          },
+          {
+            "name": "identity_id",
+            "in": "path",
+            "required": true,
+            "description": "Linked identity unique identifier",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Linked identity unlinked.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     }
   },

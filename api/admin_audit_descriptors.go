@@ -33,7 +33,7 @@ type SystemSettingReader interface {
 // adminAuditDescriptors returns the descriptors for all gated admin routes.
 // Adding a gated route requires adding an entry here; a unit test asserts
 // coverage (#355).
-// SEM@d89a562535e2240eeb7f556a3f619d28fe9c5613: build the full audit descriptor table for all gated admin routes (pure)
+// SEM@ce0791bb8871a87b7b663d6635564ffd28e00c3f: build the full audit descriptor table for all gated admin routes (pure)
 func adminAuditDescriptors(reader SystemSettingReader) []auditDescriptor {
 	read := func(c *gin.Context, key string) string {
 		if reader == nil {
@@ -122,6 +122,25 @@ func adminAuditDescriptors(reader SystemSettingReader) []auditDescriptor {
 			NewValueFn: func(c *gin.Context, body []byte) string { return "" },
 			SummaryFn: func(c *gin.Context) string {
 				return "DELETE client credential " + c.Param("credential_id") + " for user " + c.Param("user_id")
+			},
+		},
+		// DELETE /admin/users/{user_id}/identities/{identity_id} (#646) is
+		// step-up-gated by the /admin/* write-method default (no opt-out set
+		// in the spec), same as client_credentials above. The richer
+		// provider/subject audit event is written by IdentityLinkAuditor
+		// inside AdminDeleteUserIdentity, mirroring the DELETE
+		// /me/identities/{id} descriptor below — this descriptor only covers
+		// the outer step-up-gate audit row.
+		{
+			Method:  "DELETE",
+			PathTpl: "/admin/users/{user_id}/identities/{identity_id}",
+			FieldPathFn: func(c *gin.Context) string {
+				return "users." + c.Param("user_id") + ".identities." + c.Param("identity_id")
+			},
+			OldValueFn: func(c *gin.Context) string { return "" },
+			NewValueFn: func(c *gin.Context, body []byte) string { return "" },
+			SummaryFn: func(c *gin.Context) string {
+				return "DELETE linked identity " + c.Param("identity_id") + " for user " + c.Param("user_id")
 			},
 		},
 
