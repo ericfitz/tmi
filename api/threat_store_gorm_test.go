@@ -154,6 +154,25 @@ func TestBuildSemanticOrderExpr(t *testing.T) {
 		expr := buildSemanticOrderExpr("severity", severityOrder, "oracle")
 		assert.Contains(t, expr, "LOWER(SEVERITY)")
 	})
+
+	t.Run("output is deterministic across calls (regression guard for #645 Oracle fix)", func(t *testing.T) {
+		// Pins the exact WHEN-clause order (sorted by value, not map iteration
+		// order). Without the slices.Sort fix, this string's clause order would
+		// vary randomly between calls -- on Oracle, a different SQL text per
+		// call means every semantic sort misses the prepared-statement cache
+		// and opens a fresh cursor (ORA-01000 once enough accumulate).
+		expected := "CASE" +
+			" WHEN LOWER(severity) = 'critical' THEN 5" +
+			" WHEN LOWER(severity) = 'high' THEN 4" +
+			" WHEN LOWER(severity) = 'informational' THEN 1" +
+			" WHEN LOWER(severity) = 'low' THEN 2" +
+			" WHEN LOWER(severity) = 'medium' THEN 3" +
+			" WHEN LOWER(severity) = 'unknown' THEN 0" +
+			" ELSE -1 END"
+		for i := 0; i < 50; i++ {
+			assert.Equal(t, expected, buildSemanticOrderExpr("severity", severityOrder, "sqlite"))
+		}
+	})
 }
 
 func TestSemanticOrderMaps(t *testing.T) {
