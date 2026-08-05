@@ -557,14 +557,25 @@ var semanticOrderMaps = map[string]map[string]int{
 }
 
 // buildSemanticOrderExpr builds a CASE WHEN SQL expression for semantic sorting.
-// Values not in the map sort to -1 (before all known values).
-// SEM@b0defcce76130bf58c18812c7ab48f51db9b41bf: build a CASE WHEN SQL expression that ranks enum column values semantically (pure)
+// Values not in the map sort to -1 (before all known values). WHEN clauses are
+// emitted in sorted-key order so the generated SQL text is identical across
+// calls for the same (column, orderMap) pair -- a bare map range produces a
+// random clause order per call, which defeats prepared-statement caching and
+// exhausts open cursors on Oracle (ORA-01000) since every status/severity/
+// priority sort becomes a distinct SQL text.
+// SEM@43d58a88: build a deterministic CASE WHEN SQL expression that ranks enum column values semantically (pure)
 func buildSemanticOrderExpr(column string, orderMap map[string]int, dialectName string) string {
 	col := ColumnName(dialectName, column)
+	values := make([]string, 0, len(orderMap))
+	for value := range orderMap {
+		values = append(values, value)
+	}
+	slices.Sort(values)
+
 	var b strings.Builder
 	b.WriteString("CASE")
-	for value, rank := range orderMap {
-		fmt.Fprintf(&b, " WHEN LOWER(%s) = '%s' THEN %d", col, value, rank)
+	for _, value := range values {
+		fmt.Fprintf(&b, " WHEN LOWER(%s) = '%s' THEN %d", col, value, orderMap[value])
 	}
 	b.WriteString(" ELSE -1 END")
 	return b.String()
@@ -596,7 +607,9 @@ func (s *GormThreatRepository) buildOrderBy(sort string) string {
 		"priority":    "priority",
 		"status":      "status",
 		"score":       "score",
-		"threat_type": "threat_type",
+		// threat_type deliberately absent: StringArray maps to CLOB on Oracle,
+		// which cannot ORDER BY (ORA-00932). Unknown columns already fall back
+		// to defaultOrder(), so sort=threat_type:* degrades gracefully.
 	}
 
 	parts := strings.Split(sort, ":")

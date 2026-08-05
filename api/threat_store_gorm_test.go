@@ -11,11 +11,51 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm/schema"
 )
 
 func newTestGormThreatStore(t *testing.T) *GormThreatRepository {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	return &GormThreatRepository{db: db}
+}
+
+// fakeOracleDialector is a minimal gorm.Dialector stub that reports itself as
+// "oracle" without opening any real database connection, so buildOrderBy's
+// dialect-aware column casing (ColumnName uppercases columns on Oracle) can
+// be exercised from a unit test. buildOrderBy/defaultOrder only ever read
+// s.db.Name() -- they never execute a query -- so every method below besides
+// Name and Initialize is unreachable and panics if that assumption breaks.
+type fakeOracleDialector struct{}
+
+func (fakeOracleDialector) Name() string              { return "oracle" }
+func (fakeOracleDialector) Initialize(*gorm.DB) error { return nil }
+func (fakeOracleDialector) Migrator(*gorm.DB) gorm.Migrator {
+	panic("fakeOracleDialector: Migrator unexpectedly called")
+}
+func (fakeOracleDialector) DataTypeOf(*schema.Field) string {
+	panic("fakeOracleDialector: DataTypeOf unexpectedly called")
+}
+func (fakeOracleDialector) DefaultValueOf(*schema.Field) clause.Expression {
+	panic("fakeOracleDialector: DefaultValueOf unexpectedly called")
+}
+func (fakeOracleDialector) BindVarTo(clause.Writer, *gorm.Statement, interface{}) {
+	panic("fakeOracleDialector: BindVarTo unexpectedly called")
+}
+func (fakeOracleDialector) QuoteTo(clause.Writer, string) {
+	panic("fakeOracleDialector: QuoteTo unexpectedly called")
+}
+func (fakeOracleDialector) Explain(sql string, vars ...interface{}) string {
+	panic("fakeOracleDialector: Explain unexpectedly called")
+}
+
+// newTestGormThreatStoreOracle builds a store whose dialect name is "oracle"
+// without any real Oracle connection, to unit-test Oracle-specific casing.
+func newTestGormThreatStoreOracle(t *testing.T) *GormThreatRepository {
+	t.Helper()
+	db, err := gorm.Open(fakeOracleDialector{}, &gorm.Config{})
 	require.NoError(t, err)
 	return &GormThreatRepository{db: db}
 }
@@ -73,6 +113,18 @@ func TestBuildOrderBy(t *testing.T) {
 		assert.Contains(t, result, "open")
 		assert.Contains(t, result, "ASC")
 		assert.True(t, strings.HasSuffix(result, " ASC, id ASC"))
+	})
+
+	t.Run("threat_type is not sortable (StringArray maps to CLOB on Oracle)", func(t *testing.T) {
+		// threat_type must fall back to defaultOrder(), the same as any other
+		// unrecognized column -- it must never reach ColumnName/ORDER BY,
+		// since Oracle rejects ORDER BY on a LOB column (ORA-00932).
+		assert.Equal(t, "created_at DESC, id ASC", store.buildOrderBy("threat_type:asc"))
+	})
+
+	t.Run("oracle dialect renders uppercase columns in default order", func(t *testing.T) {
+		oracleStore := newTestGormThreatStoreOracle(t)
+		assert.Equal(t, "CREATED_AT DESC, ID ASC", oracleStore.defaultOrder())
 	})
 }
 
