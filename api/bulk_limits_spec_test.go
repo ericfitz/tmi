@@ -16,7 +16,9 @@ func requestBodyMaxItems(t *testing.T, op *openapi3.Operation, nestedProp string
 	t.Helper()
 	require.NotNil(t, op, "operation missing")
 	require.NotNil(t, op.RequestBody)
-	schema := op.RequestBody.Value.Content["application/json"].Schema.Value
+	mediaType := op.RequestBody.Value.Content["application/json"]
+	require.NotNil(t, mediaType, "request body has no application/json content")
+	schema := mediaType.Schema.Value
 	if nestedProp != "" {
 		schema = schema.Properties[nestedProp].Value
 	}
@@ -64,9 +66,13 @@ func TestBulkThreatDeletesMatchSpec(t *testing.T) {
 	spec, err := GetSpec()
 	require.NoError(t, err)
 	p := spec.Components.Parameters["ThreatIdsQueryParam"]
-	require.NotNil(t, p)
-	require.NotNil(t, p.Value.Schema.Value.MaxItems)
-	assert.Equal(t, uint64(MaxBulkThreatDeletes), *p.Value.Schema.Value.MaxItems)
+	require.NotNil(t, p, "ThreatIdsQueryParam missing from components.parameters (DELETE .../threats/bulk)")
+	require.NotNil(t, p.Value.Schema.Value.MaxItems,
+		"ThreatIdsQueryParam schema has no maxItems (DELETE .../threats/bulk)")
+	got := *p.Value.Schema.Value.MaxItems
+	assert.Equal(t, uint64(MaxBulkThreatDeletes), got,
+		"MaxBulkThreatDeletes: constant %d != spec maxItems %d on ThreatIdsQueryParam (DELETE .../threats/bulk)",
+		MaxBulkThreatDeletes, got)
 }
 
 // entityForMetadataPath maps ".../<collection>/{x_id}/metadata/bulk" (or the
@@ -76,6 +82,9 @@ func TestBulkThreatDeletesMatchSpec(t *testing.T) {
 func entityForMetadataPath(path string) string {
 	segs := strings.Split(strings.Trim(path, "/"), "/")
 	// [..., <collection>, {param}, metadata, bulk]
+	if len(segs) < 4 {
+		return ""
+	}
 	coll := segs[len(segs)-4]
 	singular := map[string]string{
 		"threat_models": "threat_model", "threats": "threat", "documents": "document",
