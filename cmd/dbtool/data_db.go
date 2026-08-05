@@ -131,7 +131,7 @@ func grantAdmin(db *testdb.TestDB, user *models.User) error {
 	return nil
 }
 
-// SEM@62e0b9c8fbee3421336265984902230df451660d: upsert API rate-limit quotas for a user, defaulting unset rpm (reads DB)
+// SEM@41b5c38bfd158370f52ee766875ea5d46d603cbd: upsert API rate-limit quotas for a user, defaulting unset rpm (reads DB)
 func setQuotas(db *testdb.TestDB, userInternalUUID string, quota map[string]any) error {
 	log := slogging.Get()
 

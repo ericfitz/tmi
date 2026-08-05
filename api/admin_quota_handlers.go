@@ -11,7 +11,7 @@ import (
 )
 
 // ListUserAPIQuotas retrieves all custom user API quotas (admin only)
-// SEM@62e0b9c8fbee3421336265984902230df451660d: list per-user API rate quotas with pagination and server defaults (reads DB)
+// SEM@41b5c38bfd158370f52ee766875ea5d46d603cbd: list per-user API rate quotas with pagination and server defaults (reads DB)
 func (s *Server) ListUserAPIQuotas(c *gin.Context, params ListUserAPIQuotasParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -190,7 +190,7 @@ func (s *Server) DeleteUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 }
 
 // ListWebhookQuotas retrieves all custom webhook quotas (admin only)
-// SEM@62e0b9c8fbee3421336265984902230df451660d: list per-user webhook quotas with pagination and server defaults (reads DB)
+// SEM@41b5c38bfd158370f52ee766875ea5d46d603cbd: list per-user webhook quotas with pagination and server defaults (reads DB)
 func (s *Server) ListWebhookQuotas(c *gin.Context, params ListWebhookQuotasParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -399,7 +399,7 @@ func (s *Server) DeleteWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 }
 
 // ListAddonInvocationQuotas retrieves all custom addon invocation quotas (admin only)
-// SEM@62e0b9c8fbee3421336265984902230df451660d: list per-user addon invocation quotas with pagination and server defaults (reads DB)
+// SEM@41b5c38bfd158370f52ee766875ea5d46d603cbd: list per-user addon invocation quotas with pagination and server defaults (reads DB)
 func (s *Server) ListAddonInvocationQuotas(c *gin.Context, params ListAddonInvocationQuotasParams) {
 	logger := slogging.Get().WithContext(c)
 
