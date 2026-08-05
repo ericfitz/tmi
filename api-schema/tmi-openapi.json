@@ -73995,6 +73995,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
@@ -74087,6 +74090,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "x-tmi-authz": {
