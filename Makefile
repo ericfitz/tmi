@@ -876,7 +876,8 @@ test-e2e-platform:  ## Run the platform e2e tests (requires e2e-platform-up + co
 	go test -tags e2e ./test/e2e/platform/ -v
 
 .PHONY: build-extractor build-chunkembed build-workers test-workers \
-        stage-worker-docker-deps build-extractor-container build-chunkembed-container
+        stage-worker-docker-deps build-extractor-container build-chunkembed-container \
+        build-controller-container
 
 build-extractor:  ## Build the tmi-extractor worker binary
 	go build -o bin/tmi-extractor ./cmd/extractor/
@@ -932,6 +933,9 @@ build-chunkembed-container:  ## Build the tmi-chunk-embed container image
 	$(MAKE) stage-worker-docker-deps
 	docker build -f Dockerfile.chunkembed -t tmi-chunk-embed:dev .
 	@rm -rf .docker-deps
+
+build-controller-container:  ## Build TMI component-controller container image
+	@uv run scripts/build-app-containers.py --target local --component controller
 
 .PHONY: test-e2e-workers
 
