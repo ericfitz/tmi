@@ -283,7 +283,14 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 func (s *Service) GenerateTokensWithAuthTime(ctx context.Context, user User, userInfo *UserInfo, authTime time.Time) (TokenPair, error) {
 	// If UserInfo is provided, update the user with fresh provider data
 	if userInfo != nil {
-		user.EmailVerified = userInfo.EmailVerified
+		// EmailVerified transitions one-way false -> true, matching
+		// updateUserOnLogin (#648, #687): a provider payload that lacks a
+		// verifiable email (e.g. a synthesized SAML fallback address, or an
+		// IdP that only carries the flag in ID-token claims) must never
+		// downgrade a stored verified flag.
+		if userInfo.EmailVerified && !user.EmailVerified {
+			user.EmailVerified = true
+		}
 		// Note: GivenName, FamilyName, Picture, Locale are ignored per schema requirements
 
 		// Set IdP and groups from the fresh UserInfo
