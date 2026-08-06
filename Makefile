@@ -342,6 +342,15 @@ reset-db-oci:
 probe-oracle-clob-like:
 	@bash -c "source scripts/oci-env.sh && go run -tags oracle ./scripts/oracle-clob-like-probe/..."
 
+# OCI ADB Repair - Fix quota column DEFAULTs left stale by #649 (#682)
+# Prerequisites: Same as probe-oracle-clob-like (Oracle Instant Client, wallet, credentials)
+# TMI's additive Oracle migrator no-ops GORM's MigrateColumn, so struct-tag
+# default: changes never reach already-provisioned ADB columns. This runs the
+# hand-written ALTER TABLE ... MODIFY DEFAULT companion for the two quota
+# columns and prints before/after state plus stale-row counts (read-only).
+oracle-fix-quota-defaults:  ## One-off: repair quota column DEFAULTs on Oracle ADB (#682; requires scripts/oci-env.sh)
+	@bash -c "source scripts/oci-env.sh && go run -tags oracle ./scripts/oracle-quota-default-fix/..."
+
 # Development Environment - Optional Tilt fast server-only loop
 # Requires: tilt installed (https://docs.tilt.dev/install.html) + a running dev-up cluster
 # Usage: make tilt-up   - start the Tilt fast loop (runs in foreground; Ctrl-C to stop)

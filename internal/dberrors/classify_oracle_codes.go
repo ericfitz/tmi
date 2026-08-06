@@ -21,6 +21,48 @@ func SnapshotTooOldCount() uint64 {
 	return ora01555Counter.Load()
 }
 
+// ora00932Counter tracks the cumulative number of ORA-00932 (inconsistent
+// datatypes) occurrences observed by classifyOracleCode. See the comment on
+// classifyOracleCode's ORA-00932 branch for why this code is deliberately
+// left unclassified (falls through to 500) rather than mapped to a sentinel.
+var ora00932Counter atomic.Uint64
+
+// InconsistentDatatypesCount returns the cumulative number of ORA-00932
+// occurrences observed since process start. Intended for operator inspection
+// and tests: a nonzero, growing count is the signal that a server-side query
+// is hitting a CLOB column in a context Oracle cannot evaluate (ORDER BY,
+// GROUP BY, DISTINCT) and needs a code fix, not a retry.
+// SEM@379ec443351a5e4c305ce61c48bfaab5ed1a5f97: return the cumulative count of ORA-00932 inconsistent-datatype errors observed since process start (pure)
+func InconsistentDatatypesCount() uint64 {
+	return ora00932Counter.Load()
+}
+
+// oraMaxOpenCursorsCounter and oraSharedPoolCounter track ORA-01000 (max open
+// cursors) and ORA-04031 (shared pool exhaustion) occurrences. Both are
+// classified as ErrTransient (a bare retry can succeed once cursors close or
+// the pool reclaims), but both also indicate a resource-exhaustion condition
+// whose root cause — cursor leaks, hard-parse pressure — hides behind a
+// silent 503 unless counted and logged. See instrumentOracleCode.
+var (
+	oraMaxOpenCursorsCounter atomic.Uint64
+	oraSharedPoolCounter     atomic.Uint64
+)
+
+// MaxOpenCursorsCount returns the cumulative number of ORA-01000 occurrences
+// observed since process start. Intended for operator inspection and tests.
+// SEM@379ec443351a5e4c305ce61c48bfaab5ed1a5f97: return the cumulative count of ORA-01000 max-open-cursors errors observed since process start (pure)
+func MaxOpenCursorsCount() uint64 {
+	return oraMaxOpenCursorsCounter.Load()
+}
+
+// SharedPoolExhaustedCount returns the cumulative number of ORA-04031
+// occurrences observed since process start. Intended for operator inspection
+// and tests.
+// SEM@379ec443351a5e4c305ce61c48bfaab5ed1a5f97: return the cumulative count of ORA-04031 shared-pool-exhaustion errors observed since process start (pure)
+func SharedPoolExhaustedCount() uint64 {
+	return oraSharedPoolCounter.Load()
+}
+
 // oracleCodeSentinels maps an ORA- numeric code to the sentinel it classifies
 // as. A table rather than a switch because the switch outgrew the cyclomatic
 // complexity budget; every arm was a bare `return Wrap(err, X)`, so the mapping
@@ -107,7 +149,9 @@ var oracleCodeSentinels = map[int]error{
 	// Additional ADB transient conditions
 	18:    ErrTransient, // maximum number of sessions exceeded — ADB tier-cap exhaustion
 	20:    ErrTransient, // maximum number of processes exceeded
+	1000:  ErrTransient, // maximum open cursors exceeded — resource exhaustion, retry after cursors close
 	3156:  ErrTransient, // RPC connection timed out
+	4031:  ErrTransient, // unable to allocate shared memory (shared pool) — resource exhaustion, ADB may reclaim
 	12519: ErrTransient, // TNS:no appropriate service handler found — ADB shape-resize transient
 	12520: ErrTransient, // TNS:listener could not find available handler — ADB autoscale
 	25408: ErrTransient, // can not safely replay call — Application Continuity / replay-driver
@@ -117,15 +161,16 @@ var oracleCodeSentinels = map[int]error{
 // Lives outside the //go:build oracle file so it can be unit-tested
 // without depending on godror (which requires CGO + Oracle Instant Client).
 //
-// Returns nil for codes that intentionally defer to data — e.g., ORA-01555
-// (snapshot too old), where the right answer (transient retry vs. unfixable
-// undo exhaustion) depends on the caller's transaction shape and on the
-// observed occurrence rate. ORA-01555 occurrences are counted in
-// ora01555Counter and emit a WARN log so operators can decide whether the
-// rate justifies reclassification.
-// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: look up an Oracle ORA- error code in a table to classify its sentinel error; instrument ORA-01555 with counter and warn log (pure)
+// Returns nil for codes that intentionally defer to data or to code review —
+// e.g. ORA-01555 (snapshot too old), where the right classification depends
+// on the caller's transaction shape and on the observed occurrence rate, and
+// ORA-00932 (inconsistent datatypes), which is deliberately never mapped to a
+// sentinel (see below). Both are instrumented with a counter and a log line
+// so operators see every occurrence without scraping a metrics endpoint.
+// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: look up an Oracle ORA- error code in a table to classify its sentinel error; instrument ORA-01555/ORA-00932 with counters and logs, and ORA-01000/ORA-04031 with counters on the classified path (pure)
 func classifyOracleCode(err error, code int) error {
 	if sentinel, ok := oracleCodeSentinels[code]; ok {
+		instrumentOracleCode(code, err)
 		return Wrap(err, sentinel)
 	}
 
@@ -141,5 +186,41 @@ func classifyOracleCode(err error, code int) error {
 		slogging.Get().Warn("ORA-01555 snapshot too old observed (cumulative count: %d): %v", count, err)
 	}
 
+	// ORA-00932 (inconsistent datatypes) is deliberately left unclassified
+	// (falls through to 500) rather than mapped to ErrConstraint, contrary to
+	// an earlier version of this table. Every user-influenceable sort/filter
+	// route already excludes the CLOB-backed columns that could trigger this
+	// (see GormThreatRepository.buildOrderBy, api/threat_store_gorm.go, which
+	// omits threat_type from validColumns for exactly this ORA-00932 reason),
+	// so any code path that still reaches ORA-00932 is a server-side query
+	// bug, not user input — the request did nothing wrong. Classifying it as
+	// ErrConstraint would also be actively harmful: several handlers (e.g.
+	// api/client_credentials_handlers.go) treat errors.Is(err, ErrConstraint)
+	// as "resource already exists" and return 409 with a misleading message,
+	// which would hide the underlying defect behind a false-positive client
+	// error instead of a 500 that gets noticed and fixed. Instrumented loudly
+	// (counter + ERROR log, not WARN) precisely because — unlike ORA-01555 —
+	// every occurrence here is expected to indicate a real bug.
+	if code == 932 {
+		count := ora00932Counter.Add(1)
+		slogging.Get().Error("ORA-00932 inconsistent datatypes observed (cumulative count: %d): %v — likely a server-side query bug, not user input", count, err)
+	}
+
 	return nil
+}
+
+// instrumentOracleCode adds counter + log observability for classified codes
+// whose root cause is easy to miss behind a generic 503. Kept separate from
+// the sentinel map (which is pure data) and called only for codes already
+// found in oracleCodeSentinels; the switch is a no-op for every other code.
+// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: increment a per-code counter and emit a warn log for classified Oracle codes whose cause is easy to miss (side effect: counter + log)
+func instrumentOracleCode(code int, err error) {
+	switch code {
+	case 1000:
+		count := oraMaxOpenCursorsCounter.Add(1)
+		slogging.Get().Warn("ORA-01000 maximum open cursors exceeded (cumulative count: %d): %v — check for cursor leaks", count, err)
+	case 4031:
+		count := oraSharedPoolCounter.Add(1)
+		slogging.Get().Warn("ORA-04031 shared pool exhausted (cumulative count: %d): %v — check for hard-parse pressure", count, err)
+	}
 }
