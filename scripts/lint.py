@@ -70,6 +70,12 @@ def main() -> None:
         cwd=project_root,
     )
 
+    log_info("Checking CATS false-positive rule numbering...")
+    run_cmd(
+        ["uv", "run", "scripts/check-cats-fp-numbering.py"],
+        cwd=project_root,
+    )
+
     log_info("Running golangci-lint...")
     golangci = Path.home() / "go" / "bin" / "golangci-lint"
     run_cmd(
