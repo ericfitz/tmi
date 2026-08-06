@@ -375,7 +375,7 @@ def scan_component(
         component, f"{config.image_name_prefix}{component}"
     )
     reports_dir = project_root / "security-reports"
-    return helpers.scan_image(f"{image_name}:latest", reports_dir)
+    return helpers.scan_image(f"{image_name}:latest", reports_dir, platform=config.platform)
 
 
 def main() -> None:
