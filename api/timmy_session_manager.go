@@ -155,10 +155,13 @@ func (sm *TimmySessionManager) CreateSession(
 ) (*models.TimmySession, []SkippedSource, error) {
 	logger := slogging.Get()
 
-	// Check session count limit
+	// Check session count limit. A transient store error here (Oracle/PG
+	// blip) is a temporary backend condition, not a server bug (#652): route
+	// it through StoreErrorToRequestError so it surfaces as 503 instead of
+	// falling through to the generic 500 in HandleRequestError.
 	activeCount, err := GlobalTimmySessionStore.CountActiveByThreatModel(ctx, threatModelID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to count active sessions: %w", err)
+		return nil, nil, StoreErrorToRequestError(err, "threat model not found", "failed to count active sessions")
 	}
 	c := sm.cfgFor(ctx)
 	if activeCount >= c.MaxSessionsPerThreatModel {

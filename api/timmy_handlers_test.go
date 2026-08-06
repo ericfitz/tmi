@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/config"
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
@@ -513,6 +514,30 @@ func TestTimmyCreateSession_Unauthenticated(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
+// TestTimmyCreateSession_CapExceededReturns429JSON verifies the #652 fix: a
+// pre-stream refusal (session cap hit before any SSE bytes are written) must
+// come back as a real 429 JSON response, not an HTTP 200 with an SSE
+// event:error body.
+func TestTimmyCreateSession_CapExceededReturns429JSON(t *testing.T) {
+	server, cleanup := setupTimmyHandlerTest(t)
+	defer cleanup()
+
+	// One active session already occupies the (deliberately tiny) cap.
+	createTestTimmySession(t, timmyTestUserAlice, timmyTestTMID7, "Existing Session", "active")
+	server.timmySessionManager = &TimmySessionManager{
+		config: config.TimmyConfig{MaxSessionsPerThreatModel: 1},
+	}
+
+	c, w := timmyTestContext("POST", "/", timmyTestUserAlice)
+
+	server.CreateTimmyChatSession(c, mustParseTimmyUUID(timmyTestTMID7))
+
+	assert.Equal(t, http.StatusTooManyRequests, w.Code)
+	assert.Contains(t, w.Header().Get("Content-Type"), "application/json")
+	assert.NotContains(t, w.Body.String(), "event:", "no SSE framing on a refused request")
+	assert.Contains(t, w.Body.String(), "session_limit_exceeded")
+}
+
 func TestTimmyCreateMessage_NotConfigured(t *testing.T) {
 	server, cleanup := setupTimmyHandlerTest(t)
 	defer cleanup()
@@ -567,6 +592,30 @@ func TestTimmyCreateMessage_EmptyContent(t *testing.T) {
 	server.CreateTimmyChatMessage(c, mustParseTimmyUUID(timmyTestTMID8), mustParseTimmyUUID(string(session.ID)))
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// TestTimmyCreateMessage_SessionNotActiveReturns409JSON verifies the #652 fix
+// for CreateTimmyChatMessage's error branch: HandleMessage's pre-stream
+// session_not_active RequestError (raised after the SSE writer already set
+// its headers) must still come back as a real 409 JSON response, not an
+// HTTP 200 with an SSE event:error body.
+func TestTimmyCreateMessage_SessionNotActiveReturns409JSON(t *testing.T) {
+	server, cleanup := setupTimmyHandlerTest(t)
+	defer cleanup()
+
+	session := createTestTimmySession(t, timmyTestUserAlice, timmyTestTMID8, "Inactive Session", "completed")
+	server.timmySessionManager = &TimmySessionManager{}
+
+	c, w := timmyTestContext("POST", "/", timmyTestUserAlice)
+	c.Request = httptest.NewRequest("POST", "/", timmyJSONBody(t, map[string]string{"content": "hello"}))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	server.CreateTimmyChatMessage(c, mustParseTimmyUUID(timmyTestTMID8), mustParseTimmyUUID(string(session.ID)))
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Header().Get("Content-Type"), "application/json")
+	assert.NotContains(t, w.Body.String(), "event:", "no SSE framing on a refused request")
+	assert.Contains(t, w.Body.String(), "session_not_active")
 }
 
 // --- Helper functions ---

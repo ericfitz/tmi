@@ -64629,6 +64629,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           }
         },
         "x-rate-limit": {

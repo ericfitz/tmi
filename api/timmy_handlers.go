@@ -92,9 +92,7 @@ func (s *Server) CreateTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 	)
 	if createErr != nil {
 		logger.Error("Failed to create Timmy session: %v", createErr)
-		if err := sse.SendError("session_creation_failed", createErr.Error()); err != nil {
-			logger.Warn("Timmy: could not deliver session_creation_failed: %v", err)
-		}
+		sendTimmyError(c, sse, "session_creation_failed", createErr)
 		return
 	}
 
@@ -360,9 +358,7 @@ func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatMode
 	)
 	if handleErr != nil {
 		logger.Error("Failed to handle Timmy message: %v", handleErr)
-		if err := sse.SendError("message_failed", handleErr.Error()); err != nil {
-			logger.Warn("Timmy: could not deliver message_failed to the client: %v", err)
-		}
+		sendTimmyError(c, sse, "message_failed", handleErr)
 		return
 	}
 
@@ -671,6 +667,23 @@ func (s *Server) RequestDocumentAccess(c *gin.Context, threatModelId ThreatModel
 }
 
 // --- Helper functions ---
+
+// sendTimmyError reports a handler failure on an SSE endpoint. Before any
+// byte is written the HTTP status is still ours to set (#652): strip the
+// SSE headers and return a normal JSON error. Once the stream is committed
+// (progress/token events), fall back to an SSE error event.
+// SEM marker pending: run `/sem-annotate --update api/timmy_handlers.go api/timmy_session_manager.go` (new entity, no commit sha yet).
+func sendTimmyError(c *gin.Context, sse *SSEWriter, code string, err error) {
+	if !c.Writer.Written() {
+		c.Writer.Header().Del("X-Accel-Buffering")
+		c.Writer.Header().Set("Content-Type", "application/json")
+		HandleRequestError(c, err)
+		return
+	}
+	if sendErr := sse.SendError(code, err.Error()); sendErr != nil {
+		slogging.Get().WithContext(c).Warn("Timmy: could not deliver %s: %v", code, sendErr)
+	}
+}
 
 // getTimmyUserID extracts the authenticated user's internal UUID from the gin context.
 // SEM@773397b4fdff89166751fd8b5643ac59abce3367: extract the authenticated user's internal UUID from the Gin context (pure)
