@@ -144,17 +144,21 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 		return "", dberrors.Classify(result.Error)
 	}
 
-	// If the group was updated (not created), we need to fetch its UUID
-	if group.InternalUUID == "" {
-		var existingGroup models.Group
-		// Use struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
-		if err := tx.Where(&models.Group{Provider: models.DBVarchar(provider), GroupName: models.DBVarchar(groupName)}).First(&existingGroup).Error; err != nil {
-			return "", dberrors.Classify(err)
-		}
-		return string(existingGroup.InternalUUID), nil
+	// Always read the row back rather than trusting the struct's PK.
+	//
+	// models.Group's BeforeCreate hook generates InternalUUID client-side, so
+	// it is non-empty even when the upsert took the UPDATE branch — an
+	// `InternalUUID == ""` guard here never fires. PostgreSQL hid that: its
+	// ON CONFLICT ... DO UPDATE carries RETURNING, so GORM overwrites the
+	// struct with the existing row's id. Oracle's MERGE has no RETURNING, so
+	// the struct keeps a UUID that was never inserted, and every FK
+	// referencing it fails (ORA-02291 on THREAT_MODEL_ACCESS). See #703.
+	var existingGroup models.Group
+	// Struct-based query for cross-database compatibility (Oracle requires quoted lowercase column names)
+	if err := tx.Where(&models.Group{Provider: models.DBVarchar(provider), GroupName: models.DBVarchar(groupName)}).First(&existingGroup).Error; err != nil {
+		return "", dberrors.Classify(err)
 	}
-
-	return string(group.InternalUUID), nil
+	return string(existingGroup.InternalUUID), nil
 }
 
 // Get retrieves a threat model by ID using GORM
