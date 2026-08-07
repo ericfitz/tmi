@@ -147,7 +147,7 @@ func (sm *TimmySessionManager) expectedEmbeddingModel(ctx context.Context, index
 // It snapshots timmy-enabled entities, creates the session record, and
 // optionally prepares the vector index (if LLM service is configured).
 // Returns the created session, any skipped sources, and an error.
-// SEM@63d2546d6591e57d65783c3032d4412409c2b328: build a Timmy session: snapshot entities, persist session record, and prepare vector index (reads DB)
+// SEM@4136fe3c398021aae565b5db0269c2d8134c6d3e: build a Timmy session: snapshot entities, persist the session record, prepare the vector index (reads DB)
 func (sm *TimmySessionManager) CreateSession(
 	ctx context.Context,
 	userID, threatModelID, title string,

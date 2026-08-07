@@ -22,7 +22,7 @@ import (
 )
 
 // CreateTimmyChatSession creates a new chat session and streams preparation progress via SSE.
-// SEM@c309061af96f4db6e2d3a7da1d077b6a6f2f3c75: create a new Timmy chat session and stream preparation progress to the caller via SSE
+// SEM@4136fe3c398021aae565b5db0269c2d8134c6d3e: create a new Timmy chat session and stream preparation progress via SSE
 func (s *Server) CreateTimmyChatSession(c *gin.Context, threatModelId ThreatModelId) {
 	logger := slogging.Get().WithContext(c)
 
@@ -212,7 +212,7 @@ func (s *Server) DeleteTimmyChatSession(c *gin.Context, threatModelId ThreatMode
 }
 
 // CreateTimmyChatMessage sends a message and streams the assistant's response via SSE.
-// SEM@c309061af96f4db6e2d3a7da1d077b6a6f2f3c75: send a user message to Timmy and stream the assistant response token-by-token via SSE
+// SEM@4136fe3c398021aae565b5db0269c2d8134c6d3e: send a user message to Timmy and stream the assistant reply token-by-token via SSE
 func (s *Server) CreateTimmyChatMessage(c *gin.Context, threatModelId ThreatModelId, sessionId SessionId) {
 	logger := slogging.Get().WithContext(c)
 
@@ -672,7 +672,7 @@ func (s *Server) RequestDocumentAccess(c *gin.Context, threatModelId ThreatModel
 // byte is written the HTTP status is still ours to set (#652): strip the
 // SSE headers and return a normal JSON error. Once the stream is committed
 // (progress/token events), fall back to an SSE error event.
-// SEM marker pending: run `/sem-annotate --update api/timmy_handlers.go api/timmy_session_manager.go` (new entity, no commit sha yet).
+// SEM@4136fe3c398021aae565b5db0269c2d8134c6d3e: report a handler failure as a JSON error or, if the SSE stream already started, an SSE error event
 func sendTimmyError(c *gin.Context, sse *SSEWriter, code string, err error) {
 	if !c.Writer.Written() {
 		c.Writer.Header().Del("X-Accel-Buffering")

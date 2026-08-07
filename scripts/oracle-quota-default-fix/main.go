@@ -64,12 +64,14 @@ import (
 // the default expression, available since Oracle 12.2) has no such
 // restriction and is queried separately so there is always some evidence the
 // ALTER took effect even when DATA_DEFAULT itself is unreadable.
+// SEM@7bbef7cb69972ca979324137a10e8f644c604934: model an Oracle USER_TAB_COLUMNS row's DATA_DEFAULT for a quota column
 type columnDefault struct {
 	TableName   string `gorm:"column:TABLE_NAME"`
 	ColumnName  string `gorm:"column:COLUMN_NAME"`
 	DataDefault string `gorm:"column:DATA_DEFAULT"`
 }
 
+// SEM@7bbef7cb69972ca979324137a10e8f644c604934: model an Oracle USER_TAB_COLUMNS row's DEFAULT_LENGTH for a quota column
 type columnDefaultLength struct {
 	TableName     string `gorm:"column:TABLE_NAME"`
 	ColumnName    string `gorm:"column:COLUMN_NAME"`
@@ -80,6 +82,7 @@ const columnFilter = `
 	(TABLE_NAME = 'USER_API_QUOTAS' AND COLUMN_NAME = 'MAX_REQUESTS_PER_MINUTE')
 	OR (TABLE_NAME = 'ADDON_INVOCATION_QUOTAS' AND COLUMN_NAME = 'MAX_ACTIVE_INVOCATIONS')`
 
+// SEM@7bbef7cb69972ca979324137a10e8f644c604934: repair stale Oracle DEFAULT clauses on two quota columns and report stale rows (mutates DB)
 func main() {
 	exitCode := 0
 	defer func() { os.Exit(exitCode) }()
@@ -190,6 +193,7 @@ func main() {
 // readable) for the two target columns and doubles as the existence check:
 // an empty result means the connected schema does not own these tables
 // (reads DB).
+// SEM@7bbef7cb69972ca979324137a10e8f644c604934: fetch DEFAULT_LENGTH for the two target quota columns from Oracle (reads DB)
 func queryDefaultLengths(db *gorm.DB) ([]columnDefaultLength, error) {
 	var rows []columnDefaultLength
 	err := db.Raw(`
@@ -205,6 +209,7 @@ func queryDefaultLengths(db *gorm.DB) ([]columnDefaultLength, error) {
 // DATA_DEFAULT was readable — so an unreadable/empty LONG still leaves
 // numeric evidence (byte length of the default expression) that the ALTER
 // took effect (reads DB).
+// SEM@7bbef7cb69972ca979324137a10e8f644c604934: format and print the quota columns' current DEFAULT clause state (reads DB)
 func printDefaults(db *gorm.DB, label string, lengths []columnDefaultLength) {
 	var rows []columnDefault
 	err := db.Raw(`
@@ -238,6 +243,7 @@ func printDefaults(db *gorm.DB, label string, lengths []columnDefaultLength) {
 // that same value was deliberately set on purpose, not only rows that
 // inherited it from the stale DEFAULT — read it as an upper bound, not proof
 // of staleness.
+// SEM@7bbef7cb69972ca979324137a10e8f644c604934: count rows still carrying a quota column's stale literal default value (reads DB)
 func assessStaleRows(db *gorm.DB, table, column string, staleValue int) {
 	var count int64
 	query := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE %s = ?", table, column)

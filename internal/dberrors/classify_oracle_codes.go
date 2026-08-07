@@ -167,7 +167,7 @@ var oracleCodeSentinels = map[int]error{
 // ORA-00932 (inconsistent datatypes), which is deliberately never mapped to a
 // sentinel (see below). Both are instrumented with a counter and a log line
 // so operators see every occurrence without scraping a metrics endpoint.
-// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: look up an Oracle ORA- error code in a table to classify its sentinel error; instrument ORA-01555/ORA-00932 with counters and logs, and ORA-01000/ORA-04031 with counters on the classified path (pure)
+// SEM@7bbef7cb69972ca979324137a10e8f644c604934: classify an Oracle ORA- error code to a sentinel error via lookup table (pure)
 func classifyOracleCode(err error, code int) error {
 	if sentinel, ok := oracleCodeSentinels[code]; ok {
 		instrumentOracleCode(code, err)
