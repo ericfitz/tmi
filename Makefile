@@ -347,7 +347,8 @@ probe-oracle-clob-like:
 # TMI's additive Oracle migrator no-ops GORM's MigrateColumn, so struct-tag
 # default: changes never reach already-provisioned ADB columns. This runs the
 # hand-written ALTER TABLE ... MODIFY DEFAULT companion for the two quota
-# columns and prints before/after state plus stale-row counts (read-only).
+# columns — MUTATES schema metadata (the ALTERs) — then prints before/after
+# state plus stale-row counts (the assessment queries are read-only).
 oracle-fix-quota-defaults:  ## One-off: repair quota column DEFAULTs on Oracle ADB (#682; requires scripts/oci-env.sh)
 	@bash -c "source scripts/oci-env.sh && go run -tags oracle ./scripts/oracle-quota-default-fix/..."
 
