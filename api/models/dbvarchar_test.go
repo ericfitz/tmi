@@ -101,6 +101,28 @@ func TestNullableDBVarchar_NilScan(t *testing.T) {
 	assert.Equal(t, "", v.String, "String should be empty after Scan(nil)")
 }
 
+// Oracle hands a NULL VARCHAR2 back as an empty string rather than nil (it
+// stores the empty string as NULL), so an empty scan input must set
+// Valid=false exactly like Scan(nil) — otherwise NULL columns read back as
+// valid empty values, breaking Email marshaling and GORM preload FKs (#698).
+func TestNullableDBVarchar_EmptyScan(t *testing.T) {
+	for _, input := range []any{"", []byte{}} {
+		v := NullableDBVarchar{String: "stale", Valid: true}
+		require.NoError(t, v.Scan(input), "Scan(empty)")
+		assert.False(t, v.Valid, "Valid should be false after Scan of empty %T", input)
+		assert.Equal(t, "", v.String, "String should be empty after Scan of empty %T", input)
+	}
+}
+
+func TestNullableDBText_EmptyScan(t *testing.T) {
+	for _, input := range []any{"", []byte{}} {
+		v := NullableDBText{String: "stale", Valid: true}
+		require.NoError(t, v.Scan(input), "Scan(empty)")
+		assert.False(t, v.Valid, "Valid should be false after Scan of empty %T", input)
+		assert.Equal(t, "", v.String, "String should be empty after Scan of empty %T", input)
+	}
+}
+
 func TestNullableDBVarchar_Scan_UnsupportedType(t *testing.T) {
 	var v NullableDBVarchar
 	err := v.Scan(42)

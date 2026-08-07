@@ -576,7 +576,6 @@ func (t *NullableDBText) Scan(value any) error {
 		t.String, t.Valid = "", false
 		return nil
 	}
-	t.Valid = true
 	switch v := value.(type) {
 	case []byte:
 		t.String = string(v)
@@ -585,6 +584,9 @@ func (t *NullableDBText) Scan(value any) error {
 	default:
 		return fmt.Errorf("cannot scan type %T into NullableDBText", value)
 	}
+	// Empty input normalizes to NULL for Oracle parity — see the identical
+	// guard in NullableDBVarchar.Scan (#698).
+	t.Valid = t.String != ""
 	return nil
 }
 
@@ -746,7 +748,6 @@ func (v *NullableDBVarchar) Scan(value any) error {
 		v.String, v.Valid = "", false
 		return nil
 	}
-	v.Valid = true
 	switch s := value.(type) {
 	case []byte:
 		v.String = string(s)
@@ -755,6 +756,12 @@ func (v *NullableDBVarchar) Scan(value any) error {
 	default:
 		return fmt.Errorf("cannot scan type %T into NullableDBVarchar", value)
 	}
+	// Oracle stores the empty string as NULL and hands a NULL VARCHAR2 back as
+	// an empty string (not nil), so empty input must normalize to NULL like the
+	// value==nil branch — otherwise NULL columns read back Valid+empty, which
+	// breaks Email marshaling and feeds GORM preloads WHERE fk = '' (#698).
+	// Same normalization as JSONRaw.Scan (#696) and NullableSSVC.Scan.
+	v.Valid = v.String != ""
 	return nil
 }
 
