@@ -442,6 +442,15 @@ func (j *JSONRaw) Scan(value any) error {
 		return fmt.Errorf("cannot scan type %T into JSONRaw", value)
 	}
 
+	// Oracle stores '' as NULL and hands a NULL CLOB back as an empty string,
+	// so empty input must normalize to nil exactly like SQL NULL (the value==nil
+	// branch above) — a zero-length non-nil JSONRaw fails json.Unmarshal in row
+	// converters (#696). Mirrors Value()'s empty→NULL normalization.
+	if len(raw) == 0 {
+		*j = nil
+		return nil
+	}
+
 	// Oracle may return CLOB/BLOB data as uppercase hex-encoded strings
 	// (e.g., "7B7D" instead of "{}"). Detect this by checking if the data
 	// is valid JSON first; if not, try hex decoding.

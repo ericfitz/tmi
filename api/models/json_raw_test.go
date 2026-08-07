@@ -84,6 +84,30 @@ func TestJSONRaw_Scan_Nil(t *testing.T) {
 	assert.Nil(t, j)
 }
 
+// Oracle returns a NULL CLOB as an empty string (it stores the empty string as NULL), so an
+// empty scan input must normalize to nil exactly like SQL NULL — otherwise a
+// zero-length non-nil JSONRaw survives to json.Unmarshal and fails row
+// conversion (#696). Mirrors Value()'s empty→NULL normalization.
+func TestJSONRaw_Scan_Empty(t *testing.T) {
+	tests := []struct {
+		name  string
+		input any
+	}{
+		{name: "empty string", input: ""},
+		{name: "empty bytes", input: []byte{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			j := JSONRaw(`{"existing":"data"}`)
+
+			err := j.Scan(tt.input)
+			require.NoError(t, err)
+			assert.Nil(t, j)
+		})
+	}
+}
+
 func TestJSONRaw_Scan_Bytes(t *testing.T) {
 	tests := []struct {
 		name     string
