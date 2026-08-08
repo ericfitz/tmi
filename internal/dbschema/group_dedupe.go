@@ -21,9 +21,25 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 )
+
+// dedupeMaxAttempts bounds how many times dedupeGroupKey's transaction is
+// retried after a transient error (Oracle ORA-00060 deadlock, ORA-08177
+// serialization failure — see #712) before giving up. DeduplicateGroups runs
+// during startup schema migration while holding the cross-replica advisory
+// lock (cmd/server/main.go runMigrationsLocked), so every retry here delays
+// every other replica waiting on that lock: keep the count and backoff small
+// and fixed rather than configurable.
+const dedupeMaxAttempts = 3
+
+// dedupeRetryDelay is the fixed backoff between retry attempts. Deliberately
+// short (see dedupeMaxAttempts) — this is not a general-purpose transaction
+// retry policy, just enough to let a concurrent replica's conflicting
+// transaction clear before trying again.
+const dedupeRetryDelay = 20 * time.Millisecond
 
 // groupDupKey is a raw scan target for the duplicate-key query. Deliberately
 // untagged (see cmd/dedup-group-members/main.go): result-set labels come back
@@ -138,63 +154,94 @@ func DeduplicateGroups(db *gorm.DB) (int64, error) {
 
 // dedupeGroupKey resolves one duplicate (provider, group_name) key inside a
 // single transaction: pick the survivor, repoint children, delete losers.
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: resolve one duplicate groups key by repointing children and deleting the losers (writes DB)
+// The transaction is wrapped in withDedupeRetry so a transient cross-replica
+// conflict (#712) is retried a bounded number of times instead of aborting
+// the whole migration.
+// SEM@7d1cee63: resolve one duplicate groups key by repointing children and deleting the losers, retrying on transient errors (writes DB)
 func dedupeGroupKey(db *gorm.DB, provider, groupName string) (int64, error) {
 	groupsTable := (&models.Group{}).TableName()
 	tmaTable := (&models.ThreatModelAccess{}).TableName()
 	sraTable := (&models.SurveyResponseAccess{}).TableName()
 
 	var removed int64
-	err := db.Transaction(func(tx *gorm.DB) error {
-		var rows []groupIDRow
-		if err := tx.Table(groupsTable).
-			Select("internal_uuid, first_used").
-			Where("provider = ? AND group_name = ?", provider, groupName).
-			Order("first_used ASC, internal_uuid ASC").
-			Scan(&rows).Error; err != nil {
-			return fmt.Errorf("failed to load duplicate group rows: %w", err)
-		}
-		if len(rows) < 2 {
-			// A concurrent replica already resolved this key.
-			return nil
-		}
-
-		survivor := rows[0].InternalUUID
-		losers := make([]string, 0, len(rows)-1)
-		for _, r := range rows[1:] {
-			losers = append(losers, r.InternalUUID)
-		}
-
-		if err := repointGroupMembers(tx, survivor, losers); err != nil {
-			return err
-		}
-		// A loser nested under the survivor (or vice versa) before this
-		// dedupe ran can, after the repoint above, leave a group_members row
-		// where the survivor is a member of itself. This bypasses
-		// GroupMember's BeforeSave hooks (writes here go through .Table(),
-		// not the model), so clean it up explicitly.
-		if err := dropSelfMembership(tx, survivor); err != nil {
-			return err
-		}
-		if err := repointGroupReference(tx, tmaTable, survivor, losers); err != nil {
-			return err
-		}
-		if err := repointGroupReference(tx, sraTable, survivor, losers); err != nil {
-			return err
-		}
-
-		var deleted int64
-		for _, chunk := range chunkStrings(losers) {
-			result := tx.Table(groupsTable).Where("internal_uuid IN ?", chunk).Delete(nil)
-			if result.Error != nil {
-				return fmt.Errorf("failed to delete duplicate group rows: %w", result.Error)
+	err := withDedupeRetry(provider, groupName, func() error {
+		removed = 0
+		return db.Transaction(func(tx *gorm.DB) error {
+			var rows []groupIDRow
+			if err := tx.Table(groupsTable).
+				Select("internal_uuid, first_used").
+				Where("provider = ? AND group_name = ?", provider, groupName).
+				Order("first_used ASC, internal_uuid ASC").
+				Scan(&rows).Error; err != nil {
+				return fmt.Errorf("failed to load duplicate group rows: %w", err)
 			}
-			deleted += result.RowsAffected
-		}
-		removed = deleted
-		return nil
+			if len(rows) < 2 {
+				// A concurrent replica already resolved this key.
+				return nil
+			}
+
+			survivor := rows[0].InternalUUID
+			losers := make([]string, 0, len(rows)-1)
+			for _, r := range rows[1:] {
+				losers = append(losers, r.InternalUUID)
+			}
+
+			if err := repointGroupMembers(tx, survivor, losers); err != nil {
+				return err
+			}
+			// A loser nested under the survivor (or vice versa) before this
+			// dedupe ran can, after the repoint above, leave a group_members row
+			// where the survivor is a member of itself. This bypasses
+			// GroupMember's BeforeSave hooks (writes here go through .Table(),
+			// not the model), so clean it up explicitly.
+			if err := dropSelfMembership(tx, survivor); err != nil {
+				return err
+			}
+			if err := repointGroupReference(tx, tmaTable, survivor, losers); err != nil {
+				return err
+			}
+			if err := repointGroupReference(tx, sraTable, survivor, losers); err != nil {
+				return err
+			}
+
+			var deleted int64
+			for _, chunk := range chunkStrings(losers) {
+				result := tx.Table(groupsTable).Where("internal_uuid IN ?", chunk).Delete(nil)
+				if result.Error != nil {
+					return fmt.Errorf("failed to delete duplicate group rows: %w", result.Error)
+				}
+				deleted += result.RowsAffected
+			}
+			removed = deleted
+			return nil
+		})
 	})
 	return removed, err
+}
+
+// withDedupeRetry runs fn (a single dedupeGroupKey transaction attempt) up
+// to dedupeMaxAttempts times. It retries only when the returned error
+// classifies as dberrors.IsRetryable (Oracle deadlock/serialization
+// failures, connection blips); any other error — including
+// dberrors.ErrDuplicate, which is never retryable — is returned to the
+// caller unchanged on the first attempt. provider/groupName are only used
+// for the retry log line.
+// SEM@7d1cee63: retry a dedupe transaction attempt a bounded number of times on transient errors only (pure control flow)
+func withDedupeRetry(provider, groupName string, fn func() error) error {
+	var err error
+	for attempt := 1; attempt <= dedupeMaxAttempts; attempt++ {
+		err = fn()
+		if err == nil {
+			return nil
+		}
+		if !dberrors.IsRetryable(dberrors.Classify(err)) || attempt == dedupeMaxAttempts {
+			return err
+		}
+		slogging.Get().Warn("groups dedupe: transient error for provider=%s group_name=%s (attempt %d/%d), retrying: %v",
+			provider, groupName, attempt, dedupeMaxAttempts, err)
+		time.Sleep(dedupeRetryDelay)
+	}
+	return err
 }
 
 // repointGroupReference repoints a nullable group_internal_uuid column that
