@@ -243,12 +243,17 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 	// Without it the value mirrored onto the struct below (and returned in the
 	// response body) carries up to 999ns the next DB-served read will not.
 	now := time.Now().UTC().Truncate(time.Microsecond)
+	// name/type/description are NullableDBVarchar/NullableDBText columns;
+	// route through the typed constructor so Value() normalizes an empty
+	// string to NULL (#700) — a raw *string here bypasses the Valuer and
+	// would persist "" verbatim, diverging from Create's struct-based path
+	// (which already goes through Value()) on PostgreSQL only.
 	updates := map[string]any{
 		"modified_at": now,
-		"name":        repository.Name,
+		"name":        models.NewNullableDBVarchar(repository.Name),
 		"uri":         repository.Uri,
-		"description": repository.Description,
-		"type":        repoType,
+		"description": models.NewNullableDBText(repository.Description),
+		"type":        models.NewNullableDBVarchar(repoType),
 		"parameters":  params,
 	}
 	if repository.IncludeInReport != nil {

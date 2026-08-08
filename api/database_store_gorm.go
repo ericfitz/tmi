@@ -112,7 +112,7 @@ func resolveGroupUUID(tx *gorm.DB, groupName string, idp *string) (string, error
 }
 
 // ensureGroupExists creates a group entry if it doesn't exist and returns its internal_uuid using GORM
-// SEM@f55124e39b362ab7afb22c9e47e214d1027f8b69: upsert a group by provider and name, tolerating a duplicate-create race (reads DB)
+// SEM@db8c21595adadea21843e41c61644bb014694be2: upsert a group by provider and name, tolerating a duplicate-create race (mutates DB)
 func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, idp *string) (string, error) {
 	provider := BuiltInProvider
 	if idp != nil && *idp != "" {
@@ -1035,18 +1035,21 @@ func (s *GormThreatModelStore) Update(ctx context.Context, id string, item Threa
 			updateProjectID = &s
 		}
 
-		// Update threat model
+		// Update threat model. Nullable-typed columns pass through their
+		// models.NullableDB* constructor so Value() gets a chance to
+		// normalize empty string to NULL (#700); a raw *string in the map
+		// bypasses the Valuer and would persist "" verbatim.
 		// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 		updates := map[string]any{
 			"name":                            item.Name,
-			"description":                     item.Description,
+			"description":                     models.NewNullableDBText(item.Description),
 			"owner_internal_uuid":             ownerUUID,
 			"created_by_internal_uuid":        createdByUUID,
-			"security_reviewer_internal_uuid": securityReviewerUUID,
+			"security_reviewer_internal_uuid": models.NewNullableDBVarchar(securityReviewerUUID),
 			"threat_model_framework":          framework,
-			"issue_uri":                       item.IssueUri,
+			"issue_uri":                       models.NewNullableDBText(item.IssueUri),
 			"status":                          newStatus,
-			"project_id":                      updateProjectID,
+			"project_id":                      models.NewNullableDBVarchar(updateProjectID),
 		}
 		if statusUpdated != nil {
 			updates["status_updated"] = statusUpdated
@@ -1841,14 +1844,18 @@ func (s *GormDiagramStore) Update(ctx context.Context, id string, item DfdDiagra
 		colorPaletteJSON = models.JSONRaw(cpJSON)
 	}
 
-	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag.
+	// Nullable-typed columns pass through their models.NullableDB*
+	// constructor so Value() gets a chance to normalize empty string to NULL
+	// (#700); a raw *string in the map bypasses the Valuer and would persist
+	// "" verbatim.
 	updates := map[string]any{
 		"name":                item.Name,
-		"description":         item.Description,
-		"type":                diagType,
+		"description":         models.NewNullableDBText(item.Description),
+		"type":                models.NewNullableDBVarchar(diagType),
 		"cells":               models.JSONRaw(cellsJSON),
 		"color_palette":       colorPaletteJSON,
-		"svg_image":           svgImage,
+		"svg_image":           models.NewNullableDBText(svgImage),
 		"image_update_vector": imageUpdateVector,
 		"update_vector":       updateVector,
 	}

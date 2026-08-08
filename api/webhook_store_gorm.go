@@ -374,10 +374,12 @@ func (s *GormWebhookSubscriptionStore) UpdateChallenge(ctx context.Context, id s
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag.
+	// challenge is a NullableDBVarchar column; route through the typed
+	// constructor so Value() normalizes an empty string to NULL (#700).
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(map[string]any{
-			"challenge":       challenge,
+			"challenge":       models.NewNullableDBVarchar(&challenge),
 			"challenges_sent": challengesSent,
 		})
 		if result.Error != nil {

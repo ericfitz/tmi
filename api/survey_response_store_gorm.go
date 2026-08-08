@@ -345,7 +345,7 @@ func (s *GormSurveyResponseStore) Get(ctx context.Context, id uuid.UUID) (*Surve
 }
 
 // Update updates an existing survey response
-// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: store mutable fields of an existing survey response via JSONRaw-typed answers/ui_state; preserves immutable fields (mutates DB)
+// SEM@0953e9f0b776f0b6506c4a5b3d809b26588328fe: store mutable fields of an existing survey response; preserves immutable fields (mutates DB)
 func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyResponse) error {
 	logger := slogging.Get()
 
@@ -591,6 +591,10 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 		"status": newStatus,
 	}
 
+	// reviewed_by_internal_uuid and revision_notes are nullable columns;
+	// route them through their models.NullableDB* constructor so Value()
+	// normalizes an empty string to NULL (#700) instead of writing ""
+	// verbatim, which the raw dereferenced strings previously here would do.
 	switch newStatus {
 	case ResponseStatusSubmitted:
 		updates["submitted_at"] = now
@@ -598,13 +602,13 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 	case ResponseStatusReadyForReview:
 		updates["reviewed_at"] = now
 		if reviewerInternalUUID != nil {
-			updates["reviewed_by_internal_uuid"] = *reviewerInternalUUID
+			updates["reviewed_by_internal_uuid"] = models.NewNullableDBVarchar(reviewerInternalUUID)
 		}
 	case ResponseStatusNeedsRevision:
-		updates["revision_notes"] = *revisionNotes
+		updates["revision_notes"] = models.NewNullableDBText(revisionNotes)
 		updates["reviewed_at"] = now
 		if reviewerInternalUUID != nil {
-			updates["reviewed_by_internal_uuid"] = *reviewerInternalUUID
+			updates["reviewed_by_internal_uuid"] = models.NewNullableDBVarchar(reviewerInternalUUID)
 		}
 	}
 
@@ -752,9 +756,12 @@ func (s *GormSurveyResponseStore) SetCreatedThreatModel(ctx context.Context, id 
 		result := tx.
 			Model(&models.SurveyResponse{}).
 			Where("id = ? AND status = ?", id.String(), ResponseStatusReadyForReview).
+			// created_threat_model_id is a NullableDBVarchar column; route
+			// through the typed constructor so Value() normalizes an empty
+			// string to NULL (#700).
 			Updates(map[string]any{
 				"status":                  ResponseStatusReviewCreated,
-				"created_threat_model_id": threatModelID,
+				"created_threat_model_id": models.NewNullableDBVarchar(&threatModelID),
 			})
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)

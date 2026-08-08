@@ -200,12 +200,16 @@ func (s *GormAssetRepository) Update(ctx context.Context, asset *Asset, threatMo
 		timmyEnabled = models.DBBool(*asset.TimmyEnabled)
 	}
 
+	// Nullable-typed columns pass through their models.NullableDB*
+	// constructor so Value() gets a chance to normalize empty string to NULL
+	// (#700); a raw *string in the map bypasses the Valuer and would persist
+	// "" verbatim.
 	updates := map[string]any{
 		"name":              asset.Name,
 		"type":              string(asset.Type),
-		"description":       asset.Description,
-		"criticality":       asset.Criticality,
-		"sensitivity":       asset.Sensitivity,
+		"description":       models.NewNullableDBText(asset.Description),
+		"criticality":       models.NewNullableDBVarchar(asset.Criticality),
+		"sensitivity":       models.NewNullableDBVarchar(asset.Sensitivity),
 		"classification":    classificationValue,
 		"include_in_report": includeInReport,
 		"timmy_enabled":     timmyEnabled,

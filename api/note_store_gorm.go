@@ -187,11 +187,13 @@ func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModel
 	logger := slogging.Get()
 	logger.Debug("Updating note: %s", note.Id)
 
-	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag.
+	// description is a NullableDBText column; route through the typed
+	// constructor so Value() normalizes an empty string to NULL (#700).
 	updates := map[string]any{
 		"name":        note.Name,
 		"content":     note.Content,
-		"description": note.Description,
+		"description": models.NewNullableDBText(note.Description),
 	}
 	if note.IncludeInReport != nil {
 		updates["include_in_report"] = models.DBBool(*note.IncludeInReport)
