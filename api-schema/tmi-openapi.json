@@ -39595,6 +39595,32 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/IdpPathParam"
+          },
+          {
+            "$ref": "#/components/parameters/EmailQueryParam"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum number of users to return.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 500,
+              "default": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of users to skip before starting to return results.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
           }
         ],
         "responses": {
