@@ -223,6 +223,15 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 	if dbschema.SchemaFingerprintCurrent(gormDB.DB(), desiredFP) {
 		logger.Info("[AUTH_CONFIG_ADAPTER] Schema fingerprint current; skipping AutoMigrate")
 	} else {
+		// #704: dedupe groups(provider, group_name) before AutoMigrate
+		// creates uniq_groups_provider_group_name -- same reason and
+		// placement as cmd/server/main.go's runMigrationsLocked and
+		// cmd/dbtool/schema.go's runSchema.
+		if removed, err := dbschema.DeduplicateGroups(gormDB.DB()); err != nil {
+			return nil, fmt.Errorf("failed to dedupe groups before schema migration: %w", err)
+		} else if removed > 0 {
+			logger.Info("[AUTH_CONFIG_ADAPTER] Deduped %d duplicate groups rows before schema migration", removed)
+		}
 		if err := gormDB.AutoMigrate(allModels...); err != nil {
 			return nil, fmt.Errorf("failed to auto-migrate schema: %w", err)
 		}

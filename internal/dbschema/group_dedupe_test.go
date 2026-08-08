@@ -227,6 +227,61 @@ func TestDeduplicateGroups_DropsSelfMembership(t *testing.T) {
 	assert.Equal(t, int64(0), selfCount, "the survivor must not end up as its own member")
 }
 
+// TestDeduplicateGroups_CollapsesDuplicateSubgroupMembershipPair covers a
+// different nesting scenario than self-membership: a THIRD, unrelated parent
+// group already listed both duplicates as separate subgroup members (two
+// rows, same parent, one per duplicate). Repointing member_group_internal_uuid
+// alone would leave the parent listing the survivor twice -- not caught by
+// idx_gm_group_user_type since user_internal_uuid is NULL on both rows.
+func TestDeduplicateGroups_CollapsesDuplicateSubgroupMembershipPair(t *testing.T) {
+	db := newDedupeTestDB(t)
+
+	base := time.Now().UTC().Truncate(time.Second)
+	survivorID := uuid.NewString()
+	loserID := uuid.NewString()
+	parentID := uuid.NewString()
+
+	require.NoError(t, db.Create(&dedupeTestGroup{
+		InternalUUID: survivorID, Provider: "okta", GroupName: "engineering",
+		FirstUsed: base, LastUsed: base, UsageCount: 1,
+	}).Error)
+	require.NoError(t, db.Create(&dedupeTestGroup{
+		InternalUUID: loserID, Provider: "okta", GroupName: "engineering",
+		FirstUsed: base.Add(time.Minute), LastUsed: base.Add(time.Minute), UsageCount: 1,
+	}).Error)
+	require.NoError(t, db.Create(&dedupeTestGroup{
+		InternalUUID: parentID, Provider: "okta", GroupName: "all-engineering-parents",
+		FirstUsed: base, LastUsed: base, UsageCount: 1,
+	}).Error)
+
+	// parent already lists the survivor as a subgroup member...
+	keepRowID := uuid.NewString()
+	require.NoError(t, db.Create(&dedupeTestGroupMember{
+		ID: keepRowID, GroupInternalUUID: parentID, SubjectType: "group",
+		MemberGroupInternalUUID: strPtr(survivorID), AddedAt: base,
+	}).Error)
+	// ...and separately lists the loser too, before dedupe merges them.
+	require.NoError(t, db.Create(&dedupeTestGroupMember{
+		ID: uuid.NewString(), GroupInternalUUID: parentID, SubjectType: "group",
+		MemberGroupInternalUUID: strPtr(loserID), AddedAt: base.Add(time.Second),
+	}).Error)
+
+	removed, err := DeduplicateGroups(db)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), removed)
+
+	var pairCount int64
+	require.NoError(t, db.Model(&dedupeTestGroupMember{}).
+		Where("group_internal_uuid = ? AND member_group_internal_uuid = ? AND subject_type = ?", parentID, survivorID, "group").
+		Count(&pairCount).Error)
+	assert.Equal(t, int64(1), pairCount, "the parent must list the survivor exactly once, not twice")
+
+	// The earlier row (by added_at) is the one that must survive.
+	var remaining dedupeTestGroupMember
+	require.NoError(t, db.Where("group_internal_uuid = ? AND member_group_internal_uuid = ?", parentID, survivorID).First(&remaining).Error)
+	assert.Equal(t, keepRowID, remaining.ID, "the earliest row must be the survivor")
+}
+
 func TestChunkStrings(t *testing.T) {
 	t.Run("under the limit returns a single chunk", func(t *testing.T) {
 		ids := []string{"a", "b", "c"}

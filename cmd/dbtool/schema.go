@@ -27,6 +27,20 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 
 	// Step 1: AutoMigrate (Oracle-aware path via GormDB.AutoMigrate)
 	log.Info("Running GORM AutoMigrate...")
+
+	// #704: dedupe groups(provider, group_name) before AutoMigrate creates
+	// uniq_groups_provider_group_name -- mirrors the same placement in
+	// cmd/server/main.go's runMigrationsLocked. A database carrying
+	// pre-#704 duplicate rows (from the previously-unbacked ON CONFLICT/
+	// MERGE target) would otherwise abort CREATE UNIQUE INDEX (ORA-01452 /
+	// PostgreSQL 23505). No-op (a single query) when the groups table
+	// doesn't exist yet or carries no duplicates.
+	if removed, err := dbschema.DeduplicateGroups(db.DB()); err != nil {
+		return fmt.Errorf("failed to dedupe groups before schema migration: %w", err)
+	} else if removed > 0 {
+		log.Info("Deduped %d duplicate groups rows before schema migration", removed)
+	}
+
 	if err := db.AutoMigrate(); err != nil {
 		return fmt.Errorf("AutoMigrate failed: %w", err)
 	}

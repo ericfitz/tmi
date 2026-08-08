@@ -235,6 +235,52 @@ func dropSelfMembership(tx *gorm.DB, survivor string) error {
 	return nil
 }
 
+// memberGroupPairDupKey is a raw scan target for the duplicate
+// (group_internal_uuid, member_group_internal_uuid) pair query.
+// SEM@db8c21595adadea21843e41c61644bb014694be2: hold a duplicate parent-group subgroup-membership key and its row count (pure)
+type memberGroupPairDupKey struct {
+	GroupInternalUUID string
+	Cnt               int64
+}
+
+// dedupeMemberGroupPairs collapses group_members rows that became duplicate
+// (group_internal_uuid, member_group_internal_uuid = survivor) pairs after
+// repointing member_group_internal_uuid onto the survivor, keeping the
+// earliest row (by added_at) per parent group and deleting the rest. See the
+// comment at its call site in repointGroupMembers for how this arises.
+// SEM@db8c21595adadea21843e41c61644bb014694be2: collapse duplicate parent-group subgroup-membership rows left by a member repoint (writes DB)
+func dedupeMemberGroupPairs(tx *gorm.DB, groupMembersTable, survivor string) error {
+	var dups []memberGroupPairDupKey
+	if err := tx.Table(groupMembersTable).
+		Select("group_internal_uuid, COUNT(*) AS cnt").
+		Where("member_group_internal_uuid = ? AND subject_type = ?", survivor, "group").
+		Group("group_internal_uuid").
+		Having("COUNT(*) > 1").
+		Scan(&dups).Error; err != nil {
+		return fmt.Errorf("failed to find duplicate subgroup-membership pairs for %s: %w", survivor, err)
+	}
+
+	for _, dup := range dups {
+		var keepID string
+		if err := tx.Table(groupMembersTable).
+			Select("id").
+			Where("group_internal_uuid = ? AND member_group_internal_uuid = ? AND subject_type = ?",
+				dup.GroupInternalUUID, survivor, "group").
+			Order("added_at ASC").
+			Limit(1).
+			Scan(&keepID).Error; err != nil {
+			return fmt.Errorf("failed to find earliest subgroup-membership row for parent %s: %w", dup.GroupInternalUUID, err)
+		}
+		if err := tx.Table(groupMembersTable).
+			Where("group_internal_uuid = ? AND member_group_internal_uuid = ? AND subject_type = ? AND id <> ?",
+				dup.GroupInternalUUID, survivor, "group", keepID).
+			Delete(nil).Error; err != nil {
+			return fmt.Errorf("failed to drop duplicate subgroup-membership rows for parent %s: %w", dup.GroupInternalUUID, err)
+		}
+	}
+	return nil
+}
+
 // repointGroupMembers repoints group_members rows from the losing group ids
 // onto the survivor. member_group_internal_uuid (subgroup nesting) carries no
 // uniqueness constraint and is repointed unconditionally. group_internal_uuid
@@ -260,6 +306,15 @@ func repointGroupMembers(tx *gorm.DB, survivor string, losers []string) error {
 			Update("member_group_internal_uuid", survivor).Error; err != nil {
 			return fmt.Errorf("failed to repoint group_members.member_group_internal_uuid: %w", err)
 		}
+	}
+	// A parent group that already listed two now-merged duplicates as
+	// separate subgroup members (two rows, each subject_type = "group", one
+	// per duplicate) ends up, after the repoint above, listing the survivor
+	// twice under the same parent. idx_gm_group_user_type doesn't catch this
+	// (user_internal_uuid is NULL on both rows, and NULLs never collide), so
+	// it's collapsed explicitly.
+	if err := dedupeMemberGroupPairs(tx, groupMembersTable, survivor); err != nil {
+		return err
 	}
 
 	existing, err := loadMembershipKeys(tx, survivor)
