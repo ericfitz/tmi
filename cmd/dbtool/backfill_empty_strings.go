@@ -24,7 +24,7 @@ var nullableStringColumnTypes = []reflect.Type{
 
 // nullableStringColumn identifies one (table, column) pair backed by a
 // models.NullableDBVarchar or models.NullableDBText field.
-// SEM@0000000000000000000000000000000000000000: DTO naming a nullable-string-typed table column targeted by the #700 backfill (pure)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: DTO naming a nullable-string-typed table column targeted by the #700 backfill (pure)
 type nullableStringColumn struct {
 	Table  string
 	Column string
@@ -32,14 +32,14 @@ type nullableStringColumn struct {
 
 // backfillSQL returns the idempotent UPDATE statement that normalizes a
 // stored empty string to NULL for this (table, column) pair (#700).
-// SEM@0000000000000000000000000000000000000000: build the empty-to-NULL backfill UPDATE statement for one column (pure)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: build the empty-to-NULL backfill UPDATE statement for one column (pure)
 func (c nullableStringColumn) backfillSQL() string {
 	return fmt.Sprintf(`UPDATE %s SET %s = NULL WHERE %s = ''`, c.Table, c.Column, c.Column)
 }
 
 // isNullableStringField reports whether a parsed schema field's Go type is
 // models.NullableDBVarchar or models.NullableDBText (pure)
-// SEM@0000000000000000000000000000000000000000: check whether a field type is a nullable-string wrapper type (pure)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: check whether a field type is a nullable-string wrapper type (pure)
 func isNullableStringField(fieldType reflect.Type) bool {
 	for _, t := range nullableStringColumnTypes {
 		if fieldType == t {
@@ -57,7 +57,7 @@ func isNullableStringField(fieldType reflect.Type) bool {
 //
 // namer controls table/column-name casing; callers pass schema.NamingStrategy{}
 // for the PostgreSQL (lowercase) convention this tool targets.
-// SEM@0000000000000000000000000000000000000000: derive (table, column) pairs for every nullable-string field across all registered models (pure)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: derive (table, column) pairs for every nullable-string field across all registered models (pure)
 func enumerateNullableStringColumns(namer schema.Namer) ([]nullableStringColumn, error) {
 	cacheStore := &sync.Map{}
 	var pairs []nullableStringColumn
@@ -113,7 +113,7 @@ func enumerateNullableStringColumns(namer schema.Namer) ([]nullableStringColumn,
 // matches rows still carrying the pre-#700 value, so an already-normalized
 // column is a no-op on a later run, including a retry after a failure part
 // way through the loop below.
-// SEM@0000000000000000000000000000000000000000: backfill empty-string nullable columns to NULL on PostgreSQL, idempotently (writes DB)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: backfill empty-string nullable columns to NULL on PostgreSQL, idempotently (writes DB)
 func runBackfillEmptyStrings(db *testdb.TestDB, dryRun, verbose bool) error {
 	log := slogging.Get()
 
