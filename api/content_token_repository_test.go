@@ -81,6 +81,29 @@ func TestContentTokenRepo_Upsert_IsIdempotent(t *testing.T) {
 	assert.Equal(t, "v2", got.AccessToken)
 }
 
+// TestContentTokenRepo_Upsert_ReturnsStoredIDOnUpdate guards against #705: on
+// the ON CONFLICT UPDATE branch, the struct passed to Upsert must come back
+// with the ID of the row actually persisted, not a fresh client-side
+// BeforeCreate UUID that was never inserted (Oracle's MERGE has no
+// RETURNING, so trusting the struct's PK silently hands out a bogus ID).
+func TestContentTokenRepo_Upsert_ReturnsStoredIDOnUpdate(t *testing.T) {
+	repo, _, _ := newTestContentTokenRepo(t)
+	ctx := context.Background()
+
+	first := &ContentToken{UserID: "u1", ProviderID: "p", AccessToken: "at-1", Status: "active"}
+	require.NoError(t, repo.Upsert(ctx, first))
+	require.NotEmpty(t, first.ID)
+
+	second := &ContentToken{UserID: "u1", ProviderID: "p", AccessToken: "at-2", Status: "active"}
+	require.NoError(t, repo.Upsert(ctx, second))
+
+	assert.Equal(t, first.ID, second.ID, "upsert on the UPDATE branch must return the stored row's ID")
+
+	list, err := repo.ListByUser(ctx, "u1")
+	require.NoError(t, err)
+	assert.Len(t, list, 1, "upsert on the UPDATE branch must not create a second row")
+}
+
 func TestContentTokenRepo_ListByUser(t *testing.T) {
 	repo, _, _ := newTestContentTokenRepo(t)
 	ctx := context.Background()

@@ -160,8 +160,16 @@ func (r *GormContentTokenRepository) Upsert(ctx context.Context, token *ContentT
 		}
 		return classified
 	}
-	// Back-fill the generated ID so the caller can use it immediately.
-	token.ID = string(row.ID)
+	// Read the row back rather than trusting the struct's PK: BeforeCreate
+	// populated row.ID client-side, but on the MERGE UPDATE branch (Oracle has
+	// no RETURNING) that UUID was never inserted (#705, same class as #703).
+	var stored models.UserContentToken
+	if err := r.db.WithContext(ctx).
+		Where(&models.UserContentToken{UserID: row.UserID, ProviderID: row.ProviderID}).
+		First(&stored).Error; err != nil {
+		return dberrors.Classify(err)
+	}
+	token.ID = string(stored.ID)
 	return nil
 }
 
