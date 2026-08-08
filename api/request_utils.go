@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -712,37 +713,21 @@ func isForeignKeyConstraintError(err error) bool {
 	return false
 }
 
-// extractTokenFromRequest extracts the JWT token from the Authorization header
-// SEM@034968fa0e0ba8c15e9af9052b475f4d5dd72d50: extract the Bearer JWT from the Authorization header (pure)
-func extractTokenFromRequest(c *gin.Context) (string, error) {
-	// Get the Authorization header
-	authHeader := c.GetHeader("Authorization")
-	if authHeader == "" {
-		return "", fmt.Errorf("missing Authorization header")
+// isUserAccountConfirmedDeleted performs a positive existence check on the
+// user row identified by (provider, providerID) and reports true only when
+// the lookup definitively confirms the row is gone. Any other outcome -- the
+// row exists, GlobalUserStore is unavailable, or the lookup itself errors --
+// returns false, so callers never infer "the user is gone" from a heuristic
+// (e.g. an arbitrary foreign key constraint name). See #702: a foreign key
+// violation on an unrelated reference (such as a non-existent authorization
+// group) is not evidence that the caller's own account was deleted.
+// SEM@8dfef8f6: confirm via a direct lookup that a user's account row no longer exists (reads DB)
+func isUserAccountConfirmedDeleted(ctx context.Context, provider, providerID string) bool {
+	if GlobalUserStore == nil {
+		return false
 	}
-
-	// Parse the header format (Bearer <token>)
-	parts := strings.Split(authHeader, " ")
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-		return "", fmt.Errorf("invalid Authorization header format")
-	}
-
-	return parts[1], nil
-}
-
-// blacklistTokenIfAvailable attempts to blacklist a JWT token using the available token blacklist service
-// Note: This function tries to access the blacklist service but gracefully handles when it's not available
-// SEM@65db04294d8ccf97bf26f713edd1413a8e6d98c2: log intent to invalidate a JWT token when the blacklist service is unavailable (pure)
-func blacklistTokenIfAvailable(c *gin.Context, _ string, userName string) {
-	// Since we don't have direct access to the Server type from api package,
-	// we'll focus on logging the intent and let the calling code handle the blacklisting
-	// This is a defensive approach that ensures the main error handling works even if
-	// blacklisting isn't available
-	slogging.Get().WithContext(c).Info("Attempting to invalidate JWT token for user %s due to stale session", userName)
-
-	// In a full implementation, this would integrate with the token blacklist service
-	// For now, we log the action and continue with the authentication error response
-	slogging.Get().WithContext(c).Warn("Token blacklist integration not yet fully implemented - user %s should log out and log back in", userName)
+	_, err := GlobalUserStore.GetByProviderAndID(ctx, provider, providerID)
+	return errors.Is(err, ErrUserNotFound)
 }
 
 // truncateBeforeStackTrace removes stack trace information from error messages

@@ -2,12 +2,15 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -103,6 +106,97 @@ func TestCreateThreatModel(t *testing.T) {
 	assert.Equal(t, DefaultThreatModelStatus, *tm.Status)
 	require.NotNil(t, tm.StatusUpdated)
 	assert.False(t, tm.StatusUpdated.IsZero(), "status_updated should be set on create")
+}
+
+// fkErrorThreatModelStore wraps MockThreatModelStore and forces Create to
+// return a foreign key constraint violation (matching the Oracle
+// FK_THREAT_MODEL_ACCESS_GROUP error observed in #702), so tests can drive
+// CreateThreatModel's FK error-classification branch without a real database.
+type fkErrorThreatModelStore struct {
+	*MockThreatModelStore
+}
+
+func (m *fkErrorThreatModelStore) Create(_ ThreatModel, _ func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
+	return ThreatModel{}, fmt.Errorf("foreign key: constraint violation: ORA-02291: integrity constraint (ADMIN.FK_THREAT_MODEL_ACCESS_GROUP) violated - parent key not found")
+}
+
+// TestCreateThreatModel_ForeignKeyViolation_UserExists_ReturnsBadRequest verifies
+// that a foreign key violation naming a reference other than the caller's own
+// user row (e.g. a non-existent authorization group) is reported as a 400
+// about the request payload, and does not touch the caller's session (#702).
+func TestCreateThreatModel_ForeignKeyViolation_UserExists_ReturnsBadRequest(t *testing.T) {
+	r := setupThreatModelRouter()
+
+	origTMStore := ThreatModelStore
+	defer func() { ThreatModelStore = origTMStore }()
+	ThreatModelStore = &fkErrorThreatModelStore{MockThreatModelStore: &MockThreatModelStore{data: make(map[string]ThreatModel)}}
+
+	origUserStore := GlobalUserStore
+	defer func() { GlobalUserStore = origUserStore }()
+	userStore := newMockUserStore()
+	userStore.addUser(AdminUser{
+		InternalUuid:   uuid.New(),
+		Provider:       "test",
+		ProviderUserId: TestFixtures.OwnerUser,
+		Email:          openapi_types.Email(TestFixtures.OwnerUser),
+	})
+	GlobalUserStore = userStore
+
+	reqBody := map[string]any{
+		"name": "Test Threat Model",
+		"authorization": []map[string]any{
+			{"principal_type": "group", "provider": "test", "provider_id": "nonexistent-group", "role": "reader"},
+		},
+	}
+	body, _ := json.Marshal(reqBody)
+	req, _ := http.NewRequest("POST", "/threat_models", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
+
+	var errResp Error
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+	assert.Equal(t, "invalid_input", errResp.Error)
+}
+
+// TestCreateThreatModel_ForeignKeyViolation_UserGone_ReturnsUnauthorized verifies
+// that CreateThreatModel only concludes the caller's session is stale when a
+// positive existence check confirms the user's account row is actually gone
+// (#702) -- not merely because some foreign key on the insert failed.
+func TestCreateThreatModel_ForeignKeyViolation_UserGone_ReturnsUnauthorized(t *testing.T) {
+	r := setupThreatModelRouter()
+
+	origTMStore := ThreatModelStore
+	defer func() { ThreatModelStore = origTMStore }()
+	ThreatModelStore = &fkErrorThreatModelStore{MockThreatModelStore: &MockThreatModelStore{data: make(map[string]ThreatModel)}}
+
+	origUserStore := GlobalUserStore
+	defer func() { GlobalUserStore = origUserStore }()
+	GlobalUserStore = newMockUserStore() // empty: the caller's user row does not exist
+
+	reqBody := map[string]any{"name": "Test Threat Model"}
+	body, _ := json.Marshal(reqBody)
+	req, _ := http.NewRequest("POST", "/threat_models", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusUnauthorized, w.Code, "body: %s", w.Body.String())
+}
+
+// TestIsUserAccountConfirmedDeleted_UnavailableUserStore verifies the
+// existence check is conservative: when GlobalUserStore is unavailable it
+// must never claim the user is confirmed deleted (#702).
+func TestIsUserAccountConfirmedDeleted_UnavailableUserStore(t *testing.T) {
+	origUserStore := GlobalUserStore
+	defer func() { GlobalUserStore = origUserStore }()
+	GlobalUserStore = nil
+
+	assert.False(t, isUserAccountConfirmedDeleted(context.Background(), "test", "test@example.com"))
 }
 
 // TestGetThreatModels tests listing threat models

@@ -119,7 +119,7 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 }
 
 // CreateThreatModel creates a new threat model
-// SEM@a37a0039279be689bb07be2113fe86024a410a4b: create a threat model owned by the authenticated user with default authorization groups (reads DB)
+// SEM@8dfef8f6: create a threat model owned by the authenticated user with default authorization groups; on FK violation, only invalidate the caller's session with positive evidence the user row is gone (reads DB)
 func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	// SEM@0162974a02f0c8de928d89413890cd366741a5d8: request body shape for threat model creation (pure)
 	type CreateThreatModelRequest struct {
@@ -288,18 +288,22 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		// Log the actual error for debugging
 		slogging.Get().WithContext(c).Error("Failed to create threat model: %v", err)
 
-		// Check if this is a foreign key constraint violation (stale user session)
+		// Check if this is a foreign key constraint violation. A threat model
+		// row has FKs to several parents besides the owning user (e.g. an
+		// authorization group), so the constraint alone does not tell us
+		// which reference failed (#702). Only a positive existence check on
+		// the user row is allowed to conclude the caller's account is gone;
+		// everything else is a 4xx about the request payload and must not
+		// touch the caller's session.
 		if isForeignKeyConstraintError(err) {
-			// This indicates the user's JWT token is valid but they no longer exist in the database
-			// This happens when user account is deleted but JWT hasn't expired yet
-			slogging.Get().WithContext(c).Warn("Foreign key constraint violation for user %s - invalidating session", user.Email)
-
-			// Try to blacklist the token to prevent future use
-			if tokenStr, err := extractTokenFromRequest(c); err == nil {
-				blacklistTokenIfAvailable(c, tokenStr, user.Email)
+			if isUserAccountConfirmedDeleted(c.Request.Context(), userIdp, user.ProviderID) {
+				slogging.Get().WithContext(c).Warn("Foreign key constraint violation for user %s and the user account no longer exists - session is stale", user.Email)
+				HandleRequestError(c, UnauthorizedError("Your session is no longer valid. Please log in again."))
+				return
 			}
 
-			HandleRequestError(c, UnauthorizedError("Your session is no longer valid. Please log in again."))
+			slogging.Get().WithContext(c).Warn("Foreign key constraint violation creating threat model for user %s - request references a non-existent entity", user.Email)
+			HandleRequestError(c, InvalidInputError("The request references an entity that does not exist (e.g. an authorization group or user). Verify all referenced IDs and try again."))
 			return
 		}
 
