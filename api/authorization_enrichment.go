@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"gorm.io/gorm"
@@ -202,18 +203,68 @@ func performSparseUserInsert(ctx context.Context, db *gorm.DB, auth *Authorizati
 		EmailVerified:  false,
 	}
 
+	// matchQuery builds the (provider AND (provider_user_id OR email)) lookup
+	// condition against a fresh *gorm.DB each call. GORM condition builders
+	// carry mutable statement state, so the same instance must not be reused
+	// across separate query chains (FirstOrCreate below and the re-fetch on
+	// a lost race).
+	matchQuery := func() *gorm.DB {
+		return db.WithContext(ctx).
+			Where(ColumnMap(db.Name(), map[string]any{"provider": auth.Provider})).
+			Where(
+				db.Where(clause.Expr{SQL: "? = ?", Vars: []any{Col(db.Name(), "provider_user_id"), providerUserID}}).
+					Or(clause.Expr{SQL: "? = ?", Vars: []any{Col(db.Name(), "email"), email}}),
+			)
+	}
+
 	// Use ON CONFLICT to handle duplicates
 	// GORM handles this differently - try to create, ignore if exists
 	// Use clause expressions for cross-database compatibility (Oracle requires uppercase column names)
-	result := db.WithContext(ctx).
-		Where(ColumnMap(db.Name(), map[string]any{"provider": auth.Provider})).
-		Where(
-			db.Where(clause.Expr{SQL: "? = ?", Vars: []any{Col(db.Name(), "provider_user_id"), providerUserID}}).
-				Or(clause.Expr{SQL: "? = ?", Vars: []any{Col(db.Name(), "email"), email}}),
-		).
-		FirstOrCreate(&user)
+	result := matchQuery().FirstOrCreate(&user)
 
 	if result.Error != nil {
+		if errors.Is(dberrors.Classify(result.Error), dberrors.ErrDuplicate) {
+			// Lost the race: a concurrent request created a matching sparse (or
+			// real) user row between our lookup and our insert. Re-read it
+			// instead of surfacing a 500 — same "insert lost the race" pattern
+			// used in auth.findOrCreateUserWithResolver (#718).
+			//
+			// Re-fetch into a FRESH struct, not the same `user` variable: even
+			// though the INSERT failed, BeforeCreate already stamped a
+			// generated InternalUUID onto `user` as a side effect of the
+			// failed FirstOrCreate call. GORM's First() adds a WHERE on any
+			// non-zero primary key already set on the destination struct, so
+			// reusing `user` here would silently constrain the re-fetch to a
+			// UUID that was never actually inserted and always miss.
+			//
+			// Both engines tolerate this re-fetch on the same connection, but
+			// for opposite reasons and only outside an explicit transaction
+			// (true here — db is the store's root *gorm.DB, and FirstOrCreate's
+			// own per-statement transaction is already rolled back by the time
+			// its error returns): Oracle rolls a failed statement back to an
+			// implicit savepoint and leaves the session usable; PostgreSQL
+			// instead poisons the whole transaction (25P02) until an explicit
+			// rollback. If this ever moves inside an explicit db.Transaction,
+			// re-verify this recovery still works on Postgres.
+			logger.Warn("Sparse user insert hit duplicate-key conflict, re-fetching winner: provider=%s, provider_user_id=%v, email=%s",
+				auth.Provider, providerUserID, email)
+			// `winner` is deliberately never assigned into `user` or returned:
+			// its only purpose is to confirm the row now exists. The caller
+			// (EnrichAuthorizationEntry) re-queries independently right after
+			// this function returns, so do not "simplify" this by wiring
+			// winner through — it would just duplicate that re-query.
+			var winner models.User
+			refetch := matchQuery().First(&winner)
+			if refetch.Error != nil {
+				logger.Error("Failed to re-fetch user after duplicate-key insert conflict: %v", refetch.Error)
+				return &RequestError{
+					Status:  500,
+					Code:    "server_error",
+					Message: "Failed to create user record",
+				}
+			}
+			return nil
+		}
 		logger.Error("Failed to insert sparse user record: %v", result.Error)
 		return &RequestError{
 			Status:  500,
