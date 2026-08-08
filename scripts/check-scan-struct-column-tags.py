@@ -28,11 +28,17 @@ models with legitimate PostgreSQL-only reasons to pin a lowercase column name
 documented exception, or an inline `//oracle-column-tag:exempt <reason>` on
 the line above the struct field.
 
-Scope note: api/models/ and internal/dbschema/ are excluded (see
-EXCLUDED_PATH_PREFIXES below) -- NOT because they are clean. api/models/ has
-41 known violations of this exact pattern, tracked separately as issue #710
-(discovered during the #699 sweep, out of scope for it). Remove the exclusion
-once #710 lands.
+Scope note: internal/dbschema/ is excluded (see EXCLUDED_PATH_PREFIXES below)
+-- schema introspection helpers that read catalog metadata, not application
+row data. api/models/ was excluded for the same reason api/group_member_repository.go
+needed fixing under #699: 41 hardcoded lowercase column: tags on registered
+GORM models (AliasCounter's proven to cause ORA-00001 duplicate-alias
+collisions on Oracle). All 41 were fixed under #710; two -- both named
+CreatedByUUID, in UsabilityFeedback and ContentFeedback -- keep an explicit
+`column:created_by` tag with an inline `//oracle-column-tag:exempt` marker,
+because the field name's NamingStrategy-derived DBName ("created_by_uuid",
+UUID being a common-initialism word boundary) diverges from the actual,
+already-migrated column ("created_by").
 
 Usage:
     uv run scripts/check-scan-struct-column-tags.py
@@ -56,20 +62,17 @@ from tmi_common import (  # noqa: E402
 SCAN_DIRS = ("api", "auth", "cmd", "internal")
 
 # Directory prefixes excluded even though they fall under SCAN_DIRS:
-#   - api/models: the canonical GORM model definitions (AutoMigrate's source
-#     of truth). NOT already clean -- issue #710 found 41 hardcoded lowercase
-#     column: tags here (the same #699 bug class, on registered models rather
-#     than ad-hoc scan structs; AliasCounter's are proven to cause ORA-00001
-#     duplicate-alias collisions on Oracle). Excluded here only because fixing
-#     41 pre-existing sites is out of scope for the #699 sweep this checker
-#     was added for -- see #710 for the fix and remove this exclusion once it
-#     lands, so the guard covers the whole codebase.
 #   - internal/dbschema: schema introspection helpers that read catalog
 #     metadata, not application row data -- not part of the #699 bug class.
+# api/models/ is intentionally NOT excluded (#710 removed that exclusion once
+# the 41 pre-existing violations there were fixed) -- the guard now covers the
+# canonical GORM model definitions too. The two legitimate exceptions there
+# (UsabilityFeedback/ContentFeedback CreatedByUUID) use the inline
+# `//oracle-column-tag:exempt` marker below rather than a path exclusion.
 # Matched as path prefixes (not bare directory-name segments) so a
 # same-named directory elsewhere in the tree (e.g. a future auth/models/)
 # is not silently swept in.
-EXCLUDED_PATH_PREFIXES = ("api/models/", "internal/dbschema/")
+EXCLUDED_PATH_PREFIXES = ("internal/dbschema/",)
 
 # A `gorm:"..."` tag whose `column:` sub-tag names a lowercase-leading
 # identifier. Matches regardless of where column: falls in the tag string

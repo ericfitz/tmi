@@ -26,7 +26,7 @@ const (
 // cause a constraint violation; the result-consumer tolerates the missing row.
 // SEM@d8b4a7f6b4c480a8020df9e796e1deabb7f0fdb7: GORM model tracking the status lifecycle of one async extraction job (pure)
 type ExtractionJob struct {
-	JobID DBVarchar `gorm:"column:job_id;primaryKey;not null;size:36"`
+	JobID DBVarchar `gorm:"primaryKey;not null;size:36"`
 	// DocumentRef is the document being extracted. NOT NULL with no DB-level FK.
 	// On the bare-upsert-insert path (a terminal result arriving with no prior
 	// queued row) the real ref is unknown and the non-empty sentinel
@@ -34,14 +34,14 @@ type ExtractionJob struct {
 	// written instead — an empty string is indistinguishable from NULL on
 	// Oracle and would violate NOT NULL (ORA-01400). Any query that filters on
 	// document_ref must exclude the sentinel.
-	DocumentRef DBVarchar         `gorm:"column:document_ref;size:36;not null;index:idx_extraction_jobs_doc"`
-	Status      DBVarchar         `gorm:"column:status;size:32;not null;default:queued"`
-	ReasonCode  NullableDBVarchar `gorm:"column:reason_code;size:64"`
-	Stage       NullableDBVarchar `gorm:"column:stage;size:32"`
-	Attempts    int32             `gorm:"column:attempts;not null;default:0"`
-	CreatedAt   time.Time         `gorm:"column:created_at;not null;autoCreateTime"`
-	UpdatedAt   time.Time         `gorm:"column:updated_at;not null;autoUpdateTime"`
-	CompletedAt *time.Time        `gorm:"column:completed_at"`
+	DocumentRef DBVarchar         `gorm:"size:36;not null;index:idx_extraction_jobs_doc"`
+	Status      DBVarchar         `gorm:"size:32;not null;default:queued"`
+	ReasonCode  NullableDBVarchar `gorm:"size:64"`
+	Stage       NullableDBVarchar `gorm:"size:32"`
+	Attempts    int32             `gorm:"not null;default:0"`
+	CreatedAt   time.Time         `gorm:"not null;autoCreateTime"`
+	UpdatedAt   time.Time         `gorm:"not null;autoUpdateTime"`
+	CompletedAt *time.Time        `gorm:""`
 }
 
 // TableName returns the prefixed table name.

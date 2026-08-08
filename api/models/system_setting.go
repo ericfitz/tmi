@@ -12,11 +12,11 @@ import (
 type SystemSetting struct {
 	// SettingKey is the unique identifier for this setting (e.g., "rate_limit.requests_per_minute")
 	// Named SettingKey instead of Key to avoid Oracle reserved word conflict
-	SettingKey DBVarchar `gorm:"column:setting_key;primaryKey;not null;size:256" json:"key"`
+	SettingKey DBVarchar `gorm:"primaryKey;not null;size:256" json:"key"`
 	Value      DBText    `gorm:"not null" json:"value"`
 	// SettingType stores the value type: "string", "int", "bool", "json"
 	// Note: default tag removed for Oracle compatibility (unquoted string defaults cause syntax errors)
-	SettingType DBVarchar         `gorm:"column:setting_type;size:50;not null" json:"type"`
+	SettingType DBVarchar         `gorm:"size:50;not null" json:"type"`
 	Description NullableDBText    `gorm:"" json:"description,omitempty"`
 	ModifiedAt  time.Time         `gorm:"not null;autoUpdateTime" json:"modified_at"`
 	ModifiedBy  NullableDBVarchar `gorm:"size:36" json:"modified_by,omitempty"` // User InternalUUID
