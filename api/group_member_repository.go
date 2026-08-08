@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -564,20 +565,25 @@ func (r *GormGroupMemberRepository) HasAnyMembers(ctx context.Context, groupInte
 // membership records (all authenticated users are implicitly members).
 // SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: list all TMI-managed groups a user has direct membership in (reads DB)
 func (r *GormGroupMemberRepository) GetGroupsForUser(ctx context.Context, userInternalUUID uuid.UUID) ([]Group, error) {
-	// SEM@f9ee21801aeaafee608b61a6e35aa8c146928a03: scan target for a group row when querying a user's group memberships (pure)
-	type groupRow struct {
-		InternalUUID string  `gorm:"column:internal_uuid"`
-		GroupName    string  `gorm:"column:group_name"`
-		Name         *string `gorm:"column:name"`
-	}
-
-	var rows []groupRow
+	// Scan into models.Group (not an ad-hoc struct with hardcoded lowercase
+	// column: tags): result-set labels come back UPPERCASE from Oracle and
+	// lowercase from Postgres, and GORM matches labels to DBNames
+	// case-sensitively. A parsed model gets its DBNames from the dialect's
+	// naming strategy, so the mapping holds on both engines; hardcoded
+	// lowercase tags silently zero every field on Oracle (#699).
+	// Partial projection: only the three columns below are hydrated, so these
+	// values are read-only — never pass one to Save/Updates, which would blank
+	// the not-null provider column and reset usage_count/timestamps.
+	// Description (CLOB on Oracle) is deliberately excluded: Oracle cannot
+	// compare LOBs, so a CLOB in a SELECT DISTINCT projection raises ORA-00932.
+	var rows []models.Group
 	err := r.db.WithContext(ctx).
-		Table(models.GroupMember{}.TableName()).
-		Distinct("groups.internal_uuid, groups.group_name, groups.name").
-		Joins("JOIN groups ON groups.internal_uuid = group_members.group_internal_uuid").
+		Model(&models.Group{}).
+		Distinct("groups.internal_uuid", "groups.group_name", "groups.name").
+		Joins(fmt.Sprintf("JOIN %s ON groups.internal_uuid = group_members.group_internal_uuid", models.GroupMember{}.TableName())).
 		Where("group_members.subject_type = ? AND group_members.user_internal_uuid = ?", "user", userInternalUUID.String()).
-		Scan(&rows).Error
+		Order("groups.group_name").
+		Find(&rows).Error
 
 	if err != nil {
 		return nil, dberrors.Classify(err)
@@ -585,13 +591,13 @@ func (r *GormGroupMemberRepository) GetGroupsForUser(ctx context.Context, userIn
 
 	groups := make([]Group, len(rows))
 	for i, row := range rows {
-		groupUUID, _ := uuid.Parse(row.InternalUUID)
+		groupUUID, _ := uuid.Parse(string(row.InternalUUID))
 		groups[i] = Group{
 			InternalUUID: groupUUID,
-			GroupName:    row.GroupName,
+			GroupName:    string(row.GroupName),
 		}
-		if row.Name != nil {
-			groups[i].Name = *row.Name
+		if row.Name.Valid {
+			groups[i].Name = row.Name.String
 		}
 	}
 

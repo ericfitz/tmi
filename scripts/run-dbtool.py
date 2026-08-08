@@ -9,6 +9,7 @@ in import-test-data mode to seed test data for CATS API fuzzing.
 """
 
 import argparse
+import shlex
 import sys
 from pathlib import Path
 
@@ -91,21 +92,35 @@ def build_dbtool(oci: bool, project_root: Path) -> None:
         log_success("Database tool built: bin/tmi-dbtool")
 
 
-def run_dbtool(config: str, user: str, provider: str, server: str, input_file: str, project_root: Path) -> None:
-    """Run the tmi-dbtool binary in import-test-data mode."""
+def run_dbtool(config: str, user: str, provider: str, server: str, input_file: str, project_root: Path, oci: bool = False) -> None:
+    """Run the tmi-dbtool binary in import-test-data mode.
+
+    For --oci, oci-env.sh must be sourced in the SAME shell that execs the
+    binary (matching build_dbtool): macOS SIP strips DYLD_* variables whenever
+    a protected binary (/usr/bin/make, /bin/sh) appears in the process chain,
+    so "the caller sourced it before make" can never deliver DYLD_LIBRARY_PATH
+    here — dbtool then fails with DPI-1047 (no Instant Client). This mirrors
+    run-integration-tests.py's bash -c "source ... && go test" pattern.
+    """
     log_info(f"Seeding test data (user={user}, provider={provider}, server={server})...")
-    run_cmd(
-        [
-            "./bin/tmi-dbtool",
-            "-t",
-            f"--config={config}",
-            f"--input-file={input_file}",
-            f"--user={user}",
-            f"--provider={provider}",
-            f"--server={server}",
-        ],
-        cwd=str(project_root),
-    )
+    argv = [
+        "./bin/tmi-dbtool",
+        "-t",
+        f"--config={config}",
+        f"--input-file={input_file}",
+        f"--user={user}",
+        f"--provider={provider}",
+        f"--server={server}",
+    ]
+    if oci:
+        oci_env_path = project_root / "scripts" / "oci-env.sh"
+        quoted = " ".join(shlex.quote(a) for a in argv)
+        run_cmd(
+            ["/bin/bash", "-c", f". {shlex.quote(str(oci_env_path))} && {quoted}"],
+            cwd=str(project_root),
+        )
+    else:
+        run_cmd(argv, cwd=str(project_root))
     log_success("Seeding completed")
 
 
@@ -155,7 +170,7 @@ def main() -> None:
     _ensure_forwards(args)
 
     build_dbtool(args.oci, project_root)
-    run_dbtool(config, args.user, args.provider, args.server, args.input_file, project_root)
+    run_dbtool(config, args.user, args.provider, args.server, args.input_file, project_root, oci=args.oci)
 
 
 if __name__ == "__main__":

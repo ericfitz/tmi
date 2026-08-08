@@ -147,7 +147,7 @@ func (sm *TimmySessionManager) expectedEmbeddingModel(ctx context.Context, index
 // It snapshots timmy-enabled entities, creates the session record, and
 // optionally prepares the vector index (if LLM service is configured).
 // Returns the created session, any skipped sources, and an error.
-// SEM@63d2546d6591e57d65783c3032d4412409c2b328: build a Timmy session: snapshot entities, persist session record, and prepare vector index (reads DB)
+// SEM@4136fe3c398021aae565b5db0269c2d8134c6d3e: build a Timmy session: snapshot entities, persist the session record, prepare the vector index (reads DB)
 func (sm *TimmySessionManager) CreateSession(
 	ctx context.Context,
 	userID, threatModelID, title string,
@@ -155,10 +155,13 @@ func (sm *TimmySessionManager) CreateSession(
 ) (*models.TimmySession, []SkippedSource, error) {
 	logger := slogging.Get()
 
-	// Check session count limit
+	// Check session count limit. A transient store error here (Oracle/PG
+	// blip) is a temporary backend condition, not a server bug (#652): route
+	// it through StoreErrorToRequestError so it surfaces as 503 instead of
+	// falling through to the generic 500 in HandleRequestError.
 	activeCount, err := GlobalTimmySessionStore.CountActiveByThreatModel(ctx, threatModelID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to count active sessions: %w", err)
+		return nil, nil, StoreErrorToRequestError(err, "threat model not found", "failed to count active sessions")
 	}
 	c := sm.cfgFor(ctx)
 	if activeCount >= c.MaxSessionsPerThreatModel {

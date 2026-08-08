@@ -199,3 +199,53 @@ func TestClassifyOracleCode_UnknownCode(t *testing.T) {
 	err := classifyOracleCode(src, 99999)
 	assert.Nil(t, err, "unknown ORA codes should return nil so caller can fall through")
 }
+
+func TestClassifyOracleCode_MaxOpenCursors(t *testing.T) {
+	before := MaxOpenCursorsCount()
+	src := fmt.Errorf("ORA-01000: maximum open cursors exceeded")
+	err := classifyOracleCode(src, 1000)
+	assert.True(t, errors.Is(err, ErrTransient), "ORA-01000 is resource exhaustion; retryable")
+	assert.False(t, errors.Is(err, ErrConstraint))
+	assert.Equal(t, before+1, MaxOpenCursorsCount(), "classifying ORA-01000 should increment its instrumentation counter")
+}
+
+func TestClassifyOracleCode_SharedPoolExhausted(t *testing.T) {
+	before := SharedPoolExhaustedCount()
+	src := fmt.Errorf("ORA-04031: unable to allocate bytes of shared memory")
+	err := classifyOracleCode(src, 4031)
+	assert.True(t, errors.Is(err, ErrTransient), "ORA-04031 is resource exhaustion; retryable")
+	assert.False(t, errors.Is(err, ErrConstraint))
+	assert.Equal(t, before+1, SharedPoolExhaustedCount(), "classifying ORA-04031 should increment its instrumentation counter")
+}
+
+// ORA-00932 (inconsistent datatypes) is intentionally NOT classified — every
+// reachable route already excludes CLOB-backed columns from user-influenceable
+// sort/filter (see GormThreatRepository.buildOrderBy), so a live occurrence
+// means a server-side query bug, not bad input; mapping it to ErrConstraint
+// would make several 409-on-duplicate handlers lie about why the request
+// failed. Mirrors the ORA-01555 shape: nil classification (falls through to
+// 500, which is the right status for a real server defect) plus a counter so
+// occurrences are loud instead of silently absorbed.
+func TestClassifyOracleCode_InconsistentDatatypesNotClassified(t *testing.T) {
+	before := InconsistentDatatypesCount()
+	src := fmt.Errorf("ORA-00932: inconsistent datatypes: expected - got CLOB")
+	err := classifyOracleCode(src, 932)
+	assert.Nil(t, err, "ORA-00932 should not produce a typed sentinel (it indicates a server-side query bug)")
+	assert.Equal(t, before+1, InconsistentDatatypesCount(), "ORA-00932 should increment the instrumentation counter")
+}
+
+// TestClassifyOracleCode_InconsistentDatatypesCounter verifies the counter
+// increments monotonically across multiple ORA-00932 occurrences and is
+// unaffected by other ORA codes (mirrors TestClassifyOracleCode_SnapshotTooOldCounter).
+func TestClassifyOracleCode_InconsistentDatatypesCounter(t *testing.T) {
+	before := InconsistentDatatypesCount()
+
+	for i := 0; i < 3; i++ {
+		_ = classifyOracleCode(fmt.Errorf("ORA-00932: inconsistent datatypes"), 932)
+	}
+	// Unrelated codes must not change the counter.
+	_ = classifyOracleCode(fmt.Errorf("ORA-00001: unique violated"), 1)
+	_ = classifyOracleCode(fmt.Errorf("ORA-08177: serialization"), 8177)
+
+	assert.Equal(t, before+3, InconsistentDatatypesCount(), "counter should increment exactly once per ORA-00932 occurrence")
+}

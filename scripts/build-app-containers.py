@@ -42,13 +42,11 @@ VALID_DB_BACKENDS = ("postgresql", "oracle-adb")
 ALL_COMPONENTS = ("server", "redis", "extractor", "chunkembed", "controller")
 
 # Worker components depend on the staged tmi-client module, same as the server.
-# NOTE: `controller` is included here even though cmd/component-controller has
-# zero actual tmi-clients imports (verified via `go list -deps`), because
-# Dockerfile.controller unconditionally does
-# `COPY .docker-deps/tmi-client/ /tmi-client/` (copied from
-# Dockerfile.extractor's pattern). Without staging, the Docker build fails at
-# that COPY step with "not found". See task-3-report.md for details.
-CLIENT_DEPENDENT_COMPONENTS = ("server", "extractor", "chunkembed", "controller")
+# `controller` is NOT here: cmd/component-controller has zero tmi-clients
+# imports and Dockerfile.controller drops the go.mod require/replace inside
+# the image (go mod edit -droprequire) before `go mod download`, so it needs
+# no staging (#550).
+CLIENT_DEPENDENT_COMPONENTS = ("server", "extractor", "chunkembed")
 
 # Staging directory for external dependencies copied into the Docker build context
 DOCKER_DEPS_DIR = ".docker-deps"
@@ -377,7 +375,7 @@ def scan_component(
         component, f"{config.image_name_prefix}{component}"
     )
     reports_dir = project_root / "security-reports"
-    return helpers.scan_image(f"{image_name}:latest", reports_dir)
+    return helpers.scan_image(f"{image_name}:latest", reports_dir, platform=config.platform)
 
 
 def main() -> None:

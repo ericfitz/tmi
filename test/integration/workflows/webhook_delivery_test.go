@@ -281,6 +281,22 @@ func getSubscriptionDeliveries(t *testing.T, client *framework.IntegrationClient
 	return deliveries
 }
 
+// snapshotDeliveryIDs records the IDs already present on a subscription so a
+// subtest can pin its assertions to the delivery IT triggered. The shared
+// subscription accumulates records across subtests, ListBySubscription sorts
+// oldest-first, and a stale failed record can be retried into 'delivered'
+// mid-subtest (#691) — matching on event_type+attempts alone selects it.
+func snapshotDeliveryIDs(t *testing.T, client *framework.IntegrationClient, subID string) map[string]bool {
+	t.Helper()
+	seen := make(map[string]bool)
+	for _, d := range getSubscriptionDeliveries(t, client, subID) {
+		if id, ok := d["id"].(string); ok {
+			seen[id] = true
+		}
+	}
+	return seen
+}
+
 // postDeliveryStatusHMAC sends an HMAC-authenticated status update to the public endpoint.
 func postDeliveryStatusHMAC(
 	t *testing.T,
@@ -698,6 +714,8 @@ func TestWebhookDelivery(t *testing.T) {
 		sharedReceiver.SetStatusCode(500)
 		defer sharedReceiver.SetStatusCode(200)
 
+		preexisting := snapshotDeliveryIDs(t, client, sharedSubID)
+
 		_ = createThreatModel(t, client)
 
 		// Wait for at least one delivery attempt to be recorded.
@@ -705,6 +723,9 @@ func TestWebhookDelivery(t *testing.T) {
 		framework.PollUntil(t, 30*time.Second, 2*time.Second, func() bool {
 			deliveries := getSubscriptionDeliveries(t, client, sharedSubID)
 			for _, d := range deliveries {
+				if id, _ := d["id"].(string); preexisting[id] {
+					continue
+				}
 				eventType, _ := d["event_type"].(string)
 				if eventType == "threat_model.created" {
 					attempts, _ := d["attempts"].(float64)
@@ -846,6 +867,8 @@ func TestWebhookDelivery(t *testing.T) {
 		sharedReceiver.SetStatusCode(503)
 		defer sharedReceiver.SetStatusCode(200)
 
+		preexisting := snapshotDeliveryIDs(t, client, sharedSubID)
+
 		_ = createThreatModel(t, client)
 
 		// Wait for first delivery attempt.
@@ -853,6 +876,9 @@ func TestWebhookDelivery(t *testing.T) {
 		framework.PollUntil(t, 30*time.Second, 2*time.Second, func() bool {
 			deliveries := getSubscriptionDeliveries(t, client, sharedSubID)
 			for _, d := range deliveries {
+				if id, _ := d["id"].(string); preexisting[id] {
+					continue
+				}
 				eventType, _ := d["event_type"].(string)
 				attempts, _ := d["attempts"].(float64)
 				if eventType == "threat_model.created" && attempts >= 1 {
@@ -896,6 +922,8 @@ func TestWebhookDelivery(t *testing.T) {
 		sharedReceiver.SetStatusCode(400)
 		defer sharedReceiver.SetStatusCode(200)
 
+		preexisting := snapshotDeliveryIDs(t, client, sharedSubID)
+
 		_ = createThreatModel(t, client)
 
 		// Wait for delivery attempt.
@@ -903,6 +931,9 @@ func TestWebhookDelivery(t *testing.T) {
 		framework.PollUntil(t, 30*time.Second, 2*time.Second, func() bool {
 			deliveries := getSubscriptionDeliveries(t, client, sharedSubID)
 			for _, d := range deliveries {
+				if id, _ := d["id"].(string); preexisting[id] {
+					continue
+				}
 				eventType, _ := d["event_type"].(string)
 				attempts, _ := d["attempts"].(float64)
 				if eventType == "threat_model.created" && attempts >= 1 {

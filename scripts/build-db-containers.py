@@ -140,6 +140,7 @@ def main() -> None:
         passed = helpers.scan_image(
             f"{image_name}:latest",
             project_root / "security-reports",
+            platform=config.platform,
         )
         helpers.generate_security_summary(
             project_root / "security-reports", build_date, git_commit
@@ -178,6 +179,7 @@ def main() -> None:
         passed = helpers.scan_image(
             f"{image_name}:latest",
             project_root / "security-reports",
+            platform=config.platform,
         )
         helpers.generate_security_summary(
             project_root / "security-reports", build_date, git_commit

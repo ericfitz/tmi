@@ -342,6 +342,16 @@ reset-db-oci:
 probe-oracle-clob-like:
 	@bash -c "source scripts/oci-env.sh && go run -tags oracle ./scripts/oracle-clob-like-probe/..."
 
+# OCI ADB Repair - Fix quota column DEFAULTs left stale by #649 (#682)
+# Prerequisites: Same as probe-oracle-clob-like (Oracle Instant Client, wallet, credentials)
+# TMI's additive Oracle migrator no-ops GORM's MigrateColumn, so struct-tag
+# default: changes never reach already-provisioned ADB columns. This runs the
+# hand-written ALTER TABLE ... MODIFY DEFAULT companion for the two quota
+# columns — MUTATES schema metadata (the ALTERs) — then prints before/after
+# state plus stale-row counts (the assessment queries are read-only).
+oracle-fix-quota-defaults:  ## One-off: repair quota column DEFAULTs on Oracle ADB (#682; requires scripts/oci-env.sh)
+	@bash -c "source scripts/oci-env.sh && go run -tags oracle ./scripts/oracle-quota-default-fix/..."
+
 # Development Environment - Optional Tilt fast server-only loop
 # Requires: tilt installed (https://docs.tilt.dev/install.html) + a running dev-up cluster
 # Usage: make tilt-up   - start the Tilt fast loop (runs in foreground; Ctrl-C to stop)
@@ -876,7 +886,8 @@ test-e2e-platform:  ## Run the platform e2e tests (requires e2e-platform-up + co
 	go test -tags e2e ./test/e2e/platform/ -v
 
 .PHONY: build-extractor build-chunkembed build-workers test-workers \
-        stage-worker-docker-deps build-extractor-container build-chunkembed-container
+        stage-worker-docker-deps build-extractor-container build-chunkembed-container \
+        build-controller-container
 
 build-extractor:  ## Build the tmi-extractor worker binary
 	go build -o bin/tmi-extractor ./cmd/extractor/
@@ -932,6 +943,9 @@ build-chunkembed-container:  ## Build the tmi-chunk-embed container image
 	$(MAKE) stage-worker-docker-deps
 	docker build -f Dockerfile.chunkembed -t tmi-chunk-embed:dev .
 	@rm -rf .docker-deps
+
+build-controller-container:  ## Build TMI component-controller container image
+	@uv run scripts/build-app-containers.py --target local --component controller
 
 .PHONY: test-e2e-workers
 

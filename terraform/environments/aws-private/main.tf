@@ -29,8 +29,13 @@ terraform {
       version = ">= 2.25.0"
     }
     helm = {
-      source  = "hashicorp/helm"
-      version = ">= 2.12.0"
+      source = "hashicorp/helm"
+      # Pinned below 3.0: the helm provider v3 line replaced the
+      # `kubernetes { ... }` nested block used by provider "helm" below with
+      # a different schema, breaking `terraform validate`/`init` on an
+      # unbounded ">= 2.12.0" constraint. Mirrors aws-public and the
+      # kubernetes module's own constraint.
+      version = ">= 2.12.0, < 3.0.0"
     }
     random = {
       source  = "hashicorp/random"
@@ -173,7 +178,11 @@ module "database" {
 module "kubernetes" {
   source = "../../modules/kubernetes/aws"
 
-  name_prefix            = var.name_prefix
+  name_prefix = var.name_prefix
+  # null falls through to the module's own default (Terraform substitutes a
+  # module variable's default when the caller passes null), so the pin lives in
+  # one place unless an operator is deliberately stepping through an upgrade.
+  kubernetes_version     = var.kubernetes_version
   node_instance_type     = "t3.medium"
   node_count             = 1
   endpoint_public_access = true

@@ -65,8 +65,46 @@ if [ -z "$pkg_dirs" ]; then
 fi
 
 # 2. go vet on just the affected packages (fast; whole-module vet is slow).
-if ! go vet $pkg_dirs; then
+#
+# Some scripts/ diagnostic/repair utilities (e.g. oracle-clob-like-probe,
+# oracle-quota-default-fix) are single-file packages gated entirely by
+# `//go:build oracle` so they can depend on godror without forcing CGO on
+# every build. A tagless `go vet` sees zero buildable files in those specific
+# directories and fails with "build constraints exclude all Go files" even
+# though the file itself is fine.
+#
+# The fix is scoped, not global: packages like api/ also contain
+# oracle-tagged files (e.g. *_oracle_test.go) alongside untagged ones, and
+# blanket `-tags oracle` there would pull godror/cgo into every commit that
+# touches api/, which most contributors' machines cannot build (no Oracle
+# Instant Client). So each staged package directory is tested with a tagless
+# `go list` first; only directories where that fails specifically on a build
+# constraint (i.e. every buildable file in the directory requires the oracle
+# tag) get a second, oracle-tagged vet/lint pass. Directories with a mix of
+# tagged and untagged files are vetted exactly as before — tagless — so the
+# oracle-tagged files there are silently skipped, same as a normal build.
+normal_dirs=""
+oracle_only_dirs=""
+for d in $pkg_dirs; do
+    list_err=$(mktemp)
+    if go list "$d" >/dev/null 2>"$list_err"; then
+        normal_dirs="$normal_dirs $d"
+    elif grep -q "build constraints exclude all Go files" "$list_err"; then
+        oracle_only_dirs="$oracle_only_dirs $d"
+    else
+        # Some other go list failure (e.g. a syntax error) — let the normal
+        # tagless vet pass surface it as it would have before this change.
+        normal_dirs="$normal_dirs $d"
+    fi
+    rm -f "$list_err"
+done
+
+if [ -n "$normal_dirs" ] && ! go vet $normal_dirs; then
     echo "pre-commit: go vet reported problems (see above)." >&2
+    fail=1
+fi
+if [ -n "$oracle_only_dirs" ] && ! go vet -tags oracle $oracle_only_dirs; then
+    echo "pre-commit: go vet -tags oracle reported problems (see above) for:$oracle_only_dirs" >&2
     fail=1
 fi
 
@@ -75,9 +113,15 @@ if ! command -v golangci-lint >/dev/null 2>&1; then
     echo "pre-commit: golangci-lint is not installed." >&2
     echo "  install: https://golangci-lint.run/welcome/install/ (or: brew install golangci-lint)" >&2
     fail=1
-elif ! golangci-lint run --fast-only $pkg_dirs; then
-    echo "pre-commit: golangci-lint reported problems (see above)." >&2
-    fail=1
+else
+    if [ -n "$normal_dirs" ] && ! golangci-lint run --fast-only $normal_dirs; then
+        echo "pre-commit: golangci-lint reported problems (see above)." >&2
+        fail=1
+    fi
+    if [ -n "$oracle_only_dirs" ] && ! golangci-lint run --fast-only --build-tags oracle $oracle_only_dirs; then
+        echo "pre-commit: golangci-lint --build-tags oracle reported problems (see above) for:$oracle_only_dirs" >&2
+        fail=1
+    fi
 fi
 
 if [ "$fail" -ne 0 ]; then

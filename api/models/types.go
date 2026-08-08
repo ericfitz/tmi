@@ -442,6 +442,15 @@ func (j *JSONRaw) Scan(value any) error {
 		return fmt.Errorf("cannot scan type %T into JSONRaw", value)
 	}
 
+	// Oracle stores '' as NULL and hands a NULL CLOB back as an empty string,
+	// so empty input must normalize to nil exactly like SQL NULL (the value==nil
+	// branch above) — a zero-length non-nil JSONRaw fails json.Unmarshal in row
+	// converters (#696). Mirrors Value()'s empty→NULL normalization.
+	if len(raw) == 0 {
+		*j = nil
+		return nil
+	}
+
 	// Oracle may return CLOB/BLOB data as uppercase hex-encoded strings
 	// (e.g., "7B7D" instead of "{}"). Detect this by checking if the data
 	// is valid JSON first; if not, try hex decoding.
@@ -567,7 +576,6 @@ func (t *NullableDBText) Scan(value any) error {
 		t.String, t.Valid = "", false
 		return nil
 	}
-	t.Valid = true
 	switch v := value.(type) {
 	case []byte:
 		t.String = string(v)
@@ -576,6 +584,9 @@ func (t *NullableDBText) Scan(value any) error {
 	default:
 		return fmt.Errorf("cannot scan type %T into NullableDBText", value)
 	}
+	// Empty input normalizes to NULL for Oracle parity — see the identical
+	// guard in NullableDBVarchar.Scan (#698).
+	t.Valid = t.String != ""
 	return nil
 }
 
@@ -737,7 +748,6 @@ func (v *NullableDBVarchar) Scan(value any) error {
 		v.String, v.Valid = "", false
 		return nil
 	}
-	v.Valid = true
 	switch s := value.(type) {
 	case []byte:
 		v.String = string(s)
@@ -746,6 +756,12 @@ func (v *NullableDBVarchar) Scan(value any) error {
 	default:
 		return fmt.Errorf("cannot scan type %T into NullableDBVarchar", value)
 	}
+	// Oracle stores the empty string as NULL and hands a NULL VARCHAR2 back as
+	// an empty string (not nil), so empty input must normalize to NULL like the
+	// value==nil branch — otherwise NULL columns read back Valid+empty, which
+	// breaks Email marshaling and feeds GORM preloads WHERE fk = '' (#698).
+	// Same normalization as JSONRaw.Scan (#696) and NullableSSVC.Scan.
+	v.Valid = v.String != ""
 	return nil
 }
 

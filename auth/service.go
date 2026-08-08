@@ -279,11 +279,18 @@ func (s *Service) GenerateTokensWithUserInfo(ctx context.Context, user User, use
 // authTime parameter is the timestamp of the user's last interactive IdP
 // authentication. For fresh logins, pass time.Now(). For refresh-token
 // rotation, pass the preserved auth_time from the previous JWT.
-// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: mint a JWT access/refresh token pair preserving a caller-supplied auth_time (reads DB)
+// SEM@d6ba1258a9717617fbc06be1d06d85ad56f1ccdf: mint a JWT access/refresh token pair preserving a caller-supplied auth_time (reads DB)
 func (s *Service) GenerateTokensWithAuthTime(ctx context.Context, user User, userInfo *UserInfo, authTime time.Time) (TokenPair, error) {
 	// If UserInfo is provided, update the user with fresh provider data
 	if userInfo != nil {
-		user.EmailVerified = userInfo.EmailVerified
+		// EmailVerified transitions one-way false -> true, matching
+		// updateUserOnLogin (#648, #687): a provider payload that lacks a
+		// verifiable email (e.g. a synthesized SAML fallback address, or an
+		// IdP that only carries the flag in ID-token claims) must never
+		// downgrade a stored verified flag.
+		if userInfo.EmailVerified && !user.EmailVerified {
+			user.EmailVerified = true
+		}
 		// Note: GivenName, FamilyName, Picture, Locale are ignored per schema requirements
 
 		// Set IdP and groups from the fresh UserInfo
