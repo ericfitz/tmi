@@ -27,7 +27,7 @@ const oracleLockTimeoutSeconds = 300
 // DBMS_LOCK.REQUEST. Other dialects return an error.
 //
 // The release function is idempotent and safe to defer.
-// SEM@73235c4c5e292c1a307c5bb6d625a4cb06eb57f2: lock a named schema-migration advisory lock, dispatching to the correct dialect implementation (reads DB)
+// SEM@3d0932f1: lock a named schema-migration advisory lock, dispatching to the correct dialect implementation (reads DB)
 func AcquireMigrationLock(ctx context.Context, db *gorm.DB, name string) (release func(), err error) {
 	logger := slogging.Get()
 	dialect := db.Name()
@@ -74,22 +74,28 @@ func acquirePGLock(ctx context.Context, db *gorm.DB, name string, logger *sloggi
 //
 // DBMS_LOCK ownership is session-scoped in Oracle, but database/sql gives no
 // guarantee that separate ExecContext calls land on the same pooled
-// connection. ALLOCATE_UNIQUE, REQUEST, and RELEASE — plus everything the
-// caller does while holding the lock — must therefore run on one pinned
-// *sql.Conn (sqlDB.Conn(ctx)) rather than through the general pool, or the
-// lock can be requested and released against different Oracle sessions
-// (issue #711). The pinned conn is closed on every exit path: immediately on
-// any acquisition error, and inside the returned release function otherwise.
-// Taking *sql.DB (rather than *gorm.DB) also keeps this function testable
-// with a plain database/sql mock driver, independent of GORM's dialector.
+// connection. ALLOCATE_UNIQUE, REQUEST, and RELEASE must therefore run on one
+// pinned *sql.Conn (sqlDB.Conn(ctx)) rather than through the general pool, or
+// the lock can be requested and released against different Oracle sessions
+// (issue #711). That pinned session must stay open — the conn held, not
+// returned to the pool — for the whole duration the caller holds the lock,
+// so the session-scoped lock survives; the caller's own locked work (e.g.
+// AutoMigrate) runs through its normal pooled connections, not this one. The
+// pinned conn is closed on every exit path: immediately on any acquisition
+// error, and inside the returned release function otherwise. Taking *sql.DB
+// (rather than *gorm.DB) also keeps this function testable with a plain
+// database/sql mock driver, independent of GORM's dialector.
 //
 // All binds are positional (:1, :2, ...). Mixing ? and named binds (:h, :s)
 // is unreliable on godror.
 // SEM@126168fa: acquire an Oracle DBMS_LOCK exclusive lock on a pinned session connection and return a release function (reads DB)
 func acquireOracleLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slogging.Logger) (func(), error) {
 	// Pin a single physical connection for the lifetime of the lock so
-	// ALLOCATE_UNIQUE, REQUEST, the caller's locked work, and RELEASE all
-	// execute on the same Oracle session.
+	// ALLOCATE_UNIQUE, REQUEST, and RELEASE all execute on the same Oracle
+	// session. This conn is held open (not returned to the pool) for as long
+	// as the caller holds the lock, so the session-scoped lock stays valid —
+	// the caller's own locked work runs on other pooled connections, not
+	// this one.
 	conn, err := sqlDB.Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get pinned sql.Conn for advisory lock: %w", err)
