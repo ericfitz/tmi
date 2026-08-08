@@ -1,10 +1,20 @@
 package api
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/ericfitz/tmi/api/models"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	gormlogger "gorm.io/gorm/logger"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func TestValidatePreferences(t *testing.T) {
@@ -99,4 +109,64 @@ func TestValidatePreferences(t *testing.T) {
 		err := validatePreferences(valid)
 		assert.NoError(t, err)
 	})
+}
+
+// setupUserPreferencesTestDB creates an in-memory SQLite DB with the tables
+// needed for GetCurrentUserPreferences handler tests, seeded with a user.
+func setupUserPreferencesTestDB(t *testing.T) (*gorm.DB, *models.User) {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger:                                   gormlogger.Discard,
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(
+		&models.User{},
+		&models.UserPreference{},
+	))
+
+	user := &models.User{
+		InternalUUID:   models.DBVarchar(uuid.New().String()),
+		Provider:       "test",
+		ProviderUserID: models.NewNullableDBVarchar(strPtr("preferences-test-user")),
+		Email:          models.DBVarchar("prefs@example.com"),
+		Name:           models.DBVarchar("Prefs User"),
+	}
+	require.NoError(t, db.Create(user).Error)
+
+	return db, user
+}
+
+// TestGetCurrentUserPreferences_EmptyStoredPreferences guards against the
+// zero-500 regression in #697: Oracle can hand back a zero-length CLOB for a
+// stored preferences row (JSONRaw.Scan normalizes that to a nil JSONRaw), and
+// json.Unmarshal on nil input previously bubbled up as a 500 instead of the
+// documented 200-with-defaults response.
+func TestGetCurrentUserPreferences_EmptyStoredPreferences(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	db, user := setupUserPreferencesTestDB(t)
+
+	// Insert a preferences row with a genuinely zero-length stored value
+	// (bypassing JSONRaw.Value, which would normalize an empty slice to NULL
+	// on Create) to reproduce the empty-CLOB-read-back scenario directly.
+	require.NoError(t, db.Exec(
+		"INSERT INTO user_preferences (id, user_internal_uuid, preferences, created_at, modified_at) VALUES (?, ?, '', datetime('now'), datetime('now'))",
+		uuid.New().String(), string(user.InternalUUID),
+	).Error)
+
+	original := ThreatModelStore
+	defer func() { ThreatModelStore = original }()
+	ThreatModelStore = NewGormThreatModelStore(db)
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request, _ = http.NewRequest(http.MethodGet, "/me/preferences", nil)
+	c.Set("userInternalUUID", string(user.InternalUUID))
+
+	s := &Server{}
+	s.GetCurrentUserPreferences(c)
+
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	assert.JSONEq(t, "{}", w.Body.String())
 }

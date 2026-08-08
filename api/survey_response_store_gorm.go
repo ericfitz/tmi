@@ -345,7 +345,7 @@ func (s *GormSurveyResponseStore) Get(ctx context.Context, id uuid.UUID) (*Surve
 }
 
 // Update updates an existing survey response
-// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: store mutable fields of an existing survey response; preserves immutable fields (mutates DB)
+// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: store mutable fields of an existing survey response via JSONRaw-typed answers/ui_state; preserves immutable fields (mutates DB)
 func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyResponse) error {
 	logger := slogging.Get()
 
@@ -372,7 +372,7 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 		if err != nil {
 			return fmt.Errorf("failed to marshal answers: %w", err)
 		}
-		updates["answers"] = answersJSON
+		updates["answers"] = models.JSONRaw(answersJSON)
 	} else {
 		updates["answers"] = nil
 	}
@@ -383,7 +383,7 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 		if err != nil {
 			return fmt.Errorf("failed to marshal ui_state: %w", err)
 		}
-		updates["ui_state"] = uiStateJSON
+		updates["ui_state"] = models.JSONRaw(uiStateJSON)
 	} else {
 		updates["ui_state"] = nil
 	}

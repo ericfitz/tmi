@@ -53,7 +53,7 @@ func validatePreferences(data []byte) error {
 }
 
 // GetCurrentUserPreferences handles GET /me/preferences
-// SEM@cdbe48c974fb76e1161972733b30bb0d1c02c3b1: fetch the authenticated user's stored preferences (reads DB)
+// SEM@cdbe48c974fb76e1161972733b30bb0d1c02c3b1: fetch the authenticated user's stored preferences, defaulting to empty on a zero-length stored value (reads DB)
 func (s *Server) GetCurrentUserPreferences(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	logger.Info("[PREFERENCES] GetCurrentUserPreferences called")
@@ -90,6 +90,13 @@ func (s *Server) GetCurrentUserPreferences(c *gin.Context) {
 		}
 		logger.Error("[PREFERENCES] Failed to get preferences: %v", result.Error)
 		HandleRequestError(c, ServerError("failed to retrieve preferences"))
+		return
+	}
+
+	// Oracle hands a NULL/empty CLOB back as zero-length; return defaults
+	// instead of failing json.Unmarshal on empty input (#697, zero-500 policy).
+	if len(pref.Preferences) == 0 {
+		c.JSON(http.StatusOK, UserPreferences{})
 		return
 	}
 
