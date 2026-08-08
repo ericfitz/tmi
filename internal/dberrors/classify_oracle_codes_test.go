@@ -128,6 +128,18 @@ func TestClassifyOracleCode_ConnectionErrors(t *testing.T) {
 	}
 }
 
+// TestClassifyOracleCode_IdleDisconnectErrors verifies ORA-02396 (exceeded
+// maximum idle time) and ORA-01012 (not logged on) classify as transient
+// alongside the other connection-loss codes above — both are ADB
+// idle-session-kill symptoms (1.8.3 oracle-db-admin review).
+func TestClassifyOracleCode_IdleDisconnectErrors(t *testing.T) {
+	for _, code := range []int{2396, 1012} {
+		src := fmt.Errorf("ORA-%05d: idle disconnect", code)
+		err := classifyOracleCode(src, code)
+		assert.True(t, errors.Is(err, ErrTransient), "code %d should be transient", code)
+	}
+}
+
 func TestClassifyOracleCode_PermissionErrors(t *testing.T) {
 	src := fmt.Errorf("ORA-01017: invalid username/password")
 	err := classifyOracleCode(src, 1017)

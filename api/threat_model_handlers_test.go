@@ -199,6 +199,24 @@ func TestIsUserAccountConfirmedDeleted_UnavailableUserStore(t *testing.T) {
 	assert.False(t, isUserAccountConfirmedDeleted(context.Background(), "test", "test@example.com"))
 }
 
+// TestIsUserAccountConfirmedDeleted_EmptyOrUnknownIdentity verifies the
+// existence check refuses to run at all when either half of the identity is
+// missing or is the "unknown" idp placeholder threat_model_handlers.go
+// substitutes when the JWT-derived idp is absent from context. A lookup keyed
+// on an empty or placeholder identity cannot positively confirm deletion, so
+// it must never contribute to a false 401 (1.8.3 oracle-db-admin review).
+func TestIsUserAccountConfirmedDeleted_EmptyOrUnknownIdentity(t *testing.T) {
+	origUserStore := GlobalUserStore
+	defer func() { GlobalUserStore = origUserStore }()
+	// A user store that would confirm deletion for anything looked up, so a
+	// true result here can only come from bypassing the guard.
+	GlobalUserStore = newMockUserStore()
+
+	assert.False(t, isUserAccountConfirmedDeleted(context.Background(), "test", ""), "empty providerID must not confirm deletion")
+	assert.False(t, isUserAccountConfirmedDeleted(context.Background(), "", "test@example.com"), "empty provider must not confirm deletion")
+	assert.False(t, isUserAccountConfirmedDeleted(context.Background(), string(ComponentHealthStatusUnknown), "test@example.com"), "\"unknown\" placeholder provider must not confirm deletion")
+}
+
 // TestGetThreatModels tests listing threat models
 func TestGetThreatModels(t *testing.T) {
 	r := setupThreatModelRouter()

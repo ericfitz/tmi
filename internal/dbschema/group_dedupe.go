@@ -157,7 +157,7 @@ func DeduplicateGroups(db *gorm.DB) (int64, error) {
 // The transaction is wrapped in withDedupeRetry so a transient cross-replica
 // conflict (#712) is retried a bounded number of times instead of aborting
 // the whole migration.
-// SEM@7d1cee63: resolve one duplicate groups key by repointing children and deleting the losers, retrying on transient errors (writes DB)
+// SEM@6565b585498d8b8755956866f57cd0f56efafc53: resolve one duplicate groups key by repointing children and deleting the losers, retrying on transient errors (writes DB)
 func dedupeGroupKey(db *gorm.DB, provider, groupName string) (int64, error) {
 	groupsTable := (&models.Group{}).TableName()
 	tmaTable := (&models.ThreatModelAccess{}).TableName()
@@ -173,7 +173,13 @@ func dedupeGroupKey(db *gorm.DB, provider, groupName string) (int64, error) {
 				Where("provider = ? AND group_name = ?", provider, groupName).
 				Order("first_used ASC, internal_uuid ASC").
 				Scan(&rows).Error; err != nil {
-				return fmt.Errorf("failed to load duplicate group rows: %w", err)
+				// Deliberately avoid the word "duplicate" in every error wrapped
+				// inside this retried transaction: without the oracle build tag,
+				// dberrors.Classify falls back to classifyByString, which matches
+				// "duplicate" -> ErrDuplicate (non-retryable) before any other
+				// pattern, which would silently defeat withDedupeRetry's transient
+				// retry (1.8.3 oracle-db-admin review).
+				return fmt.Errorf("failed to load redundant group rows: %w", err)
 			}
 			if len(rows) < 2 {
 				// A concurrent replica already resolved this key.
@@ -208,7 +214,7 @@ func dedupeGroupKey(db *gorm.DB, provider, groupName string) (int64, error) {
 			for _, chunk := range chunkStrings(losers) {
 				result := tx.Table(groupsTable).Where("internal_uuid IN ?", chunk).Delete(nil)
 				if result.Error != nil {
-					return fmt.Errorf("failed to delete duplicate group rows: %w", result.Error)
+					return fmt.Errorf("failed to delete redundant group rows: %w", result.Error)
 				}
 				deleted += result.RowsAffected
 			}
@@ -304,7 +310,7 @@ func dedupeMemberGroupPairs(tx *gorm.DB, groupMembersTable, survivor string) err
 		Group("group_internal_uuid").
 		Having("COUNT(*) > 1").
 		Scan(&dups).Error; err != nil {
-		return fmt.Errorf("failed to find duplicate subgroup-membership pairs for %s: %w", survivor, err)
+		return fmt.Errorf("failed to find redundant subgroup-membership pairs for %s: %w", survivor, err)
 	}
 
 	for _, dup := range dups {
@@ -322,7 +328,7 @@ func dedupeMemberGroupPairs(tx *gorm.DB, groupMembersTable, survivor string) err
 			Where("group_internal_uuid = ? AND member_group_internal_uuid = ? AND subject_type = ? AND id <> ?",
 				dup.GroupInternalUUID, survivor, "group", keepID).
 			Delete(nil).Error; err != nil {
-			return fmt.Errorf("failed to drop duplicate subgroup-membership rows for parent %s: %w", dup.GroupInternalUUID, err)
+			return fmt.Errorf("failed to drop redundant subgroup-membership rows for parent %s: %w", dup.GroupInternalUUID, err)
 		}
 	}
 	return nil
@@ -381,7 +387,7 @@ func repointGroupMembers(tx *gorm.DB, survivor string, losers []string) error {
 			Where("group_internal_uuid IN ?", chunk).
 			Order("added_at ASC").
 			Scan(&batch).Error; err != nil {
-			return fmt.Errorf("failed to load group_members rows for duplicate groups: %w", err)
+			return fmt.Errorf("failed to load group_members rows for redundant groups: %w", err)
 		}
 		loserRows = append(loserRows, batch...)
 	}

@@ -88,8 +88,22 @@ func acquirePGLock(ctx context.Context, db *gorm.DB, name string, logger *sloggi
 //
 // All binds are positional (:1, :2, ...). Mixing ? and named binds (:h, :s)
 // is unreliable on godror.
-// SEM@126168fa: acquire an Oracle DBMS_LOCK exclusive lock on a pinned session connection and return a release function (reads DB)
+// SEM@3d0932f18cc283406a531ef6fac4204f8f61d66a: acquire an Oracle DBMS_LOCK exclusive lock on a pinned session connection, raising a single-slot pool to two first, and return a release function (reads DB)
 func acquireOracleLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slogging.Logger) (func(), error) {
+	// A pool sized to exactly one connection (TMI_DB_MAX_OPEN_CONNS=1) cannot
+	// survive pinning a connection for the lock's lifetime: sqlDB.Conn below
+	// takes the pool's only slot and holds it for the whole migration, so the
+	// caller's own locked work (e.g. AutoMigrate), which runs through the
+	// normal pool rather than this pinned conn, has no slot left and blocks
+	// forever on context.Background() (#711 follow-up). Bump the ceiling to 2
+	// so the pinned lock connection and the migration's own queries each get
+	// a slot; pools already sized >=2 (including the default of 10) are left
+	// untouched.
+	if stats := sqlDB.Stats(); stats.MaxOpenConnections == 1 {
+		logger.Warn("Oracle advisory lock: connection pool max_open_conns=1 would deadlock AutoMigrate (pinned lock connection would leave no slot for migration queries); raising pool ceiling to 2")
+		sqlDB.SetMaxOpenConns(2)
+	}
+
 	// Pin a single physical connection for the lifetime of the lock so
 	// ALLOCATE_UNIQUE, REQUEST, and RELEASE all execute on the same Oracle
 	// session. This conn is held open (not returned to the pool) for as long

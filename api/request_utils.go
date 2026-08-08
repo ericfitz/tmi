@@ -721,9 +721,21 @@ func isForeignKeyConstraintError(err error) bool {
 // (e.g. an arbitrary foreign key constraint name). See #702: a foreign key
 // violation on an unrelated reference (such as a non-existent authorization
 // group) is not evidence that the caller's own account was deleted.
-// SEM@8dfef8f6: confirm via a direct lookup that a user's account row no longer exists (reads DB)
+//
+// provider == "" or provider == "unknown" (the ComponentHealthStatusUnknown
+// fallback threat_model_handlers.go substitutes when the JWT-derived idp is
+// missing from context) cannot be a real identity provider name, so a lookup
+// keyed on it can never positively confirm anything -- it would either miss
+// every real row (false "not deleted") or, worse, spuriously match rows that
+// happen to share that placeholder provider value. Reject both up front so
+// the caller lands on its generic 4xx path instead of a false 401 (1.8.3
+// oracle-db-admin review).
+// SEM@8dfef8f6: confirm via a direct lookup that a user's account row no longer exists, refusing empty or placeholder identities (reads DB)
 func isUserAccountConfirmedDeleted(ctx context.Context, provider, providerID string) bool {
 	if GlobalUserStore == nil {
+		return false
+	}
+	if providerID == "" || provider == "" || provider == string(ComponentHealthStatusUnknown) {
 		return false
 	}
 	_, err := GlobalUserStore.GetByProviderAndID(ctx, provider, providerID)

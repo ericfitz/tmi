@@ -126,6 +126,8 @@ var oracleCodeSentinels = map[int]error{
 	12537: ErrTransient, // TNS: connection closed — companion to 12541/12543, common on ADB maintenance
 	12541: ErrTransient, // no listener
 	12543: ErrTransient, // destination host unreachable
+	2396:  ErrTransient, // exceeded maximum idle time — ADB idle-session kill, sibling of 3113/3114/3135
+	1012:  ErrTransient, // not logged on — session already terminated (e.g. by the 2396 idle kill) before this call
 
 	// Package state discarded — retry is safe regardless of whether the same
 	// session is reused: the failing session has already invalidated its stale
