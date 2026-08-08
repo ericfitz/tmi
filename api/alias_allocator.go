@@ -123,7 +123,7 @@ func allocateNextAliasRowLocked(ctx context.Context, tx *gorm.DB, parentID, obje
 	row := models.AliasCounter{ParentID: models.DBVarchar(parentID), ObjectType: models.DBVarchar(objectType), NextAlias: 1}
 	if err := tx.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&row).Error; err != nil {
 		logger.Error("alias_counters upsert failed: parent=%s type=%s err=%v", parentID, objectType, err)
-		return 0, fmt.Errorf("alias_counters upsert: %w", err)
+		return 0, fmt.Errorf("alias_counters upsert: %w", dberrors.Classify(err))
 	}
 
 	// Lock the row and read the current value.
@@ -138,7 +138,7 @@ func allocateNextAliasRowLocked(ctx context.Context, tx *gorm.DB, parentID, obje
 	}
 	if err != nil {
 		logger.Error("alias_counters lock failed: parent=%s type=%s err=%v", parentID, objectType, err)
-		return 0, fmt.Errorf("alias_counters lock: %w", err)
+		return 0, fmt.Errorf("alias_counters lock: %w", dberrors.Classify(err))
 	}
 
 	allocated := counter.NextAlias
@@ -149,7 +149,7 @@ func allocateNextAliasRowLocked(ctx context.Context, tx *gorm.DB, parentID, obje
 		Where("parent_id = ? AND object_type = ?", parentID, objectType).
 		Update("next_alias", counter.NextAlias+1).Error; err != nil {
 		logger.Error("alias_counters bump failed: parent=%s type=%s err=%v", parentID, objectType, err)
-		return 0, fmt.Errorf("alias_counters bump: %w", err)
+		return 0, fmt.Errorf("alias_counters bump: %w", dberrors.Classify(err))
 	}
 
 	return allocated, nil

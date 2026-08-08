@@ -30766,6 +30766,9 @@
           "404": {
             "$ref": "#/components/responses/Error"
           },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
           }
@@ -31066,6 +31069,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
@@ -32903,6 +32909,9 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"

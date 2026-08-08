@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -80,7 +81,9 @@ func (h *NoteSubResourceHandler) GetNotes(c *gin.Context) {
 	notes, err := h.noteStore.List(c.Request.Context(), threatModelID, offset, limit)
 	if err != nil {
 		logger.Error("Failed to retrieve notes: %v", err)
-		HandleRequestError(c, ServerError("Failed to retrieve notes"))
+		HandleRequestError(c, StoreErrorToRequestError(err,
+			fmt.Sprintf("Threat model %s not found", threatModelID),
+			"Failed to retrieve notes"))
 		return
 	}
 
@@ -220,7 +223,9 @@ func (h *NoteSubResourceHandler) CreateNote(c *gin.Context) {
 	// Create note in store
 	if err := h.noteStore.Create(c.Request.Context(), note, threatModelID); err != nil {
 		logger.Error("Failed to create note: %v", err)
-		HandleRequestError(c, ServerError("Failed to create note"))
+		HandleRequestError(c, StoreErrorToRequestError(err,
+			fmt.Sprintf("Threat model %s not found", threatModelID),
+			"Failed to create note"))
 		return
 	}
 
@@ -299,7 +304,7 @@ func (h *NoteSubResourceHandler) UpdateNote(c *gin.Context) {
 	// Update note in store
 	if err := h.noteStore.Update(c.Request.Context(), note, threatModelID); err != nil {
 		logger.Error("Failed to update note %s: %v", noteID, err)
-		HandleRequestError(c, ServerError("Failed to update note"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Note not found", "Failed to update note"))
 		return
 	}
 

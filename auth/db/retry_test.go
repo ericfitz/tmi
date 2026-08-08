@@ -2,12 +2,14 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -64,6 +66,43 @@ func TestWithRetryableGormTransaction_RetryableErrorExhaustsRetries(t *testing.T
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "transaction failed after 2 attempts")
 	assert.Equal(t, int32(2), atomic.LoadInt32(&callCount))
+}
+
+// TestWithRetryableGormTransaction_ExhaustionPreservesErrTransient locks in
+// #707: retry exhaustion must funnel the last error through dberrors.Classify
+// so an unclassified-but-transient failure (here, a bare "driver: bad
+// connection" string that only classify.go's string fallback recognizes)
+// still satisfies errors.Is(err, dberrors.ErrTransient) after all attempts
+// are spent. Without this, StoreErrorToRequestError degrades the exhausted
+// error to a 500 instead of a 503.
+func TestWithRetryableGormTransaction_ExhaustionPreservesErrTransient(t *testing.T) {
+	db := setupTestGormDB(t)
+	ctx := context.Background()
+	cfg := RetryConfig{MaxRetries: 2, BaseDelay: 1 * time.Millisecond, MaxDelay: 5 * time.Millisecond}
+
+	err := WithRetryableGormTransaction(ctx, db, cfg, func(tx *gorm.DB) error {
+		return fmt.Errorf("driver: bad connection")
+	})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "transaction failed after 2 attempts")
+	assert.ErrorIs(t, err, dberrors.ErrTransient)
+}
+
+// TestWithRetryableTransaction_ExhaustionPreservesErrTransient is the
+// database/sql-based sibling of the GORM test above, covering the other
+// exhaustion tail in retry.go (#707).
+func TestWithRetryableTransaction_ExhaustionPreservesErrTransient(t *testing.T) {
+	db, _ := openRecordingDB(t)
+	cfg := RetryConfig{MaxRetries: 2, BaseDelay: 1 * time.Millisecond, MaxDelay: 5 * time.Millisecond}
+
+	err := WithRetryableTransaction(context.Background(), db, cfg, func(*sql.Tx) error {
+		return fmt.Errorf("driver: bad connection")
+	})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "transaction failed after 2 attempts")
+	assert.ErrorIs(t, err, dberrors.ErrTransient)
 }
 
 func TestWithRetryableGormTransaction_RetryThenSucceed(t *testing.T) {

@@ -78,7 +78,9 @@ func (h *AssetSubResourceHandler) GetAssets(c *gin.Context) {
 	assets, err := h.assetStore.List(c.Request.Context(), threatModelID, offset, limit)
 	if err != nil {
 		logger.Error("Failed to retrieve assets: %v", err)
-		HandleRequestError(c, ServerError("Failed to retrieve assets"))
+		HandleRequestError(c, StoreErrorToRequestError(err,
+			fmt.Sprintf("Threat model %s not found", threatModelID),
+			"Failed to retrieve assets"))
 		return
 	}
 
@@ -194,7 +196,9 @@ func (h *AssetSubResourceHandler) CreateAsset(c *gin.Context) {
 	// Create asset in store
 	if err := h.assetStore.Create(c.Request.Context(), asset, threatModelID); err != nil {
 		logger.Error("Failed to create asset: %v", err)
-		HandleRequestError(c, ServerError("Failed to create asset"))
+		HandleRequestError(c, StoreErrorToRequestError(err,
+			fmt.Sprintf("Threat model %s not found", threatModelID),
+			"Failed to create asset"))
 		return
 	}
 

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -420,6 +421,59 @@ func TestCreateNote(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	// StoreError_* locks in the #707 mapping: a store error that has already
+	// survived retry exhaustion (transaction failed after N attempts: %w) must
+	// still classify to the right HTTP status via StoreErrorToRequestError,
+	// not degrade to a bare 500.
+	t.Run("StoreError_Transient_MapsTo503", func(t *testing.T) {
+		r, mockStore := setupNoteSubResourceHandler()
+
+		threatModelID := testUUID1
+
+		requestBody := map[string]any{
+			"name":    "Contended Note",
+			"content": "Contended note content",
+		}
+
+		storeErr := fmt.Errorf("transaction failed after 3 attempts: %w",
+			dberrors.Wrap(fmt.Errorf("ORA-08177: can't serialize access"), dberrors.ErrTransient))
+		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Note"), threatModelID).Return(storeErr)
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/notes", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("StoreError_Duplicate_MapsTo409", func(t *testing.T) {
+		r, mockStore := setupNoteSubResourceHandler()
+
+		threatModelID := testUUID1
+
+		requestBody := map[string]any{
+			"name":    "Duplicate Note",
+			"content": "Duplicate note content",
+		}
+
+		storeErr := dberrors.Wrap(fmt.Errorf("duplicate key value violates unique constraint"), dberrors.ErrDuplicate)
+		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Note"), threatModelID).Return(storeErr)
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/notes", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
+		mockStore.AssertExpectations(t)
 	})
 
 	t.Run("TimmyEnabledDefault", func(t *testing.T) {

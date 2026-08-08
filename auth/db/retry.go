@@ -103,7 +103,14 @@ func WithRetryableTransaction(ctx context.Context, db *sql.DB, cfg RetryConfig, 
 		return nil // Success
 	}
 
-	return fmt.Errorf("transaction failed after %d attempts: %w", cfg.MaxRetries, lastErr)
+	// Classify before wrapping: lastErr may be an unclassified-but-retryable
+	// error (IsRetryableError re-derives its classification on every attempt
+	// via dberrors.Classify, but never stores the classified value back).
+	// Without this, a caller doing errors.Is(err, dberrors.ErrTransient) on
+	// the exhausted error can miss a real transient failure and fall back to
+	// a 500 instead of 503 (#707). Classify is idempotent, so an already
+	// classified lastErr passes through unchanged.
+	return fmt.Errorf("transaction failed after %d attempts: %w", cfg.MaxRetries, dberrors.Classify(lastErr))
 }
 
 // IsRetryableError determines if an error should trigger a retry.
@@ -179,7 +186,10 @@ func WithRetryableGormTransaction(ctx context.Context, gormDB *gorm.DB, cfg Retr
 		return err // Non-retryable error, return immediately
 	}
 
-	return fmt.Errorf("transaction failed after %d attempts: %w", cfg.MaxRetries, lastErr)
+	// See the parallel comment in WithRetryableTransaction: classify lastErr
+	// before wrapping so an exhausted transient error still satisfies
+	// errors.Is(err, dberrors.ErrTransient) for callers (#707).
+	return fmt.Errorf("transaction failed after %d attempts: %w", cfg.MaxRetries, dberrors.Classify(lastErr))
 }
 
 // IsPermissionError checks if an error indicates a database permission or privilege failure.
