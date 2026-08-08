@@ -197,7 +197,7 @@ func (s *GormRepositoryRepository) Get(ctx context.Context, id string) (*Reposit
 }
 
 // Update updates an existing repository
-// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: update a repository's fields, set modified_at explicitly, and refresh cache (mutates shared state)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: update a repository's fields, set modified_at explicitly, and refresh cache (mutates DB, cache)
 func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

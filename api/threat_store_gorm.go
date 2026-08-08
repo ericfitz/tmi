@@ -1097,7 +1097,7 @@ func (s *GormThreatRepository) convertUUIDToString(id *uuid.UUID) *string {
 // as NULL to the database, unlike struct-based Updates() which skips zero values.
 // Custom types (StringArray, CVSSArray, DBBool) are handled explicitly since map-based
 // Updates() bypasses GORM's Value() methods.
-// SEM@436c1840b3eef9687193078750dec3e22874f10e: build a map of all threat fields for GORM map-based update including nil-as-NULL (pure)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: build a map of a threat's fields for a GORM map-based update, normalizing nulls (pure)
 func (s *GormThreatRepository) buildThreatUpdateMap(threat *Threat, now time.Time) map[string]any {
 	// Handle boolean fields: default to false if nil
 	mitigated := models.DBBool(false)

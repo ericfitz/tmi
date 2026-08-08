@@ -32,7 +32,7 @@ func NewAssetSubResourceHandler(assetStore AssetRepository, db *sql.DB, cache *C
 
 // GetAssets retrieves all assets for a threat model with pagination
 // GET /threat_models/{threat_model_id}/assets
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: handle GET /threat_models/{id}/assets: list paginated assets for a threat model (reads DB)
+// SEM@bc62d8f9ad73ff264054d6fd71bc9a58f19b37e7: list paginated assets for a threat model and return them with total count (reads DB)
 func (h *AssetSubResourceHandler) GetAssets(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetAssets - retrieving assets for threat model")
@@ -143,7 +143,7 @@ func (h *AssetSubResourceHandler) GetAsset(c *gin.Context) {
 
 // CreateAsset creates a new asset in a threat model
 // POST /threat_models/{threat_model_id}/assets
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: handle POST /threat_models/{id}/assets: validate and store a new asset (reads DB)
+// SEM@bc62d8f9ad73ff264054d6fd71bc9a58f19b37e7: store a new sanitized asset under a threat model, emit audit record, and invalidate caches (mutates shared state)
 func (h *AssetSubResourceHandler) CreateAsset(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateAsset - creating new asset")
@@ -355,7 +355,7 @@ func (h *AssetSubResourceHandler) DeleteAsset(c *gin.Context) {
 
 // BulkCreateAssets creates multiple assets in a single request
 // POST /threat_models/{threat_model_id}/assets/bulk
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: handle POST /threat_models/{id}/assets/bulk: validate and store multiple assets atomically (reads DB)
+// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: validate, sanitize, and bulk-create multiple assets under a threat model (mutates shared state)
 func (h *AssetSubResourceHandler) BulkCreateAssets(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateAssets - creating multiple assets")
@@ -557,7 +557,7 @@ func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 
 // BulkUpdateAssets updates or creates multiple assets (upsert operation)
 // PUT /threat_models/{threat_model_id}/assets/bulk
-// SEM@2de6d9ced98fa6de4821500a03f276a35f1c450e: upsert multiple assets under a threat model in one request (mutates DB)
+// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: upsert multiple assets under a threat model, creating or updating each (mutates shared state)
 func (h *AssetSubResourceHandler) BulkUpdateAssets(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkUpdateAssets - upserting multiple assets")

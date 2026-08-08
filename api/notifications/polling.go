@@ -28,7 +28,7 @@ import (
 // NamingStrategy (OracleNamingStrategy on Oracle), so the mapping holds on
 // both engines; hardcoded lowercase tags silently zeroed every field on
 // Oracle (#699).
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB row representing a pending or processed notification in the polling queue
+// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: DB row representing a pending or processed notification in the polling queue
 type NotificationQueueEntry struct {
 	ID        models.DBVarchar `gorm:"primaryKey;not null;size:36"`
 	Channel   models.DBVarchar `gorm:"size:255;not null;index"`
@@ -113,7 +113,7 @@ func (p *PollingNotifier) pollLoop() {
 }
 
 // processNewNotifications fetches and processes unprocessed notifications
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: fetch unprocessed notifications for subscribed channels and dispatch them to subscribers (reads DB)
+// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: fetch unprocessed notifications for subscribed channels and dispatch them to subscribers (reads DB)
 func (p *PollingNotifier) processNewNotifications() {
 	p.mu.RLock()
 	subscribedChannels := make([]string, 0, len(p.channels))

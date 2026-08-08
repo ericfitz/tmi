@@ -223,7 +223,7 @@ func (s *GormProjectStore) Get(ctx context.Context, id string) (*Project, error)
 }
 
 // Update updates an existing project
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: replace a project's fields, responsible parties, and relationships in a retryable transaction (reads DB)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: replace a project's fields, responsible parties, and relationships in a retryable transaction (reads DB)
 func (s *GormProjectStore) Update(ctx context.Context, id string, project *Project, userInternalUUID string) (*Project, error) {
 	logger := slogging.Get()
 

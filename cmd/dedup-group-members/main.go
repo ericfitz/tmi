@@ -107,7 +107,7 @@ func run() int {
 
 // deduplicateGroupMembers finds and removes duplicate (group, user, subject_type)
 // rows in group_members, keeping the earliest row by added_at.
-// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: delete duplicate group_members rows, keeping the earliest entry per membership (mutates shared state)
+// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: delete duplicate group_members rows, keeping the earliest entry per membership (mutates DB)
 func deduplicateGroupMembers(gormDB *gorm.DB, dryRun bool) (int64, error) {
 	log := slogging.Get()
 
@@ -125,7 +125,7 @@ func deduplicateGroupMembers(gormDB *gorm.DB, dryRun bool) (int64, error) {
 	// unquoted, so Oracle folds it to `CNT`; the field is named Cnt (not
 	// Count) so its derived DBName ("cnt"/"CNT") matches that alias on both
 	// engines — "Count" would derive "count", which the alias is not.
-	// SEM@c849919898ec78d8bff15ce75f9fccb040810e4a: scan result type holding a duplicate group membership key and its row count (pure)
+	// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: scan result type holding a duplicate group membership key and its row count (pure)
 	type dupGroup struct {
 		GroupInternalUUID string
 		UserInternalUUID  string

@@ -311,7 +311,7 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 }
 
 // Update updates an existing team, replacing members, responsible parties, and relationships
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: replace a team's fields, members, responsible parties, relationships, and metadata (writes DB)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: replace a team's fields, members, responsible parties, relationships, and metadata (mutates DB)
 func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userInternalUUID string) (*Team, error) {
 	logger := slogging.Get()
 	logger.Debug("Updating team: %s", id)

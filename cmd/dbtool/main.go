@@ -23,7 +23,7 @@ func main() {
 	os.Exit(run())
 }
 
-// SEM@4afd7f119372f8474ff20768984986d1276d740e: parse CLI flags, connect to the database, and dispatch the requested dbtool operation
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: parse CLI flags, connect to the database, and dispatch the requested dbtool operation
 func run() int {
 	// Define flags
 	schema := flag.Bool("schema", false, "Create/migrate database schema and seed system data")
@@ -301,7 +301,7 @@ func printExitSummary(info ToolInfo, args map[string]any, status, errMsg string)
 	fmt.Println(string(data))
 }
 
-// SEM@4afd7f119372f8474ff20768984986d1276d740e: print CLI usage text for the dbtool command (pure)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: print CLI usage text for the dbtool command (pure)
 func printUsage() {
 	fmt.Fprintf(os.Stderr, `tmi-dbtool - TMI Database Administration Tool
 

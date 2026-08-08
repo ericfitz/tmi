@@ -53,7 +53,7 @@ func validatePreferences(data []byte) error {
 }
 
 // GetCurrentUserPreferences handles GET /me/preferences
-// SEM@cdbe48c974fb76e1161972733b30bb0d1c02c3b1: fetch the authenticated user's stored preferences, defaulting to empty on a zero-length stored value (reads DB)
+// SEM@0953e9f0b776f0b6506c4a5b3d809b26588328fe: fetch the authenticated user's stored preferences, defaulting to empty when unset (reads DB)
 func (s *Server) GetCurrentUserPreferences(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	logger.Info("[PREFERENCES] GetCurrentUserPreferences called")

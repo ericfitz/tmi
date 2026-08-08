@@ -554,7 +554,7 @@ func (s *GormSurveyResponseStore) ListByOwner(ctx context.Context, ownerInternal
 }
 
 // UpdateStatus transitions a response to a new status with validation
-// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: validate and apply a status transition to a survey response, recording reviewer and notes (mutates DB)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: validate and apply a status transition to a survey response, recording reviewer and notes (mutates DB)
 func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID, newStatus string, reviewerInternalUUID *string, revisionNotes *string) error {
 	logger := slogging.Get()
 
@@ -750,7 +750,7 @@ func (s *GormSurveyResponseStore) HasAccess(ctx context.Context, id uuid.UUID, u
 // already persisted; the retry's WHERE predicate fails because status has moved
 // past ready_for_review. Without this check, the retry surfaced a misleading
 // "not in ready_for_review status" error even though the operation succeeded.
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: atomically link a threat model and transition survey response to review_created; idempotent on retry (mutates DB)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: atomically link a threat model and transition survey response to review_created; idempotent on retry (mutates DB)
 func (s *GormSurveyResponseStore) SetCreatedThreatModel(ctx context.Context, id uuid.UUID, threatModelID string) error {
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.

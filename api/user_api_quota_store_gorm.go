@@ -209,7 +209,7 @@ func (s *GormUserAPIQuotaStore) Delete(ctx context.Context, userID string) error
 // then reads the row back so the returned timestamps reflect what is
 // actually stored rather than a client-side stamp (#706)
 // This is cross-database compatible via GORM's dialect abstraction
-// SEM@aa6d284f5df5c13ccb0001366a1f228490aba957: create or update a user API quota using a cross-DB conflict clause, then read the stored row back (reads DB)
+// SEM@a3e9da57dbe1d86ca32950a4827bc599ec349225: create or update a user's API quota via a cross-DB conflict clause, then read the row back (mutates DB)
 func (s *GormUserAPIQuotaStore) Upsert(ctx context.Context, item UserAPIQuota) (UserAPIQuota, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

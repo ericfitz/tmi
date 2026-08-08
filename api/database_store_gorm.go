@@ -963,7 +963,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 }
 
 // Update modifies an existing threat model using GORM
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: update threat model fields, authorization, and metadata in a retryable transaction (reads DB)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: update threat model fields, authorization, and metadata in a retryable transaction (reads DB)
 func (s *GormThreatModelStore) Update(ctx context.Context, id string, item ThreatModel) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -1801,7 +1801,7 @@ func (s *GormDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, str
 }
 
 // Update modifies an existing diagram using GORM
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: update diagram fields and metadata in a retryable transaction (reads DB)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: update diagram fields and metadata in a retryable transaction (reads DB)
 func (s *GormDiagramStore) Update(ctx context.Context, id string, item DfdDiagram) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

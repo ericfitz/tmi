@@ -122,7 +122,7 @@ func (s *GormAddonInvocationQuotaStore) Count(ctx context.Context) (int, error) 
 // Set creates or updates quota for a user using GORM's OnConflict clause,
 // then reads the row back so the returned timestamps reflect what is
 // actually stored rather than a client-side stamp (#706)
-// SEM@aa6d284f5df5c13ccb0001366a1f228490aba957: upsert an addon invocation quota record for an owner using conflict resolution, then read the stored row back (reads DB)
+// SEM@a3e9da57dbe1d86ca32950a4827bc599ec349225: upsert an addon invocation quota record for an owner using conflict resolution, then read the stored row back (reads DB)
 func (s *GormAddonInvocationQuotaStore) Set(ctx context.Context, quota *AddonInvocationQuota) error {
 	logger := slogging.Get()
 

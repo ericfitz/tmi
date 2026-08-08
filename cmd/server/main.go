@@ -377,7 +377,7 @@ func runMigrations(ctx context.Context, gormDB *db.GormDB, dbType string) {
 // os.Exit inside the lock-holding region would skip the deferred release
 // (gocritic exitAfterDefer) and leave the lock orphaned for replicas to
 // time out on.
-// SEM@70c02e3f4b4dd833280d8f3ca9d152b483013ffe: run DB migrations under advisory lock with fingerprint fast path (writes DB)
+// SEM@db8c21595adadea21843e41c61644bb014694be2: run DB schema migrations, backfills, and seed data under an advisory lock, with a fingerprint fast path (mutates DB)
 func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) error {
 	logger := slogging.Get()
 

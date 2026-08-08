@@ -35,7 +35,7 @@ type EmbeddingCleaner struct {
 // the dialect's NamingStrategy (OracleNamingStrategy on Oracle), so the
 // mapping holds on both engines; hardcoded lowercase tags silently zero every
 // field on Oracle (#699).
-// SEM@5981ac53dd2229e2bb211a96f0b495fe72df5f32: query result holding a threat model ID and status for idle-embedding cleanup (pure)
+// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: query result holding a threat model ID and status for idle-embedding cleanup (pure)
 type idleThreatModel struct {
 	ID     string
 	Status string
