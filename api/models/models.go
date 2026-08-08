@@ -880,13 +880,14 @@ type UsabilityFeedback struct {
 	UserAgentData JSONRaw           `gorm:""`
 	Viewport      NullableDBVarchar `gorm:"size:11"`
 	Screenshot    NullableDBText    `gorm:""`
-	// CreatedByUUID keeps its explicit column: tag deliberately (#710): the
-	// field name's NamingStrategy-derived DBName is "created_by_uuid" (UUID is
-	// a common-initialism word boundary), but the actual, already-migrated
-	// column is "created_by". Dropping the tag would silently point AutoMigrate
-	// and every read/write at the wrong column on both dialects.
-	//oracle-column-tag:exempt field-name-derived DBName (created_by_uuid) diverges from the actual column (created_by); see #710
-	CreatedByUUID DBVarchar `gorm:"column:created_by;size:36;not null;index:idx_usability_feedback_created_by"`
+	// CreatedBy is the internal UUID of the authenticated user who submitted
+	// this feedback (#710: was named CreatedByUUID with an explicit
+	// column:created_by tag; the UUID suffix made the NamingStrategy-derived
+	// DBName "created_by_uuid" diverge from the actual column and, on Oracle,
+	// silently zero this field on every read via LookUpField. Renamed instead
+	// of tagged so the derived DBName is "created_by"/"CREATED_BY" on both
+	// dialects, matching the real column with no tag needed).
+	CreatedBy DBVarchar `gorm:"size:36;not null;index:idx_usability_feedback_created_by"`
 	// Note: autoCreateTime tag removed for Oracle compatibility (#380). The
 	// repository sets CreatedAt explicitly in Create before INSERT, matching
 	// the Threat model pattern (see api/models/models.go Threat.CreatedAt).
@@ -894,9 +895,10 @@ type UsabilityFeedback struct {
 
 	// Relationships. constraint:- suppresses the DB-level FK so a user with
 	// outstanding feedback rows can still be deleted without an integrity-
-	// constraint error. Application-layer integrity (CreatedByUUID is always
-	// set from the authenticated user) is sufficient.
-	CreatedBy User `gorm:"foreignKey:CreatedByUUID;references:InternalUUID;constraint:-"`
+	// constraint error. Application-layer integrity (CreatedBy is always
+	// set from the authenticated user) is sufficient. Named CreatedByUser
+	// (not CreatedBy) to avoid colliding with the scalar CreatedBy field above.
+	CreatedByUser User `gorm:"foreignKey:CreatedBy;references:InternalUUID;constraint:-"`
 }
 
 // TableName returns the dialect-aware table name.
@@ -931,12 +933,12 @@ type ContentFeedback struct {
 	ClientID               DBVarchar         `gorm:"size:32;not null"`
 	ClientVersion          NullableDBVarchar `gorm:"size:32"`
 	Screenshot             NullableDBText    `gorm:""`
-	// CreatedByUUID keeps its explicit column: tag deliberately (#710): see the
-	// identical comment on UsabilityFeedback.CreatedByUUID above -- the
-	// derived DBName ("created_by_uuid") diverges from the actual column
-	// ("created_by").
-	//oracle-column-tag:exempt field-name-derived DBName (created_by_uuid) diverges from the actual column (created_by); see #710
-	CreatedByUUID DBVarchar `gorm:"column:created_by;size:36;not null"`
+	// CreatedBy is the internal UUID of the authenticated user who submitted
+	// this feedback (#710: see the identical comment on
+	// UsabilityFeedback.CreatedBy above -- renamed from CreatedByUUID, and the
+	// explicit column:created_by tag dropped, so the NamingStrategy-derived
+	// DBName equals the real column on both dialects).
+	CreatedBy DBVarchar `gorm:"size:36;not null"`
 	// Note: autoCreateTime tag removed for Oracle compatibility (#380). The
 	// repository sets CreatedAt explicitly in Create / CreateWithTargetCheck
 	// before INSERT, matching the Threat model pattern.
@@ -944,10 +946,12 @@ type ContentFeedback struct {
 
 	// Relationships. ContentFeedback rows are cleaned up explicitly by
 	// deleteThreatModelChildren (issue #378), matching every other TM child.
-	// The CreatedBy FK is suppressed (constraint:-) so a user with outstanding
-	// feedback can still be deleted; application-layer integrity is sufficient.
-	ThreatModel ThreatModel `gorm:"foreignKey:ThreatModelID"`
-	CreatedBy   User        `gorm:"foreignKey:CreatedByUUID;references:InternalUUID;constraint:-"`
+	// The CreatedByUser FK is suppressed (constraint:-) so a user with
+	// outstanding feedback can still be deleted; application-layer integrity
+	// is sufficient. Named CreatedByUser (not CreatedBy) to avoid colliding
+	// with the scalar CreatedBy field above.
+	ThreatModel   ThreatModel `gorm:"foreignKey:ThreatModelID"`
+	CreatedByUser User        `gorm:"foreignKey:CreatedBy;references:InternalUUID;constraint:-"`
 }
 
 // TableName returns the dialect-aware table name.

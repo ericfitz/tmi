@@ -33,12 +33,14 @@ Scope note: internal/dbschema/ is excluded (see EXCLUDED_PATH_PREFIXES below)
 row data. api/models/ was excluded for the same reason api/group_member_repository.go
 needed fixing under #699: 41 hardcoded lowercase column: tags on registered
 GORM models (AliasCounter's proven to cause ORA-00001 duplicate-alias
-collisions on Oracle). All 41 were fixed under #710; two -- both named
-CreatedByUUID, in UsabilityFeedback and ContentFeedback -- keep an explicit
-`column:created_by` tag with an inline `//oracle-column-tag:exempt` marker,
-because the field name's NamingStrategy-derived DBName ("created_by_uuid",
-UUID being a common-initialism word boundary) diverges from the actual,
-already-migrated column ("created_by").
+collisions on Oracle). All 41 were fixed under #710. Two of them --
+UsabilityFeedback.CreatedByUUID and ContentFeedback.CreatedByUUID -- could not
+simply drop the tag, because the field name's NamingStrategy-derived DBName
+("created_by_uuid", UUID being a common-initialism word boundary) diverged
+from the actual, already-migrated column ("created_by"); those two fields
+were renamed to CreatedBy instead, so the derived DBName now equals the real
+column with no tag and no exemption needed. No allowlisted or
+`//oracle-column-tag:exempt`-marked sites exist in this repo as of #710.
 
 Usage:
     uv run scripts/check-scan-struct-column-tags.py
@@ -66,9 +68,10 @@ SCAN_DIRS = ("api", "auth", "cmd", "internal")
 #     metadata, not application row data -- not part of the #699 bug class.
 # api/models/ is intentionally NOT excluded (#710 removed that exclusion once
 # the 41 pre-existing violations there were fixed) -- the guard now covers the
-# canonical GORM model definitions too. The two legitimate exceptions there
-# (UsabilityFeedback/ContentFeedback CreatedByUUID) use the inline
-# `//oracle-column-tag:exempt` marker below rather than a path exclusion.
+# canonical GORM model definitions too, with zero exceptions: the two fields
+# that couldn't simply drop their tag (UsabilityFeedback/ContentFeedback
+# CreatedByUUID) were renamed to CreatedBy instead, so no allowlist or inline
+# `//oracle-column-tag:exempt` marker is needed for them.
 # Matched as path prefixes (not bare directory-name segments) so a
 # same-named directory elsewhere in the tree (e.g. a future auth/models/)
 # is not silently swept in.

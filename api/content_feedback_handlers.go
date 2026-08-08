@@ -279,7 +279,7 @@ func buildContentFeedbackModel(in *ContentFeedbackInput, tmID, userInternalUUID 
 		ClientID:      models.DBVarchar(in.ClientId),
 		ClientVersion: models.NewNullableDBVarchar(in.ClientVersion),
 		Screenshot:    models.NewNullableDBText(in.Screenshot),
-		CreatedByUUID: models.DBVarchar(userInternalUUID),
+		CreatedBy:     models.DBVarchar(userInternalUUID),
 	}
 	if in.FalsePositiveReason != nil {
 		s := string(*in.FalsePositiveReason)
@@ -305,7 +305,7 @@ func modelToContentFeedback(row *models.ContentFeedback) ContentFeedback {
 		ClientId:      string(row.ClientID),
 		ClientVersion: row.ClientVersion.Ptr(),
 		Screenshot:    row.Screenshot.Ptr(),
-		CreatedBy:     uuidMustParse(string(row.CreatedByUUID)),
+		CreatedBy:     uuidMustParse(string(row.CreatedBy)),
 		CreatedAt:     row.CreatedAt,
 	}
 	if row.FalsePositiveReason.Valid {

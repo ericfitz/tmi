@@ -60,7 +60,7 @@ func TestGormContentFeedbackRepository_CreateAndGet(t *testing.T) {
 		TargetID:      models.DBVarchar(targetID),
 		Sentiment:     models.DBVarchar("down"),
 		ClientID:      models.DBVarchar("tmi-ux"),
-		CreatedByUUID: user.InternalUUID,
+		CreatedBy:     user.InternalUUID,
 	}
 	require.NoError(t, repo.Create(context.Background(), fb))
 	require.NotEmpty(t, fb.ID)
@@ -96,7 +96,7 @@ func TestGormContentFeedbackRepository_ListFilters(t *testing.T) {
 			Sentiment:           models.DBVarchar(tc.sentiment),
 			FalsePositiveReason: models.NewNullableDBVarchar(tc.fpr),
 			ClientID:            "tmi-ux",
-			CreatedByUUID:       user.InternalUUID,
+			CreatedBy:           user.InternalUUID,
 		}
 		require.NoError(t, repo.Create(ctx, fb))
 	}
@@ -149,7 +149,7 @@ func TestGormContentFeedbackRepository_Create_SetsCreatedAtExplicitly(t *testing
 		TargetID:      models.DBVarchar(uuid.New().String()),
 		Sentiment:     "down",
 		ClientID:      "tmi-ux",
-		CreatedByUUID: user.InternalUUID,
+		CreatedBy:     user.InternalUUID,
 	}
 	require.True(t, fb.CreatedAt.IsZero(), "precondition: CreatedAt zero before Create")
 
@@ -184,7 +184,7 @@ func TestGormContentFeedbackRepository_CreateWithTargetCheck_SetsCreatedAtExplic
 		TargetID:      note.ID,
 		Sentiment:     "up",
 		ClientID:      "tmi-ux",
-		CreatedByUUID: user.InternalUUID,
+		CreatedBy:     user.InternalUUID,
 	}
 	require.True(t, fb.CreatedAt.IsZero(), "precondition: CreatedAt zero before Create")
 
