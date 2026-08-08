@@ -64,6 +64,12 @@ def main() -> None:
         cwd=project_root,
     )
 
+    log_info('Checking for hardcoded lowercase gorm:"column:..." tags (Oracle-safe)...')
+    run_cmd(
+        ["uv", "run", "scripts/check-scan-struct-column-tags.py"],
+        cwd=project_root,
+    )
+
     log_info("Checking for sensitive fields passed to logger calls...")
     run_cmd(
         ["uv", "run", "scripts/check-sensitive-log-args.py"],

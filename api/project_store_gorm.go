@@ -434,18 +434,28 @@ func (s *GormProjectStore) List(ctx context.Context, limit, offset int, filters 
 		return nil, 0, dberrors.Classify(err)
 	}
 
-	// Select specific columns and apply pagination
+	// Select specific columns and apply pagination.
+	//
+	// Deliberately NOT tagged with `gorm:"column:..."`: result-set labels come
+	// back UPPERCASE from Oracle and lowercase from Postgres, and GORM matches
+	// labels to DBNames case-sensitively. An untagged field's DBName comes from
+	// the dialect's NamingStrategy (OracleNamingStrategy on Oracle), so the
+	// mapping holds on both engines; hardcoded lowercase tags silently zero
+	// every field on Oracle (#699). The join alias `team_name` has no model of
+	// its own, so it is emitted through ColumnName() to match the same casing
+	// the field's derived DBName would get.
 	projectsTable := models.ProjectRecord{}.TableName()
 	teamsTable := models.TeamRecord{}.TableName()
+	dialect := query.Name()
 	var results []struct {
-		ID          string  `gorm:"column:id"`
-		Name        string  `gorm:"column:name"`
-		Description *string `gorm:"column:description"`
-		Status      *string `gorm:"column:status"`
-		TeamID      string  `gorm:"column:team_id"`
-		TeamName    string  `gorm:"column:team_name"`
-		CreatedAt   string  `gorm:"column:created_at"`
-		ModifiedAt  string  `gorm:"column:modified_at"`
+		ID          string
+		Name        string
+		Description *string
+		Status      *string
+		TeamID      string
+		TeamName    string
+		CreatedAt   string
+		ModifiedAt  string
 	}
 
 	if err := query.
@@ -455,7 +465,7 @@ func (s *GormProjectStore) List(ctx context.Context, limit, offset int, filters 
 			projectsTable+".description",
 			projectsTable+".status",
 			projectsTable+".team_id",
-			teamsTable+".name AS team_name",
+			teamsTable+".name AS "+ColumnName(dialect, "team_name"),
 			projectsTable+".created_at",
 			projectsTable+".modified_at",
 		).

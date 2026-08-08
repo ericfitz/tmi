@@ -28,10 +28,17 @@ type EmbeddingCleaner struct {
 }
 
 // idleThreatModel holds the result of the idle TM query.
+//
+// Deliberately NOT tagged with `gorm:"column:..."`: result-set labels come
+// back UPPERCASE from Oracle and lowercase from Postgres, and GORM matches
+// labels to DBNames case-sensitively. An untagged field's DBName comes from
+// the dialect's NamingStrategy (OracleNamingStrategy on Oracle), so the
+// mapping holds on both engines; hardcoded lowercase tags silently zero every
+// field on Oracle (#699).
 // SEM@5981ac53dd2229e2bb211a96f0b495fe72df5f32: query result holding a threat model ID and status for idle-embedding cleanup (pure)
 type idleThreatModel struct {
-	ID     string `gorm:"column:id"`
-	Status string `gorm:"column:status"`
+	ID     string
+	Status string
 }
 
 // NewEmbeddingCleaner creates a new embedding cleaner.

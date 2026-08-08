@@ -2431,8 +2431,14 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 // findUserByProviderIdentityGorm looks up a user by provider and provider_id or email using GORM
 // SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: fetch a user's internal UUID by provider identity or email (reads DB)
 func findUserByProviderIdentityGorm(ctx context.Context, gormDB *gorm.DB, provider string, providerID string, email string) (uuid.UUID, error) {
+	// Deliberately NOT tagged with `gorm:"column:..."`: result-set labels come
+	// back UPPERCASE from Oracle and lowercase from Postgres, and GORM matches
+	// labels to DBNames case-sensitively. An untagged field's DBName comes from
+	// the dialect's NamingStrategy (OracleNamingStrategy on Oracle), so the
+	// mapping holds on both engines; a hardcoded lowercase tag silently zeroed
+	// this field on Oracle (#699).
 	var user struct {
-		InternalUUID string `gorm:"column:internal_uuid"`
+		InternalUUID string
 	}
 
 	// Map-keyed predicates must route through api.ColumnMap so the column
