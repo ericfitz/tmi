@@ -13,6 +13,7 @@ import (
 	"time"
 
 	tmiclient "github.com/ericfitz/tmi-clients/go-client-generated/v1_6_0"
+	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/test/testdb"
 )
@@ -808,10 +809,29 @@ func (c *apiClient) seedDiagramUpdate(entry SeedEntry, refs RefMap) (*SeedResult
 func (c *apiClient) seedWebhook(entry SeedEntry, _ RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
+	// operator_pinned is a seeder-only directive, not part of the webhook API
+	// payload — strip it before the create call so request validation does not
+	// reject an unknown property.
+	pinned, _ := entry.Data["operator_pinned"].(bool)
+	if _, present := entry.Data["operator_pinned"]; present {
+		payload := make(map[string]any, len(entry.Data))
+		for k, v := range entry.Data {
+			if k != "operator_pinned" {
+				payload[k] = v
+			}
+		}
+		entry.Data = payload
+	}
+
 	name, _ := entry.Data["name"].(string)
 	if name != "" {
 		if existingID := c.findExistingWebhook(name); existingID != "" {
 			log.Info("  webhook already exists: %s (skipping)", existingID)
+			// Pin on this path too: a fixture seeded before pinning existed is
+			// otherwise left mortal forever, since re-seeding never recreates it.
+			if pinned {
+				c.pinSeededWebhook(existingID)
+			}
 			return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: existingID}, nil
 		}
 	}
@@ -820,7 +840,66 @@ func (c *apiClient) seedWebhook(entry SeedEntry, _ RefMap) (*SeedResult, error) 
 	if err != nil {
 		return nil, err
 	}
+
+	if pinned {
+		c.pinSeededWebhook(id)
+	}
+
 	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
+}
+
+// pinSeededWebhook pins a seeded webhook, logging rather than failing on error:
+// an unpinned fixture still works, it is just mortal, and seeding a usable
+// dataset matters more than the pin.
+// SEM: pin a seeded webhook, downgrading failure to a warning (writes DB)
+func (c *apiClient) pinSeededWebhook(id string) {
+	if err := c.pinWebhookViaDB(id); err != nil {
+		slogging.Get().Warn("  could not pin webhook %s (it may be auto-deleted during long runs): %v", id, err)
+	}
+}
+
+// pinWebhookViaDB marks a seeded webhook subscription operator-pinned so the
+// webhook cleanup worker cannot delete it.
+//
+// A seeded fixture points at a receiver that never answers, so its deliveries
+// always fail. markBrokenSubscriptions marks any subscription with >= 10
+// failures and no successful delivery — and `last_successful_use IS NULL`
+// satisfies that immediately — after which deletePendingSubscriptions removes
+// it. Correct production behaviour, fatal to a long test campaign: a full CATS
+// run against Oracle ADB takes ~50-65 minutes, long enough that the fixture was
+// destroyed mid-run and every test nested under it scored against a 404,
+// invalidating the run (#708). Both cleanup passes skip operator-pinned rows.
+//
+// Pin ONLY anchor fixtures, never the throwaway decoys: a pinned subscription
+// is immutable through the API (PATCH/PUT and the test-trigger endpoint return
+// 403, webhook_handlers.go:246,299), so pinning a decoy would stop DELETE
+// fuzzers from consuming it, and pinning the anchor trades that path's mutation
+// coverage for run validity. Hence the per-entry `operator_pinned` directive
+// rather than pinning every seeded webhook.
+//
+// The flag is server-controlled and deliberately absent from the OpenAPI schema
+// (it means "materialized from operator config"), so it cannot be set through
+// the API the rest of seeding uses — hence the direct write. Uses GORM's model
+// mapping rather than raw SQL so the column identifier is cased per dialect;
+// Oracle folds unquoted identifiers to uppercase.
+// SEM: mark a seeded webhook subscription operator-pinned so cleanup cannot delete it (writes DB)
+func (c *apiClient) pinWebhookViaDB(id string) error {
+	if c.db == nil {
+		return fmt.Errorf("no database connection available")
+	}
+
+	result := c.db.DB().
+		Model(&models.WebhookSubscription{}).
+		Where(&models.WebhookSubscription{ID: models.DBVarchar(id)}).
+		Select("OperatorPinned").
+		Updates(&models.WebhookSubscription{OperatorPinned: models.DBBool(true)})
+	if result.Error != nil {
+		return fmt.Errorf("failed to pin webhook: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("webhook %s not found", id)
+	}
+	return nil
 }
 
 // SEM@d20333ee0473596adebb006001c6c6addb6c4dc9: trigger a test delivery for a webhook subscription and return the delivery ID

@@ -690,6 +690,9 @@ func transformAdminWebhooksAndAddons(admin *SeedSpecAdmin) []SeedEntry {
 		if w.HMACSecret != "" {
 			data["secret"] = w.HMACSecret
 		}
+		if w.OperatorPinned {
+			data["operator_pinned"] = true
+		}
 		seeds = append(seeds, SeedEntry{
 			Kind: kindWebhook,
 			Ref:  webhookRef(w.Name),

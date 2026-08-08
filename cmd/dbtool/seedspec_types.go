@@ -287,6 +287,13 @@ type SeedSpecWebhook struct {
 	URL        string   `json:"url"`
 	Events     []string `json:"events,omitempty"`
 	HMACSecret string   `json:"hmac_secret,omitempty"`
+	// OperatorPinned protects an anchor fixture from the webhook cleanup
+	// worker, which would otherwise delete it partway through a long campaign
+	// because its receiver never answers (#708). Seeder-only: the flag is set
+	// directly in the database, not through the API. Pin anchors only — a
+	// pinned subscription is immutable through the API, so pinning a throwaway
+	// would stop DELETE fuzzers from consuming it.
+	OperatorPinned bool `json:"operator_pinned,omitempty"`
 }
 
 // SeedSpecAddon defines an addon.

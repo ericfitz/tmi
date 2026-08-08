@@ -248,7 +248,8 @@
         "events": [
           "threat_model.created",
           "threat.created"
-        ]
+        ],
+        "operator_pinned": true
       },
       {
         "name": "CATS Throwaway Webhook",
