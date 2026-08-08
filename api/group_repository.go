@@ -333,7 +333,7 @@ func (r *GormGroupRepository) GetGroupsForProvider(ctx context.Context, provider
 
 // UpsertGroup creates or updates a group (used during JWT group sync)
 // This is a concrete method not on the GroupRepository interface — kept for future JWT group sync use.
-// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: create or update a group by provider+name conflict key, refreshing usage fields (reads DB)
+// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: create or update a group by provider+name conflict key, tolerating a concurrent duplicate create (reads DB)
 func (r *GormGroupRepository) UpsertGroup(ctx context.Context, group Group) error {
 	gormGroup := r.convertFromGroup(&group)
 
@@ -343,10 +343,38 @@ func (r *GormGroupRepository) UpsertGroup(ctx context.Context, group Group) erro
 		DoUpdates: clause.AssignmentColumns([]string{ColumnName(r.db.Name(), "last_used"), ColumnName(r.db.Name(), "usage_count")}),
 	}).Create(gormGroup)
 
-	if result.Error != nil {
-		return dberrors.Classify(result.Error)
+	if result.Error == nil {
+		return nil
 	}
 
+	classified := dberrors.Classify(result.Error)
+	if !errors.Is(classified, dberrors.ErrDuplicate) {
+		return classified
+	}
+
+	// #704: uniq_groups_provider_group_name backs the OnConflict target, but
+	// a concurrent first-time upsert for the same (provider, group_name) can
+	// still lose the create race here (reachable on Oracle, whose MERGE
+	// lacks the atomicity PostgreSQL's ON CONFLICT has for the same conflict
+	// target). IsRetryable does not retry ErrDuplicate, so confirm the
+	// winner's row exists instead of surfacing an error the caller (JWT
+	// group sync) can't act on.
+	//
+	// Guard against an empty group name: the struct-based query below omits
+	// zero-value fields, so an empty GroupName would silently drop that
+	// predicate and match an arbitrary group for this provider (#502). The
+	// Create itself would normally fail before this branch is reached, but
+	// the guard costs nothing and keeps the failure mode "duplicate" instead
+	// of "wrong group".
+	if gormGroup.GroupName == "" {
+		return classified
+	}
+	var existing models.Group
+	if err := r.db.WithContext(ctx).
+		Where(&models.Group{Provider: gormGroup.Provider, GroupName: gormGroup.GroupName}).
+		First(&existing).Error; err != nil {
+		return dberrors.Classify(err)
+	}
 	return nil
 }
 

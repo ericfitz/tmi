@@ -112,7 +112,7 @@ func resolveGroupUUID(tx *gorm.DB, groupName string, idp *string) (string, error
 }
 
 // ensureGroupExists creates a group entry if it doesn't exist and returns its internal_uuid using GORM
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: upsert a group record and return its internal UUID, creating it if absent (reads DB)
+// SEM@f55124e39b362ab7afb22c9e47e214d1027f8b69: upsert a group by provider and name, tolerating a duplicate-create race (reads DB)
 func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, idp *string) (string, error) {
 	provider := BuiltInProvider
 	if idp != nil && *idp != "" {
@@ -141,7 +141,22 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 	}).Create(&group)
 
 	if result.Error != nil {
-		return "", dberrors.Classify(result.Error)
+		classified := dberrors.Classify(result.Error)
+		if !errors.Is(classified, dberrors.ErrDuplicate) {
+			return "", classified
+		}
+		// #704: uniq_groups_provider_group_name backs the OnConflict target,
+		// but a concurrent first-time upsert for the same (provider,
+		// group_name) can still lose the create race here. This is reachable
+		// on Oracle, whose MERGE INTO can plan two concurrent sessions'
+		// INSERT branches before either commits; PostgreSQL's ON CONFLICT is
+		// atomic per-statement against the same conflict target and doesn't
+		// hit this branch for this race (though the caller's transaction is
+		// already aborted on PG once a 23505 occurs at all, so the read-back
+		// below is a no-op recovery there, not a regression). IsRetryable
+		// does not retry ErrDuplicate, so the only recovery is to fall
+		// through to the read-back below and return the winner's row instead
+		// of failing.
 	}
 
 	// Always read the row back rather than trusting the struct's PK.
