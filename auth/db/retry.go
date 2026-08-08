@@ -40,7 +40,7 @@ func DefaultRetryConfig() RetryConfig {
 // WithRetryableTransaction executes a function within a transaction with retry logic.
 // It automatically retries on connection errors and other transient failures.
 // The transaction is rolled back on error and committed on success.
-// SEM@bc62d8f9ad73ff264054d6fd71bc9a58f19b37e7: execute a function in a serializable SQL transaction, retrying transient errors with jittered backoff (mutates DB)
+// SEM@b7302144e81a755cfb12d83c8a03782feffcd848: execute a function in a serializable SQL transaction, retrying transient errors with jittered backoff (mutates DB)
 func WithRetryableTransaction(ctx context.Context, db *sql.DB, cfg RetryConfig, fn func(*sql.Tx) error, opts ...*sql.TxOptions) error {
 	logger := slogging.Get()
 	var lastErr error
@@ -148,7 +148,7 @@ func IsConnectionError(err error) bool {
 // whole closure is retried. fn must therefore be idempotent — keep any
 // non-idempotent side effect (outbound calls, one-time-token consumption) out of
 // the closure, or guard it so a replay is harmless.
-// SEM@bc62d8f9ad73ff264054d6fd71bc9a58f19b37e7: execute a function in a serializable GORM transaction, retrying transient errors with jittered backoff (mutates DB)
+// SEM@b7302144e81a755cfb12d83c8a03782feffcd848: execute a function in a serializable GORM transaction, retrying transient errors with jittered backoff (mutates DB)
 func WithRetryableGormTransaction(ctx context.Context, gormDB *gorm.DB, cfg RetryConfig, fn func(tx *gorm.DB) error, opts ...*sql.TxOptions) error {
 	logger := slogging.Get()
 	var lastErr error
