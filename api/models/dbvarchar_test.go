@@ -141,10 +141,10 @@ func TestNullableDBVarchar_Value(t *testing.T) {
 	assert.Nil(t, got, "Value(invalid) should be nil")
 }
 
-// Oracle stores ” as NULL regardless, so a PG write of Valid=true+"" would
-// let PG diverge from Oracle on read-back; Value() must normalize empty to
-// NULL on write, symmetric with Scan()'s empty-to-NULL normalization (#698,
-// #700). Mirrors JSONRaw.Value.
+// Oracle stores the empty string as NULL regardless, so a PG write of
+// Valid=true+"" would let PG diverge from Oracle on read-back; Value() must
+// normalize empty to NULL on write, symmetric with Scan()'s empty-to-NULL
+// normalization (#698, #700). Mirrors JSONRaw.Value.
 func TestNullableDBVarchar_Value_EmptyValidNormalizesToNull(t *testing.T) {
 	v := NullableDBVarchar{String: "", Valid: true}
 	got, err := v.Value()

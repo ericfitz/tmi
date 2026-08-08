@@ -104,6 +104,27 @@ func TestContentTokenRepo_Upsert_ReturnsStoredIDOnUpdate(t *testing.T) {
 	assert.Len(t, list, 1, "upsert on the UPDATE branch must not create a second row")
 }
 
+// TestContentTokenRepo_Upsert_EmptyProviderIDFailsClosed guards the #705
+// read-back guard: GORM's struct-based Where used for the post-upsert
+// read-back omits zero-value fields, so an empty ProviderID would otherwise
+// drop that predicate and the re-SELECT could match an arbitrary row for the
+// same user -- handing back another token's stored ID. It must instead fail
+// closed with ErrContentTokenInvalidKey.
+func TestContentTokenRepo_Upsert_EmptyProviderIDFailsClosed(t *testing.T) {
+	repo, _, _ := newTestContentTokenRepo(t)
+	ctx := context.Background()
+
+	// A real token for the same user that an unguarded re-SELECT could
+	// wrongly match once the (empty) provider_id predicate is dropped.
+	require.NoError(t, repo.Upsert(ctx, &ContentToken{UserID: "u1", ProviderID: "other-provider", AccessToken: "x", Status: "active"}))
+
+	bogus := &ContentToken{UserID: "u1", ProviderID: "", AccessToken: "y", Status: "active"}
+	err := repo.Upsert(ctx, bogus)
+	require.Error(t, err, "an empty ProviderID must not be silently matched to an unrelated row")
+	assert.True(t, errors.Is(err, ErrContentTokenInvalidKey), "got: %v", err)
+	assert.Empty(t, bogus.ID, "must not stamp an ID from a mismatched row")
+}
+
 func TestContentTokenRepo_ListByUser(t *testing.T) {
 	repo, _, _ := newTestContentTokenRepo(t)
 	ctx := context.Background()

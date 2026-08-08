@@ -16,7 +16,7 @@ import (
 )
 
 // nullableStringColumnType identifies the two Go types whose columns can
-// carry a stored ” where NULL is now the write-side normal form (#700).
+// carry a stored empty string where NULL is now the write-side normal form (#700).
 var nullableStringColumnTypes = []reflect.Type{
 	reflect.TypeOf(models.NullableDBVarchar{}),
 	reflect.TypeOf(models.NullableDBText{}),
@@ -87,7 +87,7 @@ func enumerateNullableStringColumns(namer schema.Namer) ([]nullableStringColumn,
 	return pairs, nil
 }
 
-// runBackfillEmptyStrings normalizes stored ” to NULL for every
+// runBackfillEmptyStrings normalizes stored empty strings to NULL for every
 // NullableDBVarchar/NullableDBText column, undoing pre-#700 writes that
 // bypassed Value()'s empty-to-NULL normalization (e.g. raw *string values
 // placed directly into a GORM update map, which never invoke the column's
@@ -95,19 +95,21 @@ func enumerateNullableStringColumns(namer schema.Namer) ([]nullableStringColumn,
 //
 // Note: for a column inside a composite unique index (e.g. group_members'
 // idx_gm_group_user_type over group_internal_uuid/user_internal_uuid/
-// subject_type), converting a stored ” to NULL relaxes an enforcement
-// PostgreSQL was previously providing there — ('g',”,'group') was
-// unique-constrained, but ('g',NULL,'group') is not, on either engine. The
-// backfill itself cannot produce a duplicate-key error (a second ” row
-// could never have been inserted while the constraint held), and the result
-// converges PostgreSQL onto Oracle's pre-existing behavior, where ” was
+// subject_type), converting a stored empty string to NULL relaxes an
+// enforcement PostgreSQL was previously providing there — the row keyed by
+// an empty-string group_internal_uuid was unique-constrained, but the same
+// row keyed by NULL is not, on either engine. The backfill itself cannot
+// produce a duplicate-key error (a second empty-string row could never have
+// been inserted while the constraint held), and the result converges
+// PostgreSQL onto Oracle's pre-existing behavior, where an empty string was
 // already NULL. See #700's audit of GroupMember.UserInternalUUID.
 //
-// PostgreSQL only: Oracle already coerces ” to NULL on write, so there is
-// nothing to backfill there. This guard also protects against a subtler
-// failure mode: even if it were removed, "WHERE col = ”" is "col = NULL" on
-// Oracle (never true, so the UPDATE would silently match zero rows) — but
-// the statement would fail first on ORA-00942, since the lowercase unquoted
+// PostgreSQL only: Oracle already coerces an empty string to NULL on write,
+// so there is nothing to backfill there. This guard also protects against a
+// subtler failure mode: even if it were removed, an empty-string WHERE
+// comparison is equivalent to comparing against NULL on Oracle (never true,
+// so the UPDATE would silently match zero rows) — but the statement would
+// fail first on ORA-00942, since the lowercase unquoted
 // identifiers here don't resolve against Oracle's uppercase table/column
 // names. Idempotent re-runs are cheap and safe: the WHERE clause only ever
 // matches rows still carrying the pre-#700 value, so an already-normalized

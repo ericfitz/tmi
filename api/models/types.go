@@ -591,9 +591,10 @@ func (t *NullableDBText) Scan(value any) error {
 }
 
 // Value implements the driver.Valuer interface for database writes
-// Empty normalizes to NULL for cross-engine symmetry: Oracle stores ” as
-// NULL regardless, so PG must not persist ” that Oracle-parity reads (#698)
-// then report as NULL-like (#700). Mirrors JSONRaw.Value.
+// Empty normalizes to NULL for cross-engine symmetry: Oracle stores the
+// empty string as NULL regardless, so PG must not persist an empty string
+// that Oracle-parity reads (#698) then report as NULL-like (#700). Mirrors
+// JSONRaw.Value.
 // SEM@55d98405ac043c7929d10873466d6f6f3ebc53e8: serialize NullableDBText to a driver string, normalizing empty to NULL (pure)
 func (t NullableDBText) Value() (driver.Value, error) {
 	if !t.Valid || t.String == "" {
@@ -769,9 +770,10 @@ func (v *NullableDBVarchar) Scan(value any) error {
 }
 
 // Value implements the driver.Valuer interface for database writes
-// Empty normalizes to NULL for cross-engine symmetry: Oracle stores ” as
-// NULL regardless, so PG must not persist ” that Oracle-parity reads (#698)
-// then report as NULL-like (#700). Mirrors JSONRaw.Value.
+// Empty normalizes to NULL for cross-engine symmetry: Oracle stores the
+// empty string as NULL regardless, so PG must not persist an empty string
+// that Oracle-parity reads (#698) then report as NULL-like (#700). Mirrors
+// JSONRaw.Value.
 // SEM@55d98405ac043c7929d10873466d6f6f3ebc53e8: serialize NullableDBVarchar to a driver string, normalizing empty to NULL (pure)
 func (v NullableDBVarchar) Value() (driver.Value, error) {
 	if !v.Valid || v.String == "" {

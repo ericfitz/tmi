@@ -137,6 +137,46 @@ func TestWithRetryableGormTransaction_ContextCancelled(t *testing.T) {
 	assert.ErrorIs(t, err, context.Canceled)
 }
 
+// TestWithRetryableGormTransaction_NonRetryableErrorIsClassified locks in the
+// #707 follow-up: the immediate non-retryable return must also run through
+// dberrors.Classify, not just the exhaustion tail. Here fn returns a raw,
+// unclassified ORA-00001-style duplicate-key string; without classifying the
+// immediate return, errors.Is(err, dberrors.ErrDuplicate) is false because
+// the error never passes through Classify/classifyByString.
+func TestWithRetryableGormTransaction_NonRetryableErrorIsClassified(t *testing.T) {
+	db := setupTestGormDB(t)
+	ctx := context.Background()
+	cfg := DefaultRetryConfig()
+
+	var callCount int32
+	err := WithRetryableGormTransaction(ctx, db, cfg, func(tx *gorm.DB) error {
+		atomic.AddInt32(&callCount, 1)
+		return fmt.Errorf("ORA-00001: unique constraint (SCHEMA.PK_THREAT_MODELS) violated")
+	})
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, dberrors.ErrDuplicate)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&callCount))
+}
+
+// TestWithRetryableTransaction_NonRetryableErrorIsClassified is the
+// database/sql-based sibling of the GORM test above, covering the immediate
+// non-retryable return in WithRetryableTransaction.
+func TestWithRetryableTransaction_NonRetryableErrorIsClassified(t *testing.T) {
+	db, _ := openRecordingDB(t)
+	cfg := DefaultRetryConfig()
+
+	var callCount int32
+	err := WithRetryableTransaction(context.Background(), db, cfg, func(*sql.Tx) error {
+		atomic.AddInt32(&callCount, 1)
+		return fmt.Errorf("ORA-00001: unique constraint (SCHEMA.PK_THREAT_MODELS) violated")
+	})
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, dberrors.ErrDuplicate)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&callCount))
+}
+
 func TestIsPermissionError(t *testing.T) {
 	t.Run("nil error returns false", func(t *testing.T) {
 		assert.False(t, IsPermissionError(nil))

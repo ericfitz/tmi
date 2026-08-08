@@ -86,7 +86,10 @@ func WithRetryableTransaction(ctx context.Context, db *sql.DB, cfg RetryConfig, 
 					attempt+1, cfg.MaxRetries, err)
 				continue
 			}
-			return err
+			// Classify before returning: this is the other choke point (see the
+			// exhaustion-tail comment below) where an unclassified error could
+			// otherwise escape without a typed sentinel (#707).
+			return dberrors.Classify(err)
 		}
 
 		// Commit
@@ -183,7 +186,10 @@ func WithRetryableGormTransaction(ctx context.Context, gormDB *gorm.DB, cfg Retr
 			continue
 		}
 
-		return err // Non-retryable error, return immediately
+		// Classify before returning: this is the other choke point (see the
+		// exhaustion-tail comment below) where an unclassified error could
+		// otherwise escape without a typed sentinel (#707).
+		return dberrors.Classify(err) // Non-retryable error, return immediately
 	}
 
 	// See the parallel comment in WithRetryableTransaction: classify lastErr

@@ -72,6 +72,10 @@ func SharedPoolExhaustedCount() uint64 {
 var oracleCodeSentinels = map[int]error{
 	// Unique constraint violated
 	1: ErrDuplicate, // ORA-00001
+	// cannot CREATE UNIQUE INDEX; duplicate keys found — DDL-time analogue of
+	// ORA-00001, reachable if a duplicate slips past DeduplicateGroups before
+	// uniq_groups_provider_group_name creation (#704)
+	1452: ErrDuplicate,
 
 	// Foreign key violations
 	2291: ErrForeignKey, // parent key not found
