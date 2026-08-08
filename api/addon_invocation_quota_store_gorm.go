@@ -119,8 +119,10 @@ func (s *GormAddonInvocationQuotaStore) Count(ctx context.Context) (int, error) 
 	return int(count), nil
 }
 
-// Set creates or updates quota for a user using GORM's OnConflict clause
-// SEM@aa6d284f5df5c13ccb0001366a1f228490aba957: upsert an addon invocation quota record for an owner using conflict resolution (reads DB)
+// Set creates or updates quota for a user using GORM's OnConflict clause,
+// then reads the row back so the returned timestamps reflect what is
+// actually stored rather than a client-side stamp (#706)
+// SEM@a3e9da57dbe1d86ca32950a4827bc599ec349225: upsert an addon invocation quota record for an owner using conflict resolution, then read the stored row back (reads DB)
 func (s *GormAddonInvocationQuotaStore) Set(ctx context.Context, quota *AddonInvocationQuota) error {
 	logger := slogging.Get()
 
@@ -153,9 +155,17 @@ func (s *GormAddonInvocationQuotaStore) Set(ctx context.Context, quota *AddonInv
 		return err
 	}
 
-	// Update timestamps from database
-	quota.CreatedAt = model.CreatedAt
-	quota.ModifiedAt = model.ModifiedAt
+	// Read the row back: on Oracle's MERGE UPDATE branch nothing is returned,
+	// so model still holds the client-side autoCreateTime for an insert that
+	// never happened (#706).
+	var stored models.AddonInvocationQuota
+	if err := s.db.WithContext(ctx).
+		Where(&models.AddonInvocationQuota{OwnerInternalUUID: model.OwnerInternalUUID}).
+		First(&stored).Error; err != nil {
+		return dberrors.Classify(err)
+	}
+	quota.CreatedAt = stored.CreatedAt
+	quota.ModifiedAt = stored.ModifiedAt
 
 	logger.Info("Quota set for owner_id=%s: active=%d, hourly=%d",
 		quota.OwnerId, quota.MaxActiveInvocations, quota.MaxInvocationsPerHour)

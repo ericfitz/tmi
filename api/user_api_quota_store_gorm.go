@@ -205,9 +205,11 @@ func (s *GormUserAPIQuotaStore) Delete(ctx context.Context, userID string) error
 	return nil
 }
 
-// Upsert creates or updates a user API quota using GORM's OnConflict clause
+// Upsert creates or updates a user API quota using GORM's OnConflict clause,
+// then reads the row back so the returned timestamps reflect what is
+// actually stored rather than a client-side stamp (#706)
 // This is cross-database compatible via GORM's dialect abstraction
-// SEM@aa6d284f5df5c13ccb0001366a1f228490aba957: create or update a user API quota using a cross-DB conflict clause (mutates shared state)
+// SEM@a3e9da57dbe1d86ca32950a4827bc599ec349225: create or update a user's API quota via a cross-DB conflict clause, then read the row back (mutates DB)
 func (s *GormUserAPIQuotaStore) Upsert(ctx context.Context, item UserAPIQuota) (UserAPIQuota, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -243,9 +245,19 @@ func (s *GormUserAPIQuotaStore) Upsert(ctx context.Context, item UserAPIQuota) (
 		return UserAPIQuota{}, err
 	}
 
+	// Read the row back: on Oracle's MERGE UPDATE branch nothing is returned,
+	// so model still holds the client-side autoCreateTime for an insert that
+	// never happened (#706).
+	var stored models.UserAPIQuota
+	if err := s.db.WithContext(ctx).
+		Where(&models.UserAPIQuota{UserInternalUUID: model.UserInternalUUID}).
+		First(&stored).Error; err != nil {
+		return UserAPIQuota{}, dberrors.Classify(err)
+	}
+
 	logger.Info("User API quota upserted for user_id=%s", item.UserId)
 
-	return s.modelToAPI(model), nil
+	return s.modelToAPI(stored), nil
 }
 
 // modelToAPI converts a GORM model to the API type

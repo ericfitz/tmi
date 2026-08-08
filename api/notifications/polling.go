@@ -13,14 +13,28 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// NotificationQueueEntry represents an entry in the notification polling table
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB row representing a pending or processed notification in the polling queue
+// NotificationQueueEntry represents an entry in the notification polling table.
+//
+// This model would be Oracle-reachable once wired up: factory.go's
+// NewNotificationService selects PollingNotifier (not the Postgres
+// LISTEN/NOTIFY notifier) whenever the configured database is Oracle. As of
+// this fix, no other package imports api/notifications, so the polling path
+// is not exercised by the running server today — but the fix belongs here
+// regardless, both because it's the correct behavior and to keep this file
+// honest for whoever wires it up next. Deliberately NOT tagged with
+// `gorm:"column:..."`: result-set labels come back UPPERCASE from Oracle and
+// lowercase from Postgres, and GORM matches labels to DBNames
+// case-sensitively. An untagged field's DBName comes from the dialect's
+// NamingStrategy (OracleNamingStrategy on Oracle), so the mapping holds on
+// both engines; hardcoded lowercase tags silently zeroed every field on
+// Oracle (#699).
+// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: DB row representing a pending or processed notification in the polling queue
 type NotificationQueueEntry struct {
-	ID        models.DBVarchar `gorm:"column:id;primaryKey;not null;size:36"`
-	Channel   models.DBVarchar `gorm:"column:channel;size:255;not null;index"`
-	Payload   models.DBText    `gorm:"column:payload"`
-	CreatedAt time.Time        `gorm:"column:created_at;not null;autoCreateTime"`
-	Processed bool             `gorm:"column:processed;default:false;not null;index"`
+	ID        models.DBVarchar `gorm:"primaryKey;not null;size:36"`
+	Channel   models.DBVarchar `gorm:"size:255;not null;index"`
+	Payload   models.DBText    `gorm:""`
+	CreatedAt time.Time        `gorm:"not null;autoCreateTime"`
+	Processed bool             `gorm:"default:false;not null;index"`
 }
 
 // TableName specifies the table name for NotificationQueueEntry
@@ -99,7 +113,7 @@ func (p *PollingNotifier) pollLoop() {
 }
 
 // processNewNotifications fetches and processes unprocessed notifications
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: fetch unprocessed notifications for subscribed channels and dispatch them to subscribers (reads DB)
+// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: fetch unprocessed notifications for subscribed channels and dispatch them to subscribers (reads DB)
 func (p *PollingNotifier) processNewNotifications() {
 	p.mu.RLock()
 	subscribedChannels := make([]string, 0, len(p.channels))
@@ -140,11 +154,17 @@ func (p *PollingNotifier) processNewNotifications() {
 		p.lastProcessed = entry.CreatedAt
 	}
 
-	// Mark notifications as processed
+	// Mark notifications as processed. Model(&NotificationQueueEntry{}) gives
+	// this Updates() call a schema, so GORM already resolves the map key
+	// through stmt.Schema.LookUpField before emitting it — unlike the
+	// Where(map{...}) / Table()-only case #503 describes, this was not
+	// silently broken on Oracle. Routed through api.AssignmentMap anyway to
+	// match house style for map-keyed SET clauses (api/dialect_helpers.go)
+	// and stay correct if this ever loses its Model() schema.
 	if len(processedIDs) > 0 {
 		if err := p.db.Model(&NotificationQueueEntry{}).
 			Where("id IN ?", processedIDs).
-			Update("processed", true).Error; err != nil {
+			Updates(api.AssignmentMap(p.db.Name(), map[string]any{"processed": true})).Error; err != nil {
 			p.logger.Error("Failed to mark notifications as processed: %v", err)
 		}
 	}

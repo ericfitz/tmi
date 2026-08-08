@@ -99,7 +99,7 @@ func stringToUUID(s string) openapi_types.UUID {
 }
 
 // Create creates a new team, auto-adding the creator as a member with engineering_lead role
-// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: store a new team and auto-enroll the creator as engineering lead (writes DB)
+// SEM@4eedf6e7a203606a23a27a5bef308389d4fe211d: store a new team and auto-enroll the creator as engineering lead (mutates DB)
 func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID string) (*Team, error) {
 	logger := slogging.Get()
 	logger.Debug("Creating team: %s", team.Name)
@@ -311,7 +311,7 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 }
 
 // Update updates an existing team, replacing members, responsible parties, and relationships
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: replace a team's fields, members, responsible parties, relationships, and metadata (writes DB)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: replace a team's fields, members, responsible parties, relationships, and metadata (mutates DB)
 func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userInternalUUID string) (*Team, error) {
 	logger := slogging.Get()
 	logger.Debug("Updating team: %s", id)
@@ -341,25 +341,28 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 			team.Status = &defaultStatus
 		}
 
-		// Update team record fields
+		// Update team record fields. Nullable-typed columns pass through their
+		// models.NullableDB* constructor so Value() gets a chance to normalize
+		// empty string to NULL (#700); a raw *string in the map bypasses the
+		// Valuer and would persist "" verbatim.
 		updates := map[string]any{
 			"name":                      team.Name,
-			"description":               team.Description,
-			"uri":                       team.Uri,
+			"description":               models.NewNullableDBText(team.Description),
+			"uri":                       models.NewNullableDBText(team.Uri),
 			"status":                    teamStatusToString(team.Status),
-			"modified_by_internal_uuid": &userInternalUUID,
+			"modified_by_internal_uuid": models.NewNullableDBVarchar(&userInternalUUID),
 		}
 
 		if team.EmailAddress != nil {
 			emailStr := string(*team.EmailAddress)
-			updates["email_address"] = &emailStr
+			updates["email_address"] = models.NewNullableDBVarchar(&emailStr)
 		} else {
-			updates["email_address"] = nil
+			updates["email_address"] = models.NullableDBVarchar{}
 		}
 
 		if team.ReviewedAt != nil {
 			updates["reviewed_at"] = team.ReviewedAt
-			updates["reviewed_by_internal_uuid"] = &userInternalUUID
+			updates["reviewed_by_internal_uuid"] = models.NewNullableDBVarchar(&userInternalUUID)
 		}
 
 		if err := tx.Model(&models.TeamRecord{}).Where("id = ?", id).Updates(updates).Error; err != nil {

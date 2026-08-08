@@ -341,11 +341,11 @@ func (t *Threat) BeforeCreate(tx *gorm.DB) error {
 
 // Group represents an identity provider group
 // Note: Explicit column tags removed for Oracle compatibility
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for an identity-provider group with usage tracking
+// SEM@db8c21595adadea21843e41c61644bb014694be2: DB model for an identity-provider group with usage tracking
 type Group struct {
 	InternalUUID DBVarchar         `gorm:"primaryKey;not null;size:36"`
-	Provider     DBVarchar         `gorm:"size:100;not null;index:idx_groups_provider"`
-	GroupName    DBVarchar         `gorm:"size:500;not null;index:idx_groups_group_name"`
+	Provider     DBVarchar         `gorm:"size:100;not null;index:idx_groups_provider;uniqueIndex:uniq_groups_provider_group_name,priority:1"`
+	GroupName    DBVarchar         `gorm:"size:500;not null;index:idx_groups_group_name;uniqueIndex:uniq_groups_provider_group_name,priority:2"`
 	Name         NullableDBVarchar `gorm:"size:256"`
 	Description  NullableDBText    `gorm:""`
 	FirstUsed    time.Time         `gorm:"not null;autoCreateTime"`

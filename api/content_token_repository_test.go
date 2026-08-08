@@ -81,6 +81,50 @@ func TestContentTokenRepo_Upsert_IsIdempotent(t *testing.T) {
 	assert.Equal(t, "v2", got.AccessToken)
 }
 
+// TestContentTokenRepo_Upsert_ReturnsStoredIDOnUpdate guards against #705: on
+// the ON CONFLICT UPDATE branch, the struct passed to Upsert must come back
+// with the ID of the row actually persisted, not a fresh client-side
+// BeforeCreate UUID that was never inserted (Oracle's MERGE has no
+// RETURNING, so trusting the struct's PK silently hands out a bogus ID).
+func TestContentTokenRepo_Upsert_ReturnsStoredIDOnUpdate(t *testing.T) {
+	repo, _, _ := newTestContentTokenRepo(t)
+	ctx := context.Background()
+
+	first := &ContentToken{UserID: "u1", ProviderID: "p", AccessToken: "at-1", Status: "active"}
+	require.NoError(t, repo.Upsert(ctx, first))
+	require.NotEmpty(t, first.ID)
+
+	second := &ContentToken{UserID: "u1", ProviderID: "p", AccessToken: "at-2", Status: "active"}
+	require.NoError(t, repo.Upsert(ctx, second))
+
+	assert.Equal(t, first.ID, second.ID, "upsert on the UPDATE branch must return the stored row's ID")
+
+	list, err := repo.ListByUser(ctx, "u1")
+	require.NoError(t, err)
+	assert.Len(t, list, 1, "upsert on the UPDATE branch must not create a second row")
+}
+
+// TestContentTokenRepo_Upsert_EmptyProviderIDFailsClosed guards the #705
+// read-back guard: GORM's struct-based Where used for the post-upsert
+// read-back omits zero-value fields, so an empty ProviderID would otherwise
+// drop that predicate and the re-SELECT could match an arbitrary row for the
+// same user -- handing back another token's stored ID. It must instead fail
+// closed with ErrContentTokenInvalidKey.
+func TestContentTokenRepo_Upsert_EmptyProviderIDFailsClosed(t *testing.T) {
+	repo, _, _ := newTestContentTokenRepo(t)
+	ctx := context.Background()
+
+	// A real token for the same user that an unguarded re-SELECT could
+	// wrongly match once the (empty) provider_id predicate is dropped.
+	require.NoError(t, repo.Upsert(ctx, &ContentToken{UserID: "u1", ProviderID: "other-provider", AccessToken: "x", Status: "active"}))
+
+	bogus := &ContentToken{UserID: "u1", ProviderID: "", AccessToken: "y", Status: "active"}
+	err := repo.Upsert(ctx, bogus)
+	require.Error(t, err, "an empty ProviderID must not be silently matched to an unrelated row")
+	assert.True(t, errors.Is(err, ErrContentTokenInvalidKey), "got: %v", err)
+	assert.Empty(t, bogus.ID, "must not stamp an ID from a mismatched row")
+}
+
 func TestContentTokenRepo_ListByUser(t *testing.T) {
 	repo, _, _ := newTestContentTokenRepo(t)
 	ctx := context.Background()

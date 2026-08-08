@@ -2,12 +2,14 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -66,6 +68,43 @@ func TestWithRetryableGormTransaction_RetryableErrorExhaustsRetries(t *testing.T
 	assert.Equal(t, int32(2), atomic.LoadInt32(&callCount))
 }
 
+// TestWithRetryableGormTransaction_ExhaustionPreservesErrTransient locks in
+// #707: retry exhaustion must funnel the last error through dberrors.Classify
+// so an unclassified-but-transient failure (here, a bare "driver: bad
+// connection" string that only classify.go's string fallback recognizes)
+// still satisfies errors.Is(err, dberrors.ErrTransient) after all attempts
+// are spent. Without this, StoreErrorToRequestError degrades the exhausted
+// error to a 500 instead of a 503.
+func TestWithRetryableGormTransaction_ExhaustionPreservesErrTransient(t *testing.T) {
+	db := setupTestGormDB(t)
+	ctx := context.Background()
+	cfg := RetryConfig{MaxRetries: 2, BaseDelay: 1 * time.Millisecond, MaxDelay: 5 * time.Millisecond}
+
+	err := WithRetryableGormTransaction(ctx, db, cfg, func(tx *gorm.DB) error {
+		return fmt.Errorf("driver: bad connection")
+	})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "transaction failed after 2 attempts")
+	assert.ErrorIs(t, err, dberrors.ErrTransient)
+}
+
+// TestWithRetryableTransaction_ExhaustionPreservesErrTransient is the
+// database/sql-based sibling of the GORM test above, covering the other
+// exhaustion tail in retry.go (#707).
+func TestWithRetryableTransaction_ExhaustionPreservesErrTransient(t *testing.T) {
+	db, _ := openRecordingDB(t)
+	cfg := RetryConfig{MaxRetries: 2, BaseDelay: 1 * time.Millisecond, MaxDelay: 5 * time.Millisecond}
+
+	err := WithRetryableTransaction(context.Background(), db, cfg, func(*sql.Tx) error {
+		return fmt.Errorf("driver: bad connection")
+	})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "transaction failed after 2 attempts")
+	assert.ErrorIs(t, err, dberrors.ErrTransient)
+}
+
 func TestWithRetryableGormTransaction_RetryThenSucceed(t *testing.T) {
 	db := setupTestGormDB(t)
 	ctx := context.Background()
@@ -96,6 +135,46 @@ func TestWithRetryableGormTransaction_ContextCancelled(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, context.Canceled)
+}
+
+// TestWithRetryableGormTransaction_NonRetryableErrorIsClassified locks in the
+// #707 follow-up: the immediate non-retryable return must also run through
+// dberrors.Classify, not just the exhaustion tail. Here fn returns a raw,
+// unclassified ORA-00001-style duplicate-key string; without classifying the
+// immediate return, errors.Is(err, dberrors.ErrDuplicate) is false because
+// the error never passes through Classify/classifyByString.
+func TestWithRetryableGormTransaction_NonRetryableErrorIsClassified(t *testing.T) {
+	db := setupTestGormDB(t)
+	ctx := context.Background()
+	cfg := DefaultRetryConfig()
+
+	var callCount int32
+	err := WithRetryableGormTransaction(ctx, db, cfg, func(tx *gorm.DB) error {
+		atomic.AddInt32(&callCount, 1)
+		return fmt.Errorf("ORA-00001: unique constraint (SCHEMA.PK_THREAT_MODELS) violated")
+	})
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, dberrors.ErrDuplicate)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&callCount))
+}
+
+// TestWithRetryableTransaction_NonRetryableErrorIsClassified is the
+// database/sql-based sibling of the GORM test above, covering the immediate
+// non-retryable return in WithRetryableTransaction.
+func TestWithRetryableTransaction_NonRetryableErrorIsClassified(t *testing.T) {
+	db, _ := openRecordingDB(t)
+	cfg := DefaultRetryConfig()
+
+	var callCount int32
+	err := WithRetryableTransaction(context.Background(), db, cfg, func(*sql.Tx) error {
+		atomic.AddInt32(&callCount, 1)
+		return fmt.Errorf("ORA-00001: unique constraint (SCHEMA.PK_THREAT_MODELS) violated")
+	})
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, dberrors.ErrDuplicate)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&callCount))
 }
 
 func TestIsPermissionError(t *testing.T) {

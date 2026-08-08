@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -34,7 +35,7 @@ func NewNoteSubResourceHandler(noteStore NoteRepository, db *sql.DB, cache *Cach
 
 // GetNotes retrieves all notes for a threat model with pagination
 // GET /threat_models/{threat_model_id}/notes
-// SEM@2e11948b04b8dda021db61f3ee3dd536d0011789: list paginated notes for a threat model and return them with total count (reads DB)
+// SEM@bc62d8f9ad73ff264054d6fd71bc9a58f19b37e7: list paginated notes for a threat model and return them with total count (reads DB)
 func (h *NoteSubResourceHandler) GetNotes(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GetNotes - retrieving notes for threat model")
@@ -80,7 +81,9 @@ func (h *NoteSubResourceHandler) GetNotes(c *gin.Context) {
 	notes, err := h.noteStore.List(c.Request.Context(), threatModelID, offset, limit)
 	if err != nil {
 		logger.Error("Failed to retrieve notes: %v", err)
-		HandleRequestError(c, ServerError("Failed to retrieve notes"))
+		HandleRequestError(c, StoreErrorToRequestError(err,
+			fmt.Sprintf("Threat model %s not found", threatModelID),
+			"Failed to retrieve notes"))
 		return
 	}
 
@@ -159,7 +162,7 @@ func (h *NoteSubResourceHandler) GetNote(c *gin.Context) {
 
 // CreateNote creates a new note in a threat model
 // POST /threat_models/{threat_model_id}/notes
-// SEM@f24c94ac3b48082482bcf5b8e9642017897fe3b6: store a new sanitized note under a threat model, emit audit record, and invalidate caches (mutates shared state)
+// SEM@bc62d8f9ad73ff264054d6fd71bc9a58f19b37e7: store a new sanitized note under a threat model, emit audit record, and invalidate caches (mutates shared state)
 func (h *NoteSubResourceHandler) CreateNote(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateNote - creating new note")
@@ -220,7 +223,9 @@ func (h *NoteSubResourceHandler) CreateNote(c *gin.Context) {
 	// Create note in store
 	if err := h.noteStore.Create(c.Request.Context(), note, threatModelID); err != nil {
 		logger.Error("Failed to create note: %v", err)
-		HandleRequestError(c, ServerError("Failed to create note"))
+		HandleRequestError(c, StoreErrorToRequestError(err,
+			fmt.Sprintf("Threat model %s not found", threatModelID),
+			"Failed to create note"))
 		return
 	}
 
@@ -233,7 +238,7 @@ func (h *NoteSubResourceHandler) CreateNote(c *gin.Context) {
 
 // UpdateNote updates an existing note
 // PUT /threat_models/{threat_model_id}/notes/{note_id}
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: replace an existing note with sanitized content, emit audit record, and invalidate caches (mutates shared state)
+// SEM@bc62d8f9ad73ff264054d6fd71bc9a58f19b37e7: replace an existing note with sanitized content, emit audit record, and invalidate caches (mutates shared state)
 func (h *NoteSubResourceHandler) UpdateNote(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateNote - updating existing note")
@@ -299,7 +304,7 @@ func (h *NoteSubResourceHandler) UpdateNote(c *gin.Context) {
 	// Update note in store
 	if err := h.noteStore.Update(c.Request.Context(), note, threatModelID); err != nil {
 		logger.Error("Failed to update note %s: %v", noteID, err)
-		HandleRequestError(c, ServerError("Failed to update note"))
+		HandleRequestError(c, StoreErrorToRequestError(err, "Note not found", "Failed to update note"))
 		return
 	}
 
@@ -363,7 +368,7 @@ func (h *NoteSubResourceHandler) DeleteNote(c *gin.Context) {
 
 // PatchNote applies JSON patch operations to a note
 // PATCH /threat_models/{threat_model_id}/notes/{note_id}
-// SEM@270f55053109ed75ccf6cdf123884b9edf831d15: apply authorized JSON patch operations to a note, sanitizing content paths, and emit audit record (mutates shared state)
+// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply authorized JSON patch operations to a note, sanitizing content paths, and emit audit record (mutates shared state)
 func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchNote - applying patch operations to note")

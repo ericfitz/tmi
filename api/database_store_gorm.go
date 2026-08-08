@@ -112,7 +112,7 @@ func resolveGroupUUID(tx *gorm.DB, groupName string, idp *string) (string, error
 }
 
 // ensureGroupExists creates a group entry if it doesn't exist and returns its internal_uuid using GORM
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: upsert a group record and return its internal UUID, creating it if absent (reads DB)
+// SEM@db8c21595adadea21843e41c61644bb014694be2: upsert a group by provider and name, tolerating a duplicate-create race (mutates DB)
 func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, idp *string) (string, error) {
 	provider := BuiltInProvider
 	if idp != nil && *idp != "" {
@@ -141,7 +141,22 @@ func (s *GormThreatModelStore) ensureGroupExists(tx *gorm.DB, groupName string, 
 	}).Create(&group)
 
 	if result.Error != nil {
-		return "", dberrors.Classify(result.Error)
+		classified := dberrors.Classify(result.Error)
+		if !errors.Is(classified, dberrors.ErrDuplicate) {
+			return "", classified
+		}
+		// #704: uniq_groups_provider_group_name backs the OnConflict target,
+		// but a concurrent first-time upsert for the same (provider,
+		// group_name) can still lose the create race here. This is reachable
+		// on Oracle, whose MERGE INTO can plan two concurrent sessions'
+		// INSERT branches before either commits; PostgreSQL's ON CONFLICT is
+		// atomic per-statement against the same conflict target and doesn't
+		// hit this branch for this race (though the caller's transaction is
+		// already aborted on PG once a 23505 occurs at all, so the read-back
+		// below is a no-op recovery there, not a regression). IsRetryable
+		// does not retry ErrDuplicate, so the only recovery is to fall
+		// through to the read-back below and return the winner's row instead
+		// of failing.
 	}
 
 	// Always read the row back rather than trusting the struct's PK.
@@ -948,7 +963,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 }
 
 // Update modifies an existing threat model using GORM
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: update threat model fields, authorization, and metadata in a retryable transaction (reads DB)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: update threat model fields, authorization, and metadata in a retryable transaction (reads DB)
 func (s *GormThreatModelStore) Update(ctx context.Context, id string, item ThreatModel) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -1020,18 +1035,21 @@ func (s *GormThreatModelStore) Update(ctx context.Context, id string, item Threa
 			updateProjectID = &s
 		}
 
-		// Update threat model
+		// Update threat model. Nullable-typed columns pass through their
+		// models.NullableDB* constructor so Value() gets a chance to
+		// normalize empty string to NULL (#700); a raw *string in the map
+		// bypasses the Valuer and would persist "" verbatim.
 		// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
 		updates := map[string]any{
 			"name":                            item.Name,
-			"description":                     item.Description,
+			"description":                     models.NewNullableDBText(item.Description),
 			"owner_internal_uuid":             ownerUUID,
 			"created_by_internal_uuid":        createdByUUID,
-			"security_reviewer_internal_uuid": securityReviewerUUID,
+			"security_reviewer_internal_uuid": models.NewNullableDBVarchar(securityReviewerUUID),
 			"threat_model_framework":          framework,
-			"issue_uri":                       item.IssueUri,
+			"issue_uri":                       models.NewNullableDBText(item.IssueUri),
 			"status":                          newStatus,
-			"project_id":                      updateProjectID,
+			"project_id":                      models.NewNullableDBVarchar(updateProjectID),
 		}
 		if statusUpdated != nil {
 			updates["status_updated"] = statusUpdated
@@ -1783,7 +1801,7 @@ func (s *GormDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, str
 }
 
 // Update modifies an existing diagram using GORM
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: update diagram fields and metadata in a retryable transaction (reads DB)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: update diagram fields and metadata in a retryable transaction (reads DB)
 func (s *GormDiagramStore) Update(ctx context.Context, id string, item DfdDiagram) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -1826,14 +1844,18 @@ func (s *GormDiagramStore) Update(ctx context.Context, id string, item DfdDiagra
 		colorPaletteJSON = models.JSONRaw(cpJSON)
 	}
 
-	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag
+	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag.
+	// Nullable-typed columns pass through their models.NullableDB*
+	// constructor so Value() gets a chance to normalize empty string to NULL
+	// (#700); a raw *string in the map bypasses the Valuer and would persist
+	// "" verbatim.
 	updates := map[string]any{
 		"name":                item.Name,
-		"description":         item.Description,
-		"type":                diagType,
+		"description":         models.NewNullableDBText(item.Description),
+		"type":                models.NewNullableDBVarchar(diagType),
 		"cells":               models.JSONRaw(cellsJSON),
 		"color_palette":       colorPaletteJSON,
-		"svg_image":           svgImage,
+		"svg_image":           models.NewNullableDBText(svgImage),
 		"image_update_vector": imageUpdateVector,
 		"update_vector":       updateVector,
 	}

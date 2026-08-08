@@ -223,7 +223,7 @@ func (s *GormProjectStore) Get(ctx context.Context, id string) (*Project, error)
 }
 
 // Update updates an existing project
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: replace a project's fields, responsible parties, and relationships in a retryable transaction (reads DB)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: replace a project's fields, responsible parties, and relationships in a retryable transaction (reads DB)
 func (s *GormProjectStore) Update(ctx context.Context, id string, project *Project, userInternalUUID string) (*Project, error) {
 	logger := slogging.Get()
 
@@ -260,14 +260,18 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 
 	// Begin transaction (with retry on transient errors)
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		// Update project record fields using map for cross-DB compatibility
+		// Update project record fields using map for cross-DB compatibility.
+		// Nullable-typed columns pass through their models.NullableDB*
+		// constructor so Value() gets a chance to normalize empty string to
+		// NULL (#700); a raw *string/string in the map bypasses the Valuer
+		// and would persist "" verbatim.
 		updates := map[string]any{
 			"name":                      project.Name,
 			"team_id":                   newTeamID,
-			"modified_by_internal_uuid": userInternalUUID,
+			"modified_by_internal_uuid": models.NewNullableDBVarchar(&userInternalUUID),
 		}
-		updates["description"] = project.Description
-		updates["uri"] = project.Uri
+		updates["description"] = models.NewNullableDBText(project.Description)
+		updates["uri"] = models.NewNullableDBText(project.Uri)
 		// Default status to "active" if nullified
 		if project.Status == nil {
 			defaultStatus := ProjectStatus(projectStatusDefault)
@@ -387,7 +391,7 @@ func (s *GormProjectStore) Delete(ctx context.Context, id string) error {
 }
 
 // List retrieves projects with pagination and optional filters
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: list projects with pagination, access control, and optional filters (reads DB)
+// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: list projects with pagination, team-membership access control, and filters (reads DB)
 func (s *GormProjectStore) List(ctx context.Context, limit, offset int, filters *ProjectFilters, userInternalUUID string, isAdmin bool) ([]ProjectListItem, int, error) {
 	logger := slogging.Get()
 
@@ -434,18 +438,28 @@ func (s *GormProjectStore) List(ctx context.Context, limit, offset int, filters 
 		return nil, 0, dberrors.Classify(err)
 	}
 
-	// Select specific columns and apply pagination
+	// Select specific columns and apply pagination.
+	//
+	// Deliberately NOT tagged with `gorm:"column:..."`: result-set labels come
+	// back UPPERCASE from Oracle and lowercase from Postgres, and GORM matches
+	// labels to DBNames case-sensitively. An untagged field's DBName comes from
+	// the dialect's NamingStrategy (OracleNamingStrategy on Oracle), so the
+	// mapping holds on both engines; hardcoded lowercase tags silently zero
+	// every field on Oracle (#699). The join alias `team_name` has no model of
+	// its own, so it is emitted through ColumnName() to match the same casing
+	// the field's derived DBName would get.
 	projectsTable := models.ProjectRecord{}.TableName()
 	teamsTable := models.TeamRecord{}.TableName()
+	dialect := query.Name()
 	var results []struct {
-		ID          string  `gorm:"column:id"`
-		Name        string  `gorm:"column:name"`
-		Description *string `gorm:"column:description"`
-		Status      *string `gorm:"column:status"`
-		TeamID      string  `gorm:"column:team_id"`
-		TeamName    string  `gorm:"column:team_name"`
-		CreatedAt   string  `gorm:"column:created_at"`
-		ModifiedAt  string  `gorm:"column:modified_at"`
+		ID          string
+		Name        string
+		Description *string
+		Status      *string
+		TeamID      string
+		TeamName    string
+		CreatedAt   string
+		ModifiedAt  string
 	}
 
 	if err := query.
@@ -455,7 +469,7 @@ func (s *GormProjectStore) List(ctx context.Context, limit, offset int, filters 
 			projectsTable+".description",
 			projectsTable+".status",
 			projectsTable+".team_id",
-			teamsTable+".name AS team_name",
+			teamsTable+".name AS "+ColumnName(dialect, "team_name"),
 			projectsTable+".created_at",
 			projectsTable+".modified_at",
 		).
@@ -658,7 +672,7 @@ func (s *GormProjectStore) detectProjectCycle(ctx context.Context, sourceID, tar
 }
 
 // saveResponsibleParties saves responsible party records for a project
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: store responsible party records for a project, verifying each user exists (reads DB)
+// SEM@4eedf6e7a203606a23a27a5bef308389d4fe211d: store responsible party records for a project, verifying each user exists (mutates DB)
 func (s *GormProjectStore) saveResponsibleParties(tx *gorm.DB, projectID string, parties []ResponsibleParty) error {
 	logger := slogging.Get()
 
@@ -836,7 +850,7 @@ func (s *GormProjectStore) recordToAPI(record *models.ProjectRecord, responsible
 // teamRecordToTeamRef converts a TeamRecord to an API TeamSummary reference.
 // The embedded reference is deliberately minimal: clients fetch /teams/{team_id}
 // for the full team. See issue #659.
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a team DB record to a minimal API team summary reference (pure)
+// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: convert a team DB record to a minimal API team summary reference (pure)
 func (s *GormProjectStore) teamRecordToTeamRef(record *models.TeamRecord) *TeamSummary {
 	teamID := uuid.MustParse(string(record.ID))
 	return &TeamSummary{

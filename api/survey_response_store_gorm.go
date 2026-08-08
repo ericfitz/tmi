@@ -345,7 +345,7 @@ func (s *GormSurveyResponseStore) Get(ctx context.Context, id uuid.UUID) (*Surve
 }
 
 // Update updates an existing survey response
-// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: store mutable fields of an existing survey response; preserves immutable fields (mutates DB)
+// SEM@0953e9f0b776f0b6506c4a5b3d809b26588328fe: store mutable fields of an existing survey response; preserves immutable fields (mutates DB)
 func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyResponse) error {
 	logger := slogging.Get()
 
@@ -372,7 +372,7 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 		if err != nil {
 			return fmt.Errorf("failed to marshal answers: %w", err)
 		}
-		updates["answers"] = answersJSON
+		updates["answers"] = models.JSONRaw(answersJSON)
 	} else {
 		updates["answers"] = nil
 	}
@@ -383,7 +383,7 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 		if err != nil {
 			return fmt.Errorf("failed to marshal ui_state: %w", err)
 		}
-		updates["ui_state"] = uiStateJSON
+		updates["ui_state"] = models.JSONRaw(uiStateJSON)
 	} else {
 		updates["ui_state"] = nil
 	}
@@ -554,7 +554,7 @@ func (s *GormSurveyResponseStore) ListByOwner(ctx context.Context, ownerInternal
 }
 
 // UpdateStatus transitions a response to a new status with validation
-// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: validate and apply a status transition to a survey response, recording reviewer and notes (mutates DB)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: validate and apply a status transition to a survey response, recording reviewer and notes (mutates DB)
 func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID, newStatus string, reviewerInternalUUID *string, revisionNotes *string) error {
 	logger := slogging.Get()
 
@@ -591,6 +591,10 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 		"status": newStatus,
 	}
 
+	// reviewed_by_internal_uuid and revision_notes are nullable columns;
+	// route them through their models.NullableDB* constructor so Value()
+	// normalizes an empty string to NULL (#700) instead of writing ""
+	// verbatim, which the raw dereferenced strings previously here would do.
 	switch newStatus {
 	case ResponseStatusSubmitted:
 		updates["submitted_at"] = now
@@ -598,13 +602,13 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 	case ResponseStatusReadyForReview:
 		updates["reviewed_at"] = now
 		if reviewerInternalUUID != nil {
-			updates["reviewed_by_internal_uuid"] = *reviewerInternalUUID
+			updates["reviewed_by_internal_uuid"] = models.NewNullableDBVarchar(reviewerInternalUUID)
 		}
 	case ResponseStatusNeedsRevision:
-		updates["revision_notes"] = *revisionNotes
+		updates["revision_notes"] = models.NewNullableDBText(revisionNotes)
 		updates["reviewed_at"] = now
 		if reviewerInternalUUID != nil {
-			updates["reviewed_by_internal_uuid"] = *reviewerInternalUUID
+			updates["reviewed_by_internal_uuid"] = models.NewNullableDBVarchar(reviewerInternalUUID)
 		}
 	}
 
@@ -746,15 +750,18 @@ func (s *GormSurveyResponseStore) HasAccess(ctx context.Context, id uuid.UUID, u
 // already persisted; the retry's WHERE predicate fails because status has moved
 // past ready_for_review. Without this check, the retry surfaced a misleading
 // "not in ready_for_review status" error even though the operation succeeded.
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: atomically link a threat model and transition survey response to review_created; idempotent on retry (mutates DB)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: atomically link a threat model and transition survey response to review_created; idempotent on retry (mutates DB)
 func (s *GormSurveyResponseStore) SetCreatedThreatModel(ctx context.Context, id uuid.UUID, threatModelID string) error {
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.
 			Model(&models.SurveyResponse{}).
 			Where("id = ? AND status = ?", id.String(), ResponseStatusReadyForReview).
+			// created_threat_model_id is a NullableDBVarchar column; route
+			// through the typed constructor so Value() normalizes an empty
+			// string to NULL (#700).
 			Updates(map[string]any{
 				"status":                  ResponseStatusReviewCreated,
-				"created_threat_model_id": threatModelID,
+				"created_threat_model_id": models.NewNullableDBVarchar(&threatModelID),
 			})
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)

@@ -141,6 +141,37 @@ func TestNullableDBVarchar_Value(t *testing.T) {
 	assert.Nil(t, got, "Value(invalid) should be nil")
 }
 
+// Oracle stores the empty string as NULL regardless, so a PG write of
+// Valid=true+"" would let PG diverge from Oracle on read-back; Value() must
+// normalize empty to NULL on write, symmetric with Scan()'s empty-to-NULL
+// normalization (#698, #700). Mirrors JSONRaw.Value.
+func TestNullableDBVarchar_Value_EmptyValidNormalizesToNull(t *testing.T) {
+	v := NullableDBVarchar{String: "", Valid: true}
+	got, err := v.Value()
+	require.NoError(t, err, "Value(valid empty)")
+	assert.Nil(t, got, "Value(valid empty) should normalize to nil")
+}
+
+func TestNullableDBText_Value(t *testing.T) {
+	v := NullableDBText{String: "hi", Valid: true}
+	got, err := v.Value()
+	require.NoError(t, err, "Value(valid)")
+	assert.Equal(t, driver.Value("hi"), got, "Value(valid)")
+
+	v = NullableDBText{Valid: false}
+	got, err = v.Value()
+	require.NoError(t, err, "Value(invalid)")
+	assert.Nil(t, got, "Value(invalid) should be nil")
+}
+
+// Same empty-to-NULL write-side normalization as NullableDBVarchar.Value (#700).
+func TestNullableDBText_Value_EmptyValidNormalizesToNull(t *testing.T) {
+	v := NullableDBText{String: "", Valid: true}
+	got, err := v.Value()
+	require.NoError(t, err, "Value(valid empty)")
+	assert.Nil(t, got, "Value(valid empty) should normalize to nil")
+}
+
 func TestNullableDBVarchar_Ptr(t *testing.T) {
 	v := NullableDBVarchar{String: "hi", Valid: true}
 	p := v.Ptr()

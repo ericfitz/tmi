@@ -23,7 +23,7 @@ func main() {
 	os.Exit(run())
 }
 
-// SEM@e7880ae29f527fb2d814f6d7b7c13280082fa033: parse flags, connect to the database, and dispatch a schema/seed/import operation (reads DB)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: parse CLI flags, connect to the database, and dispatch the requested dbtool operation
 func run() int {
 	// Define flags
 	schema := flag.Bool("schema", false, "Create/migrate database schema and seed system data")
@@ -40,6 +40,8 @@ func run() int {
 
 	exportConfig := flag.Bool("export-config", false, "Export database settings to a config YAML file")
 	noDecrypt := flag.Bool("no-decrypt", false, "With --export-config: skip secret settings instead of decrypting")
+
+	backfillEmptyStrings := flag.Bool("backfill-empty-strings", false, "PostgreSQL only: normalize stored '' to NULL on NullableDB* columns (#700)")
 
 	inputFile := flag.String("input-file", "", "Input file (config YAML for -c and -l, seed JSON for -t)")
 	flag.StringVar(inputFile, "f", "", "Input file (short)")
@@ -87,12 +89,13 @@ func run() int {
 
 	// Build arguments map for exit summary
 	args := map[string]any{
-		"schema":           *schema,
-		"import_config":    *importConfig,
-		"import_test_data": *importTestData,
-		"import_legacy":    *importLegacy,
-		"export_config":    *exportConfig,
-		"dry_run":          *dryRun,
+		"schema":                 *schema,
+		"import_config":          *importConfig,
+		"import_test_data":       *importTestData,
+		"import_legacy":          *importLegacy,
+		"export_config":          *exportConfig,
+		"backfill_empty_strings": *backfillEmptyStrings,
+		"dry_run":                *dryRun,
 	}
 	if *configFile != "" {
 		args["config"] = *configFile
@@ -102,7 +105,7 @@ func run() int {
 	}
 
 	// Determine which operation to run
-	opCount := boolCount(*schema, *importConfig, *importTestData, *importLegacy, *exportConfig)
+	opCount := boolCount(*schema, *importConfig, *importTestData, *importLegacy, *exportConfig, *backfillEmptyStrings)
 
 	// Resolve config file
 	dbConfigFile := *configFile
@@ -131,22 +134,23 @@ func run() int {
 
 	// Dispatch
 	runErr := dispatchOperation(db, log, opCount, cliFlags{
-		schema:         *schema,
-		importConfig:   *importConfig,
-		importTestData: *importTestData,
-		importLegacy:   *importLegacy,
-		exportConfig:   *exportConfig,
-		inputFile:      *inputFile,
-		outputFile:     *outputFile,
-		overwrite:      *overwrite,
-		noBackup:       *noBackup,
-		noRewrite:      *noRewrite,
-		noDecrypt:      *noDecrypt,
-		serverURL:      *serverURL,
-		user:           *user,
-		provider:       *provider,
-		dryRun:         *dryRun,
-		verbose:        *verbose,
+		schema:               *schema,
+		importConfig:         *importConfig,
+		importTestData:       *importTestData,
+		importLegacy:         *importLegacy,
+		exportConfig:         *exportConfig,
+		backfillEmptyStrings: *backfillEmptyStrings,
+		inputFile:            *inputFile,
+		outputFile:           *outputFile,
+		overwrite:            *overwrite,
+		noBackup:             *noBackup,
+		noRewrite:            *noRewrite,
+		noDecrypt:            *noDecrypt,
+		serverURL:            *serverURL,
+		user:                 *user,
+		provider:             *provider,
+		dryRun:               *dryRun,
+		verbose:              *verbose,
 	})
 
 	if runErr != nil {
@@ -162,27 +166,28 @@ func run() int {
 // cliFlags holds the dereferenced CLI flag values needed to dispatch an operation.
 // SEM@7e3bc19f8950c8b27a14cef539ae7dff89e30a7a: DTO holding dereferenced CLI flag values for dispatching a dbtool operation (pure)
 type cliFlags struct {
-	schema         bool
-	importConfig   bool
-	importTestData bool
-	importLegacy   bool
-	exportConfig   bool
-	inputFile      string
-	outputFile     string
-	overwrite      bool
-	noBackup       bool
-	noRewrite      bool
-	noDecrypt      bool
-	serverURL      string
-	user           string
-	provider       string
-	dryRun         bool
-	verbose        bool
+	schema               bool
+	importConfig         bool
+	importTestData       bool
+	importLegacy         bool
+	exportConfig         bool
+	backfillEmptyStrings bool
+	inputFile            string
+	outputFile           string
+	overwrite            bool
+	noBackup             bool
+	noRewrite            bool
+	noDecrypt            bool
+	serverURL            string
+	user                 string
+	provider             string
+	dryRun               bool
+	verbose              bool
 }
 
 // dispatchOperation selects and runs the single requested dbtool operation
-// (schema, import-config, import-test-data, import-legacy, or
-// export-config), or a health check when no operation flag is set.
+// (schema, import-config, import-test-data, import-legacy, export-config, or
+// backfill-empty-strings), or a health check when no operation flag is set.
 // SEM@7e3bc19f8950c8b27a14cef539ae7dff89e30a7a: select and run the requested dbtool operation, or health check if none given (reads DB)
 func dispatchOperation(db *testdb.TestDB, log *slogging.Logger, opCount int, f cliFlags) error {
 	switch {
@@ -190,7 +195,7 @@ func dispatchOperation(db *testdb.TestDB, log *slogging.Logger, opCount int, f c
 		// No operation flags - health check mode
 		return runHealthCheck(db, f.verbose)
 	case opCount > 1:
-		return fmt.Errorf("only one operation flag can be specified at a time (-s, -c, -t, -l, --export-config)")
+		return fmt.Errorf("only one operation flag can be specified at a time (-s, -c, -t, -l, --export-config, --backfill-empty-strings)")
 	case f.schema:
 		return runSchema(db, f.dryRun, f.verbose)
 	case f.importConfig:
@@ -201,6 +206,8 @@ func dispatchOperation(db *testdb.TestDB, log *slogging.Logger, opCount int, f c
 		return dispatchImportLegacy(db, log, f)
 	case f.exportConfig:
 		return dispatchExportConfig(db, f)
+	case f.backfillEmptyStrings:
+		return runBackfillEmptyStrings(db, f.dryRun, f.verbose)
 	}
 	return nil
 }
@@ -294,7 +301,7 @@ func printExitSummary(info ToolInfo, args map[string]any, status, errMsg string)
 	fmt.Println(string(data))
 }
 
-// SEM@e7880ae29f527fb2d814f6d7b7c13280082fa033: print CLI usage text for the dbtool command (pure)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: print CLI usage text for the dbtool command (pure)
 func printUsage() {
 	fmt.Fprintf(os.Stderr, `tmi-dbtool - TMI Database Administration Tool
 
@@ -306,6 +313,9 @@ Database Operations:
   -t, --import-test-data    Import test data from a seed file
   -l, --import-legacy       Import operational settings from a legacy config file into the database
       --export-config       Export database settings to a config YAML file
+      --backfill-empty-strings
+                            PostgreSQL only: normalize stored '' to NULL on
+                            NullableDB* columns (#700)
 
 Input:
   -f, --input-file FILE     Input file (config YAML for -c, -l, and --export-config; seed JSON for -t)
@@ -342,6 +352,7 @@ Examples:
   tmi-dbtool -l -f config-production.yml                        # Import operational settings from a legacy config into the DB
   tmi-dbtool -t -f test/seeds/cats-seed-data.json --config=config-development.yml
   tmi-dbtool --export-config -f config-development.yml --output export.yml   # Export DB settings to YAML
+  tmi-dbtool --backfill-empty-strings --config=config-production.yml         # Normalize '' to NULL (PG only, #700)
 `)
 }
 

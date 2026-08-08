@@ -46,6 +46,12 @@ const (
 var (
 	ErrContentTokenNotFound  = fmt.Errorf("content token: %w", dberrors.ErrNotFound)
 	ErrContentTokenDuplicate = fmt.Errorf("content token: %w", dberrors.ErrDuplicate)
+
+	// ErrContentTokenInvalidKey guards Upsert's read-back (see below): an
+	// empty UserID or ProviderID reaching that point indicates a caller bug,
+	// not a legitimate token, so it fails closed rather than risking a
+	// mismatched read-back (#705).
+	ErrContentTokenInvalidKey = fmt.Errorf("content token: %w", dberrors.ErrConstraint)
 )
 
 // ContentTokenRepository is the repository abstraction over user_content_tokens.
@@ -129,7 +135,7 @@ func (r *GormContentTokenRepository) ListByUser(ctx context.Context, userID stri
 
 // Upsert creates or updates the token for the (UserID, ProviderID) pair using
 // ON CONFLICT DO UPDATE so the operation is idempotent.
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: create or update a content token for the user/provider pair with encrypted credentials (reads DB)
+// SEM@b7302144e81a755cfb12d83c8a03782feffcd848: upsert a content token, rejecting an unsafe empty-key read-back (mutates DB)
 func (r *GormContentTokenRepository) Upsert(ctx context.Context, token *ContentToken) error {
 	row, err := r.encode(token)
 	if err != nil {
@@ -160,8 +166,26 @@ func (r *GormContentTokenRepository) Upsert(ctx context.Context, token *ContentT
 		}
 		return classified
 	}
-	// Back-fill the generated ID so the caller can use it immediately.
-	token.ID = string(row.ID)
+	// Read the row back rather than trusting the struct's PK: BeforeCreate
+	// populated row.ID client-side, but on the MERGE UPDATE branch (Oracle has
+	// no RETURNING) that UUID was never inserted (#705, same class as #703).
+	//
+	// Guard against an empty UserID/ProviderID: GORM's struct-based Where
+	// below omits zero-value fields, so either being empty would silently
+	// drop that predicate and the re-SELECT could match an arbitrary row --
+	// handing back another user's token ID (PostgreSQL-only exposure; Oracle
+	// rejects the Create above first via its NOT NULL constraint on both
+	// columns). Mirrors UpsertGroup's #502 guard.
+	if row.UserID == "" || row.ProviderID == "" {
+		return ErrContentTokenInvalidKey
+	}
+	var stored models.UserContentToken
+	if err := r.db.WithContext(ctx).
+		Where(&models.UserContentToken{UserID: row.UserID, ProviderID: row.ProviderID}).
+		First(&stored).Error; err != nil {
+		return dberrors.Classify(err)
+	}
+	token.ID = string(stored.ID)
 	return nil
 }
 

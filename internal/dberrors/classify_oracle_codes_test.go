@@ -15,6 +15,17 @@ func TestClassifyOracleCode_UniqueConstraint(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrConstraint))
 }
 
+// ORA-01452 is the DDL-time analogue of ORA-00001: raised by CREATE UNIQUE
+// INDEX (rather than an INSERT/UPDATE) when duplicate keys already exist in
+// the table. Reachable if a duplicate group row slips past DeduplicateGroups
+// before uniq_groups_provider_group_name is created (#704).
+func TestClassifyOracleCode_CannotCreateUniqueIndexDuplicateKeys(t *testing.T) {
+	src := fmt.Errorf("ORA-01452: cannot CREATE UNIQUE INDEX; duplicate keys found")
+	err := classifyOracleCode(src, 1452)
+	assert.True(t, errors.Is(err, ErrDuplicate))
+	assert.True(t, errors.Is(err, ErrConstraint))
+}
+
 func TestClassifyOracleCode_ForeignKey(t *testing.T) {
 	src := fmt.Errorf("ORA-02291: integrity constraint violated - parent key not found")
 	err := classifyOracleCode(src, 2291)

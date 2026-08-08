@@ -221,11 +221,13 @@ func (s *GormDocumentRepository) Update(ctx context.Context, document *Document,
 	// hooks back, drop this key or route it through AssignmentMap first.
 	// Truncated to microseconds — see the note in repository_store_gorm.go.
 	now := time.Now().UTC().Truncate(time.Microsecond)
+	// description is a NullableDBText column; route through the typed
+	// constructor so Value() normalizes an empty string to NULL (#700).
 	updates := map[string]any{
 		"modified_at": now,
 		"name":        document.Name,
 		"uri":         document.Uri,
-		"description": document.Description,
+		"description": models.NewNullableDBText(document.Description),
 	}
 	if document.IncludeInReport != nil {
 		updates["include_in_report"] = models.DBBool(*document.IncludeInReport)
@@ -626,9 +628,12 @@ func (s *GormDocumentRepository) UpdateAccessStatus(ctx context.Context, id stri
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	// Both columns are NullableDBVarchar; route through the typed constructor
+	// so Value() normalizes an empty string to NULL (#700) instead of writing
+	// "" verbatim, which the raw strings previously here would do.
 	updates := map[string]interface{}{
-		"access_status":  accessStatus,
-		"content_source": contentSource,
+		"access_status":  models.NewNullableDBVarchar(&accessStatus),
+		"content_source": models.NewNullableDBVarchar(&contentSource),
 	}
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Table(models.Document{}.TableName()).Where("id = ?", id).
@@ -668,8 +673,11 @@ func (s *GormDocumentRepository) UpdateAccessStatusWithDiagnostics(
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	// access_status is a NullableDBVarchar column; route it through the typed
+	// constructor so Value() normalizes an empty string to NULL (#700) rather
+	// than writing "" verbatim, which a raw string in the map would do.
 	updates := map[string]interface{}{
-		"access_status":            accessStatus,
+		"access_status":            models.NewNullableDBVarchar(&accessStatus),
 		"access_status_updated_at": time.Now(),
 	}
 	if contentSource != "" {
@@ -818,12 +826,15 @@ func (s *GormDocumentRepository) SetPickerMetadata(
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	// These picker/content_source columns are NullableDBVarchar; route
+	// through the typed constructor so Value() normalizes an empty string
+	// to NULL (#700) instead of writing "" verbatim.
 	updates := map[string]interface{}{
-		"picker_provider_id":       providerID,
-		"picker_file_id":           fileID,
-		"picker_mime_type":         mimeType,
+		"picker_provider_id":       models.NewNullableDBVarchar(&providerID),
+		"picker_file_id":           models.NewNullableDBVarchar(&fileID),
+		"picker_mime_type":         models.NewNullableDBVarchar(&mimeType),
 		"access_status":            AccessStatusUnknown,
-		"content_source":           providerID,
+		"content_source":           models.NewNullableDBVarchar(&providerID),
 		"access_status_updated_at": time.Now(),
 	}
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {

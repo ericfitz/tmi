@@ -107,7 +107,7 @@ func run() int {
 
 // deduplicateGroupMembers finds and removes duplicate (group, user, subject_type)
 // rows in group_members, keeping the earliest row by added_at.
-// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: delete duplicate group_members rows, keeping the earliest entry per membership (mutates shared state)
+// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: delete duplicate group_members rows, keeping the earliest entry per membership (mutates DB)
 func deduplicateGroupMembers(gormDB *gorm.DB, dryRun bool) (int64, error) {
 	log := slogging.Get()
 
@@ -116,12 +116,21 @@ func deduplicateGroupMembers(gormDB *gorm.DB, dryRun bool) (int64, error) {
 		return 0, fmt.Errorf("group_members table does not exist")
 	}
 
-	// SEM@c849919898ec78d8bff15ce75f9fccb040810e4a: scan result type holding a duplicate group membership key and its row count (pure)
+	// Deliberately NOT tagged with `gorm:"column:..."`: result-set labels come
+	// back UPPERCASE from Oracle and lowercase from Postgres, and GORM matches
+	// labels to DBNames case-sensitively. An untagged field's DBName comes from
+	// the dialect's NamingStrategy (OracleNamingStrategy on Oracle), so the
+	// mapping holds on both engines; hardcoded lowercase tags silently zeroed
+	// every field on Oracle (#699). The raw SQL's `COUNT(*) AS cnt` alias is
+	// unquoted, so Oracle folds it to `CNT`; the field is named Cnt (not
+	// Count) so its derived DBName ("cnt"/"CNT") matches that alias on both
+	// engines — "Count" would derive "count", which the alias is not.
+	// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: scan result type holding a duplicate group membership key and its row count (pure)
 	type dupGroup struct {
-		GroupInternalUUID string `gorm:"column:group_internal_uuid"`
-		UserInternalUUID  string `gorm:"column:user_internal_uuid"`
-		SubjectType       string `gorm:"column:subject_type"`
-		Count             int64  `gorm:"column:cnt"`
+		GroupInternalUUID string
+		UserInternalUUID  string
+		SubjectType       string
+		Cnt               int64
 	}
 
 	var dups []dupGroup
@@ -143,10 +152,10 @@ func deduplicateGroupMembers(gormDB *gorm.DB, dryRun bool) (int64, error) {
 	totalRemoved := int64(0)
 	for _, dup := range dups {
 		log.Info("  group=%s user=%s type=%s: %d rows (keeping 1)",
-			dup.GroupInternalUUID, dup.UserInternalUUID, dup.SubjectType, dup.Count)
+			dup.GroupInternalUUID, dup.UserInternalUUID, dup.SubjectType, dup.Cnt)
 
 		if dryRun {
-			totalRemoved += dup.Count - 1
+			totalRemoved += dup.Cnt - 1
 			continue
 		}
 

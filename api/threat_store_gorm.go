@@ -1097,7 +1097,7 @@ func (s *GormThreatRepository) convertUUIDToString(id *uuid.UUID) *string {
 // as NULL to the database, unlike struct-based Updates() which skips zero values.
 // Custom types (StringArray, CVSSArray, DBBool) are handled explicitly since map-based
 // Updates() bypasses GORM's Value() methods.
-// SEM@436c1840b3eef9687193078750dec3e22874f10e: build a map of all threat fields for GORM map-based update including nil-as-NULL (pure)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: build a map of a threat's fields for a GORM map-based update, normalizing nulls (pure)
 func (s *GormThreatRepository) buildThreatUpdateMap(threat *Threat, now time.Time) map[string]any {
 	// Handle boolean fields: default to false if nil
 	mitigated := models.DBBool(false)
@@ -1161,18 +1161,24 @@ func (s *GormThreatRepository) buildThreatUpdateMap(threat *Threat, now time.Tim
 	timmyEnabledVal, _ := timmyEnabled.Value()
 	ssvcVal, _ := ssvc.Value()
 
+	// description/mitigation/issue_uri are NullableDBText and
+	// severity/status/priority are NullableDBVarchar; route through their
+	// typed constructor so Value() gets a chance to normalize an empty
+	// string to NULL (#700) — a raw *string here bypasses the Valuer and
+	// would persist "" verbatim, which then sorts differently from Oracle's
+	// NULL in buildSemanticOrderExpr's severity/priority/status CASE.
 	return map[string]any{
 		"name":              threat.Name,
-		"description":       threat.Description,                      // nil writes NULL
-		"severity":          threat.Severity,                         // nil writes NULL
-		"mitigation":        threat.Mitigation,                       // nil writes NULL
-		"status":            threat.Status,                           // nil writes NULL
-		"priority":          threat.Priority,                         // nil writes NULL
-		"issue_uri":         threat.IssueUri,                         // nil writes NULL
-		"score":             s.convertScore(threat.Score),            // nil writes NULL
-		"diagram_id":        s.convertUUIDToString(threat.DiagramId), // nil writes NULL
-		"cell_id":           s.convertUUIDToString(threat.CellId),    // nil writes NULL
-		"asset_id":          s.convertUUIDToString(threat.AssetId),   // nil writes NULL
+		"description":       models.NewNullableDBText(threat.Description), // nil writes NULL
+		"severity":          models.NewNullableDBVarchar(threat.Severity), // nil writes NULL
+		"mitigation":        models.NewNullableDBText(threat.Mitigation),  // nil writes NULL
+		"status":            models.NewNullableDBVarchar(threat.Status),   // nil writes NULL
+		"priority":          models.NewNullableDBVarchar(threat.Priority), // nil writes NULL
+		"issue_uri":         models.NewNullableDBText(threat.IssueUri),    // nil writes NULL
+		"score":             s.convertScore(threat.Score),                 // nil writes NULL
+		"diagram_id":        s.convertUUIDToString(threat.DiagramId),      // nil writes NULL
+		"cell_id":           s.convertUUIDToString(threat.CellId),         // nil writes NULL
+		"asset_id":          s.convertUUIDToString(threat.AssetId),        // nil writes NULL
 		"threat_type":       threatTypeVal,
 		"cwe_id":            cweIDVal,
 		"cvss":              cvssVal,

@@ -197,7 +197,7 @@ func (s *GormRepositoryRepository) Get(ctx context.Context, id string) (*Reposit
 }
 
 // Update updates an existing repository
-// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: update a repository's fields, set modified_at explicitly, and refresh cache (mutates shared state)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: update a repository's fields, set modified_at explicitly, and refresh cache (mutates DB, cache)
 func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -243,12 +243,17 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 	// Without it the value mirrored onto the struct below (and returned in the
 	// response body) carries up to 999ns the next DB-served read will not.
 	now := time.Now().UTC().Truncate(time.Microsecond)
+	// name/type/description are NullableDBVarchar/NullableDBText columns;
+	// route through the typed constructor so Value() normalizes an empty
+	// string to NULL (#700) — a raw *string here bypasses the Valuer and
+	// would persist "" verbatim, diverging from Create's struct-based path
+	// (which already goes through Value()) on PostgreSQL only.
 	updates := map[string]any{
 		"modified_at": now,
-		"name":        repository.Name,
+		"name":        models.NewNullableDBVarchar(repository.Name),
 		"uri":         repository.Uri,
-		"description": repository.Description,
-		"type":        repoType,
+		"description": models.NewNullableDBText(repository.Description),
+		"type":        models.NewNullableDBVarchar(repoType),
 		"parameters":  params,
 	}
 	if repository.IncludeInReport != nil {

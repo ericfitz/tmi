@@ -377,7 +377,7 @@ func runMigrations(ctx context.Context, gormDB *db.GormDB, dbType string) {
 // os.Exit inside the lock-holding region would skip the deferred release
 // (gocritic exitAfterDefer) and leave the lock orphaned for replicas to
 // time out on.
-// SEM@70c02e3f4b4dd833280d8f3ca9d152b483013ffe: run DB migrations under advisory lock with fingerprint fast path (writes DB)
+// SEM@db8c21595adadea21843e41c61644bb014694be2: run DB schema migrations, backfills, and seed data under an advisory lock, with a fingerprint fast path (mutates DB)
 func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) error {
 	logger := slogging.Get()
 
@@ -412,6 +412,20 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 		logger.Info("Schema fingerprint current (%s); skipping AutoMigrate for %d models", desiredFP[:12], len(allModels))
 	} else {
 		logger.Info("Running GORM AutoMigrate for %s database", dbType)
+
+		// #704: groups(provider, group_name) is about to gain
+		// uniq_groups_provider_group_name (the two upsert call sites already
+		// target that pair as an ON CONFLICT/MERGE key, but it was previously
+		// unbacked). A database that already carries duplicate rows from
+		// before the fix would abort AutoMigrate's CREATE UNIQUE INDEX
+		// (ORA-01452 / PostgreSQL 23505), so dedupe them first. Idempotent and
+		// a single query when there are none.
+		if removed, err := dbschema.DeduplicateGroups(gormDB.DB()); err != nil {
+			return fmt.Errorf("failed to dedupe groups before schema migration: %w", err)
+		} else if removed > 0 {
+			logger.Info("Deduped %d duplicate groups rows before schema migration", removed)
+		}
+
 		recordFingerprint := true
 		if err := gormDB.AutoMigrate(allModels...); err != nil {
 			errStr := err.Error()
@@ -2429,10 +2443,16 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 }
 
 // findUserByProviderIdentityGorm looks up a user by provider and provider_id or email using GORM
-// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: fetch a user's internal UUID by provider identity or email (reads DB)
+// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: fetch a user's internal UUID by provider identity or email (reads DB)
 func findUserByProviderIdentityGorm(ctx context.Context, gormDB *gorm.DB, provider string, providerID string, email string) (uuid.UUID, error) {
+	// Deliberately NOT tagged with `gorm:"column:..."`: result-set labels come
+	// back UPPERCASE from Oracle and lowercase from Postgres, and GORM matches
+	// labels to DBNames case-sensitively. An untagged field's DBName comes from
+	// the dialect's NamingStrategy (OracleNamingStrategy on Oracle), so the
+	// mapping holds on both engines; a hardcoded lowercase tag silently zeroed
+	// this field on Oracle (#699).
 	var user struct {
-		InternalUUID string `gorm:"column:internal_uuid"`
+		InternalUUID string
 	}
 
 	// Map-keyed predicates must route through api.ColumnMap so the column
