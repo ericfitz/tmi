@@ -135,7 +135,7 @@ func (r *GormContentTokenRepository) ListByUser(ctx context.Context, userID stri
 
 // Upsert creates or updates the token for the (UserID, ProviderID) pair using
 // ON CONFLICT DO UPDATE so the operation is idempotent.
-// SEM@c5963047b1ea6e3e22bf349ed439c8222e71808b: create or update a content token for the user/provider pair with encrypted credentials (reads DB)
+// SEM@b7302144e81a755cfb12d83c8a03782feffcd848: upsert a content token, rejecting an unsafe empty-key read-back (mutates DB)
 func (r *GormContentTokenRepository) Upsert(ctx context.Context, token *ContentToken) error {
 	row, err := r.encode(token)
 	if err != nil {
