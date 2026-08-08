@@ -32,8 +32,8 @@ func tableName(name string) string {
 // SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for an authenticated user with OAuth identity and token fields
 type User struct {
 	InternalUUID   DBVarchar         `gorm:"primaryKey;not null;size:36"`
-	Provider       DBVarchar         `gorm:"size:100;not null;index:idx_users_provider;index:idx_users_provider_lookup,priority:1"`
-	ProviderUserID NullableDBVarchar `gorm:"size:500;index:idx_users_provider_lookup,priority:2"`
+	Provider       DBVarchar         `gorm:"size:100;not null;index:idx_users_provider;uniqueIndex:idx_users_provider_lookup,priority:1"`
+	ProviderUserID NullableDBVarchar `gorm:"size:500;uniqueIndex:idx_users_provider_lookup,priority:2"`
 	Email          DBVarchar         `gorm:"size:320;not null;index:idx_users_email"`
 	Name           DBVarchar         `gorm:"size:256;not null"`
 	EmailVerified  DBBool            `gorm:"default:0"`
