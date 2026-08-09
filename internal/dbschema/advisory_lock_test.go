@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -59,4 +61,51 @@ func TestAcquireMigrationLock_PGSerializes(t *testing.T) {
 	// assert.Len(t, order, 3)
 	_ = sync.WaitGroup{}
 	_ = time.Now()
+}
+
+// TestAcquireOracleLock_PinnedConnection verifies the #711 fix: ALLOCATE_UNIQUE,
+// REQUEST, and RELEASE all execute on the same pinned *sql.Conn (not the
+// general pool), and that connection is released back to the pool exactly
+// once, when release() is called.
+func TestAcquireOracleLock_PinnedConnection(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = sqlDB.Close() }()
+
+	mock.MatchExpectationsInOrder(true)
+	mock.ExpectExec("DBMS_LOCK.ALLOCATE_UNIQUE").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("DBMS_LOCK.REQUEST").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("DBMS_LOCK.RELEASE").WillReturnResult(sqlmock.NewResult(0, 0))
+
+	release, err := acquireOracleLock(context.Background(), sqlDB, "test-lock", slogging.Get())
+	require.NoError(t, err)
+
+	// The lock-acquisition connection is pinned out of the pool and stays
+	// checked out until release() runs.
+	assert.Equal(t, 1, sqlDB.Stats().InUse, "lock acquisition must hold the pinned connection checked out")
+
+	release()
+	assert.Equal(t, 0, sqlDB.Stats().InUse, "release() must check the pinned connection back in")
+
+	// release() must be idempotent: a second call issues no further RELEASE.
+	release()
+
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestAcquireOracleLock_ClosesConnOnAcquisitionError verifies the pinned
+// connection is not leaked when ALLOCATE_UNIQUE or REQUEST fails.
+func TestAcquireOracleLock_ClosesConnOnAcquisitionError(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = sqlDB.Close() }()
+
+	mock.MatchExpectationsInOrder(true)
+	mock.ExpectExec("DBMS_LOCK.ALLOCATE_UNIQUE").WillReturnError(assert.AnError)
+
+	_, err = acquireOracleLock(context.Background(), sqlDB, "test-lock", slogging.Get())
+	require.Error(t, err)
+	assert.Equal(t, 0, sqlDB.Stats().InUse, "the pinned connection must not remain checked out when acquisition fails")
+
+	assert.NoError(t, mock.ExpectationsWereMet())
 }

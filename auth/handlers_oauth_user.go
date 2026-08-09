@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -38,6 +39,18 @@ var errCrossProviderConflict = errors.New("cross-provider email conflict")
 // upstream provider has not marked as verified. Sparse-record completion
 // is a one-way door, so we require a verified email before crossing it.
 var errUnverifiedEmailMatch = errors.New("email not verified for sparse-record bind")
+
+// isUserNotFound reports whether err represents "no matching row" as opposed
+// to a genuine lookup failure (transient DB error, connection loss, etc.).
+// userResolver methods (backed by *Service) don't return a typed sentinel for
+// not-found — they wrap it as a plain "user not found" string — so
+// dberrors.Classify's string-matching fallback is what recognizes it; any
+// already-classified error (e.g. dberrors.ErrTransient) passes through
+// unchanged and is correctly reported as "not not-found" here.
+// SEM@1eb7997add7b39214eac29d20050d7968745a98d: classify a userResolver lookup error as not-found vs. a real failure (pure)
+func isUserNotFound(err error) bool {
+	return errors.Is(dberrors.Classify(err), dberrors.ErrNotFound)
+}
 
 // extractEmailWithFallback extracts email from userInfo/claims with fallback to synthetic email
 // SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: extract an OAuth user's email from claims or synthesize one from the provider user ID (pure)
@@ -117,6 +130,11 @@ func findOrCreateUserWithResolver(ctx context.Context, c *gin.Context, r userRes
 			providerID, providerUserID, user.Email)
 		return user, userMatchProviderID, nil
 	}
+	if !isUserNotFound(err) {
+		logger.Error("Tier 1 lookup failed (not a not-found): provider=%s, provider_id=%s, error=%v",
+			providerID, providerUserID, err)
+		return User{}, userMatchNone, fmt.Errorf("failed to look up user by provider ID: %w", err)
+	}
 
 	// Tier 1b: Try to match by linked identity (provider + provider_user_id)
 	li, liErr := r.GetLinkedIdentityByProviderSub(ctx, providerID, providerUserID)
@@ -132,9 +150,21 @@ func findOrCreateUserWithResolver(ctx context.Context, c *gin.Context, r userRes
 			}
 			return owner, userMatchLinkedIdentity, nil
 		}
+		if !isUserNotFound(ownerErr) {
+			logger.Error("Tier 1b owner lookup failed (not a not-found): linked_identity_id=%s, user_uuid=%s, error=%v",
+				string(li.ID), string(li.UserInternalUUID), ownerErr)
+			return User{}, userMatchNone, fmt.Errorf("failed to look up linked identity owner: %w", ownerErr)
+		}
 		// Owner not found — orphaned linked identity, fall through
 		logger.Warn("Linked identity owner not found: linked_identity_id=%s, user_uuid=%s",
 			string(li.ID), string(li.UserInternalUUID))
+	} else if !isUserNotFound(liErr) {
+		// isUserNotFound recognizes ErrLinkedIdentityNotFound too: its message
+		// ("linked identity not found") matches dberrors.Classify's string
+		// fallback the same way "user not found" does at tiers 1-3.
+		logger.Error("Tier 1b linked identity lookup failed (not a not-found): provider=%s, provider_id=%s, error=%v",
+			providerID, providerUserID, liErr)
+		return User{}, userMatchNone, fmt.Errorf("failed to look up linked identity: %w", liErr)
 	}
 
 	// Tier 2: Try to match by provider + email
@@ -143,6 +173,11 @@ func findOrCreateUserWithResolver(ctx context.Context, c *gin.Context, r userRes
 		logger.Debug("User matched by provider+email: provider=%s, email=%s, existing_provider_id=%s",
 			providerID, email, user.ProviderUserID)
 		return user, userMatchProviderEmail, nil
+	}
+	if !isUserNotFound(err) {
+		logger.Error("Tier 2 lookup failed (not a not-found): provider=%s, email=%s, error=%v",
+			providerID, email, err)
+		return User{}, userMatchNone, fmt.Errorf("failed to look up user by provider and email: %w", err)
 	}
 
 	// Tier 3: Try to match by email only (sparse record).
@@ -169,6 +204,10 @@ func findOrCreateUserWithResolver(ctx context.Context, c *gin.Context, r userRes
 		logger.Debug("User matched by email only (sparse record, verified): email=%s", email)
 		return user, userMatchEmailOnly, nil
 	}
+	if !isUserNotFound(err) {
+		logger.Error("Tier 3 lookup failed (not a not-found): email=%s, error=%v", email, err)
+		return User{}, userMatchNone, fmt.Errorf("failed to look up user by email: %w", err)
+	}
 
 	// No match found - need to create new user
 	logger.Debug("No existing user found, will create new: provider=%s, provider_id=%s, email=%s",
@@ -188,6 +227,32 @@ func findOrCreateUserWithResolver(ctx context.Context, c *gin.Context, r userRes
 
 	createdUser, err := r.CreateUser(ctx, newUser)
 	if err != nil {
+		if errors.Is(dberrors.Classify(err), dberrors.ErrDuplicate) {
+			// Lost the race on (provider, provider_user_id): a concurrent OAuth
+			// callback for the same brand-new identity (SPA double-submit,
+			// retry-on-timeout) created the row first, and idx_users_provider_lookup
+			// (now a unique index, #701) rejected this insert. Re-read the winner
+			// instead of surfacing a 500 — same "insert lost the race" pattern as #705.
+			//
+			// This re-fetch tolerates a duplicate-key failure on the same
+			// connection on both engines, but for opposite reasons, and only
+			// because CreateUser is not wrapped in an explicit transaction here:
+			// Oracle rolls a failed statement back to an implicit savepoint and
+			// leaves the session usable; PostgreSQL poisons the whole
+			// transaction (25P02) until an explicit rollback. Re-verify this
+			// still works on Postgres if CreateUser is ever moved inside one.
+			logger.Warn("CreateUser hit duplicate-key conflict, re-fetching winner: provider=%s, provider_id=%s",
+				providerID, providerUserID)
+			winner, lookupErr := r.GetUserByProviderID(ctx, providerID, providerUserID)
+			if lookupErr == nil {
+				logger.Debug("Resolved duplicate-key conflict to existing user: provider=%s, provider_id=%s, email=%s",
+					providerID, providerUserID, winner.Email)
+				return winner, userMatchProviderID, nil
+			}
+			logger.Error("Failed to re-fetch user after duplicate-key create conflict: provider=%s, provider_id=%s, error=%v",
+				providerID, providerUserID, lookupErr)
+			return User{}, userMatchNone, fmt.Errorf("failed to create user: %w", err)
+		}
 		logger.Error("Failed to create new user: email=%s, name=%s, error=%v", email, name, err)
 		return User{}, userMatchNone, fmt.Errorf("failed to create user: %w", err)
 	}

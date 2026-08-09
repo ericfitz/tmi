@@ -17,8 +17,8 @@ type SurveyTemplate struct {
 	Description           NullableDBText `gorm:""`
 	Version               DBVarchar      `gorm:"size:64;not null;index:idx_st_version;uniqueIndex:idx_st_name_version,priority:2"`
 	Status                DBVarchar      `gorm:"size:20;not null;default:inactive;index:idx_st_status"`
-	SurveyJSON            JSONRaw        `gorm:"column:survey_json"` // Complete SurveyJS JSON definition (opaque blob)
-	Settings              JSONRaw        `gorm:""`                   // Template settings (allow_threat_model_linking, etc.)
+	SurveyJSON            JSONRaw        `gorm:""` // Complete SurveyJS JSON definition (opaque blob)
+	Settings              JSONRaw        `gorm:""` // Template settings (allow_threat_model_linking, etc.)
 	CreatedByInternalUUID DBVarchar      `gorm:"size:36;not null;index:idx_st_created_by"`
 	CreatedAt             time.Time      `gorm:"not null;autoCreateTime;index:idx_st_created_at"`
 	ModifiedAt            time.Time      `gorm:"not null;autoUpdateTime"`
@@ -45,7 +45,7 @@ type SurveyTemplateVersion struct {
 	ID                    DBVarchar `gorm:"primaryKey;not null;size:36"`
 	TemplateID            DBVarchar `gorm:"size:36;not null;index:idx_stv_template;uniqueIndex:idx_stv_template_version,priority:1"`
 	Version               DBVarchar `gorm:"size:64;not null;uniqueIndex:idx_stv_template_version,priority:2"`
-	SurveyJSON            JSONRaw   `gorm:"column:survey_json"`
+	SurveyJSON            JSONRaw   `gorm:""`
 	CreatedByInternalUUID DBVarchar `gorm:"size:36;not null"`
 	CreatedAt             time.Time `gorm:"not null;autoCreateTime"`
 
@@ -75,10 +75,10 @@ type SurveyResponse struct {
 	TemplateID             DBVarchar         `gorm:"size:36;not null;index:idx_sr_template;index:idx_sr_template_status,priority:1"`
 	TemplateVersion        DBVarchar         `gorm:"size:64;not null"` // Captured at creation, immutable
 	Status                 DBVarchar         `gorm:"size:30;not null;default:draft;index:idx_sr_status;index:idx_sr_template_status,priority:2"`
-	IsConfidential         DBBool            `gorm:"default:0"`          // If true, Security Reviewers group not auto-added
-	Answers                JSONRaw           `gorm:""`                   // Question answers keyed by question name
-	UIState                JSONRaw           `gorm:"column:ui_state"`    // Client-managed UI state for draft resumption
-	SurveyJSON             JSONRaw           `gorm:"column:survey_json"` // Snapshot of template survey_json at creation
+	IsConfidential         DBBool            `gorm:"default:0"` // If true, Security Reviewers group not auto-added
+	Answers                JSONRaw           `gorm:""`          // Question answers keyed by question name
+	UIState                JSONRaw           `gorm:""`          // Client-managed UI state for draft resumption
+	SurveyJSON             JSONRaw           `gorm:""`          // Snapshot of template survey_json at creation
 	LinkedThreatModelID    NullableDBVarchar `gorm:"size:36;index:idx_sr_linked_tm"`
 	CreatedThreatModelID   NullableDBVarchar `gorm:"size:36;index:idx_sr_created_tm"`
 	RevisionNotes          NullableDBText    `gorm:""`

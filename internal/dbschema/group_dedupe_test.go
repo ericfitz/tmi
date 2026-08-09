@@ -1,9 +1,11 @@
 package dbschema
 
 import (
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -320,4 +322,49 @@ func TestChunkStrings(t *testing.T) {
 		require.Len(t, chunks, 1)
 		assert.Empty(t, chunks[0])
 	})
+}
+
+// TestWithDedupeRetry_RetryableError_RetriedThenSucceeds covers #712:
+// dberrors.ErrTransient (Oracle ORA-00060 deadlock / ORA-08177 serialization
+// failure territory) must be retried, not propagated on the first failure.
+func TestWithDedupeRetry_RetryableError_RetriedThenSucceeds(t *testing.T) {
+	var calls int
+	err := withDedupeRetry("okta", "engineering", func() error {
+		calls++
+		if calls < dedupeMaxAttempts {
+			return dberrors.Wrap(errors.New("ORA-00060: deadlock detected"), dberrors.ErrTransient)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, dedupeMaxAttempts, calls, "must retry until success, not stop early")
+}
+
+// TestWithDedupeRetry_RetryableError_ExhaustsAttempts covers the case where
+// every attempt fails: withDedupeRetry must give up after dedupeMaxAttempts
+// rather than retrying forever, and return the last error.
+func TestWithDedupeRetry_RetryableError_ExhaustsAttempts(t *testing.T) {
+	var calls int
+	sentinel := dberrors.Wrap(errors.New("ORA-08177: serialization failure"), dberrors.ErrTransient)
+	err := withDedupeRetry("okta", "engineering", func() error {
+		calls++
+		return sentinel
+	})
+	require.ErrorIs(t, err, dberrors.ErrTransient)
+	assert.Equal(t, dedupeMaxAttempts, calls, "must stop after dedupeMaxAttempts")
+}
+
+// TestWithDedupeRetry_NonRetryableError_FailsImmediately covers #712's other
+// requirement: a non-retryable error (e.g. a genuine constraint violation)
+// must propagate on the first attempt, unretried and unchanged.
+func TestWithDedupeRetry_NonRetryableError_FailsImmediately(t *testing.T) {
+	var calls int
+	sentinel := dberrors.Wrap(errors.New("unique constraint violated"), dberrors.ErrDuplicate)
+	err := withDedupeRetry("okta", "engineering", func() error {
+		calls++
+		return sentinel
+	})
+	require.ErrorIs(t, err, dberrors.ErrDuplicate)
+	assert.Same(t, sentinel, err, "non-retryable error must propagate unchanged")
+	assert.Equal(t, 1, calls, "must not retry a non-retryable error")
 }

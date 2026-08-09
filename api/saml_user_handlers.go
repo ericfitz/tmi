@@ -10,7 +10,7 @@ import (
 
 // ListSAMLUsers handles GET /saml/providers/{idp}/users
 // SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: list SAML users from the caller's own identity provider with pagination and email filter (reads DB)
-func (s *Server) ListSAMLUsers(c *gin.Context, idp string) {
+func (s *Server) ListSAMLUsers(c *gin.Context, idp string, _ ListSAMLUsersParams) {
 	logger := slogging.Get().WithContext(c)
 
 	// SECURITY FIX: Validate authenticated user (prevents unauthorized access to user data)

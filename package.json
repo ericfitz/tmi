@@ -1,7 +1,7 @@
 {
   "devDependencies": {
-    "@redocly/cli": "^2.43.2",
-    "@stoplight/spectral-cli": "^6.16.2"
+    "@redocly/cli": "^2.46.0",
+    "@stoplight/spectral-cli": "^6.16.3"
   },
   "scripts": {
     "arazzo:scaffold": "redocly generate-arazzo api-schema/tmi-openapi.json --output-file api-schema/arazzo/scaffolds/base-scaffold.arazzo.yaml",

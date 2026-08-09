@@ -1,0 +1,107 @@
+package api
+
+import (
+	"context"
+	"fmt"
+	"regexp"
+	"strings"
+	"testing"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/jackc/pgx/v5/pgconn"
+	openapi_types "github.com/oapi-codegen/runtime/types"
+	"github.com/stretchr/testify/require"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+)
+
+// guardedQueryMatcher wraps sqlmock's regexp matcher with a hard failure if
+// any query filters on internal_uuid by equality. That predicate only ever
+// appears because GORM auto-adds "WHERE <pk> = <value>" when the destination
+// struct's primary key is already populated — which is exactly what happens
+// if a duplicate-key recovery re-fetch reuses the struct BeforeCreate already
+// stamped a (never-inserted) UUID onto. Regression guard for that bug (#718).
+//
+// This test only ever runs the Postgres dialector (quoted, "$"-style binds),
+// so the check below is Postgres-specific on purpose. Oracle's driver runs
+// with SkipQuoteIdentifiers, so the same predicate there would render
+// unquoted and uppercase (e.g. "USERS.INTERNAL_UUID = :4") — a different
+// pattern this guard does not check and that no test here exercises.
+func guardedQueryMatcher(t *testing.T) sqlmock.QueryMatcher {
+	t.Helper()
+	return sqlmock.QueryMatcherFunc(func(expectedSQL, actualSQL string) error {
+		if strings.Contains(actualSQL, `internal_uuid" = $`) {
+			return fmt.Errorf("query must not filter on internal_uuid by equality (leftover PK from a failed insert would silently miss on re-fetch): %s", actualSQL)
+		}
+		matched, err := regexp.MatchString(expectedSQL, actualSQL)
+		if err != nil {
+			return err
+		}
+		if !matched {
+			return fmt.Errorf("actual sql: %q does not match expected regexp %q", actualSQL, expectedSQL)
+		}
+		return nil
+	})
+}
+
+// newMockGormDB wires a sqlmock *sql.DB behind a Postgres GORM dialector, for
+// unit tests that need to control exactly what error a query returns without
+// a real database connection.
+func newMockGormDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
+	t.Helper()
+
+	sqlDB, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(guardedQueryMatcher(t)))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	gdb, err := gorm.Open(postgres.New(postgres.Config{
+		Conn:                 sqlDB,
+		PreferSimpleProtocol: true,
+	}), &gorm.Config{
+		SkipDefaultTransaction: true,
+	})
+	require.NoError(t, err)
+
+	return gdb, mock
+}
+
+// #718 — performSparseUserInsert must recover from a duplicate-key error on
+// the sparse insert (a concurrent request won the race to create the same
+// user row) by re-fetching the winning row instead of surfacing a 500.
+func TestPerformSparseUserInsert_DuplicateKeyRefetchesWinner(t *testing.T) {
+	gdb, mock := newMockGormDB(t)
+	mock.MatchExpectationsInOrder(true)
+
+	email := openapi_types.Email("alice@example.com")
+	authEntry := &Authorization{
+		PrincipalType: AuthorizationPrincipalTypeUser,
+		Provider:      "google",
+		ProviderId:    "google-123",
+		Email:         &email,
+	}
+
+	// FirstOrCreate's own lookup: no existing row (this request lost the race
+	// to a concurrent insert that hasn't been visible to this SELECT yet).
+	mock.ExpectQuery(`SELECT`).
+		WillReturnRows(sqlmock.NewRows([]string{"internal_uuid"}))
+
+	// The INSERT collides with idx_users_provider_lookup (unique on
+	// provider + provider_user_id, #701) because the concurrent insert won.
+	// BeforeCreate stamps a fresh InternalUUID onto the destination struct as
+	// a side effect of this call even though the INSERT itself fails.
+	mock.ExpectQuery(`INSERT INTO "users"`).
+		WillReturnError(&pgconn.PgError{Code: "23505", Message: "duplicate key value violates unique constraint \"idx_users_provider_lookup\""})
+
+	// Re-fetch after the classified duplicate: must query by (provider,
+	// provider_user_id/email) only — NOT by the leftover internal_uuid from
+	// the failed insert above (guardedQueryMatcher fails the test if it does)
+	// — and returns the winner's row.
+	mock.ExpectQuery(`SELECT`).
+		WillReturnRows(sqlmock.NewRows([]string{"internal_uuid", "provider", "provider_user_id", "email", "name"}).
+			AddRow("uuid-winner", "google", "google-123", "alice@example.com", "Alice"))
+
+	err := performSparseUserInsert(context.Background(), gdb, authEntry)
+	require.NoError(t, err, "duplicate-key create conflict must be recovered by re-fetching, not surfaced as an error")
+
+	require.NoError(t, mock.ExpectationsWereMet())
+}

@@ -2353,7 +2353,7 @@ func validateDatabaseSchema(cfg *config.Config) error {
 }
 
 // initializeAdministratorsGorm initializes administrators from configuration using GORM
-// SEM@37bb116f6f3d7f409a2c32aad16d0aa7e5a575f6: seed the Administrators group with configured users and groups, creating missing user records (writes DB)
+// SEM@4247eee5: seed the Administrators group with configured users/groups, creating missing users only on not-found (writes DB)
 func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 	logger := slogging.Get()
 	logger.Info("Initializing administrators from configuration (GORM)")
@@ -2374,6 +2374,15 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 			// Look up user by provider + (provider_id OR email)
 			userUUID, err := findUserByProviderIdentityGorm(ctx, gormDB, adminCfg.Provider, adminCfg.ProviderId, adminCfg.Email)
 			if err != nil {
+				// Only a genuine "no row" result routes to the create branch. Any
+				// other error (connection failure, a scan/mapping bug, etc.) must
+				// abort instead of being treated as not-found, or a transient read
+				// failure creates a duplicate user row on every restart (#701).
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					logger.Error("Failed to look up user for admin config[%d]: provider=%s, error=%v", i, adminCfg.Provider, err)
+					continue
+				}
+
 				// User doesn't exist - attempt to create if we have required fields
 				if adminCfg.Email == "" {
 					logger.Warn("Cannot create user for admin config[%d]: email is required but not provided", i)

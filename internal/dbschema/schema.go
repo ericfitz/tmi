@@ -68,8 +68,7 @@ func GetExpectedSchema() []TableSchema {
 			},
 			Indexes: []IndexSchema{
 				{Name: "users_pkey", Columns: []string{"internal_uuid"}, IsUnique: true},
-				{Name: "users_provider_provider_user_id_key", Columns: []string{"provider", "provider_user_id"}, IsUnique: true},
-				{Name: "idx_users_provider_lookup", Columns: []string{"provider", "provider_user_id"}, IsUnique: false},
+				{Name: "idx_users_provider_lookup", Columns: []string{"provider", "provider_user_id"}, IsUnique: true},
 				{Name: "idx_users_email", Columns: []string{"email"}, IsUnique: false},
 				{Name: "idx_users_last_login", Columns: []string{"last_login"}, IsUnique: false},
 				{Name: "idx_users_provider", Columns: []string{"provider"}, IsUnique: false},

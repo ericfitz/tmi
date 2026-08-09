@@ -48,10 +48,10 @@ func TestGormUsabilityFeedbackRepository_CreateAndGet(t *testing.T) {
 	require.NoError(t, db.Create(user).Error)
 
 	fb := &models.UsabilityFeedback{
-		Sentiment:     models.DBVarchar("up"),
-		Surface:       models.DBVarchar("tm_list"),
-		ClientID:      models.DBVarchar("tmi-ux"),
-		CreatedByUUID: user.InternalUUID,
+		Sentiment: models.DBVarchar("up"),
+		Surface:   models.DBVarchar("tm_list"),
+		ClientID:  models.DBVarchar("tmi-ux"),
+		CreatedBy: user.InternalUUID,
 	}
 	require.NoError(t, repo.Create(context.Background(), fb))
 	require.NotEmpty(t, fb.ID)
@@ -61,7 +61,7 @@ func TestGormUsabilityFeedbackRepository_CreateAndGet(t *testing.T) {
 	assert.Equal(t, "up", string(got.Sentiment))
 	assert.Equal(t, "tm_list", string(got.Surface))
 	assert.Equal(t, "tmi-ux", string(got.ClientID))
-	assert.Equal(t, user.InternalUUID, got.CreatedByUUID)
+	assert.Equal(t, user.InternalUUID, got.CreatedBy)
 	assert.False(t, got.CreatedAt.IsZero())
 }
 
@@ -92,10 +92,10 @@ func TestGormUsabilityFeedbackRepository_ListWithFilters(t *testing.T) {
 	}
 	for _, tc := range cases {
 		fb := &models.UsabilityFeedback{
-			Sentiment:     models.DBVarchar(tc.sentiment),
-			Surface:       models.DBVarchar(tc.surface),
-			ClientID:      models.DBVarchar(tc.clientID),
-			CreatedByUUID: user.InternalUUID,
+			Sentiment: models.DBVarchar(tc.sentiment),
+			Surface:   models.DBVarchar(tc.surface),
+			ClientID:  models.DBVarchar(tc.clientID),
+			CreatedBy: user.InternalUUID,
 		}
 		require.NoError(t, repo.Create(ctx, fb))
 	}
@@ -173,10 +173,10 @@ func TestGormUsabilityFeedbackRepository_Create_SetsCreatedAtExplicitly(t *testi
 	require.NoError(t, db.Create(user).Error)
 
 	fb := &models.UsabilityFeedback{
-		Sentiment:     "up",
-		Surface:       "tm_list",
-		ClientID:      "tmi-ux",
-		CreatedByUUID: user.InternalUUID,
+		Sentiment: "up",
+		Surface:   "tm_list",
+		ClientID:  "tmi-ux",
+		CreatedBy: user.InternalUUID,
 	}
 	require.True(t, fb.CreatedAt.IsZero(), "precondition: CreatedAt zero before Create")
 
