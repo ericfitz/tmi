@@ -2,10 +2,15 @@ package auth
 
 import (
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestEmptySubjectError_BodyShape(t *testing.T) {
@@ -83,6 +88,8 @@ func bodiesUnderTest(t *testing.T) []gin.H {
 	bodies = append(bodies, body)
 	body, _ = userPersistError("github", leaky)
 	bodies = append(bodies, body)
+	body, _ = userPersistUnavailableError("github", leaky)
+	bodies = append(bodies, body)
 	body, _ = tokenIssuanceError("alice@example.com", leaky)
 	bodies = append(bodies, body)
 	body, _ = codeVerifierFormatError(leaky)
@@ -140,6 +147,7 @@ func TestErrorHelpers_BodiesUseOAuthErrorCodes(t *testing.T) {
 		"provider_response_invalid": true,
 		"account_conflict":          true,
 		"email_not_verified":        true,
+		"service_unavailable":       true,
 	}
 	for _, body := range bodiesUnderTest(t) {
 		code, ok := body["error"].(string)
@@ -169,6 +177,7 @@ func TestErrorHelpers_LogMessagesContainErrDetail(t *testing.T) {
 		{"codeExchangeError", mustMsg(codeExchangeError("github", "abcdefghij", leaky))},
 		{"userInfoFetchError", mustMsg(userInfoFetchError("github", leaky))},
 		{"userPersistError", mustMsg(userPersistError("github", leaky))},
+		{"userPersistUnavailableError", mustMsg(userPersistUnavailableError("github", leaky))},
 		{"tokenIssuanceError", mustMsg(tokenIssuanceError("alice@example.com", leaky))},
 		{"codeVerifierFormatError", mustMsg(codeVerifierFormatError(leaky))},
 		{"refreshTokenError", mustMsg(refreshTokenError(leaky))},
@@ -183,3 +192,35 @@ func TestErrorHelpers_LogMessagesContainErrDetail(t *testing.T) {
 }
 
 func mustMsg(_ gin.H, msg string) string { return msg }
+
+// #721 — a transient DB failure during user find-or-create must map to 503 +
+// Retry-After (client should retry), not an opaque 500. Non-transient stays 500;
+// the #290 conflict/forbidden branches keep their codes.
+func TestRespondUserPersistError_StatusMapping(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cases := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantRetry  bool
+	}{
+		{"cross-provider conflict", errCrossProviderConflict, http.StatusConflict, false},
+		{"unverified email", errUnverifiedEmailMatch, http.StatusForbidden, false},
+		{"transient wrapped", fmt.Errorf("failed to look up user by provider ID: %w",
+			dberrors.Wrap(errors.New("ORA-03135: connection lost contact"), dberrors.ErrTransient)), http.StatusServiceUnavailable, true},
+		{"other db error", errors.New("some persistent fault"), http.StatusInternalServerError, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest("POST", "/oauth2/token", nil)
+			respondUserPersistError(c, "google", tc.err)
+			assert.Equal(t, tc.wantStatus, w.Code)
+			if tc.wantRetry {
+				assert.Equal(t, "30", w.Header().Get("Retry-After"))
+				assert.Contains(t, w.Body.String(), "service_unavailable")
+			}
+		})
+	}
+}

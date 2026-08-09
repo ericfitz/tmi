@@ -1,8 +1,12 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
@@ -73,6 +77,48 @@ func userPersistError(providerID string, err error) (gin.H, string) {
 	}
 	msg := fmt.Sprintf("Failed to find or create user (provider: %s): %v", providerID, err)
 	return body, msg
+}
+
+// userPersistUnavailableError covers find-or-create-user failures whose root
+// cause is a transient database condition (connection kill, deadlock,
+// serialization failure). Mapped to 503 + Retry-After so clients retry (#721);
+// the OpenAPI ServiceUnavailable component already documents this response.
+// SEM@0000000: build a service_unavailable response and operator log for a transient user-persist failure (pure)
+func userPersistUnavailableError(providerID string, err error) (gin.H, string) {
+	body := gin.H{
+		"error":             "service_unavailable",
+		"error_description": "Storage service temporarily unavailable - please retry",
+	}
+	msg := fmt.Sprintf("Transient database error during user find-or-create (provider: %s): %v", providerID, err)
+	return body, msg
+}
+
+// respondUserPersistError writes the HTTP response for a findOrCreateUser
+// failure: 409 cross-provider conflict, 403 unverified email (#290),
+// 503 + Retry-After for transient DB faults (#721), 500 otherwise.
+// SEM@0000000: handle a user find-or-create failure with status mapped to its cause
+func respondUserPersistError(c *gin.Context, providerID string, err error) {
+	switch {
+	case errors.Is(err, errCrossProviderConflict):
+		c.JSON(http.StatusConflict, gin.H{
+			"error":             "account_conflict",
+			"error_description": "This email is already linked to a different sign-in method.",
+		})
+	case errors.Is(err, errUnverifiedEmailMatch):
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":             "email_not_verified",
+			"error_description": "Email address must be verified by your sign-in provider.",
+		})
+	case errors.Is(dberrors.Classify(err), dberrors.ErrTransient):
+		body, msg := userPersistUnavailableError(providerID, err)
+		slogging.Get().WithContext(c).Error("%s", msg)
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusServiceUnavailable, body)
+	default:
+		body, msg := userPersistError(providerID, err)
+		slogging.Get().WithContext(c).Error("%s", msg)
+		c.JSON(http.StatusInternalServerError, body)
+	}
 }
 
 // tokenIssuanceError covers JWT generation failures after the user record
