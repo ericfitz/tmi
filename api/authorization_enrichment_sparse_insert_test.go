@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -15,22 +14,22 @@ import (
 	"gorm.io/gorm"
 )
 
+// internalUUIDEqualityPattern matches an equality filter on internal_uuid in
+// either the Postgres dialector's rendering (quoted identifier, "$"-style
+// bind, e.g. `internal_uuid" = $1`) or Oracle's (SkipQuoteIdentifiers means
+// unquoted and uppercase, ":"-style bind, e.g. `INTERNAL_UUID = :4`).
+var internalUUIDEqualityPattern = regexp.MustCompile(`(?i)internal_uuid"?\s*=\s*[$:]`)
+
 // guardedQueryMatcher wraps sqlmock's regexp matcher with a hard failure if
 // any query filters on internal_uuid by equality. That predicate only ever
 // appears because GORM auto-adds "WHERE <pk> = <value>" when the destination
 // struct's primary key is already populated — which is exactly what happens
 // if a duplicate-key recovery re-fetch reuses the struct BeforeCreate already
 // stamped a (never-inserted) UUID onto. Regression guard for that bug (#718).
-//
-// This test only ever runs the Postgres dialector (quoted, "$"-style binds),
-// so the check below is Postgres-specific on purpose. Oracle's driver runs
-// with SkipQuoteIdentifiers, so the same predicate there would render
-// unquoted and uppercase (e.g. "USERS.INTERNAL_UUID = :4") — a different
-// pattern this guard does not check and that no test here exercises.
 func guardedQueryMatcher(t *testing.T) sqlmock.QueryMatcher {
 	t.Helper()
 	return sqlmock.QueryMatcherFunc(func(expectedSQL, actualSQL string) error {
-		if strings.Contains(actualSQL, `internal_uuid" = $`) {
+		if internalUUIDEqualityPattern.MatchString(actualSQL) {
 			return fmt.Errorf("query must not filter on internal_uuid by equality (leftover PK from a failed insert would silently miss on re-fetch): %s", actualSQL)
 		}
 		matched, err := regexp.MatchString(expectedSQL, actualSQL)

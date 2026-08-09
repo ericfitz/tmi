@@ -160,6 +160,7 @@ func TestCreateThreatModel_ForeignKeyViolation_UserExists_ReturnsBadRequest(t *t
 	var errResp Error
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
 	assert.Equal(t, "invalid_input", errResp.Error)
+	assert.Contains(t, w.Body.String(), "references an entity that does not exist")
 }
 
 // TestCreateThreatModel_ForeignKeyViolation_UserGone_ReturnsUnauthorized verifies

@@ -302,8 +302,17 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 				return
 			}
 
-			slogging.Get().WithContext(c).Warn("Foreign key constraint violation creating threat model for user %s - request references a non-existent entity", user.Email)
-			HandleRequestError(c, InvalidInputError("The request references an entity that does not exist (e.g. an authorization group or user). Verify all referenced IDs and try again."))
+			// The constraint name alone doesn't identify which reference failed
+			// (isForeignKeyConstraintError is generic across drivers), so log
+			// what the request referenced -- not in the response, which must
+			// stay free of internal identifiers (#725).
+			subjects := make([]string, 0, len(derefAuthSlice(tm.Authorization)))
+			for _, auth := range derefAuthSlice(tm.Authorization) {
+				subjects = append(subjects, fmt.Sprintf("%s:%s/%s", auth.PrincipalType, auth.Provider, auth.ProviderId))
+			}
+			slogging.Get().WithContext(c).Warn("Foreign key constraint violation creating threat model for user %s - request references a non-existent entity; owner=%s/%s, authorization_subjects=%v",
+				user.Email, tm.Owner.Provider, tm.Owner.ProviderId, subjects)
+			HandleRequestError(c, InvalidInputError("The request references an entity that does not exist. Check the authorization subjects and owner reference for IDs that have not been created yet."))
 			return
 		}
 

@@ -10,6 +10,7 @@ import (
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -286,11 +287,44 @@ func TestFindOrCreateUser_OtherLookupErrorDoesNotCreate(t *testing.T) {
 		"must not attempt to create a user when a lookup fails for a reason other than not-found")
 }
 
-// #718 — CreateUser losing the race on the (provider, provider_user_id)
+// #718/#725 — CreateUser losing the race on the (provider, provider_user_id)
 // unique index (idx_users_provider_lookup, #701) must re-fetch and return
 // the winning row instead of surfacing a 500. Simulates two concurrent OAuth
 // callbacks for the same brand-new identity (SPA double-submit / retry).
+// Uses a typed *pgconn.PgError (SQLSTATE 23505) straight from the driver,
+// unwrapped, to prove dberrors.Classify recognizes the driver error type
+// itself -- mirroring the api-side coverage in
+// api/authorization_enrichment_sparse_insert_test.go -- rather than only its
+// string-matching fallback.
 func TestFindOrCreateUser_DuplicateOnCreateRefetchesWinner(t *testing.T) {
+	winner := User{
+		InternalUUID:   "uuid-winner",
+		Provider:       "google",
+		ProviderUserID: "google-123",
+		Email:          "alice@example.com",
+		EmailVerified:  true,
+	}
+	dupErr := &pgconn.PgError{Code: "23505", Message: `duplicate key value violates unique constraint "idx_users_provider_lookup"`}
+	resolver := &fakeUserResolver{
+		createErr:           dupErr,
+		afterCreateConflict: &winner,
+	}
+
+	user, match, err := findOrCreateUserWithResolver(context.Background(), newTestGinContext(), resolver,
+		"google", "google-123", "alice@example.com", "Alice", true)
+
+	require.NoError(t, err)
+	assert.Equal(t, userMatchProviderID, match)
+	assert.Equal(t, winner.InternalUUID, user.InternalUUID)
+	assert.Equal(t, 1, resolver.createCalls)
+}
+
+// #725 — same recovery path exercised via dberrors.Wrap's pre-classified
+// form (e.g. Oracle's ORA-00001, which carries no typed driver error and is
+// classified by classifyByString before ever reaching this resolver), to
+// keep that non-driver-typed path covered alongside the typed pgconn.PgError
+// case above.
+func TestFindOrCreateUser_DuplicateOnCreateRefetchesWinner_WrappedFallback(t *testing.T) {
 	winner := User{
 		InternalUUID:   "uuid-winner",
 		Provider:       "google",

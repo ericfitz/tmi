@@ -2565,6 +2565,25 @@ func createUserForAdministratorGorm(ctx context.Context, gormDB *gorm.DB, adminC
 	}
 
 	if err := gormDB.WithContext(ctx).Create(&userRecord).Error; err != nil {
+		if errors.Is(dberrors.Classify(err), dberrors.ErrDuplicate) {
+			// Lost the cross-replica race on idx_users_provider_lookup (#701):
+			// another replica created this admin's row first. Re-fetch the
+			// winner so the group-add below still runs this boot (#725).
+			// (provider, provider_user_id) is the only unique constraint on
+			// User besides the fresh, always-unique internal_uuid PK, so it's
+			// the correct re-fetch key for any duplicate-key error reaching
+			// here; if a unique index on email is ever added, this recovery
+			// degrades safely to the generic error path below instead of
+			// re-fetching the wrong row (oracle-db-admin review, #725).
+			logger.Warn("Admin user create lost a startup race, re-fetching winner: provider=%s, provider_id=%s",
+				adminCfg.Provider, adminCfg.ProviderId)
+			if winner, ferr := findUserByProviderIdentityGorm(ctx, gormDB, adminCfg.Provider, adminCfg.ProviderId, ""); ferr == nil {
+				return winner, nil
+			} else {
+				logger.Error("Failed to re-fetch admin user after duplicate-key conflict: provider=%s, provider_id=%s, error=%v",
+					adminCfg.Provider, adminCfg.ProviderId, ferr)
+			}
+		}
 		logger.Error("Failed to insert user for administrator: provider=%s, email=%s, error=%v",
 			adminCfg.Provider, adminCfg.Email, err)
 		return uuid.Nil, fmt.Errorf("failed to create user: %w", err)
