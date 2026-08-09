@@ -64,6 +64,13 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 		log.Warn("failed to record schema fingerprint (non-fatal): %v", err)
 	}
 
+	// #720: unique sparse-email index (partial/function-based) is raw DDL
+	// AutoMigrate cannot express; idempotent, same placement and reasoning as
+	// cmd/server/main.go's runMigrationsLocked and auth/config_adapter.go.
+	if err := dbschema.EnsureSparseUserEmailIndex(db.DB()); err != nil {
+		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
+	}
+
 	// Step 2: Seed system data
 	log.Info("Seeding system data (groups, webhook deny list)...")
 	if err := seed.SeedDatabase(db.DB()); err != nil {
