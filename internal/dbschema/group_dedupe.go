@@ -127,11 +127,15 @@ func DeduplicateGroups(db *gorm.DB) (int64, error) {
 	}
 
 	var dups []groupDupKey
-	if err := db.Table(groupsTable).
-		Select("provider, group_name, COUNT(*) AS cnt").
-		Group("provider, group_name").
-		Having("COUNT(*) > 1").
-		Scan(&dups).Error; err != nil {
+	err := withMigrationRetry("groups duplicate-key discovery", func() error {
+		dups = dups[:0]
+		return db.Table(groupsTable).
+			Select("provider, group_name, COUNT(*) AS cnt").
+			Group("provider, group_name").
+			Having("COUNT(*) > 1").
+			Scan(&dups).Error
+	})
+	if err != nil {
 		return 0, fmt.Errorf("failed to find duplicate groups: %w", err)
 	}
 	if len(dups) == 0 {
@@ -154,17 +158,18 @@ func DeduplicateGroups(db *gorm.DB) (int64, error) {
 
 // dedupeGroupKey resolves one duplicate (provider, group_name) key inside a
 // single transaction: pick the survivor, repoint children, delete losers.
-// The transaction is wrapped in withDedupeRetry so a transient cross-replica
-// conflict (#712) is retried a bounded number of times instead of aborting
-// the whole migration.
-// SEM@6565b585498d8b8755956866f57cd0f56efafc53: resolve one duplicate groups key by repointing children and deleting the losers, retrying on transient errors (writes DB)
+// The transaction is wrapped in withMigrationRetry so a transient
+// cross-replica conflict (#712) is retried a bounded number of times instead
+// of aborting the whole migration.
+// SEM@0000000: resolve one duplicate groups key by repointing children and deleting the losers, retrying on transient errors (writes DB)
 func dedupeGroupKey(db *gorm.DB, provider, groupName string) (int64, error) {
 	groupsTable := (&models.Group{}).TableName()
 	tmaTable := (&models.ThreatModelAccess{}).TableName()
 	sraTable := (&models.SurveyResponseAccess{}).TableName()
 
 	var removed int64
-	err := withDedupeRetry(provider, groupName, func() error {
+	label := fmt.Sprintf("groups dedupe %s@%s", groupName, provider)
+	err := withMigrationRetry(label, func() error {
 		removed = 0
 		return db.Transaction(func(tx *gorm.DB) error {
 			var rows []groupIDRow
@@ -225,15 +230,17 @@ func dedupeGroupKey(db *gorm.DB, provider, groupName string) (int64, error) {
 	return removed, err
 }
 
-// withDedupeRetry runs fn (a single dedupeGroupKey transaction attempt) up
-// to dedupeMaxAttempts times. It retries only when the returned error
-// classifies as dberrors.IsRetryable (Oracle deadlock/serialization
-// failures, connection blips); any other error — including
-// dberrors.ErrDuplicate, which is never retryable — is returned to the
-// caller unchanged on the first attempt. provider/groupName are only used
-// for the retry log line.
-// SEM@7d1cee63: retry a dedupe transaction attempt a bounded number of times on transient errors only (pure control flow)
-func withDedupeRetry(provider, groupName string, fn func() error) error {
+// withMigrationRetry runs fn (a single pre-AutoMigrate schema-check or
+// dedupe attempt) up to dedupeMaxAttempts times. It retries only when the
+// returned error classifies as dberrors.IsRetryable (Oracle
+// deadlock/serialization failures, connection blips); any other error —
+// including dberrors.ErrDuplicate, which is never retryable — is returned to
+// the caller unchanged on the first attempt. label identifies the step in
+// the retry log line only. Generalized from the original groups-only
+// withDedupeRetry (#712) to also cover the duplicate-key discovery queries
+// (#725 item e) and the users duplicate-identity check (#724).
+// SEM@0000000: retry a migration-phase attempt a bounded number of times on transient errors only (pure control flow)
+func withMigrationRetry(label string, fn func() error) error {
 	var err error
 	for attempt := 1; attempt <= dedupeMaxAttempts; attempt++ {
 		err = fn()
@@ -243,8 +250,8 @@ func withDedupeRetry(provider, groupName string, fn func() error) error {
 		if !dberrors.IsRetryable(dberrors.Classify(err)) || attempt == dedupeMaxAttempts {
 			return err
 		}
-		slogging.Get().Warn("groups dedupe: transient error for provider=%s group_name=%s (attempt %d/%d), retrying: %v",
-			provider, groupName, attempt, dedupeMaxAttempts, err)
+		slogging.Get().Warn("migration step %q: transient error (attempt %d/%d), retrying: %v",
+			label, attempt, dedupeMaxAttempts, err)
 		time.Sleep(dedupeRetryDelay)
 	}
 	return err

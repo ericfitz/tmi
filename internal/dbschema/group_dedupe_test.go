@@ -324,12 +324,12 @@ func TestChunkStrings(t *testing.T) {
 	})
 }
 
-// TestWithDedupeRetry_RetryableError_RetriedThenSucceeds covers #712:
+// TestWithMigrationRetry_RetryableError_RetriedThenSucceeds covers #712:
 // dberrors.ErrTransient (Oracle ORA-00060 deadlock / ORA-08177 serialization
 // failure territory) must be retried, not propagated on the first failure.
-func TestWithDedupeRetry_RetryableError_RetriedThenSucceeds(t *testing.T) {
+func TestWithMigrationRetry_RetryableError_RetriedThenSucceeds(t *testing.T) {
 	var calls int
-	err := withDedupeRetry("okta", "engineering", func() error {
+	err := withMigrationRetry("groups dedupe engineering@okta", func() error {
 		calls++
 		if calls < dedupeMaxAttempts {
 			return dberrors.Wrap(errors.New("ORA-00060: deadlock detected"), dberrors.ErrTransient)
@@ -340,13 +340,13 @@ func TestWithDedupeRetry_RetryableError_RetriedThenSucceeds(t *testing.T) {
 	assert.Equal(t, dedupeMaxAttempts, calls, "must retry until success, not stop early")
 }
 
-// TestWithDedupeRetry_RetryableError_ExhaustsAttempts covers the case where
-// every attempt fails: withDedupeRetry must give up after dedupeMaxAttempts
-// rather than retrying forever, and return the last error.
-func TestWithDedupeRetry_RetryableError_ExhaustsAttempts(t *testing.T) {
+// TestWithMigrationRetry_RetryableError_ExhaustsAttempts covers the case
+// where every attempt fails: withMigrationRetry must give up after
+// dedupeMaxAttempts rather than retrying forever, and return the last error.
+func TestWithMigrationRetry_RetryableError_ExhaustsAttempts(t *testing.T) {
 	var calls int
 	sentinel := dberrors.Wrap(errors.New("ORA-08177: serialization failure"), dberrors.ErrTransient)
-	err := withDedupeRetry("okta", "engineering", func() error {
+	err := withMigrationRetry("groups dedupe engineering@okta", func() error {
 		calls++
 		return sentinel
 	})
@@ -354,13 +354,13 @@ func TestWithDedupeRetry_RetryableError_ExhaustsAttempts(t *testing.T) {
 	assert.Equal(t, dedupeMaxAttempts, calls, "must stop after dedupeMaxAttempts")
 }
 
-// TestWithDedupeRetry_NonRetryableError_FailsImmediately covers #712's other
-// requirement: a non-retryable error (e.g. a genuine constraint violation)
-// must propagate on the first attempt, unretried and unchanged.
-func TestWithDedupeRetry_NonRetryableError_FailsImmediately(t *testing.T) {
+// TestWithMigrationRetry_NonRetryableError_FailsImmediately covers #712's
+// other requirement: a non-retryable error (e.g. a genuine constraint
+// violation) must propagate on the first attempt, unretried and unchanged.
+func TestWithMigrationRetry_NonRetryableError_FailsImmediately(t *testing.T) {
 	var calls int
 	sentinel := dberrors.Wrap(errors.New("unique constraint violated"), dberrors.ErrDuplicate)
-	err := withDedupeRetry("okta", "engineering", func() error {
+	err := withMigrationRetry("groups dedupe engineering@okta", func() error {
 		calls++
 		return sentinel
 	})

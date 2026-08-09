@@ -413,6 +413,15 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 	} else {
 		logger.Info("Running GORM AutoMigrate for %s database", dbType)
 
+		// #724: idx_users_provider_lookup is unique (#701); a users table that
+		// already carries duplicate (provider, provider_user_id) rows would
+		// abort AutoMigrate's CREATE UNIQUE INDEX with an opaque ORA-01452 /
+		// 23505. Fail first with a message naming the rows; users get no
+		// automatic dedupe (merging identities is an operator decision).
+		if err := dbschema.CheckDuplicateUserProviderIdentities(gormDB.DB()); err != nil {
+			return fmt.Errorf("pre-migration user identity check failed: %w", err)
+		}
+
 		// #704: groups(provider, group_name) is about to gain
 		// uniq_groups_provider_group_name (the two upsert call sites already
 		// target that pair as an ON CONFLICT/MERGE key, but it was previously
