@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -47,7 +46,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 
 // handleAuthorizationCodeGrant handles the authorization code grant flow with PKCE
 // This is called by both Token (for /oauth2/token) and Exchange (for backward compatibility)
-// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: validate PKCE, exchange authorization code, find or create user, and issue JWT token pair (reads DB)
+// SEM@fac8d2654bc689596c16a43b927554833b4685c5: validate PKCE, exchange authorization code, find or create user, and issue JWT token pair (reads DB)
 func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifier, _ string) {
 	// Get provider ID from query parameter
 	providerID := c.Query("idp")
@@ -219,29 +218,13 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 	}
 
 	// Find or create user using tiered matching strategy
+	// Account-takeover defense (#290): cross-provider email match must be
+	// rejected with a non-disclosing 409 instead of returning a token for
+	// the existing user. Unverified-email sparse-record binds are rejected
+	// with 403 to prevent forged-email account claims.
 	user, matchType, err := h.findOrCreateUser(ctx, c, providerID, userInfo.ID, email, name, emailVerified)
 	if err != nil {
-		// Account-takeover defense (#290): cross-provider email match must be
-		// rejected with a non-disclosing 409 instead of returning a token for
-		// the existing user. Unverified-email sparse-record binds are rejected
-		// with 403 to prevent forged-email account claims.
-		switch {
-		case errors.Is(err, errCrossProviderConflict):
-			c.JSON(http.StatusConflict, gin.H{
-				"error":             "account_conflict",
-				"error_description": "This email is already linked to a different sign-in method.",
-			})
-			return
-		case errors.Is(err, errUnverifiedEmailMatch):
-			c.JSON(http.StatusForbidden, gin.H{
-				"error":             "email_not_verified",
-				"error_description": "Email address must be verified by your sign-in provider.",
-			})
-			return
-		}
-		body, msg := userPersistError(providerID, err)
-		slogging.Get().WithContext(c).Error("%s", msg)
-		c.JSON(http.StatusInternalServerError, body)
+		respondUserPersistError(c, providerID, err)
 		return
 	}
 

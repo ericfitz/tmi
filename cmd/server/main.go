@@ -377,7 +377,7 @@ func runMigrations(ctx context.Context, gormDB *db.GormDB, dbType string) {
 // os.Exit inside the lock-holding region would skip the deferred release
 // (gocritic exitAfterDefer) and leave the lock orphaned for replicas to
 // time out on.
-// SEM@db8c21595adadea21843e41c61644bb014694be2: run DB schema migrations, backfills, and seed data under an advisory lock, with a fingerprint fast path (mutates DB)
+// SEM@df7fd289991cfd0c30ec2f8c8721a7b593f7d535: run DB schema migrations, backfills, and seed data under an advisory lock, with a fingerprint fast path (mutates DB)
 func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) error {
 	logger := slogging.Get()
 
@@ -412,6 +412,15 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 		logger.Info("Schema fingerprint current (%s); skipping AutoMigrate for %d models", desiredFP[:12], len(allModels))
 	} else {
 		logger.Info("Running GORM AutoMigrate for %s database", dbType)
+
+		// #724: idx_users_provider_lookup is unique (#701); a users table that
+		// already carries duplicate (provider, provider_user_id) rows would
+		// abort AutoMigrate's CREATE UNIQUE INDEX with an opaque ORA-01452 /
+		// 23505. Fail first with a message naming the rows; users get no
+		// automatic dedupe (merging identities is an operator decision).
+		if err := dbschema.CheckDuplicateUserProviderIdentities(gormDB.DB()); err != nil {
+			return fmt.Errorf("pre-migration user identity check failed: %w", err)
+		}
 
 		// #704: groups(provider, group_name) is about to gain
 		// uniq_groups_provider_group_name (the two upsert call sites already
@@ -493,6 +502,38 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 				logger.Warn("failed to record schema fingerprint (non-fatal; next boot will re-run AutoMigrate): %v", err)
 			}
 		}
+	}
+
+	// #720: unique sparse-email index (partial/function-based) is raw DDL
+	// AutoMigrate cannot express; idempotent, runs even when the fingerprint
+	// fast path skips AutoMigrate (it is not part of the model fingerprint).
+	if err := dbschema.EnsureSparseUserEmailIndex(gormDB.DB()); err != nil {
+		if dbcheck.IsPermissionError(err, dbType) {
+			// A DDL-less server user hits this on a database that hasn't
+			// been provisioned with the #720 index yet: usually the index
+			// doesn't exist and this user lacks privilege to create it, but
+			// the same permission error can also surface from the
+			// duplicate-check SELECT or the post-create verification probe
+			// inside EnsureSparseUserEmailIndex -- in every case the fix is
+			// the same. Surface the same actionable guidance as the
+			// AutoMigrate DDL-permission branch above instead of the raw
+			// driver error -- the failure itself is still correct (the
+			// invariant is unenforced), just made actionable (team lead
+			// review, 1.8.4 round 3).
+			logger.Error("Database requires the #720 sparse-user email index but this database user lacks DDL permissions.")
+			logger.Error("")
+			logger.Error("To resolve this, choose one of:")
+			logger.Error("  1. Run schema migration with an admin-privileged database user:")
+			logger.Error("     tmi-dbtool --schema --config=<config-file>")
+			logger.Error("  2. Grant DDL permissions to the current database user (on Oracle,")
+			logger.Error("     a permission error here can also mean a tablespace quota problem")
+			logger.Error("     -- ORA-01950 -- which needs ALTER USER ... QUOTA UNLIMITED ON")
+			logger.Error("     DATA rather than an additional grant).")
+			logger.Error("")
+			logger.Error("See: https://github.com/ericfitz/tmi/wiki/Database-Security-Strategies")
+			return fmt.Errorf("sparse-user email index requires DDL permissions that are unavailable: %w", err)
+		}
+		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
 	}
 
 	// Normalize legacy severity enum values to snake_case
@@ -2353,7 +2394,7 @@ func validateDatabaseSchema(cfg *config.Config) error {
 }
 
 // initializeAdministratorsGorm initializes administrators from configuration using GORM
-// SEM@4247eee5: seed the Administrators group with configured users/groups, creating missing users only on not-found (writes DB)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: seed the Administrators group with configured users/groups, creating missing users only on not-found (writes DB)
 func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 	logger := slogging.Get()
 	logger.Info("Initializing administrators from configuration (GORM)")
@@ -2494,7 +2535,7 @@ func findUserByProviderIdentityGorm(ctx context.Context, gormDB *gorm.DB, provid
 }
 
 // createUserForAdministratorGorm creates a new user record for a configured administrator using GORM
-// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: store a new user record for a configured administrator using GORM (writes DB)
+// SEM@8b3ed9b61b0621b01f6928cc867b692933b7ad5b: store a new user record for a configured administrator using GORM (writes DB)
 func createUserForAdministratorGorm(ctx context.Context, gormDB *gorm.DB, adminCfg config.AdministratorConfig) (uuid.UUID, error) {
 	logger := slogging.Get()
 
@@ -2524,6 +2565,33 @@ func createUserForAdministratorGorm(ctx context.Context, gormDB *gorm.DB, adminC
 	}
 
 	if err := gormDB.WithContext(ctx).Create(&userRecord).Error; err != nil {
+		if errors.Is(dberrors.Classify(err), dberrors.ErrDuplicate) {
+			// Lost the cross-replica race on idx_users_provider_lookup (#701):
+			// another replica created this admin's row first. Re-fetch the
+			// winner so the group-add below still runs this boot (#725).
+			// User now also carries idx_users_sparse_email (#720), a unique
+			// index over (provider, email) restricted to sparse rows
+			// (provider_user_id IS NULL) — but this path can never insert one:
+			// the caller refuses to reach here when adminCfg.ProviderId is
+			// empty (~:2444), so userRecord.ProviderUserID is always non-NULL
+			// and the sparse index's key expressions always evaluate to NULL
+			// for it (excluded from the index on both PG and Oracle). A
+			// duplicate-key error here is therefore always
+			// idx_users_provider_lookup, making (provider, provider_user_id)
+			// the correct re-fetch key; if that assumption ever changes (e.g.
+			// this call site starts allowing empty provider_id), this
+			// recovery degrades safely to the generic error path below
+			// instead of re-fetching the wrong row (oracle-db-admin review,
+			// #725).
+			logger.Warn("Admin user create lost a startup race, re-fetching winner: provider=%s, provider_id=%s",
+				adminCfg.Provider, adminCfg.ProviderId)
+			if winner, ferr := findUserByProviderIdentityGorm(ctx, gormDB, adminCfg.Provider, adminCfg.ProviderId, ""); ferr == nil {
+				return winner, nil
+			} else {
+				logger.Error("Failed to re-fetch admin user after duplicate-key conflict: provider=%s, provider_id=%s, error=%v",
+					adminCfg.Provider, adminCfg.ProviderId, ferr)
+			}
+		}
 		logger.Error("Failed to insert user for administrator: provider=%s, email=%s, error=%v",
 			adminCfg.Provider, adminCfg.Email, err)
 		return uuid.Nil, fmt.Errorf("failed to create user: %w", err)

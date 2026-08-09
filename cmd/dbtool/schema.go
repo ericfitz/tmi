@@ -28,6 +28,15 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 	// Step 1: AutoMigrate (Oracle-aware path via GormDB.AutoMigrate)
 	log.Info("Running GORM AutoMigrate...")
 
+	// #724: fail fast with an actionable error if users(provider,
+	// provider_user_id) already carries duplicates -- idx_users_provider_lookup
+	// is unique (#701), and AutoMigrate's CREATE UNIQUE INDEX would otherwise
+	// abort with an opaque ORA-01452 / 23505. Users get no automatic dedupe
+	// (merging identities is an operator decision).
+	if err := dbschema.CheckDuplicateUserProviderIdentities(db.DB()); err != nil {
+		return fmt.Errorf("pre-migration user identity check failed: %w", err)
+	}
+
 	// #704: dedupe groups(provider, group_name) before AutoMigrate creates
 	// uniq_groups_provider_group_name -- mirrors the same placement in
 	// cmd/server/main.go's runMigrationsLocked. A database carrying
@@ -53,6 +62,13 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 	// re-runs AutoMigrate on first boot.
 	if err := dbschema.RecordSchemaFingerprint(db.DB(), dbschema.ComputeModelsFingerprint(allModels...)); err != nil {
 		log.Warn("failed to record schema fingerprint (non-fatal): %v", err)
+	}
+
+	// #720: unique sparse-email index (partial/function-based) is raw DDL
+	// AutoMigrate cannot express; idempotent, same placement and reasoning as
+	// cmd/server/main.go's runMigrationsLocked and auth/config_adapter.go.
+	if err := dbschema.EnsureSparseUserEmailIndex(db.DB()); err != nil {
+		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
 	}
 
 	// Step 2: Seed system data

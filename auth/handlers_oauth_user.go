@@ -42,11 +42,13 @@ var errUnverifiedEmailMatch = errors.New("email not verified for sparse-record b
 
 // isUserNotFound reports whether err represents "no matching row" as opposed
 // to a genuine lookup failure (transient DB error, connection loss, etc.).
-// userResolver methods (backed by *Service) don't return a typed sentinel for
-// not-found — they wrap it as a plain "user not found" string — so
-// dberrors.Classify's string-matching fallback is what recognizes it; any
-// already-classified error (e.g. dberrors.ErrTransient) passes through
-// unchanged and is correctly reported as "not not-found" here.
+// userResolver methods (backed by *Service) now return the typed
+// auth.ErrUserNotFound sentinel (#719), which wraps repository.ErrUserNotFound,
+// which in turn wraps dberrors.ErrNotFound; dberrors.Classify short-circuits
+// on an already-classified error via errors.Is, so this recognizes the
+// sentinel chain directly rather than relying on string matching. Any other
+// classified error (e.g. dberrors.ErrTransient) passes through unchanged and
+// is correctly reported as "not not-found" here.
 // SEM@1eb7997add7b39214eac29d20050d7968745a98d: classify a userResolver lookup error as not-found vs. a real failure (pure)
 func isUserNotFound(err error) bool {
 	return errors.Is(dberrors.Classify(err), dberrors.ErrNotFound)
@@ -119,7 +121,7 @@ func (h *Handlers) findOrCreateUser(ctx context.Context, c *gin.Context, provide
 // Security (#290): tier 3 must reject cross-provider matches and unverified-email
 // matches. Returning the existing user in either case would let an attacker who
 // can prove `email=victim@x` via any provider take over the victim's account.
-// SEM@1eb7997add7b39214eac29d20050d7968745a98d: match or create a user via four-tier OAuth strategy, rejecting cross-provider and unverified binds (reads DB)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: match or create a user via four-tier OAuth strategy, rejecting cross-provider and unverified binds (reads DB)
 func findOrCreateUserWithResolver(ctx context.Context, c *gin.Context, r userResolver, providerID, providerUserID, email, name string, emailVerified bool) (User, userMatchType, error) {
 	logger := slogging.Get().WithContext(c)
 

@@ -2,12 +2,18 @@ package auth
 
 import (
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 )
 
+// SEM@64b490e6b86b000fd1034359cc022c764d97f74b: validate the empty-subject error body's code and description avoid leaking internal terms
 func TestEmptySubjectError_BodyShape(t *testing.T) {
 	body, _ := emptySubjectError("github", "alice@example.com")
 
@@ -26,6 +32,7 @@ func TestEmptySubjectError_BodyShape(t *testing.T) {
 	}
 }
 
+// SEM@022025c0087d1b5a5a082c0b361153b6d80265a6: validate the empty-subject error log message includes operator diagnostics and defaults
 func TestEmptySubjectError_LogMessage(t *testing.T) {
 	_, msg := emptySubjectError("badprovider", "bob@example.com")
 
@@ -51,6 +58,7 @@ func TestEmptySubjectError_LogMessage(t *testing.T) {
 // the log message drifting back into hardcoded literals (#294). If
 // DefaultClaimMappings["subject_claim"] is changed, the log must reflect the
 // new value automatically.
+// SEM@022025c0087d1b5a5a082c0b361153b6d80265a6: validate the empty-subject log message reflects live changes to the default claim mapping
 func TestEmptySubjectError_LogMessage_TracksDefaultMappingChanges(t *testing.T) {
 	original := DefaultClaimMappings["subject_claim"]
 	t.Cleanup(func() { DefaultClaimMappings["subject_claim"] = original })
@@ -72,6 +80,7 @@ func TestEmptySubjectError_LogMessage_TracksDefaultMappingChanges(t *testing.T) 
 // leaking and the test fails loud.
 const leakySentinel = "dial tcp 10.0.0.1:443: connection refused while contacting graph.internal.example: panic: runtime error: invalid memory address [github.com/some-lib/internals.func1+0xab]"
 
+// SEM@fac8d2654bc689596c16a43b927554833b4685c5: build the set of OAuth error response bodies for leak/shape assertions (pure)
 func bodiesUnderTest(t *testing.T) []gin.H {
 	t.Helper()
 	leaky := errors.New(leakySentinel)
@@ -82,6 +91,8 @@ func bodiesUnderTest(t *testing.T) []gin.H {
 	body, _ = userInfoFetchError("github", leaky)
 	bodies = append(bodies, body)
 	body, _ = userPersistError("github", leaky)
+	bodies = append(bodies, body)
+	body, _ = userPersistUnavailableError("github", leaky)
 	bodies = append(bodies, body)
 	body, _ = tokenIssuanceError("alice@example.com", leaky)
 	bodies = append(bodies, body)
@@ -96,6 +107,7 @@ func bodiesUnderTest(t *testing.T) []gin.H {
 // #295: even when the upstream error contains internal IPs, hostnames, and
 // stack-trace fragments, none of those substrings may appear in any field of
 // the response body. The detail is for the server log only.
+// SEM@a050fb6e0fd9dcae1492b381c23e55964a2b9506: validate OAuth error response bodies never leak internal error details (pure)
 func TestErrorHelpers_BodiesDoNotLeakInternals(t *testing.T) {
 	leakyTerms := []string{
 		"10.0.0.1",               // internal IP
@@ -128,6 +140,7 @@ func TestErrorHelpers_BodiesDoNotLeakInternals(t *testing.T) {
 // returns a body shaped per RFC 6749 §5.2 (`error` + `error_description`).
 // Extension codes (`provider_unreachable`, `provider_response_invalid`) are
 // fine alongside the spec codes.
+// SEM@fac8d2654bc689596c16a43b927554833b4685c5: validate OAuth error response bodies use RFC 6749 error codes (pure)
 func TestErrorHelpers_BodiesUseOAuthErrorCodes(t *testing.T) {
 	allowedCodes := map[string]bool{
 		// Spec codes (RFC 6749 §5.2).
@@ -140,6 +153,7 @@ func TestErrorHelpers_BodiesUseOAuthErrorCodes(t *testing.T) {
 		"provider_response_invalid": true,
 		"account_conflict":          true,
 		"email_not_verified":        true,
+		"service_unavailable":       true,
 	}
 	for _, body := range bodiesUnderTest(t) {
 		code, ok := body["error"].(string)
@@ -160,6 +174,7 @@ func TestErrorHelpers_BodiesUseOAuthErrorCodes(t *testing.T) {
 // TestErrorHelpers_LogMessagesContainErrDetail confirms the inverse: the log
 // message MUST retain the raw err so operators can diagnose. If we ever stop
 // logging the underlying cause, debugging becomes impossible.
+// SEM@fac8d2654bc689596c16a43b927554833b4685c5: validate OAuth error log messages retain the underlying error detail (pure)
 func TestErrorHelpers_LogMessagesContainErrDetail(t *testing.T) {
 	leaky := errors.New(leakySentinel)
 	cases := []struct {
@@ -169,6 +184,7 @@ func TestErrorHelpers_LogMessagesContainErrDetail(t *testing.T) {
 		{"codeExchangeError", mustMsg(codeExchangeError("github", "abcdefghij", leaky))},
 		{"userInfoFetchError", mustMsg(userInfoFetchError("github", leaky))},
 		{"userPersistError", mustMsg(userPersistError("github", leaky))},
+		{"userPersistUnavailableError", mustMsg(userPersistUnavailableError("github", leaky))},
 		{"tokenIssuanceError", mustMsg(tokenIssuanceError("alice@example.com", leaky))},
 		{"codeVerifierFormatError", mustMsg(codeVerifierFormatError(leaky))},
 		{"refreshTokenError", mustMsg(refreshTokenError(leaky))},
@@ -182,4 +198,38 @@ func TestErrorHelpers_LogMessagesContainErrDetail(t *testing.T) {
 	}
 }
 
+// SEM@a050fb6e0fd9dcae1492b381c23e55964a2b9506: extract the log message from an error-helper call result, discarding the body (pure)
 func mustMsg(_ gin.H, msg string) string { return msg }
+
+// #721 — a transient DB failure during user find-or-create must map to 503 +
+// Retry-After (client should retry), not an opaque 500. Non-transient stays 500;
+// the #290 conflict/forbidden branches keep their codes.
+// SEM@fac8d2654bc689596c16a43b927554833b4685c5: validate HTTP status mapping for user-persist errors, including transient retry (pure)
+func TestRespondUserPersistError_StatusMapping(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cases := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantRetry  bool
+	}{
+		{"cross-provider conflict", errCrossProviderConflict, http.StatusConflict, false},
+		{"unverified email", errUnverifiedEmailMatch, http.StatusForbidden, false},
+		{"transient wrapped", fmt.Errorf("failed to look up user by provider ID: %w",
+			dberrors.Wrap(errors.New("ORA-03135: connection lost contact"), dberrors.ErrTransient)), http.StatusServiceUnavailable, true},
+		{"other db error", errors.New("some persistent fault"), http.StatusInternalServerError, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest("POST", "/oauth2/token", nil)
+			respondUserPersistError(c, "google", tc.err)
+			assert.Equal(t, tc.wantStatus, w.Code)
+			if tc.wantRetry {
+				assert.Equal(t, "30", w.Header().Get("Retry-After"))
+				assert.Contains(t, w.Body.String(), "service_unavailable")
+			}
+		})
+	}
+}

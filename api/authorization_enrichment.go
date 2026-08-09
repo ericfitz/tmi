@@ -167,7 +167,7 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 }
 
 // performSparseUserInsert creates a sparse user record that will be completed on first login
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: upsert a partial user record for a not-yet-logged-in principal to satisfy an authorization entry (reads DB)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: upsert a partial user record for a not-yet-logged-in principal to satisfy an authorization entry (reads DB)
 func performSparseUserInsert(ctx context.Context, db *gorm.DB, auth *Authorization) error {
 	logger := slogging.Get()
 

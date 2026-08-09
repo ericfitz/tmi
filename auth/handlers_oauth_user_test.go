@@ -10,6 +10,7 @@ import (
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,6 +19,7 @@ import (
 // returns the configured response for that method; not-found is signaled by
 // returning errFakeUserNotFound. Callers may override individual fields per
 // test case.
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: test double for userResolver returning configured user lookup/create responses (test)
 type fakeUserResolver struct {
 	byProviderID       *User
 	byProviderAndEmail *User
@@ -47,6 +49,7 @@ type fakeUserResolver struct {
 
 var errFakeUserNotFound = errors.New("user not found")
 
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: fetch a fake user by provider identity, or simulate not-found/lookup error (test)
 func (f *fakeUserResolver) GetUserByProviderID(_ context.Context, _, _ string) (User, error) {
 	f.providerIDCalls++
 	if f.createCalls > 0 && f.afterCreateConflict != nil {
@@ -61,6 +64,7 @@ func (f *fakeUserResolver) GetUserByProviderID(_ context.Context, _, _ string) (
 	return *f.byProviderID, nil
 }
 
+// SEM@e98ad4a0634283ac8da194a144a505c2b0bb1723: fetch a fake user by provider and email, or simulate not-found (test)
 func (f *fakeUserResolver) GetUserByProviderAndEmail(_ context.Context, _, _ string) (User, error) {
 	if f.byProviderAndEmail == nil {
 		return User{}, errFakeUserNotFound
@@ -68,6 +72,7 @@ func (f *fakeUserResolver) GetUserByProviderAndEmail(_ context.Context, _, _ str
 	return *f.byProviderAndEmail, nil
 }
 
+// SEM@e98ad4a0634283ac8da194a144a505c2b0bb1723: fetch a fake user by email, or simulate not-found (test)
 func (f *fakeUserResolver) GetUserByEmail(_ context.Context, _ string) (User, error) {
 	if f.byEmail == nil {
 		return User{}, errFakeUserNotFound
@@ -75,6 +80,7 @@ func (f *fakeUserResolver) GetUserByEmail(_ context.Context, _ string) (User, er
 	return *f.byEmail, nil
 }
 
+// SEM@e98ad4a0634283ac8da194a144a505c2b0bb1723: simulate creating a user, returning a configured user or error (test)
 func (f *fakeUserResolver) CreateUser(_ context.Context, u User) (User, error) {
 	f.createCalls++
 	if f.createErr != nil {
@@ -88,6 +94,7 @@ func (f *fakeUserResolver) CreateUser(_ context.Context, u User) (User, error) {
 	return created, nil
 }
 
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: fetch a fake linked identity by provider subject, or simulate not-found/error (test)
 func (f *fakeUserResolver) GetLinkedIdentityByProviderSub(_ context.Context, _, _ string) (models.LinkedIdentity, error) {
 	if f.byLinkedIdentity == nil {
 		if f.linkedIdentityErr != nil {
@@ -98,6 +105,7 @@ func (f *fakeUserResolver) GetLinkedIdentityByProviderSub(_ context.Context, _, 
 	return *f.byLinkedIdentity, nil
 }
 
+// SEM@1eb7997add7b39214eac29d20050d7968745a98d: fetch a fixture user by internal UUID from a fake resolver (pure)
 func (f *fakeUserResolver) GetUserByInternalUUID(_ context.Context, _ string) (User, error) {
 	if f.byInternalUUID == nil {
 		return User{}, errFakeUserNotFound
@@ -105,10 +113,12 @@ func (f *fakeUserResolver) GetUserByInternalUUID(_ context.Context, _ string) (U
 	return *f.byInternalUUID, nil
 }
 
+// SEM@1eb7997add7b39214eac29d20050d7968745a98d: stub update of a linked identity's last-used timestamp in a fake resolver (pure)
 func (f *fakeUserResolver) TouchLinkedIdentityLastUsed(_ context.Context, _ string) error {
 	return nil
 }
 
+// SEM@e98ad4a0634283ac8da194a144a505c2b0bb1723: build a test Gin context wrapping a stub OAuth token POST request (pure)
 func newTestGinContext() *gin.Context {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -117,6 +127,7 @@ func newTestGinContext() *gin.Context {
 }
 
 // Tier 1 — same-provider re-login: returns userMatchProviderID with no error.
+// SEM@e98ad4a0634283ac8da194a144a505c2b0bb1723: validate find-or-create matches an existing user on same-provider re-login
 func TestFindOrCreateUser_SameProviderRelogin(t *testing.T) {
 	existing := User{
 		InternalUUID:   "uuid-google-alice",
@@ -137,6 +148,7 @@ func TestFindOrCreateUser_SameProviderRelogin(t *testing.T) {
 }
 
 // Tier 2 — provider+email match: returns userMatchProviderEmail with no error.
+// SEM@e98ad4a0634283ac8da194a144a505c2b0bb1723: validate find-or-create matches an existing user by provider and email
 func TestFindOrCreateUser_SameProviderEmailMatch(t *testing.T) {
 	existing := User{
 		InternalUUID:   "uuid-google-alice",
@@ -156,6 +168,7 @@ func TestFindOrCreateUser_SameProviderEmailMatch(t *testing.T) {
 }
 
 // Tier 3 — sparse-record completion (verified email): binds the user.
+// SEM@e98ad4a0634283ac8da194a144a505c2b0bb1723: validate find-or-create binds a sparse user record via a verified email match
 func TestFindOrCreateUser_SparseRecordVerifiedEmailBinds(t *testing.T) {
 	sparse := User{
 		InternalUUID:  "uuid-sparse-alice",
@@ -176,6 +189,7 @@ func TestFindOrCreateUser_SparseRecordVerifiedEmailBinds(t *testing.T) {
 
 // Tier 3 — cross-provider conflict (#290): MUST reject with a sentinel error
 // and MUST NOT return the existing user record.
+// SEM@e98ad4a0634283ac8da194a144a505c2b0bb1723: validate find-or-create rejects a cross-provider email match without leaking the user
 func TestFindOrCreateUser_CrossProviderConflictRejected(t *testing.T) {
 	existing := User{
 		InternalUUID:   "uuid-google-alice",
@@ -202,6 +216,7 @@ func TestFindOrCreateUser_CrossProviderConflictRejected(t *testing.T) {
 
 // Tier 3 — unverified email match: MUST reject sparse-record bind when
 // the upstream provider has not verified the email.
+// SEM@e98ad4a0634283ac8da194a144a505c2b0bb1723: validate find-or-create rejects a sparse-record bind when the email is unverified
 func TestFindOrCreateUser_UnverifiedEmailMatchRejected(t *testing.T) {
 	sparse := User{
 		InternalUUID: "uuid-sparse-alice",
@@ -222,6 +237,7 @@ func TestFindOrCreateUser_UnverifiedEmailMatchRejected(t *testing.T) {
 }
 
 // Tier 1b — linked identity: resolves to owning user without creating a new record.
+// SEM@1eb7997add7b39214eac29d20050d7968745a98d: validate find-or-create resolves a linked identity to its owning user
 func TestFindOrCreateUser_ResolvesLinkedIdentity(t *testing.T) {
 	owner := User{
 		InternalUUID:   "uuid-alice-primary",
@@ -250,6 +266,7 @@ func TestFindOrCreateUser_ResolvesLinkedIdentity(t *testing.T) {
 }
 
 // No-match path — when no tier matches, a fresh user is created.
+// SEM@e98ad4a0634283ac8da194a144a505c2b0bb1723: validate find-or-create creates a new user when no tier matches
 func TestFindOrCreateUser_NoMatchCreatesUser(t *testing.T) {
 	resolver := &fakeUserResolver{} // all lookups return not-found
 
@@ -271,6 +288,7 @@ func TestFindOrCreateUser_NoMatchCreatesUser(t *testing.T) {
 // treated as "no match" and falling through to CreateUser. Before this fix,
 // any error was conflated with not-found, which could silently duplicate a
 // USERS row (pre-#701) or 500 on the new unique index (post-#701).
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: validate find-or-create aborts on a non-not-found lookup error instead of creating a user
 func TestFindOrCreateUser_OtherLookupErrorDoesNotCreate(t *testing.T) {
 	lookupErr := errors.New("driver: bad connection")
 	resolver := &fakeUserResolver{providerIDErr: lookupErr}
@@ -286,11 +304,46 @@ func TestFindOrCreateUser_OtherLookupErrorDoesNotCreate(t *testing.T) {
 		"must not attempt to create a user when a lookup fails for a reason other than not-found")
 }
 
-// #718 — CreateUser losing the race on the (provider, provider_user_id)
+// #718/#725 — CreateUser losing the race on the (provider, provider_user_id)
 // unique index (idx_users_provider_lookup, #701) must re-fetch and return
 // the winning row instead of surfacing a 500. Simulates two concurrent OAuth
 // callbacks for the same brand-new identity (SPA double-submit / retry).
+// Uses a typed *pgconn.PgError (SQLSTATE 23505) straight from the driver,
+// unwrapped, to prove dberrors.Classify recognizes the driver error type
+// itself -- mirroring the api-side coverage in
+// api/authorization_enrichment_sparse_insert_test.go -- rather than only its
+// string-matching fallback.
+// SEM@8b3ed9b61b0621b01f6928cc867b692933b7ad5b: validate find-or-create refetches the winning row after a duplicate-key create race (typed driver error)
 func TestFindOrCreateUser_DuplicateOnCreateRefetchesWinner(t *testing.T) {
+	winner := User{
+		InternalUUID:   "uuid-winner",
+		Provider:       "google",
+		ProviderUserID: "google-123",
+		Email:          "alice@example.com",
+		EmailVerified:  true,
+	}
+	dupErr := &pgconn.PgError{Code: "23505", Message: `duplicate key value violates unique constraint "idx_users_provider_lookup"`}
+	resolver := &fakeUserResolver{
+		createErr:           dupErr,
+		afterCreateConflict: &winner,
+	}
+
+	user, match, err := findOrCreateUserWithResolver(context.Background(), newTestGinContext(), resolver,
+		"google", "google-123", "alice@example.com", "Alice", true)
+
+	require.NoError(t, err)
+	assert.Equal(t, userMatchProviderID, match)
+	assert.Equal(t, winner.InternalUUID, user.InternalUUID)
+	assert.Equal(t, 1, resolver.createCalls)
+}
+
+// #725 — same recovery path exercised via dberrors.Wrap's pre-classified
+// form (e.g. Oracle's ORA-00001, which carries no typed driver error and is
+// classified by classifyByString before ever reaching this resolver), to
+// keep that non-driver-typed path covered alongside the typed pgconn.PgError
+// case above.
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: validate find-or-create refetches the winning row after a wrapped, string-classified duplicate error
+func TestFindOrCreateUser_DuplicateOnCreateRefetchesWinner_WrappedFallback(t *testing.T) {
 	winner := User{
 		InternalUUID:   "uuid-winner",
 		Provider:       "google",
@@ -317,6 +370,7 @@ func TestFindOrCreateUser_DuplicateOnCreateRefetchesWinner(t *testing.T) {
 // GetLinkedIdentityByProviderSub failure (not ErrLinkedIdentityNotFound, e.g.
 // an ADB idle-session kill) must abort the login attempt instead of being
 // conflated with "no linked identity" and falling through to tiers 2/3/create.
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: validate find-or-create aborts on a linked-identity lookup error instead of creating a user
 func TestFindOrCreateUser_LinkedIdentityLookupErrorDoesNotCreate(t *testing.T) {
 	lookupErr := errors.New("driver: bad connection")
 	resolver := &fakeUserResolver{linkedIdentityErr: lookupErr}

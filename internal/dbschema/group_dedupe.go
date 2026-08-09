@@ -46,7 +46,7 @@ const dedupeRetryDelay = 20 * time.Millisecond
 // UPPERCASE from Oracle and lowercase from Postgres, and an untagged field's
 // DBName is derived from the active dialect's NamingStrategy, so the same
 // struct matches both. The "cnt" alias is unquoted so it folds identically.
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: hold a duplicate groups(provider, group_name) key and its row count (pure)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: hold a duplicate groups(provider, group_name) key and its row count (pure)
 type groupDupKey struct {
 	Provider  string
 	GroupName string
@@ -54,7 +54,7 @@ type groupDupKey struct {
 }
 
 // groupIDRow is a raw scan target for a group row's identity/ordering columns.
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: hold a group's identity and ordering columns for dedupe scans (pure)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: hold a group's identity and ordering columns for dedupe scans (pure)
 type groupIDRow struct {
 	InternalUUID string
 	FirstUsed    time.Time
@@ -63,7 +63,7 @@ type groupIDRow struct {
 // groupMemberRow is a raw scan target for the group_members columns dedupe
 // needs. UserInternalUUID is a pointer because the column is nullable
 // (subject_type = "group" rows carry no user).
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: hold group_members identity, user, and subject-type columns for dedupe scans (pure)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: hold group_members identity, user, and subject-type columns for dedupe scans (pure)
 type groupMemberRow struct {
 	ID               string
 	UserInternalUUID *string
@@ -80,7 +80,7 @@ const maxInListSize = 500
 // chunkStrings splits ids into batches of at most maxInListSize, preserving
 // order. Returns a single-element slice (containing ids itself) when no
 // chunking is needed.
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: split a string slice into fixed-size batches for SQL IN-list safety (pure)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: split a string slice into fixed-size batches for SQL IN-list safety (pure)
 func chunkStrings(ids []string) [][]string {
 	if len(ids) <= maxInListSize {
 		return [][]string{ids}
@@ -101,7 +101,7 @@ func chunkStrings(ids []string) [][]string {
 // subject_type) for a single group_internal_uuid. Rows with a NULL
 // user_internal_uuid (subject_type = "group") never populate this map: SQL
 // unique indexes never treat two NULLs as equal, so those rows can't collide.
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: identify a group_members row by user and subject type within a group (pure)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: identify a group_members row by user and subject type within a group (pure)
 type membershipKey struct {
 	userInternalUUID string
 	subjectType      string
@@ -117,7 +117,7 @@ type membershipKey struct {
 // the key is skipped — and cheap (one query) when there are no duplicates,
 // so it is safe to run on every boot immediately before AutoMigrate creates
 // uniq_groups_provider_group_name.
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: dedupe groups(provider, group_name) and repoint child rows before the unique index is created (writes DB)
+// SEM@bb40881560ec43c848a818a906635c7d26b0b603: dedupe groups(provider, group_name) and repoint child rows before the unique index is created (writes DB)
 func DeduplicateGroups(db *gorm.DB) (int64, error) {
 	logger := slogging.Get()
 
@@ -127,11 +127,15 @@ func DeduplicateGroups(db *gorm.DB) (int64, error) {
 	}
 
 	var dups []groupDupKey
-	if err := db.Table(groupsTable).
-		Select("provider, group_name, COUNT(*) AS cnt").
-		Group("provider, group_name").
-		Having("COUNT(*) > 1").
-		Scan(&dups).Error; err != nil {
+	err := withMigrationRetry("groups duplicate-key discovery", func() error {
+		dups = dups[:0]
+		return db.Table(groupsTable).
+			Select("provider, group_name, COUNT(*) AS cnt").
+			Group("provider, group_name").
+			Having("COUNT(*) > 1").
+			Scan(&dups).Error
+	})
+	if err != nil {
 		return 0, fmt.Errorf("failed to find duplicate groups: %w", err)
 	}
 	if len(dups) == 0 {
@@ -154,17 +158,18 @@ func DeduplicateGroups(db *gorm.DB) (int64, error) {
 
 // dedupeGroupKey resolves one duplicate (provider, group_name) key inside a
 // single transaction: pick the survivor, repoint children, delete losers.
-// The transaction is wrapped in withDedupeRetry so a transient cross-replica
-// conflict (#712) is retried a bounded number of times instead of aborting
-// the whole migration.
-// SEM@6565b585498d8b8755956866f57cd0f56efafc53: resolve one duplicate groups key by repointing children and deleting the losers, retrying on transient errors (writes DB)
+// The transaction is wrapped in withMigrationRetry so a transient
+// cross-replica conflict (#712) is retried a bounded number of times instead
+// of aborting the whole migration.
+// SEM@bb40881560ec43c848a818a906635c7d26b0b603: resolve one duplicate groups key by repointing children and deleting the losers, retrying on transient errors (writes DB)
 func dedupeGroupKey(db *gorm.DB, provider, groupName string) (int64, error) {
 	groupsTable := (&models.Group{}).TableName()
 	tmaTable := (&models.ThreatModelAccess{}).TableName()
 	sraTable := (&models.SurveyResponseAccess{}).TableName()
 
 	var removed int64
-	err := withDedupeRetry(provider, groupName, func() error {
+	label := fmt.Sprintf("groups dedupe %s@%s", groupName, provider)
+	err := withMigrationRetry(label, func() error {
 		removed = 0
 		return db.Transaction(func(tx *gorm.DB) error {
 			var rows []groupIDRow
@@ -225,15 +230,17 @@ func dedupeGroupKey(db *gorm.DB, provider, groupName string) (int64, error) {
 	return removed, err
 }
 
-// withDedupeRetry runs fn (a single dedupeGroupKey transaction attempt) up
-// to dedupeMaxAttempts times. It retries only when the returned error
-// classifies as dberrors.IsRetryable (Oracle deadlock/serialization
-// failures, connection blips); any other error — including
-// dberrors.ErrDuplicate, which is never retryable — is returned to the
-// caller unchanged on the first attempt. provider/groupName are only used
-// for the retry log line.
-// SEM@7d1cee63: retry a dedupe transaction attempt a bounded number of times on transient errors only (pure control flow)
-func withDedupeRetry(provider, groupName string, fn func() error) error {
+// withMigrationRetry runs fn (a single pre-AutoMigrate schema-check or
+// dedupe attempt) up to dedupeMaxAttempts times. It retries only when the
+// returned error classifies as dberrors.IsRetryable (Oracle
+// deadlock/serialization failures, connection blips); any other error —
+// including dberrors.ErrDuplicate, which is never retryable — is returned to
+// the caller unchanged on the first attempt. label identifies the step in
+// the retry log line only. Generalized from the original groups-only
+// withDedupeRetry (#712) to also cover the duplicate-key discovery queries
+// (#725 item e) and the users duplicate-identity check (#724).
+// SEM@bb40881560ec43c848a818a906635c7d26b0b603: retry a migration-phase attempt a bounded number of times on transient errors only (pure control flow)
+func withMigrationRetry(label string, fn func() error) error {
 	var err error
 	for attempt := 1; attempt <= dedupeMaxAttempts; attempt++ {
 		err = fn()
@@ -243,8 +250,8 @@ func withDedupeRetry(provider, groupName string, fn func() error) error {
 		if !dberrors.IsRetryable(dberrors.Classify(err)) || attempt == dedupeMaxAttempts {
 			return err
 		}
-		slogging.Get().Warn("groups dedupe: transient error for provider=%s group_name=%s (attempt %d/%d), retrying: %v",
-			provider, groupName, attempt, dedupeMaxAttempts, err)
+		slogging.Get().Warn("migration step %q: transient error (attempt %d/%d), retrying: %v",
+			label, attempt, dedupeMaxAttempts, err)
 		time.Sleep(dedupeRetryDelay)
 	}
 	return err
@@ -256,7 +263,7 @@ func withDedupeRetry(provider, groupName string, fn func() error) error {
 // yet) is skipped rather than treated as an error. table must already be the
 // dialect-correct name (a model's TableName(), not a bare literal — see
 // scripts/check-oracle-table-names.py / #504).
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: repoint a nullable group_internal_uuid FK column from losing groups to the survivor (writes DB)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: repoint a nullable group_internal_uuid FK column from losing groups to the survivor (writes DB)
 func repointGroupReference(tx *gorm.DB, table, survivor string, losers []string) error {
 	if !tx.Migrator().HasTable(table) {
 		return nil
@@ -274,7 +281,7 @@ func repointGroupReference(tx *gorm.DB, table, survivor string, losers []string)
 // dropSelfMembership removes a group_members row left pointing a group at
 // itself (group_internal_uuid == member_group_internal_uuid == survivor).
 // See the comment at its call site in dedupeGroupKey for how this arises.
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: delete a group_members row where the survivor group is listed as its own member (writes DB)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: delete a group_members row where the survivor group is listed as its own member (writes DB)
 func dropSelfMembership(tx *gorm.DB, survivor string) error {
 	groupMembersTable := (&models.GroupMember{}).TableName()
 	if !tx.Migrator().HasTable(groupMembersTable) {
@@ -290,7 +297,7 @@ func dropSelfMembership(tx *gorm.DB, survivor string) error {
 
 // memberGroupPairDupKey is a raw scan target for the duplicate
 // (group_internal_uuid, member_group_internal_uuid) pair query.
-// SEM@db8c21595adadea21843e41c61644bb014694be2: hold a duplicate parent-group subgroup-membership key and its row count (pure)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: hold a duplicate parent-group subgroup-membership key and its row count (pure)
 type memberGroupPairDupKey struct {
 	GroupInternalUUID string
 	Cnt               int64
@@ -301,7 +308,7 @@ type memberGroupPairDupKey struct {
 // repointing member_group_internal_uuid onto the survivor, keeping the
 // earliest row (by added_at) per parent group and deleting the rest. See the
 // comment at its call site in repointGroupMembers for how this arises.
-// SEM@db8c21595adadea21843e41c61644bb014694be2: collapse duplicate parent-group subgroup-membership rows left by a member repoint (writes DB)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: collapse duplicate parent-group subgroup-membership rows left by a member repoint (writes DB)
 func dedupeMemberGroupPairs(tx *gorm.DB, groupMembersTable, survivor string) error {
 	var dups []memberGroupPairDupKey
 	if err := tx.Table(groupMembersTable).
@@ -346,7 +353,7 @@ func dedupeMemberGroupPairs(tx *gorm.DB, groupMembersTable, survivor string) err
 // otherwise. Rows with a NULL user_internal_uuid (subject_type = "group")
 // never collide — SQL unique indexes never treat two NULLs as equal — so
 // they are always repointed unconditionally.
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: repoint group_members rows from losing groups to the survivor, dropping colliding rows (writes DB)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: repoint group_members rows from losing groups to the survivor, dropping colliding rows (writes DB)
 func repointGroupMembers(tx *gorm.DB, survivor string, losers []string) error {
 	groupMembersTable := (&models.GroupMember{}).TableName()
 	if !tx.Migrator().HasTable(groupMembersTable) {
@@ -421,7 +428,7 @@ func repointGroupMembers(tx *gorm.DB, survivor string, losers []string) error {
 // loadMembershipKeys returns the (user_internal_uuid, subject_type) keys
 // already present under groupInternalUUID, restricted to rows with a
 // non-NULL user_internal_uuid (see repointGroupMembers).
-// SEM@91a78cddb7a534f2bab0556c442437fe098eb4fb: load existing group_members (user, subject_type) keys for a group (reads DB)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: load existing group_members (user, subject_type) keys for a group (reads DB)
 func loadMembershipKeys(tx *gorm.DB, groupInternalUUID string) (map[membershipKey]bool, error) {
 	groupMembersTable := (&models.GroupMember{}).TableName()
 	var rows []groupMemberRow

@@ -176,7 +176,7 @@ func InitAuthWithDB(dbManager *db.Manager, unified *config.Config) (*Handlers, e
 // This function creates its own database manager internally, which can lead to
 // duplicate initialization and DRY violations. Prefer passing a pre-initialized
 // db.Manager to InitAuthWithDB instead.
-// SEM@550719956eba05c4b206ae4056df29fa2c66586a: initialize the auth service, connecting DB/Redis and migrating schema (deprecated) (mutates DB)
+// SEM@87d1696b4bf3edbe042353cf7586a60de78c2028: build the auth service: connect DB/Redis, migrate schema, register handlers (deprecated) (mutates DB)
 func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, error) {
 	authConfig := ConfigFromUnified(unified)
 
@@ -223,6 +223,17 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 	if dbschema.SchemaFingerprintCurrent(gormDB.DB(), desiredFP) {
 		logger.Info("[AUTH_CONFIG_ADAPTER] Schema fingerprint current; skipping AutoMigrate")
 	} else {
+		// #724: fail fast with an actionable error if users(provider,
+		// provider_user_id) already carries duplicates -- idx_users_provider_lookup
+		// is unique (#701), and AutoMigrate's CREATE UNIQUE INDEX would
+		// otherwise abort with an opaque ORA-01452 / 23505. Users get no
+		// automatic dedupe (merging identities is an operator decision) --
+		// same reason and placement as cmd/server/main.go's runMigrationsLocked
+		// and cmd/dbtool/schema.go's runSchema.
+		if err := dbschema.CheckDuplicateUserProviderIdentities(gormDB.DB()); err != nil {
+			return nil, fmt.Errorf("pre-migration user identity check failed: %w", err)
+		}
+
 		// #704: dedupe groups(provider, group_name) before AutoMigrate
 		// creates uniq_groups_provider_group_name -- same reason and
 		// placement as cmd/server/main.go's runMigrationsLocked and
@@ -239,6 +250,15 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 			logger.Warn("[AUTH_CONFIG_ADAPTER] failed to record schema fingerprint (non-fatal): %v", err)
 		}
 		logger.Info("[AUTH_CONFIG_ADAPTER] GORM AutoMigrate completed")
+	}
+
+	// #720: unique sparse-email index (partial/function-based) is raw DDL
+	// AutoMigrate cannot express; idempotent, runs even when the fingerprint
+	// fast path skips AutoMigrate (it is not part of the model fingerprint) --
+	// same placement and reasoning as cmd/server/main.go's runMigrationsLocked
+	// and cmd/dbtool/schema.go's runSchema.
+	if err := dbschema.EnsureSparseUserEmailIndex(gormDB.DB()); err != nil {
+		return nil, fmt.Errorf("failed to ensure sparse-user email index: %w", err)
 	}
 
 	// Create authentication service

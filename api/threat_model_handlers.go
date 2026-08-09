@@ -119,7 +119,7 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 }
 
 // CreateThreatModel creates a new threat model
-// SEM@8dfef8f6: create a threat model owned by the authenticated user with default authorization groups; on FK violation, only invalidate the caller's session with positive evidence the user row is gone (reads DB)
+// SEM@8b3ed9b61b0621b01f6928cc867b692933b7ad5b: create a threat model owned by the caller with default authorization groups; classify FK errors as invalid input unless the caller's user row is confirmed gone (reads DB)
 func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	// SEM@0162974a02f0c8de928d89413890cd366741a5d8: request body shape for threat model creation (pure)
 	type CreateThreatModelRequest struct {
@@ -302,8 +302,26 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 				return
 			}
 
-			slogging.Get().WithContext(c).Warn("Foreign key constraint violation creating threat model for user %s - request references a non-existent entity", user.Email)
-			HandleRequestError(c, InvalidInputError("The request references an entity that does not exist (e.g. an authorization group or user). Verify all referenced IDs and try again."))
+			// The constraint name alone doesn't identify which reference failed
+			// (isForeignKeyConstraintError is generic across drivers), so log
+			// what the request referenced -- not in the response, which must
+			// stay free of internal identifiers (#725).
+			subjects := make([]string, 0, len(derefAuthSlice(tm.Authorization)))
+			for _, auth := range derefAuthSlice(tm.Authorization) {
+				// An email-only sparse subject (ProviderId empty, no OAuth sub
+				// yet) would otherwise render as "user:google/" with the
+				// likeliest offender omitted entirely -- fall back to email
+				// so the operator log line can actually identify it. Response
+				// text is unaffected; this is a WithContext(c).Warn log only.
+				identifier := auth.ProviderId
+				if identifier == "" && auth.Email != nil {
+					identifier = string(*auth.Email)
+				}
+				subjects = append(subjects, fmt.Sprintf("%s:%s/%s", auth.PrincipalType, auth.Provider, identifier))
+			}
+			slogging.Get().WithContext(c).Warn("Foreign key constraint violation creating threat model for user %s - request references a non-existent entity; owner=%s/%s, authorization_subjects=%v",
+				user.Email, tm.Owner.Provider, tm.Owner.ProviderId, subjects)
+			HandleRequestError(c, InvalidInputError("The request references an entity that does not exist. Check the authorization subjects and owner reference for IDs that have not been created yet."))
 			return
 		}
 

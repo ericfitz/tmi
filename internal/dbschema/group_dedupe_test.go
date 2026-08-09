@@ -22,6 +22,7 @@ import (
 // .Table() call per scripts/check-oracle-table-names.py -- so this is a
 // test-only decoupling choice, not a package-level dependency boundary.
 
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: test double mirroring the Group model's schema columns for dedupe tests
 type dedupeTestGroup struct {
 	InternalUUID string `gorm:"column:internal_uuid;primaryKey"`
 	Provider     string `gorm:"column:provider"`
@@ -31,8 +32,10 @@ type dedupeTestGroup struct {
 	UsageCount   int
 }
 
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: return the groups table name for the dedupe test group double (pure)
 func (dedupeTestGroup) TableName() string { return "groups" }
 
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: test double mirroring the GroupMember model's schema columns for dedupe tests
 type dedupeTestGroupMember struct {
 	ID                      string  `gorm:"column:id;primaryKey"`
 	GroupInternalUUID       string  `gorm:"column:group_internal_uuid"`
@@ -42,15 +45,19 @@ type dedupeTestGroupMember struct {
 	AddedAt                 time.Time
 }
 
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: return the group_members table name for the dedupe test group-member double (pure)
 func (dedupeTestGroupMember) TableName() string { return "group_members" }
 
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: test double mirroring ThreatModelAccess's group reference column for dedupe tests
 type dedupeTestThreatModelAccess struct {
 	ID                string  `gorm:"column:id;primaryKey"`
 	GroupInternalUUID *string `gorm:"column:group_internal_uuid"`
 }
 
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: return the threat_model_access table name for the dedupe test access double (pure)
 func (dedupeTestThreatModelAccess) TableName() string { return "threat_model_access" }
 
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: build an in-memory SQLite database migrated with the group-dedupe test schema
 func newDedupeTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -59,8 +66,10 @@ func newDedupeTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: build a pointer to a string value for optional-field test fixtures (pure)
 func strPtr(s string) *string { return &s }
 
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: validate group dedupe is a no-op when no duplicate groups exist
 func TestDeduplicateGroups_NoDuplicates_NoOp(t *testing.T) {
 	db := newDedupeTestDB(t)
 	require.NoError(t, db.Create(&dedupeTestGroup{
@@ -80,6 +89,7 @@ func TestDeduplicateGroups_NoDuplicates_NoOp(t *testing.T) {
 // group_members row (would collide with idx_gm_group_user_type) dropped
 // rather than repointed, and that creating the unique index afterward
 // succeeds -- the scenario the real migration is guarding against (#704).
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: validate group dedupe keeps the earliest group and repoints child rows
 func TestDeduplicateGroups_KeepsEarliestAndRepointsChildren(t *testing.T) {
 	db := newDedupeTestDB(t)
 
@@ -158,6 +168,7 @@ func TestDeduplicateGroups_KeepsEarliestAndRepointsChildren(t *testing.T) {
 	require.NoError(t, db.Exec("CREATE UNIQUE INDEX uniq_groups_provider_group_name ON groups(provider, group_name)").Error)
 }
 
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: validate a second group-dedupe pass removes nothing further
 func TestDeduplicateGroups_Idempotent(t *testing.T) {
 	db := newDedupeTestDB(t)
 	base := time.Now().UTC()
@@ -179,6 +190,7 @@ func TestDeduplicateGroups_Idempotent(t *testing.T) {
 	assert.Equal(t, int64(0), removed2, "a second pass must be a no-op")
 }
 
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: validate group dedupe is a no-op when the groups table is absent
 func TestDeduplicateGroups_NoGroupsTable_NoOp(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -194,6 +206,7 @@ func TestDeduplicateGroups_NoGroupsTable_NoOp(t *testing.T) {
 // leave a group_members row where the survivor is a member of itself. That
 // row bypasses GroupMember's BeforeSave hooks (this dedupe writes via
 // .Table(), not the model) and must be dropped explicitly.
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: validate group dedupe drops a membership row left pointing a group at itself
 func TestDeduplicateGroups_DropsSelfMembership(t *testing.T) {
 	db := newDedupeTestDB(t)
 
@@ -235,6 +248,7 @@ func TestDeduplicateGroups_DropsSelfMembership(t *testing.T) {
 // rows, same parent, one per duplicate). Repointing member_group_internal_uuid
 // alone would leave the parent listing the survivor twice -- not caught by
 // idx_gm_group_user_type since user_internal_uuid is NULL on both rows.
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: validate group dedupe collapses a duplicate parent-subgroup membership pair
 func TestDeduplicateGroups_CollapsesDuplicateSubgroupMembershipPair(t *testing.T) {
 	db := newDedupeTestDB(t)
 
@@ -284,6 +298,7 @@ func TestDeduplicateGroups_CollapsesDuplicateSubgroupMembershipPair(t *testing.T
 	assert.Equal(t, keepRowID, remaining.ID, "the earliest row must be the survivor")
 }
 
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: validate splitting a string slice into size-capped chunks, preserving order
 func TestChunkStrings(t *testing.T) {
 	t.Run("under the limit returns a single chunk", func(t *testing.T) {
 		ids := []string{"a", "b", "c"}
@@ -324,12 +339,13 @@ func TestChunkStrings(t *testing.T) {
 	})
 }
 
-// TestWithDedupeRetry_RetryableError_RetriedThenSucceeds covers #712:
+// TestWithMigrationRetry_RetryableError_RetriedThenSucceeds covers #712:
 // dberrors.ErrTransient (Oracle ORA-00060 deadlock / ORA-08177 serialization
 // failure territory) must be retried, not propagated on the first failure.
-func TestWithDedupeRetry_RetryableError_RetriedThenSucceeds(t *testing.T) {
+// SEM@bb40881560ec43c848a818a906635c7d26b0b603: validate a migration retry helper retries a transient error until success
+func TestWithMigrationRetry_RetryableError_RetriedThenSucceeds(t *testing.T) {
 	var calls int
-	err := withDedupeRetry("okta", "engineering", func() error {
+	err := withMigrationRetry("groups dedupe engineering@okta", func() error {
 		calls++
 		if calls < dedupeMaxAttempts {
 			return dberrors.Wrap(errors.New("ORA-00060: deadlock detected"), dberrors.ErrTransient)
@@ -340,13 +356,14 @@ func TestWithDedupeRetry_RetryableError_RetriedThenSucceeds(t *testing.T) {
 	assert.Equal(t, dedupeMaxAttempts, calls, "must retry until success, not stop early")
 }
 
-// TestWithDedupeRetry_RetryableError_ExhaustsAttempts covers the case where
-// every attempt fails: withDedupeRetry must give up after dedupeMaxAttempts
-// rather than retrying forever, and return the last error.
-func TestWithDedupeRetry_RetryableError_ExhaustsAttempts(t *testing.T) {
+// TestWithMigrationRetry_RetryableError_ExhaustsAttempts covers the case
+// where every attempt fails: withMigrationRetry must give up after
+// dedupeMaxAttempts rather than retrying forever, and return the last error.
+// SEM@bb40881560ec43c848a818a906635c7d26b0b603: validate a migration retry helper gives up after its max attempts
+func TestWithMigrationRetry_RetryableError_ExhaustsAttempts(t *testing.T) {
 	var calls int
 	sentinel := dberrors.Wrap(errors.New("ORA-08177: serialization failure"), dberrors.ErrTransient)
-	err := withDedupeRetry("okta", "engineering", func() error {
+	err := withMigrationRetry("groups dedupe engineering@okta", func() error {
 		calls++
 		return sentinel
 	})
@@ -354,13 +371,14 @@ func TestWithDedupeRetry_RetryableError_ExhaustsAttempts(t *testing.T) {
 	assert.Equal(t, dedupeMaxAttempts, calls, "must stop after dedupeMaxAttempts")
 }
 
-// TestWithDedupeRetry_NonRetryableError_FailsImmediately covers #712's other
-// requirement: a non-retryable error (e.g. a genuine constraint violation)
-// must propagate on the first attempt, unretried and unchanged.
-func TestWithDedupeRetry_NonRetryableError_FailsImmediately(t *testing.T) {
+// TestWithMigrationRetry_NonRetryableError_FailsImmediately covers #712's
+// other requirement: a non-retryable error (e.g. a genuine constraint
+// violation) must propagate on the first attempt, unretried and unchanged.
+// SEM@bb40881560ec43c848a818a906635c7d26b0b603: validate a migration retry helper propagates a non-retryable error unretried
+func TestWithMigrationRetry_NonRetryableError_FailsImmediately(t *testing.T) {
 	var calls int
 	sentinel := dberrors.Wrap(errors.New("unique constraint violated"), dberrors.ErrDuplicate)
-	err := withDedupeRetry("okta", "engineering", func() error {
+	err := withMigrationRetry("groups dedupe engineering@okta", func() error {
 		calls++
 		return sentinel
 	})
