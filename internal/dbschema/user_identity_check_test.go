@@ -14,14 +14,17 @@ import (
 // to exercise CheckDuplicateUserProviderIdentities in isolation, matching
 // group_dedupe_test.go's convention of a test-local struct rather than
 // importing the real model.
+// SEM@bb40881560ec43c848a818a906635c7d26b0b603: represent a minimal users row for exercising the provider-identity duplicate check (pure)
 type dedupeTestUser struct {
 	ID             string  `gorm:"column:id;primaryKey"`
 	Provider       string  `gorm:"column:provider"`
 	ProviderUserID *string `gorm:"column:provider_user_id"`
 }
 
+// SEM@bb40881560ec43c848a818a906635c7d26b0b603: map the test user struct to the users table name (pure)
 func (dedupeTestUser) TableName() string { return "users" }
 
+// SEM@bb40881560ec43c848a818a906635c7d26b0b603: build an in-memory SQLite DB migrated with the test users table
 func newUserIdentityCheckTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -30,6 +33,7 @@ func newUserIdentityCheckTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
+// SEM@bb40881560ec43c848a818a906635c7d26b0b603: validate distinct provider identities and multiple NULL provider_user_id rows pass the duplicate check
 func TestCheckDuplicateUserProviderIdentities_Clean(t *testing.T) {
 	db := newUserIdentityCheckTestDB(t)
 
@@ -54,6 +58,7 @@ func TestCheckDuplicateUserProviderIdentities_Clean(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// SEM@bb40881560ec43c848a818a906635c7d26b0b603: validate duplicate provider identities are detected and reported with an actionable error
 func TestCheckDuplicateUserProviderIdentities_Duplicates(t *testing.T) {
 	db := newUserIdentityCheckTestDB(t)
 
@@ -75,6 +80,7 @@ func TestCheckDuplicateUserProviderIdentities_Duplicates(t *testing.T) {
 	assert.Contains(t, err.Error(), "idx_users_provider_lookup")
 }
 
+// SEM@bb40881560ec43c848a818a906635c7d26b0b603: validate the duplicate provider-identity check is a no-op when the users table is absent
 func TestCheckDuplicateUserProviderIdentities_NoTable(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -89,6 +95,7 @@ func TestCheckDuplicateUserProviderIdentities_NoTable(t *testing.T) {
 // never actually going to hit AutoMigrate's CREATE UNIQUE INDEX abort, so
 // duplicates found alongside an existing index of that name must NOT abort
 // startup -- only a genuinely-absent index does.
+// SEM@bb40881560ec43c848a818a906635c7d26b0b603: validate duplicates found alongside a pre-existing non-unique lookup index do not abort startup
 func TestCheckDuplicateUserProviderIdentities_DuplicatesWithExistingIndex(t *testing.T) {
 	db := newUserIdentityCheckTestDB(t)
 

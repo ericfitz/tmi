@@ -377,7 +377,7 @@ func runMigrations(ctx context.Context, gormDB *db.GormDB, dbType string) {
 // os.Exit inside the lock-holding region would skip the deferred release
 // (gocritic exitAfterDefer) and leave the lock orphaned for replicas to
 // time out on.
-// SEM@db8c21595adadea21843e41c61644bb014694be2: run DB schema migrations, backfills, and seed data under an advisory lock, with a fingerprint fast path (mutates DB)
+// SEM@df7fd289991cfd0c30ec2f8c8721a7b593f7d535: run DB schema migrations, backfills, and seed data under an advisory lock, with a fingerprint fast path (mutates DB)
 func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) error {
 	logger := slogging.Get()
 
@@ -2394,7 +2394,7 @@ func validateDatabaseSchema(cfg *config.Config) error {
 }
 
 // initializeAdministratorsGorm initializes administrators from configuration using GORM
-// SEM@4247eee5: seed the Administrators group with configured users/groups, creating missing users only on not-found (writes DB)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: seed the Administrators group with configured users/groups, creating missing users only on not-found (writes DB)
 func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 	logger := slogging.Get()
 	logger.Info("Initializing administrators from configuration (GORM)")
@@ -2535,7 +2535,7 @@ func findUserByProviderIdentityGorm(ctx context.Context, gormDB *gorm.DB, provid
 }
 
 // createUserForAdministratorGorm creates a new user record for a configured administrator using GORM
-// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: store a new user record for a configured administrator using GORM (writes DB)
+// SEM@8b3ed9b61b0621b01f6928cc867b692933b7ad5b: store a new user record for a configured administrator using GORM (writes DB)
 func createUserForAdministratorGorm(ctx context.Context, gormDB *gorm.DB, adminCfg config.AdministratorConfig) (uuid.UUID, error) {
 	logger := slogging.Get()
 

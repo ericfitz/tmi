@@ -119,7 +119,7 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 }
 
 // CreateThreatModel creates a new threat model
-// SEM@8dfef8f6: create a threat model owned by the authenticated user with default authorization groups; on FK violation, only invalidate the caller's session with positive evidence the user row is gone (reads DB)
+// SEM@8b3ed9b61b0621b01f6928cc867b692933b7ad5b: create a threat model owned by the caller with default authorization groups; classify FK errors as invalid input unless the caller's user row is confirmed gone (reads DB)
 func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	// SEM@0162974a02f0c8de928d89413890cd366741a5d8: request body shape for threat model creation (pure)
 	type CreateThreatModelRequest struct {

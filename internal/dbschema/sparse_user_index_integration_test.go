@@ -16,6 +16,7 @@ import (
 // with an existing sparse row must fail with a unique violation. Reuses the
 // DSN/bootstrap helpers from
 // TestInstallPostgresDefaultIsolation_Integration (postgres_isolation_integration_test.go).
+// SEM@87d1696b4bf3edbe042353cf7586a60de78c2028: validate the sparse user-email unique index against a live PostgreSQL schema (reads/writes DB)
 func TestSparseUserEmailIndex_Integration(t *testing.T) {
 	dsn := pgIsolationDSN(t)
 	db := openPG(t, dsn)

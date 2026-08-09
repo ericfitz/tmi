@@ -587,7 +587,7 @@ func (s *Service) InvalidateUserSessions(ctx context.Context, userID string) err
 }
 
 // GetUserByEmail gets a user by email
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: fetch a user by email, checking Redis cache before the DB (reads DB)
+// SEM@cf201bc8c1eab7bf74de941e50508142b759ca75: fetch a user by email, checking Redis cache before the DB (reads DB)
 func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	// Try cache first
 	cachedUser, err := s.GetCachedUserByEmail(ctx, email)
@@ -616,7 +616,7 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 // GetUserByID gets a user by internal UUID
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: fetch a user by internal UUID, checking Redis cache before the DB (reads DB)
+// SEM@cf201bc8c1eab7bf74de941e50508142b759ca75: fetch a user by internal UUID, checking Redis cache before the DB (reads DB)
 func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 	// Try cache first
 	cachedUser, err := s.GetCachedUserByID(ctx, id)
@@ -671,7 +671,7 @@ func (s *Service) CreateUser(ctx context.Context, user User) (User, error) {
 }
 
 // UpdateUser updates an existing user
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: persist user profile changes and invalidate the Redis cache (reads DB)
+// SEM@cf201bc8c1eab7bf74de941e50508142b759ca75: persist user profile changes and invalidate the Redis cache (reads DB)
 func (s *Service) UpdateUser(ctx context.Context, user User) error {
 	repoUser := convertServiceUserToRepoUser(&user)
 	err := s.userRepo.Update(ctx, repoUser)
@@ -693,7 +693,7 @@ func (s *Service) UpdateUser(ctx context.Context, user User) error {
 }
 
 // DeleteUser deletes a user by internal UUID
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: delete a user by internal UUID and invalidate all Redis cache keys (reads DB)
+// SEM@cf201bc8c1eab7bf74de941e50508142b759ca75: delete a user by internal UUID and invalidate all Redis cache keys (reads DB)
 func (s *Service) DeleteUser(ctx context.Context, id string) error {
 	// Get user before deletion for cache invalidation
 	user, err := s.GetUserByID(ctx, id)
@@ -767,7 +767,7 @@ func (s *Service) GetPrimaryProviderID(ctx context.Context, userID string) (stri
 }
 
 // GetUserByProviderID gets a user by provider and provider user ID
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: fetch a user by provider and provider user ID, checking Redis cache first (reads DB)
+// SEM@cf201bc8c1eab7bf74de941e50508142b759ca75: fetch a user by provider and provider user ID, checking Redis cache first (reads DB)
 func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUserID string) (User, error) {
 	// Try cache first
 	cachedUser, err := s.GetCachedUserByProvider(ctx, provider, providerUserID)
@@ -797,7 +797,7 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 
 // GetUserByProviderAndEmail gets a user by provider and email address
 // This is used as a fallback when provider_user_id doesn't match but same provider + email does
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: fetch a user by provider and email as a fallback to provider user ID lookup (reads DB)
+// SEM@cf201bc8c1eab7bf74de941e50508142b759ca75: fetch a user by provider and email as a fallback to provider user ID lookup (reads DB)
 func (s *Service) GetUserByProviderAndEmail(ctx context.Context, provider, email string) (User, error) {
 	repoUser, err := s.userRepo.GetByProviderAndEmail(ctx, provider, email)
 	if err != nil {
@@ -838,7 +838,7 @@ func (s *Service) TouchLinkedIdentityLastUsed(ctx context.Context, id string) er
 // GetUserByAnyProviderID gets a user by provider ID across all providers
 // This allows provider-independent authorization using IdP user IDs
 // NOTE: This can return ambiguous results if the same provider_user_id exists for multiple providers
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: fetch a user by provider user ID across all providers (reads DB)
+// SEM@cf201bc8c1eab7bf74de941e50508142b759ca75: fetch a user by provider user ID across all providers (reads DB)
 func (s *Service) GetUserByAnyProviderID(ctx context.Context, providerUserID string) (User, error) {
 	repoUser, err := s.userRepo.GetByAnyProviderID(ctx, providerUserID)
 	if err != nil {

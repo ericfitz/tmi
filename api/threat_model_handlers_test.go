@@ -21,6 +21,7 @@ const testThreatModelNameAlpha = "Security Assessment Alpha"
 const testThreatModelNameBeta = "Security Assessment Beta"
 
 // setupThreatModelRouter returns a router with threat model handlers registered for the owner user
+// SEM@386eea01f3b66c35027bf3ca762efbc291419e20: build a test router with threat model routes for the default owner user (test helper)
 func setupThreatModelRouter() *gin.Engine {
 	// Initialize test fixtures first
 	InitTestFixtures()
@@ -28,6 +29,7 @@ func setupThreatModelRouter() *gin.Engine {
 }
 
 // setupThreatModelRouterWithUser returns a router with threat model handlers registered and specified user
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: build a test router with threat model routes authenticated as a given user (test helper)
 func setupThreatModelRouterWithUser(userName string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -63,6 +65,7 @@ func setupThreatModelRouterWithUser(userName string) *gin.Engine {
 }
 
 // TestCreateThreatModel tests creating a new threat model
+// SEM@5981ac53dd2229e2bb211a96f0b495fe72df5f32: validate creating a threat model returns default authorization groups and status
 func TestCreateThreatModel(t *testing.T) {
 	r := setupThreatModelRouter()
 
@@ -112,10 +115,12 @@ func TestCreateThreatModel(t *testing.T) {
 // return a foreign key constraint violation (matching the Oracle
 // FK_THREAT_MODEL_ACCESS_GROUP error observed in #702), so tests can drive
 // CreateThreatModel's FK error-classification branch without a real database.
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: threat model store double whose Create always fails with a foreign key violation (test double)
 type fkErrorThreatModelStore struct {
 	*MockThreatModelStore
 }
 
+// SEM@5bacd53eee87984ab4d2aab453afb59913aa79dc: simulate a foreign key constraint violation on threat model creation (test double)
 func (m *fkErrorThreatModelStore) Create(_ ThreatModel, _ func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
 	return ThreatModel{}, fmt.Errorf("foreign key: constraint violation: ORA-02291: integrity constraint (ADMIN.FK_THREAT_MODEL_ACCESS_GROUP) violated - parent key not found")
 }
@@ -124,6 +129,7 @@ func (m *fkErrorThreatModelStore) Create(_ ThreatModel, _ func(ThreatModel, stri
 // that a foreign key violation naming a reference other than the caller's own
 // user row (e.g. a non-existent authorization group) is reported as a 400
 // about the request payload, and does not touch the caller's session (#702).
+// SEM@8b3ed9b61b0621b01f6928cc867b692933b7ad5b: validate an FK violation naming a non-owner reference returns 400 without invalidating the session
 func TestCreateThreatModel_ForeignKeyViolation_UserExists_ReturnsBadRequest(t *testing.T) {
 	r := setupThreatModelRouter()
 
@@ -167,6 +173,7 @@ func TestCreateThreatModel_ForeignKeyViolation_UserExists_ReturnsBadRequest(t *t
 // that CreateThreatModel only concludes the caller's session is stale when a
 // positive existence check confirms the user's account row is actually gone
 // (#702) -- not merely because some foreign key on the insert failed.
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: validate an FK violation with the caller's user row confirmed deleted returns 401
 func TestCreateThreatModel_ForeignKeyViolation_UserGone_ReturnsUnauthorized(t *testing.T) {
 	r := setupThreatModelRouter()
 
@@ -192,6 +199,7 @@ func TestCreateThreatModel_ForeignKeyViolation_UserGone_ReturnsUnauthorized(t *t
 // TestIsUserAccountConfirmedDeleted_UnavailableUserStore verifies the
 // existence check is conservative: when GlobalUserStore is unavailable it
 // must never claim the user is confirmed deleted (#702).
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: validate the user-deletion check returns false when the user store is unavailable
 func TestIsUserAccountConfirmedDeleted_UnavailableUserStore(t *testing.T) {
 	origUserStore := GlobalUserStore
 	defer func() { GlobalUserStore = origUserStore }()
@@ -206,6 +214,7 @@ func TestIsUserAccountConfirmedDeleted_UnavailableUserStore(t *testing.T) {
 // substitutes when the JWT-derived idp is absent from context. A lookup keyed
 // on an empty or placeholder identity cannot positively confirm deletion, so
 // it must never contribute to a false 401 (1.8.3 oracle-db-admin review).
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: validate the user-deletion check refuses empty or placeholder provider identities
 func TestIsUserAccountConfirmedDeleted_EmptyOrUnknownIdentity(t *testing.T) {
 	origUserStore := GlobalUserStore
 	defer func() { GlobalUserStore = origUserStore }()
@@ -219,6 +228,7 @@ func TestIsUserAccountConfirmedDeleted_EmptyOrUnknownIdentity(t *testing.T) {
 }
 
 // TestGetThreatModels tests listing threat models
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate listing threat models includes a newly created threat model
 func TestGetThreatModels(t *testing.T) {
 	r := setupThreatModelRouter()
 
@@ -271,6 +281,7 @@ func TestGetThreatModels(t *testing.T) {
 }
 
 // TestPatchThreatModel tests patching a threat model with JSON Patch
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate a JSON Patch updates a threat model's name and description
 func TestPatchThreatModel(t *testing.T) {
 	r := setupThreatModelRouter()
 
@@ -343,6 +354,7 @@ func TestPatchThreatModel(t *testing.T) {
 }
 
 // createTestThreatModel creates a test threat model and returns it
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: create a threat model via the API and return the parsed response (test helper)
 func createTestThreatModel(t *testing.T, router *gin.Engine, name string, description string) ThreatModel {
 	reqBody, _ := json.Marshal(map[string]any{
 		"name":        name,
@@ -365,6 +377,7 @@ func createTestThreatModel(t *testing.T, router *gin.Engine, name string, descri
 }
 
 // TestCreateThreatModelWithDuplicateSubjects tests creating a threat model with duplicate subjects
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: validate creation rejects an authorization list with duplicate subjects
 func TestCreateThreatModelWithDuplicateSubjects(t *testing.T) {
 	r := setupThreatModelRouter()
 
@@ -405,6 +418,7 @@ func TestCreateThreatModelWithDuplicateSubjects(t *testing.T) {
 // TestCreateThreatModelWithDuplicateOwner tests creating a threat model with a subject that duplicates the owner
 // Note: The current behavior allows this and the duplicate is handled gracefully by the database
 // (ON CONFLICT clauses). The owner entry always takes precedence with owner role.
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: validate creation allows an authorization subject duplicating the owner
 func TestCreateThreatModelWithDuplicateOwner(t *testing.T) {
 	r := setupThreatModelRouter()
 
@@ -441,6 +455,7 @@ func TestCreateThreatModelWithDuplicateOwner(t *testing.T) {
 
 // TestUpdateThreatModelOwnerChange tests the rule that when the owner changes, the original owner
 // is added to the authorization list with owner role
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: validate changing a threat model's owner preserves the former owner with owner role
 func TestUpdateThreatModelOwnerChange(t *testing.T) {
 	// Create initial router and threat model
 	originalRouter := setupThreatModelRouter() // original owner is test@example.com
@@ -512,6 +527,7 @@ func TestUpdateThreatModelOwnerChange(t *testing.T) {
 }
 
 // TestUpdateThreatModelWithDuplicateSubjects tests updating a threat model with duplicate subjects
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: validate that PUT rejects a threat model authorization list with duplicate subjects (test)
 func TestUpdateThreatModelWithDuplicateSubjects(t *testing.T) {
 	r := setupThreatModelRouter()
 	tm := createTestThreatModel(t, r, "Duplicate Subject Update Test", "Testing duplicate subject validation")
@@ -557,6 +573,7 @@ func TestUpdateThreatModelWithDuplicateSubjects(t *testing.T) {
 }
 
 // TestNonOwnerCannotChangeOwner tests that a non-owner user cannot change the owner
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: validate that a non-owner user is forbidden from changing threat model ownership (test)
 func TestNonOwnerCannotChangeOwner(t *testing.T) {
 	// Create initial router and threat model
 	originalRouter := setupThreatModelRouter() // original owner is test@example.com
@@ -615,6 +632,7 @@ func TestNonOwnerCannotChangeOwner(t *testing.T) {
 }
 
 // TestOwnershipTransferViaPatching tests changing ownership via PATCH operation
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: validate ownership transfer via PATCH keeps prior owner in authorization list (test)
 func TestOwnershipTransferViaPatching(t *testing.T) {
 	// Reset stores to ensure clean state
 
@@ -690,6 +708,7 @@ func TestOwnershipTransferViaPatching(t *testing.T) {
 
 // TestDuplicateSubjectViaPatching tests that patching the same user multiple times
 // successfully updates their role (idempotent behavior)
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: validate that re-patching the same subject updates their role idempotently (test)
 func TestDuplicateSubjectViaPatching(t *testing.T) {
 	r := setupThreatModelRouter()
 	tm := createTestThreatModel(t, r, "Role Update Test", "Testing that patching same user updates their role")
@@ -751,6 +770,7 @@ func TestDuplicateSubjectViaPatching(t *testing.T) {
 }
 
 // TestReadWriteDeletePermissions tests access levels for different operations
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: validate reader/writer/owner role permissions for read, write, and delete ops (test)
 func TestReadWriteDeletePermissions(t *testing.T) {
 	// Set up the direct test users rather than relying on fixtures
 	ownerUser := "test@example.com" // This is the owner user in setupThreatModelRouter()
@@ -852,6 +872,7 @@ func TestReadWriteDeletePermissions(t *testing.T) {
 }
 
 // TestWriterCannotChangeOwnerOrAuth tests writer cannot change owner or authorization fields
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: validate that a writer is forbidden from changing owner or authorization fields (test)
 func TestWriterCannotChangeOwnerOrAuth(t *testing.T) {
 	// Create initial router and threat model
 	originalRouter := setupThreatModelRouter() // original owner is test@example.com
@@ -916,6 +937,7 @@ func TestWriterCannotChangeOwnerOrAuth(t *testing.T) {
 }
 
 // TestGetThreatModelsAuthorizationFiltering tests that the list endpoint properly filters based on user access
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: validate that listing threat models filters results by caller's authorization role (test)
 func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 	// Reset stores to ensure clean state
 	InitializeMockStores()
@@ -1071,6 +1093,7 @@ func TestGetThreatModelsAuthorizationFiltering(t *testing.T) {
 }
 
 // TestGetThreatModelsWithFilters tests the filtering query parameters for listing threat models
+// SEM@5981ac53dd2229e2bb211a96f0b495fe72df5f32: validate threat model list query filters by name, description, owner, status, and reviewer (test)
 func TestGetThreatModelsWithFilters(t *testing.T) {
 	r := setupThreatModelRouter()
 
@@ -1378,6 +1401,7 @@ func TestGetThreatModelsWithFilters(t *testing.T) {
 }
 
 // TestIsConfidentialField tests the is_confidential field behavior
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate is_confidential defaulting, immutability on PUT, and PATCH rejection (test)
 func TestIsConfidentialField(t *testing.T) {
 	r := setupThreatModelRouter()
 
@@ -1527,6 +1551,7 @@ func TestIsConfidentialField(t *testing.T) {
 	})
 }
 
+// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: validate auto-assignment of security-reviewers or confidential-reviewers group on create (test)
 func TestReviewerGroupAutoAssignment(t *testing.T) {
 	r := setupThreatModelRouter()
 
@@ -1646,6 +1671,7 @@ func TestReviewerGroupAutoAssignment(t *testing.T) {
 
 // TestUpdateThreatModelClearNullableFields verifies that nullable fields can be cleared
 // via PUT by sending null or omitting them (issue #200)
+// SEM@37226d25c0b5ce1ccb3ce9c187a37f90f424caad: validate PUT clears nullable threat model fields via explicit null or omission (test)
 func TestUpdateThreatModelClearNullableFields(t *testing.T) {
 	t.Run("ClearFieldsWithExplicitNull", func(t *testing.T) {
 		r := setupThreatModelRouter()
@@ -1745,6 +1771,7 @@ func TestUpdateThreatModelClearNullableFields(t *testing.T) {
 
 // TestPatchThreatModel_RejectsAliasOperation verifies that a PATCH request
 // targeting /alias is rejected with HTTP 400 (alias is server-assigned, #374).
+// SEM@2564ff35d46359f9c4ec696a597a45e61d355e62: validate that PATCH rejects modifying the server-assigned alias field (test)
 func TestPatchThreatModel_RejectsAliasOperation(t *testing.T) {
 	r := setupThreatModelRouter()
 	tm := createTestThreatModel(t, r, "Alias Patch Reject Test", "Testing alias patch rejection")
@@ -1768,6 +1795,7 @@ func TestPatchThreatModel_RejectsAliasOperation(t *testing.T) {
 
 // TestPutThreatModel_RejectsAliasInBody verifies that a PUT request with
 // alias in the body is rejected with HTTP 400 (alias is server-assigned, #374).
+// SEM@2564ff35d46359f9c4ec696a597a45e61d355e62: validate that PUT rejects a body containing the server-assigned alias field (test)
 func TestPutThreatModel_RejectsAliasInBody(t *testing.T) {
 	r := setupThreatModelRouter()
 	tm := createTestThreatModel(t, r, "Alias Put Reject Test", "Testing alias put rejection")

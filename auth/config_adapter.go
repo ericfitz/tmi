@@ -176,7 +176,7 @@ func InitAuthWithDB(dbManager *db.Manager, unified *config.Config) (*Handlers, e
 // This function creates its own database manager internally, which can lead to
 // duplicate initialization and DRY violations. Prefer passing a pre-initialized
 // db.Manager to InitAuthWithDB instead.
-// SEM@550719956eba05c4b206ae4056df29fa2c66586a: initialize the auth service, connecting DB/Redis and migrating schema (deprecated) (mutates DB)
+// SEM@87d1696b4bf3edbe042353cf7586a60de78c2028: build the auth service: connect DB/Redis, migrate schema, register handlers (deprecated) (mutates DB)
 func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, error) {
 	authConfig := ConfigFromUnified(unified)
 

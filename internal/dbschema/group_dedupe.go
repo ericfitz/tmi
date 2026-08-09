@@ -161,7 +161,7 @@ func DeduplicateGroups(db *gorm.DB) (int64, error) {
 // The transaction is wrapped in withMigrationRetry so a transient
 // cross-replica conflict (#712) is retried a bounded number of times instead
 // of aborting the whole migration.
-// SEM@0000000: resolve one duplicate groups key by repointing children and deleting the losers, retrying on transient errors (writes DB)
+// SEM@bb40881560ec43c848a818a906635c7d26b0b603: resolve one duplicate groups key by repointing children and deleting the losers, retrying on transient errors (writes DB)
 func dedupeGroupKey(db *gorm.DB, provider, groupName string) (int64, error) {
 	groupsTable := (&models.Group{}).TableName()
 	tmaTable := (&models.ThreatModelAccess{}).TableName()
@@ -239,7 +239,7 @@ func dedupeGroupKey(db *gorm.DB, provider, groupName string) (int64, error) {
 // the retry log line only. Generalized from the original groups-only
 // withDedupeRetry (#712) to also cover the duplicate-key discovery queries
 // (#725 item e) and the users duplicate-identity check (#724).
-// SEM@0000000: retry a migration-phase attempt a bounded number of times on transient errors only (pure control flow)
+// SEM@bb40881560ec43c848a818a906635c7d26b0b603: retry a migration-phase attempt a bounded number of times on transient errors only (pure control flow)
 func withMigrationRetry(label string, fn func() error) error {
 	var err error
 	for attempt := 1; attempt <= dedupeMaxAttempts; attempt++ {

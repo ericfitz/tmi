@@ -83,7 +83,7 @@ func userPersistError(providerID string, err error) (gin.H, string) {
 // cause is a transient database condition (connection kill, deadlock,
 // serialization failure). Mapped to 503 + Retry-After so clients retry (#721);
 // the OpenAPI ServiceUnavailable component already documents this response.
-// SEM@0000000: build a service_unavailable response and operator log for a transient user-persist failure (pure)
+// SEM@fac8d2654bc689596c16a43b927554833b4685c5: build a service_unavailable response and operator log for a transient user-persist failure (pure)
 func userPersistUnavailableError(providerID string, err error) (gin.H, string) {
 	body := gin.H{
 		"error":             "service_unavailable",
@@ -96,7 +96,7 @@ func userPersistUnavailableError(providerID string, err error) (gin.H, string) {
 // respondUserPersistError writes the HTTP response for a findOrCreateUser
 // failure: 409 cross-provider conflict, 403 unverified email (#290),
 // 503 + Retry-After for transient DB faults (#721), 500 otherwise.
-// SEM@0000000: handle a user find-or-create failure with status mapped to its cause
+// SEM@fac8d2654bc689596c16a43b927554833b4685c5: handle a user find-or-create failure with status mapped to its cause
 func respondUserPersistError(c *gin.Context, providerID string, err error) {
 	switch {
 	case errors.Is(err, errCrossProviderConflict):

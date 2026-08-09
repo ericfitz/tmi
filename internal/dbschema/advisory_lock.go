@@ -36,7 +36,7 @@ var oracleLockKeepaliveInterval = 60 * time.Second
 // DBMS_LOCK.REQUEST. Other dialects return an error.
 //
 // The release function is idempotent and safe to defer.
-// SEM@3d0932f1: lock a named schema-migration advisory lock, dispatching to the correct dialect implementation (reads DB)
+// SEM@dea6869d1be777f8e297ccf30db5f7c272b226f9: lock a named schema-migration advisory lock, dispatching to the correct dialect implementation (reads DB)
 func AcquireMigrationLock(ctx context.Context, db *gorm.DB, name string) (release func(), err error) {
 	logger := slogging.Get()
 	dialect := db.Name()
@@ -67,8 +67,11 @@ func AcquireMigrationLock(ctx context.Context, db *gorm.DB, name string) (releas
 // BOOLEAN result (false = this session did not hold the lock), not via an
 // error, so the release checks the scanned value and logs ERROR on false —
 // a false here means the lock leaked or another session was serialized
-// against nothing.
-// SEM@0000000: acquire a PostgreSQL advisory lock on a pinned session connection and return a release function (reads DB)
+// against nothing. Either case means this session's lock state is unknown,
+// so — mirroring acquireOracleLock's dropConn — the connection is discarded
+// via driver.ErrBadConn rather than returned to the pool: a plain Close()
+// would hand a possibly-still-locked backend back to an unrelated query.
+// SEM@dea6869d1be777f8e297ccf30db5f7c272b226f9: acquire a PostgreSQL advisory lock on a pinned session connection and return a release function (reads DB)
 func acquirePGLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slogging.Logger) (func(), error) {
 	key := nameToInt64(name)
 
@@ -90,25 +93,36 @@ func acquirePGLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slog
 	}
 	logger.Debug("Acquired pg_advisory_lock(%d) for %q", key, name)
 
-	released := false
+	var releaseOnce sync.Once
 	return func() {
-		if released {
-			return
-		}
-		released = true
-		defer func() {
-			if err := conn.Close(); err != nil {
-				logger.Warn("closing pinned advisory-lock connection failed: %v", err)
+		releaseOnce.Do(func() {
+			dropConn := false
+			defer func() {
+				if dropConn {
+					// Lock state is unknown (unlock errored or reported this
+					// session didn't hold it). Conn.Raw's callback returning
+					// driver.ErrBadConn makes database/sql discard the
+					// connection synchronously, so a further conn.Close()
+					// call would be redundant — see the identical pattern
+					// (and its rationale) in acquireOracleLock's release.
+					_ = conn.Raw(func(any) error { return driver.ErrBadConn })
+					return
+				}
+				if err := conn.Close(); err != nil {
+					logger.Warn("closing pinned advisory-lock connection failed: %v", err)
+				}
+			}()
+			var unlocked bool
+			if err := conn.QueryRowContext(ctx, "SELECT pg_advisory_unlock($1)", key).Scan(&unlocked); err != nil {
+				logger.Error("pg_advisory_unlock(%d) failed: %v", key, err)
+				dropConn = true
+				return
 			}
-		}()
-		var unlocked bool
-		if err := conn.QueryRowContext(ctx, "SELECT pg_advisory_unlock($1)", key).Scan(&unlocked); err != nil {
-			logger.Error("pg_advisory_unlock(%d) failed: %v", key, err)
-			return
-		}
-		if !unlocked {
-			logger.Error("pg_advisory_unlock(%d) returned false — this session did not hold the lock (lock leaked or session was recycled)", key)
-		}
+			if !unlocked {
+				logger.Error("pg_advisory_unlock(%d) returned false — this session did not hold the lock (lock leaked or session was recycled)", key)
+				dropConn = true
+			}
+		})
 	}, nil
 }
 
@@ -135,7 +149,7 @@ func acquirePGLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slog
 //
 // All binds are positional (:1, :2, ...). Mixing ? and named binds (:h, :s)
 // is unreliable on godror.
-// SEM@3d0932f18cc283406a531ef6fac4204f8f61d66a: acquire an Oracle DBMS_LOCK exclusive lock on a pinned session connection, raising a single-slot pool to two first, and return a release function (reads DB)
+// SEM@2bc5bf8f3e1be695fa3f274458939777e390e85b: acquire an Oracle DBMS_LOCK exclusive lock on a pinned session connection, raising a single-slot pool to two first, and return a release function (reads DB)
 func acquireOracleLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slogging.Logger) (func(), error) {
 	// A pool sized to exactly one connection (TMI_DB_MAX_OPEN_CONNS=1) cannot
 	// survive pinning a connection for the lock's lifetime: sqlDB.Conn below

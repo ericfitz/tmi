@@ -26,6 +26,7 @@ var internalUUIDEqualityPattern = regexp.MustCompile(`(?i)internal_uuid"?\s*=\s*
 // struct's primary key is already populated — which is exactly what happens
 // if a duplicate-key recovery re-fetch reuses the struct BeforeCreate already
 // stamped a (never-inserted) UUID onto. Regression guard for that bug (#718).
+// SEM@8b3ed9b61b0621b01f6928cc867b692933b7ad5b: build a sqlmock query matcher that rejects queries filtering by internal_uuid (test helper)
 func guardedQueryMatcher(t *testing.T) sqlmock.QueryMatcher {
 	t.Helper()
 	return sqlmock.QueryMatcherFunc(func(expectedSQL, actualSQL string) error {
@@ -46,6 +47,7 @@ func guardedQueryMatcher(t *testing.T) sqlmock.QueryMatcher {
 // newMockGormDB wires a sqlmock *sql.DB behind a Postgres GORM dialector, for
 // unit tests that need to control exactly what error a query returns without
 // a real database connection.
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: build a GORM DB backed by sqlmock for controlled-error unit tests (test helper)
 func newMockGormDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	t.Helper()
 
@@ -67,6 +69,7 @@ func newMockGormDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 // #718 — performSparseUserInsert must recover from a duplicate-key error on
 // the sparse insert (a concurrent request won the race to create the same
 // user row) by re-fetching the winning row instead of surfacing a 500.
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: validate sparse user insert recovers a provider-lookup duplicate-key race by refetching the winning row
 func TestPerformSparseUserInsert_DuplicateKeyRefetchesWinner(t *testing.T) {
 	gdb, mock := newMockGormDB(t)
 	mock.MatchExpectationsInOrder(true)
@@ -113,6 +116,7 @@ func TestPerformSparseUserInsert_DuplicateKeyRefetchesWinner(t *testing.T) {
 // PgError SQLSTATE, not the constraint name, so a different constraint name
 // alone should not change behavior -- this test exists to prove that, not
 // because performSparseUserInsert needed a code change for it.
+// SEM@87d1696b4bf3edbe042353cf7586a60de78c2028: validate sparse user insert recovers a sparse-email duplicate-key race by refetching the winning row
 func TestPerformSparseUserInsert_SparseEmailDuplicateKeyRefetchesWinner(t *testing.T) {
 	gdb, mock := newMockGormDB(t)
 	mock.MatchExpectationsInOrder(true)
