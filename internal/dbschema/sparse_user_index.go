@@ -89,7 +89,7 @@ func EnsureSparseUserEmailIndex(db *gorm.DB) error {
 		dups = dups[:0]
 		return db.Table(usersTable).
 			Select("provider, email, COUNT(*) AS cnt").
-			Where("provider_user_id IS NULL").
+			Where("provider_user_id IS NULL AND provider IS NOT NULL AND email IS NOT NULL").
 			Group("provider, email").
 			Having("COUNT(*) > 1").
 			Scan(&dups).Error

@@ -2569,12 +2569,20 @@ func createUserForAdministratorGorm(ctx context.Context, gormDB *gorm.DB, adminC
 			// Lost the cross-replica race on idx_users_provider_lookup (#701):
 			// another replica created this admin's row first. Re-fetch the
 			// winner so the group-add below still runs this boot (#725).
-			// (provider, provider_user_id) is the only unique constraint on
-			// User besides the fresh, always-unique internal_uuid PK, so it's
-			// the correct re-fetch key for any duplicate-key error reaching
-			// here; if a unique index on email is ever added, this recovery
-			// degrades safely to the generic error path below instead of
-			// re-fetching the wrong row (oracle-db-admin review, #725).
+			// User now also carries idx_users_sparse_email (#720), a unique
+			// index over (provider, email) restricted to sparse rows
+			// (provider_user_id IS NULL) — but this path can never insert one:
+			// the caller refuses to reach here when adminCfg.ProviderId is
+			// empty (~:2444), so userRecord.ProviderUserID is always non-NULL
+			// and the sparse index's key expressions always evaluate to NULL
+			// for it (excluded from the index on both PG and Oracle). A
+			// duplicate-key error here is therefore always
+			// idx_users_provider_lookup, making (provider, provider_user_id)
+			// the correct re-fetch key; if that assumption ever changes (e.g.
+			// this call site starts allowing empty provider_id), this
+			// recovery degrades safely to the generic error path below
+			// instead of re-fetching the wrong row (oracle-db-admin review,
+			// #725).
 			logger.Warn("Admin user create lost a startup race, re-fetching winner: provider=%s, provider_id=%s",
 				adminCfg.Provider, adminCfg.ProviderId)
 			if winner, ferr := findUserByProviderIdentityGorm(ctx, gormDB, adminCfg.Provider, adminCfg.ProviderId, ""); ferr == nil {

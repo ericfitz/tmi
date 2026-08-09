@@ -308,7 +308,16 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 			// stay free of internal identifiers (#725).
 			subjects := make([]string, 0, len(derefAuthSlice(tm.Authorization)))
 			for _, auth := range derefAuthSlice(tm.Authorization) {
-				subjects = append(subjects, fmt.Sprintf("%s:%s/%s", auth.PrincipalType, auth.Provider, auth.ProviderId))
+				// An email-only sparse subject (ProviderId empty, no OAuth sub
+				// yet) would otherwise render as "user:google/" with the
+				// likeliest offender omitted entirely -- fall back to email
+				// so the operator log line can actually identify it. Response
+				// text is unaffected; this is a WithContext(c).Warn log only.
+				identifier := auth.ProviderId
+				if identifier == "" && auth.Email != nil {
+					identifier = string(*auth.Email)
+				}
+				subjects = append(subjects, fmt.Sprintf("%s:%s/%s", auth.PrincipalType, auth.Provider, identifier))
 			}
 			slogging.Get().WithContext(c).Warn("Foreign key constraint violation creating threat model for user %s - request references a non-existent entity; owner=%s/%s, authorization_subjects=%v",
 				user.Email, tm.Owner.Provider, tm.Owner.ProviderId, subjects)

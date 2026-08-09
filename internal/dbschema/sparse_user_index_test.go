@@ -129,6 +129,38 @@ func TestEnsureSparseUserEmailIndex_ImpostorIndexWarnsAndContinues(t *testing.T)
 	}).Error, "impostor index must not silently be treated as enforcing uniqueness")
 }
 
+// TestEnsureSparseUserEmailIndex_LegacyNullProviderRowsIgnored covers a final
+// review finding: the duplicate-sparse-email pre-check must filter out rows
+// with a NULL provider (not just NULL provider_user_id), mirroring
+// user_identity_check.go's "provider IS NOT NULL" discipline. Without that
+// filter, two legacy rows sharing provider=NULL, email=X would GROUP BY as
+// one duplicate group (SQL groups NULLs together) and false-positive the
+// hard abort -- even though provider is NOT NULL on the current model, so
+// this can only happen via pre-migration or manually-inserted data, and even
+// though PG/Oracle unique indexes treat NULL key values as distinct (the
+// actual index would never reject such rows), so the check would be aborting
+// startup over rows the index itself does not consider duplicates.
+// SEM@f89431d54295774a73b0813422dc99486a99df5c: validate legacy rows with a NULL provider are excluded from the sparse-duplicate pre-check
+func TestEnsureSparseUserEmailIndex_LegacyNullProviderRowsIgnored(t *testing.T) {
+	db := newSparseIndexTestDB(t)
+
+	// Raw SQL, not the sparseIndexTestUser struct: Provider is a non-pointer
+	// string there, so GORM would insert "" for its zero value, never SQL
+	// NULL. A NULL provider can only be produced by bypassing GORM's normal
+	// insert path -- exactly how such a row could only exist in practice
+	// (pre-migration/manual data).
+	require.NoError(t, db.Exec(
+		"INSERT INTO users (id, provider, provider_user_id, email) VALUES (?, NULL, NULL, ?)",
+		uuid.NewString(), "legacy@example.com",
+	).Error)
+	require.NoError(t, db.Exec(
+		"INSERT INTO users (id, provider, provider_user_id, email) VALUES (?, NULL, NULL, ?)",
+		uuid.NewString(), "legacy@example.com",
+	).Error)
+
+	require.NoError(t, EnsureSparseUserEmailIndex(db), "NULL-provider rows must not false-positive the duplicate-sparse-email abort")
+}
+
 // SEM@87d1696b4bf3edbe042353cf7586a60de78c2028: validate sparse user email index creation is a no-op when the users table is absent
 func TestEnsureSparseUserEmailIndex_NoTable(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

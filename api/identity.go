@@ -38,8 +38,11 @@ func resolvedUserFromAuthUser(u auth.User) ResolvedUser {
 }
 
 // isUserNotFound returns true if the error indicates a user was not found.
-// Uses errors.Is for typed errors from repositories, with Classify fallback
-// for errors that may carry "not found" only as a string (e.g., from auth service wrappers).
+// auth.Service lookups now return the typed auth.ErrUserNotFound sentinel
+// (#719), which wraps repository.ErrUserNotFound, which in turn wraps
+// dberrors.ErrNotFound; dberrors.Classify recognizes the chain directly via
+// errors.Is (already-classified errors short-circuit) rather than needing
+// its string-matching fallback.
 // SEM@6ef45a78cc6c226116a82e4595fc1dc3f88a8ff9: classify an error as a user-not-found condition (pure)
 func isUserNotFound(err error) bool {
 	if err == nil {
