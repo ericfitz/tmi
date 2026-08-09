@@ -34,7 +34,11 @@ func AcquireMigrationLock(ctx context.Context, db *gorm.DB, name string) (releas
 
 	switch dialect {
 	case "postgres":
-		return acquirePGLock(ctx, db, name, logger)
+		sqlDB, err := db.DB()
+		if err != nil {
+			return nil, fmt.Errorf("get sql.DB for advisory lock: %w", err)
+		}
+		return acquirePGLock(ctx, sqlDB, name, logger)
 	case "oracle":
 		sqlDB, err := db.DB()
 		if err != nil {
@@ -46,21 +50,55 @@ func AcquireMigrationLock(ctx context.Context, db *gorm.DB, name string) (releas
 	}
 }
 
-// SEM@73235c4c5e292c1a307c5bb6d625a4cb06eb57f2: acquire a PostgreSQL advisory lock by name and return a release function (reads DB)
-func acquirePGLock(ctx context.Context, db *gorm.DB, name string, logger *slogging.Logger) (func(), error) {
+// acquirePGLock acquires a named pg_advisory_lock. Advisory locks are
+// session-scoped exactly like Oracle DBMS_LOCK, and database/sql gives no
+// guarantee that separate calls through the pool land on the same backend, so
+// lock and unlock must run on one pinned *sql.Conn held open for the lock's
+// lifetime (#726, mirroring #711). pg_advisory_unlock reports failure via its
+// BOOLEAN result (false = this session did not hold the lock), not via an
+// error, so the release checks the scanned value and logs ERROR on false —
+// a false here means the lock leaked or another session was serialized
+// against nothing.
+// SEM@0000000: acquire a PostgreSQL advisory lock on a pinned session connection and return a release function (reads DB)
+func acquirePGLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slogging.Logger) (func(), error) {
 	key := nameToInt64(name)
-	if err := db.WithContext(ctx).Exec("SELECT pg_advisory_lock(?)", key).Error; err != nil {
+
+	// Same single-slot-pool deadlock as Oracle (#711 follow-up): the pinned
+	// conn would consume the only slot while AutoMigrate waits for one.
+	if stats := sqlDB.Stats(); stats.MaxOpenConnections == 1 {
+		logger.Warn("PG advisory lock: connection pool max_open_conns=1 would deadlock AutoMigrate (pinned lock connection would leave no slot for migration queries); raising pool ceiling to 2")
+		sqlDB.SetMaxOpenConns(2)
+	}
+
+	conn, err := sqlDB.Conn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get pinned sql.Conn for advisory lock: %w", err)
+	}
+
+	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", key); err != nil {
+		_ = conn.Close()
 		return nil, fmt.Errorf("pg_advisory_lock: %w", err)
 	}
 	logger.Debug("Acquired pg_advisory_lock(%d) for %q", key, name)
+
 	released := false
 	return func() {
 		if released {
 			return
 		}
 		released = true
-		if err := db.Exec("SELECT pg_advisory_unlock(?)", key).Error; err != nil {
-			logger.Warn("pg_advisory_unlock(%d) failed: %v", key, err)
+		defer func() {
+			if err := conn.Close(); err != nil {
+				logger.Warn("closing pinned advisory-lock connection failed: %v", err)
+			}
+		}()
+		var unlocked bool
+		if err := conn.QueryRowContext(ctx, "SELECT pg_advisory_unlock($1)", key).Scan(&unlocked); err != nil {
+			logger.Error("pg_advisory_unlock(%d) failed: %v", key, err)
+			return
+		}
+		if !unlocked {
+			logger.Error("pg_advisory_unlock(%d) returned false — this session did not hold the lock (lock leaked or session was recycled)", key)
 		}
 	}, nil
 }

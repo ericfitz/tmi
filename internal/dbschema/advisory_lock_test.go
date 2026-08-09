@@ -2,6 +2,7 @@ package dbschema
 
 import (
 	"context"
+	"regexp"
 	"sync"
 	"testing"
 	"time"
@@ -106,6 +107,112 @@ func TestAcquireOracleLock_ClosesConnOnAcquisitionError(t *testing.T) {
 	_, err = acquireOracleLock(context.Background(), sqlDB, "test-lock", slogging.Get())
 	require.Error(t, err)
 	assert.Equal(t, 0, sqlDB.Stats().InUse, "the pinned connection must not remain checked out when acquisition fails")
+
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestAcquirePGLock_PinsSingleConnAndUnlocks verifies the #726 fix: the lock
+// and unlock statements execute on the same pinned *sql.Conn (asserted via
+// strict ordered sqlmock expectations, since sqlmock itself has only one
+// simulated backend), and pg_advisory_unlock returning true (lock held and
+// released cleanly) results in the pinned connection being closed with no
+// error logged.
+func TestAcquirePGLock_PinsSingleConnAndUnlocks(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = sqlDB.Close() }()
+
+	mock.MatchExpectationsInOrder(true)
+	mock.ExpectExec(regexp.QuoteMeta("SELECT pg_advisory_lock($1)")).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT pg_advisory_unlock($1)")).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"pg_advisory_unlock"}).AddRow(true))
+
+	release, err := acquirePGLock(context.Background(), sqlDB, "test-lock", slogging.Get())
+	require.NoError(t, err)
+
+	// The lock-acquisition connection is pinned out of the pool and stays
+	// checked out until release() runs.
+	assert.Equal(t, 1, sqlDB.Stats().InUse, "lock acquisition must hold the pinned connection checked out")
+
+	release()
+	assert.Equal(t, 0, sqlDB.Stats().InUse, "release() must check the pinned connection back in")
+
+	// release() must be idempotent: a second call issues no further unlock.
+	release()
+
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestAcquirePGLock_UnlockReturnsFalse_LogsError verifies that when
+// pg_advisory_unlock reports false (this session did not hold the lock —
+// leaked or session recycled), release() still closes the pinned connection
+// rather than leaking it, and does not panic.
+func TestAcquirePGLock_UnlockReturnsFalse_LogsError(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = sqlDB.Close() }()
+
+	mock.MatchExpectationsInOrder(true)
+	mock.ExpectExec(regexp.QuoteMeta("SELECT pg_advisory_lock($1)")).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT pg_advisory_unlock($1)")).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"pg_advisory_unlock"}).AddRow(false))
+
+	release, err := acquirePGLock(context.Background(), sqlDB, "test-lock", slogging.Get())
+	require.NoError(t, err)
+
+	assert.NotPanics(t, release, "release must not panic when unlock returns false")
+	assert.Equal(t, 0, sqlDB.Stats().InUse, "release() must still check the pinned connection back in when unlock returns false")
+
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+// TestAcquirePGLock_PoolOfOne_RaisedToTwo verifies the #711-style deadlock
+// guard also applies to PostgreSQL: a pool ceiling of exactly 1 would let the
+// pinned lock connection starve the caller's own migration queries, so
+// acquirePGLock must raise it to 2.
+func TestAcquirePGLock_PoolOfOne_RaisedToTwo(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = sqlDB.Close() }()
+
+	sqlDB.SetMaxOpenConns(1)
+
+	mock.MatchExpectationsInOrder(true)
+	mock.ExpectExec(regexp.QuoteMeta("SELECT pg_advisory_lock($1)")).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT pg_advisory_unlock($1)")).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"pg_advisory_unlock"}).AddRow(true))
+
+	release, err := acquirePGLock(context.Background(), sqlDB, "test-lock", slogging.Get())
+	require.NoError(t, err)
+	defer release()
+
+	assert.Equal(t, 2, sqlDB.Stats().MaxOpenConnections, "pool ceiling of 1 must be raised to 2 so migration queries are not starved")
+}
+
+// TestAcquirePGLock_LockError_ClosesConn verifies the pinned connection is
+// not leaked when pg_advisory_lock itself fails.
+func TestAcquirePGLock_LockError_ClosesConn(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = sqlDB.Close() }()
+
+	mock.MatchExpectationsInOrder(true)
+	mock.ExpectExec(regexp.QuoteMeta("SELECT pg_advisory_lock($1)")).
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnError(assert.AnError)
+
+	_, err = acquirePGLock(context.Background(), sqlDB, "test-lock", slogging.Get())
+	require.Error(t, err)
+	assert.Equal(t, 0, sqlDB.Stats().InUse, "the pinned connection must not remain checked out when lock acquisition fails")
 
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
