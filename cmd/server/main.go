@@ -504,6 +504,13 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 		}
 	}
 
+	// #720: unique sparse-email index (partial/function-based) is raw DDL
+	// AutoMigrate cannot express; idempotent, runs even when the fingerprint
+	// fast path skips AutoMigrate (it is not part of the model fingerprint).
+	if err := dbschema.EnsureSparseUserEmailIndex(gormDB.DB()); err != nil {
+		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
+	}
+
 	// Normalize legacy severity enum values to snake_case
 	// This is idempotent: rows already lowercase are unaffected
 	if result := gormDB.DB().Exec(

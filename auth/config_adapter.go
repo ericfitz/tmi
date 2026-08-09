@@ -252,6 +252,15 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 		logger.Info("[AUTH_CONFIG_ADAPTER] GORM AutoMigrate completed")
 	}
 
+	// #720: unique sparse-email index (partial/function-based) is raw DDL
+	// AutoMigrate cannot express; idempotent, runs even when the fingerprint
+	// fast path skips AutoMigrate (it is not part of the model fingerprint) --
+	// same placement and reasoning as cmd/server/main.go's runMigrationsLocked
+	// and cmd/dbtool/schema.go's runSchema.
+	if err := dbschema.EnsureSparseUserEmailIndex(gormDB.DB()); err != nil {
+		return nil, fmt.Errorf("failed to ensure sparse-user email index: %w", err)
+	}
+
 	// Create authentication service
 	service, err := NewService(dbManager, authConfig)
 	if err != nil {
