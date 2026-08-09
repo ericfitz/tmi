@@ -28,6 +28,15 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 	// Step 1: AutoMigrate (Oracle-aware path via GormDB.AutoMigrate)
 	log.Info("Running GORM AutoMigrate...")
 
+	// #724: fail fast with an actionable error if users(provider,
+	// provider_user_id) already carries duplicates -- idx_users_provider_lookup
+	// is unique (#701), and AutoMigrate's CREATE UNIQUE INDEX would otherwise
+	// abort with an opaque ORA-01452 / 23505. Users get no automatic dedupe
+	// (merging identities is an operator decision).
+	if err := dbschema.CheckDuplicateUserProviderIdentities(db.DB()); err != nil {
+		return fmt.Errorf("pre-migration user identity check failed: %w", err)
+	}
+
 	// #704: dedupe groups(provider, group_name) before AutoMigrate creates
 	// uniq_groups_provider_group_name -- mirrors the same placement in
 	// cmd/server/main.go's runMigrationsLocked. A database carrying
