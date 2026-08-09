@@ -50,6 +50,10 @@ jobs:
         with:
           repository: ericfitz/tmi-clients
           path: .tmi-clients
+          # Pinned: last tmi-clients commit containing go-client-generated/v1_6_0,
+          # which go.mod still replaces to. Remove this ref when #722 migrates
+          # cmd/dbtool to the current generated client.
+          ref: eeda4f60618c8461b3ec1eb655e33b1b312803f5
       - name: Point go.mod replace at the checked-out client
         run: sed -i 's|=> ../tmi-clients/|=> ./.tmi-clients/|' go.mod
 
