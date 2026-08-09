@@ -135,21 +135,76 @@ func EnsureSparseUserEmailIndex(db *gorm.DB) error {
 	err = withMigrationRetry("sparse-user email index create", func() error {
 		return db.Exec(ddl).Error
 	})
-	if err != nil {
-		if strings.Contains(err.Error(), "ORA-00955") {
-			// A concurrent replica already won the create race; the index
-			// exists and the invariant holds, so this is expected and quiet.
-			return nil
-		}
-		if strings.Contains(err.Error(), "ORA-01408") {
-			// A same-column-list index already exists under a different
-			// name. Unlike ORA-00955 this doesn't guarantee the existing
-			// index is UNIQUE, so it's worth a log line even though startup
-			// continues (oracle-db-admin review, 1.8.4 round 2).
-			slogging.Get().Warn("failed to create %s: an index over the same columns already exists under a different name (ORA-01408); continuing, but verify it is UNIQUE: %v", sparseUserIndexName, err)
-			return nil
-		}
+	switch {
+	case err == nil:
+		// A genuine CREATE, OR (PG/SQLite) a silent CREATE ... IF NOT EXISTS
+		// no-op against a same-named index that isn't ours -- IF NOT EXISTS
+		// checks the name only, not the definition, so an "impostor" index
+		// (non-unique, or over different columns) produces the identical
+		// nil error as a real success. Verify what's actually enforced now
+		// rather than assume the DDL did what it looks like it did (team
+		// lead review, 1.8.4 round 3).
+		return verifySparseIndexEnforced(db, usersTable)
+	case strings.Contains(err.Error(), "ORA-00955"):
+		// A concurrent replica may have won the create race, OR a same-named
+		// impostor index may already occupy the name -- Oracle raises the
+		// identical ORA-00955 for both, so verify which one actually
+		// happened instead of assuming the race-winner's index is ours
+		// (team lead review, 1.8.4 round 3).
+		return verifySparseIndexEnforced(db, usersTable)
+	case strings.Contains(err.Error(), "ORA-01408"):
+		// A same-column-list index already exists under a different name.
+		// Unlike ORA-00955 this doesn't guarantee the existing index is
+		// UNIQUE, so it's worth a log line even though startup continues
+		// (oracle-db-admin review, 1.8.4 round 2).
+		slogging.Get().Warn("failed to create %s: an index over the same columns already exists under a different name (ORA-01408); continuing, but verify it is UNIQUE: %v", sparseUserIndexName, err)
+		return nil
+	default:
 		return fmt.Errorf("failed to create %s: %w", sparseUserIndexName, err)
+	}
+}
+
+// verifySparseIndexEnforced re-probes for a valid, UNIQUE sparseUserIndexName
+// after a DDL attempt that looked like it succeeded: a genuine CREATE, a
+// PG/SQLite CREATE ... IF NOT EXISTS no-op, or an Oracle ORA-00955 swallow.
+// Both no-op paths are ambiguous on their own -- a same-named "impostor"
+// index that isn't #720's own (non-unique, invalid, or a disabled
+// function-based index) produces the identical outcome as a genuine success,
+// and would otherwise silently disable enforcement forever. If the invariant
+// still isn't enforced after re-checking, log ERROR naming the index and the
+// #732-style remediation, but do not abort startup -- mirrors #724/#732's
+// warn-and-continue policy for an unenforceable index that predates this
+// code (team lead review, 1.8.4 round 3).
+//
+// Wrapped in withMigrationRetry like every other DB call in this file
+// (oracle-db-admin review, 1.8.4 round 3): without it, a single transient
+// blip on this one catalog SELECT (ORA-03113/12537/02396/01012, all
+// ErrTransient) would turn a genuinely successful index creation into a
+// hard startup abort with a misleading "not enforced" error, on the very
+// call whose only job is to double-check success.
+// SEM@0000000: confirm a valid unique sparse-user email index exists after an ambiguous create/no-op, logging ERROR if not (reads DB)
+func verifySparseIndexEnforced(db *gorm.DB, usersTable string) error {
+	var nowExists bool
+	err := withMigrationRetry("sparse-user email index post-create verification", func() error {
+		var probeErr error
+		nowExists, probeErr = sparseUserEmailIndexExists(db, usersTable)
+		return probeErr
+	})
+	if err != nil {
+		return fmt.Errorf("failed to verify %s after creation: %w", sparseUserIndexName, err)
+	}
+	if !nowExists {
+		// A concurrent replica's own genuine create can still be mid-build
+		// (Oracle reserves the object name before the build completes and
+		// commits, so a narrow window exists where this probe legitimately
+		// sees "absent" for a soon-to-exist index); the message says so
+		// rather than asserting an impostor is definitely present, so an
+		// operator doesn't drop a perfectly good in-progress index on a
+		// false alarm (oracle-db-admin review, 1.8.4 round 3).
+		slogging.Get().Error(
+			"users table does not (yet) have a valid UNIQUE index named %s after an attempted create -- either a same-named index that is not #720's own (non-unique, invalid, or a disabled function-based index) is occupying the name, or a concurrent replica's create is still in progress. "+
+				"#720's duplicate-sparse-user-email protection is NOT currently enforced. If this persists across restarts, mirror #732: manually drop and recreate the index (DROP INDEX %s, then restart). Startup is continuing without it.",
+			sparseUserIndexName, sparseUserIndexName)
 	}
 	return nil
 }

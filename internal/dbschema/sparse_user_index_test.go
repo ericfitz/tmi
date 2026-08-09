@@ -81,8 +81,46 @@ func TestEnsureSparseUserEmailIndex_PreexistingSparseDuplicates(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "okta")
 	assert.Contains(t, err.Error(), "dup@example.com")
-	assert.Contains(t, err.Error(), "2")
+	assert.Contains(t, err.Error(), "rows=2")
 	assert.Contains(t, err.Error(), sparseUserIndexName)
+}
+
+// TestEnsureSparseUserEmailIndex_ImpostorIndexWarnsAndContinues covers the
+// same-name-but-not-#720 case flagged in team lead review round 3: a
+// NON-unique index already carrying sparseUserIndexName makes both DDL arms
+// (PG/SQLite's CREATE ... IF NOT EXISTS, Oracle's ORA-00955 swallow) no-op
+// without ever creating real enforcement. Startup must still continue (nil
+// return, mirroring the #732/#724 warn-and-continue policy), but the
+// invariant must NOT actually be enforced. There is no log-capture helper in
+// this test file's conventions, so this proves the post-DDL verification
+// path ran and reached the correct conclusion the only observable way
+// available: two sparse rows sharing (provider, email) must BOTH succeed,
+// because the impostor index never enforced uniqueness and
+// EnsureSparseUserEmailIndex's IF NOT EXISTS DDL declined to replace it.
+func TestEnsureSparseUserEmailIndex_ImpostorIndexWarnsAndContinues(t *testing.T) {
+	db := newSparseIndexTestDB(t)
+
+	// A non-unique impostor occupying #720's index name -- e.g. left over
+	// from a manual, non-#720 index or a partial/aborted migration.
+	require.NoError(t, db.Exec(
+		"CREATE INDEX "+sparseUserIndexName+" ON users(provider, email)",
+	).Error)
+
+	err := EnsureSparseUserEmailIndex(db)
+	require.NoError(t, err, "an impostor index must not abort startup")
+
+	// If the impostor had been silently treated as #720's own valid index,
+	// this insert pair would fail exactly like
+	// TestEnsureSparseUserEmailIndex_CreatesAndIsIdempotent's duplicate
+	// case. It must NOT fail here: the impostor is non-unique, and CREATE
+	// ... IF NOT EXISTS declined to replace it, so uniqueness is genuinely
+	// unenforced.
+	require.NoError(t, db.Create(&sparseIndexTestUser{
+		ID: uuid.NewString(), Provider: "tmi", ProviderUserID: nil, Email: "impostor@example.com",
+	}).Error)
+	require.NoError(t, db.Create(&sparseIndexTestUser{
+		ID: uuid.NewString(), Provider: "tmi", ProviderUserID: nil, Email: "impostor@example.com",
+	}).Error, "impostor index must not silently be treated as enforcing uniqueness")
 }
 
 func TestEnsureSparseUserEmailIndex_NoTable(t *testing.T) {

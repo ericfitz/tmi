@@ -508,6 +508,31 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 	// AutoMigrate cannot express; idempotent, runs even when the fingerprint
 	// fast path skips AutoMigrate (it is not part of the model fingerprint).
 	if err := dbschema.EnsureSparseUserEmailIndex(gormDB.DB()); err != nil {
+		if dbcheck.IsPermissionError(err, dbType) {
+			// A DDL-less server user hits this on a database that hasn't
+			// been provisioned with the #720 index yet: usually the index
+			// doesn't exist and this user lacks privilege to create it, but
+			// the same permission error can also surface from the
+			// duplicate-check SELECT or the post-create verification probe
+			// inside EnsureSparseUserEmailIndex -- in every case the fix is
+			// the same. Surface the same actionable guidance as the
+			// AutoMigrate DDL-permission branch above instead of the raw
+			// driver error -- the failure itself is still correct (the
+			// invariant is unenforced), just made actionable (team lead
+			// review, 1.8.4 round 3).
+			logger.Error("Database requires the #720 sparse-user email index but this database user lacks DDL permissions.")
+			logger.Error("")
+			logger.Error("To resolve this, choose one of:")
+			logger.Error("  1. Run schema migration with an admin-privileged database user:")
+			logger.Error("     tmi-dbtool --schema --config=<config-file>")
+			logger.Error("  2. Grant DDL permissions to the current database user (on Oracle,")
+			logger.Error("     a permission error here can also mean a tablespace quota problem")
+			logger.Error("     -- ORA-01950 -- which needs ALTER USER ... QUOTA UNLIMITED ON")
+			logger.Error("     DATA rather than an additional grant).")
+			logger.Error("")
+			logger.Error("See: https://github.com/ericfitz/tmi/wiki/Database-Security-Strategies")
+			return fmt.Errorf("sparse-user email index requires DDL permissions that are unavailable: %w", err)
+		}
 		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
 	}
 
