@@ -26,6 +26,13 @@ import (
 // redisNilError is the error message returned by Redis when a key is not found
 const redisNilError = "redis: nil"
 
+// ErrUserNotFound is returned by Service user-lookup methods when no user
+// matches. It wraps repository.ErrUserNotFound (itself wrapping
+// dberrors.ErrNotFound) so callers can use errors.Is at any level instead of
+// string-matching; the message keeps the historical "user not found" prefix
+// that legacy substring checks rely on (#719).
+var ErrUserNotFound = fmt.Errorf("user not found: %w", repository.ErrUserNotFound)
+
 // ClaimsEnricher enriches JWT claims with application-specific data (e.g., group membership)
 // that cannot be directly accessed from the auth package without creating circular dependencies.
 // SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: interface for enriching JWT claims with TMI group membership and role flags
@@ -591,7 +598,7 @@ func (s *Service) GetUserByEmail(ctx context.Context, email string) (User, error
 	repoUser, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			return User{}, errors.New("user not found")
+			return User{}, ErrUserNotFound
 		}
 		return User{}, err
 	}
@@ -620,7 +627,7 @@ func (s *Service) GetUserByID(ctx context.Context, id string) (User, error) {
 	repoUser, err := s.userRepo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			return User{}, errors.New("user not found")
+			return User{}, ErrUserNotFound
 		}
 		return User{}, fmt.Errorf("failed to get user: %w", err)
 	}
@@ -670,7 +677,7 @@ func (s *Service) UpdateUser(ctx context.Context, user User) error {
 	err := s.userRepo.Update(ctx, repoUser)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			return errors.New("user not found")
+			return ErrUserNotFound
 		}
 		return fmt.Errorf("failed to update user: %w", err)
 	}
@@ -697,7 +704,7 @@ func (s *Service) DeleteUser(ctx context.Context, id string) error {
 	err = s.userRepo.Delete(ctx, id)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			return errors.New("user not found")
+			return ErrUserNotFound
 		}
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
@@ -771,7 +778,7 @@ func (s *Service) GetUserByProviderID(ctx context.Context, provider, providerUse
 	repoUser, err := s.userRepo.GetByProviderID(ctx, provider, providerUserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			return User{}, errors.New("user not found")
+			return User{}, ErrUserNotFound
 		}
 		return User{}, fmt.Errorf("failed to get user by provider ID: %w", err)
 	}
@@ -795,7 +802,7 @@ func (s *Service) GetUserByProviderAndEmail(ctx context.Context, provider, email
 	repoUser, err := s.userRepo.GetByProviderAndEmail(ctx, provider, email)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			return User{}, errors.New("user not found")
+			return User{}, ErrUserNotFound
 		}
 		return User{}, fmt.Errorf("failed to get user by provider and email: %w", err)
 	}
@@ -836,7 +843,7 @@ func (s *Service) GetUserByAnyProviderID(ctx context.Context, providerUserID str
 	repoUser, err := s.userRepo.GetByAnyProviderID(ctx, providerUserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrUserNotFound) {
-			return User{}, errors.New("user not found")
+			return User{}, ErrUserNotFound
 		}
 		return User{}, fmt.Errorf("failed to get user by provider ID: %w", err)
 	}
