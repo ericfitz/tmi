@@ -26,18 +26,6 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Provision generated client (tmi-clients)
-        uses: actions/checkout@v7
-        with:
-          repository: ericfitz/tmi-clients
-          path: .tmi-clients
-          # Pinned: last tmi-clients commit containing go-client-generated/v1_6_0,
-          # which go.mod still replaces to. Remove this ref when #722 migrates
-          # cmd/dbtool to the current generated client.
-          ref: eeda4f60618c2185362a665c054141b26892fd14  # = tag ci-pin-go-v1_6_0, last commit with v1_6_0
-      - name: Point go.mod replace at the checked-out client
-        run: sed -i 's|=> ../tmi-clients/|=> ./.tmi-clients/|' go.mod
-
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
@@ -83,18 +71,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-
-      - name: Provision generated client (tmi-clients)
-        uses: actions/checkout@v7
-        with:
-          repository: ericfitz/tmi-clients
-          path: .tmi-clients
-          # Pinned: last tmi-clients commit containing go-client-generated/v1_6_0,
-          # which go.mod still replaces to. Remove this ref when #722 migrates
-          # cmd/dbtool to the current generated client.
-          ref: eeda4f60618c2185362a665c054141b26892fd14  # = tag ci-pin-go-v1_6_0, last commit with v1_6_0
-      - name: Point go.mod replace at the checked-out client
-        run: sed -i 's|=> ../tmi-clients/|=> ./.tmi-clients/|' go.mod
 
       - name: Run unit tests
         run: go test -v -race -short ./...
@@ -183,18 +159,6 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Provision generated client (tmi-clients)
-        uses: actions/checkout@v7
-        with:
-          repository: ericfitz/tmi-clients
-          path: .tmi-clients
-          # Pinned: last tmi-clients commit containing go-client-generated/v1_6_0,
-          # which go.mod still replaces to. Remove this ref when #722 migrates
-          # cmd/dbtool to the current generated client.
-          ref: eeda4f60618c2185362a665c054141b26892fd14  # = tag ci-pin-go-v1_6_0, last commit with v1_6_0
-      - name: Point go.mod replace at the checked-out client
-        run: sed -i 's|=> ../tmi-clients/|=> ./.tmi-clients/|' go.mod
-
       - name: Install govulncheck
         # Pinned per repo convention. Verify this is the current release and
         # bump if a newer stable tag exists.
@@ -219,18 +183,6 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Provision generated client (tmi-clients)
-        uses: actions/checkout@v7
-        with:
-          repository: ericfitz/tmi-clients
-          path: .tmi-clients
-          # Pinned: last tmi-clients commit containing go-client-generated/v1_6_0,
-          # which go.mod still replaces to. Remove this ref when #722 migrates
-          # cmd/dbtool to the current generated client.
-          ref: eeda4f60618c2185362a665c054141b26892fd14  # = tag ci-pin-go-v1_6_0, last commit with v1_6_0
-      - name: Point go.mod replace at the checked-out client
-        run: sed -i 's|=> ../tmi-clients/|=> ./.tmi-clients/|' go.mod
-
       - name: Install gosec
         # Pinned per repo convention. Verify current release and bump if needed.
         run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.5
@@ -242,7 +194,7 @@ jobs:
         # never ships in the server binary (test/integration and wstest are separate
         # Go modules; excluding them keeps the Security tab scoped to shipped code
         # even if a future go.work pulls them into ./...).
-        run: gosec -no-fail -exclude-generated -exclude-dir=.tmi-clients -exclude-dir=test -exclude-dir=wstest -fmt sarif -out gosec.sarif ./...
+        run: gosec -no-fail -exclude-generated -exclude-dir=test -exclude-dir=wstest -fmt sarif -out gosec.sarif ./...
 
       - name: Upload SARIF to the Security tab
         if: always()
