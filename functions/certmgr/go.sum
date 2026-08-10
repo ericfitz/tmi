@@ -4,8 +4,8 @@ github.com/fnproject/fdk-go v0.1.15 h1:Qk/YHLI2whOCm60qZ2XjRu6R1ATRZ1GGfyK0gzwiW
 github.com/fnproject/fdk-go v0.1.15/go.mod h1:txRgA8HlRMZJE1f/xCIXthIbui6/GMFdb1q6bN5/HHE=
 github.com/gofrs/flock v0.10.0 h1:SHMXenfaB03KbroETaCMtbBg3Yn29v4w1r+tgy4ff4k=
 github.com/gofrs/flock v0.10.0/go.mod h1:FirDy1Ing0mI2+kB6wk+vyyAH+e6xiE+EYA0jnzV9jc=
-github.com/oracle/oci-go-sdk/v65 v65.122.0 h1:yB587yZUGe/syyyp1CHlW74EXo38Rfye5vD3Ox4Cdq4=
-github.com/oracle/oci-go-sdk/v65 v65.122.0/go.mod h1:Pzy+BpgkDesvGZXEHgslwhIYobHCPHg6wRta1mWnlqQ=
+github.com/oracle/oci-go-sdk/v65 v65.123.0 h1:OjoeFzFMIGqNLJzto+lmI8gLzLc0LhmlOAIO5qKzBDs=
+github.com/oracle/oci-go-sdk/v65 v65.123.0/go.mod h1:Pzy+BpgkDesvGZXEHgslwhIYobHCPHg6wRta1mWnlqQ=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/sony/gobreaker/v2 v2.4.0 h1:g2KJRW1Ubty3+ZOcSEUN7K+REQJdN6yo6XvaML+jptg=
