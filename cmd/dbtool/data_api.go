@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	tmiclient "github.com/ericfitz/tmi-clients/go-client-generated/v1_6_0"
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/test/testdb"
@@ -22,32 +20,17 @@ const (
 	oauthStubPort = 8079
 )
 
-// apiClient holds the SDK client and auth context for API seeding.
-// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: authenticated API client bundling SDK, bearer token, and optional DB connection
+// apiClient holds the auth context for API seeding.
+// SEM: authenticated API client bundling bearer token and optional DB connection
 type apiClient struct {
-	sdk       *tmiclient.APIClient
-	ctx       context.Context
 	serverURL string
 	token     string
 	db        *testdb.TestDB
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build an authenticated API client configured for a server URL and bearer token
+// SEM: build an authenticated API client configured for a server URL and bearer token
 func newAPIClient(serverURL, token string) *apiClient {
-	cfg := tmiclient.NewConfiguration()
-	cfg.Servers = tmiclient.ServerConfigurations{
-		tmiclient.ServerConfiguration{URL: serverURL},
-	}
-	cfg.DefaultHeader = map[string]string{
-		"Authorization": "Bearer " + token,
-	}
-
-	sdk := tmiclient.NewAPIClient(cfg)
-	ctx := context.WithValue(context.Background(), tmiclient.ContextAccessToken, token)
-
 	return &apiClient{
-		sdk:       sdk,
-		ctx:       ctx,
 		serverURL: serverURL,
 		token:     token,
 	}
@@ -181,74 +164,26 @@ func seedViaAPI(serverURL, token string, entry SeedEntry, refs RefMap, db *testd
 	}
 }
 
-// --- Idempotency helpers using SDK typed list responses ---
+// --- Idempotency helpers ---
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: fetch the ID of a threat model by name, returning empty if absent
+// SEM: fetch the ID of a threat model by name, returning empty if absent
 func (c *apiClient) findExistingTM(name string) string {
-	result, resp, err := c.sdk.ThreatModelsAPI.ListThreatModels(c.ctx).Execute()
-	if resp != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-	if err != nil {
-		return ""
-	}
-	for _, item := range result.GetThreatModels() {
-		if item.GetName() == name {
-			return item.GetId()
-		}
-	}
-	return ""
+	return c.findExistingByNameHTTP("/threat_models", "threat_models", name)
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: fetch the ID of a team by name, returning empty if absent
+// SEM: fetch the ID of a team by name, returning empty if absent
 func (c *apiClient) findExistingTeam(name string) string {
-	result, resp, err := c.sdk.TeamsAPI.ListTeams(c.ctx).Execute()
-	if resp != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-	if err != nil {
-		return ""
-	}
-	for _, item := range result.GetTeams() {
-		if item.GetName() == name {
-			return item.GetId()
-		}
-	}
-	return ""
+	return c.findExistingByNameHTTP("/teams", "teams", name)
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: fetch the ID of a project by name, returning empty if absent
+// SEM: fetch the ID of a project by name, returning empty if absent
 func (c *apiClient) findExistingProject(name string) string {
-	result, resp, err := c.sdk.ProjectsAPI.ListProjects(c.ctx).Execute()
-	if resp != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-	if err != nil {
-		return ""
-	}
-	for _, item := range result.GetProjects() {
-		if item.GetName() == name {
-			return item.GetId()
-		}
-	}
-	return ""
+	return c.findExistingByNameHTTP("/projects", "projects", name)
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: fetch the ID of a webhook subscription by name, returning empty if absent
+// SEM: fetch the ID of a webhook subscription by name, returning empty if absent
 func (c *apiClient) findExistingWebhook(name string) string {
-	result, resp, err := c.sdk.WebhooksAPI.ListWebhookSubscriptions(c.ctx).Execute()
-	if resp != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-	if err != nil {
-		return ""
-	}
-	for _, item := range result.GetSubscriptions() {
-		if item.GetName() == name {
-			return item.GetId()
-		}
-	}
-	return ""
+	return c.findExistingByNameHTTP("/admin/webhooks/subscriptions", "subscriptions", name)
 }
 
 // SEM@364c33df6cdbb1724be239b154783d0fc5031e93: fetch the ID of a survey by name, trying admin then intake endpoints
@@ -269,29 +204,44 @@ func (c *apiClient) findExistingSurvey(name string) string {
 	return id
 }
 
-// findExistingByNameHTTP is a raw HTTP fallback for finding existing resources by name.
-// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: search a list endpoint by name and return the matching resource ID (pure)
-func (c *apiClient) findExistingByNameHTTP(path, itemsKey, name string) string {
+// findExistingByFieldHTTP searches a list endpoint for the item whose matchKey
+// equals want, and returns the value of its idKey.
+//
+// Most TMI collections are name/id shaped, but /admin/groups matches on
+// group_name and identifies rows by internal_uuid, so both the match field and
+// the id field are parameters rather than assumptions.
+// SEM: search a list endpoint by field and return the matching resource ID (pure)
+func (c *apiClient) findExistingByFieldHTTP(path, itemsKey, matchKey, want, idKey string) string {
 	result, status, err := c.apiRequest("GET", path+"?limit=100", nil)
 	if err != nil || status >= 300 {
 		return ""
 	}
-	if items, ok := result[itemsKey].([]any); ok {
-		for _, item := range items {
-			if m, ok := item.(map[string]any); ok {
-				if n, _ := m["name"].(string); n == name {
-					// extractID, not a string assertion: a few resources
-					// (TriageNote) use an integer id, and this is the
-					// idempotency check -- getting it wrong re-creates the
-					// resource on every seed rather than reusing it.
-					if id, ok := extractID(m["id"]); ok {
-						return id
-					}
-				}
-			}
+	items, ok := result[itemsKey].([]any)
+	if !ok {
+		return ""
+	}
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if got, _ := m[matchKey].(string); got != want {
+			continue
+		}
+		// extractID, not a string assertion: a few resources (TriageNote) use
+		// an integer id, and this is the idempotency check -- getting it wrong
+		// re-creates the resource on every seed rather than reusing it.
+		if id, ok := extractID(m[idKey]); ok {
+			return id
 		}
 	}
 	return ""
+}
+
+// findExistingByNameHTTP finds a resource by its name property and returns its id.
+// SEM: search a list endpoint by name and return the matching resource ID (pure)
+func (c *apiClient) findExistingByNameHTTP(path, itemsKey, name string) string {
+	return c.findExistingByFieldHTTP(path, itemsKey, "name", name, "id")
 }
 
 // findFirstIDHTTP returns the id of the first item in a listing, for resources
@@ -315,21 +265,11 @@ func (c *apiClient) findFirstIDHTTP(path, itemsKey string) string {
 	return id
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: fetch the internal UUID of an admin group by group name, returning empty if absent
+// AdminGroup matches on group_name and identifies rows by internal_uuid rather
+// than id, which is why the generic by-field helper exists.
+// SEM: fetch the internal UUID of an admin group by group name, returning empty if absent
 func (c *apiClient) findExistingGroup(groupName string) string {
-	result, resp, err := c.sdk.AdministrationAPI.ListAdminGroups(c.ctx).Execute()
-	if resp != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-	if err != nil {
-		return ""
-	}
-	for _, item := range result.GetGroups() {
-		if item.GetGroupName() == groupName {
-			return item.GetInternalUuid()
-		}
-	}
-	return ""
+	return c.findExistingByFieldHTTP("/admin/groups", "groups", "group_name", groupName, "internal_uuid")
 }
 
 // findExistingSurveyResponse checks if the current user already has a response for the given survey.
