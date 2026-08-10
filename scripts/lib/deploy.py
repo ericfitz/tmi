@@ -7,11 +7,9 @@ scripts/devenv.py. Depends on lib/cluster.py for registry + image refs.
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import re
 import shlex
-import shutil
 import signal
 import subprocess
 import sys
@@ -280,108 +278,6 @@ def _guard_context(skip: bool, cluster_target: str = "docker-desktop") -> str:
 
 
 # ---------------------------------------------------------------------------
-# tmi-client staging
-# ---------------------------------------------------------------------------
-
-def _resolve_client_path(project_root: Path) -> str:
-    """Resolve the tmi-clients root directory.
-
-    Checks (in order):
-    1. TMI_CLIENT_PATH environment variable
-    2. .local/repos.json entry for tmi-clients
-    3. Default sibling directory ../tmi-clients
-    """
-    env_path = os.environ.get("TMI_CLIENT_PATH", "")
-    if env_path:
-        return env_path
-
-    repos_file = project_root / ".local" / "repos.json"
-    if repos_file.exists():
-        try:
-            data = json.loads(repos_file.read_text())
-            path = data.get("tmi-clients", {}).get("path")
-            if path:
-                return path
-        except (json.JSONDecodeError, AttributeError):
-            pass
-
-    return str(project_root.parent / "tmi-clients")
-
-
-def _resolve_client_version(project_root: Path) -> str:
-    """Derive the tmi-clients version directory from go.mod's replace directive."""
-    env_version = os.environ.get("TMI_CLIENT_VERSION", "")
-    if env_version:
-        return env_version
-
-    go_mod = (project_root / "go.mod").read_text()
-    # e.g. "=> ../tmi-clients/go-client-generated/v1_4_0"
-    m = re.search(r"tmi-clients/go-client-generated/(\S+)", go_mod)
-    if m:
-        return m.group(1)
-
-    log_error(
-        "Cannot derive tmi-client version from go.mod replace directive. "
-        "Set TMI_CLIENT_VERSION (e.g. 'v1_4_0')."
-    )
-    sys.exit(1)
-
-
-def stage_tmi_client() -> bool:
-    """Copy the tmi-client Go module into .docker-deps/tmi-client/ if not already present.
-
-    If .docker-deps/tmi-client/ already exists the developer is assumed to have
-    intentionally staged it; this function leaves it untouched and returns False
-    so the caller knows NOT to clean it up later.
-
-    Returns True if this call created .docker-deps/tmi-client/ (caller must
-    call unstage_tmi_client() to clean up), False if it was pre-existing (leave
-    it alone).
-    """
-    project_root = get_project_root()
-    dest = project_root / ".docker-deps" / "tmi-client"
-
-    if dest.exists():
-        log_info(f"Pre-existing .docker-deps/tmi-client/ found — using as-is: {dest}")
-        return False
-
-    client_root = _resolve_client_path(project_root)
-    client_version = _resolve_client_version(project_root)
-
-    src = Path(client_root) / "go-client-generated" / client_version
-    if not src.is_dir():
-        log_error(
-            f"TMI client source not found: {src}\n"
-            f"  TMI_CLIENT_PATH={client_root}\n"
-            f"  TMI_CLIENT_VERSION={client_version}\n"
-            "Ensure the tmi-clients repo is checked out and the version directory exists."
-        )
-        sys.exit(1)
-
-    # Create only the .docker-deps/ parent if needed; never touch other contents.
-    dest.parent.mkdir(parents=True, exist_ok=True)
-
-    log_info(f"Staging tmi-client: {src} -> {dest}")
-    shutil.copytree(src, dest)
-    return True
-
-
-def unstage_tmi_client(created: bool) -> None:
-    """Remove .docker-deps/tmi-client/ — but only if this run created it.
-
-    Never removes the parent .docker-deps/ directory or any other content
-    inside it; that would destroy a developer's intentionally staged files.
-    """
-    if not created:
-        return
-    project_root = get_project_root()
-    dest = project_root / ".docker-deps" / "tmi-client"
-    if dest.exists():
-        shutil.rmtree(dest)
-        log_info("Cleaned up staged tmi-client (.docker-deps/tmi-client/)")
-
-
-# ---------------------------------------------------------------------------
 # Image build + push
 # ---------------------------------------------------------------------------
 
@@ -393,48 +289,38 @@ def build_and_push(db: str, cluster_target: str = "docker-desktop") -> None:
     (no registry, no push). The Mac and the k3s nodes are both arm64, so a plain
     host-arch `docker build` already produces arm64 images — no buildx/--platform
     is needed; only the delivery step differs.
-
-    All four Dockerfiles require the tmi-client staged in .docker-deps/.
-    Stage once before the first build and clean up in a try/finally block
-    so the staging dir is always removed even if a build fails — but only
-    when this run created it (pre-existing dirs are left untouched).
     """
     project_root = get_project_root()
 
-    # All four images need the client — stage once (no-op if pre-existing).
-    created = stage_tmi_client()
-    try:
-        for name, dockerfile, build_args_map in image_builds_for(db):
-            ref = cluster.local_image_ref(name, cluster=cluster_target)
-            log_info(f"Building {name}  ({dockerfile}) -> {ref}")
+    for name, dockerfile, build_args_map in image_builds_for(db):
+        ref = cluster.local_image_ref(name, cluster=cluster_target)
+        log_info(f"Building {name}  ({dockerfile}) -> {ref}")
 
-            cmd = ["docker", "build", "-f", str(project_root / dockerfile)]
-            for k, v in build_args_map.items():
-                cmd += ["--build-arg", f"{k}={v}"]
-            cmd += ["-t", ref, str(project_root)]
+        cmd = ["docker", "build", "-f", str(project_root / dockerfile)]
+        for k, v in build_args_map.items():
+            cmd += ["--build-arg", f"{k}={v}"]
+        cmd += ["-t", ref, str(project_root)]
 
-            run_cmd(cmd)
-
-            if cluster_target == "docker-desktop":
-                import_image_to_node(ref, cluster.DD_NODE)
-            else:
-                log_info(f"Pushing {ref}")
-                run_cmd(["docker", "push", ref])
+        run_cmd(cmd)
 
         if cluster_target == "docker-desktop":
-            # Import the public postgres/redis base images too, so first bring-up
-            # doesn't depend on the DD node's containerd reaching cgr.dev (#517).
-            # Pull on the host first (respects the host Docker's proxy/cache), then
-            # stream into the node's containerd exactly like the tmi-* images.
-            for base in dd_base_images_for(db):
-                log_info(f"Pulling base image {base}")
-                run_cmd(["docker", "pull", base])
-                import_image_to_node(base, cluster.DD_NODE)
-            log_success("All images built and imported into the docker-desktop node")
+            import_image_to_node(ref, cluster.DD_NODE)
         else:
-            log_success("All images built and pushed to local registry")
-    finally:
-        unstage_tmi_client(created)
+            log_info(f"Pushing {ref}")
+            run_cmd(["docker", "push", ref])
+
+    if cluster_target == "docker-desktop":
+        # Import the public postgres/redis base images too, so first bring-up
+        # doesn't depend on the DD node's containerd reaching cgr.dev (#517).
+        # Pull on the host first (respects the host Docker's proxy/cache), then
+        # stream into the node's containerd exactly like the tmi-* images.
+        for base in dd_base_images_for(db):
+            log_info(f"Pulling base image {base}")
+            run_cmd(["docker", "pull", base])
+            import_image_to_node(base, cluster.DD_NODE)
+        log_success("All images built and imported into the docker-desktop node")
+    else:
+        log_success("All images built and pushed to local registry")
 
 
 # ---------------------------------------------------------------------------

@@ -18,9 +18,6 @@ build-chunkembed-container remain valid for local dev and CI.
 """
 
 import argparse
-import os
-import re
-import shutil
 import sys
 from pathlib import Path
 
@@ -41,184 +38,6 @@ VALID_DB_BACKENDS = ("postgresql", "oracle-adb")
 # Heroku uses a managed Redis addon instead.
 ALL_COMPONENTS = ("server", "redis", "extractor", "chunkembed", "controller")
 
-# Worker components depend on the staged tmi-client module, same as the server.
-# `controller` is NOT here: cmd/component-controller has zero tmi-clients
-# imports and Dockerfile.controller drops the go.mod require/replace inside
-# the image (go mod edit -droprequire) before `go mod download`, so it needs
-# no staging (#550).
-CLIENT_DEPENDENT_COMPONENTS = ("server", "extractor", "chunkembed")
-
-# Staging directory for external dependencies copied into the Docker build context
-DOCKER_DEPS_DIR = ".docker-deps"
-STAGED_CLIENT_DIR = "tmi-client"
-
-
-def _branch_to_client_version(branch: str) -> str:
-    """Convert a git branch name to a tmi-clients version directory name.
-
-    Examples:
-        dev/1.4.0   -> v1_4_0
-        dev/2.0.0   -> v2_0_0
-        main        -> (raises)
-    """
-    # Extract semver from branch (e.g. "dev/1.4.0" -> "1.4.0")
-    match = re.search(r"(\d+\.\d+\.\d+)", branch)
-    if not match:
-        return ""
-    return "v" + match.group(1).replace(".", "_")
-
-
-def _get_git_branch(project_root: Path) -> str:
-    """Get current git branch name."""
-    result = helpers.run(
-        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-        capture=True,
-        check=False,
-        cwd=project_root,
-    )
-    return result.stdout.strip() if result.returncode == 0 else ""
-
-
-def _resolve_client_path(project_root: Path) -> str:
-    """Resolve the tmi-clients root directory path.
-
-    Checks in order:
-    1. TMI_CLIENT_PATH environment variable
-    2. .local/repos.json entry for tmi-clients
-    3. Default sibling directory ../tmi-clients
-    """
-    # 1. Environment variable
-    env_path = os.environ.get("TMI_CLIENT_PATH", "")
-    if env_path:
-        return env_path
-
-    # 2. .local/repos.json
-    repos_file = project_root / ".local" / "repos.json"
-    if repos_file.exists():
-        import json
-        try:
-            data = json.loads(repos_file.read_text())
-            path = data.get("tmi-clients", {}).get("path")
-            if path:
-                return path
-        except (json.JSONDecodeError, AttributeError):
-            pass
-
-    # 3. Default sibling directory
-    return str(project_root.parent / "tmi-clients")
-
-
-def _go_mod_client_version(project_root: Path) -> str:
-    """Read the tmi-clients version directory name out of go.mod.
-
-    go.mod encodes the version in the module path itself, e.g.
-
-        github.com/ericfitz/tmi-clients/go-client-generated/v1_5_0 v0.0.0-...
-
-    Returns "" when go.mod is absent or names no tmi-clients module.
-    """
-    go_mod = project_root / "go.mod"
-    try:
-        text = go_mod.read_text()
-    except OSError:
-        return ""
-
-    # Match the version directory component of the module path. Deliberately
-    # anchored on the full "tmi-clients/go-client-generated/" prefix so an
-    # unrelated vN_N_N path elsewhere in go.mod cannot be picked up.
-    matches = re.findall(
-        r"tmi-clients/go-client-generated/(v\d+_\d+_\d+)", text
-    )
-    if not matches:
-        return ""
-
-    # A `replace` directive names the same version twice (LHS and RHS), so
-    # duplicates are expected and fine. Genuinely different versions are not:
-    # the build would be ambiguous, so report rather than silently pick one.
-    unique = sorted(set(matches))
-    if len(unique) > 1:
-        helpers.log_error(
-            f"go.mod names multiple tmi-clients versions: {', '.join(unique)}. "
-            "Resolve the ambiguity in go.mod, or set TMI_CLIENT_VERSION to pick one."
-        )
-        sys.exit(1)
-    return unique[0]
-
-
-def _resolve_client_version(project_root: Path) -> str:
-    """Resolve the tmi-clients version directory name.
-
-    Checks in order:
-    1. TMI_CLIENT_VERSION environment variable
-    2. go.mod (authoritative -- the module actually compiled against)
-    3. Derived from current git branch name (legacy heuristic)
-
-    go.mod is consulted before the branch name because it is a fact rather than
-    a convention: the build links against exactly the module go.mod names, so a
-    branch-derived guess that disagrees with it produces a container built from
-    a different client than the one the code compiles against. The branch rule
-    also simply has no answer on any branch without a semver in it -- `main`
-    included -- which used to make `scripts/deploy-aws.sh` unable to complete
-    from the branch releases are cut from (#554).
-    """
-    env_version = os.environ.get("TMI_CLIENT_VERSION", "")
-    if env_version:
-        return env_version
-
-    go_mod_version = _go_mod_client_version(project_root)
-    if go_mod_version:
-        return go_mod_version
-
-    branch = _get_git_branch(project_root)
-    version = _branch_to_client_version(branch)
-    if not version:
-        helpers.log_error(
-            f"Cannot derive client version from branch '{branch}', and go.mod "
-            "names no tmi-clients module. Set TMI_CLIENT_VERSION (e.g. 'v1_4_0'), "
-            "add the tmi-clients dependency to go.mod, or switch to a dev/X.Y.Z branch."
-        )
-        sys.exit(1)
-    return version
-
-
-def stage_client_dependency(project_root: Path) -> Path | None:
-    """Copy the tmi-clients Go module into the Docker build context.
-
-    Returns the staging directory path, or None if go.mod has no tmi-clients replace.
-    """
-    go_mod = project_root / "go.mod"
-    if "tmi-clients" not in go_mod.read_text():
-        return None
-
-    client_root = _resolve_client_path(project_root)
-    client_version = _resolve_client_version(project_root)
-
-    src = Path(client_root) / "go-client-generated" / client_version
-    if not src.is_dir():
-        helpers.log_error(
-            f"TMI client source not found: {src}\n"
-            f"  TMI_CLIENT_PATH={client_root}\n"
-            f"  TMI_CLIENT_VERSION={client_version}\n"
-            "Ensure the tmi-clients repo is checked out and the version directory exists."
-        )
-        sys.exit(1)
-
-    dest = project_root / DOCKER_DEPS_DIR / STAGED_CLIENT_DIR
-    if dest.exists():
-        shutil.rmtree(dest)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-
-    helpers.log_info(f"Staging tmi-client dependency: {src} -> {dest}")
-    shutil.copytree(src, dest)
-    return dest
-
-
-def cleanup_staged_dependencies(project_root: Path) -> None:
-    """Remove the temporary .docker-deps directory."""
-    deps_dir = project_root / DOCKER_DEPS_DIR
-    if deps_dir.exists():
-        shutil.rmtree(deps_dir)
-        helpers.log_info("Cleaned up staged dependencies")
 
 # Components that are valid per target
 HEROKU_COMPONENTS = {"server"}
@@ -437,50 +256,40 @@ def main() -> None:
         helpers.log_success("All scans completed")
         return
 
-    # Stage tmi-client dependency into build context if any client-dependent
-    # component (server or a platform worker) is being built.
-    staged_client = None
-    if any(c in CLIENT_DEPENDENT_COMPONENTS for c in components):
-        staged_client = stage_client_dependency(project_root)
+    # Authenticate if pushing
+    if args.push:
+        helpers.authenticate_registry(config)
 
-    try:
-        # Authenticate if pushing
-        if args.push:
-            helpers.authenticate_registry(config)
+    # Build each component
+    all_passed = True
+    for component in components:
+        build_component(
+            component,
+            config,
+            project_root,
+            version,
+            git_commit,
+            build_date,
+            push=args.push,
+            no_cache=args.no_cache,
+            build_tags=args.build_tags,
+        )
 
-        # Build each component
-        all_passed = True
-        for component in components:
-            build_component(
-                component,
-                config,
-                project_root,
-                version,
-                git_commit,
-                build_date,
-                push=args.push,
-                no_cache=args.no_cache,
-                build_tags=args.build_tags,
-            )
-
-            if args.scan:
-                if not scan_component(component, config, project_root, version, git_commit):
-                    all_passed = False
-
-        # Generate security summary if scanning was done
         if args.scan:
-            helpers.generate_security_summary(
-                project_root / "security-reports", build_date, git_commit
-            )
+            if not scan_component(component, config, project_root, version, git_commit):
+                all_passed = False
 
-        if not all_passed:
-            helpers.log_error("Some images failed security scan")
-            sys.exit(1)
+    # Generate security summary if scanning was done
+    if args.scan:
+        helpers.generate_security_summary(
+            project_root / "security-reports", build_date, git_commit
+        )
 
-        helpers.log_success("Build complete!")
-    finally:
-        if staged_client:
-            cleanup_staged_dependencies(project_root)
+    if not all_passed:
+        helpers.log_error("Some images failed security scan")
+        sys.exit(1)
+
+    helpers.log_success("Build complete!")
 
 
 if __name__ == "__main__":
