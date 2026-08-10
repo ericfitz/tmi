@@ -10,28 +10,15 @@ LABEL maintainer="TMI Security Team"
 # Set working directory
 WORKDIR /app
 
-# Copy go mod files. The controller imports nothing from tmi-clients
-# (verified: go list -deps ./cmd/component-controller has no tmi-client
-# entry), but go.mod requires + replaces that module for the server and
-# workers, and a bare `go mod download` resolves every requirement. Drop
-# the requirement inside the image instead of staging the module (#550).
-# The module path (including its version directory, e.g. v1_6_0) is read
-# out of go.mod's own replace line rather than hardcoded, so this keeps
-# working unmodified when the tmi-clients version bumps.
+# Copy go mod files
 COPY go.mod go.sum ./
-RUN mod=$(sed -n 's|^replace \(github.com/ericfitz/tmi-clients/go-client-generated/v[0-9_]*\) =>.*|\1|p' go.mod) && \
-    if [ -n "$mod" ]; then go mod edit -dropreplace="$mod" -droprequire="$mod"; fi
 
 # Download dependencies with security verification
 RUN go mod download && \
     go mod verify
 
-# Copy source code. This overwrites go.mod with the original (still
-# containing the tmi-clients require/replace), so drop it again before
-# building.
+# Copy source code
 COPY . .
-RUN mod=$(sed -n 's|^replace \(github.com/ericfitz/tmi-clients/go-client-generated/v[0-9_]*\) =>.*|\1|p' go.mod) && \
-    if [ -n "$mod" ]; then go mod edit -dropreplace="$mod" -droprequire="$mod"; fi
 
 # Build the controller (CGO disabled for static binary)
 RUN CGO_ENABLED=0 GOOS=linux go build \
