@@ -895,7 +895,7 @@ test-e2e-platform:  ## Run the platform e2e tests (requires e2e-platform-up + co
 	go test -tags e2e ./test/e2e/platform/ -v
 
 .PHONY: build-extractor build-chunkembed build-workers test-workers \
-        stage-worker-docker-deps build-extractor-container build-chunkembed-container \
+        build-extractor-container build-chunkembed-container \
         build-controller-container
 
 build-extractor:  ## Build the tmi-extractor worker binary
@@ -915,43 +915,11 @@ test-workers:  ## Run worker + extract + envelope + async-extraction tests (star
 		./cmd/extractor/... ./cmd/chunkembed/... ./api/...; \
 		rc=$$?; docker stop tmi-nats-test >/dev/null; exit $$rc
 
-# Stage the tmi-client Go module into .docker-deps/tmi-client/ so the worker
-# Dockerfiles can COPY it (the repo's go.mod uses a relative replace directive
-# that a naive `COPY . .` build cannot resolve). The source path is derived
-# from the replace directive in go.mod itself, then resolved relative to the
-# repo root, so it works from a worktree as well as the main checkout.
-stage-worker-docker-deps:  ## Stage tmi-client dependency for worker container builds
-	@rel=$$(sed -n 's|.*=> \(\.\./tmi-clients/go-client-generated/[^ ]*\).*|\1|p' go.mod); \
-	if [ -z "$$rel" ]; then \
-		echo "go.mod has no tmi-clients replace directive; nothing to stage"; \
-		exit 0; \
-	fi; \
-	src=$$(cd "$$(dirname go.mod)" && cd "$$rel" 2>/dev/null && pwd); \
-	if [ -z "$$src" ] || [ ! -d "$$src" ]; then \
-		echo "ERROR: tmi-client source not found via go.mod replace path '$$rel'"; \
-		echo "       Ensure the tmi-clients repo is checked out as a sibling of the repo root."; \
-		exit 1; \
-	fi; \
-	rm -rf .docker-deps/tmi-client; \
-	mkdir -p .docker-deps; \
-	cp -R "$$src" .docker-deps/tmi-client; \
-	echo "Staged tmi-client dependency: $$src -> .docker-deps/tmi-client"
-
-# Each container build stages the tmi-client dependency itself (as a recipe
-# step, NOT a shared prerequisite) so that building both in one `make`
-# invocation works: a prerequisite is satisfied only once per run, but each
-# recipe ends by removing .docker-deps, so a shared prerequisite would leave
-# the second build without its staged dependency. Staging per-recipe keeps
-# each target independent whether run alone or together.
 build-extractor-container:  ## Build the tmi-extractor container image
-	$(MAKE) stage-worker-docker-deps
 	docker build -f Dockerfile.extractor -t tmi-extractor:dev .
-	@rm -rf .docker-deps
 
 build-chunkembed-container:  ## Build the tmi-chunk-embed container image
-	$(MAKE) stage-worker-docker-deps
 	docker build -f Dockerfile.chunkembed -t tmi-chunk-embed:dev .
-	@rm -rf .docker-deps
 
 build-controller-container:  ## Build TMI component-controller container image
 	@uv run scripts/build-app-containers.py --target local --component controller

@@ -4,7 +4,7 @@ bin/
 # host-compiled binary in; without this negation that COPY would fail. (Tilt
 # itself uses docker_build(only=['./bin/tmiserver']) and does NOT depend on this.)
 # When bin/tmiserver exists it also lands in other images' throwaway builder
-# layers via COPY . . — harmless like the .docker-deps note below; the final
+# layers via COPY . . — harmless; the final
 # multi-stage images are unaffected.
 !bin/tmiserver
 *.exe
@@ -21,14 +21,6 @@ bin/
 
 # Dependency directories
 vendor/
-
-# NOTE: Do NOT ignore .docker-deps/ here. The build scripts stage the
-# tmi-client Go module into .docker-deps/tmi-client/ and every Dockerfile
-# pulls it in via an explicit `COPY .docker-deps/tmi-client/ /tmi-client/`.
-# .dockerignore filters the entire build context, so ignoring .docker-deps/
-# would strip the staged module out and break that COPY. The directory only
-# lands in the throwaway builder stage (the final image copies just the
-# binary), so the slight duplication via `COPY . .` is harmless.
 
 # Go workspace file
 go.work

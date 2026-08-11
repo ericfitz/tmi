@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	tmiclient "github.com/ericfitz/tmi-clients/go-client-generated/v1_6_0"
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/test/testdb"
@@ -22,32 +20,17 @@ const (
 	oauthStubPort = 8079
 )
 
-// apiClient holds the SDK client and auth context for API seeding.
-// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: authenticated API client bundling SDK, bearer token, and optional DB connection
+// apiClient holds the auth context for API seeding.
+// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: authenticated API client bundling bearer token and optional DB connection
 type apiClient struct {
-	sdk       *tmiclient.APIClient
-	ctx       context.Context
 	serverURL string
 	token     string
 	db        *testdb.TestDB
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build an authenticated API client configured for a server URL and bearer token
+// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: build an authenticated API client configured for a server URL and bearer token
 func newAPIClient(serverURL, token string) *apiClient {
-	cfg := tmiclient.NewConfiguration()
-	cfg.Servers = tmiclient.ServerConfigurations{
-		tmiclient.ServerConfiguration{URL: serverURL},
-	}
-	cfg.DefaultHeader = map[string]string{
-		"Authorization": "Bearer " + token,
-	}
-
-	sdk := tmiclient.NewAPIClient(cfg)
-	ctx := context.WithValue(context.Background(), tmiclient.ContextAccessToken, token)
-
 	return &apiClient{
-		sdk:       sdk,
-		ctx:       ctx,
 		serverURL: serverURL,
 		token:     token,
 	}
@@ -119,7 +102,7 @@ func authenticateViaOAuthStub(serverURL, user, provider string) (string, error) 
 	return "", fmt.Errorf("OAuth flow timed out after 30 seconds")
 }
 
-// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: dispatch a seed entry to the appropriate API seeder by resource kind
+// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: dispatch a seed entry to the appropriate API seeder by resource kind
 func seedViaAPI(serverURL, token string, entry SeedEntry, refs RefMap, db *testdb.TestDB) (*SeedResult, error) {
 	client := newAPIClient(serverURL, token)
 	client.db = db
@@ -181,74 +164,26 @@ func seedViaAPI(serverURL, token string, entry SeedEntry, refs RefMap, db *testd
 	}
 }
 
-// --- Idempotency helpers using SDK typed list responses ---
+// --- Idempotency helpers ---
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: fetch the ID of a threat model by name, returning empty if absent
+// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: fetch the ID of a threat model by name, returning empty if absent
 func (c *apiClient) findExistingTM(name string) string {
-	result, resp, err := c.sdk.ThreatModelsAPI.ListThreatModels(c.ctx).Execute()
-	if resp != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-	if err != nil {
-		return ""
-	}
-	for _, item := range result.GetThreatModels() {
-		if item.GetName() == name {
-			return item.GetId()
-		}
-	}
-	return ""
+	return c.findExistingByNameHTTP("/threat_models", "threat_models", name)
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: fetch the ID of a team by name, returning empty if absent
+// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: fetch the ID of a team by name, returning empty if absent
 func (c *apiClient) findExistingTeam(name string) string {
-	result, resp, err := c.sdk.TeamsAPI.ListTeams(c.ctx).Execute()
-	if resp != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-	if err != nil {
-		return ""
-	}
-	for _, item := range result.GetTeams() {
-		if item.GetName() == name {
-			return item.GetId()
-		}
-	}
-	return ""
+	return c.findExistingByNameHTTP("/teams", "teams", name)
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: fetch the ID of a project by name, returning empty if absent
+// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: fetch the ID of a project by name, returning empty if absent
 func (c *apiClient) findExistingProject(name string) string {
-	result, resp, err := c.sdk.ProjectsAPI.ListProjects(c.ctx).Execute()
-	if resp != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-	if err != nil {
-		return ""
-	}
-	for _, item := range result.GetProjects() {
-		if item.GetName() == name {
-			return item.GetId()
-		}
-	}
-	return ""
+	return c.findExistingByNameHTTP("/projects", "projects", name)
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: fetch the ID of a webhook subscription by name, returning empty if absent
+// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: fetch the ID of a webhook subscription by name, returning empty if absent
 func (c *apiClient) findExistingWebhook(name string) string {
-	result, resp, err := c.sdk.WebhooksAPI.ListWebhookSubscriptions(c.ctx).Execute()
-	if resp != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-	if err != nil {
-		return ""
-	}
-	for _, item := range result.GetSubscriptions() {
-		if item.GetName() == name {
-			return item.GetId()
-		}
-	}
-	return ""
+	return c.findExistingByNameHTTP("/admin/webhooks/subscriptions", "subscriptions", name)
 }
 
 // SEM@364c33df6cdbb1724be239b154783d0fc5031e93: fetch the ID of a survey by name, trying admin then intake endpoints
@@ -269,35 +204,50 @@ func (c *apiClient) findExistingSurvey(name string) string {
 	return id
 }
 
-// findExistingByNameHTTP is a raw HTTP fallback for finding existing resources by name.
-// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: search a list endpoint by name and return the matching resource ID (pure)
-func (c *apiClient) findExistingByNameHTTP(path, itemsKey, name string) string {
+// findExistingByFieldHTTP searches a list endpoint for the item whose matchKey
+// equals want, and returns the value of its idKey.
+//
+// Most TMI collections are name/id shaped, but /admin/groups matches on
+// group_name and identifies rows by internal_uuid, so both the match field and
+// the id field are parameters rather than assumptions.
+// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: search a list endpoint by field and return the matching resource ID (reads API)
+func (c *apiClient) findExistingByFieldHTTP(path, itemsKey, matchKey, want, idKey string) string {
 	result, status, err := c.apiRequest("GET", path+"?limit=100", nil)
 	if err != nil || status >= 300 {
 		return ""
 	}
-	if items, ok := result[itemsKey].([]any); ok {
-		for _, item := range items {
-			if m, ok := item.(map[string]any); ok {
-				if n, _ := m["name"].(string); n == name {
-					// extractID, not a string assertion: a few resources
-					// (TriageNote) use an integer id, and this is the
-					// idempotency check -- getting it wrong re-creates the
-					// resource on every seed rather than reusing it.
-					if id, ok := extractID(m["id"]); ok {
-						return id
-					}
-				}
-			}
+	items, ok := result[itemsKey].([]any)
+	if !ok {
+		return ""
+	}
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if got, _ := m[matchKey].(string); got != want {
+			continue
+		}
+		// extractID, not a string assertion: a few resources (TriageNote) use
+		// an integer id, and this is the idempotency check -- getting it wrong
+		// re-creates the resource on every seed rather than reusing it.
+		if id, ok := extractID(m[idKey]); ok {
+			return id
 		}
 	}
 	return ""
 }
 
+// findExistingByNameHTTP finds a resource by its name property and returns its id.
+// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: search a list endpoint by name and return the matching resource ID (reads API)
+func (c *apiClient) findExistingByNameHTTP(path, itemsKey, name string) string {
+	return c.findExistingByFieldHTTP(path, itemsKey, "name", name, "id")
+}
+
 // findFirstIDHTTP returns the id of the first item in a listing, for resources
 // that have no name to match on (content feedback). Empty if the listing is
 // empty or unreachable.
-// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: fetch the id of the first item in an API listing, returning empty if absent
+// SEM@c08cdcaa7bf770029c89db2c819eb12680bfe4b5: fetch the id of the first item in an API listing, returning empty if absent (reads API)
 func (c *apiClient) findFirstIDHTTP(path, itemsKey string) string {
 	result, status, err := c.apiRequest("GET", path+"?limit=1", nil)
 	if err != nil || status >= 300 {
@@ -315,21 +265,11 @@ func (c *apiClient) findFirstIDHTTP(path, itemsKey string) string {
 	return id
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: fetch the internal UUID of an admin group by group name, returning empty if absent
+// AdminGroup matches on group_name and identifies rows by internal_uuid rather
+// than id, which is why the generic by-field helper exists.
+// SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: fetch the internal UUID of an admin group by group name, returning empty if absent
 func (c *apiClient) findExistingGroup(groupName string) string {
-	result, resp, err := c.sdk.AdministrationAPI.ListAdminGroups(c.ctx).Execute()
-	if resp != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-	if err != nil {
-		return ""
-	}
-	for _, item := range result.GetGroups() {
-		if item.GetGroupName() == groupName {
-			return item.GetInternalUuid()
-		}
-	}
-	return ""
+	return c.findExistingByFieldHTTP("/admin/groups", "groups", "group_name", groupName, "internal_uuid")
 }
 
 // findExistingSurveyResponse checks if the current user already has a response for the given survey.
@@ -650,7 +590,7 @@ func (c *apiClient) seedGroupMember(entry SeedEntry, refs RefMap) (*SeedResult, 
 	return &SeedResult{Kind: entry.Kind, ID: userUUID}, nil
 }
 
-// SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: create a threat-model child resource via API, skipping if one with the same name exists
+// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: create a threat-model child resource via API, skipping if one with the same name exists
 func (c *apiClient) seedChildResource(entry SeedEntry, refs RefMap, refField, resourcePath string) (*SeedResult, error) {
 	return c.seedNestedResource(entry, refs, refField, "threat_models", "threat_model_id", resourcePath)
 }
@@ -663,7 +603,7 @@ func (c *apiClient) seedChildResource(entry SeedEntry, refs RefMap, refField, re
 // parentCollection is the URL segment ("teams"), parentIDKey the name the
 // resolved parent id is published under in Extra so the reference file can
 // emit it.
-// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: create a resource nested under a parent collection via API, skipping if one with the same name exists
+// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: create a resource nested under a parent collection via API, skipping same-named duplicates
 func (c *apiClient) seedNestedResource(
 	entry SeedEntry, refs RefMap, refField, parentCollection, parentIDKey, resourcePath string,
 ) (*SeedResult, error) {
@@ -719,7 +659,7 @@ func (c *apiClient) seedNestedResource(
 // entry and an existing one is reused. target_ref names the seed ref of the
 // artifact the feedback is about (a note, diagram or threat) and is resolved
 // to target_id here — a fabricated UUID would 404.
-// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: create a content-feedback entry on a threat model, reusing an existing one
+// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: create a content-feedback entry on a threat model, reusing an existing one
 func (c *apiClient) seedFeedback(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -805,7 +745,7 @@ func (c *apiClient) seedDiagramUpdate(entry SeedEntry, refs RefMap) (*SeedResult
 	}}, nil
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: create a webhook subscription via API, skipping if one with the same name exists
+// SEM@869f9bc78ec9e1c5d66cf3ac70991b70d07f20e1: create a webhook subscription via API, skipping if one with the same name exists
 func (c *apiClient) seedWebhook(entry SeedEntry, _ RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -851,7 +791,7 @@ func (c *apiClient) seedWebhook(entry SeedEntry, _ RefMap) (*SeedResult, error) 
 // pinSeededWebhook pins a seeded webhook, logging rather than failing on error:
 // an unpinned fixture still works, it is just mortal, and seeding a usable
 // dataset matters more than the pin.
-// SEM: pin a seeded webhook, downgrading failure to a warning (writes DB)
+// SEM@869f9bc78ec9e1c5d66cf3ac70991b70d07f20e1: pin a seeded webhook, downgrading failure to a warning (writes DB)
 func (c *apiClient) pinSeededWebhook(id string) {
 	if err := c.pinWebhookViaDB(id); err != nil {
 		slogging.Get().Warn("  could not pin webhook %s (it may be auto-deleted during long runs): %v", id, err)
@@ -882,7 +822,7 @@ func (c *apiClient) pinSeededWebhook(id string) {
 // the API the rest of seeding uses — hence the direct write. Uses GORM's model
 // mapping rather than raw SQL so the column identifier is cased per dialect;
 // Oracle folds unquoted identifiers to uppercase.
-// SEM: mark a seeded webhook subscription operator-pinned so cleanup cannot delete it (writes DB)
+// SEM@869f9bc78ec9e1c5d66cf3ac70991b70d07f20e1: mark a seeded webhook subscription operator-pinned so cleanup cannot delete it (writes DB)
 func (c *apiClient) pinWebhookViaDB(id string) error {
 	if c.db == nil {
 		return fmt.Errorf("no database connection available")
@@ -1163,7 +1103,7 @@ func (c *apiClient) apiRequest(method, path string, payload any) (map[string]any
 	return result, resp.StatusCode, nil
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: POST a resource to the API and return the created object's ID
+// SEM@c08cdcaa7bf770029c89db2c819eb12680bfe4b5: POST a resource to the API and return the created object's ID (writes API)
 func (c *apiClient) createAPIObject(name, path string, payload any) (string, error) {
 	log := slogging.Get()
 	log.Info("  Creating %s...", name)
@@ -1195,7 +1135,7 @@ const (
 )
 
 // auditEntryCapture describes one audit listing to harvest an entry id from.
-// SEM@e1f2a3b4c5d6e7f8091a2b3c4d5e6f7081929304: audit listing to harvest an entry id from after seeding (pure)
+// SEM@27f3772fc6f3f53382ff01e0a9b73204f0c5e377: audit listing to harvest an entry id from after seeding (pure)
 type auditEntryCapture struct {
 	Kind     string // seed kind the captured id is registered under
 	ListPath string // collection to read (may contain a %s for the threat model id)
@@ -1223,7 +1163,7 @@ var auditEntryCaptures = []auditEntryCapture{
 // Best-effort by design: an empty audit table or an unreachable endpoint
 // leaves that family without an id, exactly as before this existed. A seed
 // must not fail because a listing happened to be empty.
-// SEM@e1f2a3b4c5d6e7f8091a2b3c4d5e6f7081929304: harvest one audit entry id per audit family after seeding (reads API)
+// SEM@27f3772fc6f3f53382ff01e0a9b73204f0c5e377: harvest one audit entry id per audit family after seeding (reads API)
 func (c *apiClient) captureAuditEntryIDs(refs RefMap, threatModelID string) {
 	log := slogging.Get()
 	for _, capture := range auditEntryCaptures {
@@ -1268,7 +1208,7 @@ func (c *apiClient) captureAuditEntryIDs(refs RefMap, threatModelID string) {
 // within its survey response" — and encoding/json decodes those as float64.
 // A string-only assertion rejected them with "no 'id' field in response",
 // which is both wrong and misleading, since the field was right there.
-// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: render a resource id from a decoded JSON string or number (pure)
+// SEM@c08cdcaa7bf770029c89db2c819eb12680bfe4b5: render a resource id from a decoded JSON string or number (pure)
 func extractID(v any) (string, bool) {
 	switch id := v.(type) {
 	case string:

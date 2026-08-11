@@ -12,11 +12,6 @@ queries:
 paths-ignore:
   # Auto-generated OpenAPI code (contains many false positives from oapi-codegen)
   - api/api.go
-  # CI-time checkout of the generated API client repo (ericfitz/tmi-clients).
-  # OpenAPI-generator's stock template includes a Debug-gated httputil.DumpRequestOut
-  # that logs request headers (incl. API key) when cfg.Debug=true — real pattern, but
-  # third-party generated code we don't maintain here. Never enable Debug in production.
-  - ".tmi-clients/**"
   # Development-only Python scripts (OAuth testing harness, deployment tools)
   # These intentionally log OAuth tokens/credentials for debugging purposes
   - scripts/oauth-client-callback-stub.py

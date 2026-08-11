@@ -160,8 +160,6 @@ test/integration/workflows.test
 test/configs/google-drive-credentials.json
 test/configs/google-drive-test-docs.json
 
-# Staged dependencies for Docker builds
-.docker-deps/
 .claude/scheduled_tasks.lock
 .local/
 terraform/environments/aws-public/vendor/
