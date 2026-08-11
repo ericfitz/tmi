@@ -107,10 +107,17 @@ func openIntegrationRedis(t *testing.T) redis.UniversalClient {
 
 // createIntegrationUser inserts a minimal User row and returns its InternalUUID.
 // Uses a fixed deterministic prefix so test rows are easy to identify and clean up.
+//
+// The email carries a per-invocation suffix rather than just the label. These
+// rows have a NULL provider_user_id, and the server's startup guard refuses to
+// build idx_users_sparse_email when two such rows share (provider, email) — so
+// a single leaked row from one run aborted the *next* run's server startup
+// (#741). A unique email makes that collision impossible even if cleanup fails,
+// and the cleanup below now reports a failure instead of swallowing it.
 func createIntegrationUser(t *testing.T, db *gorm.DB, label string) string {
 	t.Helper()
 	id := uuid.New().String()
-	email := fmt.Sprintf("integration-test-%s@tmi.local", label)
+	email := fmt.Sprintf("integration-test-%s-%s@tmi.local", label, id[:8])
 	u := models.User{
 		InternalUUID: models.DBVarchar(id),
 		Provider:     "test",
@@ -119,8 +126,13 @@ func createIntegrationUser(t *testing.T, db *gorm.DB, label string) string {
 	}
 	require.NoError(t, db.Create(&u).Error, "create test user")
 	t.Cleanup(func() {
-		// Best-effort cleanup; ignore errors (e.g., row already deleted by CASCADE).
-		db.Where("internal_uuid = ?", id).Delete(&models.User{}) //nolint:errcheck
+		// A failure here means the row survives the run, so surface it: the
+		// usual cause is a child row (threat model, document) that the test
+		// created and did not clean up, and silence just defers the pain to
+		// whoever runs the suite next.
+		if err := db.Where("internal_uuid = ?", id).Delete(&models.User{}).Error; err != nil {
+			t.Errorf("cleanup: failed to delete test user %s (%s): %v", id, email, err)
+		}
 	})
 	return id
 }

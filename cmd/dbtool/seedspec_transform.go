@@ -198,7 +198,7 @@ func transformGroupsAndMembers(admin *SeedSpecAdmin, users []SeedSpecUser) []See
 	return seeds
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert seed spec teams with members and roles to team seed entries (pure)
+// SEM@2f8bdf4ee323d43b42d14954da7fbbf9544367c7: convert seed spec teams with members and roles to team seed entries (pure)
 func transformTeams(teams []SeedSpecTeam) []SeedEntry {
 	var seeds []SeedEntry
 	for _, t := range teams {
@@ -231,7 +231,7 @@ func transformTeams(teams []SeedSpecTeam) []SeedEntry {
 // transformTeamProjectNotes converts notes hanging off a team or project.
 // Shared because TeamNoteInput and ProjectNoteInput are both TeamProjectNoteBase;
 // only the parent ref field and seed kind differ.
-// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: convert seed spec team/project notes to note seed entries (pure)
+// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: convert seed spec team/project notes to note seed entries (pure)
 func transformTeamProjectNotes(
 	notes []SeedSpecTeamProjectNote, kind, refField, parentRef, refPrefix string,
 ) []SeedEntry {
@@ -254,7 +254,7 @@ func transformTeamProjectNotes(
 	return seeds
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert seed spec projects with optional team and status to project seed entries (pure)
+// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: convert seed spec projects with optional team and status to project seed entries (pure)
 func transformProjects(projects []SeedSpecProject) []SeedEntry {
 	var seeds []SeedEntry
 	for _, p := range projects {
@@ -280,7 +280,7 @@ func transformProjects(projects []SeedSpecProject) []SeedEntry {
 	return seeds
 }
 
-// SEM@7a8bf8de72c6d39387df00ec0eb9901653555db8: convert seed spec threat models with all sub-resources to ordered seed entries (pure)
+// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: convert seed spec threat models with all sub-resources to ordered seed entries (pure)
 func transformThreatModels(tms []SeedSpecThreatModel, users map[string]userInfo, _ []SeedSpecProject) ([]SeedEntry, error) {
 	var seeds []SeedEntry
 	for _, tm := range tms {
@@ -496,7 +496,7 @@ func transformNotes(notes []SeedSpecNote, ref, tmName string) []SeedEntry {
 // transformFeedback converts content-feedback entries on a threat model.
 // TargetRef is passed through as-is; the API seeder resolves it against the
 // ref map, since the artifact it points at is created by an earlier entry.
-// SEM@d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70819293: convert seed spec feedback to content-feedback seed entries linked to a threat model (pure)
+// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: convert seed spec feedback to content-feedback seed entries linked to a threat model (pure)
 func transformFeedback(feedback []SeedSpecFeedback, ref, tmName string) []SeedEntry {
 	var seeds []SeedEntry
 	for i, f := range feedback {
@@ -622,7 +622,7 @@ func transformSurveys(surveys []SeedSpecSurvey) []SeedEntry {
 	return seeds
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert seed spec survey responses with owner authorization to seed entries (pure)
+// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: convert seed spec survey responses with owner authorization to seed entries (pure)
 func transformSurveyResponses(responses []SeedSpecSurveyResp, users map[string]userInfo) []SeedEntry {
 	var seeds []SeedEntry
 	for i, sr := range responses {
@@ -672,7 +672,7 @@ func transformSurveyResponses(responses []SeedSpecSurveyResp, users map[string]u
 	return seeds
 }
 
-// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: convert admin webhooks, test deliveries, addons, and client credentials to seed entries (pure)
+// SEM@869f9bc78ec9e1c5d66cf3ac70991b70d07f20e1: convert admin webhooks, test deliveries, addons, and client credentials to seed entries (pure)
 func transformAdminWebhooksAndAddons(admin *SeedSpecAdmin) []SeedEntry {
 	if admin == nil {
 		return nil
@@ -703,6 +703,11 @@ func transformAdminWebhooksAndAddons(admin *SeedSpecAdmin) []SeedEntry {
 	for _, wt := range admin.WebhookTestDeliveries {
 		seeds = append(seeds, SeedEntry{
 			Kind: kindWebhookTestDeliv,
+			// Without a ref the seeded delivery is never registered in the
+			// RefMap (seedEntries only records entries that have one), so
+			// reference.go's findRefByKind fell through to the nil UUID and
+			// CATS fuzzed the delivery endpoints against a non-existent ID.
+			Ref: webhookDeliveryRef(wt.Webhook),
 			Data: map[string]any{
 				"webhook_ref": webhookRef(wt.Webhook),
 			},
@@ -914,14 +919,22 @@ func surveyRef(name string) string { return "survey:" + sanitizeName(name) }
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: build a stable lookup key for a webhook by sanitized name (pure)
 func webhookRef(name string) string { return "webhook:" + sanitizeName(name) }
 
+// SEM@none: build a deterministic seed ref key for a webhook's test delivery (pure)
+// SEM@f8ffe6c945c910d2994d6001a33010cd2e51a325: build a stable lookup key for a webhook's test delivery (pure)
+func webhookDeliveryRef(webhookName string) string {
+	return "webhook-delivery:" + sanitizeName(webhookName)
+}
+
 // teamNotePrefix is the ref prefix transformTeams passes for a team's notes.
 // SEM@0: build the seed ref prefix for a team's notes (pure)
+// SEM@2f8bdf4ee323d43b42d14954da7fbbf9544367c7: build a stable lookup key prefix for a team's notes (pure)
 func teamNotePrefix(teamName string) string { return "team-note:" + sanitizeName(teamName) }
 
 // teamNoteRef addresses one of a team's notes by its position in the seed file.
 // Team notes are seeded positionally, so the index is the only stable handle;
 // reference.go relies on that to tell the real fixture (0) from the #608 decoy (1).
 // SEM@0: build a deterministic seed ref key for a team note by team name and index (pure)
+// SEM@2f8bdf4ee323d43b42d14954da7fbbf9544367c7: build a stable lookup key for one of a team's notes by position (pure)
 func teamNoteRef(teamName string, i int) string {
 	return fmt.Sprintf("%s:%d", teamNotePrefix(teamName), i)
 }
