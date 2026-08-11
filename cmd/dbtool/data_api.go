@@ -2,16 +2,20 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
+	neturl "net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/test/testdb"
 )
@@ -242,6 +246,42 @@ func (c *apiClient) findExistingByFieldHTTP(path, itemsKey, matchKey, want, idKe
 // SEM@fdc6e9ce2714a84c0d2a982e165d3b3cf71b5f3b: search a list endpoint by name and return the matching resource ID (reads API)
 func (c *apiClient) findExistingByNameHTTP(path, itemsKey, name string) string {
 	return c.findExistingByFieldHTTP(path, itemsKey, "name", name, "id")
+}
+
+// findExistingWebhookDelivery returns the ID of any delivery already recorded
+// for the given subscription, or empty if there is none.
+//
+// Deliveries have no name to match on, so this filters by subscription_id
+// rather than going through findExistingByFieldHTTP (which also owns the query
+// string and so cannot carry an extra filter).
+// SEM@none: fetch the ID of an existing webhook delivery for a subscription, returning empty if absent
+// SEM@f8ffe6c945c910d2994d6001a33010cd2e51a325: fetch an existing webhook delivery ID for a subscription, empty if none (reads API)
+func (c *apiClient) findExistingWebhookDelivery(subscriptionID string) string {
+	path := fmt.Sprintf("/admin/webhooks/deliveries?subscription_id=%s&limit=100",
+		neturl.QueryEscape(subscriptionID))
+	result, status, err := c.apiRequest("GET", path, nil)
+	if err != nil || status >= 300 {
+		return ""
+	}
+	items, ok := result["deliveries"].([]any)
+	if !ok {
+		return ""
+	}
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		// Re-check the filter server-side result: reusing a delivery that belongs
+		// to a different subscription would point CATS at an unrelated row.
+		if got, _ := m["subscription_id"].(string); got != "" && got != subscriptionID {
+			continue
+		}
+		if id, ok := extractID(m["id"]); ok {
+			return id
+		}
+	}
+	return ""
 }
 
 // findFirstIDHTTP returns the id of the first item in a listing, for resources
@@ -824,20 +864,85 @@ func (c *apiClient) pinSeededWebhook(id string) {
 // Oracle folds unquoted identifiers to uppercase.
 // SEM@869f9bc78ec9e1c5d66cf3ac70991b70d07f20e1: mark a seeded webhook subscription operator-pinned so cleanup cannot delete it (writes DB)
 func (c *apiClient) pinWebhookViaDB(id string) error {
+	return c.setWebhookPinnedViaDB(id, true)
+}
+
+// setWebhookPinnedViaDB sets or clears operator_pinned on a subscription.
+// Select() is explicit so that clearing the flag actually writes: GORM skips
+// zero-valued struct fields in Updates otherwise.
+//
+// Transient failures are retried. The seeder's pooled connection sits idle
+// across a full HTTP round trip between the unpin and the repin, which on
+// Oracle ADB is exactly where ORA-03113/ORA-12537 and Always Free auto-stop
+// surface; without a retry a single blip would leave the CATS anchor unpinned
+// and mortal. Writing a fixed boolean is idempotent, so a replay is harmless.
+// SEM@none: set or clear the operator-pinned flag on a webhook subscription, retrying transient errors (writes DB)
+// SEM@f8ffe6c945c910d2994d6001a33010cd2e51a325: update the operator-pinned flag on a webhook subscription, retrying transient errors (writes DB)
+func (c *apiClient) setWebhookPinnedViaDB(id string, pinned bool) error {
 	if c.db == nil {
 		return fmt.Errorf("no database connection available")
 	}
 
-	result := c.db.DB().
-		Model(&models.WebhookSubscription{}).
-		Where(&models.WebhookSubscription{ID: models.DBVarchar(id)}).
-		Select("OperatorPinned").
-		Updates(&models.WebhookSubscription{OperatorPinned: models.DBBool(true)})
-	if result.Error != nil {
-		return fmt.Errorf("failed to pin webhook: %w", result.Error)
+	var rowsAffected int64
+	err := authdb.WithRetryableGormRead(context.Background(), authdb.DefaultRetryConfig(), func() error {
+		result := c.db.DB().
+			Model(&models.WebhookSubscription{}).
+			Where(&models.WebhookSubscription{ID: models.DBVarchar(id)}).
+			Select("OperatorPinned").
+			Updates(&models.WebhookSubscription{OperatorPinned: models.DBBool(pinned)})
+		rowsAffected = result.RowsAffected
+		return result.Error
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set operator_pinned=%t on webhook: %w", pinned, err)
 	}
-	if result.RowsAffected == 0 {
+	if rowsAffected == 0 {
 		return fmt.Errorf("webhook %s not found", id)
+	}
+	return nil
+}
+
+// webhookIsPinnedViaDB reports whether a subscription is operator-pinned.
+// Retries transient errors so a momentary ADB blip does not read as "not
+// pinned" and skip the unpin the caller needs.
+// SEM@none: report whether a webhook subscription is operator-pinned (reads DB)
+// SEM@f8ffe6c945c910d2994d6001a33010cd2e51a325: fetch the operator-pinned flag of a webhook subscription (reads DB)
+func (c *apiClient) webhookIsPinnedViaDB(id string) (bool, error) {
+	if c.db == nil {
+		return false, fmt.Errorf("no database connection available")
+	}
+
+	var sub models.WebhookSubscription
+	err := authdb.WithRetryableGormRead(context.Background(), authdb.DefaultRetryConfig(), func() error {
+		return c.db.DB().First(&sub, "id = ?", id).Error
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to read webhook %s: %w", id, err)
+	}
+	return bool(sub.OperatorPinned), nil
+}
+
+// restoreWebhookPin re-pins a subscription the seeder unpinned, and confirms
+// the flag actually stuck.
+//
+// The read-back is the point: a lost pin is a worse outcome than a missing test
+// delivery, because the cleanup worker can then destroy the CATS anchor
+// mid-campaign and invalidate the whole run (#708/#709) with nothing but a log
+// line to show for it. The caller turns a failure here into a failed seed.
+// SEM@none: restore and verify the operator-pinned flag on a webhook subscription (writes DB)
+// SEM@f8ffe6c945c910d2994d6001a33010cd2e51a325: update a webhook subscription back to operator-pinned and validate it stuck (writes DB)
+func (c *apiClient) restoreWebhookPin(id string) error {
+	if err := c.setWebhookPinnedViaDB(id, true); err != nil {
+		return fmt.Errorf("failed to restore operator_pinned on webhook %s: %w", id, err)
+	}
+
+	pinned, err := c.webhookIsPinnedViaDB(id)
+	if err != nil {
+		return fmt.Errorf("could not verify operator_pinned on webhook %s: %w", id, err)
+	}
+	if !pinned {
+		return fmt.Errorf("operator_pinned did not stick on webhook %s; the CATS anchor "+
+			"is unprotected and the cleanup worker may delete it mid-campaign", id)
 	}
 	return nil
 }
@@ -852,22 +957,78 @@ func (c *apiClient) seedWebhookTestDelivery(entry SeedEntry, refs RefMap) (*Seed
 		return nil, fmt.Errorf("failed to resolve webhook_ref: %w", err)
 	}
 
+	// Idempotency (#742): a delivery left by an earlier seed run serves the same
+	// purpose as a fresh one -- the reference file only needs some delivery ID
+	// for CATS to fuzz -- and re-triggering is what broke a repeat seed.
+	if existingID := c.findExistingWebhookDelivery(webhookID); existingID != "" {
+		log.Info("  webhook test delivery already exists: %s (skipping)", existingID)
+		return &SeedResult{Ref: entry.Ref, Kind: kindWebhookTestDeliv, ID: existingID}, nil
+	}
+
+	deliveryID, err := c.triggerWebhookTestDelivery(webhookID)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Info("  Created webhook test delivery: %s", deliveryID)
+	return &SeedResult{Ref: entry.Ref, Kind: kindWebhookTestDeliv, ID: deliveryID}, nil
+}
+
+// triggerWebhookTestDelivery POSTs to the test-trigger endpoint and returns the
+// resulting delivery ID.
+//
+// The anchor subscription is deliberately operator-pinned (#709) so the cleanup
+// worker cannot destroy it mid-campaign, and pinned subscriptions reject the
+// test-trigger endpoint with 403 (webhook_handlers.go). Seeding is the one
+// caller that legitimately needs both, so it clears the pin for the duration of
+// the trigger and restores it afterwards. The unpinned window is a single
+// request long and occurs before any campaign starts, so the cleanup worker has
+// no realistic opportunity to act on it.
+// SEM@none: trigger a webhook test delivery, unpinning and repinning the subscription if needed (writes DB)
+// SEM@f8ffe6c945c910d2994d6001a33010cd2e51a325: dispatch a webhook test delivery, unpinning the subscription if required (writes DB)
+func (c *apiClient) triggerWebhookTestDelivery(webhookID string) (deliveryID string, err error) {
+	log := slogging.Get()
+
+	// A DB read failure is not fatal here: fall through to the trigger, which
+	// reports the pin conflict as a 403 if that is what is actually wrong.
+	pinned, pinErr := c.webhookIsPinnedViaDB(webhookID)
+	if pinErr != nil {
+		log.Debug("  could not read operator_pinned for webhook %s: %v", webhookID, pinErr)
+	}
+
+	if pinned {
+		if unpinErr := c.setWebhookPinnedViaDB(webhookID, false); unpinErr != nil {
+			return "", fmt.Errorf("failed to unpin webhook %s for test delivery: %w", webhookID, unpinErr)
+		}
+		// Named return so a failed restore fails the seed: leaving the anchor
+		// unpinned silently is the regression #709 fixed.
+		defer func() {
+			if restoreErr := c.restoreWebhookPin(webhookID); restoreErr != nil {
+				err = errors.Join(err, restoreErr)
+			}
+		}()
+	}
+
 	log.Info("  Triggering webhook test delivery...")
 	url := fmt.Sprintf("/admin/webhooks/subscriptions/%s/test", webhookID)
 	result, status, apiErr := c.apiRequest("POST", url, map[string]any{
 		"event_type": "threat_model.created",
 	})
 	if apiErr != nil || status >= 300 {
-		return nil, fmt.Errorf("webhook test delivery failed: HTTP %d - %v", status, result)
+		if status == http.StatusForbidden && pinErr != nil {
+			return "", fmt.Errorf("webhook test delivery failed: HTTP %d - %v "+
+				"(the subscription is likely operator-pinned; seeding needs a database "+
+				"connection to clear the pin, but %v)", status, result, pinErr)
+		}
+		return "", fmt.Errorf("webhook test delivery failed: HTTP %d - %v", status, result)
 	}
 
-	deliveryID, _ := result["delivery_id"].(string)
+	deliveryID, _ = result["delivery_id"].(string)
 	if deliveryID == "" {
-		return nil, fmt.Errorf("no delivery_id in response: %v", result)
+		return "", fmt.Errorf("no delivery_id in response: %v", result)
 	}
 
-	log.Info("  Created webhook test delivery: %s", deliveryID)
-	return &SeedResult{Ref: entry.Ref, Kind: kindWebhookTestDeliv, ID: deliveryID}, nil
+	return deliveryID, nil
 }
 
 // SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: create an addon via API with resolved webhook and threat model refs, skipping if present

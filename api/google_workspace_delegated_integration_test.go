@@ -207,7 +207,17 @@ func (i *gwIntegrationInfra) createThreatModelRow(t *testing.T, ownerInternalUUI
 	}
 	require.NoError(t, i.db.Create(tm).Error, "create ThreatModel fixture")
 	t.Cleanup(func() {
-		i.db.Where("id = ?", tmID).Delete(&models.ThreatModel{}) //nolint:errcheck
+		// Documents created through the API during a sub-test register no
+		// cleanup of their own, and documents.threat_model_id has no
+		// ON DELETE CASCADE — so they block this delete, which blocks the
+		// owning user's delete, which leaks a sparse user row into the next
+		// run (#741). Clear them first.
+		if err := i.db.Where("threat_model_id = ?", tmID).Delete(&models.Document{}).Error; err != nil {
+			t.Errorf("cleanup: failed to delete documents for threat model %s: %v", tmID, err)
+		}
+		if err := i.db.Where("id = ?", tmID).Delete(&models.ThreatModel{}).Error; err != nil {
+			t.Errorf("cleanup: failed to delete threat model %s: %v", tmID, err)
+		}
 	})
 	return tmID
 }
@@ -241,7 +251,9 @@ func (i *gwIntegrationInfra) insertDocumentRow(
 		"insert document fixture",
 	)
 	t.Cleanup(func() {
-		i.db.Table("documents").Where("id = ?", docID).Delete(nil) //nolint:errcheck
+		if err := i.db.Where("id = ?", docID).Delete(&models.Document{}).Error; err != nil {
+			t.Errorf("cleanup: failed to delete document %s: %v", docID, err)
+		}
 	})
 	return docID
 }

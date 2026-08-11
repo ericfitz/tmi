@@ -139,3 +139,73 @@ func TestWebhookStore_ListIdle_BoolWhere_OracleIntegration(t *testing.T) {
 	assert.False(t, seededResults[0].OperatorPinned,
 		"returned row must not be operator-pinned")
 }
+
+// TestWebhookStore_TogglePinned_SelectUpdates_OracleIntegration exercises the
+// UPDATE path the CATS seeder uses to clear and restore operator_pinned
+// (cmd/dbtool/data_api.go setWebhookPinnedViaDB, #742).
+//
+// Two things are under test that the SELECT-side test above does not cover:
+// that Select("OperatorPinned") resolves to the uppercase Oracle column, and
+// that Updates() with a zero-valued (false) struct field actually writes rather
+// than being skipped as a zero value. A silent no-op here would leave the CATS
+// anchor subscription permanently pinned and un-triggerable — the failure #742
+// was filed for — or, on the restore leg, permanently unpinned and mortal.
+//
+// Run via `make test-integration-oci`.
+func TestWebhookStore_TogglePinned_SelectUpdates_OracleIntegration(t *testing.T) {
+	db := openWebhookStoreOracleDB(t)
+
+	ownerUUID := uuid.New().String()
+	owner := models.User{
+		InternalUUID: models.DBVarchar(ownerUUID),
+		Provider:     models.DBVarchar("tmi"),
+		Email:        models.DBVarchar("oracle-pin-toggle-test@tmi.local"),
+		Name:         models.DBVarchar("Oracle Pin Toggle Test User"),
+	}
+	require.NoError(t, db.Create(&owner).Error, "create synthetic owner user")
+	t.Cleanup(func() {
+		_ = db.Where("INTERNAL_UUID = ?", ownerUUID).Delete(&models.User{}).Error
+	})
+
+	subID := uuid.New().String()
+	sub := &models.WebhookSubscription{
+		ID:                models.DBVarchar(subID),
+		OwnerInternalUUID: models.DBVarchar(ownerUUID),
+		Name:              models.DBVarchar("oracle-pin-toggle"),
+		URL:               models.DBText("https://example.com/oracle-pin-toggle"),
+		Events:            models.StringArray{"*"},
+		Status:            models.DBVarchar("active"),
+		OperatorPinned:    models.DBBool(true),
+	}
+	require.NoError(t, db.Create(sub).Error, "create pinned subscription")
+	t.Cleanup(func() {
+		_ = db.Where("ID = ?", subID).Delete(&models.WebhookSubscription{}).Error
+	})
+
+	// setPinned mirrors the seeder's statement exactly.
+	setPinned := func(pinned bool) {
+		t.Helper()
+		result := db.
+			Model(&models.WebhookSubscription{}).
+			Where(&models.WebhookSubscription{ID: models.DBVarchar(subID)}).
+			Select("OperatorPinned").
+			Updates(&models.WebhookSubscription{OperatorPinned: models.DBBool(pinned)})
+		require.NoError(t, result.Error, "set operator_pinned=%t on Oracle", pinned)
+		require.EqualValues(t, 1, result.RowsAffected,
+			"set operator_pinned=%t must affect exactly 1 row", pinned)
+	}
+
+	readPinned := func() bool {
+		t.Helper()
+		var got models.WebhookSubscription
+		require.NoError(t, db.First(&got, "id = ?", subID).Error, "read back subscription")
+		return bool(got.OperatorPinned)
+	}
+
+	// Clearing the flag is the leg that a zero-value skip would silently break.
+	setPinned(false)
+	assert.False(t, readPinned(), "operator_pinned must be false after clearing it")
+
+	setPinned(true)
+	assert.True(t, readPinned(), "operator_pinned must be true after restoring it")
+}
