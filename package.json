@@ -1,6 +1,6 @@
 {
   "devDependencies": {
-    "@redocly/cli": "^2.46.0",
+    "@redocly/cli": "^2.46.1",
     "@stoplight/spectral-cli": "^6.16.3"
   },
   "scripts": {
