@@ -42,6 +42,7 @@ const oracleCurrentSchema = "SYS_CONTEXT('USERENV','CURRENT_SCHEMA')"
 // On Oracle this is ALL_TABLES filtered to CURRENT_SCHEMA rather than
 // gorm.Migrator().HasTable's owner-scoped USER_TABLES (#736). On every other
 // dialect HasTable is already current-schema-scoped and is used unchanged.
+// SEM@605e29546fe60dc8ac69862013475720a74dea8b: probe whether a migration table exists in the current schema, per dialect (reads DB)
 func migrationTableExists(db *gorm.DB, table string) (bool, error) {
 	if db.Name() != "oracle" {
 		return db.Migrator().HasTable(table), nil
@@ -82,6 +83,7 @@ func migrationTableExists(db *gorm.DB, table string) (bool, error) {
 // startup migration is a genuine failure and every other probe in this
 // package already surfaces it. Only a confirmed-absent table yields
 // (false, nil).
+// SEM@605e29546fe60dc8ac69862013475720a74dea8b: gate a migration step on a table's existence, warning with owner detail if absent (reads DB)
 func requireMigrationTable(db *gorm.DB, table, step string) (bool, error) {
 	present, err := migrationTableExists(db, table)
 	if err != nil {

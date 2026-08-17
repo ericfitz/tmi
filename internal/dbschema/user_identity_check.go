@@ -57,7 +57,7 @@ type userDupKey struct {
 // and access rows and is a security decision an operator must make. NULL
 // provider or provider_user_id rows are excluded -- a composite unique index
 // never constrains a row where any key column is NULL.
-// SEM@bb40881560ec43c848a818a906635c7d26b0b603: detect duplicate user provider identities and return an actionable startup error only when the unique index would genuinely fail to create (reads DB)
+// SEM@637f0bdb33357d5c2d47d7c06b0e6e214c1962e6: detect duplicate user provider identities and return an actionable startup error only when the unique index would genuinely fail to create (reads DB)
 func CheckDuplicateUserProviderIdentities(db *gorm.DB) error {
 	usersTable := (&models.User{}).TableName()
 	// #736: owner-aware probe. gorm's HasTable resolves through Oracle's
@@ -127,7 +127,7 @@ func CheckDuplicateUserProviderIdentities(db *gorm.DB) error {
 // index on Oracle -- which is exactly the bug this function exists to route
 // around (oracle-db-admin review, #724). Querying the catalog view directly
 // with the correctly-cased name avoids that trap.
-// SEM@bb40881560ec43c848a818a906635c7d26b0b603: probe whether the users provider-lookup index already exists, per dialect (reads DB)
+// SEM@605e29546fe60dc8ac69862013475720a74dea8b: probe whether the users provider-lookup index already exists, per dialect (reads DB)
 func userProviderLookupIndexExists(db *gorm.DB, usersTable string) (bool, error) {
 	var cnt int64
 	var err error

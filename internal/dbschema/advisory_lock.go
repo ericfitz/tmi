@@ -44,6 +44,7 @@ const MigrationLockName = "tmi_schema_migration"
 // Any other acquisition failure is returned without running fn: proceeding
 // unserialized is exactly the concurrent-DDL exposure the lock exists to
 // prevent.
+// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: acquire the schema-migration advisory lock, run a callback, then release it (mutates DB)
 func WithMigrationLock(ctx context.Context, db *gorm.DB, name string, fn func() error) error {
 	release, err := AcquireMigrationLock(ctx, db, name)
 	if err != nil {
@@ -103,7 +104,7 @@ func AcquireMigrationLock(ctx context.Context, db *gorm.DB, name string) (releas
 // so — mirroring acquireOracleLock's dropConn — the connection is discarded
 // via driver.ErrBadConn rather than returned to the pool: a plain Close()
 // would hand a possibly-still-locked backend back to an unrelated query.
-// SEM@dea6869d1be777f8e297ccf30db5f7c272b226f9: acquire a PostgreSQL advisory lock on a pinned session connection and return a release function (reads DB)
+// SEM@bf7089dd40036d3e0ce00dfdf5db475d45382fd1: acquire a PostgreSQL advisory lock on a pinned session connection and return a release function (reads DB)
 func acquirePGLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slogging.Logger) (func(), error) {
 	key := nameToInt64(name)
 

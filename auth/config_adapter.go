@@ -176,7 +176,7 @@ func InitAuthWithDB(dbManager *db.Manager, unified *config.Config) (*Handlers, e
 // This function creates its own database manager internally, which can lead to
 // duplicate initialization and DRY violations. Prefer passing a pre-initialized
 // db.Manager to InitAuthWithDB instead.
-// SEM@87d1696b4bf3edbe042353cf7586a60de78c2028: build the auth service: connect DB/Redis, migrate schema, register handlers (deprecated) (mutates DB)
+// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: build the auth service: connect DB/Redis, migrate schema, register handlers (deprecated) (mutates DB)
 func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, error) {
 	authConfig := ConfigFromUnified(unified)
 
@@ -260,6 +260,7 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 // invariant checks, AutoMigrate itself, and the two raw-DDL indexes
 // AutoMigrate cannot express. Always called with the cross-replica migration
 // advisory lock held (see InitAuthWithConfig, #737).
+// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: run pre-migration checks, AutoMigrate, and raw-DDL indexes for schema evolution (mutates DB)
 func migrateSchemaForConfigAdapter(gormDB *db.GormDB, allModels []any, desiredFP string) error {
 	logger := slogging.Get()
 

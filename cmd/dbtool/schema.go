@@ -18,7 +18,7 @@ import (
 // If run against a non-empty schema that triggers an "object already exists"
 // error, the error surfaces loudly — the operator should drop and recreate
 // the schema first.
-// SEM@550719956eba05c4b206ae4056df29fa2c66586a: migrate DB schema via GORM AutoMigrate and seed system data (mutates DB)
+// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: acquire the migration lock, then migrate DB schema and seed system data (mutates DB)
 func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 	if dryRun {
 		return runSchemaDryRun(db, verbose)
@@ -44,6 +44,7 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 
 // runSchemaLocked performs the schema migration and system seed. Always called
 // with the cross-replica migration advisory lock held (see runSchema).
+// SEM@5abf61d0e181a6df8a0f8108f79820e4fe68711a: migrate DB schema via AutoMigrate, upgrade legacy indexes, and seed system data (mutates DB)
 func runSchemaLocked(db *testdb.TestDB) error {
 	log := slogging.Get()
 

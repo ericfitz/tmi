@@ -64,6 +64,7 @@ var ddlBaseRetryDelay = 500 * time.Millisecond
 //
 // The statement text is built by this package from constants, never from user
 // input.
+// SEM@605e29546fe60dc8ac69862013475720a74dea8b: execute migration DDL on a pinned Oracle session to avoid lock-contention failures (mutates DB)
 func execMigrationDDL(db *gorm.DB, ddl string) error {
 	if db.Name() != "oracle" {
 		return db.Exec(ddl).Error
@@ -127,6 +128,7 @@ func execMigrationDDL(db *gorm.DB, ddl string) error {
 // shapes: that one guards cheap catalog SELECTs where a fixed 20ms retry is
 // right, this one guards lock-contended DDL where the contending window is
 // measured in seconds (#734).
+// SEM@1a0e294d083ec4d01a180cf33f9f58d98159a878: retry a migration DDL attempt with exponential backoff on transient errors (mutates DB)
 func withDDLRetry(label string, fn func() error) error {
 	var err error
 	delay := ddlBaseRetryDelay

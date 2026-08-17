@@ -195,7 +195,7 @@ func isPublicSAMLPath(path string) bool {
 // provider-scoped public SAML route. This is the single source of truth for the
 // middleware's public decision; TestPublicPathLint calls this exact function so
 // the lint can never drift from what the server does (#662).
-// SEM@9ffe1829793344f52be7f61113f1caad660e10d5: report whether a request path is exempt from JWT authentication (pure)
+// SEM@5e107bce8eca9a7b10483bef568d3497a8b76f93: report whether a request path is exempt from JWT authentication (pure)
 func isPublicPath(path string) bool {
 	if publicPaths[path] {
 		return true
@@ -381,7 +381,7 @@ func runMigrations(ctx context.Context, gormDB *db.GormDB, dbType string) {
 // The lock wraps the entire schema-evolution sequence so concurrent replicas
 // serialize on every step (drop legacy column, AutoMigrate, backfill, unique
 // indexes), not just the backfill.
-// SEM@df7fd289991cfd0c30ec2f8c8721a7b593f7d535: run DB schema migrations, backfills, and seed data under an advisory lock, with a fingerprint fast path (mutates DB)
+// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: acquire the cross-replica schema-migration advisory lock and run all migration steps (mutates DB)
 func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) error {
 	return dbschema.WithMigrationLock(ctx, gormDB.DB(), dbschema.MigrationLockName, func() error {
 		return migrateSchema(ctx, gormDB, dbType)
@@ -392,6 +392,7 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 // the cross-replica migration advisory lock held (see runMigrationsLocked) —
 // several of its steps issue DDL that is not safe to run concurrently from
 // two replicas.
+// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: run the schema-evolution sequence: AutoMigrate, backfills, index upgrades, and seeding (mutates DB)
 func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error {
 	logger := slogging.Get()
 
@@ -2423,6 +2424,7 @@ const (
 
 // adminInitTimeout returns the deadline for a pass over entries configured
 // administrators.
+// SEM@ae5e2194af0d13d5169db6f58db71d4275c7fc0f: compute a bounded deadline for administrator initialization scaled by entry count (pure)
 func adminInitTimeout(entries int) time.Duration {
 	total := adminInitBaseTimeout + time.Duration(entries)*adminInitPerEntryTimeout
 	if total > adminInitMaxTimeout {
@@ -2432,7 +2434,7 @@ func adminInitTimeout(entries int) time.Duration {
 }
 
 // initializeAdministratorsGorm initializes administrators from configuration using GORM
-// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: seed the Administrators group with configured users/groups, creating missing users only on not-found (writes DB)
+// SEM@605e29546fe60dc8ac69862013475720a74dea8b: seed the Administrators group with configured users/groups, creating missing users only on not-found (writes DB)
 func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 	logger := slogging.Get()
 	logger.Info("Initializing administrators from configuration (GORM)")
