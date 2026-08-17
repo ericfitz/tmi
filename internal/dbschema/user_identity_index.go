@@ -123,7 +123,14 @@ func EnsureUserProviderLookupUnique(db *gorm.DB) error {
 			// effect -- the retry then raises ORA-01418 for an index that is
 			// genuinely gone. Ask the catalog what is actually true rather
 			// than inferring it from the error (oracle-db-admin review, #732).
-			stillPresent, _, probeErr := userProviderLookupIndexState(db, usersTable)
+			// Retried: this probe runs at the single moment a transient
+			// session error is most likely -- immediately after one.
+			var stillPresent bool
+			probeErr := withMigrationRetry("users provider-lookup index post-drop probe", func() error {
+				var e error
+				stillPresent, _, e = userProviderLookupIndexState(db, usersTable)
+				return e
+			})
 			if probeErr != nil {
 				// Can't tell what actually happened. Assume the drop did not
 				// take effect: proceeding to CREATE on that assumption is the
@@ -156,7 +163,16 @@ func EnsureUserProviderLookupUnique(db *gorm.DB) error {
 		// then decide. A concurrent replica winning the create race and this
 		// session's own committed-then-disconnected create are indistinguishable
 		// from here, and both are fine.
-		nowExists, nowUnique, probeErr := userProviderLookupIndexState(db, usersTable)
+		// Retried like the post-drop probe: an unretried failure here falls
+		// through to the restore, which then raises ORA-00955 if the unique
+		// create had in fact committed -- producing the loudest error message
+		// in this file for a database that is actually correct.
+		var nowExists, nowUnique bool
+		probeErr := withMigrationRetry("users provider-lookup index post-create probe", func() error {
+			var e error
+			nowExists, nowUnique, e = userProviderLookupIndexState(db, usersTable)
+			return e
+		})
 		switch {
 		case probeErr == nil && nowExists && nowUnique:
 			logger.Warn(
@@ -177,8 +193,9 @@ func EnsureUserProviderLookupUnique(db *gorm.DB) error {
 		}); restoreErr != nil {
 			logger.Error(
 				"AND failed to restore the previous non-unique %s: %v. The users table may now have NO (provider, provider_user_id) index -- "+
-					"logins will table-scan. Recreate it manually: %s. If this reports ORA-01408, another index already covers that exact column list "+
-					"under a different name and no action is needed beyond confirming it is UNIQUE (#732)",
+					"logins will table-scan. Recreate it manually: %s. Two benign explanations to rule out first: ORA-00955 means the UNIQUE create "+
+					"actually committed and only the verification failed (check the index and stop), and ORA-01408 means a differently-named index "+
+					"already covers that exact column list (confirm it is UNIQUE) (#732)",
 				userProviderLookupIndexName, restoreErr, createUniqueDDL)
 		} else {
 			logger.Error("restored the previous non-unique %s; the uniqueness constraint remains unenforced and the upgrade will retry on the next boot (#732)",

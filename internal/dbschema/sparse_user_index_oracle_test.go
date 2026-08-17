@@ -48,9 +48,14 @@ type oracleIndexState struct {
 func readOracleIndexState(t *testing.T, db *gorm.DB, indexName string) (oracleIndexState, bool) {
 	t.Helper()
 	var rows []oracleIndexState
+	// Pins OWNER as well as TABLE_OWNER, matching the production probes: this
+	// is the assertion that would otherwise fail to notice the foreign-owned
+	// same-named index those probes now guard against (oracle-db-admin
+	// re-review, #736).
 	require.NoError(t, db.Raw(
 		"SELECT UNIQUENESS, STATUS, NVL(FUNCIDX_STATUS, 'NONE') AS FUNCIDX_STATUS FROM ALL_INDEXES "+
-			"WHERE INDEX_NAME = ? AND TABLE_NAME = ? AND TABLE_OWNER = SYS_CONTEXT('USERENV','CURRENT_SCHEMA')",
+			"WHERE INDEX_NAME = ? AND TABLE_NAME = ? "+
+			"AND OWNER = SYS_CONTEXT('USERENV','CURRENT_SCHEMA') AND TABLE_OWNER = SYS_CONTEXT('USERENV','CURRENT_SCHEMA')",
 		indexName, oracleUsersTable,
 	).Scan(&rows).Error)
 	if len(rows) == 0 {

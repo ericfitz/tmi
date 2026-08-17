@@ -101,14 +101,25 @@ func runSchemaLocked(db *testdb.TestDB) error {
 	// path, so here the outcome has to be checked: exiting 0 having silently
 	// not upgraded the index is exactly the failure an operator ran this to
 	// fix (oracle-db-admin review, #732).
+	//
+	// Held, not returned yet. Failing here would abandon the sparse-email
+	// index and the system seed below, leaving a database that AutoMigrated
+	// and stamped its fingerprint but never got its groups or webhook deny
+	// list -- a worse state than the one being reported. The run finishes,
+	// then reports (oracle-db-admin re-review, #732).
+	var lookupIndexErr error
 	unique, err := dbschema.UserProviderLookupIndexIsUnique(db.DB())
-	if err != nil {
-		return fmt.Errorf("failed to verify the users provider-lookup index: %w", err)
-	}
-	if !unique {
-		return fmt.Errorf(
+	switch {
+	case err != nil:
+		lookupIndexErr = fmt.Errorf("failed to verify the users provider-lookup index: %w", err)
+	case !unique:
+		lookupIndexErr = fmt.Errorf(
 			"idx_users_provider_lookup is not a valid UNIQUE index after migration; see the logged reason above. " +
 				"The most common cause is pre-existing duplicate (provider, provider_user_id) rows, which must be merged or deleted before the index can be made unique (#732)")
+	}
+	if lookupIndexErr != nil {
+		log.Error("%v", lookupIndexErr)
+		log.Error("Continuing with the remaining schema steps; this run will exit non-zero.")
 	}
 
 	// #720: unique sparse-email index (partial/function-based) is raw DDL
@@ -122,6 +133,10 @@ func runSchemaLocked(db *testdb.TestDB) error {
 	log.Info("Seeding system data (groups, webhook deny list)...")
 	if err := seed.SeedDatabase(db.DB()); err != nil {
 		return fmt.Errorf("failed to seed system data: %w", err)
+	}
+
+	if lookupIndexErr != nil {
+		return lookupIndexErr
 	}
 
 	log.Info("Schema migration and system seed complete")
