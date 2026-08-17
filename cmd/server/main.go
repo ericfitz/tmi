@@ -2523,7 +2523,14 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 			// Add user to Administrators group
 			_, err = api.GlobalGroupMemberRepository.AddMember(ctx, adminsGroupUUID, userUUID, nil, &notes)
 			if err != nil {
-				logger.Info("Administrator user already in group or added: provider=%s, error=%v", adminCfg.Provider, err)
+				// A duplicate here is the ordinary "already a member" case; a
+				// context error is not, and must not be logged as if the add
+				// had succeeded (#733).
+				if ctx.Err() != nil {
+					logger.Error("Administrator group-add hit the initialization deadline: provider=%s, error=%v", adminCfg.Provider, err)
+				} else {
+					logger.Info("Administrator user already in group or added: provider=%s, error=%v", adminCfg.Provider, err)
+				}
 			} else {
 				logger.Info("Administrator configured: type=user, provider=%s, user_uuid=%s", adminCfg.Provider, userUUID)
 			}

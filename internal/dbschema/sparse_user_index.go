@@ -263,9 +263,12 @@ func sparseUserEmailIndexExists(db *gorm.DB, usersTable string) (bool, error) {
 		// ALL_INDEXES filtered to CURRENT_SCHEMA, not USER_INDEXES: the latter
 		// is scoped to indexes owned by the *connected user*, so it reports
 		// nothing on a schema-owner-separated deployment and this probe would
-		// answer "absent" for an index that exists (#736).
+		// answer "absent" for an index that exists (#736). Both OWNER and
+		// TABLE_OWNER are pinned -- see userProviderLookupIndexExists for why
+		// TABLE_OWNER alone is not enough.
 		err = db.Raw(
-			"SELECT COUNT(*) FROM ALL_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ? AND TABLE_OWNER = "+oracleCurrentSchema+" "+
+			"SELECT COUNT(*) FROM ALL_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ? "+
+				"AND OWNER = "+oracleCurrentSchema+" AND TABLE_OWNER = "+oracleCurrentSchema+" "+
 				"AND UNIQUENESS = 'UNIQUE' AND STATUS = 'VALID' "+
 				"AND (FUNCIDX_STATUS IS NULL OR FUNCIDX_STATUS = 'ENABLED')",
 			strings.ToUpper(sparseUserIndexName), strings.ToUpper(usersTable),

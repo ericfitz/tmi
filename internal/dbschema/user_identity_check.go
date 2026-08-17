@@ -137,8 +137,15 @@ func userProviderLookupIndexExists(db *gorm.DB, usersTable string) (bool, error)
 		// is scoped to indexes owned by the *connected user*, so it reports
 		// nothing on a schema-owner-separated deployment and this probe would
 		// answer "absent" for an index that exists (#736).
+		//
+		// Both OWNER and TABLE_OWNER are pinned. Oracle allows an index in one
+		// schema over a table in another, and an unqualified DROP/CREATE INDEX
+		// resolves the *index* name in CURRENT_SCHEMA (OWNER) -- so matching on
+		// TABLE_OWNER alone would let a foreign-owned same-named index read as
+		// "present" here (oracle-db-admin review, #736).
 		err = db.Raw(
-			"SELECT COUNT(*) FROM ALL_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ? AND TABLE_OWNER = "+oracleCurrentSchema,
+			"SELECT COUNT(*) FROM ALL_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ? "+
+				"AND OWNER = "+oracleCurrentSchema+" AND TABLE_OWNER = "+oracleCurrentSchema,
 			strings.ToUpper(userProviderLookupIndexName), strings.ToUpper(usersTable),
 		).Scan(&cnt).Error
 	case "postgres":

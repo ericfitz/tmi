@@ -29,6 +29,14 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 	// advisory lock. Without it, `tmi-dbtool --schema` run while a server is
 	// booting reintroduces exactly the concurrent-DDL exposure (ORA-00054,
 	// duplicate CREATE races) that #723/#726 added the lock to eliminate.
+	//
+	// Consequence worth knowing before running this against a live
+	// deployment: the lock is held across AutoMigrate AND the system seed, so
+	// a server booting meanwhile blocks on it. On Oracle that server gives up
+	// after DBMS_LOCK.REQUEST's 300s timeout and exits (restart brings it
+	// back once this finishes); on PostgreSQL pg_advisory_lock waits
+	// indefinitely. Previously the two simply raced, which was worse
+	// (oracle-db-admin review, #737).
 	return dbschema.WithMigrationLock(context.Background(), db.DB(), dbschema.MigrationLockName, func() error {
 		return runSchemaLocked(db)
 	})
@@ -86,6 +94,21 @@ func runSchemaLocked(db *testdb.TestDB) error {
 	// and auth/config_adapter.go.
 	if err := dbschema.EnsureUserProviderLookupUnique(db.DB()); err != nil {
 		return fmt.Errorf("failed to check the users provider-lookup index: %w", err)
+	}
+
+	// That function warns-and-continues on a DDL failure so it can never
+	// crash-loop a server boot. dbtool is the admin-privileged remediation
+	// path, so here the outcome has to be checked: exiting 0 having silently
+	// not upgraded the index is exactly the failure an operator ran this to
+	// fix (oracle-db-admin review, #732).
+	unique, err := dbschema.UserProviderLookupIndexIsUnique(db.DB())
+	if err != nil {
+		return fmt.Errorf("failed to verify the users provider-lookup index: %w", err)
+	}
+	if !unique {
+		return fmt.Errorf(
+			"idx_users_provider_lookup is not a valid UNIQUE index after migration; see the logged reason above. " +
+				"The most common cause is pre-existing duplicate (provider, provider_user_id) rows, which must be merged or deleted before the index can be made unique (#732)")
 	}
 
 	// #720: unique sparse-email index (partial/function-based) is raw DDL

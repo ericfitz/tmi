@@ -90,6 +90,15 @@ func execMigrationDDL(db *gorm.DB, ddl string) error {
 		return fmt.Errorf("get pinned sql.Conn for migration DDL: %w", err)
 	}
 	defer func() {
+		// Reset DDL_LOCK_TIMEOUT before handing the session back: Close()
+		// returns it to the pool with whatever session state it carries, and
+		// an unrelated later statement inheriting a 30s DDL wait is
+		// surprising even though it is harmless (it only affects DDL, and
+		// waiting beats failing fast). Best effort -- if the reset fails the
+		// session is still usable (oracle-db-admin review, #734).
+		if _, rerr := conn.ExecContext(ctx, "ALTER SESSION SET DDL_LOCK_TIMEOUT = 0"); rerr != nil {
+			slogging.Get().Debug("could not reset DDL_LOCK_TIMEOUT on the pinned DDL session before returning it to the pool: %v", rerr)
+		}
 		if cerr := conn.Close(); cerr != nil {
 			slogging.Get().Warn("closing pinned migration-DDL connection failed: %v", cerr)
 		}

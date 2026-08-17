@@ -77,8 +77,11 @@ func readOracleIndexState(t *testing.T, db *gorm.DB, indexName string) (oracleIn
 // Named ...OracleIntegration so `make test-integration-oci`'s oracle-tagged
 // phase (-run OracleIntegration) selects it.
 //
-// This mutates a real index on a real USERS table, so every phase restores
-// what it changed and t.Cleanup re-ensures the production index at the end.
+// WARNING: this test drops and recreates real indexes on the real USERS
+// table, and between a DROP and its restore those rows are neither unique-
+// constrained nor indexed. Every phase restores what it changed and t.Cleanup
+// re-ensures the production index at the end, but run it only against a
+// dedicated test ADB -- never one shared with real users.
 func TestSparseUserEmailIndexOracleIntegration(t *testing.T) {
 	db := openOracleDB(t)
 
@@ -143,7 +146,12 @@ func TestSparseUserEmailIndexOracleIntegration(t *testing.T) {
 	// must hit ORA-00955, verify, discover the invariant is NOT enforced, log
 	// it, and continue -- without dropping an index it did not create.
 	require.NoError(t, db.Exec("DROP INDEX "+oracleSparseIndexName).Error)
-	require.NoError(t, db.Exec("CREATE INDEX "+oracleSparseIndexName+" ON "+oracleUsersTable+" (EMAIL)").Error)
+	// The impostor is built over (NAME), not (EMAIL): models.User already
+	// carries index:idx_users_email over exactly (EMAIL), and Oracle rejects a
+	// second index over an identical column list with ORA-01408 regardless of
+	// its name -- which is Phase 5's subject, not this one. (NAME) is the only
+	// User column with no index of its own (oracle-db-admin review, #735).
+	require.NoError(t, db.Exec("CREATE INDEX "+oracleSparseIndexName+" ON "+oracleUsersTable+" (NAME)").Error)
 
 	require.NoError(t, dbschema.EnsureSparseUserEmailIndex(db),
 		"an impostor index must not abort startup")
@@ -183,6 +191,13 @@ func TestSparseUserEmailIndexOracleIntegration(t *testing.T) {
 // but Oracle, because the detection failure is specific to gorm-oracle
 // binding a lowercase index name against the uppercase names Oracle folded
 // TMI's unquoted DDL into.
+//
+// Carries the same shared-database warning as
+// TestSparseUserEmailIndexOracleIntegration. It also fails, correctly and for
+// environmental reasons, if the target schema already holds duplicate
+// (provider, provider_user_id) rows: the upgrade refuses to run over
+// duplicates, so the final assertion sees a still-non-unique index. Clean the
+// duplicates the log names, then re-run.
 func TestUserProviderLookupUniqueOracleIntegration(t *testing.T) {
 	const lookupIndexName = "IDX_USERS_PROVIDER_LOOKUP"
 	db := openOracleDB(t)

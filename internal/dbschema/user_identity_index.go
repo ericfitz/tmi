@@ -47,6 +47,14 @@ import (
 // user identities repoints ownership and access rows across many tables and is
 // a security decision startup code must not make on its own.
 //
+// Note the deliberate asymmetry with EnsureSparseUserEmailIndex (#720), which
+// hard-aborts startup on pre-existing duplicate sparse emails. That index is
+// new, so a database carrying such duplicates has never had them tolerated and
+// failing loudly is safe. This index predates #701 on every deployment that
+// has the problem, so those databases boot today and must keep booting;
+// aborting here would take down every pre-#701 deployment on upgrade
+// (oracle-db-admin review, #732).
+//
 // This function never aborts startup on a DDL failure -- only on a failure to
 // read the catalog at all. A runtime user without DDL privileges, a busy
 // table, or an unexpected DDL error all leave the database exactly as it was
@@ -110,26 +118,67 @@ func EnsureUserProviderLookupUnique(db *gorm.DB) error {
 		if err := withDDLRetry("users provider-lookup index drop", func() error {
 			return execMigrationDDL(db, dropDDL)
 		}); err != nil {
-			logger.Error(
-				"failed to drop the non-unique %s ahead of recreating it as UNIQUE: %v. "+
-					"The index is unchanged (still non-unique) and startup is continuing; retry on the next boot or run `tmi-dbtool --schema` with an admin-privileged database user (#732)",
+			// Oracle commits before and after every DDL statement, so a
+			// transient failure can arrive *after* the DROP itself took
+			// effect -- the retry then raises ORA-01418 for an index that is
+			// genuinely gone. Ask the catalog what is actually true rather
+			// than inferring it from the error (oracle-db-admin review, #732).
+			stillPresent, _, probeErr := userProviderLookupIndexState(db, usersTable)
+			if probeErr != nil {
+				// Can't tell what actually happened. Assume the drop did not
+				// take effect: proceeding to CREATE on that assumption is the
+				// branch that can leave the table index-less.
+				logger.Error("re-probing %s after a failed drop also failed: %v", userProviderLookupIndexName, probeErr)
+				stillPresent = true
+			}
+			if stillPresent {
+				logger.Error(
+					"failed to drop the non-unique %s ahead of recreating it as UNIQUE: %v. "+
+						"The index is unchanged (still non-unique) and startup is continuing; retry on the next boot or run `tmi-dbtool --schema` with an admin-privileged database user (#732)",
+					userProviderLookupIndexName, err)
+				return nil
+			}
+			logger.Warn(
+				"the DROP of %s reported an error (%v) but the index is gone -- Oracle commits around DDL, so the statement had already taken effect; continuing to the CREATE (#732)",
 				userProviderLookupIndexName, err)
-			return nil
 		}
 	}
 
-	// From here the index is gone. Any failure to recreate it leaves the
-	// users table without its identity lookup index, which is a performance
-	// problem on every login, so a failed CREATE UNIQUE is followed by an
-	// attempt to put the original non-unique index back.
+	// From here the index name is free. Any failure to recreate it leaves the
+	// users table without its identity lookup index, which is a table scan on
+	// every login, so a failed CREATE UNIQUE is followed by an attempt to put
+	// the original non-unique index back.
 	if err := withDDLRetry("users provider-lookup unique index create", func() error {
 		return execMigrationDDL(db, createUniqueDDL)
 	}); err != nil {
-		logger.Error("failed to create %s as UNIQUE: %v", userProviderLookupIndexName, err)
-		if restoreErr := execMigrationDDL(db, restoreDDL); restoreErr != nil {
+		// Same auto-commit reasoning as the DROP above, and it also covers the
+		// ORA-00955 cases without string-matching the driver error: re-probe,
+		// then decide. A concurrent replica winning the create race and this
+		// session's own committed-then-disconnected create are indistinguishable
+		// from here, and both are fine.
+		nowExists, nowUnique, probeErr := userProviderLookupIndexState(db, usersTable)
+		switch {
+		case probeErr == nil && nowExists && nowUnique:
+			logger.Warn(
+				"the CREATE of %s reported an error (%v) but a valid UNIQUE index is present -- this session's DDL committed before the failure, or a concurrent replica won the race; treating as success (#732)",
+				userProviderLookupIndexName, err)
+			return nil
+		case probeErr == nil && nowExists:
 			logger.Error(
-				"AND failed to restore the previous non-unique %s: %v. The users table now has NO (provider, provider_user_id) index -- "+
-					"logins will table-scan. Recreate it manually: %s (#732)",
+				"failed to create %s as UNIQUE (%v): an index of that name exists but is not a valid UNIQUE index. "+
+					"Duplicate user identities are NOT being prevented; startup is continuing. Inspect that index and drop it if it is not TMI's (#732)",
+				userProviderLookupIndexName, err)
+			return nil
+		}
+
+		logger.Error("failed to create %s as UNIQUE: %v", userProviderLookupIndexName, err)
+		if restoreErr := withDDLRetry("users provider-lookup index restore", func() error {
+			return execMigrationDDL(db, restoreDDL)
+		}); restoreErr != nil {
+			logger.Error(
+				"AND failed to restore the previous non-unique %s: %v. The users table may now have NO (provider, provider_user_id) index -- "+
+					"logins will table-scan. Recreate it manually: %s. If this reports ORA-01408, another index already covers that exact column list "+
+					"under a different name and no action is needed beyond confirming it is UNIQUE (#732)",
 				userProviderLookupIndexName, restoreErr, createUniqueDDL)
 		} else {
 			logger.Error("restored the previous non-unique %s; the uniqueness constraint remains unenforced and the upgrade will retry on the next boot (#732)",
@@ -164,6 +213,30 @@ func EnsureUserProviderLookupUnique(db *gorm.DB) error {
 	return nil
 }
 
+// UserProviderLookupIndexIsUnique reports whether idx_users_provider_lookup is
+// currently a valid UNIQUE index, so a caller that needs the upgrade to have
+// actually happened can say so.
+//
+// EnsureUserProviderLookupUnique deliberately never aborts a server boot over
+// a DDL failure -- crash-looping a server over an index it may not be
+// privileged to touch is the larger outage. `tmi-dbtool --schema` is the
+// opposite case: it is the admin-privileged remediation path, and exiting 0
+// having silently failed to do the one thing the operator ran it for is the
+// wrong outcome (oracle-db-admin review, #732). Returns false, not an error,
+// when the users table does not exist.
+func UserProviderLookupIndexIsUnique(db *gorm.DB) (bool, error) {
+	usersTable := (&models.User{}).TableName()
+	present, err := migrationTableExists(db, usersTable)
+	if err != nil || !present {
+		return false, err
+	}
+	exists, unique, err := userProviderLookupIndexState(db, usersTable)
+	if err != nil {
+		return false, err
+	}
+	return exists && unique, nil
+}
+
 // userProviderLookupDDL returns the drop, create-unique, and restore-non-unique
 // statements for idx_users_provider_lookup on the given dialect.
 //
@@ -174,11 +247,22 @@ func EnsureUserProviderLookupUnique(db *gorm.DB) error {
 // be idempotent.
 //
 // There is a window between the drop and the create where the index does not
-// exist. It cannot be avoided on Oracle -- a second index over the same column
-// list raises ORA-01408, so the new index cannot be built alongside the old
-// one -- and it is bounded: the whole sequence runs at startup under the
+// exist. It cannot be closed by building the replacement alongside the old one
+// -- Oracle raises ORA-01408 for a second index over an identical column list
+// -- and it is bounded: the whole sequence runs at startup under the
 // cross-replica migration advisory lock, on a table whose index builds in
 // seconds.
+//
+// A window-free Oracle alternative exists and was considered: a UNIQUE
+// *constraint* can be enforced by an existing non-unique index, so
+// `ALTER TABLE USERS ADD CONSTRAINT ... UNIQUE (PROVIDER, PROVIDER_USER_ID)`
+// would bind immediately with no drop and no rebuild (validating existing data
+// at DDL time, ORA-02299, which the duplicate gate above already prevents).
+// It was not taken because it introduces an Oracle-only object with no
+// PostgreSQL counterpart -- the probe would then have to consult
+// ALL_CONSTRAINTS as well as ALL_INDEXES -- which cuts against
+// api/models/models.go being the single source of truth for the schema
+// (oracle-db-admin review, #732).
 func userProviderLookupDDL(dialect, usersTable string) (drop, createUnique, restore string) {
 	name := userProviderLookupIndexName
 	table := usersTable
@@ -204,15 +288,27 @@ func userProviderLookupDDL(dialect, usersTable string) (drop, createUnique, rest
 func userProviderLookupIndexState(db *gorm.DB, usersTable string) (exists, unique bool, err error) {
 	switch db.Name() {
 	case "oracle":
-		var uniqueness []string
+		// STATUS is checked alongside UNIQUENESS for the same reason
+		// sparseUserEmailIndexExists checks it: an UNUSABLE unique index
+		// enforces nothing (and makes every USERS DML raise ORA-01502), so
+		// treating it as "already unique" would skip the upgrade forever.
+		// STATUS is 'N/A' for partitioned indexes; USERS is not partitioned.
+		// Both OWNER and TABLE_OWNER are pinned -- an unqualified DROP/CREATE
+		// INDEX resolves the index name in CURRENT_SCHEMA, so a foreign-owned
+		// same-named index must not read as ours (oracle-db-admin review, #732).
+		var state []struct {
+			Uniqueness string
+			Status     string
+		}
 		err = db.Raw(
-			"SELECT UNIQUENESS FROM ALL_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ? AND TABLE_OWNER = "+oracleCurrentSchema,
+			"SELECT UNIQUENESS, STATUS FROM ALL_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ? "+
+				"AND OWNER = "+oracleCurrentSchema+" AND TABLE_OWNER = "+oracleCurrentSchema,
 			strings.ToUpper(userProviderLookupIndexName), strings.ToUpper(usersTable),
-		).Scan(&uniqueness).Error
-		if err != nil || len(uniqueness) == 0 {
+		).Scan(&state).Error
+		if err != nil || len(state) == 0 {
 			return false, false, err
 		}
-		return true, strings.EqualFold(uniqueness[0], "UNIQUE"), nil
+		return true, strings.EqualFold(state[0].Uniqueness, "UNIQUE") && strings.EqualFold(state[0].Status, "VALID"), nil
 	case "postgres":
 		var defs []string
 		err = db.Raw(

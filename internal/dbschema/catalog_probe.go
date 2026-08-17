@@ -46,11 +46,21 @@ func migrationTableExists(db *gorm.DB, table string) (bool, error) {
 	if db.Name() != "oracle" {
 		return db.Migrator().HasTable(table), nil
 	}
+	// withMigrationRetry, like every other catalog read in this package: the
+	// gorm HasTable this replaced swallowed its errors and returned a bare
+	// false, whereas this probe surfaces them, and it is the *first* statement
+	// the migration sequence issues -- the likeliest place to land on a stale
+	// pooled ADB session and take ORA-02396 / ORA-03113 / ORA-01012 /
+	// ORA-12537, all of which dberrors classifies transient precisely because
+	// they are common on ADB. Without the retry a one-off blip turns a boot
+	// into a crash-loop (oracle-db-admin review, #736).
 	var cnt int64
-	err := db.Raw(
-		"SELECT COUNT(*) FROM ALL_TABLES WHERE TABLE_NAME = ? AND OWNER = "+oracleCurrentSchema,
-		strings.ToUpper(table),
-	).Scan(&cnt).Error
+	err := withMigrationRetry("startup table-existence probe", func() error {
+		return db.Raw(
+			"SELECT COUNT(*) FROM ALL_TABLES WHERE TABLE_NAME = ? AND OWNER = "+oracleCurrentSchema,
+			strings.ToUpper(table),
+		).Scan(&cnt).Error
+	})
 	if err != nil {
 		return false, err
 	}
@@ -84,8 +94,11 @@ func requireMigrationTable(db *gorm.DB, table, step string) (bool, error) {
 	logger := slogging.Get()
 	if db.Name() == "oracle" {
 		var owners []string
+		// Ordered so the five owners named are stable across runs rather than
+		// whichever five the optimizer happened to return first; this is a
+		// diagnostic sample, not an exhaustive list.
 		if oerr := db.Raw(
-			"SELECT OWNER FROM ALL_TABLES WHERE TABLE_NAME = ? AND ROWNUM <= 5",
+			"SELECT OWNER FROM (SELECT OWNER FROM ALL_TABLES WHERE TABLE_NAME = ? ORDER BY OWNER) WHERE ROWNUM <= 5",
 			strings.ToUpper(table),
 		).Scan(&owners).Error; oerr == nil && len(owners) > 0 {
 			logger.Warn(
