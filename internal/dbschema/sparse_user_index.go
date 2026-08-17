@@ -65,12 +65,20 @@ type sparseDupKey struct {
 // SEM@df7fd289991cfd0c30ec2f8c8721a7b593f7d535: build a dialect-appropriate unique index over sparse user emails (writes DB)
 func EnsureSparseUserEmailIndex(db *gorm.DB) error {
 	usersTable := (&models.User{}).TableName()
-	if !db.Migrator().HasTable(usersTable) {
+	// #736: owner-aware probe. gorm's HasTable resolves through Oracle's
+	// USER_TABLES, which is empty on a schema-owner-separated deployment even
+	// though the table exists -- this check then returned nil having created
+	// and verified nothing, with no log line.
+	present, err := requireMigrationTable(db, usersTable, "sparse-user email index (#720)")
+	if err != nil {
+		return err
+	}
+	if !present {
 		return nil
 	}
 
 	var exists bool
-	err := withMigrationRetry("sparse-user email index existence probe", func() error {
+	err = withMigrationRetry("sparse-user email index existence probe", func() error {
 		var probeErr error
 		exists, probeErr = sparseUserEmailIndexExists(db, usersTable)
 		return probeErr
@@ -233,8 +241,12 @@ func sparseUserEmailIndexExists(db *gorm.DB, usersTable string) (bool, error) {
 	var err error
 	switch db.Name() {
 	case "oracle":
+		// ALL_INDEXES filtered to CURRENT_SCHEMA, not USER_INDEXES: the latter
+		// is scoped to indexes owned by the *connected user*, so it reports
+		// nothing on a schema-owner-separated deployment and this probe would
+		// answer "absent" for an index that exists (#736).
 		err = db.Raw(
-			"SELECT COUNT(*) FROM USER_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ? "+
+			"SELECT COUNT(*) FROM ALL_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ? AND TABLE_OWNER = "+oracleCurrentSchema+" "+
 				"AND UNIQUENESS = 'UNIQUE' AND STATUS = 'VALID' "+
 				"AND (FUNCIDX_STATUS IS NULL OR FUNCIDX_STATUS = 'ENABLED')",
 			strings.ToUpper(sparseUserIndexName), strings.ToUpper(usersTable),

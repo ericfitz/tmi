@@ -60,12 +60,20 @@ type userDupKey struct {
 // SEM@bb40881560ec43c848a818a906635c7d26b0b603: detect duplicate user provider identities and return an actionable startup error only when the unique index would genuinely fail to create (reads DB)
 func CheckDuplicateUserProviderIdentities(db *gorm.DB) error {
 	usersTable := (&models.User{}).TableName()
-	if !db.Migrator().HasTable(usersTable) {
+	// #736: owner-aware probe. gorm's HasTable resolves through Oracle's
+	// USER_TABLES, which is empty on a schema-owner-separated deployment even
+	// though the table exists -- this check then returned nil having checked
+	// nothing, with no log line.
+	present, err := requireMigrationTable(db, usersTable, "users duplicate-identity check (#724)")
+	if err != nil {
+		return err
+	}
+	if !present {
 		return nil
 	}
 
 	var dups []userDupKey
-	err := withMigrationRetry("users duplicate-identity check", func() error {
+	err = withMigrationRetry("users duplicate-identity check", func() error {
 		dups = dups[:0]
 		return db.Table(usersTable).
 			Select("provider, provider_user_id, COUNT(*) AS cnt").
@@ -154,8 +162,12 @@ func userProviderLookupIndexExists(db *gorm.DB, usersTable string) (bool, error)
 	var err error
 	switch db.Name() {
 	case "oracle":
+		// ALL_INDEXES filtered to CURRENT_SCHEMA, not USER_INDEXES: the latter
+		// is scoped to indexes owned by the *connected user*, so it reports
+		// nothing on a schema-owner-separated deployment and this probe would
+		// answer "absent" for an index that exists (#736).
 		err = db.Raw(
-			"SELECT COUNT(*) FROM USER_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ?",
+			"SELECT COUNT(*) FROM ALL_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ? AND TABLE_OWNER = "+oracleCurrentSchema,
 			strings.ToUpper(userProviderLookupIndexName), strings.ToUpper(usersTable),
 		).Scan(&cnt).Error
 	case "postgres":
