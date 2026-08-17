@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 )
@@ -134,14 +135,15 @@ func EnsureSparseUserEmailIndex(db *gorm.DB) error {
 			sparseUserIndexName, usersTable)
 	}
 
-	// withMigrationRetry: CREATE INDEX takes a DDL lock on usersTable, which
-	// is a hot table (login updates, sparse inserts). Against Oracle with
-	// ddl_lock_timeout at its default of 0, a concurrent DML holder makes
-	// this raise ORA-00054 (resource busy) immediately rather than waiting;
-	// ORA-00054 is classified ErrTransient (internal/dberrors) and retried
-	// here instead of hard-aborting startup (oracle-db-admin review, 1.8.4).
-	err = withMigrationRetry("sparse-user email index create", func() error {
-		return db.Exec(ddl).Error
+	// CREATE INDEX takes a DDL lock on usersTable, which is a hot table (login
+	// updates, sparse inserts). execMigrationDDL runs it on a pinned Oracle
+	// session with DDL_LOCK_TIMEOUT set so it queues behind concurrent DML
+	// instead of raising ORA-00054 (resource busy) immediately, and
+	// withDDLRetry covers what still gets through with seconds of exponential
+	// backoff rather than withMigrationRetry's 60ms total, which was
+	// effectively one shot inside a rolling deploy's DML window (#734).
+	err = withDDLRetry("sparse-user email index create", func() error {
+		return execMigrationDDL(db, ddl)
 	})
 	switch {
 	case err == nil:
@@ -166,6 +168,23 @@ func EnsureSparseUserEmailIndex(db *gorm.DB) error {
 		// UNIQUE, so it's worth a log line even though startup continues
 		// (oracle-db-admin review, 1.8.4 round 2).
 		slogging.Get().Warn("failed to create %s: an index over the same columns already exists under a different name (ORA-01408); continuing, but verify it is UNIQUE: %v", sparseUserIndexName, err)
+		return nil
+	case dberrors.IsRetryable(dberrors.Classify(err)):
+		// Lock contention (ORA-00054) or a connection blip that outlived the
+		// retry budget. Every other "the invariant is not enforced right now"
+		// outcome in this file already warns and continues -- the ORA-01408
+		// branch, verifySparseIndexEnforced, and #724's index-exists branch --
+		// while this one alone aborted startup, so a rolling deploy whose old
+		// pods held the USERS DDL lock for the whole retry window crash-looped
+		// the new pod instead of degrading (oracle-db-admin review, #734).
+		// Reconciled here to the same warn-and-continue policy: a missing
+		// defense-in-depth index is a smaller outage than a server that will
+		// not boot, and the next boot retries the create.
+		slogging.Get().Error(
+			"failed to create %s after %d attempts against a busy %s (transient error: %v). "+
+				"#720's duplicate-sparse-user-email protection is NOT currently enforced; startup is continuing and the next boot will retry. "+
+				"If this persists, run the DDL manually against a quiet database or with a longer DDL_LOCK_TIMEOUT",
+			sparseUserIndexName, ddlMaxAttempts, usersTable, err)
 		return nil
 	default:
 		return fmt.Errorf("failed to create %s: %w", sparseUserIndexName, err)
