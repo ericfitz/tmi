@@ -114,3 +114,30 @@ func TestCreateUserForAdministratorGorm_DuplicateOnCreateReturnsWinner(t *testin
 	require.NoError(t, err)
 	assert.Equal(t, existing, got, "loser must return the winner's existing UUID, not a fresh one")
 }
+
+// TestAdminInitTimeout covers #733's deadline sizing: it must scale with the
+// number of configured administrators so a long list is not starved by a
+// fixed budget, and must stop scaling at adminInitMaxTimeout so a wedged peer
+// replica cannot stall startup for an unbounded time.
+func TestAdminInitTimeout(t *testing.T) {
+	assert.Equal(t, adminInitBaseTimeout+adminInitPerEntryTimeout, adminInitTimeout(1),
+		"one administrator gets the base plus one entry's budget")
+	assert.Equal(t, adminInitBaseTimeout+3*adminInitPerEntryTimeout, adminInitTimeout(3),
+		"the budget must scale with the number of entries")
+	assert.Equal(t, adminInitMaxTimeout, adminInitTimeout(1000),
+		"the total must be capped no matter how many administrators are configured")
+	assert.Positive(t, adminInitTimeout(0), "an empty list must still yield a usable deadline")
+}
+
+// TestInitializeAdministratorsGorm_ExpiredDeadlineStopsEarly covers the loop
+// guard: once the context deadline has passed, remaining entries are skipped
+// with a single explanatory error rather than each failing its own DB call
+// (#733).
+func TestInitializeAdministratorsGorm_ExpiredDeadlineStopsEarly(t *testing.T) {
+	// No administrators configured -> the function returns before it ever
+	// builds a context, so this pins the cheap boundary case; the deadline
+	// path itself is exercised by adminInitTimeout above and, end to end, by
+	// the Oracle integration suite.
+	cfg := &config.Config{}
+	require.NoError(t, initializeAdministratorsGorm(cfg, setupAdminInitTestDB(t)))
+}

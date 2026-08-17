@@ -2404,6 +2404,33 @@ func validateDatabaseSchema(cfg *config.Config) error {
 	return nil
 }
 
+const (
+	// adminInitBaseTimeout and adminInitPerEntryTimeout size the deadline
+	// initializeAdministratorsGorm runs its database work under (#733). Each
+	// configured administrator costs at most a lookup, an insert, and a group
+	// membership write, so per-entry generosity matters more than the base;
+	// both are set far above normal Oracle ADB latency so a healthy startup
+	// never notices them.
+	adminInitBaseTimeout     = 15 * time.Second
+	adminInitPerEntryTimeout = 15 * time.Second
+
+	// adminInitMaxTimeout caps the total regardless of how many
+	// administrators are configured: the point of the deadline is that a
+	// wedged peer replica cannot stall startup indefinitely, and a ceiling
+	// that scales without bound would give that back.
+	adminInitMaxTimeout = 2 * time.Minute
+)
+
+// adminInitTimeout returns the deadline for a pass over entries configured
+// administrators.
+func adminInitTimeout(entries int) time.Duration {
+	total := adminInitBaseTimeout + time.Duration(entries)*adminInitPerEntryTimeout
+	if total > adminInitMaxTimeout {
+		return adminInitMaxTimeout
+	}
+	return total
+}
+
 // initializeAdministratorsGorm initializes administrators from configuration using GORM
 // SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: seed the Administrators group with configured users/groups, creating missing users only on not-found (writes DB)
 func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
@@ -2415,11 +2442,32 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 		return nil
 	}
 
-	ctx := context.Background()
+	// #733: every DB call below ran on context.Background() with no deadline.
+	// On Oracle, when two replicas race to create the same first-boot
+	// administrator row, the loser's INSERT blocks on the unique
+	// idx_users_provider_lookup until the winner's transaction ends -- and if
+	// the winning replica (or its host) wedges mid-transaction there is no
+	// NOWAIT, no statement timeout and nothing else to break the underlying
+	// OCI call, so this replica's startup stalls indefinitely. Bound the whole
+	// pass instead.
+	ctx, cancel := context.WithTimeout(context.Background(), adminInitTimeout(len(cfg.Administrators)))
+	defer cancel()
+
 	adminsGroupUUID := uuid.MustParse(api.AdministratorsGroupUUID)
 	notes := "Configured via YAML/environment"
 
 	for i, adminCfg := range cfg.Administrators {
+		// Stop at the deadline rather than letting every remaining entry fail
+		// its own DB call and log a separate, misleading error.
+		if ctx.Err() != nil {
+			logger.Error(
+				"Administrator initialization deadline (%s) expired after %d of %d entries: %v. "+
+					"The remaining administrators were NOT added; startup is continuing. This usually means a peer replica is holding a "+
+					"conflicting users-table transaction open -- check for a wedged replica, then restart this one (#733)",
+				adminInitTimeout(len(cfg.Administrators)), i, len(cfg.Administrators), ctx.Err())
+			break
+		}
+
 		logger.Debug("Processing administrator config[%d]: provider=%s, type=%s", i, adminCfg.Provider, adminCfg.SubjectType)
 
 		if adminCfg.SubjectType == "user" {
