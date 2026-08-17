@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ericfitz/tmi/api"
@@ -19,11 +20,24 @@ import (
 // the schema first.
 // SEM@550719956eba05c4b206ae4056df29fa2c66586a: migrate DB schema via GORM AutoMigrate and seed system data (mutates DB)
 func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
-	log := slogging.Get()
-
 	if dryRun {
 		return runSchemaDryRun(db, verbose)
 	}
+
+	// #737: this issues the same DDL as a server boot's runMigrationsLocked
+	// against the same schema, so it must contend for the same cross-replica
+	// advisory lock. Without it, `tmi-dbtool --schema` run while a server is
+	// booting reintroduces exactly the concurrent-DDL exposure (ORA-00054,
+	// duplicate CREATE races) that #723/#726 added the lock to eliminate.
+	return dbschema.WithMigrationLock(context.Background(), db.DB(), dbschema.MigrationLockName, func() error {
+		return runSchemaLocked(db)
+	})
+}
+
+// runSchemaLocked performs the schema migration and system seed. Always called
+// with the cross-replica migration advisory lock held (see runSchema).
+func runSchemaLocked(db *testdb.TestDB) error {
+	log := slogging.Get()
 
 	// Step 1: AutoMigrate (Oracle-aware path via GormDB.AutoMigrate)
 	log.Info("Running GORM AutoMigrate...")

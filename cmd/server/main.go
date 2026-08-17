@@ -377,23 +377,23 @@ func runMigrations(ctx context.Context, gormDB *db.GormDB, dbType string) {
 // os.Exit inside the lock-holding region would skip the deferred release
 // (gocritic exitAfterDefer) and leave the lock orphaned for replicas to
 // time out on.
+//
+// The lock wraps the entire schema-evolution sequence so concurrent replicas
+// serialize on every step (drop legacy column, AutoMigrate, backfill, unique
+// indexes), not just the backfill.
 // SEM@df7fd289991cfd0c30ec2f8c8721a7b593f7d535: run DB schema migrations, backfills, and seed data under an advisory lock, with a fingerprint fast path (mutates DB)
 func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) error {
-	logger := slogging.Get()
+	return dbschema.WithMigrationLock(ctx, gormDB.DB(), dbschema.MigrationLockName, func() error {
+		return migrateSchema(ctx, gormDB, dbType)
+	})
+}
 
-	// Wrap the entire schema-evolution sequence in one cross-replica advisory
-	// lock so concurrent replicas serialize on every step (drop legacy column,
-	// AutoMigrate, backfill, unique indexes), not just the backfill.
-	release, lockErr := dbschema.AcquireMigrationLock(ctx, gormDB.DB(), "tmi_schema_migration")
-	if lockErr != nil {
-		if strings.Contains(lockErr.Error(), "unsupported dialect") {
-			logger.Warn("schema migration: skipping advisory lock for dialect %q: %v", gormDB.DB().Name(), lockErr)
-			release = func() {}
-		} else {
-			return fmt.Errorf("failed to acquire schema-migration advisory lock: %w", lockErr)
-		}
-	}
-	defer release()
+// migrateSchema runs the schema-evolution sequence itself. Always called with
+// the cross-replica migration advisory lock held (see runMigrationsLocked) —
+// several of its steps issue DDL that is not safe to run concurrently from
+// two replicas.
+func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error {
+	logger := slogging.Get()
 
 	// All databases use GORM AutoMigrate for schema management
 	// This provides a single source of truth (api/models/models.go) for all supported databases

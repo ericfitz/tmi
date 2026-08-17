@@ -7,6 +7,7 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,37 @@ const oracleLockTimeoutSeconds = 300
 // under any plausible ADB IDLE_TIME floor (resource-manager minimums are
 // minutes) while adding negligible load.
 var oracleLockKeepaliveInterval = 60 * time.Second
+
+// MigrationLockName is the one cross-replica lock every schema-evolution
+// entry point serializes on: the server's startup migration
+// (runMigrationsLocked), `tmi-dbtool --schema`, and the deprecated
+// InitAuthWithConfig path. They all run the same DDL against the same schema,
+// so they must contend for the same name -- a second name would serialize
+// each entry point against itself and nothing else (#737).
+const MigrationLockName = "tmi_schema_migration"
+
+// WithMigrationLock runs fn while holding the named cross-replica advisory
+// lock, releasing it on every exit path.
+//
+// SQLite (used by narrow unit tests and some tooling) has no advisory locks;
+// AcquireMigrationLock reports that as "unsupported dialect", and fn runs
+// unlocked -- a single-process in-memory SQLite is inherently single-writer.
+// Any other acquisition failure is returned without running fn: proceeding
+// unserialized is exactly the concurrent-DDL exposure the lock exists to
+// prevent.
+func WithMigrationLock(ctx context.Context, db *gorm.DB, name string, fn func() error) error {
+	release, err := AcquireMigrationLock(ctx, db, name)
+	if err != nil {
+		if !strings.Contains(err.Error(), "unsupported dialect") {
+			return fmt.Errorf("failed to acquire schema-migration advisory lock: %w", err)
+		}
+		slogging.Get().Warn("schema migration: skipping advisory lock for dialect %q: %v", db.Name(), err)
+		release = func() {}
+	}
+	defer release()
+
+	return fn()
+}
 
 // AcquireMigrationLock takes an exclusive, server-wide named lock that is
 // released by calling the returned function. Used to serialize startup-time
