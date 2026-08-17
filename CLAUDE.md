@@ -366,6 +366,13 @@ To prevent that, any change that can affect Oracle must be reviewed by the **`or
 - **Trigger skill:** `oracle-db-admin` — invoke this skill when DB code changes; it explains when and how to dispatch the subagent.
 - **Subagent definition:** `.claude/agents/oracle-db-admin.md` — the deep expertise lives here.
 - **What counts as a DB change:** see the trigger skill's "When to dispatch" table. When in doubt, dispatch — the cost is low and the cost of a missed Oracle bug is high.
+- **What does NOT count — dependency bumps:** a **minor or patch** version bump of
+  `github.com/godror/godror` (or any other DB driver) does **not** require an Oracle
+  review. No TMI code changes in such a bump, the driver's own semantic-versioning
+  contract covers it, and routing every routine driver patch through the subagent
+  costs more than it catches. Normal build/lint/test gates still apply.
+  A **major** driver bump is a different animal and **does** require the review, as
+  does any bump accompanied by TMI code changes to accommodate it.
 - **How to act on the verdict:**
   - `APPROVED`: proceed; note the verdict in the end-of-task summary.
   - `APPROVED WITH NOTES`: read the notes; fix what's easy now, file follow-ups for the rest.
@@ -540,6 +547,31 @@ Do not update or add any content to the docs/ directory (except the `docs/superp
 - Run python scripts with uv. When creating python scripts, add uv toml to the script for automatic package management.
 
 ## Agent Instructions
+
+### Dispatching Subagents
+
+Dispatching a subagent is allowed and encouraged whenever it is the most efficient
+way to accomplish a task — parallel independent work, a broad search whose
+intermediate output would otherwise flood the main context, or a review that
+benefits from a fresh perspective. You do not need to ask permission first.
+
+The one hard requirement is to **honor the model-selection guidelines for the task
+the agent is performing**, not for the task you happen to be doing:
+
+| Agent's task | Model | Effort |
+| --- | --- | --- |
+| Design, debugging, planning, review | Fable 5 (`claude-fable-5`) | — |
+| Orchestration (coordinating other subagents) | Opus 4.8 (`claude-opus-4-8`) | high |
+| Implementation, including testing | Sonnet 5 (`claude-sonnet-5`) | medium |
+
+Escalation ladder: a failed implementation attempt on Sonnet 5 is re-dispatched on
+Opus 4.8; a failed attempt on Opus 4.8 is re-dispatched on Fable 5. Never retry a
+failed attempt on the same model without changing something else (context, task
+size, or model).
+
+Some subagents are mandatory rather than optional — `oracle-db-admin` for
+DB-touching changes (see "Oracle Database Compatibility Review"). Those are
+requirements, not efficiency choices, and the exemptions listed there apply.
 
 ### Session Completion (Landing the Plane)
 
