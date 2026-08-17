@@ -72,24 +72,9 @@ func CheckDuplicateUserProviderIdentities(db *gorm.DB) error {
 		return nil
 	}
 
-	var dups []userDupKey
-	err = withMigrationRetry("users duplicate-identity check", func() error {
-		dups = dups[:0]
-		return db.Table(usersTable).
-			Select("provider, provider_user_id, COUNT(*) AS cnt").
-			// A composite unique index never constrains a row where ANY key
-			// column is NULL (Oracle and PostgreSQL both), so both halves of
-			// the key must be excluded to mirror idx_users_provider_lookup's
-			// actual enforcement exactly -- not just provider_user_id.
-			// provider is tagged not-null in the model today, but this stays
-			// correct against a legacy row that predates that tag.
-			Where("provider IS NOT NULL AND provider_user_id IS NOT NULL").
-			Group("provider, provider_user_id").
-			Having("COUNT(*) > 1").
-			Scan(&dups).Error
-	})
+	dups, err := findDuplicateUserIdentities(db, usersTable)
 	if err != nil {
-		return fmt.Errorf("failed to check users for duplicate provider identities: %w", err)
+		return err
 	}
 	if len(dups) == 0 {
 		return nil
@@ -105,21 +90,7 @@ func CheckDuplicateUserProviderIdentities(db *gorm.DB) error {
 		return fmt.Errorf("failed to check whether %s exists: %w", userProviderLookupIndexName, err)
 	}
 
-	// maxReportedPairs caps how many duplicate keys are named in the log/error.
-	// provider_user_id is an IdP subject, which for several providers is an
-	// email address; an unbounded list would let a badly-merged database dump
-	// an arbitrarily long line of PII into the startup log.
-	const maxReportedPairs = 20
-	shown := dups
-	suffix := ""
-	if len(dups) > maxReportedPairs {
-		shown = dups[:maxReportedPairs]
-		suffix = fmt.Sprintf(" (and %d more)", len(dups)-maxReportedPairs)
-	}
-	pairs := make([]string, len(shown))
-	for i, d := range shown {
-		pairs[i] = fmt.Sprintf("(provider=%s, provider_user_id=%s, rows=%d)", d.Provider, d.ProviderUserID, d.Cnt)
-	}
+	pairs := formatUserDupPairs(dups)
 
 	if indexExists {
 		// The index predates #701 and AutoMigrate cannot upgrade a
@@ -128,20 +99,20 @@ func CheckDuplicateUserProviderIdentities(db *gorm.DB) error {
 		// ORA-01452/23505 window to preempt. Every current deployment must
 		// keep booting, so warn loudly instead of hard-aborting.
 		slogging.Get().Error(
-			"users table contains %d duplicate (provider, provider_user_id) identities that %s does NOT currently enforce as unique (the index predates #701 and AutoMigrate cannot upgrade a non-unique index in place -- see #732): %s%s. "+
-				"Startup is continuing, but these rows should be manually merged or deleted (repointing any threat models, group memberships, and access grants they own). "+
-				"Cleaning up the rows alone does not make the index unique: the index itself must also be dropped and recreated (tracked in #732) or every future AutoMigrate pass will keep leaving it non-unique",
-			len(dups), userProviderLookupIndexName, strings.Join(pairs, "; "), suffix)
+			"users table contains %d duplicate (provider, provider_user_id) identities that %s does NOT currently enforce as unique (the index predates #701 and AutoMigrate cannot upgrade a non-unique index in place): %s. "+
+				"Startup is continuing, but these rows must be manually merged or deleted (repointing any threat models, group memberships, and access grants they own). "+
+				"Once they are gone, EnsureUserProviderLookupUnique (#732) drops and recreates the index as UNIQUE on the next boot; until then the constraint stays unenforced",
+			len(dups), userProviderLookupIndexName, pairs)
 		return nil
 	}
 
 	return fmt.Errorf(
-		"users table contains %d duplicate (provider, provider_user_id) identities: %s%s. "+
+		"users table contains %d duplicate (provider, provider_user_id) identities: %s. "+
 			"The unique index idx_users_provider_lookup cannot be created over these rows "+
 			"(ORA-01452 / SQLSTATE 23505) and startup cannot continue. Manually merge or "+
 			"delete the duplicate user rows (repointing any threat models, group "+
 			"memberships, and access grants they own), then restart",
-		len(dups), strings.Join(pairs, "; "), suffix)
+		len(dups), pairs)
 }
 
 // userProviderLookupIndexExists reports whether an index named

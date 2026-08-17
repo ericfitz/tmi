@@ -504,6 +504,17 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 		}
 	}
 
+	// #732: a pre-#701 database carries idx_users_provider_lookup as a plain,
+	// non-unique index and AutoMigrate cannot upgrade it in place, so the
+	// uniqueness constraint #701/#710 intended has never been enforced there.
+	// Drops and recreates it as UNIQUE when the table is duplicate-free. Like
+	// the sparse-email index below, index uniqueness is not part of the model
+	// fingerprint, so this must run even when the fast path skips AutoMigrate.
+	// Never fatal: it logs and continues if the upgrade cannot be performed.
+	if err := dbschema.EnsureUserProviderLookupUnique(gormDB.DB()); err != nil {
+		return fmt.Errorf("failed to check the users provider-lookup index: %w", err)
+	}
+
 	// #720: unique sparse-email index (partial/function-based) is raw DDL
 	// AutoMigrate cannot express; idempotent, runs even when the fingerprint
 	// fast path skips AutoMigrate (it is not part of the model fingerprint).

@@ -64,6 +64,16 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 		log.Warn("failed to record schema fingerprint (non-fatal): %v", err)
 	}
 
+	// #732: upgrade a pre-#701 non-unique idx_users_provider_lookup to a
+	// genuine UNIQUE index. This is the entry point most likely to succeed at
+	// it -- dbtool runs with an admin-privileged database user, where a
+	// DDL-less server runtime user can only log that the upgrade is needed.
+	// Same placement and reasoning as cmd/server/main.go's runMigrationsLocked
+	// and auth/config_adapter.go.
+	if err := dbschema.EnsureUserProviderLookupUnique(db.DB()); err != nil {
+		return fmt.Errorf("failed to check the users provider-lookup index: %w", err)
+	}
+
 	// #720: unique sparse-email index (partial/function-based) is raw DDL
 	// AutoMigrate cannot express; idempotent, same placement and reasoning as
 	// cmd/server/main.go's runMigrationsLocked and auth/config_adapter.go.

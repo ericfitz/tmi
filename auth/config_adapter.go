@@ -252,6 +252,15 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 		logger.Info("[AUTH_CONFIG_ADAPTER] GORM AutoMigrate completed")
 	}
 
+	// #732: upgrade a pre-#701 non-unique idx_users_provider_lookup to a
+	// genuine UNIQUE index -- same placement and reasoning as
+	// cmd/server/main.go's runMigrationsLocked and cmd/dbtool/schema.go's
+	// runSchema. Index uniqueness is not part of the model fingerprint, so
+	// this must run even when the fast path above skipped AutoMigrate.
+	if err := dbschema.EnsureUserProviderLookupUnique(gormDB.DB()); err != nil {
+		return nil, fmt.Errorf("failed to check the users provider-lookup index: %w", err)
+	}
+
 	// #720: unique sparse-email index (partial/function-based) is raw DDL
 	// AutoMigrate cannot express; idempotent, runs even when the fingerprint
 	// fast path skips AutoMigrate (it is not part of the model fingerprint) --
