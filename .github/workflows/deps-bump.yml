@@ -87,10 +87,111 @@ jobs:
           # explicitly with the App token instead.
           persist-credentials: false
 
+      # Go ships stdlib security fixes in PATCH releases, and the `toolchain`
+      # line in go.mod is the floor that decides which Go every build actually
+      # uses: CI reads it through `go-version-file: go.mod` below, and because
+      # GOTOOLCHAIN is unset anywhere in this repo (so it defaults to `auto`)
+      # the container builds auto-download that same toolchain — including
+      # Dockerfile.server-oracle, which bootstraps an older Go and then fetches
+      # the floor. Dependabot's gomod ecosystem only updates `require`
+      # directives, so nothing was raising this floor; it silently aged until
+      # govulncheck failed PR #751 with 7 REACHABLE stdlib CVEs.
+      #
+      # This runs BEFORE "Set up Go" on purpose, so setup-go installs the new
+      # version directly instead of making every later `go` invocation
+      # auto-download a second toolchain.
+      #
+      # Deliberately stays inside the current MINOR line (1.26.x -> newest
+      # 1.26.z, never -> 1.27.0). Patch releases are the security-fix channel
+      # and are safe to take mechanically; a minor-line jump is a real
+      # migration and remains a human decision.
+      - name: Bump Go toolchain floor to the latest patch release
+        id: toolchain
+        run: |
+          set -euo pipefail
+          note() { echo "bumped=false" >> "$GITHUB_OUTPUT"; }
+
+          CURRENT="$(sed -n 's/^toolchain go\([0-9][0-9.]*\)[[:space:]]*$/\1/p' go.mod | head -1)"
+          if [ -z "$CURRENT" ]; then
+            echo "::notice::go.mod has no 'toolchain' line — nothing to raise."
+            note; exit 0
+          fi
+          MINOR="${CURRENT%.*}"
+
+          if ! FEED="$(curl -fsSL --retry 3 --retry-delay 5 --max-time 60 \
+                        'https://go.dev/dl/?mode=json&include=all')"; then
+            echo "::warning::Could not reach the go.dev release feed — leaving toolchain at go${CURRENT}."
+            note; exit 0
+          fi
+
+          # Newest stable patch within the SAME minor line. sort -V rather than
+          # trusting feed order, so a reordered feed cannot pick an older patch.
+          LATEST="$(printf '%s' "$FEED" \
+            | jq -r --arg p "go${MINOR}." \
+                '.[] | select(.stable == true) | .version | select(startswith($p))' \
+            | sed 's/^go//' | sort -V | tail -1)"
+          if [ -z "$LATEST" ]; then
+            echo "::warning::No stable go${MINOR}.x release in the feed — leaving toolchain at go${CURRENT}."
+            note; exit 0
+          fi
+
+          if [ "$(printf '%s\n%s\n' "$CURRENT" "$LATEST" | sort -V | tail -1)" = "$CURRENT" ]; then
+            echo "toolchain go${CURRENT} is already the newest go${MINOR}.x — nothing to do."
+            note; exit 0
+          fi
+
+          # Exactly one toolchain line exists; match the whole line so the dots
+          # in the version are never treated as regex metacharacters.
+          sed -i "s|^toolchain go.*|toolchain go${LATEST}|" go.mod
+          if ! grep -qx "toolchain go${LATEST}" go.mod; then
+            echo "::error::Failed to rewrite the toolchain line in go.mod."
+            exit 1
+          fi
+
+          git config user.name "deps-bot"
+          git config user.email "deps-bot@users.noreply.github.com"
+          git add go.mod
+          git commit -m "$(printf '%s\n' \
+            "fix(deps): bump Go toolchain floor to ${LATEST}" \
+            "" \
+            "Go ships stdlib security fixes in patch releases. The toolchain line" \
+            "in go.mod is the floor every build resolves against (CI via" \
+            "go-version-file, container builds via GOTOOLCHAIN=auto), and nothing" \
+            "else raises it -- Dependabot's gomod ecosystem only updates require" \
+            "directives." \
+            "" \
+            "go${CURRENT} -> go${LATEST} (same minor line; a minor-version jump is" \
+            "left as a deliberate human decision)." \
+            "" \
+            "Raised automatically by .github/workflows/deps-bump.yml.")"
+
+          echo "Raised Go toolchain floor: go${CURRENT} -> go${LATEST}"
+          {
+            echo "bumped=true"
+            echo "from=${CURRENT}"
+            echo "to=${LATEST}"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+
+      # A Go patch release breaking the build is rare but not impossible, and if
+      # it happened the headless bump agent below would bisect the DEPENDENCY
+      # updates looking for a cause that isn't there. Fail that case fast and
+      # drop just the toolchain commit, leaving the dependency bump to proceed.
+      - name: Verify the raised toolchain still builds
+        if: ${{ steps.toolchain.outputs.bumped == 'true' }}
+        env:
+          TO: ${{ steps.toolchain.outputs.to }}
+        run: |
+          set -euo pipefail
+          echo "Building with $(go version)"
+          if ! go build ./... 2>&1 | tail -40; then
+            echo "::warning::go${TO} does not build this tree — reverting the toolchain bump and continuing with dependency updates only."
+            git revert --no-edit HEAD
+          fi
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -173,6 +274,9 @@ jobs:
           BASE: ${{ steps.wb.outputs.base }}
           WB: ${{ steps.wb.outputs.wb }}
           REPO: ${{ github.repository }}
+          TC_BUMPED: ${{ steps.toolchain.outputs.bumped }}
+          TC_FROM: ${{ steps.toolchain.outputs.from }}
+          TC_TO: ${{ steps.toolchain.outputs.to }}
         run: |
           set -euo pipefail
           if [ "$(git rev-list --count "origin/${BASE}..HEAD")" -eq 0 ]; then
@@ -186,6 +290,14 @@ jobs:
             echo
             echo "Generated by the \`deps:bump\` skill running headless in CI. Review before merging."
             echo
+            if [ "${TC_BUMPED:-false}" = "true" ]; then
+              echo "### Go toolchain floor raised: \`go${TC_FROM}\` → \`go${TC_TO}\`"
+              echo
+              echo "Go ships stdlib security fixes in patch releases, and this floor is what"
+              echo "CI and the container builds resolve against. It is a **separate commit**"
+              echo "from the dependency updates, so it can be dropped on its own if needed."
+              echo
+            fi
             echo '<details><summary>Skill output / manual-review plan</summary>'
             echo
             echo '```'
