@@ -147,10 +147,29 @@ jobs:
             echo "::error::Failed to rewrite the toolchain line in go.mod."
             exit 1
           fi
+          CHANGED="go.mod"
+
+          # Dockerfile.server-oracle bootstraps its own Go rather than using a
+          # prebuilt Go image, so it carries a second copy of the version. Left
+          # behind, GOTOOLCHAIN=auto still produces a correct build but downloads
+          # the floor as a second toolchain mid-build -- and the gap only widens
+          # as this job keeps raising the floor. Keep the two in step.
+          DOCKERFILE="Dockerfile.server-oracle"
+          if [ -f "$DOCKERFILE" ] && grep -qE '^ARG GO_VERSION=' "$DOCKERFILE"; then
+            sed -i "s|^ARG GO_VERSION=.*|ARG GO_VERSION=${LATEST}|" "$DOCKERFILE"
+            if ! grep -qx "ARG GO_VERSION=${LATEST}" "$DOCKERFILE"; then
+              echo "::error::Failed to rewrite ARG GO_VERSION in ${DOCKERFILE}."
+              exit 1
+            fi
+            CHANGED="$CHANGED ${DOCKERFILE}"
+          else
+            echo "::notice::${DOCKERFILE} has no 'ARG GO_VERSION=' line — only go.mod was raised."
+          fi
 
           git config user.name "deps-bot"
           git config user.email "deps-bot@users.noreply.github.com"
-          git add go.mod
+          # shellcheck disable=SC2086  # CHANGED is a deliberate space-separated path list
+          git add $CHANGED
           git commit -m "$(printf '%s\n' \
             "fix(deps): bump Go toolchain floor to ${LATEST}" \
             "" \
@@ -163,9 +182,11 @@ jobs:
             "go${CURRENT} -> go${LATEST} (same minor line; a minor-version jump is" \
             "left as a deliberate human decision)." \
             "" \
+            "Files raised together: ${CHANGED}" \
+            "" \
             "Raised automatically by .github/workflows/deps-bump.yml.")"
 
-          echo "Raised Go toolchain floor: go${CURRENT} -> go${LATEST}"
+          echo "Raised Go toolchain floor: go${CURRENT} -> go${LATEST} (${CHANGED})"
           {
             echo "bumped=true"
             echo "from=${CURRENT}"
