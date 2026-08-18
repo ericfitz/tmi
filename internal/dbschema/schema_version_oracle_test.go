@@ -67,11 +67,16 @@ func TestSchemaFingerprintOracleIntegration(t *testing.T) {
 	require.False(t, dbschema.SchemaFingerprintCurrent(db, fp),
 		"no stamp row yet -> must report not current")
 	// The stamp table must exist after the currency check. Oracle folds the
-	// unquoted identifier to upper case, so query USER_TABLES directly rather
+	// unquoted identifier to upper case, so query the catalog directly rather
 	// than db.Migrator().HasTable (which matches the literal lower-case name).
+	// ALL_TABLES scoped to CURRENT_SCHEMA rather than USER_TABLES, matching
+	// the convention #736 established for the production probes: USER_TABLES
+	// is scoped to the connected user's own objects and reports nothing on a
+	// schema-owner-separated deployment.
 	var tableExists int64
 	require.NoError(t, db.Raw(
-		"SELECT COUNT(*) FROM USER_TABLES WHERE TABLE_NAME = 'TMI_SCHEMA_VERSIONS'").Scan(&tableExists).Error)
+		"SELECT COUNT(*) FROM ALL_TABLES WHERE TABLE_NAME = 'TMI_SCHEMA_VERSIONS' "+
+			"AND OWNER = SYS_CONTEXT('USERENV','CURRENT_SCHEMA')").Scan(&tableExists).Error)
 	require.Equal(t, int64(1), tableExists, "stamp table must exist after the currency check")
 
 	// Record -> read-back must match (INSERT branch of the upsert).
@@ -95,5 +100,9 @@ func TestSchemaFingerprintOracleIntegration(t *testing.T) {
 		"deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"),
 		"second currency check on an existing table must succeed (no fatal ORA-00955)")
 
+	// Leaves the stamp table empty. Harmless but worth knowing now that
+	// `make test-integration-oci` actually runs this package (#735): the next
+	// server boot against this schema finds no fingerprint row and takes the
+	// full AutoMigrate path instead of the #480 fast path, then re-stamps.
 	t.Cleanup(func() { _ = db.Exec("DELETE FROM TMI_SCHEMA_VERSIONS").Error })
 }

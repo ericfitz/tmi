@@ -538,12 +538,18 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
     # Oracle Instant Client. The HTTP suite above is intentionally CGO-free, so
     # run these in a dedicated invocation (matched by name suffix
     # "OracleIntegration") instead of widening the whole suite's build tags.
+    #
+    # internal/dbschema is in scope alongside api/ (#735): the schema-migration
+    # paths that are Oracle-specific by construction — the catalog probes, the
+    # function-based sparse-email index DDL, the ORA-00955/ORA-01408 branches,
+    # the #732 non-unique-index upgrade — live there, and their oracle-tagged
+    # tests were previously never executed by any make target.
     log_info("Running oracle-tagged driver-level store tests against OCI ADB")
     oracle_cmd = (
         f"source '{oci_env_file}' && "
         "LOGGING_IS_TEST=true "
         "CGO_ENABLED=1 "
-        "go test -v -timeout=10m -tags oracle ./api/... -run OracleIntegration"
+        "go test -v -timeout=10m -tags oracle ./api/... ./internal/dbschema/... -run OracleIntegration"
     )
     with open(log_path, "a") as fh:
         oracle_result = subprocess.run(

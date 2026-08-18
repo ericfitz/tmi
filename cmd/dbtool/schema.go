@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ericfitz/tmi/api"
@@ -17,13 +18,35 @@ import (
 // If run against a non-empty schema that triggers an "object already exists"
 // error, the error surfaces loudly — the operator should drop and recreate
 // the schema first.
-// SEM@550719956eba05c4b206ae4056df29fa2c66586a: migrate DB schema via GORM AutoMigrate and seed system data (mutates DB)
+// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: acquire the migration lock, then migrate DB schema and seed system data (mutates DB)
 func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
-	log := slogging.Get()
-
 	if dryRun {
 		return runSchemaDryRun(db, verbose)
 	}
+
+	// #737: this issues the same DDL as a server boot's runMigrationsLocked
+	// against the same schema, so it must contend for the same cross-replica
+	// advisory lock. Without it, `tmi-dbtool --schema` run while a server is
+	// booting reintroduces exactly the concurrent-DDL exposure (ORA-00054,
+	// duplicate CREATE races) that #723/#726 added the lock to eliminate.
+	//
+	// Consequence worth knowing before running this against a live
+	// deployment: the lock is held across AutoMigrate AND the system seed, so
+	// a server booting meanwhile blocks on it. On Oracle that server gives up
+	// after DBMS_LOCK.REQUEST's 300s timeout and exits (restart brings it
+	// back once this finishes); on PostgreSQL pg_advisory_lock waits
+	// indefinitely. Previously the two simply raced, which was worse
+	// (oracle-db-admin review, #737).
+	return dbschema.WithMigrationLock(context.Background(), db.DB(), dbschema.MigrationLockName, func() error {
+		return runSchemaLocked(db)
+	})
+}
+
+// runSchemaLocked performs the schema migration and system seed. Always called
+// with the cross-replica migration advisory lock held (see runSchema).
+// SEM@5abf61d0e181a6df8a0f8108f79820e4fe68711a: migrate DB schema via AutoMigrate, upgrade legacy indexes, and seed system data (mutates DB)
+func runSchemaLocked(db *testdb.TestDB) error {
+	log := slogging.Get()
 
 	// Step 1: AutoMigrate (Oracle-aware path via GormDB.AutoMigrate)
 	log.Info("Running GORM AutoMigrate...")
@@ -64,6 +87,42 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 		log.Warn("failed to record schema fingerprint (non-fatal): %v", err)
 	}
 
+	// #732: upgrade a pre-#701 non-unique idx_users_provider_lookup to a
+	// genuine UNIQUE index. This is the entry point most likely to succeed at
+	// it -- dbtool runs with an admin-privileged database user, where a
+	// DDL-less server runtime user can only log that the upgrade is needed.
+	// Same placement and reasoning as cmd/server/main.go's runMigrationsLocked
+	// and auth/config_adapter.go.
+	if err := dbschema.EnsureUserProviderLookupUnique(db.DB()); err != nil {
+		return fmt.Errorf("failed to check the users provider-lookup index: %w", err)
+	}
+
+	// That function warns-and-continues on a DDL failure so it can never
+	// crash-loop a server boot. dbtool is the admin-privileged remediation
+	// path, so here the outcome has to be checked: exiting 0 having silently
+	// not upgraded the index is exactly the failure an operator ran this to
+	// fix (oracle-db-admin review, #732).
+	//
+	// Held, not returned yet. Failing here would abandon the sparse-email
+	// index and the system seed below, leaving a database that AutoMigrated
+	// and stamped its fingerprint but never got its groups or webhook deny
+	// list -- a worse state than the one being reported. The run finishes,
+	// then reports (oracle-db-admin re-review, #732).
+	var lookupIndexErr error
+	unique, err := dbschema.UserProviderLookupIndexIsUnique(db.DB())
+	switch {
+	case err != nil:
+		lookupIndexErr = fmt.Errorf("failed to verify the users provider-lookup index: %w", err)
+	case !unique:
+		lookupIndexErr = fmt.Errorf(
+			"idx_users_provider_lookup is not a valid UNIQUE index after migration; see the logged reason above. " +
+				"The most common cause is pre-existing duplicate (provider, provider_user_id) rows, which must be merged or deleted before the index can be made unique (#732)")
+	}
+	if lookupIndexErr != nil {
+		log.Error("%v", lookupIndexErr)
+		log.Error("Continuing with the remaining schema steps; this run will exit non-zero.")
+	}
+
 	// #720: unique sparse-email index (partial/function-based) is raw DDL
 	// AutoMigrate cannot express; idempotent, same placement and reasoning as
 	// cmd/server/main.go's runMigrationsLocked and auth/config_adapter.go.
@@ -75,6 +134,10 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 	log.Info("Seeding system data (groups, webhook deny list)...")
 	if err := seed.SeedDatabase(db.DB()); err != nil {
 		return fmt.Errorf("failed to seed system data: %w", err)
+	}
+
+	if lookupIndexErr != nil {
+		return lookupIndexErr
 	}
 
 	log.Info("Schema migration and system seed complete")

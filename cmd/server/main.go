@@ -195,7 +195,7 @@ func isPublicSAMLPath(path string) bool {
 // provider-scoped public SAML route. This is the single source of truth for the
 // middleware's public decision; TestPublicPathLint calls this exact function so
 // the lint can never drift from what the server does (#662).
-// SEM@9ffe1829793344f52be7f61113f1caad660e10d5: report whether a request path is exempt from JWT authentication (pure)
+// SEM@5e107bce8eca9a7b10483bef568d3497a8b76f93: report whether a request path is exempt from JWT authentication (pure)
 func isPublicPath(path string) bool {
 	if publicPaths[path] {
 		return true
@@ -377,23 +377,24 @@ func runMigrations(ctx context.Context, gormDB *db.GormDB, dbType string) {
 // os.Exit inside the lock-holding region would skip the deferred release
 // (gocritic exitAfterDefer) and leave the lock orphaned for replicas to
 // time out on.
-// SEM@df7fd289991cfd0c30ec2f8c8721a7b593f7d535: run DB schema migrations, backfills, and seed data under an advisory lock, with a fingerprint fast path (mutates DB)
+//
+// The lock wraps the entire schema-evolution sequence so concurrent replicas
+// serialize on every step (drop legacy column, AutoMigrate, backfill, unique
+// indexes), not just the backfill.
+// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: acquire the cross-replica schema-migration advisory lock and run all migration steps (mutates DB)
 func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) error {
-	logger := slogging.Get()
+	return dbschema.WithMigrationLock(ctx, gormDB.DB(), dbschema.MigrationLockName, func() error {
+		return migrateSchema(ctx, gormDB, dbType)
+	})
+}
 
-	// Wrap the entire schema-evolution sequence in one cross-replica advisory
-	// lock so concurrent replicas serialize on every step (drop legacy column,
-	// AutoMigrate, backfill, unique indexes), not just the backfill.
-	release, lockErr := dbschema.AcquireMigrationLock(ctx, gormDB.DB(), "tmi_schema_migration")
-	if lockErr != nil {
-		if strings.Contains(lockErr.Error(), "unsupported dialect") {
-			logger.Warn("schema migration: skipping advisory lock for dialect %q: %v", gormDB.DB().Name(), lockErr)
-			release = func() {}
-		} else {
-			return fmt.Errorf("failed to acquire schema-migration advisory lock: %w", lockErr)
-		}
-	}
-	defer release()
+// migrateSchema runs the schema-evolution sequence itself. Always called with
+// the cross-replica migration advisory lock held (see runMigrationsLocked) —
+// several of its steps issue DDL that is not safe to run concurrently from
+// two replicas.
+// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: run the schema-evolution sequence: AutoMigrate, backfills, index upgrades, and seeding (mutates DB)
+func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error {
+	logger := slogging.Get()
 
 	// All databases use GORM AutoMigrate for schema management
 	// This provides a single source of truth (api/models/models.go) for all supported databases
@@ -502,6 +503,17 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 				logger.Warn("failed to record schema fingerprint (non-fatal; next boot will re-run AutoMigrate): %v", err)
 			}
 		}
+	}
+
+	// #732: a pre-#701 database carries idx_users_provider_lookup as a plain,
+	// non-unique index and AutoMigrate cannot upgrade it in place, so the
+	// uniqueness constraint #701/#710 intended has never been enforced there.
+	// Drops and recreates it as UNIQUE when the table is duplicate-free. Like
+	// the sparse-email index below, index uniqueness is not part of the model
+	// fingerprint, so this must run even when the fast path skips AutoMigrate.
+	// Never fatal: it logs and continues if the upgrade cannot be performed.
+	if err := dbschema.EnsureUserProviderLookupUnique(gormDB.DB()); err != nil {
+		return fmt.Errorf("failed to check the users provider-lookup index: %w", err)
 	}
 
 	// #720: unique sparse-email index (partial/function-based) is raw DDL
@@ -2393,8 +2405,36 @@ func validateDatabaseSchema(cfg *config.Config) error {
 	return nil
 }
 
+const (
+	// adminInitBaseTimeout and adminInitPerEntryTimeout size the deadline
+	// initializeAdministratorsGorm runs its database work under (#733). Each
+	// configured administrator costs at most a lookup, an insert, and a group
+	// membership write, so per-entry generosity matters more than the base;
+	// both are set far above normal Oracle ADB latency so a healthy startup
+	// never notices them.
+	adminInitBaseTimeout     = 15 * time.Second
+	adminInitPerEntryTimeout = 15 * time.Second
+
+	// adminInitMaxTimeout caps the total regardless of how many
+	// administrators are configured: the point of the deadline is that a
+	// wedged peer replica cannot stall startup indefinitely, and a ceiling
+	// that scales without bound would give that back.
+	adminInitMaxTimeout = 2 * time.Minute
+)
+
+// adminInitTimeout returns the deadline for a pass over entries configured
+// administrators.
+// SEM@ae5e2194af0d13d5169db6f58db71d4275c7fc0f: compute a bounded deadline for administrator initialization scaled by entry count (pure)
+func adminInitTimeout(entries int) time.Duration {
+	total := adminInitBaseTimeout + time.Duration(entries)*adminInitPerEntryTimeout
+	if total > adminInitMaxTimeout {
+		return adminInitMaxTimeout
+	}
+	return total
+}
+
 // initializeAdministratorsGorm initializes administrators from configuration using GORM
-// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: seed the Administrators group with configured users/groups, creating missing users only on not-found (writes DB)
+// SEM@605e29546fe60dc8ac69862013475720a74dea8b: seed the Administrators group with configured users/groups, creating missing users only on not-found (writes DB)
 func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 	logger := slogging.Get()
 	logger.Info("Initializing administrators from configuration (GORM)")
@@ -2404,11 +2444,32 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 		return nil
 	}
 
-	ctx := context.Background()
+	// #733: every DB call below ran on context.Background() with no deadline.
+	// On Oracle, when two replicas race to create the same first-boot
+	// administrator row, the loser's INSERT blocks on the unique
+	// idx_users_provider_lookup until the winner's transaction ends -- and if
+	// the winning replica (or its host) wedges mid-transaction there is no
+	// NOWAIT, no statement timeout and nothing else to break the underlying
+	// OCI call, so this replica's startup stalls indefinitely. Bound the whole
+	// pass instead.
+	ctx, cancel := context.WithTimeout(context.Background(), adminInitTimeout(len(cfg.Administrators)))
+	defer cancel()
+
 	adminsGroupUUID := uuid.MustParse(api.AdministratorsGroupUUID)
 	notes := "Configured via YAML/environment"
 
 	for i, adminCfg := range cfg.Administrators {
+		// Stop at the deadline rather than letting every remaining entry fail
+		// its own DB call and log a separate, misleading error.
+		if ctx.Err() != nil {
+			logger.Error(
+				"Administrator initialization deadline (%s) expired after %d of %d entries: %v. "+
+					"The remaining administrators were NOT added; startup is continuing. This usually means a peer replica is holding a "+
+					"conflicting users-table transaction open -- check for a wedged replica, then restart this one (#733)",
+				adminInitTimeout(len(cfg.Administrators)), i, len(cfg.Administrators), ctx.Err())
+			break
+		}
+
 		logger.Debug("Processing administrator config[%d]: provider=%s, type=%s", i, adminCfg.Provider, adminCfg.SubjectType)
 
 		if adminCfg.SubjectType == "user" {
@@ -2464,7 +2525,14 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 			// Add user to Administrators group
 			_, err = api.GlobalGroupMemberRepository.AddMember(ctx, adminsGroupUUID, userUUID, nil, &notes)
 			if err != nil {
-				logger.Info("Administrator user already in group or added: provider=%s, error=%v", adminCfg.Provider, err)
+				// A duplicate here is the ordinary "already a member" case; a
+				// context error is not, and must not be logged as if the add
+				// had succeeded (#733).
+				if ctx.Err() != nil {
+					logger.Error("Administrator group-add hit the initialization deadline: provider=%s, error=%v", adminCfg.Provider, err)
+				} else {
+					logger.Info("Administrator user already in group or added: provider=%s, error=%v", adminCfg.Provider, err)
+				}
 			} else {
 				logger.Info("Administrator configured: type=user, provider=%s, user_uuid=%s", adminCfg.Provider, userUUID)
 			}

@@ -7,6 +7,7 @@ import (
 	"database/sql/driver"
 	"encoding/binary"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,38 @@ const oracleLockTimeoutSeconds = 300
 // under any plausible ADB IDLE_TIME floor (resource-manager minimums are
 // minutes) while adding negligible load.
 var oracleLockKeepaliveInterval = 60 * time.Second
+
+// MigrationLockName is the one cross-replica lock every schema-evolution
+// entry point serializes on: the server's startup migration
+// (runMigrationsLocked), `tmi-dbtool --schema`, and the deprecated
+// InitAuthWithConfig path. They all run the same DDL against the same schema,
+// so they must contend for the same name -- a second name would serialize
+// each entry point against itself and nothing else (#737).
+const MigrationLockName = "tmi_schema_migration"
+
+// WithMigrationLock runs fn while holding the named cross-replica advisory
+// lock, releasing it on every exit path.
+//
+// SQLite (used by narrow unit tests and some tooling) has no advisory locks;
+// AcquireMigrationLock reports that as "unsupported dialect", and fn runs
+// unlocked -- a single-process in-memory SQLite is inherently single-writer.
+// Any other acquisition failure is returned without running fn: proceeding
+// unserialized is exactly the concurrent-DDL exposure the lock exists to
+// prevent.
+// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: acquire the schema-migration advisory lock, run a callback, then release it (mutates DB)
+func WithMigrationLock(ctx context.Context, db *gorm.DB, name string, fn func() error) error {
+	release, err := AcquireMigrationLock(ctx, db, name)
+	if err != nil {
+		if !strings.Contains(err.Error(), "unsupported dialect") {
+			return fmt.Errorf("failed to acquire schema-migration advisory lock: %w", err)
+		}
+		slogging.Get().Warn("schema migration: skipping advisory lock for dialect %q: %v", db.Name(), err)
+		release = func() {}
+	}
+	defer release()
+
+	return fn()
+}
 
 // AcquireMigrationLock takes an exclusive, server-wide named lock that is
 // released by calling the returned function. Used to serialize startup-time
@@ -71,7 +104,7 @@ func AcquireMigrationLock(ctx context.Context, db *gorm.DB, name string) (releas
 // so — mirroring acquireOracleLock's dropConn — the connection is discarded
 // via driver.ErrBadConn rather than returned to the pool: a plain Close()
 // would hand a possibly-still-locked backend back to an unrelated query.
-// SEM@dea6869d1be777f8e297ccf30db5f7c272b226f9: acquire a PostgreSQL advisory lock on a pinned session connection and return a release function (reads DB)
+// SEM@bf7089dd40036d3e0ce00dfdf5db475d45382fd1: acquire a PostgreSQL advisory lock on a pinned session connection and return a release function (reads DB)
 func acquirePGLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slogging.Logger) (func(), error) {
 	key := nameToInt64(name)
 

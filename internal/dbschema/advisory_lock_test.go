@@ -539,3 +539,40 @@ func TestAcquirePGLock_LockError_ClosesConn(t *testing.T) {
 
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
+
+// TestWithMigrationLock_UnsupportedDialectRunsUnlocked covers #737's SQLite
+// path: no advisory locks exist there, so fn must still run (a single-process
+// in-memory SQLite is inherently single-writer) rather than the whole
+// migration aborting.
+func TestWithMigrationLock_UnsupportedDialectRunsUnlocked(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	ran := false
+	require.NoError(t, WithMigrationLock(context.Background(), db, MigrationLockName, func() error {
+		ran = true
+		return nil
+	}))
+	assert.True(t, ran, "fn must run unlocked on a dialect without advisory locks")
+}
+
+// TestWithMigrationLock_PropagatesCallbackError covers the plumbing: a
+// migration step's own failure must reach the caller unchanged, not be masked
+// by the lock wrapper.
+func TestWithMigrationLock_PropagatesCallbackError(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+
+	sentinel := errors.New("migration step failed")
+	assert.ErrorIs(t, WithMigrationLock(context.Background(), db, MigrationLockName, func() error {
+		return sentinel
+	}), sentinel)
+}
+
+// TestMigrationLockName_IsSharedByEveryEntryPoint pins the one thing that
+// makes #737 work: the server, dbtool, and the deprecated config-adapter path
+// must contend for the SAME name, since a per-entry-point name would
+// serialize each against itself and nothing else.
+func TestMigrationLockName_IsSharedByEveryEntryPoint(t *testing.T) {
+	assert.Equal(t, "tmi_schema_migration", MigrationLockName)
+}

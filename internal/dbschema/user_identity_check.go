@@ -57,31 +57,24 @@ type userDupKey struct {
 // and access rows and is a security decision an operator must make. NULL
 // provider or provider_user_id rows are excluded -- a composite unique index
 // never constrains a row where any key column is NULL.
-// SEM@bb40881560ec43c848a818a906635c7d26b0b603: detect duplicate user provider identities and return an actionable startup error only when the unique index would genuinely fail to create (reads DB)
+// SEM@637f0bdb33357d5c2d47d7c06b0e6e214c1962e6: detect duplicate user provider identities and return an actionable startup error only when the unique index would genuinely fail to create (reads DB)
 func CheckDuplicateUserProviderIdentities(db *gorm.DB) error {
 	usersTable := (&models.User{}).TableName()
-	if !db.Migrator().HasTable(usersTable) {
+	// #736: owner-aware probe. gorm's HasTable resolves through Oracle's
+	// USER_TABLES, which is empty on a schema-owner-separated deployment even
+	// though the table exists -- this check then returned nil having checked
+	// nothing, with no log line.
+	present, err := requireMigrationTable(db, usersTable, "users duplicate-identity check (#724)")
+	if err != nil {
+		return err
+	}
+	if !present {
 		return nil
 	}
 
-	var dups []userDupKey
-	err := withMigrationRetry("users duplicate-identity check", func() error {
-		dups = dups[:0]
-		return db.Table(usersTable).
-			Select("provider, provider_user_id, COUNT(*) AS cnt").
-			// A composite unique index never constrains a row where ANY key
-			// column is NULL (Oracle and PostgreSQL both), so both halves of
-			// the key must be excluded to mirror idx_users_provider_lookup's
-			// actual enforcement exactly -- not just provider_user_id.
-			// provider is tagged not-null in the model today, but this stays
-			// correct against a legacy row that predates that tag.
-			Where("provider IS NOT NULL AND provider_user_id IS NOT NULL").
-			Group("provider, provider_user_id").
-			Having("COUNT(*) > 1").
-			Scan(&dups).Error
-	})
+	dups, err := findDuplicateUserIdentities(db, usersTable)
 	if err != nil {
-		return fmt.Errorf("failed to check users for duplicate provider identities: %w", err)
+		return err
 	}
 	if len(dups) == 0 {
 		return nil
@@ -97,21 +90,7 @@ func CheckDuplicateUserProviderIdentities(db *gorm.DB) error {
 		return fmt.Errorf("failed to check whether %s exists: %w", userProviderLookupIndexName, err)
 	}
 
-	// maxReportedPairs caps how many duplicate keys are named in the log/error.
-	// provider_user_id is an IdP subject, which for several providers is an
-	// email address; an unbounded list would let a badly-merged database dump
-	// an arbitrarily long line of PII into the startup log.
-	const maxReportedPairs = 20
-	shown := dups
-	suffix := ""
-	if len(dups) > maxReportedPairs {
-		shown = dups[:maxReportedPairs]
-		suffix = fmt.Sprintf(" (and %d more)", len(dups)-maxReportedPairs)
-	}
-	pairs := make([]string, len(shown))
-	for i, d := range shown {
-		pairs[i] = fmt.Sprintf("(provider=%s, provider_user_id=%s, rows=%d)", d.Provider, d.ProviderUserID, d.Cnt)
-	}
+	pairs := formatUserDupPairs(dups)
 
 	if indexExists {
 		// The index predates #701 and AutoMigrate cannot upgrade a
@@ -120,20 +99,20 @@ func CheckDuplicateUserProviderIdentities(db *gorm.DB) error {
 		// ORA-01452/23505 window to preempt. Every current deployment must
 		// keep booting, so warn loudly instead of hard-aborting.
 		slogging.Get().Error(
-			"users table contains %d duplicate (provider, provider_user_id) identities that %s does NOT currently enforce as unique (the index predates #701 and AutoMigrate cannot upgrade a non-unique index in place -- see #732): %s%s. "+
-				"Startup is continuing, but these rows should be manually merged or deleted (repointing any threat models, group memberships, and access grants they own). "+
-				"Cleaning up the rows alone does not make the index unique: the index itself must also be dropped and recreated (tracked in #732) or every future AutoMigrate pass will keep leaving it non-unique",
-			len(dups), userProviderLookupIndexName, strings.Join(pairs, "; "), suffix)
+			"users table contains %d duplicate (provider, provider_user_id) identities that %s does NOT currently enforce as unique (the index predates #701 and AutoMigrate cannot upgrade a non-unique index in place): %s. "+
+				"Startup is continuing, but these rows must be manually merged or deleted (repointing any threat models, group memberships, and access grants they own). "+
+				"Once they are gone, EnsureUserProviderLookupUnique (#732) drops and recreates the index as UNIQUE on the next boot; until then the constraint stays unenforced",
+			len(dups), userProviderLookupIndexName, pairs)
 		return nil
 	}
 
 	return fmt.Errorf(
-		"users table contains %d duplicate (provider, provider_user_id) identities: %s%s. "+
+		"users table contains %d duplicate (provider, provider_user_id) identities: %s. "+
 			"The unique index idx_users_provider_lookup cannot be created over these rows "+
 			"(ORA-01452 / SQLSTATE 23505) and startup cannot continue. Manually merge or "+
 			"delete the duplicate user rows (repointing any threat models, group "+
 			"memberships, and access grants they own), then restart",
-		len(dups), strings.Join(pairs, "; "), suffix)
+		len(dups), pairs)
 }
 
 // userProviderLookupIndexExists reports whether an index named
@@ -148,14 +127,25 @@ func CheckDuplicateUserProviderIdentities(db *gorm.DB) error {
 // index on Oracle -- which is exactly the bug this function exists to route
 // around (oracle-db-admin review, #724). Querying the catalog view directly
 // with the correctly-cased name avoids that trap.
-// SEM@bb40881560ec43c848a818a906635c7d26b0b603: probe whether the users provider-lookup index already exists, per dialect (reads DB)
+// SEM@605e29546fe60dc8ac69862013475720a74dea8b: probe whether the users provider-lookup index already exists, per dialect (reads DB)
 func userProviderLookupIndexExists(db *gorm.DB, usersTable string) (bool, error) {
 	var cnt int64
 	var err error
 	switch db.Name() {
 	case "oracle":
+		// ALL_INDEXES filtered to CURRENT_SCHEMA, not USER_INDEXES: the latter
+		// is scoped to indexes owned by the *connected user*, so it reports
+		// nothing on a schema-owner-separated deployment and this probe would
+		// answer "absent" for an index that exists (#736).
+		//
+		// Both OWNER and TABLE_OWNER are pinned. Oracle allows an index in one
+		// schema over a table in another, and an unqualified DROP/CREATE INDEX
+		// resolves the *index* name in CURRENT_SCHEMA (OWNER) -- so matching on
+		// TABLE_OWNER alone would let a foreign-owned same-named index read as
+		// "present" here (oracle-db-admin review, #736).
 		err = db.Raw(
-			"SELECT COUNT(*) FROM USER_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ?",
+			"SELECT COUNT(*) FROM ALL_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ? "+
+				"AND OWNER = "+oracleCurrentSchema+" AND TABLE_OWNER = "+oracleCurrentSchema,
 			strings.ToUpper(userProviderLookupIndexName), strings.ToUpper(usersTable),
 		).Scan(&cnt).Error
 	case "postgres":

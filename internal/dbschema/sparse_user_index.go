@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 )
@@ -62,15 +63,23 @@ type sparseDupKey struct {
 // scan and the DDL once the index is confirmed present also means this
 // degrades to a single cheap catalog lookup in steady state instead of a
 // full-table GROUP BY on every boot.
-// SEM@df7fd289991cfd0c30ec2f8c8721a7b593f7d535: build a dialect-appropriate unique index over sparse user emails (writes DB)
+// SEM@1a0e294d083ec4d01a180cf33f9f58d98159a878: build a dialect-appropriate unique index over sparse user emails (writes DB)
 func EnsureSparseUserEmailIndex(db *gorm.DB) error {
 	usersTable := (&models.User{}).TableName()
-	if !db.Migrator().HasTable(usersTable) {
+	// #736: owner-aware probe. gorm's HasTable resolves through Oracle's
+	// USER_TABLES, which is empty on a schema-owner-separated deployment even
+	// though the table exists -- this check then returned nil having created
+	// and verified nothing, with no log line.
+	present, err := requireMigrationTable(db, usersTable, "sparse-user email index (#720)")
+	if err != nil {
+		return err
+	}
+	if !present {
 		return nil
 	}
 
 	var exists bool
-	err := withMigrationRetry("sparse-user email index existence probe", func() error {
+	err = withMigrationRetry("sparse-user email index existence probe", func() error {
 		var probeErr error
 		exists, probeErr = sparseUserEmailIndexExists(db, usersTable)
 		return probeErr
@@ -126,14 +135,15 @@ func EnsureSparseUserEmailIndex(db *gorm.DB) error {
 			sparseUserIndexName, usersTable)
 	}
 
-	// withMigrationRetry: CREATE INDEX takes a DDL lock on usersTable, which
-	// is a hot table (login updates, sparse inserts). Against Oracle with
-	// ddl_lock_timeout at its default of 0, a concurrent DML holder makes
-	// this raise ORA-00054 (resource busy) immediately rather than waiting;
-	// ORA-00054 is classified ErrTransient (internal/dberrors) and retried
-	// here instead of hard-aborting startup (oracle-db-admin review, 1.8.4).
-	err = withMigrationRetry("sparse-user email index create", func() error {
-		return db.Exec(ddl).Error
+	// CREATE INDEX takes a DDL lock on usersTable, which is a hot table (login
+	// updates, sparse inserts). execMigrationDDL runs it on a pinned Oracle
+	// session with DDL_LOCK_TIMEOUT set so it queues behind concurrent DML
+	// instead of raising ORA-00054 (resource busy) immediately, and
+	// withDDLRetry covers what still gets through with seconds of exponential
+	// backoff rather than withMigrationRetry's 60ms total, which was
+	// effectively one shot inside a rolling deploy's DML window (#734).
+	err = withDDLRetry("sparse-user email index create", func() error {
+		return execMigrationDDL(db, ddl)
 	})
 	switch {
 	case err == nil:
@@ -158,6 +168,23 @@ func EnsureSparseUserEmailIndex(db *gorm.DB) error {
 		// UNIQUE, so it's worth a log line even though startup continues
 		// (oracle-db-admin review, 1.8.4 round 2).
 		slogging.Get().Warn("failed to create %s: an index over the same columns already exists under a different name (ORA-01408); continuing, but verify it is UNIQUE: %v", sparseUserIndexName, err)
+		return nil
+	case dberrors.IsRetryable(dberrors.Classify(err)):
+		// Lock contention (ORA-00054) or a connection blip that outlived the
+		// retry budget. Every other "the invariant is not enforced right now"
+		// outcome in this file already warns and continues -- the ORA-01408
+		// branch, verifySparseIndexEnforced, and #724's index-exists branch --
+		// while this one alone aborted startup, so a rolling deploy whose old
+		// pods held the USERS DDL lock for the whole retry window crash-looped
+		// the new pod instead of degrading (oracle-db-admin review, #734).
+		// Reconciled here to the same warn-and-continue policy: a missing
+		// defense-in-depth index is a smaller outage than a server that will
+		// not boot, and the next boot retries the create.
+		slogging.Get().Error(
+			"failed to create %s after %d attempts against a busy %s (transient error: %v). "+
+				"#720's duplicate-sparse-user-email protection is NOT currently enforced; startup is continuing and the next boot will retry. "+
+				"If this persists, run the DDL manually against a quiet database or with a longer DDL_LOCK_TIMEOUT",
+			sparseUserIndexName, ddlMaxAttempts, usersTable, err)
 		return nil
 	default:
 		return fmt.Errorf("failed to create %s: %w", sparseUserIndexName, err)
@@ -227,14 +254,21 @@ func verifySparseIndexEnforced(db *gorm.DB, usersTable string) error {
 // database can already hold a differently-defined index under it), but the
 // stricter probe costs nothing and closes the gap before it can open
 // (oracle-db-admin review, 1.8.4 round 2).
-// SEM@87d1696b4bf3edbe042353cf7586a60de78c2028: probe whether a valid, unique sparse-user email index already exists, per dialect (reads DB)
+// SEM@605e29546fe60dc8ac69862013475720a74dea8b: probe whether a valid, unique sparse-user email index already exists, per dialect (reads DB)
 func sparseUserEmailIndexExists(db *gorm.DB, usersTable string) (bool, error) {
 	var cnt int64
 	var err error
 	switch db.Name() {
 	case "oracle":
+		// ALL_INDEXES filtered to CURRENT_SCHEMA, not USER_INDEXES: the latter
+		// is scoped to indexes owned by the *connected user*, so it reports
+		// nothing on a schema-owner-separated deployment and this probe would
+		// answer "absent" for an index that exists (#736). Both OWNER and
+		// TABLE_OWNER are pinned -- see userProviderLookupIndexExists for why
+		// TABLE_OWNER alone is not enough.
 		err = db.Raw(
-			"SELECT COUNT(*) FROM USER_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ? "+
+			"SELECT COUNT(*) FROM ALL_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ? "+
+				"AND OWNER = "+oracleCurrentSchema+" AND TABLE_OWNER = "+oracleCurrentSchema+" "+
 				"AND UNIQUENESS = 'UNIQUE' AND STATUS = 'VALID' "+
 				"AND (FUNCIDX_STATUS IS NULL OR FUNCIDX_STATUS = 'ENABLED')",
 			strings.ToUpper(sparseUserIndexName), strings.ToUpper(usersTable),
