@@ -62,7 +62,7 @@ import (
 // `tmi-dbtool --schema` run by an admin-privileged user, retries. The
 // alternative -- crash-looping a server over an index it may not be
 // privileged to touch -- is a larger outage than the missing constraint.
-// SEM@5abf61d0e181a6df8a0f8108f79820e4fe68711a: upgrade the users provider-lookup index to UNIQUE when safe, else warn and continue (mutates DB)
+// SEM@30424a23a3e8112b8be171d3d0fcb5cb63ca48a1: repair the users provider-lookup index to its intended unique definition, else warn and continue (mutates DB)
 func EnsureUserProviderLookupUnique(db *gorm.DB) error {
 	usersTable := (&models.User{}).TableName()
 	present, err := requireMigrationTable(db, usersTable, "users provider-lookup unique-index upgrade (#732)")
@@ -305,7 +305,7 @@ func UserProviderLookupIndexIsUnique(db *gorm.DB) (bool, error) {
 // ALL_CONSTRAINTS as well as ALL_INDEXES -- which cuts against
 // api/models/models.go being the single source of truth for the schema
 // (oracle-db-admin review, #732).
-// SEM@637f0bdb33357d5c2d47d7c06b0e6e214c1962e6: build the drop, create-unique, and restore DDL statements for the provider-lookup index (pure)
+// SEM@30424a23a3e8112b8be171d3d0fcb5cb63ca48a1: build the drop, create-unique, and restore DDL for the provider-lookup index per dialect (pure)
 func userProviderLookupDDL(dialect, usersTable string) (drop, createUnique, restore string) {
 	name := userProviderLookupIndexName
 	table := usersTable
@@ -353,7 +353,7 @@ func userProviderLookupDDL(dialect, usersTable string) (drop, createUnique, rest
 // userProviderLookupIndexExists does -- gorm's HasIndex is unusable on Oracle
 // (see that function) -- and filters to the session's CURRENT_SCHEMA rather
 // than the connected user's own objects (#736).
-// SEM@605e29546fe60dc8ac69862013475720a74dea8b: probe the users provider-lookup index's existence and uniqueness, per dialect (reads DB)
+// SEM@30424a23a3e8112b8be171d3d0fcb5cb63ca48a1: probe whether the users provider-lookup index exists with its intended definition, per dialect (reads DB)
 func userProviderLookupIndexState(db *gorm.DB, usersTable string) (exists, unique bool, err error) {
 	switch db.Name() {
 	case "oracle":
