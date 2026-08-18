@@ -3,6 +3,7 @@
 package dbschema_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -65,6 +66,78 @@ func readOracleIndexState(t *testing.T, db *gorm.DB, indexName string) (oracleIn
 	return rows[0], true
 }
 
+// execOracleTestDDL issues a DDL statement on a raw *sql.Conn, bypassing
+// gorm's prepared-statement cache. Every DDL statement in this file MUST go
+// through it, never through db.Exec (#762).
+//
+// TMI opens gorm with PrepareStmt: true, so db.Exec caches a *sql.Stmt keyed
+// on the exact SQL text and re-executes that handle on every later call with
+// the same text. Against Oracle via godror, re-executing a prepared DDL
+// handle after the object it named has been dropped and recreated does
+// nothing and reports success -- so the second byte-identical
+// `DROP INDEX IDX_USERS_SPARSE_EMAIL` in a test is a silent no-op, and the
+// assertion that follows fails against an index that is still there. That
+// is exactly what happened here: Phase 4's post-impostor drop, and the
+// t.Cleanup drop meant to recover from it, both reused the string Phase 4's
+// first drop had already cached, so an aborted run left the decoy squatting
+// the production index name with #720's protection disabled.
+//
+// The production DDL path is NOT affected: execMigrationDDL already pins a
+// raw *sql.Conn for its own reasons (DDL_LOCK_TIMEOUT is session state), and
+// a raw connection re-executes DDL correctly. This helper mirrors that path
+// so the test drives Oracle the way the code under test does. Verified
+// empirically against live ADB: *sql.DB and *sql.Conn repeat DDL fine;
+// gorm.DB.Exec no-ops on its second identical string, and
+// Session{PrepareStmt: false} does not help because the cache lives on the
+// pool-level ConnPool.
+//
+// Why the raw connection works, mechanically: godror's conn does not
+// implement driver.ExecerContext, so database/sql prepares, executes, and
+// closes a fresh statement handle for every Conn.ExecContext -- whereas
+// gorm's PreparedStmtDB prepares once and re-executes that handle. Oracle
+// performs DDL during the parse phase, so a second execute of an
+// already-parsed DDL handle has nothing to do and reports success. This is
+// OCI/server-side behavior, not a godror bug, and it applies to anything
+// Oracle treats as DDL (CREATE/DROP/ALTER/TRUNCATE/RENAME/GRANT/COMMENT,
+// ALTER SESSION). DML and PL/SQL are unaffected: they have a genuine execute
+// phase (oracle-db-admin review, #762).
+//
+// Deliberately NOT a full mirror of execMigrationDDL: no DDL_LOCK_TIMEOUT
+// and a background context, so on a dedicated test ADB a lock collision
+// fails fast with ORA-00054 rather than hanging. A spurious ORA-00054 here
+// means "rerun", not "bug".
+func execOracleTestDDL(t *testing.T, db *gorm.DB, ddl string) error {
+	t.Helper()
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	ctx := context.Background()
+	conn, err := sqlDB.Conn(ctx)
+	require.NoError(t, err)
+	defer func() { _ = conn.Close() }()
+	_, err = conn.ExecContext(ctx, ddl)
+	return err
+}
+
+// dropOracleIndexIfPresent removes whatever currently occupies indexName in
+// CURRENT_SCHEMA, or does nothing if the name is free. Used by cleanups that
+// must return the database to a known state without knowing which phase the
+// test aborted in (#762).
+//
+// Reports failure with t.Errorf, never require: this runs inside t.Cleanup,
+// where a FailNow would end the cleanup function early and skip the
+// re-ensure that actually restores the production index -- defeating the one
+// property the cleanup exists to guarantee (oracle-db-admin review, #762).
+// The caller asserts the FINAL state after all repair steps have been given
+// their chance to run.
+func dropOracleIndexIfPresent(t *testing.T, db *gorm.DB, indexName string) {
+	t.Helper()
+	if _, found := readOracleIndexState(t, db, indexName); found {
+		if err := execOracleTestDDL(t, db, "DROP INDEX "+indexName); err != nil {
+			t.Errorf("dropping %s so the database can be returned to a known state: %v", indexName, err)
+		}
+	}
+}
+
 // TestSparseUserEmailIndexOracleIntegration covers EnsureSparseUserEmailIndex
 // (#720) against real Oracle ADB — the paths that only exist on Oracle and
 // that no SQLite or PostgreSQL test can reach (#735):
@@ -93,14 +166,38 @@ func TestSparseUserEmailIndexOracleIntegration(t *testing.T) {
 
 	// Whatever this test does to the index, the database must end up with the
 	// real one back. Registered before the first mutation so it also runs if
-	// an assertion fails partway through.
+	// an assertion fails partway through -- and it must succeed from ANY abort
+	// point, because Phases 4 and 5 deliberately leave a decoy or a
+	// differently-named twin in place mid-flight. It cannot rely on the
+	// phase's own restore having run.
+	//
+	// It drops whatever occupies the production name unconditionally rather
+	// than only when it looks non-unique: an abort between a phase's DROP and
+	// its re-create leaves the name free (fine), an abort after the impostor
+	// create leaves a NONUNIQUE decoy (must go), and an abort inside Phase 5
+	// leaves the name free but the twin present. Only a definitely-correct
+	// index would be worth keeping, and EnsureSparseUserEmailIndex recreates
+	// that in one round-trip anyway, so "drop and re-ensure" is both simpler
+	// and safe.
+	//
+	// Every drop goes through execOracleTestDDL, not db.Exec: an earlier
+	// version of this cleanup used db.Exec with the same string the phases
+	// had already cached, so it no-oped and the decoy survived the run (#762).
+	//
+	// Every repair step runs regardless of whether an earlier one failed --
+	// the drops report via t.Errorf, not require -- and only the FINAL state
+	// is asserted. A require on an intermediate step would FailNow out of the
+	// cleanup and skip the re-ensure that does the actual restoring
+	// (oracle-db-admin review, #762).
 	t.Cleanup(func() {
-		_ = db.Exec("DROP INDEX " + oracleSparseDupIndexName).Error
-		if state, found := readOracleIndexState(t, db, oracleSparseIndexName); found && state.Uniqueness != "UNIQUE" {
-			_ = db.Exec("DROP INDEX " + oracleSparseIndexName).Error
+		dropOracleIndexIfPresent(t, db, oracleSparseDupIndexName)
+		dropOracleIndexIfPresent(t, db, oracleSparseIndexName)
+		if err := dbschema.EnsureSparseUserEmailIndex(db); err != nil {
+			t.Errorf("re-ensuring the production sparse-email index during cleanup: %v", err)
 		}
-		require.NoError(t, dbschema.EnsureSparseUserEmailIndex(db),
-			"the production sparse-email index must be restored after this test")
+		state, found := readOracleIndexState(t, db, oracleSparseIndexName)
+		require.True(t, found, "cleanup must leave the production sparse-email index in place")
+		require.Equal(t, "UNIQUE", state.Uniqueness, "cleanup must leave the production sparse-email index UNIQUE")
 	})
 
 	// --- Phase 1: create, and confirm what Oracle actually built -----------
@@ -151,13 +248,13 @@ func TestSparseUserEmailIndexOracleIntegration(t *testing.T) {
 	// A same-named index that is not #720's own: EnsureSparseUserEmailIndex
 	// must hit ORA-00955, verify, discover the invariant is NOT enforced, log
 	// it, and continue -- without dropping an index it did not create.
-	require.NoError(t, db.Exec("DROP INDEX "+oracleSparseIndexName).Error)
+	require.NoError(t, execOracleTestDDL(t, db, "DROP INDEX "+oracleSparseIndexName))
 	// The impostor is built over (NAME), not (EMAIL): models.User already
 	// carries index:idx_users_email over exactly (EMAIL), and Oracle rejects a
 	// second index over an identical column list with ORA-01408 regardless of
 	// its name -- which is Phase 5's subject, not this one. (NAME) is the only
 	// User column with no index of its own (oracle-db-admin review, #735).
-	require.NoError(t, db.Exec("CREATE INDEX "+oracleSparseIndexName+" ON "+oracleUsersTable+" (NAME)").Error)
+	require.NoError(t, execOracleTestDDL(t, db, "CREATE INDEX "+oracleSparseIndexName+" ON "+oracleUsersTable+" (NAME)"))
 
 	require.NoError(t, dbschema.EnsureSparseUserEmailIndex(db),
 		"an impostor index must not abort startup")
@@ -166,7 +263,13 @@ func TestSparseUserEmailIndexOracleIntegration(t *testing.T) {
 	assert.Equal(t, "NONUNIQUE", state.Uniqueness,
 		"the impostor must be left in place -- startup code must not drop an index it did not create")
 
-	require.NoError(t, db.Exec("DROP INDEX "+oracleSparseIndexName).Error)
+	// This is the drop that used to silently no-op: byte-identical to the one
+	// that opened this phase, so db.Exec re-ran the cached prepared handle and
+	// left the decoy in place, and the assertion below failed with NONUNIQUE
+	// against an index that had never been dropped (#762).
+	require.NoError(t, execOracleTestDDL(t, db, "DROP INDEX "+oracleSparseIndexName))
+	_, found = readOracleIndexState(t, db, oracleSparseIndexName)
+	require.False(t, found, "the impostor must actually be gone before the real index is recreated")
 	require.NoError(t, dbschema.EnsureSparseUserEmailIndex(db))
 	state, found = readOracleIndexState(t, db, oracleSparseIndexName)
 	require.True(t, found)
@@ -176,16 +279,18 @@ func TestSparseUserEmailIndexOracleIntegration(t *testing.T) {
 	// The same expression list already indexed under a different name. Oracle
 	// refuses the create with ORA-01408 rather than ORA-00955, which must warn
 	// and continue rather than abort.
-	require.NoError(t, db.Exec("DROP INDEX "+oracleSparseIndexName).Error)
-	require.NoError(t, db.Exec(
-		"CREATE UNIQUE INDEX "+oracleSparseDupIndexName+" ON "+oracleUsersTable+" "+oracleSparseKeyExprs).Error)
+	require.NoError(t, execOracleTestDDL(t, db, "DROP INDEX "+oracleSparseIndexName))
+	_, found = readOracleIndexState(t, db, oracleSparseIndexName)
+	require.False(t, found, "the real index must actually be gone so the twin below is the only holder of that expression list")
+	require.NoError(t, execOracleTestDDL(t, db,
+		"CREATE UNIQUE INDEX "+oracleSparseDupIndexName+" ON "+oracleUsersTable+" "+oracleSparseKeyExprs))
 
 	require.NoError(t, dbschema.EnsureSparseUserEmailIndex(db),
 		"ORA-01408 (same column/expression list under another name) must warn and continue, not abort startup")
 	_, found = readOracleIndexState(t, db, oracleSparseIndexName)
 	assert.False(t, found, "the real index name must still be free -- ORA-01408 means nothing was created under it")
 
-	require.NoError(t, db.Exec("DROP INDEX "+oracleSparseDupIndexName).Error)
+	require.NoError(t, execOracleTestDDL(t, db, "DROP INDEX "+oracleSparseDupIndexName))
 }
 
 // TestUserProviderLookupUniqueOracleIntegration covers #732 against real
@@ -222,9 +327,12 @@ func TestUserProviderLookupUniqueOracleIntegration(t *testing.T) {
 	// Recreate the pre-#701 shape: same name, no uniqueness. This is exactly
 	// what every database created before #701 still carries, and what
 	// AutoMigrate silently fails to upgrade.
-	require.NoError(t, db.Exec("DROP INDEX "+lookupIndexName).Error)
-	require.NoError(t, db.Exec(
-		"CREATE INDEX "+lookupIndexName+" ON "+oracleUsersTable+" (PROVIDER, PROVIDER_USER_ID)").Error)
+	// Through execOracleTestDDL, not db.Exec, like every DDL in this file
+	// (#762). This test only issues each string once today, so it never hit
+	// the cached-handle no-op -- but the next person to add a phase would.
+	require.NoError(t, execOracleTestDDL(t, db, "DROP INDEX "+lookupIndexName))
+	require.NoError(t, execOracleTestDDL(t, db,
+		"CREATE INDEX "+lookupIndexName+" ON "+oracleUsersTable+" (PROVIDER, PROVIDER_USER_ID)"))
 	state, found = readOracleIndexState(t, db, lookupIndexName)
 	require.True(t, found)
 	require.Equal(t, "NONUNIQUE", state.Uniqueness, "fixture must be in the pre-#701 state")
