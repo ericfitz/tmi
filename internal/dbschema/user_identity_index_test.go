@@ -1,6 +1,7 @@
 package dbschema
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -127,4 +128,39 @@ func TestUserProviderLookupDDL_OracleUsesUppercase(t *testing.T) {
 	drop, createUnique, _ = userProviderLookupDDL("postgres", "users")
 	assert.Contains(t, drop, "IF EXISTS")
 	assert.Contains(t, createUnique, "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_provider_lookup ON users")
+}
+
+// TestUserProviderLookupDDL_OracleExcludesSparseRows pins the #760 fix: the
+// Oracle index must be function-based so that a row with a NULL
+// provider_user_id keys as all-NULL and is left out of the index entirely.
+//
+// A plain (PROVIDER, PROVIDER_USER_ID) unique index looks correct and is not:
+// Oracle omits a b-tree entry only when EVERY key column is NULL, so with
+// PROVIDER non-NULL two sparse rows under one provider collide with ORA-00001
+// where PostgreSQL allows both. That divergence 500ed every email-only user
+// after the first on Oracle.
+func TestUserProviderLookupDDL_OracleExcludesSparseRows(t *testing.T) {
+	_, createUnique, restore := userProviderLookupDDL("oracle", "USERS")
+
+	assert.Contains(t, createUnique, "CASE WHEN PROVIDER_USER_ID IS NOT NULL THEN PROVIDER END",
+		"PROVIDER must be wrapped so a sparse row's key is entirely NULL and Oracle skips it")
+
+	// Key order is irrelevant to uniqueness but decides whether the hot auth
+	// lookup gets an index range scan: a bare leading column is usable as an
+	// access predicate, a leading CASE expression is not.
+	subjectAt := strings.Index(createUnique, "(PROVIDER_USER_ID,")
+	caseAt := strings.Index(createUnique, "CASE WHEN")
+	assert.Positive(t, subjectAt, "PROVIDER_USER_ID must lead the key list")
+	assert.Less(t, subjectAt, caseAt, "the bare column must precede the CASE expression")
+
+	// The restore fallback is deliberately a plain non-unique index: its only
+	// job is to keep the lookup path off a table scan, and a non-unique index
+	// imposes no NULL semantics, so #760 cannot re-enter through it.
+	assert.NotContains(t, restore, "CASE WHEN")
+	assert.Contains(t, restore, "(PROVIDER, PROVIDER_USER_ID)")
+
+	// PostgreSQL needs no such trick -- NULLS DISTINCT is the default there.
+	_, pgCreateUnique, _ := userProviderLookupDDL("postgres", "users")
+	assert.NotContains(t, pgCreateUnique, "CASE WHEN")
+	assert.Contains(t, pgCreateUnique, "(provider, provider_user_id)")
 }

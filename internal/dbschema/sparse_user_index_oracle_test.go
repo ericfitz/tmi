@@ -39,6 +39,7 @@ const (
 type oracleIndexState struct {
 	Uniqueness    string
 	Status        string
+	IndexType     string
 	FuncidxStatus string
 }
 
@@ -53,7 +54,7 @@ func readOracleIndexState(t *testing.T, db *gorm.DB, indexName string) (oracleIn
 	// same-named index those probes now guard against (oracle-db-admin
 	// re-review, #736).
 	require.NoError(t, db.Raw(
-		"SELECT UNIQUENESS, STATUS, NVL(FUNCIDX_STATUS, 'NONE') AS FUNCIDX_STATUS FROM ALL_INDEXES "+
+		"SELECT UNIQUENESS, STATUS, INDEX_TYPE, NVL(FUNCIDX_STATUS, 'NONE') AS FUNCIDX_STATUS FROM ALL_INDEXES "+
 			"WHERE INDEX_NAME = ? AND TABLE_NAME = ? "+
 			"AND OWNER = SYS_CONTEXT('USERENV','CURRENT_SCHEMA') AND TABLE_OWNER = SYS_CONTEXT('USERENV','CURRENT_SCHEMA')",
 		indexName, oracleUsersTable,
@@ -239,6 +240,13 @@ func TestUserProviderLookupUniqueOracleIntegration(t *testing.T) {
 	require.True(t, found, "the index must exist after the upgrade")
 	assert.Equal(t, "UNIQUE", state.Uniqueness, "the upgrade must leave a genuinely UNIQUE index")
 	assert.Equal(t, "VALID", state.Status)
+	// #760: it must be function-based, not a plain column-list unique index.
+	// A plain one reports UNIQUE and VALID while enforcing stricter NULL
+	// semantics than PostgreSQL -- which is the bug, not the fix.
+	assert.Equal(t, "FUNCTION-BASED NORMAL", state.IndexType,
+		"the index must be function-based so sparse rows key as all-NULL and drop out (#760)")
+	assert.Equal(t, "ENABLED", state.FuncidxStatus,
+		"a DISABLED function-based index enforces nothing and breaks DML on the table")
 
 	// And it must actually bind: a duplicate (provider, provider_user_id) is
 	// now rejected by the database, not merely reported as unique by a
@@ -256,4 +264,26 @@ func TestUserProviderLookupUniqueOracleIntegration(t *testing.T) {
 		Provider: provider, Email: models.DBVarchar("lookup-2@example.com"), Name: "Lookup 2",
 		ProviderUserID: models.NewNullableDBVarchar(&subject),
 	}).Error, "a duplicate (provider, provider_user_id) must be rejected once the index is UNIQUE")
+
+	// --- #760 regression --------------------------------------------------
+	// The constraint must stop at rows that actually carry an identity. Two
+	// sparse rows sharing a provider are two different people who have not
+	// logged in yet, and PostgreSQL has always allowed them; a plain unique
+	// index on Oracle rejected the second with ORA-00001, which
+	// performSparseUserInsert then turned into an HTTP 500 for every
+	// email-only user after the first.
+	//
+	// Distinct emails, because #720's idx_users_sparse_email legitimately
+	// rejects sparse rows that share (provider, email) -- that is a different
+	// invariant and it stays enforced.
+	sparseProvider := models.DBVarchar("lookup-oracle-itest-sparse-" + uuid.NewString())
+	t.Cleanup(func() {
+		require.NoError(t, db.Where("provider = ?", sparseProvider).Delete(&models.User{}).Error)
+	})
+	require.NoError(t, db.Create(&models.User{
+		Provider: sparseProvider, Email: models.DBVarchar("sparse-a@example.com"), Name: "Sparse A",
+	}).Error, "the first sparse row must insert")
+	require.NoError(t, db.Create(&models.User{
+		Provider: sparseProvider, Email: models.DBVarchar("sparse-b@example.com"), Name: "Sparse B",
+	}).Error, "a second sparse row under the same provider must NOT collide -- this is #760")
 }
