@@ -167,6 +167,13 @@ jobs:
       - name: Run govulncheck
         run: govulncheck ./...
 
+      # functions/certmgr is a standalone Go module (no `replace` back to root);
+      # `./...` from the repo root never crosses into it, so it needs its own
+      # invocation. It handles ACME issuance and TLS private key material (#755).
+      - name: Run govulncheck (functions/certmgr)
+        working-directory: functions/certmgr
+        run: govulncheck ./...
+
   gosec:
     name: Static Security Scan (gosec, informational)
     runs-on: ubuntu-latest
@@ -196,6 +203,13 @@ jobs:
         # even if a future go.work pulls them into ./...).
         run: gosec -no-fail -exclude-generated -exclude-dir=test -exclude-dir=wstest -fmt sarif -out gosec.sarif ./...
 
+      # functions/certmgr is a standalone Go module that `./...` from the root
+      # never reaches; it ships to production (OCI Functions) and handles TLS
+      # key material, so scan it too (#755).
+      - name: Run gosec on functions/certmgr (never fails the build)
+        working-directory: functions/certmgr
+        run: gosec -no-fail -exclude-generated -fmt sarif -out gosec-certmgr.sarif ./...
+
       - name: Upload SARIF to the Security tab
         if: always()
         continue-on-error: true   # SARIF upload lacks a write-scoped token on dependabot/fork PRs; never block on it
@@ -203,3 +217,11 @@ jobs:
         with:
           sarif_file: gosec.sarif
           category: gosec
+
+      - name: Upload certmgr SARIF to the Security tab
+        if: always()
+        continue-on-error: true   # same token caveat as above
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: functions/certmgr/gosec-certmgr.sarif
+          category: gosec-certmgr

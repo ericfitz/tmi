@@ -149,6 +149,25 @@ jobs:
           fi
           CHANGED="go.mod"
 
+          # functions/certmgr is the one genuinely standalone Go module in the
+          # repo (no `replace` back to root), so it carries its own toolchain
+          # floor (#755). It is built by the OCI Functions builder image with
+          # GOTOOLCHAIN=auto, which downloads the floor — keep it in step with
+          # root. wstest and test/integration `replace` the root module and
+          # inherit its constraints, so they deliberately carry no toolchain
+          # line (decision recorded in #755).
+          CERTMGR_MOD="functions/certmgr/go.mod"
+          if [ -f "$CERTMGR_MOD" ] && grep -qE '^toolchain go' "$CERTMGR_MOD"; then
+            sed -i "s|^toolchain go.*|toolchain go${LATEST}|" "$CERTMGR_MOD"
+            if ! grep -qx "toolchain go${LATEST}" "$CERTMGR_MOD"; then
+              echo "::error::Failed to rewrite the toolchain line in ${CERTMGR_MOD}."
+              exit 1
+            fi
+            CHANGED="$CHANGED ${CERTMGR_MOD}"
+          else
+            echo "::notice::${CERTMGR_MOD} missing or has no 'toolchain' line — not raised."
+          fi
+
           # Dockerfile.server-oracle bootstraps its own Go rather than using a
           # prebuilt Go image, so it carries a second copy of the version. Left
           # behind, GOTOOLCHAIN=auto still produces a correct build but downloads
@@ -209,7 +228,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "Building with $(go version)"
-          if ! go build ./... 2>&1 | tail -40; then
+          if ! { go build ./... && (cd functions/certmgr && go build ./...); } 2>&1 | tail -40; then
             echo "::warning::go${TO} does not build this tree — reverting the toolchain bump and continuing with dependency updates only."
             git revert --no-edit HEAD
           fi
