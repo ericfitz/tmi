@@ -14,6 +14,7 @@ import (
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/crypto"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -250,9 +251,22 @@ func (s *SettingsService) GetString(ctx context.Context, key string) (string, er
 // redeploy, so for those keys the database wins over the YAML config and
 // the YAML acts only as a first-run fallback (the reverse of GetString's
 // precedence — see #767).
+// The read is retried on transient faults and the returned error is
+// classified (dberrors sentinels): callers on the #419 runtime path sit on
+// request hot paths (e.g. /oauth2/authorize) where an unretried ADB blip
+// (ORA-02396/03113/12537 class) would otherwise surface as a hard failure
+// PG testing cannot reproduce (oracle-db-admin review of #767).
 // SEM@e733aa34cec28d44982ce9dd8937cf17ef810590: fetch a string setting from the database only, reporting row presence (reads DB)
 func (s *SettingsService) GetDatabaseString(ctx context.Context, key string) (string, bool, error) {
-	setting, err := s.Get(ctx, key)
+	var setting *models.SystemSetting
+	err := db.WithRetryableGormRead(ctx, db.DefaultRetryConfig(), func() error {
+		var readErr error
+		setting, readErr = s.Get(ctx, key)
+		if readErr != nil {
+			return dberrors.Classify(readErr)
+		}
+		return nil
+	})
 	if err != nil {
 		return "", false, err
 	}

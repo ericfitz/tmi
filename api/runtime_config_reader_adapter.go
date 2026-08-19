@@ -3,9 +3,11 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strconv"
 
 	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
@@ -44,9 +46,21 @@ func NewRuntimeConfigReaderAdapter(settings SettingsServiceInterface) *RuntimeCo
 func (a *RuntimeConfigReaderAdapter) GetClientCallbackAllowList(ctx context.Context) ([]string, bool, error) {
 	raw, exists, err := a.settings.GetDatabaseString(ctx, "auth.oauth.client_callback_allowlist")
 	if err != nil {
+		// A TRANSIENT DB fault (ADB idle-session kill, pool exhaustion,
+		// listener blip — ORA-02396/03113/12537 class) must NOT fail closed:
+		// before #767 an env/YAML-configured allowlist never touched the DB,
+		// and turning every ADB hiccup into "reject all logins" would be an
+		// Oracle-only outage PG testing cannot reproduce. The YAML snapshot
+		// is operator-supplied, not attacker-controlled, so falling back to
+		// it while the DB is unreachable is strictly safer than rejecting
+		// every client_callback (oracle-db-admin review of #767, note 1).
+		if errors.Is(dberrors.Classify(err), dberrors.ErrTransient) {
+			slogging.Get().Warn("RuntimeConfigReader: transient DB error reading auth.oauth.client_callback_allowlist; falling back to the YAML snapshot: %v", err)
+			return nil, false, nil
+		}
 		slogging.Get().Warn("RuntimeConfigReader: failed to read auth.oauth.client_callback_allowlist: %v", err)
-		// A read error is not the same as a missing row; treat as
-		// "exists, but unusable" so the caller fails-closed.
+		// A non-transient read error is not the same as a missing row; treat
+		// as "exists, but unusable" so the caller fails-closed.
 		return nil, true, err
 	}
 	if !exists || raw == "" {
@@ -69,7 +83,16 @@ func (a *RuntimeConfigReaderAdapter) GetClientCallbackAllowList(ctx context.Cont
 func (a *RuntimeConfigReaderAdapter) IsSAMLEnabled(ctx context.Context) bool {
 	raw, exists, err := a.settings.GetDatabaseString(ctx, "features.saml_enabled")
 	if err != nil {
-		return false
+		// Transient DB faults fall through to the config-layer fallback below
+		// (same reasoning as GetClientCallbackAllowList): an ADB blip must not
+		// report SAML disabled where the YAML enables it (oracle-db-admin
+		// review of #767, note 1). Non-transient errors stay fail-closed.
+		if !errors.Is(dberrors.Classify(err), dberrors.ErrTransient) {
+			return false
+		}
+		slogging.Get().Warn("RuntimeConfigReader: transient DB error reading features.saml_enabled; falling back to the config layer: %v", err)
+		exists = false
+		raw = ""
 	}
 	if !exists || raw == "" {
 		// No DB row — fall back to the config layer (env > YAML).
@@ -97,7 +120,12 @@ func (a *RuntimeConfigReaderAdapter) GetOAuthCallbackURL(ctx context.Context) st
 		slogging.Get().Warn("RuntimeConfigReader: failed to read auth.oauth_callback_url: %v", err)
 		return ""
 	}
-	if !exists {
+	// raw == "" guarded here, not just at the caller: on Oracle '' binds as
+	// NULL, so an empty-but-present row is the ''-is-NULL asymmetry surfacing
+	// — keep the collapse in the adapter alongside the other two readers so
+	// the invariant does not depend on a caller two packages away
+	// (oracle-db-admin review of #767, note 3).
+	if !exists || raw == "" {
 		return ""
 	}
 	return raw

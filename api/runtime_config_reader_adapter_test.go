@@ -3,19 +3,25 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dberrors"
 )
 
 // fakeSettingsService is a minimal SettingsServiceInterface stub for adapter
 // tests. Only the methods the adapter actually calls are exercised.
 // db simulates database rows (GetDatabaseString); strings simulates the
-// config layer (GetString, env/YAML-first); errs fails both reads for a key.
+// config layer (GetString reads ONLY this map — the maps are deliberately
+// disjoint so the config-fallback tests fail if the adapter's explicit
+// fallback read is ever removed). errs fails both reads for a key; dbErrs
+// fails only the DB read (wrap dberrors.ErrTransient to simulate an ADB blip).
 type fakeSettingsService struct {
 	db      map[string]string
 	strings map[string]string
 	errs    map[string]error
+	dbErrs  map[string]error
 }
 
 func newFakeSettingsService() *fakeSettingsService {
@@ -23,6 +29,7 @@ func newFakeSettingsService() *fakeSettingsService {
 		db:      map[string]string{},
 		strings: map[string]string{},
 		errs:    map[string]error{},
+		dbErrs:  map[string]error{},
 	}
 }
 
@@ -33,12 +40,12 @@ func (f *fakeSettingsService) GetString(ctx context.Context, key string) (string
 	if err, ok := f.errs[key]; ok {
 		return "", err
 	}
-	if v, ok := f.strings[key]; ok {
-		return v, nil
-	}
-	return f.db[key], nil
+	return f.strings[key], nil
 }
 func (f *fakeSettingsService) GetDatabaseString(ctx context.Context, key string) (string, bool, error) {
+	if err, ok := f.dbErrs[key]; ok {
+		return "", false, err
+	}
 	if err, ok := f.errs[key]; ok {
 		return "", false, err
 	}
@@ -248,6 +255,73 @@ func TestRuntimeConfigReaderAdapter_GetOAuthCallbackURL(t *testing.T) {
 	t.Run("config value alone yields empty (caller falls back to YAML)", func(t *testing.T) {
 		f := newFakeSettingsService()
 		f.strings["auth.oauth_callback_url"] = "http://yaml/cb"
+		a := NewRuntimeConfigReaderAdapter(f)
+		if got := a.GetOAuthCallbackURL(ctx); got != "" {
+			t.Errorf("got %q, want empty", got)
+		}
+	})
+}
+
+// Transient-DB-fault fallback (#767 oracle-db-admin review, blocking item):
+// an ADB blip (ORA-02396/03113/12537 class) must NOT fail closed — the
+// operator's YAML snapshot answers instead. Only non-transient errors keep
+// the fail-closed contract.
+func TestRuntimeConfigReaderAdapter_TransientDBFaultFallsBackToYAML(t *testing.T) {
+	ctx := context.Background()
+	transient := fmt.Errorf("simulated ADB blip: %w", dberrors.ErrTransient)
+
+	t.Run("allowlist: transient error reads as no-row so the caller uses YAML", func(t *testing.T) {
+		f := newFakeSettingsService()
+		f.dbErrs["auth.oauth.client_callback_allowlist"] = transient
+		a := NewRuntimeConfigReaderAdapter(f)
+		list, exists, err := a.GetClientCallbackAllowList(ctx)
+		if err != nil {
+			t.Fatalf("transient fault must not surface an error (fail-closed), got: %v", err)
+		}
+		if exists {
+			t.Error("exists = true, want false — caller must fall back to the YAML snapshot")
+		}
+		if list != nil {
+			t.Errorf("got %#v, want nil", list)
+		}
+	})
+
+	t.Run("allowlist: non-transient error still fails closed", func(t *testing.T) {
+		f := newFakeSettingsService()
+		f.dbErrs["auth.oauth.client_callback_allowlist"] = errors.New("decrypt failure")
+		a := NewRuntimeConfigReaderAdapter(f)
+		_, exists, err := a.GetClientCallbackAllowList(ctx)
+		if err == nil {
+			t.Error("want error for a non-transient fault")
+		}
+		if !exists {
+			t.Error("non-transient fault must keep exists=true so the caller fails closed")
+		}
+	})
+
+	t.Run("saml: transient DB error falls through to the config layer", func(t *testing.T) {
+		f := newFakeSettingsService()
+		f.dbErrs["features.saml_enabled"] = transient
+		f.strings["features.saml_enabled"] = "true"
+		a := NewRuntimeConfigReaderAdapter(f)
+		if !a.IsSAMLEnabled(ctx) {
+			t.Error("transient DB fault must fall back to the YAML value (true), got false")
+		}
+	})
+
+	t.Run("saml: non-transient error stays fail-closed", func(t *testing.T) {
+		f := newFakeSettingsService()
+		f.dbErrs["features.saml_enabled"] = errors.New("decrypt failure")
+		f.strings["features.saml_enabled"] = "true"
+		a := NewRuntimeConfigReaderAdapter(f)
+		if a.IsSAMLEnabled(ctx) {
+			t.Error("non-transient fault must report SAML disabled (fail-closed), even with a YAML value present")
+		}
+	})
+
+	t.Run("callback URL: empty-but-present row collapses to empty (Oracle ''-is-NULL symmetry)", func(t *testing.T) {
+		f := newFakeSettingsService()
+		f.db["auth.oauth_callback_url"] = ""
 		a := NewRuntimeConfigReaderAdapter(f)
 		if got := a.GetOAuthCallbackURL(ctx); got != "" {
 			t.Errorf("got %q, want empty", got)
