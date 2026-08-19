@@ -62,7 +62,7 @@ import (
 // `tmi-dbtool --schema` run by an admin-privileged user, retries. The
 // alternative -- crash-looping a server over an index it may not be
 // privileged to touch -- is a larger outage than the missing constraint.
-// SEM@5abf61d0e181a6df8a0f8108f79820e4fe68711a: upgrade the users provider-lookup index to UNIQUE when safe, else warn and continue (mutates DB)
+// SEM@30424a23a3e8112b8be171d3d0fcb5cb63ca48a1: repair the users provider-lookup index to its intended unique definition, else warn and continue (mutates DB)
 func EnsureUserProviderLookupUnique(db *gorm.DB) error {
 	usersTable := (&models.User{}).TableName()
 	present, err := requireMigrationTable(db, usersTable, "users provider-lookup unique-index upgrade (#732)")
@@ -93,9 +93,19 @@ func EnsureUserProviderLookupUnique(db *gorm.DB) error {
 	// fingerprint fast path skips AutoMigrate, and a failed upgrade below can
 	// leave the name free -- in both cases nothing else would ever put it
 	// back.
-	if !exists {
+	switch {
+	case !exists:
 		logger.Warn("%s does not exist on %s; creating it as UNIQUE (#732)", userProviderLookupIndexName, usersTable)
-	} else {
+	case db.Name() == "oracle":
+		// Deliberately does not say "is NOT unique": on Oracle this branch is
+		// reached both for a genuinely non-unique pre-#701 index and for the
+		// plain UNIQUE index #732 created, which the catalog reports as
+		// UNIQUE and which an operator would therefore read as already
+		// correct. Naming the definition rather than the property keeps the
+		// log honest against what they see in ALL_INDEXES (#760).
+		logger.Warn("%s exists on %s but does not have the intended definition (a plain or non-unique index rather than the function-based unique index that matches PostgreSQL's NULL semantics); dropping and recreating it (#732, #760)",
+			userProviderLookupIndexName, usersTable)
+	default:
 		logger.Warn("%s exists on %s but is NOT unique -- a pre-#701 index AutoMigrate cannot upgrade in place; dropping and recreating it as UNIQUE (#732)",
 			userProviderLookupIndexName, usersTable)
 	}
@@ -196,10 +206,16 @@ func EnsureUserProviderLookupUnique(db *gorm.DB) error {
 				"AND failed to restore the previous non-unique %s: %v. The users table may now have NO (provider, provider_user_id) index -- "+
 					"logins will table-scan. Recreate it manually: %s. Two benign explanations to rule out first: ORA-00955 means the UNIQUE create "+
 					"actually committed and only the verification failed (check the index and stop), and ORA-01408 means a differently-named index "+
-					"already covers that exact column list (confirm it is UNIQUE) (#732)",
+					"already covers that exact column list (confirm it is UNIQUE). Note the restore DDL above is a plain column-list index "+
+					"while the index this was trying to create is function-based on Oracle, so the two will not look alike in the catalog (#732, #760)",
 				userProviderLookupIndexName, restoreErr, createUniqueDDL)
 		} else {
-			logger.Error("restored the previous non-unique %s; the uniqueness constraint remains unenforced and the upgrade will retry on the next boot (#732)",
+			// On a database that already carried #732's plain UNIQUE index,
+			// this restore puts back a NON-unique one -- a real, if narrow,
+			// regression for the failure path. Accepted for the same reason
+			// the whole function warns rather than aborting: the next boot
+			// retries, and a missing constraint beats a crash loop (#760).
+			logger.Error("restored the previous non-unique %s; the uniqueness constraint remains unenforced -- note this is weaker than what a #732-upgraded database had a moment ago -- and the upgrade will retry on the next boot (#732, #760)",
 				userProviderLookupIndexName)
 		}
 		return nil
@@ -227,13 +243,20 @@ func EnsureUserProviderLookupUnique(db *gorm.DB) error {
 		return nil
 	}
 
-	logger.Info("%s is now a UNIQUE index on %s(provider, provider_user_id) (#732)", userProviderLookupIndexName, usersTable)
+	logger.Info("%s is now a UNIQUE index on %s(provider, provider_user_id), enforced only for rows with a non-NULL provider_user_id (#732, #760)",
+		userProviderLookupIndexName, usersTable)
 	return nil
 }
 
 // UserProviderLookupIndexIsUnique reports whether idx_users_provider_lookup is
-// currently a valid UNIQUE index, so a caller that needs the upgrade to have
-// actually happened can say so.
+// currently a valid UNIQUE index with the definition this package intends, so
+// a caller that needs the upgrade to have actually happened can say so.
+//
+// "The definition this package intends" is dialect-specific and is not the
+// same as the catalog's UNIQUENESS column on Oracle: there it must also be
+// function-based and ENABLED (#760), because a plain UNIQUE index over
+// (provider, provider_user_id) reports as UNIQUE while enforcing stricter
+// NULL semantics than PostgreSQL. See userProviderLookupDDL.
 //
 // EnsureUserProviderLookupUnique deliberately never aborts a server boot over
 // a DDL failure -- crash-looping a server over an index it may not be
@@ -282,15 +305,40 @@ func UserProviderLookupIndexIsUnique(db *gorm.DB) (bool, error) {
 // ALL_CONSTRAINTS as well as ALL_INDEXES -- which cuts against
 // api/models/models.go being the single source of truth for the schema
 // (oracle-db-admin review, #732).
-// SEM@637f0bdb33357d5c2d47d7c06b0e6e214c1962e6: build the drop, create-unique, and restore DDL statements for the provider-lookup index (pure)
+// SEM@30424a23a3e8112b8be171d3d0fcb5cb63ca48a1: build the drop, create-unique, and restore DDL for the provider-lookup index per dialect (pure)
 func userProviderLookupDDL(dialect, usersTable string) (drop, createUnique, restore string) {
 	name := userProviderLookupIndexName
 	table := usersTable
 	if dialect == "oracle" {
 		name = strings.ToUpper(name)
 		table = strings.ToUpper(table)
+		// Function-based, not a plain (PROVIDER, PROVIDER_USER_ID) unique
+		// index, because Oracle and PostgreSQL disagree about partially-NULL
+		// keys (#760). Oracle omits a b-tree entry only when EVERY key column
+		// is NULL; with PROVIDER non-NULL a sparse row IS indexed, so two
+		// email-only users under one provider -- the normal output of
+		// performSparseUserInsert -- collided with ORA-00001 and 500ed. On PG
+		// (NULLS DISTINCT) they never collide. Wrapping PROVIDER in a CASE
+		// that yields NULL for sparse rows makes the whole key NULL for them,
+		// so Oracle skips the row entirely and the two engines agree. #720's
+		// idx_users_sparse_email still covers duplicate sparse emails.
+		//
+		// PROVIDER_USER_ID leads deliberately. Key order is irrelevant to
+		// uniqueness and to the all-NULL exclusion, but a bare leading column
+		// keeps the hot auth lookup (provider = ? AND provider_user_id = ?,
+		// api/authorization_enrichment.go) on an INDEX RANGE SCAN with a
+		// near-unique access predicate; leading with the CASE expression
+		// would leave the CBO no usable access path but idx_users_provider,
+		// a range scan over every user of that provider (oracle-db-admin
+		// review, #760).
+		//
+		// Residual divergence, accepted: a row with NULL PROVIDER and a
+		// non-NULL subject keys as (subject, NULL) -- indexed, so two such
+		// rows collide on Oracle and not on PG. models.User marks provider
+		// not null and no code path writes a NULL provider, and the plain
+		// index this replaces had the identical divergence.
 		return fmt.Sprintf("DROP INDEX %s", name),
-			fmt.Sprintf("CREATE UNIQUE INDEX %s ON %s (PROVIDER, PROVIDER_USER_ID)", name, table),
+			fmt.Sprintf("CREATE UNIQUE INDEX %s ON %s (PROVIDER_USER_ID, CASE WHEN PROVIDER_USER_ID IS NOT NULL THEN PROVIDER END)", name, table),
 			fmt.Sprintf("CREATE INDEX %s ON %s (PROVIDER, PROVIDER_USER_ID)", name, table)
 	}
 	return fmt.Sprintf("DROP INDEX IF EXISTS %s", name),
@@ -305,7 +353,7 @@ func userProviderLookupDDL(dialect, usersTable string) (drop, createUnique, rest
 // userProviderLookupIndexExists does -- gorm's HasIndex is unusable on Oracle
 // (see that function) -- and filters to the session's CURRENT_SCHEMA rather
 // than the connected user's own objects (#736).
-// SEM@605e29546fe60dc8ac69862013475720a74dea8b: probe the users provider-lookup index's existence and uniqueness, per dialect (reads DB)
+// SEM@30424a23a3e8112b8be171d3d0fcb5cb63ca48a1: probe whether the users provider-lookup index exists with its intended definition, per dialect (reads DB)
 func userProviderLookupIndexState(db *gorm.DB, usersTable string) (exists, unique bool, err error) {
 	switch db.Name() {
 	case "oracle":
@@ -318,18 +366,32 @@ func userProviderLookupIndexState(db *gorm.DB, usersTable string) (exists, uniqu
 		// INDEX resolves the index name in CURRENT_SCHEMA, so a foreign-owned
 		// same-named index must not read as ours (oracle-db-admin review, #732).
 		var state []struct {
-			Uniqueness string
-			Status     string
+			Uniqueness    string
+			Status        string
+			IndexType     string
+			FuncidxStatus string
 		}
 		err = db.Raw(
-			"SELECT UNIQUENESS, STATUS FROM ALL_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ? "+
+			"SELECT UNIQUENESS, STATUS, INDEX_TYPE, FUNCIDX_STATUS FROM ALL_INDEXES WHERE INDEX_NAME = ? AND TABLE_NAME = ? "+
 				"AND OWNER = "+oracleCurrentSchema+" AND TABLE_OWNER = "+oracleCurrentSchema,
 			strings.ToUpper(userProviderLookupIndexName), strings.ToUpper(usersTable),
 		).Scan(&state).Error
 		if err != nil || len(state) == 0 {
 			return false, false, err
 		}
-		return true, strings.EqualFold(state[0].Uniqueness, "UNIQUE") && strings.EqualFold(state[0].Status, "VALID"), nil
+		// INDEX_TYPE is load-bearing, not belt-and-braces: a plain UNIQUE
+		// index is what #732 itself created and what AutoMigrate builds from
+		// the model tag on a fresh database, so it is the state every
+		// affected deployment is actually in. Accepting it as correct would
+		// short-circuit the caller and make the #760 fix a no-op on exactly
+		// the databases that carry the bug (oracle-db-admin review).
+		// FUNCIDX_STATUS is checked for the same reason STATUS is: a DISABLED
+		// function-based index enforces nothing and makes DML on the table
+		// fail, so it must read as "needs rebuilding", not "done".
+		return true, strings.EqualFold(state[0].Uniqueness, "UNIQUE") &&
+			strings.EqualFold(state[0].Status, "VALID") &&
+			strings.EqualFold(state[0].IndexType, "FUNCTION-BASED NORMAL") &&
+			strings.EqualFold(state[0].FuncidxStatus, "ENABLED"), nil
 	case "postgres":
 		var defs []string
 		err = db.Raw(
@@ -372,12 +434,18 @@ func findDuplicateUserIdentities(db *gorm.DB, usersTable string) ([]userDupKey, 
 		dups = dups[:0]
 		return db.Table(usersTable).
 			Select("provider, provider_user_id, COUNT(*) AS cnt").
-			// A composite unique index never constrains a row where ANY key
-			// column is NULL (Oracle and PostgreSQL both), so both halves of
-			// the key must be excluded to mirror idx_users_provider_lookup's
-			// actual enforcement exactly -- not just provider_user_id.
-			// provider is tagged not-null in the model today, but this stays
-			// correct against a legacy row that predates that tag.
+			// Both halves of the key are excluded because the index does not
+			// constrain a row with a NULL in either position -- but note the
+			// two engines get there differently, and the difference is #760.
+			// PostgreSQL treats NULLs as distinct, so a partially-NULL key is
+			// never a duplicate. Oracle skips a b-tree entry only when EVERY
+			// key column is NULL and would otherwise constrain a
+			// partially-NULL key; the Oracle DDL wraps provider in a CASE
+			// precisely so sparse rows key as all-NULL and drop out. The net
+			// enforced row set is the same on both, which is what this
+			// predicate mirrors. provider is tagged not-null in the model
+			// today, but this stays correct against a legacy row that
+			// predates that tag.
 			Where("provider IS NOT NULL AND provider_user_id IS NOT NULL").
 			Group("provider, provider_user_id").
 			Having("COUNT(*) > 1").

@@ -1,8 +1,8 @@
 // Package dbschema: unique sparse-email index for NULL provider_user_id rows
 // (#720).
 //
-// idx_users_provider_lookup (provider, provider_user_id, #701) treats NULLs
-// as distinct on both PostgreSQL and Oracle, so two concurrent email-only
+// idx_users_provider_lookup (provider, provider_user_id, #701) does not
+// constrain sparse rows on either engine, so two concurrent email-only
 // sparse inserts (performSparseUserInsert, api/authorization_enrichment.go)
 // can both succeed and leave duplicate USERS rows for the same
 // (provider, email). EnsureSparseUserEmailIndex closes that gap with a
@@ -10,6 +10,16 @@
 // This cannot be a GORM struct tag: the predicate/expression differs per
 // dialect and AutoMigrate cannot express either portably, so it is raw DDL
 // run from dbschema at the same three startup entry points as #704/#724.
+//
+// The two engines reach "does not constrain sparse rows" differently, and an
+// earlier version of this comment got it wrong in a way that cost a
+// production outage (#760). PostgreSQL treats NULLs as distinct, so a
+// partially-NULL key is never a duplicate. Oracle does NOT: it omits a
+// b-tree entry only when EVERY key column is NULL, so ('tmi', NULL) twice is
+// a duplicate there. idx_users_provider_lookup is therefore function-based
+// on Oracle (see userProviderLookupDDL) specifically so sparse rows key as
+// all-NULL and fall out of the index. Do not "simplify" it back to a plain
+// composite unique index.
 package dbschema
 
 import (
@@ -40,9 +50,10 @@ type sparseDupKey struct {
 
 // EnsureSparseUserEmailIndex creates a unique index over (provider, email)
 // restricted to rows with NULL provider_user_id, closing the duplicate-user
-// gap idx_users_provider_lookup cannot cover on its own -- composite unique
-// indexes treat NULLs as distinct on both PG and Oracle, so two concurrent
-// email-only sparse inserts (#720) could otherwise both succeed. PG/SQLite
+// gap idx_users_provider_lookup cannot cover on its own -- that index does
+// not constrain sparse rows on either engine (see the package comment for
+// why the two engines differ on how), so two concurrent email-only sparse
+// inserts (#720) could otherwise both succeed. PG/SQLite
 // use a partial index; Oracle a function-based index whose key expressions
 // evaluate to NULL (hence excluded from the index) for every non-sparse row.
 // email is not-null on models.User (size:320), so a NULL-email divergence
