@@ -119,7 +119,7 @@ func (s *SettingsService) isProductionMode() bool {
 
 // getConfigSetting retrieves a setting from the config provider if available.
 // Returns the setting value and true if found, empty string and false otherwise.
-// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: fetch a setting from the config-provider cache, building the cache lazily (pure)
+// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: fetch a setting from the config-provider cache, building the cache lazily (pure)
 func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool) {
 	if s.configProvider == nil {
 		return MigratableSetting{}, false
@@ -238,6 +238,28 @@ func (s *SettingsService) GetString(ctx context.Context, key string) (string, er
 		return "", nil
 	}
 	return string(setting.Value), nil
+}
+
+// GetDatabaseString retrieves a string setting value from the database only,
+// bypassing the env/config-file priority that GetString applies. exists
+// reports whether the row is present, so callers can distinguish a missing
+// row (fall back to YAML) from an empty value.
+//
+// This is the read used by the #419 runtime-config path: operational
+// settings changed at runtime via the admin API must take effect without a
+// redeploy, so for those keys the database wins over the YAML config and
+// the YAML acts only as a first-run fallback (the reverse of GetString's
+// precedence — see #767).
+// SEM@e733aa34cec28d44982ce9dd8937cf17ef810590: fetch a string setting from the database only, reporting row presence (reads DB)
+func (s *SettingsService) GetDatabaseString(ctx context.Context, key string) (string, bool, error) {
+	setting, err := s.Get(ctx, key)
+	if err != nil {
+		return "", false, err
+	}
+	if setting == nil {
+		return "", false, nil
+	}
+	return string(setting.Value), true, nil
 }
 
 // GetInt retrieves an integer setting value.

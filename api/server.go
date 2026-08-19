@@ -20,6 +20,10 @@ import (
 type SettingsServiceInterface interface {
 	Get(ctx context.Context, key string) (*models.SystemSetting, error)
 	GetString(ctx context.Context, key string) (string, error)
+	// GetDatabaseString reads from the database only (no env/config-file
+	// priority) and reports whether the row exists. Used by the #419
+	// runtime-config path, where the DB must win over the YAML (#767).
+	GetDatabaseString(ctx context.Context, key string) (string, bool, error)
 	GetInt(ctx context.Context, key string) (int, error)
 	GetBool(ctx context.Context, key string) (bool, error)
 	List(ctx context.Context) ([]models.SystemSetting, error)
@@ -457,7 +461,7 @@ func (s *Server) SetTimmyCore(core *TimmyCore) {
 }
 
 // SetTimmyConfigReader provides the live Timmy config source used to advertise availability.
-// SEM@7067d4db: register the Timmy config reader used to advertise availability in GET /config (mutates shared state)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: register the Timmy config reader used to advertise availability (mutates shared state)
 func (s *Server) SetTimmyConfigReader(r TimmyConfigReader) { s.timmyConfigReader = r }
 
 // getTimmyRuntime returns the live TimmyRuntime. When a TimmyCore is wired it

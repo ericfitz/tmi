@@ -34,16 +34,22 @@ func NewRuntimeConfigReaderAdapter(settings SettingsServiceInterface) *RuntimeCo
 //   - exists=true, err!=nil: DB row present but unusable → caller MUST
 //     fail-closed to prevent open-redirect against a corrupt row.
 //
-// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: fetch the OAuth client callback allowlist from DB settings; fail-closed on corrupt or missing row (reads DB)
+// The read is database-only (GetDatabaseString): for #419 runtime keys the
+// DB row must win over the YAML config, which acts purely as a first-run
+// fallback. Reading through GetString would invert that — its
+// env/config-file priority silently shadows the DB row whenever the YAML
+// also carries the key (#767).
+//
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: fetch the OAuth client callback allowlist from DB settings only; fail-closed on corrupt row (reads DB)
 func (a *RuntimeConfigReaderAdapter) GetClientCallbackAllowList(ctx context.Context) ([]string, bool, error) {
-	raw, err := a.settings.GetString(ctx, "auth.oauth.client_callback_allowlist")
+	raw, exists, err := a.settings.GetDatabaseString(ctx, "auth.oauth.client_callback_allowlist")
 	if err != nil {
 		slogging.Get().Warn("RuntimeConfigReader: failed to read auth.oauth.client_callback_allowlist: %v", err)
 		// A read error is not the same as a missing row; treat as
 		// "exists, but unusable" so the caller fails-closed.
 		return nil, true, err
 	}
-	if raw == "" {
+	if !exists || raw == "" {
 		return nil, false, nil
 	}
 	var list []string
@@ -54,13 +60,24 @@ func (a *RuntimeConfigReaderAdapter) GetClientCallbackAllowList(ctx context.Cont
 	return list, true, nil
 }
 
-// IsSAMLEnabled reads features.saml_enabled. A read error or missing row
-// returns false (fail-closed).
-// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: fetch the SAML-enabled feature flag from DB settings; fail-closed on error (reads DB)
+// IsSAMLEnabled reads features.saml_enabled, DB row first (#419/#767).
+// When no DB row exists it falls back to GetString (env/config file) —
+// unlike the other two readers, the auth handler has no YAML fallback of
+// its own once a RuntimeConfigReader is wired. A read error or garbage
+// value returns false (fail-closed).
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: check whether SAML login is enabled, DB-first with config fallback; fail-closed on error (reads DB)
 func (a *RuntimeConfigReaderAdapter) IsSAMLEnabled(ctx context.Context) bool {
-	raw, err := a.settings.GetString(ctx, "features.saml_enabled")
-	if err != nil || raw == "" {
+	raw, exists, err := a.settings.GetDatabaseString(ctx, "features.saml_enabled")
+	if err != nil {
 		return false
+	}
+	if !exists || raw == "" {
+		// No DB row — fall back to the config layer (env > YAML).
+		var cfgErr error
+		raw, cfgErr = a.settings.GetString(ctx, "features.saml_enabled")
+		if cfgErr != nil || raw == "" {
+			return false
+		}
 	}
 	v, parseErr := strconv.ParseBool(raw)
 	if parseErr != nil {
@@ -70,14 +87,17 @@ func (a *RuntimeConfigReaderAdapter) IsSAMLEnabled(ctx context.Context) bool {
 	return v
 }
 
-// GetOAuthCallbackURL reads auth.oauth_callback_url. An empty string is
-// returned on error/missing row; the caller falls back to the YAML
-// snapshot in h.config.OAuth.CallbackURL.
-// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: fetch the OAuth callback URL from DB settings; return empty string on error (reads DB)
+// GetOAuthCallbackURL reads auth.oauth_callback_url from the database only
+// (#419/#767). An empty string is returned on error/missing row; the
+// caller falls back to the YAML snapshot in h.config.OAuth.CallbackURL.
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: fetch the OAuth callback URL from DB settings only; return empty string on error (reads DB)
 func (a *RuntimeConfigReaderAdapter) GetOAuthCallbackURL(ctx context.Context) string {
-	raw, err := a.settings.GetString(ctx, "auth.oauth_callback_url")
+	raw, exists, err := a.settings.GetDatabaseString(ctx, "auth.oauth_callback_url")
 	if err != nil {
 		slogging.Get().Warn("RuntimeConfigReader: failed to read auth.oauth_callback_url: %v", err)
+		return ""
+	}
+	if !exists {
 		return ""
 	}
 	return raw
