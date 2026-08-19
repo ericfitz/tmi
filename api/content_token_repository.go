@@ -194,7 +194,16 @@ func (r *GormContentTokenRepository) Upsert(ctx context.Context, token *ContentT
 func (r *GormContentTokenRepository) UpdateStatus(ctx context.Context, id, status, lastError string) error {
 	res := r.db.WithContext(ctx).Model(&models.UserContentToken{}).
 		Where("id = ?", id).
-		Updates(map[string]any{"status": status, "last_error": lastError})
+		Updates(map[string]any{
+			// Route through the typed constructors so Value() applies the
+			// #700 empty→NULL normalization on both engines. Raw strings here
+			// bypassed the Valuer: an empty status/last_error wrote '' on
+			// PostgreSQL and NULL on Oracle — the cross-engine divergence
+			// #700 closed elsewhere (#713). Decision: last_error "" means
+			// "no error" and is stored as NULL on both engines.
+			"status":     models.NewNullableDBVarchar(&status),
+			"last_error": models.NewNullableDBText(&lastError),
+		})
 	if res.Error != nil {
 		return dberrors.Classify(res.Error)
 	}
@@ -323,7 +332,7 @@ func (r *GormContentTokenRepository) encode(t *ContentToken) (*models.UserConten
 		ExpiresAt:     t.ExpiresAt,
 		Status:        models.NewNullableDBVarchar(&status),
 		LastRefreshAt: t.LastRefreshAt,
-		LastError:     models.DBText(t.LastError),
+		LastError:     models.NewNullableDBText(&t.LastError),
 	}
 	if t.ProviderAccountID != "" {
 		v := t.ProviderAccountID
@@ -360,7 +369,7 @@ func (r *GormContentTokenRepository) decode(row *models.UserContentToken) (*Cont
 		ExpiresAt:     row.ExpiresAt,
 		Status:        row.Status.String,
 		LastRefreshAt: row.LastRefreshAt,
-		LastError:     string(row.LastError),
+		LastError:     row.LastError.String,
 		CreatedAt:     row.CreatedAt,
 		ModifiedAt:    row.ModifiedAt,
 	}

@@ -164,3 +164,34 @@ func TestUserProviderLookupDDL_OracleExcludesSparseRows(t *testing.T) {
 	assert.NotContains(t, pgCreateUnique, "CASE WHEN")
 	assert.Contains(t, pgCreateUnique, "(provider, provider_user_id)")
 }
+
+// TestUserProviderLookupIndexState_WrongColumnListReadsAsNotOurs covers #756:
+// a same-named UNIQUE index over a different column list must not satisfy the
+// probe — name-matching alone is not a strong enough identity check for an
+// index whose whole job is enforcing a constraint. The Ensure flow must then
+// repair it to the intended definition.
+func TestUserProviderLookupIndexState_WrongColumnListReadsAsNotOurs(t *testing.T) {
+	db := newSparseIndexTestDB(t)
+	require.NoError(t, db.Exec(
+		"CREATE UNIQUE INDEX "+userProviderLookupIndexName+" ON users (email)").Error)
+
+	exists, unique, err := userProviderLookupIndexState(db, "users")
+	require.NoError(t, err)
+	assert.True(t, exists, "the impostor occupies the name, so it exists")
+	assert.False(t, unique, "a UNIQUE index over the wrong column list must not read as the intended definition")
+
+	// The Ensure flow must drop the impostor and recreate the intended index.
+	require.NoError(t, EnsureUserProviderLookupUnique(db))
+	exists, unique, err = userProviderLookupIndexState(db, "users")
+	require.NoError(t, err)
+	assert.True(t, exists)
+	assert.True(t, unique, "after repair the intended (provider, provider_user_id) unique index must be in place")
+
+	// And the intended constraint must genuinely bind.
+	require.NoError(t, db.Create(&sparseIndexTestUser{
+		ID: uuid.NewString(), Provider: "tmi", ProviderUserID: strPtr("subject-756"), Email: "a756@example.com",
+	}).Error)
+	require.Error(t, db.Create(&sparseIndexTestUser{
+		ID: uuid.NewString(), Provider: "tmi", ProviderUserID: strPtr("subject-756"), Email: "b756@example.com",
+	}).Error, "a duplicate (provider, provider_user_id) must be rejected after the repair")
+}

@@ -169,3 +169,33 @@ func TestEnsureSparseUserEmailIndex_NoTable(t *testing.T) {
 	err = EnsureSparseUserEmailIndex(db)
 	assert.NoError(t, err)
 }
+
+// TestSparseUserEmailIndexExists_WrongColumnListReadsAsAbsent covers #756: a
+// same-named UNIQUE index over a different column list (or missing the
+// partial-index predicate) must read as absent rather than as ours.
+func TestSparseUserEmailIndexExists_WrongColumnListReadsAsAbsent(t *testing.T) {
+	db := newSparseIndexTestDB(t)
+
+	// Wrong column list entirely.
+	require.NoError(t, db.Exec(
+		"CREATE UNIQUE INDEX "+sparseUserIndexName+" ON users (id)").Error)
+	exists, err := sparseUserEmailIndexExists(db, "users")
+	require.NoError(t, err)
+	assert.False(t, exists, "a UNIQUE index over the wrong column list must read as absent")
+	require.NoError(t, db.Exec("DROP INDEX "+sparseUserIndexName).Error)
+
+	// Right columns but no partial predicate: constrains ALL rows, which is a
+	// different (and wrong) constraint from #720's sparse-only uniqueness.
+	require.NoError(t, db.Exec(
+		"CREATE UNIQUE INDEX "+sparseUserIndexName+" ON users (provider, email)").Error)
+	exists, err = sparseUserEmailIndexExists(db, "users")
+	require.NoError(t, err)
+	assert.False(t, exists, "the same columns without the provider_user_id IS NULL predicate must read as absent")
+	require.NoError(t, db.Exec("DROP INDEX "+sparseUserIndexName).Error)
+
+	// The genuine article reads as present.
+	require.NoError(t, EnsureSparseUserEmailIndex(db))
+	exists, err = sparseUserEmailIndexExists(db, "users")
+	require.NoError(t, err)
+	assert.True(t, exists, "the intended index must read as present")
+}

@@ -21,7 +21,7 @@ type UserContentToken struct {
 	ExpiresAt            *time.Time
 	Status               NullableDBVarchar `gorm:"size:16;default:active;index:idx_uct_status_expires,priority:1"`
 	LastRefreshAt        *time.Time        `gorm:"index:idx_uct_status_expires,priority:2"`
-	LastError            DBText
+	LastError            NullableDBText
 	ProviderAccountID    NullableDBVarchar `gorm:"size:255"`
 	ProviderAccountLabel NullableDBVarchar `gorm:"size:255"`
 	CreatedAt            time.Time         `gorm:"not null;autoCreateTime"`

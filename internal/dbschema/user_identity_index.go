@@ -388,10 +388,47 @@ func userProviderLookupIndexState(db *gorm.DB, usersTable string) (exists, uniqu
 		// FUNCIDX_STATUS is checked for the same reason STATUS is: a DISABLED
 		// function-based index enforces nothing and makes DML on the table
 		// fail, so it must read as "needs rebuilding", not "done".
-		return true, strings.EqualFold(state[0].Uniqueness, "UNIQUE") &&
+		propsOK := strings.EqualFold(state[0].Uniqueness, "UNIQUE") &&
 			strings.EqualFold(state[0].Status, "VALID") &&
 			strings.EqualFold(state[0].IndexType, "FUNCTION-BASED NORMAL") &&
-			strings.EqualFold(state[0].FuncidxStatus, "ENABLED"), nil
+			strings.EqualFold(state[0].FuncidxStatus, "ENABLED")
+		if !propsOK {
+			return true, false, nil
+		}
+		// Match the key itself, not just the index's properties: a foreign or
+		// legacy UNIQUE index that happens to carry this name but covers a
+		// different column list enforces nothing we rely on, and name-matching
+		// alone would read it as done (#756 — the same hole shape that
+		// STATUS = 'VALID' closed for UNUSABLE indexes). The intended key is
+		// (PROVIDER_USER_ID, CASE WHEN PROVIDER_USER_ID IS NOT NULL THEN
+		// PROVIDER END): position 1 a plain column, position 2 a
+		// system-generated virtual column whose expression is compared
+		// structurally via normalizeIndexDDL.
+		cols, colErr := oracleIndexColumns(db, userProviderLookupIndexName, usersTable)
+		if colErr != nil {
+			return false, false, colErr
+		}
+		exprs, exprErr := oracleIndexExpressions(db, userProviderLookupIndexName, usersTable)
+		if exprErr != nil {
+			return false, false, exprErr
+		}
+		keyOK := len(cols) == 2 &&
+			strings.EqualFold(cols[0], "PROVIDER_USER_ID") &&
+			len(exprs) == 1 &&
+			normalizeIndexDDL(exprs[0]) == "casewhenprovider_user_idisnotnullthenproviderend"
+		if !keyOK {
+			// Diagnosability before action: a false negative here makes the
+			// caller DROP and recreate the index on the hot USERS table, so
+			// an operator watching a rebuild must be able to see WHY the
+			// catalog's rendering failed to match (oracle-db-admin review of
+			// #756). If this fires for a correct index, Oracle's re-print of
+			// the expression differs from the recorded ground truth — file a
+			// bug with this log line.
+			slogging.Get().Warn(
+				"%s key mismatch: columns=%v expressions=%v do not match the intended (PROVIDER_USER_ID, CASE WHEN PROVIDER_USER_ID IS NOT NULL THEN PROVIDER END) definition (#756)",
+				userProviderLookupIndexName, cols, exprs)
+		}
+		return true, keyOK, nil
 	case "postgres":
 		var defs []string
 		err = db.Raw(
@@ -401,7 +438,15 @@ func userProviderLookupIndexState(db *gorm.DB, usersTable string) (exists, uniqu
 		if err != nil || len(defs) == 0 {
 			return false, false, err
 		}
-		return true, strings.HasPrefix(strings.ToUpper(defs[0]), "CREATE UNIQUE INDEX"), nil
+		// Column list matched too, not just uniqueness: a same-named UNIQUE
+		// index over some other column list must read as "not the intended
+		// definition" rather than as done (#756). A WHERE predicate is
+		// excluded as well — a same-named PARTIAL unique index over the right
+		// columns enforces a different (weaker) constraint.
+		def := normalizeIndexDDL(defs[0])
+		return true, strings.HasPrefix(def, "createuniqueindex") &&
+			strings.Contains(def, "(provider,provider_user_id)") &&
+			!strings.Contains(def, "where"), nil
 	case "sqlite":
 		// Test-fixture dialect only -- TMI's supported production dialects are
 		// postgres and oracle.
@@ -413,7 +458,9 @@ func userProviderLookupIndexState(db *gorm.DB, usersTable string) (exists, uniqu
 		if err != nil || len(defs) == 0 {
 			return false, false, err
 		}
-		return true, strings.HasPrefix(strings.ToUpper(defs[0]), "CREATE UNIQUE INDEX"), nil
+		def := normalizeIndexDDL(defs[0])
+		return true, strings.HasPrefix(def, "createuniqueindex") &&
+			strings.Contains(def, "(provider,provider_user_id)"), nil
 	default:
 		// Unsupported dialect: report "exists and unique" so the caller does
 		// nothing at all. Fail-safe in the direction of not issuing DDL this

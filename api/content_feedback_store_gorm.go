@@ -56,17 +56,27 @@ func (r *GormContentFeedbackRepository) CreateWithTargetCheck(ctx context.Contex
 	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// SEM@1c63bfe9bdfd225380a2a4e2960fef14b3437996: local struct holding a single ID column for targeted SELECT queries (pure)
 		type idRow struct{ ID string }
-		var got idRow
+		var got []idRow
+		// Find, not First: First adds ORDER BY + a row limit, and Oracle
+		// cannot combine the row_limiting_clause with FOR UPDATE (ORA-02014).
+		// id is the primary key, so the result set is at most one row anyway
+		// (oracle-db-admin review of #669, note 5).
 		err := tx.Table(target.Table).
 			Clauses(clause.Locking{Strength: "UPDATE"}).
 			Select("id").
-			Where("id = ? AND threat_model_id = ?", target.TargetID, target.ThreatModelID).
-			First(&got).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrContentFeedbackTargetNotFound
-		}
+			// deleted_at IS NULL: notes, diagrams, and threats all use plain
+			// *time.Time DeletedAt (no implicit GORM scoping), so without it
+			// feedback could be filed against a tombstoned target (#669).
+			// String predicate is fine here: the Oracle #392 heuristic only
+			// affects UPDATE/DELETE builds, and every Get in this codebase
+			// already uses this form on SELECTs.
+			Where("id = ? AND threat_model_id = ? AND deleted_at IS NULL", target.TargetID, target.ThreatModelID).
+			Find(&got).Error
 		if err != nil {
 			return dberrors.Classify(err)
+		}
+		if len(got) == 0 {
+			return ErrContentFeedbackTargetNotFound
 		}
 		if err := tx.Create(fb).Error; err != nil {
 			slogging.Get().Error("ContentFeedback CreateWithTargetCheck insert failed: %v", err)

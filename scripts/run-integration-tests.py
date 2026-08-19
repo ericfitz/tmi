@@ -560,7 +560,46 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
             cwd=str(project_root),
         )
 
-    return (http_exit if http_exit != 0 else oracle_result.returncode), None
+    # Workflow (end-to-end API) tests against the already-running Oracle-backed
+    # dev server (#671). run_pg spins up an isolated test-server container, but
+    # the OCI target's whole premise is the live `make dev-up DB=oracle` server
+    # verified reachable at the top of this function — so drive that. Runs even
+    # when an earlier phase failed: one hung driver test must not silently
+    # remove end-to-end coverage for the rest of the run (#671), and a skip is
+    # reported as a failure for the same reason run_pg treats it as one (#601).
+    workflows_skipped: str | None = None
+    log_info("Running workflow integration tests against the Oracle-backed dev server")
+    workflow_run = os.environ.get("TMI_TEST_WORKFLOW_RUN", "").strip()
+    wf_go_cmd = "go test -v -timeout=15m -p 1 ./workflows/..."
+    if workflow_run:
+        wf_go_cmd += f" -run '{workflow_run}'"
+    wf_cmd = (
+        f"source '{oci_env_file}' && "
+        "LOGGING_IS_TEST=true "
+        "INTEGRATION_TESTS=true "
+        f"TMI_SERVER_URL='{server_url}' "
+        f"TEST_SERVER_URL='{server_url}' "
+        "TEST_REDIS_HOST=localhost "
+        "TEST_REDIS_PORT=6379 "
+        + wf_go_cmd
+    )
+    with open(log_path, "a") as fh:
+        workflow_result = subprocess.run(
+            ["bash", "-c", wf_cmd],
+            stdout=fh,
+            stderr=subprocess.STDOUT,
+            check=False,
+            cwd=str(project_root / "test" / "integration"),
+        )
+    if workflow_result.returncode != 0:
+        reason = build_failure_reason(log_path)
+        if reason:
+            workflows_skipped = f"workflows package failed to build: {reason}"
+
+    for code in (http_exit, oracle_result.returncode, workflow_result.returncode):
+        if code != 0:
+            return code, workflows_skipped
+    return 0, workflows_skipped
 
 
 def main() -> int:

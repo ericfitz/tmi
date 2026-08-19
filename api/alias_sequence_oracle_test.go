@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/dberrors"
@@ -19,10 +20,39 @@ import (
 // dropOracleAliasSequence drops the global ThreatModel alias sequence, ignoring
 // ORA-02289 (sequence does not exist). Wrapped in anonymous PL/SQL so it is
 // safe to call for clean-slate seeding and in cleanup.
-func dropOracleAliasSequence(t *testing.T, db *gorm.DB) {
+//
+// Two hardening measures, both from the #671 hang investigation:
+//
+//   - The DDL runs on a dedicated *sql.Conn, NEVER through gorm.DB.Exec: the
+//     test session has PrepareStmt enabled, and a second byte-identical DDL
+//     string through gorm's prepared-statement cache silently does nothing on
+//     Oracle (#763). This helper is called up to three times per test with the
+//     same bytes — through gorm, every call after the first would no-op and
+//     the self-heal test's mid-test drop would never happen.
+//   - The 4-minute test context is what actually bounds the observed hang:
+//     `make test-integration-oci` requires the Oracle-backed dev server to be
+//     RUNNING, its pooled sessions use this very sequence, and a DROP blocked
+//     behind their library-cache pins waits indefinitely — godror issues
+//     OCIBreak on context cancellation, converting that into a diagnosable
+//     test failure instead of go test's 10m package panic (#671).
+//     DDL_LOCK_TIMEOUT is set as well for the class it does govern (TM/DML
+//     lock acquisition, ORA-00054 → bounded wait); it does NOT bound library
+//     cache lock waits (those raise ORA-04021 only via other mechanisms).
+func dropOracleAliasSequence(t *testing.T, ctx context.Context, db *gorm.DB) {
 	t.Helper()
-	sql := `BEGIN EXECUTE IMMEDIATE 'DROP SEQUENCE TMI_THREAT_MODEL_ALIAS_SEQ'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -2289 THEN RAISE; END IF; END;`
-	require.NoError(t, db.Exec(sql).Error, "drop sequence (ignoring ORA-02289)")
+	sqlDB, err := db.DB()
+	require.NoError(t, err, "unwrap *sql.DB for raw-conn DDL")
+	conn, err := sqlDB.Conn(ctx)
+	require.NoError(t, err, "acquire dedicated connection for DDL")
+	defer func() { _ = conn.Close() }()
+	_, err = conn.ExecContext(ctx, "ALTER SESSION SET ddl_lock_timeout = 30")
+	require.NoError(t, err, "bound the DDL lock wait")
+	drop := `BEGIN EXECUTE IMMEDIATE 'DROP SEQUENCE TMI_THREAT_MODEL_ALIAS_SEQ'; EXCEPTION WHEN OTHERS THEN IF SQLCODE != -2289 THEN RAISE; END IF; END;`
+	_, err = conn.ExecContext(ctx, drop)
+	// Reset the session parameter before the conn returns to the pool,
+	// matching execMigrationDDL's discipline (internal/dbschema/oracle_ddl.go).
+	_, _ = conn.ExecContext(ctx, "ALTER SESSION SET ddl_lock_timeout = 0")
+	require.NoError(t, err, "drop sequence (ignoring ORA-02289)")
 }
 
 // TestThreatModelAliasSequenceOracleIntegration is the Oracle-gated counterpart
@@ -37,8 +67,13 @@ func dropOracleAliasSequence(t *testing.T, db *gorm.DB) {
 //
 // Run via `make test-integration-oci`.
 func TestThreatModelAliasSequenceOracleIntegration(t *testing.T) {
-	ctx := context.Background()
-	db := openAuditAppendOnlyOracleDB(t) // shared Oracle connection helper
+	// Deadline well inside go test's -timeout: a stuck DB call (ADB lock wait,
+	// network stall) must fail THIS test with a real error instead of
+	// panicking the whole package at 10m and aborting the rest of the OCI run
+	// (#671). godror honors context cancellation.
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	defer cancel()
+	db := openAuditAppendOnlyOracleDB(t).WithContext(ctx) // shared Oracle connection helper
 	// alias_counters already exists on the shared ADB (server-migrated); a
 	// re-AutoMigrate is not idempotent on gorm-oracle (ORA-01430), so only
 	// create it when genuinely absent.
@@ -47,8 +82,12 @@ func TestThreatModelAliasSequenceOracleIntegration(t *testing.T) {
 	}
 
 	// Clean slate: drop any existing sequence so the install re-seeds.
-	dropOracleAliasSequence(t, db)
-	t.Cleanup(func() { dropOracleAliasSequence(t, db) })
+	dropOracleAliasSequence(t, ctx, db)
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cleanupCancel()
+		dropOracleAliasSequence(t, cleanupCtx, db)
+	})
 
 	// Seed a known high-water mark via the legacy global counter row (no FK,
 	// unlike threat_models). aliasSeedStart reads MAX(next_alias)-1 from it, so
@@ -119,15 +158,21 @@ func TestThreatModelAliasSequenceOracleIntegration(t *testing.T) {
 // Create-level reinstall+retry wrapper is dialect-agnostic Go already proven on
 // PostgreSQL. Run via `make test-integration-oci`.
 func TestThreatModelAliasSequenceSelfHealOracleIntegration(t *testing.T) {
-	ctx := context.Background()
-	db := openAuditAppendOnlyOracleDB(t)
+	// Bounded for the same #671 reason as the happy-path test above.
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	defer cancel()
+	db := openAuditAppendOnlyOracleDB(t).WithContext(ctx)
 	if !db.Migrator().HasTable(&models.AliasCounter{}) {
 		require.NoError(t, db.AutoMigrate(&models.AliasCounter{}))
 	}
 
 	// Clean slate, restored on exit.
-	dropOracleAliasSequence(t, db)
-	t.Cleanup(func() { dropOracleAliasSequence(t, db) })
+	dropOracleAliasSequence(t, ctx, db)
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cleanupCancel()
+		dropOracleAliasSequence(t, cleanupCtx, db)
+	})
 
 	const seededHigh = int32(7777)
 	var saved *models.AliasCounter
@@ -180,7 +225,7 @@ func TestThreatModelAliasSequenceSelfHealOracleIntegration(t *testing.T) {
 	require.NoError(t, db.Exec("UPDATE ALIAS_COUNTERS SET NEXT_ALIAS = ? WHERE PARENT_ID = ? AND OBJECT_TYPE = ?", first+1, "__global__", "threat_model").Error)
 
 	// Simulate schema drift: drop the sequence while the gate stays on.
-	dropOracleAliasSequence(t, db)
+	dropOracleAliasSequence(t, ctx, db)
 
 	// The allocator must classify ORA-02289 as the recoverable sentinel.
 	_, missingErr := alloc()
