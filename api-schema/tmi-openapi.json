@@ -4521,7 +4521,12 @@
           "attempts": 1,
           "created_at": "2024-01-20T15:45:30Z",
           "delivered_at": "2024-01-20T15:45:31Z",
-          "payload": {},
+          "payload": {
+            "type": "test",
+            "subscription_id": "11111111-1111-4111-8111-111111111111",
+            "timestamp": "2026-01-01T00:00:00Z",
+            "message": "This is a test webhook delivery"
+          },
           "addon_id": "00000000-0000-0000-0000-000000000000",
           "invoked_by": {
             "principal_type": "user",

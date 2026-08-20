@@ -103,7 +103,7 @@ func writeJSONReference(path string, refs RefMap, serverURL, user, provider stri
 	return os.WriteFile(path, data, 0o600)
 }
 
-// SEM@d958f3dc26a0977ee70f472999b9749af2b714d3: serialize seeded resource IDs to a CATS-compatible YAML parameter substitution file (mutates shared state)
+// SEM@0000000000000000000000000000000000000000: serialize seeded resource IDs to a CATS-compatible YAML parameter substitution file (mutates shared state)
 func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
@@ -214,6 +214,14 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 			findRefByName(refs, teamNoteRef(realTeamName, 1), "")},
 		{"/admin/webhooks/subscriptions/{webhook_id}", "webhook_id",
 			findRefByName(refs, webhookRef(throwawayWebhookName), "")},
+		// Not a DELETE decoy: POST .../test on an operator-pinned subscription
+		// is refused with 403 (deliberate, unit-pinned behavior), and the
+		// global webhook_id IS the pinned subscription — so the /test
+		// endpoint's real logic never got fuzzed (39 guard-403s in run
+		// 20260820T034449Z). Point just this path at a non-pinned subscription;
+		// /test has no destructive operations, so it needs no protection.
+		{"/admin/webhooks/subscriptions/{webhook_id}/test", "webhook_id",
+			findRefByName(refs, webhookRef(testEndpointWebhookName), "")},
 	}
 	decoySections := ""
 	for _, d := range decoys {
@@ -560,11 +568,18 @@ const (
 	throwawayGroupName       = "CATS Throwaway Group"
 	throwawayThreatModelName = "CATS Throwaway Threat Model"
 	throwawayWebhookName     = "CATS Throwaway Webhook"
-	realTeamName             = "CATS Test Team"
-	realWebhookName          = "CATS Test Webhook"
-	realProjectName          = "CATS Test Project"
-	realGroupName            = "CATS Test Group"
-	realThreatModelName      = "CATS Test Threat Model"
+	// Non-pinned subscription for the .../test endpoint override below: the
+	// real subscription is operator-pinned (which is what protects it from
+	// fuzz mutation), but POST .../{webhook_id}/test refuses pinned
+	// subscriptions with a 403, so pointing /test at the pinned one left the
+	// endpoint's actual logic entirely unfuzzed (39 guard-403s in run
+	// 20260820T034449Z).
+	testEndpointWebhookName = "CATS Test-Endpoint Webhook"
+	realTeamName            = "CATS Test Team"
+	realWebhookName         = "CATS Test Webhook"
+	realProjectName         = "CATS Test Project"
+	realGroupName           = "CATS Test Group"
+	realThreatModelName     = "CATS Test Threat Model"
 )
 
 // findRefByName returns a seeded id by its exact seed ref, falling back to the

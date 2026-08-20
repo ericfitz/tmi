@@ -257,6 +257,13 @@
         "events": [
           "threat_model.created"
         ]
+      },
+      {
+        "name": "CATS Test-Endpoint Webhook",
+        "url": "https://webhook.site/cats-test-endpoint-webhook",
+        "events": [
+          "threat_model.created"
+        ]
       }
     ],
     "webhook_test_deliveries": [

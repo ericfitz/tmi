@@ -52,13 +52,13 @@ rules:
   # transport-layer failure is categorically not an application-layer
   # finding, so no application rule may claim these records under
   # first-match-wins.
-  # rule 1 of 89:
+  # rule 1 of 94:
   - id: CONNECTION_ERROR_999
     why: Response codes 953/999 are CATS/network-layer issues (connection refused, no real HTTP response received), not API bugs.
     when:
       response_code: { in: [953, 999] }
 
-  # rule 2 of 89: Rate Limit False Positives (429)
+  # rule 2 of 94: Rate Limit False Positives (429)
   # Rate limiting is infrastructure protection, not API behavior.
   - id: RATE_LIMIT_429
     why: Rate limiting is infrastructure protection, not API behavior.
@@ -69,7 +69,7 @@ rules:
   # header (every other header fuzzer explicitly preserves authentication
   # headers). A 401/403 when credentials were deliberately removed is the
   # correct security outcome. Any other 401/403 must surface. (#583)
-  # rule 3 of 89:
+  # rule 3 of 94:
   - id: AUTH_BYPASS_401_403
     why: BypassAuthentication deliberately strips the Authorization header, so a 401/403 rejection is the correct security outcome; CATS preserves auth headers in every other fuzzer, so no other fuzzer legitimately triggers auth failures.
     when:
@@ -80,7 +80,7 @@ rules:
   # chars, bidirectional overrides, Hangul fillers, Zalgo text, control
   # chars, and similar malformed/adversarial input. Returning 400 for these
   # is correct security behavior, not a bug.
-  # rule 4 of 89:
+  # rule 4 of 94:
   - id: VALIDATION_400
     why: TMI's security hardening middleware correctly rejects malformed/adversarial input (unicode abuse, injection payloads, overflow values, malformed JSON) with 400.
     when:
@@ -133,7 +133,7 @@ rules:
   # NOTE: legacy also checked response.responseBody against
   # legitimate_not_found_messages, which CATS never emits (dead branch);
   # only the result_details check (which reads the same message list) is live.
-  # rule 5 of 89:
+  # rule 5 of 94:
   - id: NOT_FOUND_404
     why: Fuzzers that substitute random/invalid resource IDs correctly get 404 from fully-implemented endpoints.
     when:
@@ -200,7 +200,7 @@ rules:
   # InsecureDirectObjectReferences replaces ID fields with alternative
   # values. Admin endpoints (and the admin-only DELETE /addons/{id}) grant
   # full access regardless of which ID is used, so this is expected.
-  # rule 6 of 89:
+  # rule 6 of 94:
   - id: IDOR_ADMIN
     why: Admin endpoints (and admin-only DELETE /addons/{id}) grant full access regardless of which ID is substituted, so IDOR probing them is expected to "succeed".
     when:
@@ -217,7 +217,7 @@ rules:
   # those IDs. Since the replacement resource is also owned by the same
   # user, success is expected — ownership is enforced via
   # WHERE owner_uuid = ? in all queries.
-  # rule 7 of 89:
+  # rule 7 of 94:
   - id: IDOR_SAME_OWNER
     why: /me/ endpoints are single-user scoped; a substituted ID that also belongs to the same authenticated user is a same-owner access, not an IDOR — ownership is enforced via WHERE owner_uuid = ? in all queries.
     when:
@@ -227,7 +227,7 @@ rules:
       response_code: { in: [200, 204] }
 
   # Returning 400/405 for unsupported HTTP methods is correct behavior.
-  # rule 8 of 89:
+  # rule 8 of 94:
   - id: HTTP_METHODS
     why: Returning 400/405 for unsupported HTTP methods is correct behavior.
     when:
@@ -239,7 +239,7 @@ rules:
   # returning "400 Bad Request" as text/plain rather than JSON. The spec
   # allows text/plain as an alternative for 400, but CATS may not recognize
   # it (charset suffix, or only checking the first content type).
-  # rule 9 of 89:
+  # rule 9 of 94:
   - id: CONTENT_TYPE_GO_HTTP
     why: Go's net/http layer can reject a malformed request before Gin middleware runs, returning text/plain "400 Bad Request" instead of JSON — expected HTTP behavior, not a bug.
     when:
@@ -254,7 +254,7 @@ rules:
   # that's not XSS, which requires HTML context. NoSQL/command injection
   # "potential" findings are storage, not execution. NoSQL syntax has no
   # effect on TMI's PostgreSQL backend.
-  # rule 10 of 89:
+  # rule 10 of 94:
   - id: INJECTION_JSON_API
     why: For a JSON API, storing and echoing user-supplied data as JSON is not XSS (which needs HTML context); NoSQL injection syntax has no effect on TMI's PostgreSQL backend.
     when:
@@ -279,7 +279,7 @@ rules:
   # code (953/999) ahead of CONNECTION_ERROR_999 — on the current corpus this
   # guard is a no-op now that CONNECTION_ERROR_999 sits at rule 1, but it's
   # cheap defense-in-depth against a future reorder.
-  # rule 11 of 89:
+  # rule 11 of 94:
   - id: XSS_QUERY_PARAMS
     why: TMI returns JSON, not HTML, so XSS requires no exploitable context; GET-only query-parameter payloads and "warn"-level (accepted, not reflected-as-HTML) results are never exploitable. Restricted to real HTTP status codes (#586) so it can never claim a synthetic CATS code like 953/999.
     when:
@@ -291,7 +291,7 @@ rules:
 
   # These fuzzers send malformed/unusual headers and expect success.
   # Returning 400 for invalid headers is correct input validation.
-  # rule 12 of 89:
+  # rule 12 of 94:
   - id: HEADER_VALIDATION_400
     why: Returning 400 for malformed/unusual headers (bad Accept-Language, invalid Content-Type, header flooding, duplicate/extra headers) is correct input validation.
     when:
@@ -316,7 +316,7 @@ rules:
   # Ported as a single condition; the engine's `contains` is
   # case-insensitive, so this matches exactly the same records as the
   # original OR.
-  # rule 13 of 89:
+  # rule 13 of 94:
   - id: STRING_BOUNDARY_OPTIONAL
     why: CATS expects 4XX for an empty string on an optional field, but an optional field accepting an empty value and returning 2XX is correct.
     when:
@@ -329,7 +329,7 @@ rules:
   # For LIST endpoints, returning 200 with an empty array is correct REST
   # behavior — the fuzzer expects 404/410, but a list endpoint should
   # return 200 with empty results.
-  # rule 14 of 89:
+  # rule 14 of 94:
   - id: DELETED_RESOURCE_LIST
     why: LIST endpoints correctly return 200 with an empty array after the listed resource is deleted, rather than 404/410.
     when:
@@ -355,7 +355,7 @@ rules:
   # 7009) accept form-urlencoded data. When the request Content-Type is
   # form-urlencoded, the server correctly handles the form data — the
   # fuzzers are testing the wrong content type.
-  # rule 15 of 89:
+  # rule 15 of 94:
   - id: FORM_URLENCODED_JSON_TEST
     why: JSON-body fuzzers (MalformedJson, DuplicateKeysFields, RandomDummyInvalidJsonBody) test the wrong content type against endpoints that legitimately accept form-urlencoded data (e.g. /oauth2/revoke per RFC 7009).
     when:
@@ -367,7 +367,7 @@ rules:
   # 200 with a challenge string, the second (with challenge) confirms
   # deletion. Fuzzers that send DELETE /me without the challenge parameter
   # correctly get 400 "Invalid or expired challenge".
-  # rule 16 of 89:
+  # rule 16 of 94:
   - id: DELETE_ME_CHALLENGE
     why: DELETE /me requires a two-step challenge flow; any 400 without the challenge parameter correctly enforces that flow.
     when:
@@ -382,7 +382,7 @@ rules:
   # NOTE: legacy also checked response.responseBody for the same
   # "parameter ... doesn't match the regular expression" message, which
   # CATS never emits (dead branch).
-  # rule 17 of 89:
+  # rule 17 of 94:
   - id: PATH_PARAM_VALIDATION
     why: CATS test parameter names (e.g. "cats-test-key") contain hyphens that some OpenAPI path-parameter regex patterns disallow; 400 is correct validation.
     when:
@@ -397,7 +397,7 @@ rules:
   # NOTE: legacy also checked response.responseBody for the same "property
   # ... is missing" / "is required" messages (2 places), which CATS never
   # emits (dead branches); only the json_body.error_description checks are live.
-  # rule 18 of 89:
+  # rule 18 of 94:
   - id: EMPTY_BODY_REQUIRED_FIELDS
     why: EmptyJsonBody sends {} against endpoints with documented required fields; 400 for a missing required property is correct.
     when:
@@ -411,7 +411,7 @@ rules:
 
   # EmptyJsonBody uses random UUIDs that don't exist in the database — 404
   # is correct and unrelated to the empty body itself.
-  # rule 19 of 89:
+  # rule 19 of 94:
   - id: EMPTY_JSON_BODY_NOT_FOUND
     why: EmptyJsonBody's random UUIDs don't exist in the database; 404 Not Found is correct and unrelated to the empty request body.
     when:
@@ -438,7 +438,7 @@ rules:
   # no-op check, kept only for behavioral equivalence with the ported
   # Python. See test/cats/rule-baseline.json and
   # docs/superpowers/plans/2026-07-26-cats-rule-migration-report.md.
-  # rule 20 of 89:
+  # rule 20 of 94:
   - id: STRING_BOUNDARY_EMPTY_PATH
     why: In practice this rule fires whenever StringFieldsLeftBoundary gets response_code 200 or 405 — the url any_of below is inert (see comment above), so it does not actually gate on an empty path segment despite the historical framing.
     when:
@@ -454,7 +454,7 @@ rules:
   # body — sending one correctly returns 400.
   # NOTE: legacy also checked response.responseBody for "does not accept a
   # request body", which CATS never emits (dead branch).
-  # rule 21 of 89:
+  # rule 21 of 94:
   - id: NO_BODY_ENDPOINT
     why: Endpoints that don't accept a request body (e.g. /admin/settings/migrate) correctly return 400 when a fuzzer sends one anyway.
     when:
@@ -462,7 +462,7 @@ rules:
       json_body.error_description:
         contains: "does not accept a request body"
 
-  # rule 22 of 89: Survey endpoint validation false positives (400)
+  # rule 22 of 94: Survey endpoint validation false positives (400)
   # Survey POST/PUT correctly rejects malformed survey_json, status, etc.
   - id: SURVEY_VALIDATION_400
     why: Survey POST/PUT correctly rejects malformed survey_json, status, and other fuzzed fields with 400.
@@ -479,7 +479,7 @@ rules:
           - request body has an error
 
   # Deleting a survey with existing responses correctly returns 409.
-  # rule 23 of 89:
+  # rule 23 of 94:
   - id: SURVEY_DELETE_CONFLICT_409
     why: Deleting a survey that has existing responses correctly returns 409 Conflict (referential integrity).
     when:
@@ -488,7 +488,7 @@ rules:
         contains: /admin/surveys/
       method: DELETE
 
-  # rule 24 of 89: JSON Patch validation false positives (400)
+  # rule 24 of 94: JSON Patch validation false positives (400)
   # PATCH endpoints correctly reject malformed/empty JSON Patch operations.
   - id: JSONPATCH_INVALID_400
     why: PATCH endpoints correctly reject malformed or inapplicable JSON Patch documents with 400, matched on the server's actual rejection rather than the status code alone.
@@ -507,7 +507,7 @@ rules:
           - multiple errors encountered
           - Duplicate metadata key found
 
-  # rule 25 of 89: Survey response endpoint validation false positives (400)
+  # rule 25 of 94: Survey response endpoint validation false positives (400)
   # Survey response POST/PUT correctly rejects fuzzed input.
   - id: SURVEY_RESPONSE_VALIDATION_400
     why: Survey response POST/PUT correctly rejects fuzzed input with 400.
@@ -522,7 +522,7 @@ rules:
           - Referenced resource not found
           - request body has an error
 
-  # rule 26 of 89: Bulk metadata validation false positives (400)
+  # rule 26 of 94: Bulk metadata validation false positives (400)
   # Bulk metadata endpoints correctly reject malformed payloads.
   - id: METADATA_BULK_VALIDATION_400
     why: Bulk metadata endpoints correctly reject malformed payloads with 400.
@@ -541,7 +541,7 @@ rules:
   # (details is nullable); OAuth endpoints may return just 'error' per RFC
   # 6749 5.2; and Go's HTTP layer's text/plain "400 Bad Request" gets
   # parsed by CATS as {"notAJson": "400 Bad Request"}.
-  # rule 27 of 89:
+  # rule 27 of 94:
   - id: SCHEMA_MISMATCH_VALID_ERROR
     why: CATS warns "Not matching response schema" but the response is actually a valid Error (error+error_description, an RFC 6749 5.2 error-only OAuth response, or Go's text/plain 400 parsed by CATS as notAJson).
     when:
@@ -564,7 +564,7 @@ rules:
   # and echoes the invalid value in the error description — the server
   # never attempts to connect to the URL; the "reflection" is only in the
   # validation error text.
-  # rule 28 of 89:
+  # rule 28 of 94:
   - id: SSRF_VALIDATION_400
     why: The OpenAPI validation middleware echoes an SSRF payload back in a 400 error description without ever attempting to connect to it — reflection in a validation message is not SSRF.
     when:
@@ -573,7 +573,7 @@ rules:
 
   # ExamplesFields sends the OpenAPI example survey, which collides with
   # seed data already in the database — 409 Conflict is correct.
-  # rule 29 of 89:
+  # rule 29 of 94:
   - id: SURVEY_EXAMPLES_CONFLICT_409
     why: The OpenAPI example survey sent by ExamplesFields collides with pre-seeded survey data; 409 Conflict is correct.
     when:
@@ -585,7 +585,7 @@ rules:
   # CATS seeding creates metadata entries; a valid POST to
   # /admin/surveys/{id}/metadata correctly returns 409 because the metadata
   # key already exists from seeding.
-  # rule 30 of 89:
+  # rule 30 of 94:
   - id: SURVEY_METADATA_CONFLICT_409
     why: CATS seed data already created the survey metadata key being POSTed; 409 Conflict is correct, not a bug.
     when:
@@ -596,7 +596,7 @@ rules:
 
   # EmptyJsonArrayBody sends [] to bulk endpoints — an empty array means
   # "no operations to perform", so 200 is correct.
-  # rule 31 of 89:
+  # rule 31 of 94:
   - id: EMPTY_ARRAY_BODY_200
     why: An empty JSON array body to a bulk endpoint means "no operations to perform"; 200 is the correct no-op response.
     when:
@@ -611,7 +611,7 @@ rules:
   # NOTE: legacy also assigned response.responseBody in this block but
   # never referenced it in a condition — an unused local, not a dead check,
   # so there is nothing to omit here.
-  # rule 32 of 89:
+  # rule 32 of 94:
   - id: ADDON_PARAMETER_VALIDATION_400
     why: CATS cannot generate valid discriminated-union AddonParameter data (fields for every `type` variant are generated simultaneously); the server correctly rejects the resulting invalid combinations with 400.
     when:
@@ -630,7 +630,7 @@ rules:
           - metadata_key
           - "parameter '"
 
-  # rule 33 of 89: RFC 7009 Section 2.1: the token revocation endpoint SHOULD return 200
+  # rule 33 of 94: RFC 7009 Section 2.1: the token revocation endpoint SHOULD return 200
   # even for invalid/malformed tokens. String boundary and large string
   # fuzzers flag this as an error because they expect 4xx for bad input,
   # but 200 is the RFC-compliant behavior.
@@ -650,7 +650,7 @@ rules:
   # values in client_id, client_secret, or token fields correctly return
   # 200 — there is no valid token to revoke, so the server responds with
   # success per the RFC.
-  # rule 34 of 89:
+  # rule 34 of 94:
   - id: REVOKE_TYPE_COERCION_RFC7009
     why: "RFC 7009 requires 200 even for malformed tokens; type-coerced numeric/boolean values in client_id/client_secret/token correctly return 200 since there's no valid token to revoke."
     when:
@@ -662,7 +662,7 @@ rules:
   # Go's HTTP framework returns 200 for HEAD requests (mirroring GET/POST),
   # and the revoke endpoint's permissive error handling per RFC 7009 means
   # it gracefully handles unexpected methods.
-  # rule 35 of 89:
+  # rule 35 of 94:
   - id: REVOKE_HTTP_METHODS_RFC7009
     why: Go's HTTP framework returns 200 for HEAD (mirroring GET/POST), and RFC 7009's permissive error handling means undocumented methods on /oauth2/revoke are handled gracefully.
     when:
@@ -674,7 +674,7 @@ rules:
 
   # POST /admin/users/automation returns 409 when the automation account
   # already exists from CATS seed data.
-  # rule 36 of 89:
+  # rule 36 of 94:
   - id: AUTOMATION_ACCOUNT_CONFLICT_409
     why: POST /admin/users/automation correctly returns 409 when the automation account already exists from CATS seed data.
     when:
@@ -685,7 +685,7 @@ rules:
 
   # RFC 7662 requires introspection to return HTTP 200 with
   # {"active":false} for any invalid, expired, or unrecognizable token.
-  # rule 37 of 89:
+  # rule 37 of 94:
   - id: INTROSPECT_RFC7662
     why: "RFC 7662 2.2 requires introspection to return HTTP 200 with {\"active\":false} for any invalid/expired/unrecognizable token; CATS expects 4xx for fuzzed input."
     when:
@@ -697,7 +697,7 @@ rules:
   # These endpoints require valid OAuth parameters (code, state,
   # refresh_token, client_id, etc.) that CATS cannot generate — 400 is
   # correct validation, not a bug.
-  # rule 38 of 89:
+  # rule 38 of 94:
   - id: OAUTH_TOKEN_VALIDATION_400
     why: /oauth2/token, /oauth2/callback, and /oauth2/refresh require valid OAuth parameters CATS cannot generate; 400 is correct validation.
     when:
@@ -705,7 +705,7 @@ rules:
       response_code: 400
       path: { in: [/oauth2/token, /oauth2/callback, /oauth2/refresh] }
 
-  # rule 39 of 89: /oauth2/token returns 401 invalid_client per RFC 6749 5.2 when
+  # rule 39 of 94: /oauth2/token returns 401 invalid_client per RFC 6749 5.2 when
   # client credentials don't authenticate. IterateThroughEnumValuesFields
   # iterates grant_type=client_credentials with synthetic client_id/secret;
   # the server correctly rejects unknown clients with 401 invalid_client.
@@ -723,7 +723,7 @@ rules:
   # Go's encoding/json decoder converts JSON numbers to Go string fields.
   # This is defined, safe behavior — the number becomes a string like
   # "9223372036854775807". No privilege escalation or data corruption occurs.
-  # rule 40 of 89:
+  # rule 40 of 94:
   - id: TYPE_COERCION_STRING
     why: Go's encoding/json decoder safely converts a JSON number into a Go string field; defined behavior with no privilege escalation or data corruption.
     when:
@@ -733,7 +733,7 @@ rules:
 
   # The webhook delivery endpoint uses dual auth (HMAC or JWT). When auth
   # is bypassed or headers are empty/spaces, the delivery is not found.
-  # rule 41 of 89:
+  # rule 41 of 94:
   - id: WEBHOOK_DELIVERY_AUTH_404
     why: /webhook-deliveries/{id} uses dual HMAC-or-JWT auth; bypassed or empty/whitespace auth headers correctly resolve to "delivery not found" (404).
     when:
@@ -744,7 +744,7 @@ rules:
 
   # EmptyBody -> 404 (subscription not found with empty body),
   # MaxLengthExactValues -> 400 (OpenAPI validation rejects oversized event_type).
-  # rule 42 of 89:
+  # rule 42 of 94:
   - id: WEBHOOK_TEST_VALIDATION
     why: The webhook subscription test endpoint correctly returns 404 for EmptyBody (subscription not found) and 400 for MaxLengthExactValues (oversized event_type rejected by OpenAPI validation).
     when:
@@ -755,7 +755,7 @@ rules:
 
   # CATS authenticates as charlie (admin) and tries to delete charlie's own
   # user account. The self-deletion guard correctly returns 409 Conflict.
-  # rule 43 of 89:
+  # rule 43 of 94:
   - id: SELF_DELETION_409
     why: CATS authenticates as the admin user (charlie) and attempts to delete that same account; the self-deletion guard correctly returns 409 Conflict.
     when:
@@ -770,7 +770,7 @@ rules:
   # HTTP method (e.g. GET on a DELETE-only collection item). 405 IS a 4XX
   # response and correct REST behavior — it tells the client the method is
   # not allowed on that resource.
-  # rule 44 of 89:
+  # rule 44 of 94:
   - id: CHECK_DELETED_405
     why: CheckDeletedResourcesNotAvailable expects 404, but a 405 (method not allowed on an existing path) is still a correct 4XX REST response, not a bug.
     when:
@@ -778,7 +778,7 @@ rules:
       response_code: 405
       fuzzer: CheckDeletedResourcesNotAvailable
 
-  # rule 45 of 89: /admin/audit/* query-parameter validation false positives (400) (#494)
+  # rule 45 of 94: /admin/audit/* query-parameter validation false positives (400) (#494)
   # The admin audit list endpoints take opaque query params (cursor,
   # actor_email, around, created_after/before). Injection/boundary fuzzers
   # send malformed values that the OpenAPI validation middleware correctly
@@ -798,7 +798,7 @@ rules:
           - Invalid pagination cursor
           - request body has an error
 
-  # rule 46 of 89: Step-up re-authentication 401 (#583)
+  # rule 46 of 94: Step-up re-authentication 401 (#583)
   # Sensitive operations (identity link start, admin user transfer,
   # credential deletion) require recent re-authentication via the step-up
   # middleware; CATS's seeded token can never satisfy that requirement.
@@ -809,7 +809,7 @@ rules:
       json_body.error:
         equals: insufficient_user_authentication
 
-  # rule 47 of 89: Automation-only endpoints 403 (#583)
+  # rule 47 of 94: Automation-only endpoints 403 (#583)
   # /automation/* endpoints are restricted to automation service accounts;
   # the CATS identity is an interactive admin, so 403 is the intended
   # authorization outcome.
@@ -820,7 +820,7 @@ rules:
       path: { starts_with: /automation/ }
       json_body.error: { equals: forbidden }
 
-  # rule 48 of 89: Admin client-credentials automation-account gate 403 (#583)
+  # rule 48 of 94: Admin client-credentials automation-account gate 403 (#583)
   # Admin client-credentials management is only available for automation
   # accounts; the seeded target user is a normal user, so 403 is the
   # intended outcome.
@@ -832,7 +832,7 @@ rules:
       json_body.error_description:
         contains: only available for automation accounts
 
-  # rule 49 of 89: Team/project uri field is stored, never fetched (#608 run 20260730T174620Z)
+  # rule 49 of 94: Team/project uri field is stored, never fetched (#608 run 20260730T174620Z)
   # SSRFInUrlFields sets uri to an internal address and flags the echo in the
   # response body. Teams and projects only persist and serialize that field
   # (team_store_gorm.go:954) -- nothing dereferences it. Deliberately scoped to
@@ -849,7 +849,7 @@ rules:
   # rule 50: "unauthorized" is an error code, not leaked internals (run 20260730T174620Z)
   # All 39 hits are /saml/providers/{idp}/users returning the standard 401 body.
   # CATS's leak heuristic matched the word "unauthorized" in it.
-  # rule 50 of 89:
+  # rule 50 of 94:
   - id: AUTH_ERROR_CODE_IS_NOT_A_DETAILS_LEAK
     why: CATS flags the keyword "unauthorized" as a possible error-details leak, but that is the RFC 6749 error code itself and the body is the generic {"error":"unauthorized","error_description":"Authentication required"}. No internals are disclosed.
     when:
@@ -863,7 +863,7 @@ rules:
   # "engineering_lead". Requiring the unevaluated payload is what keeps this rule
   # honest: if a template engine ever does evaluate it, the body carries the
   # computed value instead, the rule stops matching, and the finding surfaces.
-  # rule 51 of 89:
+  # rule 51 of 94:
   - id: SSTI_PAYLOAD_REFLECTED_NOT_EVALUATED
     why: The SSTI payload comes back verbatim, so no template engine evaluated it. CATS matches its "engine" keyword against our own seeded member role engineering_lead. Requiring the unevaluated payload in the body keeps a genuine evaluation (which would show the computed value instead) surfacing.
     when:
@@ -884,7 +884,7 @@ rules:
   # bucket today, but silently accepting an undeclared field on a
   # privilege-bearing endpoint is exactly the case worth hearing about, so it
   # must not be swept up by this rule later.
-  # rule 52 of 89:
+  # rule 52 of 94:
   - id: UNDECLARED_FIELD_DROPPED_NOT_BOUND
     why: TMI ignores unknown request fields rather than binding them, so MassAssignment's injected fields are dropped, not assigned. Verified on run 20260730T174620Z - 0 of 661 responses echoed the injected field. Excludes /admin/ so silent acceptance on privilege-bearing endpoints still surfaces.
     when:
@@ -898,14 +898,14 @@ rules:
   # path still surfaces. CATS expects 2xx from these fuzzers because it does not
   # model nested schema constraints or resource state.
 
-  # rule 53 of 89:
+  # rule 53 of 94:
   - id: NESTED_SCHEMA_VALIDATION_400
     why: The fuzzer mangled a nested object (color_palette colour pattern, cvss score range, diagram cells) and the server rejected it against the schema. A 400 is correct; CATS expected 2xx because it does not model nested constraints.
     when:
       response_code: 400
       json_body.error_description: { contains: 'multiple errors encountered: Error at "/' }
 
-  # rule 54 of 89:
+  # rule 54 of 94:
   - id: SCREENSHOT_BASE64_INVALID_400
     why: The fuzzer corrupted the base64 screenshot payload and the server rejected it. A 400 is the correct response to undecodable base64.
     when:
@@ -917,35 +917,35 @@ rules:
   # api/safe_http_client.go then dials the validated IP rather than re-resolving,
   # so the lookup cannot be raced. Refusing a host it cannot resolve is the
   # control working, not a finding.
-  # rule 55 of 89:
+  # rule 55 of 94:
   - id: SSRF_URI_VALIDATION_REJECTS_UNRESOLVABLE_400
     why: The URI validator refuses a host it cannot resolve, which is the SSRF protection working (api/ssrf_validator.go resolves and checks every IP against the blocklist). The fuzzer supplies random hostnames, so a 400 is correct.
     when:
       response_code: 400
       json_body.error_description: { contains: "invalid uri: cannot resolve hostname" }
 
-  # rule 56 of 89:
+  # rule 56 of 94:
   - id: PAGINATION_CURSOR_INVALID_400
     why: The fuzzer corrupted an opaque pagination cursor; rejecting it with 400 is correct.
     when:
       response_code: 400
       json_body.error_description: { contains: "Invalid pagination cursor" }
 
-  # rule 57 of 89:
+  # rule 57 of 94:
   - id: METADATA_KEY_CONFLICT_409
     why: The fuzzer reuses one metadata key across repeated requests, so the second write is a genuine conflict. 409 is the correct optimistic-concurrency outcome.
     when:
       response_code: 409
       json_body.error_description: { contains: "Metadata key already exists" }
 
-  # rule 58 of 89:
+  # rule 58 of 94:
   - id: RESTORE_NON_DELETED_ENTITY_409
     why: Restore only applies to a soft-deleted entity; calling it on a live one is a state conflict, and 409 is correct.
     when:
       response_code: 409
       json_body.error_description: { contains: "not in a deleted state" }
 
-  # rule 59 of 89:
+  # rule 59 of 94:
   - id: SURVEY_THREAT_MODEL_ALREADY_CREATED_409
     why: A survey response yields at most one threat model; a second creation attempt is a genuine conflict and 409 is correct.
     when:
@@ -957,7 +957,7 @@ rules:
   # the only content type its 200 declares. CATS wraps the non-JSON body in a
   # notAJson envelope and then reports it does not match "the corresponding
   # schema" -- there is no application/json schema for it to match.
-  # rule 60 of 89:
+  # rule 60 of 94:
   - id: SSE_STREAM_VALIDATED_AS_JSON_SCHEMA
     why: "The endpoint streams text/event-stream exactly as the spec declares, and declares no application/json schema. CATS wraps the non-JSON body in a notAJson envelope and then reports it does not match a JSON schema that does not exist."
     when:
@@ -969,7 +969,7 @@ rules:
   # returned HTML-escaped. Verified across all 20 findings in the run: zero
   # responses expanded an entity (no XXE_TEST_SUCCESS, no /etc/* content) --
   # the payload comes back as "]&gt;&amp;test;".
-  # rule 61 of 89:
+  # rule 61 of 94:
   - id: XXE_NOTES_CONTENT_NOT_PARSED
     why: "Note content is stored as an opaque, HTML-escaped string and never parsed as XML. All 20 findings in run 20260730T220551Z returned the payload escaped with no entity expansion."
     when:
@@ -980,7 +980,7 @@ rules:
   # CATS treats a field named like `*_enabled` as privileged. `timmy_enabled`
   # is a documented, non-readOnly property of TeamProjectNoteBase and AssetBase,
   # so a client is supposed to be able to set it and see it echoed back.
-  # rule 62 of 89:
+  # rule 62 of 94:
   - id: MASS_ASSIGNMENT_DECLARED_WRITABLE_FIELD
     why: "timmy_enabled is a declared, non-readOnly property in the spec; the client is meant to set it. CATS flags it only because the name pattern looks privilege-like."
     when:
@@ -992,7 +992,7 @@ rules:
   # the non-JSON body in a notAJson envelope, then runs its echo heuristic over
   # the raw stream text -- there is no JSON object whose fields could have been
   # mass-assigned.
-  # rule 63 of 89:
+  # rule 63 of 94:
   - id: MASS_ASSIGNMENT_SSE_STREAM_ENVELOPE
     why: "The endpoint streams text/event-stream as the spec declares. CATS wraps it in a notAJson envelope and runs a field-echo heuristic over stream text, where no assignable JSON object exists."
     when:
@@ -1004,7 +1004,7 @@ rules:
   # response is an empty page (total 0) -- the filter matched no rows, so no
   # other user's data was disclosed. Scoped to total==0 so a response that
   # actually leaks rows still surfaces.
-  # rule 64 of 89:
+  # rule 64 of 94:
   - id: IDOR_EMPTY_RESULT_SET
     why: "The list endpoint returned an empty page (total 0) for the substituted id, so nothing was disclosed. Scoped to total==0 so any response that actually returns rows is still reported."
     when:
@@ -1015,7 +1015,7 @@ rules:
   # POST /threat_models/{id}/feedback rejects target_field unless
   # target_type=threat_classification. That constraint is not expressible in
   # the schema, so CATS generates combinations the server correctly refuses.
-  # rule 65 of 89:
+  # rule 65 of 94:
   - id: FEEDBACK_TARGET_FIELD_CROSS_FIELD_400
     why: "target_field is only valid with target_type=threat_classification -- a cross-field rule not expressible in OpenAPI. The 400 is the server correctly rejecting a combination CATS cannot know is invalid."
     when:
@@ -1032,7 +1032,7 @@ rules:
   # only -- zero mangle a required field, so this never hides a required-field
   # validation bypass. RE-VERIFY that property before keeping this rule if the
   # request models change (a mangled required field must still yield 400).
-  # rule 66 of 89:
+  # rule 66 of 94:
   - id: WHITESPACE_FIELD_NAMES_IGNORED_2XX
     why: "A field name with injected whitespace is an unknown key, which the decoder ignores; TMI declares no additionalProperties:false so the 2xx is the documented contract. Verified all 29 findings mangled only optional fields -- no required field was bypassed."
     when:
@@ -1042,7 +1042,7 @@ rules:
   # rule 67: POST to an existing singleton resource
   # /me/preferences is a per-user singleton; POST creates and PUT updates. Once
   # the fuzzing identity has preferences, every later POST is correctly a 409.
-  # rule 67 of 89:
+  # rule 67 of 94:
   - id: PREFERENCES_ALREADY_EXIST_409
     why: "/me/preferences is a per-user singleton: POST creates, PUT updates. After the first successful POST every subsequent one is correctly a conflict."
     when:
@@ -1055,7 +1055,7 @@ rules:
   # holding arbitrary objects are the design. The server still enforces the 1KB
   # size, the 20-client cap and the ^[a-zA-Z0-9_-]{1,64}$ key pattern in
   # api/user_preferences_handlers.go, so this is not unbounded storage.
-  # rule 68 of 89:
+  # rule 68 of 94:
   - id: PREFERENCES_FREEFORM_JSON_ECHO
     why: "UserPreferences declares free-form per-client objects, so echoing an arbitrary JSON payload is correct. Size, client-count and key-pattern limits are still enforced server-side."
     when:
@@ -1066,7 +1066,7 @@ rules:
   # rule 69: restore of a threat model that is not deleted
   # Supersedes the wording in the older "not in a deleted state" rule, which no
   # longer matches -- the server now answers "Threat model is not deleted".
-  # rule 69 of 89:
+  # rule 69 of 94:
   - id: THREAT_MODEL_RESTORE_NOT_DELETED_409
     why: "Restoring a threat model that was never deleted is correctly a conflict. The existing 'not in a deleted state' rule no longer matches the server's current wording."
     when:
@@ -1081,7 +1081,7 @@ rules:
   # answering 404 for an unknown provider and 403 for a known one would turn
   # this endpoint into a provider-existence oracle. This only became reachable
   # in 1.6.4; before #650 the route returned 401 to everyone.
-  # rule 70 of 89:
+  # rule 70 of 94:
   - id: SAML_USERS_CROSS_PROVIDER_403
     why: "Cross-provider SAML user listing is correctly 403, and deliberately does not distinguish a nonexistent provider from a foreign one -- 404 here would leak which providers exist. RandomResources expects 404."
     when:
@@ -1095,7 +1095,7 @@ rules:
   # openapi3filter rejected a fuzzed request that violates the OpenAPI request
   # schema (bad enum in /type, wrong query-param value, etc.). 400 is documented
   # on these operations; the rejection is correct.
-  # rule 71 of 89:
+  # rule 71 of 94:
   - id: OPENAPI3FILTER_REQUEST_VALIDATION_400
     why: "openapi3filter rejected a request that violates the OpenAPI request schema (bad enum/type/query param). 400 documented; correct validation. Input-mutation fuzzers expect 2xx."
     when:
@@ -1104,7 +1104,7 @@ rules:
 
   # A threat-model authorization array with duplicate subjects is correctly
   # rejected. 400 documented; HappyPath/boundary fuzzers built duplicates.
-  # rule 72 of 89:
+  # rule 72 of 94:
   - id: DUPLICATE_AUTHZ_SUBJECT_400
     why: "Server correctly rejects an authorization array with duplicate subjects. 400 documented; fuzzers built duplicate subjects and expected 2xx."
     when:
@@ -1113,7 +1113,7 @@ rules:
 
   # Conditionally-required field enforcement (target_field required when
   # target_type=threat_classification). RemoveFields dropped the field.
-  # rule 73 of 89:
+  # rule 73 of 94:
   - id: CONDITIONAL_REQUIRED_FIELD_400
     why: "Server correctly enforces a conditionally-required field. 400 documented; RemoveFields dropped the field and expected 2xx."
     when:
@@ -1122,7 +1122,7 @@ rules:
 
   # A survey response not in draft/needs_revision is immutable; update attempts
   # correctly conflict. 409 documented.
-  # rule 74 of 89:
+  # rule 74 of 94:
   - id: SURVEY_RESPONSE_STATUS_LOCKED_409
     why: "A survey response outside draft/needs_revision is correctly immutable; update attempts conflict. 409 documented."
     when:
@@ -1130,7 +1130,7 @@ rules:
       json_body.error_description: { contains: "Can only update responses in draft or needs_revision" }
 
   # Bulk create with an example id that already exists is correctly a conflict.
-  # rule 75 of 89:
+  # rule 75 of 94:
   - id: BULK_RESOURCE_ALREADY_EXISTS_409
     why: "Creating a resource whose id already exists is correctly a conflict. 409 documented; ExamplesFields reused a seeded id."
     when:
@@ -1141,7 +1141,7 @@ rules:
   # additionalProperties:false-under-allOf and oneOf/discriminator (issue #674).
   # Verified conformant three ways on exactly these paths. Scoped to 2xx so the
   # /oauth2/authorize 404 (different cause) is not matched here.
-  # rule 76 of 89:
+  # rule 76 of 94:
   - id: RESPONSE_SCHEMA_COMPOSITION_FP_674
     why: "Response body conforms; CATS' validator mishandles additionalProperties:false-under-allOf and oneOf/discriminator (issue #674). Verified conformant on these paths."
     when:
@@ -1157,7 +1157,7 @@ rules:
 
   # /oauth2/authorize correctly redirects to the client callback; the 404 + HTML
   # body is emitted by the (non-running) callback stub, not TMI.
-  # rule 77 of 89:
+  # rule 77 of 94:
   - id: OAUTH_AUTHORIZE_CALLBACK_404_FP
     why: "The 404/HTML is from the client callback stub reached via redirect, not TMI. /oauth2/authorize redirected correctly."
     when:
@@ -1167,7 +1167,7 @@ rules:
 
   # Body-optional action endpoints (collaborate, chat/sessions, rollback) ignore
   # a garbage request body and succeed.
-  # rule 78 of 89:
+  # rule 78 of 94:
   - id: INVALID_JSON_IGNORED_ON_ACTION_2XX
     why: "Body-optional action endpoints ignore a garbage request body and succeed; 2xx is correct."
     when:
@@ -1182,7 +1182,7 @@ rules:
   # Injected template expression is stored/echoed verbatim (response still
   # contains raw ${...}); no evaluation. A real evaluated SSTI would not echo the
   # literal ${ and stays surfaced.
-  # rule 79 of 89:
+  # rule 79 of 94:
   - id: SSTI_TEMPLATE_STORED_VERBATIM_FP
     why: "Template payload stored/echoed verbatim (response contains raw ${...}); no evaluation. A real evaluated SSTI would not contain the literal ${ and is not matched."
     when:
@@ -1191,7 +1191,7 @@ rules:
       response_body: { contains: "${" }
 
   # An empty request body on a write is correctly rejected with 400.
-  # rule 80 of 89:
+  # rule 80 of 94:
   - id: EMPTY_BODY_REJECTED_400
     why: "A write with an empty body is correctly rejected with 400; EmptyBody fuzzer expects 2xx."
     when:
@@ -1200,7 +1200,7 @@ rules:
 
   # The diagram fixture was not actually deleted during the run (returns 200 to
   # the model GET later), so its metadata correctly returns 200.
-  # rule 81 of 89:
+  # rule 81 of 94:
   - id: DELETED_CHECK_LIVE_DIAGRAM_METADATA_200
     why: "Diagram fixture was not actually deleted (returns 200 to model GET later); its metadata correctly returns 200. Delete precondition unmet."
     when:
@@ -1212,7 +1212,7 @@ rules:
 
   # TMI accepts and ignores unknown extra fields (request schemas are not
   # additionalProperties:false); a 2xx from NewFields is correct.
-  # rule 82 of 89:
+  # rule 82 of 94:
   - id: UNKNOWN_FIELDS_ACCEPTED_2XX
     why: "TMI accepts and ignores unknown extra fields; a 2xx from NewFields is correct permissive behavior, not a defect."
     when:
@@ -1221,7 +1221,7 @@ rules:
 
   # String `format` is an annotation, not enforced on free-text fields; accepting
   # a wrong-format value with 2xx is by design.
-  # rule 83 of 89:
+  # rule 83 of 94:
   - id: STRING_FORMAT_NOT_ENFORCED_2XX
     why: "String format is advisory on free-text fields; accepting a wrong-format value with 2xx is by design."
     when:
@@ -1233,7 +1233,7 @@ rules:
 
   # Free-text fields have no maxLength; accepting very large (unicode) strings
   # with 2xx is by design.
-  # rule 84 of 89:
+  # rule 84 of 94:
   - id: LARGE_STRINGS_ACCEPTED_2XX
     why: "Free-text fields are unbounded by design; accepting very large strings with 2xx is correct."
     when:
@@ -1244,7 +1244,7 @@ rules:
           - VeryLargeUnicodeStringsInFields
 
   # Zero-width characters in header values are tolerated; a 2xx is correct.
-  # rule 85 of 89:
+  # rule 85 of 94:
   - id: ZEROWIDTH_HEADER_TOLERATED_2XX
     why: "Zero-width characters in header values are tolerated; a 2xx is correct, not a defect."
     when:
@@ -1252,7 +1252,7 @@ rules:
       fuzzer: { equals: ZeroWidthCharsInValuesHeaders }
 
   # Homoglyph characters in a free-text (non-strict-enum) field are accepted.
-  # rule 86 of 89:
+  # rule 86 of 94:
   - id: HOMOGLYPH_FIELD_ACCEPTED_2XX
     why: "Homoglyph characters in a free-text field are accepted with 2xx; the targeted field is not a strict enum."
     when:
@@ -1260,7 +1260,7 @@ rules:
       fuzzer: { equals: HomoglyphEnumFields }
 
   # A dummy well-formed request on a no-required-body endpoint succeeds.
-  # rule 87 of 89:
+  # rule 87 of 94:
   - id: DUMMY_REQUEST_ACCEPTED_2XX
     why: "A dummy well-formed request on an endpoint without required-body fields succeeds; 2xx is correct."
     when:
@@ -1269,7 +1269,7 @@ rules:
 
   # PATCH bodies may only touch a field allowlist; a JSON-Patch op targeting a
   # disallowed/garbage field path is correctly rejected with 400.
-  # rule 88 of 89:
+  # rule 88 of 94:
   - id: PATCH_FIELD_NOT_ALLOWED_400
     why: "PATCH enforces a field allowlist; a JSON-Patch op on a disallowed/garbage field path is correctly rejected. 400 documented; fuzzers sent mangled JSON Pointers."
     when:
@@ -1278,9 +1278,63 @@ rules:
 
   # Feedback cross-field rule: false_positive_reason is only valid when
   # target_type=threat; other combinations are correctly rejected with 400.
-  # rule 89 of 89:
+  # rule 89 of 94:
   - id: FEEDBACK_CROSS_FIELD_TARGET_TYPE_400
     why: "Feedback cross-field validation (false_positive_reason valid only for target_type=threat) correctly rejects invalid combinations. 400 documented."
     when:
       response_code: 400
       json_body.error_description: { contains: "allowed only when target_type" }
+
+  # Webhook-delivery worker endpoints authenticate by HMAC webhook signature,
+  # which CATS cannot generate; 401 "Invalid webhook signature" is the
+  # documented correct rejection. Coverage gap (a signing hook) tracked
+  # separately.
+  # rule 90 of 94:
+  - id: WEBHOOK_SIGNATURE_401
+    why: "Webhook-delivery endpoints require an HMAC signature CATS cannot generate; 401 'Invalid webhook signature' is the documented correct rejection (run 20260820T034449Z cluster 1)."
+    when:
+      response_code: 401
+      path: { starts_with: "/webhook-deliveries/" }
+      json_body.error_description: { contains: "Invalid webhook signature" }
+
+  # POST .../test on an operator-pinned subscription is deliberately refused;
+  # 403 documented, behavior unit-pinned. Real coverage restored by the
+  # non-pinned per-path refData override.
+  # rule 91 of 94:
+  - id: PINNED_SUBSCRIPTION_TEST_403
+    why: "Refusing test deliveries on operator-pinned subscriptions is deliberate, unit-pinned behavior; 403 documented (run 20260820T034449Z cluster 2)."
+    when:
+      response_code: 403
+      contract_path: { equals: "/admin/webhooks/subscriptions/{webhook_id}/test" }
+      json_body.error: { contains: "operator-pinned" }
+
+  # Header/field fuzzers replay the run's shared base body; after the first
+  # 201 creates the group, every replay gets the documented duplicate 409.
+  # rule 92 of 94:
+  - id: ADMIN_GROUPS_DUPLICATE_409
+    why: "Header/field fuzzers replay the same base body; after the first 201 the duplicate-group rejection is the documented correct response (run 20260820T034449Z cluster 3)."
+    when:
+      response_code: 409
+      method: POST
+      path: { equals: "/admin/groups" }
+      json_body.error: { equals: "duplicate_group" }
+
+  # create_threat_model is one-shot: the first success transitions the survey
+  # response out of ready_for_review, later calls correctly 409.
+  # rule 93 of 94:
+  - id: SURVEY_RESPONSE_ONE_SHOT_409
+    why: "create_threat_model is one-shot per survey response; after the first success the status-guard 409 is the documented correct response (run 20260820T034449Z cluster 4)."
+    when:
+      response_code: 409
+      contract_path: { equals: "/triage/survey_responses/{survey_response_id}/create_threat_model" }
+      response_body: { contains: "ready_for_review" }
+
+  # offset has minimum:0 and no documented maximum; an empty page for a
+  # beyond-the-end offset is conformant pagination.
+  # rule 94 of 94:
+  - id: SAML_USERS_HUGE_OFFSET_200
+    why: "offset has no documented maximum; an empty result page for an out-of-range offset is correct pagination, 200 documented (run 20260820T034449Z cluster 6)."
+    when:
+      response_code: 200
+      contract_path: { equals: "/saml/providers/{idp}/users" }
+      fuzzer: { in: [ExtremePositiveNumbersInIntegerFields, IntegerFieldsRightBoundary] }
