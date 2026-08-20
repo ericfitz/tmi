@@ -6988,7 +6988,8 @@
               "string",
               "int",
               "bool",
-              "json"
+              "json",
+              "float"
             ]
           },
           "description": {
@@ -7056,7 +7057,8 @@
               "string",
               "int",
               "bool",
-              "json"
+              "json",
+              "float"
             ]
           },
           "description": {
