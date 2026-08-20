@@ -222,18 +222,19 @@ func (s *GormProjectStore) Get(ctx context.Context, id string) (*Project, error)
 	return project, nil
 }
 
-// Update updates an existing project
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: replace a project's fields, responsible parties, and relationships in a retryable transaction (reads DB)
-func (s *GormProjectStore) Update(ctx context.Context, id string, project *Project, userInternalUUID string) (*Project, error) {
+// update runs the project content write inside one retryable transaction,
+// CAS-guarded first when expectedVersion is non-nil (#594).
+// SEM@0000000000000000000000000000000000000000: replace a project's fields, responsible parties, and relationships, optionally CAS-guarded, in one transaction (reads DB)
+func (s *GormProjectStore) update(ctx context.Context, id string, project *Project, userInternalUUID string, expectedVersion *int) (*Project, int, error) {
 	logger := slogging.Get()
 
 	// Check that the project exists
 	var existing models.ProjectRecord
 	if err := s.db.WithContext(ctx).First(&existing, ColumnMap(s.db.Name(), map[string]any{"id": id})).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrProjectNotFound
+			return nil, 0, ErrProjectNotFound
 		}
-		return nil, dberrors.Classify(err)
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	// Validate team_id if changed
@@ -244,22 +245,31 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 			Where(ColumnMap(s.db.Name(), map[string]any{"id": newTeamID})).
 			Count(&teamCount).Error; err != nil {
 			logger.Error("failed to check team existence: %v", err)
-			return nil, dberrors.Classify(err)
+			return nil, 0, dberrors.Classify(err)
 		}
 		if teamCount == 0 {
-			return nil, InvalidInputError(fmt.Sprintf("team not found: %s", project.TeamId))
+			return nil, 0, InvalidInputError(fmt.Sprintf("team not found: %s", project.TeamId))
 		}
 	}
 
 	// Validate relationships if provided
 	if project.RelatedProjects != nil {
 		if err := s.validateProjectRelationships(ctx, id, *project.RelatedProjects); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
 
 	// Begin transaction (with retry on transient errors)
+	var newVersion int
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if expectedVersion != nil {
+			v, casErr := CheckAndBumpVersion(ctx, tx, models.ProjectRecord{}.TableName(), id, *expectedVersion)
+			if casErr != nil {
+				return casErr
+			}
+			newVersion = v
+		}
+
 		// Update project record fields using map for cross-DB compatibility.
 		// Nullable-typed columns pass through their models.NullableDB*
 		// constructor so Value() gets a chance to normalize empty string to
@@ -310,21 +320,36 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Save metadata outside the transaction
 	if project.Metadata != nil && len(*project.Metadata) > 0 {
 		if err := saveEntityMetadata(s.db.WithContext(ctx), "project", id, *project.Metadata); err != nil {
 			logger.Error("failed to save metadata for project: id=%s, error=%v", id, err)
-			return nil, dberrors.Classify(err)
+			return nil, 0, dberrors.Classify(err)
 		}
 	}
 
 	logger.Info("project updated: id=%s", id)
 
 	// Return the full project via Get
-	return s.Get(ctx, id)
+	fullProject, getErr := s.Get(ctx, id)
+	return fullProject, newVersion, getErr
+}
+
+// Update updates an existing project
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: replace a project's fields, responsible parties, and relationships in a retryable transaction (reads DB)
+func (s *GormProjectStore) Update(ctx context.Context, id string, project *Project, userInternalUUID string) (*Project, error) {
+	result, _, err := s.update(ctx, id, project, userInternalUUID, nil)
+	return result, err
+}
+
+// UpdateWithVersion updates a project guarded by a same-transaction
+// optimistic-lock CAS (#594).
+// SEM@0000000000000000000000000000000000000000: update a project guarded by a same-transaction version CAS (reads DB)
+func (s *GormProjectStore) UpdateWithVersion(ctx context.Context, id string, project *Project, userInternalUUID string, expectedVersion int) (*Project, int, error) {
+	return s.update(ctx, id, project, userInternalUUID, &expectedVersion)
 }
 
 // Delete removes a project by ID

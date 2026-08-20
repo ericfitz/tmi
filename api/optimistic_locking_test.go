@@ -127,36 +127,85 @@ func TestCheckAndBumpVersion_NotFound(t *testing.T) {
 	assert.False(t, errors.Is(err, ErrVersionMismatch))
 }
 
-// fakeVersionStore is a VersionedStore whose CheckAndBumpVersion always returns
-// a fixed error, used to exercise ApplyOptimisticLock's error mapping without a DB.
-type fakeVersionStore struct{ err error }
-
-func (f fakeVersionStore) CheckAndBumpVersion(_ context.Context, _ string, _ int) (int, error) {
-	return 0, f.err
-}
-
-// TestApplyOptimisticLock_NotFoundReturns404 pins the Zero-500 fix (#495 B2):
-// when the CAS finds no row, ApplyOptimisticLock must surface a 404 RequestError
-// rather than a bare store error that HandleRequestError would turn into a 500.
-func TestApplyOptimisticLock_NotFoundReturns404(t *testing.T) {
-	c := newGinCtxWithHeader("If-Match", `"5"`)
-	_, present, err := ApplyOptimisticLock(c, fakeVersionStore{err: dberrors.ErrNotFound}, uuid.New().String(), nil)
+// TestMapOptimisticLockError_NotFoundReturns404 pins the Zero-500 fix (#495 B2):
+// when the CAS finds no row, MapOptimisticLockError must surface a 404
+// RequestError rather than a bare store error that HandleRequestError would
+// turn into a 500. This is the same contract ApplyOptimisticLock used to
+// enforce; it now lives on the store-error side of the split (#594).
+func TestMapOptimisticLockError_NotFoundReturns404(t *testing.T) {
+	err := MapOptimisticLockError(dberrors.ErrNotFound)
 	require.Error(t, err)
 	var reqErr *RequestError
 	require.True(t, errors.As(err, &reqErr), "expected *RequestError, got %T", err)
 	assert.Equal(t, http.StatusNotFound, reqErr.Status)
-	assert.False(t, present)
 }
 
-// TestApplyOptimisticLock_VersionMismatchReturns409 pins the sibling mapping:
-// a version mismatch surfaces as a 409 RequestError.
-func TestApplyOptimisticLock_VersionMismatchReturns409(t *testing.T) {
-	c := newGinCtxWithHeader("If-Match", `"5"`)
-	_, _, err := ApplyOptimisticLock(c, fakeVersionStore{err: ErrVersionMismatch}, uuid.New().String(), nil)
+// TestMapOptimisticLockError_VersionMismatchReturns409 pins the sibling
+// mapping: a version mismatch surfaces as a 409 RequestError.
+func TestMapOptimisticLockError_VersionMismatchReturns409(t *testing.T) {
+	err := MapOptimisticLockError(ErrVersionMismatch)
 	require.Error(t, err)
 	var reqErr *RequestError
 	require.True(t, errors.As(err, &reqErr), "expected *RequestError, got %T", err)
 	assert.Equal(t, http.StatusConflict, reqErr.Status)
+}
+
+// TestMapOptimisticLockError_OtherErrorReturnsNil verifies the passthrough
+// contract: nil or a non-versioning error returns nil so callers fall
+// through to their existing error mapping instead of a false 409/404.
+func TestMapOptimisticLockError_OtherErrorReturnsNil(t *testing.T) {
+	assert.Nil(t, MapOptimisticLockError(nil))
+	assert.Nil(t, MapOptimisticLockError(errors.New("some other store error")))
+}
+
+// TestResolveOptimisticLock_HeaderPresent verifies If-Match header parsing
+// flows through to the (expected, true, nil) success case.
+func TestResolveOptimisticLock_HeaderPresent(t *testing.T) {
+	c := newGinCtxWithHeader("If-Match", `"5"`)
+	expected, present, err := ResolveOptimisticLock(c, nil)
+	require.NoError(t, err)
+	assert.True(t, present)
+	assert.Equal(t, 5, expected)
+}
+
+// TestResolveOptimisticLock_BodyVersionFallback verifies the body 'version'
+// fallback is used when If-Match is absent.
+func TestResolveOptimisticLock_BodyVersionFallback(t *testing.T) {
+	c := newGinCtxWithHeader("If-Match", "")
+	bodyVersion := 3
+	expected, present, err := ResolveOptimisticLock(c, &bodyVersion)
+	require.NoError(t, err)
+	assert.True(t, present)
+	assert.Equal(t, 3, expected)
+}
+
+// TestResolveOptimisticLock_MissingSetsWarnHeader verifies the lenient
+// rollout path: no version supplied and RequireIfMatch() false sets the
+// Deprecation/Warning headers and returns (0, false, nil).
+func TestResolveOptimisticLock_MissingSetsWarnHeader(t *testing.T) {
+	SetRequireIfMatch(false)
+	c := newGinCtxWithHeader("If-Match", "")
+	expected, present, err := ResolveOptimisticLock(c, nil)
+	require.NoError(t, err)
+	assert.False(t, present)
+	assert.Equal(t, 0, expected)
+	assert.Equal(t, VersionDeprecationLink, c.Writer.Header().Get("Deprecation"))
+	assert.NotEmpty(t, c.Writer.Header().Get("Warning"))
+}
+
+// TestResolveOptimisticLock_MissingReturns428WhenRequired verifies the
+// strict enforcement path: no version supplied and RequireIfMatch() true
+// returns a 428 RequestError.
+func TestResolveOptimisticLock_MissingReturns428WhenRequired(t *testing.T) {
+	SetRequireIfMatch(true)
+	defer SetRequireIfMatch(false)
+	c := newGinCtxWithHeader("If-Match", "")
+	_, present, err := ResolveOptimisticLock(c, nil)
+	require.Error(t, err)
+	var reqErr *RequestError
+	require.True(t, errors.As(err, &reqErr), "expected *RequestError, got %T", err)
+	assert.Equal(t, http.StatusPreconditionRequired, reqErr.Status)
+	assert.False(t, present)
 }
 
 // TestCheckAndBumpVersion_VersionMismatch verifies that a stale expected
@@ -234,8 +283,8 @@ func TestCheckAndBumpVersion_WildcardNotFound(t *testing.T) {
 // receiver could even panic) that HandleRequestError would turn into an
 // undocumented 500 — violating the Zero-500 policy. This test forces the
 // read-back to fail with sql.ErrNoRows after a successful bump and asserts
-// the helper now reports dberrors.ErrNotFound, which ApplyOptimisticLock
-// already maps to a documented 404 (see TestApplyOptimisticLock_NotFoundReturns404).
+// the helper now reports dberrors.ErrNotFound, which MapOptimisticLockError
+// already maps to a documented 404 (see TestMapOptimisticLockError_NotFoundReturns404).
 func TestCheckAndBumpVersion_WildcardReadBackNoRows(t *testing.T) {
 	db, _ := setupThreatModelAliasTestDB(t)
 	id := uuid.New().String()
@@ -553,4 +602,92 @@ func TestCheckAndBumpVersion_WildcardRetriesInsteadOfAdoptingAnotherVersion(t *t
 			"read-back could hand back a value produced by a different writer")
 	assert.Equal(t, 6, got, "5 -> 6, exactly one bump by this writer")
 	assert.True(t, poisoned, "the stale-read injection must actually have fired")
+}
+
+// TestGormThreatModelStore_UpdateWithVersion_SameTxAtomicity is the
+// regression pin for #594: the version CAS and the content write must
+// commit or roll back together as a single transaction, not as two
+// autocommit statements that another writer's CAS could interleave with.
+func TestGormThreatModelStore_UpdateWithVersion_SameTxAtomicity(t *testing.T) {
+	db, user := setupThreatModelAliasTestDB(t)
+	store := NewGormThreatModelStore(db)
+
+	providerID := user.ProviderUserID.String
+	owner := User{
+		PrincipalType: UserPrincipalTypeUser,
+		Provider:      string(user.Provider),
+		ProviderId:    providerID,
+	}
+	emptyAuth := []Authorization{}
+	tm := ThreatModel{
+		Name:          "UpdateWithVersion Atomicity Test",
+		Owner:         owner,
+		CreatedBy:     &owner,
+		Authorization: &emptyAuth,
+	}
+	idSetter := func(item ThreatModel, id string) ThreatModel {
+		uid, _ := uuid.Parse(id)
+		item.Id = &uid
+		return item
+	}
+	created, err := store.Create(tm, idSetter)
+	require.NoError(t, err)
+	id := created.Id.String()
+
+	var seeded models.ThreatModel
+	require.NoError(t, db.First(&seeded, "id = ?", id).Error)
+
+	t.Run("correct expected version persists content and bumps version", func(t *testing.T) {
+		updated := created
+		updated.Name = "Renamed via UpdateWithVersion"
+		newVersion, err := store.UpdateWithVersion(context.Background(), id, updated, seeded.Version)
+		require.NoError(t, err)
+		assert.Equal(t, seeded.Version+1, newVersion)
+
+		var row models.ThreatModel
+		require.NoError(t, db.First(&row, "id = ?", id).Error)
+		assert.Equal(t, "Renamed via UpdateWithVersion", string(row.Name))
+		assert.Equal(t, seeded.Version+1, row.Version)
+	})
+
+	t.Run("wrong expected version leaves content and version unchanged", func(t *testing.T) {
+		var before models.ThreatModel
+		require.NoError(t, db.First(&before, "id = ?", id).Error)
+
+		attempted := created
+		attempted.Name = "Should Not Persist"
+		_, err := store.UpdateWithVersion(context.Background(), id, attempted, before.Version+99)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, ErrVersionMismatch))
+
+		var after models.ThreatModel
+		require.NoError(t, db.First(&after, "id = ?", id).Error)
+		assert.Equal(t, before.Version, after.Version, "version must not change on a mismatched CAS")
+		assert.Equal(t, string(before.Name), string(after.Name), "content must not change on a mismatched CAS")
+	})
+
+	t.Run("in-tx content-write failure rolls back the version bump", func(t *testing.T) {
+		var before models.ThreatModel
+		require.NoError(t, db.First(&before, "id = ?", id).Error)
+
+		// An owner identifier that resolves to no user makes
+		// resolveUserIdentifierToUUID fail inside the transaction, after the
+		// CAS has already bumped the version. If the CAS and the content
+		// write are not one transaction, the version bump survives this
+		// failure — that was #594.
+		badOwner := created
+		badOwner.Owner = User{
+			PrincipalType: UserPrincipalTypeUser,
+			Provider:      string(user.Provider),
+			ProviderId:    "no-such-user-" + uuid.New().String(),
+		}
+		_, err := store.UpdateWithVersion(context.Background(), id, badOwner, before.Version)
+		require.Error(t, err, "content write must fail: owner identifier does not resolve to any user")
+		assert.False(t, errors.Is(err, ErrVersionMismatch), "this is a content-write failure, not a CAS mismatch")
+
+		var after models.ThreatModel
+		require.NoError(t, db.First(&after, "id = ?", id).Error)
+		assert.Equal(t, before.Version, after.Version,
+			"#594 regression pin: a failed content write must roll back the version CAS that guarded it")
+	})
 }

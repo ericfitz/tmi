@@ -334,12 +334,15 @@ func (h *WebSocketHub) FindSessionByID(sessionID string) *DiagramSession {
 }
 
 // UpdateDiagramResult contains the result of a centralized diagram update
-// SEM@46c5960fcabe5dcd3f7014239dc4a8ed43579299: result of a centralized diagram update carrying the updated diagram and version vector change (pure)
+// SEM@0000000000000000000000000000000000000000: result of a centralized diagram update carrying the updated diagram, vector change, and optimistic-lock version (pure)
 type UpdateDiagramResult struct {
 	UpdatedDiagram    DfdDiagram
 	PreviousVector    int64
 	NewVector         int64
 	VectorIncremented bool
+	// LockVersion is the new optimistic-lock version (api/optimistic_locking.go),
+	// set only when expectedVersion was non-nil.
+	LockVersion int
 }
 
 // UpdateDiagram provides centralized diagram updates with version control and WebSocket notification
@@ -349,8 +352,12 @@ type UpdateDiagramResult struct {
 // 3. Notifies WebSocket sessions when updates come from REST API
 // 4. Serves as single source of truth for all diagram modifications
 // 5. Provides thread-safe updates with proper locking
-// SEM@c79f3cd129aecd7cd6562b875b7f02232594d3d1: apply an update function to a diagram with version control, persistence, audit, and WebSocket notification (mutates shared state)
-func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagram) (DfdDiagram, bool, error), updateSource string, excludeUserID string) (*UpdateDiagramResult, error) {
+//
+// expectedVersion, when non-nil, is the caller's optimistic-lock expected
+// version (#385); the CAS then runs in the same transaction as the content
+// write via DiagramStore.UpdateWithVersion (#594).
+// SEM@0000000000000000000000000000000000000000: apply an update function to a diagram with version control, persistence, audit, WebSocket notification, and optional same-tx optimistic-lock CAS (mutates shared state)
+func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagram) (DfdDiagram, bool, error), updateSource string, excludeUserID string, expectedVersion *int) (*UpdateDiagramResult, error) {
 	// Use dedicated update mutex to prevent race conditions on update_vector
 	h.updateMutex.Lock()
 	defer h.updateMutex.Unlock()
@@ -405,7 +412,18 @@ func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagra
 	// Save to database. WebSocket update path uses context.Background()
 	// because the hub's UpdateDiagram does not currently accept a context;
 	// changing that signature would cascade to every WS handler. See #334.
-	if err := DiagramStore.Update(context.Background(), diagramID, updatedDiagram); err != nil {
+	var lockVersion int
+	if expectedVersion != nil {
+		if vstore, ok := DiagramStore.(versionedDiagramUpdater); ok {
+			v, casErr := vstore.UpdateWithVersion(context.Background(), diagramID, updatedDiagram, *expectedVersion)
+			if casErr != nil {
+				return nil, casErr
+			}
+			lockVersion = v
+		} else if err := DiagramStore.Update(context.Background(), diagramID, updatedDiagram); err != nil {
+			return nil, fmt.Errorf("failed to update diagram %s: %w", diagramID, err)
+		}
+	} else if err := DiagramStore.Update(context.Background(), diagramID, updatedDiagram); err != nil {
 		return nil, fmt.Errorf("failed to update diagram %s: %w", diagramID, err)
 	}
 
@@ -432,6 +450,7 @@ func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagra
 		PreviousVector:    previousVector,
 		NewVector:         newVector,
 		VectorIncremented: vectorIncremented,
+		LockVersion:       lockVersion,
 	}, nil
 }
 
@@ -444,7 +463,7 @@ func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []DfdDiagra
 		return diagram, true, nil // true = increment update vector for cell changes
 	}
 
-	return h.UpdateDiagram(diagramID, updateFunc, updateSource, excludeUserID)
+	return h.UpdateDiagram(diagramID, updateFunc, updateSource, excludeUserID, nil)
 }
 
 // buildWebSocketURL constructs the absolute WebSocket URL from request context

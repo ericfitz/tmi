@@ -770,27 +770,35 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 		response.Answers = req.Answers
 	}
 
-	// Optimistic locking (T14 / #385).
-	var srNewVersion int
-	if vstore, ok := GlobalSurveyResponseStore.(VersionedStore); ok {
-		v, _, lockErr := ApplyOptimisticLock(c, vstore, surveyResponseId.String(), nil)
-		if lockErr != nil {
-			HandleRequestError(c, lockErr)
-			return
-		}
-		srNewVersion = v
+	// Optimistic locking (T14 / #385). The CAS runs inside the same
+	// transaction as the content write (#594).
+	expectedVersion, hasVersion, lockErr := ResolveOptimisticLock(c, nil)
+	if lockErr != nil {
+		HandleRequestError(c, lockErr)
+		return
 	}
 
-	if err := GlobalSurveyResponseStore.Update(ctx, response); err != nil {
-		if isForeignKeyConstraintError(err) {
-			logger.Warn("Foreign key constraint violation updating survey response: %v", err)
+	var srNewVersion int
+	var updateErr error
+	if vstore, ok := GlobalSurveyResponseStore.(versionedSurveyResponseUpdater); ok && hasVersion {
+		srNewVersion, updateErr = vstore.UpdateWithVersion(ctx, response, expectedVersion)
+	} else {
+		updateErr = GlobalSurveyResponseStore.Update(ctx, response)
+	}
+	if updateErr != nil {
+		if mapped := MapOptimisticLockError(updateErr); mapped != nil {
+			HandleRequestError(c, mapped)
+			return
+		}
+		if isForeignKeyConstraintError(updateErr) {
+			logger.Warn("Foreign key constraint violation updating survey response: %v", updateErr)
 			c.JSON(http.StatusBadRequest, Error{
 				Error:            "invalid_input",
 				ErrorDescription: "Referenced resource not found (e.g. linked_threat_model_id does not exist)",
 			})
 			return
 		}
-		logger.Error("Failed to update survey response: %v", err)
+		logger.Error("Failed to update survey response: %v", updateErr)
 		c.JSON(http.StatusInternalServerError, Error{
 			Error:            "server_error",
 			ErrorDescription: "Failed to update survey response",
@@ -891,18 +899,64 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 
 	patched.Id = &surveyResponseId
 
-	// Optimistic locking (T14 / #385).
-	var srPatchNewVersion int
-	if vstore, ok := GlobalSurveyResponseStore.(VersionedStore); ok {
-		v, _, lockErr := ApplyOptimisticLock(c, vstore, surveyResponseId.String(), nil)
-		if lockErr != nil {
-			HandleRequestError(c, lockErr)
+	// Validate a status transition BEFORE the CAS-guarded write below, even
+	// though the actual status write happens after it. Both failure modes
+	// here (unknown status value, missing revision_notes) are pure checks
+	// with no DB access; catching them first means a malformed status
+	// transition never lets the CAS-guarded write commit only to fail on an
+	// unrelated validation afterward.
+	if hasStatusChange && patched.Status != nil && *patched.Status != *existing.Status {
+		if err := ValidateSurveyResponseStatusTransition(*patched.Status, nil); err != nil {
+			c.JSON(http.StatusConflict, Error{
+				Error:            "conflict",
+				ErrorDescription: err.Error(),
+			})
 			return
 		}
-		srPatchNewVersion = v
 	}
 
-	// Handle status transition if status was changed
+	// Optimistic locking (T14 / #385). The CAS runs inside the same
+	// transaction as the content write (#594). This CAS-guarded write MUST
+	// run before the status transition below: UpdateStatus commits its own
+	// transaction, and a status change is not itself covered by the version
+	// column (see the store's Update, which never touches "status"). Running
+	// it first would let a stale If-Match commit the status transition and
+	// only THEN fail the CAS — a partial-apply-on-conflict bug distinct from,
+	// but in the same spirit as, #594. Doing the CAS-guarded write first means
+	// nothing commits until the caller's expected version is confirmed
+	// current.
+	expectedVersion, hasVersion, lockErr := ResolveOptimisticLock(c, nil)
+	if lockErr != nil {
+		HandleRequestError(c, lockErr)
+		return
+	}
+
+	// Update non-status fields
+	var srPatchNewVersion int
+	var updateErr error
+	if vstore, ok := GlobalSurveyResponseStore.(versionedSurveyResponseUpdater); ok && hasVersion {
+		srPatchNewVersion, updateErr = vstore.UpdateWithVersion(ctx, &patched, expectedVersion)
+	} else {
+		updateErr = GlobalSurveyResponseStore.Update(ctx, &patched)
+	}
+	if updateErr != nil {
+		if mapped := MapOptimisticLockError(updateErr); mapped != nil {
+			HandleRequestError(c, mapped)
+			return
+		}
+		logger.Error("Failed to update survey response: %v", updateErr)
+		c.JSON(http.StatusInternalServerError, Error{
+			Error:            "server_error",
+			ErrorDescription: "Failed to update survey response",
+		})
+		return
+	}
+	if srPatchNewVersion > 0 {
+		SetETagHeader(c, srPatchNewVersion)
+	}
+
+	// Handle status transition if status was changed. Runs only after the
+	// CAS-guarded write above has confirmed the caller's version is current.
 	if hasStatusChange && patched.Status != nil && *patched.Status != *existing.Status {
 		newStatus := *patched.Status
 		if err := GlobalSurveyResponseStore.UpdateStatus(ctx, surveyResponseId, newStatus, nil, nil); err != nil {
@@ -920,19 +974,6 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 			})
 			return
 		}
-	}
-
-	// Update non-status fields
-	if err := GlobalSurveyResponseStore.Update(ctx, &patched); err != nil {
-		logger.Error("Failed to update survey response: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to update survey response",
-		})
-		return
-	}
-	if srPatchNewVersion > 0 {
-		SetETagHeader(c, srPatchNewVersion)
 	}
 
 	updated, err := GlobalSurveyResponseStore.Get(ctx, surveyResponseId)

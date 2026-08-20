@@ -188,17 +188,16 @@ func SetETagHeader(c *gin.Context, version int) {
 // the loser sees rows-affected = 0, which we map to ErrVersionMismatch (after
 // a separate existence probe to distinguish 404 from 409).
 //
-// WARNING — this comment used to claim the CAS runs "BEFORE the entity's
-// content UPDATE inside the same transaction". It does not, at any of the 16
-// call sites: ApplyOptimisticLock runs the CAS on the store's root *gorm.DB
-// in autocommit, and the content UPDATE follows in a separate transaction
-// (#594). The version bump therefore does NOT guard the content write — two
-// writers can both pass the CAS and then interleave their updates.
-//
-// The corrected description is deliberately left here rather than quietly
-// removed: a reader who trusts the old wording will build on a guarantee that
-// does not exist. Fixing it for real means threading a transaction handle
-// through ApplyOptimisticLock and every caller, which is tracked on #594.
+// The CAS runs as the first statement inside the same transaction as the
+// entity's content UPDATE (#594, fixed): each versioned store's
+// UpdateWithVersion method opens one retryable transaction and calls this
+// function on the tx handle before writing content, so the version bump
+// genuinely guards the write. Concurrent writers race on the CAS's row lock:
+// the first UPDATE to reach the row holds it until commit, so a second
+// writer's CAS blocks behind it rather than racing free. The blocked writer
+// then sees version != expected once the first transaction commits and gets
+// ErrVersionMismatch — it cannot observe a stale version and proceed to
+// interleave its content write with the winner's.
 //
 // tableName must be the physical DB table name (e.g. "threat_models").
 // On Oracle, GORM lowercases the WHERE column references; the column is
@@ -303,10 +302,10 @@ func casFromCurrentVersion(ctx context.Context, db *gorm.DB, tableName, id strin
 				return 0, dberrors.ErrNotFound
 			}
 			// Anything else (transient ADB blip, permission oddity) must not be
-			// returned bare: ApplyOptimisticLock only special-cases ErrNotFound
-			// and ErrVersionMismatch, so a classified transient error reaches
-			// HandleRequestError's else-branch and becomes an undocumented,
-			// policy-violating 500 (#581 finding 1b).
+			// returned bare: MapOptimisticLockError only special-cases
+			// ErrNotFound and ErrVersionMismatch, so a classified transient
+			// error reaches HandleRequestError's else-branch and becomes an
+			// undocumented, policy-violating 500 (#581 finding 1b).
 			//
 			// Unlike the old read-back this happens BEFORE anything is written,
 			// so there is no committed bump to reconcile — we simply could not
@@ -356,30 +355,20 @@ func MapVersionError(err error) *RequestError {
 	return nil
 }
 
-// VersionedStore is the minimal interface a Gorm-backed store implements to
-// participate in optimistic locking. Each entity store calls into the central
-// CheckAndBumpVersion helper; this interface exists primarily to type-assert
-// the package-level store globals (which are typed as broader interfaces) at
-// the handler boundary without introducing circular references.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: interface for stores that support atomic version check-and-bump for optimistic locking (pure)
-type VersionedStore interface {
-	CheckAndBumpVersion(ctx context.Context, id string, expected int) (int, error)
-}
-
-// ApplyOptimisticLock implements the handler-side flow:
+// ResolveOptimisticLock implements the handler-side "what version does this
+// write expect" step, decoupled from any store access:
 //
 //  1. Resolve expectedVersion from If-Match header (preferred) or body
 //     "version" field (fallback).
 //  2. If neither is supplied, defer to RequireIfMatch(): either return a 428
 //     RequestError or set Deprecation/Warning headers and return (0, false, nil).
-//  3. If a version is supplied, call store.CheckAndBumpVersion. On version
-//     mismatch return a 409 RequestError; on missing row return nil so the
-//     caller's existing not-found mapping fires.
 //
-// On success the new version is returned so the handler can stamp the ETag
-// response header before serializing the response body.
-// SEM@3256ece0f5730b6c910aa6e61025555c7726a4a5: validate and apply a versioned compare-and-swap lock on a stored resource (reads DB)
-func ApplyOptimisticLock(c *gin.Context, store VersionedStore, id string, bodyVersion *int) (newVersion int, present bool, err error) {
+// Callers that get (expected, true, nil) pass expected straight to the
+// store's UpdateWithVersion method, which runs the CAS inside the same
+// transaction as the content write (#594). Callers that get (0, false, nil)
+// call the store's plain Update instead.
+// SEM@0000000000000000000000000000000000000000: resolve the expected version for a write without touching the store (reads request)
+func ResolveOptimisticLock(c *gin.Context, bodyVersion *int) (expected int, present bool, err error) {
 	expected, hasVersion, parseErr := ResolveExpectedVersion(c, bodyVersion)
 	if parseErr != nil {
 		return 0, false, parseErr
@@ -390,20 +379,28 @@ func ApplyOptimisticLock(c *gin.Context, store VersionedStore, id string, bodyVe
 		}
 		return 0, false, nil
 	}
-	bumped, casErr := store.CheckAndBumpVersion(c.Request.Context(), id, expected)
-	if casErr != nil {
-		if mapped := MapVersionError(casErr); mapped != nil {
-			return 0, true, mapped
-		}
-		// A missing row means the optimistic-lock CAS ran against a resource
-		// that does not exist. Map it to a 404 RequestError here rather than
-		// returning the bare store error: callers hand this straight to
-		// HandleRequestError, which would otherwise classify the unrecognized
-		// error as a 500 (violating the Zero-500 policy). (#495 B2)
-		if errors.Is(casErr, dberrors.ErrNotFound) {
-			return 0, false, NotFoundError("Resource not found")
-		}
-		return 0, true, casErr
+	return expected, true, nil
+}
+
+// MapOptimisticLockError converts a store-layer error from a versioned write
+// into the appropriate HTTP RequestError for the optimistic-locking
+// contract. Returns nil when err is not a versioning error, so callers fall
+// through to their existing error mapping.
+// SEM@0000000000000000000000000000000000000000: map a versioned-write store error to its 409/404 request error, or nil (pure)
+func MapOptimisticLockError(err error) error {
+	if err == nil {
+		return nil
 	}
-	return bumped, true, nil
+	if mapped := MapVersionError(err); mapped != nil {
+		return mapped
+	}
+	// A missing row means the optimistic-lock CAS ran against a resource
+	// that does not exist. Map it to a 404 RequestError here rather than
+	// returning the bare store error: callers hand this straight to
+	// HandleRequestError, which would otherwise classify the unrecognized
+	// error as a 500 (violating the Zero-500 policy). (#495 B2)
+	if errors.Is(err, dberrors.ErrNotFound) {
+		return NotFoundError("Resource not found")
+	}
+	return nil
 }

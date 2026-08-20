@@ -351,15 +351,18 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	}
 	updatedDiagram.ColorPalette = normalizedPalette
 
-	// Optimistic locking (T14 / #385).
-	var newVersion int
-	if vstore, ok := DiagramStore.(VersionedStore); ok {
-		v, _, lockErr := ApplyOptimisticLock(c, vstore, diagramId, nil)
-		if lockErr != nil {
-			HandleRequestError(c, lockErr)
-			return
-		}
-		newVersion = v
+	// Optimistic locking (T14 / #385). The CAS (when a version is supplied)
+	// runs inside the same transaction as the content write via
+	// DiagramStore.UpdateWithVersion, threaded through h.wsHub.UpdateDiagram
+	// (#594).
+	expectedVersion, hasVersion, lockErr := ResolveOptimisticLock(c, nil)
+	if lockErr != nil {
+		HandleRequestError(c, lockErr)
+		return
+	}
+	var expectedVersionPtr *int
+	if hasVersion {
+		expectedVersionPtr = &expectedVersion
 	}
 
 	// Use centralized update function
@@ -369,14 +372,23 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 		return updatedDiagram, cellsChanged, nil
 	}
 
-	result, err := h.wsHub.UpdateDiagram(diagramId, updateFunc, "rest_api", user.Email)
+	result, err := h.wsHub.UpdateDiagram(diagramId, updateFunc, "rest_api", user.Email, expectedVersionPtr)
 	if err != nil {
+		if mapped := MapOptimisticLockError(err); mapped != nil {
+			HandleRequestError(c, mapped)
+			return
+		}
 		slogging.Get().WithContext(c).Error("Failed to update diagram %s via centralized function (user: %s, type: %s): %v", diagramId, user.Email, updatedDiagram.Type, err)
-		HandleRequestError(c, ServerError("Failed to update diagram"))
+		// StoreErrorToRequestError (not a bare ServerError) so a transient DB
+		// fault -- e.g. an Oracle SERIALIZABLE conflict surviving retry --
+		// maps to 503 + Retry-After instead of an undocumented 500
+		// (Zero-500 policy); this path got materially more exercised once the
+		// CAS started sharing a transaction with the content write (#594).
+		HandleRequestError(c, StoreErrorToRequestError(err, "Diagram not found", "Failed to update diagram"))
 		return
 	}
-	if newVersion > 0 {
-		SetETagHeader(c, newVersion)
+	if result.LockVersion > 0 {
+		SetETagHeader(c, result.LockVersion)
 	}
 
 	RecordAuditUpdate(c, "updated", threatModelId, "diagram", diagramId, preState, result.UpdatedDiagram)
@@ -497,15 +509,18 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	}
 	modifiedDiagram.ColorPalette = normalizedPalette
 
-	// Optimistic locking (T14 / #385).
-	var newVersion int
-	if vstore, ok := DiagramStore.(VersionedStore); ok {
-		v, _, lockErr := ApplyOptimisticLock(c, vstore, diagramId, nil)
-		if lockErr != nil {
-			HandleRequestError(c, lockErr)
-			return
-		}
-		newVersion = v
+	// Optimistic locking (T14 / #385). The CAS (when a version is supplied)
+	// runs inside the same transaction as the content write via
+	// DiagramStore.UpdateWithVersion, threaded through h.wsHub.UpdateDiagram
+	// (#594).
+	expectedVersion, hasVersion, lockErr := ResolveOptimisticLock(c, nil)
+	if lockErr != nil {
+		HandleRequestError(c, lockErr)
+		return
+	}
+	var expectedVersionPtr *int
+	if hasVersion {
+		expectedVersionPtr = &expectedVersion
 	}
 
 	// Use centralized update function
@@ -515,13 +530,22 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 		return modifiedDiagram, cellsChanged, nil
 	}
 
-	result, err := h.wsHub.UpdateDiagram(diagramId, updateFunc, "rest_api", user.Email)
+	result, err := h.wsHub.UpdateDiagram(diagramId, updateFunc, "rest_api", user.Email, expectedVersionPtr)
 	if err != nil {
-		HandleRequestError(c, ServerError("Failed to update diagram: "+err.Error()))
+		if mapped := MapOptimisticLockError(err); mapped != nil {
+			HandleRequestError(c, mapped)
+			return
+		}
+		// StoreErrorToRequestError (not a bare ServerError interpolating
+		// err.Error()) so a transient DB fault maps to 503 + Retry-After
+		// instead of an undocumented 500, and so raw driver error text (e.g.
+		// Oracle ORA-... strings, which can name tables/columns) never
+		// reaches the client -- see the matching note in UpdateDiagram.
+		HandleRequestError(c, StoreErrorToRequestError(err, "Diagram not found", "Failed to update diagram"))
 		return
 	}
-	if newVersion > 0 {
-		SetETagHeader(c, newVersion)
+	if result.LockVersion > 0 {
+		SetETagHeader(c, result.LockVersion)
 	}
 
 	RecordAuditUpdate(c, "patched", threatModelId, "diagram", diagramId, preState, result.UpdatedDiagram)
