@@ -286,25 +286,36 @@ all:
   # examples) - CATS substitutes by field name in bodies too, so pointing
   # these at real seeded team/project ids makes those requests validate
   # without needing the seeded entities to literally carry the canonical ids.
-  # They are kept for the day the CATS defect below is fixed upstream; today
-  # the arrays that contain them are removed outright, so nothing substitutes.
+  # They are kept for the day CATS substitutes refData into nested array
+  # items; today the arrays that contain them are removed outright (below),
+  # so nothing substitutes.
   team_id: %s
   project_id: %s
   related_team_id: %s
   related_project_id: %s
   # Body arrays removed from every generated payload, because CATS 13.8.0
-  # cannot produce a valid item for any of them and so poisons every
+  # cannot produce a SERVER-VALID item for any of them and so poisons every
   # POST/PUT to /projects and /teams (#596 and #604):
   #
-  #   related_projects[] / related_teams[]  (#596)
-  #     CATS drops a nested property whose name shares an underscore-delimited
-  #     token with an ANCESTOR property's name -- a self-reference guard that
-  #     matches on name similarity rather than actual schema recursion. So
-  #     related_projects[].related_project_id is dropped ("related" collides
-  #     with the parent array), while responsible_parties[].user_id is not.
-  #     Verified by renaming the parent array to linked_projects, at which
-  #     point related_project_id appears. Since related_project_id is
-  #     required, every generated item fails validation.
+  #   related_projects[] / related_teams[]  (#596, root-caused 2026-08-20)
+  #     CATS's cyclic-reference guard (JsonUtils.isCyclicReference) tokenizes
+  #     the property path on '_' as well as '#', and an array contributes its
+  #     name twice (name + name.items), so related_projects#
+  #     related_projects.items#related_project_id counts "related" x3 and is
+  #     silently dropped at the fuzz engine's default --selfReferenceDepth 2
+  #     ("cats generate" uses 4, which is why generate emits the field).
+  #     GENERATION is fixed machine-locally by passing --selfReferenceDepth 4
+  #     in .local/cats/config.yaml extra_args (also fixes the third victim,
+  #     color_palette[].color, which needs no refData -- its regex pattern
+  #     generates a valid hex color). But the generated id is the spec's
+  #     canonical example UUID (aaaaaaaa-.../bbbbbbbb-...), and refData does
+  #     NOT substitute into nested array items (re-verified 2026-08-20: with
+  #     the arrays restored, related_project_id carried the example and
+  #     user_id a CATS-random UUID, neither the refData value), so the server
+  #     correctly answers "related project not found" and the requests 400.
+  #     The arrays therefore stay removed until the fixtures carry the
+  #     canonical example UUIDs (or CATS substitutes nested items) -- see the
+  #     coverage-restoration follow-up filed from #596.
   #
   #   responsible_parties[] / members[]  (#604)
   #     No longer a SCHEMA problem: the spec now splits request and response
@@ -315,7 +326,8 @@ all:
   #     the server correctly answers "user not found for responsible party" and
   #     POST /projects + POST /teams go back to 400 on every test. Removing
   #     them is now a coverage trade, not a workaround for a blocker: drop
-  #     these two the moment refData reaches nested array items.
+  #     these two the moment nested items can carry real ids (same follow-up
+  #     as above).
   related_projects: cats_remove_field
   related_teams: cats_remove_field
   responsible_parties: cats_remove_field
