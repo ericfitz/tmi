@@ -298,6 +298,65 @@ func TestDeduplicateGroups_CollapsesDuplicateSubgroupMembershipPair(t *testing.T
 	assert.Equal(t, keepRowID, remaining.ID, "the earliest row must be the survivor")
 }
 
+// TestDeduplicateGroups_CollapsesDuplicateOwnedSubgroupRow covers the
+// owning-side mirror of TestDeduplicateGroups_CollapsesDuplicateSubgroupMembershipPair
+// (#715): both duplicate groups already listed the SAME child subgroup M as
+// a member (one row each, group_internal_uuid = the duplicate,
+// subject_type = "group"). repointGroupMembers repoints group_internal_uuid
+// (the owning side) for NULL-user rows unconditionally, so after the merge
+// the survivor would list M twice if dedupeOwnedSubgroupRows didn't collapse
+// it -- idx_gm_group_user_type can't catch this since user_internal_uuid is
+// NULL on both rows.
+// SEM@0000000000000000000000000000000000000000: validate group dedupe collapses a duplicate owned-subgroup membership row
+func TestDeduplicateGroups_CollapsesDuplicateOwnedSubgroupRow(t *testing.T) {
+	db := newDedupeTestDB(t)
+
+	base := time.Now().UTC().Truncate(time.Second)
+	survivorID := uuid.NewString()
+	loserID := uuid.NewString()
+	childID := uuid.NewString()
+
+	require.NoError(t, db.Create(&dedupeTestGroup{
+		InternalUUID: survivorID, Provider: "okta", GroupName: "engineering",
+		FirstUsed: base, LastUsed: base, UsageCount: 1,
+	}).Error)
+	require.NoError(t, db.Create(&dedupeTestGroup{
+		InternalUUID: loserID, Provider: "okta", GroupName: "engineering",
+		FirstUsed: base.Add(time.Minute), LastUsed: base.Add(time.Minute), UsageCount: 1,
+	}).Error)
+	require.NoError(t, db.Create(&dedupeTestGroup{
+		InternalUUID: childID, Provider: "okta", GroupName: "engineering-oncall",
+		FirstUsed: base, LastUsed: base, UsageCount: 1,
+	}).Error)
+
+	// The survivor already lists childID as a subgroup member...
+	keepRowID := uuid.NewString()
+	require.NoError(t, db.Create(&dedupeTestGroupMember{
+		ID: keepRowID, GroupInternalUUID: survivorID, SubjectType: "group",
+		MemberGroupInternalUUID: strPtr(childID), AddedAt: base,
+	}).Error)
+	// ...and the loser separately lists it too, before dedupe repoints
+	// group_internal_uuid from loser onto survivor.
+	require.NoError(t, db.Create(&dedupeTestGroupMember{
+		ID: uuid.NewString(), GroupInternalUUID: loserID, SubjectType: "group",
+		MemberGroupInternalUUID: strPtr(childID), AddedAt: base.Add(time.Second),
+	}).Error)
+
+	removed, err := DeduplicateGroups(db)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), removed)
+
+	var rowCount int64
+	require.NoError(t, db.Model(&dedupeTestGroupMember{}).
+		Where("group_internal_uuid = ? AND member_group_internal_uuid = ? AND subject_type = ?", survivorID, childID, "group").
+		Count(&rowCount).Error)
+	assert.Equal(t, int64(1), rowCount, "the survivor must own the child subgroup exactly once, not twice")
+
+	var remaining dedupeTestGroupMember
+	require.NoError(t, db.Where("group_internal_uuid = ? AND member_group_internal_uuid = ?", survivorID, childID).First(&remaining).Error)
+	assert.Equal(t, keepRowID, remaining.ID, "the earliest row must be the survivor")
+}
+
 // SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: validate splitting a string slice into size-capped chunks, preserving order
 func TestChunkStrings(t *testing.T) {
 	t.Run("under the limit returns a single chunk", func(t *testing.T) {
