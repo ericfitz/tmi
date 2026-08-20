@@ -96,6 +96,49 @@ func TestTimmyConfig_DumpExtractedTextToNote_DefaultsOff(t *testing.T) {
 	assert.False(t, cfg.DumpExtractedTextToNote, "dump flag must default to false")
 }
 
+// TestTimmyConfig_ValidateLLMProvider covers the provider whitelist added by
+// #754: empty is not an error (that's IsConfigured's concern), "openai" and
+// "anthropic" are both recognized (only "openai" has a working backend —
+// internal/llm.NewChatClient enforces that separately), and anything else
+// is rejected.
+func TestTimmyConfig_ValidateLLMProvider(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider string
+		wantErr  bool
+	}{
+		{name: "empty_is_not_configured_not_invalid", provider: "", wantErr: false},
+		{name: "openai_recognized", provider: "openai", wantErr: false},
+		{name: "anthropic_recognized_but_not_yet_implemented_elsewhere", provider: "anthropic", wantErr: false},
+		{name: "unrecognized_provider_rejected", provider: "made-up", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := TimmyConfig{LLMProvider: tt.provider}
+			err := cfg.ValidateLLMProvider()
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "llm_provider")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateTimmy_LLMProvider covers the same whitelist reached through
+// Config.validateTimmy(), which is what callers holding an effective Config
+// actually invoke.
+func TestValidateTimmy_LLMProvider(t *testing.T) {
+	c := &Config{Timmy: TimmyConfig{LLMProvider: "made-up"}}
+	err := c.validateTimmy()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "llm_provider")
+
+	c.Timmy.LLMProvider = "openai"
+	assert.NoError(t, c.validateTimmy())
+}
+
 // TestValidateTimmy_DumpExtractedTextToNote covers the production refusal
 // rule. Production builds with the flag enabled must fail validation; any
 // other combination passes.

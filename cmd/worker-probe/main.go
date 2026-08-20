@@ -101,8 +101,8 @@ func runEmbedStub() error {
 			return
 		}
 		// The OpenAI embeddings API returns one embedding per input element,
-		// index-aligned. langchaingo's EmbedDocuments batches all chunks into
-		// one request and requires len(data) == len(input); returning a single
+		// index-aligned. internal/llm's embedder batches all chunks into one
+		// request and requires len(data) == len(input); returning a single
 		// embedding for a multi-input request makes the client error. Decode
 		// the request's "input" (string or []string) and emit a matching count.
 		n := 1

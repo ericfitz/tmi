@@ -1,5 +1,7 @@
 package config
 
+import "fmt"
+
 // TimmyConfig holds configuration for the Timmy AI assistant feature
 // SEM@07385154fa2286de1a8805dbf00575c0f52ce941: configuration struct for the Timmy AI assistant feature (pure)
 type TimmyConfig struct {
@@ -86,4 +88,24 @@ func (tc TimmyConfig) IsCodeIndexConfigured() bool {
 // SEM@cd3e5390e6efba1b5a645e4a00ef2a5b842d39ff: validate that reranker provider and model are configured (pure)
 func (tc TimmyConfig) IsRerankConfigured() bool {
 	return tc.RerankProvider != "" && tc.RerankModel != ""
+}
+
+// validLLMProviders enumerates the LLM providers TMI's config accepts.
+// Only "openai" has a working chat backend (internal/llm) as of #754 phase
+// 1; "anthropic" is accepted here so operators can stage config ahead of
+// TODO(#754 phase 2), but internal/llm.NewChatClient rejects it with a
+// clear not-yet-implemented error until the Anthropic backend lands.
+var validLLMProviders = map[string]bool{"openai": true, "anthropic": true}
+
+// ValidateLLMProvider reports whether LLMProvider is a recognized value. An
+// empty LLMProvider is not an error here — that "not configured" state is
+// IsConfigured's concern; this method only rejects an unrecognized non-empty
+// value, which deserves its own message rather than being folded into
+// "not configured."
+// SEM@0000000000000000000000000000000000000000: validate that a non-empty LLMProvider is a recognized provider name (pure)
+func (tc TimmyConfig) ValidateLLMProvider() error {
+	if tc.LLMProvider == "" || validLLMProviders[tc.LLMProvider] {
+		return nil
+	}
+	return fmt.Errorf("timmy.llm_provider %q is not a recognized provider (must be one of: openai, anthropic)", tc.LLMProvider)
 }

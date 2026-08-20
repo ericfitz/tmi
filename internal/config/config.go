@@ -1052,17 +1052,20 @@ func (c *Config) ResolveSecretReferences(ctx context.Context, vault SecretResolv
 	return nil
 }
 
-// validateTimmy enforces invariants for dev/test-only Timmy flags. Today this
-// just refuses to start with DumpExtractedTextToNote enabled in production
-// builds — same posture as login_hint and other dev-only behaviors.
+// validateTimmy enforces invariants for Timmy config: dev/test-only flags
+// (DumpExtractedTextToNote must not be enabled in production builds) and,
+// as of #754, that a non-empty LLMProvider names a recognized backend.
 //
 // NOTE: Timmy config is CategoryOperational (DB-seeded as of #415), so this is
 // NOT called from Load()-time Validate(). It is retained as a unit-testable
 // validator and may be invoked by callers that hold an effective Config.
-// SEM@e81aaa612078c97ad77ca1478c9812ee7e86b331: validate that dev-only Timmy flags are not enabled in production mode (pure)
+// SEM@0000000000000000000000000000000000000000: validate dev-only Timmy flags and LLM provider recognition (pure)
 func (c *Config) validateTimmy() error {
 	if c.Timmy.DumpExtractedTextToNote && c.Auth.BuildMode == "production" {
 		return fmt.Errorf("timmy.dump_extracted_text_to_note is a dev/test-only flag; set TMI_BUILD_MODE != production or disable TMI_TIMMY_DUMP_EXTRACTED_TEXT_TO_NOTE")
+	}
+	if err := c.Timmy.ValidateLLMProvider(); err != nil {
+		return err
 	}
 	return nil
 }

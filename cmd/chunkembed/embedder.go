@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ericfitz/tmi/internal/llm"
 	"github.com/ericfitz/tmi/internal/worker"
-	"github.com/tmc/langchaingo/embeddings"
-	"github.com/tmc/langchaingo/llms/openai"
 )
 
 // embedConfig is tmi-chunk-embed's embedding configuration, read from env.
@@ -38,19 +37,18 @@ func embedConfigFromEnv() (embedConfig, error) {
 	return embedConfig{Model: model, BaseURL: baseURL, APIKey: apiKey}, nil
 }
 
-// newEmbedder builds an OpenAI-compatible langchaingo embedder.
-// SEM@ef969bb79ad525fa5038847af0fb0be1038ae961: build an OpenAI-compatible langchaingo embedder from the given config (pure)
-func newEmbedder(cfg embedConfig) (embeddings.Embedder, error) {
-	llm, err := openai.New(
-		openai.WithModel(cfg.Model),
-		openai.WithEmbeddingModel(cfg.Model),
-		openai.WithBaseURL(cfg.BaseURL),
-		openai.WithToken(cfg.APIKey),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("chunkembed: build embedding LLM: %w", err)
-	}
-	emb, err := embeddings.NewEmbedder(llm)
+// newEmbedder builds an OpenAI embedder via internal/llm. chunkembed stays
+// OpenAI-only permanently — unlike chat, embeddings have no Anthropic
+// equivalent (Anthropic does not offer an embeddings API), so there is no
+// phase 2 provider seam to preserve here.
+// SEM@0000000000000000000000000000000000000000: build an OpenAI embedder from the given config (pure)
+func newEmbedder(cfg embedConfig) (llm.Embedder, error) {
+	emb, err := llm.NewEmbedder(llm.Config{
+		Provider: llm.ProviderOpenAI,
+		Model:    cfg.Model,
+		APIKey:   cfg.APIKey,
+		BaseURL:  cfg.BaseURL,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("chunkembed: build embedder: %w", err)
 	}
@@ -58,8 +56,8 @@ func newEmbedder(cfg embedConfig) (embeddings.Embedder, error) {
 }
 
 // embedChunks embeds every chunk, returning one vector per chunk in order.
-// SEM@ef969bb79ad525fa5038847af0fb0be1038ae961: compute embedding vectors for a slice of text chunks in order (reads DB)
-func embedChunks(ctx context.Context, emb embeddings.Embedder, chunks []string) ([][]float32, error) {
+// SEM@0000000000000000000000000000000000000000: compute embedding vectors for a slice of text chunks in order (reads DB)
+func embedChunks(ctx context.Context, emb llm.Embedder, chunks []string) ([][]float32, error) {
 	if len(chunks) == 0 {
 		return nil, nil
 	}

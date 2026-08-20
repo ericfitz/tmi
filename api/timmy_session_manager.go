@@ -13,9 +13,9 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/config"
+	"github.com/ericfitz/tmi/internal/llm"
 	"github.com/ericfitz/tmi/internal/slogging"
 	openapi_types "github.com/oapi-codegen/runtime/types"
-	"github.com/tmc/langchaingo/llms"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -355,9 +355,9 @@ func (sm *TimmySessionManager) HandleMessage(
 	systemPrompt := sm.contextBuilder.BuildFullContext(basePrompt, tier1, tier2)
 
 	// Build LLM message sequence: history + current user message
-	var llmMessages []llms.MessageContent
+	var llmMessages []llm.Message
 	llmMessages = append(llmMessages, history...)
-	llmMessages = append(llmMessages, llms.TextParts(llms.ChatMessageTypeHuman, userMessage))
+	llmMessages = append(llmMessages, llm.Message{Role: llm.RoleUser, Text: userMessage})
 
 	// Call LLM with streaming
 	if sm.llmService == nil {
@@ -1075,25 +1075,25 @@ func (sm *TimmySessionManager) buildEntitySummaries(sources []SourceSnapshotEntr
 }
 
 // getConversationHistory loads recent messages and converts them to LLM message format
-// SEM@63d2546d6591e57d65783c3032d4412409c2b328: fetch recent session messages and convert them to LLM message content format (reads DB)
-func (sm *TimmySessionManager) getConversationHistory(ctx context.Context, sessionID string) ([]llms.MessageContent, error) {
+// SEM@0000000000000000000000000000000000000000: fetch recent session messages and convert them to LLM message format (reads DB)
+func (sm *TimmySessionManager) getConversationHistory(ctx context.Context, sessionID string) ([]llm.Message, error) {
 	messages, _, err := GlobalTimmyMessageStore.ListBySession(ctx, sessionID, 0, sm.cfgFor(ctx).MaxConversationHistory)
 	if err != nil {
 		return nil, err
 	}
 
-	var result []llms.MessageContent
+	var result []llm.Message
 	for _, msg := range messages {
-		var msgType llms.ChatMessageType
+		var role llm.Role
 		switch msg.Role {
 		case "user":
-			msgType = llms.ChatMessageTypeHuman
+			role = llm.RoleUser
 		case "assistant":
-			msgType = llms.ChatMessageTypeAI
+			role = llm.RoleAssistant
 		default:
 			continue
 		}
-		result = append(result, llms.TextParts(msgType, string(msg.Content)))
+		result = append(result, llm.Message{Role: role, Text: string(msg.Content)})
 	}
 
 	return result, nil

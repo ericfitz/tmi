@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ericfitz/tmi/internal/llm"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/worker"
 	"github.com/ericfitz/tmi/pkg/extract"
 	"github.com/ericfitz/tmi/pkg/jobenvelope"
-	"github.com/tmc/langchaingo/embeddings"
 )
 
 // EmbeddingResult is the chunk-embed stage output blob, written to the
@@ -32,11 +32,11 @@ func (r EmbeddingResult) validate() error {
 }
 
 // chunkEmbedHandler is the JobHandler for tmi-chunk-embed.
-// SEM@ef969bb79ad525fa5038847af0fb0be1038ae961: job handler holding NATS connection, text chunker, and embedding client (pure)
+// SEM@0000000000000000000000000000000000000000: job handler holding NATS connection, text chunker, and embedding client (pure)
 type chunkEmbedHandler struct {
 	conn     *worker.Conn
 	chunker  *extract.TextChunker
-	embedder embeddings.Embedder
+	embedder llm.Embedder
 }
 
 // chunk sizing — characters per chunk and overlap. These mirror the
@@ -50,8 +50,8 @@ const (
 )
 
 // newChunkEmbedHandler builds the handler.
-// SEM@ef969bb79ad525fa5038847af0fb0be1038ae961: build a chunkEmbedHandler with a configured text chunker and embedder (pure)
-func newChunkEmbedHandler(conn *worker.Conn, emb embeddings.Embedder) *chunkEmbedHandler {
+// SEM@0000000000000000000000000000000000000000: build a chunkEmbedHandler with a configured text chunker and embedder (pure)
+func newChunkEmbedHandler(conn *worker.Conn, emb llm.Embedder) *chunkEmbedHandler {
 	return &chunkEmbedHandler{
 		conn:     conn,
 		chunker:  extract.NewTextChunker(chunkMaxChars, chunkOverlap),
