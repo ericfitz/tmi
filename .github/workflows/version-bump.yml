@@ -1,0 +1,224 @@
+# Automatic semantic versioning (#627)
+#
+# The old design was a post-commit hook that amended the commit it just
+# observed on `main`. That is unreachable under a PR-only branch-protection
+# ruleset (contents pushed to main only via squash-merge, no bypass actors,
+# so a local hook never runs against `main`) -- see scripts/hooks/post-commit
+# for the full history.
+#
+# The replacement computes the bump from the PR TITLE (which becomes the
+# squash-merge commit subject) and pushes the bump commit directly onto the
+# PR's own branch. Squash-merge then lands exactly one commit per change,
+# bump included, and there is no window where main's version drifts from
+# what actually shipped.
+#
+# Two jobs:
+#   - "Version Bump" (job id: bump) pushes the computed bump to same-repo PR
+#     branches. Needs contents: write.
+#   - "Version Check" (job id: check) recomputes independently and FAILS if
+#     the PR's version locations disagree with what the title implies. Runs
+#     for fork PRs too (which "Version Bump" cannot push to). This is the
+#     job name to add to the branch-protection ruleset's required checks.
+#
+# Known residual race (same one the old manual process had): two PRs open
+# concurrently against the same base can both compute the same "next"
+# version. Whichever merges second will look stale to "Version Check" against
+# the new main until it re-runs (a push to the PR branch, e.g. a rebase,
+# retriggers `synchronize` and recomputes). Not fully closed by this design;
+# documented rather than solved, same as before.
+#
+# Security note: the PR title and head branch name are attacker-influenceable
+# (opened by anyone who can open a PR). Both are passed to shell steps only
+# via `env:` and referenced as quoted `"$VAR"`, never interpolated directly
+# into a `run:` block, to avoid script injection through a crafted title or
+# branch name.
+
+name: Version Bump
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: version-bump-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  bump:
+    name: Version Bump
+    # Fork PRs get a read-only GITHUB_TOKEN and cannot be pushed to; they
+    # still get "Version Check" below. Loop prevention: the "Check
+    # idempotence" step below is what actually breaks the loop -- after this
+    # job pushes a bump, .version already equals expected, so the
+    # `synchronize` event that push retriggers sees no diff and skips before
+    # doing any real work. (The pull_request event payload has no head-commit
+    # message to gate on up here, and using one would be wrong anyway: an
+    # "edited" PR-title event after a bump has landed can legitimately need a
+    # second bump even though the current HEAD commit is itself a
+    # chore(version) commit.)
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          # Pin to the immutable head SHA rather than the (attacker-chosen)
+          # branch name; PR_HEAD_REF below is still needed as the push target.
+          ref: ${{ github.event.pull_request.head.sha }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          fetch-depth: 0
+
+      - name: Fetch base main
+        run: git fetch origin main --depth=1
+
+      - name: Compute expected version
+        id: expected
+        run: |
+          set -euo pipefail
+          git show origin/main:.version > /tmp/base.version
+          EXPECTED="$(scripts/ci-version-bump.sh compute-version "$PR_TITLE" /tmp/base.version)"
+          echo "version=$EXPECTED" >> "$GITHUB_OUTPUT"
+          echo "Expected version: $EXPECTED"
+
+      - name: Check idempotence
+        id: idempotent
+        env:
+          EXPECTED: ${{ steps.expected.outputs.version }}
+        run: |
+          set -euo pipefail
+          CURRENT="$(jq -r '"\(.major).\(.minor).\(.patch)"' .version)"
+          if [ "$CURRENT" = "$EXPECTED" ]; then
+            echo "PR branch .version ($CURRENT) already matches expected -- nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Go
+        if: steps.idempotent.outputs.skip == 'false'
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      # Version pinned deliberately: other oapi-codegen versions silently
+      # miscompile api/api.go (UnderscoreMetadata rename regression).
+      - name: Install oapi-codegen (pinned)
+        if: steps.idempotent.outputs.skip == 'false'
+        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.7.1
+
+      - name: Set up uv
+        if: steps.idempotent.outputs.skip == 'false'
+        uses: astral-sh/setup-uv@v7
+
+      - name: Apply version bump
+        if: steps.idempotent.outputs.skip == 'false'
+        env:
+          EXPECTED: ${{ steps.expected.outputs.version }}
+        run: scripts/ci-version-bump.sh apply-version "$EXPECTED"
+
+      - name: Regenerate embedded API spec
+        if: steps.idempotent.outputs.skip == 'false'
+        run: make generate-api
+
+      - name: Sanity build (confirms the embedded version took)
+        if: steps.idempotent.outputs.skip == 'false'
+        run: make build-server
+
+      - name: Verify embedded spec version matches
+        if: steps.idempotent.outputs.skip == 'false'
+        env:
+          EXPECTED: ${{ steps.expected.outputs.version }}
+        run: |
+          set -euo pipefail
+          EMBEDDED="$(scripts/ci-version-bump.sh embedded-spec-version)"
+          if [ "$EMBEDDED" != "$EXPECTED" ]; then
+            echo "::error::Embedded spec version ($EMBEDDED) does not match expected ($EXPECTED) after make generate-api."
+            exit 1
+          fi
+
+      - name: Commit and push bump
+        if: steps.idempotent.outputs.skip == 'false'
+        env:
+          EXPECTED: ${{ steps.expected.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .version api/version.go api-schema/tmi-openapi.json api/api.go
+          git commit -m "chore(version): bump to $EXPECTED"
+          git push origin "HEAD:$PR_HEAD_REF"
+
+  check:
+    name: Version Check
+    # Runs for every PR, including forks (which "Version Bump" cannot push
+    # to). This is the check to make required in the branch-protection
+    # ruleset -- it fails loudly instead of silently letting an unbumped or
+    # mis-bumped PR merge.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      PR_TITLE: ${{ github.event.pull_request.title }}
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Fetch base main
+        run: git fetch origin main --depth=1
+
+      - name: Compute expected version
+        id: expected
+        run: |
+          set -euo pipefail
+          git show origin/main:.version > /tmp/base.version
+          EXPECTED="$(scripts/ci-version-bump.sh compute-version "$PR_TITLE" /tmp/base.version)"
+          echo "version=$EXPECTED" >> "$GITHUB_OUTPUT"
+          echo "Expected version: $EXPECTED"
+
+      - name: Verify .version
+        env:
+          EXPECTED: ${{ steps.expected.outputs.version }}
+        run: |
+          set -euo pipefail
+          CURRENT="$(jq -r '"\(.major).\(.minor).\(.patch)"' .version)"
+          if [ "$CURRENT" != "$EXPECTED" ]; then
+            echo "::error::.version is $CURRENT, expected $EXPECTED (derived from the PR title). Push a commit that bumps it, or let the Version Bump job do it (same-repo PRs only)."
+            exit 1
+          fi
+          echo ".version OK: $CURRENT"
+
+      - name: Verify OpenAPI info.version
+        env:
+          EXPECTED: ${{ steps.expected.outputs.version }}
+        run: |
+          set -euo pipefail
+          CURRENT="$(jq -r '.info.version' api-schema/tmi-openapi.json)"
+          if [ "$CURRENT" != "$EXPECTED" ]; then
+            echo "::error::api-schema/tmi-openapi.json info.version is $CURRENT, expected $EXPECTED."
+            exit 1
+          fi
+          echo "OpenAPI info.version OK: $CURRENT"
+
+      - name: Verify embedded spec version
+        env:
+          EXPECTED: ${{ steps.expected.outputs.version }}
+        run: |
+          set -euo pipefail
+          EMBEDDED="$(scripts/ci-version-bump.sh embedded-spec-version)"
+          if [ "$EMBEDDED" != "$EXPECTED" ]; then
+            echo "::error::api/api.go's embedded OpenAPI spec has info.version $EMBEDDED, expected $EXPECTED. Run 'make generate-api' after bumping api-schema/tmi-openapi.json."
+            exit 1
+          fi
+          echo "Embedded spec version OK: $EMBEDDED"
