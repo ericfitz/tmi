@@ -46,6 +46,13 @@ func (m *MockSettingsService) GetString(ctx context.Context, key string) (string
 	return "", nil
 }
 
+func (m *MockSettingsService) GetDatabaseString(ctx context.Context, key string) (string, bool, error) {
+	if setting, ok := m.settings[key]; ok {
+		return string(setting.Value), true, nil
+	}
+	return "", false, nil
+}
+
 func (m *MockSettingsService) GetInt(ctx context.Context, key string) (int, error) {
 	if setting, ok := m.settings[key]; ok {
 		var val int
