@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -18,13 +17,34 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// GormMetadataRepository implements MetadataRepository using GORM
-// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: GORM-backed repository for entity metadata key-value pairs with cache and invalidation support
+// metadataBatchSize caps how many rows CreateInBatches sends per round trip.
+// 100 keeps each batch under Oracle's max-bind-variable limit (700 binds at 7
+// columns/row) while collapsing the spec-capped 100-entry bulk request into a
+// single statement instead of one per row. The ADB-verified precedent for the
+// multi-row shape is api/system_audit_prune_oracle_test.go (1,100 rows through
+// the identical CreateInBatches path, recorded PASS against live ADB).
+//
+// ORACLE VERSION FLOOR: gorm-oracle emits multi-row `VALUES (:1,...),(:8,...)`
+// for plain batched creates, which Oracle only accepts from 23ai (the table
+// value constructor); 19c/21c raise ORA-00933, which dberrors does not map, so
+// on an older ADB every multi-entry BulkCreate/BulkReplace would 500. TMI's
+// fleet and the terraform default (terraform/modules/database/oci) are 23ai —
+// do not provision an older version (oracle-db-admin review of #666).
+const metadataBatchSize = 100
+
+// GormMetadataRepository implements MetadataRepository using GORM.
+//
+// No mutex: earlier versions serialized every metadata write in the process
+// behind a sync.RWMutex, which protected nothing (GORM connections are
+// concurrency-safe and the transactions below already provide atomicity) while
+// turning every bulk write into a process-wide bottleneck. In a multi-replica
+// deployment concurrent writers are in different processes anyway, so the
+// mutex bought no additional safety there either (#666).
+// SEM@0000000000000000000000000000000000000000: GORM-backed repository for entity metadata key-value pairs with cache and invalidation support
 type GormMetadataRepository struct {
 	db               *gorm.DB
 	cache            *CacheService
 	cacheInvalidator *CacheInvalidator
-	mutex            sync.RWMutex
 	logger           *slogging.Logger
 }
 
@@ -50,9 +70,6 @@ func (r *GormMetadataRepository) validateEntityType(entityType string) error {
 // Create creates a new metadata entry
 // SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: store a single metadata entry for an entity, rejecting duplicate keys (mutates shared state)
 func (r *GormMetadataRepository) Create(ctx context.Context, entityType, entityID string, metadata *Metadata) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
 	r.logger.Debug("Creating metadata: %s=%s for %s:%s", metadata.Key, metadata.Value, entityType, entityID)
 
 	// Validate entity type
@@ -111,9 +128,6 @@ func (r *GormMetadataRepository) Create(ctx context.Context, entityType, entityI
 // Get retrieves a specific metadata entry by key
 // SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch a metadata entry by key, using the cache when available (reads DB)
 func (r *GormMetadataRepository) Get(ctx context.Context, entityType, entityID, key string) (*Metadata, error) {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
 	r.logger.Debug("Getting metadata: %s for %s:%s", key, entityType, entityID)
 
 	// Try cache first
@@ -165,9 +179,6 @@ func (r *GormMetadataRepository) Get(ctx context.Context, entityType, entityID, 
 // Update updates an existing metadata entry
 // SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: update a metadata entry's value, setting modified_at explicitly (mutates shared state)
 func (r *GormMetadataRepository) Update(ctx context.Context, entityType, entityID string, metadata *Metadata) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
 	r.logger.Debug("Updating metadata: %s=%s for %s:%s", metadata.Key, metadata.Value, entityType, entityID)
 
 	// Validate entity type
@@ -234,9 +245,6 @@ func (r *GormMetadataRepository) Update(ctx context.Context, entityType, entityI
 // Delete removes a metadata entry
 // SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: delete a metadata entry by key and invalidate related caches (mutates shared state)
 func (r *GormMetadataRepository) Delete(ctx context.Context, entityType, entityID, key string) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
 	r.logger.Debug("Deleting metadata: %s for %s:%s", key, entityType, entityID)
 
 	// Validate entity type
@@ -287,9 +295,6 @@ func (r *GormMetadataRepository) Delete(ctx context.Context, entityType, entityI
 // List retrieves all metadata for an entity
 // SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: list all metadata entries for an entity, using the cache when available (reads DB)
 func (r *GormMetadataRepository) List(ctx context.Context, entityType, entityID string) ([]Metadata, error) {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
 	r.logger.Debug("Listing metadata for %s:%s", entityType, entityID)
 
 	// Try cache first
@@ -351,11 +356,8 @@ func (r *GormMetadataRepository) Post(ctx context.Context, entityType, entityID 
 }
 
 // BulkCreate creates multiple metadata entries in a single transaction
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: store multiple metadata entries in one transaction, rejecting any duplicate keys (mutates shared state)
+// SEM@0000000000000000000000000000000000000000: batch-insert multiple metadata entries in one transaction, rejecting any duplicate keys (mutates shared state)
 func (r *GormMetadataRepository) BulkCreate(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
 	r.logger.Debug("Bulk creating %d metadata entries", len(metadata))
 
 	if len(metadata) == 0 {
@@ -369,13 +371,27 @@ func (r *GormMetadataRepository) BulkCreate(ctx context.Context, entityType, ent
 
 	now := time.Now().UTC()
 
+	// keys is also the fallback conflict set: if a duplicate-key error surfaces
+	// from the batch insert but the existing-keys probe below can't name the
+	// culprit (a phantom read of an uncommitted concurrent winner), report all
+	// requested keys rather than none.
+	keys := make([]string, len(metadata))
+	entries := make([]models.Metadata, len(metadata))
+	for i, meta := range metadata {
+		keys[i] = meta.Key
+		entries[i] = models.Metadata{
+			ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
+			EntityType: models.DBVarchar(entityType),
+			EntityID:   models.DBVarchar(entityID),
+			Key:        models.DBVarchar(meta.Key),
+			Value:      models.DBVarchar(meta.Value),
+			CreatedAt:  now,
+			ModifiedAt: now,
+		}
+	}
+
 	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Check for existing keys (create-only semantics)
-		keys := make([]string, len(metadata))
-		for i, meta := range metadata {
-			keys[i] = meta.Key
-		}
-
 		var existingKeys []string
 		if err := tx.Model(&models.Metadata{}).
 			Where("entity_type = ? AND entity_id = ? AND key IN ?", entityType, entityID, keys).
@@ -388,29 +404,29 @@ func (r *GormMetadataRepository) BulkCreate(ctx context.Context, entityType, ent
 			return &MetadataConflictError{ConflictingKeys: existingKeys}
 		}
 
-		// Insert new entries (no upsert)
-		for _, meta := range metadata {
-			model := models.Metadata{
-				ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
-				EntityType: models.DBVarchar(entityType),
-				EntityID:   models.DBVarchar(entityID),
-				Key:        models.DBVarchar(meta.Key),
-				Value:      models.DBVarchar(meta.Value),
-				CreatedAt:  now,
-				ModifiedAt: now,
-			}
-
-			result := tx.Create(&model)
-
-			if result.Error != nil {
-				// Catch race condition
-				classified := dberrors.Classify(result.Error)
-				if errors.Is(classified, dberrors.ErrDuplicate) {
-					return &MetadataConflictError{ConflictingKeys: []string{meta.Key}}
+		// Insert new entries in batches (no upsert)
+		if err := tx.CreateInBatches(&entries, metadataBatchSize).Error; err != nil {
+			classified := dberrors.Classify(err)
+			if errors.Is(classified, dberrors.ErrDuplicate) {
+				// Lost a create race against a concurrent writer between the
+				// probe above and this insert. Re-run the same probe inside
+				// this tx to name the actual conflicting key(s); if nothing
+				// comes back (e.g. the winner hasn't committed yet on this
+				// isolation level), fall back to naming every requested key
+				// rather than swallowing the conflict.
+				var raceKeys []string
+				if probeErr := tx.Model(&models.Metadata{}).
+					Where("entity_type = ? AND entity_id = ? AND key IN ?", entityType, entityID, keys).
+					Pluck("key", &raceKeys).Error; probeErr != nil {
+					r.logger.Error("Failed to probe conflicting keys after bulk create race: %v", probeErr)
 				}
-				r.logger.Error("Failed to bulk create metadata: %v", result.Error)
-				return classified
+				if len(raceKeys) == 0 {
+					raceKeys = keys
+				}
+				return &MetadataConflictError{ConflictingKeys: raceKeys}
 			}
+			r.logger.Error("Failed to bulk create metadata: %v", err)
+			return classified
 		}
 
 		// Invalidate related caches
@@ -436,11 +452,8 @@ func (r *GormMetadataRepository) BulkCreate(ctx context.Context, entityType, ent
 // BulkUpdate upserts multiple metadata entries in a single transaction.
 // Keys present in the request are created or updated; keys not present are left untouched.
 // This implements PATCH (merge/upsert) semantics.
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: upsert multiple metadata entries in one transaction using PATCH merge semantics (mutates shared state)
+// SEM@0000000000000000000000000000000000000000: batch-upsert multiple metadata entries in one transaction using PATCH merge semantics (mutates shared state)
 func (r *GormMetadataRepository) BulkUpdate(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
 	r.logger.Debug("Bulk upserting %d metadata entries", len(metadata))
 
 	if len(metadata) == 0 {
@@ -454,37 +467,51 @@ func (r *GormMetadataRepository) BulkUpdate(ctx context.Context, entityType, ent
 
 	now := time.Now().UTC()
 
+	entries := make([]models.Metadata, len(metadata))
+	for i, meta := range metadata {
+		entries[i] = models.Metadata{
+			ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
+			EntityType: models.DBVarchar(entityType),
+			EntityID:   models.DBVarchar(entityID),
+			Key:        models.DBVarchar(meta.Key),
+			Value:      models.DBVarchar(meta.Value),
+			CreatedAt:  now,
+			ModifiedAt: now,
+		}
+	}
+
 	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		for _, meta := range metadata {
-			model := models.Metadata{
-				ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
-				EntityType: models.DBVarchar(entityType),
-				EntityID:   models.DBVarchar(entityID),
-				Key:        models.DBVarchar(meta.Key),
-				Value:      models.DBVarchar(meta.Value),
-				CreatedAt:  now,
-				ModifiedAt: now,
-			}
+		// Use Col()/ColumnName() so the Oracle GORM driver receives
+		// uppercase column identifiers when emitting MERGE INTO.
+		//
+		// gorm-oracle folds the whole batch into one
+		// `MERGE INTO ... USING (SELECT ... UNION ALL ...)` — verified by
+		// DryRun against the real dialector at v1.1.3 (oracle-db-admin review
+		// of #666; models.Metadata has no default-DB-value fields, so the
+		// PL/SQL FORALL branch is never taken).
+		//
+		// INVARIANT (owned by the bulk handlers, metadata_handlers.go): the
+		// batch must not contain two entries with the same key. A duplicated
+		// key in one MERGE source raises ORA-30926 on Oracle — unmapped in
+		// dberrors, so it would surface as a 500 — where the old per-row
+		// upsert silently applied last-write-wins. All three bulk handlers
+		// reject duplicate keys with a 400 before reaching this repository.
+		dialect := tx.Name()
+		result := tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				Col(dialect, "entity_type"),
+				Col(dialect, "entity_id"),
+				Col(dialect, "key"),
+			},
+			DoUpdates: clause.AssignmentColumns([]string{
+				ColumnName(dialect, "value"),
+				ColumnName(dialect, "modified_at"),
+			}),
+		}).CreateInBatches(&entries, metadataBatchSize)
 
-			// Use Col()/ColumnName() so the Oracle GORM driver receives
-			// uppercase column identifiers when emitting MERGE INTO.
-			dialect := tx.Name()
-			result := tx.Clauses(clause.OnConflict{
-				Columns: []clause.Column{
-					Col(dialect, "entity_type"),
-					Col(dialect, "entity_id"),
-					Col(dialect, "key"),
-				},
-				DoUpdates: clause.AssignmentColumns([]string{
-					ColumnName(dialect, "value"),
-					ColumnName(dialect, "modified_at"),
-				}),
-			}).Create(&model)
-
-			if result.Error != nil {
-				r.logger.Error("Failed to bulk upsert metadata: %v", result.Error)
-				return dberrors.Classify(result.Error)
-			}
+		if result.Error != nil {
+			r.logger.Error("Failed to bulk upsert metadata: %v", result.Error)
+			return dberrors.Classify(result.Error)
 		}
 
 		// Invalidate related caches
@@ -511,11 +538,8 @@ func (r *GormMetadataRepository) BulkUpdate(ctx context.Context, entityType, ent
 // All existing metadata is deleted, then the provided entries are inserted.
 // An empty metadata slice clears all metadata for the entity.
 // This implements PUT (full replace) semantics.
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: atomically replace all metadata for an entity with a new set using PUT semantics (mutates shared state)
+// SEM@0000000000000000000000000000000000000000: atomically replace all metadata for an entity with a batch-inserted new set using PUT semantics (mutates shared state)
 func (r *GormMetadataRepository) BulkReplace(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
 	r.logger.Debug("Bulk replacing metadata for %s:%s with %d entries", entityType, entityID, len(metadata))
 
 	// Validate entity type
@@ -525,6 +549,19 @@ func (r *GormMetadataRepository) BulkReplace(ctx context.Context, entityType, en
 
 	now := time.Now().UTC()
 
+	entries := make([]models.Metadata, len(metadata))
+	for i, meta := range metadata {
+		entries[i] = models.Metadata{
+			ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
+			EntityType: models.DBVarchar(entityType),
+			EntityID:   models.DBVarchar(entityID),
+			Key:        models.DBVarchar(meta.Key),
+			Value:      models.DBVarchar(meta.Value),
+			CreatedAt:  now,
+			ModifiedAt: now,
+		}
+	}
+
 	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Delete all existing metadata for this entity
 		if err := tx.Where("entity_type = ? AND entity_id = ?", entityType, entityID).
@@ -533,19 +570,9 @@ func (r *GormMetadataRepository) BulkReplace(ctx context.Context, entityType, en
 			return dberrors.Classify(err)
 		}
 
-		// Insert new entries
-		for _, meta := range metadata {
-			model := models.Metadata{
-				ID:         models.DBVarchar(uuidgen.MustNewForEntity(uuidgen.EntityTypeMetadata).String()),
-				EntityType: models.DBVarchar(entityType),
-				EntityID:   models.DBVarchar(entityID),
-				Key:        models.DBVarchar(meta.Key),
-				Value:      models.DBVarchar(meta.Value),
-				CreatedAt:  now,
-				ModifiedAt: now,
-			}
-
-			if err := tx.Create(&model).Error; err != nil {
+		// Insert new entries in batches
+		if len(entries) > 0 {
+			if err := tx.CreateInBatches(&entries, metadataBatchSize).Error; err != nil {
 				r.logger.Error("Failed to insert metadata during replace: %v", err)
 				return dberrors.Classify(err)
 			}
@@ -571,12 +598,9 @@ func (r *GormMetadataRepository) BulkReplace(ctx context.Context, entityType, en
 	})
 }
 
-// BulkDelete deletes multiple metadata entries by key in a single transaction
-// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: delete multiple metadata entries by key in one transaction and invalidate caches (mutates shared state)
+// BulkDelete deletes multiple metadata entries by key in a single statement
+// SEM@0000000000000000000000000000000000000000: delete multiple metadata entries by key in one statement and invalidate caches (mutates shared state)
 func (r *GormMetadataRepository) BulkDelete(ctx context.Context, entityType, entityID string, keys []string) error {
-	r.mutex.Lock()
-	defer r.mutex.Unlock()
-
 	r.logger.Debug("Bulk deleting %d metadata keys", len(keys))
 
 	if len(keys) == 0 {
@@ -589,13 +613,12 @@ func (r *GormMetadataRepository) BulkDelete(ctx context.Context, entityType, ent
 	}
 
 	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		for _, key := range keys {
-			result := tx.Where("entity_type = ? AND entity_id = ? AND key = ?", entityType, entityID, key).
-				Delete(&models.Metadata{})
-			if result.Error != nil {
-				r.logger.Error("Failed to bulk delete metadata key %s: %v", key, result.Error)
-				return dberrors.Classify(result.Error)
-			}
+		// Single statement for all keys; the handler caps keys at 100, well
+		// under Oracle's 1000-expression IN-list limit.
+		if err := tx.Where("entity_type = ? AND entity_id = ? AND key IN ?", entityType, entityID, keys).
+			Delete(&models.Metadata{}).Error; err != nil {
+			r.logger.Error("Failed to bulk delete metadata keys: %v", err)
+			return dberrors.Classify(err)
 		}
 
 		// Invalidate related caches
@@ -621,9 +644,6 @@ func (r *GormMetadataRepository) BulkDelete(ctx context.Context, entityType, ent
 // GetByKey retrieves all metadata entries with a specific key across all entities
 // SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch all metadata entries with a given key across all entities (reads DB)
 func (r *GormMetadataRepository) GetByKey(ctx context.Context, key string) ([]Metadata, error) {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
 	r.logger.Debug("Getting metadata by key: %s", key)
 
 	var modelList []models.Metadata
@@ -652,9 +672,6 @@ func (r *GormMetadataRepository) GetByKey(ctx context.Context, key string) ([]Me
 // ListKeys retrieves all metadata keys for an entity
 // SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: list all distinct metadata keys for an entity (reads DB)
 func (r *GormMetadataRepository) ListKeys(ctx context.Context, entityType, entityID string) ([]string, error) {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-
 	r.logger.Debug("Listing metadata keys for %s:%s", entityType, entityID)
 
 	// Validate entity type
