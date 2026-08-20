@@ -248,19 +248,26 @@ func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID, _ U
 		Uri:                req.Uri,
 	}
 
-	// Optimistic locking (T14 / #385).
-	var projectNewVersion int
-	if vstore, ok := GlobalProjectStore.(VersionedStore); ok {
-		v, _, lockErr := ApplyOptimisticLock(c, vstore, projectId.String(), nil)
-		if lockErr != nil {
-			HandleRequestError(c, lockErr)
-			return
-		}
-		projectNewVersion = v
+	// Optimistic locking (T14 / #385): the CAS runs inside the same
+	// transaction as the content write (#594).
+	expectedVersion, hasVersion, lockErr := ResolveOptimisticLock(c, nil)
+	if lockErr != nil {
+		HandleRequestError(c, lockErr)
+		return
 	}
 
-	result, err := GlobalProjectStore.Update(ctx, projectId.String(), &project, userUUID)
+	var result *Project
+	var projectNewVersion int
+	if vstore, ok := GlobalProjectStore.(versionedProjectUpdater); ok && hasVersion {
+		result, projectNewVersion, err = vstore.UpdateWithVersion(ctx, projectId.String(), &project, userUUID, expectedVersion)
+	} else {
+		result, err = GlobalProjectStore.Update(ctx, projectId.String(), &project, userUUID)
+	}
 	if err != nil {
+		if mapped := MapOptimisticLockError(err); mapped != nil {
+			HandleRequestError(c, mapped)
+			return
+		}
 		logger.Error("Failed to update project: %v", err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Project not found", "Failed to update project"))
 		return
@@ -349,20 +356,27 @@ func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID, _ Pa
 	patched.Description = SanitizeOptionalString(patched.Description)
 	patched.Uri = SanitizeOptionalString(patched.Uri)
 
-	// Optimistic locking (T14 / #385).
-	var projectNewVersion int
-	if vstore, ok := GlobalProjectStore.(VersionedStore); ok {
-		v, _, lockErr := ApplyOptimisticLock(c, vstore, projectId.String(), nil)
-		if lockErr != nil {
-			HandleRequestError(c, lockErr)
-			return
-		}
-		projectNewVersion = v
+	// Optimistic locking (T14 / #385): the CAS runs inside the same
+	// transaction as the content write (#594).
+	expectedVersion, hasVersion, lockErr := ResolveOptimisticLock(c, nil)
+	if lockErr != nil {
+		HandleRequestError(c, lockErr)
+		return
 	}
 
 	// Save via Update
-	result, err := GlobalProjectStore.Update(ctx, projectId.String(), &patched, userUUID)
+	var result *Project
+	var projectNewVersion int
+	if vstore, ok := GlobalProjectStore.(versionedProjectUpdater); ok && hasVersion {
+		result, projectNewVersion, err = vstore.UpdateWithVersion(ctx, projectId.String(), &patched, userUUID, expectedVersion)
+	} else {
+		result, err = GlobalProjectStore.Update(ctx, projectId.String(), &patched, userUUID)
+	}
 	if err != nil {
+		if mapped := MapOptimisticLockError(err); mapped != nil {
+			HandleRequestError(c, mapped)
+			return
+		}
 		logger.Error("Failed to patch project: %v", err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Project not found", "Failed to patch project"))
 		return

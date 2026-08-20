@@ -169,16 +169,17 @@ func (s *GormAssetRepository) Get(ctx context.Context, id string) (*Asset, error
 	return asset, nil
 }
 
-// Update updates an existing asset with write-through caching using GORM
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: update all asset fields in the DB and refresh the cache entry (mutates shared state)
-func (s *GormAssetRepository) Update(ctx context.Context, asset *Asset, threatModelID string) error {
+// update runs the asset content write inside one retryable transaction,
+// CAS-guarded first when expectedVersion is non-nil (#594).
+// SEM@0000000000000000000000000000000000000000: update asset fields and cache, optionally CAS-guarded, in one transaction (reads DB)
+func (s *GormAssetRepository) update(ctx context.Context, asset *Asset, threatModelID string, expectedVersion *int) (int, error) {
 	logger := slogging.Get()
 	logger.Debug("Updating asset: %s", asset.Id)
 
 	// Validate threat model ID
 	if _, err := uuid.Parse(threatModelID); err != nil {
 		logger.Error("Invalid threat model ID: %s", threatModelID)
-		return fmt.Errorf("invalid threat model ID: %w", err)
+		return 0, fmt.Errorf("invalid threat model ID: %w", err)
 	}
 
 	// Build update map with ALL fields unconditionally so nil values write NULL
@@ -215,7 +216,16 @@ func (s *GormAssetRepository) Update(ctx context.Context, asset *Asset, threatMo
 		"timmy_enabled":     timmyEnabled,
 	}
 
+	var newVersion int
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if expectedVersion != nil {
+			v, casErr := CheckAndBumpVersion(ctx, tx, models.Asset{}.TableName(), asset.Id.String(), *expectedVersion)
+			if casErr != nil {
+				return casErr
+			}
+			newVersion = v
+		}
+
 		// deleted_at IS NULL as a MAP condition: gorm-oracle's UPDATE-build
 		// heuristic classifies any clause.Expr containing both "deleted_at"
 		// and "null" as soft-delete-only (#392) — folded into the string
@@ -239,7 +249,7 @@ func (s *GormAssetRepository) Update(ctx context.Context, asset *Asset, threatMo
 		if !errors.Is(err, ErrAssetNotFound) {
 			logger.Error("Failed to update asset in database: %v", err)
 		}
-		return err
+		return 0, err
 	}
 
 	// Save metadata if present
@@ -282,7 +292,21 @@ func (s *GormAssetRepository) Update(ctx context.Context, asset *Asset, threatMo
 	}
 
 	logger.Debug("Successfully updated asset: %s", asset.Id)
-	return nil
+	return newVersion, nil
+}
+
+// Update updates an existing asset with write-through caching using GORM
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: update all asset fields in the DB and refresh the cache entry (mutates shared state)
+func (s *GormAssetRepository) Update(ctx context.Context, asset *Asset, threatModelID string) error {
+	_, err := s.update(ctx, asset, threatModelID, nil)
+	return err
+}
+
+// UpdateWithVersion updates an asset guarded by a same-transaction
+// optimistic-lock CAS (#594).
+// SEM@0000000000000000000000000000000000000000: update an asset guarded by a same-transaction version CAS (mutates shared state)
+func (s *GormAssetRepository) UpdateWithVersion(ctx context.Context, asset *Asset, threatModelID string, expectedVersion int) (int, error) {
+	return s.update(ctx, asset, threatModelID, &expectedVersion)
 }
 
 // Delete soft-deletes an asset by setting deleted_at
@@ -516,16 +540,17 @@ func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, th
 	return nil
 }
 
-// Patch applies JSON patch operations to an asset using GORM
-// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON patch operations to an asset and persist the result (mutates shared state)
-func (s *GormAssetRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Asset, error) {
+// patch runs patch-operation application then the content write, CAS-guarded
+// first when expectedVersion is non-nil (#594).
+// SEM@0000000000000000000000000000000000000000: apply JSON patch operations to an asset, optionally CAS-guarded, and persist the result (mutates shared state)
+func (s *GormAssetRepository) patch(ctx context.Context, id string, operations []PatchOperation, expectedVersion *int) (*Asset, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching asset %s with %d operations", id, len(operations))
 
 	// Get current asset
 	asset, err := s.Get(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Apply patch operations
@@ -540,7 +565,7 @@ func (s *GormAssetRepository) Patch(ctx context.Context, id string, operations [
 			// passes through StoreErrorToRequestError untouched, and matches
 			// the patch_failed code ApplyPatchOperations already returns for
 			// the entities that go through it.
-			return nil, &RequestError{
+			return nil, 0, &RequestError{
 				Status:  http.StatusBadRequest,
 				Code:    "patch_failed",
 				Message: "Failed to apply patch: " + err.Error(),
@@ -551,15 +576,30 @@ func (s *GormAssetRepository) Patch(ctx context.Context, id string, operations [
 	// Get threat model ID for update
 	threatModelID, err := s.getAssetThreatModelID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Update the asset
-	if err := s.Update(ctx, asset, threatModelID); err != nil {
-		return nil, err
+	newVersion, err := s.update(ctx, asset, threatModelID, expectedVersion)
+	if err != nil {
+		return nil, 0, err
 	}
 
-	return asset, nil
+	return asset, newVersion, nil
+}
+
+// Patch applies JSON patch operations to an asset using GORM
+// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON patch operations to an asset and persist the result (mutates shared state)
+func (s *GormAssetRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Asset, error) {
+	asset, _, err := s.patch(ctx, id, operations, nil)
+	return asset, err
+}
+
+// PatchWithVersion applies JSON patch operations to an asset guarded by a
+// same-transaction optimistic-lock CAS (#594).
+// SEM@0000000000000000000000000000000000000000: apply JSON patch operations to an asset guarded by a same-transaction version CAS (mutates shared state)
+func (s *GormAssetRepository) PatchWithVersion(ctx context.Context, id string, operations []PatchOperation, expectedVersion int) (*Asset, int, error) {
+	return s.patch(ctx, id, operations, &expectedVersion)
 }
 
 // applyPatchOperation applies a single patch operation to an asset

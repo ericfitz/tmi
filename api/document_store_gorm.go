@@ -189,9 +189,10 @@ func (s *GormDocumentRepository) Get(ctx context.Context, id string) (*Document,
 	return document, nil
 }
 
-// Update updates an existing document
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: update a document's fields, set modified_at explicitly, and refresh cache (mutates shared state)
-func (s *GormDocumentRepository) Update(ctx context.Context, document *Document, threatModelID string) error {
+// update runs the document content write inside one retryable transaction,
+// CAS-guarded first when expectedVersion is non-nil (#594).
+// SEM@0000000000000000000000000000000000000000: update a document's fields, optionally CAS-guarded, and refresh cache (mutates shared state)
+func (s *GormDocumentRepository) update(ctx context.Context, document *Document, threatModelID string, expectedVersion *int) (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -204,10 +205,10 @@ func (s *GormDocumentRepository) Update(ctx context.Context, document *Document,
 	// (#714). Reject as client input so both engines answer 400. Backstop for
 	// callers that bypass the handler/schema checks (validateURI skips "").
 	if err := validation.ValidateNonEmpty("name", document.Name); err != nil {
-		return &RequestError{Status: http.StatusBadRequest, Code: "invalid_input", Message: err.Error()}
+		return 0, &RequestError{Status: http.StatusBadRequest, Code: "invalid_input", Message: err.Error()}
 	}
 	if err := validation.ValidateURI("uri", document.Uri); err != nil {
-		return &RequestError{Status: http.StatusBadRequest, Code: "invalid_input", Message: err.Error()}
+		return 0, &RequestError{Status: http.StatusBadRequest, Code: "invalid_input", Message: err.Error()}
 	}
 
 	// modified_at explicitly: the SkipHooks session below suppresses GORM's
@@ -254,7 +255,16 @@ func (s *GormDocumentRepository) Update(ctx context.Context, document *Document,
 
 	// Skip hooks to avoid validation errors on empty model struct.
 	// Document fields are already validated via OpenAPI middleware before reaching here.
+	var newVersion int
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if expectedVersion != nil {
+			v, casErr := CheckAndBumpVersion(ctx, tx, models.Document{}.TableName(), document.Id.String(), *expectedVersion)
+			if casErr != nil {
+				return casErr
+			}
+			newVersion = v
+		}
+
 		result := tx.Session(&gorm.Session{SkipHooks: true}).Model(&models.Document{}).
 			Where("id = ? AND threat_model_id = ?", document.Id.String(), threatModelID).
 			// Map condition (clause.Eq) rather than extending the string Expr:
@@ -276,7 +286,7 @@ func (s *GormDocumentRepository) Update(ctx context.Context, document *Document,
 		if !errors.Is(err, ErrDocumentNotFound) {
 			logger.Error("Failed to update document in database: %v", err)
 		}
-		return err
+		return 0, err
 	}
 
 	// Mirror the new timestamp onto the struct before it is cached — see the
@@ -313,7 +323,21 @@ func (s *GormDocumentRepository) Update(ctx context.Context, document *Document,
 	}
 
 	logger.Debug("Successfully updated document: %s", document.Id)
-	return nil
+	return newVersion, nil
+}
+
+// Update updates an existing document
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: update a document's fields, set modified_at explicitly, and refresh cache (mutates shared state)
+func (s *GormDocumentRepository) Update(ctx context.Context, document *Document, threatModelID string) error {
+	_, err := s.update(ctx, document, threatModelID, nil)
+	return err
+}
+
+// UpdateWithVersion updates a document guarded by a same-transaction
+// optimistic-lock CAS (#594).
+// SEM@0000000000000000000000000000000000000000: update a document guarded by a same-transaction version CAS (mutates shared state)
+func (s *GormDocumentRepository) UpdateWithVersion(ctx context.Context, document *Document, threatModelID string, expectedVersion int) (int, error) {
+	return s.update(ctx, document, threatModelID, &expectedVersion)
 }
 
 // Delete soft-deletes a document by setting deleted_at
@@ -542,13 +566,28 @@ func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Doc
 // Patch applies JSON patch operations to a document
 // SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON patch operations to a document and persist the result (reads DB)
 func (s *GormDocumentRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Document, error) {
+	document, _, err := s.patch(ctx, id, operations, nil)
+	return document, err
+}
+
+// PatchWithVersion applies JSON patch operations to a document guarded by a
+// same-transaction optimistic-lock CAS (#594).
+// SEM@0000000000000000000000000000000000000000: apply JSON patch operations to a document guarded by a same-transaction version CAS (mutates shared state)
+func (s *GormDocumentRepository) PatchWithVersion(ctx context.Context, id string, operations []PatchOperation, expectedVersion int) (*Document, int, error) {
+	return s.patch(ctx, id, operations, &expectedVersion)
+}
+
+// patch runs patch-operation application then the content write, CAS-guarded
+// first when expectedVersion is non-nil (#594).
+// SEM@0000000000000000000000000000000000000000: apply JSON patch operations to a document, optionally CAS-guarded, and persist the result (mutates shared state)
+func (s *GormDocumentRepository) patch(ctx context.Context, id string, operations []PatchOperation, expectedVersion *int) (*Document, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching document %s with %d operations", id, len(operations))
 
 	// Get current document
 	document, err := s.Get(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Apply patch operations
@@ -563,7 +602,7 @@ func (s *GormDocumentRepository) Patch(ctx context.Context, id string, operation
 			// passes through StoreErrorToRequestError untouched, and matches
 			// the patch_failed code ApplyPatchOperations already returns for
 			// the entities that go through it.
-			return nil, &RequestError{
+			return nil, 0, &RequestError{
 				Status:  http.StatusBadRequest,
 				Code:    "patch_failed",
 				Message: "Failed to apply patch: " + err.Error(),
@@ -574,15 +613,16 @@ func (s *GormDocumentRepository) Patch(ctx context.Context, id string, operation
 	// Get threat model ID for update
 	threatModelID, err := s.getDocumentThreatModelID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Update the document
-	if err := s.Update(ctx, document, threatModelID); err != nil {
-		return nil, err
+	newVersion, err := s.update(ctx, document, threatModelID, expectedVersion)
+	if err != nil {
+		return nil, 0, err
 	}
 
-	return document, nil
+	return document, newVersion, nil
 }
 
 // Count returns the total number of documents for a threat model

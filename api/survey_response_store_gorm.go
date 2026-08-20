@@ -344,22 +344,23 @@ func (s *GormSurveyResponseStore) Get(ctx context.Context, id uuid.UUID) (*Surve
 	return response, nil
 }
 
-// Update updates an existing survey response
-// SEM@0953e9f0b776f0b6506c4a5b3d809b26588328fe: store mutable fields of an existing survey response; preserves immutable fields (mutates DB)
-func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyResponse) error {
+// update runs the survey response content write inside one retryable
+// transaction, CAS-guarded first when expectedVersion is non-nil (#594).
+// SEM@0000000000000000000000000000000000000000: store mutable survey response fields, optionally CAS-guarded, preserving immutable fields (mutates DB)
+func (s *GormSurveyResponseStore) update(ctx context.Context, response *SurveyResponse, expectedVersion *int) (int, error) {
 	logger := slogging.Get()
 
 	if response.Id == nil {
-		return fmt.Errorf("response ID is required for update")
+		return 0, fmt.Errorf("response ID is required for update")
 	}
 
 	// Get current response to preserve immutable fields
 	var current models.SurveyResponse
 	if err := s.db.WithContext(ctx).First(&current, "id = ?", response.Id.String()).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ErrSurveyResponseNotFound
+			return 0, ErrSurveyResponseNotFound
 		}
-		return dberrors.Classify(err)
+		return 0, dberrors.Classify(err)
 	}
 
 	// Build update map (all updatable fields included unconditionally)
@@ -370,7 +371,7 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 	if response.Answers != nil {
 		answersJSON, err := json.Marshal(response.Answers)
 		if err != nil {
-			return fmt.Errorf("failed to marshal answers: %w", err)
+			return 0, fmt.Errorf("failed to marshal answers: %w", err)
 		}
 		updates["answers"] = models.JSONRaw(answersJSON)
 	} else {
@@ -381,7 +382,7 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 	if response.UiState != nil {
 		uiStateJSON, err := json.Marshal(response.UiState)
 		if err != nil {
-			return fmt.Errorf("failed to marshal ui_state: %w", err)
+			return 0, fmt.Errorf("failed to marshal ui_state: %w", err)
 		}
 		updates["ui_state"] = models.JSONRaw(uiStateJSON)
 	} else {
@@ -409,7 +410,16 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 	// Note: survey_id and survey_version are immutable
 	// Note: survey_json is immutable (set at creation from template snapshot)
 
+	var newVersion int
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if expectedVersion != nil {
+			v, casErr := CheckAndBumpVersion(ctx, tx, models.SurveyResponse{}.TableName(), response.Id.String(), *expectedVersion)
+			if casErr != nil {
+				return casErr
+			}
+			newVersion = v
+		}
+
 		result := tx.
 			Model(&models.SurveyResponse{}).
 			Where("id = ?", response.Id.String()).
@@ -425,20 +435,34 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 		return nil
 	})
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// Save metadata if provided
 	if response.Metadata != nil && len(*response.Metadata) > 0 {
 		if err := s.saveMetadata(ctx, response.Id.String(), *response.Metadata); err != nil {
 			logger.Error("Failed to save metadata for survey response: id=%s, error=%v", response.Id, err)
-			return dberrors.Classify(err)
+			return 0, dberrors.Classify(err)
 		}
 	}
 
 	logger.Info("Survey response updated: id=%s", response.Id)
 
-	return nil
+	return newVersion, nil
+}
+
+// Update updates an existing survey response
+// SEM@0953e9f0b776f0b6506c4a5b3d809b26588328fe: store mutable fields of an existing survey response; preserves immutable fields (mutates DB)
+func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyResponse) error {
+	_, err := s.update(ctx, response, nil)
+	return err
+}
+
+// UpdateWithVersion updates a survey response guarded by a same-transaction
+// optimistic-lock CAS (#594).
+// SEM@0000000000000000000000000000000000000000: update a survey response guarded by a same-transaction version CAS (mutates DB)
+func (s *GormSurveyResponseStore) UpdateWithVersion(ctx context.Context, response *SurveyResponse, expectedVersion int) (int, error) {
+	return s.update(ctx, response, &expectedVersion)
 }
 
 // Delete removes a survey response by ID
@@ -553,6 +577,33 @@ func (s *GormSurveyResponseStore) ListByOwner(ctx context.Context, ownerInternal
 	return s.List(ctx, limit, offset, filters)
 }
 
+// validSurveyResponseStatuses is the status set ValidateSurveyResponseStatusTransition accepts.
+var validSurveyResponseStatuses = map[string]bool{
+	ResponseStatusDraft:          true,
+	ResponseStatusSubmitted:      true,
+	ResponseStatusNeedsRevision:  true,
+	ResponseStatusReadyForReview: true,
+	ResponseStatusReviewCreated:  true,
+}
+
+// ValidateSurveyResponseStatusTransition checks a status transition is
+// well-formed before any write: the target must be a known status, and
+// needs_revision requires revision_notes. Callers that also perform a
+// CAS-guarded content write (PatchIntakeSurveyResponse, #594) run this
+// BEFORE that write so a malformed status transition fails without
+// committing anything, rather than surfacing as a 409 after the write that
+// preceded it already committed.
+// SEM@0000000000000000000000000000000000000000: validate a survey response status transition before any DB write (pure)
+func ValidateSurveyResponseStatusTransition(newStatus string, revisionNotes *string) error {
+	if !validSurveyResponseStatuses[newStatus] {
+		return fmt.Errorf("invalid status value: %s", newStatus)
+	}
+	if newStatus == ResponseStatusNeedsRevision && (revisionNotes == nil || *revisionNotes == "") {
+		return fmt.Errorf("revision_notes required when transitioning to needs_revision")
+	}
+	return nil
+}
+
 // UpdateStatus transitions a response to a new status with validation
 // SEM@a590912b68a0537a660bf71dd19959b3db635967: validate and apply a status transition to a survey response, recording reviewer and notes (mutates DB)
 func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID, newStatus string, reviewerInternalUUID *string, revisionNotes *string) error {
@@ -568,21 +619,8 @@ func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID
 
 	currentStatus := response.Status
 
-	// Validate that the new status is a known status value
-	validStatuses := map[string]bool{
-		ResponseStatusDraft:          true,
-		ResponseStatusSubmitted:      true,
-		ResponseStatusNeedsRevision:  true,
-		ResponseStatusReadyForReview: true,
-		ResponseStatusReviewCreated:  true,
-	}
-	if !validStatuses[newStatus] {
-		return fmt.Errorf("invalid status value: %s", newStatus)
-	}
-
-	// Require revision_notes when transitioning to needs_revision
-	if newStatus == ResponseStatusNeedsRevision && (revisionNotes == nil || *revisionNotes == "") {
-		return fmt.Errorf("revision_notes required when transitioning to needs_revision")
+	if err := ValidateSurveyResponseStatusTransition(newStatus, revisionNotes); err != nil {
+		return err
 	}
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag

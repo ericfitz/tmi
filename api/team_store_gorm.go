@@ -310,9 +310,10 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 	return team, nil
 }
 
-// Update updates an existing team, replacing members, responsible parties, and relationships
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: replace a team's fields, members, responsible parties, relationships, and metadata (mutates DB)
-func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userInternalUUID string) (*Team, error) {
+// update runs the team content write inside one retryable transaction,
+// CAS-guarded first when expectedVersion is non-nil (#594).
+// SEM@0000000000000000000000000000000000000000: replace a team's fields, members, responsible parties, relationships, and metadata, optionally CAS-guarded (mutates DB)
+func (s *GormTeamStore) update(ctx context.Context, id string, team *Team, userInternalUUID string, expectedVersion *int) (*Team, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Updating team: %s", id)
 
@@ -320,12 +321,21 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 	if team.RelatedTeams != nil {
 		for _, rel := range *team.RelatedTeams {
 			if err := s.validateRelationship(ctx, id, uuidToString(rel.RelatedTeamId), string(rel.Relationship)); err != nil {
-				return nil, err
+				return nil, 0, err
 			}
 		}
 	}
 
+	var newVersion int
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if expectedVersion != nil {
+			v, casErr := CheckAndBumpVersion(ctx, tx, models.TeamRecord{}.TableName(), id, *expectedVersion)
+			if casErr != nil {
+				return casErr
+			}
+			newVersion = v
+		}
+
 		// Verify team exists
 		var existing models.TeamRecord
 		if err := tx.First(&existing, "id = ?", id).Error; err != nil {
@@ -450,11 +460,26 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Return full team via Get
-	return s.Get(ctx, id)
+	fullTeam, getErr := s.Get(ctx, id)
+	return fullTeam, newVersion, getErr
+}
+
+// Update updates an existing team, replacing members, responsible parties, and relationships
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: replace a team's fields, members, responsible parties, relationships, and metadata (mutates DB)
+func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userInternalUUID string) (*Team, error) {
+	result, _, err := s.update(ctx, id, team, userInternalUUID, nil)
+	return result, err
+}
+
+// UpdateWithVersion updates a team guarded by a same-transaction
+// optimistic-lock CAS (#594).
+// SEM@0000000000000000000000000000000000000000: update a team guarded by a same-transaction version CAS (mutates DB)
+func (s *GormTeamStore) UpdateWithVersion(ctx context.Context, id string, team *Team, userInternalUUID string, expectedVersion int) (*Team, int, error) {
+	return s.update(ctx, id, team, userInternalUUID, &expectedVersion)
 }
 
 // Delete removes a team and all associated data

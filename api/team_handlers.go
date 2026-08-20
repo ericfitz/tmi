@@ -238,19 +238,26 @@ func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID, _ UpdateT
 		Uri:                req.Uri,
 	}
 
-	// Optimistic locking (T14 / #385).
-	var teamNewVersion int
-	if vstore, ok := GlobalTeamStore.(VersionedStore); ok {
-		v, _, lockErr := ApplyOptimisticLock(c, vstore, teamId.String(), nil)
-		if lockErr != nil {
-			HandleRequestError(c, lockErr)
-			return
-		}
-		teamNewVersion = v
+	// Optimistic locking (T14 / #385): the CAS runs inside the same
+	// transaction as the content write (#594).
+	expectedVersion, hasVersion, lockErr := ResolveOptimisticLock(c, nil)
+	if lockErr != nil {
+		HandleRequestError(c, lockErr)
+		return
 	}
 
-	result, err := GlobalTeamStore.Update(ctx, teamId.String(), &team, userUUID)
+	var result *Team
+	var teamNewVersion int
+	if vstore, ok := GlobalTeamStore.(versionedTeamUpdater); ok && hasVersion {
+		result, teamNewVersion, err = vstore.UpdateWithVersion(ctx, teamId.String(), &team, userUUID, expectedVersion)
+	} else {
+		result, err = GlobalTeamStore.Update(ctx, teamId.String(), &team, userUUID)
+	}
 	if err != nil {
+		if mapped := MapOptimisticLockError(err); mapped != nil {
+			HandleRequestError(c, mapped)
+			return
+		}
 		logger.Error("Failed to update team: %v", err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Team not found", "Failed to update team"))
 		return
@@ -339,20 +346,27 @@ func (s *Server) PatchTeam(c *gin.Context, teamId openapi_types.UUID, _ PatchTea
 	patched.Description = SanitizeOptionalString(patched.Description)
 	patched.Uri = SanitizeOptionalString(patched.Uri)
 
-	// Optimistic locking (T14 / #385).
-	var teamNewVersion int
-	if vstore, ok := GlobalTeamStore.(VersionedStore); ok {
-		v, _, lockErr := ApplyOptimisticLock(c, vstore, teamId.String(), nil)
-		if lockErr != nil {
-			HandleRequestError(c, lockErr)
-			return
-		}
-		teamNewVersion = v
+	// Optimistic locking (T14 / #385): the CAS runs inside the same
+	// transaction as the content write (#594).
+	expectedVersion, hasVersion, lockErr := ResolveOptimisticLock(c, nil)
+	if lockErr != nil {
+		HandleRequestError(c, lockErr)
+		return
 	}
 
 	// Save via Update
-	result, err := GlobalTeamStore.Update(ctx, teamId.String(), &patched, userUUID)
+	var result *Team
+	var teamNewVersion int
+	if vstore, ok := GlobalTeamStore.(versionedTeamUpdater); ok && hasVersion {
+		result, teamNewVersion, err = vstore.UpdateWithVersion(ctx, teamId.String(), &patched, userUUID, expectedVersion)
+	} else {
+		result, err = GlobalTeamStore.Update(ctx, teamId.String(), &patched, userUUID)
+	}
 	if err != nil {
+		if mapped := MapOptimisticLockError(err); mapped != nil {
+			HandleRequestError(c, mapped)
+			return
+		}
 		logger.Error("Failed to patch team: %v", err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Team not found", "Failed to patch team"))
 		return

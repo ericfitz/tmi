@@ -718,19 +718,26 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 		preState, _ = SerializeForAudit(existingDoc)
 	}
 
-	// Optimistic locking (T14 / #385).
-	var documentNewVersion int
-	if vstore, ok := h.documentStore.(VersionedStore); ok {
-		v, _, lockErr := ApplyOptimisticLock(c, vstore, documentID, nil)
-		if lockErr != nil {
-			HandleRequestError(c, lockErr)
-			return
-		}
-		documentNewVersion = v
+	// Optimistic locking (T14 / #385). The CAS runs inside the same
+	// transaction as the content write (#594).
+	expectedVersion, hasVersion, lockErr := ResolveOptimisticLock(c, nil)
+	if lockErr != nil {
+		HandleRequestError(c, lockErr)
+		return
 	}
 
 	// Update document in store
-	if err := h.documentStore.Update(c.Request.Context(), document, threatModelID); err != nil {
+	var documentNewVersion int
+	if vstore, ok := h.documentStore.(versionedDocumentUpdater); ok && hasVersion {
+		documentNewVersion, err = vstore.UpdateWithVersion(c.Request.Context(), document, threatModelID, expectedVersion)
+	} else {
+		err = h.documentStore.Update(c.Request.Context(), document, threatModelID)
+	}
+	if err != nil {
+		if mapped := MapOptimisticLockError(err); mapped != nil {
+			HandleRequestError(c, mapped)
+			return
+		}
 		logger.Error("Failed to update document %s: %v", documentID, err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Document not found", "Failed to update document"))
 		return
@@ -969,20 +976,27 @@ func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 		preState, _ = SerializeForAudit(existingDoc)
 	}
 
-	// Optimistic locking (T14 / #385).
-	var documentNewVersion int
-	if vstore, ok := h.documentStore.(VersionedStore); ok {
-		v, _, lockErr := ApplyOptimisticLock(c, vstore, documentID, nil)
-		if lockErr != nil {
-			HandleRequestError(c, lockErr)
-			return
-		}
-		documentNewVersion = v
+	// Optimistic locking (T14 / #385). The CAS runs inside the same
+	// transaction as the content write (#594).
+	expectedVersion, hasVersion, lockErr := ResolveOptimisticLock(c, nil)
+	if lockErr != nil {
+		HandleRequestError(c, lockErr)
+		return
 	}
 
 	// Apply patch operations
-	updatedDocument, err := h.documentStore.Patch(c.Request.Context(), documentID, operations)
+	var updatedDocument *Document
+	var documentNewVersion int
+	if vstore, ok := h.documentStore.(versionedDocumentPatcher); ok && hasVersion {
+		updatedDocument, documentNewVersion, err = vstore.PatchWithVersion(c.Request.Context(), documentID, operations, expectedVersion)
+	} else {
+		updatedDocument, err = h.documentStore.Patch(c.Request.Context(), documentID, operations)
+	}
 	if err != nil {
+		if mapped := MapOptimisticLockError(err); mapped != nil {
+			HandleRequestError(c, mapped)
+			return
+		}
 		// Classify rather than assuming a server fault: the store returns a
 		// 400 patch_failed for an inapplicable JSON Patch and a not-found for
 		// a missing document, and hardcoding ServerError turned both into 500

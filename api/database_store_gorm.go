@@ -962,18 +962,28 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	return item, nil
 }
 
-// Update modifies an existing threat model using GORM
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: update threat model fields, authorization, and metadata in a retryable transaction (reads DB)
-func (s *GormThreatModelStore) Update(ctx context.Context, id string, item ThreatModel) error {
+// update runs the threat model content write inside one retryable
+// transaction, CAS-guarded first when expectedVersion is non-nil (#594).
+// SEM@0000000000000000000000000000000000000000: update threat model fields, authorization, and metadata, optionally CAS-guarded, in one transaction (reads DB)
+func (s *GormThreatModelStore) update(ctx context.Context, id string, item ThreatModel, expectedVersion *int) (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	var newVersion int
 	// Update is idempotent on the same id, so it is safe to wrap in
 	// WithRetryableGormTransaction. Transient ADB errors (ORA-04068,
 	// ORA-12537, etc.) are absorbed by in-process retry instead of
 	// surfacing as user-visible 500s. Create is intentionally left
 	// unwrapped — see #329 for the UUID-generation idempotency caveat.
-	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if expectedVersion != nil {
+			v, casErr := CheckAndBumpVersion(ctx, tx, models.ThreatModel{}.TableName(), id, *expectedVersion)
+			if casErr != nil {
+				return casErr
+			}
+			newVersion = v
+		}
+
 		// Get current threat model
 		var existingTM models.ThreatModel
 		if err := tx.First(&existingTM, "id = ?", id).Error; err != nil {
@@ -1081,6 +1091,21 @@ func (s *GormThreatModelStore) Update(ctx context.Context, id string, item Threa
 
 		return nil
 	})
+	return newVersion, err
+}
+
+// Update modifies an existing threat model using GORM
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: update threat model fields, authorization, and metadata in a retryable transaction (reads DB)
+func (s *GormThreatModelStore) Update(ctx context.Context, id string, item ThreatModel) error {
+	_, err := s.update(ctx, id, item, nil)
+	return err
+}
+
+// UpdateWithVersion updates a threat model guarded by a same-transaction
+// optimistic-lock CAS (#594).
+// SEM@0000000000000000000000000000000000000000: update a threat model guarded by a same-transaction version CAS (reads DB)
+func (s *GormThreatModelStore) UpdateWithVersion(ctx context.Context, id string, item ThreatModel, expectedVersion int) (int, error) {
+	return s.update(ctx, id, item, &expectedVersion)
 }
 
 // Delete soft-deletes a threat model and all its children.
@@ -1800,16 +1825,17 @@ func (s *GormDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, str
 	return s.CreateWithThreatModel(item, uuid.Nil.String(), idSetter)
 }
 
-// Update modifies an existing diagram using GORM
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: update diagram fields and metadata in a retryable transaction (reads DB)
-func (s *GormDiagramStore) Update(ctx context.Context, id string, item DfdDiagram) error {
+// update runs the diagram content write inside one retryable transaction,
+// CAS-guarded first when expectedVersion is non-nil (#594).
+// SEM@0000000000000000000000000000000000000000: update diagram fields and metadata, optionally CAS-guarded, in one transaction (reads DB)
+func (s *GormDiagramStore) update(ctx context.Context, id string, item DfdDiagram, expectedVersion *int) (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	// Serialize cells to JSON
 	cellsJSON, err := json.Marshal(item.Cells)
 	if err != nil {
-		return fmt.Errorf("failed to marshal cells: %w", err)
+		return 0, fmt.Errorf("failed to marshal cells: %w", err)
 	}
 
 	// Handle image
@@ -1839,7 +1865,7 @@ func (s *GormDiagramStore) Update(ctx context.Context, id string, item DfdDiagra
 	if item.ColorPalette != nil && len(*item.ColorPalette) > 0 {
 		cpJSON, err := json.Marshal(item.ColorPalette)
 		if err != nil {
-			return fmt.Errorf("failed to marshal color_palette: %w", err)
+			return 0, fmt.Errorf("failed to marshal color_palette: %w", err)
 		}
 		colorPaletteJSON = models.JSONRaw(cpJSON)
 	}
@@ -1871,7 +1897,16 @@ func (s *GormDiagramStore) Update(ctx context.Context, id string, item DfdDiagra
 	// ORA-12537, etc.) are absorbed by in-process retry instead of
 	// surfacing as user-visible 500s. Create is left unwrapped for the
 	// same UUID-generation idempotency reason as ThreatModelStore.Create.
-	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	var newVersion int
+	err = authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if expectedVersion != nil {
+			v, casErr := CheckAndBumpVersion(ctx, tx, models.Diagram{}.TableName(), id, *expectedVersion)
+			if casErr != nil {
+				return casErr
+			}
+			newVersion = v
+		}
+
 		result := tx.Model(&models.Diagram{}).Where("id = ?", id).Updates(updates)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
@@ -1890,6 +1925,21 @@ func (s *GormDiagramStore) Update(ctx context.Context, id string, item DfdDiagra
 
 		return nil
 	})
+	return newVersion, err
+}
+
+// Update modifies an existing diagram using GORM
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: update diagram fields and metadata in a retryable transaction (reads DB)
+func (s *GormDiagramStore) Update(ctx context.Context, id string, item DfdDiagram) error {
+	_, err := s.update(ctx, id, item, nil)
+	return err
+}
+
+// UpdateWithVersion updates a diagram guarded by a same-transaction
+// optimistic-lock CAS (#594).
+// SEM@0000000000000000000000000000000000000000: update a diagram guarded by a same-transaction version CAS (reads DB)
+func (s *GormDiagramStore) UpdateWithVersion(ctx context.Context, id string, item DfdDiagram, expectedVersion int) (int, error) {
+	return s.update(ctx, id, item, &expectedVersion)
 }
 
 // Delete removes a diagram using GORM.

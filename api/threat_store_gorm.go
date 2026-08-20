@@ -164,9 +164,10 @@ func (s *GormThreatRepository) Get(ctx context.Context, id string) (*Threat, err
 	return threat, nil
 }
 
-// Update updates an existing threat with write-through caching using GORM
-// SEM@436c1840b3eef9687193078750dec3e22874f10e: store updated threat fields and metadata, then refresh the cache (reads DB)
-func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error {
+// update runs the threat content write inside one retryable transaction,
+// CAS-guarded first when expectedVersion is non-nil (#594).
+// SEM@0000000000000000000000000000000000000000: update threat fields and metadata, optionally CAS-guarded, in one transaction (reads DB)
+func (s *GormThreatRepository) update(ctx context.Context, threat *Threat, expectedVersion *int) (int, error) {
 	logger := slogging.Get()
 	logger.Debug("Updating threat: %s", threat.Id)
 
@@ -174,7 +175,7 @@ func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error
 	// pointer dereference (a caller bug, not a client input) surfacing as a
 	// panic/500 inside the retryable transaction (Zero-500 policy).
 	if threat.ThreatModelId == nil {
-		return ErrThreatNotFound
+		return 0, ErrThreatNotFound
 	}
 
 	// Update modified timestamp
@@ -192,7 +193,16 @@ func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error
 	// which skips Go zero-value fields. Custom types are serialized explicitly.
 	updates := s.buildThreatUpdateMap(threat, now)
 
+	var newVersion int
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if expectedVersion != nil {
+			v, casErr := CheckAndBumpVersion(ctx, tx, models.Threat{}.TableName(), threat.Id.String(), *expectedVersion)
+			if casErr != nil {
+				return casErr
+			}
+			newVersion = v
+		}
+
 		result := tx.Model(&models.Threat{}).
 			Where("id = ? AND threat_model_id = ?", threat.Id.String(), threat.ThreatModelId.String()).
 			// deleted_at IS NULL as a MAP condition, not appended to the string
@@ -218,7 +228,7 @@ func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error
 		if !errors.Is(err, ErrThreatNotFound) {
 			logger.Error("Failed to update threat in database: %v", err)
 		}
-		return err
+		return 0, err
 	}
 
 	// Save metadata to separate table
@@ -253,7 +263,21 @@ func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error
 	}
 
 	logger.Debug("Successfully updated threat: %s", threat.Id)
-	return nil
+	return newVersion, nil
+}
+
+// Update updates an existing threat with write-through caching using GORM
+// SEM@436c1840b3eef9687193078750dec3e22874f10e: store updated threat fields and metadata, then refresh the cache (reads DB)
+func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error {
+	_, err := s.update(ctx, threat, nil)
+	return err
+}
+
+// UpdateWithVersion updates a threat guarded by a same-transaction
+// optimistic-lock CAS (#594).
+// SEM@0000000000000000000000000000000000000000: update a threat guarded by a same-transaction version CAS (reads DB)
+func (s *GormThreatRepository) UpdateWithVersion(ctx context.Context, threat *Threat, expectedVersion int) (int, error) {
+	return s.update(ctx, threat, &expectedVersion)
 }
 
 // Delete soft-deletes a threat by setting deleted_at
@@ -653,13 +677,28 @@ func (s *GormThreatRepository) buildOrderBy(sort string) string {
 // cannot load and overwrite a threat belonging to a different threat model
 // SEM@436c1840b3eef9687193078750dec3e22874f10e: apply JSON Patch operations to a threat scoped to its parent threat model and persist the result (reads DB)
 func (s *GormThreatRepository) Patch(ctx context.Context, threatModelID string, id string, operations []PatchOperation) (*Threat, error) {
+	threat, _, err := s.patch(ctx, threatModelID, id, operations, nil)
+	return threat, err
+}
+
+// PatchWithVersion applies JSON patch operations to a threat guarded by a
+// same-transaction optimistic-lock CAS (#594).
+// SEM@0000000000000000000000000000000000000000: apply JSON patch operations to a threat guarded by a same-transaction version CAS (mutates shared state)
+func (s *GormThreatRepository) PatchWithVersion(ctx context.Context, threatModelID string, id string, operations []PatchOperation, expectedVersion int) (*Threat, int, error) {
+	return s.patch(ctx, threatModelID, id, operations, &expectedVersion)
+}
+
+// patch runs patch-operation application then the content write, CAS-guarded
+// first when expectedVersion is non-nil (#594).
+// SEM@0000000000000000000000000000000000000000: apply JSON patch operations to a threat, optionally CAS-guarded, and persist the result (mutates shared state)
+func (s *GormThreatRepository) patch(ctx context.Context, threatModelID string, id string, operations []PatchOperation, expectedVersion *int) (*Threat, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching threat %s with %d operations", id, len(operations))
 
 	// Get current threat
 	threat, err := s.Get(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	// Verify the threat belongs to the caller's parent threat model. A
@@ -672,7 +711,7 @@ func (s *GormThreatRepository) Patch(ctx context.Context, threatModelID string, 
 	// treated as a mismatch against the canonical lowercase value Get loaded.
 	parsedThreatModelID, err := uuid.Parse(threatModelID)
 	if err != nil || threat.ThreatModelId == nil || *threat.ThreatModelId != parsedThreatModelID {
-		return nil, ErrThreatNotFound
+		return nil, 0, ErrThreatNotFound
 	}
 
 	// Apply patch operations (reuse the same patch logic)
@@ -687,7 +726,7 @@ func (s *GormThreatRepository) Patch(ctx context.Context, threatModelID string, 
 			// passes through StoreErrorToRequestError untouched, and matches
 			// the patch_failed code ApplyPatchOperations already returns for
 			// the entities that go through it.
-			return nil, &RequestError{
+			return nil, 0, &RequestError{
 				Status:  http.StatusBadRequest,
 				Code:    "patch_failed",
 				Message: "Failed to apply patch: " + err.Error(),
@@ -696,11 +735,12 @@ func (s *GormThreatRepository) Patch(ctx context.Context, threatModelID string, 
 	}
 
 	// Update the threat
-	if err := s.Update(ctx, threat); err != nil {
-		return nil, err
+	newVersion, err := s.update(ctx, threat, expectedVersion)
+	if err != nil {
+		return nil, 0, err
 	}
 
-	return threat, nil
+	return threat, newVersion, nil
 }
 
 // applyPatchOperation applies a single patch operation to a threat

@@ -360,6 +360,25 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 
 // UpdateThreatModel fully updates a threat model
 // SEM@a37a0039279be689bb07be2113fe86024a410a4b: fully replace a threat model's mutable fields, enforcing owner-only auth changes (reads DB)
+// updateThreatModelInStore resolves the optimistic-lock expected version and
+// performs the versioned or plain content write; when a version is
+// supplied, the CAS runs in the same transaction as the write (#594).
+// lockErr is the version-resolution error (e.g. malformed If-Match, or 428
+// when required); err is the store-layer write error, still unmapped.
+// SEM@0000000000000000000000000000000000000000: resolve optimistic lock and update a threat model, returning both error classes unmapped (reads DB)
+func updateThreatModelInStore(c *gin.Context, id string, tm ThreatModel, bodyVersion *int) (newVersion int, lockErr error, err error) {
+	expectedVersion, hasVersion, lockErr := ResolveOptimisticLock(c, bodyVersion)
+	if lockErr != nil {
+		return 0, lockErr, nil
+	}
+	if vstore, ok := ThreatModelStore.(versionedThreatModelUpdater); ok && hasVersion {
+		newVersion, err = vstore.UpdateWithVersion(c.Request.Context(), id, tm, expectedVersion)
+	} else {
+		err = ThreatModelStore.Update(c.Request.Context(), id, tm)
+	}
+	return newVersion, nil, err
+}
+
 func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	// Define allowed fields for PUT requests - excludes calculated and read-only fields
 	// Per OpenAPI spec (ThreatModelInput), only 'name' is required
@@ -538,25 +557,26 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	}
 
 	// Optimistic locking (T14 / #385): If-Match header / body 'version' must
-	// match the row's current version, then we atomically bump it. On version
-	// mismatch we return 409 here, before issuing the content UPDATE.
-	var newVersion int
-	if vstore, ok := ThreatModelStore.(VersionedStore); ok {
-		v, _, lockErr := ApplyOptimisticLock(c, vstore, id, request.Version)
-		if lockErr != nil {
-			HandleRequestError(c, lockErr)
+	// match the row's current version, then we atomically bump it inside the
+	// same transaction as the content write (#594).
+	preState, _ := SerializeForAudit(tm) // Capture pre-mutation state for audit
+	newVersion, lockErr, err := updateThreatModelInStore(c, id, updatedTM, request.Version)
+	if lockErr != nil {
+		HandleRequestError(c, lockErr)
+		return
+	}
+	if err != nil {
+		if mapped := MapOptimisticLockError(err); mapped != nil {
+			HandleRequestError(c, mapped)
 			return
 		}
-		newVersion = v
-	}
-
-	// Capture pre-mutation state for audit
-	preState, _ := SerializeForAudit(tm)
-
-	// Update in store
-	if err := ThreatModelStore.Update(c.Request.Context(), id, updatedTM); err != nil {
 		slogging.Get().WithContext(c).Error("Failed to update threat model %s in store (user: %s, name: %s): %v", id, user.Email, updatedTM.Name, err)
-		HandleRequestError(c, ServerError("Failed to update threat model"))
+		// StoreErrorToRequestError (not a bare ServerError) so a transient DB
+		// fault -- e.g. an Oracle SERIALIZABLE conflict (ORA-08177) surviving
+		// retry -- maps to 503 + Retry-After instead of an undocumented 500
+		// (Zero-500 policy); this path got materially more exercised once the
+		// CAS started sharing a transaction with the content write (#594).
+		HandleRequestError(c, StoreErrorToRequestError(err, "Threat model not found", "Failed to update threat model"))
 		return
 	}
 	if newVersion > 0 {
@@ -750,20 +770,6 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		return
 	}
 
-	// Optimistic locking (T14 / #385) — see UpdateThreatModel for rationale.
-	// PATCH callers cannot pass a body 'version' field via JSON Patch ops (the
-	// schema doesn't expose it for /version path), so for now we honor the
-	// If-Match header only on the PATCH path.
-	var newVersion int
-	if vstore, ok := ThreatModelStore.(VersionedStore); ok {
-		v, _, lockErr := ApplyOptimisticLock(c, vstore, id, nil)
-		if lockErr != nil {
-			HandleRequestError(c, lockErr)
-			return
-		}
-		newVersion = v
-	}
-
 	// Capture pre-mutation state for audit
 	preState, _ := SerializeForAudit(existingTM)
 
@@ -772,8 +778,22 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	modifiedTM.ModifiedAt = &now
 
-	// Update in store
-	if err := ThreatModelStore.Update(c.Request.Context(), id, modifiedTM); err != nil {
+	// Optimistic locking (T14 / #385) — see UpdateThreatModel for rationale.
+	// PATCH callers cannot pass a body 'version' field via JSON Patch ops (the
+	// schema doesn't expose it for /version path), so for now we honor the
+	// If-Match header only on the PATCH path. The CAS runs in the same
+	// transaction as the content write (#594).
+	newVersion, lockErr, err := updateThreatModelInStore(c, id, modifiedTM, nil)
+	if lockErr != nil {
+		HandleRequestError(c, lockErr)
+		return
+	}
+	if err != nil {
+		if mapped := MapOptimisticLockError(err); mapped != nil {
+			HandleRequestError(c, mapped)
+			return
+		}
+
 		// Log the actual error for debugging
 		slogging.Get().WithContext(c).Error("Failed to update threat model %s: %v", id, err)
 
@@ -785,8 +805,11 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 			return
 		}
 
-		// Generic server error for other cases
-		HandleRequestError(c, ServerError("Failed to update threat model"))
+		// Generic error for other cases. StoreErrorToRequestError so a
+		// transient DB fault (e.g. an Oracle SERIALIZABLE conflict surviving
+		// retry) maps to 503 + Retry-After rather than an undocumented 500 --
+		// see the matching note in UpdateThreatModel.
+		HandleRequestError(c, StoreErrorToRequestError(err, "Threat model not found", "Failed to update threat model"))
 		return
 	}
 	if newVersion > 0 {

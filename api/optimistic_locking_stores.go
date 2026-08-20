@@ -1,73 +1,91 @@
-// Package api — store-side helpers for the optimistic-locking contract
-// (T14 / #385). Each Gorm-backed store for a versioned entity exposes a
-// CheckAndBumpVersion method that delegates to the central helper. Handlers
-// call this BEFORE issuing the entity-specific Update so concurrent writers
-// race on a single CAS-style UPDATE: the first to commit wins, the loser
-// gets ErrVersionMismatch.
+// Package api — store-side contracts for the optimistic-locking write path
+// (T14 / #385, same-transaction fix #594).
 //
-// Each store passes its model's TableName() to the central helper so Oracle
-// (uppercase) and PostgreSQL (lowercase) identifier folding both resolve to
-// the right table name without leaking schema knowledge here.
+// A versioned entity store implements UpdateWithVersion(ctx, ..., expected
+// int) alongside its plain Update. UpdateWithVersion opens one retryable
+// transaction and, as its first statement, calls the central
+// CheckAndBumpVersion helper on the tx handle before issuing the content
+// UPDATE — so the CAS and the write it guards commit or roll back together.
+// A concurrent writer either blocks on the CAS's row lock until the first
+// transaction commits (then sees a version mismatch), or loses the CAS
+// outright; it can never observe a stale version and interleave its content
+// write with the winner's, which was possible before #594.
+//
+// Handlers cannot call UpdateWithVersion through a common interface because
+// each entity's Update method has its own parameter and result shape, so
+// this file declares one narrow interface per entity. Handlers type-assert
+// the package-level store globals (typed as broader interfaces) against the
+// matching interface here to reach UpdateWithVersion without introducing
+// circular references.
 package api
 
 import (
 	"context"
-
-	"github.com/ericfitz/tmi/api/models"
 )
 
-// CheckAndBumpVersion atomically validates and increments the threat model
-// row's version. See optimistic_locking.go::CheckAndBumpVersion for semantics.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: atomically validate and increment the threat model row's optimistic-lock version (reads DB)
-func (s *GormThreatModelStore) CheckAndBumpVersion(ctx context.Context, id string, expected int) (int, error) {
-	return CheckAndBumpVersion(ctx, s.db, models.ThreatModel{}.TableName(), id, expected)
+// versionedThreatModelUpdater is implemented by stores that can update a
+// threat model guarded by a same-transaction optimistic-lock CAS.
+type versionedThreatModelUpdater interface {
+	UpdateWithVersion(ctx context.Context, id string, item ThreatModel, expectedVersion int) (int, error)
 }
 
-// CheckAndBumpVersion atomically validates and increments the diagram row's
-// version.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: atomically validate and increment the diagram row's optimistic-lock version (reads DB)
-func (s *GormDiagramStore) CheckAndBumpVersion(ctx context.Context, id string, expected int) (int, error) {
-	return CheckAndBumpVersion(ctx, s.db, models.Diagram{}.TableName(), id, expected)
+// versionedDiagramUpdater is implemented by stores that can update a diagram
+// guarded by a same-transaction optimistic-lock CAS.
+type versionedDiagramUpdater interface {
+	UpdateWithVersion(ctx context.Context, id string, item DfdDiagram, expectedVersion int) (int, error)
 }
 
-// CheckAndBumpVersion atomically validates and increments the asset row's
-// version.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: atomically validate and increment the asset row's optimistic-lock version (reads DB)
-func (s *GormAssetRepository) CheckAndBumpVersion(ctx context.Context, id string, expected int) (int, error) {
-	return CheckAndBumpVersion(ctx, s.db, models.Asset{}.TableName(), id, expected)
+// versionedAssetUpdater is implemented by stores that can update an asset
+// guarded by a same-transaction optimistic-lock CAS.
+type versionedAssetUpdater interface {
+	UpdateWithVersion(ctx context.Context, asset *Asset, threatModelID string, expectedVersion int) (int, error)
 }
 
-// CheckAndBumpVersion atomically validates and increments the threat row's
-// version.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: atomically validate and increment the threat row's optimistic-lock version (reads DB)
-func (s *GormThreatRepository) CheckAndBumpVersion(ctx context.Context, id string, expected int) (int, error) {
-	return CheckAndBumpVersion(ctx, s.db, models.Threat{}.TableName(), id, expected)
+// versionedAssetPatcher is implemented by stores that can apply JSON Patch
+// operations to an asset guarded by a same-transaction optimistic-lock CAS.
+type versionedAssetPatcher interface {
+	PatchWithVersion(ctx context.Context, id string, operations []PatchOperation, expectedVersion int) (*Asset, int, error)
 }
 
-// CheckAndBumpVersion atomically validates and increments the document row's
-// version.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: atomically validate and increment the document row's optimistic-lock version (reads DB)
-func (s *GormDocumentRepository) CheckAndBumpVersion(ctx context.Context, id string, expected int) (int, error) {
-	return CheckAndBumpVersion(ctx, s.db, models.Document{}.TableName(), id, expected)
+// versionedThreatUpdater is implemented by stores that can update a threat
+// guarded by a same-transaction optimistic-lock CAS.
+type versionedThreatUpdater interface {
+	UpdateWithVersion(ctx context.Context, threat *Threat, expectedVersion int) (int, error)
 }
 
-// CheckAndBumpVersion atomically validates and increments the team row's
-// version.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: atomically validate and increment the team row's optimistic-lock version (reads DB)
-func (s *GormTeamStore) CheckAndBumpVersion(ctx context.Context, id string, expected int) (int, error) {
-	return CheckAndBumpVersion(ctx, s.db, models.TeamRecord{}.TableName(), id, expected)
+// versionedThreatPatcher is implemented by stores that can apply JSON Patch
+// operations to a threat guarded by a same-transaction optimistic-lock CAS.
+type versionedThreatPatcher interface {
+	PatchWithVersion(ctx context.Context, threatModelID string, id string, operations []PatchOperation, expectedVersion int) (*Threat, int, error)
 }
 
-// CheckAndBumpVersion atomically validates and increments the project row's
-// version.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: atomically validate and increment the project row's optimistic-lock version (reads DB)
-func (s *GormProjectStore) CheckAndBumpVersion(ctx context.Context, id string, expected int) (int, error) {
-	return CheckAndBumpVersion(ctx, s.db, models.ProjectRecord{}.TableName(), id, expected)
+// versionedDocumentUpdater is implemented by stores that can update a
+// document guarded by a same-transaction optimistic-lock CAS.
+type versionedDocumentUpdater interface {
+	UpdateWithVersion(ctx context.Context, document *Document, threatModelID string, expectedVersion int) (int, error)
 }
 
-// CheckAndBumpVersion atomically validates and increments the survey response
-// row's version.
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: atomically validate and increment the survey response row's optimistic-lock version (reads DB)
-func (s *GormSurveyResponseStore) CheckAndBumpVersion(ctx context.Context, id string, expected int) (int, error) {
-	return CheckAndBumpVersion(ctx, s.db, models.SurveyResponse{}.TableName(), id, expected)
+// versionedDocumentPatcher is implemented by stores that can apply JSON
+// Patch operations to a document guarded by a same-transaction
+// optimistic-lock CAS.
+type versionedDocumentPatcher interface {
+	PatchWithVersion(ctx context.Context, id string, operations []PatchOperation, expectedVersion int) (*Document, int, error)
+}
+
+// versionedTeamUpdater is implemented by stores that can update a team
+// guarded by a same-transaction optimistic-lock CAS.
+type versionedTeamUpdater interface {
+	UpdateWithVersion(ctx context.Context, id string, team *Team, userInternalUUID string, expectedVersion int) (*Team, int, error)
+}
+
+// versionedProjectUpdater is implemented by stores that can update a project
+// guarded by a same-transaction optimistic-lock CAS.
+type versionedProjectUpdater interface {
+	UpdateWithVersion(ctx context.Context, id string, project *Project, userInternalUUID string, expectedVersion int) (*Project, int, error)
+}
+
+// versionedSurveyResponseUpdater is implemented by stores that can update a
+// survey response guarded by a same-transaction optimistic-lock CAS.
+type versionedSurveyResponseUpdater interface {
+	UpdateWithVersion(ctx context.Context, response *SurveyResponse, expectedVersion int) (int, error)
 }

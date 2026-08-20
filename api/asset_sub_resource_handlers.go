@@ -274,19 +274,26 @@ func (h *AssetSubResourceHandler) UpdateAsset(c *gin.Context) {
 
 	// Optimistic locking (T14 / #385). Body-version fallback is unavailable
 	// for sub-resources until the generated API type carries a Version field
-	// (post-OpenAPI regeneration). Header If-Match is honored today.
-	var assetNewVersion int
-	if vstore, ok := h.assetStore.(VersionedStore); ok {
-		v, _, lockErr := ApplyOptimisticLock(c, vstore, assetID, nil)
-		if lockErr != nil {
-			HandleRequestError(c, lockErr)
-			return
-		}
-		assetNewVersion = v
+	// (post-OpenAPI regeneration). Header If-Match is honored today. The CAS
+	// runs inside the same transaction as the content write (#594).
+	expectedVersion, hasVersion, lockErr := ResolveOptimisticLock(c, nil)
+	if lockErr != nil {
+		HandleRequestError(c, lockErr)
+		return
 	}
 
 	// Update asset in store
-	if err := h.assetStore.Update(c.Request.Context(), asset, threatModelID); err != nil {
+	var assetNewVersion int
+	if vstore, ok := h.assetStore.(versionedAssetUpdater); ok && hasVersion {
+		assetNewVersion, err = vstore.UpdateWithVersion(c.Request.Context(), asset, threatModelID, expectedVersion)
+	} else {
+		err = h.assetStore.Update(c.Request.Context(), asset, threatModelID)
+	}
+	if err != nil {
+		if mapped := MapOptimisticLockError(err); mapped != nil {
+			HandleRequestError(c, mapped)
+			return
+		}
 		logger.Error("Failed to update asset %s: %v", assetID, err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Asset not found", "Failed to update asset"))
 		return
@@ -525,20 +532,27 @@ func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 		preState, _ = SerializeForAudit(existingAsset)
 	}
 
-	// Optimistic locking (T14 / #385).
-	var assetNewVersion int
-	if vstore, ok := h.assetStore.(VersionedStore); ok {
-		v, _, lockErr := ApplyOptimisticLock(c, vstore, assetID, nil)
-		if lockErr != nil {
-			HandleRequestError(c, lockErr)
-			return
-		}
-		assetNewVersion = v
+	// Optimistic locking (T14 / #385). The CAS runs inside the same
+	// transaction as the content write (#594).
+	expectedVersion, hasVersion, lockErr := ResolveOptimisticLock(c, nil)
+	if lockErr != nil {
+		HandleRequestError(c, lockErr)
+		return
 	}
 
 	// Apply patch operations
-	updatedAsset, err := h.assetStore.Patch(c.Request.Context(), assetID, operations)
+	var updatedAsset *Asset
+	var assetNewVersion int
+	if vstore, ok := h.assetStore.(versionedAssetPatcher); ok && hasVersion {
+		updatedAsset, assetNewVersion, err = vstore.PatchWithVersion(c.Request.Context(), assetID, operations, expectedVersion)
+	} else {
+		updatedAsset, err = h.assetStore.Patch(c.Request.Context(), assetID, operations)
+	}
 	if err != nil {
+		if mapped := MapOptimisticLockError(err); mapped != nil {
+			HandleRequestError(c, mapped)
+			return
+		}
 		logger.Error("Failed to patch asset %s: %v", assetID, err)
 		HandleRequestError(c, StoreErrorToRequestError(err, "Asset not found", "Failed to patch asset"))
 		return
