@@ -12,10 +12,10 @@ func TestNewChatClient_OpenAI(t *testing.T) {
 	assert.NotNil(t, client)
 }
 
-func TestNewChatClient_AnthropicNotYetImplemented(t *testing.T) {
-	_, err := NewChatClient(Config{Provider: ProviderAnthropic, Model: "claude-test", APIKey: "k"})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not yet implemented")
+func TestNewChatClient_Anthropic(t *testing.T) {
+	client, err := NewChatClient(Config{Provider: ProviderAnthropic, Model: "claude-test", APIKey: "k"})
+	assert.NoError(t, err)
+	assert.NotNil(t, client)
 }
 
 func TestNewChatClient_UnknownProvider(t *testing.T) {

@@ -146,14 +146,14 @@ func NewTimmyLLMService(cfg config.TimmyConfig, validator *URIValidator) (*Timmy
 
 	// Create chat client via internal/llm. cfg.LLMProvider is guaranteed
 	// non-empty by the IsConfigured() check above; NewChatClient rejects any
-	// value other than "openai" with a clear error (only backend implemented
-	// as of #754 phase 1).
+	// value other than "openai" or "anthropic" with a clear error (#754).
 	chatClient, err := llm.NewChatClient(llm.Config{
 		Provider:   llm.Provider(cfg.LLMProvider),
 		Model:      cfg.LLMModel,
 		APIKey:     cfg.LLMAPIKey,
 		BaseURL:    cfg.LLMBaseURL,
 		HTTPClient: httpClient,
+		MaxTokens:  cfg.LLMMaxTokens,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM chat client: %w", err)

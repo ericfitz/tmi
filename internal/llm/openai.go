@@ -36,8 +36,9 @@ func openAIRequestOptions(cfg Config) []option.RequestOption {
 // completions streaming API.
 // SEM@0000000000000000000000000000000000000000: ChatClient backend for OpenAI chat completions (pure)
 type openAIChatClient struct {
-	client openai.Client
-	model  string
+	client    openai.Client
+	model     string
+	maxTokens int
 }
 
 // newOpenAIChatClient builds the OpenAI ChatClient backend.
@@ -47,8 +48,9 @@ func newOpenAIChatClient(cfg Config) (*openAIChatClient, error) {
 		return nil, fmt.Errorf("llm: openai chat client requires a model")
 	}
 	return &openAIChatClient{
-		client: openai.NewClient(openAIRequestOptions(cfg)...),
-		model:  cfg.Model,
+		client:    openai.NewClient(openAIRequestOptions(cfg)...),
+		model:     cfg.Model,
+		maxTokens: cfg.MaxTokens,
 	}, nil
 }
 
@@ -68,6 +70,13 @@ func (c *openAIChatClient) StreamChat(
 		StreamOptions: openai.ChatCompletionStreamOptionsParam{
 			IncludeUsage: openai.Bool(true),
 		},
+	}
+	// MaxTokens is optional for OpenAI's chat completions API (unlike
+	// Anthropic's, which requires it) — only set it when the caller
+	// configured one, so phase-1 request shape is unchanged for callers
+	// that don't set Config.MaxTokens (#754 phase 2).
+	if c.maxTokens > 0 {
+		params.MaxTokens = openai.Int(int64(c.maxTokens))
 	}
 
 	stream := c.client.Chat.Completions.NewStreaming(ctx, params)

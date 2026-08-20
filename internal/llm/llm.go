@@ -5,9 +5,9 @@
 // cmd/chunkembed/* all speak only Message/Role/ChatClient/Embedder.
 //
 // Phase 1 (#754) implements the OpenAI backend on github.com/openai/openai-go.
-// Phase 2 adds an Anthropic backend on the same interface; NewChatClient
-// already recognizes ProviderAnthropic and rejects it with a clear
-// not-yet-implemented error so config can be staged ahead of that work.
+// Phase 2 (#754) implements the Anthropic backend on
+// github.com/anthropics/anthropic-sdk-go, selected the same way. Anthropic
+// has no embeddings API, so NewEmbedder only ever implements OpenAI.
 package llm
 
 import (
@@ -65,11 +65,11 @@ type Embedder interface {
 }
 
 // HTTPDoer is the minimal HTTP contract accepted by provider constructors —
-// identical in shape to *http.Client and to openai-go's option.HTTPClient
-// (and to anthropic-sdk-go's, once phase 2 lands). Callers inject an
-// SSRF-safe adapter here (see api.safeHTTPDoer) so all provider traffic,
-// chat and embeddings, streamed and non-streamed, flows through the same
-// egress control. No SDK type is referenced by this interface.
+// identical in shape to *http.Client and to both openai-go's and
+// anthropic-sdk-go's option.WithHTTPClient. Callers inject an SSRF-safe
+// adapter here (see api.safeHTTPDoer) so all provider traffic, chat and
+// embeddings, streamed and non-streamed, flows through the same egress
+// control. No SDK type is referenced by this interface.
 // SEM@0000000000000000000000000000000000000000: minimal HTTP client contract accepted by provider constructors (pure)
 type HTTPDoer interface {
 	Do(req *http.Request) (*http.Response, error)
@@ -97,20 +97,25 @@ type Config struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient HTTPDoer
+	// MaxTokens is the maximum number of tokens a chat completion may
+	// generate. It is required by Anthropic's Messages API (the anthropic
+	// backend applies a default when unset, see anthropicDefaultMaxTokens);
+	// OpenAI's chat completions API treats it as optional, and the openai
+	// backend only sends it when > 0, leaving phase-1 request shape
+	// unchanged for callers that don't set it. Embedding constructors
+	// ignore this field.
+	MaxTokens int
 }
 
-// NewChatClient builds a ChatClient for cfg.Provider. Only ProviderOpenAI is
-// implemented in phase 1; ProviderAnthropic returns a clear not-yet-
-// implemented error rather than silently falling back, so operators who
-// stage anthropic in config get an actionable failure instead of talking to
-// the wrong provider. TODO(#754 phase 2): implement the Anthropic backend.
-// SEM@0000000000000000000000000000000000000000: build a ChatClient for the configured provider, rejecting unimplemented ones (pure)
+// NewChatClient builds a ChatClient for cfg.Provider: OpenAI (phase 1) or
+// Anthropic (phase 2). Any other value is rejected with a clear error.
+// SEM@0000000000000000000000000000000000000000: build a ChatClient for the configured provider, rejecting unrecognized ones (pure)
 func NewChatClient(cfg Config) (ChatClient, error) {
 	switch cfg.Provider {
 	case ProviderOpenAI:
 		return newOpenAIChatClient(cfg)
 	case ProviderAnthropic:
-		return nil, fmt.Errorf("llm: provider %q chat backend is not yet implemented (TODO #754 phase 2)", cfg.Provider)
+		return newAnthropicChatClient(cfg)
 	default:
 		return nil, fmt.Errorf("llm: unknown provider %q", cfg.Provider)
 	}

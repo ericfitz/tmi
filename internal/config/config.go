@@ -1067,6 +1067,9 @@ func (c *Config) validateTimmy() error {
 	if err := c.Timmy.ValidateLLMProvider(); err != nil {
 		return err
 	}
+	if err := c.Timmy.ValidateLLMMaxTokens(); err != nil {
+		return err
+	}
 	return nil
 }
 

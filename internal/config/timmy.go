@@ -5,11 +5,17 @@ import "fmt"
 // TimmyConfig holds configuration for the Timmy AI assistant feature
 // SEM@07385154fa2286de1a8805dbf00575c0f52ce941: configuration struct for the Timmy AI assistant feature (pure)
 type TimmyConfig struct {
-	Enabled                         bool   `yaml:"enabled" env:"TMI_TIMMY_ENABLED"`
-	LLMProvider                     string `yaml:"llm_provider" env:"TMI_TIMMY_LLM_PROVIDER"`
-	LLMModel                        string `yaml:"llm_model" env:"TMI_TIMMY_LLM_MODEL"`
-	LLMAPIKey                       string `yaml:"llm_api_key" env:"TMI_TIMMY_LLM_API_KEY"`
-	LLMBaseURL                      string `yaml:"llm_base_url" env:"TMI_TIMMY_LLM_BASE_URL"`
+	Enabled     bool   `yaml:"enabled" env:"TMI_TIMMY_ENABLED"`
+	LLMProvider string `yaml:"llm_provider" env:"TMI_TIMMY_LLM_PROVIDER"`
+	LLMModel    string `yaml:"llm_model" env:"TMI_TIMMY_LLM_MODEL"`
+	LLMAPIKey   string `yaml:"llm_api_key" env:"TMI_TIMMY_LLM_API_KEY"`
+	LLMBaseURL  string `yaml:"llm_base_url" env:"TMI_TIMMY_LLM_BASE_URL"`
+	// LLMMaxTokens is the maximum tokens a chat completion may generate.
+	// Anthropic's Messages API requires it on every request (#754 phase 2);
+	// OpenAI's does not. Zero means "use the provider backend's default"
+	// (internal/llm.anthropicDefaultMaxTokens for Anthropic; unset/provider
+	// default for OpenAI) — see DefaultTimmyConfig for the seeded value.
+	LLMMaxTokens                    int    `yaml:"llm_max_tokens" env:"TMI_TIMMY_LLM_MAX_TOKENS"`
 	TextEmbeddingProvider           string `yaml:"text_embedding_provider" env:"TMI_TIMMY_TEXT_EMBEDDING_PROVIDER"`
 	TextEmbeddingModel              string `yaml:"text_embedding_model" env:"TMI_TIMMY_TEXT_EMBEDDING_MODEL"`
 	TextEmbeddingAPIKey             string `yaml:"text_embedding_api_key" env:"TMI_TIMMY_TEXT_EMBEDDING_API_KEY"`
@@ -65,6 +71,7 @@ func DefaultTimmyConfig() TimmyConfig {
 		ChunkSize:                       512,
 		ChunkOverlap:                    50,
 		LLMTimeoutSeconds:               120,
+		LLMMaxTokens:                    4096,
 		EmbeddingCleanupIntervalMinutes: 60,
 		EmbeddingIdleDaysActive:         30,
 		EmbeddingIdleDaysClosed:         7,
@@ -91,10 +98,9 @@ func (tc TimmyConfig) IsRerankConfigured() bool {
 }
 
 // validLLMProviders enumerates the LLM providers TMI's config accepts.
-// Only "openai" has a working chat backend (internal/llm) as of #754 phase
-// 1; "anthropic" is accepted here so operators can stage config ahead of
-// TODO(#754 phase 2), but internal/llm.NewChatClient rejects it with a
-// clear not-yet-implemented error until the Anthropic backend lands.
+// Both "openai" and "anthropic" have working chat backends in internal/llm
+// as of #754. Anthropic has no embeddings API, so it is never valid for the
+// embedding-provider config keys — internal/llm.NewEmbedder rejects it.
 var validLLMProviders = map[string]bool{"openai": true, "anthropic": true}
 
 // ValidateLLMProvider reports whether LLMProvider is a recognized value. An
@@ -108,4 +114,16 @@ func (tc TimmyConfig) ValidateLLMProvider() error {
 		return nil
 	}
 	return fmt.Errorf("timmy.llm_provider %q is not a recognized provider (must be one of: openai, anthropic)", tc.LLMProvider)
+}
+
+// ValidateLLMMaxTokens reports whether LLMMaxTokens is a valid value. Zero
+// is not an error — it means "use the backend's default" (see
+// DefaultTimmyConfig and internal/llm.anthropicDefaultMaxTokens) — only a
+// negative value is rejected.
+// SEM@0000000000000000000000000000000000000000: validate that LLMMaxTokens is non-negative (pure)
+func (tc TimmyConfig) ValidateLLMMaxTokens() error {
+	if tc.LLMMaxTokens < 0 {
+		return fmt.Errorf("timmy.llm_max_tokens must be non-negative, got %d", tc.LLMMaxTokens)
+	}
+	return nil
 }

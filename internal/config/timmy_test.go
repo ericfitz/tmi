@@ -98,9 +98,8 @@ func TestTimmyConfig_DumpExtractedTextToNote_DefaultsOff(t *testing.T) {
 
 // TestTimmyConfig_ValidateLLMProvider covers the provider whitelist added by
 // #754: empty is not an error (that's IsConfigured's concern), "openai" and
-// "anthropic" are both recognized (only "openai" has a working backend —
-// internal/llm.NewChatClient enforces that separately), and anything else
-// is rejected.
+// "anthropic" are both recognized (both have working chat backends as of
+// #754 phase 2 — internal/llm.NewChatClient), and anything else is rejected.
 func TestTimmyConfig_ValidateLLMProvider(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -109,7 +108,7 @@ func TestTimmyConfig_ValidateLLMProvider(t *testing.T) {
 	}{
 		{name: "empty_is_not_configured_not_invalid", provider: "", wantErr: false},
 		{name: "openai_recognized", provider: "openai", wantErr: false},
-		{name: "anthropic_recognized_but_not_yet_implemented_elsewhere", provider: "anthropic", wantErr: false},
+		{name: "anthropic_recognized", provider: "anthropic", wantErr: false},
 		{name: "unrecognized_provider_rejected", provider: "made-up", wantErr: true},
 	}
 	for _, tt := range tests {
@@ -137,6 +136,54 @@ func TestValidateTimmy_LLMProvider(t *testing.T) {
 
 	c.Timmy.LLMProvider = "openai"
 	assert.NoError(t, c.validateTimmy())
+}
+
+// TestTimmyConfig_ValidateLLMMaxTokens covers the #754 phase 2 max-tokens
+// guard: zero means "use the backend default" and is not an error, positive
+// values are fine, negative values are rejected.
+func TestTimmyConfig_ValidateLLMMaxTokens(t *testing.T) {
+	tests := []struct {
+		name      string
+		maxTokens int
+		wantErr   bool
+	}{
+		{name: "zero_means_use_backend_default", maxTokens: 0, wantErr: false},
+		{name: "positive_accepted", maxTokens: 8192, wantErr: false},
+		{name: "negative_rejected", maxTokens: -1, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := TimmyConfig{LLMMaxTokens: tt.maxTokens}
+			err := cfg.ValidateLLMMaxTokens()
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "llm_max_tokens")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateTimmy_LLMMaxTokens covers the same guard reached through
+// Config.validateTimmy().
+func TestValidateTimmy_LLMMaxTokens(t *testing.T) {
+	c := &Config{Timmy: TimmyConfig{LLMProvider: "openai", LLMMaxTokens: -5}}
+	err := c.validateTimmy()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "llm_max_tokens")
+
+	c.Timmy.LLMMaxTokens = 4096
+	assert.NoError(t, c.validateTimmy())
+}
+
+// TestTimmyConfig_Defaults_LLMMaxTokens pins the seeded default so operators
+// who never set timmy.llm_max_tokens still get a working Anthropic request
+// (internal/llm.newAnthropicChatClient applies its own equal fallback too,
+// so this default is a belt-and-suspenders match, not the only guard).
+func TestTimmyConfig_Defaults_LLMMaxTokens(t *testing.T) {
+	cfg := DefaultTimmyConfig()
+	assert.Equal(t, 4096, cfg.LLMMaxTokens)
 }
 
 // TestValidateTimmy_DumpExtractedTextToNote covers the production refusal
