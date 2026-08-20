@@ -352,8 +352,13 @@ func dedupeMemberGroupPairs(tx *gorm.DB, groupMembersTable, survivor string) err
 // time: repoint if the key is free, drop the now-redundant membership
 // otherwise. Rows with a NULL user_internal_uuid (subject_type = "group")
 // never collide — SQL unique indexes never treat two NULLs as equal — so
-// they are always repointed unconditionally.
-// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: repoint group_members rows from losing groups to the survivor, dropping colliding rows (writes DB)
+// they are always repointed unconditionally onto the survivor's owning side.
+// That unconditional repoint has its own collision case: two duplicate
+// groups (or a loser and the survivor) can each have already listed the same
+// child subgroup as a member, which leaves the survivor listing that child
+// twice once both owning-side rows land on it. dedupeOwnedSubgroupRows
+// collapses those at the end, mirroring dedupeMemberGroupPairs above (#715).
+// SEM@0000000000000000000000000000000000000000: repoint group_members rows from losing groups to the survivor, dropping colliding rows (writes DB)
 func repointGroupMembers(tx *gorm.DB, survivor string, losers []string) error {
 	groupMembersTable := (&models.GroupMember{}).TableName()
 	if !tx.Migrator().HasTable(groupMembersTable) {
@@ -421,6 +426,71 @@ func repointGroupMembers(tx *gorm.DB, survivor string, losers []string) error {
 			return fmt.Errorf("failed to repoint group_members row %s: %w", row.ID, err)
 		}
 		existing[key] = true
+	}
+
+	return dedupeOwnedSubgroupRows(tx, groupMembersTable, survivor)
+}
+
+// ownedSubgroupDupKey is a raw scan target for the duplicate
+// member_group_internal_uuid key query under one owning survivor group.
+// SEM@0000000000000000000000000000000000000000: hold a duplicate owned-subgroup membership key and its row count (pure)
+type ownedSubgroupDupKey struct {
+	MemberGroupInternalUUID string
+	Cnt                     int64
+}
+
+// dedupeOwnedSubgroupRows collapses group_members rows that became duplicate
+// (group_internal_uuid = survivor, member_group_internal_uuid) pairs after
+// the unconditional owning-side repoint in repointGroupMembers — the
+// owning-side mirror of dedupeMemberGroupPairs. Two duplicate groups can each
+// have already listed the same child subgroup M as a member (one row each,
+// subject_type = "group"); once both owning-side rows land on the survivor,
+// it lists M twice. idx_gm_group_user_type doesn't catch this
+// (user_internal_uuid is NULL on both rows, and NULLs never collide), so it's
+// collapsed explicitly, keeping the earliest row (by added_at) per member and
+// deleting the rest (#715). member_group_internal_uuid is nullable (unlike
+// dedupeMemberGroupPairs's grouping column), so the query excludes NULL
+// explicitly rather than relying on it dropping out incidentally: an empty
+// string IS NULL on Oracle but not on PostgreSQL (oracle-db-admin review), so
+// a NULL bucket left in would collapse inconsistently across dialects
+// instead of just being skipped on both.
+// SEM@0000000000000000000000000000000000000000: collapse duplicate owned-subgroup membership rows left by an owning-side repoint (writes DB)
+func dedupeOwnedSubgroupRows(tx *gorm.DB, groupMembersTable, survivor string) error {
+	var dups []ownedSubgroupDupKey
+	if err := tx.Table(groupMembersTable).
+		Select("member_group_internal_uuid, COUNT(*) AS cnt").
+		Where("group_internal_uuid = ? AND subject_type = ? AND member_group_internal_uuid IS NOT NULL", survivor, "group").
+		Group("member_group_internal_uuid").
+		Having("COUNT(*) > 1").
+		Scan(&dups).Error; err != nil {
+		return fmt.Errorf("failed to find redundant owned-subgroup membership rows for %s: %w", survivor, err)
+	}
+
+	for _, dup := range dups {
+		var keepID string
+		if err := tx.Table(groupMembersTable).
+			Select("id").
+			Where("group_internal_uuid = ? AND member_group_internal_uuid = ? AND subject_type = ?",
+				survivor, dup.MemberGroupInternalUUID, "group").
+			Order("added_at ASC").
+			Limit(1).
+			Scan(&keepID).Error; err != nil {
+			return fmt.Errorf("failed to find earliest owned-subgroup membership row for member %s: %w", dup.MemberGroupInternalUUID, err)
+		}
+		if keepID == "" {
+			// Defensive: the IS NOT NULL guard above should make this
+			// unreachable, but an empty keepID must never reach the delete
+			// below unguarded — "id <> ''" is UNKNOWN (deletes nothing) on
+			// Oracle but true for every row (deletes everything in the
+			// group) on PostgreSQL (oracle-db-admin review).
+			continue
+		}
+		if err := tx.Table(groupMembersTable).
+			Where("group_internal_uuid = ? AND member_group_internal_uuid = ? AND subject_type = ? AND id <> ?",
+				survivor, dup.MemberGroupInternalUUID, "group", keepID).
+			Delete(nil).Error; err != nil {
+			return fmt.Errorf("failed to drop redundant owned-subgroup membership rows for member %s: %w", dup.MemberGroupInternalUUID, err)
+		}
 	}
 	return nil
 }
