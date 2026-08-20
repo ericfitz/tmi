@@ -174,6 +174,10 @@ func TestRedactor_BuildTimeGate_DenyListCoversSensitiveNames(t *testing.T) {
 		// "refresh_token_days" is an integer count of days, not a token.
 		"system_settings.auth.jwt.refresh_token_days": "integer duration — not a token value",
 
+		// "llm_max_tokens" is an integer token-count ceiling for chat
+		// completions (#754 phase 2), not a token/credential value.
+		"system_settings.timmy.llm_max_tokens": "integer token-count limit — not a token value",
+
 		// "redact_auth_tokens" is a boolean flag, not a token.
 		"system_settings.logging.redact_auth_tokens": "boolean flag — not a token value",
 
