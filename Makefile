@@ -271,7 +271,7 @@ clean-everything:
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev tilt-up tilt-down test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-up dev-down dev-restart dev-reset dev-nuke dev-status dev-logs dev-deploy dev-cluster-up dev-cluster-down
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev tilt-up tilt-down test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-up dev-down dev-restart dev-reset dev-nuke dev-status dev-logs dev-deploy dev-cluster-up dev-cluster-down dev-config-snapshot dev-config-restore dev-config-status
 
 # Dev-environment Python helpers unit tests
 test-dev-scripts:  ## Run unit tests for the dev-environment Python helpers
@@ -411,6 +411,18 @@ dev-logs:  ## Stream the tmi-server pod logs
 dev-deploy:  ## (Re)apply manifests + rollout without recreating cluster/db
 	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) deploy
+
+dev-config-snapshot:  ## Save the dev DB's operational settings to .local/dev-config-$(CLUSTER).yaml
+	@$(REQUIRE_CLUSTER)
+	@uv run scripts/dev-config.py snapshot --cluster $(CLUSTER)
+
+dev-config-restore:  ## Restore that snapshot into the dev DB (missing keys only; OVERWRITE=1 to force)
+	@$(REQUIRE_CLUSTER)
+	@uv run scripts/dev-config.py restore --cluster $(CLUSTER) $(if $(OVERWRITE),--overwrite,)
+
+dev-config-status:  ## Show whether the dev config snapshot and the OAuth env file exist
+	@$(REQUIRE_CLUSTER)
+	@uv run scripts/dev-config.py status --cluster $(CLUSTER)
 
 dev-cluster-up:  ## Switch to the cluster kube context (docker-desktop or k3s)
 	@$(REQUIRE_CLUSTER)

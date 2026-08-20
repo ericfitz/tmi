@@ -34,7 +34,11 @@ import (
 func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, dryRun, emitLegacyMigratedYAML bool) error {
 	log := slogging.Get()
 
-	cfg, err := config.Load(inputFile)
+	// LoadSettingsSource, not Load: inputFile is a settings source, not a server
+	// config. It may be a legacy config file that still carries bootstrap keys,
+	// or a --export-config snapshot that by construction carries none — and the
+	// latter cannot satisfy Load()'s bootstrap validation (#791).
+	cfg, err := config.LoadSettingsSource(inputFile)
 	if err != nil {
 		return fmt.Errorf("failed to load config %s: %w", inputFile, err)
 	}

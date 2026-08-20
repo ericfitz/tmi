@@ -919,6 +919,82 @@ def start(*, db: str, cluster_target: str = "docker-desktop",
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-component-controller"])
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
     wait_and_forward(db, cluster_target)
+    restore_dev_config(cluster_target)
+
+
+def dev_config_snapshot_path(cluster_target: str) -> Path:
+    """Location of the operational-settings snapshot for a dev cluster.
+
+    Kept in lockstep with scripts/dev-config.py snapshot_path(); duplicated
+    rather than imported because that script imports THIS module, and a mutual
+    import would be a cycle.
+    """
+    return get_project_root() / ".local" / f"dev-config-{cluster_target}.yaml"
+
+
+def snapshot_dev_config(cluster_target: str) -> None:
+    """Best-effort snapshot of the dev database's operational settings.
+
+    Called before every teardown, because the settings in system_settings —
+    OAuth providers, callback URLs, feature flags, everything configured
+    through the admin API — exist nowhere else, and dev-nuke deletes the
+    Postgres PVC along with the namespace (#791). A teardown that destroys the
+    only copy is the whole bug; taking the copy automatically is the fix, since
+    "remember to run the snapshot before you nuke" is exactly the discipline
+    that failed.
+
+    Deliberately best-effort: a teardown must still tear down when the database
+    is already gone, unreachable, or was never up. A failure here is a warning,
+    never a hard exit — but it does say plainly that no snapshot was taken, so
+    the loss is visible at the moment it happens rather than on the next start.
+    """
+    if db_flavor_is_external(cluster_target):
+        return
+    log_info("Snapshotting dev database settings before teardown...")
+    try:
+        run_cmd(
+            ["uv", "run", "scripts/dev-config.py", "snapshot", "--cluster", cluster_target],
+            cwd=str(get_project_root()),
+        )
+    except Exception as exc:  # noqa: BLE001 - teardown must proceed regardless
+        log_warn(
+            f"Could not snapshot dev settings ({exc}). Tearing down anyway — any "
+            "settings that existed only in the database will be lost."
+        )
+
+
+def restore_dev_config(cluster_target: str) -> None:
+    """Restore the snapshot into a freshly started dev database, if one exists.
+
+    Safe to run unconditionally: `tmi-dbtool --import-config` without
+    --overwrite writes only keys the database is MISSING, so this repopulates a
+    nuked database without reverting edits made since the snapshot was taken.
+    """
+    snap = dev_config_snapshot_path(cluster_target)
+    if not snap.is_file():
+        log_info(
+            "No dev settings snapshot to restore "
+            f"({snap.relative_to(get_project_root())}); skipping"
+        )
+        return
+    log_info("Restoring dev database settings from snapshot...")
+    try:
+        run_cmd(
+            ["uv", "run", "scripts/dev-config.py", "restore", "--cluster", cluster_target],
+            cwd=str(get_project_root()),
+        )
+        kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
+        kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", "--timeout=300s"])
+    except Exception as exc:  # noqa: BLE001 - a failed restore must not fail the deploy
+        log_warn(f"Could not restore dev settings ({exc}); the stack is up regardless.")
+
+
+def db_flavor_is_external(cluster_target: str) -> bool:
+    """True when the dev database is not the in-cluster Postgres we can reach on
+    the standard port-forward (currently only the k3s/docker-desktop Postgres
+    is). Oracle dev points at a managed ADB, which this snapshot path does not
+    cover."""
+    return cluster_target not in ("k3s", "docker-desktop")
 
 
 def restart(*, db: str, cluster_target: str = "docker-desktop",
@@ -948,7 +1024,7 @@ def restart(*, db: str, cluster_target: str = "docker-desktop",
     log_success(f"Server restarted; {SERVER_URL}")
 
 
-def teardown(*, db: str = "postgres") -> None:
+def teardown(*, db: str = "postgres", cluster_target: str = "docker-desktop") -> None:
     """Tear down everything that start() deployed.
 
     Removes (tolerating absence for all):
@@ -967,7 +1043,12 @@ def teardown(*, db: str = "postgres") -> None:
     the exact failure this secret exists to prevent (#791). start() re-creates it
     from .local/oauth-providers.env anyway, so leaving it in place merely keeps
     the environment working between a down and the next up.
+
+    The database survives this teardown, but snapshot it anyway: dev-reset calls
+    teardown() then start(), and a snapshot taken here is what start()'s restore
+    reads back if anything goes wrong in between.
     """
+    snapshot_dev_config(cluster_target)   # before stop_port_forward: the export needs it
     stop_port_forward()
 
     # TMIComponent CRs (worker component definitions)
@@ -1020,10 +1101,17 @@ def teardown(*, db: str = "postgres") -> None:
     log_success("Dev environment torn down (cluster left intact)")
 
 
-def teardown_namespace() -> None:
+def teardown_namespace(cluster_target: str = "docker-desktop") -> None:
     """Hard reset for a cluster we don't own (k3s, docker-desktop): delete the entire
     tmi-platform namespace (all workloads, the in-cluster registry, and the Postgres
-    PVC/data). Never touches the cluster itself."""
+    PVC/data). Never touches the cluster itself.
+
+    This is the destructive path that made configuration disappear (#791): the
+    PVC goes with the namespace, so every operational setting that lived only in
+    system_settings is gone, and the next start() re-seeds bare registry
+    defaults. Snapshot first so start()'s restore can put them back.
+    """
+    snapshot_dev_config(cluster_target)   # before stop_port_forward: the export needs it
     stop_port_forward()
     kubectl(["delete", "namespace", NS, "--ignore-not-found", "--wait=true"])
     log_success(f"Namespace {NS} deleted (hard reset)")
