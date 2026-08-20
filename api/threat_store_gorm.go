@@ -195,6 +195,16 @@ func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Model(&models.Threat{}).
 			Where("id = ? AND threat_model_id = ?", threat.Id.String(), threat.ThreatModelId.String()).
+			// deleted_at IS NULL as a MAP condition, not appended to the string
+			// predicate: gorm-oracle's checkMissingWhereConditions classifies any
+			// clause.Expr containing both "deleted_at" and "null" as a
+			// soft-delete-only condition on UPDATE builds (#392); folding it into
+			// the single string Expr would classify the WHOLE predicate that way
+			// and fail the update loudly with gorm.ErrMissingWhereClause. A map
+			// condition builds clause.Eq, which that heuristic does not touch.
+			// These models use *time.Time for DeletedAt, not gorm.DeletedAt, so
+			// nothing scopes out tombstoned rows implicitly (#669).
+			Where(map[string]any{ColumnName(tx.Name(), "deleted_at"): nil}).
 			Updates(updates)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
@@ -581,12 +591,12 @@ func buildSemanticOrderExpr(column string, orderMap map[string]int, dialectName 
 	return b.String()
 }
 
-// SEM@78155d54: build the dialect-aware unique tiebreaker suffix for list ordering (pure)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: build the dialect-aware unique tiebreaker suffix for list ordering (pure)
 func (s *GormThreatRepository) orderTiebreaker() string {
 	return ", " + ColumnName(GetDialectName(s.db), "id") + " ASC"
 }
 
-// SEM@78155d54: build the default created_at DESC ordering with unique tiebreaker (pure)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: build the default created_at DESC ordering with unique tiebreaker (pure)
 func (s *GormThreatRepository) defaultOrder() string {
 	d := GetDialectName(s.db)
 	return ColumnName(d, "created_at") + " DESC" + s.orderTiebreaker()
@@ -940,6 +950,8 @@ func (s *GormThreatRepository) BulkUpdate(ctx context.Context, threats []Threat)
 			updates := s.buildThreatUpdateMap(threat, now)
 			result := tx.Model(&models.Threat{}).
 				Where("id = ? AND threat_model_id = ?", threat.Id.String(), threat.ThreatModelId.String()).
+				// Map condition (clause.Eq) for the same Oracle #392 reason as Update (#669).
+				Where(map[string]any{ColumnName(tx.Name(), "deleted_at"): nil}).
 				Updates(updates)
 			if result.Error != nil {
 				return dberrors.Classify(result.Error)

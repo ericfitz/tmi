@@ -205,6 +205,16 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 	logger := slogging.Get()
 	logger.Debug("Updating repository: %s", repository.Id)
 
+	// REPOSITORIES.URI is NOT NULL, and the SkipHooks session below disables
+	// the BeforeSave hook that guards it on create. Oracle binds '' as NULL,
+	// so an empty URI that PostgreSQL would store raises ORA-01407 — an
+	// unclassified 500 (#714). Reject as client input so both engines answer
+	// 400. Backstop for callers that bypass the handler/schema checks
+	// (validateURI skips "").
+	if err := validation.ValidateURI("uri", repository.Uri); err != nil {
+		return &RequestError{Status: http.StatusBadRequest, Code: "invalid_input", Message: err.Error()}
+	}
+
 	// Convert type to string pointer
 	var repoType *string
 	if repository.Type != nil {
@@ -283,6 +293,12 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Session(&gorm.Session{SkipHooks: true}).Model(&models.Repository{}).
 			Where("id = ? AND threat_model_id = ?", repository.Id.String(), threatModelID).
+			// Map condition (clause.Eq) rather than extending the string Expr:
+			// gorm-oracle's #392 UPDATE heuristic would classify a combined
+			// "deleted_at ... null" Expr as soft-delete-only and fail with
+			// gorm.ErrMissingWhereClause. DeletedAt is *time.Time, so nothing
+			// scopes tombstones out implicitly (#669).
+			Where(map[string]any{ColumnName(tx.Name(), "deleted_at"): nil}).
 			Updates(AssignmentMap(tx.Name(), updates))
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
@@ -723,7 +739,11 @@ func (s *GormRepositoryRepository) saveMetadata(ctx context.Context, repositoryI
 // updateMetadata updates metadata for a repository
 // SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: delete and re-save metadata records for a repository (reads DB)
 func (s *GormRepositoryRepository) updateMetadata(ctx context.Context, repositoryID string, metadata []Metadata) error {
-	return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "repository", repositoryID, metadata)
+	// One transaction so a failed insert rolls back the delete instead of
+	// committing a bare metadata wipe (#670).
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		return deleteAndSaveEntityMetadata(tx, "repository", repositoryID, metadata)
+	})
 }
 
 // applyPatchOperation applies a single patch operation to a repository

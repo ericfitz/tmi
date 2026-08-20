@@ -170,7 +170,7 @@ func (s *GormAssetRepository) Get(ctx context.Context, id string) (*Asset, error
 }
 
 // Update updates an existing asset with write-through caching using GORM
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: update all asset fields in the DB and refresh the cache entry (mutates shared state)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: update all asset fields in the DB and refresh the cache entry (mutates shared state)
 func (s *GormAssetRepository) Update(ctx context.Context, asset *Asset, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Updating asset: %s", asset.Id)
@@ -216,7 +216,17 @@ func (s *GormAssetRepository) Update(ctx context.Context, asset *Asset, threatMo
 	}
 
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Model(&models.Asset{}).Where("id = ? AND threat_model_id = ?", asset.Id.String(), threatModelID).Updates(updates)
+		// deleted_at IS NULL as a MAP condition: gorm-oracle's UPDATE-build
+		// heuristic classifies any clause.Expr containing both "deleted_at"
+		// and "null" as soft-delete-only (#392) — folded into the string
+		// predicate it would fail loudly with gorm.ErrMissingWhereClause. A
+		// map condition builds clause.Eq, which the heuristic ignores.
+		// Asset.DeletedAt is *time.Time, not gorm.DeletedAt, so nothing
+		// scopes out tombstoned rows implicitly (#669).
+		result := tx.Model(&models.Asset{}).
+			Where("id = ? AND threat_model_id = ?", asset.Id.String(), threatModelID).
+			Where(map[string]any{ColumnName(tx.Name(), "deleted_at"): nil}).
+			Updates(updates)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -722,10 +732,17 @@ func (s *GormAssetRepository) loadMetadata(ctx context.Context, assetID string) 
 // saveMetadata saves metadata for an asset using GORM (delete-first pattern)
 // SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: replace all metadata for an asset using a delete-then-insert pattern (mutates shared state)
 func (s *GormAssetRepository) saveMetadata(ctx context.Context, assetID string, metadata *[]Metadata) error {
-	if metadata == nil {
-		return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "asset", assetID, nil)
-	}
-	return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "asset", assetID, *metadata)
+	// One transaction for the delete-then-insert: on the root *gorm.DB each
+	// half autocommitted, so an insert failure (e.g. a value past Oracle's
+	// VARCHAR2 BYTE limit that PostgreSQL's char-counted limit admits)
+	// committed the bare delete and silently wiped the entity's metadata
+	// (#670).
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		if metadata == nil {
+			return deleteAndSaveEntityMetadata(tx, "asset", assetID, nil)
+		}
+		return deleteAndSaveEntityMetadata(tx, "asset", assetID, *metadata)
+	})
 }
 
 // Helper functions for model conversion

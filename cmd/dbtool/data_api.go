@@ -255,7 +255,7 @@ func (c *apiClient) findExistingByNameHTTP(path, itemsKey, name string) string {
 // rather than going through findExistingByFieldHTTP (which also owns the query
 // string and so cannot carry an extra filter).
 // SEM@none: fetch the ID of an existing webhook delivery for a subscription, returning empty if absent
-// SEM@f8ffe6c945c910d2994d6001a33010cd2e51a325: fetch an existing webhook delivery ID for a subscription, empty if none (reads API)
+// SEM@e8d9e23927681c41551b5fb90464e5bd976c1c50: fetch the id of an existing delivery for a webhook subscription, empty if none (reads API)
 func (c *apiClient) findExistingWebhookDelivery(subscriptionID string) string {
 	path := fmt.Sprintf("/admin/webhooks/deliveries?subscription_id=%s&limit=100",
 		neturl.QueryEscape(subscriptionID))
@@ -457,21 +457,33 @@ func (c *apiClient) transferOwnerViaDB(tmID string, patch map[string]any) error 
 		provider = defaultProvider
 	}
 
-	// Look up the new owner's internal UUID
+	// Look up the new owner's internal UUID. Built with the GORM builder
+	// rather than raw SQL so the dialector emits dialect-correct limiting
+	// (`LIMIT 1` on PostgreSQL, `FETCH FIRST 1 ROWS ONLY` on Oracle) and the
+	// model's TableName() resolves the dialect-aware table name (#744 —
+	// the previous raw `LIMIT 1` raised ORA-00933 on Oracle ADB).
 	var ownerUUID string
-	err := c.db.DB().Raw(
-		"SELECT internal_uuid FROM users WHERE provider_user_id = ? AND provider = ? LIMIT 1",
-		providerID, provider,
-	).Scan(&ownerUUID).Error
+	err := c.db.DB().Model(&models.User{}).
+		Select("internal_uuid").
+		Where("provider_user_id = ? AND provider = ?", providerID, provider).
+		Limit(1).
+		Scan(&ownerUUID).Error
 	if err != nil || ownerUUID == "" {
 		return fmt.Errorf("could not find user %s@%s in database: %w", providerID, provider, err)
 	}
 
-	// Update the threat model's owner
-	result := c.db.DB().Exec(
-		"UPDATE threat_models SET owner_internal_uuid = ?, modified_at = NOW() WHERE id = ?",
-		ownerUUID, tmID,
-	)
+	// Update the threat model's owner. Map-based Updates through the model so
+	// the autoUpdateTime tag maintains modified_at portably (#744 — the
+	// previous raw `NOW()` raised ORA-00904 on Oracle). ThreatModel DOES have
+	// a BeforeUpdate hook (api/models/hooks.go), but it is empty-value
+	// tolerant — every check short-circuits on the zero-value struct this
+	// map-based update runs it against — so the #610 empty-struct-hook trap
+	// does not fire and hooks can stay enabled, which is what lets the
+	// autoUpdateTime injector run. If that hook ever gains a non-empty
+	// requirement, this call needs SkipHooks plus an explicit modified_at.
+	result := c.db.DB().Model(&models.ThreatModel{}).
+		Where("id = ?", tmID).
+		Updates(map[string]any{"owner_internal_uuid": ownerUUID})
 	if result.Error != nil {
 		return fmt.Errorf("failed to update owner: %w", result.Error)
 	}
@@ -862,7 +874,7 @@ func (c *apiClient) pinSeededWebhook(id string) {
 // the API the rest of seeding uses — hence the direct write. Uses GORM's model
 // mapping rather than raw SQL so the column identifier is cased per dialect;
 // Oracle folds unquoted identifiers to uppercase.
-// SEM@869f9bc78ec9e1c5d66cf3ac70991b70d07f20e1: mark a seeded webhook subscription operator-pinned so cleanup cannot delete it (writes DB)
+// SEM@e8d9e23927681c41551b5fb90464e5bd976c1c50: mark a seeded webhook subscription operator-pinned so cleanup cannot delete it (writes DB)
 func (c *apiClient) pinWebhookViaDB(id string) error {
 	return c.setWebhookPinnedViaDB(id, true)
 }
@@ -877,7 +889,7 @@ func (c *apiClient) pinWebhookViaDB(id string) error {
 // surface; without a retry a single blip would leave the CATS anchor unpinned
 // and mortal. Writing a fixed boolean is idempotent, so a replay is harmless.
 // SEM@none: set or clear the operator-pinned flag on a webhook subscription, retrying transient errors (writes DB)
-// SEM@f8ffe6c945c910d2994d6001a33010cd2e51a325: update the operator-pinned flag on a webhook subscription, retrying transient errors (writes DB)
+// SEM@e8d9e23927681c41551b5fb90464e5bd976c1c50: update the operator-pinned flag on a webhook subscription, retrying transient errors (writes DB)
 func (c *apiClient) setWebhookPinnedViaDB(id string, pinned bool) error {
 	if c.db == nil {
 		return fmt.Errorf("no database connection available")
@@ -906,7 +918,7 @@ func (c *apiClient) setWebhookPinnedViaDB(id string, pinned bool) error {
 // Retries transient errors so a momentary ADB blip does not read as "not
 // pinned" and skip the unpin the caller needs.
 // SEM@none: report whether a webhook subscription is operator-pinned (reads DB)
-// SEM@f8ffe6c945c910d2994d6001a33010cd2e51a325: fetch the operator-pinned flag of a webhook subscription (reads DB)
+// SEM@e8d9e23927681c41551b5fb90464e5bd976c1c50: fetch the operator-pinned flag of a webhook subscription (reads DB)
 func (c *apiClient) webhookIsPinnedViaDB(id string) (bool, error) {
 	if c.db == nil {
 		return false, fmt.Errorf("no database connection available")
@@ -930,7 +942,7 @@ func (c *apiClient) webhookIsPinnedViaDB(id string) (bool, error) {
 // mid-campaign and invalidate the whole run (#708/#709) with nothing but a log
 // line to show for it. The caller turns a failure here into a failed seed.
 // SEM@none: restore and verify the operator-pinned flag on a webhook subscription (writes DB)
-// SEM@f8ffe6c945c910d2994d6001a33010cd2e51a325: update a webhook subscription back to operator-pinned and validate it stuck (writes DB)
+// SEM@e8d9e23927681c41551b5fb90464e5bd976c1c50: update a webhook subscription back to operator-pinned and validate it stuck (writes DB)
 func (c *apiClient) restoreWebhookPin(id string) error {
 	if err := c.setWebhookPinnedViaDB(id, true); err != nil {
 		return fmt.Errorf("failed to restore operator_pinned on webhook %s: %w", id, err)
@@ -947,7 +959,7 @@ func (c *apiClient) restoreWebhookPin(id string) error {
 	return nil
 }
 
-// SEM@d20333ee0473596adebb006001c6c6addb6c4dc9: trigger a test delivery for a webhook subscription and return the delivery ID
+// SEM@e8d9e23927681c41551b5fb90464e5bd976c1c50: trigger a test delivery for a webhook subscription and return the delivery ID
 func (c *apiClient) seedWebhookTestDelivery(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -985,7 +997,7 @@ func (c *apiClient) seedWebhookTestDelivery(entry SeedEntry, refs RefMap) (*Seed
 // request long and occurs before any campaign starts, so the cleanup worker has
 // no realistic opportunity to act on it.
 // SEM@none: trigger a webhook test delivery, unpinning and repinning the subscription if needed (writes DB)
-// SEM@f8ffe6c945c910d2994d6001a33010cd2e51a325: dispatch a webhook test delivery, unpinning the subscription if required (writes DB)
+// SEM@e8d9e23927681c41551b5fb90464e5bd976c1c50: dispatch a webhook test delivery, unpinning the subscription if required (writes DB)
 func (c *apiClient) triggerWebhookTestDelivery(webhookID string) (deliveryID string, err error) {
 	log := slogging.Get()
 

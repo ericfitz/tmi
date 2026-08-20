@@ -114,3 +114,62 @@ func requireMigrationTable(db *gorm.DB, table, step string) (bool, error) {
 	logger.Warn("%s: skipped -- table %s does not exist yet (#736)", step, table)
 	return false, nil
 }
+
+// normalizeIndexDDL lowercases an index definition or expression and strips
+// identifier quoting and whitespace, so definitions rendered by different
+// catalogs (pg_get_indexdef, sqlite_master.sql, ALL_IND_EXPRESSIONS) compare
+// structurally rather than textually (#756).
+// SEM@e733aa34cec28d44982ce9dd8937cf17ef810590: normalize an index definition string for cross-dialect structural comparison (pure)
+func normalizeIndexDDL(s string) string {
+	s = strings.ToLower(s)
+	for _, junk := range []string{`"`, "`", "'", " ", "\t", "\r", "\n"} {
+		s = strings.ReplaceAll(s, junk, "")
+	}
+	// Oracle stores a re-print of the parse tree in ALL_IND_EXPRESSIONS, not
+	// the DDL text as typed; the one plausible re-print variant for our CASE
+	// expressions is an explicit trailing ELSE NULL (semantically identical).
+	// Normalize it away so the exact-match comparison tolerates it
+	// (oracle-db-admin review of #756).
+	//
+	// Ground truth verified against live ADB 23ai on 2026-08-19:
+	// TestUserProviderLookupUniqueOracleIntegration and
+	// TestSparseUserEmailIndexOracleIntegration both pass with the
+	// exact-match comparisons in the probes — Oracle's stored re-print of
+	// CASE WHEN "PROVIDER_USER_ID" IS [NOT] NULL THEN "PROVIDER"/"EMAIL" END
+	// normalizes to the recorded strings for both a pre-existing and a
+	// freshly created index.
+	s = strings.ReplaceAll(s, "elsenullend", "end")
+	return s
+}
+
+// oracleIndexColumns returns the indexed column names of an index in
+// COLUMN_POSITION order, scoped to the session's CURRENT_SCHEMA. Expression
+// (function-based) key parts appear as system-generated virtual columns
+// (SYS_NC...$); their expressions come from oracleIndexExpressions (#756).
+// SEM@e733aa34cec28d44982ce9dd8937cf17ef810590: fetch an Oracle index's column names in position order (reads DB)
+func oracleIndexColumns(db *gorm.DB, indexName, tableName string) ([]string, error) {
+	var cols []string
+	err := db.Raw(
+		"SELECT COLUMN_NAME FROM ALL_IND_COLUMNS WHERE INDEX_NAME = ? AND TABLE_NAME = ? "+
+			"AND INDEX_OWNER = "+oracleCurrentSchema+" AND TABLE_OWNER = "+oracleCurrentSchema+" "+
+			"ORDER BY COLUMN_POSITION",
+		strings.ToUpper(indexName), strings.ToUpper(tableName),
+	).Scan(&cols).Error
+	return cols, err
+}
+
+// oracleIndexExpressions returns the COLUMN_EXPRESSION texts of an index's
+// function-based key parts in COLUMN_POSITION order, scoped to the session's
+// CURRENT_SCHEMA. COLUMN_EXPRESSION is a LONG column; godror fetches LONG
+// values as strings, so a plain SELECT works (#756).
+// SEM@e733aa34cec28d44982ce9dd8937cf17ef810590: fetch an Oracle function-based index's key expressions in position order (reads DB)
+func oracleIndexExpressions(db *gorm.DB, indexName, tableName string) ([]string, error) {
+	var exprs []string
+	err := db.Raw(
+		"SELECT COLUMN_EXPRESSION FROM ALL_IND_EXPRESSIONS WHERE INDEX_NAME = ? AND TABLE_NAME = ? "+
+			"AND INDEX_OWNER = "+oracleCurrentSchema+" AND TABLE_OWNER = "+oracleCurrentSchema+" "+
+			"ORDER BY COLUMN_POSITION",
+		strings.ToUpper(indexName), strings.ToUpper(tableName),
+	).Scan(&exprs).Error
+	return exprs, err
+}

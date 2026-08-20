@@ -190,13 +190,25 @@ func (s *GormDocumentRepository) Get(ctx context.Context, id string) (*Document,
 }
 
 // Update updates an existing document
-// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: update a document's fields, set modified_at explicitly, and refresh cache (mutates shared state)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: update a document's fields, set modified_at explicitly, and refresh cache (mutates shared state)
 func (s *GormDocumentRepository) Update(ctx context.Context, document *Document, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	logger := slogging.Get()
 	logger.Debug("Updating document: %s", document.Id)
+
+	// DOCUMENTS.NAME and DOCUMENTS.URI are NOT NULL, and the SkipHooks session
+	// below disables any hook fallback. Oracle binds '' as NULL, so an empty
+	// value that PostgreSQL would store raises ORA-01407 — an unclassified 500
+	// (#714). Reject as client input so both engines answer 400. Backstop for
+	// callers that bypass the handler/schema checks (validateURI skips "").
+	if err := validation.ValidateNonEmpty("name", document.Name); err != nil {
+		return &RequestError{Status: http.StatusBadRequest, Code: "invalid_input", Message: err.Error()}
+	}
+	if err := validation.ValidateURI("uri", document.Uri); err != nil {
+		return &RequestError{Status: http.StatusBadRequest, Code: "invalid_input", Message: err.Error()}
+	}
 
 	// modified_at explicitly: the SkipHooks session below suppresses GORM's
 	// autoUpdateTime tag, so without this the column stays at created_at for
@@ -245,6 +257,12 @@ func (s *GormDocumentRepository) Update(ctx context.Context, document *Document,
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Session(&gorm.Session{SkipHooks: true}).Model(&models.Document{}).
 			Where("id = ? AND threat_model_id = ?", document.Id.String(), threatModelID).
+			// Map condition (clause.Eq) rather than extending the string Expr:
+			// gorm-oracle's #392 UPDATE heuristic would classify a combined
+			// "deleted_at ... null" Expr as soft-delete-only and fail with
+			// gorm.ErrMissingWhereClause. DeletedAt is *time.Time, so nothing
+			// scopes tombstones out implicitly (#669).
+			Where(map[string]any{ColumnName(tx.Name(), "deleted_at"): nil}).
 			Updates(AssignmentMap(tx.Name(), updates))
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
@@ -623,7 +641,7 @@ func (s *GormDocumentRepository) WarmCache(ctx context.Context, threatModelID st
 }
 
 // UpdateAccessStatus sets the access tracking fields on a document.
-// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: update access_status and content_source on a document and invalidate its cache entry (mutates shared state)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: update access_status and content_source on a document and invalidate its cache entry (mutates shared state)
 func (s *GormDocumentRepository) UpdateAccessStatus(ctx context.Context, id string, accessStatus string, contentSource string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -661,7 +679,7 @@ func (s *GormDocumentRepository) UpdateAccessStatus(ctx context.Context, id stri
 // the Document.BeforeSave hook, which validates Name/URI on the empty struct and
 // would produce false "cannot be empty" errors for map-based updates — same
 // pattern as UpdateAccessStatus.
-// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: update access status and diagnostic reason fields on a document and invalidate its cache entry (mutates shared state)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: update access status and diagnostic reason fields on a document and invalidate its cache entry (mutates shared state)
 func (s *GormDocumentRepository) UpdateAccessStatusWithDiagnostics(
 	ctx context.Context,
 	id string,
@@ -819,7 +837,7 @@ func (s *GormDocumentRepository) GetPickerDispatch(
 // failure-handling contract.
 //
 // See DocumentStore.SetPickerMetadata.
-// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: persist picker provider/file/mime fields on a document and reset access status to unknown (mutates shared state)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: persist picker provider/file/mime fields on a document and reset access status to unknown (mutates shared state)
 func (s *GormDocumentRepository) SetPickerMetadata(
 	ctx context.Context, id string, providerID, fileID, mimeType string,
 ) error {
@@ -954,7 +972,11 @@ func (s *GormDocumentRepository) saveMetadata(ctx context.Context, documentID st
 // updateMetadata updates metadata for a document
 // SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: replace metadata key-value pairs for a document by delete-then-insert (reads DB)
 func (s *GormDocumentRepository) updateMetadata(ctx context.Context, documentID string, metadata []Metadata) error {
-	return deleteAndSaveEntityMetadata(s.db.WithContext(ctx), "document", documentID, metadata)
+	// One transaction so a failed insert rolls back the delete instead of
+	// committing a bare metadata wipe (#670).
+	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		return deleteAndSaveEntityMetadata(tx, "document", documentID, metadata)
+	})
 }
 
 // applyPatchOperation applies a single patch operation to a document

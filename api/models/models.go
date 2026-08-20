@@ -29,7 +29,7 @@ func tableName(name string) string {
 // User represents an authenticated user in the system
 // Note: Column names are intentionally not specified to allow GORM's NamingStrategy
 // to handle database-specific casing (lowercase for PostgreSQL, UPPERCASE for Oracle)
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for an authenticated user with OAuth identity and token fields
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: GORM model for a user account with OAuth tokens and login metadata
 type User struct {
 	InternalUUID   DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	Provider       DBVarchar         `gorm:"size:100;not null;index:idx_users_provider;uniqueIndex:idx_users_provider_lookup,priority:1"`
@@ -132,7 +132,7 @@ func (c *ClientCredential) BeforeCreate(tx *gorm.DB) error {
 // ThreatModel represents a threat model in the system
 // Note: Explicit column tags removed for Oracle compatibility (Oracle stores column names as UPPERCASE,
 // and the Oracle GORM driver doesn't handle case-insensitive matching with explicit column tags)
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for a threat model with ownership, status, versioning, and sub-resource relationships
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: GORM model for a threat model with ownership, status, versioning, and sub-resource relationships
 type ThreatModel struct {
 	ID                           DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	OwnerInternalUUID            DBVarchar         `gorm:"size:36;not null;index:idx_tm_owner;index:idx_tm_owner_created,priority:1"`
@@ -190,7 +190,7 @@ func (t *ThreatModel) BeforeCreate(tx *gorm.DB) error {
 
 // Diagram represents a diagram within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for a diagram within a threat model, storing cells, SVG, and version state
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: GORM model for a diagram within a threat model, storing cells, SVG, and version state
 type Diagram struct {
 	ID                DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID     DBVarchar         `gorm:"size:36;not null;index:idx_diagrams_tm;index:idx_diagrams_tm_type,priority:1;uniqueIndex:uniq_diagrams_tm_alias,priority:1"`
@@ -234,7 +234,7 @@ func (d *Diagram) BeforeCreate(tx *gorm.DB) error {
 
 // Asset represents an asset within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for an asset within a threat model with type, criticality, and classification
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: GORM model for an asset within a threat model with type, criticality, and classification
 type Asset struct {
 	ID              DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_assets_tm;index:idx_assets_tm_created,priority:1;index:idx_assets_tm_modified,priority:1;uniqueIndex:uniq_assets_tm_alias,priority:1"`
@@ -282,7 +282,7 @@ func (a *Asset) BeforeCreate(tx *gorm.DB) error {
 
 // Threat represents a threat within a threat model
 // Note: Explicit column tags removed for Oracle compatibility
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for a threat entry with severity, CVSS, SSVC, mitigation, and status fields
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: GORM model for a threat entry with severity, CVSS, SSVC, mitigation, and status fields
 type Threat struct {
 	ID              DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_threats_tm;index:idx_threats_tm_created,priority:1;index:idx_threats_tm_modified,priority:1;uniqueIndex:uniq_threats_tm_alias,priority:1"`
@@ -310,9 +310,17 @@ type Threat struct {
 	Alias           int32             `gorm:"not null;default:0;<-:create;uniqueIndex:uniq_threats_tm_alias,priority:2"` // Server-assigned per-(threat_model_id, type) alias
 	// Note: autoCreateTime/autoUpdateTime tags removed for Oracle compatibility.
 	// Timestamps are set explicitly in the store layer (toGormModelForCreate).
-	CreatedAt  time.Time  `gorm:"not null;index:idx_threats_tm_created,priority:2"`
-	ModifiedAt time.Time  `gorm:"not null;index:idx_threats_modified;index:idx_threats_tm_modified,priority:2"`
-	DeletedAt  *time.Time `gorm:"index:idx_threats_deleted_at"`
+	CreatedAt  time.Time `gorm:"not null;index:idx_threats_tm_created,priority:2"`
+	ModifiedAt time.Time `gorm:"not null;index:idx_threats_modified;index:idx_threats_tm_modified,priority:2"`
+	// DeletedAt is deliberately *time.Time, NOT gorm.DeletedAt (true for every
+	// tombstoned model in this file): GORM applies no automatic soft-delete
+	// scoping, so EVERY query on these models must spell out its deleted_at
+	// intent explicitly. On SELECTs use a plain `deleted_at IS NULL` string
+	// predicate; on UPDATE/DELETE builds use a map condition
+	// (Where(map[string]any{"deleted_at": nil})) because gorm-oracle discards
+	// any clause.Expr containing both "deleted_at" and "null" there (#392).
+	// See #669 for the audit that established this.
+	DeletedAt *time.Time `gorm:"index:idx_threats_deleted_at"`
 	// Version is incremented on every successful update (T14 / #385).
 	Version int `gorm:"not null;default:1"`
 
@@ -407,7 +415,7 @@ func (t *ThreatModelAccess) BeforeCreate(tx *gorm.DB) error {
 
 // Document represents a document attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for a document attached to a threat model, with picker and access diagnostics
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: DB model for a document attached to a threat model, with picker and access diagnostics
 type Document struct {
 	ID              DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_docs_tm;index:idx_docs_tm_created,priority:1;index:idx_docs_tm_modified,priority:1;uniqueIndex:uniq_documents_tm_alias,priority:1"`
@@ -457,7 +465,7 @@ func (d *Document) BeforeCreate(tx *gorm.DB) error {
 
 // Note represents a note attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for a text note attached to a threat model
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: DB model for a text note attached to a threat model
 type Note struct {
 	ID              DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID   DBVarchar      `gorm:"size:36;not null;index:idx_notes_tm;index:idx_notes_tm_created,priority:1;index:idx_notes_tm_modified,priority:1;uniqueIndex:uniq_notes_tm_alias,priority:1"`
@@ -503,7 +511,7 @@ func (n *Note) BeforeCreate(tx *gorm.DB) error {
 
 // Repository represents a repository attached to a threat model
 // Note: Explicit column tags removed for Oracle compatibility
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for a source-code repository attached to a threat model
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: DB model for a code repository reference attached to a threat model
 type Repository struct {
 	ID              DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID   DBVarchar         `gorm:"size:36;not null;index:idx_repos_tm;index:idx_repos_tm_created,priority:1;index:idx_repos_tm_modified,priority:1;uniqueIndex:uniq_repositories_tm_alias,priority:1"`
@@ -867,7 +875,7 @@ func (u *UserPreference) BeforeCreate(tx *gorm.DB) error {
 // UsabilityFeedback represents user feedback about UI usability.
 // Issued via POST /usability_feedback by any authenticated user.
 // Listed via GET /usability_feedback (admin only).
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for user-submitted UI usability feedback with client context
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: DB model for a user's usability sentiment feedback on a client surface
 type UsabilityFeedback struct {
 	ID            DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	Sentiment     DBVarchar         `gorm:"size:8;not null;index:idx_usability_feedback_sentiment"`
@@ -919,7 +927,7 @@ func (u *UsabilityFeedback) BeforeCreate(tx *gorm.DB) error {
 // ContentFeedback represents user feedback on AI/automation-generated artifacts
 // (notes, diagrams, threats, threat-classification fields) within a threat model.
 // Issued via POST /threat_models/{id}/feedback by reader+ on the parent TM.
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for user feedback on AI-generated threat-model content artifacts
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: DB model for user feedback on AI-generated threat-model content artifacts
 type ContentFeedback struct {
 	ID                     DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	ThreatModelID          DBVarchar         `gorm:"size:36;not null;index:idx_content_feedback_target,priority:1"`
@@ -973,7 +981,7 @@ func (c *ContentFeedback) BeforeCreate(tx *gorm.DB) error {
 // scope. ThreatModel global counter uses parent_id="__global__"; sub-object
 // counters use the parent threat-model UUID. Allocation is done via
 // SELECT ... FOR UPDATE inside the calling repository's transaction.
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for the next sequential alias value scoped to a parent and object type
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: DB model for the next sequential alias value scoped to a parent and object type
 type AliasCounter struct {
 	ParentID   DBVarchar `gorm:"primaryKey;not null;size:36"`
 	ObjectType DBVarchar `gorm:"primaryKey;not null;size:16"`

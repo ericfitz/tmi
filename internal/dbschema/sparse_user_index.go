@@ -284,23 +284,67 @@ func sparseUserEmailIndexExists(db *gorm.DB, usersTable string) (bool, error) {
 				"AND (FUNCIDX_STATUS IS NULL OR FUNCIDX_STATUS = 'ENABLED')",
 			strings.ToUpper(sparseUserIndexName), strings.ToUpper(usersTable),
 		).Scan(&cnt).Error
+		if err == nil && cnt > 0 {
+			// Match the key expressions, not just the name and properties: a
+			// foreign or legacy UNIQUE index carrying this name over a
+			// different key would otherwise read as ours while enforcing
+			// nothing we rely on (#756). The index is function-based, so its
+			// key lives in ALL_IND_EXPRESSIONS: position 1
+			// CASE WHEN provider_user_id IS NULL THEN provider END, position 2
+			// the same CASE over email — compared structurally via
+			// normalizeIndexDDL.
+			exprs, exprErr := oracleIndexExpressions(db, sparseUserIndexName, usersTable)
+			if exprErr != nil {
+				return false, exprErr
+			}
+			if len(exprs) != 2 ||
+				normalizeIndexDDL(exprs[0]) != "casewhenprovider_user_idisnullthenproviderend" ||
+				normalizeIndexDDL(exprs[1]) != "casewhenprovider_user_idisnullthenemailend" {
+				// Log the observed key before reporting "absent": the caller
+				// reacts with a full-table duplicate scan and a CREATE that
+				// will ORA-00955, so the WHY must be visible (#756).
+				slogging.Get().Warn(
+					"%s exists but its key expressions %v do not match the intended sparse (provider, email) definition; treating as absent (#756)",
+					sparseUserIndexName, exprs)
+				cnt = 0
+			}
+		}
 	case "postgres":
 		// pg_indexes spans every schema visible to the connecting role;
 		// schema-qualify so a same-named index on a users table in another
 		// schema can't produce a false positive (see #724 round 2).
+		// The definition is fetched and matched structurally, not just counted
+		// by name and uniqueness: the column list and the partial-index
+		// predicate are what make this index the #720 constraint (#756).
+		var defs []string
 		err = db.Raw(
-			"SELECT COUNT(*) FROM pg_indexes WHERE indexname = ? AND tablename = ? "+
-				"AND schemaname = current_schema() AND indexdef LIKE 'CREATE UNIQUE INDEX%'",
+			"SELECT indexdef FROM pg_indexes WHERE indexname = ? AND tablename = ? AND schemaname = current_schema()",
 			sparseUserIndexName, usersTable,
-		).Scan(&cnt).Error
+		).Scan(&defs).Error
+		if err == nil && len(defs) > 0 {
+			def := normalizeIndexDDL(defs[0])
+			if strings.HasPrefix(def, "createuniqueindex") &&
+				strings.Contains(def, "(provider,email)") &&
+				strings.Contains(def, "where(provider_user_idisnull)") {
+				cnt = 1
+			}
+		}
 	case "sqlite":
 		// Test-fixture dialect only -- TMI's supported production dialects
 		// are postgres and oracle.
+		var defs []string
 		err = db.Raw(
-			"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ? AND tbl_name = ? "+
-				"AND sql LIKE 'CREATE UNIQUE INDEX%'",
+			"SELECT COALESCE(sql, '') FROM sqlite_master WHERE type = 'index' AND name = ? AND tbl_name = ?",
 			sparseUserIndexName, usersTable,
-		).Scan(&cnt).Error
+		).Scan(&defs).Error
+		if err == nil && len(defs) > 0 {
+			def := normalizeIndexDDL(defs[0])
+			if strings.HasPrefix(def, "createuniqueindex") &&
+				strings.Contains(def, "(provider,email)") &&
+				strings.Contains(def, "whereprovider_user_idisnull") {
+				cnt = 1
+			}
+		}
 	default:
 		// Unsupported dialect: fail closed (assume absent) so behavior falls
 		// back to running the duplicate check and DDL rather than silently
