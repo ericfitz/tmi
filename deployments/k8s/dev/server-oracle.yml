@@ -44,6 +44,13 @@ spec:
           args: ["--config=/etc/tmi/config.yml"]
           ports:
             - containerPort: 8080
+          envFrom:
+            # Same provider/callback config as the postgres dev server — see the
+            # long note in server.yml. Kept in lockstep so switching DB=oracle
+            # does not silently drop every OAuth provider (#791).
+            - secretRef:
+                name: tmi-oauth-providers
+                optional: true
           env:
             - { name: TMI_SERVER_INTERFACE, value: "0.0.0.0" }
             - { name: TMI_SERVER_PORT, value: "8080" }

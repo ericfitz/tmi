@@ -48,6 +48,26 @@ spec:
           args: ["--config=/etc/tmi/config.yml"]
           ports:
             - containerPort: 8080
+          envFrom:
+            # Real OAuth/SAML provider config for a dev cluster (Google, GitHub,
+            # Microsoft, Entra SAML), plus the callback/base URLs and admin
+            # identity that must match the cluster's own hostname. Mirrors the
+            # AWS overlay, which carries the same keys in the same Secret.
+            #
+            # Since the #415 config split, these are operational settings: the
+            # mounted config.yml is bootstrap-only and CANNOT carry them, and the
+            # database copy is destroyed by `make dev-nuke` (which deletes the
+            # namespace, and with it the Postgres PVC). Delivering them as env
+            # vars from a Secret that deploy.py recreates from the gitignored
+            # .local/oauth-providers.env on every dev-up/dev-restart makes the
+            # config self-healing: a nuke no longer silently leaves the server
+            # advertising nothing but the built-in "tmi" provider (#791).
+            #
+            # optional: a developer with no .local/oauth-providers.env still gets
+            # a working stack, just with the "tmi" provider alone.
+            - secretRef:
+                name: tmi-oauth-providers
+                optional: true
           env:
             - { name: TMI_SERVER_INTERFACE, value: "0.0.0.0" }
             - { name: TMI_SERVER_PORT, value: "8080" }

@@ -128,6 +128,44 @@ class TestRenderConfigmapYaml(unittest.TestCase):
         self.assertIn("port: 8080", out)
 
 
+class TestInvalidEnvFileKeys(unittest.TestCase):
+    """Guard the .local/oauth-providers.env validator (issue #791).
+
+    kubectl --from-env-file wants bare KEY=VALUE lines. The likely mistake is
+    reaching for the ~/.keys/ convention (`export KEY='value'`), which would
+    otherwise be accepted here and produce a Secret with an unusable key name.
+    The validator must also never surface a value — these are client secrets.
+    """
+
+    def _check(self, text):
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".env", delete=False) as fh:
+            fh.write(text)
+        return deploy._invalid_env_file_keys(Path(fh.name))
+
+    def test_accepts_bare_assignments_blanks_and_comments(self):
+        self.assertEqual(self._check(
+            "# a comment\n\nOAUTH_PROVIDERS_GOOGLE_ENABLED=true\n"
+            "OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET=s3cr3t\n"
+        ), [])
+
+    def test_accepts_a_value_containing_equals_signs(self):
+        self.assertEqual(self._check("KEY=abc=def==\n"), [])
+
+    def test_rejects_the_shell_export_form(self):
+        bad = self._check("export OAUTH_PROVIDERS_GOOGLE_CLIENT_ID=abc\n")
+        self.assertEqual(len(bad), 1)
+        self.assertIn("line 1", bad[0])
+
+    def test_rejects_a_line_with_no_assignment(self):
+        bad = self._check("OAUTH_PROVIDERS_GOOGLE_ENABLED\n")
+        self.assertEqual(bad, ["line 1 (no '=')"])
+
+    def test_reports_the_offending_line_without_leaking_the_value(self):
+        bad = self._check("export SECRET_KEY=hunter2-do-not-leak\n")
+        self.assertNotIn("hunter2-do-not-leak", " ".join(bad))
+
+
 class TestNodePortExposure(unittest.TestCase):
     """Guard the dev-server host-exposure topology (issue #463).
 

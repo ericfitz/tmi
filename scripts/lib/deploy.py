@@ -20,7 +20,7 @@ import cluster
 import portfwd
 from tmi_common import (
     check_tool, container_exists, container_is_running, get_project_root,
-    log_error, log_info, log_success, run_cmd, wait_for_port,
+    log_error, log_info, log_success, log_warn, run_cmd, wait_for_port,
 )
 
 # ---------------------------------------------------------------------------
@@ -32,6 +32,13 @@ DEV_DIR = "deployments/k8s/dev"
 PLATFORM_DIR = "deployments/k8s/platform"
 CONFIG_FILE = "config-development.yml"
 CONFIGMAP_NAME = "tmi-server-config"
+# Gitignored, machine-local OAuth/SAML provider config for a dev cluster, in
+# kubectl --from-env-file format. Delivered as Secret/tmi-oauth-providers and
+# consumed by server.yml via envFrom. Lives under .local/ per the repo's
+# machine-local config convention. See create_oauth_providers_secret().
+OAUTH_PROVIDERS_ENV_FILE = ".local/oauth-providers.env"
+OAUTH_PROVIDERS_EXAMPLE_FILE = f"{DEV_DIR}/oauth-providers.env.example"
+ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # The server is reached on the host at localhost:HOST_PORT via a kubectl
 # port-forward (start_server_port_forward). Neither docker-desktop nor k3s
@@ -382,6 +389,75 @@ def create_embedding_secret() -> None:
         capture=True,
     ).stdout
     kubectl(["apply", "-f", "-"], input_text=rendered)
+
+
+def create_oauth_providers_secret() -> None:
+    """Create/refresh Secret/tmi-oauth-providers from .local/oauth-providers.env.
+
+    This is the dev-cluster counterpart to the AWS overlay's Secret of the same
+    name: it carries the real OAuth/SAML provider config plus the callback and
+    base URLs, which server.yml pulls in wholesale via `envFrom`.
+
+    Why a file-backed Secret rather than the config file or the database: since
+    the #415 three-category split, providers are *operational* settings, so the
+    mounted config.yml (bootstrap-only) cannot carry them, and the only other
+    home is the database — which `make dev-nuke` destroys along with the
+    namespace and the Postgres PVC. Re-creating the Secret from a gitignored
+    local file on every start()/restart() makes the config self-healing: after a
+    nuke the providers come back instead of leaving the server advertising only
+    the built-in "tmi" provider (#791).
+
+    Absent file is not an error — a developer who has never set up real IdPs
+    gets the "tmi"-only stack that dev has always had, and server.yml marks the
+    secretRef optional so the pod still starts.
+
+    Secret safety: `--from-env-file` makes kubectl read the values off disk, so
+    they never reach argv, the environment, or any log. Nothing in this function
+    prints a value; validation errors name only the offending key or line.
+    """
+    path = get_project_root() / OAUTH_PROVIDERS_ENV_FILE
+    if not path.is_file():
+        log_warn(
+            f"{OAUTH_PROVIDERS_ENV_FILE} not found — deploying without real OAuth "
+            "providers (only the built-in \"tmi\" provider will be advertised). "
+            f"To set them up: cp {OAUTH_PROVIDERS_EXAMPLE_FILE} "
+            f"{OAUTH_PROVIDERS_ENV_FILE} and fill it in."
+        )
+        return
+
+    bad = _invalid_env_file_keys(path)
+    if bad:
+        log_error(
+            f"{OAUTH_PROVIDERS_ENV_FILE} is not a valid env file. kubectl "
+            "--from-env-file needs bare KEY=VALUE lines (no `export`, no quotes "
+            f"around the whole assignment). Offending line(s): {', '.join(bad)}"
+        )
+        sys.exit(1)
+
+    rendered = run_cmd(
+        ["kubectl", "create", "secret", "generic", "tmi-oauth-providers", "-n", NS,
+         "--from-env-file", str(path), "--dry-run=client", "-o", "yaml"],
+        capture=True,
+    ).stdout
+    kubectl(["apply", "-f", "-"], input_text=rendered)
+    log_success("OAuth/SAML provider config delivered as Secret/tmi-oauth-providers")
+
+
+def _invalid_env_file_keys(path: Path) -> list[str]:
+    """Return a description of each line of `path` that kubectl --from-env-file
+    would reject, identified by line number and key only — never by value."""
+    bad: list[str] = []
+    for lineno, raw in enumerate(path.read_text().splitlines(), start=1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" not in line:
+            bad.append(f"line {lineno} (no '=')")
+            continue
+        key = line.split("=", 1)[0]
+        if not ENV_KEY_RE.match(key):
+            bad.append(f"line {lineno} (key {key!r})")
+    return bad
 
 
 def create_oracle_wallet_secret() -> None:
@@ -828,6 +904,7 @@ def start(*, db: str, cluster_target: str = "docker-desktop",
         apply_incluster_postgres(cluster_target)  # in-cluster DB up before the server (AutoMigrate)
     deliver_config(cluster_target)
     create_embedding_secret()
+    create_oauth_providers_secret()
     if db == "oracle":
         create_oracle_wallet_secret()
         create_oracle_db_secret()
@@ -854,6 +931,10 @@ def restart(*, db: str, cluster_target: str = "docker-desktop",
     # docker-desktop: no registry — build_and_push imports the images directly.
     build_and_push(db, cluster_target)
     deliver_config(cluster_target)
+    # Re-delivered on every restart for the same reason config.yml is: the local
+    # file is the source of truth, so editing it and running dev-restart applies
+    # the change (#791).
+    create_oauth_providers_secret()
     if db == "oracle":
         create_oracle_wallet_secret()
         create_oracle_db_secret()
@@ -880,6 +961,12 @@ def teardown(*, db: str = "postgres") -> None:
     - Secret tmi-embedding
     - Secret tmi-oracle-wallet (defensive; no-op if never created)
     - Secret tmi-oracle-db (defensive; no-op if never created)
+
+    Deliberately NOT removed: Secret/tmi-oauth-providers. Deleting it would make
+    every dev-down/dev-reset drop the cluster's OAuth provider config, which is
+    the exact failure this secret exists to prevent (#791). start() re-creates it
+    from .local/oauth-providers.env anyway, so leaving it in place merely keeps
+    the environment working between a down and the next up.
     """
     stop_port_forward()
 
