@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
-	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -178,29 +177,19 @@ func TestMetadataBulkWriteOracleIntegration(t *testing.T) {
 		assert.False(t, hasStale2, "prior key stale2 must be gone after BulkReplace")
 
 		// Repeat the identical call so a second, warm duration is also on
-		// record. A back-to-back same-entity replace can exhaust the retry
-		// wrapper with ORA-08177 even with NO concurrent writer: the metadata
-		// blocks (and the hot right-edge leaf blocks of its timestamp-leading
-		// indexes) carry Oracle's default INITRANS 1, so the second
-		// SERIALIZABLE transaction recycles the first one's ITL slot and the
-		// rows become unprovable — a false serialization failure, ranked
-		// pre-existing (per-transaction/per-block, not per-statement) by the
-		// oracle-db-admin review of #666. The durable fixes (INITRANS bump +
-		// MOVE/REBUILD, index-set slimming, or a per-site isolation opt-down)
-		// are tracked as follow-ups to #666. Until one lands, the documented
-		// client-visible outcome of that failure is the retry-exhausted
-		// transient classification (mapped to 503 + Retry-After), so this
-		// test pins EXACTLY success-or-that: any other error is a regression.
+		// record — and as the #783 regression pin: under the #451 SERIALIZABLE
+		// default this back-to-back same-entity replace exhausted the retry
+		// wrapper with a FALSE ORA-08177 (INITRANS-1 ITL slot recycling on the
+		// blocks the first call just wrote; time-independent, so retries
+		// couldn't help). BulkReplace now opts down to READ COMMITTED (see the
+		// comment in metadata_repository.go BulkReplace, approved on #783),
+		// which makes that failure impossible, so this asserts plain success.
 		start = time.Now()
-		if repErr := repo.BulkReplace(ctx, entityType, entityID, entries); repErr != nil {
-			require.ErrorIs(t, dberrors.Classify(repErr), dberrors.ErrTransient,
-				"warm back-to-back BulkReplace may only fail with the retry-exhausted transient classification (503 shape); anything else is a regression")
-			t.Logf("warm BulkReplace hit the known ORA-08177/ITL false-serialization failure (documented 503 shape): %v", repErr)
-		} else {
-			t.Logf("BulkReplace of %d entries against Oracle ADB took %s (repeat)", n, time.Since(start))
-			list, err = repo.List(ctx, entityType, entityID)
-			require.NoError(t, err)
-			assert.Len(t, list, n, "all 100 entries must still be present after the repeat replace")
-		}
+		require.NoError(t, repo.BulkReplace(ctx, entityType, entityID, entries),
+			"warm back-to-back BulkReplace must succeed deterministically at READ COMMITTED (#783)")
+		t.Logf("BulkReplace of %d entries against Oracle ADB took %s (repeat)", n, time.Since(start))
+		list, err = repo.List(ctx, entityType, entityID)
+		require.NoError(t, err)
+		assert.Len(t, list, n, "all 100 entries must still be present after the repeat replace")
 	})
 }
