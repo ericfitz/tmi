@@ -128,7 +128,7 @@ func writeExportedConfig(rows []exportRow, outputPath string) error {
 // Secret settings are decrypted when an encryptor is available and
 // decryptSecrets is true; otherwise they are skipped with a warning (an
 // encrypted blob is useless across databases with different keys).
-// SEM@7e3bc19f8950c8b27a14cef539ae7dff89e30a7a: export system_settings rows to a nested YAML config file, optionally decrypting secrets (reads DB, writes file)
+// SEM@0000000000000000000000000000000000000000: export system_settings rows to YAML, skipping secret/empty values (reads DB, writes file)
 func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecrets bool) error {
 	log := slogging.Get()
 
@@ -164,6 +164,7 @@ func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecre
 
 	var rows []exportRow
 	var skippedSecrets int
+	var skippedEmpty int
 	for _, s := range settings {
 		key := string(s.SettingKey)
 		value := string(s.Value)
@@ -188,12 +189,24 @@ func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecre
 			}
 			value = plain
 		}
+		// Skip empty values, mirroring the import-side skip in runConfigSeed
+		// (cmd/dbtool/config.go): on Oracle ADB an empty string bound to a
+		// CLOB column is NULL, which violates the NOT NULL constraint on
+		// system_settings.value (ORA-01400). Exporting an empty value would
+		// just produce a file --import-config silently discards on Postgres
+		// and hard-fails on Oracle, so skip it here too and keep both seed
+		// paths in lockstep (#549).
+		if value == "" {
+			skippedEmpty++
+			log.Warn("Skipping empty setting %s (not portable; import skips empty values — Oracle stores '' as NULL, ORA-01400)", key)
+			continue
+		}
 		rows = append(rows, exportRow{Key: key, Value: value, Type: string(s.SettingType)})
 	}
 
 	if err := writeExportedConfig(rows, outputFile); err != nil {
 		return fmt.Errorf("failed to write export: %w", err)
 	}
-	log.Info("Exported %d settings to %s (%d secrets skipped)", len(rows), outputFile, skippedSecrets)
+	log.Info("Exported %d settings to %s (%d secrets skipped, %d empty skipped)", len(rows), outputFile, skippedSecrets, skippedEmpty)
 	return nil
 }

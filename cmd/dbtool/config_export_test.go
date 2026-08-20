@@ -159,6 +159,11 @@ func TestWriteExportedConfig_HeaderDocumentsNonRoundTrippingKeys(t *testing.T) {
 // and the secrets provider config.
 func newExportTestDB(t *testing.T) (*testdb.TestDB, string) {
 	t.Helper()
+	// config.Load honors TMI_DATABASE_URL over the file below; a shell that
+	// has sourced scripts/oci-env.sh would silently point these unit tests
+	// at the live ADB (oracle-db-admin review of #549). Pin to the sqlite
+	// fixture regardless of ambient environment.
+	t.Setenv("TMI_DATABASE_URL", "")
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yml")
 	cfgYAML := "database:\n" +
@@ -280,6 +285,50 @@ func TestRunConfigExport_SkipsSecretWhenNoEncryptor(t *testing.T) {
 	op, ok := parsed["operator"].(map[string]any)
 	if !ok || op["name"] != "Eric" {
 		t.Errorf("plain setting missing or wrong: %#v", parsed)
+	}
+}
+
+// an empty-string setting value is skipped on export, mirroring the
+// import-side skip in runConfigSeed (cmd/dbtool/config.go) — otherwise a
+// dev->Oracle replication via export/import surfaces an opaque ORA-01400
+// (empty CLOB bound value is NULL, violating system_settings.value NOT
+// NULL) (#549).
+func TestRunConfigExport_SkipsEmptyValue(t *testing.T) {
+	db, cfgPath := newExportTestDB(t)
+
+	seedSystemSetting(t, db, "operator.name", "", "string")
+	seedSystemSetting(t, db, "features.saml_enabled", "true", "bool")
+	// An empty SECRET value must take this same skip path: Decrypt("")
+	// passes "" through (settings_encryptor.go IsEncrypted passthrough), so
+	// it lands in the empty check after decryption rather than erroring the
+	// export (oracle-db-admin review of #549, note 4).
+	seedSystemSetting(t, db, "auth.jwt.secret", "", "string")
+
+	out := filepath.Join(t.TempDir(), "export.yml")
+	if err := runConfigExport(db, cfgPath, out, true); err != nil {
+		t.Fatalf("runConfigExport: %v", err)
+	}
+
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var parsed map[string]any
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf("output not valid YAML: %v", err)
+	}
+	// Assert on the parsed document, not raw substrings: the provenance
+	// header's non-round-tripping note mentions auth.jwt.expiration_seconds
+	// in a comment, which a substring check would false-positive on.
+	if _, ok := parsed["operator"]; ok {
+		t.Errorf("empty-valued setting should have been skipped, but output contains it:\n%s", data)
+	}
+	if _, ok := parsed["auth"]; ok {
+		t.Errorf("empty-valued secret setting should have been skipped, but output contains it:\n%s", data)
+	}
+	feat, ok := parsed["features"].(map[string]any)
+	if !ok || feat["saml_enabled"] != true {
+		t.Errorf("non-empty setting missing or wrong: %#v", parsed)
 	}
 }
 
