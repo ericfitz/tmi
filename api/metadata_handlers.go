@@ -437,7 +437,11 @@ func (h *GenericMetadataHandler) BulkCreate(c *gin.Context) {
 			return
 		}
 		logger.Error("Failed to bulk create %s metadata for %s: %v", h.entityType, entityID, err)
-		HandleRequestError(c, ServerError("Failed to create metadata entries"))
+		// Route classified store errors (ErrDuplicate -> 409, ErrTransient ->
+		// 503+Retry-After, ErrConstraint -> 400) instead of a blanket 500 —
+		// the old mapping turned a retry-exhausted transient into an
+		// undocumented 500 (zero-500 policy; oracle-db-admin review of #783).
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to create metadata entries"))
 		return
 	}
 
@@ -519,7 +523,10 @@ func (h *GenericMetadataHandler) BulkUpsert(c *gin.Context) {
 
 	if err := h.metadataStore.BulkUpdate(c.Request.Context(), h.entityType, entityID, metadataList); err != nil {
 		logger.Error("Failed to bulk upsert %s metadata for %s: %v", h.entityType, entityID, err)
-		HandleRequestError(c, ServerError("Failed to upsert metadata entries"))
+		// Classified routing per the zero-500 policy (see BulkCreate above);
+		// 409 is documented on the bulk PATCH operations for the concurrent
+		// MERGE-vs-insert collision case (#783).
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to upsert metadata entries"))
 		return
 	}
 
@@ -598,7 +605,10 @@ func (h *GenericMetadataHandler) BulkReplace(c *gin.Context) {
 
 	if err := h.metadataStore.BulkReplace(c.Request.Context(), h.entityType, entityID, metadataList); err != nil {
 		logger.Error("Failed to bulk replace %s metadata for %s: %v", h.entityType, entityID, err)
-		HandleRequestError(c, ServerError("Failed to replace metadata entries"))
+		// Classified routing per the zero-500 policy (see BulkCreate above);
+		// 409 is documented on the bulk PUT operations for the concurrent
+		// colliding-key case now reachable at READ COMMITTED (#783).
+		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to replace metadata entries"))
 		return
 	}
 

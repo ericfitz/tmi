@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -562,6 +563,25 @@ func (r *GormMetadataRepository) BulkReplace(ctx context.Context, entityType, en
 		}
 	}
 
+	// READ COMMITTED, not the #451 SERIALIZABLE default — the codebase's first
+	// per-site opt-down (#449's escape hatch), approved on #783. Under
+	// SERIALIZABLE a back-to-back same-entity replace exhausts the retry
+	// wrapper with a FALSE ORA-08177: the metadata blocks (and the hot
+	// right-edge leaf blocks of its timestamp-leading indexes) carry Oracle's
+	// default INITRANS 1, so the second transaction recycles the first one's
+	// ITL slot and the rows become unprovable — time-independent, so retrying
+	// cannot help, and the client sees a 503 on two quick PUTs. Oracle never
+	// raises ORA-08177 outside serializable/read-only transactions.
+	// Correctness is preserved: BulkReplace reads nothing it acts upon (pure
+	// DELETE-then-INSERT), so there is no lost-update hazard and
+	// last-writer-wins still holds on both engines; a key colliding with the
+	// new set surfaces as ORA-00001 -> ErrDuplicate, which the bulk handlers
+	// route to the documented 409 via StoreErrorToRequestError. The narrow
+	// caveat: a concurrent writer's non-colliding key inserted in the
+	// DELETE->INSERT window — one round trip, tens of milliseconds at ADB
+	// latency, down from ~100 sequential inserts pre-#666 — survives the
+	// replace instead of conflicting. The durable root-cause fix (INITRANS +
+	// index work) stays tracked on #783.
 	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Delete all existing metadata for this entity
 		if err := tx.Where("entity_type = ? AND entity_id = ?", entityType, entityID).
@@ -595,7 +615,7 @@ func (r *GormMetadataRepository) BulkReplace(ctx context.Context, entityType, en
 
 		r.logger.Debug("Successfully bulk replaced metadata for %s:%s with %d entries", entityType, entityID, len(metadata))
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 }
 
 // BulkDelete deletes multiple metadata entries by key in a single statement
