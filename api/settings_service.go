@@ -420,7 +420,8 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 	// Validate setting type
 	switch setting.SettingType {
 	case models.SystemSettingTypeString, models.SystemSettingTypeInt,
-		models.SystemSettingTypeBool, models.SystemSettingTypeJSON:
+		models.SystemSettingTypeBool, models.SystemSettingTypeJSON,
+		models.SystemSettingTypeFloat:
 		// Valid
 	default:
 		return fmt.Errorf("invalid setting type: %s", setting.SettingType)
@@ -638,6 +639,10 @@ func (s *SettingsService) validateValue(setting *models.SystemSetting) error {
 	case models.SystemSettingTypeBool:
 		if _, err := strconv.ParseBool(string(setting.Value)); err != nil {
 			return fmt.Errorf("value '%s' is not a valid boolean", setting.Value)
+		}
+	case models.SystemSettingTypeFloat:
+		if _, err := strconv.ParseFloat(string(setting.Value), 64); err != nil {
+			return fmt.Errorf("value '%s' is not a valid number", setting.Value)
 		}
 	case models.SystemSettingTypeJSON:
 		var js json.RawMessage

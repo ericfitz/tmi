@@ -14,7 +14,7 @@ type SystemSetting struct {
 	// Named SettingKey instead of Key to avoid Oracle reserved word conflict
 	SettingKey DBVarchar `gorm:"primaryKey;not null;size:256" json:"key"`
 	Value      DBText    `gorm:"not null" json:"value"`
-	// SettingType stores the value type: "string", "int", "bool", "json"
+	// SettingType stores the value type: "string", "int", "bool", "json", "float"
 	// Note: default tag removed for Oracle compatibility (unquoted string defaults cause syntax errors)
 	SettingType DBVarchar         `gorm:"size:50;not null" json:"type"`
 	Description NullableDBText    `gorm:"" json:"description,omitempty"`
@@ -40,6 +40,11 @@ const (
 	SystemSettingTypeInt    = "int"
 	SystemSettingTypeBool   = "bool"
 	SystemSettingTypeJSON   = "json"
+	// SystemSettingTypeFloat backs observability.sampling_rate, whose config
+	// field is a float64. It was previously declared "string", which made
+	// --export-config emit a quoted value that --import-config could not read
+	// back into the field (#791).
+	SystemSettingTypeFloat = "float"
 )
 
 // DefaultSystemSettings returns the default system settings that should be seeded

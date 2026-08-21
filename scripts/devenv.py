@@ -43,7 +43,7 @@ def cmd_up(args) -> None:
 
 
 def cmd_down(args) -> None:
-    deploy.teardown(db=args.db)
+    deploy.teardown(db=args.db, cluster_target=args.cluster)
     cluster.down(cluster=args.cluster)
     log_success("dev environment down (db data preserved)")
 
@@ -55,7 +55,7 @@ def cmd_restart(args) -> None:
 
 def cmd_reset(args) -> None:
     log_info("dev-reset: redeploying the in-cluster stack (keeping cluster + db data)")
-    deploy.teardown(db=args.db)
+    deploy.teardown(db=args.db, cluster_target=args.cluster)
     deploy.start(db=args.db, cluster_target=args.cluster,
                  skip_context_guard=args.yes)
     log_success("dev-reset complete")
@@ -66,7 +66,7 @@ def cmd_nuke(args) -> None:
     # Namespace-scoped hard reset: we don't own these clusters, so wipe the
     # tmi-platform namespace (workloads + in-cluster Postgres data) and redeploy.
     cluster.up(cluster=args.cluster)      # ensure the right context is active
-    deploy.teardown_namespace()
+    deploy.teardown_namespace(cluster_target=args.cluster)
     deploy.remove_local_images(args.db, cluster_target=args.cluster)
     _clean_logs_and_files()
     deploy.start(db=args.db, cluster_target=args.cluster,

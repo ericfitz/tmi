@@ -76,6 +76,10 @@ func buildNestedConfig(rows []exportRow) map[string]any {
 			if n, err := strconv.Atoi(r.Value); err == nil {
 				val = n
 			}
+		case "float":
+			if f, err := strconv.ParseFloat(r.Value, 64); err == nil {
+				val = f
+			}
 		case "json":
 			// json-typed settings (e.g. administrators, CORS allowed_origins,
 			// OAuth client_callback_allowlist) must decode to a real
@@ -137,12 +141,15 @@ func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecre
 		return fmt.Errorf("failed to load config %s: %w", cfgPath, err)
 	}
 
-	// Identify which keys are secret (same source of truth the import uses).
+	// Identify which keys are secret, and what type each key is declared as
+	// (same source of truth the import uses).
 	secretKeys := make(map[string]bool)
+	declaredTypes := make(map[string]string)
 	for _, s := range cfg.GetMigratableSettings() {
 		if s.Secret {
 			secretKeys[s.Key] = true
 		}
+		declaredTypes[s.Key] = s.Type
 	}
 
 	var encryptor *crypto.SettingsEncryptor
@@ -201,7 +208,19 @@ func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecre
 			log.Warn("Skipping empty setting %s (not portable; import skips empty values — Oracle stores '' as NULL, ORA-01400)", key)
 			continue
 		}
-		rows = append(rows, exportRow{Key: key, Value: value, Type: string(s.SettingType)})
+		// Prefer the type the config registry declares for this key over the
+		// one stored on the row. The stored setting_type is only as good as
+		// whatever wrote it, and it has drifted: observability.sampling_rate
+		// was seeded as "string" while the struct field is a float64, so the
+		// export emitted `sampling_rate: "1"` and --import-config then died on
+		// `cannot unmarshal !!str into float64` — the round-trip this file's
+		// own header advertises. Trusting the registry fixes already-seeded
+		// databases without needing a data migration to correct their rows.
+		typ := string(s.SettingType)
+		if declared, ok := declaredTypes[key]; ok && declared != "" {
+			typ = declared
+		}
+		rows = append(rows, exportRow{Key: key, Value: value, Type: typ})
 	}
 
 	if err := writeExportedConfig(rows, outputFile); err != nil {

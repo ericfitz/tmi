@@ -590,7 +590,10 @@ func (c *Config) getMigratableObservabilitySettings() []MigratableSetting {
 	return []MigratableSetting{
 		{Key: "observability.enabled", Value: strconv.FormatBool(c.Observability.Enabled), Type: "bool", Description: "OpenTelemetry tracing enabled", Source: settingSource("TMI_OTEL_ENABLED"), EnvVar: "TMI_OTEL_ENABLED"},
 		{Key: "observability.prometheus_port", Value: strconv.Itoa(c.Observability.PrometheusPort), Type: "int", Description: "Prometheus metrics port (0 = disabled)", Source: settingSource("TMI_OTEL_PROMETHEUS_PORT"), EnvVar: "TMI_OTEL_PROMETHEUS_PORT"},
-		{Key: "observability.sampling_rate", Value: strconv.FormatFloat(c.Observability.SamplingRate, 'f', -1, 64), Type: "string", Description: "OpenTelemetry trace sampling rate (0.0–1.0)", Source: settingSource("TMI_OTEL_SAMPLING_RATE"), EnvVar: "TMI_OTEL_SAMPLING_RATE"},
+		// Type is "float", not "string": Observability.SamplingRate is a float64,
+		// and mislabelling it made --export-config emit a quoted `"1"` that
+		// --import-config could not unmarshal back into the field (#791).
+		{Key: "observability.sampling_rate", Value: strconv.FormatFloat(c.Observability.SamplingRate, 'f', -1, 64), Type: "float", Description: "OpenTelemetry trace sampling rate (0.0–1.0)", Source: settingSource("TMI_OTEL_SAMPLING_RATE"), EnvVar: "TMI_OTEL_SAMPLING_RATE"},
 	}
 }
 

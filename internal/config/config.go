@@ -359,6 +359,32 @@ type SecretsConfig struct {
 // Load loads configuration from YAML file with environment variable overrides
 // SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: load and validate server configuration from a YAML file with env-var overrides (reads files, reads env)
 func Load(configFile string) (*Config, error) {
+	return loadConfig(configFile, true)
+}
+
+// LoadSettingsSource loads a YAML file that carries only operational settings —
+// a `tmi-dbtool --export-config` snapshot, say — rather than a server
+// configuration.
+//
+// It skips the bootstrap validation Load() performs, because a settings source
+// legitimately has no database.url, jwt.secret or build_mode: those are
+// CategoryBootstrap keys that live in the server's own config file, and
+// --export-config never writes them. Validating such a file as though it were a
+// server config is what broke the export/import round-trip that
+// --export-config's own output header advertises, and that
+// `deploy-aws.sh --config-export` depends on — it failed with "database url is
+// required (TMI_DATABASE_URL)" (#791).
+//
+// Callers get a Config whose operational fields reflect the file and whose
+// bootstrap fields are defaults; only GetMigratableSettings() output is
+// meaningful. Do NOT use this to configure a running server.
+// SEM@0000000000000000000000000000000000000000: load an operational-settings-only YAML without bootstrap validation (reads files, reads env)
+func LoadSettingsSource(configFile string) (*Config, error) {
+	return loadConfig(configFile, false)
+}
+
+// SEM@0000000000000000000000000000000000000000: load configuration from YAML with env overrides, optionally validating bootstrap keys (reads files, reads env)
+func loadConfig(configFile string, validateBootstrap bool) (*Config, error) {
 	config := getDefaultConfig()
 
 	// Load from YAML file if provided
@@ -418,14 +444,19 @@ func Load(configFile string) (*Config, error) {
 		config.Administrators = append(config.Administrators, adminConfig)
 	}
 
-	// Validate configuration
-	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("configuration validation failed: %w", err)
-	}
+	// Both checks are bootstrap concerns (database.url, jwt.secret, build_mode,
+	// server.port/interface), so a settings-source load skips them — see
+	// LoadSettingsSource.
+	if validateBootstrap {
+		// Validate configuration
+		if err := config.Validate(); err != nil {
+			return nil, fmt.Errorf("configuration validation failed: %w", err)
+		}
 
-	// Fail fast if any Required bootstrap setting has an empty effective value.
-	if err := config.ValidateRequired(); err != nil {
-		return nil, fmt.Errorf("configuration validation failed: %w", err)
+		// Fail fast if any Required bootstrap setting has an empty effective value.
+		if err := config.ValidateRequired(); err != nil {
+			return nil, fmt.Errorf("configuration validation failed: %w", err)
+		}
 	}
 
 	// Warn if CORS allowed origins is empty in production mode

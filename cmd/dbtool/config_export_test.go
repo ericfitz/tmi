@@ -15,6 +15,39 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// exercises buildNestedConfig's "float" case. Regression guard for #791: with
+// no float branch, observability.sampling_rate exported as the string "1" and
+// --import-config then died with `cannot unmarshal !!str '1' into float64`,
+// breaking the export/import round-trip the export header advertises.
+func TestBuildNestedConfigCoercesFloat(t *testing.T) {
+	root := buildNestedConfig([]exportRow{
+		{Key: "observability.sampling_rate", Value: "1", Type: "float"},
+		{Key: "observability.partial_rate", Value: "0.25", Type: "float"},
+	})
+	obs, ok := root["observability"].(map[string]any)
+	if !ok {
+		t.Fatalf("observability not nested: %#v", root)
+	}
+	if obs["sampling_rate"] != float64(1) {
+		t.Errorf("sampling_rate = %#v, want float64(1)", obs["sampling_rate"])
+	}
+	if obs["partial_rate"] != 0.25 {
+		t.Errorf("partial_rate = %#v, want 0.25", obs["partial_rate"])
+	}
+}
+
+// An unparseable float keeps the raw string rather than dropping the setting,
+// matching how the bool and int branches already degrade.
+func TestBuildNestedConfigKeepsUnparseableFloatAsString(t *testing.T) {
+	root := buildNestedConfig([]exportRow{
+		{Key: "observability.sampling_rate", Value: "not-a-number", Type: "float"},
+	})
+	obs := root["observability"].(map[string]any)
+	if obs["sampling_rate"] != "not-a-number" {
+		t.Errorf("sampling_rate = %#v, want the raw string", obs["sampling_rate"])
+	}
+}
+
 // exercises buildNestedConfig: dotted keys become nested maps, values typed by setting_type
 func TestBuildNestedConfig(t *testing.T) {
 	rows := []exportRow{

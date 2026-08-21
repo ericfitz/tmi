@@ -1383,3 +1383,27 @@ func TestGetCookieDomain(t *testing.T) {
 		assert.Equal(t, "example.com", config.GetCookieDomain())
 	})
 }
+
+// A tmi-dbtool --export-config snapshot carries only operational settings: no
+// database.url, no jwt.secret, no build_mode. Load() rejects such a file on
+// bootstrap validation, which is what broke the export/import round-trip that
+// the export header advertises and that deploy-aws.sh --config-export relies on
+// (#791). LoadSettingsSource must accept it and still surface its values.
+func TestLoadSettingsSourceAcceptsAnOperationalOnlySnapshot(t *testing.T) {
+	dir := t.TempDir()
+	snapshot := filepath.Join(dir, "dev-config.yaml")
+	require.NoError(t, os.WriteFile(snapshot, []byte(
+		"websocket:\n    inactivity_timeout_seconds: 450\n"+
+			"observability:\n    sampling_rate: 1\n"), 0o600))
+
+	// Load() refuses it: no database.url.
+	_, err := Load(snapshot)
+	require.Error(t, err, "Load must still enforce bootstrap keys")
+	assert.Contains(t, err.Error(), "database url is required")
+
+	// LoadSettingsSource accepts it and carries the operational values through.
+	cfg, err := LoadSettingsSource(snapshot)
+	require.NoError(t, err)
+	assert.Equal(t, 450, cfg.WebSocket.InactivityTimeoutSeconds)
+	assert.Equal(t, float64(1), cfg.Observability.SamplingRate)
+}
