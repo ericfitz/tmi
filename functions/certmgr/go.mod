@@ -6,7 +6,7 @@ toolchain go1.26.6
 
 require (
 	github.com/fnproject/fdk-go v0.1.15
-	github.com/oracle/oci-go-sdk/v65 v65.123.1
+	github.com/oracle/oci-go-sdk/v65 v65.123.2
 	golang.org/x/crypto v0.55.0
 )
 
