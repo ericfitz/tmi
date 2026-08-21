@@ -125,13 +125,35 @@ jobs:
           EXPECTED: ${{ steps.expected.outputs.version }}
         run: scripts/ci-version-bump.sh apply-version "$EXPECTED"
 
+      # Two Makefile-level overrides are needed to run any make target on a
+      # GitHub runner. Both were found the hard way on this workflow's first
+      # live run, and this is the first CI job in the repo to invoke make at
+      # all -- every other job calls go/uv tooling directly -- which is why
+      # neither had surfaced before.
+      #
+      #   SHELL=/bin/bash  -- the Makefile pins `SHELL := /bin/zsh`
+      #     (Makefile:13) and the ubuntu-24.04 image ships no zsh, so make
+      #     dies with "make: /bin/zsh: No such file or directory". Every
+      #     recipe used here is a one-line `uv run` call with no zsh-specific
+      #     syntax.
+      #
+      #   PATH="$PATH"     -- the Makefile *prepends* system directories to
+      #     PATH for all recipes (Makefile:17,
+      #     `export PATH := /usr/local/bin:/usr/bin:...:$(PATH)`). That is a
+      #     dev-machine convenience, but on a runner it inverts precedence:
+      #     the image's preinstalled Go (1.24.13) shadows the 1.26.6 that
+      #     "Set up Go" just placed first, and the build fails go.mod's
+      #     `go >= 1.26.2` under GOTOOLCHAIN=local. `uv` keeps resolving, so
+      #     the symptom reads as a Go-setup bug rather than a PATH bug. A
+      #     command-line assignment overrides the makefile's, restoring this
+      #     step's own PATH.
       - name: Regenerate embedded API spec
         if: steps.idempotent.outputs.skip == 'false'
-        run: make generate-api
+        run: make SHELL=/bin/bash PATH="$PATH" generate-api
 
       - name: Sanity build (confirms the embedded version took)
         if: steps.idempotent.outputs.skip == 'false'
-        run: make build-server
+        run: make SHELL=/bin/bash PATH="$PATH" build-server
 
       - name: Verify embedded spec version matches
         if: steps.idempotent.outputs.skip == 'false'

@@ -177,13 +177,18 @@ cmd_embedded_spec_version() {
         exit 1
     fi
 
-    python3 -c '
+    # The blob goes in on stdin, never as an argv element: Linux caps a
+    # single argument at MAX_ARG_STRLEN (128 KiB) and the embedded spec is
+    # several times that, so `python3 -c '...' "$b64"` fails to exec at all
+    # with "Argument list too long" (exit 126). macOS has no such per-argument
+    # cap, which is why this only shows up in CI.
+    printf '%s' "$b64" | python3 -c '
 import base64, json, sys, zlib
-raw = base64.b64decode(sys.argv[1])
+raw = base64.b64decode(sys.stdin.read())
 data = zlib.decompress(raw, -15)
 spec = json.loads(data)
 print(spec["info"]["version"])
-' "$b64"
+'
 }
 
 cmd_self_test() {
