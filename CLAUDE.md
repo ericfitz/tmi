@@ -477,26 +477,49 @@ TMI uses staticcheck for Go code quality analysis. The project has intentionally
   - `test(integration): add database connection pooling tests`
   - `deps: update Gin framework to v1.11.0`
 
-### Versioning — currently MANUAL (see #627)
+### Versioning — automatic, per-PR (see #627)
 
-**Automatic versioning is disabled.** `scripts/hooks/post-commit` is an
-explanatory no-op. It could not fire under the PR-only workflow: it exited early
-unless `HEAD` was on `main` (commits are authored on `fix/*`/`dev/*` branches),
-and the commit that lands on `main` comes from GitHub's squash-merge, where no
-local hook runs. It had been silently doing nothing — `main` sat at 1.5.0 across
-several `feat:` merges.
+Version bumps are computed from the **PR title** (a conventional-commit
+subject) by `.github/workflows/version-bump.yml`: `feat:` (or `feat(scope)!:`)
+→ MINOR bump with PATCH reset to 0; everything else → PATCH bump. This
+replaced a `main`-branch post-commit hook that could never fire under the
+PR-only branch-protection ruleset — every commit is authored on a `fix/*` or
+`dev/*` branch, and the commit that lands on `main` is GitHub's server-side
+squash-merge, where no local hook runs.
 
-Until #627 lands, **bump versions by hand as part of the change**, and keep all
-three in step (they are independent and have already drifted):
+Two jobs run on every PR targeting `main`:
 
-- `.version` (JSON) — the source of the server build version
-- `api-schema/tmi-openapi.json` → `info.version`
-- verify with `make build-server`, which prints the version it embedded
+- **Version Bump** — same-repo PRs only. Computes the expected version against
+  base `main`'s `.version`, and if the PR branch doesn't already match, bumps
+  `.version`, `api/version.go`, and `api-schema/tmi-openapi.json`
+  (`info.version`), regenerates the embedded API spec (`make generate-api`),
+  and pushes a `chore(version): bump to X.Y.Z` commit onto the PR's own
+  branch. Squash-merge then lands that bump as part of the same change. This
+  is a no-op (and doubles as loop prevention) once the PR branch's `.version`
+  already matches expected — including right after this job's own push,
+  which retriggers `synchronize`.
+- **Version Check** — runs on all PRs, including forks (which Version Bump
+  cannot push to). Recomputes the expected version independently and fails
+  if `.version`, the OpenAPI `info.version`, or the version baked into
+  `api/api.go`'s embedded spec disagree with it. This is the check named in
+  the branch-protection ruleset's required checks.
 
-Intended scheme once automated: `feat:` → MINOR (reset PATCH), everything else →
-PATCH. With squash-merge the PR title is the conventional-commit subject, so that
-is the string to parse. `scripts/update-version.sh` still works when invoked
-directly.
+Both jobs share `scripts/ci-version-bump.sh` (`compute-version`,
+`apply-version`, `embedded-spec-version`, `self-test`) for the version-bump
+logic, and pin `oapi-codegen` to v2.7.1 for `make generate-api` — other
+versions silently miscompile `api/api.go`.
+
+Manual bumps are no longer required, and are harmless: the workflow is
+idempotent and no-ops once a PR branch's version already matches what its
+title implies. `scripts/update-version.sh` still works for a direct/manual
+bump (it derives the type from the last commit message rather than the PR
+title, so it's meant for one-off local use, not what CI runs).
+
+Known residual race: two PRs open concurrently against the same base can
+compute the same "next" version; whichever merges second looks stale to
+Version Check against the new `main` until it re-runs (any push to the PR
+branch retriggers `synchronize` and recomputes). Same residual the manual
+process had.
 
 All feature development occurs in dev/<semver>/<feature-name> branches or in
 feature/<feature-name> branches that are children of dev/<semver> branches. The

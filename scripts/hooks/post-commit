@@ -1,32 +1,37 @@
 #!/bin/bash
-# post-commit hook — DISABLED (see issue #627)
+# post-commit hook — DISABLED, replaced by CI (see issue #627)
 #
-# This hook used to increment .version and amend the commit. It cannot work
-# under the current PR-only workflow, and had been silently doing nothing for
-# some time: `main` sat at 1.5.0 across several `feat:` merges that each should
-# have bumped MINOR.
+# This hook used to increment .version and amend the commit. It could not
+# work under the PR-only workflow, and had been silently doing nothing for
+# some time: `main` sat at 1.5.0 across several `feat:` merges that each
+# should have bumped MINOR.
 #
-# Why it is unreachable, in both directions:
+# Why it was unreachable, in both directions:
 #
 #   1. It exited early unless the current branch was `main`. Every commit is
-#      now authored on a fix/* or dev/* branch, so that check exited 0.
+#      authored on a fix/* or dev/* branch, so that check exited 0.
 #   2. The commit that actually lands on `main` is created by GitHub's
 #      squash-merge, server-side, where no local hook runs at all.
 #
-# So there was no point at which the old logic could fire. Amending is also
+# So there was no point at which the old logic could fire. Amending was also
 # wrong for this workflow independently: it would rewrite a commit that has
 # already been pushed to `main`.
 #
-# Deliberately kept as an explanatory no-op rather than deleted, so the reason
-# is discoverable from the path the docs point at, and so `make install-hooks`
-# (which chmods this file) keeps working.
+# The replacement is `.github/workflows/version-bump.yml`, which computes the
+# bump from the PR TITLE (the string that becomes the squash-merge commit
+# subject) and pushes a `chore(version): bump to X.Y.Z` commit onto the PR's
+# own branch — so squash-merge lands it as part of the same change. A
+# "Version Check" job in the same workflow fails the PR if `.version`, the
+# OpenAPI `info.version`, and the version embedded in `api/api.go` ever drift
+# out of step. See CLAUDE.md's "Versioning" section and #627 for the full
+# design.
 #
-# A replacement needs to run on push-to-main in CI and parse the squashed PR
-# title for the conventional-commit type. It must also keep .version, the
-# OpenAPI info.version, and the server build version in step — they are
-# currently independent and have already drifted. See #627.
+# Deliberately kept as an explanatory no-op rather than deleted, so the
+# history is discoverable from the path the docs point at, and so
+# `make install-hooks` (which chmods this file) keeps working.
 #
-# scripts/update-version.sh is left in place: it still works when invoked
-# directly, and whatever replaces this hook will likely reuse it.
+# scripts/update-version.sh and scripts/ci-version-bump.sh are left in place;
+# the latter is what the CI workflow actually calls, the former still works
+# for a one-off manual/local bump.
 
 exit 0
