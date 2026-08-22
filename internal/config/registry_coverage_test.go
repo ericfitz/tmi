@@ -17,31 +17,28 @@ import (
 // construction contains only keys that already have a Config struct field,
 // and which emits conditionally so the set changed with runtime values.
 func TestRegistry_CoversEveryReachableKey(t *testing.T) {
+	// declared covers a key two ways: by its SettingDef.Key (the common
+	// case), and by its SettingDef.YAMLPath (for the handful of defs whose
+	// canonical settings Key deliberately differs from the raw Config
+	// struct path — e.g. "auth.saml.enabled" is declared as
+	// "features.saml_enabled" with YAMLPath: "auth.saml.enabled"). The
+	// env-tag source below yields raw struct yaml paths, not settings keys,
+	// so a rename would otherwise look uncovered despite being fully
+	// declared. This can't be gamed with a fabricated YAMLPath:
+	// TestSettingDefs_YAMLPathsAreReal (setting_defs_bijection_test.go)
+	// already asserts every non-empty YAMLPath names a real yaml-tagged
+	// Config field.
 	declared := map[string]bool{}
 	for _, d := range AllSettingDefs() {
 		declared[d.Key] = true
+		if d.YAMLPath != "" {
+			declared[d.YAMLPath] = true
+		}
 	}
-
-	// renamedStructPaths are Config struct yaml paths that are deliberately
-	// emitted under a different settings key than their raw struct path —
-	// e.g. "auth.saml.enabled" is emitted (and has a SettingDef) as
-	// "features.saml_enabled". This is the same rename pattern
-	// ExpectedMigratableKeysSkipped() (migratable_discovery.go) already
-	// documents and exempts for the analogous
-	// TestMigratableSettings_CoverEveryConfigField gate; reusing it here
-	// keeps the two completeness gates agreeing on what "reachable" means
-	// instead of maintaining a second, divergent allowlist. Each renamed
-	// struct path's SettingDef carries the real path back via YAMLPath,
-	// which TestSettingDefs_YAMLPathsAreReal (setting_defs_bijection_test.go)
-	// separately verifies is truthful.
-	renamedStructPaths := ExpectedMigratableKeysSkipped()
 
 	reachable := map[string]string{} // key -> where it came from
 
 	for k := range envTaggedKeys(t) {
-		if _, renamed := renamedStructPaths[k]; renamed {
-			continue
-		}
 		reachable[k] = "Config struct env tag"
 	}
 	for k := range exactClassifications {
