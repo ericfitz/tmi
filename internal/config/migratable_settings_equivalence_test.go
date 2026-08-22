@@ -181,12 +181,15 @@ func TestGetMigratableSettings_CarriesClassAndSecrecy(t *testing.T) {
 func TestGetMigratableSettings_ExplicitTracksEnvAndFile(t *testing.T) {
 	t.Setenv("TMI_SERVER_PORT", "9090")
 	c := sampleConfig()
+	found := false
 	for _, s := range c.GetMigratableSettings() {
 		if s.Key == "server.port" {
+			found = true
 			assert.Equal(t, "environment", s.Source)
 			assert.True(t, s.Explicit, "an env-set key must be Explicit")
 		}
 	}
+	require.True(t, found, "server.port must be emitted by GetMigratableSettings")
 }
 
 // TestDefaultOperationalSettings_MatchesPreRegistryBaseline is the single
