@@ -8,10 +8,11 @@ import (
 )
 
 // GenerateReferenceMarkdown produces the per-key configuration reference from
-// the classification registry. It emits two tables — bootstrap and operational
-// — so the wiki Configuration-Reference page is generated, not hand-maintained.
-// Secret defaults are shown as vault:// placeholders, never real values.
-// SEM@15870ed6c51c35dd0b30cf6f7a777a7010b1b69e: build the wiki configuration reference as Markdown with bootstrap and operational tables (pure)
+// the classification registry. It emits a precedence explainer plus two
+// tables — bootstrap and operational — so the wiki Configuration-Reference
+// page is generated, not hand-maintained. Secret defaults are shown as
+// vault:// placeholders, never real values.
+// SEM@0000000000000000000000000000000000000000: build the wiki configuration reference as Markdown with a precedence explainer and bootstrap/operational tables (pure)
 func GenerateReferenceMarkdown() ([]byte, error) {
 	cfg := getDefaultConfig()
 	cfg.Server.TLSSubjectName = "localhost" // deterministic — must not embed the build host's name
@@ -37,18 +38,20 @@ func GenerateReferenceMarkdown() ([]byte, error) {
 			"[[Configuration-Model]] for what the categories and columns mean.\n\n",
 		time.Now().UTC().Format(time.RFC3339))
 
+	b.WriteString(precedenceSection())
+
 	b.WriteString("## Bootstrap settings\n\n")
 	b.WriteString("File/env only, read once at startup. Cannot come from the database.\n\n")
-	b.WriteString("| Key | Env var | Type | Default | Required | Secret | Description |\n")
-	b.WriteString("|-----|---------|------|---------|----------|--------|-------------|\n")
+	b.WriteString("| Key | Env var | Type | Default | Required | Secret | Precedence | Description |\n")
+	b.WriteString("|-----|---------|------|---------|----------|--------|------------|-------------|\n")
 	for _, s := range bootstrap {
 		b.WriteString(bootstrapRow(s))
 	}
 
 	b.WriteString("\n## Operational settings\n\n")
 	b.WriteString("DB-backed, seeded from defaults on first run, editable at runtime via `/admin/settings`.\n\n")
-	b.WriteString("| Key | Type | Default | Mutability | Visibility | Secret | Description |\n")
-	b.WriteString("|-----|------|---------|------------|------------|--------|-------------|\n")
+	b.WriteString("| Key | Type | Default | Mutability | Visibility | Secret | Precedence | Description |\n")
+	b.WriteString("|-----|------|---------|------------|------------|--------|------------|-------------|\n")
 	for _, s := range operational {
 		b.WriteString(operationalRow(s))
 	}
@@ -56,18 +59,66 @@ func GenerateReferenceMarkdown() ([]byte, error) {
 	return []byte(b.String()), nil
 }
 
-// SEM@15870ed6c51c35dd0b30cf6f7a777a7010b1b69e: format a bootstrap config setting as a Markdown table row (pure)
-func bootstrapRow(s MigratableSetting) string {
-	return fmt.Sprintf("| `%s` | %s | %s | %s | %s | %s | %s |\n",
-		s.Key, codeOrDash(s.EnvVar), s.Type, defaultCell(s),
-		yesNo(s.Class.Required), yesNo(s.Class.Secret), sanitizeCell(s.Description))
+// precedenceSection is the prose explainer for which source (config/env vs.
+// the system_settings database row) wins for a given key, placed above the
+// tables so an operator debugging a config problem doesn't have to read
+// source to find the rule. See #794.
+// SEM@0000000000000000000000000000000000000000: render the config/env-vs-database precedence rule as a Markdown section (pure)
+func precedenceSection() string {
+	return "## Precedence\n\n" +
+		"A setting's value can come from a YAML config file, an environment " +
+		"variable, or a row in the `system_settings` database table. Only one " +
+		"source wins:\n\n" +
+		"| config explicit? | DB row explicit? | winner |\n" +
+		"|---|---|---|\n" +
+		"| no | no | database |\n" +
+		"| no | yes | database |\n" +
+		"| yes | no | **config/env** |\n" +
+		"| yes | yes | **database** |\n\n" +
+		"\"Config explicit\" means an operator actually supplied the value — " +
+		"the environment variable is set, or the key is written into the YAML " +
+		"file — as opposed to the value being the struct default every key " +
+		"carries. \"DB explicit\" means the row was deliberately set through " +
+		"the admin API or a `dbtool --import-config` run, as opposed to having " +
+		"been seeded with a registry default the first time the server " +
+		"started.\n\n" +
+		"**Bootstrap** settings are never database-backed: config/env is their " +
+		"only source, and the table above does not apply to them. " +
+		"**Operational** settings follow the table above — the database wins " +
+		"whenever either side is silent (the common case, since it is " +
+		"hot-reloadable), and config/env wins only when an operator has " +
+		"explicitly set it while the database row is still at its seeded " +
+		"default.\n\n" +
+		"**Exception:** `auth.oauth.providers.*` (and the analogous " +
+		"`auth.saml.providers.*` and `content_oauth.providers.*`) is a keyed " +
+		"collection, not a scalar, so the table above doesn't apply to it " +
+		"directly. It merges per provider ID instead: a config/env entry " +
+		"shadows a database entry with the same ID, and the database " +
+		"contributes any IDs that config does not define.\n\n"
 }
 
-// SEM@15870ed6c51c35dd0b30cf6f7a777a7010b1b69e: format an operational config setting as a Markdown table row (pure)
+// SEM@0000000000000000000000000000000000000000: format a bootstrap config setting as a Markdown table row (pure)
+func bootstrapRow(s MigratableSetting) string {
+	return fmt.Sprintf("| `%s` | %s | %s | %s | %s | %s | %s | %s |\n",
+		s.Key, codeOrDash(s.EnvVar), s.Type, defaultCell(s),
+		yesNo(s.Class.Required), yesNo(s.Class.Secret), precedenceCell(s), sanitizeCell(s.Description))
+}
+
+// SEM@0000000000000000000000000000000000000000: format an operational config setting as a Markdown table row (pure)
 func operationalRow(s MigratableSetting) string {
-	return fmt.Sprintf("| `%s` | %s | %s | %s | %s | %s | %s |\n",
+	return fmt.Sprintf("| `%s` | %s | %s | %s | %s | %s | %s | %s |\n",
 		s.Key, s.Type, defaultCell(s), s.Class.Mutability.String(),
-		s.Class.Visibility.String(), yesNo(s.Class.Secret), sanitizeCell(s.Description))
+		s.Class.Visibility.String(), yesNo(s.Class.Secret), precedenceCell(s), sanitizeCell(s.Description))
+}
+
+// precedenceCell renders the terse per-row precedence summary; the full rule
+// is spelled out once in precedenceSection rather than repeated per row.
+// SEM@0000000000000000000000000000000000000000: summarize which source wins for a setting's category as a table cell (pure)
+func precedenceCell(s MigratableSetting) string {
+	if s.Class.Category == CategoryBootstrap {
+		return "config/env only"
+	}
+	return "db unless config explicit"
 }
 
 // SEM@15870ed6c51c35dd0b30cf6f7a777a7010b1b69e: format a config setting's default value, masking secrets as placeholder (pure)

@@ -118,10 +118,16 @@ func (s *SettingsService) isProductionMode() bool {
 	return os.Getenv("TMI_BUILD_MODE") == "production"
 }
 
-// getConfigSetting retrieves a setting from the config provider if available.
-// Returns the setting value and true if found, empty string and false otherwise.
-// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: fetch a setting from the config-provider cache, building the cache lazily (pure)
-func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool) {
+// getConfigSettingRaw retrieves a setting from the config provider's cache
+// without applying any precedence rule, building the cache lazily. The caller
+// decides what to do with Class.Category and Explicit.
+//
+// getConfigSetting swallows non-explicit operational settings, which is right
+// for its callers but wrong for GetResolvedString: the converged precedence
+// rule needs to know both what the config layer holds AND whether an operator
+// supplied it, and those are two different questions (#794).
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: fetch a config-layer setting with no precedence filtering, building the cache lazily (pure)
+func (s *SettingsService) getConfigSettingRaw(key string) (MigratableSetting, bool) {
 	if s.configProvider == nil {
 		return MigratableSetting{}, false
 	}
@@ -148,6 +154,18 @@ func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool)
 	defer s.configSettingsCacheMu.RUnlock()
 
 	setting, found := s.configSettingsCache[key]
+	if !found {
+		return MigratableSetting{}, false
+	}
+	return setting, true
+}
+
+// getConfigSetting retrieves a setting from the config provider, applying the
+// #415 rule that a bare struct default must not shadow the database.
+// Returns the setting and true when the config layer is authoritative.
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: fetch a config-layer setting, yielding to the database for bare defaults (pure)
+func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool) {
+	setting, found := s.getConfigSettingRaw(key)
 	if !found {
 		return MigratableSetting{}, false
 	}
@@ -241,27 +259,59 @@ func (s *SettingsService) GetString(ctx context.Context, key string) (string, er
 	return string(setting.Value), nil
 }
 
-// GetDatabaseString retrieves a string setting value from the database only,
-// bypassing the env/config-file priority that GetString applies. exists
-// reports whether the row is present, so callers can distinguish a missing
-// row (fall back to YAML) from an empty value.
+// GetResolvedString retrieves a string setting by applying the single
+// precedence rule that governs every scalar operational setting (#794).
+// exists reports whether any layer supplied a usable value, so callers can
+// distinguish "nothing configured anywhere" from an empty value.
 //
-// This is the read used by the #419 runtime-config path: operational
-// settings changed at runtime via the admin API must take effect without a
-// redeploy, so for those keys the database wins over the YAML config and
-// the YAML acts only as a first-run fallback (the reverse of GetString's
-// precedence — see #767).
+// This replaced GetDatabaseString, which read the database only. Two
+// accessors used to implement two deliberate, opposite rules — GetString
+// (#415: an explicit config value wins, a bare struct default yields to the
+// database) and GetDatabaseString (#767: the database always wins, config is
+// a first-run fallback). Each was right about half the problem, and the half
+// each got wrong caused a production outage on 2026-08-20: a registry-seeded
+// default row nobody had ever set outranked a correctly-set
+// TMI_OAUTH_CALLBACK_URL, so every OAuth login redirected to localhost.
+//
+// The missing distinction was on the database side. #415 already knew an
+// operator-supplied config value from a struct default (MigratableSetting
+// .Explicit); the database had no equivalent until SystemSetting.Origin, so a
+// seeded row and an admin-set row were indistinguishable. With both halves
+// present, one rule covers every case:
+//
+//	config explicit?  db explicit?  winner
+//	no                no            database  (both defaults; prefer the hot-reloadable one)
+//	no                yes           database  (#415 preserved)
+//	yes               no            config    (a seeded default never beats an operator)
+//	yes               yes           database  (#419/#767 runtime editability preserved)
+//
+// Bootstrap settings are exempt: they are never database-backed, so the
+// config layer is their only source.
+//
 // The read is retried on transient faults and the returned error is
 // classified (dberrors sentinels): callers on the #419 runtime path sit on
 // request hot paths (e.g. /oauth2/authorize) where an unretried ADB blip
 // (ORA-02396/03113/12537 class) would otherwise surface as a hard failure
 // PG testing cannot reproduce (oracle-db-admin review of #767).
-// SEM@e733aa34cec28d44982ce9dd8937cf17ef810590: fetch a string setting from the database only, reporting row presence (reads DB)
-func (s *SettingsService) GetDatabaseString(ctx context.Context, key string) (string, bool, error) {
-	var setting *models.SystemSetting
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: resolve a string setting across config and database by the converged precedence rule (reads DB)
+func (s *SettingsService) GetResolvedString(ctx context.Context, key string) (string, bool, error) {
+	cfg, cfgFound := s.getConfigSettingRaw(key)
+
+	// Bootstrap keys never reach the database at all. Keyed on the
+	// classification registry rather than on cfg.Class, so the guard still
+	// holds when the config provider is unset or does not emit the key —
+	// otherwise a bootstrap key would fall through to Get, whose "is a
+	// bootstrap key" error matches no dberrors pattern and would surface to
+	// the adapters as a non-transient fault (oracle-db-admin review, note 5).
+	// This is the same source Get itself consults.
+	if config.ClassificationCategoryFor(key) == config.CategoryBootstrap {
+		return cfg.Value, cfg.Value != "", nil
+	}
+
+	var row *models.SystemSetting
 	err := db.WithRetryableGormRead(ctx, db.DefaultRetryConfig(), func() error {
 		var readErr error
-		setting, readErr = s.Get(ctx, key)
+		row, readErr = s.Get(ctx, key)
 		if readErr != nil {
 			return dberrors.Classify(readErr)
 		}
@@ -270,10 +320,32 @@ func (s *SettingsService) GetDatabaseString(ctx context.Context, key string) (st
 	if err != nil {
 		return "", false, err
 	}
-	if setting == nil {
-		return "", false, nil
+
+	// An empty row value is treated as absent. On Oracle '' binds as NULL, so
+	// an empty-but-present row is indistinguishable from a missing one anyway
+	// — collapsing them here keeps the rule engine-independent
+	// (oracle-db-admin review of #767, note 3).
+	dbHasValue := row != nil && string(row.Value) != ""
+
+	switch {
+	case !dbHasValue:
+		// Nothing usable in the database — the config layer is all there is,
+		// explicit or not.
+		return cfg.Value, cfgFound && cfg.Value != "", nil
+	case row.IsExplicit():
+		// An operator deliberately set this row, via the admin API or a
+		// dbtool import. It outranks config either way, which is what keeps
+		// runtime edits effective without a redeploy (#419/#767).
+		return string(row.Value), true, nil
+	case cfgFound && cfg.Explicit:
+		// The row is a seeded registry default and the operator supplied a
+		// value explicitly. This is the case that broke production.
+		return cfg.Value, cfg.Value != "", nil
+	default:
+		// Both sides are defaults; prefer the one an admin can change at
+		// runtime.
+		return string(row.Value), true, nil
 	}
-	return string(setting.Value), true, nil
 }
 
 // GetInt retrieves an integer setting value.
@@ -413,7 +485,7 @@ func (s *SettingsService) ListByPrefix(ctx context.Context, prefix string) ([]mo
 }
 
 // Set creates or updates a setting
-// SEM@a3e7b116b059fa4c734b5c77def4c2de21df4dbc: store or update a system setting with type validation, encryption, and cache invalidation (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: store or update a system setting, stamping explicit origin, with type validation, encryption, and cache invalidation (reads DB)
 func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting) error {
 	logger := slogging.Get()
 
@@ -453,6 +525,10 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 
 	// Encrypt value before saving to database
 	dbSetting := *setting
+	// Set is always an operator-initiated write (admin API, dbtool, or any
+	// other caller) — stamp it explicit regardless of what the caller passed
+	// in, so an operator overwriting a seeded row promotes it (#794).
+	dbSetting.Origin = models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true}
 	if encryptionEnabled {
 		encrypted, err := s.encryptor.Encrypt(string(setting.Value))
 		if err != nil {
@@ -468,8 +544,9 @@ func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting
 		return fmt.Errorf("failed to save setting %s: %w", setting.SettingKey, result.Error)
 	}
 
-	// Update the caller's ModifiedAt to match what was saved
+	// Update the caller's ModifiedAt and Origin to match what was saved
 	setting.ModifiedAt = dbSetting.ModifiedAt
+	setting.Origin = dbSetting.Origin
 
 	// Invalidate cache
 	s.invalidateCache(ctx, string(setting.SettingKey))
@@ -496,7 +573,7 @@ func (s *SettingsService) Delete(ctx context.Context, key string) error {
 }
 
 // SeedDefaults seeds the default settings if they don't exist
-// SEM@ab3b70da0bebdbb7db5fefc97e15036dc3f5c4c5: insert default system settings into the database if they do not already exist (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: insert default system settings, stamped seeded origin, if they do not already exist (reads DB)
 func (s *SettingsService) SeedDefaults(ctx context.Context) error {
 	logger := slogging.Get()
 	defaults := models.DefaultSystemSettings()
@@ -545,6 +622,11 @@ func (s *SettingsService) SeedDefaults(ctx context.Context) error {
 
 		// Encrypt value before seeding
 		dbSetting := setting
+		// Stamp seeded origin on every row this loop inserts — both the
+		// explicit models.DefaultSystemSettings() entries and the
+		// config-derived operational defaults appended above feed into
+		// `defaults`, so this single assignment covers both sources (#794).
+		dbSetting.Origin = models.NullableDBVarchar{String: models.SystemSettingOriginSeeded, Valid: true}
 		if s.encryptor != nil && s.encryptor.IsEnabled() {
 			encrypted, err := s.encryptor.Encrypt(string(setting.Value))
 			if err != nil {
@@ -629,7 +711,7 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) 
 }
 
 // validateValue validates that the value matches the declared type
-// SEM@cf52eebf6620ebf59d6d9c90dfb1c4f874f70341: validate that a setting value matches its declared type (pure)
+// SEM@1a4ca5f99be4a25df66b2836e9b9f4c87628184a: validate that a setting value matches its declared type (pure)
 func (s *SettingsService) validateValue(setting *models.SystemSetting) error {
 	switch setting.SettingType {
 	case models.SystemSettingTypeInt:

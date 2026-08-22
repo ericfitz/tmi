@@ -9,7 +9,25 @@ import (
 	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
+
+// setupSettingsTestDB creates an in-memory SQLite DB with just the
+// system_settings table, for tests that need a real SettingsService write
+// path (SeedDefaults, Set, ReEncryptAll) rather than the nil-gormDB gate
+// tests above.
+func setupSettingsTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger:                                   gormlogger.Discard,
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
+	require.NoError(t, err)
+	require.NoError(t, gormDB.AutoMigrate(&models.SystemSetting{}))
+	return gormDB
+}
 
 func TestSettingsService_MemCache(t *testing.T) {
 	// Create a service with only memory cache (no Redis, no GORM)
@@ -609,4 +627,130 @@ func TestSettingsService_SetAllowsPlaintextSecretOutsideProduction(t *testing.T)
 		Value:       "sk-dev-secret",
 		SettingType: models.SystemSettingTypeString,
 	})
+}
+
+// TestSettingsService_SeedDefaults_StampsSeededOrigin pins #794: every row
+// SeedDefaults inserts — both the explicit models.DefaultSystemSettings()
+// entries and the config-derived operational defaults it appends — must be
+// stamped SystemSettingOriginSeeded, since no operator has set them.
+func TestSettingsService_SeedDefaults_StampsSeededOrigin(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+	svc := NewSettingsService(gormDB, nil)
+
+	require.NoError(t, svc.SeedDefaults(context.Background()))
+
+	var settings []models.SystemSetting
+	require.NoError(t, gormDB.Find(&settings).Error)
+	require.Greater(t, len(settings), len(models.DefaultSystemSettings()),
+		"expected config-derived operational defaults to be seeded alongside the explicit defaults")
+
+	for _, s := range settings {
+		assert.Truef(t, s.Origin.Valid && s.Origin.String == models.SystemSettingOriginSeeded,
+			"setting %s: expected origin %q, got valid=%v value=%q",
+			s.SettingKey, models.SystemSettingOriginSeeded, s.Origin.Valid, s.Origin.String)
+		assert.Falsef(t, s.IsExplicit(), "setting %s: seeded row must not be IsExplicit()", s.SettingKey)
+	}
+
+	// Spot-check one of the explicit models.DefaultSystemSettings() entries
+	// specifically, since that's the other of the two source lists.
+	var explicit models.SystemSetting
+	require.NoError(t, gormDB.Where("setting_key = ?", "rate_limit.requests_per_minute").First(&explicit).Error)
+	assert.Equal(t, models.SystemSettingOriginSeeded, explicit.Origin.String)
+}
+
+// TestSettingsService_Set_StampsExplicitOrigin pins #794: Set always means an
+// operator deliberately wrote this value, so it must stamp explicit origin
+// regardless of what the caller's struct carried in, and it must reflect that
+// back onto the caller's setting the same way it already does for ModifiedAt.
+func TestSettingsService_Set_StampsExplicitOrigin(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+	svc := NewSettingsService(gormDB, nil)
+
+	setting := &models.SystemSetting{
+		SettingKey:  "ui.default_theme",
+		Value:       "dark",
+		SettingType: models.SystemSettingTypeString,
+	}
+	require.NoError(t, svc.Set(context.Background(), setting))
+
+	assert.True(t, setting.Origin.Valid && setting.Origin.String == models.SystemSettingOriginExplicit,
+		"Set should reflect explicit origin back onto the caller's setting")
+
+	var stored models.SystemSetting
+	require.NoError(t, gormDB.Where("setting_key = ?", "ui.default_theme").First(&stored).Error)
+	assert.Equal(t, models.SystemSettingOriginExplicit, stored.Origin.String)
+	assert.True(t, stored.IsExplicit())
+
+	t.Run("Set promotes an already-seeded row to explicit", func(t *testing.T) {
+		seeded := models.SystemSetting{
+			SettingKey:  "session.timeout_minutes",
+			Value:       "60",
+			SettingType: models.SystemSettingTypeInt,
+			Origin:      models.NullableDBVarchar{String: models.SystemSettingOriginSeeded, Valid: true},
+		}
+		require.NoError(t, gormDB.Create(&seeded).Error)
+
+		update := &models.SystemSetting{
+			SettingKey:  "session.timeout_minutes",
+			Value:       "90",
+			SettingType: models.SystemSettingTypeInt,
+		}
+		require.NoError(t, svc.Set(context.Background(), update))
+
+		var stored models.SystemSetting
+		require.NoError(t, gormDB.Where("setting_key = ?", "session.timeout_minutes").First(&stored).Error)
+		assert.Equal(t, models.SystemSettingOriginExplicit, stored.Origin.String,
+			"operator overwriting a seeded row via Set must promote it to explicit")
+	})
+}
+
+// TestSettingsService_ReEncryptAll_PreservesOrigin is the #794 regression
+// guard: ReEncryptAll loads each row and re-Saves it via a raw gorm.DB.Save
+// (not SettingsService.Set), so it must NOT touch Origin. If key rotation
+// promoted every seeded row to explicit, the whole precedence feature would
+// silently break — every operational key would suddenly out-rank config.
+func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(i)
+	}
+	enc, err := crypto.NewSettingsEncryptorFromKeys(key, nil, 1)
+	require.NoError(t, err)
+
+	svc := NewSettingsService(gormDB, nil)
+	svc.SetEncryptor(enc)
+
+	seeded := models.SystemSetting{
+		SettingKey:  "session.timeout_minutes",
+		Value:       "60", // plaintext; ReEncryptAll must accept this as well as already-encrypted values
+		SettingType: models.SystemSettingTypeInt,
+		Origin:      models.NullableDBVarchar{String: models.SystemSettingOriginSeeded, Valid: true},
+	}
+	require.NoError(t, gormDB.Create(&seeded).Error)
+
+	explicit := models.SystemSetting{
+		SettingKey:  "ui.default_theme",
+		Value:       "dark",
+		SettingType: models.SystemSettingTypeString,
+		Origin:      models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true},
+	}
+	require.NoError(t, gormDB.Create(&explicit).Error)
+
+	count, settingErrors, err := svc.ReEncryptAll(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Empty(t, settingErrors)
+	assert.Equal(t, 2, count)
+
+	var reloadedSeeded models.SystemSetting
+	require.NoError(t, gormDB.Where("setting_key = ?", "session.timeout_minutes").First(&reloadedSeeded).Error)
+	assert.Equal(t, models.SystemSettingOriginSeeded, reloadedSeeded.Origin.String,
+		"ReEncryptAll must not promote a seeded row to explicit")
+	assert.False(t, reloadedSeeded.IsExplicit())
+
+	var reloadedExplicit models.SystemSetting
+	require.NoError(t, gormDB.Where("setting_key = ?", "ui.default_theme").First(&reloadedExplicit).Error)
+	assert.Equal(t, models.SystemSettingOriginExplicit, reloadedExplicit.Origin.String)
+	assert.True(t, reloadedExplicit.IsExplicit())
 }

@@ -314,6 +314,19 @@ func migrateSchemaForConfigAdapter(gormDB *db.GormDB, allModels []any, desiredFP
 		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
 	}
 
+	// #794: stamp explicit origin on pre-existing system_settings rows that
+	// show operator intent, and enforce the origin CHECK constraint -- same
+	// placement and reasoning as cmd/server/main.go's runMigrationsLocked and
+	// cmd/dbtool/schema.go's runSchema.
+	if updated, err := dbschema.BackfillSystemSettingOrigin(gormDB.DB()); err != nil {
+		return fmt.Errorf("failed to backfill system_settings.origin: %w", err)
+	} else if updated > 0 {
+		logger.Info("[AUTH_CONFIG_ADAPTER] Backfilled explicit origin on %d pre-existing system_settings row(s)", updated)
+	}
+	if err := dbschema.EnsureSystemSettingOriginCheckConstraint(gormDB.DB()); err != nil {
+		return fmt.Errorf("failed to ensure system_settings.origin CHECK constraint: %w", err)
+	}
+
 	return nil
 }
 

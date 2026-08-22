@@ -12,6 +12,7 @@ type stubRuntimeReader struct {
 	allowListErr    error
 	samlEnabled     bool
 	callbackURL     string
+	everyoneReviews bool
 }
 
 func (s *stubRuntimeReader) GetClientCallbackAllowList(_ context.Context) ([]string, bool, error) {
@@ -22,6 +23,9 @@ func (s *stubRuntimeReader) IsSAMLEnabled(_ context.Context) bool {
 }
 func (s *stubRuntimeReader) GetOAuthCallbackURL(_ context.Context) string {
 	return s.callbackURL
+}
+func (s *stubRuntimeReader) IsEveryoneAReviewer(_ context.Context) bool {
+	return s.everyoneReviews
 }
 
 func TestHandlers_clientCallbackAllowList_PrefersRuntimeReader(t *testing.T) {

@@ -188,6 +188,17 @@ func (h *Handlers) SetRuntimeConfigReader(r RuntimeConfigReader) {
 	h.runtimeCfg = r
 }
 
+// RuntimeConfigReader returns the wired reader, or nil if none was set.
+//
+// Exposed so components built outside the auth package — the JWT
+// authenticator in cmd/server, which needs auth.everyone_is_a_reviewer —
+// can resolve operational settings through the same reader rather than
+// reading a boot-time config snapshot that ignores the database (#794).
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: return the registered runtime config reader, or nil when unset (pure)
+func (h *Handlers) RuntimeConfigReader() RuntimeConfigReader {
+	return h.runtimeCfg
+}
+
 // clientCallbackAllowList returns the allowlist read from the runtime
 // config (DB-backed) when available, otherwise the YAML snapshot.
 //

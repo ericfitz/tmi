@@ -20,10 +20,12 @@ import (
 type SettingsServiceInterface interface {
 	Get(ctx context.Context, key string) (*models.SystemSetting, error)
 	GetString(ctx context.Context, key string) (string, error)
-	// GetDatabaseString reads from the database only (no env/config-file
-	// priority) and reports whether the row exists. Used by the #419
-	// runtime-config path, where the DB must win over the YAML (#767).
-	GetDatabaseString(ctx context.Context, key string) (string, bool, error)
+	// GetResolvedString applies the single converged precedence rule across
+	// the config layer and the database, and reports whether any layer
+	// supplied a usable value. Used by the #419 runtime-config path. It
+	// replaced GetDatabaseString so the two precedence rules that caused the
+	// 2026-08-20 outage cannot re-diverge (#794).
+	GetResolvedString(ctx context.Context, key string) (string, bool, error)
 	GetInt(ctx context.Context, key string) (int, error)
 	GetBool(ctx context.Context, key string) (bool, error)
 	List(ctx context.Context) ([]models.SystemSetting, error)

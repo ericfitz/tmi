@@ -566,6 +566,28 @@ func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error 
 		logger.Info("Migrated %d severity values from 'none' to 'informational'", result.RowsAffected)
 	}
 
+	// #794: stamp explicit origin on pre-existing system_settings rows that
+	// show operator intent (modified_by set, or a value that no longer
+	// matches the registry default), so they keep the authority they had
+	// before the origin column existed. Idempotent — see
+	// internal/dbschema/system_setting_origin_backfill.go. Non-fatal: a
+	// database issue here just leaves the affected rows reading as seeded
+	// (the fail-safe default) until the next successful boot retries.
+	if updated, err := dbschema.BackfillSystemSettingOrigin(gormDB.DB()); err != nil {
+		logger.Warn("BackfillSystemSettingOrigin failed (non-fatal; affected rows keep reading as seeded until the next successful boot): %v", err)
+	} else if updated > 0 {
+		logger.Info("Backfilled explicit origin on %d pre-existing system_settings row(s)", updated)
+	}
+
+	// #794: enforce system_settings.origin IN (NULL, 'seeded', 'explicit') at
+	// the database level, turning the "never write '' here" model comment
+	// into an actual invariant. Idempotent; non-fatal — a missing
+	// defense-in-depth constraint is a smaller outage than a server that
+	// will not boot, and the next boot retries.
+	if err := dbschema.EnsureSystemSettingOriginCheckConstraint(gormDB.DB()); err != nil {
+		logger.Warn("EnsureSystemSettingOriginCheckConstraint failed (non-fatal; the origin invariant is not enforced at the database level): %v", err)
+	}
+
 	// Seed required data (everyone group, webhook deny list)
 	if err := seed.SeedDatabase(gormDB.DB()); err != nil {
 		return fmt.Errorf("failed to seed database: %w", err)
@@ -867,6 +889,10 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		logger.Info("Default system settings seeded successfully")
 	}
 
+	// Warn if an explicit config/environment value disagrees with the database
+	// (see #794 — this is what would have caught the 2026-08-20 outage).
+	warnIfConfigDatabaseDiverges(context.Background(), settingsService, config, logger)
+
 	// Set config provider for settings migration endpoint and priority lookups
 	// Configuration priority: environment > config file > database
 	// The config provider (environment/config file values) takes precedence over database values
@@ -961,6 +987,9 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		// operational config (client_callback_allowlist, saml_enabled,
 		// oauth_callback_url) come from system_settings rather than the
 		// YAML snapshot loaded at boot. #419.
+		// The JWT authenticator reads the same reader back off authHandlers for
+		// auth.everyone_is_a_reviewer, which until #794 was read straight off
+		// the boot-time config struct and so ignored its database row entirely.
 		authHandlers.SetRuntimeConfigReader(api.NewRuntimeConfigReaderAdapter(settingsService))
 		logger.Info("Runtime config reader wired into auth handlers (#419)")
 	} else {

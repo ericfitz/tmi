@@ -36,15 +36,17 @@ func NewRuntimeConfigReaderAdapter(settings SettingsServiceInterface) *RuntimeCo
 //   - exists=true, err!=nil: DB row present but unusable → caller MUST
 //     fail-closed to prevent open-redirect against a corrupt row.
 //
-// The read is database-only (GetDatabaseString): for #419 runtime keys the
-// DB row must win over the YAML config, which acts purely as a first-run
-// fallback. Reading through GetString would invert that — its
-// env/config-file priority silently shadows the DB row whenever the YAML
-// also carries the key (#767).
+// The read goes through GetResolvedString, which applies the converged
+// precedence rule (#794). It used to be database-only, because for #419
+// runtime keys the DB row must win over the YAML — and reading through
+// GetString would have inverted that, since its env/config-file priority
+// shadows the DB row whenever the YAML also carries the key (#767).
+// GetResolvedString keeps that property for any row an operator actually
+// set, while letting an explicit config value beat a merely-seeded default.
 //
-// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: fetch the OAuth client callback allowlist from DB settings only; fail-closed on corrupt row (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: fetch the OAuth client callback allowlist by resolved precedence; fail-closed on corrupt row (reads DB)
 func (a *RuntimeConfigReaderAdapter) GetClientCallbackAllowList(ctx context.Context) ([]string, bool, error) {
-	raw, exists, err := a.settings.GetDatabaseString(ctx, "auth.oauth.client_callback_allowlist")
+	raw, exists, err := a.settings.GetResolvedString(ctx, "auth.oauth.client_callback_allowlist")
 	if err != nil {
 		// A TRANSIENT DB fault (ADB idle-session kill, pool exhaustion,
 		// listener blip — ORA-02396/03113/12537 class) must NOT fail closed:
@@ -74,14 +76,19 @@ func (a *RuntimeConfigReaderAdapter) GetClientCallbackAllowList(ctx context.Cont
 	return list, true, nil
 }
 
-// IsSAMLEnabled reads features.saml_enabled, DB row first (#419/#767).
-// When no DB row exists it falls back to GetString (env/config file) —
+// IsSAMLEnabled reads features.saml_enabled by the converged precedence
+// rule (#794). When no layer supplies a value it falls back to GetString —
 // unlike the other two readers, the auth handler has no YAML fallback of
 // its own once a RuntimeConfigReader is wired. A read error or garbage
 // value returns false (fail-closed).
-// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: check whether SAML login is enabled, DB-first with config fallback; fail-closed on error (reads DB)
+//
+// Note that TMI_SAML_ENABLED separately gates SAML manager construction at
+// startup (auth/service.go), so the env var stays load-bearing regardless of
+// what this returns, and enabling SAML via the database alone still needs a
+// restart. That asymmetry is called out in #794 and is not fixed here.
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: check whether SAML login is enabled by resolved precedence; fail-closed on error (reads DB)
 func (a *RuntimeConfigReaderAdapter) IsSAMLEnabled(ctx context.Context) bool {
-	raw, exists, err := a.settings.GetDatabaseString(ctx, "features.saml_enabled")
+	raw, exists, err := a.settings.GetResolvedString(ctx, "features.saml_enabled")
 	if err != nil {
 		// Transient DB faults fall through to the config-layer fallback below
 		// (same reasoning as GetClientCallbackAllowList): an ADB blip must not
@@ -110,12 +117,20 @@ func (a *RuntimeConfigReaderAdapter) IsSAMLEnabled(ctx context.Context) bool {
 	return v
 }
 
-// GetOAuthCallbackURL reads auth.oauth_callback_url from the database only
-// (#419/#767). An empty string is returned on error/missing row; the
-// caller falls back to the YAML snapshot in h.config.OAuth.CallbackURL.
-// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: fetch the OAuth callback URL from DB settings only; return empty string on error (reads DB)
+// GetOAuthCallbackURL reads auth.oauth_callback_url by the converged
+// precedence rule (#794). An empty string is returned on error or when no
+// layer supplies a value; the caller falls back to the YAML snapshot in
+// h.config.OAuth.CallbackURL.
+//
+// This is the key that broke production on 2026-08-20. RDS carried a
+// registry-seeded default of http://localhost:8080/oauth2/callback, the
+// database-only read let it outrank a correctly-set TMI_OAUTH_CALLBACK_URL,
+// and every provider rejected the resulting redirect_uri. Under the
+// converged rule a seeded row loses to an explicit env value, so that
+// specific failure cannot recur.
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: fetch the OAuth callback URL by resolved precedence; return empty string on error (reads DB)
 func (a *RuntimeConfigReaderAdapter) GetOAuthCallbackURL(ctx context.Context) string {
-	raw, exists, err := a.settings.GetDatabaseString(ctx, "auth.oauth_callback_url")
+	raw, exists, err := a.settings.GetResolvedString(ctx, "auth.oauth_callback_url")
 	if err != nil {
 		slogging.Get().Warn("RuntimeConfigReader: failed to read auth.oauth_callback_url: %v", err)
 		return ""
@@ -129,6 +144,32 @@ func (a *RuntimeConfigReaderAdapter) GetOAuthCallbackURL(ctx context.Context) st
 		return ""
 	}
 	return raw
+}
+
+// IsEveryoneAReviewer reads auth.everyone_is_a_reviewer by the converged
+// precedence rule (#794). Fail-closed: any read error, missing value, or
+// unparseable value returns false.
+//
+// This key previously had no runtime reader at all — its only consumer read
+// the config struct field directly, so the database row was display-only
+// drift and editing it did nothing. It is the fifth and last of the keys
+// #794 catalogued as following inconsistent precedence.
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: check whether all users are auto-added as security reviewers; fail-closed on error (reads DB)
+func (a *RuntimeConfigReaderAdapter) IsEveryoneAReviewer(ctx context.Context) bool {
+	raw, exists, err := a.settings.GetResolvedString(ctx, "auth.everyone_is_a_reviewer")
+	if err != nil {
+		slogging.Get().Warn("RuntimeConfigReader: failed to read auth.everyone_is_a_reviewer: %v", err)
+		return false
+	}
+	if !exists || raw == "" {
+		return false
+	}
+	v, parseErr := strconv.ParseBool(raw)
+	if parseErr != nil {
+		slogging.Get().Warn("RuntimeConfigReader: auth.everyone_is_a_reviewer is not a valid bool (%q): %v", raw, parseErr)
+		return false
+	}
+	return v
 }
 
 // Compile-time check that the adapter satisfies the auth interface.

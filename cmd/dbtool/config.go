@@ -30,7 +30,7 @@ import (
 //     preserves comments, key ordering, and value types verbatim — none of
 //     which the *-migrated.yml writer below does.
 //
-// SEM@e7880ae29f527fb2d814f6d7b7c13280082fa033: migrate operational settings from a config file into the database, optionally writing a bootstrap-only YAML (writes DB)
+// SEM@0000000000000000000000000000000000000000: migrate operational settings from a config file into the database with explicit origin, optionally writing a bootstrap-only YAML (writes DB)
 func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, dryRun, emitLegacyMigratedYAML bool) error {
 	log := slogging.Get()
 
@@ -139,12 +139,16 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 		}
 
 		description := s.Description
+		// origin is stamped explicit: an operator ran --import-config to put
+		// this value here deliberately (#794), including on the #792
+		// snapshot/restore path where this now outranks env for these keys.
 		setting := models.SystemSetting{
 			SettingKey:  models.DBVarchar(s.Key),
 			Value:       models.DBText(value),
 			SettingType: models.DBVarchar(s.Type),
 			Description: models.NewNullableDBText(&description),
 			ModifiedAt:  time.Now(),
+			Origin:      models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true},
 		}
 
 		if exists {
@@ -156,6 +160,7 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 				"value":        value,
 				"setting_type": s.Type,
 				"description":  description,
+				"origin":       models.SystemSettingOriginExplicit,
 			}).Error; updateErr != nil {
 				return fmt.Errorf("failed to update setting %s: %w", s.Key, updateErr)
 			}

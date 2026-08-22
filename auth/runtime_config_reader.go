@@ -41,4 +41,17 @@ type RuntimeConfigReader interface {
 	// GetOAuthCallbackURL returns the configured OAuth callback URL used
 	// when redirecting back from an external provider.
 	GetOAuthCallbackURL(ctx context.Context) string
+
+	// IsEveryoneAReviewer reports whether every authenticated user should be
+	// auto-added to the Security Reviewers group.
+	//
+	// Before #794 this setting had no runtime reader at all: the only
+	// consumer read config.Auth.EveryoneIsAReviewer directly, so the
+	// database row existed, was displayed by the admin API, and did
+	// absolutely nothing. Editing it at runtime appeared to work and
+	// silently had no effect.
+	//
+	// Returns false on any read error (fail-closed): failing to grant a
+	// group membership is recoverable, granting one wrongly is not.
+	IsEveryoneAReviewer(ctx context.Context) bool
 }
