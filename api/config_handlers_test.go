@@ -46,7 +46,7 @@ func (m *MockSettingsService) GetString(ctx context.Context, key string) (string
 	return "", nil
 }
 
-func (m *MockSettingsService) GetDatabaseString(ctx context.Context, key string) (string, bool, error) {
+func (m *MockSettingsService) GetResolvedString(ctx context.Context, key string) (string, bool, error) {
 	if setting, ok := m.settings[key]; ok {
 		return string(setting.Value), true, nil
 	}

@@ -54,6 +54,56 @@ func TestGenerateReferenceMarkdown_NeverLeaksSecretDefault(t *testing.T) {
 	}
 }
 
+func TestGenerateReferenceMarkdown_HasPrecedenceSection(t *testing.T) {
+	out, err := GenerateReferenceMarkdown()
+	if err != nil {
+		t.Fatalf("GenerateReferenceMarkdown: %v", err)
+	}
+	s := string(out)
+	for _, want := range []string{
+		"## Precedence",
+		"config explicit",
+		"DB explicit",
+		"auth.oauth.providers.*",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("reference missing precedence prose %q", want)
+		}
+	}
+}
+
+func TestGenerateReferenceMarkdown_PrecedenceColumnByCategory(t *testing.T) {
+	out, err := GenerateReferenceMarkdown()
+	if err != nil {
+		t.Fatalf("GenerateReferenceMarkdown: %v", err)
+	}
+	s := string(out)
+
+	// server.port is bootstrap: config/env only, never DB-backed.
+	bootstrapLine := findRowContaining(t, s, "`server.port`")
+	if !strings.Contains(bootstrapLine, "config/env only") {
+		t.Errorf("bootstrap key server.port: want precedence cell %q, got row %q", "config/env only", bootstrapLine)
+	}
+
+	// auth.auto_promote_first_user is operational: DB wins unless config is explicit.
+	operationalLine := findRowContaining(t, s, "`auth.auto_promote_first_user`")
+	if !strings.Contains(operationalLine, "db unless config explicit") {
+		t.Errorf("operational key auth.auto_promote_first_user: want precedence cell %q, got row %q",
+			"db unless config explicit", operationalLine)
+	}
+}
+
+func findRowContaining(t *testing.T, doc, keyCell string) string {
+	t.Helper()
+	for _, line := range strings.Split(doc, "\n") {
+		if strings.Contains(line, keyCell) {
+			return line
+		}
+	}
+	t.Fatalf("no table row found containing %q", keyCell)
+	return ""
+}
+
 func TestConfigReferenceFile_MatchesRegistry(t *testing.T) {
 	generated, err := GenerateReferenceMarkdown()
 	if err != nil {

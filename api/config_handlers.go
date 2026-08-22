@@ -615,7 +615,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 }
 
 // UpdateSystemSetting creates or updates a system setting (admin only)
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: create or update a database system setting, validating provider enables and invalidating cache (reads DB)
+// SEM@0000000000000000000000000000000000000000: create or update a database system setting with explicit origin, validating provider enables and invalidating cache (reads DB)
 func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
@@ -676,7 +676,9 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 		}
 	}
 
-	// Convert to model
+	// Convert to model. Origin is stamped explicit here (an admin deliberately
+	// PUT this value) and again by SettingsService.Set below, which is the
+	// authoritative writer — belt and suspenders (#794).
 	setting := models.SystemSetting{
 		SettingKey:  models.DBVarchar(key),
 		Value:       models.DBText(req.Value),
@@ -684,6 +686,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 		ModifiedAt:  time.Now(),
 		ModifiedBy:  models.NewNullableDBVarchar(modifiedBy),
 		Description: models.NewNullableDBText(req.Description),
+		Origin:      models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true},
 	}
 
 	// Enable-validation gate: validate required fields when enabling a provider

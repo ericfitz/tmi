@@ -20,6 +20,36 @@ type SystemSetting struct {
 	Description NullableDBText    `gorm:"" json:"description,omitempty"`
 	ModifiedAt  time.Time         `gorm:"not null;autoUpdateTime" json:"modified_at"`
 	ModifiedBy  NullableDBVarchar `gorm:"size:36" json:"modified_by,omitempty"` // User InternalUUID
+	// Origin records who wrote this row's current value: SystemSettingOriginSeeded
+	// when SeedDefaults inserted the registry default at first boot, or
+	// SystemSettingOriginExplicit when an operator deliberately set it (via the
+	// admin API, SettingsService.Set, or dbtool --import-config).
+	//
+	// NULL means SEEDED — the fail-safe direction. Every way an origin value
+	// can go missing (an empty string bound on Oracle, a future writer that
+	// forgets the stamp, a stale pre-upgrade Redis entry whose cached JSON has
+	// no origin key) therefore degrades to "seeded", which makes the config
+	// layer win. Config is the layer an operator can see and control, so
+	// losing this value must never hand authority to a database row nobody set
+	// — that is precisely the 2026-08-20 outage (oracle-db-admin review, #794).
+	//
+	// Rows that predate this column are stamped explicit where they show
+	// operator intent, by BackfillSystemSettingOrigin in internal/dbschema.
+	// The column itself is added with no `ALTER TABLE ... DEFAULT` (Oracle
+	// rejects unquoted string defaults — see the SettingType comment above).
+	// Never write "" here: Oracle binds an
+	// empty string as NULL, so an empty string and NULL would be
+	// indistinguishable there. Only NULL, SystemSettingOriginSeeded, or
+	// SystemSettingOriginExplicit are valid values.
+	// Not part of the wire API: modelToAPISystemSetting (api/config_handlers.go)
+	// builds the API SystemSetting field by field and never copies Origin
+	// across, so it never reaches a client regardless of this tag. The tag is
+	// a real json name (not "-") because the Redis cache tier round-trips a
+	// SystemSetting through json.Marshal/Unmarshal (setInRedisCache /
+	// getFromRedisCache) — "-" would silently drop Origin on every Redis
+	// cache hit and make every setting look explicit after a warm read
+	// (oracle-db-admin review, #794).
+	Origin NullableDBVarchar `gorm:"size:16" json:"origin,omitempty"`
 	// Source indicates where the effective value comes from: "database", "config", "environment", "vault"
 	// Computed at response time, not stored in the database.
 	Source string `gorm:"-" json:"source"`
@@ -46,6 +76,28 @@ const (
 	// back into the field (#791).
 	SystemSettingTypeFloat = "float"
 )
+
+// SystemSettingOrigin constants for the Origin field
+const (
+	// SystemSettingOriginSeeded marks a row inserted by SeedDefaults with a
+	// registry default value — no operator has ever set it.
+	SystemSettingOriginSeeded = "seeded"
+	// SystemSettingOriginExplicit marks a row an operator deliberately set,
+	// via the admin API, SettingsService.Set, or dbtool --import-config.
+	SystemSettingOriginExplicit = "explicit"
+)
+
+// IsExplicit reports whether an operator deliberately set this row's value,
+// as opposed to it having been seeded with a registry default at first boot.
+//
+// Only an explicit "explicit" counts. NULL, "seeded", and any unexpected value
+// all read as NOT explicit, so the database only outranks an explicitly
+// configured env/YAML value when something deliberately said so. See the
+// Origin field's comment for why that polarity is the safe one.
+// SEM@0000000000000000000000000000000000000000: report whether a setting's value was deliberately set rather than seeded (pure)
+func (s *SystemSetting) IsExplicit() bool {
+	return s.Origin.Valid && s.Origin.String == SystemSettingOriginExplicit
+}
 
 // DefaultSystemSettings returns the default system settings that should be seeded
 // when the database is initialized. These provide sensible defaults that can be

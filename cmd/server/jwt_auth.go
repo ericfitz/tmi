@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ericfitz/tmi/api"
@@ -435,6 +436,66 @@ type JWTAuthenticator struct {
 	blacklistChecker *TokenBlacklistChecker
 	claimsExtractor  *ClaimsExtractor
 	ticketValidator  *TicketValidator
+	// authHandlers is retained so the authenticator can reach the runtime
+	// config reader wired onto it after construction. It is read lazily
+	// rather than captured, because SetRuntimeConfigReader runs later in
+	// startup than the JWTMiddleware factory that builds this struct.
+	authHandlers *auth.Handlers
+
+	// Memoized auth.everyone_is_a_reviewer — see everyoneIsAReviewer for why
+	// this one setting is cached here rather than read per request.
+	reviewerMu     sync.RWMutex
+	reviewerCached bool
+	reviewerExpiry time.Time
+}
+
+// everyoneIsAReviewerTTL bounds how stale the memoized value may be. It
+// matches SettingsCacheTTL, so a runtime edit takes effect on the same
+// timescale as every other hot operational setting.
+const everyoneIsAReviewerTTL = 60 * time.Second
+
+// everyoneIsAReviewer reports whether every authenticated user should be
+// auto-added to the Security Reviewers group, preferring the runtime resolver
+// over the boot-time config snapshot.
+//
+// Before #794 the caller read a.config.Auth.EveryoneIsAReviewer directly, so
+// the system_settings row for this key was pure drift: visible in the admin
+// API, editable, and inert. Falls back to the config snapshot when no reader
+// is wired, which is what unit tests and any pre-#419 path rely on.
+//
+// The result is memoized because this sits at the tail of
+// AuthenticateRequest — on EVERY authenticated request, not just /oauth2/*.
+// The settings service picks its cache tier once at construction and never
+// falls back, so with Redis unreachable an uncached read here would put one
+// SELECT on a session-limited ADB per authenticated request, and during an
+// ADB blip each would first pay the full WithRetryableGormRead budget on the
+// global auth path. Memoizing turns that back into at most one read per TTL
+// (oracle-db-admin review, note 3).
+// SEM@0000000000000000000000000000000000000000: report whether all users are auto-added as security reviewers, memoized (reads DB)
+func (a *JWTAuthenticator) everyoneIsAReviewer(ctx context.Context) bool {
+	if a.authHandlers == nil {
+		return a.config.Auth.EveryoneIsAReviewer
+	}
+	r := a.authHandlers.RuntimeConfigReader()
+	if r == nil {
+		return a.config.Auth.EveryoneIsAReviewer
+	}
+
+	a.reviewerMu.RLock()
+	cached, expiry := a.reviewerCached, a.reviewerExpiry
+	a.reviewerMu.RUnlock()
+	if time.Now().Before(expiry) {
+		return cached
+	}
+
+	v := r.IsEveryoneAReviewer(ctx)
+
+	a.reviewerMu.Lock()
+	a.reviewerCached = v
+	a.reviewerExpiry = time.Now().Add(everyoneIsAReviewerTTL)
+	a.reviewerMu.Unlock()
+
+	return v
 }
 
 // NewJWTAuthenticator creates a new JWT authenticator
@@ -447,6 +508,7 @@ func NewJWTAuthenticator(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist
 		blacklistChecker: NewTokenBlacklistChecker(tokenBlacklist),
 		claimsExtractor:  NewClaimsExtractor(authHandlers, cfg),
 		ticketValidator:  ticketValidator,
+		authHandlers:     authHandlers,
 	}
 }
 
@@ -540,7 +602,7 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 	}
 
 	// Auto-promotion: If everyone_is_a_reviewer is enabled, add user to Security Reviewers
-	if a.config.Auth.EveryoneIsAReviewer {
+	if a.everyoneIsAReviewer(c.Request.Context()) {
 		if err := a.autoPromoteUserToReviewer(c, logger); err != nil {
 			logger.Warn("Auto-promotion to reviewer failed (non-fatal): %v", err)
 		}

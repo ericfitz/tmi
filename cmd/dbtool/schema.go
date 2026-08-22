@@ -130,6 +130,25 @@ func runSchemaLocked(db *testdb.TestDB) error {
 		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
 	}
 
+	// #794: stamp explicit origin on pre-existing system_settings rows that
+	// show operator intent (modified_by set, or a value that no longer
+	// matches the registry default), same placement and reasoning as
+	// cmd/server/main.go's runMigrationsLocked. dbtool is the
+	// admin-privileged remediation path, so a failure here is surfaced
+	// rather than swallowed.
+	if updated, err := dbschema.BackfillSystemSettingOrigin(db.DB()); err != nil {
+		return fmt.Errorf("failed to backfill system_settings.origin: %w", err)
+	} else if updated > 0 {
+		log.Info("Backfilled explicit origin on %d pre-existing system_settings row(s)", updated)
+	}
+
+	// #794: enforce system_settings.origin IN (NULL, 'seeded', 'explicit') at
+	// the database level. Same placement and reasoning as
+	// cmd/server/main.go's runMigrationsLocked.
+	if err := dbschema.EnsureSystemSettingOriginCheckConstraint(db.DB()); err != nil {
+		return fmt.Errorf("failed to ensure system_settings.origin CHECK constraint: %w", err)
+	}
+
 	// Step 2: Seed system data
 	log.Info("Seeding system data (groups, webhook deny list)...")
 	if err := seed.SeedDatabase(db.DB()); err != nil {

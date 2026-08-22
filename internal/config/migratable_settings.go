@@ -28,6 +28,24 @@ type MigratableSetting struct {
 	Explicit bool
 }
 
+// IsSecret reports whether this setting's value must never be shown in an API
+// response or written to a log.
+//
+// Consult this rather than either flag directly. The two are NOT equivalent and
+// the difference is a live trap: Class.Secret is false for the whole
+// `auth.oauth.providers.`, `auth.saml.providers.` and `content_oauth.providers.`
+// subtrees (see prefixClassifications — a blanket true there would mis-mask
+// non-secret sub-keys like .client_id), so for those subtrees secrecy is
+// carried ONLY by the per-setting Secret flag that the provider helpers set on
+// .client_secret, .sp_private_key and .idp_metadata_b64xml. The
+// Class.Secret->Secret sync in GetMigratableSettings runs in one direction
+// only, so checking Class.Secret alone silently treats a real OAuth client
+// secret as public.
+// SEM@0000000000000000000000000000000000000000: report whether a setting's value must be masked in responses and logs (pure)
+func (m MigratableSetting) IsSecret() bool {
+	return m.Secret || m.Class.Secret
+}
+
 // settingSource returns "environment" if the given env var is set, otherwise "config".
 //
 // The env var named here must be one this package's struct tags actually bind.

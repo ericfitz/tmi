@@ -179,7 +179,7 @@ func setQuotas(db *testdb.TestDB, userInternalUUID string, quota map[string]any)
 	return nil
 }
 
-// SEM@926d7b92ff82030ff3a1c03b2307247302613d38: upsert a system setting key-value pair, skipping empty values (reads DB)
+// SEM@0000000000000000000000000000000000000000: upsert a system setting key-value pair with explicit origin, skipping empty values (reads DB)
 func seedSetting(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -205,11 +205,14 @@ func seedSetting(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 
 	description, _ := entry.Data["description"].(string)
 
+	// origin is stamped explicit: a hand-authored seed entry is an operator
+	// deliberately setting this value, the same as --import-config (#794).
 	setting := models.SystemSetting{
 		SettingKey:  models.DBVarchar(key),
 		Value:       models.DBText(value),
 		SettingType: models.DBVarchar(settingType),
 		Description: models.NewNullableDBText(&description),
+		Origin:      models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true},
 	}
 
 	var existing models.SystemSetting
@@ -218,6 +221,7 @@ func seedSetting(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 			"value":        value,
 			"setting_type": settingType,
 			"description":  description,
+			"origin":       models.SystemSettingOriginExplicit,
 		}).Error; err != nil {
 			return nil, fmt.Errorf("failed to update setting %s: %w", key, err)
 		}

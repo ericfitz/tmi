@@ -12,7 +12,7 @@ import (
 
 // fakeSettingsService is a minimal SettingsServiceInterface stub for adapter
 // tests. Only the methods the adapter actually calls are exercised.
-// db simulates database rows (GetDatabaseString); strings simulates the
+// db simulates resolved rows (GetResolvedString); strings simulates the
 // config layer (GetString reads ONLY this map — the maps are deliberately
 // disjoint so the config-fallback tests fail if the adapter's explicit
 // fallback read is ever removed). errs fails both reads for a key; dbErrs
@@ -42,7 +42,7 @@ func (f *fakeSettingsService) GetString(ctx context.Context, key string) (string
 	}
 	return f.strings[key], nil
 }
-func (f *fakeSettingsService) GetDatabaseString(ctx context.Context, key string) (string, bool, error) {
+func (f *fakeSettingsService) GetResolvedString(ctx context.Context, key string) (string, bool, error) {
 	if err, ok := f.dbErrs[key]; ok {
 		return "", false, err
 	}
@@ -327,4 +327,55 @@ func TestRuntimeConfigReaderAdapter_TransientDBFaultFallsBackToYAML(t *testing.T
 			t.Errorf("got %q, want empty", got)
 		}
 	})
+}
+
+// IsEveryoneAReviewer is the fifth key #794 catalogued. Before this change it
+// had no runtime reader at all — the only consumer read the config struct
+// directly, so the database row was visible, editable, and inert.
+func TestRuntimeConfigReaderAdapter_IsEveryoneAReviewer(t *testing.T) {
+	const key = "auth.everyone_is_a_reviewer"
+
+	tests := []struct {
+		name  string
+		setup func(f *fakeSettingsService)
+		want  bool
+	}{
+		{
+			name:  "resolved true",
+			setup: func(f *fakeSettingsService) { f.db[key] = "true" },
+			want:  true,
+		},
+		{
+			name:  "resolved false",
+			setup: func(f *fakeSettingsService) { f.db[key] = "false" },
+			want:  false,
+		},
+		{
+			name:  "no value anywhere is fail-closed",
+			setup: func(f *fakeSettingsService) {},
+			want:  false,
+		},
+		{
+			name:  "unparseable value is fail-closed",
+			setup: func(f *fakeSettingsService) { f.db[key] = "yes-please" },
+			want:  false,
+		},
+		{
+			name:  "read error is fail-closed",
+			setup: func(f *fakeSettingsService) { f.errs[key] = errors.New("boom") },
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFakeSettingsService()
+			tt.setup(f)
+			a := NewRuntimeConfigReaderAdapter(f)
+
+			if got := a.IsEveryoneAReviewer(context.Background()); got != tt.want {
+				t.Errorf("IsEveryoneAReviewer() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
