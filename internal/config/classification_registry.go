@@ -102,6 +102,7 @@ var exactClassifications = map[string]ConfigClass{
 	"server.idle_timeout":           bootstrapClass(false, VisibilityInternal, false),
 	"server.base_url":               bootstrapClass(false, VisibilityPublic, false),
 	"server.cors.allowed_origins":   bootstrapClass(false, VisibilityInternal, false),
+	"server.trusted_proxies":        bootstrapClass(false, VisibilityInternal, false),
 	// Operational server knobs — rate-limiting and optimistic-locking (#426)
 	"server.disable_rate_limiting": operationalClass(VisibilityAdminOnly, false),
 	"server.ratelimit_public_rpm":  operationalClass(VisibilityAdminOnly, false),

@@ -120,18 +120,7 @@ func isOmittableEmptyValue(settingType, value string) bool {
 // observable output for the first time — a real behavior change (dozens of
 // keys' hot/static column in config-reference.md) that Ruling 15 explicitly
 // deferred to Phase E ("making classificationFor() consult the registry...
-// belongs in Phase E"). It would also require excluding
-// server.trusted_proxies, whose SettingDef is fully wired (real Get, real
-// Bootstrap Class) but which classificationFor(key) does not recognize
-// (unclassified today; see the exclusion below) — emitting it here trips a
-// pre-existing, unrelated bug in GenerateExampleConfig's JSON-value coercion
-// (internal/config/example_gen.go treats a "json"-typed value's already-
-// marshaled string as a literal rather than decoding it, so a nil slice's
-// "null" becomes the YAML string `"null"` instead of an empty list), which
-// broke auth's TestYAMLConfigsPassOAuthValidation against the regenerated
-// config-example.yml. Both issues belong to Task 8 (which owns rewriting
-// these generators and, per its own brief, expects "keys that were
-// conditionally omitted before" to newly appear) — see the task report.
+// belongs in Phase E").
 // SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: list all config settings eligible for database migration with classification applied (pure)
 func (c *Config) GetMigratableSettings() []MigratableSetting {
 	defs := AllSettingDefs()
@@ -141,9 +130,6 @@ func (c *Config) GetMigratableSettings() []MigratableSetting {
 	for _, d := range defs {
 		if d.Get == nil {
 			continue // database-only: no config path to read from
-		}
-		if d.Key == "server.trusted_proxies" {
-			continue // unclassified today; see the doc comment above
 		}
 		if _, ok := skip[d.Key]; ok {
 			continue // deliberately excluded — see ExpectedMigratableKeysSkipped

@@ -49,9 +49,12 @@ func GenerateReferenceMarkdown() ([]byte, error) {
 	}
 
 	b.WriteString("\n## Operational settings\n\n")
-	b.WriteString("DB-backed, seeded from defaults on first run, editable at runtime via `/admin/settings`.\n\n")
-	b.WriteString("| Key | Type | Default | Mutability | Visibility | Secret | Precedence | Description |\n")
-	b.WriteString("|-----|------|---------|------------|------------|--------|------------|-------------|\n")
+	b.WriteString("DB-backed, seeded from defaults on first run, editable at runtime via `/admin/settings`. " +
+		"A setting with an env var is Transitional: still config/env-eligible during migration " +
+		"(see [[Configuration-Model]]) — most operational settings have no env var at all, since they " +
+		"exist only in the database.\n\n")
+	b.WriteString("| Key | Env var | Type | Default | Mutability | Visibility | Secret | Precedence | Description |\n")
+	b.WriteString("|-----|---------|------|---------|------------|------------|--------|------------|-------------|\n")
 	for _, s := range operational {
 		b.WriteString(operationalRow(s))
 	}
@@ -106,8 +109,8 @@ func bootstrapRow(s MigratableSetting) string {
 
 // SEM@0000000000000000000000000000000000000000: format an operational config setting as a Markdown table row (pure)
 func operationalRow(s MigratableSetting) string {
-	return fmt.Sprintf("| `%s` | %s | %s | %s | %s | %s | %s | %s |\n",
-		s.Key, s.Type, defaultCell(s), s.Class.Mutability.String(),
+	return fmt.Sprintf("| `%s` | %s | %s | %s | %s | %s | %s | %s | %s |\n",
+		s.Key, codeOrDash(s.EnvVar), s.Type, defaultCell(s), s.Class.Mutability.String(),
 		s.Class.Visibility.String(), yesNo(s.Class.Secret), precedenceCell(s), sanitizeCell(s.Description))
 }
 

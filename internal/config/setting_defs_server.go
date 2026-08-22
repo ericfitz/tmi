@@ -117,11 +117,6 @@ var serverSettingDefs = []SettingDef{
 		EnvVar:      "TMI_SERVER_HTTP_TO_HTTPS_REDIRECT",
 		Get:         func(c *Config) string { return strconv.FormatBool(c.Server.HTTPToHTTPSRedirect) },
 	},
-	// server.trusted_proxies has no entry in exactClassifications (see
-	// classification_registry.go) and no entry in migratable_settings.go's
-	// getMigratableServerSettings — it is unclassified today. Falling back to
-	// the same bootstrapClass(false, VisibilityInternal, false) shape as its
-	// ServerConfig siblings; flagged for the wiring/validation pass.
 	{
 		Key:         "server.trusted_proxies",
 		Class:       bootstrapClass(false, VisibilityInternal, false),
