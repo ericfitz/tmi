@@ -98,11 +98,29 @@ func TestValidateSettingDefs_BootstrapMustNotBeTransitional(t *testing.T) {
 }
 
 func TestValidateSettingDefs_OperationalRequiresDefault(t *testing.T) {
+	// Type "bool" here, not the "string" of validOperationalDef(): a
+	// non-string zero value always serializes to a non-empty string
+	// ("false"), so an empty Default on a bool setting is unambiguously a
+	// missing declaration, not a legitimate zero value. See
+	// TestValidateSettingDefs_StringOperationalDefaultMayBeEmpty for the
+	// string-typed case, which this rule deliberately does not flag.
 	d := validOperationalDef()
+	d.Type = "bool"
 	d.Default = ""
 	err := ValidateSettingDefs([]SettingDef{d})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Default")
+}
+
+func TestValidateSettingDefs_StringOperationalDefaultMayBeEmpty(t *testing.T) {
+	// A string-typed setting's Default is exempt from the "must declare"
+	// rule: Default is carried as a plain string, so there is no way to
+	// distinguish a genuinely empty compiled-in default (e.g.
+	// auth.cookie.domain) from one nobody filled in.
+	d := validOperationalDef()
+	d.Type = "string"
+	d.Default = ""
+	assert.NoError(t, ValidateSettingDefs([]SettingDef{d}))
 }
 
 func TestValidateSettingDefs_OperationalRequiresDelivery(t *testing.T) {
@@ -222,4 +240,55 @@ func TestValidateSettingDefs_SeededImpliesOperational(t *testing.T) {
 
 func TestValidateSettingDefs_RegistryItselfIsValid(t *testing.T) {
 	assert.NoError(t, ValidateSettingDefs(AllSettingDefs()))
+}
+
+func TestValidateSettingDefs_TransitionalOperationalYAMLPathOptional(t *testing.T) {
+	d := validOperationalDef()
+	d.Transitional = true
+	d.EnvVar = "TMI_JWT_EXPIRATION_SECONDS"
+	d.Get = func(c *Config) string { return "60" }
+	// YAMLPath deliberately left empty, as for the derived
+	// session.timeout_minutes key.
+	assert.NoError(t, ValidateSettingDefs([]SettingDef{d}))
+}
+
+func TestValidateSettingDefs_TransitionalOperationalEnvVarOptional(t *testing.T) {
+	d := validOperationalDef()
+	d.Transitional = true
+	d.YAMLPath = "administrators"
+	d.Get = func(c *Config) string { return "[]" }
+	// EnvVar deliberately left empty, as for administrators (config-file only,
+	// no env: tag).
+	assert.NoError(t, ValidateSettingDefs([]SettingDef{d}))
+}
+
+func TestValidateSettingDefs_TransitionalOperationalStillRequiresGet(t *testing.T) {
+	d := validOperationalDef()
+	d.Transitional = true
+	d.YAMLPath = "ui.default_theme"
+	d.EnvVar = "TMI_UI_DEFAULT_THEME"
+	d.Get = nil
+	err := ValidateSettingDefs([]SettingDef{d})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Get")
+}
+
+func TestValidateSettingDefs_SecretOperationalDefaultOptional(t *testing.T) {
+	d := validOperationalDef()
+	d.Default = ""
+	// A public setting must not be Secret, so switch visibility before
+	// marking it secret.
+	d.Class.Visibility = VisibilityAdminOnly
+	d.Class.Secret = true
+	assert.NoError(t, ValidateSettingDefs([]SettingDef{d}))
+}
+
+func TestValidateSettingDefs_NonSecretOperationalStillRequiresDefault(t *testing.T) {
+	d := validOperationalDef()
+	d.Type = "bool" // "string" is separately exempt; see the string-typed test above
+	d.Default = ""
+	d.Class.Secret = false
+	err := ValidateSettingDefs([]SettingDef{d})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Default")
 }

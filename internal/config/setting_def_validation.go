@@ -117,7 +117,19 @@ func validateOperationalRules(d SettingDef, add func(key, msg string)) {
 	if c.Delivery == nil {
 		add(d.Key, "operational setting must carry a Delivery")
 	}
-	if d.Default == "" {
+	// A secret with no compiled-in default is correct: the alternatives are an
+	// empty string this rule would otherwise reject, or a hardcoded
+	// credential, which is never acceptable.
+	//
+	// A string-typed setting is exempted the same way for a different reason:
+	// Default is carried as a plain string, so for Type "string" there is no
+	// way to distinguish "the compiled-in default genuinely is empty"
+	// (auth.cookie.domain, every unconfigured Timmy/content-source provider
+	// field, the fail-closed ssrf.*.allowlist/schemes keys) from "nobody
+	// filled this in". Every other type's zero value serializes to a
+	// non-empty string ("false", "0", "[]"), so the check stays meaningful
+	// there.
+	if d.Default == "" && !c.Secret && d.Type != "string" {
 		add(d.Key, "operational setting must declare a Default")
 	}
 	if c.Delivery != nil && c.Delivery.SharedInvariant {
@@ -134,11 +146,13 @@ func validateOperationalRules(d SettingDef, add func(key, msg string)) {
 
 	hasConfigPath := d.YAMLPath != "" || d.EnvVar != "" || d.Get != nil
 	if d.Transitional {
-		if !hasConfigPath {
-			add(d.Key, "transitional operational setting must keep its YAMLPath, EnvVar and Get until Phase E")
-		}
-		if d.YAMLPath == "" || d.EnvVar == "" || d.Get == nil {
-			add(d.Key, "transitional operational setting needs all of YAMLPath, EnvVar and Get")
+		// YAMLPath and EnvVar are each independently optional: administrators
+		// has no env: tag at all (config.go assembles it imperatively in
+		// Load()), and the derived session.timeout_minutes key has no
+		// YAMLPath of its own. Get is the one thing every transitional
+		// setting must still retain until Phase E removes it.
+		if d.Get == nil {
+			add(d.Key, "transitional operational setting must declare a Get accessor")
 		}
 	} else if hasConfigPath {
 		add(d.Key, "non-transitional operational setting must have no YAMLPath, EnvVar or Get")

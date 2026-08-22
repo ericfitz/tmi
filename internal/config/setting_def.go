@@ -63,11 +63,21 @@ func (d SettingDef) IsSecret() bool {
 	return d.Class.Secret
 }
 
-// settingDefs is the authoritative registry. Populated in Tasks 3-5.
-var settingDefs []SettingDef
+// settingDefs is the authoritative registry, assembled from every
+// setting_defs_*.go declaration file.
+var settingDefs = concatDefs(serverSettingDefs, authSettingDefs, contentSettingDefs, miscSettingDefs)
 
 // settingDefIndex is the by-key lookup, built once from settingDefs.
 var settingDefIndex = indexDefs(settingDefs)
+
+// concatDefs joins definition groups into the single registry slice.
+func concatDefs(groups ...[]SettingDef) []SettingDef {
+	var out []SettingDef
+	for _, g := range groups {
+		out = append(out, g...)
+	}
+	return out
+}
 
 // indexDefs builds a by-key lookup map from a slice of definitions.
 func indexDefs(defs []SettingDef) map[string]SettingDef {
