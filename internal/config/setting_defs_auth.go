@@ -149,15 +149,16 @@ var authSettingDefs = []SettingDef{
 		// ("auth.oauth_callback_url"), matching the pre-existing migratable
 		// setting key, while the struct path goes through the nested OAuth
 		// config ("auth.oauth.callback_url").
-		Key:          "auth.oauth_callback_url",
-		Class:        operationalClass(VisibilityAdminOnly, false),
-		Type:         "string",
-		Description:  "OAuth callback URL",
-		Default:      "http://localhost:8080/oauth2/callback",
-		YAMLPath:     "auth.oauth.callback_url",
-		EnvVar:       "TMI_OAUTH_CALLBACK_URL",
-		Get:          func(c *Config) string { return c.Auth.OAuth.CallbackURL },
-		Transitional: true,
+		Key:           "auth.oauth_callback_url",
+		Class:         operationalClass(VisibilityAdminOnly, false),
+		Type:          "string",
+		Description:   "OAuth callback URL",
+		Default:       "http://localhost:8080/oauth2/callback",
+		YAMLPath:      "auth.oauth.callback_url",
+		EnvVar:        "TMI_OAUTH_CALLBACK_URL",
+		Get:           func(c *Config) string { return c.Auth.OAuth.CallbackURL },
+		Transitional:  true,
+		OmitWhenEmpty: true,
 	},
 	{
 		Key:         "auth.oauth.client_callback_allowlist",
@@ -177,7 +178,8 @@ var authSettingDefs = []SettingDef{
 			}
 			return string(b)
 		},
-		Transitional: true,
+		Transitional:  true,
+		OmitWhenEmpty: true,
 	},
 	{
 		// Key differs from YAMLPath: the setting key is the legacy flat
@@ -230,6 +232,7 @@ var authSettingDefs = []SettingDef{
 			}
 			return string(b)
 		},
-		Transitional: true,
+		Transitional:  true,
+		OmitWhenEmpty: true,
 	},
 }

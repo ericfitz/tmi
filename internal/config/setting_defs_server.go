@@ -31,13 +31,14 @@ var serverSettingDefs = []SettingDef{
 		Get:         func(c *Config) string { return c.Server.Interface },
 	},
 	{
-		Key:         "server.base_url",
-		Class:       bootstrapClass(false, VisibilityPublic, false),
-		Type:        "string",
-		Description: "Public base URL for callbacks",
-		YAMLPath:    "server.base_url",
-		EnvVar:      "TMI_SERVER_BASE_URL",
-		Get:         func(c *Config) string { return c.Server.BaseURL },
+		Key:           "server.base_url",
+		Class:         bootstrapClass(false, VisibilityPublic, false),
+		Type:          "string",
+		Description:   "Public base URL for callbacks",
+		YAMLPath:      "server.base_url",
+		EnvVar:        "TMI_SERVER_BASE_URL",
+		Get:           func(c *Config) string { return c.Server.BaseURL },
+		OmitWhenEmpty: true,
 	},
 	{
 		Key:         "server.read_timeout",
@@ -75,6 +76,11 @@ var serverSettingDefs = []SettingDef{
 		EnvVar:      "TMI_SERVER_TLS_ENABLED",
 		Get:         func(c *Config) string { return strconv.FormatBool(c.Server.TLSEnabled) },
 	},
+	// server.tls_cert_file and server.tls_key_file are NOT OmitWhenEmpty: the
+	// pre-registry builder omitted them based on server.tls_enabled, a
+	// DIFFERENT field than the one being emitted — OmitWhenEmpty can only
+	// test a def's own Get() output, so it cannot express that condition.
+	// GetMigratableSettings special-cases these two keys directly instead.
 	{
 		Key:         "server.tls_cert_file",
 		Class:       bootstrapClass(false, VisibilityInternal, false),
@@ -192,6 +198,7 @@ var serverSettingDefs = []SettingDef{
 			}
 			return string(b)
 		},
+		OmitWhenEmpty: true,
 	},
 
 	// --- database.* ---
@@ -257,13 +264,14 @@ var serverSettingDefs = []SettingDef{
 		Get:         func(c *Config) string { return strconv.Itoa(c.Database.ConnectionPool.ConnMaxIdleTime) },
 	},
 	{
-		Key:         "database.redis.url",
-		Class:       bootstrapClass(false, VisibilityInternal, true),
-		Type:        "string",
-		Description: "Redis connection URL (password redacted)",
-		YAMLPath:    "database.redis.url",
-		EnvVar:      "TMI_REDIS_URL",
-		Get:         func(c *Config) string { return sanitizeURL(c.Database.Redis.URL) },
+		Key:           "database.redis.url",
+		Class:         bootstrapClass(false, VisibilityInternal, true),
+		Type:          "string",
+		Description:   "Redis connection URL (password redacted)",
+		YAMLPath:      "database.redis.url",
+		EnvVar:        "TMI_REDIS_URL",
+		Get:           func(c *Config) string { return sanitizeURL(c.Database.Redis.URL) },
+		OmitWhenEmpty: true,
 	},
 	{
 		Key:         "database.redis.host",

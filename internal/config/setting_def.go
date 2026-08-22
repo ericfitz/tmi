@@ -45,6 +45,19 @@ type SettingDef struct {
 	// would either seed rows nobody set or stop seeding rows the server
 	// expects. Only operational settings may be Seeded.
 	Seeded bool
+
+	// OmitWhenEmpty reproduces the conditional emission of the pre-registry
+	// builders: this setting is left out of GetMigratableSettings() entirely
+	// when its value is empty, rather than emitted with an empty value.
+	//
+	// It is load-bearing, not cosmetic. DefaultOperationalSettings() feeds
+	// both SeedDefaults (which would otherwise write a row per omitted key on
+	// every fresh database) and #794's origin backfill (which uses the same
+	// set to decide seeded-vs-explicit, and therefore env-vs-database
+	// precedence on existing databases).
+	//
+	// Phase E removes this along with the rest of the transitional machinery.
+	OmitWhenEmpty bool
 }
 
 // IsSecret reports whether this setting's value must never appear in an API
