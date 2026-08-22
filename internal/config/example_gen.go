@@ -94,7 +94,6 @@ func coerceSettingValue(s MigratableSetting) any {
 // is omitted outright via OmitWhenEmpty when empty; a setting that is
 // deliberately not OmitWhenEmpty, like server.trusted_proxies, still needs a
 // valid, honest empty-list rendering when its default is unset).
-// SEM@a60b4f430769f6d36f0e3753a429ea699ba8b1a0: normalize a JSON-encoded setting value to a native Go value for YAML output, treating null/empty as an empty list (pure)
 func coerceJSONSettingValue(value string) any {
 	if value == "" || value == "null" || value == "[]" {
 		return []any{}

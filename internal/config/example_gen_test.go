@@ -86,19 +86,54 @@ func TestCoerceSettingValue_PopulatedJSONArray(t *testing.T) {
 // representation by construction (Phase E's design: it lives only in the
 // database), so offering one in the sample file would invite an operator to
 // set something the server silently ignores.
+//
+// The generated document is nested YAML (setNested + yaml.Marshal), so a
+// dotted key like "timmy.enabled" never appears as a literal substring even
+// when the setting IS emitted — it renders as "timmy:\n    enabled: ...".
+// A substring check on the raw text can never see the thing it is supposed
+// to guard against, so this parses the generated YAML back into a tree and
+// checks dotted paths reconstructed from that tree instead.
 func TestGenerateExampleConfig_OmitsDatabaseOnlySettings(t *testing.T) {
 	out, err := GenerateExampleConfig()
 	if err != nil {
 		t.Fatalf("GenerateExampleConfig: %v", err)
 	}
-	s := string(out)
+	present := yamlDottedPaths(t, out)
 	for _, d := range AllSettingDefs() {
 		if d.Class.Category == CategoryOperational && !d.Transitional {
-			if strings.Contains(s, d.Key) {
+			if present[d.Key] {
 				t.Errorf("%s is database-only and must not appear in the config template", d.Key)
 			}
 		}
 	}
+}
+
+// yamlDottedPaths parses generated YAML and returns the set of every dotted
+// path present in it — both intermediate mapping keys and leaf scalar keys
+// — so a test can check "is this dotted setting key present" against the
+// document's real structure rather than its raw text.
+func yamlDottedPaths(t *testing.T, doc []byte) map[string]bool {
+	t.Helper()
+	var root map[string]any
+	if err := yaml.Unmarshal(doc, &root); err != nil {
+		t.Fatalf("yaml.Unmarshal: %v", err)
+	}
+	paths := map[string]bool{}
+	var walk func(prefix string, node map[string]any)
+	walk = func(prefix string, node map[string]any) {
+		for k, v := range node {
+			path := k
+			if prefix != "" {
+				path = prefix + "." + k
+			}
+			paths[path] = true
+			if child, ok := v.(map[string]any); ok {
+				walk(path, child)
+			}
+		}
+	}
+	walk("", root)
+	return paths
 }
 
 func TestConfigExampleFile_MatchesRegistry(t *testing.T) {
