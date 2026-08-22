@@ -388,9 +388,15 @@ func TestWarnIfConfigDatabaseDiverges_ExplicitConfigDiffersFromDB(t *testing.T) 
 
 	warns := log.logsAtLevel("WARN")
 	require.Len(t, warns, 1, "expected exactly one WARN log entry")
-	assert.Contains(t, warns[0].msg, "websocket.inactivity_timeout_seconds")
-	assert.Contains(t, warns[0].msg, "300")
-	assert.Contains(t, warns[0].msg, "600")
+	assert.Contains(t, warns[0].msg, "websocket.inactivity_timeout_seconds",
+		"the warning must name the affected key")
+	assert.Contains(t, warns[0].msg, "winner=", "the warning must say which layer is in force")
+
+	// No value is ever logged, for any key — not just Secret-classified ones.
+	// Log safety must not depend on per-key classification metadata being
+	// correct (CodeQL go/clear-text-logging; security review of #794).
+	assert.NotContains(t, warns[0].msg, "300", "the config value must not be logged")
+	assert.NotContains(t, warns[0].msg, "600", "the database value must not be logged")
 }
 
 // TestWarnIfConfigDatabaseDiverges_ExplicitConfigMatchesDB verifies that no warning

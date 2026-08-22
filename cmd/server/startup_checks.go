@@ -105,9 +105,12 @@ func warnIfPlaintextSecretsAtRest(
 // skipped entirely — they are never database-backed. For each remaining divergence,
 // the database row's own Origin tells us which value actually wins: an explicit DB
 // row (SystemSetting.IsExplicit()) outranks the config value; a merely-seeded row
-// does not, so the config value wins there — see the precedence table in
-// PLAN-794.md. Secret-classified values are never logged, even redacted alongside
-// each other; only the key and the winner are reported for those.
+// does not, so the config value wins there — see the precedence table on #794.
+//
+// No setting's value is ever logged, secret or not. Making log safety depend on
+// per-key classification metadata was one mistake away from a credential leak,
+// and the mistake was already present — see the comment at the divergence
+// append below.
 //
 // The function NEVER returns an error; a warning is informational only and must not
 // abort startup. Call this after both the settings service and config are ready —
@@ -158,17 +161,24 @@ func warnIfConfigDatabaseDiverges(
 			winner = "database (also set explicitly)"
 		}
 
-		// IsSecret, not Class.Secret: the provider subtrees carry secrecy only
-		// on the per-setting Secret flag, so checking Class.Secret alone would
-		// print real OAuth client secrets and SAML private keys in plaintext
-		// (security review, #794).
-		if s.IsSecret() {
-			divergences = append(divergences, fmt.Sprintf(
-				"%s (config=<redacted>, database=<redacted>, winner=%s)", s.Key, winner))
-		} else {
-			divergences = append(divergences, fmt.Sprintf(
-				"%s (config=%q, database=%q, winner=%s)", s.Key, s.Value, dbValue, winner))
-		}
+		// Only the key and the winner — never either value, for any key.
+		//
+		// An earlier revision printed values for keys that were not
+		// Secret-classified. That was one metadata mistake away from a
+		// credential leak, and the mistake was already present: the
+		// auth.oauth.providers. / auth.saml.providers. / content_oauth.providers.
+		// subtrees carry Class.Secret=false (a blanket true there would mis-mask
+		// non-secret sub-keys like .client_id), so a check keyed on
+		// classification printed real OAuth client secrets in plaintext. That is
+		// also what CodeQL's go/clear-text-logging objects to: not the specific
+		// keys, but making log safety depend on every key being classified
+		// correctly forever.
+		//
+		// The key name and the winner are what an operator actually needs — they
+		// say which setting to inspect and which layer is in force. The values
+		// are one `SELECT` and one `printenv` away, in a context where seeing
+		// them is a deliberate act rather than a side effect of booting.
+		divergences = append(divergences, fmt.Sprintf("%s (winner=%s)", s.Key, winner))
 	}
 
 	if len(divergences) == 0 {
@@ -181,7 +191,9 @@ func warnIfConfigDatabaseDiverges(
 			"admin deliberately edited the value at runtime (in which case the database is "+
 			"correct and the config/env value is stale), or whether the database row is a "+
 			"leftover seeded default from before this config/env value was introduced (in "+
-			"which case it should be corrected or deleted). Affected: [%s]",
+			"which case it should be corrected or deleted). Values are deliberately not "+
+			"logged; inspect them via GET /admin/settings/{key} and the process environment. "+
+			"Affected: [%s]",
 		len(divergences), strings.Join(divergences, "; "),
 	)
 	logger.Warn("%s", msg)
