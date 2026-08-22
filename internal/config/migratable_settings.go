@@ -41,7 +41,7 @@ type MigratableSetting struct {
 // Class.Secret->Secret sync in GetMigratableSettings runs in one direction
 // only, so checking Class.Secret alone silently treats a real OAuth client
 // secret as public.
-// SEM@0000000000000000000000000000000000000000: report whether a setting's value must be masked in responses and logs (pure)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: report whether a setting's value must be masked in responses and logs (pure)
 func (m MigratableSetting) IsSecret() bool {
 	return m.Secret || m.Class.Secret
 }
@@ -526,7 +526,7 @@ func (c *Config) getMigratableSecretsSettings() []MigratableSetting {
 
 // getMigratableTimmySettings returns Timmy AI assistant settings, including
 // the shared embedding profile keys.
-// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: build migratable settings list for Timmy AI assistant LLM, embedding, and session parameters (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build migratable settings list for Timmy AI assistant LLM, embedding, and session parameters (pure)
 func (c *Config) getMigratableTimmySettings() []MigratableSetting {
 	t := c.Timmy
 	settings := []MigratableSetting{
@@ -603,7 +603,7 @@ func (c *Config) getMigratableAdministratorsSettings() []MigratableSetting {
 }
 
 // getMigratableObservabilitySettings returns OpenTelemetry / Prometheus settings.
-// SEM@2efe458db50a86b8f77bc2b6f5938a5d15cc4315: build migratable settings list for OpenTelemetry and Prometheus observability parameters (pure)
+// SEM@1a4ca5f99be4a25df66b2836e9b9f4c87628184a: build migratable settings list for OpenTelemetry and Prometheus observability parameters (pure)
 func (c *Config) getMigratableObservabilitySettings() []MigratableSetting {
 	return []MigratableSetting{
 		{Key: "observability.enabled", Value: strconv.FormatBool(c.Observability.Enabled), Type: "bool", Description: "OpenTelemetry tracing enabled", Source: settingSource("TMI_OTEL_ENABLED"), EnvVar: "TMI_OTEL_ENABLED"},

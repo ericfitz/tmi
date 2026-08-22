@@ -8,7 +8,7 @@ import (
 // SystemSetting represents a system-wide configuration setting stored in the database.
 // These settings can be modified at runtime without requiring server restart.
 // Settings are cached with short TTL for performance.
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for a runtime-configurable system setting with key, typed value, and audit fields (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: GORM model for a runtime-configurable system setting with key, typed value, and audit fields (reads DB)
 type SystemSetting struct {
 	// SettingKey is the unique identifier for this setting (e.g., "rate_limit.requests_per_minute")
 	// Named SettingKey instead of Key to avoid Oracle reserved word conflict
@@ -94,7 +94,7 @@ const (
 // all read as NOT explicit, so the database only outranks an explicitly
 // configured env/YAML value when something deliberately said so. See the
 // Origin field's comment for why that polarity is the safe one.
-// SEM@0000000000000000000000000000000000000000: report whether a setting's value was deliberately set rather than seeded (pure)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: report whether a setting's value was deliberately set rather than seeded (pure)
 func (s *SystemSetting) IsExplicit() bool {
 	return s.Origin.Valid && s.Origin.String == SystemSettingOriginExplicit
 }

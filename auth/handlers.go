@@ -194,7 +194,7 @@ func (h *Handlers) SetRuntimeConfigReader(r RuntimeConfigReader) {
 // authenticator in cmd/server, which needs auth.everyone_is_a_reviewer —
 // can resolve operational settings through the same reader rather than
 // reading a boot-time config snapshot that ignores the database (#794).
-// SEM@0000000000000000000000000000000000000000: return the registered runtime config reader, or nil when unset (pure)
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: return the registered runtime config reader, or nil when unset (pure)
 func (h *Handlers) RuntimeConfigReader() RuntimeConfigReader {
 	return h.runtimeCfg
 }

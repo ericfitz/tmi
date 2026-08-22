@@ -76,7 +76,7 @@ const systemSettingOriginCheckName = "chk_system_settings_origin"
 // operator ever touched it. BackfillSystemSettingOrigin does not attempt
 // this comparison for encrypted rows at all -- see its loop -- so this map
 // is only ever consulted for plaintext values.
-// SEM@0000000000000000000000000000000000000000: build the key/value map SeedDefaults would insert today, mirroring its dedupe rule (pure)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: build the key/value map SeedDefaults would insert today, mirroring its dedupe rule (pure)
 func expectedSeedValues() map[string]string {
 	defaults := models.DefaultSystemSettings()
 	expected := make(map[string]string, len(defaults))
@@ -118,7 +118,7 @@ func expectedSeedValues() map[string]string {
 // Idempotent and cheap in steady state: once a row is stamped, it no longer
 // matches `origin IS NULL` and is never re-examined. Safe to run on every
 // boot, ahead of AutoMigrate, mirroring DeduplicateGroups (group_dedupe.go).
-// SEM@0000000000000000000000000000000000000000: backfill explicit origin onto pre-existing system_settings rows that show operator intent (writes DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: backfill explicit origin onto pre-existing system_settings rows that show operator intent (writes DB)
 func BackfillSystemSettingOrigin(db *gorm.DB) (int64, error) {
 	logger := slogging.Get()
 	settingsTable := (&models.SystemSetting{}).TableName()
@@ -216,7 +216,7 @@ func BackfillSystemSettingOrigin(db *gorm.DB) (int64, error) {
 // A no-op on SQLite: it is a test-fixture-only dialect here (see
 // sparseUserEmailIndexExists), and unlike CREATE INDEX, SQLite's ALTER TABLE
 // has no ADD CONSTRAINT form at all -- there is nothing to probe or run.
-// SEM@0000000000000000000000000000000000000000: add the origin CHECK constraint to system_settings, idempotently per dialect (writes DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: add the origin CHECK constraint to system_settings, idempotently per dialect (writes DB)
 func EnsureSystemSettingOriginCheckConstraint(db *gorm.DB) error {
 	settingsTable := (&models.SystemSetting{}).TableName()
 
@@ -311,7 +311,7 @@ func EnsureSystemSettingOriginCheckConstraint(db *gorm.DB) error {
 // Never returns an error itself -- an unenforced invariant is logged, not
 // fatal, matching this function's own warn-and-continue policy throughout
 // (oracle-db-admin review, #794).
-// SEM@0000000000000000000000000000000000000000: confirm the origin CHECK constraint exists after an ambiguous create/collision error, logging ERROR if not (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: confirm the origin CHECK constraint exists after an ambiguous create/collision error, logging ERROR if not (reads DB)
 func verifySystemSettingOriginCheckEnforced(db *gorm.DB, settingsTable string) error {
 	var nowExists bool
 	err := withMigrationRetry("system_settings origin check-constraint post-create verification", func() error {
@@ -343,7 +343,7 @@ func verifySystemSettingOriginCheckEnforced(db *gorm.DB, settingsTable string) e
 // constraint name is new in #794 -- no deployed database can already hold a
 // differently-defined object under it -- so there is no legacy "impostor"
 // case to guard against.
-// SEM@0000000000000000000000000000000000000000: probe whether the system_settings origin CHECK constraint already exists, per dialect (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: probe whether the system_settings origin CHECK constraint already exists, per dialect (reads DB)
 func systemSettingOriginCheckExists(db *gorm.DB, settingsTable string) (bool, error) {
 	var cnt int64
 	var err error

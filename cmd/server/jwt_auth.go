@@ -428,7 +428,7 @@ func (v *TicketValidator) ValidateTicket(c *gin.Context, ticketStr string) error
 }
 
 // JWTAuthenticator orchestrates the JWT authentication process
-// SEM@834ed0d09c836060ae9619f32b156a5d710fd22e: orchestrator that coordinates token extraction, validation, blacklist check, and claims population (mutates shared state)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: orchestrator that coordinates token extraction, validation, blacklist check, and claims population (mutates shared state)
 type JWTAuthenticator struct {
 	config           *config.Config
 	tokenExtractor   *TokenExtractor
@@ -471,7 +471,7 @@ const everyoneIsAReviewerTTL = 60 * time.Second
 // ADB blip each would first pay the full WithRetryableGormRead budget on the
 // global auth path. Memoizing turns that back into at most one read per TTL
 // (oracle-db-admin review, note 3).
-// SEM@0000000000000000000000000000000000000000: report whether all users are auto-added as security reviewers, memoized (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: report whether all users are auto-added as security reviewers, memoized (reads DB)
 func (a *JWTAuthenticator) everyoneIsAReviewer(ctx context.Context) bool {
 	if a.authHandlers == nil {
 		return a.config.Auth.EveryoneIsAReviewer
@@ -499,7 +499,7 @@ func (a *JWTAuthenticator) everyoneIsAReviewer(ctx context.Context) bool {
 }
 
 // NewJWTAuthenticator creates a new JWT authenticator
-// SEM@834ed0d09c836060ae9619f32b156a5d710fd22e: build a JWTAuthenticator wiring all sub-components together (pure)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: build a JWTAuthenticator wiring all sub-components together (pure)
 func NewJWTAuthenticator(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, authHandlers *auth.Handlers, ticketValidator *TicketValidator) *JWTAuthenticator {
 	return &JWTAuthenticator{
 		config:           cfg,
@@ -513,7 +513,7 @@ func NewJWTAuthenticator(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist
 }
 
 // AuthenticateRequest performs the complete JWT authentication process
-// SEM@834ed0d09c836060ae9619f32b156a5d710fd22e: authenticate a request end-to-end: extract, validate, blacklist-check, set claims, and auto-promote user (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: authenticate a request end-to-end: extract, validate, blacklist-check, set claims, and auto-promote user (reads DB)
 func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 	logger := slogging.GetContextLogger(c)
 
@@ -734,7 +734,7 @@ func extractAuthTime(claims jwt.MapClaims) *time.Time {
 }
 
 // AuthError represents an authentication error
-// SEM@4544fe064a8e91cf6d4c8a495f43f7f7830f6fe7: structured auth error carrying an OAuth error code and HTTP status code (pure)
+// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: structured auth error carrying an OAuth error code and HTTP status code (pure)
 type AuthError struct {
 	Code        string
 	Description string

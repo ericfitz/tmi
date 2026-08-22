@@ -126,7 +126,7 @@ func (s *SettingsService) isProductionMode() bool {
 // for its callers but wrong for GetResolvedString: the converged precedence
 // rule needs to know both what the config layer holds AND whether an operator
 // supplied it, and those are two different questions (#794).
-// SEM@0000000000000000000000000000000000000000: fetch a config-layer setting with no precedence filtering, building the cache lazily (pure)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: fetch a config-layer setting with no precedence filtering, building the cache lazily (pure)
 func (s *SettingsService) getConfigSettingRaw(key string) (MigratableSetting, bool) {
 	if s.configProvider == nil {
 		return MigratableSetting{}, false
@@ -163,7 +163,7 @@ func (s *SettingsService) getConfigSettingRaw(key string) (MigratableSetting, bo
 // getConfigSetting retrieves a setting from the config provider, applying the
 // #415 rule that a bare struct default must not shadow the database.
 // Returns the setting and true when the config layer is authoritative.
-// SEM@0000000000000000000000000000000000000000: fetch a config-layer setting, yielding to the database for bare defaults (pure)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: fetch a config-layer setting, yielding to the database for bare defaults (pure)
 func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool) {
 	setting, found := s.getConfigSettingRaw(key)
 	if !found {
@@ -293,7 +293,7 @@ func (s *SettingsService) GetString(ctx context.Context, key string) (string, er
 // request hot paths (e.g. /oauth2/authorize) where an unretried ADB blip
 // (ORA-02396/03113/12537 class) would otherwise surface as a hard failure
 // PG testing cannot reproduce (oracle-db-admin review of #767).
-// SEM@0000000000000000000000000000000000000000: resolve a string setting across config and database by the converged precedence rule (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: resolve a string setting across config and database by the converged precedence rule (reads DB)
 func (s *SettingsService) GetResolvedString(ctx context.Context, key string) (string, bool, error) {
 	cfg, cfgFound := s.getConfigSettingRaw(key)
 
@@ -485,7 +485,7 @@ func (s *SettingsService) ListByPrefix(ctx context.Context, prefix string) ([]mo
 }
 
 // Set creates or updates a setting
-// SEM@0000000000000000000000000000000000000000: store or update a system setting, stamping explicit origin, with type validation, encryption, and cache invalidation (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: store or update a system setting, stamping explicit origin, with type validation, encryption, and cache invalidation (reads DB)
 func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting) error {
 	logger := slogging.Get()
 
@@ -573,7 +573,7 @@ func (s *SettingsService) Delete(ctx context.Context, key string) error {
 }
 
 // SeedDefaults seeds the default settings if they don't exist
-// SEM@0000000000000000000000000000000000000000: insert default system settings, stamped seeded origin, if they do not already exist (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: insert default system settings, stamped seeded origin, if they do not already exist (reads DB)
 func (s *SettingsService) SeedDefaults(ctx context.Context) error {
 	logger := slogging.Get()
 	defaults := models.DefaultSystemSettings()
@@ -711,7 +711,7 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) 
 }
 
 // validateValue validates that the value matches the declared type
-// SEM@cf52eebf6620ebf59d6d9c90dfb1c4f874f70341: validate that a setting value matches its declared type (pure)
+// SEM@1a4ca5f99be4a25df66b2836e9b9f4c87628184a: validate that a setting value matches its declared type (pure)
 func (s *SettingsService) validateValue(setting *models.SystemSetting) error {
 	switch setting.SettingType {
 	case models.SystemSettingTypeInt:

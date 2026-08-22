@@ -44,7 +44,7 @@ func NewRuntimeConfigReaderAdapter(settings SettingsServiceInterface) *RuntimeCo
 // GetResolvedString keeps that property for any row an operator actually
 // set, while letting an explicit config value beat a merely-seeded default.
 //
-// SEM@0000000000000000000000000000000000000000: fetch the OAuth client callback allowlist by resolved precedence; fail-closed on corrupt row (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: fetch the OAuth client callback allowlist by resolved precedence; fail-closed on corrupt row (reads DB)
 func (a *RuntimeConfigReaderAdapter) GetClientCallbackAllowList(ctx context.Context) ([]string, bool, error) {
 	raw, exists, err := a.settings.GetResolvedString(ctx, "auth.oauth.client_callback_allowlist")
 	if err != nil {
@@ -86,7 +86,7 @@ func (a *RuntimeConfigReaderAdapter) GetClientCallbackAllowList(ctx context.Cont
 // startup (auth/service.go), so the env var stays load-bearing regardless of
 // what this returns, and enabling SAML via the database alone still needs a
 // restart. That asymmetry is called out in #794 and is not fixed here.
-// SEM@0000000000000000000000000000000000000000: check whether SAML login is enabled by resolved precedence; fail-closed on error (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: check whether SAML login is enabled by resolved precedence; fail-closed on error (reads DB)
 func (a *RuntimeConfigReaderAdapter) IsSAMLEnabled(ctx context.Context) bool {
 	raw, exists, err := a.settings.GetResolvedString(ctx, "features.saml_enabled")
 	if err != nil {
@@ -128,7 +128,7 @@ func (a *RuntimeConfigReaderAdapter) IsSAMLEnabled(ctx context.Context) bool {
 // and every provider rejected the resulting redirect_uri. Under the
 // converged rule a seeded row loses to an explicit env value, so that
 // specific failure cannot recur.
-// SEM@0000000000000000000000000000000000000000: fetch the OAuth callback URL by resolved precedence; return empty string on error (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: fetch the OAuth callback URL by resolved precedence; return empty string on error (reads DB)
 func (a *RuntimeConfigReaderAdapter) GetOAuthCallbackURL(ctx context.Context) string {
 	raw, exists, err := a.settings.GetResolvedString(ctx, "auth.oauth_callback_url")
 	if err != nil {
@@ -154,7 +154,7 @@ func (a *RuntimeConfigReaderAdapter) GetOAuthCallbackURL(ctx context.Context) st
 // the config struct field directly, so the database row was display-only
 // drift and editing it did nothing. It is the fifth and last of the keys
 // #794 catalogued as following inconsistent precedence.
-// SEM@0000000000000000000000000000000000000000: check whether all users are auto-added as security reviewers; fail-closed on error (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: check whether all users are auto-added as security reviewers; fail-closed on error (reads DB)
 func (a *RuntimeConfigReaderAdapter) IsEveryoneAReviewer(ctx context.Context) bool {
 	raw, exists, err := a.settings.GetResolvedString(ctx, "auth.everyone_is_a_reviewer")
 	if err != nil {

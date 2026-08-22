@@ -25,7 +25,7 @@ type secretKeyGetter interface {
 // trips costs seconds of startup on Oracle ADB — materially more on a cold
 // Always Free instance that has just auto-started, where a slow boot can trip
 // a readiness deadline into a restart loop (oracle-db-admin review, note 4).
-// SEM@0000000000000000000000000000000000000000: list every stored system setting in one read (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: list every stored system setting in one read (reads DB)
 type settingsLister interface {
 	List(ctx context.Context) ([]models.SystemSetting, error)
 }
@@ -112,7 +112,7 @@ func warnIfPlaintextSecretsAtRest(
 // The function NEVER returns an error; a warning is informational only and must not
 // abort startup. Call this after both the settings service and config are ready —
 // ideally after SeedDefaults, so DB rows actually exist to compare against.
-// SEM@0000000000000000000000000000000000000000: warn when an explicit config value and an explicit DB row disagree for an operational setting (reads DB)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: warn when an explicit config value and an explicit DB row disagree for an operational setting (reads DB)
 func warnIfConfigDatabaseDiverges(
 	ctx context.Context,
 	svc settingsLister,
@@ -189,7 +189,7 @@ func warnIfConfigDatabaseDiverges(
 
 // secretClassifiedKeys returns the list of setting keys that are marked Secret in the
 // migratable settings registry derived from the current configuration.
-// SEM@99c7bf92a70c0288330ba2861b823dbda8ce3aa2: list config keys classified as secret from the migratable settings registry (pure)
+// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: list config keys classified as secret from the migratable settings registry (pure)
 func secretClassifiedKeys(cfg *config.Config) []string {
 	all := cfg.GetMigratableSettings()
 	keys := make([]string, 0, len(all))
