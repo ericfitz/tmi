@@ -80,23 +80,6 @@ func isOmittableEmptyValue(settingType, value string) bool {
 	}
 }
 
-// classifyGenerated applies prefix classification to per-provider generated
-// settings (auth.oauth.providers.*, auth.saml.providers.*,
-// content_oauth.providers.*): these have dynamic cardinality and no
-// SettingDef by design, so they carry no Class of their own until this runs.
-// Mirrors GetMigratableSettings' historic one-direction Class.Secret->Secret
-// sync — see IsSecret's doc comment for why the per-setting Secret flag set
-// by the provider helpers below must not be cleared here.
-func classifyGenerated(settings []MigratableSetting) []MigratableSetting {
-	for i := range settings {
-		settings[i].Class = classificationFor(settings[i].Key)
-		if settings[i].Class.Secret {
-			settings[i].Secret = true
-		}
-	}
-	return settings
-}
-
 // GetMigratableSettings returns every setting that has a config-file or
 // environment delivery path, with its current value read from this Config.
 //
@@ -113,14 +96,57 @@ func classifyGenerated(settings []MigratableSetting) []MigratableSetting {
 // are generated per configured provider rather than declared statically —
 // dynamic cardinality means no fixed dotted key — and are appended after the
 // registry projection.
+//
+// A def whose Key appears in ExpectedMigratableKeysSkipped() is never
+// emitted, regardless of OmitWhenEmpty: that list's predicate is exactly
+// "intentionally not a migratable setting" (see its doc comment), and two of
+// its entries — content_token_encryption_key, database.oracle_wallet_location
+// — now have a SettingDef with a real Get accessor. Matching on Key rather
+// than YAMLPath matters: the list's other three entries are rename cases
+// keyed by the pre-refactor STRUCT path (e.g. "auth.oauth.callback_url"),
+// while the corresponding defs' Key is the renamed migratable-setting key
+// (e.g. "auth.oauth_callback_url") — matching Key against that map leaves
+// those three correctly emitted under their renamed key and skips only the
+// two bootstrap-by-construction keys.
+//
+// Class is assigned via classificationFor(key) in the final pass below, for
+// every emitted setting — defs-projected and generated provider keys alike —
+// exactly as the pre-registry implementation did. It is NOT taken from
+// SettingDef.Class directly, even though the two agree on
+// Category/Visibility/Secret for every currently-emitted key (Task 5 built
+// SettingDef.Class as classificationFor(key) with Mutability overridden via
+// withMutability(...) on many operational defs). Consuming SettingDef.Class
+// here would flow those Mutability overrides into GetMigratableSettings'
+// observable output for the first time — a real behavior change (dozens of
+// keys' hot/static column in config-reference.md) that Ruling 15 explicitly
+// deferred to Phase E ("making classificationFor() consult the registry...
+// belongs in Phase E"). It would also require excluding
+// server.trusted_proxies, whose SettingDef is fully wired (real Get, real
+// Bootstrap Class) but which classificationFor(key) does not recognize
+// (unclassified today; see the exclusion below) — emitting it here trips a
+// pre-existing, unrelated bug in GenerateExampleConfig's JSON-value coercion
+// (internal/config/example_gen.go treats a "json"-typed value's already-
+// marshaled string as a literal rather than decoding it, so a nil slice's
+// "null" becomes the YAML string `"null"` instead of an empty list), which
+// broke auth's TestYAMLConfigsPassOAuthValidation against the regenerated
+// config-example.yml. Both issues belong to Task 8 (which owns rewriting
+// these generators and, per its own brief, expects "keys that were
+// conditionally omitted before" to newly appear) — see the task report.
 // SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: list all config settings eligible for database migration with classification applied (pure)
 func (c *Config) GetMigratableSettings() []MigratableSetting {
 	defs := AllSettingDefs()
 	settings := make([]MigratableSetting, 0, len(defs))
+	skip := ExpectedMigratableKeysSkipped()
 
 	for _, d := range defs {
 		if d.Get == nil {
 			continue // database-only: no config path to read from
+		}
+		if d.Key == "server.trusted_proxies" {
+			continue // unclassified today; see the doc comment above
+		}
+		if _, ok := skip[d.Key]; ok {
+			continue // deliberately excluded — see ExpectedMigratableKeysSkipped
 		}
 		if (d.Key == "server.tls_cert_file" || d.Key == "server.tls_key_file") && !c.Server.TLSEnabled {
 			continue
@@ -134,18 +160,24 @@ func (c *Config) GetMigratableSettings() []MigratableSetting {
 			Value:       value,
 			Type:        d.Type,
 			Description: d.Description,
-			Secret:      d.Class.Secret,
 			Source:      settingSource(d.EnvVar),
 			EnvVar:      d.EnvVar,
-			Class:       d.Class,
 		})
 	}
 
-	settings = append(settings, classifyGenerated(c.getMigratableOAuthSettings())...)
-	settings = append(settings, classifyGenerated(c.getMigratableSAMLSettings())...)
-	settings = append(settings, classifyGenerated(c.getMigratableContentOAuthSettings())...)
+	settings = append(settings, c.getMigratableOAuthSettings()...)
+	settings = append(settings, c.getMigratableSAMLSettings()...)
+	settings = append(settings, c.getMigratableContentOAuthSettings()...)
 
 	for i := range settings {
+		settings[i].Class = classificationFor(settings[i].Key)
+		// Keep the legacy per-setting Secret flag and Class.Secret consistent.
+		// One direction only: see IsSecret's doc comment for why clearing
+		// Secret here for a false Class.Secret would be wrong for the
+		// provider subtrees (auth.oauth.providers.*.client_secret etc.).
+		if settings[i].Class.Secret {
+			settings[i].Secret = true
+		}
 		// Explicit = an operator actually supplied this value, rather than it
 		// being the struct default every key carries. Source already reports
 		// "environment" when the env var is set; explicitFileKeys records the

@@ -473,7 +473,7 @@ var serverSettingDefs = []SettingDef{
 		Key:          "observability.sampling_rate",
 		Class:        withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:         "float",
-		Description:  "OpenTelemetry trace sampling rate (0.0-1.0)",
+		Description:  "OpenTelemetry trace sampling rate (0.0–1.0)",
 		Default:      "1",
 		YAMLPath:     "observability.sampling_rate",
 		EnvVar:       "TMI_OTEL_SAMPLING_RATE",
