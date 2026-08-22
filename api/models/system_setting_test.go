@@ -3,6 +3,10 @@ package models
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/ericfitz/tmi/internal/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestSystemSetting_IsExplicit pins the #794 precedence rule and, critically,
@@ -91,4 +95,39 @@ func TestSystemSetting_OriginJSONRoundTrip(t *testing.T) {
 	if roundTripped.IsExplicit() {
 		t.Error("round-tripped seeded row reports IsExplicit() == true; Origin was lost in JSON marshaling")
 	}
+}
+
+// TestDefaultSystemSettings_MatchesRegistryProjection pins that
+// DefaultSystemSettings is a projection of config.SeedableOperationalDefs,
+// not a hand-kept parallel list — a parallel list is what left rate_limit.*
+// seeded here with no classification entry anywhere else (#809).
+func TestDefaultSystemSettings_MatchesRegistryProjection(t *testing.T) {
+	defs := config.SeedableOperationalDefs()
+	seeds := DefaultSystemSettings()
+
+	require.Equal(t, len(defs), len(seeds),
+		"DefaultSystemSettings must be a projection of the registry, not a parallel list")
+
+	byKey := map[string]SystemSetting{}
+	for _, s := range seeds {
+		byKey[string(s.SettingKey)] = s
+	}
+	for _, d := range defs {
+		s, ok := byKey[d.Key]
+		require.True(t, ok, "registry declares %s but DefaultSystemSettings does not seed it", d.Key)
+		assert.Equal(t, d.Default, string(s.Value), "seed value for %s must be the registry Default", d.Key)
+		assert.Equal(t, d.Description, s.Description.String, "seed description for %s", d.Key)
+	}
+}
+
+// TestDefaultSystemSettings_SeedsPreviouslyUnclassifiedRateLimitKeys pins
+// the #809 fix: both rate_limit.* keys are still seeded after the switch to
+// a registry projection.
+func TestDefaultSystemSettings_SeedsPreviouslyUnclassifiedRateLimitKeys(t *testing.T) {
+	keys := map[string]bool{}
+	for _, s := range DefaultSystemSettings() {
+		keys[string(s.SettingKey)] = true
+	}
+	assert.True(t, keys["rate_limit.requests_per_minute"])
+	assert.True(t, keys["rate_limit.requests_per_hour"])
 }

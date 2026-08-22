@@ -3,6 +3,8 @@ package models
 
 import (
 	"time"
+
+	"github.com/ericfitz/tmi/internal/config"
 )
 
 // SystemSetting represents a system-wide configuration setting stored in the database.
@@ -102,64 +104,43 @@ func (s *SystemSetting) IsExplicit() bool {
 // DefaultSystemSettings returns the default system settings that should be seeded
 // when the database is initialized. These provide sensible defaults that can be
 // overridden by administrators.
+//
+// This is a projection of the internal/config registry
+// (config.SeedableOperationalDefs), not a hand-kept parallel list — a
+// parallel list is what left rate_limit.requests_per_minute and
+// rate_limit.requests_per_hour seeded here with no classification entry
+// anywhere else, so GET/DELETE /admin/settings/{key} 404'd on keys the LIST
+// endpoint showed (#809).
 // SEM@8f7b5125fd7a1b5bb10210ba480278708de918b0: build the seed list of default system settings for database initialization (pure)
 func DefaultSystemSettings() []SystemSetting {
 	desc := func(s string) NullableDBText { return NullableDBText{String: s, Valid: true} }
 
-	return []SystemSetting{
-		{
-			SettingKey:  "rate_limit.requests_per_minute",
-			Value:       "100",
-			SettingType: SystemSettingTypeInt,
-			Description: desc("Maximum API requests per minute per user"),
-		},
-		{
-			SettingKey:  "rate_limit.requests_per_hour",
-			Value:       "1000",
-			SettingType: SystemSettingTypeInt,
-			Description: desc("Maximum API requests per hour per user"),
-		},
-		{
-			SettingKey:  "session.timeout_minutes",
-			Value:       "60",
-			SettingType: SystemSettingTypeInt,
-			Description: desc("JWT token expiration in minutes"),
-		},
-		{
-			SettingKey:  "websocket.max_participants",
-			Value:       "10",
-			SettingType: SystemSettingTypeInt,
-			Description: desc("Maximum participants per collaboration session"),
-		},
-		{
-			SettingKey:  "features.saml_enabled",
-			Value:       "false",
-			SettingType: SystemSettingTypeBool,
-			Description: desc("Enable SAML authentication"),
-		},
-		{
-			SettingKey:  "features.webhooks_enabled",
-			Value:       "true",
-			SettingType: SystemSettingTypeBool,
-			Description: desc("Enable webhook subscriptions"),
-		},
-		{
-			SettingKey:  "features.websocket_enabled",
-			Value:       "true",
-			SettingType: SystemSettingTypeBool,
-			Description: desc("Enable WebSocket collaboration"),
-		},
-		{
-			SettingKey:  "ui.default_theme",
-			Value:       "auto",
-			SettingType: SystemSettingTypeString,
-			Description: desc("Default UI theme (auto, light, dark)"),
-		},
-		{
-			SettingKey:  "upload.max_file_size_mb",
-			Value:       "10",
-			SettingType: SystemSettingTypeInt,
-			Description: desc("Maximum file upload size in megabytes"),
-		},
+	defs := config.SeedableOperationalDefs()
+	out := make([]SystemSetting, 0, len(defs))
+	for _, d := range defs {
+		out = append(out, SystemSetting{
+			SettingKey:  DBVarchar(d.Key),
+			Value:       DBText(d.Default),
+			SettingType: DBVarchar(settingTypeFor(d.Type)),
+			Description: desc(d.Description),
+		})
+	}
+	return out
+}
+
+// settingTypeFor maps a config registry type name to the stored
+// system_settings setting_type value.
+func settingTypeFor(t string) string {
+	switch t {
+	case "bool":
+		return SystemSettingTypeBool
+	case "int":
+		return SystemSettingTypeInt
+	case "float":
+		return SystemSettingTypeFloat
+	case "json":
+		return SystemSettingTypeJSON
+	default:
+		return SystemSettingTypeString
 	}
 }
