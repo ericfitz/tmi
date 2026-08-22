@@ -196,6 +196,19 @@ var exactClassifications = map[string]ConfigClass{
 	"upload.max_file_size_mb":    operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),
 	"ui.default_theme":           operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),
 
+	// --- Operational: seeded-but-unread rate limit knobs (#809) ---
+	// Same DB-only shape as the client-config knobs above — no Config struct
+	// field, seeded directly by models.DefaultSystemSettings — but
+	// admin-only rather than public: unlike the five keys above, these are
+	// not consumed by tmi-ux via /config. Nothing reads either key at use
+	// time; real rate limiting runs off server.disable_rate_limiting /
+	// server.ratelimit_public_rpm instead. Without this classification they
+	// default to VisibilityInternal, which is exactly what made
+	// GET/DELETE /admin/settings/{key} 404 on both even though the LIST
+	// endpoint showed them.
+	"rate_limit.requests_per_minute": operationalClass(VisibilityAdminOnly, false),
+	"rate_limit.requests_per_hour":   operationalClass(VisibilityAdminOnly, false),
+
 	// --- Bootstrap: logging & observability ---
 	"logging.level":                         bootstrapClass(false, VisibilityInternal, false),
 	"logging.is_dev":                        bootstrapClass(false, VisibilityInternal, false),

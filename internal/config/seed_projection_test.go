@@ -35,3 +35,25 @@ func TestSeedableOperationalDefs_AreSortedAndNonEmpty(t *testing.T) {
 		assert.NotEmpty(t, d.Default)
 	}
 }
+
+// TestClassificationFor_SeededKeysAreNotInternal is the regression test for
+// #809 round 1: a SettingDef.Class populated correctly is not enough on its
+// own, because api/config_handlers.go's GET/DELETE /admin/settings/{key}
+// checks config.ClassificationFor(key).Visibility, which resolves through
+// classification_registry.go's exactClassifications/prefixClassifications —
+// a separate table from the SettingDef registry until Phase E converges
+// them. A key can pass every SettingDef-level assertion above and still
+// 404 at the actual endpoint if it has no exactClassifications entry. This
+// test ties every seeded key to that real runtime resolution path, so it
+// would have caught rate_limit.* still 404ing after round 1's declaration
+// went in.
+func TestClassificationFor_SeededKeysAreNotInternal(t *testing.T) {
+	for _, d := range SeedableOperationalDefs() {
+		cls := ClassificationFor(d.Key)
+		assert.NotEqual(t, VisibilityInternal, cls.Visibility,
+			"%s is seeded into system_settings and shown by GET /admin/settings, "+
+				"so ClassificationFor must not resolve it to VisibilityInternal — "+
+				"that is what makes GET/DELETE /admin/settings/{key} return 404 (#809)", d.Key)
+		assert.NotEqual(t, CategoryUnclassified, cls.Category, "%s must be classified", d.Key)
+	}
+}
