@@ -89,6 +89,22 @@ func validateGeneralRules(d SettingDef, add func(key, msg string)) {
 	if d.Seeded && c.Category != CategoryOperational {
 		add(d.Key, "Seeded implies CategoryOperational — a bootstrap setting must never be Seeded")
 	}
+	// Only Seeded keys are ever written into system_settings at database
+	// init (models.DefaultSystemSettings), so Default is load-bearing
+	// specifically for them — this is narrower than, and independent of, the
+	// general "operational setting must declare a Default" rule below, which
+	// exempts Type "string" and Class.Secret. A Seeded setting must still
+	// have something to seed regardless of Type or Secret.
+	if d.Seeded && d.Default == "" {
+		add(d.Key, "Seeded setting must declare a Default — it is written into system_settings at database init")
+	}
+	// A secret must never be seeded into system_settings with a compiled-in
+	// value: that would either be an empty placeholder (useless) or a real
+	// hardcoded credential (never acceptable) landing in the database at
+	// every install.
+	if d.Seeded && c.Secret {
+		add(d.Key, "Seeded setting must not be Secret — a secret must never be seeded into system_settings with a compiled-in value")
+	}
 }
 
 // validateBootstrapRules checks the rules specific to CategoryBootstrap.

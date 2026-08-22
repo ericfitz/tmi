@@ -79,6 +79,21 @@ func concatDefs(groups ...[]SettingDef) []SettingDef {
 	return out
 }
 
+// withMutability returns a copy of c with Mutability overridden. Most
+// operational SettingDefs take their ConfigClass verbatim from
+// classificationFor/operationalClass, whose Mutability default (Hot) is
+// correct for the common case: a setting re-read through the settings
+// service at use time. withMutability is the explicit, per-entry override
+// for the settings that are instead captured once at server construction —
+// a database edit to one of these does not take effect without a restart.
+// Every call site names the specific consuming code that makes it so; see
+// setting_defs_server.go, setting_defs_auth.go, setting_defs_content.go and
+// setting_defs_misc.go for the individual justifications.
+func withMutability(c ConfigClass, m Mutability) ConfigClass {
+	c.Mutability = m
+	return c
+}
+
 // indexDefs builds a by-key lookup map from a slice of definitions.
 func indexDefs(defs []SettingDef) map[string]SettingDef {
 	idx := make(map[string]SettingDef, len(defs))

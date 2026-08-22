@@ -131,9 +131,16 @@ var serverSettingDefs = []SettingDef{
 			return string(b)
 		},
 	},
+	// disable_rate_limiting, ratelimit_public_rpm and require_if_match are
+	// Static: cmd/server/main.go reads all three exactly once at startup —
+	// apiServer.SetRateLimitingDisabled / applyRateLimitConfig(ipLimiter, ...)
+	// / api.SetRequireIfMatch(config.Server.RequireIfMatch) — to configure
+	// the rate limiter and the optimistic-locking middleware. None of the
+	// three has a settings-service lookup at request time; a database edit
+	// needs a restart to take effect.
 	{
 		Key:          "server.disable_rate_limiting",
-		Class:        operationalClass(VisibilityAdminOnly, false),
+		Class:        withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:         "bool",
 		Description:  "Disable all rate limiting (dev/test only)",
 		Default:      "false",
@@ -151,7 +158,7 @@ var serverSettingDefs = []SettingDef{
 	// actual compiled-in Config value.
 	{
 		Key:          "server.ratelimit_public_rpm",
-		Class:        operationalClass(VisibilityAdminOnly, false),
+		Class:        withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:         "int",
 		Description:  "Requests per minute per IP for public endpoints",
 		Default:      "0",
@@ -162,7 +169,7 @@ var serverSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "server.require_if_match",
-		Class:        operationalClass(VisibilityAdminOnly, false),
+		Class:        withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:         "bool",
 		Description:  "Return 428 when If-Match header is missing on PUT/PATCH",
 		Default:      "false",
@@ -424,9 +431,14 @@ var serverSettingDefs = []SettingDef{
 	},
 
 	// --- observability.* ---
+	// All three are Static: cmd/server/main.go's initOTel(ctx, cfg) reads
+	// cfg.Observability.Enabled/SamplingRate/PrometheusPort exactly once at
+	// startup to build the tmiotel.Config passed to tmiotel.Setup. There is
+	// no runtime re-read; changing tracing/metrics configuration needs a
+	// restart.
 	{
 		Key:          "observability.enabled",
-		Class:        operationalClass(VisibilityAdminOnly, false),
+		Class:        withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:         "bool",
 		Description:  "OpenTelemetry tracing enabled",
 		Default:      "false",
@@ -437,7 +449,7 @@ var serverSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "observability.prometheus_port",
-		Class:        operationalClass(VisibilityAdminOnly, false),
+		Class:        withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:         "int",
 		Description:  "Prometheus metrics port (0 = disabled)",
 		Default:      "0",
@@ -451,7 +463,7 @@ var serverSettingDefs = []SettingDef{
 	// that --import-config could not unmarshal back into the field (#791).
 	{
 		Key:          "observability.sampling_rate",
-		Class:        operationalClass(VisibilityAdminOnly, false),
+		Class:        withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:         "float",
 		Description:  "OpenTelemetry trace sampling rate (0.0-1.0)",
 		Default:      "1",

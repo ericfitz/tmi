@@ -34,9 +34,20 @@ var authSettingDefs = []SettingDef{
 		EnvVar:      "TMI_JWT_SIGNING_METHOD",
 		Get:         func(c *Config) string { return c.Auth.JWT.SigningMethod },
 	},
+	// The eight settings below (auto_promote_first_user through
+	// cookie.secure) are Static: each is read directly off the boot-time
+	// *Config struct by the code that consumes it — cmd/server/jwt_auth.go's
+	// AutoPromoteFirstUser check, auth/service.go's JWT issuance
+	// (ExpirationSeconds, RefreshTokenDays, SessionLifetimeDays),
+	// cmd/server/main.go's step-up-window and cookie-manager construction
+	// (StepUpWindowSeconds, Cookie.Enabled/Domain/Secure) — with no
+	// RuntimeConfigReader (or equivalent settings-service lookup) wired for
+	// any of them. Contrast with auth.everyone_is_a_reviewer directly below,
+	// which stays Hot: it has a DB-backed reader
+	// (JWTAuthenticator.everyoneIsAReviewer, memoized 60s).
 	{
 		Key:          "auth.auto_promote_first_user",
-		Class:        operationalClass(VisibilityAdminOnly, false),
+		Class:        withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:         "bool",
 		Description:  "Auto-promote first user to admin",
 		Default:      "false",
@@ -58,7 +69,7 @@ var authSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "auth.jwt.expiration_seconds",
-		Class:        operationalClass(VisibilityAdminOnly, false),
+		Class:        withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:         "int",
 		Description:  "JWT token expiration in seconds",
 		Default:      "3600",
@@ -69,7 +80,7 @@ var authSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "auth.jwt.refresh_token_days",
-		Class:        operationalClass(VisibilityAdminOnly, false),
+		Class:        withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:         "int",
 		Description:  "Refresh token TTL in days",
 		Default:      "7",
@@ -80,7 +91,7 @@ var authSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "auth.jwt.session_lifetime_days",
-		Class:        operationalClass(VisibilityAdminOnly, false),
+		Class:        withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:         "int",
 		Description:  "Absolute session lifetime in days",
 		Default:      "7",
@@ -91,7 +102,7 @@ var authSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "auth.step_up_window_seconds",
-		Class:        operationalClass(VisibilityAdminOnly, false),
+		Class:        withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:         "int",
 		Description:  "Step-up auth_time freshness window in seconds for /admin/* writes (#355); minimum 60",
 		Default:      "300",
@@ -102,7 +113,7 @@ var authSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "auth.cookie.enabled",
-		Class:        operationalClass(VisibilityAdminOnly, false),
+		Class:        withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:         "bool",
 		Description:  "HttpOnly cookie-based auth enabled",
 		Default:      "true",
@@ -113,7 +124,7 @@ var authSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "auth.cookie.domain",
-		Class:        operationalClass(VisibilityAdminOnly, false),
+		Class:        withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:         "string",
 		Description:  "Cookie domain",
 		Default:      "",
@@ -124,7 +135,7 @@ var authSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "auth.cookie.secure",
-		Class:        operationalClass(VisibilityAdminOnly, false),
+		Class:        withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:         "bool",
 		Description:  "Require HTTPS for cookies",
 		Default:      "false",
@@ -172,8 +183,17 @@ var authSettingDefs = []SettingDef{
 		// Key differs from YAMLPath: the setting key is the legacy flat
 		// feature-flag name ("features.saml_enabled"), while the struct path
 		// is the nested SAML config's enabled flag ("auth.saml.enabled").
+		//
+		// Static: auth/service.go's NewService only builds service.samlManager
+		// when config.SAML.Enabled is true at construction time (auth/service.go
+		// ~line 148, "if config.SAML.Enabled { samlManager := NewSAMLManager(...) }").
+		// A separate DB-backed reader (RuntimeConfigReader.IsSAMLEnabled) does
+		// exist and gates the SAML HTTP handlers per request, but if the manager
+		// was never constructed at boot, flipping the DB row does not make SAML
+		// login work — samlManager stays nil until restart. The setting that
+		// actually controls whether SAML functions is the boot-time one.
 		Key:          "features.saml_enabled",
-		Class:        operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX),
+		Class:        withMutability(operationalClass(VisibilityPublic, false, ConsumerMonolith, ConsumerTMIUX), MutabilityStatic),
 		Type:         "bool",
 		Description:  "Enable SAML authentication",
 		Default:      "false",
@@ -185,18 +205,20 @@ var authSettingDefs = []SettingDef{
 	},
 	{
 		// Top-level Config field, not under Auth. No env tag exists on
-		// Administrators — it is config-file only. YAMLPath is deliberately
-		// left empty: the bijection test (setting_defs_bijection_test.go)
-		// walks only env-tagged Config struct fields, so a non-empty
-		// YAMLPath here — even though the "administrators" yaml key is real
-		// — would register as a config path the struct walk never produces,
-		// failing the test's "extra" check.
+		// Administrators — it is config-file only (config.go:49,
+		// `yaml:"administrators"` with no `env:` tag), so EnvVar is
+		// genuinely empty; YAMLPath is real and stays "administrators".
+		//
+		// Static: cmd/server/main.go's admin-init loop reads
+		// cfg.Administrators exactly once at startup to seed/promote the
+		// configured admins. There is no runtime re-read — a database edit
+		// to this key does not add or remove an admin without a restart.
 		Key:         "administrators",
-		Class:       operationalClass(VisibilityAdminOnly, false),
+		Class:       withMutability(operationalClass(VisibilityAdminOnly, false), MutabilityStatic),
 		Type:        "json",
 		Description: "Configured administrators",
 		Default:     "[]",
-		YAMLPath:    "",
+		YAMLPath:    "administrators",
 		EnvVar:      "",
 		Get: func(c *Config) string {
 			if len(c.Administrators) == 0 {

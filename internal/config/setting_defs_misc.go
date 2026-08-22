@@ -14,9 +14,15 @@ import "strconv"
 // ConfigClass.
 var miscSettingDefs = []SettingDef{
 	// --- websocket.* ---
+	// Static: cmd/server/main.go passes config.GetWebSocketInactivityTimeout()
+	// once into api.NewServer(...), which stores it on the WebSocketHub as
+	// InactivityTimeout. There is no runtime re-read of this setting.
+	// Contrast with operator.*/upload.max_file_size_mb/websocket.max_participants/
+	// ui.default_theme below, which api/config_handlers.go re-reads via
+	// settingsService.GetString/GetInt on every /config request — those stay Hot.
 	{
 		Key:          "websocket.inactivity_timeout_seconds",
-		Class:        classificationFor("websocket.inactivity_timeout_seconds"),
+		Class:        withMutability(classificationFor("websocket.inactivity_timeout_seconds"), MutabilityStatic),
 		Type:         "int",
 		Description:  "WebSocket inactivity timeout in seconds",
 		Default:      "300",
@@ -27,9 +33,12 @@ var miscSettingDefs = []SettingDef{
 	},
 
 	// --- webhooks.* ---
+	// Static: cmd/server/main.go reads config.Webhooks.AllowHTTPTargets once
+	// at startup — apiServer.SetAllowHTTPWebhooks(...) and the webhook SSRF
+	// validator's scheme setup both run only during initialization.
 	{
 		Key:          "webhooks.allow_http_targets",
-		Class:        classificationFor("webhooks.allow_http_targets"),
+		Class:        withMutability(classificationFor("webhooks.allow_http_targets"), MutabilityStatic),
 		Type:         "bool",
 		Description:  "Allow non-HTTPS webhook target URLs (intra-cluster use only)",
 		Default:      "false",
@@ -216,108 +225,115 @@ var miscSettingDefs = []SettingDef{
 
 	// --- ssrf.* (operational, security-sensitive allowlists; empty is
 	// fail-closed, so Default is deliberately "" rather than a wildcard).
-	// YAMLPath is deliberately empty on every entry below: SSRFURIConfig's
-	// Allowlist/Schemes fields carry a yaml tag but no env tag, and the
-	// bijection test only recognizes config paths bound to an env tag — a
-	// non-empty YAMLPath here would register as "extra". Get still reads the
-	// real Config field. ---
+	// YAMLPath is real on every entry below (SSRFConfig/SSRFURIConfig,
+	// config.go): each field carries a yaml tag but no env tag, so EnvVar is
+	// genuinely empty — these are config-file-only settings. The bijection
+	// test (setting_defs_bijection_test.go) is keyed on EnvVar, not YAMLPath,
+	// so a real YAMLPath with no EnvVar does not register as "extra"; a
+	// separate test (TestSettingDefs_YAMLPathsAreReal) checks YAMLPath
+	// truthfully names a yaml-tagged Config field even when there's no env
+	// tag to match against.
+	//
+	// Static: cmd/server/main.go's buildURIValidator(cfg.SSRF.*, ...) calls
+	// run once at startup to build each URI validator; there is no runtime
+	// re-read. ---
 	{
 		Key:          "ssrf.issue_uri.allowlist",
-		Class:        classificationFor("ssrf.issue_uri.allowlist"),
+		Class:        withMutability(classificationFor("ssrf.issue_uri.allowlist"), MutabilityStatic),
 		Type:         "string",
 		Description:  "SSRF allowlist for ssrf.issue_uri (comma-separated host patterns)",
 		Default:      "",
-		YAMLPath:     "", // no env tag on the underlying SSRFURIConfig field
+		YAMLPath:     "ssrf.issue_uri.allowlist",
 		Get:          func(c *Config) string { return c.SSRF.IssueURI.Allowlist },
 		Transitional: true,
 	},
 	{
 		Key:          "ssrf.issue_uri.schemes",
-		Class:        classificationFor("ssrf.issue_uri.schemes"),
+		Class:        withMutability(classificationFor("ssrf.issue_uri.schemes"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Permitted URI schemes for ssrf.issue_uri (comma-separated, e.g. https)",
 		Default:      "",
-		YAMLPath:     "", // no env tag on the underlying SSRFURIConfig field
+		YAMLPath:     "ssrf.issue_uri.schemes",
 		Get:          func(c *Config) string { return c.SSRF.IssueURI.Schemes },
 		Transitional: true,
 	},
 	{
 		Key:          "ssrf.document_uri.allowlist",
-		Class:        classificationFor("ssrf.document_uri.allowlist"),
+		Class:        withMutability(classificationFor("ssrf.document_uri.allowlist"), MutabilityStatic),
 		Type:         "string",
 		Description:  "SSRF allowlist for ssrf.document_uri (comma-separated host patterns)",
 		Default:      "",
-		YAMLPath:     "", // no env tag on the underlying SSRFURIConfig field
+		YAMLPath:     "ssrf.document_uri.allowlist",
 		Get:          func(c *Config) string { return c.SSRF.DocumentURI.Allowlist },
 		Transitional: true,
 	},
 	{
 		Key:          "ssrf.document_uri.schemes",
-		Class:        classificationFor("ssrf.document_uri.schemes"),
+		Class:        withMutability(classificationFor("ssrf.document_uri.schemes"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Permitted URI schemes for ssrf.document_uri (comma-separated, e.g. https)",
 		Default:      "",
-		YAMLPath:     "", // no env tag on the underlying SSRFURIConfig field
+		YAMLPath:     "ssrf.document_uri.schemes",
 		Get:          func(c *Config) string { return c.SSRF.DocumentURI.Schemes },
 		Transitional: true,
 	},
 	{
 		Key:          "ssrf.repository_uri.allowlist",
-		Class:        classificationFor("ssrf.repository_uri.allowlist"),
+		Class:        withMutability(classificationFor("ssrf.repository_uri.allowlist"), MutabilityStatic),
 		Type:         "string",
 		Description:  "SSRF allowlist for ssrf.repository_uri (comma-separated host patterns)",
 		Default:      "",
-		YAMLPath:     "", // no env tag on the underlying SSRFURIConfig field
+		YAMLPath:     "ssrf.repository_uri.allowlist",
 		Get:          func(c *Config) string { return c.SSRF.RepositoryURI.Allowlist },
 		Transitional: true,
 	},
 	{
 		Key:          "ssrf.repository_uri.schemes",
-		Class:        classificationFor("ssrf.repository_uri.schemes"),
+		Class:        withMutability(classificationFor("ssrf.repository_uri.schemes"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Permitted URI schemes for ssrf.repository_uri (comma-separated, e.g. https)",
 		Default:      "",
-		YAMLPath:     "", // no env tag on the underlying SSRFURIConfig field
+		YAMLPath:     "ssrf.repository_uri.schemes",
 		Get:          func(c *Config) string { return c.SSRF.RepositoryURI.Schemes },
 		Transitional: true,
 	},
 	{
 		Key:          "ssrf.timmy.allowlist",
-		Class:        classificationFor("ssrf.timmy.allowlist"),
+		Class:        withMutability(classificationFor("ssrf.timmy.allowlist"), MutabilityStatic),
 		Type:         "string",
 		Description:  "SSRF allowlist for ssrf.timmy (comma-separated host patterns)",
 		Default:      "",
-		YAMLPath:     "", // no env tag on the underlying SSRFURIConfig field
+		YAMLPath:     "ssrf.timmy.allowlist",
 		Get:          func(c *Config) string { return c.SSRF.Timmy.Allowlist },
 		Transitional: true,
 	},
 	{
 		Key:          "ssrf.timmy.schemes",
-		Class:        classificationFor("ssrf.timmy.schemes"),
+		Class:        withMutability(classificationFor("ssrf.timmy.schemes"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Permitted URI schemes for ssrf.timmy (comma-separated, e.g. https)",
 		Default:      "",
-		YAMLPath:     "", // no env tag on the underlying SSRFURIConfig field
+		YAMLPath:     "ssrf.timmy.schemes",
 		Get:          func(c *Config) string { return c.SSRF.Timmy.Schemes },
 		Transitional: true,
 	},
 	{
 		Key:          "ssrf.webhook.allowlist",
-		Class:        classificationFor("ssrf.webhook.allowlist"),
+		Class:        withMutability(classificationFor("ssrf.webhook.allowlist"), MutabilityStatic),
 		Type:         "string",
 		Description:  "SSRF allowlist for ssrf.webhook (comma-separated host patterns)",
 		Default:      "",
-		YAMLPath:     "", // no env tag on the underlying SSRFURIConfig field
+		YAMLPath:     "ssrf.webhook.allowlist",
 		Get:          func(c *Config) string { return c.SSRF.Webhook.Allowlist },
 		Transitional: true,
 	},
 	{
 		Key:          "ssrf.webhook.schemes",
-		Class:        classificationFor("ssrf.webhook.schemes"),
+		Class:        withMutability(classificationFor("ssrf.webhook.schemes"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Permitted URI schemes for ssrf.webhook (comma-separated, e.g. https)",
 		Default:      "",
-		YAMLPath:     "", // no env tag on the underlying SSRFURIConfig field
+		YAMLPath:     "ssrf.webhook.schemes",
 		Get:          func(c *Config) string { return c.SSRF.Webhook.Schemes },
 		Transitional: true,
 	},
@@ -369,9 +385,18 @@ var miscSettingDefs = []SettingDef{
 	// --- Derived key: no Config struct field of its own ---
 	// migratable_settings.go:433-441 computes this as
 	// Auth.JWT.ExpirationSeconds / 60 and reports it under the same env var
-	// that auth.jwt.expiration_seconds also uses. YAMLPath is deliberately
-	// empty — a non-empty path here would collide with auth.jwt.expiration_seconds
-	// in the bijection test's map and one would silently win.
+	// that auth.jwt.expiration_seconds also uses. YAMLPath is genuinely empty
+	// — there is no "session.timeout_minutes" yaml key on Config at all, only
+	// the computed relationship to auth.jwt.expiration_seconds's real field.
+	// EnvVar legitimately names TMI_JWT_EXPIRATION_SECONDS even though
+	// auth.jwt.expiration_seconds also claims it — the bijection test in
+	// setting_defs_bijection_test.go compares as sets for exactly this case.
+	//
+	// Static: no code reads "session.timeout_minutes" at runtime at all (only
+	// cmd/dbtool/config_export.go documents it as a "derived display value");
+	// its source field, auth.jwt.expiration_seconds, is itself Static (see
+	// the comment on the auth.auto_promote_first_user block in
+	// setting_defs_auth.go).
 	{
 		Key:          "session.timeout_minutes",
 		YAMLPath:     "", // derived: no struct field of its own
@@ -381,7 +406,7 @@ var miscSettingDefs = []SettingDef{
 		Default:      "60",
 		Transitional: true,
 		Seeded:       true,
-		Class:        classificationFor("session.timeout_minutes"),
+		Class:        withMutability(classificationFor("session.timeout_minutes"), MutabilityStatic),
 		Get:          func(c *Config) string { return strconv.Itoa(c.Auth.JWT.ExpirationSeconds / 60) },
 	},
 }

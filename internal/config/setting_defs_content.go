@@ -10,6 +10,18 @@ import "strconv"
 // SettingDef — see prefixClassifications in classification_registry.go.
 var contentSettingDefs = []SettingDef{
 	// --- Timmy: LLM chat ---
+	// timmy.enabled is the one Timmy key that stays Hot: cmd/server/main.go's
+	// cfgReader closure (feeding the runtime-swappable ContentSourceHolder)
+	// explicitly overlays it from settingsService.GetBool(ctx, "timmy.enabled")
+	// on every rebuild, on top of an otherwise-static *cfg snapshot — see that
+	// closure's own comment, "the live config reader snapshots *cfg ... then
+	// overlays timmy.enabled from the settings service". Every other Timmy
+	// key below (and every content_extractors.*/content_sources.*/
+	// content_oauth.callback_url key later in this file) is read only from
+	// that static snapshot, which the same comment calls out directly:
+	// "most content-source fields live in the static config" — so they are
+	// Static, and each such def is wrapped in withMutability(..., MutabilityStatic)
+	// rather than repeating this comment at every entry.
 	{
 		Key:          "timmy.enabled",
 		Class:        classificationFor("timmy.enabled"),
@@ -23,7 +35,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.llm_provider",
-		Class:        classificationFor("timmy.llm_provider"),
+		Class:        withMutability(classificationFor("timmy.llm_provider"), MutabilityStatic),
 		Type:         "string",
 		Description:  "LLM provider",
 		Default:      "",
@@ -34,7 +46,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.llm_model",
-		Class:        classificationFor("timmy.llm_model"),
+		Class:        withMutability(classificationFor("timmy.llm_model"), MutabilityStatic),
 		Type:         "string",
 		Description:  "LLM model",
 		Default:      "",
@@ -45,7 +57,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.llm_api_key",
-		Class:        classificationFor("timmy.llm_api_key"),
+		Class:        withMutability(classificationFor("timmy.llm_api_key"), MutabilityStatic),
 		Type:         "string",
 		Description:  "LLM API key",
 		Default:      "",
@@ -56,7 +68,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.llm_base_url",
-		Class:        classificationFor("timmy.llm_base_url"),
+		Class:        withMutability(classificationFor("timmy.llm_base_url"), MutabilityStatic),
 		Type:         "string",
 		Description:  "LLM API base URL",
 		Default:      "",
@@ -67,7 +79,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.llm_max_tokens",
-		Class:        classificationFor("timmy.llm_max_tokens"),
+		Class:        withMutability(classificationFor("timmy.llm_max_tokens"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Max tokens per chat completion (required by Anthropic; optional for OpenAI)",
 		Default:      "4096",
@@ -80,7 +92,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Timmy: text embedding profile (shared invariant between ingest and query) ---
 	{
 		Key:          "timmy.text_embedding_provider",
-		Class:        classificationFor("timmy.text_embedding_provider"),
+		Class:        withMutability(classificationFor("timmy.text_embedding_provider"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Text embedding provider",
 		Default:      "",
@@ -91,7 +103,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.text_embedding_model",
-		Class:        classificationFor("timmy.text_embedding_model"),
+		Class:        withMutability(classificationFor("timmy.text_embedding_model"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Text embedding model — shared invariant between ingest and query",
 		Default:      "",
@@ -102,7 +114,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.text_embedding_api_key",
-		Class:        classificationFor("timmy.text_embedding_api_key"),
+		Class:        withMutability(classificationFor("timmy.text_embedding_api_key"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Text embedding API key",
 		Default:      "",
@@ -113,7 +125,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.text_embedding_base_url",
-		Class:        classificationFor("timmy.text_embedding_base_url"),
+		Class:        withMutability(classificationFor("timmy.text_embedding_base_url"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Text embedding API base URL — shared invariant",
 		Default:      "",
@@ -124,7 +136,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.embedding_dimension",
-		Class:        classificationFor("timmy.embedding_dimension"),
+		Class:        withMutability(classificationFor("timmy.embedding_dimension"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Text embedding vector dimension — shared invariant",
 		Default:      "0",
@@ -135,7 +147,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.text_retrieval_top_k",
-		Class:        classificationFor("timmy.text_retrieval_top_k"),
+		Class:        withMutability(classificationFor("timmy.text_retrieval_top_k"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Text retrieval top-k results",
 		Default:      "10",
@@ -148,7 +160,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Timmy: code embedding profile ---
 	{
 		Key:          "timmy.code_embedding_provider",
-		Class:        classificationFor("timmy.code_embedding_provider"),
+		Class:        withMutability(classificationFor("timmy.code_embedding_provider"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Code embedding provider",
 		Default:      "",
@@ -159,7 +171,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.code_embedding_model",
-		Class:        classificationFor("timmy.code_embedding_model"),
+		Class:        withMutability(classificationFor("timmy.code_embedding_model"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Code embedding model",
 		Default:      "",
@@ -170,7 +182,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.code_embedding_api_key",
-		Class:        classificationFor("timmy.code_embedding_api_key"),
+		Class:        withMutability(classificationFor("timmy.code_embedding_api_key"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Code embedding API key",
 		Default:      "",
@@ -181,7 +193,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.code_embedding_base_url",
-		Class:        classificationFor("timmy.code_embedding_base_url"),
+		Class:        withMutability(classificationFor("timmy.code_embedding_base_url"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Code embedding API base URL",
 		Default:      "",
@@ -192,7 +204,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.code_retrieval_top_k",
-		Class:        classificationFor("timmy.code_retrieval_top_k"),
+		Class:        withMutability(classificationFor("timmy.code_retrieval_top_k"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Code retrieval top-k results",
 		Default:      "10",
@@ -203,7 +215,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.query_decomposition_enabled",
-		Class:        classificationFor("timmy.query_decomposition_enabled"),
+		Class:        withMutability(classificationFor("timmy.query_decomposition_enabled"), MutabilityStatic),
 		Type:         "bool",
 		Description:  "Query decomposition enabled",
 		Default:      "false",
@@ -216,7 +228,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Timmy: reranker ---
 	{
 		Key:          "timmy.rerank_provider",
-		Class:        classificationFor("timmy.rerank_provider"),
+		Class:        withMutability(classificationFor("timmy.rerank_provider"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Reranker provider",
 		Default:      "",
@@ -227,7 +239,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.rerank_model",
-		Class:        classificationFor("timmy.rerank_model"),
+		Class:        withMutability(classificationFor("timmy.rerank_model"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Reranker model",
 		Default:      "",
@@ -238,7 +250,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.rerank_api_key",
-		Class:        classificationFor("timmy.rerank_api_key"),
+		Class:        withMutability(classificationFor("timmy.rerank_api_key"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Reranker API key",
 		Default:      "",
@@ -249,7 +261,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.rerank_base_url",
-		Class:        classificationFor("timmy.rerank_base_url"),
+		Class:        withMutability(classificationFor("timmy.rerank_base_url"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Reranker API base URL",
 		Default:      "",
@@ -260,7 +272,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.rerank_top_k",
-		Class:        classificationFor("timmy.rerank_top_k"),
+		Class:        withMutability(classificationFor("timmy.rerank_top_k"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Reranker top-k results",
 		Default:      "10",
@@ -273,7 +285,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Timmy: session / resource limits ---
 	{
 		Key:          "timmy.max_conversation_history",
-		Class:        classificationFor("timmy.max_conversation_history"),
+		Class:        withMutability(classificationFor("timmy.max_conversation_history"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Max conversation history entries",
 		Default:      "50",
@@ -284,7 +296,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.operator_system_prompt",
-		Class:        classificationFor("timmy.operator_system_prompt"),
+		Class:        withMutability(classificationFor("timmy.operator_system_prompt"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Operator system prompt override",
 		Default:      "",
@@ -295,7 +307,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.max_memory_mb",
-		Class:        classificationFor("timmy.max_memory_mb"),
+		Class:        withMutability(classificationFor("timmy.max_memory_mb"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Max memory in MB",
 		Default:      "256",
@@ -306,7 +318,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.inactivity_timeout_seconds",
-		Class:        classificationFor("timmy.inactivity_timeout_seconds"),
+		Class:        withMutability(classificationFor("timmy.inactivity_timeout_seconds"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Session inactivity timeout in seconds",
 		Default:      "3600",
@@ -317,7 +329,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.max_messages_per_user_per_hour",
-		Class:        classificationFor("timmy.max_messages_per_user_per_hour"),
+		Class:        withMutability(classificationFor("timmy.max_messages_per_user_per_hour"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Max messages per user per hour",
 		Default:      "60",
@@ -328,7 +340,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.max_sessions_per_threat_model",
-		Class:        classificationFor("timmy.max_sessions_per_threat_model"),
+		Class:        withMutability(classificationFor("timmy.max_sessions_per_threat_model"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Max Timmy sessions per threat model",
 		Default:      "50",
@@ -339,7 +351,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.max_concurrent_llm_requests",
-		Class:        classificationFor("timmy.max_concurrent_llm_requests"),
+		Class:        withMutability(classificationFor("timmy.max_concurrent_llm_requests"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Max concurrent LLM requests",
 		Default:      "10",
@@ -352,7 +364,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Timmy: chunking / embedding lifecycle ---
 	{
 		Key:          "timmy.chunk_size",
-		Class:        classificationFor("timmy.chunk_size"),
+		Class:        withMutability(classificationFor("timmy.chunk_size"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Embedding chunk size",
 		Default:      "512",
@@ -363,7 +375,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.chunk_overlap",
-		Class:        classificationFor("timmy.chunk_overlap"),
+		Class:        withMutability(classificationFor("timmy.chunk_overlap"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Embedding chunk overlap",
 		Default:      "50",
@@ -374,7 +386,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.llm_timeout_seconds",
-		Class:        classificationFor("timmy.llm_timeout_seconds"),
+		Class:        withMutability(classificationFor("timmy.llm_timeout_seconds"), MutabilityStatic),
 		Type:         "int",
 		Description:  "LLM request timeout in seconds",
 		Default:      "120",
@@ -385,7 +397,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.embedding_cleanup_interval_minutes",
-		Class:        classificationFor("timmy.embedding_cleanup_interval_minutes"),
+		Class:        withMutability(classificationFor("timmy.embedding_cleanup_interval_minutes"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Embedding cleanup interval in minutes",
 		Default:      "60",
@@ -396,7 +408,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.embedding_idle_days_active",
-		Class:        classificationFor("timmy.embedding_idle_days_active"),
+		Class:        withMutability(classificationFor("timmy.embedding_idle_days_active"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Days before idle active-TM embeddings are cleaned up",
 		Default:      "30",
@@ -407,7 +419,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.embedding_idle_days_closed",
-		Class:        classificationFor("timmy.embedding_idle_days_closed"),
+		Class:        withMutability(classificationFor("timmy.embedding_idle_days_closed"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Days before idle closed-TM embeddings are cleaned up",
 		Default:      "7",
@@ -418,7 +430,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "timmy.dump_extracted_text_to_note",
-		Class:        classificationFor("timmy.dump_extracted_text_to_note"),
+		Class:        withMutability(classificationFor("timmy.dump_extracted_text_to_note"), MutabilityStatic),
 		Type:         "bool",
 		Description:  "Dump extracted text to note (dev/test only)",
 		Default:      "false",
@@ -431,7 +443,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Content extractors: OOXML pipeline limits ---
 	{
 		Key:          "content_extractors.compressed_size_bytes",
-		Class:        classificationFor("content_extractors.compressed_size_bytes"),
+		Class:        withMutability(classificationFor("content_extractors.compressed_size_bytes"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Max compressed upload size in bytes",
 		Default:      "20971520",
@@ -442,7 +454,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_extractors.decompressed_size_bytes",
-		Class:        classificationFor("content_extractors.decompressed_size_bytes"),
+		Class:        withMutability(classificationFor("content_extractors.decompressed_size_bytes"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Max decompressed content size in bytes",
 		Default:      "52428800",
@@ -453,7 +465,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_extractors.part_size_bytes",
-		Class:        classificationFor("content_extractors.part_size_bytes"),
+		Class:        withMutability(classificationFor("content_extractors.part_size_bytes"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Max size of a single archive part in bytes",
 		Default:      "20971520",
@@ -464,7 +476,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_extractors.pptx_slides",
-		Class:        classificationFor("content_extractors.pptx_slides"),
+		Class:        withMutability(classificationFor("content_extractors.pptx_slides"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Max number of PowerPoint slides to extract",
 		Default:      "100",
@@ -475,7 +487,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_extractors.xlsx_cells",
-		Class:        classificationFor("content_extractors.xlsx_cells"),
+		Class:        withMutability(classificationFor("content_extractors.xlsx_cells"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Max number of Excel cells to extract",
 		Default:      "1000",
@@ -486,7 +498,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_extractors.markdown_size_bytes",
-		Class:        classificationFor("content_extractors.markdown_size_bytes"),
+		Class:        withMutability(classificationFor("content_extractors.markdown_size_bytes"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Max markdown output size in bytes",
 		Default:      "131072",
@@ -497,7 +509,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_extractors.wall_clock_budget",
-		Class:        classificationFor("content_extractors.wall_clock_budget"),
+		Class:        withMutability(classificationFor("content_extractors.wall_clock_budget"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Max wall-clock time for a single extraction",
 		Default:      "30s",
@@ -508,7 +520,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_extractors.per_user_concurrency_default",
-		Class:        classificationFor("content_extractors.per_user_concurrency_default"),
+		Class:        withMutability(classificationFor("content_extractors.per_user_concurrency_default"), MutabilityStatic),
 		Type:         "int",
 		Description:  "Default max concurrent extractions per user",
 		Default:      "2",
@@ -537,7 +549,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Content OAuth: callback URL (per-provider keys excluded — dynamic cardinality) ---
 	{
 		Key:          "content_oauth.callback_url",
-		Class:        classificationFor("content_oauth.callback_url"),
+		Class:        withMutability(classificationFor("content_oauth.callback_url"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Content OAuth callback URL",
 		Default:      "",
@@ -550,7 +562,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Content sources: Google Drive ---
 	{
 		Key:          "content_sources.google_drive.enabled",
-		Class:        classificationFor("content_sources.google_drive.enabled"),
+		Class:        withMutability(classificationFor("content_sources.google_drive.enabled"), MutabilityStatic),
 		Type:         "bool",
 		Description:  "Google Drive content source enabled",
 		Default:      "false",
@@ -561,7 +573,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_sources.google_drive.service_account_email",
-		Class:        classificationFor("content_sources.google_drive.service_account_email"),
+		Class:        withMutability(classificationFor("content_sources.google_drive.service_account_email"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Google Drive service account email",
 		Default:      "",
@@ -572,7 +584,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_sources.google_drive.credentials_file",
-		Class:        classificationFor("content_sources.google_drive.credentials_file"),
+		Class:        withMutability(classificationFor("content_sources.google_drive.credentials_file"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Google Drive service account credentials file path",
 		Default:      "",
@@ -583,7 +595,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_sources.google_drive.browser_oauth_client_id",
-		Class:        classificationFor("content_sources.google_drive.browser_oauth_client_id"),
+		Class:        withMutability(classificationFor("content_sources.google_drive.browser_oauth_client_id"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Google Drive browser OAuth client ID (public)",
 		Default:      "",
@@ -594,7 +606,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_sources.google_drive.picker_developer_key",
-		Class:        classificationFor("content_sources.google_drive.picker_developer_key"),
+		Class:        withMutability(classificationFor("content_sources.google_drive.picker_developer_key"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Google Drive Picker developer key (public)",
 		Default:      "",
@@ -605,7 +617,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_sources.google_drive.picker_app_id",
-		Class:        classificationFor("content_sources.google_drive.picker_app_id"),
+		Class:        withMutability(classificationFor("content_sources.google_drive.picker_app_id"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Google Drive Picker app ID (public)",
 		Default:      "",
@@ -618,7 +630,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Content sources: Google Workspace ---
 	{
 		Key:          "content_sources.google_workspace.enabled",
-		Class:        classificationFor("content_sources.google_workspace.enabled"),
+		Class:        withMutability(classificationFor("content_sources.google_workspace.enabled"), MutabilityStatic),
 		Type:         "bool",
 		Description:  "Google Workspace content source enabled",
 		Default:      "false",
@@ -629,7 +641,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_sources.google_workspace.picker_developer_key",
-		Class:        classificationFor("content_sources.google_workspace.picker_developer_key"),
+		Class:        withMutability(classificationFor("content_sources.google_workspace.picker_developer_key"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Google Workspace Picker developer key (public)",
 		Default:      "",
@@ -640,7 +652,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_sources.google_workspace.picker_app_id",
-		Class:        classificationFor("content_sources.google_workspace.picker_app_id"),
+		Class:        withMutability(classificationFor("content_sources.google_workspace.picker_app_id"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Google Workspace Picker app ID (public)",
 		Default:      "",
@@ -653,7 +665,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Content sources: Confluence ---
 	{
 		Key:          "content_sources.confluence.enabled",
-		Class:        classificationFor("content_sources.confluence.enabled"),
+		Class:        withMutability(classificationFor("content_sources.confluence.enabled"), MutabilityStatic),
 		Type:         "bool",
 		Description:  "Confluence content source enabled",
 		Default:      "false",
@@ -666,7 +678,7 @@ var contentSettingDefs = []SettingDef{
 	// --- Content sources: Microsoft ---
 	{
 		Key:          "content_sources.microsoft.enabled",
-		Class:        classificationFor("content_sources.microsoft.enabled"),
+		Class:        withMutability(classificationFor("content_sources.microsoft.enabled"), MutabilityStatic),
 		Type:         "bool",
 		Description:  "Microsoft content source enabled",
 		Default:      "false",
@@ -677,7 +689,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_sources.microsoft.tenant_id",
-		Class:        classificationFor("content_sources.microsoft.tenant_id"),
+		Class:        withMutability(classificationFor("content_sources.microsoft.tenant_id"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Microsoft Entra tenant ID",
 		Default:      "",
@@ -688,7 +700,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_sources.microsoft.client_id",
-		Class:        classificationFor("content_sources.microsoft.client_id"),
+		Class:        withMutability(classificationFor("content_sources.microsoft.client_id"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Microsoft Entra app client ID (public)",
 		Default:      "",
@@ -699,7 +711,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_sources.microsoft.application_object_id",
-		Class:        classificationFor("content_sources.microsoft.application_object_id"),
+		Class:        withMutability(classificationFor("content_sources.microsoft.application_object_id"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Microsoft Entra application object ID",
 		Default:      "",
@@ -710,7 +722,7 @@ var contentSettingDefs = []SettingDef{
 	},
 	{
 		Key:          "content_sources.microsoft.picker_origin",
-		Class:        classificationFor("content_sources.microsoft.picker_origin"),
+		Class:        withMutability(classificationFor("content_sources.microsoft.picker_origin"), MutabilityStatic),
 		Type:         "string",
 		Description:  "Microsoft Picker allowed origin URL",
 		Default:      "",

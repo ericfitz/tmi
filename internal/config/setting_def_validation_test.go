@@ -238,6 +238,35 @@ func TestValidateSettingDefs_SeededImpliesOperational(t *testing.T) {
 	assert.Contains(t, err.Error(), "Seeded")
 }
 
+func TestValidateSettingDefs_SeededRequiresDefault(t *testing.T) {
+	// Type "string" is otherwise exempt from the general Default
+	// requirement, but a Seeded key must still have a Default: it is
+	// written into system_settings at database init regardless of type.
+	d := validOperationalDef()
+	d.Type = "string"
+	d.Default = ""
+	d.Seeded = true
+	err := ValidateSettingDefs([]SettingDef{d})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Seeded setting must declare a Default")
+}
+
+func TestValidateSettingDefs_SeededMustNotBeSecret(t *testing.T) {
+	d := validOperationalDef()
+	d.Class.Visibility = VisibilityAdminOnly // a public setting must not be Secret
+	d.Class.Secret = true
+	d.Seeded = true
+	err := ValidateSettingDefs([]SettingDef{d})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Seeded setting must not be Secret")
+}
+
+func TestValidateSettingDefs_SeededNonSecretWithDefaultIsValid(t *testing.T) {
+	d := validOperationalDef()
+	d.Seeded = true
+	assert.NoError(t, ValidateSettingDefs([]SettingDef{d}))
+}
+
 func TestValidateSettingDefs_RegistryItselfIsValid(t *testing.T) {
 	assert.NoError(t, ValidateSettingDefs(AllSettingDefs()))
 }
