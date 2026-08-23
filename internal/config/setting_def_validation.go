@@ -66,7 +66,7 @@ func ValidateSettingDefs(defs []SettingDef) error {
 }
 
 // validateGeneralRules checks the rules that apply regardless of category.
-// SEM@0ef42e85753d183c8b8238027d47aebabfabd8e9: validate the rules that apply to every setting definition regardless of category (pure)
+// SEM@58a7f5ed65e755654da55d388db45d37f7d55d76: validate the rules that apply to every setting definition regardless of category (pure)
 func validateGeneralRules(d SettingDef, add func(key, msg string)) {
 	c := d.Class
 
