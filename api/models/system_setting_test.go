@@ -128,6 +128,7 @@ func TestDefaultSystemSettings_MatchesRegistryProjection(t *testing.T) {
 // The registry-side guardrail is config.TestRetiredRateLimitKeys_AreGone; this
 // is the projection-side half, so a regression is caught at whichever end it
 // is reintroduced.
+// SEM@24731679561a852b21b37271caffd9a597080f0b: validate retired rate-limit keys are not seeded
 func TestDefaultSystemSettings_DoesNotSeedRetiredRateLimitKeys(t *testing.T) {
 	keys := map[string]bool{}
 	for _, s := range DefaultSystemSettings() {

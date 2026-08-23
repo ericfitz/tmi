@@ -27,6 +27,7 @@ var retiredRateLimitKeys = []string{
 //
 // Watched to fail: restoring either def in setting_defs_misc.go or either
 // entry in classification_registry.go trips the corresponding assertion.
+// SEM@24731679561a852b21b37271caffd9a597080f0b: validate retired rate-limit keys are undeclared and unseeded
 func TestRetiredRateLimitKeys_AreGone(t *testing.T) {
 	for _, key := range retiredRateLimitKeys {
 		_, declared := DefFor(key)
