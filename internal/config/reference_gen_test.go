@@ -104,6 +104,39 @@ func findRowContaining(t *testing.T, doc, keyCell string) string {
 	return ""
 }
 
+// TestGenerateReferenceMarkdown_CoversEveryEmittedEnvVar is the allowlist-
+// completeness guardrail: the config reference doc doubles as this project's
+// TMI_* environment-variable allowlist, so any env var the generators
+// actually emit a setting for must be named somewhere in the generated
+// reference — an emitted env var missing from the doc would silently narrow
+// the allowlist. This checks what GetMigratableSettings() (what the
+// generators consume) actually emits, not the full registry: a setting the
+// registry declares but the generators never surface (e.g. because its
+// value is empty and OmitWhenEmpty) is a separate, pre-existing gap, not
+// something this guardrail is meant to catch.
+func TestGenerateReferenceMarkdown_CoversEveryEmittedEnvVar(t *testing.T) {
+	out, err := GenerateReferenceMarkdown()
+	if err != nil {
+		t.Fatalf("GenerateReferenceMarkdown: %v", err)
+	}
+	s := string(out)
+
+	cfg := getDefaultConfig()
+	cfg.Server.TLSSubjectName = "localhost"
+	var missing []string
+	for _, ms := range cfg.GetMigratableSettings() {
+		if ms.EnvVar == "" {
+			continue
+		}
+		if !strings.Contains(s, ms.EnvVar) {
+			missing = append(missing, ms.EnvVar)
+		}
+	}
+	if len(missing) > 0 {
+		t.Errorf("generated reference is missing emitted env vars (it doubles as the TMI_* allowlist): %v", missing)
+	}
+}
+
 func TestConfigReferenceFile_MatchesRegistry(t *testing.T) {
 	generated, err := GenerateReferenceMarkdown()
 	if err != nil {

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
@@ -56,7 +57,7 @@ func GenerateExampleConfig() ([]byte, error) {
 // coerceSettingValue converts a MigratableSetting's string Value to the
 // appropriate Go type based on the Type field, so that yaml.Marshal outputs
 // clean YAML (integers without quotes, booleans as true/false, etc.).
-// SEM@a60b4f430769f6d36f0e3753a429ea699ba8b1a0: convert a migratable setting's string value to its typed Go representation for YAML output (pure)
+// SEM@e6cee63c3a07d38f471e0ebfb81722849f36085e: convert a migratable setting's string value to its typed Go representation for YAML output (pure)
 func coerceSettingValue(s MigratableSetting) any {
 	switch s.Type {
 	case "int":
@@ -71,9 +72,41 @@ func coerceSettingValue(s MigratableSetting) any {
 		if f, err := strconv.ParseFloat(s.Value, 64); err == nil {
 			return f
 		}
+	case "json":
+		return coerceJSONSettingValue(s.Value)
 	}
-	// Default: return as string (handles "string", "json", duration strings, etc.)
+	// Default: return as string (handles "string", duration strings, etc.)
 	return s.Value
+}
+
+// coerceJSONSettingValue decodes a "json"-typed setting's already-marshaled
+// string into a native Go value, so yaml.Marshal renders it as a real YAML
+// list/mapping rather than dumping the JSON text as a quoted string.
+//
+// A nil Go slice (e.g. an unset []string field) marshals to the JSON string
+// "null"; without this decoding step that string flows through unchanged and
+// yaml.Marshal writes the literal YAML string `"null"`, which is not valid
+// YAML for a list-typed key. An explicitly-empty JSON array ("[]") has the
+// same problem in miniature: it would otherwise round-trip as the string
+// "[]" rather than an empty list. Both cases are normalized to an empty Go
+// slice here, which yaml.Marshal renders as `[]` — matching the convention
+// this file already uses for empty collections (server.cors.allowed_origins
+// is omitted outright via OmitWhenEmpty when empty; a setting that is
+// deliberately not OmitWhenEmpty, like server.trusted_proxies, still needs a
+// valid, honest empty-list rendering when its default is unset).
+// SEM@e6cee63c3a07d38f471e0ebfb81722849f36085e: decode a JSON-typed setting's string value into a native Go value for YAML (pure)
+func coerceJSONSettingValue(value string) any {
+	if value == "" || value == "null" || value == "[]" {
+		return []any{}
+	}
+	var decoded any
+	if err := json.Unmarshal([]byte(value), &decoded); err == nil {
+		return decoded
+	}
+	// Malformed JSON should not happen (the value came from json.Marshal in
+	// the setting's own Get accessor); fall back to the raw string rather
+	// than panicking or silently dropping the key.
+	return value
 }
 
 // setNested writes value into a nested map following the dotted key path.
