@@ -107,8 +107,6 @@ var seededKeys = []string{
 	"features.saml_enabled",
 	"features.webhooks_enabled",
 	"features.websocket_enabled",
-	"rate_limit.requests_per_hour",
-	"rate_limit.requests_per_minute",
 	"session.timeout_minutes",
 	"ui.default_theme",
 	"upload.max_file_size_mb",

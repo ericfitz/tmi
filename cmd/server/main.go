@@ -566,6 +566,19 @@ func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error 
 		logger.Info("Migrated %d severity values from 'none' to 'informational'", result.RowsAffected)
 	}
 
+	// #813: remove system_settings rows for keys the registry no longer
+	// declares (the two dead rate_limit.* keys). Must run BEFORE the origin
+	// backfill below: expectedSeedValues derives from the registry, so a
+	// surviving retired row would otherwise be stamped explicit moments before
+	// being deleted, inflating the backfill's reported count. Idempotent;
+	// non-fatal — a leftover row reads as internal-only until the next boot
+	// retries, which is the pre-#813 behavior.
+	if removed, err := dbschema.PruneRetiredSystemSettings(gormDB.DB()); err != nil {
+		logger.Warn("PruneRetiredSystemSettings failed (non-fatal; retired rows remain until the next successful boot): %v", err)
+	} else if removed > 0 {
+		logger.Info("Removed %d retired system_settings row(s)", removed)
+	}
+
 	// #794: stamp explicit origin on pre-existing system_settings rows that
 	// show operator intent (modified_by set, or a value that no longer
 	// matches the registry default), so they keep the authority they had

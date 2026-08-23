@@ -44,10 +44,10 @@ about. A handful of keys live in the classification registry (so the server
 seeds them) without a matching Config struct field, so `--export-config` writes
 them out but `--import-config` silently drops them:
 
-    features.webhooks_enabled       rate_limit.requests_per_hour
-    features.websocket_enabled      rate_limit.requests_per_minute
-    ui.default_theme                upload.max_file_size_mb
-    websocket.max_participants
+    features.saml_enabled           ui.default_theme
+    features.webhooks_enabled       upload.max_file_size_mb
+    features.websocket_enabled      websocket.max_participants
+    session.timeout_minutes
 
 The server re-seeds all of them at their DEFAULTS on startup, so they always
 come back — what does not survive is a CUSTOMIZED value for one of them. That

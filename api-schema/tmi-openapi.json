@@ -3,7 +3,7 @@
   "info": {
     "title": "TMI (Threat Modeling Improved) API",
     "description": "A RESTful API for collaborative threat modeling with full X6 graph library compatibility. This API provides schemas that align with AntV X6 cell object models for seamless integration with modern diagramming libraries. Supports OAuth 2.0 authentication with client callback integration for seamless single-page application authentication flows.\n\n## API Design v1.1.0\n\n### Authorization Model\nTMI uses hierarchical authorization: access control is defined at the ThreatModel level via the authorization field (readers, writers, owners). All child resources (Assets, Diagrams, Documents, Notes, Repositories, Threats) inherit permissions from their parent ThreatModel. This simplifies permission management and ensures consistent access control.\n\n### Bulk Operations\nNotes and Diagrams do not support bulk operations due to their unique creation workflows and lack of valid bulk use cases. All other resources (Threats, Assets, Documents, Repositories) support full bulk operations: POST (create), PUT (upsert), PATCH (partial update), DELETE (batch delete).\n\nAll resources support bulk metadata operations regardless of resource-level bulk support.\n\n### List Response Strategy\n- ThreatModels return summary information (TMListItem) because they contain many child objects that can be large.\n- Diagrams return summary information (DiagramListItem) because diagram data (cells, images) can be large.\n- Notes return summary information (NoteListItem) because the content field can be large.\n- Threats, Assets, Documents, Repositories return full schemas as they are relatively small and static.\n\n### PATCH Support\nAll resources support PATCH for partial updates using JSON Patch (RFC 6902). This is particularly useful for:\n- Assets: Array field updates (affected_assets, trust_boundaries) ensuring no duplicates\n- Notes: Updating name/description without changing content field\n- All resources: Efficient updates without full object replacement\n",
-    "version": "1.9.1",
+    "version": "1.9.2",
     "contact": {
       "name": "TMI Development Team",
       "url": "https://github.com/ericfitz/tmi",
@@ -6977,7 +6977,7 @@
         "properties": {
           "key": {
             "type": "string",
-            "description": "Unique setting identifier using dot notation (e.g., rate_limit.requests_per_minute)",
+            "description": "Unique setting identifier using dot notation (e.g., websocket.max_participants)",
             "maxLength": 256,
             "pattern": "^[a-z][a-z0-9_.]*$"
           },
@@ -7036,10 +7036,10 @@
         ],
         "additionalProperties": false,
         "example": {
-          "key": "rate_limit.requests_per_minute",
-          "value": "100",
+          "key": "websocket.max_participants",
+          "value": "10",
           "type": "int",
-          "description": "Maximum API requests per minute per user",
+          "description": "Maximum participants in a collaboration session",
           "modified_at": "2026-01-15T10:30:00Z",
           "modified_by": "550e8400-e29b-41d4-a716-446655440000",
           "source": "database",

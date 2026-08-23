@@ -8,8 +8,6 @@ import "strconv"
 // ssrf.* (per-URI-class allowlists), the DB-only client-config keys
 // (features.webhooks_enabled, features.websocket_enabled,
 // websocket.max_participants, upload.max_file_size_mb, ui.default_theme),
-// the two dead rate_limit.* keys (rate_limit.requests_per_minute,
-// rate_limit.requests_per_hour — see the comment above their declaration),
 // and the one derived key with no Config struct field of its own,
 // session.timeout_minutes. See setting_def.go for the SettingDef contract
 // and classification_registry.go for the source of truth on each key's
@@ -364,39 +362,6 @@ var miscSettingDefs = []SettingDef{
 		Get:           func(c *Config) string { return c.SSRF.Webhook.Schemes },
 		Transitional:  true,
 		OmitWhenEmpty: true,
-	},
-
-	// --- rate_limit.* (#809): seeded into system_settings but read by no
-	// handler — real rate limiting runs off server.disable_rate_limiting /
-	// server.ratelimit_public_rpm instead. Class comes from
-	// classificationFor, which resolves through classification_registry.go's
-	// exactClassifications — the table api/config_handlers.go's
-	// ClassificationFor(key).Visibility check actually consults. A
-	// SettingDef-only declaration with no exactClassifications entry does
-	// NOT fix GET/DELETE /admin/settings/{key} 404ing: nothing at runtime
-	// reads the SettingDef registry for that check yet (Phase E work).
-	// Declaring both here is the behavior-preserving fix — whether to delete
-	// them or wire them up to an actual limiter is a separate decision
-	// tracked on #809, not made by this change.
-	//
-	// Static: nothing reads either key at use time, so Hot would promise a
-	// live edit that does nothing; Static is the honest default until (if
-	// ever) a real reader is added.
-	{
-		Key:         "rate_limit.requests_per_minute",
-		Class:       withMutability(classificationFor("rate_limit.requests_per_minute"), MutabilityStatic),
-		Type:        "int",
-		Description: "Maximum API requests per minute per user",
-		Default:     "100",
-		Seeded:      true,
-	},
-	{
-		Key:         "rate_limit.requests_per_hour",
-		Class:       withMutability(classificationFor("rate_limit.requests_per_hour"), MutabilityStatic),
-		Type:        "int",
-		Description: "Maximum API requests per hour per user",
-		Default:     "1000",
-		Seeded:      true,
 	},
 
 	// --- DB-only client-config keys: no Config struct field, seeded

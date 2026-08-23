@@ -967,7 +967,7 @@ func TestIsProviderSecretKey(t *testing.T) {
 		{"auth.saml.providers.entra.sp_certificate", true},
 		{"auth.saml.providers.entra.idp_metadata_b64xml", true},
 		{"auth.saml.providers.entra.entity_id", false},
-		{"rate_limit.requests_per_minute", false},
+		{"websocket.max_participants", false},
 		{"auth.jwt.secret", false},
 		{"content_oauth.providers.github.client_secret", true},
 		{"content_oauth.providers.github.client_id", false},
@@ -1000,7 +1000,7 @@ func TestShouldMaskSettingValue(t *testing.T) {
 		{"auth.saml.providers.entra.sp_certificate", true},
 		// Non-secrets stay plaintext.
 		{"auth.oauth.providers.azure.client_id", false},
-		{"rate_limit.requests_per_minute", false},
+		{"websocket.max_participants", false},
 	}
 
 	for _, tt := range tests {

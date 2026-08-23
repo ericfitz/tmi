@@ -16,7 +16,7 @@ func TestProviderSettingsReaderAdapter(t *testing.T) {
 	mock := NewMockSettingsService()
 	mock.AddSetting("auth.oauth.providers.azure.client_id", "az-id", "string")
 	mock.AddSetting("auth.oauth.providers.azure.enabled", "true", "bool")
-	mock.AddSetting("rate_limit.requests_per_minute", "100", "int")
+	mock.AddSetting("websocket.max_participants", "10", "int")
 
 	adapter := NewProviderSettingsReaderAdapter(mock)
 
@@ -27,10 +27,10 @@ func TestProviderSettingsReaderAdapter(t *testing.T) {
 	})
 
 	t.Run("excludes non-matching settings", func(t *testing.T) {
-		result, err := adapter.ListByPrefix(context.Background(), "rate_limit.")
+		result, err := adapter.ListByPrefix(context.Background(), "websocket.")
 		require.NoError(t, err)
 		assert.Len(t, result, 1)
-		assert.Equal(t, "rate_limit.requests_per_minute", result[0].Key)
+		assert.Equal(t, "websocket.max_participants", result[0].Key)
 	})
 
 	t.Run("returns empty for no matches", func(t *testing.T) {

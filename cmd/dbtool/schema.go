@@ -130,6 +130,17 @@ func runSchemaLocked(db *testdb.TestDB) error {
 		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
 	}
 
+	// #813: remove system_settings rows for keys the registry no longer
+	// declares. Must run BEFORE the origin backfill -- see
+	// internal/dbschema/dead_setting_prune.go's ordering note. dbtool is the
+	// admin-privileged remediation path, so a failure here is surfaced rather
+	// than swallowed.
+	if removed, err := dbschema.PruneRetiredSystemSettings(db.DB()); err != nil {
+		return fmt.Errorf("failed to prune retired system_settings rows: %w", err)
+	} else if removed > 0 {
+		log.Info("Removed %d retired system_settings row(s)", removed)
+	}
+
 	// #794: stamp explicit origin on pre-existing system_settings rows that
 	// show operator intent (modified_by set, or a value that no longer
 	// matches the registry default), same placement and reasoning as

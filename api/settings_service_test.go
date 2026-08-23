@@ -276,8 +276,8 @@ func TestDefaultSystemSettings(t *testing.T) {
 
 	t.Run("contains expected settings", func(t *testing.T) {
 		expectedKeys := []string{
-			"rate_limit.requests_per_minute",
-			"rate_limit.requests_per_hour",
+			// rate_limit.requests_per_minute / _per_hour were retired by
+			// #813 -- seeded but read by nothing.
 			"session.timeout_minutes",
 			"websocket.max_participants",
 			"features.saml_enabled",
@@ -654,7 +654,7 @@ func TestSettingsService_SeedDefaults_StampsSeededOrigin(t *testing.T) {
 	// Spot-check one of the explicit models.DefaultSystemSettings() entries
 	// specifically, since that's the other of the two source lists.
 	var explicit models.SystemSetting
-	require.NoError(t, gormDB.Where("setting_key = ?", "rate_limit.requests_per_minute").First(&explicit).Error)
+	require.NoError(t, gormDB.Where("setting_key = ?", "ui.default_theme").First(&explicit).Error)
 	assert.Equal(t, models.SystemSettingOriginSeeded, explicit.Origin.String)
 }
 
