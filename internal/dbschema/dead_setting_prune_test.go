@@ -202,6 +202,7 @@ func TestPruneRetiredSystemSettings_RunsBeforeOriginBackfill(t *testing.T) {
 // shape on SystemSetting is realistic; it would leave SQLite and Postgres
 // hard-deleting, this test green, and Oracle alone silently not deleting --
 // reproducing #809 on the one platform this change exists to fix.
+// SEM@32d2fef5a48bbd2ea65b9aa7d5232510b52a4aca: validate the prune hard-deletes rather than soft-deletes
 func TestPruneRetiredSystemSettings_HardDeletes(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 
