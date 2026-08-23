@@ -69,6 +69,7 @@ func settingSource(envVar string) string {
 // setting where 0 is a meaningful non-empty value would need its own
 // handling here), and "[]" or "null" for json (json.Marshal renders a nil
 // slice as "null" and an explicitly empty one as "[]").
+// SEM@71b4a22251f6acd8a9fb37257d5938c174392b09: determine whether a setting's value is its type's empty/unset sentinel (pure)
 func isOmittableEmptyValue(settingType, value string) bool {
 	switch settingType {
 	case "int":
@@ -121,7 +122,7 @@ func isOmittableEmptyValue(settingType, value string) bool {
 // keys' hot/static column in config-reference.md) that Ruling 15 explicitly
 // deferred to Phase E ("making classificationFor() consult the registry...
 // belongs in Phase E").
-// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: list all config settings eligible for database migration with classification applied (pure)
+// SEM@e6cee63c3a07d38f471e0ebfb81722849f36085e: list all config settings eligible for database migration with classification applied (pure)
 func (c *Config) GetMigratableSettings() []MigratableSetting {
 	defs := AllSettingDefs()
 	settings := make([]MigratableSetting, 0, len(defs))
@@ -181,6 +182,7 @@ func (c *Config) GetMigratableSettings() []MigratableSetting {
 // auth.oauth.client_callback_allowlist are now projected from the registry
 // in GetMigratableSettings; this covers only the provider subtree, which has
 // dynamic cardinality and no SettingDef by design.
+// SEM@71b4a22251f6acd8a9fb37257d5938c174392b09: build migratable settings list for every enabled OAuth provider (pure)
 func (c *Config) getMigratableOAuthSettings() []MigratableSetting {
 	settings := []MigratableSetting{}
 
@@ -367,6 +369,7 @@ func DefaultOperationalSettings() []MigratableSetting {
 // is now projected from the registry in GetMigratableSettings; this covers
 // only the provider subtree, which has dynamic cardinality and no SettingDef
 // by design.
+// SEM@71b4a22251f6acd8a9fb37257d5938c174392b09: build migratable settings list for every enabled content OAuth provider (pure)
 func (c *Config) getMigratableContentOAuthSettings() []MigratableSetting {
 	settings := []MigratableSetting{}
 	for providerKey, p := range c.ContentOAuth.Providers {

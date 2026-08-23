@@ -57,7 +57,7 @@ func GenerateExampleConfig() ([]byte, error) {
 // coerceSettingValue converts a MigratableSetting's string Value to the
 // appropriate Go type based on the Type field, so that yaml.Marshal outputs
 // clean YAML (integers without quotes, booleans as true/false, etc.).
-// SEM@a60b4f430769f6d36f0e3753a429ea699ba8b1a0: convert a migratable setting's string value to its typed Go representation for YAML output (pure)
+// SEM@e6cee63c3a07d38f471e0ebfb81722849f36085e: convert a migratable setting's string value to its typed Go representation for YAML output (pure)
 func coerceSettingValue(s MigratableSetting) any {
 	switch s.Type {
 	case "int":
@@ -94,6 +94,7 @@ func coerceSettingValue(s MigratableSetting) any {
 // is omitted outright via OmitWhenEmpty when empty; a setting that is
 // deliberately not OmitWhenEmpty, like server.trusted_proxies, still needs a
 // valid, honest empty-list rendering when its default is unset).
+// SEM@e6cee63c3a07d38f471e0ebfb81722849f36085e: decode a JSON-typed setting's string value into a native Go value for YAML (pure)
 func coerceJSONSettingValue(value string) any {
 	if value == "" || value == "null" || value == "[]" {
 		return []any{}

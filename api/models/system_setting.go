@@ -111,7 +111,7 @@ func (s *SystemSetting) IsExplicit() bool {
 // rate_limit.requests_per_hour seeded here with no classification entry
 // anywhere else, so GET/DELETE /admin/settings/{key} 404'd on keys the LIST
 // endpoint showed (#809).
-// SEM@8f7b5125fd7a1b5bb10210ba480278708de918b0: build the seed list of default system settings for database initialization (pure)
+// SEM@62e82fc4e96a1c18f4e1ac1d698de4fefb974b42: build the seed list of default system settings for database initialization (pure)
 func DefaultSystemSettings() []SystemSetting {
 	desc := func(s string) NullableDBText { return NullableDBText{String: s, Valid: true} }
 
@@ -130,6 +130,7 @@ func DefaultSystemSettings() []SystemSetting {
 
 // settingTypeFor maps a config registry type name to the stored
 // system_settings setting_type value.
+// SEM@62e82fc4e96a1c18f4e1ac1d698de4fefb974b42: convert a config registry type name to a stored setting_type value (pure)
 func settingTypeFor(t string) string {
 	switch t {
 	case "bool":

@@ -14,6 +14,7 @@ import "sort"
 // registry holds far more operational defs (config/env-delivered knobs like
 // websocket.inactivity_timeout_seconds) than are ever written into
 // system_settings. Seeded marks exactly the subset that is.
+// SEM@62e82fc4e96a1c18f4e1ac1d698de4fefb974b42: list operational settings that should be seeded into the database (pure)
 func SeedableOperationalDefs() []SettingDef {
 	var out []SettingDef
 	for _, d := range settingDefs {

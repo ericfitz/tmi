@@ -6,6 +6,7 @@ package config
 //
 // Which fields are legal depends on Class.Category; ValidateSettingDefs
 // enforces that (see setting_def_validation.go).
+// SEM@71b4a22251f6acd8a9fb37257d5938c174392b09: declare a single configuration setting's type, class, default, and delivery path
 type SettingDef struct {
 	// Key is the canonical dotted setting key, e.g. "server.port".
 	Key string
@@ -72,6 +73,7 @@ type SettingDef struct {
 // .client_secret, .sp_private_key and .idp_metadata_b64xml. Never reach for
 // this method to decide secrecy for a provider key — use
 // MigratableSetting.IsSecret(), which ORs both flags.
+// SEM@51cab5c0b8755f522c896d5e22ac0a1eb206031f: report whether a statically declared setting's value must be masked (pure)
 func (d SettingDef) IsSecret() bool {
 	return d.Class.Secret
 }
@@ -84,6 +86,7 @@ var settingDefs = concatDefs(serverSettingDefs, authSettingDefs, contentSettingD
 var settingDefIndex = indexDefs(settingDefs)
 
 // concatDefs joins definition groups into the single registry slice.
+// SEM@a7b9afd2035408abf3582c0c7e701589a42edac8: join setting definition groups into the registry slice (pure)
 func concatDefs(groups ...[]SettingDef) []SettingDef {
 	var out []SettingDef
 	for _, g := range groups {
@@ -102,12 +105,14 @@ func concatDefs(groups ...[]SettingDef) []SettingDef {
 // Every call site names the specific consuming code that makes it so; see
 // setting_defs_server.go, setting_defs_auth.go, setting_defs_content.go and
 // setting_defs_misc.go for the individual justifications.
+// SEM@0ef42e85753d183c8b8238027d47aebabfabd8e9: override a setting classification's mutability for a captured-at-startup setting (pure)
 func withMutability(c ConfigClass, m Mutability) ConfigClass {
 	c.Mutability = m
 	return c
 }
 
 // indexDefs builds a by-key lookup map from a slice of definitions.
+// SEM@51cab5c0b8755f522c896d5e22ac0a1eb206031f: build a by-key lookup map from setting definitions (pure)
 func indexDefs(defs []SettingDef) map[string]SettingDef {
 	idx := make(map[string]SettingDef, len(defs))
 	for _, d := range defs {
@@ -117,12 +122,14 @@ func indexDefs(defs []SettingDef) map[string]SettingDef {
 }
 
 // DefFor returns the declaration for a setting key, and whether one exists.
+// SEM@51cab5c0b8755f522c896d5e22ac0a1eb206031f: fetch a setting's registry declaration by key (pure)
 func DefFor(key string) (SettingDef, bool) {
 	d, ok := settingDefIndex[key]
 	return d, ok
 }
 
 // AllSettingDefs returns a copy of the registry, so callers cannot mutate it.
+// SEM@51cab5c0b8755f522c896d5e22ac0a1eb206031f: list a defensive copy of the setting definition registry (pure)
 func AllSettingDefs() []SettingDef {
 	out := make([]SettingDef, len(settingDefs))
 	copy(out, settingDefs)
