@@ -267,6 +267,22 @@ func TestValidateSettingDefs_SeededNonSecretWithDefaultIsValid(t *testing.T) {
 	assert.NoError(t, ValidateSettingDefs([]SettingDef{d}))
 }
 
+func TestValidateSettingDefs_SeededMustNotBeInternal(t *testing.T) {
+	// A seeded row is written into system_settings and listed by
+	// GET /admin/settings with no visibility filter, while GET/DELETE
+	// /admin/settings/{key} both 404 on VisibilityInternal — VisibilityInternal
+	// on a Seeded def would recreate #809. validOperationalDef() already has a
+	// non-empty Default and Secret=false, so Visibility is the only rule this
+	// fixture violates.
+	d := validOperationalDef()
+	d.Class.Visibility = VisibilityInternal
+	d.Seeded = true
+	err := ValidateSettingDefs([]SettingDef{d})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Seeded")
+	assert.Contains(t, err.Error(), "Internal")
+}
+
 func TestValidateSettingDefs_RegistryItselfIsValid(t *testing.T) {
 	assert.NoError(t, ValidateSettingDefs(AllSettingDefs()))
 }

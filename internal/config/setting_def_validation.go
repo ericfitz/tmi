@@ -107,6 +107,14 @@ func validateGeneralRules(d SettingDef, add func(key, msg string)) {
 	if d.Seeded && c.Secret {
 		add(d.Key, "Seeded setting must not be Secret — a secret must never be seeded into system_settings with a compiled-in value")
 	}
+	// A seeded row is written into system_settings and mergeSettingsWithConfig's
+	// database-only branch lists it from GET /admin/settings with no
+	// visibility filter, while GET/DELETE /admin/settings/{key} both 404 on
+	// VisibilityInternal. VisibilityInternal on a Seeded def recreates #809:
+	// a key the list endpoint shows but the single-item endpoints refuse.
+	if d.Seeded && c.Visibility == VisibilityInternal {
+		add(d.Key, "Seeded setting must not be VisibilityInternal — it is written into system_settings and listed by GET /admin/settings, so an internal visibility makes GET/DELETE /admin/settings/{key} 404 for a key the list endpoint shows (#809)")
+	}
 }
 
 // validateBootstrapRules checks the rules specific to CategoryBootstrap.
