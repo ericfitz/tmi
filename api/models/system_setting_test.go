@@ -120,14 +120,21 @@ func TestDefaultSystemSettings_MatchesRegistryProjection(t *testing.T) {
 	}
 }
 
-// TestDefaultSystemSettings_SeedsPreviouslyUnclassifiedRateLimitKeys pins
-// the #809 fix: both rate_limit.* keys are still seeded after the switch to
-// a registry projection.
-func TestDefaultSystemSettings_SeedsPreviouslyUnclassifiedRateLimitKeys(t *testing.T) {
+// TestDefaultSystemSettings_DoesNotSeedRetiredRateLimitKeys pins #813: the
+// two dead rate_limit.* keys must not come back into the seed list. They were
+// seeded but read by nothing; real rate limiting runs off
+// server.disable_rate_limiting / server.ratelimit_public_rpm.
+//
+// The registry-side guardrail is config.TestRetiredRateLimitKeys_AreGone; this
+// is the projection-side half, so a regression is caught at whichever end it
+// is reintroduced.
+func TestDefaultSystemSettings_DoesNotSeedRetiredRateLimitKeys(t *testing.T) {
 	keys := map[string]bool{}
 	for _, s := range DefaultSystemSettings() {
 		keys[string(s.SettingKey)] = true
 	}
-	assert.True(t, keys["rate_limit.requests_per_minute"])
-	assert.True(t, keys["rate_limit.requests_per_hour"])
+	assert.False(t, keys["rate_limit.requests_per_minute"],
+		"rate_limit.requests_per_minute was retired by #813 and must not be seeded")
+	assert.False(t, keys["rate_limit.requests_per_hour"],
+		"rate_limit.requests_per_hour was retired by #813 and must not be seeded")
 }

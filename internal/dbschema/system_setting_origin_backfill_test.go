@@ -175,8 +175,8 @@ func TestBackfillSystemSettingOrigin_UntouchedDefaultStaysNil(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 
 	require.NoError(t, db.Create(&models.SystemSetting{
-		SettingKey:  "rate_limit.requests_per_minute",
-		Value:       "100", // exact registry default
+		SettingKey:  "upload.max_file_size_mb",
+		Value:       "10", // exact registry default
 		SettingType: models.SystemSettingTypeInt,
 		ModifiedAt:  time.Now(),
 	}).Error)
@@ -185,7 +185,7 @@ func TestBackfillSystemSettingOrigin_UntouchedDefaultStaysNil(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), updated)
 
-	row := getSystemSetting(t, db, "rate_limit.requests_per_minute")
+	row := getSystemSetting(t, db, "upload.max_file_size_mb")
 	assert.False(t, row.Origin.Valid, "an untouched seeded default must stay NULL-origin")
 	assert.False(t, row.IsExplicit())
 }
@@ -240,8 +240,8 @@ func TestBackfillSystemSettingOrigin_Idempotent(t *testing.T) {
 		ModifiedAt:  time.Now(),
 	}).Error)
 	require.NoError(t, db.Create(&models.SystemSetting{
-		SettingKey:  "rate_limit.requests_per_minute",
-		Value:       "100",
+		SettingKey:  "upload.max_file_size_mb",
+		Value:       "10",
 		SettingType: models.SystemSettingTypeInt,
 		ModifiedAt:  time.Now(),
 	}).Error)
@@ -251,14 +251,14 @@ func TestBackfillSystemSettingOrigin_Idempotent(t *testing.T) {
 	assert.Equal(t, int64(1), firstUpdated)
 
 	explicitAfterFirst := getSystemSetting(t, db, "websocket.max_participants")
-	seededAfterFirst := getSystemSetting(t, db, "rate_limit.requests_per_minute")
+	seededAfterFirst := getSystemSetting(t, db, "upload.max_file_size_mb")
 
 	secondUpdated, err := BackfillSystemSettingOrigin(db)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), secondUpdated, "a second pass must find nothing left to stamp")
 
 	explicitAfterSecond := getSystemSetting(t, db, "websocket.max_participants")
-	seededAfterSecond := getSystemSetting(t, db, "rate_limit.requests_per_minute")
+	seededAfterSecond := getSystemSetting(t, db, "upload.max_file_size_mb")
 	assert.Equal(t, explicitAfterFirst.Origin, explicitAfterSecond.Origin)
 	assert.Equal(t, seededAfterFirst.Origin, seededAfterSecond.Origin)
 }

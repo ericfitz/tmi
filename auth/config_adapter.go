@@ -314,6 +314,15 @@ func migrateSchemaForConfigAdapter(gormDB *db.GormDB, allModels []any, desiredFP
 		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
 	}
 
+	// #813: remove system_settings rows for keys the registry no longer
+	// declares. Must run BEFORE the origin backfill -- see
+	// internal/dbschema/dead_setting_prune.go's ordering note.
+	if removed, err := dbschema.PruneRetiredSystemSettings(gormDB.DB()); err != nil {
+		return fmt.Errorf("failed to prune retired system_settings rows: %w", err)
+	} else if removed > 0 {
+		logger.Info("[AUTH_CONFIG_ADAPTER] Removed %d retired system_settings row(s)", removed)
+	}
+
 	// #794: stamp explicit origin on pre-existing system_settings rows that
 	// show operator intent, and enforce the origin CHECK constraint -- same
 	// placement and reasoning as cmd/server/main.go's runMigrationsLocked and

@@ -12,7 +12,7 @@ import (
 // Settings are cached with short TTL for performance.
 // SEM@2daf3be663df9da54323f16d115f12d78d435c3f: GORM model for a runtime-configurable system setting with key, typed value, and audit fields (reads DB)
 type SystemSetting struct {
-	// SettingKey is the unique identifier for this setting (e.g., "rate_limit.requests_per_minute")
+	// SettingKey is the unique identifier for this setting (e.g., "websocket.max_participants")
 	// Named SettingKey instead of Key to avoid Oracle reserved word conflict
 	SettingKey DBVarchar `gorm:"primaryKey;not null;size:256" json:"key"`
 	Value      DBText    `gorm:"not null" json:"value"`

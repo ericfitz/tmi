@@ -7,20 +7,44 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSeedableOperationalDefs_IncludesPreviouslyUnclassifiedKeys(t *testing.T) {
-	// #809: these two were seeded into system_settings but had no
-	// classification entry, so they resolved to VisibilityInternal and 404'd
-	// on GET/DELETE while appearing in the LIST response.
-	for _, key := range []string{
-		"rate_limit.requests_per_minute",
-		"rate_limit.requests_per_hour",
-	} {
-		d, ok := DefFor(key)
-		require.True(t, ok, "%s must be declared", key)
-		assert.Equal(t, CategoryOperational, d.Class.Category)
-		assert.Equal(t, VisibilityAdminOnly, d.Class.Visibility,
-			"%s is not consumed by tmi-ux, so admin-only rather than public", key)
-		assert.False(t, d.Transitional, "%s has no config path", key)
+// retiredRateLimitKeys are the two dead keys #813 removed. They were seeded
+// into system_settings but read by nothing; real rate limiting runs off
+// server.disable_rate_limiting / server.ratelimit_public_rpm.
+var retiredRateLimitKeys = []string{
+	"rate_limit.requests_per_minute",
+	"rate_limit.requests_per_hour",
+}
+
+// TestRetiredRateLimitKeys_AreGone is the #813 guardrail. Re-declaring either
+// key -- as a SettingDef, or as an exactClassifications entry, or by flipping
+// Seeded back on -- fails this test by name.
+//
+// Both halves matter. A SettingDef alone puts the key back in the seed
+// projection, so every new database gets a row for a setting nothing reads. A
+// classification entry alone makes ClassificationFor resolve it, which is what
+// #812 added to clear the 404 and what #813 is now removing. Either one
+// reintroduces a key the product no longer has.
+//
+// Watched to fail: restoring either def in setting_defs_misc.go or either
+// entry in classification_registry.go trips the corresponding assertion.
+func TestRetiredRateLimitKeys_AreGone(t *testing.T) {
+	for _, key := range retiredRateLimitKeys {
+		_, declared := DefFor(key)
+		assert.False(t, declared,
+			"%s was retired by #813 and must not be re-declared as a SettingDef — "+
+				"it is read by no handler, so a declaration only re-seeds a row "+
+				"that does nothing", key)
+
+		cls := ClassificationFor(key)
+		assert.Equal(t, CategoryUnclassified, cls.Category,
+			"%s was retired by #813 and must not have a classification entry", key)
+	}
+
+	for _, d := range SeedableOperationalDefs() {
+		for _, key := range retiredRateLimitKeys {
+			assert.NotEqual(t, key, d.Key,
+				"%s was retired by #813 and must not be seeded into system_settings", key)
+		}
 	}
 }
 
