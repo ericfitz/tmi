@@ -160,3 +160,66 @@ func TestConfigReferenceFile_MatchesRegistry(t *testing.T) {
 		t.Error("config-reference.md is stale — run `make generate-config-docs`")
 	}
 }
+
+// TestGenerateReferenceMarkdown_MutabilityComesFromRegistry pins the fix for
+// the reference table reporting every operational setting as "hot".
+//
+// GetMigratableSettings assigns Class via classificationFor(key), which does
+// not carry the per-entry withMutability(...) overrides. Rendering
+// s.Class.Mutability directly therefore printed the pre-audit default for
+// every row. The generator resolves the value from the registry def instead.
+//
+// Watched to fail: reverting declaredMutability to return
+// s.Class.Mutability.String() makes this test report 0 static rows.
+func TestGenerateReferenceMarkdown_MutabilityComesFromRegistry(t *testing.T) {
+	out, err := GenerateReferenceMarkdown()
+	if err != nil {
+		t.Fatalf("GenerateReferenceMarkdown: %v", err)
+	}
+
+	var static, hot int
+	for _, line := range strings.Split(string(out), "\n") {
+		if !strings.HasPrefix(line, "| `") {
+			continue
+		}
+		switch {
+		case strings.Contains(line, "| static |"):
+			static++
+		case strings.Contains(line, "| hot |"):
+			hot++
+		}
+	}
+
+	if static+hot == 0 {
+		t.Fatal("no operational rows rendered a mutability cell")
+	}
+	// The registry audit set most operational settings to Static. If the
+	// generator regresses to the projected classification, every row reads
+	// "hot" and static drops to zero.
+	if static == 0 {
+		t.Errorf("every operational row reports hot (%d rows) — the generator is "+
+			"rendering the projected classification instead of the registry "+
+			"declaration; see declaredMutability", hot)
+	}
+	if static <= hot {
+		t.Errorf("expected static to dominate per the registry audit, got static=%d hot=%d", static, hot)
+	}
+
+	// Cross-check one traced case end to end: features.saml_enabled gates a
+	// manager built once at boot, so it must render static.
+	d, ok := DefFor("features.saml_enabled")
+	if !ok {
+		t.Fatal("features.saml_enabled missing from the registry")
+	}
+	if d.Class.Mutability != MutabilityStatic {
+		t.Errorf("features.saml_enabled declared %s, want static", d.Class.Mutability)
+	}
+	if !strings.Contains(string(out), "`features.saml_enabled`") {
+		t.Fatal("features.saml_enabled not present in the reference table")
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.Contains(line, "`features.saml_enabled`") && !strings.Contains(line, "| static |") {
+			t.Errorf("features.saml_enabled row does not report static: %s", line)
+		}
+	}
+}
