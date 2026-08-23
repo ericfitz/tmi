@@ -107,7 +107,7 @@ func bootstrapRow(s MigratableSetting) string {
 		yesNo(s.Class.Required), yesNo(s.Class.Secret), precedenceCell(s), sanitizeCell(s.Description))
 }
 
-// SEM@e6cee63c3a07d38f471e0ebfb81722849f36085e: format an operational config setting as a Markdown table row (pure)
+// SEM@422a0d3e8f849483ac9c195e4a2bc39c06fc9c6b: format an operational config setting as a Markdown table row (pure)
 func operationalRow(s MigratableSetting) string {
 	return fmt.Sprintf("| `%s` | %s | %s | %s | %s | %s | %s | %s | %s |\n",
 		s.Key, codeOrDash(s.EnvVar), s.Type, defaultCell(s), declaredMutability(s),
@@ -121,6 +121,7 @@ func operationalRow(s MigratableSetting) string {
 // s.Class.Mutability here would therefore print the pre-audit default rather
 // than the declared value. Generated provider keys have no registry def and
 // keep the projected value.
+// SEM@422a0d3e8f849483ac9c195e4a2bc39c06fc9c6b: resolve a setting's declared restart semantics from the registry (pure)
 func declaredMutability(s MigratableSetting) string {
 	if d, ok := DefFor(s.Key); ok {
 		return d.Class.Mutability.String()
