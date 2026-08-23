@@ -25,6 +25,51 @@
 
 ---
 
+## Execution deviations
+
+This section records where the executed implementation deliberately departed from
+the plan text below. The task text past this point is kept as originally written
+for historical continuity; where it conflicts with what was actually built, this
+section is authoritative. The full set of execution rulings (nineteen of them) is
+recorded in the session ledger; the ledger is git-ignored scratch, so this section
+is the durable record of the ones that matter to a future reader.
+
+1. **Emission stayed conditional, not unconditional.** Task 7 (below) called for
+   `GetMigratableSettings` to emit every declared key, including ones with empty
+   values, instead of omitting them. That would have broken two consumers:
+   `api/settings_service.go`'s `SeedDefaults` iterates
+   `config.DefaultOperationalSettings()` (itself derived from
+   `GetMigratableSettings()`), so unconditional emission would seed a new row into
+   `system_settings` on every fresh database; and
+   `internal/dbschema/system_setting_origin_backfill.go:86` uses the same set to
+   decide seeded-vs-explicit, which drives env-vs-database precedence on
+   **existing** databases. Instead, the conditionality was encoded explicitly as
+   `SettingDef.OmitWhenEmpty` (set on 45 defs), with `server.tls_cert_file` and
+   `server.tls_key_file` special-cased because their original guard tested
+   `server.tls_enabled` — a different field than the one being emitted. This is
+   pinned by `TestDefaultOperationalSettings_MatchesPreRegistryBaseline`.
+
+2. **`SeedableOperationalDefs()` filters on an explicit `Seeded` flag**, not on
+   "every operational def" as the plan assumed. Returning every operational def
+   would have seeded roughly 110 rows instead of the 9 that exist today. The
+   seeded set cannot be inferred from any other property on a def —
+   `session.timeout_minutes` and `features.saml_enabled` are both seeded *and*
+   config-delivered — so an explicit flag is the only rule that reproduces
+   today's set.
+
+3. **Task 3 and Task 4 were executed together, not sequentially.** Task 3's
+   bijection test walks every env-tagged `Config` field, which includes the
+   operational fields Task 4 declares, so Task 3's acceptance test could not pass
+   on its own until Task 4's work was also done.
+
+4. **The Task 6 coverage test keys on `YAMLPath` as well as `Key`, and uses no
+   allowlist.** Matching only on `Key` made correctly-declared defs whose `Key`
+   deliberately differs from their `YAMLPath` (the rename cases, e.g.
+   `features.saml_enabled` / `auth.saml.enabled`) look uncovered. See
+   `internal/config/registry_coverage_test.go`.
+
+---
+
 ### Task 1: The `SettingDef` type and registry container
 
 **Files:**
@@ -1387,9 +1432,16 @@ func TestGetMigratableSettings_ExplicitTracksEnvAndFile(t *testing.T) {
 Run: `make test-unit name=TestGetMigratableSettings`
 Expected: `TestGetMigratableSettings_EmitsEveryDeclaredConfigPathKey` FAILS, because the current implementation emits `server.base_url`, `server.tls_cert_file`, `server.tls_key_file` and `server.cors.allowed_origins` only when their values are non-empty, whereas the registry declares them unconditionally.
 
+**Executed differently — see "Execution deviations" above.** Unconditional emission was not adopted; it was replaced with the explicit `SettingDef.OmitWhenEmpty` flag, for the reasons given there.
+
 **Record the diff before changing anything.** Conditional emission is a real behaviour difference, not a test bug: a key that vanishes when empty is why `ValidateClassifications` saw a different set on every boot. The other tests should pass, confirming values, classes and explicitness are already equivalent.
 
 - [ ] **Step 3: Rewrite `GetMigratableSettings` as a projection**
+
+**Executed differently — see "Execution deviations" above.** The code sample
+below is the plan's original proposal and was not what was built; the shipped
+`GetMigratableSettings` honors `SettingDef.OmitWhenEmpty` instead of emitting
+every key unconditionally.
 
 ```go
 // GetMigratableSettings returns every setting that has a config-file or
@@ -1453,6 +1505,11 @@ Emission is now unconditional. Keys that were previously omitted when their
 value was empty (server.base_url, the TLS file paths, CORS origins) are always
 emitted, so the set of settings no longer varies with runtime values."
 ```
+
+**Executed differently — see "Execution deviations" above.** This proposed
+commit message describes the plan's original intent, not the shipped commit:
+emission stayed conditional via `SettingDef.OmitWhenEmpty` rather than
+becoming unconditional.
 
 ---
 

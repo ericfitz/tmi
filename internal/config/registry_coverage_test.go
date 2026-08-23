@@ -16,6 +16,20 @@ import (
 // whatever slice it was handed, in practice GetMigratableSettings(), which by
 // construction contains only keys that already have a Config struct field,
 // and which emits conditionally so the set changed with runtime values.
+//
+// Of the three reachable sources checked here, only two can actually fail
+// this test: the Config struct env-tag source (envTaggedKeys) and the
+// classification registry source (exactClassifications) are independent of
+// AllSettingDefs() and so can genuinely surface an undeclared key. The
+// database seed list source (SeedableOperationalDefs()) cannot: it is itself
+// derived from AllSettingDefs(), so every key it yields is declared by
+// construction and this leg is tautological. It stays here for readability —
+// removing it wouldn't change what this test can catch — but the invariant
+// that actually matters for the seed list (that it names the *right* keys,
+// not just declared ones) is pinned elsewhere: by name, in
+// TestSeedableOperationalDefs_MatchesGoldenList; over the real resolution
+// path, in TestClassificationFor_SeededKeysAreNotInternal; and structurally,
+// by the four Seeded validation rules.
 func TestRegistry_CoversEveryReachableKey(t *testing.T) {
 	// declared covers a key two ways: by its SettingDef.Key (the common
 	// case), and by its SettingDef.YAMLPath (for the handful of defs whose
