@@ -148,6 +148,51 @@ load-bearing. Every operational setting declares `Hot` or `RestartRequired`. The
 admin API reports it, and a `PUT` to a restart-required setting returns 200 with
 an explicit "takes effect on restart" signal rather than appearing to work.
 
+**Amended 2026-08-23, after Phase A measured it.** The paragraph above was
+written assuming operational settings are runtime-editable, with
+restart-required as the declared exception. Phase A set `Mutability` per entry
+by reading each setting's consuming code, and the result is the opposite:
+**roughly 89 Static to 11 Hot** across the operational set. Restart-required is
+the rule, not the exception.
+
+The traced case is `features.saml_enabled`: `auth/service.go`'s `NewService`
+builds the SAML manager only when the boot flag is true, so the database-backed
+reader gates handlers that a nil manager has already sunk. Flipping the row at
+runtime changes nothing until a restart. That shape — construct-once at boot,
+read-a-flag later — recurs across most of the operational set.
+
+**What this does and does not change.**
+
+- It does **not** invalidate the design. Declaring restart semantics honestly is
+  the point of promoting `Mutability`, and a `Static` declaration is a correct
+  declaration, not a defect.
+- It does **not** change Phases C-E, whose mechanism (export → import → restart
+  → verify) already restarts the service at each step. See §6.
+- It **does** retire the informal claim that motivated parts of this work —
+  "move it to the database and admins can edit it live". That is true for about
+  eleven settings. For the rest, the database becomes the single source of
+  truth and the templating path (goal 3) becomes the way a value changes; the
+  edit still lands, it just takes effect on restart.
+- The honest statement of the benefit is therefore **one source of truth, one
+  delivery path, and a reproducible per-environment template** — not live
+  reconfiguration. Anything that needs to be genuinely `Hot` requires
+  converting its consumer to lazy construction, which is separate work and is
+  not scheduled here.
+
+`config-reference.md` reports the declared value as of this amendment. It
+previously printed `hot` for **all 70** operational rows, because
+`GetMigratableSettings()` assigns `Class` via `classificationFor(key)` and so
+never carried the per-entry `withMutability(...)` overrides; the reference
+generator now resolves `Mutability` from the registry def via `DefFor(key)`.
+That lookup is confined to the documentation generator, leaving
+`GetMigratableSettings()`'s observable output untouched — making
+`classificationFor()` itself consult the registry remains Phase E work per
+Ruling 15.
+
+Note the 70 rows there against ~100 operational settings: the reference is
+generated from the same `OmitWhenEmpty`-filtered projection that #810 reports,
+so it does not yet list every key.
+
 ---
 
 ## 2. One registry, one declaration per setting

@@ -110,8 +110,22 @@ func bootstrapRow(s MigratableSetting) string {
 // SEM@e6cee63c3a07d38f471e0ebfb81722849f36085e: format an operational config setting as a Markdown table row (pure)
 func operationalRow(s MigratableSetting) string {
 	return fmt.Sprintf("| `%s` | %s | %s | %s | %s | %s | %s | %s | %s |\n",
-		s.Key, codeOrDash(s.EnvVar), s.Type, defaultCell(s), s.Class.Mutability.String(),
+		s.Key, codeOrDash(s.EnvVar), s.Type, defaultCell(s), declaredMutability(s),
 		s.Class.Visibility.String(), yesNo(s.Class.Secret), precedenceCell(s), sanitizeCell(s.Description))
+}
+
+// declaredMutability reports the registry's declared restart semantics for a
+// setting. GetMigratableSettings assigns Class via classificationFor(key),
+// which does not carry the per-entry withMutability(...) overrides the
+// registry audit set by reading each setting's consuming code. Reading
+// s.Class.Mutability here would therefore print the pre-audit default rather
+// than the declared value. Generated provider keys have no registry def and
+// keep the projected value.
+func declaredMutability(s MigratableSetting) string {
+	if d, ok := DefFor(s.Key); ok {
+		return d.Class.Mutability.String()
+	}
+	return s.Class.Mutability.String()
 }
 
 // precedenceCell renders the terse per-row precedence summary; the full rule
