@@ -185,16 +185,32 @@ func TestPruneRetiredSystemSettings_RunsBeforeOriginBackfill(t *testing.T) {
 // TestPruneRetiredSystemSettings_HardDeletes pins that the prune actually
 // removes the row rather than soft-deleting it.
 //
-// models.SystemSetting has no gorm.DeletedAt today, so Delete emits a real
-// DELETE. If someone adds soft-delete to the model later, Delete silently
-// becomes an UPDATE and the row survives -- still resolving to
-// VisibilityInternal and still producing the LIST-shows-it/GET-404s shape
-// #809 reported. Every other test here would keep passing, because GORM's
-// Count filters soft-deleted rows just like Find does. Unscoped() is what
-// makes the difference visible.
-// SEM@24731679561a852b21b37271caffd9a597080f0b: validate the prune hard-deletes rather than soft-deletes
+// models.SystemSetting carries no soft-delete field today, so Delete emits a
+// real DELETE. If one were added later, Delete silently becomes an UPDATE and
+// the row survives -- still resolving to VisibilityInternal, still producing
+// the LIST-shows-it/GET-404s shape #809 reported. Every other test here would
+// keep passing, because GORM's Count filters soft-deleted rows exactly like
+// Find does. Unscoped() is what makes the difference visible.
+//
+// The Oracle trigger is looser than GORM core's, which is why the column
+// assertion below is by NAME rather than by type (oracle-db-admin review,
+// #813). GORM core only diverts Delete to an UPDATE for a field typed
+// gorm.DeletedAt. gorm-oracle's replaced delete callback diverts on
+// stmt.Schema.LookUpField("deleted_at") != nil -- any field mapping to that
+// column, whatever its type. TMI's tombstoned models deliberately use a plain
+// *time.Time (api/models/models.go:159,212,252,323), so a future field of that
+// shape on SystemSetting is realistic; it would leave SQLite and Postgres
+// hard-deleting, this test green, and Oracle alone silently not deleting --
+// reproducing #809 on the one platform this change exists to fix.
 func TestPruneRetiredSystemSettings_HardDeletes(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
+
+	// The by-name check: any deleted_at column at all, regardless of the Go
+	// field's type, is enough to divert Delete into an UPDATE on Oracle.
+	assert.False(t, db.Migrator().HasColumn(&models.SystemSetting{}, "deleted_at"),
+		"models.SystemSetting must have no deleted_at column: gorm-oracle diverts Delete "+
+			"to an UPDATE for any field mapping to that column name, regardless of type, "+
+			"which would silently stop this prune working on Oracle only")
 
 	require.NoError(t, db.Create(&models.SystemSetting{
 		SettingKey:  "rate_limit.requests_per_minute",

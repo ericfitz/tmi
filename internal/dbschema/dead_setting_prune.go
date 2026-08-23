@@ -75,17 +75,30 @@ func PruneRetiredSystemSettings(db *gorm.DB) (int64, error) {
 		return 0, nil
 	}
 
+	// Chunked for the same reason BackfillSystemSettingOrigin chunks: Oracle
+	// caps an expression list at 1000 entries (ORA-01795), and
+	// retiredSettingKeys is documented above as append-only. Inert at two
+	// entries; it stops being inert silently, and only on Oracle, which is
+	// exactly the kind of limit worth respecting before it is reached
+	// (oracle-db-admin review, #813).
 	var removed int64
-	err = withMigrationRetry("retired system_settings prune", func() error {
-		res := db.Where("setting_key IN ?", retiredSettingKeys).Delete(&models.SystemSetting{})
-		if res.Error != nil {
-			return res.Error
+	for _, chunk := range chunkStrings(retiredSettingKeys) {
+		var chunkRemoved int64
+		err = withMigrationRetry("retired system_settings prune", func() error {
+			res := db.Where("setting_key IN ?", chunk).Delete(&models.SystemSetting{})
+			if res.Error != nil {
+				return res.Error
+			}
+			chunkRemoved = res.RowsAffected
+			return nil
+		})
+		if err != nil {
+			// Unlike the single-statement case, partial progress is real
+			// once more than one chunk is in play, so report what was
+			// actually deleted rather than zero.
+			return removed, fmt.Errorf("failed to delete retired system_settings rows: %w", err)
 		}
-		removed = res.RowsAffected
-		return nil
-	})
-	if err != nil {
-		return 0, fmt.Errorf("failed to delete retired system_settings rows: %w", err)
+		removed += chunkRemoved
 	}
 
 	if removed > 0 {

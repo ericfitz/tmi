@@ -6786,7 +6786,7 @@
         "properties": {
           "key": {
             "type": "string",
-            "description": "Unique setting identifier using dot notation (e.g., rate_limit.requests_per_minute)",
+            "description": "Unique setting identifier using dot notation (e.g., websocket.max_participants)",
             "maxLength": 256,
             "pattern": "^[a-z][a-z0-9_.]*$"
           },
@@ -6844,10 +6844,10 @@
         ],
         "additionalProperties": false,
         "example": {
-          "key": "rate_limit.requests_per_minute",
-          "value": "100",
+          "key": "websocket.max_participants",
+          "value": "10",
           "type": "int",
-          "description": "Maximum API requests per minute per user",
+          "description": "Maximum participants in a collaboration session",
           "modified_at": "2026-01-15T10:30:00Z",
           "modified_by": "550e8400-e29b-41d4-a716-446655440000",
           "source": "database",
@@ -41650,10 +41650,10 @@
                       "maxItems": 100,
                       "example": [
                         {
-                          "key": "rate_limit.requests_per_minute",
-                          "value": "60",
+                          "key": "websocket.max_participants",
+                          "value": "10",
                           "type": "int",
-                          "description": "Maximum API requests per minute",
+                          "description": "Maximum participants in a collaboration session",
                           "modified_at": "2024-01-15T10:00:00Z"
                         }
                       ]
@@ -41670,10 +41670,10 @@
                   "skipped": 2,
                   "settings": [
                     {
-                      "key": "rate_limit.requests_per_minute",
-                      "value": "60",
+                      "key": "websocket.max_participants",
+                      "value": "10",
                       "type": "int",
-                      "description": "Maximum API requests per minute",
+                      "description": "Maximum participants in a collaboration session",
                       "modified_at": "2024-01-15T10:00:00Z"
                     }
                   ]
