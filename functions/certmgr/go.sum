@@ -1,7 +1,7 @@
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/fnproject/fdk-go v0.1.15 h1:Qk/YHLI2whOCm60qZ2XjRu6R1ATRZ1GGfyK0gzwiWks=
-github.com/fnproject/fdk-go v0.1.15/go.mod h1:txRgA8HlRMZJE1f/xCIXthIbui6/GMFdb1q6bN5/HHE=
+github.com/fnproject/fdk-go v0.1.16 h1:E2E5BCCuMIl/LdZudaBBfrdZMtvVAOuRKx9y3up/wLU=
+github.com/fnproject/fdk-go v0.1.16/go.mod h1:txRgA8HlRMZJE1f/xCIXthIbui6/GMFdb1q6bN5/HHE=
 github.com/gofrs/flock v0.10.0 h1:SHMXenfaB03KbroETaCMtbBg3Yn29v4w1r+tgy4ff4k=
 github.com/gofrs/flock v0.10.0/go.mod h1:FirDy1Ing0mI2+kB6wk+vyyAH+e6xiE+EYA0jnzV9jc=
 github.com/oracle/oci-go-sdk/v65 v65.123.2 h1:Xg/OEjuj+xNkJKgjTVDG9R5rq7oxKIKHWIeNFZd9etU=
