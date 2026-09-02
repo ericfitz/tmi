@@ -2,7 +2,7 @@ module github.com/ericfitz/tmi
 
 go 1.26.2
 
-toolchain go1.26.8
+toolchain go1.26.5
 
 replace github.com/ericfitz/tmi-clients/go-client-generated/v1_6_0 => ../tmi-clients/go-client-generated/v1_6_0
 
