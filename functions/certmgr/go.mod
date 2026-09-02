@@ -2,7 +2,7 @@ module github.com/ericfitz/tmi/functions/certmgr
 
 go 1.26.2
 
-toolchain go1.26.6
+toolchain go1.26.8
 
 require (
 	github.com/fnproject/fdk-go v0.1.17
