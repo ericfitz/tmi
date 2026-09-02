@@ -71,7 +71,7 @@ ENV PKG_CONFIG_PATH=/usr/lib/oracle/23/client64/lib/pkgconfig
 # slower, and it makes the image build depend on reaching go.dev at build time.
 # .github/workflows/deps-bump.yml raises this ARG and the go.mod floor together.
 # Use TARGETARCH to download the correct architecture binary
-ARG GO_VERSION=1.26.6
+ARG GO_VERSION=1.26.8
 ARG TARGETARCH
 RUN GOARCH=$(echo ${TARGETARCH} | sed 's/amd64/amd64/;s/arm64/arm64/') && \
     curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${GOARCH}.tar.gz" -o /tmp/go.tar.gz && \
