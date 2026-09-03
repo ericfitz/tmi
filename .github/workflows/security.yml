@@ -31,7 +31,13 @@ jobs:
         with:
           version: v2.12.2
           install-mode: goinstall
-          args: --timeout=5m
+          args: --timeout=10m
+          # The action's own cache is keyed only on platform + go.mod hash and
+          # a PR falls back to its base branch's entry, so one stale
+          # staticcheck-facts cache on refs/heads/main produced 17 bogus SA5011
+          # findings on every PR until it was deleted by hand (2026-09-02).
+          # A cold run costs ~1-2 min; the timeout above is raised to match.
+          skip-cache: true
 
       - name: Check sensitive fields are not passed to logger calls
         # Guardrail for #540: attribute-based log redaction cannot catch a

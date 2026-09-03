@@ -14,7 +14,8 @@
 #
 # Two jobs:
 #   - "Version Bump" (job id: bump) pushes the computed bump to same-repo PR
-#     branches. Needs contents: write.
+#     branches, using a GitHub App installation token (see the job's first
+#     step) rather than GITHUB_TOKEN, so the push retriggers CI (#797).
 #   - "Version Check" (job id: check) recomputes independently and FAILS if
 #     the PR's version locations disagree with what the title implies. Runs
 #     for fork PRs too (which "Version Bump" cannot push to). This is the
@@ -63,11 +64,24 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     env:
       PR_TITLE: ${{ github.event.pull_request.title }}
       PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
     steps:
+      # The bump commit must NOT be pushed with GITHUB_TOKEN: pushes made with
+      # it never start a fresh workflow wave, so the PR sat BLOCKED with none
+      # of the required checks registered on the bumped SHA (#797). Pushing
+      # with an installation token from the ericfitz-deps-bot App (the same
+      # one deps-bump.yml already uses to open PRs; contents: write) makes the
+      # resulting `synchronize` event trigger CI like any human push.
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.DEPS_BOT_APP_ID }}
+          private-key: ${{ secrets.DEPS_BOT_APP_PRIVATE_KEY }}
+
       - name: Checkout PR branch
         uses: actions/checkout@v7
         with:
@@ -76,6 +90,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           fetch-depth: 0
+          # The push in the final step inherits this credential.
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Fetch base main
         run: git fetch origin main --depth=1
