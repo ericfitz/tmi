@@ -790,7 +790,7 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 		updateErr = GlobalSurveyResponseStore.Update(ctx, response)
 	}
 	if updateErr != nil {
-		if mapped := MapOptimisticLockError(updateErr); mapped != nil {
+		if mapped := MapOptimisticLockError(updateErr, "Survey response not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}
@@ -803,10 +803,9 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 			return
 		}
 		logger.Error("Failed to update survey response: %v", updateErr)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to update survey response",
-		})
+		// StoreErrorToRequestError so a transient DB fault surviving retry maps
+		// to the documented 503 + Retry-After, not an undocumented 500 (#775).
+		HandleRequestError(c, StoreErrorToRequestError(updateErr, "Survey response not found", "Failed to update survey response"))
 		return
 	}
 	if srNewVersion > 0 {
@@ -944,15 +943,12 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 		updateErr = GlobalSurveyResponseStore.Update(ctx, &patched)
 	}
 	if updateErr != nil {
-		if mapped := MapOptimisticLockError(updateErr); mapped != nil {
+		if mapped := MapOptimisticLockError(updateErr, "Survey response not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}
 		logger.Error("Failed to update survey response: %v", updateErr)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
-			ErrorDescription: "Failed to update survey response",
-		})
+		HandleRequestError(c, StoreErrorToRequestError(updateErr, "Survey response not found", "Failed to update survey response")) // #775
 		return
 	}
 	if srPatchNewVersion > 0 {

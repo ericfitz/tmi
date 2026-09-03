@@ -264,7 +264,7 @@ func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID, _ U
 		result, err = GlobalProjectStore.Update(ctx, projectId.String(), &project, userUUID)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Project not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}
@@ -373,7 +373,7 @@ func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID, _ Pa
 		result, err = GlobalProjectStore.Update(ctx, projectId.String(), &patched, userUUID)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Project not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}

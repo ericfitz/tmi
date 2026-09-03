@@ -566,7 +566,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Threat model not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}
@@ -789,7 +789,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Threat model not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}

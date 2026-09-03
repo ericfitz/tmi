@@ -290,7 +290,7 @@ func (h *AssetSubResourceHandler) UpdateAsset(c *gin.Context) {
 		err = h.assetStore.Update(c.Request.Context(), asset, threatModelID)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Asset not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}
@@ -549,7 +549,7 @@ func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 		updatedAsset, err = h.assetStore.Patch(c.Request.Context(), assetID, operations)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Asset not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}

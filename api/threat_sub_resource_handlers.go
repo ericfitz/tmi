@@ -489,7 +489,7 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 		err = h.threatStore.Update(c.Request.Context(), threat)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Threat not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}
@@ -600,7 +600,7 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 		updatedThreat, err = h.threatStore.Patch(c.Request.Context(), threatModelID, threatID, operations)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Threat not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}

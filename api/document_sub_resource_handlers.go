@@ -734,7 +734,7 @@ func (h *DocumentSubResourceHandler) UpdateDocument(c *gin.Context) {
 		err = h.documentStore.Update(c.Request.Context(), document, threatModelID)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Document not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}
@@ -993,7 +993,7 @@ func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 		updatedDocument, err = h.documentStore.Patch(c.Request.Context(), documentID, operations)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Document not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}

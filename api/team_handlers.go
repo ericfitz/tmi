@@ -254,7 +254,7 @@ func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID, _ UpdateT
 		result, err = GlobalTeamStore.Update(ctx, teamId.String(), &team, userUUID)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Team not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}
@@ -363,7 +363,7 @@ func (s *Server) PatchTeam(c *gin.Context, teamId openapi_types.UUID, _ PatchTea
 		result, err = GlobalTeamStore.Update(ctx, teamId.String(), &patched, userUUID)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Team not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}

@@ -174,15 +174,23 @@ func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInt
 // Get retrieves a project by ID
 // SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a project by ID with its team, responsible parties, relationships, and metadata (reads DB)
 func (s *GormProjectStore) Get(ctx context.Context, id string) (*Project, error) {
+	return s.getWith(s.db.WithContext(ctx), id)
+}
+
+// getWith loads a project through the given handle, so update can read back
+// inside its own transaction and return a body that matches the version it
+// committed instead of whatever a concurrent writer landed afterwards (#777).
+// SEM@0000000000000000000000000000000000000000: load a full project with responsible parties, relationships, and metadata through a given DB handle (reads DB)
+func (s *GormProjectStore) getWith(db *gorm.DB, id string) (*Project, error) {
 	logger := slogging.Get()
 
 	var record models.ProjectRecord
-	result := s.db.WithContext(ctx).
+	result := db.
 		Preload("Team").
 		Preload("CreatedBy").
 		Preload("ModifiedBy").
 		Preload("ReviewedBy").
-		First(&record, ColumnMap(s.db.Name(), map[string]any{"id": id}))
+		First(&record, ColumnMap(db.Name(), map[string]any{"id": id}))
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -194,21 +202,21 @@ func (s *GormProjectStore) Get(ctx context.Context, id string) (*Project, error)
 	}
 
 	// Load responsible parties
-	responsibleParties, err := s.loadResponsibleParties(ctx, id)
+	responsibleParties, err := s.loadResponsibleParties(db, id)
 	if err != nil {
 		logger.Error("failed to load responsible parties: id=%s, error=%v", id, err)
 		return nil, err
 	}
 
 	// Load relationships
-	relationships, err := s.loadRelationships(ctx, id)
+	relationships, err := s.loadRelationships(db, id)
 	if err != nil {
 		logger.Error("failed to load relationships: id=%s, error=%v", id, err)
 		return nil, err
 	}
 
 	// Load metadata
-	metadata, err := loadEntityMetadata(s.db.WithContext(ctx), "project", id)
+	metadata, err := loadEntityMetadata(db, "project", id)
 	if err != nil {
 		logger.Error("failed to load metadata: id=%s, error=%v", id, err)
 		return nil, dberrors.Classify(err)
@@ -261,6 +269,7 @@ func (s *GormProjectStore) update(ctx context.Context, id string, project *Proje
 
 	// Begin transaction (with retry on transient errors)
 	var newVersion int
+	var fullProject *Project
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if expectedVersion != nil {
 			v, casErr := CheckAndBumpVersion(ctx, tx, models.ProjectRecord{}.TableName(), id, *expectedVersion)
@@ -317,25 +326,27 @@ func (s *GormProjectStore) update(ctx context.Context, id string, project *Proje
 				return err
 			}
 		}
-		return nil
+		if project.Metadata != nil && len(*project.Metadata) > 0 {
+			if err := saveEntityMetadata(tx, "project", id, *project.Metadata); err != nil {
+				logger.Error("failed to save metadata for project: id=%s, error=%v", id, err)
+				return dberrors.Classify(err)
+			}
+		}
+
+		// Read back inside the transaction so the returned body is the state
+		// this writer committed, matching the ETag/version returned with it;
+		// a post-commit Get could hand back a concurrent writer's newer row
+		// under our older version (#777).
+		var getErr error
+		fullProject, getErr = s.getWith(tx, id)
+		return getErr
 	})
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// Save metadata outside the transaction
-	if project.Metadata != nil && len(*project.Metadata) > 0 {
-		if err := saveEntityMetadata(s.db.WithContext(ctx), "project", id, *project.Metadata); err != nil {
-			logger.Error("failed to save metadata for project: id=%s, error=%v", id, err)
-			return nil, 0, dberrors.Classify(err)
-		}
-	}
-
 	logger.Info("project updated: id=%s", id)
-
-	// Return the full project via Get
-	fullProject, getErr := s.Get(ctx, id)
-	return fullProject, newVersion, getErr
+	return fullProject, newVersion, nil
 }
 
 // Update updates an existing project
@@ -758,11 +769,11 @@ func (s *GormProjectStore) saveRelationships(tx *gorm.DB, projectID string, rela
 
 // loadResponsibleParties loads responsible parties for a project
 // SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch and convert responsible party records for a project to API types (reads DB)
-func (s *GormProjectStore) loadResponsibleParties(ctx context.Context, projectID string) ([]ResponsibleParty, error) {
+func (s *GormProjectStore) loadResponsibleParties(db *gorm.DB, projectID string) ([]ResponsibleParty, error) {
 	var records []models.ProjectResponsiblePartyRecord
-	if err := s.db.WithContext(ctx).
+	if err := db.
 		Preload("User").
-		Where(ColumnMap(s.db.Name(), map[string]any{"project_id": projectID})).
+		Where(ColumnMap(db.Name(), map[string]any{"project_id": projectID})).
 		Find(&records).Error; err != nil {
 		return nil, dberrors.Classify(err)
 	}
@@ -794,10 +805,10 @@ func (s *GormProjectStore) loadResponsibleParties(ctx context.Context, projectID
 
 // loadRelationships loads relationships for a project
 // SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch and convert relationship records for a project to API types (reads DB)
-func (s *GormProjectStore) loadRelationships(ctx context.Context, projectID string) ([]RelatedProject, error) {
+func (s *GormProjectStore) loadRelationships(db *gorm.DB, projectID string) ([]RelatedProject, error) {
 	var records []models.ProjectRelationshipRecord
-	if err := s.db.WithContext(ctx).
-		Where(ColumnMap(s.db.Name(), map[string]any{"project_id": projectID})).
+	if err := db.
+		Where(ColumnMap(db.Name(), map[string]any{"project_id": projectID})).
 		Find(&records).Error; err != nil {
 		return nil, dberrors.Classify(err)
 	}

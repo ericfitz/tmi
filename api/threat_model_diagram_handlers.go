@@ -374,7 +374,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 
 	result, err := h.wsHub.UpdateDiagram(diagramId, updateFunc, "rest_api", user.Email, expectedVersionPtr)
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Diagram not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}
@@ -532,7 +532,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 
 	result, err := h.wsHub.UpdateDiagram(diagramId, updateFunc, "rest_api", user.Email, expectedVersionPtr)
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Diagram not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}
