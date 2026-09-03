@@ -44,7 +44,6 @@ type SurveyResponseStore interface {
 	List(ctx context.Context, limit, offset int, filters *SurveyResponseFilters) ([]SurveyResponseListItem, int, error)
 
 	// List responses for a specific owner
-	ListByOwner(ctx context.Context, ownerInternalUUID string, limit, offset int, status *string) ([]SurveyResponseListItem, int, error)
 
 	// State transition
 	UpdateStatus(ctx context.Context, id uuid.UUID, newStatus string, reviewerInternalUUID *string, revisionNotes *string) error
@@ -565,16 +564,6 @@ func (s *GormSurveyResponseStore) List(ctx context.Context, limit, offset int, f
 		len(items), total, limit, offset)
 
 	return items, int(total), nil
-}
-
-// ListByOwner retrieves survey responses for a specific owner
-// SEM@0bd9c0e0e0c0649294d164b9dc945b801cfd507c: list paginated survey responses for a specific owner with optional status filter (reads DB)
-func (s *GormSurveyResponseStore) ListByOwner(ctx context.Context, ownerInternalUUID string, limit, offset int, status *string) ([]SurveyResponseListItem, int, error) {
-	filters := &SurveyResponseFilters{
-		OwnerID: &ownerInternalUUID,
-		Status:  status,
-	}
-	return s.List(ctx, limit, offset, filters)
 }
 
 // validSurveyResponseStatuses is the status set ValidateSurveyResponseStatusTransition accepts.

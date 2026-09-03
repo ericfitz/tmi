@@ -627,7 +627,11 @@ func (s *Server) ListIntakeSurveyResponses(c *gin.Context, params ListIntakeSurv
 		offset = *params.Offset
 	}
 
-	items, total, err := GlobalSurveyResponseStore.ListByOwner(ctx, userUUID, limit, offset, params.Status)
+	items, total, err := GlobalSurveyResponseStore.List(ctx, limit, offset, &SurveyResponseFilters{
+		OwnerID:  &userUUID,
+		Status:   params.Status,
+		SurveyID: params.SurveyId,
+	})
 	if err != nil {
 		logger.Error("Failed to list survey responses: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{

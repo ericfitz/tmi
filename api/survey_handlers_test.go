@@ -157,7 +157,7 @@ type mockSurveyResponseStore struct {
 	updateErr       error
 	deleteErr       error
 	listErr         error
-	listByOwnerErr  error
+	lastFilters     *SurveyResponseFilters
 	updateStatusErr error
 	hasAccessErr    error
 	setCreatedTMErr error
@@ -242,19 +242,10 @@ func (m *mockSurveyResponseStore) Delete(_ context.Context, id uuid.UUID) error 
 	return nil
 }
 
-func (m *mockSurveyResponseStore) List(_ context.Context, _, _ int, _ *SurveyResponseFilters) ([]SurveyResponseListItem, int, error) {
+func (m *mockSurveyResponseStore) List(_ context.Context, _, _ int, filters *SurveyResponseFilters) ([]SurveyResponseListItem, int, error) {
+	m.lastFilters = filters
 	if m.listErr != nil {
 		return nil, 0, m.listErr
-	}
-	if m.err != nil {
-		return nil, 0, m.err
-	}
-	return m.listItems, m.listTotal, nil
-}
-
-func (m *mockSurveyResponseStore) ListByOwner(_ context.Context, _ string, _, _ int, _ *string) ([]SurveyResponseListItem, int, error) {
-	if m.listByOwnerErr != nil {
-		return nil, 0, m.listByOwnerErr
 	}
 	if m.err != nil {
 		return nil, 0, m.err
@@ -1128,6 +1119,26 @@ func TestListIntakeSurveyResponses(t *testing.T) {
 		assert.Equal(t, 1, resp.Total)
 	})
 
+	t.Run("survey_id and status filters reach the store (#814)", func(t *testing.T) {
+		respStore := newMockSurveyResponseStore()
+		saveSurveyStores(t, nil, respStore)
+
+		c, w := CreateTestGinContext("GET", "/intake/survey_responses")
+		TestUsers.Owner.SetContext(c)
+
+		surveyID := uuid.New()
+		status := "draft"
+		server.ListIntakeSurveyResponses(c, ListIntakeSurveyResponsesParams{SurveyId: &surveyID, Status: &status})
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		require.NotNil(t, respStore.lastFilters)
+		require.NotNil(t, respStore.lastFilters.OwnerID, "owner scoping must be preserved")
+		assert.Equal(t, TestUsers.Owner.InternalUUID, *respStore.lastFilters.OwnerID)
+		require.NotNil(t, respStore.lastFilters.SurveyID)
+		assert.Equal(t, surveyID, *respStore.lastFilters.SurveyID)
+		assert.Equal(t, &status, respStore.lastFilters.Status)
+	})
+
 	t.Run("unauthenticated", func(t *testing.T) {
 		respStore := newMockSurveyResponseStore()
 		saveSurveyStores(t, nil, respStore)
@@ -1143,7 +1154,7 @@ func TestListIntakeSurveyResponses(t *testing.T) {
 
 	t.Run("store error", func(t *testing.T) {
 		respStore := newMockSurveyResponseStore()
-		respStore.listByOwnerErr = errors.New("database error")
+		respStore.listErr = errors.New("database error")
 		saveSurveyStores(t, nil, respStore)
 
 		c, w := CreateTestGinContext("GET", "/intake/survey_responses")
