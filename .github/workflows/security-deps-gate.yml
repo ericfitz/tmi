@@ -14,7 +14,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, 'dev/**']
   schedule:
     # Re-evaluate daily so a freshly disclosed CVE in a sensitive path
     # blocks future deploys even if no PR has touched the tree.
