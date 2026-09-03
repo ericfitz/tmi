@@ -2564,7 +2564,14 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 				userUUID = createdUser
 			}
 
-			// Add user to Administrators group
+			// Add user to Administrators group. Check membership first: on every
+			// boot after the first the INSERT would trip the unique index, and
+			// GORM logs that statement failure at ERROR before this code can
+			// decide it is the benign "already a member" case (#808).
+			if isMember, memErr := api.GlobalGroupMemberRepository.IsMember(ctx, adminsGroupUUID, userUUID); memErr == nil && isMember {
+				logger.Info("Administrator user already in group: provider=%s, user_uuid=%s", adminCfg.Provider, userUUID)
+				continue
+			}
 			_, err = api.GlobalGroupMemberRepository.AddMember(ctx, adminsGroupUUID, userUUID, nil, &notes)
 			if err != nil {
 				// A duplicate here is the ordinary "already a member" case; a
@@ -2588,7 +2595,12 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 				continue
 			}
 
-			// Add group to Administrators group (group-in-group membership)
+			// Add group to Administrators group (group-in-group membership),
+			// skipping the INSERT when it is already there (#808, as above).
+			if isMember, memErr := isGroupMemberGorm(ctx, gormDB, adminsGroupUUID, groupUUID); memErr == nil && isMember {
+				logger.Info("Administrator group already in group: provider=%s, group_uuid=%s", adminCfg.Provider, groupUUID)
+				continue
+			}
 			_, err = api.GlobalGroupMemberRepository.AddGroupMember(ctx, adminsGroupUUID, groupUUID, nil, &notes)
 			if err != nil {
 				logger.Info("Administrator group already in group or added: provider=%s, error=%v", adminCfg.Provider, err)
@@ -2723,6 +2735,18 @@ func findGroupByProviderAndNameGorm(ctx context.Context, gormDB *gorm.DB, provid
 	}
 
 	return uuid.Parse(string(group.InternalUUID))
+}
+
+// isGroupMemberGorm reports whether memberGroupUUID is already a direct
+// (subject_type=group) member of groupUUID.
+// SEM@0000000000000000000000000000000000000000: check whether a group is already a direct member of another group (reads DB)
+func isGroupMemberGorm(ctx context.Context, gormDB *gorm.DB, groupUUID, memberGroupUUID uuid.UUID) (bool, error) {
+	var count int64
+	err := gormDB.WithContext(ctx).Model(&models.GroupMember{}).
+		Where("group_internal_uuid = ? AND member_group_internal_uuid = ? AND subject_type = ?",
+			groupUUID.String(), memberGroupUUID.String(), "group").
+		Count(&count).Error
+	return count > 0, err
 }
 
 // buildGormConfig creates a GORM configuration from the application config.
