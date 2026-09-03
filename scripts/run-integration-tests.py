@@ -405,7 +405,7 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
     else:
         log_info("Running api/ integration tests against the isolated test DB")
         api_cmd = [
-            "go", "test", "-v", "-timeout=10m", "-tags=test",
+            "go", "test", "-v", "-count=1", "-timeout=10m", "-tags=test",
             "./api/...", "-run", "Integration",
         ]
         api_exit = run_go_test(api_cmd, project_root, base_env, log_path)
@@ -466,7 +466,7 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
                     "TMI_SERVER_URL": server_url,
                     "TEST_SERVER_URL": server_url,
                 }
-                wf_cmd = ["go", "test", "-v", "-timeout=15m", "-p", "1", "./workflows/..."]
+                wf_cmd = ["go", "test", "-v", "-count=1", "-timeout=15m", "-p", "1", "./workflows/..."]
                 if workflow_run:
                     wf_cmd += ["-run", workflow_run]
                 # The workflows package is a separate module under test/integration.
@@ -520,7 +520,7 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
         f"TEST_SERVER_URL='{server_url}' "
         "TEST_REDIS_HOST=localhost "
         "TEST_REDIS_PORT=6379 "
-        "go test -v -timeout=10m ./api/... -run Integration"
+        "go test -v -count=1 -timeout=10m ./api/... -run Integration"
     )
     with open(log_path, "a") as fh:
         result = subprocess.run(
@@ -549,7 +549,7 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
         f"source '{oci_env_file}' && "
         "LOGGING_IS_TEST=true "
         "CGO_ENABLED=1 "
-        "go test -v -timeout=10m -tags oracle ./api/... ./internal/dbschema/... -run OracleIntegration"
+        "go test -v -count=1 -timeout=10m -tags oracle ./api/... ./internal/dbschema/... -run OracleIntegration"
     )
     with open(log_path, "a") as fh:
         oracle_result = subprocess.run(
@@ -570,7 +570,7 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
     workflows_skipped: str | None = None
     log_info("Running workflow integration tests against the Oracle-backed dev server")
     workflow_run = os.environ.get("TMI_TEST_WORKFLOW_RUN", "").strip()
-    wf_go_cmd = "go test -v -timeout=15m -p 1 ./workflows/..."
+    wf_go_cmd = "go test -v -count=1 -timeout=15m -p 1 ./workflows/..."
     if workflow_run:
         wf_go_cmd += f" -run '{workflow_run}'"
     wf_cmd = (
