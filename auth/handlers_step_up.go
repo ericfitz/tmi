@@ -151,8 +151,10 @@ func (h *Handlers) StepUp(c *gin.Context) {
 		return
 	}
 
-	// 7. Strong path — store state and redirect upstream.
-	h.stepUpStrongRedirect(c, provider, cfg, actor, clientCallback, codeChallenge, codeChallengeMethod)
+	// 7. Strong path — store state and redirect upstream. login_hint names
+	// the account to re-authenticate (#817); the OpenAPI validator has already
+	// checked its format.
+	h.stepUpStrongRedirect(c, provider, cfg, actor, clientCallback, codeChallenge, codeChallengeMethod, c.Query("login_hint"))
 }
 
 // stepUpWeakShortCircuit handles step-up for providers that ignore prompt=login
@@ -248,7 +250,7 @@ func (h *Handlers) providerConfig(providerID string) (OAuthProviderConfig, error
 // stepUpStrongRedirect implements the strong-provider path: store state, store
 // PKCE, build the upstream URL with prompt=login&max_age=0, and redirect.
 // SEM@5d36fbba264b6e4f105d4eb316e4f509c58d7300: store step-up state and PKCE challenge, then redirect the user to the upstream provider (mutates shared state)
-func (h *Handlers) stepUpStrongRedirect(c *gin.Context, provider Provider, cfg OAuthProviderConfig, actor StepUpActor, clientCallback, codeChallenge, codeChallengeMethod string) {
+func (h *Handlers) stepUpStrongRedirect(c *gin.Context, provider Provider, cfg OAuthProviderConfig, actor StepUpActor, clientCallback, codeChallenge, codeChallengeMethod, loginHint string) {
 	logger := slogging.Get().WithContext(c)
 
 	state := c.Query("state")
@@ -282,6 +284,9 @@ func (h *Handlers) stepUpStrongRedirect(c *gin.Context, provider Provider, cfg O
 		"original_email":     user.Email,
 		"step_up_strength":   StepUpStrong.String(),
 	}
+	if loginHint != "" {
+		stateData["login_hint"] = loginHint
+	}
 	stateJSON, err := json.Marshal(stateData)
 	if err != nil {
 		logger.Error("step-up: state marshal failed: %v", err)
@@ -301,7 +306,7 @@ func (h *Handlers) stepUpStrongRedirect(c *gin.Context, provider Provider, cfg O
 		return
 	}
 
-	authURL, err := BuildStepUpAuthorizationURL(provider, cfg, state)
+	authURL, err := BuildStepUpAuthorizationURL(provider, cfg, state, loginHint)
 	if err != nil {
 		logger.Error("step-up: URL build failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})

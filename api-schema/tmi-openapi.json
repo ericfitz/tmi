@@ -13363,10 +13363,10 @@
         "name": "login_hint",
         "in": "query",
         "required": false,
-        "description": "User identity hint for TMI OAuth provider. Allows specifying a desired user identity for testing and automation. Only supported by the TMI provider (ignored by production providers like Google, GitHub, etc.). Valid characters: letters, digits, periods, underscores, percent signs, plus signs, and hyphens.",
+        "description": "User identity hint forwarded to the provider (login_hint), so the provider knows which account to authenticate. For the TMI provider this selects the test identity: either a username (alice) or its address form (alice@tmi.local); other providers receive it as an email address or username, per their own login_hint semantics. Valid characters: letters, digits, periods, underscores, percent signs, plus signs, at signs, and hyphens.",
         "schema": {
           "type": "string",
-          "pattern": "^[a-zA-Z0-9._%+-]+$",
+          "pattern": "^[a-zA-Z0-9._%+@-]+$",
           "example": "alice",
           "maxLength": 254
         }
@@ -65401,7 +65401,37 @@
             "$ref": "#/components/responses/Error"
           },
           "409": {
-            "$ref": "#/components/responses/Conflict"
+            "description": "Conflict - The chat session is not active (it has ended or been terminated). Start a new session; refetching does not help.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "format": "int32"
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
           }
         },
         "x-rate-limit": {
@@ -67976,6 +68006,9 @@
           },
           {
             "$ref": "#/components/parameters/CodeChallengeMethodQueryParam"
+          },
+          {
+            "$ref": "#/components/parameters/LoginHintQueryParam"
           }
         ],
         "responses": {

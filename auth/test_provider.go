@@ -59,8 +59,21 @@ func NewTestProvider(config OAuthProviderConfig, callbackURL string) *TestProvid
 // For the test provider, we'll create a direct callback URL instead of an external redirect
 // SEM@0a07a7223c986c6b65b4c7eaad0d824831641173: build a test callback URL encoding a fake auth code and state parameter (pure)
 func (p *TestProvider) GetAuthorizationURL(state string) string {
+	return p.GetAuthorizationURLWithHint(state, "")
+}
+
+// GetAuthorizationURLWithHint is GetAuthorizationURL with a login_hint encoded
+// into the fake authorization code, the same shape the authorize handler
+// produces, so a flow that goes through this URL (step-up, #817) resolves to
+// the hinted identity instead of a random test user. An invalid hint is
+// dropped, matching validateUserHint.
+// SEM@0000000000000000000000000000000000000000: build a test callback URL whose fake auth code carries the login_hint identity (pure)
+func (p *TestProvider) GetAuthorizationURLWithHint(state, hint string) string {
 	// For test provider, generate a fake auth code and redirect directly to callback
 	authCode := fmt.Sprintf("test_auth_code_%d", time.Now().Unix())
+	if validated := p.validateUserHint(hint); validated != "" {
+		authCode = fmt.Sprintf("%s_hint_%s", authCode, base64.URLEncoding.EncodeToString([]byte(validated)))
+	}
 
 	callbackURL := p.oauth2Config.RedirectURL
 	if callbackURL == "" {
@@ -176,7 +189,7 @@ func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*Us
 	if userHint != "" {
 		// Use the provided login_hint
 		username := userHint
-		email := fmt.Sprintf("%s@tmi.local", username)
+		email := fmt.Sprintf("%s@%s", username, testProviderEmailDomain)
 		displayName := p.generateDisplayName(username)
 
 		return &UserInfo{
@@ -281,6 +294,10 @@ func (p *TestProvider) validateUserHint(hint string) string {
 	// Convert to lowercase and trim spaces
 	hint = strings.ToLower(strings.TrimSpace(hint))
 
+	// Accept the address form of a test identity (alice@tmi.local): clients
+	// conventionally send login_hint as the session's email address (#817).
+	hint = strings.TrimSuffix(hint, "@"+testProviderEmailDomain)
+
 	// Validate length (3-20 characters)
 	if len(hint) < 3 || len(hint) > 20 {
 		return ""
@@ -370,3 +387,7 @@ func isDevOrTestBuild() bool {
 	buildMode := os.Getenv("TMI_BUILD_MODE")
 	return buildMode == "dev" || buildMode == "test"
 }
+
+// testProviderEmailDomain is the domain of every identity the TMI test
+// provider mints; login_hint may carry it as a suffix.
+const testProviderEmailDomain = "tmi.local"

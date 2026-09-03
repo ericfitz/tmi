@@ -632,3 +632,28 @@ func TestStepUp_WeakProvider_ShortCircuits200(t *testing.T) {
 	require.Equal(t, "auth.step_up_complete", auditW.entries[0].FieldPath)
 	require.Contains(t, *auditW.entries[0].NewValueRedacted, `"strength":"weak"`)
 }
+
+// TestStepUp_StrongProvider_ForwardsLoginHint pins #817 at the handler: the
+// login_hint query parameter is neither dropped nor rejected, and reaches the
+// upstream authorize URL.
+func TestStepUp_StrongProvider_ForwardsLoginHint(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := newStepUpTestHarness(t)
+	defer h.cleanup()
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("GET",
+		"/oauth2/step_up?client_callback=http%3A%2F%2Flocalhost%3A4200%2Fcallback&code_challenge=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk&code_challenge_method=S256&login_hint=charlie%40tmi.local",
+		nil)
+	c.Request.Header.Set("Authorization", "Bearer "+h.testJWT)
+
+	h.handlers.StepUp(c)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d body=%s", w.Code, w.Body.String())
+	}
+	if loc := w.Header().Get("Location"); !strings.Contains(loc, "login_hint=charlie%40tmi.local") {
+		t.Errorf("Location missing login_hint: %s", loc)
+	}
+}
