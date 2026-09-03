@@ -602,7 +602,7 @@ func (s *SettingsService) SeedDefaults(ctx context.Context) error {
 		defaults = append(defaults, models.SystemSetting{
 			SettingKey:  models.DBVarchar(ms.Key),
 			Value:       models.DBText(ms.Value),
-			SettingType: models.DBVarchar(ms.Type),
+			SettingType: models.DBVarchar(ms.Type), // same verbatim token as DefaultSystemSettings (#811)
 			Description: models.NewNullableDBText(&desc),
 			ModifiedAt:  time.Now(),
 		})
