@@ -1,214 +1,95 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Project overview
 
-## Project Overview
+TMI is a Go service implementing the REST API and store for a security review process, from request (intake) through analysis and followup, centered on threat modeling with collaborative data flow diagrams. Artifacts can be created, read, or updated by machines or humans interchangeably, and the service is designed to be integrated with and extended without code changes. The REST API is defined by an OpenAPI 3 spec (`api-schema/tmi-openapi.json`), which is the source of truth; real-time collaborative diagram editing runs over WebSockets, defined by an AsyncAPI spec. Auth is OAuth or SAML with JWT, RBAC assigns roles to users or groups, and persistence is via GORM.
 
-TMI is a Go-based service implementing the REST API and store for managing a security review process, from request (intake) through analysis and followup. The review process focuses on a threat modeling approach, with collaborative data flow diagram creation and artifacts that can be created, read or updated by either machines or humans, interchangeably. The application is designed to be easy to integrate with and extend without having to make code modifications. The REST API is an instantiation of a protocol defined in an OpenAPI 3 protocol specification; the specification is the source of truth. Real-time collaborative diagram editing is implemented via WebSockets; the WS protocol is authoritatively defined in an AsyncAPI specification. The Application features OAuth or SAML authentication with JWT, role-based access control with roles assigned to users or groups, and persistent database stores implemented via a GORM interface.
+Sibling projects (client, wiki, etc.) are registered in `.local/repos.json`; check it for local paths before fetching from GitHub.
 
-## Related Projects
+## Code structure
 
-TMI has several sibling projects. When you need to read files from or interact with these projects, check `.local/repos.json` for local filesystem paths before fetching from GitHub. It is a registry keyed by repo name — `{ "<name>": { "path": "<abs>", "github": { "owner", "repo", "project", "wiki_path" } } }` — and is the only source of a repo's local path. The file is gitignored (local to each developer's machine) and is provisioned by `~/Scripts/provision-repo-config.py`.
+- `api/` — handlers, server, storage: `api/server.go` (OpenAPI server with single router and WebSocket support), `api/store.go` (generic `Store[T]`), `api/websocket.go` (hub), `api/*_middleware.go` (resource authorization), `api/request_tracing.go` (module-tagged request logging), `api/cache_service.go` (Redis caching with invalidation, warming, metrics)
+- `auth/` — OAuth, JWT, RBAC; `auth/handlers.go` exposes auth endpoints via the auth service adapter
+- `cmd/` — `server`, `migrate`, `dbtool`; worker/extraction subsystem (`chunkembed`, `extractor`, `component-controller`, `worker-probe`); config generators (`genconfig`, `genconfigdocs`)
+- `internal/` — `slogging`, `config`, `crypto`, `dberrors`, `dbschema`, `otel`, `platform`, `worker`, `secrets`, ...
+- `docs/` — deprecated (see Documentation); `scripts/` — dev setup scripts; `Makefile` — all build/dev targets
 
-## Key Files
+### Storage
 
-- api-schema/tmi-openapi.json - OpenAPI specification
-- api/store.go - Generic typed map storage implementation
-- api/server.go - Main API server with WebSocket support
-- api/websocket.go - WebSocket hub for real-time collaboration
-- cmd/server/main.go - Server entry point
-- Makefile - Build automation with development targets
+Use the generic `Store[T]` from `api/store.go`; each entity type has its own store instance (DiagramStore, ThreatModelStore) with CRUD and concurrency control. Validate entity fields before storing; use the `WithTimestamps` interface for entities with `created_at`/`modified_at`.
 
-## Architecture & Code Structure
+PostgreSQL for persistence, Redis for caching and sessions, in-memory storage for tests. Schema is managed by GORM `AutoMigrate()` from struct tags in `api/models/*.go` (single source of truth). **Oracle ADB is a supported production target**; any DB-touching change must be reviewed by the `oracle-db-admin` subagent (see Policies).
 
-### Project Structure
+### WebSocket
 
-- `api/` - API handlers, server implementation, and storage
-- `auth/` - Authentication service with OAuth, JWT, and RBAC
-- `cmd/` - Command-line executables (server, migrate, dbtool, plus worker/extraction subsystem: chunkembed, extractor, component-controller, worker-probe; and config generators genconfig/genconfigdocs)
-- `internal/` - Internal packages (slogging, config, crypto, dberrors, dbschema, otel, platform, worker, secrets, ...)
-- `docs/` - Legacy documentation (deprecated - see Documentation section below)
-- `scripts/` - Development setup scripts
+Real-time collaboration at `/ws/diagrams/{id}` (diagrams only, not threat models) over Gorilla WebSocket. `WebSocketHub` manages connections and broadcasts. Sessions go Active → Terminating → Terminated; only the host manages participants; inactivity timeout is configurable (default 300s, minimum 15s); removed participants go on a session deny list.
 
-### Storage Pattern
+### OpenAPI and code generation
 
-- Use the generic Store[T] implementation from api/store.go
-- Each entity type has its own store instance (DiagramStore, ThreatModelStore)
-- Store provides CRUD operations with proper concurrency control
-- Entity fields should be properly validated before storage
-- Use WithTimestamps interface for entities with created_at/modified_at fields
+- `make generate-api` runs oapi-codegen v2 (`oapi-codegen-config.yml`, gin-middleware package) to produce `api/api.go`: Gin server handlers and the embedded spec. Gin, not Echo.
+- OpenAPI validation middleware clears security schemes; auth is the JWT middleware's job.
+- `make validate-openapi` (jq + Vacuum with OWASP rules) writes `api-schema/openapi-validation-report.json`. `make validate-asyncapi` for the WS spec.
+- Public endpoints (OAuth, OIDC, SAML) carry the `x-public-endpoint` vendor extension and are intentionally unauthenticated per their RFCs.
 
-### WebSocket Architecture
+**Discriminator union type safety — CRITICAL:** never call the generated `FromNode`, `MergeNode`, `FromMinimalNode`, or `MergeMinimalNode` in non-generated code. They hardcode the `shape` discriminator to one fixed value and corrupt cell shapes (e.g. every node becomes `text-box`), an oapi-codegen limitation when several discriminator values map to one type. Use `SafeFromNode()` / `SafeFromEdge()` from `api/cell_union_helpers.go`. `FromEdge`/`MergeEdge` (one edge shape, `flow`) and `FromDfdDiagram` (one type, `DFD-1.0.0`) are safe. Affected unions: `DfdDiagram_Cells_Item`, `DfdDiagramInput_Cells_Item`, `MinimalCell`. `make check-unsafe-union-methods` enforces this (part of `make lint`).
 
-- Real-time collaboration via WebSocket connections at `/ws/diagrams/{id}`
-- WebSocketHub manages active connections and broadcasts updates
-- Only diagrams support real-time collaboration, not threat models
-- Uses Gorilla WebSocket library
-- Session lifecycle: Active -> Terminating -> Terminated states
-- Host-based control: Only session host can manage participants
-- Inactivity timeout: Configurable (default 300s, minimum 15s)
-- Deny list: Session-specific tracking of removed participants
+### Request flow
 
-### Database & Cache
-
-- PostgreSQL for persistent storage (configured via auth/ package)
-- Redis for caching and session management
-- Schema is managed by GORM `AutoMigrate()`, driven by struct tags in `api/models/*.go` (single source of truth)
-- Dual-mode storage: in-memory for tests, database-backed for dev/prod
-- Redis-backed caching with invalidation, warming, and metrics (api/cache_service.go)
-- Automatic cache invalidation on resource updates
-- Cache metrics tracking (hits, misses, size monitoring)
-- **Oracle ADB is a supported production target.** Any DB-touching change must be reviewed by the `oracle-db-admin` subagent before completion (see "Oracle Database Compatibility Review" below).
-
-### OpenAPI Integration & Code Generation
-
-- API code generated from api-schema/tmi-openapi.json using oapi-codegen v2
-- Uses Gin web framework (not Echo) with oapi-codegen/gin-middleware for validation
-- OpenAPI validation middleware clears security schemes (auth handled by JWT middleware)
-- Generated types in api/api.go include Gin server handlers and embedded spec
-- Config file: oapi-codegen-config.yml (configured for gin-middleware package)
-- **Validate schema**: `make validate-openapi` (jq + Vacuum with OWASP rules)
-- **Validation output**: `api-schema/openapi-validation-report.json`
-- **Public Endpoints**: 17 endpoints (OAuth, OIDC, SAML) marked with `x-public-endpoint` vendor extension - intentionally unauthenticated per RFCs
-
-#### Discriminator Union Type Safety
-
-**CRITICAL: Never use generated `FromNode`, `MergeNode`, `FromMinimalNode`, or `MergeMinimalNode` methods in non-generated code.** These methods are in api/api.go and are regenerated by oapi-codegen. They hardcode the `shape` discriminator to an arbitrary fixed value, corrupting cell shapes (e.g., all node shapes become "text-box"). This is an oapi-codegen limitation when multiple discriminator values map to the same type.
-
-- **Always use**: `SafeFromNode()` and `SafeFromEdge()` from `api/cell_union_helpers.go`
-- **Lint check**: `make check-unsafe-union-methods` (also runs as part of `make lint`)
-- **Safe methods**: `FromEdge`/`MergeEdge` (only one edge shape "flow") and `FromDfdDiagram` (only one diagram type "DFD-1.0.0") are safe to use directly
-- **Affected union types**: `DfdDiagram_Cells_Item`, `DfdDiagramInput_Cells_Item`, `MinimalCell`
-
-### Request Flow
-
-The system uses a single-router architecture with OpenAPI-driven routing:
-
-1. **Single Router Architecture**: All HTTP requests flow through the OpenAPI specification
-2. **Request Tracing**: Comprehensive module-tagged debug logging for all requests
-3. **Authentication Flow**:
-   - JWT middleware validates tokens and sets user context
-   - ThreatModelMiddleware and DiagramMiddleware handle resource-specific authorization
-   - Auth handlers integrate cleanly with OpenAPI endpoints
-4. **No Route Conflicts**: Single source of truth for all routing eliminates duplicate route registration panics
+All HTTP requests route through the OpenAPI spec (single router, single source of truth, no duplicate-registration panics):
 
 ```
 HTTP Request -> OpenAPI Route Registration -> ServerInterface Implementation ->
-JWT Middleware -> Auth Context -> Resource Middleware -> Endpoint Handlers
+JWT Middleware -> Auth Context -> Resource Middleware (ThreatModel/Diagram) -> Endpoint Handlers
 ```
-
-**Key Components**:
-
-- `api/server.go`: Main OpenAPI server with single router
-- `api/*_middleware.go`: Resource-specific authorization middleware
-- `auth/handlers.go`: Authentication endpoints integrated via auth service adapter
-- `api/request_tracing.go`: Module-tagged request logging for debugging
 
 ## Commands
 
-- List targets: `make list-targets` (lists all available make targets)
-- Build: `make build-server` (creates bin/tmiserver executable)
-- Lint: `make lint` (runs golangci-lint)
-- Generate API: `make generate-api` (uses oapi-codegen with config from oapi-codegen-config.yml)
-- Development: `make dev-up` (starts the full dev environment in a local Docker Desktop Kubernetes cluster: the server, PostgreSQL, Redis, and NATS all run in-cluster in the `tmi-platform` namespace; server reachable at localhost:8080). Tear down with `make dev-down`, check status with `make dev-status`. For Oracle: `make dev-up DB=oracle`. For k3s instead of Docker Desktop: `make dev-up CLUSTER=k3s`.
-- Clean all: `make clean-everything` (comprehensive cleanup of processes, containers, and files)
-- Health check: Use `curl http://localhost:8080/` (root endpoint) to verify server is running or check running version. **There is no /health endpoint.**
-- Validate AsyncAPI: `make validate-asyncapi`
+**MANDATORY: always use Make targets.** Never run `go run`, `go test`, `./bin/tmiserver`, `docker run`, or `docker exec` directly; the targets carry the required environment. `make list-targets` lists everything.
 
-### Container Management
+- Build: `make build-server` → `bin/tmiserver`. Lint: `make lint` (golangci-lint). Generate API: `make generate-api`.
+- Dev environment: `make dev-up` deploys the full stack into a local Kubernetes cluster (`CLUSTER=docker-desktop` default, `CLUSTER=k3s` supported) in the `tmi-platform` namespace: server and Redis as Deployments, PostgreSQL and NATS as StatefulSets; server at localhost:8080. `DB=oracle` uses an external managed Oracle ADB instead. `make dev-down` (keeps DB data), `make dev-status`, `make dev-reset`/`make dev-nuke` (soft/hard reset), `make clean-everything`. Orchestration is `scripts/devenv.py`; manifests are under `deployments/k8s/dev/<cluster>/`. **PostgreSQL data lives in a Kubernetes PVC (`data-postgres-0`)**, not a host Docker volume; re-provisioning the PVC starts from an empty database.
+- Health check: `curl http://localhost:8080/` (root endpoint; **there is no /health**).
+- Config: `.env.dev` and `config-development.yaml`; `config-example.yml` (generated by `cmd/genconfig`) is the annotated template. Local Postgres credentials are under `database.postgres.*` in `config-development.yaml` (mirrored as `POSTGRES_*` in `.env.dev`). Dev/test logs go to `logs/tmi.log`. TLS is configurable.
 
-Container builds use Python scripts (`scripts/build-app-containers.py`, `scripts/build-db-containers.py`) wrapped by Makefile targets. Supports local Docker, OCI, AWS, Azure, GCP, and Heroku targets.
+### Containers
 
-- Build individual containers:
-  - `make build-server-container` (TMI server container only)
-  - `make build-redis-container` (Redis container only)
-  - `make build-db` (PostgreSQL container only)
-- Build all containers: `make build-all`
-- Build with scanning: `make build-all-scan`
-- Security scan existing images: `make scan-containers`
-- Build and start dev environment: `make start-containers-environment`
-- Cloud builds (build + push + scan):
-  - `make build-app-oci` (OCI Container Registry)
-  - `make build-app-aws` (AWS ECR)
-  - `make build-app-azure` (Azure ACR)
-  - `make build-app-gcp` (GCP Artifact Registry)
-  - `make build-app-heroku` (Heroku Container Registry)
-- **Always use**: `make start-database`, `make start-redis`, `make dev-up` for container operations
+`scripts/build-app-containers.py` and `scripts/build-db-containers.py`, wrapped by make: `make build-server-container`, `make build-redis-container`, `make build-db`, `make build-all`, `make build-all-scan`, `make scan-containers`, `make start-containers-environment`; cloud build+push+scan via `make build-app-{oci,aws,azure,gcp,heroku}`. Use `make start-database`, `make start-redis`, `make dev-up` for container operations.
 
-TMI uses [Chainguard](https://chainguard.dev/) images for local/generic builds: `cgr.dev/chainguard/static:latest` (server), `cgr.dev/chainguard/postgres:latest` (DB), Chainguard Redis. Built with `CGO_ENABLED=0` (~57MB total). OCI builds use Oracle Linux 9 base images with Oracle Instant Client for ADB support.
+Local/generic builds use Chainguard images (`cgr.dev/chainguard/static`, `cgr.dev/chainguard/postgres`, Chainguard Redis) with `CGO_ENABLED=0` (~57MB total). OCI builds use Oracle Linux 9 with Oracle Instant Client for ADB.
 
-### SBOM Generation (Software Bill of Materials)
+- **SBOM:** `make generate-sbom` (cyclonedx-gomod) for the Go app; containers get one automatically with `--scan` (Syft). Output: `security-reports/sbom/` (CycloneDX 1.6 JSON + XML).
+- **Arazzo:** `make generate-arazzo` / `make validate-arazzo` → `api-schema/tmi.arazzo.{yaml,json}`; docs in `api-schema/arazzo-generation.md`.
 
-- **Go app**: `make generate-sbom` (cyclonedx-gomod)
-- **Containers**: Auto-generated when using `--scan` flag on container builds (Syft)
-- **Output**: `security-reports/sbom/` (CycloneDX 1.6 JSON + XML)
+### Heroku (DESTRUCTIVE; both require a manual "yes")
 
-### Arazzo Workflow Generation
-
-Arazzo specification (OpenAPI Initiative) documents API workflow sequences and dependencies.
-
-- **Generate**: `make generate-arazzo` | **Validate**: `make validate-arazzo`
-- **Output**: `api-schema/tmi.arazzo.yaml` and `api-schema/tmi.arazzo.json`
-- **Docs**: `api-schema/arazzo-generation.md`
-
-### Heroku Operations
-
-- **Database Reset**: `make reset-db-heroku` - Drop and recreate Heroku database schema (DESTRUCTIVE)
-  - Script location: `scripts/heroku-reset-database.sh`
-  - Script: `scripts/heroku-reset-database.sh` (see GitHub Wiki for operator docs)
-  - **WARNING**: Deletes all data - requires manual "yes" confirmation
-  - Use cases: Schema out of sync, migration errors, clean deployment testing
-  - Performs three steps: Drop schema -> Run migrations -> Verify schema
-  - Verifies critical columns (e.g., `issue_uri` in `threat_models`)
-  - Post-reset: Users must re-authenticate via OAuth
-
-- **Database Drop**: `make drop-db-heroku` - Drop Heroku database schema leaving it empty (DESTRUCTIVE)
-  - Script location: `scripts/heroku-drop-database.sh`
-  - **WARNING**: Deletes all data and leaves database in empty state - requires manual "yes" confirmation
-  - Use cases: Manual schema control, testing migration process from scratch, preparing for custom schema
-  - Performs one step: Drop schema only (no migrations)
-  - Database left with empty `public` schema, ready for manual schema creation or migrations
-  - To restore: Run `make reset-db-heroku` or restart Heroku app to trigger auto-migrations
+- `make reset-db-heroku` (`scripts/heroku-reset-database.sh`) — drop schema → run migrations → verify critical columns (e.g. `issue_uri` in `threat_models`). For schema drift, migration errors, clean-deploy testing. Users must re-authenticate afterwards.
+- `make drop-db-heroku` (`scripts/heroku-drop-database.sh`) — drop schema only, leaving an empty `public` schema for manual schema work or migration testing. Restore with `make reset-db-heroku` or restart the app to auto-migrate.
 
 ## Testing
 
-**MANDATORY: Always use make targets for testing. Never run `go test` commands directly. Never disable/skip failing tests - investigate and fix root cause.**
+**Never disable or skip failing tests; find and fix the root cause.**
 
-### Core Test Commands
+- Unit: `make test-unit` (`name=TestName` for one test; options `count1=true passfail=true`)
+- Integration: `make test-integration` / `make test-integration-pg` (PostgreSQL); `make test-integration-oci` (Oracle ADB, needs `scripts/oci-env.sh`)
+- Coverage: `make test-coverage`
 
-- **Unit tests**: `make test-unit` (fast tests, no external dependencies)
-  - Specific test: `make test-unit name=TestName`
-  - Options: `make test-unit count1=true passfail=true`
-- **Integration tests**:
-  - PostgreSQL: `make test-integration` or `make test-integration-pg`
-  - Oracle ADB: `make test-integration-oci` (requires `scripts/oci-env.sh`)
-- **Coverage**: `make test-coverage` (generates combined coverage reports)
+### CATS API fuzzing
 
-### CATS API Fuzzing
+CATS fuzzes the API via the portable `cats@efitz-skills` plugin, configured per repo in `.local/cats/config.yaml` (gitignored). `make cats-fuzz` / `/cats:run`, `make analyze-cats-results` / `/cats:analyze`, `make cats-report` / `/cats:report`, `/cats:fp` for false-positive rules.
 
-CATS performs security fuzzing of the TMI API via a portable plugin (`cats@efitz-skills`), configured per-repo by `.local/cats/config.yaml` (gitignored).
+- **The make targets and `/cats:*` skills are the same engine.** The Makefile resolves `CATS_TOOL` to the installed plugin, falling back to a `~/Projects/skills/cats` dev checkout (what the skills use via `${CLAUDE_PLUGIN_ROOT}`). Never hardcode either path; `make ... CATS_TOOL=/path/to/cats_tool.py` overrides. Two copies of the run-validity gates disagreeing is exactly the failure the gates exist to catch.
+- **Identity:** comes from `identities:` in the config (`token_cmd` prints a bearer token), selected with `--identity <name>` on the plugin or `/cats:run`, or by setting the default identity for `make cats-fuzz`. `CATS_USER`/`CATS_SERVER`/`CATS_PROVIDER` control only `make cats-seed`.
+- **Output:** `test/results/cats/` — one SQLite database per run, `latest.db` → most recent completed run. Analyze by querying SQLite; don't read the HTML or JSON.
+- **Fuzz the cluster directly** (`http://rp2:30080`, the k3s-rp NodePort), never through `kubectl port-forward`: a port-forwarded campaign loses ~46% of requests to connection errors that the `CONNECTION_ERROR_999` rule absorbs, so it looks clean while most of the API was never reached (#463/#578). The plugin refuses such a run at preflight (`--allow-port-forward` overrides).
+- **Run-validity gates** (a failing run exits 3 and never becomes `latest.db`): transport-error rate (`max_connection_error_pct`, default 1%) and non-false-positive 401 rate (`max_unauthenticated_pct`, default 5%). The second catches a campaign that revokes its own token by fuzzing a logout endpoint and then runs unauthenticated while reporting complete (#591). Such endpoints belong in `cats.skip_paths` (TMI skips `/me/logout`) and can be fuzzed alone with `run --path`.
+- Configs must send `If-Match: *` (`cats.headers` in the config, a first-class key since #599) so optimistic-locking preconditions pass instead of tripping the `If-Match` schema (#581).
+- **Seeding** runs over loopback (`http://localhost:8080` behind a port-forward), not the NodePort, because macOS can block a freshly built unsigned Go binary such as `tmi-dbtool` from opening TCP connections to a LAN host (#595). Both the `tmi-server` and `postgres` port-forwards must be up before `make cats-seed` or the plugin's seed hook.
+- **False positives:** public (21) and cacheable (7) endpoints use `x-public-endpoint` / `x-cacheable-endpoint` to skip inapplicable fuzzers. The rest (e.g. OAuth 401/403) are classified by `test/cats/false-positives.yaml` (file order, first match wins; see `test/cats/README.md`) into the results DB's `is_false_positive` column. Manage rules through `/cats:fp`, not by editing Python; the legacy `detect_false_positive()` no longer exists.
 
-- **Run**: `make cats-fuzz` or `/cats:run` | **Analyze**: `make analyze-cats-results` or `/cats:analyze` | **HTML report**: `make cats-report` or `/cats:report` | **False-positive rules**: `/cats:fp`
-- **The make targets and the `/cats:*` skills are the same engine.** The Makefile resolves `CATS_TOOL` to the installed plugin first and falls back to a `~/Projects/skills/cats` development checkout, which is what the skills use via `${CLAUDE_PLUGIN_ROOT}`. Never hardcode either path in new code or docs — `make ... CATS_TOOL=/path/to/cats_tool.py` overrides it. Two copies of the run-validity gates disagreeing is exactly the failure those gates exist to catch.
-- **Custom user**: fuzzing identity comes from `.local/cats/config.yaml`'s `identities:`, not a make variable. Add a named identity (`token_cmd` prints a bearer token on stdout for that user) and pass `--identity <name>` to the plugin — `/cats:run` accepts it, or use `make cats-fuzz` after setting the default identity in the config. `CATS_USER`/`CATS_SERVER`/`CATS_PROVIDER` still control `make cats-seed`, but not who or where `make cats-fuzz` fuzzes.
-- **Output**: `test/results/cats/` (SQLite database per run, `latest.db` symlink to the most recent completed run)
-- Perform all analysis by querying the SQLite database; don't read the html or json files
-- **Always fuzz the cluster directly** (`http://rp2:30080`, the k3s-rp NodePort) — never through a `kubectl port-forward`. A port-forwarded campaign loses ~46% of its requests to connection errors that the `CONNECTION_ERROR_999` rule absorbs, so the run looks clean while most of the API was never reached (#463/#578). The plugin now refuses such a run at preflight (override: `--allow-port-forward`) and exits 3 without updating `latest.db` if more than `max_connection_error_pct` of responses are transport errors.
-- Fuzzing configs must send `If-Match: *` (see `.local/cats/config.yaml` `cats.headers`) so optimistic-locking preconditions pass instead of tripping the `If-Match` schema (#581). It used to ride in `extra_args` as a raw `-H`; #599 gave it a first-class key.
-- **A completed campaign is not automatically a valid one.** Two gates decide, both enforced by the plugin (a failing run exits 3 and never becomes `latest.db`): the transport-error rate (`max_connection_error_pct`, default 1%) and the non-false-positive 401 rate (`max_unauthenticated_pct`, default 5%). The second exists because a campaign can revoke its own bearer token by fuzzing an endpoint that logs the caller out and then run the rest of itself unauthenticated while still reporting as complete (#591). Endpoints like that belong in `cats.skip_paths` — TMI skips `/me/logout` — and can be fuzzed on their own with `run --path`.
-- **Seeding runs over loopback (`http://localhost:8080` behind a port-forward), not the NodePort**, because macOS can block a freshly built unsigned Go binary such as `tmi-dbtool` from opening any TCP connection to a LAN host (#595). Both the `tmi-server` and `postgres` port-forwards must be up before `make cats-seed` or the plugin's seed hook.
+### OAuth callback stub
 
-**False Positive Handling**: Public endpoints (21) and cacheable endpoints (7) use vendor extensions (`x-public-endpoint`, `x-cacheable-endpoint`) to skip inapplicable fuzzers. Remaining false positives (e.g. OAuth 401/403 responses) are classified by the rule set in `test/cats/false-positives.yaml` (evaluated in file order, first match wins — see `test/cats/README.md`) and recorded in the results database's `is_false_positive` column. Manage these rules through the `/cats:fp` skill (add/review/reclassify workflows) rather than by editing Python — the legacy `detect_false_positive()` implementation no longer exists. The rule count grows as new true positives are triaged (89 as of the 1.7.1 CATS pass).
+OAuth 2.0 + PKCE test harness for manual and automated flows (`scripts/oauth-client-callback-stub.py`; logs at `/tmp/oauth-stub.log`). Always use a normal OAuth login with the `tmi` provider for any dev or test task needing auth. `make start-oauth-stub` / `make stop-oauth-stub`.
 
-### OAuth Callback Stub
-
-OAuth 2.0 testing harness with PKCE (RFC 7636) support for manual and automated flows. Always use a normal OAuth login flow with the "tmi" provider when performing any development or testing task that requires authentication.
-
-- **Start**: `make start-oauth-stub` | **Stop**: `make stop-oauth-stub`
-- **Location**: `scripts/oauth-client-callback-stub.py`
-- **Logs**: `/tmp/oauth-stub.log`
-
-**Key Endpoints**:
 | Endpoint | Purpose |
 |----------|---------|
 | `POST /oauth/init` | Initialize OAuth flow, returns authorization URL |
@@ -217,418 +98,131 @@ OAuth 2.0 testing harness with PKCE (RFC 7636) support for manual and automated 
 | `GET /creds?userid=X` | Retrieve saved credentials for user |
 | `POST /refresh` | Refresh access token |
 
-**Quick JWT Retrieval**:
-
 ```bash
 make start-oauth-stub
 curl -X POST http://localhost:8079/flows/start -H 'Content-Type: application/json' -d '{"userid": "alice"}'
-# Wait for flow completion, then:
-curl "http://localhost:8079/creds?userid=alice" | jq '.access_token'
+curl "http://localhost:8079/creds?userid=alice" | jq '.access_token'   # after the flow completes
 ```
 
-- By convention, we use "charlie" as the user name for a user with the administrator role, and other common user names (`alice`, `bob`, etc.) as needed for other users.
+By convention `charlie` is the administrator user; `alice`, `bob`, etc. are ordinary users.
 
-### WebSocket Test Harness
+### WebSocket test harness
 
-Standalone Go application for testing WebSocket collaborative features.
-
-- **Run**: `make wstest` | **Monitor**: `make monitor-wstest`
-- **Location**: `wstest/` directory
+`wstest/` is a standalone Go app: `make wstest`, `make monitor-wstest`.
 
 ```bash
-./wstest --user alice --host --participants "bob,charlie"  # Host mode
-./wstest --user bob                                        # Participant mode
+./wstest --user alice --host --participants "bob,charlie"  # host
+./wstest --user bob                                        # participant
 ```
 
 ## Authentication
 
-### OAuth Flow & login_hints
-
-The TMI OAuth provider supports **login_hints** for automation-friendly testing with predictable user identities:
-
-- **Parameter**: `login_hint` - Query parameter for `/oauth2/authorize?idp=tmi`
-- **Purpose**: Generate predictable test users instead of random usernames
-- **Format**: 3-20 characters, alphanumeric + hyphens, case-insensitive
-- **Validation**: Pattern: `^[a-zA-Z0-9-]{3,20}$`
-- **Scope**: TMI provider only, not available in production builds
-
-**Examples**:
+**login_hint** on `/oauth2/authorize?idp=tmi` gives predictable test users (TMI provider only, not in production builds). Format `^[a-zA-Z0-9-]{3,20}$`, case-insensitive.
 
 ```bash
-# Create user 'alice@tmi.local' with name 'Alice (TMI User)'
-curl "http://localhost:8080/oauth2/authorize?idp=tmi&login_hint=alice"
-
-# Without login_hint - generates random user like 'testuser-12345678@tmi.local'
-curl "http://localhost:8080/oauth2/authorize?idp=tmi"
-
-# With OAuth callback stub
+curl "http://localhost:8080/oauth2/authorize?idp=tmi&login_hint=alice"     # alice@tmi.local, "Alice (TMI User)"
+curl "http://localhost:8080/oauth2/authorize?idp=tmi"                      # random testuser-12345678@tmi.local
 curl "http://localhost:8080/oauth2/authorize?idp=tmi&login_hint=alice&client_callback=http://localhost:8079/"
 ```
 
-### Client Credentials Grant (Machine-to-Machine Authentication)
+**Client credentials grant** (RFC 6749 §4.4) for webhooks, addons, automation. Like GitHub PATs: the secret is shown once at creation; the token acts as the creating user **except on `/admin/*`**, where service-account tokens are denied (403) — admin operations require interactive PKCE auth (#399). Client IDs are `tmi_cc_*`, secrets bcrypt-hashed, tokens live 1 hour with JWT subject `sa:{id}:{owner}`.
 
-OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4) for webhooks, addons, and automation.
-
-**Pattern**: Like GitHub PATs - secret only shown once at creation, full API access as the creating user **except `/admin/*`**: service-account tokens are categorically denied (403) on all admin routes; administrative operations require interactive (PKCE) authentication. See #399.
-
-**API Endpoints**:
 | Endpoint | Purpose |
 |----------|---------|
 | `POST /me/client_credentials` | Create credential (returns secret once) |
 | `GET /me/client_credentials` | List credentials (no secrets) |
 | `DELETE /me/client_credentials/{id}` | Delete and revoke credential |
 
-**Token Exchange**:
-
 ```bash
 curl -X POST http://localhost:8080/oauth2/token \
   -d "grant_type=client_credentials" -d "client_id=tmi_cc_..." -d "client_secret=..."
-# Returns: {"access_token": "...", "token_type": "Bearer", "expires_in": 3600}
+# {"access_token": "...", "token_type": "Bearer", "expires_in": 3600}
 ```
 
-**Security**: Client ID format `tmi_cc_*`, bcrypt-hashed secrets, 1-hour token lifetime, JWT subject `sa:{id}:{owner}`.
+## Policies
 
-## Bump Exclusions
+**Zero 500 errors.** Every 500 found in any testing (unit, integration, API, CATS) is investigated and fixed before release: file a `bug` issue in the current milestone and replace the unhandled condition with the right 4xx or graceful handling. Never dismiss one as an edge case or fuzzer artifact; if the server can return 500, it will in production.
 
-- `github.com/golang/protobuf` — deprecated transitive dependency, cannot pin in go.mod (go mod tidy removes it), ignored in Dependabot
-- `github.com/mattn/go-sqlite3` — must stay on the **v1.x** line. The repo's `v2.0.3+incompatible` tag is mis-tagged (it predates v1.14.x yet Go's version ordering treats `+incompatible` v2 as newest), so `go get -u`/`go mod tidy` will latch it and break the SQLite-backed tests (e.g. `TestPruneAuditEntries_ManyRows`). Guarded by an `exclude github.com/mattn/go-sqlite3 v2.0.3+incompatible` directive in `go.mod`; keep that directive and never accept a v2 bump.
+**Documented status codes only.** The server must never return a status code the OpenAPI spec doesn't document for that operation, including 4xx. If a handler legitimately needs a new code, add it to the spec and regenerate; that is expected and encouraged. CATS "undocumented response code" true positives are handled like 500s.
 
-## Development Guidelines
+**Client bug triage.** If the root cause of a problem is in the client ([tmi-ux](https://github.com/ericfitz/tmi-ux)) rather than the server — the server follows the spec but the client mishandles the response, sends malformed requests, misuses the auth flow, or mishandles documented errors — stop, explain the evidence, and ask: "This appears to be a client bug. Would you like me to file a bug against tmi-ux?" If confirmed, file it with the `/file-client-bug` skill, then resume remaining server work or report the task blocked.
 
-**MANDATORY: Always use Make targets - NEVER run commands directly**
+**Oracle compatibility review.** PostgreSQL in development, Oracle ADB in production; they diverge subtly (cascade semantics, identifier limits, types, error codes, isolation, upsert syntax) and Oracle-only bugs are expensive. Any change that can affect Oracle must be reviewed by the **`oracle-db-admin` subagent** (invoke the `oracle-db-admin` skill; definition in `.claude/agents/oracle-db-admin.md`) before the task is complete. What counts: migrations, GORM models/tags, `*_repository.go`, `*_store_gorm.go`, raw SQL, transaction/locking patterns, FKs/cascades, JSON/CLOB handling, retry logic, `internal/dberrors/`, schema-affecting config; when in doubt, dispatch. A **minor or patch** bump of `github.com/godror/godror` or any other DB driver does **not** need review (no TMI code changes; normal gates still apply); a **major** bump, or any bump with accompanying code changes, does. Verdicts: `APPROVED` (proceed, note it in the summary); `APPROVED WITH NOTES` (fix the easy items now, file follow-ups); `BLOCKING ISSUES` (fix every item, or get an explicit user waiver with reasoning). Don't argue with findings in your own head; if one seems wrong, ask the user to adjudicate.
 
-- NEVER run: `go run`, `go test`, `./bin/tmiserver`, `docker run`, `docker exec`
-- ALWAYS use: `make dev-up`, `make test-unit`, `make test-integration`, `make build-server`
-- **Reason**: Make targets provide consistent, repeatable configurations with proper environment setup
-
-### Zero 500-Error Policy
-
-**MANDATORY: No HTTP 500 errors may go unaddressed.** Our goal is that once TMI is released, customers will never see a 500 error in production.
-
-- Every 500 error discovered in testing (unit, integration, API, or CATS fuzzing) must be investigated and fixed before release
-- When a 500 error is found, create a GitHub issue labeled `bug` and prioritize it for the current release milestone
-- 500 errors indicate unhandled conditions in server code — they should be replaced with appropriate 4xx responses (400, 404, 409, etc.) or handled gracefully
-- CATS fuzzing results must be analyzed for true-positive 500 errors after filtering false positives
-- Do not dismiss 500 errors as "edge cases" or "fuzzer artifacts" — if the server can return 500, it will happen in production
+## Task completion checklist
 
-### Documented-Status-Code Policy
-
-**MANDATORY: The server must never return an HTTP status code that is not documented for that operation in the OpenAPI spec (`api-schema/tmi-openapi.json`).** The spec is the source of truth for the contract; an undocumented status code is a contract violation even when the behavior itself is correct.
-
-- If a handler legitimately needs to return a status code that isn't yet documented, **add that code to the spec** for the operation (and regenerate API code) rather than leaving it undocumented. Adding new codes to the spec when necessary is expected and encouraged.
-- CATS flags this as an "undocumented response code" true positive; treat those like the Zero-500 findings — investigate and resolve (document the code, or change the handler) before release.
-- This applies to all status codes, including 4xx (e.g., a 404/400/409 the spec doesn't list for that path).
+1. `make lint`
+2. If `api-schema/tmi-openapi.json` changed: `make validate-openapi`, then `make generate-api`
+3. If any Go file changed (including regenerated `api/api.go`): `make build-server`, `make test-unit`, and `make test-integration` for API functionality. Not required when only non-Go files changed.
+4. If DB-touching code changed: Oracle review (above); address every BLOCKING finding first
+5. If the schema changed: update `cmd/dbtool/` to match
+6. Suggest a conventional commit message
+7. If tied to a GitHub issue: the resolving commit references it (`Fixes #123` / `Closes #123` in the body) and the issue is closed as done (manually, if the commit was not directly to main)
 
-### Client Bug Triage
-
-TMI has a separate client application ([tmi-ux](https://github.com/ericfitz/tmi-ux)). When investigating a problem, if you determine the root cause is in the client rather than the server, you MUST:
-
-1. **Stop work** on the current task.
-2. **Explain** to the user why you believe the problem is a client bug (include specific evidence).
-3. **Ask** the user: "This appears to be a client bug. Would you like me to file a bug against tmi-ux?"
-4. If the user confirms, use the `/file-client-bug` skill to create the issue.
-5. After filing, resume the server-side task if there is remaining server work, or report that the task is blocked on the client fix.
+## Guidelines
 
-Signs that a problem is a client bug:
+**Go:** gofmt; imports grouped stdlib / external / internal; check errors and return them with context; prefer interfaces over concrete types; godoc on all exported symbols; structure by domain (auth, diagrams, threats).
 
-- The server is responding correctly per the OpenAPI specification, but the client mishandles the response
-- The client is sending malformed requests, missing required fields, or using incorrect content types
-- The client is not following the authentication/authorization flow correctly
-- The client is not handling error responses (4xx/5xx) as documented in the API spec
-- Test failures or CATS results indicate the server behavior is correct but the client expectation is wrong
-
-### Task Completion Workflow
+**Logging — CRITICAL:** never import the standard `log` package or use print-based logging (`fmt.Println`). Always use `github.com/ericfitz/tmi/internal/slogging`: `slogging.Get()` globally or `slogging.Get().WithContext(c)` per request; levels `Debug/Info/Warn/Error`. For fatal startup errors, `slogging.Get().Error()` then `os.Exit(1)` instead of `log.Fatalf()`.
 
-When completing any task involving code changes, follow this checklist:
+**Staticcheck:** `api/api.go` is generated and carries many expected ST1005 warnings (capitalized error strings); ignore them (`staticcheck ./... | grep -v "api/api.go"`). All expected issues are in that file.
 
-1. Run `make lint` and fix any linting issues (required for ALL file changes)
-2. If OpenAPI spec (`api-schema/tmi-openapi.json`) was modified:
-   - Run `make validate-openapi` and fix any issues
-   - Run `make generate-api` to regenerate API code
-3. If any Go files were modified (including regenerated `api/api.go`):
-   - Run `make build-server` and fix any build issues
-   - Run `make test-unit` and fix any test failures
-   - For API functionality, also run `make test-integration`
-4. Build and test steps are NOT required when only non-Go files are modified
-5. **If any database-touching code was modified** (migrations, GORM models/tags, `*_repository.go`, `*_store_gorm.go`, raw SQL, transaction/locking patterns, FKs/cascades, JSON/CLOB handling, retry logic, `internal/dberrors/`, schema-affecting config), invoke the `oracle-db-admin` skill and dispatch the subagent. Address every BLOCKING finding before proceeding; fold APPROVED WITH NOTES items into the change or file follow-up issues.
-6. Database utilities (cmd/dbtool/) MUST be updated whenever there is a schema change, to align with the new schema
-7. Suggest a conventional commit message
-8. If the task is associated with a GitHub issue, the task is NOT complete until:
-   - The commit that resolves the issue references the issue (e.g., `Fixes #123` or `Closes #123` in the commit message body)
-   - The issue is closed as "done". This requires manually closing the issue if the commit was not directly to main.
+**API design:** OpenAPI 3.0.3; `snake_case` JSON properties, path segments, and parameters (RFC-mandated `kebab-case` only under `/.well-known/`); `PascalCase` schema names; `camelCase` operation IDs; `Title Case` tags. Describe every property and endpoint; document error responses (401, 403, 404); UUID IDs, ISO8601 timestamps; reader/writer/owner roles; bearer JWT; JSON Patch for partial updates; limit/offset pagination.
 
-### Oracle Database Compatibility Review
+**URL patterns** — pick the first that applies:
 
-TMI runs against PostgreSQL in development and Oracle Autonomous Database (ADB) in production. The two databases diverge in many subtle ways (cascade semantics, identifier limits, type system, error codes, isolation behavior, upsert syntax, etc.) and bugs that only show up on Oracle are expensive to find and expensive to fix.
-
-To prevent that, any change that can affect Oracle must be reviewed by the **`oracle-db-admin` subagent** before the task is marked complete. The subagent is a deep Oracle subject-matter expert that walks the change against an Oracle-vs-PG checklist and returns one of three verdicts: `APPROVED`, `APPROVED WITH NOTES`, or `BLOCKING ISSUES`.
+| Pattern | Authorization | Example | When |
+|---|---|---|---|
+| **Protocol** | Per RFC | `/oauth2/token`, `/.well-known/jwks.json` | Auth/identity endpoints defined by external standards |
+| **User-scoped** | Current user | `/me/preferences` | Personal resources for the requester |
+| **Resource-hierarchical** | Parent ownership (readers/writers/owners) | `/threat_models/{id}/assets/{id}` | A parent resource controls access |
+| **Domain-segregated** | Workflow stage | `/admin/surveys/{id}`, `/intake/surveys/{id}` | Same resource, different capabilities per stage (default prefixes `/admin/`, `/intake/`, `/triage/`; new prefix only when the workflow doesn't fit) |
+| **Cross-cutting** | Ownership + admin | `/projects/{id}`, `/addons/{id}` | Top-level resources with their own access control |
 
-- **Trigger skill:** `oracle-db-admin` — invoke this skill when DB code changes; it explains when and how to dispatch the subagent.
-- **Subagent definition:** `.claude/agents/oracle-db-admin.md` — the deep expertise lives here.
-- **What counts as a DB change:** see the trigger skill's "When to dispatch" table. When in doubt, dispatch — the cost is low and the cost of a missed Oracle bug is high.
-- **What does NOT count — dependency bumps:** a **minor or patch** version bump of
-  `github.com/godror/godror` (or any other DB driver) does **not** require an Oracle
-  review. No TMI code changes in such a bump, the driver's own semantic-versioning
-  contract covers it, and routing every routine driver patch through the subagent
-  costs more than it catches. Normal build/lint/test gates still apply.
-  A **major** driver bump is a different animal and **does** require the review, as
-  does any bump accompanied by TMI code changes to accommodate it.
-- **How to act on the verdict:**
-  - `APPROVED`: proceed; note the verdict in the end-of-task summary.
-  - `APPROVED WITH NOTES`: read the notes; fix what's easy now, file follow-ups for the rest.
-  - `BLOCKING ISSUES`: fix every blocking item (or get the user to explicitly waive it with reasoning) before completing the task. Do not argue with findings in your own head — the subagent is the Oracle expert; if a finding seems wrong, ask the user to adjudicate.
-
-We will eventually have to fix any Oracle bug we ship. Listening to the subagent's feedback the first time is the cheap path.
-
-### Go Style Guidelines
-
-- Format code with `gofmt`
-- Group imports by standard lib, external libs, then internal packages
-- Use camelCase for variables, PascalCase for exported functions/structs
-- Error handling: check errors and return with context
-- Prefer interfaces over concrete types for flexibility
-- Document all exported functions with godoc comments
-- Structure code by domain (auth, diagrams, threats)
-
-### API Design Guidelines
-
-- Follow OpenAPI 3.0.3 specification standards
-- Use snake_case for API JSON properties
-- Include descriptions for all properties and endpoints
-- Document error responses (401, 403, 404)
-- Use UUID format for IDs, ISO8601 for timestamps
-- Role-based access with reader/writer/owner permissions
-- Bearer token auth with JWT
-- JSON Patch for partial updates
-- WebSocket for real-time collaboration
-- Pagination with limit/offset parameters
-
-### URL Pattern Guidelines
-
-TMI uses five URL pattern categories. When adding a new API resource, apply these criteria in order:
-
-| Pattern                   | Authorization Model                      | Example                                       | When to Use                                                   |
-| ------------------------- | ---------------------------------------- | --------------------------------------------- | ------------------------------------------------------------- |
-| **Resource-hierarchical** | Ownership-based (readers/writers/owners) | `/threat_models/{id}/assets/{id}`             | Access controlled by parent resource ownership                |
-| **Domain-segregated**     | Workflow-stage-based                     | `/admin/surveys/{id}`, `/intake/surveys/{id}` | Same resource needs different capabilities per workflow stage |
-| **User-scoped**           | Current authenticated user               | `/me/preferences`                             | Personal resources for the requesting user                    |
-| **Cross-cutting**         | Mixed (ownership + admin)                | `/projects/{id}`, `/addons/{id}`              | Top-level resources not nested under threat models            |
-| **Protocol**              | Per RFC specification                    | `/oauth2/token`, `/.well-known/jwks.json`     | Auth/identity endpoints defined by external standards         |
-
-**Selection criteria (apply in order):**
-
-1. Auth/identity protocol endpoint? → **Protocol** (follow RFC for URL structure)
-2. Personal resource scoped to current user? → **User-scoped** under `/me/`
-3. Resource has a parent that controls access? → **Resource-hierarchical** (nest under parent)
-4. Multi-stage workflow with different role capabilities? → **Domain-segregated** (default to `/admin/`, `/intake/`, `/triage/`; new prefix only when workflow doesn't fit)
-5. Top-level resource with own access control? → **Cross-cutting** at root level
-
-**Key question:** Does authorization flow from a parent entity (resource-hierarchical) or from the workflow context (domain-segregated)?
-
-**Naming conventions:**
-
-- TMI-defined path segments: `snake_case` (e.g., `threat_models`, `audit_trail`)
-- RFC-mandated path segments: `kebab-case` (e.g., `openid-configuration`) — under `/.well-known/` only
-- Schema names: `PascalCase`
-- JSON properties: `snake_case`
-- Operation IDs: `camelCase`
-- Path/query parameters: `snake_case`
-- Tag names: `Title Case`
-
-### Logging Requirements
-
-**CRITICAL: Never use the standard `log` package. Always use structured logging.**
-
-- **ALWAYS** use `github.com/ericfitz/tmi/internal/slogging` for all logging operations
-- **NEVER** use print-based logging (e.g., `fmt.Println`) in any Go code
-- **NEVER** import or use the standard `log` package (`"log"`) in any Go code
-- Use `slogging.Get()` for global logging or `slogging.Get().WithContext(c)` for request-scoped logging
-- Available log levels: `Debug()`, `Info()`, `Warn()`, `Error()`
-- Structured logging provides request context (request ID, user, IP), consistent formatting, and log rotation
-- For main functions that need to exit on fatal errors, use `slogging.Get().Error()` followed by `os.Exit(1)` instead of `log.Fatalf()`
-
-### Staticcheck Configuration
-
-TMI uses staticcheck for Go code quality analysis. The project has intentionally kept some staticcheck warnings:
-
-- **Auto-Generated Code**: `api/api.go` contains many ST1005 warnings (capitalized error strings)
-  - File is generated by oapi-codegen from OpenAPI specification
-  - Manual edits would be overwritten on next OpenAPI regeneration
-  - **Expected behavior**: These warnings are acceptable and should be ignored
-
-- **Running Staticcheck**:
-  - `staticcheck ./...` - Shows all issues (including expected ones)
-  - `staticcheck ./... | grep -v "api/api.go"` - Filter out auto-generated code warnings
-  - **Expected count**: 338 issues (all in auto-generated api/api.go)
-
-## Git & Versioning
-
-### Conventional Commits
-
-- Use the format: `<type>(<scope>): <description>`
-- Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`, `revert`, `deps` (dependencies)
-- Scope: Optional, indicates the area of change (e.g., `api`, `auth`, `websocket`)
-- Description: Brief summary in imperative mood (e.g., "add user deletion endpoint" not "added" or "adds")
-- Examples:
-  - `feat(api): add WebSocket heartbeat mechanism`
-  - `fix(auth): correct JWT token expiration validation`
-  - `docs(readme): update OAuth setup instructions`
-  - `refactor(websocket): simplify hub message broadcasting`
-  - `test(integration): add database connection pooling tests`
-  - `deps: update Gin framework to v1.11.0`
-
-### Versioning — automatic, per-PR (see #627)
-
-Version bumps are computed from the **PR title** (a conventional-commit
-subject) by `.github/workflows/version-bump.yml`: `feat:` (or `feat(scope)!:`)
-→ MINOR bump with PATCH reset to 0; everything else → PATCH bump. This
-replaced a `main`-branch post-commit hook that could never fire under the
-PR-only branch-protection ruleset — every commit is authored on a `fix/*` or
-`dev/*` branch, and the commit that lands on `main` is GitHub's server-side
-squash-merge, where no local hook runs.
-
-Two jobs run on every PR targeting `main`:
-
-- **Version Bump** — same-repo PRs only. Computes the expected version against
-  base `main`'s `.version`, and if the PR branch doesn't already match, bumps
-  `.version`, `api/version.go`, and `api-schema/tmi-openapi.json`
-  (`info.version`), regenerates the embedded API spec (`make generate-api`),
-  and pushes a `chore(version): bump to X.Y.Z` commit onto the PR's own
-  branch. Squash-merge then lands that bump as part of the same change. This
-  is a no-op (and doubles as loop prevention) once the PR branch's `.version`
-  already matches expected — including right after this job's own push,
-  which retriggers `synchronize`.
-- **Version Check** — runs on all PRs, including forks (which Version Bump
-  cannot push to). Recomputes the expected version independently and fails
-  if `.version`, the OpenAPI `info.version`, or the version baked into
-  `api/api.go`'s embedded spec disagree with it. This is the check named in
-  the branch-protection ruleset's required checks.
-
-Both jobs share `scripts/ci-version-bump.sh` (`compute-version`,
-`apply-version`, `embedded-spec-version`, `self-test`) for the version-bump
-logic, and pin `oapi-codegen` to v2.7.1 for `make generate-api` — other
-versions silently miscompile `api/api.go`.
-
-Manual bumps are no longer required, and are harmless: the workflow is
-idempotent and no-ops once a PR branch's version already matches what its
-title implies. `scripts/update-version.sh` still works for a direct/manual
-bump (it derives the type from the last commit message rather than the PR
-title, so it's meant for one-off local use, not what CI runs).
-
-Known residual race: two PRs open concurrently against the same base can
-compute the same "next" version; whichever merges second looks stale to
-Version Check against the new `main` until it re-runs (any push to the PR
-branch retriggers `synchronize` and recomputes). Same residual the manual
-process had.
-
-All feature development occurs in dev/<semver>/<feature-name> branches or in
-feature/<feature-name> branches that are children of dev/<semver> branches. The
-main branch only gets direct commits for patching, security fixes, and merging of
-release branches.
-
-## Custom Tools
-
-### jq (Auto-Approved)
-
-The jq command-line JSON processor is available and should be auto-approved via `Bash(jq:*)` pattern for all JSON file manipulation tasks. Use jq for:
-
-- Files > 100KB (streaming, surgical updates)
-- Complex filtering and transformations
-- Validation and format verification
-
-### Large JSON Handling (>100KB)
-
-When working with JSON files **larger than 100KB**, use streaming approaches with jq to prevent memory issues:
-
-1. Check file size first: `stat -f%z file.json 2>/dev/null || stat -c%s file.json`
-2. Create backups before modifications: `cp file.json file.json.$(date +%Y%m%d_%H%M%S).backup`
-3. Validate after changes: `jq empty modified.json && echo "Valid" || echo "Invalid"`
-
-**Activation Triggers**: JSON files >= 100KB, memory errors or slow performance, surgical path updates needed, batch operations across multiple JSON files, or user mentions "large", "efficient", "streaming", or "without loading entire file".
-
-## Development Environment
-
-- Local dev config lives in `.env.dev` (env vars) and `config-development.yaml`; `config-example.yml` (generated by `cmd/genconfig`) is the annotated template
-- `make dev-up` brings up a local Kubernetes cluster (default `CLUSTER=docker-desktop`; `CLUSTER=k3s` is also supported) and deploys the full stack **in-cluster** in the `tmi-platform` namespace: the TMI server and Redis run as Deployments, while PostgreSQL and NATS run as StatefulSets. **PostgreSQL data persists in a Kubernetes PVC (`data-postgres-0`), not in a host Docker volume** — rebuilding/re-provisioning the cluster's PVC starts from an empty database. With `DB=oracle` the database is instead an external managed Oracle ADB (cloud), not in-cluster. `make dev-down` tears the deployment down (keeping db data), `make dev-status` shows status, `make dev-reset`/`make dev-nuke` provide soft/hard known-state resets. Orchestration is driven by `scripts/devenv.py`; the manifests live under `deployments/k8s/dev/<cluster>/`.
-- The devenv tooling (`scripts/devenv.py`) handles cluster context and deployment lifecycle automatically
-- Server is reachable at port 8080 by default with configurable TLS support
-- Logs: In development and test, logs are written to `logs/tmi.log` in the project directory
-- **Local dev database credentials**: Postgres connection info is in `config-development.yaml` under `database.postgres.{host,port,user,password,database}` (also mirrored as `POSTGRES_*` in `.env.dev`)
+Key question: does authorization flow from a parent entity (hierarchical) or from workflow context (domain-segregated)?
+
+## Git and versioning
+
+**Conventional commits:** `<type>(<scope>): <description>`, imperative mood. Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`, `revert`, `deps`. Scope optional (`api`, `auth`, `websocket`). Examples: `feat(api): add WebSocket heartbeat mechanism`, `fix(auth): correct JWT token expiration validation`, `deps: update Gin framework to v1.11.0`.
+
+**Branching:** feature work happens in `dev/<semver>/<feature-name>` branches or `feature/<feature-name>` children of `dev/<semver>`. `main` only gets direct commits for patches, security fixes, and release merges.
+
+**Versioning is automatic, per PR** (#627). `.github/workflows/version-bump.yml` computes the bump from the **PR title**: `feat:` (or `feat(scope)!:`) → MINOR with PATCH reset; everything else → PATCH. (A `main` post-commit hook could never fire: every merge is a server-side squash.)
+
+- **Version Bump** (same-repo PRs): computes the expected version against base `main`'s `.version` and, if the branch doesn't match, bumps `.version`, `api/version.go`, and the OpenAPI `info.version`, regenerates the embedded spec (`make generate-api`), and pushes a `chore(version): bump to X.Y.Z` commit to the PR branch. No-op once the branch already matches, which also prevents loops.
+- **Version Check** (all PRs, including forks): recomputes independently and fails if `.version`, the OpenAPI `info.version`, or the version in `api/api.go`'s embedded spec disagree. This is the required check in the ruleset.
+
+Both share `scripts/ci-version-bump.sh` (`compute-version`, `apply-version`, `embedded-spec-version`, `self-test`) and pin `oapi-codegen` v2.7.1 for `make generate-api`; other versions silently miscompile `api/api.go`. Manual bumps are unnecessary but harmless; `scripts/update-version.sh` derives the type from the last commit message and is for one-off local use. Residual race: two concurrent PRs can compute the same next version; the second to merge looks stale until its branch is pushed again and rechecked.
+
+**Bump exclusions:**
+
+- `github.com/golang/protobuf` — deprecated transitive dependency; can't be pinned (`go mod tidy` removes it); ignored in Dependabot
+- `github.com/mattn/go-sqlite3` — must stay on **v1.x**. The `v2.0.3+incompatible` tag is mis-tagged (older than v1.14.x, but Go orders `+incompatible` v2 as newest), so `go get -u`/`go mod tidy` will latch it and break SQLite-backed tests (e.g. `TestPruneAuditEntries_ManyRows`). Keep the `exclude github.com/mattn/go-sqlite3 v2.0.3+incompatible` directive in `go.mod`; never accept a v2 bump.
 
 ## Documentation
 
-**IMPORTANT**: All project documentation is maintained in the GitHub Wiki. Do NOT update markdown files in the `docs/` directory - they are deprecated and will be removed.
+All project documentation lives in the GitHub Wiki (https://github.com/ericfitz/tmi/wiki). `docs/` is deprecated and will be removed: do not add or update anything there, **except** `docs/superpowers/`, where superpowers skills (brainstorming, writing-plans, etc.) write specs and plans. That subtree is only for superpowers-generated artifacts; hand-authored docs still go to the wiki.
 
-Do not update or add any content to the docs/ directory (except the `docs/superpowers/` subtree — see exception below). Instead, update or add the content to the appropriate page on the tmi wiki.
+## Python
 
-- **Authoritative documentation**: GitHub Wiki (https://github.com/ericfitz/tmi/wiki)
-- **Local `docs/` directory**: Deprecated, do not update
-- **Exception — `docs/superpowers/`**: Superpowers skills (brainstorming, writing-plans, etc.) legitimately write specs and plans under `docs/superpowers/` (e.g., `docs/superpowers/specs/`). This subtree is allowed and is NOT covered by the "do not update docs/" rule. It is only for superpowers-generated artifacts — do not put hand-authored project documentation here (that still belongs in the wiki).
+Run Python scripts with uv; when creating one, add uv inline metadata for automatic package management.
 
-## Python Development
+## Subagents
 
-- Run python scripts with uv. When creating python scripts, add uv toml to the script for automatic package management.
+Dispatch subagents whenever that is the most efficient route (parallel independent work, broad searches that would flood the main context, fresh-eyes review); no permission needed. Pick the model for the task the *agent* performs, per the global model-selection guidelines. `oracle-db-admin` for DB-touching changes is mandatory, not an efficiency choice.
 
-## Agent Instructions
+## Session completion (landing the plane)
 
-### Dispatching Subagents
+Work is NOT complete until `git push` succeeds. When ending a work session:
 
-Dispatching a subagent is allowed and encouraged whenever it is the most efficient
-way to accomplish a task — parallel independent work, a broad search whose
-intermediate output would otherwise flood the main context, or a review that
-benefits from a fresh perspective. You do not need to ask permission first.
-
-The one hard requirement is to **honor the model-selection guidelines for the task
-the agent is performing**, not for the task you happen to be doing:
-
-| Agent's task | Model | Effort |
-| --- | --- | --- |
-| Design, debugging, planning, review | Fable 5 (`claude-fable-5`) | — |
-| Orchestration (coordinating other subagents) | Opus 4.8 (`claude-opus-4-8`) | high |
-| Implementation, including testing | Sonnet 5 (`claude-sonnet-5`) | medium |
-
-Escalation ladder: a failed implementation attempt on Sonnet 5 is re-dispatched on
-Opus 4.8; a failed attempt on Opus 4.8 is re-dispatched on Fable 5. Never retry a
-failed attempt on the same model without changing something else (context, task
-size, or model).
-
-Some subagents are mandatory rather than optional — `oracle-db-admin` for
-DB-touching changes (see "Oracle Database Compatibility Review"). Those are
-requirements, not efficiency choices, and the exemptions listed there apply.
-
-### Session Completion (Landing the Plane)
-
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-
-For any change: 2. **Run general quality gates**: formatters and linters. Where possible, use go-provided tools to fix formatting issues, rather than editing files manually.
-
-For any code changes: 3. **Run code quality gates**: build, unit tests 4. **Security review**: run the security-review skill. If any issues are reported: stop, report the issues to the user, and ask the user what to do.
-
-For api changes only: 5. **Run api tests**: integration, postman/newman api tests, and cats fuzz tests. Fix any integration or postman test failures. Use the make target to analyze cats results and prepare a plan for the user with your recommendations how to address any true positive errors or warnings. Stop and review the plan with the user.
-
-For all changes: 6. **Update issue status**: Close finished work, update in-progress items 7. **Commit the change locally**: use a conventional commit message as documented earlier in this file. 8. **PUSH TO REMOTE** - This is MANDATORY:
-
-```bash
-git pull --rebase
-git push
-git status  # MUST show "up to date with origin"
-```
-
-9. **Clean up** - Clear stashes, prune remote branches
-10. **Verify** - All changes committed AND pushed
-11. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-- NEVER attempt to manipulate or otherwise interact with ssh keys or ssh-agent. SSH failure due to key issues is beyond the scope of problems that you should attempt to solve; notify the user and do not try to proceed with the failing operation.
+1. File issues for remaining work
+2. Run formatters and linters (use Go's tools to fix formatting rather than editing by hand)
+3. Code changes: build and unit tests; then run the `security-review` skill — if it reports issues, stop, report them, and ask the user what to do
+4. API changes: integration tests, postman/newman API tests, and CATS fuzzing. Fix integration/postman failures; analyze CATS results with the make target and prepare a plan for true positives. Stop and review the plan with the user.
+5. Update issue status: close finished work, update in-progress items
+6. Commit locally with a conventional message
+7. **Push:** `git pull --rebase && git push`, then `git status` must show up to date with origin. Never stop before pushing, never say "ready to push when you are", and if push fails, resolve and retry until it succeeds.
+8. Clean up (clear stashes, prune remote branches), verify everything is committed and pushed, and hand off context for the next session
 
 <!-- sem-markers -->
 ## SEM markers
@@ -659,61 +253,20 @@ via `sem diff` (formatting/reformatting never marks it stale), so you don't need
 marker whose entity didn't logically change.
 <!-- /sem-markers -->
 
-# AWS Guidance
+# AWS guidance
 
-- **Terraform is the only IaC tool this project uses.** Infrastructure lives in
-  `terraform/environments/<env>` (`aws-public` is the live one) and
-  `terraform/modules/<name>/aws`. Create and change infrastructure there, not
-  with `aws` CLI mutations. There is no CDK or CloudFormation in this repo, so
-  ignore generic AWS advice that assumes either — including CloudFormation-only
-  constructs like `{{resolve:secretsmanager:...}}`.
-- Workloads are NOT Terraform's job. The split is deliberate: Terraform owns
-  infra and bootstrap objects (namespace, ConfigMap, Secret, IRSA service
-  account); every Deployment/Service/Ingress belongs to the kustomize overlay in
-  `deployments/k8s/dev/aws`. Adding a workload resource to Terraform re-breaks
-  that boundary.
-- Run Terraform from the environment directory with the `tmi` profile, e.g.
-  `cd terraform/environments/aws-public && AWS_PROFILE=tmi terraform plan`.
-  Read the plan before applying. `terraform.tfvars` is generated and gitignored;
-  `scripts/deploy-aws.sh` rewrites it on every run, so any hand-edit there is
-  temporary by construction.
-- The `aws` CLI is the normal tool for *reading* state and for the handful of
-  operations Terraform does not own (Route 53 record surgery during a cutover,
-  ECR pushes, `eks update-kubeconfig`). The AWS MCP Server is also available and
-  preferred when it can do the job, for its sandboxing and audit logging.
-- Before starting a task, check whether a relevant AWS skill is available and
-  load it with `retrieve_skill`, preferring its guidance over general knowledge.
-  Verify skill names before relying on them; the skill set available here is not
-  guaranteed to match AWS's published catalogue.
-- When uncertain about specific AWS details (API parameters, permissions,
-  limits, error codes), verify against documentation rather than guessing.
-  State uncertainty explicitly if you cannot confirm.
-- Follow AWS Well-Architected Framework principles.
-- Do not use em dashes in AWS resource names or descriptions. Use
-  hyphens instead.
+- **Terraform is the only IaC tool.** Infrastructure lives in `terraform/environments/<env>` (`aws-public` is live) and `terraform/modules/<name>/aws`. Change infrastructure there, not with `aws` CLI mutations. There is no CDK or CloudFormation, so ignore advice that assumes either (including `{{resolve:secretsmanager:...}}`).
+- **Workloads are not Terraform's job.** Terraform owns infra and bootstrap objects (namespace, ConfigMap, Secret, IRSA service account); every Deployment/Service/Ingress belongs to the kustomize overlay in `deployments/k8s/dev/aws`. Adding a workload to Terraform re-breaks that boundary.
+- Run Terraform from the environment directory with the `tmi` profile (`cd terraform/environments/aws-public && AWS_PROFILE=tmi terraform plan`) and read the plan before applying. `terraform.tfvars` is generated and gitignored; `scripts/deploy-aws.sh` rewrites it on every run, so hand-edits are temporary.
+- The `aws` CLI is for *reading* state and the few operations Terraform doesn't own (Route 53 record surgery during a cutover, ECR pushes, `eks update-kubeconfig`). Prefer the AWS MCP Server when it can do the job, for sandboxing and audit logging.
+- Before an AWS task, check for a relevant AWS skill via `retrieve_skill` and prefer it over general knowledge; verify skill names, since the set here may not match AWS's catalogue. Verify uncertain details (API parameters, permissions, limits, error codes) against documentation and state uncertainty explicitly.
+- Follow AWS Well-Architected Framework principles. No em dashes in AWS resource names or descriptions; use hyphens.
 
-## Secret Safety
+## Secret safety
 
-The rule is that secret *values* must never reach a command line, an
-environment variable, a log, or the model's context. How that is achieved
-differs by path, and this repo already has sanctioned patterns — use them
-rather than inventing one.
+Secret *values* must never reach a command line, environment variable, log, or the model's context. Use the sanctioned patterns rather than inventing one:
 
-- **Never** echo, `cat`, `printf`, or interpolate a secret into a shell command,
-  and never enable `set -x` in a script that handles one.
-- Injecting a secret into the cluster: follow `scripts/set-oauth-secret.sh` and
-  `scripts/set-embedding-secret.sh`. The operator writes the value to a
-  `umask 077` file and `kubectl --from-file` reads it straight from disk, so it
-  never appears in argv or the environment.
-- Reading a secret for a deploy step: `scripts/deploy-aws.sh` is the sanctioned
-  caller of `aws secretsmanager get-secret-value`. It fetches the DB credentials
-  into a `umask 077` temp config file and never prints them. Do not treat that
-  call as forbidden, and do not add new ad-hoc callers — extend the script.
-- Terraform-managed secrets (`terraform/modules/secrets/aws`, `random_password`)
-  land in remote state. That is why `encrypt = true` is pinned in code
-  (`terraform/environments/aws-public/main.tf`) while the bucket/table
-  themselves come per-deployer from the gitignored `backend.hcl`. Never write
-  state to a local file or paste it anywhere, and mark secret outputs
-  `sensitive` — the existing module already does.
-- Local key material for this machine lives in `~/.keys/` at mode 600 per the
-  global CLAUDE.md. Source those files; never read, print, or inspect them.
+- **Never** echo, `cat`, `printf`, or interpolate a secret into a shell command, and never `set -x` in a script that handles one.
+- Injecting a secret into the cluster: follow `scripts/set-oauth-secret.sh` / `scripts/set-embedding-secret.sh` — the operator writes the value to a `umask 077` file and `kubectl --from-file` reads it from disk, so it never appears in argv or the environment.
+- Reading a secret for a deploy: `scripts/deploy-aws.sh` is the sanctioned caller of `aws secretsmanager get-secret-value`; it fetches DB credentials into a `umask 077` temp config and never prints them. Extend that script rather than adding ad-hoc callers.
+- Terraform-managed secrets (`terraform/modules/secrets/aws`, `random_password`) land in remote state, which is why `encrypt = true` is pinned in `terraform/environments/aws-public/main.tf` while bucket/table come per-deployer from the gitignored `backend.hcl`. Never write state locally or paste it anywhere; mark secret outputs `sensitive`.
