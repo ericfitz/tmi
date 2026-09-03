@@ -43,8 +43,6 @@ type SurveyResponseStore interface {
 	// List operations with pagination and filtering
 	List(ctx context.Context, limit, offset int, filters *SurveyResponseFilters) ([]SurveyResponseListItem, int, error)
 
-	// List responses for a specific owner
-
 	// State transition
 	UpdateStatus(ctx context.Context, id uuid.UUID, newStatus string, reviewerInternalUUID *string, revisionNotes *string) error
 
