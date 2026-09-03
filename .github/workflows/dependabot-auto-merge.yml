@@ -1,0 +1,47 @@
+# Dependabot auto-merge
+#
+# Enables GitHub auto-merge on Dependabot PRs whose highest update type is
+# patch or minor (grouped PRs report the highest type in the group). Major
+# bumps are left for a human. The merge itself is performed by GitHub once
+# the main ruleset's required checks pass — including "Version Check", which
+# needs the Version Bump job to push a chore(version) commit; on Dependabot-
+# triggered runs that job reads DEPS_BOT_APP_ID / DEPS_BOT_APP_PRIVATE_KEY
+# from the *Dependabot* secret store (repository Actions secrets are not
+# exposed to Dependabot-triggered workflows).
+#
+# delete_branch_on_merge is on at the repo level, so the head branch goes
+# away after the merge.
+# https://docs.github.com/en/code-security/dependabot/working-with-dependabot/automating-dependabot-with-github-actions
+
+name: Dependabot auto-merge
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Enable auto-merge (patch/minor)
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'ericfitz/tmi'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"
+
+      - name: Skipped (major bump needs a human)
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        run: echo "::notice::Major version bump — leaving for manual review."
