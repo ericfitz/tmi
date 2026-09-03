@@ -71,12 +71,13 @@ func (c *openAIChatClient) StreamChat(
 			IncludeUsage: openai.Bool(true),
 		},
 	}
-	// MaxTokens is optional for OpenAI's chat completions API (unlike
-	// Anthropic's, which requires it) — only set it when the caller
-	// configured one, so phase-1 request shape is unchanged for callers
-	// that don't set Config.MaxTokens (#754 phase 2).
+	// The output ceiling is optional for OpenAI's chat completions API
+	// (unlike Anthropic's, which requires it) — only set it when the caller
+	// configured one (#754 phase 2). Send it as max_completion_tokens, not
+	// the deprecated max_tokens: current OpenAI models (gpt-5, o-series,
+	// ...) reject max_tokens outright with 400 unsupported_parameter (#833).
 	if c.maxTokens > 0 {
-		params.MaxTokens = openai.Int(int64(c.maxTokens))
+		params.MaxCompletionTokens = openai.Int(int64(c.maxTokens))
 	}
 
 	stream := c.client.Chat.Completions.NewStreaming(ctx, params)
