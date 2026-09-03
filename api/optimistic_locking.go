@@ -301,11 +301,18 @@ func casFromCurrentVersion(ctx context.Context, db *gorm.DB, tableName, id strin
 			if errors.Is(classified, dberrors.ErrNotFound) {
 				return 0, dberrors.ErrNotFound
 			}
-			// Anything else (transient ADB blip, permission oddity) must not be
-			// returned bare: MapOptimisticLockError only special-cases
-			// ErrNotFound and ErrVersionMismatch, so a classified transient
-			// error reaches HandleRequestError's else-branch and becomes an
-			// undocumented, policy-violating 500 (#581 finding 1b).
+			// A transient fault (ADB blip, connection reset) is returned
+			// classified so the enclosing WithRetryableGormTransaction retries
+			// it; mapping it to ErrVersionMismatch here hid it from the retry
+			// loop and turned a recoverable blip into a spurious 409 (#775).
+			// If retries exhaust, every caller routes the ErrTransient through
+			// StoreErrorToRequestError to the documented 503.
+			if dberrors.IsRetryable(classified) {
+				return 0, classified
+			}
+			// Anything else (permission oddity, schema drift) must not be
+			// returned bare: it would reach HandleRequestError's else-branch
+			// and become an undocumented, policy-violating 500 (#581 1b).
 			//
 			// Unlike the old read-back this happens BEFORE anything is written,
 			// so there is no committed bump to reconcile — we simply could not
@@ -384,10 +391,12 @@ func ResolveOptimisticLock(c *gin.Context, bodyVersion *int) (expected int, pres
 
 // MapOptimisticLockError converts a store-layer error from a versioned write
 // into the appropriate HTTP RequestError for the optimistic-locking
-// contract. Returns nil when err is not a versioning error, so callers fall
-// through to their existing error mapping.
+// contract. notFoundMsg is the entity-specific 404 message ("Project not
+// found"), so a versioned write does not regress to a generic one (#777).
+// Returns nil when err is not a versioning error, so callers fall through to
+// their existing error mapping.
 // SEM@0000000000000000000000000000000000000000: map a versioned-write store error to its 409/404 request error, or nil (pure)
-func MapOptimisticLockError(err error) error {
+func MapOptimisticLockError(err error, notFoundMsg string) error {
 	if err == nil {
 		return nil
 	}
@@ -400,7 +409,7 @@ func MapOptimisticLockError(err error) error {
 	// HandleRequestError, which would otherwise classify the unrecognized
 	// error as a 500 (violating the Zero-500 policy). (#495 B2)
 	if errors.Is(err, dberrors.ErrNotFound) {
-		return NotFoundError("Resource not found")
+		return NotFoundError(notFoundMsg)
 	}
 	return nil
 }
