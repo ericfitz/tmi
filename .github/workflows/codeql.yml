@@ -8,7 +8,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches: [main, 'dev/**']
   schedule:
     # Run weekly on Sunday at midnight UTC
     - cron: "0 0 * * 0"
@@ -26,7 +26,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [go]
+        # GitHub's Default setup scanned all four of these until this
+        # advanced workflow replaced it on 2026-01-21 with Go only; the
+        # other three categories then went stale and the Security >
+        # Tools page reported "Default setup" as failing ever since.
+        # Keep the same /language:<name> categories so the tool status
+        # stays continuous.
+        language: [go, javascript-typescript, python, actions]
 
     steps:
       - name: Checkout repository
@@ -40,12 +46,14 @@ jobs:
           config-file: .github/codeql/codeql-config.yml
 
       - name: Setup Go
+        if: matrix.language == 'go'
         uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
 
       - name: Autobuild
+        if: matrix.language == 'go'
         uses: github/codeql-action/autobuild@v4
 
       - name: Perform CodeQL Analysis
