@@ -188,13 +188,21 @@ def scan_component(
     project_root: Path,
     version: dict,
     git_commit: str,
+    *,
+    from_registry: bool = False,
 ) -> bool:
-    """Scan a component's container image. Returns True if passed."""
+    """Scan a component's container image. Returns True if passed.
+
+    `from_registry` must be True when the image was pushed rather than
+    loaded into the local daemon (see helpers.scan_image).
+    """
     image_name = config.image_name_map.get(
         component, f"{config.image_name_prefix}{component}"
     )
     reports_dir = project_root / "security-reports"
-    return helpers.scan_image(f"{image_name}:latest", reports_dir, platform=config.platform)
+    return helpers.scan_image(
+        f"{image_name}:latest", reports_dir, platform=config.platform, from_registry=from_registry
+    )
 
 
 def main() -> None:
@@ -245,7 +253,10 @@ def main() -> None:
         # Scan existing images without building
         all_passed = True
         for component in components:
-            if not scan_component(component, config, project_root, version, git_commit):
+            if not scan_component(
+                component, config, project_root, version, git_commit,
+                from_registry=args.target != "local",
+            ):
                 all_passed = False
         helpers.generate_security_summary(
             project_root / "security-reports", build_date, git_commit
@@ -276,7 +287,9 @@ def main() -> None:
         )
 
         if args.scan:
-            if not scan_component(component, config, project_root, version, git_commit):
+            if not scan_component(
+                component, config, project_root, version, git_commit, from_registry=args.push
+            ):
                 all_passed = False
 
     # Generate security summary if scanning was done

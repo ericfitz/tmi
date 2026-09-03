@@ -651,7 +651,13 @@ def ensure_grype_db_current() -> None:
         log_warn("grype db update failed; continuing with the existing database")
 
 
-def scan_image(image_name: str, reports_dir: Path, platform: str | None = None) -> bool:
+def scan_image(
+    image_name: str,
+    reports_dir: Path,
+    platform: str | None = None,
+    *,
+    from_registry: bool = False,
+) -> bool:
     """Scan an image with Grype and generate SBOM with Syft.
 
     Returns True if within CVE thresholds. `platform` is a docker platform
@@ -660,6 +666,15 @@ def scan_image(image_name: str, reports_dir: Path, platform: str | None = None) 
     scanned separately under its own arch-suffixed report name, and the
     overall result is the AND of all of them. `platform=None` scans whatever
     the local Docker daemon already holds, matching prior behavior exactly.
+
+    `from_registry=True` makes grype and syft read `registry:<image>` instead
+    of letting them resolve the name themselves. Their default source order
+    is the local Docker daemon FIRST, so a `buildx --push` build (which never
+    loads the result into the daemon) left the gate scanning whatever stale
+    copy of `<image>:latest` the daemon held from an earlier `--load` build —
+    on 2026-09-03 that was an Aug-19 tmi-redis with an openssl the pushed
+    image no longer contained, and the gate failed on CVEs that were not in
+    the image being deployed. Pushed images must be scanned from the registry.
     """
     max_critical = 0
     max_high = 5
@@ -672,6 +687,7 @@ def scan_image(image_name: str, reports_dir: Path, platform: str | None = None) 
 
     platforms = platform.split(",") if platform else [None]
     overall_passed = True
+    source = f"registry:{image_name}" if from_registry else image_name
 
     for p in platforms:
         # Derive report base name from image; suffix with the arch when a
@@ -709,7 +725,7 @@ def scan_image(image_name: str, reports_dir: Path, platform: str | None = None) 
         sarif_path.unlink(missing_ok=True)
         txt_path.unlink(missing_ok=True)
 
-        cmd = ["grype", image_name, "-o", f"json={json_path}", "-o", f"sarif={sarif_path}", "-o", "table"]
+        cmd = ["grype", source, "-o", f"json={json_path}", "-o", f"sarif={sarif_path}", "-o", "table"]
         if p:
             cmd += ["--platform", p]
         result = run(cmd, capture=True, check=False)
@@ -793,7 +809,7 @@ def scan_image(image_name: str, reports_dir: Path, platform: str | None = None) 
                 # Remove any previous artifact first, so a failed run cannot leave
                 # last build's file sitting there looking freshly generated.
                 sbom_path.unlink(missing_ok=True)
-                syft_cmd = ["syft", image_name, "-o", f"{fmt}={sbom_path}"]
+                syft_cmd = ["syft", source, "-o", f"{fmt}={sbom_path}"]
                 if p:
                     syft_cmd += ["--platform", p]
                 syft_result = run(syft_cmd, check=False)
