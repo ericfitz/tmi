@@ -261,3 +261,47 @@ func TestExtractUserInfo_RealAttributesDoNotSetFlags(t *testing.T) {
 		t.Errorf("NameSynthesized: want false, got true")
 	}
 }
+
+// TestExtractUserInfo_EntraDefaultClaims_ComposesGivenSurname reproduces
+// issue #799: with Entra's default enterprise-app claim set, claims/name
+// carries the userPrincipalName, not a display name, and no displayname claim
+// is emitted. The composed givenname + surname must win over the UPN.
+func TestExtractUserInfo_EntraDefaultClaims_ComposesGivenSurname(t *testing.T) {
+	assertion := makeAssertion("nameid-abc", map[string]string{
+		"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name":         "eric_efitz.net#EXT#@ericfitztest.onmicrosoft.com",
+		"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname":    "Eric",
+		"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname":      "Fitzgerald",
+		"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress": "eric@efitz.net",
+	})
+	got, err := ExtractUserInfo(assertion, &SAMLConfig{ID: "entra-tmidev-saml"})
+	if err != nil {
+		t.Fatalf("ExtractUserInfo returned error: %v", err)
+	}
+	if got.Name != "Eric Fitzgerald" {
+		t.Errorf("Name: want %q, got %q", "Eric Fitzgerald", got.Name)
+	}
+	if got.NameSynthesized {
+		t.Errorf("NameSynthesized: want false for a composed real name")
+	}
+}
+
+// TestExtractUserInfo_UPNInNameClaim_IsNotADisplayName covers the other half
+// of #799: when claims/name is a UPN and no given/family name is asserted,
+// the UPN must not be stored as the display name. The email local-part
+// fallback applies instead and is flagged as synthesized.
+func TestExtractUserInfo_UPNInNameClaim_IsNotADisplayName(t *testing.T) {
+	assertion := makeAssertion("nameid-abc", map[string]string{
+		"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name":         "eric_efitz.net#EXT#@ericfitztest.onmicrosoft.com",
+		"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress": "eric@efitz.net",
+	})
+	got, err := ExtractUserInfo(assertion, &SAMLConfig{ID: "entra-tmidev-saml"})
+	if err != nil {
+		t.Fatalf("ExtractUserInfo returned error: %v", err)
+	}
+	if got.Name != "eric" {
+		t.Errorf("Name: want %q, got %q", "eric", got.Name)
+	}
+	if !got.NameSynthesized {
+		t.Errorf("NameSynthesized: want true when the name is derived from the email")
+	}
+}
