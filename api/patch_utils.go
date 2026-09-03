@@ -12,7 +12,7 @@ import (
 )
 
 // ApplyPatchOperations applies JSON Patch operations to an entity and returns the modified entity
-// SEM@08dc266da6e8cd180aa7274d8135e3c559663cfa: apply RFC 6902 JSON Patch operations to an entity, promoting replace to add for absent optional fields (pure)
+// SEM@4aeb9143566d7b7712cdee5ecbbb16e134f6c684: apply RFC 6902 JSON Patch operations to an entity, promoting replace to add for absent fields (pure)
 func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, error) {
 	var zero T
 

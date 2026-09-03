@@ -251,7 +251,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 }
 
 // UpdateDiagram fully updates a diagram within a threat model
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: fully replace a diagram's content with optimistic locking; rejects active collaboration sessions (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fully replace a diagram's content with optimistic locking; rejects active collaboration sessions (reads DB)
 func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId, diagramId string) {
 	// AuthzMiddleware (#365) has already enforced ownership=writer on this
 	// route. Identity is still pulled from the JWT for audit/log lines below.
@@ -399,7 +399,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 }
 
 // PatchDiagram partially updates a diagram within a threat model
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: apply JSON Patch operations to a diagram with optimistic locking; rejects active sessions (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: apply JSON Patch operations to a diagram with optimistic locking; rejects active sessions (reads DB)
 func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, diagramId string) {
 	// Similar to UpdateDiagram but with JSON Patch operations
 	// For brevity, this implementation is simplified

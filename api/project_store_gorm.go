@@ -172,7 +172,7 @@ func (s *GormProjectStore) Create(ctx context.Context, project *Project, userInt
 }
 
 // Get retrieves a project by ID
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a project by ID with its team, responsible parties, relationships, and metadata (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fetch a project by ID by delegating to the shared project loader (reads DB)
 func (s *GormProjectStore) Get(ctx context.Context, id string) (*Project, error) {
 	return s.getWith(s.db.WithContext(ctx), id)
 }
@@ -180,7 +180,7 @@ func (s *GormProjectStore) Get(ctx context.Context, id string) (*Project, error)
 // getWith loads a project through the given handle, so update can read back
 // inside its own transaction and return a body that matches the version it
 // committed instead of whatever a concurrent writer landed afterwards (#777).
-// SEM@0000000000000000000000000000000000000000: load a full project with responsible parties, relationships, and metadata through a given DB handle (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: load a full project with responsible parties, relationships, and metadata through a given DB handle (reads DB)
 func (s *GormProjectStore) getWith(db *gorm.DB, id string) (*Project, error) {
 	logger := slogging.Get()
 
@@ -232,7 +232,7 @@ func (s *GormProjectStore) getWith(db *gorm.DB, id string) (*Project, error) {
 
 // update runs the project content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@0000000000000000000000000000000000000000: replace a project's fields, responsible parties, and relationships, optionally CAS-guarded, in one transaction (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: replace a project's fields, responsible parties, and relationships, optionally CAS-guarded, in one transaction (reads DB)
 func (s *GormProjectStore) update(ctx context.Context, id string, project *Project, userInternalUUID string, expectedVersion *int) (*Project, int, error) {
 	logger := slogging.Get()
 
@@ -350,7 +350,7 @@ func (s *GormProjectStore) update(ctx context.Context, id string, project *Proje
 }
 
 // Update updates an existing project
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: replace a project's fields, responsible parties, and relationships in a retryable transaction (reads DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: replace a project's fields, responsible parties, and relationships in a retryable transaction (reads DB)
 func (s *GormProjectStore) Update(ctx context.Context, id string, project *Project, userInternalUUID string) (*Project, error) {
 	result, _, err := s.update(ctx, id, project, userInternalUUID, nil)
 	return result, err
@@ -358,7 +358,7 @@ func (s *GormProjectStore) Update(ctx context.Context, id string, project *Proje
 
 // UpdateWithVersion updates a project guarded by a same-transaction
 // optimistic-lock CAS (#594).
-// SEM@0000000000000000000000000000000000000000: update a project guarded by a same-transaction version CAS (reads DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update a project guarded by a same-transaction version CAS (reads DB)
 func (s *GormProjectStore) UpdateWithVersion(ctx context.Context, id string, project *Project, userInternalUUID string, expectedVersion int) (*Project, int, error) {
 	return s.update(ctx, id, project, userInternalUUID, &expectedVersion)
 }
@@ -768,7 +768,7 @@ func (s *GormProjectStore) saveRelationships(tx *gorm.DB, projectID string, rela
 }
 
 // loadResponsibleParties loads responsible parties for a project
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch and convert responsible party records for a project to API types (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fetch and convert responsible party records for a project to API types (reads DB)
 func (s *GormProjectStore) loadResponsibleParties(db *gorm.DB, projectID string) ([]ResponsibleParty, error) {
 	var records []models.ProjectResponsiblePartyRecord
 	if err := db.
@@ -804,7 +804,7 @@ func (s *GormProjectStore) loadResponsibleParties(db *gorm.DB, projectID string)
 }
 
 // loadRelationships loads relationships for a project
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch and convert relationship records for a project to API types (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fetch and convert relationship records for a project to API types (reads DB)
 func (s *GormProjectStore) loadRelationships(db *gorm.DB, projectID string) ([]RelatedProject, error) {
 	var records []models.ProjectRelationshipRecord
 	if err := db.

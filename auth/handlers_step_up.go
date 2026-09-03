@@ -17,7 +17,7 @@ import (
 //
 // This is the strong-provider path only. The weak-provider short-circuit
 // (rotate-in-place) is implemented in Task 6.
-// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: handle step-up authentication request, routing to weak or strong re-auth path
+// SEM@13dd0b0d1a26116ccf49c652d3f82d1c2909f288: handle step-up authentication request, routing to weak or strong re-auth path
 func (h *Handlers) StepUp(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -249,7 +249,7 @@ func (h *Handlers) providerConfig(providerID string) (OAuthProviderConfig, error
 
 // stepUpStrongRedirect implements the strong-provider path: store state, store
 // PKCE, build the upstream URL with prompt=login&max_age=0, and redirect.
-// SEM@5d36fbba264b6e4f105d4eb316e4f509c58d7300: store step-up state and PKCE challenge, then redirect the user to the upstream provider (mutates shared state)
+// SEM@13dd0b0d1a26116ccf49c652d3f82d1c2909f288: store step-up state and PKCE challenge, then redirect the user to the upstream provider (mutates shared state)
 func (h *Handlers) stepUpStrongRedirect(c *gin.Context, provider Provider, cfg OAuthProviderConfig, actor StepUpActor, clientCallback, codeChallenge, codeChallengeMethod, loginHint string) {
 	logger := slogging.Get().WithContext(c)
 

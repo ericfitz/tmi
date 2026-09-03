@@ -76,7 +76,7 @@ func ClassifyStepUpStrength(cfg OAuthProviderConfig) StepUpStrength {
 // to the URL returned by provider.GetAuthorizationURL(state). SAML callers
 // must not use this function; they call GetAuthorizationURLForceAuthn on the
 // SAML provider directly.
-// SEM@381909438c48d60df5164d4ea214359f1b52ebdf: build an authorization URL that forces interactive re-authentication via prompt=login and max_age=0 (pure)
+// SEM@13dd0b0d1a26116ccf49c652d3f82d1c2909f288: build an authorization URL that forces interactive re-authentication via prompt=login and max_age=0 (pure)
 func BuildStepUpAuthorizationURL(provider Provider, cfg OAuthProviderConfig, state, loginHint string) (string, error) {
 	// cfg is reserved for future per-provider step-up parameter overrides
 	// (e.g., providers that use a vendor-specific equivalent of prompt=login).

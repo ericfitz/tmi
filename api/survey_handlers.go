@@ -444,7 +444,7 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 // DeleteAdminSurvey deletes a survey.
 // DELETE /admin/surveys/{survey_id}
-// SEM@00add3d4f7dc1c0a9cc072d7e6ca32ace4d03641: delete a survey that has no responses and emit a webhook event (mutates shared state)
+// SEM@e6ef5b1c60acd4e48fcb0cc113fb945bdd096c78: delete a survey that has no responses and emit a webhook event (mutates shared state)
 func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyId, params DeleteAdminSurveyParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -606,7 +606,7 @@ func (s *Server) GetIntakeSurvey(c *gin.Context, surveyId SurveyId) {
 
 // ListIntakeSurveyResponses returns the current user's survey responses.
 // GET /intake/survey_responses
-// SEM@a1d7f44f9fbf44b654abfc81c5b3770eb540ecb0: list the authenticated user's own survey responses with pagination (reads DB)
+// SEM@8ad084af00cac46a8e90401a74f8b62061fd7449: list the authenticated user's own survey responses with pagination (reads DB)
 func (s *Server) ListIntakeSurveyResponses(c *gin.Context, params ListIntakeSurveyResponsesParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -737,7 +737,7 @@ func (s *Server) GetIntakeSurveyResponse(c *gin.Context, surveyResponseId Survey
 
 // UpdateIntakeSurveyResponse fully updates a survey response.
 // PUT /intake/survey_responses/{response_id}
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: fully replace a draft or needs-revision survey response with optimistic locking (mutates shared state)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fully replace a draft or needs-revision survey response with optimistic locking (mutates shared state)
 func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId, _ UpdateIntakeSurveyResponseParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -844,7 +844,7 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 // PatchIntakeSurveyResponse partially updates a survey response.
 // PATCH /intake/survey_responses/{response_id}
 // Supports status transitions: draft->submitted, needs_revision->submitted
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: partially update a draft or needs-revision survey response and handle status transitions (mutates shared state)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: partially update a draft or needs-revision survey response and handle status transitions (mutates shared state)
 func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId, _ PatchIntakeSurveyResponseParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()

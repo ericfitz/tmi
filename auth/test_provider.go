@@ -57,7 +57,7 @@ func NewTestProvider(config OAuthProviderConfig, callbackURL string) *TestProvid
 
 // GetAuthorizationURL returns the test authorization URL
 // For the test provider, we'll create a direct callback URL instead of an external redirect
-// SEM@0a07a7223c986c6b65b4c7eaad0d824831641173: build a test callback URL encoding a fake auth code and state parameter (pure)
+// SEM@13dd0b0d1a26116ccf49c652d3f82d1c2909f288: build a test callback URL encoding a fake auth code and state parameter (pure)
 func (p *TestProvider) GetAuthorizationURL(state string) string {
 	return p.GetAuthorizationURLWithHint(state, "")
 }
@@ -67,7 +67,7 @@ func (p *TestProvider) GetAuthorizationURL(state string) string {
 // produces, so a flow that goes through this URL (step-up, #817) resolves to
 // the hinted identity instead of a random test user. An invalid hint is
 // dropped, matching validateUserHint.
-// SEM@0000000000000000000000000000000000000000: build a test callback URL whose fake auth code carries the login_hint identity (pure)
+// SEM@13dd0b0d1a26116ccf49c652d3f82d1c2909f288: build a test callback URL whose fake auth code carries the login_hint identity (pure)
 func (p *TestProvider) GetAuthorizationURLWithHint(state, hint string) string {
 	// For test provider, generate a fake auth code and redirect directly to callback
 	authCode := fmt.Sprintf("test_auth_code_%d", time.Now().Unix())
@@ -171,7 +171,7 @@ func (p *TestProvider) ExchangeCode(ctx context.Context, code string) (*TokenRes
 }
 
 // GetUserInfo returns fake user information
-// SEM@3e48a58cb418d2e7a4f04f1288fa11cb942bc99e: return user info for a test access token, using login_hint identity or generating a random test user (pure)
+// SEM@13dd0b0d1a26116ccf49c652d3f82d1c2909f288: return user info for a test access token, using login_hint identity or generating a random test user (pure)
 func (p *TestProvider) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
 	logger := slogging.Get()
 	logger.Debug("[TEST_PROVIDER] GetUserInfo: Called with access token: %s", accessToken)
@@ -285,7 +285,7 @@ func (p *TestProvider) generateTestIDToken() string {
 }
 
 // validateUserHint validates and sanitizes a login_hint
-// SEM@d9b7276f43106db4f65f8333db6fdedae15b56bd: sanitize and validate a login_hint to alphanumeric-hyphen format between 3-20 chars (pure)
+// SEM@13dd0b0d1a26116ccf49c652d3f82d1c2909f288: sanitize and validate a login_hint, accepting an email form, to alphanumeric-hyphen 3-20 chars (pure)
 func (p *TestProvider) validateUserHint(hint string) string {
 	if hint == "" {
 		return ""

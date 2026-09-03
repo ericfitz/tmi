@@ -392,7 +392,7 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 // the cross-replica migration advisory lock held (see runMigrationsLocked) —
 // several of its steps issue DDL that is not safe to run concurrently from
 // two replicas.
-// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: run the schema-evolution sequence: AutoMigrate, backfills, index upgrades, and seeding (mutates DB)
+// SEM@72dd09a3a2452db4ebcb144ebcf734b0140a67c7: run the schema-evolution sequence: AutoMigrate, backfills, index upgrades, and seeding (mutates DB)
 func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error {
 	logger := slogging.Get()
 
@@ -706,7 +706,7 @@ func newSystemAuditRepo(db *gorm.DB, operatorName string) api.SystemAuditReposit
 	return repo
 }
 
-// SEM@42ef5843bbac0234c5e9af2e1ed89f0c5f366f44: initialize database connections, all subsystems, and register all API routes, returning the configured Gin engine
+// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: initialize database connections, all subsystems, and register all API routes, returning the configured Gin engine
 func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.EmbeddingCleaner) {
 	// Create a gin router without default middleware
 	r := gin.New()
@@ -2476,7 +2476,7 @@ func adminInitTimeout(entries int) time.Duration {
 }
 
 // initializeAdministratorsGorm initializes administrators from configuration using GORM
-// SEM@605e29546fe60dc8ac69862013475720a74dea8b: seed the Administrators group with configured users/groups, creating missing users only on not-found (writes DB)
+// SEM@e366b358cc15bd5e5a59a246885007024900dbc4: seed the Administrators group with configured users/groups, creating missing users only on not-found (writes DB)
 func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 	logger := slogging.Get()
 	logger.Info("Initializing administrators from configuration (GORM)")
@@ -2739,7 +2739,7 @@ func findGroupByProviderAndNameGorm(ctx context.Context, gormDB *gorm.DB, provid
 
 // isGroupMemberGorm reports whether memberGroupUUID is already a direct
 // (subject_type=group) member of groupUUID.
-// SEM@0000000000000000000000000000000000000000: check whether a group is already a direct member of another group (reads DB)
+// SEM@e366b358cc15bd5e5a59a246885007024900dbc4: check whether a group is already a direct member of another group (reads DB)
 func isGroupMemberGorm(ctx context.Context, gormDB *gorm.DB, groupUUID, memberGroupUUID uuid.UUID) (bool, error) {
 	var count int64
 	err := gormDB.WithContext(ctx).Model(&models.GroupMember{}).

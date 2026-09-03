@@ -80,7 +80,7 @@ func (s *Server) ListProjects(c *gin.Context, params ListProjectsParams) {
 // CreateProject creates a new project.
 // Requires membership in the referenced team.
 // POST /projects
-// SEM@00add3d4f7dc1c0a9cc072d7e6ca32ace4d03641: create a project under a team the caller is a member of (reads DB)
+// SEM@e62d1a7b2af9752a2675f7dbf5381ddbe55e1661: create a project under a team the caller is a member of, emitting a creation event (mutates DB)
 func (s *Server) CreateProject(c *gin.Context) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -198,7 +198,7 @@ func (s *Server) GetProject(c *gin.Context, projectId openapi_types.UUID) {
 // UpdateProject fully updates a project.
 // Requires team membership or admin.
 // PUT /projects/{project_id}
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: fully replace a project's fields with optimistic-locking enforcement (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fully replace a project's fields with optimistic-locking enforcement, emitting an update event (mutates DB)
 func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID, _ UpdateProjectParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -292,7 +292,7 @@ func (s *Server) UpdateProject(c *gin.Context, projectId openapi_types.UUID, _ U
 // PatchProject partially updates a project via JSON Patch.
 // Requires team membership or admin.
 // PATCH /projects/{project_id}
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: partially update a project via JSON Patch with optimistic-locking enforcement (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: apply JSON Patch operations to a project with optimistic-locking enforcement, emitting an update event (mutates DB)
 func (s *Server) PatchProject(c *gin.Context, projectId openapi_types.UUID, _ PatchProjectParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()

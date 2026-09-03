@@ -246,7 +246,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 }
 
 // Get retrieves a team by ID with all associated data
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a team with its members, responsible parties, relationships and metadata (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fetch a team with its members, responsible parties, relationships and metadata (reads DB)
 func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 	return s.getWith(s.db.WithContext(ctx), id)
 }
@@ -254,7 +254,7 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 // getWith loads a team through the given handle, so update can read back
 // inside its own transaction and return a body that matches the version it
 // committed instead of whatever a concurrent writer landed afterwards (#777).
-// SEM@0000000000000000000000000000000000000000: load a full team with members, parties, relationships, and metadata through a given DB handle (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: load a full team with members, parties, relationships, and metadata through a given DB handle (reads DB)
 func (s *GormTeamStore) getWith(db *gorm.DB, id string) (*Team, error) {
 	logger := slogging.Get()
 	logger.Debug("Getting team: %s", id)
@@ -320,7 +320,7 @@ func (s *GormTeamStore) getWith(db *gorm.DB, id string) (*Team, error) {
 
 // update runs the team content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@0000000000000000000000000000000000000000: replace a team's fields, members, responsible parties, relationships, and metadata, optionally CAS-guarded (mutates DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: replace a team's fields, members, responsible parties, relationships, and metadata, optionally CAS-guarded (mutates DB)
 func (s *GormTeamStore) update(ctx context.Context, id string, team *Team, userInternalUUID string, expectedVersion *int) (*Team, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Updating team: %s", id)
@@ -481,7 +481,7 @@ func (s *GormTeamStore) update(ctx context.Context, id string, team *Team, userI
 }
 
 // Update updates an existing team, replacing members, responsible parties, and relationships
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: replace a team's fields, members, responsible parties, relationships, and metadata (mutates DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: replace a team's fields, members, responsible parties, relationships, and metadata (mutates DB)
 func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userInternalUUID string) (*Team, error) {
 	result, _, err := s.update(ctx, id, team, userInternalUUID, nil)
 	return result, err
@@ -489,7 +489,7 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 
 // UpdateWithVersion updates a team guarded by a same-transaction
 // optimistic-lock CAS (#594).
-// SEM@0000000000000000000000000000000000000000: update a team guarded by a same-transaction version CAS (mutates DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update a team guarded by a same-transaction version CAS (mutates DB)
 func (s *GormTeamStore) UpdateWithVersion(ctx context.Context, id string, team *Team, userInternalUUID string, expectedVersion int) (*Team, int, error) {
 	return s.update(ctx, id, team, userInternalUUID, &expectedVersion)
 }

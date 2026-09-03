@@ -119,7 +119,7 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 }
 
 // CreateThreatModel creates a new threat model
-// SEM@8b3ed9b61b0621b01f6928cc867b692933b7ad5b: create a threat model owned by the caller with default authorization groups; classify FK errors as invalid input unless the caller's user row is confirmed gone (reads DB)
+// SEM@bf7089dd40036d3e0ce00dfdf5db475d45382fd1: create a threat model owned by the caller with default authorization groups; classify FK errors as invalid input unless the caller's user row is confirmed gone (reads DB)
 func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	// SEM@0162974a02f0c8de928d89413890cd366741a5d8: request body shape for threat model creation (pure)
 	type CreateThreatModelRequest struct {
@@ -365,7 +365,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 // supplied, the CAS runs in the same transaction as the write (#594).
 // lockErr is the version-resolution error (e.g. malformed If-Match, or 428
 // when required); err is the store-layer write error, still unmapped.
-// SEM@0000000000000000000000000000000000000000: resolve optimistic lock and update a threat model, returning both error classes unmapped (reads DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: resolve optimistic lock and update a threat model, returning both error classes unmapped (reads DB)
 func updateThreatModelInStore(c *gin.Context, id string, tm ThreatModel, bodyVersion *int) (newVersion int, lockErr error, err error) {
 	expectedVersion, hasVersion, lockErr := ResolveOptimisticLock(c, bodyVersion)
 	if lockErr != nil {
@@ -379,6 +379,7 @@ func updateThreatModelInStore(c *gin.Context, id string, tm ThreatModel, bodyVer
 	return newVersion, nil, err
 }
 
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fully replace a threat model's mutable fields, enforcing owner-only auth changes (reads DB)
 func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 	// Define allowed fields for PUT requests - excludes calculated and read-only fields
 	// Per OpenAPI spec (ThreatModelInput), only 'name' is required
@@ -614,7 +615,7 @@ func (h *ThreatModelHandler) UpdateThreatModel(c *gin.Context) {
 }
 
 // PatchThreatModel partially updates a threat model
-// SEM@a37a0039279be689bb07be2113fe86024a410a4b: apply JSON Patch operations to a threat model with allowlist and optimistic locking (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: apply JSON Patch operations to a threat model with allowlist and optimistic locking (reads DB)
 func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 	id := c.Param("threat_model_id")
 	slogging.Get().WithContext(c).Debug("[HANDLER] PatchThreatModel called for ID: %s", id)

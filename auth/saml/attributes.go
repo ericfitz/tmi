@@ -194,7 +194,7 @@ func firstWellKnownValue(attributeMap map[string][]string, candidates []string) 
 // SAML attribute names and FriendlyNames. This is a defensive layer so that
 // a missing or misconfigured AttributeMapping does not silently produce
 // synthetic identifiers (see issue #303).
-// SEM@6c25e3ec7f7ed25ea5f9e345de5a65c91aec4567: fill missing user info fields using a curated list of well-known SAML attribute names (pure)
+// SEM@398c20164cc38e0d61bcb229d915778e30dec4ff: fill missing user info fields using a curated list of well-known SAML attribute names (pure)
 func applyWellKnownFallbacks(userInfo *UserInfo, attributeMap map[string][]string) {
 	logger := slogging.Get()
 
