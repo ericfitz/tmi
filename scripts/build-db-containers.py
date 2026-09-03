@@ -141,6 +141,7 @@ def main() -> None:
             f"{image_name}:latest",
             project_root / "security-reports",
             platform=config.platform,
+            from_registry=args.target != "local",
         )
         helpers.generate_security_summary(
             project_root / "security-reports", build_date, git_commit
@@ -180,6 +181,7 @@ def main() -> None:
             f"{image_name}:latest",
             project_root / "security-reports",
             platform=config.platform,
+            from_registry=args.push,
         )
         helpers.generate_security_summary(
             project_root / "security-reports", build_date, git_commit
