@@ -36,9 +36,14 @@ DEV_DEFAULTS = {
     "image": "tmi/tmi-redis:latest",
 }
 
+# The test container is isolated from dev by name AND host port (like the
+# tmi-postgresql-test container on its own port): a foreign listener on 6379
+# (a kubectl port-forward, another project's Redis) used to be silently
+# adopted by the integration harness and fail webhook/addon tests with
+# challenge timeouts (#778).
 TEST_DEFAULTS = {
-    "container": "tmi-redis",
-    "port": 6379,
+    "container": "tmi-redis-test",
+    "port": 6380,
     "image": "tmi/tmi-redis:latest",
 }
 
@@ -54,16 +59,20 @@ def resolve_config(args: argparse.Namespace) -> dict:
     """Build the effective configuration by layering defaults, config file, and CLI flags.
 
     Priority (highest wins): CLI flags > config file > mode defaults.
+    The config file's port applies only to the dev container: the test
+    container's port is fixed so it can never collide with whatever the
+    machine-local config points dev at (#778).
     """
     mode_defaults = TEST_DEFAULTS if args.test else DEV_DEFAULTS
     cfg = dict(mode_defaults)
 
     # Load config file and extract Redis port
-    config_path = Path(args.config)
-    raw = load_config(config_path)
-    redis_port = config_get(raw, "database.redis.port")
-    if redis_port is not None:
-        cfg["port"] = redis_port
+    if not args.test:
+        config_path = Path(args.config)
+        raw = load_config(config_path)
+        redis_port = config_get(raw, "database.redis.port")
+        if redis_port is not None:
+            cfg["port"] = redis_port
 
     # CLI overrides
     if args.container:
@@ -133,7 +142,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--test",
         action="store_true",
         default=False,
-        help="Use development container (port 6379)",
+        help=f"Use the isolated test container ({TEST_DEFAULTS['container']}, port {TEST_DEFAULTS['port']})",
     )
     parser.add_argument(
         "--container",
