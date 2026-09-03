@@ -87,6 +87,38 @@ func TestOpenAIChatClient_StreamChat_RoutesThroughInjectedDoer(t *testing.T) {
 	assert.True(t, sawSystemMessage, "system prompt must be sent as the first message")
 }
 
+// TestOpenAIChatClient_StreamChat_SendsMaxCompletionTokens proves the
+// configured output ceiling is sent as max_completion_tokens and never as
+// the deprecated max_tokens, which current OpenAI models reject with
+// 400 unsupported_parameter (#833).
+func TestOpenAIChatClient_StreamChat_SendsMaxCompletionTokens(t *testing.T) {
+	var body map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer srv.Close()
+
+	client, err := newOpenAIChatClient(Config{
+		Model:      "gpt-test",
+		APIKey:     "test-key",
+		BaseURL:    srv.URL,
+		HTTPClient: srv.Client(),
+		MaxTokens:  1234,
+	})
+	require.NoError(t, err)
+
+	_, err = client.StreamChat(context.Background(), []Message{{Role: RoleUser, Text: "hi"}},
+		func(context.Context, []byte) error { return nil })
+	require.NoError(t, err)
+
+	assert.Equal(t, float64(1234), body["max_completion_tokens"])
+	_, hasLegacy := body["max_tokens"]
+	assert.False(t, hasLegacy, "deprecated max_tokens must not be sent")
+}
+
 // TestOpenAIEmbedder_EmbedDocuments_RoutesThroughInjectedDoer proves
 // embedding requests also flow through the injected HTTPDoer.
 func TestOpenAIEmbedder_EmbedDocuments_RoutesThroughInjectedDoer(t *testing.T) {
