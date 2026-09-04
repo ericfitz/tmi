@@ -232,7 +232,7 @@ func (s *GormProjectStore) getWith(db *gorm.DB, id string) (*Project, error) {
 
 // update runs the project content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: replace a project's fields, responsible parties, and relationships, optionally CAS-guarded, in one transaction (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: replace a project's fields, responsible parties, relationships, and metadata, optionally CAS-guarded, in one transaction (reads DB)
 func (s *GormProjectStore) update(ctx context.Context, id string, project *Project, userInternalUUID string, expectedVersion *int) (*Project, int, error) {
 	logger := slogging.Get()
 
@@ -326,8 +326,10 @@ func (s *GormProjectStore) update(ctx context.Context, id string, project *Proje
 				return err
 			}
 		}
-		if project.Metadata != nil && len(*project.Metadata) > 0 {
-			if err := saveEntityMetadata(tx, "project", id, *project.Metadata); err != nil {
+		// Replace metadata: PUT is a full replacement, so a key omitted from
+		// the body is removed, matching the team store (#841).
+		if project.Metadata != nil {
+			if err := deleteAndSaveEntityMetadata(tx, "project", id, *project.Metadata); err != nil {
 				logger.Error("failed to save metadata for project: id=%s, error=%v", id, err)
 				return dberrors.Classify(err)
 			}
