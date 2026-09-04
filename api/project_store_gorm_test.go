@@ -13,6 +13,7 @@ import (
 )
 
 // setupProjectTestDB creates an in-memory SQLite DB with the tables the project store touches.
+// SEM@3b8af1dcd3eadbb02fea478b0f2f7832e03fc865: build an in-memory SQLite DB with project tables plus a seed user and team
 func setupProjectTestDB(t *testing.T) (*gorm.DB, *models.User, *models.TeamRecord) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
@@ -49,6 +50,7 @@ func setupProjectTestDB(t *testing.T) (*gorm.DB, *models.User, *models.TeamRecor
 }
 
 // metadataKeys flattens a metadata list into a key -> value map.
+// SEM@3b8af1dcd3eadbb02fea478b0f2f7832e03fc865: convert a metadata list to a key-value map (pure)
 func metadataKeys(md *[]Metadata) map[string]string {
 	out := map[string]string{}
 	if md == nil {
@@ -62,6 +64,7 @@ func metadataKeys(md *[]Metadata) map[string]string {
 
 // PUT is a full replacement: a metadata key omitted from the body is removed,
 // matching the team store (#841).
+// SEM@3b8af1dcd3eadbb02fea478b0f2f7832e03fc865: verify project update replaces metadata: omitted keys removed, nil leaves it untouched
 func TestGormProjectStore_UpdateReplacesMetadata(t *testing.T) {
 	db, user, team := setupProjectTestDB(t)
 	store := NewGormProjectStore(db)

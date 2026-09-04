@@ -384,7 +384,7 @@ func (ns *OracleNamingStrategy) UniqueName(table, column string) string {
 }
 
 // NewGormDB creates a new GORM database connection based on configuration
-// SEM@9be9de48236704afd7be7c8f4e5602ce2235739f: connect to a database via GORM with pooling, OTel tracing, and UTC session timezone
+// SEM@071b827bb424ee44c1cd7233757df927b8f98547: connect to a database via GORM with pooling, capped statement cache, OTel tracing, and UTC session timezone
 func NewGormDB(cfg GormConfig) (*GormDB, error) {
 	log := slogging.Get()
 	log.Debug("Initializing GORM connection for database type: %s", cfg.Type)

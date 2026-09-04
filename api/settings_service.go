@@ -196,7 +196,7 @@ func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool)
 }
 
 // Get retrieves a setting by key, checking cache first
-// SEM@290855b441dc47580986878bc40a3cb20d4ea51a: fetch a system setting by key with cache-first lookup and decryption (reads DB)
+// SEM@42f901dab9ff2a3942068435a791d370c03c8f6b: fetch a system setting by key, cache-first with negative caching and decryption (reads DB)
 func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSetting, error) {
 	logger := slogging.Get()
 
@@ -772,7 +772,7 @@ func (s *SettingsService) setInCache(ctx context.Context, setting *models.System
 
 // setMissingInCache stores a negative-cache tombstone for key: a zero
 // SystemSetting (empty SettingKey) that Get reads back as "not found" (#770).
-// SEM@0000000000000000000000000000000000000000: cache a not-found tombstone for a setting key in the active cache tier (mutates shared state)
+// SEM@42f901dab9ff2a3942068435a791d370c03c8f6b: cache a not-found tombstone for a setting key in the active cache tier (mutates shared state)
 func (s *SettingsService) setMissingInCache(ctx context.Context, key string) {
 	if s.useMemCache {
 		s.memCacheMu.Lock()

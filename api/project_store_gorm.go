@@ -232,7 +232,7 @@ func (s *GormProjectStore) getWith(db *gorm.DB, id string) (*Project, error) {
 
 // update runs the project content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: replace a project's fields, responsible parties, relationships, and metadata, optionally CAS-guarded, in one transaction (reads DB)
+// SEM@3b8af1dcd3eadbb02fea478b0f2f7832e03fc865: replace a project's fields, responsible parties, relationships, and metadata, optionally CAS-guarded, in one transaction (reads DB)
 func (s *GormProjectStore) update(ctx context.Context, id string, project *Project, userInternalUUID string, expectedVersion *int) (*Project, int, error) {
 	logger := slogging.Get()
 

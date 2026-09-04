@@ -87,7 +87,7 @@ func (a *RuntimeConfigReaderAdapter) GetClientCallbackAllowList(ctx context.Cont
 // startup (auth/service.go), so the env var stays load-bearing regardless of
 // what this returns, and enabling SAML via the database alone still needs a
 // restart. That asymmetry is called out in #794 and is not fixed here.
-// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: check whether SAML login is enabled by resolved precedence; fail-closed on error (reads DB)
+// SEM@42f901dab9ff2a3942068435a791d370c03c8f6b: resolve the SAML-enabled flag with one DB read, config fallback only on transient fault (reads DB)
 func (a *RuntimeConfigReaderAdapter) IsSAMLEnabled(ctx context.Context) bool {
 	raw, exists, err := a.settings.GetResolvedString(ctx, "features.saml_enabled")
 	if err != nil {
