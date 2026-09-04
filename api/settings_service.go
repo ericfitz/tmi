@@ -772,6 +772,9 @@ func (s *SettingsService) setInCache(ctx context.Context, setting *models.System
 
 // setMissingInCache stores a negative-cache tombstone for key: a zero
 // SystemSetting (empty SettingKey) that Get reads back as "not found" (#770).
+// On the memory tier invalidation is process-local, so a row written by
+// another replica or by dbtool becomes visible here only when the tombstone
+// expires (up to memCacheTTL), the same window positive entries already have.
 // SEM@42f901dab9ff2a3942068435a791d370c03c8f6b: cache a not-found tombstone for a setting key in the active cache tier (mutates shared state)
 func (s *SettingsService) setMissingInCache(ctx context.Context, key string) {
 	if s.useMemCache {
