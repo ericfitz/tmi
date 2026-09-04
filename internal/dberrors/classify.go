@@ -64,7 +64,7 @@ func Classify(err error) error {
 // typed driver information (e.g., raw net.OpError, TLS errors).
 // This should handle a minimal set of patterns — driver-specific checks
 // cover the vast majority of cases.
-// SEM@6a279d3dfc40bdd9ee0faa2abb1456f6dc5e003b: classify an untyped database error by matching known error message patterns (pure)
+// SEM@3089515ed2d1a77325f141068e6af977fed1e15c: classify a DB error by message text into transient, permission, constraint, or not-found sentinels (pure)
 func classifyByString(err error) error {
 	errStr := strings.ToLower(err.Error())
 

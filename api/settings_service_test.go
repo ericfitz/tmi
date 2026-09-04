@@ -760,6 +760,7 @@ func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 
 // A missing row is negative-cached so unauthenticated hot paths do not pay a
 // DB round trip per request for keys that are never seeded (#770).
+// SEM@42f901dab9ff2a3942068435a791d370c03c8f6b: verify a missing setting is negative-cached in memory until invalidated
 func TestSettingsService_NegativeCache(t *testing.T) {
 	ctx := context.Background()
 	gormDB := setupSettingsTestDB(t)
@@ -795,6 +796,7 @@ func TestSettingsService_NegativeCache(t *testing.T) {
 
 // Same contract on the Redis tier, which is what production runs: the
 // tombstone is the literal "null", which unmarshals to a zero SystemSetting.
+// SEM@60ebb8f27ed8310f384bb5c763ccff24a48e2cff: verify a missing setting is negative-cached in Redis until invalidated
 func TestSettingsService_NegativeCache_Redis(t *testing.T) {
 	ctx := context.Background()
 	mr, err := miniredis.Run()
