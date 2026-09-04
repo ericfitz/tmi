@@ -23,6 +23,13 @@ import (
 // sqliteMemoryPath is the special SQLite path for in-memory databases
 const sqliteMemoryPath = ":memory:"
 
+// Prepared-statement cache bounds (#684); see the gorm.Config comment in
+// NewGormDB for the reasoning.
+const (
+	preparedStmtCacheMaxSize = 512
+	preparedStmtCacheTTL     = time.Hour
+)
+
 // DatabaseType represents the type of database
 // SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: string type enumerating supported database backends (pure)
 type DatabaseType string
@@ -434,13 +441,23 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 	}
 
 	// Configure GORM
-	prepareStmt := true
 	gormConfig := &gorm.Config{
 		Logger: newGormLogger(log),
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		PrepareStmt: prepareStmt,
+		PrepareStmt: true,
+		// Cap the prepared-statement cache. GORM's defaults are unbounded
+		// capacity and a 24h TTL, and every cached *sql.Stmt can hold an open
+		// cursor on each pooled connection, so any code path that varies its
+		// SQL text per request becomes an Oracle-only ORA-01000 (open cursor
+		// exhaustion) instead of a cache miss (#684). The cap bounds the cursors
+		// one session can hold through this cache well under Oracle ADB's
+		// OPEN_CURSORS (1000 by default) while leaving headroom over TMI's
+		// distinct statement set, so steady state never evicts; the TTL
+		// retires statements a rare code path touched once.
+		PrepareStmtMaxSize: preparedStmtCacheMaxSize,
+		PrepareStmtTTL:     preparedStmtCacheTTL,
 	}
 
 	// For Oracle, use uppercase naming strategy.
