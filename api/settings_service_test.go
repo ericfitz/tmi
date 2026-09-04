@@ -2,10 +2,13 @@ package api
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -753,4 +756,77 @@ func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 	require.NoError(t, gormDB.Where("setting_key = ?", "ui.default_theme").First(&reloadedExplicit).Error)
 	assert.Equal(t, models.SystemSettingOriginExplicit, reloadedExplicit.Origin.String)
 	assert.True(t, reloadedExplicit.IsExplicit())
+}
+
+// A missing row is negative-cached so unauthenticated hot paths do not pay a
+// DB round trip per request for keys that are never seeded (#770).
+// SEM@42f901dab9ff2a3942068435a791d370c03c8f6b: verify a missing setting is negative-cached in memory until invalidated
+func TestSettingsService_NegativeCache(t *testing.T) {
+	ctx := context.Background()
+	gormDB := setupSettingsTestDB(t)
+	service := &SettingsService{
+		gormDB:      gormDB,
+		memCache:    make(map[string]settingsCacheEntry),
+		memCacheTTL: 60 * time.Second,
+		useMemCache: true,
+	}
+	const key = "auth.oauth.client_callback_allowlist"
+
+	setting, err := service.Get(ctx, key)
+	require.NoError(t, err)
+	require.Nil(t, setting)
+	_, found := service.getFromMemCache(key)
+	require.True(t, found, "miss should leave a tombstone in the cache")
+
+	// A row that appears behind the tombstone is invisible until the key is
+	// invalidated: proves the second Get never touched the database.
+	require.NoError(t, gormDB.Create(&models.SystemSetting{
+		SettingKey: key, Value: `["http://a/"]`, SettingType: models.SystemSettingTypeJSON,
+	}).Error)
+	setting, err = service.Get(ctx, key)
+	require.NoError(t, err)
+	require.Nil(t, setting, "tombstone must be served without a DB read")
+
+	service.invalidateCache(ctx, key)
+	setting, err = service.Get(ctx, key)
+	require.NoError(t, err)
+	require.NotNil(t, setting)
+	require.Equal(t, `["http://a/"]`, string(setting.Value))
+}
+
+// Same contract on the Redis tier, which is what production runs: the
+// tombstone is the literal "null", which unmarshals to a zero SystemSetting.
+// SEM@60ebb8f27ed8310f384bb5c763ccff24a48e2cff: verify a missing setting is negative-cached in Redis until invalidated
+func TestSettingsService_NegativeCache_Redis(t *testing.T) {
+	ctx := context.Background()
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+	defer mr.Close()
+	host, port, err := net.SplitHostPort(mr.Addr())
+	require.NoError(t, err)
+	redisDB, err := db.NewRedisDB(db.RedisConfig{Host: host, Port: port})
+	require.NoError(t, err)
+	defer func() { _ = redisDB.Close() }()
+
+	gormDB := setupSettingsTestDB(t)
+	service := &SettingsService{gormDB: gormDB, redis: redisDB}
+	const key = "auth.oauth.client_callback_allowlist"
+
+	setting, err := service.Get(ctx, key)
+	require.NoError(t, err)
+	require.Nil(t, setting)
+	require.True(t, mr.Exists(SettingsCacheKey+key), "miss should leave a tombstone in Redis")
+
+	require.NoError(t, gormDB.Create(&models.SystemSetting{
+		SettingKey: key, Value: `["http://a/"]`, SettingType: models.SystemSettingTypeJSON,
+	}).Error)
+	setting, err = service.Get(ctx, key)
+	require.NoError(t, err)
+	require.Nil(t, setting, "tombstone must be served without a DB read")
+
+	service.invalidateCache(ctx, key)
+	setting, err = service.Get(ctx, key)
+	require.NoError(t, err)
+	require.NotNil(t, setting)
+	require.Equal(t, `["http://a/"]`, string(setting.Value))
 }

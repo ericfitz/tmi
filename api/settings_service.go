@@ -196,7 +196,7 @@ func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool)
 }
 
 // Get retrieves a setting by key, checking cache first
-// SEM@290855b441dc47580986878bc40a3cb20d4ea51a: fetch a system setting by key with cache-first lookup and decryption (reads DB)
+// SEM@42f901dab9ff2a3942068435a791d370c03c8f6b: fetch a system setting by key, cache-first with negative caching and decryption (reads DB)
 func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSetting, error) {
 	logger := slogging.Get()
 
@@ -210,6 +210,9 @@ func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSe
 	setting, found := s.getFromCache(ctx, key)
 	if found {
 		logger.Debug("Settings cache hit for key: %s", key)
+		if setting.SettingKey == "" {
+			return nil, nil // negative-cache tombstone: known missing (#770)
+		}
 		return setting, nil
 	}
 	logger.Debug("Settings cache miss for key: %s", key)
@@ -218,6 +221,11 @@ func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSe
 	var dbSetting models.SystemSetting
 	if err := s.gormDB.WithContext(ctx).Where("setting_key = ?", key).First(&dbSetting).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Cache the miss too: keys that are never seeded (e.g. an
+			// allowlist managed purely via env) sit on unauthenticated hot
+			// paths and would otherwise cost an ADB round trip per request.
+			// Set/Delete invalidate the key, which evicts the tombstone (#770).
+			s.setMissingInCache(ctx, key)
 			return nil, nil // Not found
 		}
 		return nil, fmt.Errorf("failed to get setting %s: %w", key, err)
@@ -759,6 +767,25 @@ func (s *SettingsService) setInCache(ctx context.Context, setting *models.System
 		s.setInMemCache(setting)
 	} else {
 		s.setInRedisCache(ctx, setting)
+	}
+}
+
+// setMissingInCache stores a negative-cache tombstone for key: a zero
+// SystemSetting (empty SettingKey) that Get reads back as "not found" (#770).
+// On the memory tier invalidation is process-local, so a row written by
+// another replica or by dbtool becomes visible here only when the tombstone
+// expires (up to memCacheTTL), the same window positive entries already have.
+// SEM@42f901dab9ff2a3942068435a791d370c03c8f6b: cache a not-found tombstone for a setting key in the active cache tier (mutates shared state)
+func (s *SettingsService) setMissingInCache(ctx context.Context, key string) {
+	if s.useMemCache {
+		s.memCacheMu.Lock()
+		s.memCache[key] = settingsCacheEntry{expiresAt: time.Now().Add(s.memCacheTTL)}
+		s.memCacheMu.Unlock()
+		return
+	}
+	// "null" unmarshals into a zero SystemSetting in getFromRedisCache.
+	if err := s.redis.Set(ctx, SettingsCacheKey+key, []byte("null"), SettingsCacheTTL); err != nil {
+		slogging.Get().Error("Failed to cache missing setting in Redis: %v", err)
 	}
 }
 

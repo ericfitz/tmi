@@ -9,12 +9,17 @@
 # Include integration test framework targets
 -include scripts/test-framework.mk
 
-# Use zsh as the shell with proper PATH
-SHELL := /bin/zsh
+# Use zsh as the shell where it exists; fall back to bash on hosts without it
+# (GitHub runner images ship no zsh). Recipes must stay portable to both (#798).
+SHELL := $(if $(wildcard /bin/zsh),/bin/zsh,/bin/bash)
 .SHELLFLAGS := -c
 
-# Export PATH to all submakes and shell recipes
-export PATH := /usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:$(PATH)
+# Export PATH to all submakes and shell recipes. The system and Homebrew
+# directories are APPENDED so they are guaranteed present when make is
+# launched from a minimal environment (GUI/editor), without shadowing a tool
+# the caller deliberately put first -- prepending let a runner image's stale
+# Go win over the one actions/setup-go had just installed (#798).
+export PATH := $(PATH):/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin
 
 # Default server port
 SERVER_PORT ?= 8080

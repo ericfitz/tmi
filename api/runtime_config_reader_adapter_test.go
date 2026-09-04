@@ -22,6 +22,9 @@ type fakeSettingsService struct {
 	strings map[string]string
 	errs    map[string]error
 	dbErrs  map[string]error
+	// getStringCalls counts GetString fallbacks, each of which is a second
+	// DB read on the real service (#770).
+	getStringCalls int
 }
 
 func newFakeSettingsService() *fakeSettingsService {
@@ -37,6 +40,7 @@ func (f *fakeSettingsService) Get(ctx context.Context, key string) (*models.Syst
 	return nil, nil
 }
 func (f *fakeSettingsService) GetString(ctx context.Context, key string) (string, error) {
+	f.getStringCalls++
 	if err, ok := f.errs[key]; ok {
 		return "", err
 	}
@@ -211,12 +215,17 @@ func TestRuntimeConfigReaderAdapter_IsSAMLEnabled(t *testing.T) {
 		}
 	})
 
-	t.Run("no DB row falls back to config layer", func(t *testing.T) {
+	// #770: GetResolvedString already consulted the config layer, so a
+	// missing value must not trigger a second (GetString -> DB) read.
+	t.Run("no DB row: single read, no GetString fallback", func(t *testing.T) {
 		f := newFakeSettingsService()
 		f.strings["features.saml_enabled"] = "true"
 		a := NewRuntimeConfigReaderAdapter(f)
-		if !a.IsSAMLEnabled(ctx) {
-			t.Error("want true from config fallback, got false")
+		if a.IsSAMLEnabled(ctx) {
+			t.Error("want false: GetResolvedString reported nothing configured")
+		}
+		if f.getStringCalls != 0 {
+			t.Errorf("GetString called %d times, want 0", f.getStringCalls)
 		}
 	})
 }
@@ -306,6 +315,9 @@ func TestRuntimeConfigReaderAdapter_TransientDBFaultFallsBackToYAML(t *testing.T
 		a := NewRuntimeConfigReaderAdapter(f)
 		if !a.IsSAMLEnabled(ctx) {
 			t.Error("transient DB fault must fall back to the YAML value (true), got false")
+		}
+		if f.getStringCalls != 1 {
+			t.Errorf("GetString called %d times, want 1 (transient fallback only)", f.getStringCalls)
 		}
 	})
 

@@ -64,7 +64,7 @@ func Classify(err error) error {
 // typed driver information (e.g., raw net.OpError, TLS errors).
 // This should handle a minimal set of patterns — driver-specific checks
 // cover the vast majority of cases.
-// SEM@6a279d3dfc40bdd9ee0faa2abb1456f6dc5e003b: classify an untyped database error by matching known error message patterns (pure)
+// SEM@3089515ed2d1a77325f141068e6af977fed1e15c: classify a DB error by message text into transient, permission, constraint, or not-found sentinels (pure)
 func classifyByString(err error) error {
 	errStr := strings.ToLower(err.Error())
 
@@ -84,6 +84,12 @@ func classifyByString(err error) error {
 		"connection is shut down",
 		"invalid connection",
 		"connection unexpectedly closed",
+		// database/sql's ErrStmtClosed: GORM's prepared-statement cache
+		// evicts (TTL or size cap) by closing the *sql.Stmt in a goroutine,
+		// racing an in-flight caller that already fetched it. Not
+		// driver.ErrBadConn, so GORM does not self-heal it; retrying
+		// re-prepares (#684).
+		"statement is closed",
 	}
 	for _, pattern := range transientPatterns {
 		if strings.Contains(errStr, pattern) {

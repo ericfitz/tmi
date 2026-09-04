@@ -23,6 +23,13 @@ import (
 // sqliteMemoryPath is the special SQLite path for in-memory databases
 const sqliteMemoryPath = ":memory:"
 
+// Prepared-statement cache bounds (#684); see the gorm.Config comment in
+// NewGormDB for the reasoning.
+const (
+	preparedStmtCacheMaxSize = 512
+	preparedStmtCacheTTL     = time.Hour
+)
+
 // DatabaseType represents the type of database
 // SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: string type enumerating supported database backends (pure)
 type DatabaseType string
@@ -377,7 +384,7 @@ func (ns *OracleNamingStrategy) UniqueName(table, column string) string {
 }
 
 // NewGormDB creates a new GORM database connection based on configuration
-// SEM@9be9de48236704afd7be7c8f4e5602ce2235739f: connect to a database via GORM with pooling, OTel tracing, and UTC session timezone
+// SEM@071b827bb424ee44c1cd7233757df927b8f98547: connect to a database via GORM with pooling, capped statement cache, OTel tracing, and UTC session timezone
 func NewGormDB(cfg GormConfig) (*GormDB, error) {
 	log := slogging.Get()
 	log.Debug("Initializing GORM connection for database type: %s", cfg.Type)
@@ -434,13 +441,26 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 	}
 
 	// Configure GORM
-	prepareStmt := true
 	gormConfig := &gorm.Config{
 		Logger: newGormLogger(log),
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
-		PrepareStmt: prepareStmt,
+		PrepareStmt: true,
+		// Cap the prepared-statement cache. GORM's defaults are unbounded
+		// capacity and a 24h TTL, and every cached *sql.Stmt can hold an open
+		// cursor on each pooled connection, so any code path that varies its
+		// SQL text per request becomes an Oracle-only ORA-01000 (open cursor
+		// exhaustion) instead of a cache miss (#684). The cap bounds the cursors
+		// one session can hold through this cache well under Autonomous
+		// Database's OPEN_CURSORS default of 1000 (a stock non-ADB Oracle
+		// defaults to 50 and would need a lower cap). Some eviction is
+		// expected in steady state: `IN ?` expands one placeholder per element,
+		// so each distinct slice length is a distinct statement. Eviction is a
+		// cache miss, which is the point; the TTL retires statements a rare
+		// code path touched once (GORM's LRU does not refresh the TTL on a hit).
+		PrepareStmtMaxSize: preparedStmtCacheMaxSize,
+		PrepareStmtTTL:     preparedStmtCacheTTL,
 	}
 
 	// For Oracle, use uppercase naming strategy.

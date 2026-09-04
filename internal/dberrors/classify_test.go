@@ -246,3 +246,14 @@ func TestClassifyByString_OracleConstraintsBeatNotFound(t *testing.T) {
 		})
 	}
 }
+
+// database/sql's ErrStmtClosed reaches callers when GORM's prepared-statement
+// cache evicts a statement an in-flight query already fetched (#684). It is
+// not driver.ErrBadConn, so only this classification makes it retryable.
+// SEM@3089515ed2d1a77325f141068e6af977fed1e15c: verify a closed prepared statement error classifies as transient
+func TestClassifyByString_ClosedStatementIsTransient(t *testing.T) {
+	got := classifyByString(errors.New("sql: statement is closed")) // database/sql keeps errStmtClosed unexported
+	if !errors.Is(got, ErrTransient) {
+		t.Fatalf("expected ErrTransient, got %v", got)
+	}
+}
