@@ -76,12 +76,17 @@ func ClassifyStepUpStrength(cfg OAuthProviderConfig) StepUpStrength {
 // to the URL returned by provider.GetAuthorizationURL(state). SAML callers
 // must not use this function; they call GetAuthorizationURLForceAuthn on the
 // SAML provider directly.
-// SEM@381909438c48d60df5164d4ea214359f1b52ebdf: build an authorization URL that forces interactive re-authentication via prompt=login and max_age=0 (pure)
-func BuildStepUpAuthorizationURL(provider Provider, cfg OAuthProviderConfig, state string) (string, error) {
+// SEM@13dd0b0d1a26116ccf49c652d3f82d1c2909f288: build an authorization URL that forces interactive re-authentication via prompt=login and max_age=0 (pure)
+func BuildStepUpAuthorizationURL(provider Provider, cfg OAuthProviderConfig, state, loginHint string) (string, error) {
 	// cfg is reserved for future per-provider step-up parameter overrides
 	// (e.g., providers that use a vendor-specific equivalent of prompt=login).
 	_ = cfg
 	raw := provider.GetAuthorizationURL(state)
+	// The test provider carries the identity in its fake authorization code,
+	// not in a login_hint query parameter it would never read (#817).
+	if tp, ok := provider.(*TestProvider); ok && loginHint != "" {
+		raw = tp.GetAuthorizationURLWithHint(state, loginHint)
+	}
 	u, err := url.Parse(raw)
 	if err != nil {
 		return "", fmt.Errorf("invalid upstream authorize URL: %w", err)
@@ -89,6 +94,12 @@ func BuildStepUpAuthorizationURL(provider Provider, cfg OAuthProviderConfig, sta
 	q := u.Query()
 	q.Set("prompt", "login")
 	q.Set("max_age", "0")
+	if loginHint != "" {
+		// prompt=login pairs with login_hint: it tells the provider WHICH
+		// account to re-authenticate, so a user with several accounts at the
+		// provider comes back as the one that started the step-up (#817).
+		q.Set("login_hint", loginHint)
+	}
 	u.RawQuery = q.Encode()
 	return u.String(), nil
 }

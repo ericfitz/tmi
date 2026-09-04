@@ -32,7 +32,7 @@ func splitCommaValues(s string) []string {
 }
 
 // SurveyResponseStore defines the interface for survey response operations
-// SEM@631be7f2c07ebbeba8f94b4c3e8e7e523b41118e: interface defining CRUD, listing, status-transition, and authorization operations for survey responses
+// SEM@8ad084af00cac46a8e90401a74f8b62061fd7449: interface defining CRUD, listing, status-transition, and authorization operations for survey responses
 type SurveyResponseStore interface {
 	// CRUD operations
 	Create(ctx context.Context, response *SurveyResponse, userInternalUUID string) error
@@ -42,9 +42,6 @@ type SurveyResponseStore interface {
 
 	// List operations with pagination and filtering
 	List(ctx context.Context, limit, offset int, filters *SurveyResponseFilters) ([]SurveyResponseListItem, int, error)
-
-	// List responses for a specific owner
-	ListByOwner(ctx context.Context, ownerInternalUUID string, limit, offset int, status *string) ([]SurveyResponseListItem, int, error)
 
 	// State transition
 	UpdateStatus(ctx context.Context, id uuid.UUID, newStatus string, reviewerInternalUUID *string, revisionNotes *string) error
@@ -346,7 +343,7 @@ func (s *GormSurveyResponseStore) Get(ctx context.Context, id uuid.UUID) (*Surve
 
 // update runs the survey response content write inside one retryable
 // transaction, CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@0000000000000000000000000000000000000000: store mutable survey response fields, optionally CAS-guarded, preserving immutable fields (mutates DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: store mutable survey response fields, optionally CAS-guarded, preserving immutable fields (mutates DB)
 func (s *GormSurveyResponseStore) update(ctx context.Context, response *SurveyResponse, expectedVersion *int) (int, error) {
 	logger := slogging.Get()
 
@@ -452,7 +449,7 @@ func (s *GormSurveyResponseStore) update(ctx context.Context, response *SurveyRe
 }
 
 // Update updates an existing survey response
-// SEM@0953e9f0b776f0b6506c4a5b3d809b26588328fe: store mutable fields of an existing survey response; preserves immutable fields (mutates DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: store mutable fields of an existing survey response; preserves immutable fields (mutates DB)
 func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyResponse) error {
 	_, err := s.update(ctx, response, nil)
 	return err
@@ -460,7 +457,7 @@ func (s *GormSurveyResponseStore) Update(ctx context.Context, response *SurveyRe
 
 // UpdateWithVersion updates a survey response guarded by a same-transaction
 // optimistic-lock CAS (#594).
-// SEM@0000000000000000000000000000000000000000: update a survey response guarded by a same-transaction version CAS (mutates DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update a survey response guarded by a same-transaction version CAS (mutates DB)
 func (s *GormSurveyResponseStore) UpdateWithVersion(ctx context.Context, response *SurveyResponse, expectedVersion int) (int, error) {
 	return s.update(ctx, response, &expectedVersion)
 }
@@ -567,16 +564,6 @@ func (s *GormSurveyResponseStore) List(ctx context.Context, limit, offset int, f
 	return items, int(total), nil
 }
 
-// ListByOwner retrieves survey responses for a specific owner
-// SEM@0bd9c0e0e0c0649294d164b9dc945b801cfd507c: list paginated survey responses for a specific owner with optional status filter (reads DB)
-func (s *GormSurveyResponseStore) ListByOwner(ctx context.Context, ownerInternalUUID string, limit, offset int, status *string) ([]SurveyResponseListItem, int, error) {
-	filters := &SurveyResponseFilters{
-		OwnerID: &ownerInternalUUID,
-		Status:  status,
-	}
-	return s.List(ctx, limit, offset, filters)
-}
-
 // validSurveyResponseStatuses is the status set ValidateSurveyResponseStatusTransition accepts.
 var validSurveyResponseStatuses = map[string]bool{
 	ResponseStatusDraft:          true,
@@ -593,7 +580,7 @@ var validSurveyResponseStatuses = map[string]bool{
 // BEFORE that write so a malformed status transition fails without
 // committing anything, rather than surfacing as a 409 after the write that
 // preceded it already committed.
-// SEM@0000000000000000000000000000000000000000: validate a survey response status transition before any DB write (pure)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: validate a survey response status transition before any DB write (pure)
 func ValidateSurveyResponseStatusTransition(newStatus string, revisionNotes *string) error {
 	if !validSurveyResponseStatuses[newStatus] {
 		return fmt.Errorf("invalid status value: %s", newStatus)
@@ -605,7 +592,7 @@ func ValidateSurveyResponseStatusTransition(newStatus string, revisionNotes *str
 }
 
 // UpdateStatus transitions a response to a new status with validation
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: validate and apply a status transition to a survey response, recording reviewer and notes (mutates DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: validate and apply a status transition to a survey response, recording reviewer and notes (mutates DB)
 func (s *GormSurveyResponseStore) UpdateStatus(ctx context.Context, id uuid.UUID, newStatus string, reviewerInternalUUID *string, revisionNotes *string) error {
 	logger := slogging.Get()
 

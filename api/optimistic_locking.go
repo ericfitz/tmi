@@ -202,7 +202,7 @@ func SetETagHeader(c *gin.Context, version int) {
 // tableName must be the physical DB table name (e.g. "threat_models").
 // On Oracle, GORM lowercases the WHERE column references; the column is
 // "version" on both PostgreSQL and Oracle (case-insensitive identifier).
-// SEM@bacedc2fda0d7e7c4267e5fef6abc1a24bafed1a: validate and bump a row version, bumping unconditionally on wildcard (reads DB)
+// SEM@d3b4da4dc61f5396a0e7484319ea7cd47bbeda27: bump a row's version via conditional update, routing wildcard requests to CAS retry (mutates DB)
 func CheckAndBumpVersion(ctx context.Context, db *gorm.DB, tableName, id string, expected int) (int, error) {
 	if expected == VersionWildcard {
 		return casFromCurrentVersion(ctx, db, tableName, id)
@@ -287,7 +287,7 @@ const wildcardCASAttempts = 3
 // builds the `RETURNING ... INTO` form when stmt.Schema != nil, and this call
 // uses Table() with no model, so a clause.Returning would be silently ignored —
 // no error, no value.
-// SEM@0000000000000000000000000000000000000000: bump a row version via read-then-CAS with bounded retry, returning the version this writer produced (reads DB)
+// SEM@501a4bcdc844da658023d459dceec73b9b845d9c: bump a row version via read-then-CAS retry loop, classifying transient vs terminal errors (mutates DB)
 func casFromCurrentVersion(ctx context.Context, db *gorm.DB, tableName, id string) (int, error) {
 	for attempt := 0; attempt < wildcardCASAttempts; attempt++ {
 		var current sql.NullInt64
@@ -301,11 +301,18 @@ func casFromCurrentVersion(ctx context.Context, db *gorm.DB, tableName, id strin
 			if errors.Is(classified, dberrors.ErrNotFound) {
 				return 0, dberrors.ErrNotFound
 			}
-			// Anything else (transient ADB blip, permission oddity) must not be
-			// returned bare: MapOptimisticLockError only special-cases
-			// ErrNotFound and ErrVersionMismatch, so a classified transient
-			// error reaches HandleRequestError's else-branch and becomes an
-			// undocumented, policy-violating 500 (#581 finding 1b).
+			// A transient fault (ADB blip, connection reset) is returned
+			// classified so the enclosing WithRetryableGormTransaction retries
+			// it; mapping it to ErrVersionMismatch here hid it from the retry
+			// loop and turned a recoverable blip into a spurious 409 (#775).
+			// If retries exhaust, every caller routes the ErrTransient through
+			// StoreErrorToRequestError to the documented 503.
+			if dberrors.IsRetryable(classified) {
+				return 0, classified
+			}
+			// Anything else (permission oddity, schema drift) must not be
+			// returned bare: it would reach HandleRequestError's else-branch
+			// and become an undocumented, policy-violating 500 (#581 1b).
 			//
 			// Unlike the old read-back this happens BEFORE anything is written,
 			// so there is no committed bump to reconcile — we simply could not
@@ -367,7 +374,7 @@ func MapVersionError(err error) *RequestError {
 // store's UpdateWithVersion method, which runs the CAS inside the same
 // transaction as the content write (#594). Callers that get (0, false, nil)
 // call the store's plain Update instead.
-// SEM@0000000000000000000000000000000000000000: resolve the expected version for a write without touching the store (reads request)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: resolve the expected version for a write from body or If-Match header (reads request)
 func ResolveOptimisticLock(c *gin.Context, bodyVersion *int) (expected int, present bool, err error) {
 	expected, hasVersion, parseErr := ResolveExpectedVersion(c, bodyVersion)
 	if parseErr != nil {
@@ -384,10 +391,12 @@ func ResolveOptimisticLock(c *gin.Context, bodyVersion *int) (expected int, pres
 
 // MapOptimisticLockError converts a store-layer error from a versioned write
 // into the appropriate HTTP RequestError for the optimistic-locking
-// contract. Returns nil when err is not a versioning error, so callers fall
-// through to their existing error mapping.
-// SEM@0000000000000000000000000000000000000000: map a versioned-write store error to its 409/404 request error, or nil (pure)
-func MapOptimisticLockError(err error) error {
+// contract. notFoundMsg is the entity-specific 404 message ("Project not
+// found"), so a versioned write does not regress to a generic one (#777).
+// Returns nil when err is not a versioning error, so callers fall through to
+// their existing error mapping.
+// SEM@501a4bcdc844da658023d459dceec73b9b845d9c: map a versioned-write store error to its 409 or 404 request error, or nil (pure)
+func MapOptimisticLockError(err error, notFoundMsg string) error {
 	if err == nil {
 		return nil
 	}
@@ -400,7 +409,7 @@ func MapOptimisticLockError(err error) error {
 	// HandleRequestError, which would otherwise classify the unrecognized
 	// error as a 500 (violating the Zero-500 policy). (#495 B2)
 	if errors.Is(err, dberrors.ErrNotFound) {
-		return NotFoundError("Resource not found")
+		return NotFoundError(notFoundMsg)
 	}
 	return nil
 }

@@ -246,14 +246,22 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 }
 
 // Get retrieves a team by ID with all associated data
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: fetch a team with its members, responsible parties, relationships and metadata (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fetch a team with its members, responsible parties, relationships and metadata (reads DB)
 func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
+	return s.getWith(s.db.WithContext(ctx), id)
+}
+
+// getWith loads a team through the given handle, so update can read back
+// inside its own transaction and return a body that matches the version it
+// committed instead of whatever a concurrent writer landed afterwards (#777).
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: load a full team with members, parties, relationships, and metadata through a given DB handle (reads DB)
+func (s *GormTeamStore) getWith(db *gorm.DB, id string) (*Team, error) {
 	logger := slogging.Get()
 	logger.Debug("Getting team: %s", id)
 
 	// Load the team record with user preloads
 	var record models.TeamRecord
-	result := s.db.WithContext(ctx).
+	result := db.
 		Preload("CreatedBy").
 		Preload("ModifiedBy").
 		Preload("ReviewedBy").
@@ -269,9 +277,9 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 
 	// Load members with user preload
 	var memberRecords []models.TeamMemberRecord
-	if err := s.db.WithContext(ctx).
+	if err := db.
 		Preload("User").
-		Where(ColumnMap(s.db.Name(), map[string]any{"team_id": id})).
+		Where(ColumnMap(db.Name(), map[string]any{"team_id": id})).
 		Find(&memberRecords).Error; err != nil {
 		logger.Error("Failed to load team members: %v", err)
 		return nil, dberrors.Classify(err)
@@ -279,9 +287,9 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 
 	// Load responsible parties with user preload
 	var rpRecords []models.TeamResponsiblePartyRecord
-	if err := s.db.WithContext(ctx).
+	if err := db.
 		Preload("User").
-		Where(ColumnMap(s.db.Name(), map[string]any{"team_id": id})).
+		Where(ColumnMap(db.Name(), map[string]any{"team_id": id})).
 		Find(&rpRecords).Error; err != nil {
 		logger.Error("Failed to load team responsible parties: %v", err)
 		return nil, dberrors.Classify(err)
@@ -289,15 +297,15 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 
 	// Load relationships
 	var relRecords []models.TeamRelationshipRecord
-	if err := s.db.WithContext(ctx).
-		Where(ColumnMap(s.db.Name(), map[string]any{"team_id": id})).
+	if err := db.
+		Where(ColumnMap(db.Name(), map[string]any{"team_id": id})).
 		Find(&relRecords).Error; err != nil {
 		logger.Error("Failed to load team relationships: %v", err)
 		return nil, dberrors.Classify(err)
 	}
 
 	// Load metadata
-	metadata, err := loadEntityMetadata(s.db.WithContext(ctx), "team", id)
+	metadata, err := loadEntityMetadata(db, "team", id)
 	if err != nil {
 		logger.Error("Failed to load team metadata: %v", err)
 		metadata = []Metadata{}
@@ -312,7 +320,7 @@ func (s *GormTeamStore) Get(ctx context.Context, id string) (*Team, error) {
 
 // update runs the team content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@0000000000000000000000000000000000000000: replace a team's fields, members, responsible parties, relationships, and metadata, optionally CAS-guarded (mutates DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: replace a team's fields, members, responsible parties, relationships, and metadata, optionally CAS-guarded (mutates DB)
 func (s *GormTeamStore) update(ctx context.Context, id string, team *Team, userInternalUUID string, expectedVersion *int) (*Team, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Updating team: %s", id)
@@ -327,6 +335,7 @@ func (s *GormTeamStore) update(ctx context.Context, id string, team *Team, userI
 	}
 
 	var newVersion int
+	var fullTeam *Team
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if expectedVersion != nil {
 			v, casErr := CheckAndBumpVersion(ctx, tx, models.TeamRecord{}.TableName(), id, *expectedVersion)
@@ -456,20 +465,23 @@ func (s *GormTeamStore) update(ctx context.Context, id string, team *Team, userI
 			}
 		}
 
-		return nil
+		// Read back inside the transaction so the returned body is the state
+		// this writer committed, matching the ETag/version returned with it;
+		// a post-commit Get could hand back a concurrent writer's newer row
+		// under our older version (#777).
+		var getErr error
+		fullTeam, getErr = s.getWith(tx, id)
+		return getErr
 	})
 
 	if err != nil {
 		return nil, 0, err
 	}
-
-	// Return full team via Get
-	fullTeam, getErr := s.Get(ctx, id)
-	return fullTeam, newVersion, getErr
+	return fullTeam, newVersion, nil
 }
 
 // Update updates an existing team, replacing members, responsible parties, and relationships
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: replace a team's fields, members, responsible parties, relationships, and metadata (mutates DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: replace a team's fields, members, responsible parties, relationships, and metadata (mutates DB)
 func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userInternalUUID string) (*Team, error) {
 	result, _, err := s.update(ctx, id, team, userInternalUUID, nil)
 	return result, err
@@ -477,7 +489,7 @@ func (s *GormTeamStore) Update(ctx context.Context, id string, team *Team, userI
 
 // UpdateWithVersion updates a team guarded by a same-transaction
 // optimistic-lock CAS (#594).
-// SEM@0000000000000000000000000000000000000000: update a team guarded by a same-transaction version CAS (mutates DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update a team guarded by a same-transaction version CAS (mutates DB)
 func (s *GormTeamStore) UpdateWithVersion(ctx context.Context, id string, team *Team, userInternalUUID string, expectedVersion int) (*Team, int, error) {
 	return s.update(ctx, id, team, userInternalUUID, &expectedVersion)
 }

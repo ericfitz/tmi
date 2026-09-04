@@ -404,7 +404,7 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 
 // UpdateThreat updates an existing threat
 // PUT /threat_models/{threat_model_id}/threats/{threat_id}
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: replace a threat with optimistic locking, sanitize inputs, and record an audit entry (mutates shared state)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: replace a threat with optimistic locking, sanitize inputs, and record an audit entry (mutates shared state)
 func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateThreat - updating existing threat")
@@ -489,7 +489,7 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 		err = h.threatStore.Update(c.Request.Context(), threat)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Threat not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}
@@ -511,7 +511,7 @@ func (h *ThreatSubResourceHandler) UpdateThreat(c *gin.Context) {
 
 // PatchThreat applies JSON patch operations to a threat
 // PATCH /threat_models/{threat_model_id}/threats/{threat_id}
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: apply JSON patch operations to a threat with authorization and optimistic locking, recording an audit entry (mutates shared state)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: apply JSON patch operations to a threat with authorization and optimistic locking, recording an audit entry (mutates shared state)
 func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchThreat - applying patch operations to threat")
@@ -600,7 +600,7 @@ func (h *ThreatSubResourceHandler) PatchThreat(c *gin.Context) {
 		updatedThreat, err = h.threatStore.Patch(c.Request.Context(), threatModelID, threatID, operations)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Threat not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}
@@ -674,7 +674,7 @@ func (h *ThreatSubResourceHandler) DeleteThreat(c *gin.Context) {
 
 // BulkCreateThreats creates multiple threats in a single request
 // POST /threat_models/{threat_model_id}/threats/bulk
-// SEM@f34985e914fe8d55039296cf4302878c88329818: store up to 50 new threats under a threat model in a single request (mutates shared state)
+// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: store up to 50 new threats under a threat model in a single request (mutates shared state)
 func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateThreats - creating multiple threats")
@@ -775,7 +775,7 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 
 // BulkUpdateThreats updates multiple threats in a single request
 // PUT /threat_models/{threat_model_id}/threats/bulk
-// SEM@f34985e914fe8d55039296cf4302878c88329818: replace up to 50 existing threats under a threat model in a single request (mutates shared state)
+// SEM@436c1840b3eef9687193078750dec3e22874f10e: replace up to 50 existing threats under a threat model in a single request (mutates shared state)
 func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkUpdateThreats - updating multiple threats")
@@ -876,7 +876,7 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 
 // BulkPatchThreats applies JSON patch operations to multiple threats
 // PATCH /threat_models/{threat_model_id}/threats/bulk
-// SEM@2de6d9ced98fa6de4821500a03f276a35f1c450e: apply JSON patch operations to multiple threats, authorizing each (mutates DB)
+// SEM@436c1840b3eef9687193078750dec3e22874f10e: apply JSON patch operations to multiple threats, authorizing each (mutates DB)
 func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkPatchThreats - applying patch operations to multiple threats")
@@ -969,7 +969,7 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 
 // BulkDeleteThreats deletes multiple threats
 // DELETE /threat_models/{threat_model_id}/threats/bulk
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: delete up to 20 threats by ID in a single request and return the deleted IDs (mutates shared state)
+// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: delete up to 20 threats by ID in a single request and return the deleted IDs (mutates shared state)
 func (h *ThreatSubResourceHandler) BulkDeleteThreats(c *gin.Context, threatIDs ThreatIdsQueryParam) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkDeleteThreats - deleting multiple threats")

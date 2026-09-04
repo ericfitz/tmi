@@ -140,12 +140,20 @@ var wellKnownEmailAttributes = []string{
 }
 
 // wellKnownNameAttributes lists SAML attribute names and FriendlyNames
-// that commonly carry the user's display / full name.
+// that carry the user's display / full name and nothing else.
 var wellKnownNameAttributes = []string{
 	"http://schemas.microsoft.com/identity/claims/displayname",
 	"urn:oid:2.16.840.1.113730.3.1.241", // Netscape/LDAP displayName
 	"displayname",
 	"displayName",
+}
+
+// ambiguousNameAttributes carry a display name on some IdPs but an account
+// identifier on others: Entra's default claim set maps claims/name to
+// userPrincipalName (#799). They are consulted only after a given + family
+// name composition has been tried, and a value that looks like a UPN or
+// email address is never accepted as a display name.
+var ambiguousNameAttributes = []string{
 	"name",
 	"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name",
 }
@@ -186,7 +194,7 @@ func firstWellKnownValue(attributeMap map[string][]string, candidates []string) 
 // SAML attribute names and FriendlyNames. This is a defensive layer so that
 // a missing or misconfigured AttributeMapping does not silently produce
 // synthetic identifiers (see issue #303).
-// SEM@6c25e3ec7f7ed25ea5f9e345de5a65c91aec4567: fill missing user info fields using a curated list of well-known SAML attribute names (pure)
+// SEM@398c20164cc38e0d61bcb229d915778e30dec4ff: fill missing user info fields using a curated list of well-known SAML attribute names (pure)
 func applyWellKnownFallbacks(userInfo *UserInfo, attributeMap map[string][]string) {
 	logger := slogging.Get()
 
@@ -217,6 +225,14 @@ func applyWellKnownFallbacks(userInfo *UserInfo, attributeMap map[string][]strin
 	// If we still have no Name but we now have given + family, compose them.
 	if userInfo.Name == "" && userInfo.GivenName != "" && userInfo.FamilyName != "" {
 		userInfo.Name = userInfo.GivenName + " " + userInfo.FamilyName
+	}
+	// Last resort: the ambiguous attributes, unless the value is an account
+	// identifier, in which case applyNameFallback derives a flagged name.
+	if userInfo.Name == "" {
+		if v := firstWellKnownValue(attributeMap, ambiguousNameAttributes); v != "" && !strings.Contains(v, "@") {
+			userInfo.Name = v
+			logger.Debug("SAML name populated from ambiguous well-known fallback: %s", v)
+		}
 	}
 }
 

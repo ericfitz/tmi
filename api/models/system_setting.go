@@ -111,7 +111,7 @@ func (s *SystemSetting) IsExplicit() bool {
 // rate_limit.requests_per_hour seeded here with no classification entry
 // anywhere else, so GET/DELETE /admin/settings/{key} 404'd on keys the LIST
 // endpoint showed (#809).
-// SEM@62e82fc4e96a1c18f4e1ac1d698de4fefb974b42: build the seed list of default system settings for database initialization (pure)
+// SEM@52914780502cbad86069ca79ff9339c6d7ecf04d: build the seed list of default system settings from the operational config registry (pure)
 func DefaultSystemSettings() []SystemSetting {
 	desc := func(s string) NullableDBText { return NullableDBText{String: s, Valid: true} }
 
@@ -121,27 +121,9 @@ func DefaultSystemSettings() []SystemSetting {
 		out = append(out, SystemSetting{
 			SettingKey:  DBVarchar(d.Key),
 			Value:       DBText(d.Default),
-			SettingType: DBVarchar(settingTypeFor(d.Type)),
+			SettingType: DBVarchar(d.Type), // registry tokens ARE the stored constants; pinned by TestSystemSettingType_RegistryTokensAreStoredConstants (#811)
 			Description: desc(d.Description),
 		})
 	}
 	return out
-}
-
-// settingTypeFor maps a config registry type name to the stored
-// system_settings setting_type value.
-// SEM@62e82fc4e96a1c18f4e1ac1d698de4fefb974b42: convert a config registry type name to a stored setting_type value (pure)
-func settingTypeFor(t string) string {
-	switch t {
-	case "bool":
-		return SystemSettingTypeBool
-	case "int":
-		return SystemSettingTypeInt
-	case "float":
-		return SystemSettingTypeFloat
-	case "json":
-		return SystemSettingTypeJSON
-	default:
-		return SystemSettingTypeString
-	}
 }

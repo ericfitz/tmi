@@ -211,7 +211,7 @@ func (h *AssetSubResourceHandler) CreateAsset(c *gin.Context) {
 
 // UpdateAsset updates an existing asset
 // PUT /threat_models/{threat_model_id}/assets/{asset_id}
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: handle PUT /threat_models/{id}/assets/{asset_id}: replace an asset with validated data (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: replace an asset with optimistic locking, audit recording, and cache invalidation (mutates DB)
 func (h *AssetSubResourceHandler) UpdateAsset(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateAsset - updating existing asset")
@@ -290,7 +290,7 @@ func (h *AssetSubResourceHandler) UpdateAsset(c *gin.Context) {
 		err = h.assetStore.Update(c.Request.Context(), asset, threatModelID)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Asset not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}
@@ -465,7 +465,7 @@ func (h *AssetSubResourceHandler) BulkCreateAssets(c *gin.Context) {
 
 // PatchAsset applies JSON patch operations to an asset
 // PATCH /threat_models/{threat_model_id}/assets/{asset_id}
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: handle PATCH /threat_models/{id}/assets/{asset_id}: apply JSON Patch operations to an asset (reads DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: apply JSON Patch operations to an asset with optimistic locking and audit recording (mutates DB)
 func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchAsset - applying patch operations to asset")
@@ -549,7 +549,7 @@ func (h *AssetSubResourceHandler) PatchAsset(c *gin.Context) {
 		updatedAsset, err = h.assetStore.Patch(c.Request.Context(), assetID, operations)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Asset not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}

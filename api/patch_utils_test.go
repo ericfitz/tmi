@@ -51,6 +51,7 @@ func TestApplyPatchOperations(t *testing.T) {
 		operations  []PatchOperation
 		expectError bool
 		errorCode   string
+		errorStatus int
 		validator   func(t *testing.T, result PatchTestEntity)
 	}{
 		{
@@ -149,6 +150,20 @@ func TestApplyPatchOperations(t *testing.T) {
 			expectError: true,
 			errorCode:   "patch_failed",
 		},
+		{
+			// #815: a patched value that fails schema validation is the caller's
+			// error (400), not a server deserialization failure (500).
+			name: "owner with empty email is a client error",
+			operations: []PatchOperation{
+				{Op: "replace", Path: "/owner", Value: map[string]any{
+					"principal_type": "user", "provider": "test", "provider_id": "someone",
+					"display_name": "Someone", "email": "",
+				}},
+			},
+			expectError: true,
+			errorCode:   "invalid_input",
+			errorStatus: http.StatusBadRequest,
+		},
 	}
 
 	for _, tt := range tests {
@@ -160,6 +175,9 @@ func TestApplyPatchOperations(t *testing.T) {
 				var reqErr *RequestError
 				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, tt.errorCode, reqErr.Code)
+				if tt.errorStatus != 0 {
+					assert.Equal(t, tt.errorStatus, reqErr.Status)
+				}
 			} else {
 				require.NoError(t, err)
 				if tt.validator != nil {

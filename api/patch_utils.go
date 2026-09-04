@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,7 +12,7 @@ import (
 )
 
 // ApplyPatchOperations applies JSON Patch operations to an entity and returns the modified entity
-// SEM@08dc266da6e8cd180aa7274d8135e3c559663cfa: apply RFC 6902 JSON Patch operations to an entity, promoting replace to add for absent optional fields (pure)
+// SEM@4aeb9143566d7b7712cdee5ecbbb16e134f6c684: apply RFC 6902 JSON Patch operations to an entity, promoting replace to add for absent fields (pure)
 func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, error) {
 	var zero T
 
@@ -84,13 +85,24 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 	modifiedBytes = fixImageField(modifiedBytes, originalBytes)
 	modifiedBytes = fixOwnerField(modifiedBytes, originalBytes)
 
-	// Deserialize back into entity
+	// Deserialize back into entity. The patched document is caller-supplied
+	// content, so a value that no longer fits the schema (wrong type, failed
+	// format/regex validation) is the caller's error (#815). Only malformed
+	// JSON, which the server itself would have produced, is a server error.
 	var modified T
 	if err := json.Unmarshal(modifiedBytes, &modified); err != nil {
+		var syntaxErr *json.SyntaxError
+		if errors.As(err, &syntaxErr) {
+			return zero, &RequestError{
+				Status:  http.StatusInternalServerError,
+				Code:    "server_error",
+				Message: "Failed to deserialize patched entity: " + err.Error(),
+			}
+		}
 		return zero, &RequestError{
-			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
-			Message: "Failed to deserialize patched entity: " + err.Error(),
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_input",
+			Message: "Patched entity is invalid: " + err.Error(),
 		}
 	}
 

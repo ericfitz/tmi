@@ -80,7 +80,7 @@ func (s *Server) ListTeams(c *gin.Context, params ListTeamsParams) {
 // CreateTeam creates a new team.
 // Any authenticated user can create a team. The creator is auto-added as a member.
 // POST /teams
-// SEM@00add3d4f7dc1c0a9cc072d7e6ca32ace4d03641: store a new team and auto-add the creator as a member (writes DB)
+// SEM@e62d1a7b2af9752a2675f7dbf5381ddbe55e1661: store a new team and auto-add the creator as a member (writes DB)
 func (s *Server) CreateTeam(c *gin.Context) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -187,7 +187,7 @@ func (s *Server) GetTeam(c *gin.Context, teamId openapi_types.UUID) {
 // UpdateTeam fully updates a team.
 // Requires team membership or admin.
 // PUT /teams/{team_id}
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: fully replace a team's fields, requiring membership or admin role with optimistic locking (writes DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fully replace a team's fields, requiring membership or admin role with optimistic locking (writes DB)
 func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID, _ UpdateTeamParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -254,7 +254,7 @@ func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID, _ UpdateT
 		result, err = GlobalTeamStore.Update(ctx, teamId.String(), &team, userUUID)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Team not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}
@@ -282,7 +282,7 @@ func (s *Server) UpdateTeam(c *gin.Context, teamId openapi_types.UUID, _ UpdateT
 // PatchTeam partially updates a team via JSON Patch.
 // Requires team membership or admin.
 // PATCH /teams/{team_id}
-// SEM@3253a9999eeaddc59fa7469d4f7d7fe80d59c6ca: partially update a team via JSON Patch, requiring membership or admin role with optimistic locking (writes DB)
+// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: partially update a team via JSON Patch, requiring membership or admin role with optimistic locking (writes DB)
 func (s *Server) PatchTeam(c *gin.Context, teamId openapi_types.UUID, _ PatchTeamParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -363,7 +363,7 @@ func (s *Server) PatchTeam(c *gin.Context, teamId openapi_types.UUID, _ PatchTea
 		result, err = GlobalTeamStore.Update(ctx, teamId.String(), &patched, userUUID)
 	}
 	if err != nil {
-		if mapped := MapOptimisticLockError(err); mapped != nil {
+		if mapped := MapOptimisticLockError(err, "Team not found"); mapped != nil {
 			HandleRequestError(c, mapped)
 			return
 		}

@@ -392,7 +392,7 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 // the cross-replica migration advisory lock held (see runMigrationsLocked) —
 // several of its steps issue DDL that is not safe to run concurrently from
 // two replicas.
-// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: run the schema-evolution sequence: AutoMigrate, backfills, index upgrades, and seeding (mutates DB)
+// SEM@72dd09a3a2452db4ebcb144ebcf734b0140a67c7: run the schema-evolution sequence: AutoMigrate, backfills, index upgrades, and seeding (mutates DB)
 func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error {
 	logger := slogging.Get()
 
@@ -706,7 +706,7 @@ func newSystemAuditRepo(db *gorm.DB, operatorName string) api.SystemAuditReposit
 	return repo
 }
 
-// SEM@42ef5843bbac0234c5e9af2e1ed89f0c5f366f44: initialize database connections, all subsystems, and register all API routes, returning the configured Gin engine
+// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: initialize database connections, all subsystems, and register all API routes, returning the configured Gin engine
 func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.EmbeddingCleaner) {
 	// Create a gin router without default middleware
 	r := gin.New()
@@ -2476,7 +2476,7 @@ func adminInitTimeout(entries int) time.Duration {
 }
 
 // initializeAdministratorsGorm initializes administrators from configuration using GORM
-// SEM@605e29546fe60dc8ac69862013475720a74dea8b: seed the Administrators group with configured users/groups, creating missing users only on not-found (writes DB)
+// SEM@e366b358cc15bd5e5a59a246885007024900dbc4: seed the Administrators group with configured users/groups, creating missing users only on not-found (writes DB)
 func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 	logger := slogging.Get()
 	logger.Info("Initializing administrators from configuration (GORM)")
@@ -2564,7 +2564,14 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 				userUUID = createdUser
 			}
 
-			// Add user to Administrators group
+			// Add user to Administrators group. Check membership first: on every
+			// boot after the first the INSERT would trip the unique index, and
+			// GORM logs that statement failure at ERROR before this code can
+			// decide it is the benign "already a member" case (#808).
+			if isMember, memErr := api.GlobalGroupMemberRepository.IsMember(ctx, adminsGroupUUID, userUUID); memErr == nil && isMember {
+				logger.Info("Administrator user already in group: provider=%s, user_uuid=%s", adminCfg.Provider, userUUID)
+				continue
+			}
 			_, err = api.GlobalGroupMemberRepository.AddMember(ctx, adminsGroupUUID, userUUID, nil, &notes)
 			if err != nil {
 				// A duplicate here is the ordinary "already a member" case; a
@@ -2588,7 +2595,12 @@ func initializeAdministratorsGorm(cfg *config.Config, gormDB *gorm.DB) error {
 				continue
 			}
 
-			// Add group to Administrators group (group-in-group membership)
+			// Add group to Administrators group (group-in-group membership),
+			// skipping the INSERT when it is already there (#808, as above).
+			if isMember, memErr := isGroupMemberGorm(ctx, gormDB, adminsGroupUUID, groupUUID); memErr == nil && isMember {
+				logger.Info("Administrator group already in group: provider=%s, group_uuid=%s", adminCfg.Provider, groupUUID)
+				continue
+			}
 			_, err = api.GlobalGroupMemberRepository.AddGroupMember(ctx, adminsGroupUUID, groupUUID, nil, &notes)
 			if err != nil {
 				logger.Info("Administrator group already in group or added: provider=%s, error=%v", adminCfg.Provider, err)
@@ -2723,6 +2735,18 @@ func findGroupByProviderAndNameGorm(ctx context.Context, gormDB *gorm.DB, provid
 	}
 
 	return uuid.Parse(string(group.InternalUUID))
+}
+
+// isGroupMemberGorm reports whether memberGroupUUID is already a direct
+// (subject_type=group) member of groupUUID.
+// SEM@e366b358cc15bd5e5a59a246885007024900dbc4: check whether a group is already a direct member of another group (reads DB)
+func isGroupMemberGorm(ctx context.Context, gormDB *gorm.DB, groupUUID, memberGroupUUID uuid.UUID) (bool, error) {
+	var count int64
+	err := gormDB.WithContext(ctx).Model(&models.GroupMember{}).
+		Where("group_internal_uuid = ? AND member_group_internal_uuid = ? AND subject_type = ?",
+			groupUUID.String(), memberGroupUUID.String(), "group").
+		Count(&count).Error
+	return count > 0, err
 }
 
 // buildGormConfig creates a GORM configuration from the application config.

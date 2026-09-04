@@ -114,7 +114,7 @@ def clear_redis_rate_limits(redis_db: str = "0") -> None:
     for pattern in ("auth:ratelimit:*", "ip:ratelimit:*"):
         try:
             scan = subprocess.run(
-                ["docker", "exec", "tmi-redis", "redis-cli", "-n", redis_db,
+                ["docker", "exec", TEST_REDIS_CONTAINER, "redis-cli", "-n", redis_db,
                  "--scan", "--pattern", pattern],
                 capture_output=True, text=True, check=False,
             )
@@ -122,7 +122,7 @@ def clear_redis_rate_limits(redis_db: str = "0") -> None:
             if not keys:
                 continue
             subprocess.run(
-                ["docker", "exec", "-i", "tmi-redis", "redis-cli", "-n", redis_db,
+                ["docker", "exec", "-i", TEST_REDIS_CONTAINER, "redis-cli", "-n", redis_db,
                  "DEL", *keys],
                 check=False, capture_output=True,
             )
@@ -191,21 +191,45 @@ def wait_for_server(url: str, timeout: int = 60) -> bool:
     return False
 
 
-def ensure_redis(project_root: Path) -> None:
-    """Best-effort: ensure a Redis is listening on localhost:6379.
+TEST_REDIS_CONTAINER = "tmi-redis-test"
+TEST_REDIS_HOST_PORT = "6380"
 
-    The isolated test server and the integration suite use Redis; config-test.yml
-    selects logical DB 1 for test isolation. Postgres is the only store #477
-    isolates by container, so Redis intentionally reuses the local instance.
+
+def ensure_redis(project_root: Path) -> bool:
+    """Start the ISOLATED test Redis container and verify it owns its port.
+
+    Redis used to share the dev instance on localhost:6379, so whatever
+    answered there — a kubectl port-forward into the dev cluster, another
+    project's Redis — was silently adopted and the webhook/addon workflow
+    tests failed on challenge timeouts (#778). Like the tmi-postgresql-test
+    container, the test Redis now has its own name and host port, and this
+    refuses to proceed unless that container is the listener on that port.
     """
     scripts_dir = project_root / "scripts"
     try:
         subprocess.run(
-            ["uv", "run", str(scripts_dir / "manage-redis.py"), "start"],
+            ["uv", "run", str(scripts_dir / "manage-redis.py"), "--test", "start"],
             cwd=str(project_root), check=False, capture_output=True,
         )
-    except OSError:
-        log_warn("Could not start Redis; tests needing Redis may fail")
+    except OSError as exc:
+        log_error(f"Could not start the test Redis container: {exc}")
+        return False
+    published = subprocess.run(
+        ["docker", "port", TEST_REDIS_CONTAINER, "6379/tcp"],
+        check=False, capture_output=True, text=True,
+    ).stdout
+    if f":{TEST_REDIS_HOST_PORT}" in published:
+        return True
+    listeners = subprocess.run(
+        ["lsof", "-nP", f"-iTCP:{TEST_REDIS_HOST_PORT}", "-sTCP:LISTEN"],
+        check=False, capture_output=True, text=True,
+    ).stdout.strip()
+    log_error(
+        f"Container {TEST_REDIS_CONTAINER} is not publishing localhost:{TEST_REDIS_HOST_PORT} "
+        f"(docker port: {published.strip() or 'none'}). Refusing to run against a foreign Redis (#778)."
+        + (f"\nCurrent listeners on {TEST_REDIS_HOST_PORT}:\n{listeners}" if listeners else "")
+    )
+    return False
 
 
 TEST_SERVER_CONTAINER = "tmi-server-test"
@@ -348,7 +372,8 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
     log_info("Running migrations against the isolated test DB")
     database.migrate(profile)
 
-    ensure_redis(project_root)
+    if not ensure_redis(project_root):
+        return 1, None
 
     db_host = "localhost"
     db_port = str(profile.port)
@@ -359,13 +384,12 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
         f"postgres://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?sslmode=disable"
     )
 
-    # Redis is shared with dev by container but isolated by logical DB index:
-    # config-test.yml selects DB 1 for tests (dev uses DB 0). Keep config-test.yml
-    # authoritative and propagate the same index to the test helpers via
-    # TEST_REDIS_DB so direct test connections never collide with dev (#477).
+    # Redis is the isolated test container on its own host port (#778); the
+    # logical DB index still comes from config-test.yml and is propagated to
+    # the test helpers via TEST_REDIS_DB (#477).
     raw_test_cfg = load_config(test_cfg)
-    redis_host = str(config_get(raw_test_cfg, "database.redis.host") or "localhost")
-    redis_port = str(config_get(raw_test_cfg, "database.redis.port") or "6379")
+    redis_host = "localhost"
+    redis_port = TEST_REDIS_HOST_PORT
     redis_db = str(config_get(raw_test_cfg, "database.redis.db") or "0")
 
     base_env = {
@@ -405,7 +429,7 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
     else:
         log_info("Running api/ integration tests against the isolated test DB")
         api_cmd = [
-            "go", "test", "-v", "-timeout=10m", "-tags=test",
+            "go", "test", "-v", "-count=1", "-timeout=10m", "-tags=test",
             "./api/...", "-run", "Integration",
         ]
         api_exit = run_go_test(api_cmd, project_root, base_env, log_path)
@@ -466,7 +490,7 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
                     "TMI_SERVER_URL": server_url,
                     "TEST_SERVER_URL": server_url,
                 }
-                wf_cmd = ["go", "test", "-v", "-timeout=15m", "-p", "1", "./workflows/..."]
+                wf_cmd = ["go", "test", "-v", "-count=1", "-timeout=15m", "-p", "1", "./workflows/..."]
                 if workflow_run:
                     wf_cmd += ["-run", workflow_run]
                 # The workflows package is a separate module under test/integration.
@@ -520,7 +544,7 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
         f"TEST_SERVER_URL='{server_url}' "
         "TEST_REDIS_HOST=localhost "
         "TEST_REDIS_PORT=6379 "
-        "go test -v -timeout=10m ./api/... -run Integration"
+        "go test -v -count=1 -timeout=10m ./api/... -run Integration"
     )
     with open(log_path, "a") as fh:
         result = subprocess.run(
@@ -549,7 +573,7 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
         f"source '{oci_env_file}' && "
         "LOGGING_IS_TEST=true "
         "CGO_ENABLED=1 "
-        "go test -v -timeout=10m -tags oracle ./api/... ./internal/dbschema/... -run OracleIntegration"
+        "go test -v -count=1 -timeout=10m -tags oracle ./api/... ./internal/dbschema/... -run OracleIntegration"
     )
     with open(log_path, "a") as fh:
         oracle_result = subprocess.run(
@@ -570,7 +594,7 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
     workflows_skipped: str | None = None
     log_info("Running workflow integration tests against the Oracle-backed dev server")
     workflow_run = os.environ.get("TMI_TEST_WORKFLOW_RUN", "").strip()
-    wf_go_cmd = "go test -v -timeout=15m -p 1 ./workflows/..."
+    wf_go_cmd = "go test -v -count=1 -timeout=15m -p 1 ./workflows/..."
     if workflow_run:
         wf_go_cmd += f" -run '{workflow_run}'"
     wf_cmd = (

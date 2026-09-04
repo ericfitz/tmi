@@ -145,10 +145,6 @@ func (m *mockSurveyResponseStoreForTriageNotes) List(_ context.Context, _, _ int
 	return nil, 0, nil
 }
 
-func (m *mockSurveyResponseStoreForTriageNotes) ListByOwner(_ context.Context, _ string, _, _ int, _ *string) ([]SurveyResponseListItem, int, error) {
-	return nil, 0, nil
-}
-
 func (m *mockSurveyResponseStoreForTriageNotes) UpdateStatus(_ context.Context, _ uuid.UUID, _ string, _ *string, _ *string) error {
 	return nil
 }

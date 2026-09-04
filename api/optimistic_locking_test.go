@@ -133,7 +133,7 @@ func TestCheckAndBumpVersion_NotFound(t *testing.T) {
 // turn into a 500. This is the same contract ApplyOptimisticLock used to
 // enforce; it now lives on the store-error side of the split (#594).
 func TestMapOptimisticLockError_NotFoundReturns404(t *testing.T) {
-	err := MapOptimisticLockError(dberrors.ErrNotFound)
+	err := MapOptimisticLockError(dberrors.ErrNotFound, "Project not found")
 	require.Error(t, err)
 	var reqErr *RequestError
 	require.True(t, errors.As(err, &reqErr), "expected *RequestError, got %T", err)
@@ -143,7 +143,7 @@ func TestMapOptimisticLockError_NotFoundReturns404(t *testing.T) {
 // TestMapOptimisticLockError_VersionMismatchReturns409 pins the sibling
 // mapping: a version mismatch surfaces as a 409 RequestError.
 func TestMapOptimisticLockError_VersionMismatchReturns409(t *testing.T) {
-	err := MapOptimisticLockError(ErrVersionMismatch)
+	err := MapOptimisticLockError(ErrVersionMismatch, "Project not found")
 	require.Error(t, err)
 	var reqErr *RequestError
 	require.True(t, errors.As(err, &reqErr), "expected *RequestError, got %T", err)
@@ -154,8 +154,8 @@ func TestMapOptimisticLockError_VersionMismatchReturns409(t *testing.T) {
 // contract: nil or a non-versioning error returns nil so callers fall
 // through to their existing error mapping instead of a false 409/404.
 func TestMapOptimisticLockError_OtherErrorReturnsNil(t *testing.T) {
-	assert.Nil(t, MapOptimisticLockError(nil))
-	assert.Nil(t, MapOptimisticLockError(errors.New("some other store error")))
+	assert.Nil(t, MapOptimisticLockError(nil, "Project not found"))
+	assert.Nil(t, MapOptimisticLockError(errors.New("some other store error"), "Project not found"))
 }
 
 // TestResolveOptimisticLock_HeaderPresent verifies If-Match header parsing
@@ -361,8 +361,10 @@ func TestCheckAndBumpVersion_WildcardReadBackTransient(t *testing.T) {
 
 	_, err := CheckAndBumpVersion(context.Background(), db, "threat_models", id, VersionWildcard)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrVersionMismatch),
-		"transient read-back error must map to ErrVersionMismatch (409), not surface bare (500), got: %v", err)
+	assert.True(t, dberrors.IsRetryable(err),
+		"transient read-back error must stay classified ErrTransient so the enclosing retry wrapper retries it (#775), got: %v", err)
+	assert.False(t, errors.Is(err, ErrVersionMismatch),
+		"a transient blip must not be reported as a version conflict (#775)")
 	assert.False(t, errors.Is(err, dberrors.ErrNotFound))
 
 	require.NoError(t, db.Callback().Query().Remove("test:inject_readback_transient"))
@@ -690,4 +692,36 @@ func TestGormThreatModelStore_UpdateWithVersion_SameTxAtomicity(t *testing.T) {
 		assert.Equal(t, before.Version, after.Version,
 			"#594 regression pin: a failed content write must roll back the version CAS that guarded it")
 	})
+}
+
+// TestCheckAndBumpVersion_WildcardReadBackNonTransientStays409 pins the
+// #581 1b half that #775 keeps: a read failure that is neither not-found nor
+// transient still maps to ErrVersionMismatch (409), never a bare 500.
+func TestCheckAndBumpVersion_WildcardReadBackNonTransientStays409(t *testing.T) {
+	db, _ := setupThreatModelAliasTestDB(t)
+	id := uuid.New().String()
+	tm := &models.ThreatModel{
+		ID:                    models.DBVarchar(id),
+		Name:                  "Wildcard Read-Back Non-Transient Test",
+		OwnerInternalUUID:     models.DBVarchar(uuid.New().String()),
+		CreatedByInternalUUID: models.DBVarchar(uuid.New().String()),
+		ThreatModelFramework:  "STRIDE",
+		Status:                "not_started",
+		Version:               3,
+	}
+	require.NoError(t, db.Create(tm).Error)
+
+	require.NoError(t, db.Callback().Query().Before("gorm:query").Register("test:inject_readback_odd", func(tx *gorm.DB) {
+		if _, ok := tx.Statement.Dest.(*sql.NullInt64); ok {
+			tx.Error = errors.New("ORA-00942: table or view does not exist")
+		}
+	}))
+	t.Cleanup(func() {
+		_ = db.Callback().Query().Remove("test:inject_readback_odd")
+	})
+
+	_, err := CheckAndBumpVersion(context.Background(), db, "threat_models", id, VersionWildcard)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrVersionMismatch), "got: %v", err)
+	assert.False(t, dberrors.IsRetryable(err))
 }

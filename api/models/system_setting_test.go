@@ -139,3 +139,21 @@ func TestDefaultSystemSettings_DoesNotSeedRetiredRateLimitKeys(t *testing.T) {
 	assert.False(t, keys["rate_limit.requests_per_hour"],
 		"rate_limit.requests_per_hour was retired by #813 and must not be seeded")
 }
+
+// TestSystemSettingType_RegistryTokensAreStoredConstants pins #811: both
+// DefaultSystemSettings and SettingsService.SeedDefaults write the registry's
+// type token to system_settings.setting_type verbatim, and the column has no
+// CHECK constraint on either engine. The token set must therefore equal the
+// stored constants by construction; a new registry type lands here first.
+func TestSystemSettingType_RegistryTokensAreStoredConstants(t *testing.T) {
+	stored := map[string]bool{
+		SystemSettingTypeString: true,
+		SystemSettingTypeInt:    true,
+		SystemSettingTypeBool:   true,
+		SystemSettingTypeJSON:   true,
+		SystemSettingTypeFloat:  true,
+	}
+	for _, d := range config.AllSettingDefs() {
+		assert.Truef(t, stored[d.Type], "setting %s declares type %q, which is not a SystemSettingType constant", d.Key, d.Type)
+	}
+}
