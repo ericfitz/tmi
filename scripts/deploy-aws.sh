@@ -402,7 +402,7 @@ preflight_checks() {
 
     # 13. Check AWS region is valid
     if [[ "${failed}" -eq 0 ]]; then
-        if aws ec2 describe-regions --region-names "${REGION}" &>/dev/null; then
+        if aws ec2 describe-regions --region "${REGION}" --region-names "${REGION}" &>/dev/null; then
             log_success "AWS region '${REGION}' is valid"
         else
             log_error "Invalid AWS region: ${REGION}"
