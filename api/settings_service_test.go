@@ -754,3 +754,38 @@ func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 	assert.Equal(t, models.SystemSettingOriginExplicit, reloadedExplicit.Origin.String)
 	assert.True(t, reloadedExplicit.IsExplicit())
 }
+
+// A missing row is negative-cached so unauthenticated hot paths do not pay a
+// DB round trip per request for keys that are never seeded (#770).
+func TestSettingsService_NegativeCache(t *testing.T) {
+	ctx := context.Background()
+	gormDB := setupSettingsTestDB(t)
+	service := &SettingsService{
+		gormDB:      gormDB,
+		memCache:    make(map[string]settingsCacheEntry),
+		memCacheTTL: 60 * time.Second,
+		useMemCache: true,
+	}
+	const key = "auth.oauth.client_callback_allowlist"
+
+	setting, err := service.Get(ctx, key)
+	require.NoError(t, err)
+	require.Nil(t, setting)
+	_, found := service.getFromMemCache(key)
+	require.True(t, found, "miss should leave a tombstone in the cache")
+
+	// A row that appears behind the tombstone is invisible until the key is
+	// invalidated: proves the second Get never touched the database.
+	require.NoError(t, gormDB.Create(&models.SystemSetting{
+		SettingKey: key, Value: `["http://a/"]`, SettingType: models.SystemSettingTypeJSON,
+	}).Error)
+	setting, err = service.Get(ctx, key)
+	require.NoError(t, err)
+	require.Nil(t, setting, "tombstone must be served without a DB read")
+
+	service.invalidateCache(ctx, key)
+	setting, err = service.Get(ctx, key)
+	require.NoError(t, err)
+	require.NotNil(t, setting)
+	require.Equal(t, `["http://a/"]`, string(setting.Value))
+}

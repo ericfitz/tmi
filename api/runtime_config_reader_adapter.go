@@ -77,10 +77,11 @@ func (a *RuntimeConfigReaderAdapter) GetClientCallbackAllowList(ctx context.Cont
 }
 
 // IsSAMLEnabled reads features.saml_enabled by the converged precedence
-// rule (#794). When no layer supplies a value it falls back to GetString —
-// unlike the other two readers, the auth handler has no YAML fallback of
-// its own once a RuntimeConfigReader is wired. A read error or garbage
-// value returns false (fail-closed).
+// rule (#794), which already consults the config layer when no row exists,
+// so a missing value is final: one DB read per call (#770). Only a
+// transient DB fault falls back to GetString, because that is the one case
+// where GetResolvedString could not report the config layer's value. A read
+// error or garbage value returns false (fail-closed).
 //
 // Note that TMI_SAML_ENABLED separately gates SAML manager construction at
 // startup (auth/service.go), so the env var stays load-bearing regardless of
@@ -98,16 +99,15 @@ func (a *RuntimeConfigReaderAdapter) IsSAMLEnabled(ctx context.Context) bool {
 			return false
 		}
 		slogging.Get().Warn("RuntimeConfigReader: transient DB error reading features.saml_enabled; falling back to the config layer: %v", err)
-		exists = false
-		raw = ""
-	}
-	if !exists || raw == "" {
-		// No DB row — fall back to the config layer (env > YAML).
 		var cfgErr error
 		raw, cfgErr = a.settings.GetString(ctx, "features.saml_enabled")
 		if cfgErr != nil || raw == "" {
 			return false
 		}
+	} else if !exists || raw == "" {
+		// GetResolvedString found nothing in the database or the config
+		// layer; a second read would only repeat the DB miss.
+		return false
 	}
 	v, parseErr := strconv.ParseBool(raw)
 	if parseErr != nil {
