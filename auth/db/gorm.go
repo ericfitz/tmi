@@ -452,10 +452,13 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 		// cursor on each pooled connection, so any code path that varies its
 		// SQL text per request becomes an Oracle-only ORA-01000 (open cursor
 		// exhaustion) instead of a cache miss (#684). The cap bounds the cursors
-		// one session can hold through this cache well under Oracle ADB's
-		// OPEN_CURSORS (1000 by default) while leaving headroom over TMI's
-		// distinct statement set, so steady state never evicts; the TTL
-		// retires statements a rare code path touched once.
+		// one session can hold through this cache well under Autonomous
+		// Database's OPEN_CURSORS default of 1000 (a stock non-ADB Oracle
+		// defaults to 50 and would need a lower cap). Some eviction is
+		// expected in steady state: `IN ?` expands one placeholder per element,
+		// so each distinct slice length is a distinct statement. Eviction is a
+		// cache miss, which is the point; the TTL retires statements a rare
+		// code path touched once (GORM's LRU does not refresh the TTL on a hit).
 		PrepareStmtMaxSize: preparedStmtCacheMaxSize,
 		PrepareStmtTTL:     preparedStmtCacheTTL,
 	}

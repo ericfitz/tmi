@@ -84,6 +84,12 @@ func classifyByString(err error) error {
 		"connection is shut down",
 		"invalid connection",
 		"connection unexpectedly closed",
+		// database/sql's ErrStmtClosed: GORM's prepared-statement cache
+		// evicts (TTL or size cap) by closing the *sql.Stmt in a goroutine,
+		// racing an in-flight caller that already fetched it. Not
+		// driver.ErrBadConn, so GORM does not self-heal it; retrying
+		// re-prepares (#684).
+		"statement is closed",
 	}
 	for _, pattern := range transientPatterns {
 		if strings.Contains(errStr, pattern) {
