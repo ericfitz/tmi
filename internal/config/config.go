@@ -223,33 +223,37 @@ type SAMLConfig struct {
 	Providers map[string]SAMLProviderConfig `yaml:"providers"`
 }
 
-// SAMLProviderConfig holds configuration for a SAML provider
+// SAMLProviderConfig holds configuration for a SAML provider. It is only ever
+// a value of SAMLConfig.Providers, which overrideStructWithEnv hands to
+// overrideSAMLProviders; that reads SAML_PROVIDERS_<ID>_<FIELD> (no TMI_
+// prefix), so env tags on these fields would never be consulted and there
+// are none.
 // SEM@78155d54490599e00095eb72b817575bb1e8da5b: configuration struct for a single SAML provider's SP/IdP metadata, keys, and attribute mappings (pure)
 type SAMLProviderConfig struct {
 	ID                  string `yaml:"id"`
 	Name                string `yaml:"name"`
 	Enabled             bool   `yaml:"enabled"`
 	Icon                string `yaml:"icon"`
-	EntityID            string `yaml:"entity_id" env:"TMI_SAML_ENTITY_ID"`
-	MetadataURL         string `yaml:"metadata_url" env:"TMI_SAML_METADATA_URL"`
-	MetadataXML         string `yaml:"metadata_xml" env:"TMI_SAML_METADATA_XML"`
-	ACSURL              string `yaml:"acs_url" env:"TMI_SAML_ACS_URL"`
-	SLOURL              string `yaml:"slo_url" env:"TMI_SAML_SLO_URL"`
-	SPPrivateKey        string `yaml:"sp_private_key" env:"TMI_SAML_SP_PRIVATE_KEY"`
-	SPPrivateKeyPath    string `yaml:"sp_private_key_path" env:"TMI_SAML_SP_PRIVATE_KEY_PATH"`
-	SPCertificate       string `yaml:"sp_certificate" env:"TMI_SAML_SP_CERTIFICATE"`
-	SPCertificatePath   string `yaml:"sp_certificate_path" env:"TMI_SAML_SP_CERTIFICATE_PATH"`
-	IDPMetadataURL      string `yaml:"idp_metadata_url" env:"TMI_SAML_IDP_METADATA_URL"`
-	IDPMetadataB64XML   string `yaml:"idp_metadata_b64xml" env:"TMI_SAML_IDP_METADATA_B64XML"` // Base64-encoded IdP metadata XML
-	AllowIDPInitiated   bool   `yaml:"allow_idp_initiated" env:"TMI_SAML_ALLOW_IDP_INITIATED"`
-	ForceAuthn          bool   `yaml:"force_authn" env:"TMI_SAML_FORCE_AUTHN"`
-	SignRequests        bool   `yaml:"sign_requests" env:"TMI_SAML_SIGN_REQUESTS"`
-	NameIDAttribute     string `yaml:"name_id_attribute" env:"TMI_SAML_NAME_ID_ATTRIBUTE"`
-	EmailAttribute      string `yaml:"email_attribute" env:"TMI_SAML_EMAIL_ATTRIBUTE"`
-	NameAttribute       string `yaml:"name_attribute" env:"TMI_SAML_NAME_ATTRIBUTE"`
-	GivenNameAttribute  string `yaml:"given_name_attribute" env:"TMI_SAML_GIVEN_NAME_ATTRIBUTE"`
-	FamilyNameAttribute string `yaml:"family_name_attribute" env:"TMI_SAML_FAMILY_NAME_ATTRIBUTE"`
-	GroupsAttribute     string `yaml:"groups_attribute" env:"TMI_SAML_GROUPS_ATTRIBUTE"`
+	EntityID            string `yaml:"entity_id"`
+	MetadataURL         string `yaml:"metadata_url"`
+	MetadataXML         string `yaml:"metadata_xml"`
+	ACSURL              string `yaml:"acs_url"`
+	SLOURL              string `yaml:"slo_url"`
+	SPPrivateKey        string `yaml:"sp_private_key"`
+	SPPrivateKeyPath    string `yaml:"sp_private_key_path"`
+	SPCertificate       string `yaml:"sp_certificate"`
+	SPCertificatePath   string `yaml:"sp_certificate_path"`
+	IDPMetadataURL      string `yaml:"idp_metadata_url"`
+	IDPMetadataB64XML   string `yaml:"idp_metadata_b64xml"` // Base64-encoded IdP metadata XML
+	AllowIDPInitiated   bool   `yaml:"allow_idp_initiated"`
+	ForceAuthn          bool   `yaml:"force_authn"`
+	SignRequests        bool   `yaml:"sign_requests"`
+	NameIDAttribute     string `yaml:"name_id_attribute"`
+	EmailAttribute      string `yaml:"email_attribute"`
+	NameAttribute       string `yaml:"name_attribute"`
+	GivenNameAttribute  string `yaml:"given_name_attribute"`
+	FamilyNameAttribute string `yaml:"family_name_attribute"`
+	GroupsAttribute     string `yaml:"groups_attribute"`
 }
 
 // LoggingConfig holds configuration for the slog-based logger and its

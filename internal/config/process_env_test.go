@@ -1,7 +1,11 @@
 package config
 
 import (
+	"io/fs"
+	"os"
+	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -51,5 +55,108 @@ func TestProcessEnvVars_ReturnsACopy(t *testing.T) {
 	a[0].Name = "MUTATED"
 	if ProcessEnvVars()[0].Name == "MUTATED" {
 		t.Error("ProcessEnvVars must return a copy, not the backing slice")
+	}
+}
+
+// tmiTokenExclusions lists TMI_-prefixed tokens that occur in Go source but
+// are not environment variables. Every entry carries its justification;
+// adding one is a deliberate act.
+var tmiTokenExclusions = map[string]string{
+	"TMI_DLQ":                    "JetStream stream name (internal/worker/names.go)",
+	"TMI_DLQ_ADVISORY":           "JetStream stream name (internal/worker/names.go)",
+	"TMI_RESULTS":                "JetStream stream name (internal/worker/names.go)",
+	"TMI_PAYLOADS":               "JetStream KV bucket name (internal/worker/names.go)",
+	"TMI_SCHEMA_VERSIONS":        "Oracle upper-folded table name (internal/dbschema/schema_version.go)",
+	"TMI_THREAT_MODEL_ALIAS_SEQ": "Oracle sequence name (internal/dbschema/alias_sequence.go)",
+	"TMI_TMI_EXTRACTOR":          "derived JetStream consumer name in a doc comment (internal/worker/names.go)",
+	"TMI_CHUNK_EMBED_CONSUMER":   "derived JetStream consumer name in a doc comment (internal/worker/names.go)",
+	"TMI_SERVER_URL":             "read only by the integration-test framework under test/integration/, never by a shipped binary",
+	"TMI_CONTENT_EXTRACTORS_":    "bare prefix in a doc comment (cmd/extractor/main.go); every concrete TMI_CONTENT_EXTRACTORS_* name is a registry EnvVar",
+	// The prefix argument cmd/server/main.go passes to buildURIValidator,
+	// which appends _ALLOWLIST / _SCHEMES; the ten resulting names are
+	// ProcessEnvVars.
+	"TMI_SSRF_ISSUE_URI":      "buildURIValidator env-var prefix (cmd/server/main.go)",
+	"TMI_SSRF_DOCUMENT_URI":   "buildURIValidator env-var prefix (cmd/server/main.go)",
+	"TMI_SSRF_REPOSITORY_URI": "buildURIValidator env-var prefix (cmd/server/main.go)",
+	"TMI_SSRF_TIMMY":          "buildURIValidator env-var prefix (cmd/server/main.go)",
+	"TMI_SSRF_WEBHOOK":        "buildURIValidator env-var prefix (cmd/server/main.go)",
+}
+
+// TestRepoTMIEnvTokens_AreAllDocumented is the allowlist gate for #810.
+// Every TMI_[A-Z0-9_]+ token in the repository's non-test Go source must be
+// a registry EnvVar, a ProcessEnvVar name, an instance of a ProcessEnvVar
+// prefix pattern, or a justified tmiTokenExclusions entry. Anything else is
+// an env var — or a new non-env-var naming collision — that
+// config-reference.md, the TMI_* allowlist, does not know about.
+func TestRepoTMIEnvTokens_AreAllDocumented(t *testing.T) {
+	known := map[string]bool{}
+	for _, d := range AllSettingDefs() {
+		if d.EnvVar != "" {
+			known[d.EnvVar] = true
+		}
+	}
+	var prefixes []string
+	for _, p := range ProcessEnvVars() {
+		if p.Pattern {
+			if idx := strings.Index(p.Name, "<"); idx >= 0 {
+				prefixes = append(prefixes, p.Name[:idx])
+			}
+			continue
+		}
+		known[p.Name] = true
+	}
+	documented := func(tok string) bool {
+		if known[tok] || tmiTokenExclusions[tok] != "" {
+			return true
+		}
+		for _, pre := range prefixes {
+			if strings.HasPrefix(tok, pre) {
+				return true
+			}
+		}
+		return false
+	}
+
+	const root = "../.." // this package is internal/config
+	tokenRe := regexp.MustCompile(`TMI_[A-Z0-9_]+`)
+	offenders := map[string]bool{}
+	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if path != root && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		src, err := os.ReadFile(path) // #nosec G304 G122 -- walking the repository's own source tree
+		if err != nil {
+			return err
+		}
+		rel, _ := filepath.Rel(root, path)
+		for _, tok := range tokenRe.FindAllString(string(src), -1) {
+			if !documented(tok) {
+				offenders[tok+"  ("+rel+")"] = true
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk %s: %v", root, walkErr)
+	}
+
+	var list []string
+	for o := range offenders {
+		list = append(list, o)
+	}
+	sort.Strings(list)
+	if len(list) > 0 {
+		t.Errorf("%d TMI_* tokens in Go source that config-reference.md does not document; "+
+			"add a SettingDef EnvVar, a ProcessEnvVar, or a justified tmiTokenExclusions entry:\n  %s",
+			len(list), strings.Join(list, "\n  "))
 	}
 }
