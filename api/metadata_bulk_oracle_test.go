@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/dbschema"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,6 +36,10 @@ import (
 //     acceptance criterion: measure a 100-entry BulkReplace against Oracle.
 //     The duration is logged, not asserted, since ADB latency is
 //     environment-dependent; the log line is the record.
+//   - The final subtest drives DropRetiredMetadataIndexes and
+//     EnsureMetadataInitrans against the live catalog and asserts INI_TRANS
+//     >= 16 on METADATA and its six surviving indexes and that the four
+//     retired timestamp indexes are absent (#783, #784 acceptance).
 //
 // Run via `make test-integration-oci`.
 func TestMetadataBulkWriteOracleIntegration(t *testing.T) {
@@ -191,5 +196,67 @@ func TestMetadataBulkWriteOracleIntegration(t *testing.T) {
 		list, err = repo.List(ctx, entityType, entityID)
 		require.NoError(t, err)
 		assert.Len(t, list, n, "all 100 entries must still be present after the repeat replace")
+	})
+
+	t.Run("INITRANS >= 16 and retired timestamp indexes absent (#783, #784)", func(t *testing.T) {
+		// Drive the two ensure-steps directly so the assertion does not
+		// depend on which build last migrated the shared ADB, then call
+		// them again to pin idempotence. Both must return nil on a
+		// catalog-readable database whatever the DDL outcome; the probes
+		// below are what decide pass/fail.
+		require.NoError(t, dbschema.DropRetiredMetadataIndexes(db))
+		require.NoError(t, dbschema.EnsureMetadataInitrans(db))
+		require.NoError(t, dbschema.DropRetiredMetadataIndexes(db), "must be idempotent")
+		require.NoError(t, dbschema.EnsureMetadataInitrans(db), "must be idempotent")
+
+		// Same CURRENT_SCHEMA scoping as the production probes (#736);
+		// spelled out rather than imported so the test asserts against what
+		// Oracle holds, independently of the code under test.
+		const owner = "SYS_CONTEXT('USERENV','CURRENT_SCHEMA')"
+
+		var tableIni []int64
+		require.NoError(t, db.Raw(
+			"SELECT INI_TRANS FROM ALL_TABLES WHERE TABLE_NAME = 'METADATA' AND OWNER = "+owner,
+		).Scan(&tableIni).Error)
+		require.Len(t, tableIni, 1, "METADATA must exist in CURRENT_SCHEMA")
+		assert.GreaterOrEqual(t, tableIni[0], int64(16), "METADATA INI_TRANS (#783)")
+
+		var pk []string
+		require.NoError(t, db.Raw(
+			"SELECT INDEX_NAME FROM ALL_CONSTRAINTS WHERE TABLE_NAME = 'METADATA' AND CONSTRAINT_TYPE = 'P' "+
+				"AND INDEX_NAME IS NOT NULL AND OWNER = "+owner,
+		).Scan(&pk).Error)
+		require.Len(t, pk, 1, "METADATA must have exactly one primary-key constraint backed by an index")
+
+		survivors := append([]string{pk[0]},
+			"IDX_METADATA_UNIQUE", "IDX_METADATA_ENTITY_TYPE_ID", "IDX_METADATA_ENTITY_ID",
+			"IDX_METADATA_KEY", "IDX_METADATA_KEY_VALUE")
+		var rows []struct {
+			IndexName string
+			IniTrans  int64
+		}
+		require.NoError(t, db.Raw(
+			"SELECT INDEX_NAME, INI_TRANS FROM ALL_INDEXES WHERE TABLE_NAME = 'METADATA' AND INDEX_NAME IN ? "+
+				"AND OWNER = "+owner+" AND TABLE_OWNER = "+owner,
+			survivors,
+		).Scan(&rows).Error)
+		got := make(map[string]int64, len(rows))
+		for _, r := range rows {
+			got[r.IndexName] = r.IniTrans
+		}
+		for _, name := range survivors {
+			ini, ok := got[name]
+			assert.True(t, ok, "surviving index %s must exist on METADATA", name)
+			assert.GreaterOrEqual(t, ini, int64(16), "%s INI_TRANS (#783)", name)
+		}
+
+		retired := []string{"IDX_METADATA_CREATED", "IDX_METADATA_MODIFIED", "IDX_METADATA_ENTITY_CREATED", "IDX_METADATA_ENTITY_MODIFIED"}
+		var leftover []string
+		require.NoError(t, db.Raw(
+			"SELECT INDEX_NAME FROM ALL_INDEXES WHERE TABLE_NAME = 'METADATA' AND INDEX_NAME IN ? "+
+				"AND OWNER = "+owner+" AND TABLE_OWNER = "+owner,
+			retired,
+		).Scan(&leftover).Error)
+		assert.Empty(t, leftover, "retired timestamp indexes must be gone from METADATA (#784)")
 	})
 }
