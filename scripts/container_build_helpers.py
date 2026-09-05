@@ -443,7 +443,7 @@ def ensure_buildx_builder() -> None:
     )
     if result.returncode != 0:
         log_info(f"Creating buildx builder: {BUILDX_BUILDER_NAME}")
-        run(["docker", "buildx", "create", "--name", BUILDX_BUILDER_NAME, "--use", "--bootstrap"])
+        run(["docker", "buildx", "create", "--name", BUILDX_BUILDER_NAME, "--use", "--bootstrap", "--config", str(Path.home() / ".docker" / "buildkitd.toml")])
     else:
         run(["docker", "buildx", "use", BUILDX_BUILDER_NAME])
     log_success(f"Using buildx builder: {BUILDX_BUILDER_NAME}")
