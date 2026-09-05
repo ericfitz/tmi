@@ -799,7 +799,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 }
 
 // ReencryptSystemSettings re-encrypts all system settings with the current encryption key (admin only)
-// SEM@91dca85b52bdc03010be6f156c266607fa22df98: re-encrypt all stored system settings with the current encryption key (reads DB)
+// SEM@9a4d6109d4ad52d5adc53c0fe0d9925022535958: handle admin re-encryption of all stored settings with the current key (writes DB)
 func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()

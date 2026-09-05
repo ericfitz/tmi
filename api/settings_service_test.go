@@ -714,6 +714,7 @@ func TestSettingsService_Set_StampsExplicitOrigin(t *testing.T) {
 // operational key would suddenly out-rank config) and it must NOT touch
 // modified_by or modified_at (the #794 origin backfill reads modified_by as
 // operator intent, and a nil actor used to clear it to NULL).
+// SEM@9a4d6109d4ad52d5adc53c0fe0d9925022535958: verify re-encryption rotates ciphertext but leaves origin and audit fields untouched
 func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 
@@ -791,6 +792,7 @@ func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 // Find and its per-row UpdateColumn must be reported as a SettingError, not
 // counted as re-encrypted. A GORM "before update" callback deletes the row
 // out from under the write to simulate that race deterministically.
+// SEM@5740a75fafc8da46a061901361ed61990a6c8916: verify re-encryption reports a concurrently deleted row instead of counting it
 func TestSettingsService_ReEncryptAll_ReportsVanishedRow(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 

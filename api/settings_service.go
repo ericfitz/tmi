@@ -671,7 +671,7 @@ type SettingError struct {
 // operator intent, and only SettingsService.Set may create that signal. The
 // actor of a rotation is recorded by AdminAuditMiddleware
 // (REENCRYPT system_settings), not by the row (#805).
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: re-encrypt every stored setting value in place without touching audit fields (writes DB)
+// SEM@5740a75fafc8da46a061901361ed61990a6c8916: re-encrypt every stored setting value in place without touching audit fields (writes DB)
 func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 	logger := slogging.Get()
 
