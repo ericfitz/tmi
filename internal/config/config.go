@@ -228,7 +228,7 @@ type SAMLConfig struct {
 // overrideSAMLProviders; that reads SAML_PROVIDERS_<ID>_<FIELD> (no TMI_
 // prefix), so env tags on these fields would never be consulted and there
 // are none.
-// SEM@78155d54490599e00095eb72b817575bb1e8da5b: configuration struct for a single SAML provider's SP/IdP metadata, keys, and attribute mappings (pure)
+// SEM@9b96e105de48fdbc2f5c440e878ab6622001e201: configuration struct for a single SAML provider's SP/IdP metadata, keys, and attribute mappings (pure)
 type SAMLProviderConfig struct {
 	ID                  string `yaml:"id"`
 	Name                string `yaml:"name"`

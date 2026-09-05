@@ -20,6 +20,7 @@ var wordBoundaryUnderscore = regexp.MustCompile(`(^|\s)_|_(\s|$)`)
 // renderable: every row is complete, names are unique, Pattern agrees with
 // the <placeholder> convention the allowlist gate relies on, and Purpose
 // cannot break the Markdown table or vanish as HTML.
+// SEM@fd5abea29b3b98c68562c6b83c5f6f3778484f1a: verify the process-environment inventory rows are unique, pattern-consistent and Markdown-safe
 func TestProcessEnvVars_WellFormed(t *testing.T) {
 	vars := ProcessEnvVars()
 	if len(vars) == 0 {
@@ -50,6 +51,7 @@ func TestProcessEnvVars_WellFormed(t *testing.T) {
 	}
 }
 
+// SEM@4077bab0af75093efb1660aa34801b2c752c9c0f: verify the process-environment inventory accessor returns a defensive copy
 func TestProcessEnvVars_ReturnsACopy(t *testing.T) {
 	a := ProcessEnvVars()
 	a[0].Name = "MUTATED"
@@ -92,6 +94,7 @@ var tmiTokenExclusions = map[string]string{
 // invisible to this token scan; today the only such construction is a
 // JetStream stream name in internal/platform/controller/render_jetstream.go,
 // not an env var.
+// SEM@b888c597849425243a4e3184a5c552fdcab92488: verify every TMI_ token in Go source is a documented env var or justified exclusion (reads repo)
 func TestRepoTMIEnvTokens_AreAllDocumented(t *testing.T) {
 	known := map[string]bool{}
 	for _, d := range AllSettingDefs() {

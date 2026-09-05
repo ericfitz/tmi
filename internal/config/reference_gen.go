@@ -18,7 +18,7 @@ import (
 // conditionally-emitted settings for database-seeding reasons, and the
 // reference doubles as the TMI_* env-var allowlist, so it must name every
 // setting the server can read (#810).
-// SEM@e6cee63c3a07d38f471e0ebfb81722849f36085e: build the wiki configuration reference as Markdown from the full registry, with a precedence explainer and bootstrap/operational tables (pure)
+// SEM@4077bab0af75093efb1660aa34801b2c752c9c0f: build the wiki configuration reference as Markdown from the full registry, with a precedence explainer, bootstrap/operational tables and a process-environment section (pure)
 func GenerateReferenceMarkdown() ([]byte, error) {
 	cfg := getDefaultConfig()
 	cfg.Server.TLSSubjectName = "localhost" // deterministic — must not embed the build host's name
@@ -79,7 +79,7 @@ func GenerateReferenceMarkdown() ([]byte, error) {
 // declares with a fallback class (database.oracle_wallet_location,
 // content_token_encryption_key) have no classification entry and would
 // otherwise land in neither table.
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: project every config-delivered registry setting into documentation rows, unfiltered (pure)
+// SEM@2b405dc298a9b163f65c46256419a34afb630280: project every config-delivered registry setting into documentation rows, unfiltered (pure)
 func referenceSettings(cfg *Config) []MigratableSetting {
 	defs := AllSettingDefs()
 	out := make([]MigratableSetting, 0, len(defs))
@@ -140,7 +140,7 @@ func precedenceSection() string {
 // processEnvSection renders the hand-maintained ProcessEnvVars inventory as
 // the "Process environment" section: fixed names grouped by binary in
 // first-appearance order, then the prefix patterns in their own table.
-// SEM@2b405dc298a9b163f65c46256419a34afb630280: render env vars read outside the config registry as Markdown tables grouped by binary (pure)
+// SEM@4077bab0af75093efb1660aa34801b2c752c9c0f: render env vars read outside the config registry as Markdown tables grouped by binary (pure)
 func processEnvSection() string {
 	var order []string
 	byBinary := map[string][]ProcessEnvVar{}
