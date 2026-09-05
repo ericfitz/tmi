@@ -72,8 +72,8 @@ var processEnvVars = []ProcessEnvVar{
 	// --- prefix patterns: the operator supplies the part in angle brackets ---
 	{Name: "TMI_SECRET_<KEY>", Binary: "server", Pattern: true, Secret: true, Purpose: "Environment secrets provider: logical secret key, upper-cased, e.g. TMI_SECRET_JWT_SECRET or TMI_SECRET_SETTINGS_ENCRYPTION_KEY. Every value is a secret"},
 	{Name: "TMI_WORKER_SECRET_MOUNT_<NAME>", Binary: "workers", Pattern: true, Purpose: "Filesystem path to a mounted secret file, exposed to the worker under the logical name, e.g. TMI_WORKER_SECRET_MOUNT_EMBEDDING_API_KEY"},
-	{Name: "TMI_CONTENT_OAUTH_PROVIDERS_<ID>_<FIELD>", Binary: "server", Pattern: true, Purpose: "Per-provider content OAuth config, discovered from the _ENABLED field. FIELD is one of CLIENT_ID, CLIENT_SECRET (secret), AUTH_URL, TOKEN_URL, USERINFO_URL, REVOCATION_URL, REQUIRED_SCOPES"},
-	{Name: "SAML_PROVIDERS_<ID>_<FIELD>", Binary: "server", Pattern: true, Purpose: "Per-provider SAML config, discovered from the _ENABLED field; note there is no TMI_ prefix. FIELD is a SAMLProviderConfig yaml key upper-cased, e.g. ENTITY_ID, ACS_URL, SP_PRIVATE_KEY (secret), IDP_METADATA_B64XML (secret)"},
+	{Name: "TMI_CONTENT_OAUTH_PROVIDERS_<ID>_<FIELD>", Binary: "server", Pattern: true, Purpose: "Per-provider content OAuth config, discovered from the ENABLED suffix. FIELD is one of CLIENT_ID, CLIENT_SECRET (secret), AUTH_URL, TOKEN_URL, USERINFO_URL, REVOCATION_URL, REQUIRED_SCOPES"},
+	{Name: "SAML_PROVIDERS_<ID>_<FIELD>", Binary: "server", Pattern: true, Purpose: "Per-provider SAML settings (ENTITY_ID, ACS_URL, SP_PRIVATE_KEY, ...) discovered from the ENABLED suffix; note the name has no TMI prefix. FIELD is a SAMLProviderConfig yaml key upper-cased, e.g. ENTITY_ID, ACS_URL, SP_PRIVATE_KEY (secret), IDP_METADATA_B64XML (secret)"},
 }
 
 // ProcessEnvVars returns a copy of the process-environment inventory, so

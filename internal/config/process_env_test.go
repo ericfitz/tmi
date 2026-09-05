@@ -1,9 +1,16 @@
 package config
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
+
+// wordBoundaryUnderscore matches an underscore adjacent to whitespace or a
+// string boundary. CommonMark treats such an underscore as emphasis-capable;
+// a pair of them swallows the text between as italics and drops both
+// characters from the rendered Markdown (#810).
+var wordBoundaryUnderscore = regexp.MustCompile(`(^|\s)_|_(\s|$)`)
 
 // TestProcessEnvVars_WellFormed keeps the hand-maintained inventory
 // renderable: every row is complete, names are unique, Pattern agrees with
@@ -31,6 +38,10 @@ func TestProcessEnvVars_WellFormed(t *testing.T) {
 		}
 		if strings.ContainsAny(p.Purpose, "<>`|\n") {
 			t.Errorf("%s: Purpose must not contain <, >, backticks, | or newlines", p.Name)
+		}
+		if wordBoundaryUnderscore.MatchString(p.Purpose) {
+			t.Errorf("%s: Purpose has a whitespace-adjacent underscore, which Markdown "+
+				"pairs as emphasis and drops from the rendered text: %q", p.Name, p.Purpose)
 		}
 	}
 }
