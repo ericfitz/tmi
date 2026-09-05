@@ -106,3 +106,39 @@ func TestDropRetiredMetadataIndexes_NoTable(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, DropRetiredMetadataIndexes(db))
 }
+
+// TestMetadataInitransState_Below pins the skip decision: only objects
+// strictly below the target need DDL, and the index list is sorted so the
+// log line and the DDL order are stable across boots.
+func TestMetadataInitransState_Below(t *testing.T) {
+	state := metadataInitransState{
+		Table: 1,
+		Indexes: map[string]int64{
+			"SYS_C0012345":                2,
+			"IDX_METADATA_KEY":            16,
+			"IDX_METADATA_ENTITY_TYPE_ID": 2,
+			"IDX_METADATA_UNIQUE":         32,
+		},
+	}
+	tableBelow, indexesBelow := state.below()
+	assert.True(t, tableBelow)
+	assert.Equal(t, []string{"IDX_METADATA_ENTITY_TYPE_ID", "SYS_C0012345"}, indexesBelow)
+
+	done := metadataInitransState{Table: 16, Indexes: map[string]int64{"IDX_METADATA_KEY": 16}}
+	tableBelow, indexesBelow = done.below()
+	assert.False(t, tableBelow)
+	assert.Empty(t, indexesBelow)
+}
+
+// TestEnsureMetadataInitrans_NonOracleIsNoOp covers every non-Oracle dialect:
+// INITRANS is an Oracle physical attribute, so the step returns before it
+// even looks for the table.
+func TestEnsureMetadataInitrans_NonOracleIsNoOp(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, EnsureMetadataInitrans(db), "no table, no Oracle, no error")
+
+	db = newMetadataIndexTestDB(t)
+	require.NoError(t, EnsureMetadataInitrans(db))
+	require.NoError(t, EnsureMetadataInitrans(db), "must be idempotent")
+}

@@ -17,6 +17,7 @@ package dbschema
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -191,5 +192,184 @@ func DropRetiredMetadataIndexes(db *gorm.DB) error {
 		}
 		logger.Info("dropped retired metadata index %s from %s (#784)", name, table)
 	}
+	return nil
+}
+
+// metadataInitransState is one reading of the ITL configuration of the
+// metadata table and its surviving indexes. Indexes is keyed by the uppercase
+// catalog name and holds only the indexes the catalog actually returned; a
+// surviving index that is missing from the catalog is warned about by the
+// caller and otherwise ignored, since there is nothing to rebuild.
+// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: hold the catalog INITRANS values of the metadata table and its indexes (pure)
+type metadataInitransState struct {
+	Table   int64
+	Indexes map[string]int64
+}
+
+// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: report which of the table and its indexes sit below the INITRANS target (pure)
+func (s metadataInitransState) below() (tableBelow bool, indexesBelow []string) {
+	tableBelow = s.Table < metadataInitransTarget
+	for name, ini := range s.Indexes {
+		if ini < metadataInitransTarget {
+			indexesBelow = append(indexesBelow, name)
+		}
+	}
+	sort.Strings(indexesBelow)
+	return tableBelow, indexesBelow
+}
+
+// metadataInitransProbe reads INI_TRANS for the metadata table, its
+// primary-key index, and its named surviving indexes from the Oracle catalog,
+// scoped to the session's CURRENT_SCHEMA (#736). The primary-key index is
+// system-named, so its name comes from ALL_CONSTRAINTS.INDEX_NAME for the
+// table's CONSTRAINT_TYPE = 'P' row.
+//
+// The scan targets are untagged on purpose: Oracle returns UPPERCASE result
+// labels and an untagged field's DBName follows the active dialect's naming
+// strategy, so IndexName binds to INDEX_NAME and IniTrans to INI_TRANS (the
+// same convention as userProviderLookupIndexState).
+// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: fetch INITRANS of the metadata table, PK index, and named indexes from the Oracle catalog (reads DB)
+func metadataInitransProbe(db *gorm.DB, table string) (metadataInitransState, error) {
+	state := metadataInitransState{Indexes: map[string]int64{}}
+	upperTable := strings.ToUpper(table)
+
+	var tableIni []int64
+	if err := db.Raw(
+		"SELECT INI_TRANS FROM ALL_TABLES WHERE TABLE_NAME = ? AND OWNER = "+oracleCurrentSchema,
+		upperTable,
+	).Scan(&tableIni).Error; err != nil {
+		return state, err
+	}
+	if len(tableIni) == 0 {
+		return state, fmt.Errorf("table %s not found in ALL_TABLES for CURRENT_SCHEMA", upperTable)
+	}
+	state.Table = tableIni[0]
+
+	var pkIndexes []string
+	if err := db.Raw(
+		"SELECT INDEX_NAME FROM ALL_CONSTRAINTS WHERE TABLE_NAME = ? AND CONSTRAINT_TYPE = 'P' "+
+			"AND INDEX_NAME IS NOT NULL AND OWNER = "+oracleCurrentSchema,
+		upperTable,
+	).Scan(&pkIndexes).Error; err != nil {
+		return state, err
+	}
+
+	names := make([]string, 0, len(pkIndexes)+len(metadataInitransIndexes))
+	names = append(names, pkIndexes...)
+	for _, n := range metadataInitransIndexes {
+		names = append(names, strings.ToUpper(n))
+	}
+
+	var rows []struct {
+		IndexName string
+		IniTrans  int64
+	}
+	if err := db.Raw(
+		"SELECT INDEX_NAME, INI_TRANS FROM ALL_INDEXES WHERE TABLE_NAME = ? AND INDEX_NAME IN ? "+
+			"AND OWNER = "+oracleCurrentSchema+" AND TABLE_OWNER = "+oracleCurrentSchema,
+		upperTable, names,
+	).Scan(&rows).Error; err != nil {
+		return state, err
+	}
+	for _, r := range rows {
+		state.Indexes[r.IndexName] = r.IniTrans
+	}
+	return state, nil
+}
+
+// EnsureMetadataInitrans raises INITRANS to metadataInitransTarget on the
+// Oracle metadata table and its six surviving indexes (#783). Idempotent: on
+// a database already at or above the target it costs three catalog queries.
+// No-op on every other dialect; INITRANS is an Oracle physical attribute.
+//
+// Safe, and required, to call on every boot after AutoMigrate, including when
+// the #480 fingerprint fast path skips AutoMigrate: physical attributes are
+// not part of the model fingerprint, and AutoMigrate could not set them
+// anyway.
+//
+// Order matters at the call sites: DropRetiredMetadataIndexes runs first so
+// the four retired indexes are never rebuilt here.
+//
+// Never aborts startup on a DDL failure, only on a failure to read the
+// catalog. ALTER TABLE ... MOVE ONLINE and ALTER INDEX ... REBUILD ONLINE are
+// privileged, take DDL locks, and can fail on a busy table or under a
+// runtime user without ALTER; in every such case the database is left as it
+// was (each statement is its own transaction) and the next boot or
+// `tmi-dbtool --schema` retries. The outcome is decided by re-reading the
+// catalog after the DDL, not by trusting the DDL's error.
+// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: raise INITRANS on the Oracle metadata table and its indexes to the target, else warn and continue (mutates DB)
+func EnsureMetadataInitrans(db *gorm.DB) error {
+	if db.Name() != "oracle" {
+		return nil
+	}
+	table := (&models.Metadata{}).TableName()
+	present, err := requireMigrationTable(db, table, "metadata INITRANS raise (#783)")
+	if err != nil {
+		return err
+	}
+	if !present {
+		return nil
+	}
+
+	logger := slogging.Get()
+	upperTable := strings.ToUpper(table)
+
+	var state metadataInitransState
+	if err := withMigrationRetry("metadata INITRANS probe", func() error {
+		var probeErr error
+		state, probeErr = metadataInitransProbe(db, table)
+		return probeErr
+	}); err != nil {
+		return fmt.Errorf("failed to read the INITRANS settings of %s: %w", upperTable, err)
+	}
+	for _, n := range metadataInitransIndexes {
+		if _, ok := state.Indexes[strings.ToUpper(n)]; !ok {
+			logger.Warn("%s not found on %s in CURRENT_SCHEMA; skipping its INITRANS raise (#783)", strings.ToUpper(n), upperTable)
+		}
+	}
+
+	tableBelow, indexesBelow := state.below()
+	if !tableBelow && len(indexesBelow) == 0 {
+		return nil
+	}
+	logger.Info("raising INITRANS to %d on %s (table at %d; indexes below target: %v) (#783)",
+		metadataInitransTarget, upperTable, state.Table, indexesBelow)
+
+	if tableBelow {
+		for _, ddl := range metadataTableInitransDDL(upperTable) {
+			if err := withDDLRetry("metadata INITRANS "+ddl, func() error {
+				return execMigrationDDL(db, ddl)
+			}); err != nil {
+				logger.Error("%q failed: %v (#783)", ddl, err)
+				break
+			}
+		}
+	}
+	for _, name := range indexesBelow {
+		ddl := metadataIndexInitransDDL(name)
+		if err := withDDLRetry("metadata INITRANS "+ddl, func() error {
+			return execMigrationDDL(db, ddl)
+		}); err != nil {
+			logger.Error("%q failed: %v (#783)", ddl, err)
+		}
+	}
+
+	if err := withMigrationRetry("metadata INITRANS post-DDL probe", func() error {
+		var probeErr error
+		state, probeErr = metadataInitransProbe(db, table)
+		return probeErr
+	}); err != nil {
+		return fmt.Errorf("failed to verify the INITRANS settings of %s after raising them: %w", upperTable, err)
+	}
+	tableBelow, indexesBelow = state.below()
+	if tableBelow || len(indexesBelow) > 0 {
+		logger.Error(
+			"INITRANS on %s is still below %d after the raise (table at %d; indexes below target: %v). "+
+				"Back-to-back metadata writes on one entity inside a SERIALIZABLE transaction remain exposed to a false ORA-08177; "+
+				"startup is continuing and the next boot or `tmi-dbtool --schema` with an admin-privileged database user retries (#783)",
+			upperTable, metadataInitransTarget, state.Table, indexesBelow)
+		return nil
+	}
+	logger.Info("INITRANS on %s and its %d surviving indexes is now >= %d (#783)", upperTable, len(state.Indexes), metadataInitransTarget)
 	return nil
 }
