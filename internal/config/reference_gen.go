@@ -12,11 +12,17 @@ import (
 // tables — bootstrap and operational — so the wiki Configuration-Reference
 // page is generated, not hand-maintained. Secret defaults are shown as
 // vault:// placeholders, never real values.
-// SEM@e6cee63c3a07d38f471e0ebfb81722849f36085e: build the wiki configuration reference as Markdown with a precedence explainer and bootstrap/operational tables (pure)
+//
+// Rows come from referenceSettings, i.e. the registry itself, not from
+// GetMigratableSettings: that projection omits empty-valued and
+// conditionally-emitted settings for database-seeding reasons, and the
+// reference doubles as the TMI_* env-var allowlist, so it must name every
+// setting the server can read (#810).
+// SEM@e6cee63c3a07d38f471e0ebfb81722849f36085e: build the wiki configuration reference as Markdown from the full registry, with a precedence explainer and bootstrap/operational tables (pure)
 func GenerateReferenceMarkdown() ([]byte, error) {
 	cfg := getDefaultConfig()
 	cfg.Server.TLSSubjectName = "localhost" // deterministic — must not embed the build host's name
-	all := cfg.GetMigratableSettings()
+	all := referenceSettings(cfg)
 
 	var bootstrap, operational []MigratableSetting
 	for _, s := range all {
@@ -60,6 +66,35 @@ func GenerateReferenceMarkdown() ([]byte, error) {
 	}
 
 	return []byte(b.String()), nil
+}
+
+// referenceSettings projects every registry def that has a config/env
+// delivery path (Get != nil) into the row shape the table renderers take,
+// reading each default from cfg. Unlike GetMigratableSettings it applies no
+// OmitWhenEmpty, skiplist or TLS-enabled filter — those exist for database
+// seeding (see OmitWhenEmpty on SettingDef) — and it takes Class from the
+// def rather than classificationFor(key), because the two keys the registry
+// declares with a fallback class (database.oracle_wallet_location,
+// content_token_encryption_key) have no classification entry and would
+// otherwise land in neither table.
+// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: project every config-delivered registry setting into documentation rows, unfiltered (pure)
+func referenceSettings(cfg *Config) []MigratableSetting {
+	defs := AllSettingDefs()
+	out := make([]MigratableSetting, 0, len(defs))
+	for _, d := range defs {
+		if d.Get == nil {
+			continue // database-only: no config/env delivery to document here
+		}
+		out = append(out, MigratableSetting{
+			Key:         d.Key,
+			Value:       d.Get(cfg),
+			Type:        d.Type,
+			Description: d.Description,
+			EnvVar:      d.EnvVar,
+			Class:       d.Class,
+		})
+	}
+	return out
 }
 
 // precedenceSection is the prose explainer for which source (config/env vs.

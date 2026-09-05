@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -37,7 +38,8 @@ func TestGenerateReferenceMarkdown_NeverLeaksSecretDefault(t *testing.T) {
 	}
 	s := string(out)
 	cfg := getDefaultConfig()
-	for _, ms := range cfg.GetMigratableSettings() {
+	cfg.Server.TLSSubjectName = "localhost"
+	for _, ms := range referenceSettings(cfg) {
 		if !ms.Class.Secret {
 			continue
 		}
@@ -104,36 +106,71 @@ func findRowContaining(t *testing.T, doc, keyCell string) string {
 	return ""
 }
 
-// TestGenerateReferenceMarkdown_CoversEveryEmittedEnvVar is the allowlist-
-// completeness guardrail: the config reference doc doubles as this project's
-// TMI_* environment-variable allowlist, so any env var the generators
-// actually emit a setting for must be named somewhere in the generated
-// reference — an emitted env var missing from the doc would silently narrow
-// the allowlist. This checks what GetMigratableSettings() (what the
-// generators consume) actually emits, not the full registry: a setting the
-// registry declares but the generators never surface (e.g. because its
-// value is empty and OmitWhenEmpty) is a separate, pre-existing gap, not
-// something this guardrail is meant to catch.
-func TestGenerateReferenceMarkdown_CoversEveryEmittedEnvVar(t *testing.T) {
+// TestGenerateReferenceMarkdown_CoversEveryRegistryEnvVar is the allowlist-
+// completeness guardrail: config-reference.md doubles as this project's
+// TMI_* environment-variable allowlist, so every env var the registry
+// declares must be named in the generated reference. It checks the whole
+// registry, not the GetMigratableSettings projection — that projection
+// omits empty-valued settings for database-seeding reasons (see
+// OmitWhenEmpty on SettingDef) that do not apply to documentation, and a
+// setting with an empty default is exactly the one an operator needs to be
+// told about (#810). There is deliberately no exception list.
+func TestGenerateReferenceMarkdown_CoversEveryRegistryEnvVar(t *testing.T) {
 	out, err := GenerateReferenceMarkdown()
 	if err != nil {
 		t.Fatalf("GenerateReferenceMarkdown: %v", err)
 	}
 	s := string(out)
 
-	cfg := getDefaultConfig()
-	cfg.Server.TLSSubjectName = "localhost"
 	var missing []string
-	for _, ms := range cfg.GetMigratableSettings() {
-		if ms.EnvVar == "" {
+	for _, d := range AllSettingDefs() {
+		if d.EnvVar == "" {
 			continue
 		}
-		if !strings.Contains(s, ms.EnvVar) {
-			missing = append(missing, ms.EnvVar)
+		if !strings.Contains(s, "`"+d.EnvVar+"`") {
+			missing = append(missing, d.EnvVar)
 		}
 	}
+	sort.Strings(missing)
 	if len(missing) > 0 {
-		t.Errorf("generated reference is missing emitted env vars (it doubles as the TMI_* allowlist): %v", missing)
+		t.Errorf("generated reference is missing %d registry env vars (it doubles as the TMI_* allowlist): %v", len(missing), missing)
+	}
+}
+
+// TestGenerateReferenceMarkdown_DocumentsEveryConfigDeliveredDef pins the
+// three omission classes #810 found: an empty default (server.base_url), a
+// conditional on another field (server.tls_cert_file, previously skipped
+// because the default config has TLS off), and a key deliberately excluded
+// from the settings path (content_token_encryption_key, in
+// ExpectedMigratableKeysSkipped). All three are real config/env settings
+// and must be documented.
+func TestGenerateReferenceMarkdown_DocumentsEveryConfigDeliveredDef(t *testing.T) {
+	out, err := GenerateReferenceMarkdown()
+	if err != nil {
+		t.Fatalf("GenerateReferenceMarkdown: %v", err)
+	}
+	s := string(out)
+
+	for _, key := range []string{"server.base_url", "server.tls_cert_file", "content_token_encryption_key", "ssrf.webhook.allowlist"} {
+		if !strings.Contains(s, "| `"+key+"` |") {
+			t.Errorf("reference has no row for %s", key)
+		}
+	}
+
+	var rows int
+	for _, line := range strings.Split(s, "\n") {
+		if strings.HasPrefix(line, "| `") && !strings.HasPrefix(line, "| `TMI_") && !strings.HasPrefix(line, "| `SAML_") {
+			rows++
+		}
+	}
+	var want int
+	for _, d := range AllSettingDefs() {
+		if d.Get != nil {
+			want++
+		}
+	}
+	if rows != want {
+		t.Errorf("reference renders %d setting rows, registry has %d config-delivered defs", rows, want)
 	}
 }
 
