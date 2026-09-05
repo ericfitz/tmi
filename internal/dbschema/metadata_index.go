@@ -66,7 +66,7 @@ func retiredMetadataIndexDropDDL(dialect, indexName string) string {
 }
 
 // SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: build the ALTER TABLE statement that rewrites existing blocks at the target INITRANS (pure)
-func metadataTableInitransDDL(upperTable string) []string {
+func metadataTableInitransDDL(upperTable string) string {
 	// A plain "ALTER TABLE ... INITRANS n" only commits a dictionary change;
 	// it does not touch existing blocks. Splitting it from MOVE ONLINE meant
 	// a failed MOVE could leave the catalog already reading the new INITRANS
@@ -74,11 +74,8 @@ func metadataTableInitransDDL(upperTable string) []string {
 	// (oracle-db-admin review, #783). Oracle's physical_attributes_clause
 	// inside MOVE folds both into one statement that is atomic per Oracle's
 	// own DDL commit semantics: INI_TRANS reads the target only if the block
-	// rewrite committed. Kept as a slice for the caller's loop shape even
-	// though it is now always length 1.
-	return []string{
-		fmt.Sprintf("ALTER TABLE %s MOVE ONLINE INITRANS %d", upperTable, metadataInitransTarget),
-	}
+	// rewrite committed.
+	return fmt.Sprintf("ALTER TABLE %s MOVE ONLINE INITRANS %d", upperTable, metadataInitransTarget)
 }
 
 // SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: build the ALTER INDEX statement that rebuilds an index online with the target INITRANS (pure)
@@ -202,10 +199,14 @@ func DropRetiredMetadataIndexes(db *gorm.DB) error {
 // metadata table and its surviving indexes. Indexes is keyed by the uppercase
 // catalog name and holds only the indexes the catalog actually returned; a
 // surviving index that is missing from the catalog is warned about by the
-// caller and otherwise ignored, since there is nothing to rebuild.
+// caller and otherwise ignored, since there is nothing to rebuild. PKIndex is
+// empty when ALL_CONSTRAINTS found no primary-key index (disabled or
+// deferrable PK); the caller warns once for that, since the probe itself
+// runs both before and after the DDL.
 // SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: hold the catalog INITRANS values of the metadata table and its indexes (pure)
 type metadataInitransState struct {
 	Table   int64
+	PKIndex string
 	Indexes map[string]int64
 }
 
@@ -256,8 +257,8 @@ func metadataInitransProbe(db *gorm.DB, table string) (metadataInitransState, er
 	).Scan(&pkIndexes).Error; err != nil {
 		return state, err
 	}
-	if len(pkIndexes) == 0 {
-		slogging.Get().Warn("no primary-key index found on %s in CURRENT_SCHEMA (disabled or deferrable PK?); its INITRANS will not be raised (#783)", upperTable)
+	if len(pkIndexes) > 0 {
+		state.PKIndex = pkIndexes[0]
 	}
 
 	names := make([]string, 0, len(pkIndexes)+len(metadataInitransIndexes))
@@ -333,6 +334,9 @@ func EnsureMetadataInitrans(db *gorm.DB) error {
 			logger.Warn("%s not found on %s in CURRENT_SCHEMA; skipping its INITRANS raise (#783)", strings.ToUpper(n), upperTable)
 		}
 	}
+	if state.PKIndex == "" {
+		logger.Warn("no primary-key index found on %s in CURRENT_SCHEMA (disabled or deferrable PK?); its INITRANS will not be raised (#783)", upperTable)
+	}
 
 	tableBelow, indexesBelow := state.below()
 	if !tableBelow && len(indexesBelow) == 0 {
@@ -342,13 +346,11 @@ func EnsureMetadataInitrans(db *gorm.DB) error {
 		metadataInitransTarget, upperTable, state.Table, indexesBelow)
 
 	if tableBelow {
-		for _, ddl := range metadataTableInitransDDL(upperTable) {
-			if err := withDDLRetry("metadata INITRANS "+ddl, func() error {
-				return execMigrationDDL(db, ddl)
-			}); err != nil {
-				logger.Error("%q failed: %v (#783)", ddl, err)
-				break
-			}
+		ddl := metadataTableInitransDDL(upperTable)
+		if err := withDDLRetry("metadata INITRANS "+ddl, func() error {
+			return execMigrationDDL(db, ddl)
+		}); err != nil {
+			logger.Error("%q failed: %v (#783)", ddl, err)
 		}
 	}
 	for _, name := range indexesBelow {

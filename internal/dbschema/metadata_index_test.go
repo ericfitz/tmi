@@ -45,9 +45,7 @@ func TestRetiredMetadataIndexDropDDL(t *testing.T) {
 // catalog value, oracle-db-admin review, #783); each index is rebuilt online
 // with the new INITRANS.
 func TestMetadataInitransDDL(t *testing.T) {
-	assert.Equal(t, []string{
-		"ALTER TABLE METADATA MOVE ONLINE INITRANS 16",
-	}, metadataTableInitransDDL("METADATA"))
+	assert.Equal(t, "ALTER TABLE METADATA MOVE ONLINE INITRANS 16", metadataTableInitransDDL("METADATA"))
 	assert.Equal(t, "ALTER INDEX IDX_METADATA_KEY REBUILD ONLINE INITRANS 16", metadataIndexInitransDDL("IDX_METADATA_KEY"))
 }
 
