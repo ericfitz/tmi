@@ -1,0 +1,84 @@
+package dbschema
+
+import (
+	"testing"
+
+	"github.com/ericfitz/tmi/api/models"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+)
+
+// newMetadataIndexTestDB builds an in-memory SQLite database carrying the real
+// models.Metadata table plus the four pre-#784 timestamp indexes, i.e. the
+// state every database created before #784 is in. The real model is used
+// rather than a test-local mirror because the point of these tests is the
+// model's own index set. IF NOT EXISTS because AutoMigrate on the
+// still-tagged model already creates these same indexes from the model's own
+// tags; this fixture must represent the pre-#784 state both before and after
+// Task 3 strips those tags.
+// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: build an in-memory SQLite DB with the metadata table and its pre-#784 retired indexes (pure)
+func newMetadataIndexTestDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&models.Metadata{}))
+	for _, name := range retiredMetadataIndexes {
+		require.NoError(t, db.Exec("CREATE INDEX IF NOT EXISTS "+name+" ON metadata (created_at)").Error)
+	}
+	return db
+}
+
+// TestRetiredMetadataIndexDropDDL pins the per-dialect DROP text: PostgreSQL
+// has IF EXISTS; Oracle does not and folds unquoted names to upper case, so a
+// lowercase DROP would raise ORA-01418.
+func TestRetiredMetadataIndexDropDDL(t *testing.T) {
+	assert.Equal(t, "DROP INDEX IF EXISTS idx_metadata_created", retiredMetadataIndexDropDDL("postgres", "idx_metadata_created"))
+	assert.Equal(t, "DROP INDEX IDX_METADATA_CREATED", retiredMetadataIndexDropDDL("oracle", "idx_metadata_created"))
+}
+
+// TestMetadataInitransDDL pins the Oracle statements: INITRANS on the table
+// affects only new blocks, so MOVE ONLINE rewrites the existing ones; each
+// index is rebuilt online with the new INITRANS.
+func TestMetadataInitransDDL(t *testing.T) {
+	assert.Equal(t, []string{
+		"ALTER TABLE METADATA INITRANS 16",
+		"ALTER TABLE METADATA MOVE ONLINE",
+	}, metadataTableInitransDDL("METADATA"))
+	assert.Equal(t, "ALTER INDEX IDX_METADATA_KEY REBUILD ONLINE INITRANS 16", metadataIndexInitransDDL("IDX_METADATA_KEY"))
+}
+
+// TestMetadataIndexExists_SQLite covers the sqlite branch of the probe, which
+// the no-op test in Task 4 relies on to prove nothing was dropped.
+func TestMetadataIndexExists_SQLite(t *testing.T) {
+	db := newMetadataIndexTestDB(t)
+
+	exists, err := metadataIndexExists(db, "idx_metadata_created", "metadata")
+	require.NoError(t, err)
+	assert.True(t, exists)
+
+	exists, err = metadataIndexExists(db, "idx_metadata_does_not_exist", "metadata")
+	require.NoError(t, err)
+	assert.False(t, exists)
+}
+
+// TestMetadataInitransIndexes_NamesMatchModel pins the survivor list against
+// the model: every name EnsureMetadataInitrans will rebuild must be an index
+// AutoMigrate actually creates, and no retired name may survive in the model.
+func TestMetadataInitransIndexes_NamesMatchModel(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&models.Metadata{}))
+
+	for _, name := range metadataInitransIndexes {
+		exists, err := metadataIndexExists(db, name, "metadata")
+		require.NoError(t, err)
+		assert.True(t, exists, "surviving index %s must be created by the model", name)
+	}
+	for _, name := range retiredMetadataIndexes {
+		exists, err := metadataIndexExists(db, name, "metadata")
+		require.NoError(t, err)
+		assert.False(t, exists, "retired index %s must no longer be in the model (#784)", name)
+	}
+}
