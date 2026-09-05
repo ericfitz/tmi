@@ -12,11 +12,17 @@ import (
 // tables — bootstrap and operational — so the wiki Configuration-Reference
 // page is generated, not hand-maintained. Secret defaults are shown as
 // vault:// placeholders, never real values.
-// SEM@e6cee63c3a07d38f471e0ebfb81722849f36085e: build the wiki configuration reference as Markdown with a precedence explainer and bootstrap/operational tables (pure)
+//
+// Rows come from referenceSettings, i.e. the registry itself, not from
+// GetMigratableSettings: that projection omits empty-valued and
+// conditionally-emitted settings for database-seeding reasons, and the
+// reference doubles as the TMI_* env-var allowlist, so it must name every
+// setting the server can read (#810).
+// SEM@4077bab0af75093efb1660aa34801b2c752c9c0f: build the wiki configuration reference as Markdown from the full registry, with a precedence explainer, bootstrap/operational tables and a process-environment section (pure)
 func GenerateReferenceMarkdown() ([]byte, error) {
 	cfg := getDefaultConfig()
 	cfg.Server.TLSSubjectName = "localhost" // deterministic — must not embed the build host's name
-	all := cfg.GetMigratableSettings()
+	all := referenceSettings(cfg)
 
 	var bootstrap, operational []MigratableSetting
 	for _, s := range all {
@@ -59,7 +65,38 @@ func GenerateReferenceMarkdown() ([]byte, error) {
 		b.WriteString(operationalRow(s))
 	}
 
+	b.WriteString(processEnvSection())
+
 	return []byte(b.String()), nil
+}
+
+// referenceSettings projects every registry def that has a config/env
+// delivery path (Get != nil) into the row shape the table renderers take,
+// reading each default from cfg. Unlike GetMigratableSettings it applies no
+// OmitWhenEmpty, skiplist or TLS-enabled filter — those exist for database
+// seeding (see OmitWhenEmpty on SettingDef) — and it takes Class from the
+// def rather than classificationFor(key), because the two keys the registry
+// declares with a fallback class (database.oracle_wallet_location,
+// content_token_encryption_key) have no classification entry and would
+// otherwise land in neither table.
+// SEM@2b405dc298a9b163f65c46256419a34afb630280: project every config-delivered registry setting into documentation rows, unfiltered (pure)
+func referenceSettings(cfg *Config) []MigratableSetting {
+	defs := AllSettingDefs()
+	out := make([]MigratableSetting, 0, len(defs))
+	for _, d := range defs {
+		if d.Get == nil {
+			continue // database-only: no config/env delivery to document here
+		}
+		out = append(out, MigratableSetting{
+			Key:         d.Key,
+			Value:       d.Get(cfg),
+			Type:        d.Type,
+			Description: d.Description,
+			EnvVar:      d.EnvVar,
+			Class:       d.Class,
+		})
+	}
+	return out
 }
 
 // precedenceSection is the prose explainer for which source (config/env vs.
@@ -98,6 +135,49 @@ func precedenceSection() string {
 		"directly. It merges per provider ID instead: a config/env entry " +
 		"shadows a database entry with the same ID, and the database " +
 		"contributes any IDs that config does not define.\n\n"
+}
+
+// processEnvSection renders the hand-maintained ProcessEnvVars inventory as
+// the "Process environment" section: fixed names grouped by binary in
+// first-appearance order, then the prefix patterns in their own table.
+// SEM@4077bab0af75093efb1660aa34801b2c752c9c0f: render env vars read outside the config registry as Markdown tables grouped by binary (pure)
+func processEnvSection() string {
+	var order []string
+	byBinary := map[string][]ProcessEnvVar{}
+	var patterns []ProcessEnvVar
+	for _, p := range ProcessEnvVars() {
+		if p.Pattern {
+			patterns = append(patterns, p)
+			continue
+		}
+		if _, seen := byBinary[p.Binary]; !seen {
+			order = append(order, p.Binary)
+		}
+		byBinary[p.Binary] = append(byBinary[p.Binary], p)
+	}
+
+	var b strings.Builder
+	b.WriteString("\n## Process environment\n\n")
+	b.WriteString("Environment variables a TMI binary reads directly from its process environment, " +
+		"bypassing the config file, the settings registry above and the database. They have no " +
+		"dotted key and cannot be set through `/admin/settings`; they are listed here because this " +
+		"file is the complete `TMI_*` allowlist.\n")
+	for _, bin := range order {
+		fmt.Fprintf(&b, "\n### %s\n\n", bin)
+		b.WriteString("| Env var | Purpose | Secret |\n")
+		b.WriteString("|---------|---------|--------|\n")
+		for _, p := range byBinary[bin] {
+			fmt.Fprintf(&b, "| `%s` | %s | %s |\n", p.Name, sanitizeCell(p.Purpose), yesNo(p.Secret))
+		}
+	}
+	b.WriteString("\n### Prefix patterns\n\n")
+	b.WriteString("The operator supplies the part in angle brackets.\n\n")
+	b.WriteString("| Pattern | Binary | Purpose | Secret |\n")
+	b.WriteString("|---------|--------|---------|--------|\n")
+	for _, p := range patterns {
+		fmt.Fprintf(&b, "| `%s` | %s | %s | %s |\n", p.Name, p.Binary, sanitizeCell(p.Purpose), yesNo(p.Secret))
+	}
+	return b.String()
 }
 
 // SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: format a bootstrap config setting as a Markdown table row (pure)
