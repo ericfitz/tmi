@@ -184,6 +184,13 @@ func DropRetiredMetadataIndexes(db *gorm.DB) error {
 				logger.Warn("the DROP of %s reported an error (%v) but the index is gone; continuing (#784)", name, err)
 				continue
 			}
+			if probeErr != nil {
+				logger.Error(
+					"failed to drop retired metadata index %s: %v (and the post-drop re-probe also failed: %v). The index is harmless but still costs every metadata write; "+
+						"startup is continuing and the next boot or `tmi-dbtool --schema` with an admin-privileged database user retries (#784)",
+					name, err, probeErr)
+				continue
+			}
 			logger.Error(
 				"failed to drop retired metadata index %s: %v. The index is harmless but still costs every metadata write; "+
 					"startup is continuing and the next boot or `tmi-dbtool --schema` with an admin-privileged database user retries (#784)",
