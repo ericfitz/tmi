@@ -174,6 +174,32 @@ func TestGenerateReferenceMarkdown_DocumentsEveryConfigDeliveredDef(t *testing.T
 	}
 }
 
+// TestGenerateReferenceMarkdown_CoversEveryProcessEnvVar: variables read
+// straight from the process environment (the SSRF overrides, workers, admin
+// bootstrap, cloud logging, secret prefixes) never pass through the
+// registry, so the reference — the TMI_* allowlist — must render the
+// hand-maintained ProcessEnvVars table in full (#810).
+func TestGenerateReferenceMarkdown_CoversEveryProcessEnvVar(t *testing.T) {
+	out, err := GenerateReferenceMarkdown()
+	if err != nil {
+		t.Fatalf("GenerateReferenceMarkdown: %v", err)
+	}
+	s := string(out)
+	if !strings.Contains(s, "## Process environment") {
+		t.Fatal("reference missing section \"## Process environment\"")
+	}
+	for _, p := range ProcessEnvVars() {
+		if !strings.Contains(s, "`"+p.Name+"`") {
+			t.Errorf("process env var %s missing from the reference", p.Name)
+		}
+	}
+	for _, want := range []string{"### server", "### workers", "### Prefix patterns"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("reference missing process-environment group %q", want)
+		}
+	}
+}
+
 func TestConfigReferenceFile_MatchesRegistry(t *testing.T) {
 	generated, err := GenerateReferenceMarkdown()
 	if err != nil {

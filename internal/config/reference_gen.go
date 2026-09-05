@@ -65,6 +65,8 @@ func GenerateReferenceMarkdown() ([]byte, error) {
 		b.WriteString(operationalRow(s))
 	}
 
+	b.WriteString(processEnvSection())
+
 	return []byte(b.String()), nil
 }
 
@@ -133,6 +135,49 @@ func precedenceSection() string {
 		"directly. It merges per provider ID instead: a config/env entry " +
 		"shadows a database entry with the same ID, and the database " +
 		"contributes any IDs that config does not define.\n\n"
+}
+
+// processEnvSection renders the hand-maintained ProcessEnvVars inventory as
+// the "Process environment" section: fixed names grouped by binary in
+// first-appearance order, then the prefix patterns in their own table.
+// SEM@2b405dc298a9b163f65c46256419a34afb630280: render env vars read outside the config registry as Markdown tables grouped by binary (pure)
+func processEnvSection() string {
+	var order []string
+	byBinary := map[string][]ProcessEnvVar{}
+	var patterns []ProcessEnvVar
+	for _, p := range ProcessEnvVars() {
+		if p.Pattern {
+			patterns = append(patterns, p)
+			continue
+		}
+		if _, seen := byBinary[p.Binary]; !seen {
+			order = append(order, p.Binary)
+		}
+		byBinary[p.Binary] = append(byBinary[p.Binary], p)
+	}
+
+	var b strings.Builder
+	b.WriteString("\n## Process environment\n\n")
+	b.WriteString("Environment variables a TMI binary reads directly from its process environment, " +
+		"bypassing the config file, the settings registry above and the database. They have no " +
+		"dotted key and cannot be set through `/admin/settings`; they are listed here because this " +
+		"file is the complete `TMI_*` allowlist.\n")
+	for _, bin := range order {
+		fmt.Fprintf(&b, "\n### %s\n\n", bin)
+		b.WriteString("| Env var | Purpose | Secret |\n")
+		b.WriteString("|---------|---------|--------|\n")
+		for _, p := range byBinary[bin] {
+			fmt.Fprintf(&b, "| `%s` | %s | %s |\n", p.Name, sanitizeCell(p.Purpose), yesNo(p.Secret))
+		}
+	}
+	b.WriteString("\n### Prefix patterns\n\n")
+	b.WriteString("The operator supplies the part in angle brackets.\n\n")
+	b.WriteString("| Pattern | Binary | Purpose | Secret |\n")
+	b.WriteString("|---------|--------|---------|--------|\n")
+	for _, p := range patterns {
+		fmt.Fprintf(&b, "| `%s` | %s | %s | %s |\n", p.Name, p.Binary, sanitizeCell(p.Purpose), yesNo(p.Secret))
+	}
+	return b.String()
 }
 
 // SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: format a bootstrap config setting as a Markdown table row (pure)
