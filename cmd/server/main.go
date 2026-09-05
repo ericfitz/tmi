@@ -660,6 +660,7 @@ func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error 
 // only), drop before raise so a retired index is never rebuilt. Runs even
 // when the fingerprint fast path skips AutoMigrate; never fatal on a DDL
 // failure -- each step logs and continues, and the next boot retries.
+// SEM@7ffca610d050b6fdbe2db2796298d3e746bb7491: drop retired metadata indexes then raise METADATA INITRANS in sequence (mutates DB)
 func ensureMetadataSchema(gormDB *gorm.DB) error {
 	if err := dbschema.DropRetiredMetadataIndexes(gormDB); err != nil {
 		return fmt.Errorf("failed to check the retired metadata indexes: %w", err)
