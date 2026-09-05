@@ -71,7 +71,7 @@ func (f *fakeSettingsService) Set(ctx context.Context, setting *models.SystemSet
 }
 func (f *fakeSettingsService) Delete(ctx context.Context, key string) error { return nil }
 func (f *fakeSettingsService) SeedDefaults(ctx context.Context) error       { return nil }
-func (f *fakeSettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) (int, []SettingError, error) {
+func (f *fakeSettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 	return 0, nil, nil
 }
 

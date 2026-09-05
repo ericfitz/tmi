@@ -102,18 +102,12 @@ func expectedSeedValues() map[string]string {
 // Every other NULL-origin row is left as NULL, which now reads as seeded
 // (see the package comment).
 //
-// Known residual gap (oracle-db-admin review, #794, round 2): the
-// modified_by signal is also set by ReEncryptAll on every row it
-// re-encrypts (api/settings_service.go), which is a mechanical key-rotation
-// pass, not an operator changing a value. A pre-#794 install that ever ran
-// key rotation therefore has modified_by on every row and this backfill
-// stamps all of them explicit, including genuinely seeded rows -- reviving
-// the DB-always-wins outage class through the modified_by door rather than
-// the encryption door this function otherwise closes. Not fixed here: it
-// reproduces exactly the pre-#794 behavior for that narrow case (no new
-// failure mode) and the correct fix is in ReEncryptAll itself (it arguably
-// should not touch modified_by/modified_at for a mechanical re-encryption at
-// all), not in this backfill's predicate.
+// The modified_by signal is written only by SettingsService.Set (the admin
+// PUT and dbtool import paths). ReEncryptAll used to stamp it on every row
+// it rotated, which would have made this backfill read a seeded row as
+// operator-set; since #805 it writes only the ciphertext column, so key
+// rotation can never manufacture intent. No install ever ran reencrypt
+// before that fix, so no remediation of existing rows is needed.
 //
 // Idempotent and cheap in steady state: once a row is stamped, it no longer
 // matches `origin IS NULL` and is never re-examined. Safe to run on every

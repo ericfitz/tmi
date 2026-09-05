@@ -664,8 +664,15 @@ type SettingError struct {
 
 // ReEncryptAll re-encrypts all settings with the current encryption key.
 // Returns the count of settings re-encrypted, any per-setting errors, and a fatal error if applicable.
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: re-encrypt all stored settings with the current encryption key (reads DB)
-func (s *SettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) (int, []SettingError, error) {
+//
+// Only the value column is written. Re-encryption is a mechanical key
+// rotation, not an operator edit, so modified_at and modified_by are left
+// exactly as they were: the #794 origin backfill reads modified_by as
+// operator intent, and only SettingsService.Set may create that signal. The
+// actor of a rotation is recorded by AdminAuditMiddleware
+// (REENCRYPT system_settings), not by the row (#805).
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: re-encrypt every stored setting value in place without touching audit fields (writes DB)
+func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 	logger := slogging.Get()
 
 	if s.encryptor == nil || !s.encryptor.IsEnabled() {
@@ -698,11 +705,13 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) 
 			continue
 		}
 
-		// Update in database
-		setting.Value = models.DBText(encrypted)
-		setting.ModifiedAt = time.Now()
-		setting.ModifiedBy = models.NewNullableDBVarchar(modifiedBy)
-		if err := s.gormDB.WithContext(ctx).Save(&setting).Error; err != nil {
+		// Write only the ciphertext. UpdateColumn skips GORM hooks, so
+		// autoUpdateTime does not move modified_at and modified_by is never
+		// mentioned in the statement (a full-struct Save would write both).
+		if err := s.gormDB.WithContext(ctx).
+			Model(&models.SystemSetting{}).
+			Where("setting_key = ?", setting.SettingKey).
+			UpdateColumn("value", models.DBText(encrypted)).Error; err != nil {
 			logger.Error("Failed to save re-encrypted setting %s: %v", setting.SettingKey, err)
 			settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: err.Error()})
 			continue

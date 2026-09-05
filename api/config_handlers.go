@@ -825,15 +825,7 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 		return
 	}
 
-	// Get current user UUID for modified_by
-	var modifiedBy *string
-	if userUUID, exists := c.Get("userInternalUUID"); exists {
-		if uuidStr, ok := userUUID.(string); ok {
-			modifiedBy = &uuidStr
-		}
-	}
-
-	reencrypted, settingErrors, err := s.settingsService.ReEncryptAll(ctx, modifiedBy)
+	reencrypted, settingErrors, err := s.settingsService.ReEncryptAll(ctx)
 	if err != nil {
 		// Encryption not enabled returns 409 Conflict
 		logger.Warn("Re-encryption failed: %v", err)

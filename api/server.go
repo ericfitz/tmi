@@ -33,7 +33,7 @@ type SettingsServiceInterface interface {
 	Set(ctx context.Context, setting *models.SystemSetting) error
 	Delete(ctx context.Context, key string) error
 	SeedDefaults(ctx context.Context) error
-	ReEncryptAll(ctx context.Context, modifiedBy *string) (int, []SettingError, error)
+	ReEncryptAll(ctx context.Context) (int, []SettingError, error)
 }
 
 // Server is the main API server instance

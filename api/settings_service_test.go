@@ -707,11 +707,13 @@ func TestSettingsService_Set_StampsExplicitOrigin(t *testing.T) {
 	})
 }
 
-// TestSettingsService_ReEncryptAll_PreservesOrigin is the #794 regression
-// guard: ReEncryptAll loads each row and re-Saves it via a raw gorm.DB.Save
-// (not SettingsService.Set), so it must NOT touch Origin. If key rotation
-// promoted every seeded row to explicit, the whole precedence feature would
-// silently break — every operational key would suddenly out-rank config.
+// TestSettingsService_ReEncryptAll_PreservesOrigin is the #794/#805
+// regression guard: ReEncryptAll is a mechanical key-rotation pass, not an
+// operator edit, so it must write only the ciphertext. It must NOT touch
+// Origin (if key rotation promoted every seeded row to explicit, every
+// operational key would suddenly out-rank config) and it must NOT touch
+// modified_by or modified_at (the #794 origin backfill reads modified_by as
+// operator intent, and a nil actor used to clear it to NULL).
 func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 
@@ -725,11 +727,18 @@ func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 	svc := NewSettingsService(gormDB, nil)
 	svc.SetEncryptor(enc)
 
+	// A fixed past timestamp: autoUpdateTime only fills modified_at on Create
+	// when it is zero, so this value is what lands in the row.
+	stampedAt := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
+	operator := "11111111-2222-3333-4444-555555555555"
+
 	seeded := models.SystemSetting{
 		SettingKey:  "session.timeout_minutes",
 		Value:       "60", // plaintext; ReEncryptAll must accept this as well as already-encrypted values
 		SettingType: models.SystemSettingTypeInt,
-		Origin:      models.NullableDBVarchar{String: models.SystemSettingOriginSeeded, Valid: true},
+		ModifiedAt:  stampedAt,
+		// ModifiedBy deliberately NULL: nobody ever set this row.
+		Origin: models.NullableDBVarchar{String: models.SystemSettingOriginSeeded, Valid: true},
 	}
 	require.NoError(t, gormDB.Create(&seeded).Error)
 
@@ -737,11 +746,13 @@ func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 		SettingKey:  "ui.default_theme",
 		Value:       "dark",
 		SettingType: models.SystemSettingTypeString,
+		ModifiedAt:  stampedAt,
+		ModifiedBy:  models.NewNullableDBVarchar(&operator),
 		Origin:      models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true},
 	}
 	require.NoError(t, gormDB.Create(&explicit).Error)
 
-	count, settingErrors, err := svc.ReEncryptAll(context.Background(), nil)
+	count, settingErrors, err := svc.ReEncryptAll(context.Background())
 	require.NoError(t, err)
 	assert.Empty(t, settingErrors)
 	assert.Equal(t, 2, count)
@@ -751,11 +762,28 @@ func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 	assert.Equal(t, models.SystemSettingOriginSeeded, reloadedSeeded.Origin.String,
 		"ReEncryptAll must not promote a seeded row to explicit")
 	assert.False(t, reloadedSeeded.IsExplicit())
+	assert.False(t, reloadedSeeded.ModifiedBy.Valid,
+		"ReEncryptAll must leave a NULL modified_by NULL")
+	assert.True(t, stampedAt.Equal(reloadedSeeded.ModifiedAt),
+		"ReEncryptAll must not move modified_at (got %v)", reloadedSeeded.ModifiedAt)
+	assert.NotEqual(t, "60", string(reloadedSeeded.Value), "value must now be ciphertext")
+	plain, err := enc.Decrypt(string(reloadedSeeded.Value))
+	require.NoError(t, err)
+	assert.Equal(t, "60", plain)
 
 	var reloadedExplicit models.SystemSetting
 	require.NoError(t, gormDB.Where("setting_key = ?", "ui.default_theme").First(&reloadedExplicit).Error)
 	assert.Equal(t, models.SystemSettingOriginExplicit, reloadedExplicit.Origin.String)
 	assert.True(t, reloadedExplicit.IsExplicit())
+	require.True(t, reloadedExplicit.ModifiedBy.Valid, "ReEncryptAll must not clear modified_by")
+	assert.Equal(t, operator, reloadedExplicit.ModifiedBy.String,
+		"ReEncryptAll must not overwrite modified_by")
+	assert.True(t, stampedAt.Equal(reloadedExplicit.ModifiedAt),
+		"ReEncryptAll must not move modified_at (got %v)", reloadedExplicit.ModifiedAt)
+	assert.NotEqual(t, "dark", string(reloadedExplicit.Value), "value must now be ciphertext")
+	plain, err = enc.Decrypt(string(reloadedExplicit.Value))
+	require.NoError(t, err)
+	assert.Equal(t, "dark", plain)
 }
 
 // A missing row is negative-cached so unauthenticated hot paths do not pay a
