@@ -260,7 +260,7 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 // invariant checks, AutoMigrate itself, and the two raw-DDL indexes
 // AutoMigrate cannot express. Always called with the cross-replica migration
 // advisory lock held (see InitAuthWithConfig, #737).
-// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: run pre-migration checks, AutoMigrate, and raw-DDL indexes for schema evolution (mutates DB)
+// SEM@7ffca610d050b6fdbe2db2796298d3e746bb7491: run pre-migration checks, AutoMigrate, and raw-DDL indexes for schema evolution (mutates DB)
 func migrateSchemaForConfigAdapter(gormDB *db.GormDB, allModels []any, desiredFP string) error {
 	logger := slogging.Get()
 
@@ -312,6 +312,18 @@ func migrateSchemaForConfigAdapter(gormDB *db.GormDB, allModels []any, desiredFP
 	// and cmd/dbtool/schema.go's runSchema.
 	if err := dbschema.EnsureSparseUserEmailIndex(gormDB.DB()); err != nil {
 		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
+	}
+
+	// #784 / #783: retire the metadata timestamp indexes, then raise INITRANS
+	// on METADATA and its survivors (Oracle only) -- same placement and
+	// reasoning as cmd/server/main.go's migrateSchema and
+	// cmd/dbtool/schema.go's runSchemaLocked. Both are idempotent, run even
+	// when the fast path above skipped AutoMigrate, and never fail on DDL.
+	if err := dbschema.DropRetiredMetadataIndexes(gormDB.DB()); err != nil {
+		return fmt.Errorf("failed to check the retired metadata indexes: %w", err)
+	}
+	if err := dbschema.EnsureMetadataInitrans(gormDB.DB()); err != nil {
+		return fmt.Errorf("failed to check the metadata INITRANS settings: %w", err)
 	}
 
 	// #813: remove system_settings rows for keys the registry no longer

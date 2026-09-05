@@ -548,15 +548,18 @@ func (r *Repository) BeforeCreate(tx *gorm.DB) error {
 
 // Metadata represents key-value metadata for entities
 // Note: Explicit column tags removed for Oracle compatibility
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for arbitrary key-value metadata on any entity
+// Note: no index leads with created_at or modified_at (#784): nothing reads
+// metadata by timestamp, and every same-batch row shares one timestamp, so
+// such indexes only concentrated writes on one leaf block (#783).
+// SEM@7ec522644561cdc52bf062ff934546aa883eacaf: DB model for arbitrary key-value metadata on any entity
 type Metadata struct {
 	ID         DBVarchar `gorm:"primaryKey;not null;size:36"`
-	EntityType DBVarchar `gorm:"size:50;not null;index:idx_metadata_entity_type_id,priority:1;index:idx_metadata_unique,priority:1,unique;index:idx_metadata_entity_created,priority:1;index:idx_metadata_entity_modified,priority:1"`
+	EntityType DBVarchar `gorm:"size:50;not null;index:idx_metadata_entity_type_id,priority:1;index:idx_metadata_unique,priority:1,unique"`
 	EntityID   DBVarchar `gorm:"size:36;not null;index:idx_metadata_entity_id;index:idx_metadata_entity_type_id,priority:2;index:idx_metadata_unique,priority:2;index:idx_metadata_key_value,priority:1"`
 	Key        DBVarchar `gorm:"size:256;not null;index:idx_metadata_key;index:idx_metadata_unique,priority:3;index:idx_metadata_key_value,priority:2"`
 	Value      DBVarchar `gorm:"size:1024;not null;index:idx_metadata_key_value,priority:3"`
-	CreatedAt  time.Time `gorm:"not null;autoCreateTime;index:idx_metadata_created;index:idx_metadata_entity_created,priority:2"`
-	ModifiedAt time.Time `gorm:"not null;autoUpdateTime;index:idx_metadata_modified;index:idx_metadata_entity_modified,priority:2"`
+	CreatedAt  time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt time.Time `gorm:"not null;autoUpdateTime"`
 }
 
 // TableName specifies the table name for Metadata

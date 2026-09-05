@@ -44,7 +44,7 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 
 // runSchemaLocked performs the schema migration and system seed. Always called
 // with the cross-replica migration advisory lock held (see runSchema).
-// SEM@5abf61d0e181a6df8a0f8108f79820e4fe68711a: migrate DB schema via AutoMigrate, upgrade legacy indexes, and seed system data (mutates DB)
+// SEM@7ffca610d050b6fdbe2db2796298d3e746bb7491: migrate DB schema via AutoMigrate, upgrade legacy indexes, and seed system data (mutates DB)
 func runSchemaLocked(db *testdb.TestDB) error {
 	log := slogging.Get()
 
@@ -128,6 +128,19 @@ func runSchemaLocked(db *testdb.TestDB) error {
 	// cmd/server/main.go's runMigrationsLocked and auth/config_adapter.go.
 	if err := dbschema.EnsureSparseUserEmailIndex(db.DB()); err != nil {
 		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
+	}
+
+	// #784 / #783: retire the metadata timestamp indexes, then raise INITRANS
+	// on METADATA and its survivors (Oracle only). dbtool is the
+	// admin-privileged remediation path, so this is the entry point most
+	// likely to succeed at the MOVE ONLINE / REBUILD ONLINE where a DDL-less
+	// server runtime user can only log that it is needed. Same placement as
+	// cmd/server/main.go's migrateSchema and auth/config_adapter.go.
+	if err := dbschema.DropRetiredMetadataIndexes(db.DB()); err != nil {
+		return fmt.Errorf("failed to check the retired metadata indexes: %w", err)
+	}
+	if err := dbschema.EnsureMetadataInitrans(db.DB()); err != nil {
+		return fmt.Errorf("failed to check the metadata INITRANS settings: %w", err)
 	}
 
 	// #813: remove system_settings rows for keys the registry no longer

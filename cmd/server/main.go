@@ -392,7 +392,7 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 // the cross-replica migration advisory lock held (see runMigrationsLocked) —
 // several of its steps issue DDL that is not safe to run concurrently from
 // two replicas.
-// SEM@72dd09a3a2452db4ebcb144ebcf734b0140a67c7: run the schema-evolution sequence: AutoMigrate, backfills, index upgrades, and seeding (mutates DB)
+// SEM@7ffca610d050b6fdbe2db2796298d3e746bb7491: run the schema-evolution sequence: AutoMigrate, backfills, index upgrades, and seeding (mutates DB)
 func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error {
 	logger := slogging.Get()
 
@@ -548,6 +548,15 @@ func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error 
 		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
 	}
 
+	// #784 / #783: retire the metadata timestamp indexes, then raise INITRANS
+	// on METADATA and its survivors (Oracle only). Folded into one helper
+	// call (rather than two inline `if`s) to keep migrateSchema's cyclomatic
+	// complexity under the gocyclo gate; see ensureMetadataSchema for the
+	// per-step reasoning.
+	if err := ensureMetadataSchema(gormDB.DB()); err != nil {
+		return err
+	}
+
 	// Normalize legacy severity enum values to snake_case
 	// This is idempotent: rows already lowercase are unaffected
 	if result := gormDB.DB().Exec(
@@ -642,6 +651,22 @@ func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error 
 	// authoritative mechanism if this fails.
 	if err := dbschema.InstallPostgresDefaultIsolation(ctx, gormDB.DB()); err != nil {
 		logger.Warn("InstallPostgresDefaultIsolation failed (non-fatal; per-transaction wrapper still enforces SERIALIZABLE): %v", err)
+	}
+	return nil
+}
+
+// ensureMetadataSchema retires the dead metadata timestamp indexes (#784)
+// then raises INITRANS on METADATA and its surviving indexes (#783, Oracle
+// only), drop before raise so a retired index is never rebuilt. Runs even
+// when the fingerprint fast path skips AutoMigrate; never fatal on a DDL
+// failure -- each step logs and continues, and the next boot retries.
+// SEM@7ffca610d050b6fdbe2db2796298d3e746bb7491: drop retired metadata indexes then raise METADATA INITRANS in sequence (mutates DB)
+func ensureMetadataSchema(gormDB *gorm.DB) error {
+	if err := dbschema.DropRetiredMetadataIndexes(gormDB); err != nil {
+		return fmt.Errorf("failed to check the retired metadata indexes: %w", err)
+	}
+	if err := dbschema.EnsureMetadataInitrans(gormDB); err != nil {
+		return fmt.Errorf("failed to check the metadata INITRANS settings: %w", err)
 	}
 	return nil
 }

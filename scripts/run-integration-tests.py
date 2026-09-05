@@ -422,7 +422,9 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
 
     # The api/ integration suite connects directly to TEST_DB_* (and spins up
     # in-process httptest servers where needed), so it is self-contained — no
-    # external server required.
+    # external server required. internal/dbschema's own _Integration tests
+    # (PostgreSQL-only schema/migration checks) read the same TEST_DB_* vars
+    # and run here too.
     api_exit = 0
     if workflow_run:
         log_info(f"TMI_TEST_WORKFLOW_RUN={workflow_run} set — skipping api/ suite")
@@ -430,7 +432,7 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
         log_info("Running api/ integration tests against the isolated test DB")
         api_cmd = [
             "go", "test", "-v", "-count=1", "-timeout=10m", "-tags=test",
-            "./api/...", "-run", "Integration",
+            "./api/...", "./internal/dbschema/...", "-run", "Integration",
         ]
         api_exit = run_go_test(api_cmd, project_root, base_env, log_path)
 
