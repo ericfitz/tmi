@@ -102,7 +102,7 @@ func (m *MockSettingsService) SeedDefaults(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockSettingsService) ReEncryptAll(ctx context.Context, modifiedBy *string) (int, []SettingError, error) {
+func (m *MockSettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 	return 0, nil, nil
 }
 

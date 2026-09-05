@@ -707,11 +707,14 @@ func TestSettingsService_Set_StampsExplicitOrigin(t *testing.T) {
 	})
 }
 
-// TestSettingsService_ReEncryptAll_PreservesOrigin is the #794 regression
-// guard: ReEncryptAll loads each row and re-Saves it via a raw gorm.DB.Save
-// (not SettingsService.Set), so it must NOT touch Origin. If key rotation
-// promoted every seeded row to explicit, the whole precedence feature would
-// silently break — every operational key would suddenly out-rank config.
+// TestSettingsService_ReEncryptAll_PreservesOrigin is the #794/#805
+// regression guard: ReEncryptAll is a mechanical key-rotation pass, not an
+// operator edit, so it must write only the ciphertext. It must NOT touch
+// Origin (if key rotation promoted every seeded row to explicit, every
+// operational key would suddenly out-rank config) and it must NOT touch
+// modified_by or modified_at (the #794 origin backfill reads modified_by as
+// operator intent, and a nil actor used to clear it to NULL).
+// SEM@9a4d6109d4ad52d5adc53c0fe0d9925022535958: verify re-encryption rotates ciphertext but leaves origin and audit fields untouched
 func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 
@@ -725,11 +728,18 @@ func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 	svc := NewSettingsService(gormDB, nil)
 	svc.SetEncryptor(enc)
 
+	// A fixed past timestamp: autoUpdateTime only fills modified_at on Create
+	// when it is zero, so this value is what lands in the row.
+	stampedAt := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
+	operator := "11111111-2222-3333-4444-555555555555"
+
 	seeded := models.SystemSetting{
 		SettingKey:  "session.timeout_minutes",
 		Value:       "60", // plaintext; ReEncryptAll must accept this as well as already-encrypted values
 		SettingType: models.SystemSettingTypeInt,
-		Origin:      models.NullableDBVarchar{String: models.SystemSettingOriginSeeded, Valid: true},
+		ModifiedAt:  stampedAt,
+		// ModifiedBy deliberately NULL: nobody ever set this row.
+		Origin: models.NullableDBVarchar{String: models.SystemSettingOriginSeeded, Valid: true},
 	}
 	require.NoError(t, gormDB.Create(&seeded).Error)
 
@@ -737,11 +747,13 @@ func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 		SettingKey:  "ui.default_theme",
 		Value:       "dark",
 		SettingType: models.SystemSettingTypeString,
+		ModifiedAt:  stampedAt,
+		ModifiedBy:  models.NewNullableDBVarchar(&operator),
 		Origin:      models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true},
 	}
 	require.NoError(t, gormDB.Create(&explicit).Error)
 
-	count, settingErrors, err := svc.ReEncryptAll(context.Background(), nil)
+	count, settingErrors, err := svc.ReEncryptAll(context.Background())
 	require.NoError(t, err)
 	assert.Empty(t, settingErrors)
 	assert.Equal(t, 2, count)
@@ -751,11 +763,86 @@ func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 	assert.Equal(t, models.SystemSettingOriginSeeded, reloadedSeeded.Origin.String,
 		"ReEncryptAll must not promote a seeded row to explicit")
 	assert.False(t, reloadedSeeded.IsExplicit())
+	assert.False(t, reloadedSeeded.ModifiedBy.Valid,
+		"ReEncryptAll must leave a NULL modified_by NULL")
+	assert.True(t, stampedAt.Equal(reloadedSeeded.ModifiedAt),
+		"ReEncryptAll must not move modified_at (got %v)", reloadedSeeded.ModifiedAt)
+	assert.NotEqual(t, "60", string(reloadedSeeded.Value), "value must now be ciphertext")
+	plain, err := enc.Decrypt(string(reloadedSeeded.Value))
+	require.NoError(t, err)
+	assert.Equal(t, "60", plain)
 
 	var reloadedExplicit models.SystemSetting
 	require.NoError(t, gormDB.Where("setting_key = ?", "ui.default_theme").First(&reloadedExplicit).Error)
 	assert.Equal(t, models.SystemSettingOriginExplicit, reloadedExplicit.Origin.String)
 	assert.True(t, reloadedExplicit.IsExplicit())
+	require.True(t, reloadedExplicit.ModifiedBy.Valid, "ReEncryptAll must not clear modified_by")
+	assert.Equal(t, operator, reloadedExplicit.ModifiedBy.String,
+		"ReEncryptAll must not overwrite modified_by")
+	assert.True(t, stampedAt.Equal(reloadedExplicit.ModifiedAt),
+		"ReEncryptAll must not move modified_at (got %v)", reloadedExplicit.ModifiedAt)
+	assert.NotEqual(t, "dark", string(reloadedExplicit.Value), "value must now be ciphertext")
+	plain, err = enc.Decrypt(string(reloadedExplicit.Value))
+	require.NoError(t, err)
+	assert.Equal(t, "dark", plain)
+}
+
+// TestSettingsService_ReEncryptAll_ReportsVanishedRow is the #805
+// oracle-db-admin follow-up: a row deleted between ReEncryptAll's initial
+// Find and its per-row UpdateColumn must be reported as a SettingError, not
+// counted as re-encrypted. A GORM "before update" callback deletes the row
+// out from under the write to simulate that race deterministically.
+// SEM@5740a75fafc8da46a061901361ed61990a6c8916: verify re-encryption reports a concurrently deleted row instead of counting it
+func TestSettingsService_ReEncryptAll_ReportsVanishedRow(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(i)
+	}
+	enc, err := crypto.NewSettingsEncryptorFromKeys(key, nil, 1)
+	require.NoError(t, err)
+
+	svc := NewSettingsService(gormDB, nil)
+	svc.SetEncryptor(enc)
+
+	require.NoError(t, gormDB.Create(&models.SystemSetting{
+		SettingKey:  "will.vanish",
+		Value:       "60",
+		SettingType: models.SystemSettingTypeInt,
+	}).Error)
+	require.NoError(t, gormDB.Create(&models.SystemSetting{
+		SettingKey:  "will.survive",
+		Value:       "dark",
+		SettingType: models.SystemSettingTypeString,
+	}).Error)
+
+	// Delete "will.vanish" the moment any row's UpdateColumn is about to
+	// run, regardless of which row it is: whichever of the two updates
+	// fires first, "will.vanish" is gone from under its own write by the
+	// time that write executes. Reuses the pending statement's own
+	// session/connection (NewDB: true clones the session without carrying
+	// over the pending update's Statement) so this doesn't contend with it
+	// for a second SQLite ":memory:" connection, which would otherwise be a
+	// distinct, schema-less database.
+	require.NoError(t, gormDB.Callback().Update().Before("gorm:update").
+		Register("test:vanish_row", func(tx *gorm.DB) {
+			tx.Session(&gorm.Session{NewDB: true, SkipDefaultTransaction: true}).
+				Exec("DELETE FROM system_settings WHERE setting_key = ?", "will.vanish")
+		}))
+
+	count, settingErrors, err := svc.ReEncryptAll(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "the surviving row is still counted")
+	require.Len(t, settingErrors, 1)
+	assert.Equal(t, "will.vanish", settingErrors[0].Key)
+	assert.Equal(t, "setting no longer exists", settingErrors[0].Error)
+
+	var reloadedSurvivor models.SystemSetting
+	require.NoError(t, gormDB.Where("setting_key = ?", "will.survive").First(&reloadedSurvivor).Error)
+	plain, err := enc.Decrypt(string(reloadedSurvivor.Value))
+	require.NoError(t, err)
+	assert.Equal(t, "dark", plain)
 }
 
 // A missing row is negative-cached so unauthenticated hot paths do not pay a
