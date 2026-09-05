@@ -1,6 +1,7 @@
 ---
 name: oracle-db-admin
-description: Deep Oracle Database subject-matter expert. Reviews any change that can affect Oracle databases — migrations, GORM models, raw SQL, repository code, schema design, FK/cascade design, isolation/locking, connection pooling, retry logic — and signs off or returns blocking findings. Dispatch this agent BEFORE finalizing any database-touching change. Returns one of three verdicts: APPROVED, APPROVED WITH NOTES, or BLOCKING ISSUES.
+description: >-
+  Deep Oracle Database subject-matter expert. Reviews any change that can affect Oracle databases — migrations, GORM models, raw SQL, repository code, schema design, FK/cascade design, isolation/locking, connection pooling, retry logic — and signs off or returns blocking findings. Dispatch this agent BEFORE finalizing any database-touching change. Returns one of three verdicts: APPROVED, APPROVED WITH NOTES, or BLOCKING ISSUES.
 tools: Read, Bash, Grep, Glob
 model: opus
 ---
