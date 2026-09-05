@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
 )
 
@@ -115,4 +117,79 @@ func metadataIndexExists(db *gorm.DB, indexName, tableName string) (bool, error)
 		return false, fmt.Errorf("metadataIndexExists: unsupported dialect %q", db.Name())
 	}
 	return cnt > 0, err
+}
+
+// DropRetiredMetadataIndexes removes the four timestamp-leading metadata
+// indexes that #784 took out of models.Metadata from a database that still
+// carries them. Idempotent: on a current database it costs one catalog query
+// per retired name.
+//
+// Safe, and required, to call on every boot after AutoMigrate, including when
+// the #480 fingerprint fast path skips AutoMigrate: AutoMigrate never drops
+// an index, so nothing else would ever remove them.
+//
+// Runs on PostgreSQL and Oracle only. SQLite is the unit-test dialect and
+// carries no production data, so it is left untouched (the design's chosen
+// no-op path, pinned by TestDropRetiredMetadataIndexes_SQLiteIsNoOp).
+//
+// Never aborts startup on a DDL failure, only on a failure to read the
+// catalog: a retired index that survives is a write-cost nuisance, not a
+// correctness problem, and the next boot or `tmi-dbtool --schema` retries.
+// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: drop the retired metadata timestamp indexes if present, else warn and continue (mutates DB)
+func DropRetiredMetadataIndexes(db *gorm.DB) error {
+	table := (&models.Metadata{}).TableName()
+	present, err := requireMigrationTable(db, table, "retired metadata index drop (#784)")
+	if err != nil {
+		return err
+	}
+	if !present {
+		return nil
+	}
+
+	dialect := db.Name()
+	if dialect != "postgres" && dialect != "oracle" {
+		return nil
+	}
+
+	logger := slogging.Get()
+	for _, name := range retiredMetadataIndexes {
+		var exists bool
+		if err := withMigrationRetry("retired metadata index probe", func() error {
+			var probeErr error
+			exists, probeErr = metadataIndexExists(db, name, table)
+			return probeErr
+		}); err != nil {
+			return fmt.Errorf("failed to check whether %s exists on %s: %w", name, table, err)
+		}
+		if !exists {
+			continue
+		}
+
+		ddl := retiredMetadataIndexDropDDL(dialect, name)
+		if err := withDDLRetry("retired metadata index drop "+name, func() error {
+			return execMigrationDDL(db, ddl)
+		}); err != nil {
+			// Oracle commits before and after every DDL statement, so a
+			// transient failure can arrive after the DROP took effect. Ask
+			// the catalog what is true rather than inferring it from the
+			// error (the same reasoning as EnsureUserProviderLookupUnique).
+			var still bool
+			probeErr := withMigrationRetry("retired metadata index post-drop probe", func() error {
+				var e error
+				still, e = metadataIndexExists(db, name, table)
+				return e
+			})
+			if probeErr == nil && !still {
+				logger.Warn("the DROP of %s reported an error (%v) but the index is gone; continuing (#784)", name, err)
+				continue
+			}
+			logger.Error(
+				"failed to drop retired metadata index %s: %v. The index is harmless but still costs every metadata write; "+
+					"startup is continuing and the next boot or `tmi-dbtool --schema` with an admin-privileged database user retries (#784)",
+				name, err)
+			continue
+		}
+		logger.Info("dropped retired metadata index %s from %s (#784)", name, table)
+	}
+	return nil
 }

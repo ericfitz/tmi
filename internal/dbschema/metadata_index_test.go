@@ -82,3 +82,27 @@ func TestMetadataInitransIndexes_NamesMatchModel(t *testing.T) {
 		assert.False(t, exists, "retired index %s must no longer be in the model (#784)", name)
 	}
 }
+
+// TestDropRetiredMetadataIndexes_SQLiteIsNoOp pins the design decision that
+// the drop only runs on the two production dialects: on the SQLite test
+// fixture it must return nil and leave every retired index in place.
+func TestDropRetiredMetadataIndexes_SQLiteIsNoOp(t *testing.T) {
+	db := newMetadataIndexTestDB(t)
+
+	require.NoError(t, DropRetiredMetadataIndexes(db))
+	require.NoError(t, DropRetiredMetadataIndexes(db), "must be idempotent")
+
+	for _, name := range retiredMetadataIndexes {
+		exists, err := metadataIndexExists(db, name, "metadata")
+		require.NoError(t, err)
+		assert.True(t, exists, "SQLite is a test-only dialect; %s must be left alone", name)
+	}
+}
+
+// TestDropRetiredMetadataIndexes_NoTable covers a database whose metadata
+// table does not exist yet: nothing to do, no error.
+func TestDropRetiredMetadataIndexes_NoTable(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, DropRetiredMetadataIndexes(db))
+}
