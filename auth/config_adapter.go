@@ -260,7 +260,7 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 // invariant checks, AutoMigrate itself, and the two raw-DDL indexes
 // AutoMigrate cannot express. Always called with the cross-replica migration
 // advisory lock held (see InitAuthWithConfig, #737).
-// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: run pre-migration checks, AutoMigrate, and raw-DDL indexes for schema evolution (mutates DB)
+// SEM@7ffca610d050b6fdbe2db2796298d3e746bb7491: run pre-migration checks, AutoMigrate, and raw-DDL indexes for schema evolution (mutates DB)
 func migrateSchemaForConfigAdapter(gormDB *db.GormDB, allModels []any, desiredFP string) error {
 	logger := slogging.Get()
 

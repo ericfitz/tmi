@@ -19,7 +19,7 @@ import (
 // surviving six indexes (five named plus the primary key) are untouched.
 // Reuses the DSN/bootstrap helpers from
 // TestInstallPostgresDefaultIsolation_Integration (postgres_isolation_integration_test.go).
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: validate the retired-metadata-index drop against a live PostgreSQL schema (reads/writes DB)
+// SEM@71e0e25225d81c1ed3471b79ceaf458cbe5b17e7: verify the retired metadata indexes are dropped idempotently on PostgreSQL and survivors remain (reads DB)
 func TestDropRetiredMetadataIndexes_Integration(t *testing.T) {
 	dsn := pgIsolationDSN(t)
 	db := openPG(t, dsn)

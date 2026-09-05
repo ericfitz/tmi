@@ -55,7 +55,7 @@ var metadataInitransIndexes = []string{
 	"idx_metadata_key_value",
 }
 
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: build the per-dialect DROP INDEX statement for a retired metadata index (pure)
+// SEM@247ce3ba8690c227aa00fb4d16f633491cbdb783: build the per-dialect DROP INDEX statement for a retired metadata index (pure)
 func retiredMetadataIndexDropDDL(dialect, indexName string) string {
 	if dialect == "oracle" {
 		// No IF EXISTS on Oracle index DDL; the caller probes the catalog
@@ -65,7 +65,7 @@ func retiredMetadataIndexDropDDL(dialect, indexName string) string {
 	return "DROP INDEX IF EXISTS " + indexName
 }
 
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: build the ALTER TABLE statement that rewrites existing blocks at the target INITRANS (pure)
+// SEM@341b00825096972c8f824f2ad4b3356d8c0c21b6: build the single ALTER TABLE MOVE ONLINE statement that sets the target INITRANS (pure)
 func metadataTableInitransDDL(upperTable string) string {
 	// A plain "ALTER TABLE ... INITRANS n" only commits a dictionary change;
 	// it does not touch existing blocks. Splitting it from MOVE ONLINE meant
@@ -78,7 +78,7 @@ func metadataTableInitransDDL(upperTable string) string {
 	return fmt.Sprintf("ALTER TABLE %s MOVE ONLINE INITRANS %d", upperTable, metadataInitransTarget)
 }
 
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: build the ALTER INDEX statement that rebuilds an index online with the target INITRANS (pure)
+// SEM@247ce3ba8690c227aa00fb4d16f633491cbdb783: build the ALTER INDEX statement that rebuilds an index online with the target INITRANS (pure)
 func metadataIndexInitransDDL(upperIndex string) string {
 	return fmt.Sprintf("ALTER INDEX %s REBUILD ONLINE INITRANS %d", upperIndex, metadataInitransTarget)
 }
@@ -92,7 +92,7 @@ func metadataIndexInitransDDL(upperIndex string) string {
 // PostgreSQL and SQLite have no such split. gorm's HasIndex is not used for
 // the reason userProviderLookupIndexExists gives: on Oracle it binds the
 // lowercase tag name against the uppercase catalog and always answers absent.
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: probe whether a named index exists on a table in the current schema, per dialect (reads DB)
+// SEM@247ce3ba8690c227aa00fb4d16f633491cbdb783: probe whether a named index exists on a table in the current schema, per dialect (reads DB)
 func metadataIndexExists(db *gorm.DB, indexName, tableName string) (bool, error) {
 	var cnt int64
 	var err error
@@ -136,7 +136,7 @@ func metadataIndexExists(db *gorm.DB, indexName, tableName string) (bool, error)
 // Never aborts startup on a DDL failure, only on a failure to read the
 // catalog: a retired index that survives is a write-cost nuisance, not a
 // correctness problem, and the next boot or `tmi-dbtool --schema` retries.
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: drop the retired metadata timestamp indexes if present, else warn and continue (mutates DB)
+// SEM@71e0e25225d81c1ed3471b79ceaf458cbe5b17e7: drop the retired metadata timestamp indexes if present, else warn and continue (mutates DB)
 func DropRetiredMetadataIndexes(db *gorm.DB) error {
 	table := (&models.Metadata{}).TableName()
 	present, err := requireMigrationTable(db, table, "retired metadata index drop (#784)")
@@ -210,14 +210,14 @@ func DropRetiredMetadataIndexes(db *gorm.DB) error {
 // empty when ALL_CONSTRAINTS found no primary-key index (disabled or
 // deferrable PK); the caller warns once for that, since the probe itself
 // runs both before and after the DDL.
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: hold the catalog INITRANS values of the metadata table and its indexes (pure)
+// SEM@341b00825096972c8f824f2ad4b3356d8c0c21b6: hold the catalog INITRANS values of the metadata table and its indexes (pure)
 type metadataInitransState struct {
 	Table   int64
 	PKIndex string
 	Indexes map[string]int64
 }
 
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: report which of the table and its indexes sit below the INITRANS target (pure)
+// SEM@ab48d653f43808ff3c2f52355ef6eda46c8f20aa: report which of the table and its indexes sit below the INITRANS target (pure)
 func (s metadataInitransState) below() (tableBelow bool, indexesBelow []string) {
 	tableBelow = s.Table < metadataInitransTarget
 	for name, ini := range s.Indexes {
@@ -239,7 +239,7 @@ func (s metadataInitransState) below() (tableBelow bool, indexesBelow []string) 
 // labels and an untagged field's DBName follows the active dialect's naming
 // strategy, so IndexName binds to INDEX_NAME and IniTrans to INI_TRANS (the
 // same convention as userProviderLookupIndexState).
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: fetch INITRANS of the metadata table, PK index, and named indexes from the Oracle catalog (reads DB)
+// SEM@341b00825096972c8f824f2ad4b3356d8c0c21b6: fetch INITRANS of the metadata table, PK index, and named indexes from the Oracle catalog (reads DB)
 func metadataInitransProbe(db *gorm.DB, table string) (metadataInitransState, error) {
 	state := metadataInitransState{Indexes: map[string]int64{}}
 	upperTable := strings.ToUpper(table)
@@ -311,7 +311,7 @@ func metadataInitransProbe(db *gorm.DB, table string) (metadataInitransState, er
 // was (each statement is its own transaction) and the next boot or
 // `tmi-dbtool --schema` retries. The outcome is decided by re-reading the
 // catalog after the DDL, not by trusting the DDL's error.
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: raise INITRANS on the Oracle metadata table and its indexes to the target, else warn and continue (mutates DB)
+// SEM@341b00825096972c8f824f2ad4b3356d8c0c21b6: raise INITRANS on the Oracle metadata table and its indexes to the target, else warn and continue (mutates DB)
 func EnsureMetadataInitrans(db *gorm.DB) error {
 	if db.Name() != "oracle" {
 		return nil

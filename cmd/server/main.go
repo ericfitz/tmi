@@ -392,7 +392,7 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 // the cross-replica migration advisory lock held (see runMigrationsLocked) —
 // several of its steps issue DDL that is not safe to run concurrently from
 // two replicas.
-// SEM@72dd09a3a2452db4ebcb144ebcf734b0140a67c7: run the schema-evolution sequence: AutoMigrate, backfills, index upgrades, and seeding (mutates DB)
+// SEM@7ffca610d050b6fdbe2db2796298d3e746bb7491: run the schema-evolution sequence: AutoMigrate, backfills, index upgrades, and seeding (mutates DB)
 func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error {
 	logger := slogging.Get()
 

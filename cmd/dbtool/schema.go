@@ -44,7 +44,7 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 
 // runSchemaLocked performs the schema migration and system seed. Always called
 // with the cross-replica migration advisory lock held (see runSchema).
-// SEM@5abf61d0e181a6df8a0f8108f79820e4fe68711a: migrate DB schema via AutoMigrate, upgrade legacy indexes, and seed system data (mutates DB)
+// SEM@7ffca610d050b6fdbe2db2796298d3e746bb7491: migrate DB schema via AutoMigrate, upgrade legacy indexes, and seed system data (mutates DB)
 func runSchemaLocked(db *testdb.TestDB) error {
 	log := slogging.Get()
 

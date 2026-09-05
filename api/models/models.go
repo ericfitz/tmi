@@ -551,7 +551,7 @@ func (r *Repository) BeforeCreate(tx *gorm.DB) error {
 // Note: no index leads with created_at or modified_at (#784): nothing reads
 // metadata by timestamp, and every same-batch row shares one timestamp, so
 // such indexes only concentrated writes on one leaf block (#783).
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for arbitrary key-value metadata on any entity
+// SEM@7ec522644561cdc52bf062ff934546aa883eacaf: DB model for arbitrary key-value metadata on any entity
 type Metadata struct {
 	ID         DBVarchar `gorm:"primaryKey;not null;size:36"`
 	EntityType DBVarchar `gorm:"size:50;not null;index:idx_metadata_entity_type_id,priority:1;index:idx_metadata_unique,priority:1,unique"`
