@@ -130,6 +130,19 @@ func runSchemaLocked(db *testdb.TestDB) error {
 		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
 	}
 
+	// #784 / #783: retire the metadata timestamp indexes, then raise INITRANS
+	// on METADATA and its survivors (Oracle only). dbtool is the
+	// admin-privileged remediation path, so this is the entry point most
+	// likely to succeed at the MOVE ONLINE / REBUILD ONLINE where a DDL-less
+	// server runtime user can only log that it is needed. Same placement as
+	// cmd/server/main.go's migrateSchema and auth/config_adapter.go.
+	if err := dbschema.DropRetiredMetadataIndexes(db.DB()); err != nil {
+		return fmt.Errorf("failed to check the retired metadata indexes: %w", err)
+	}
+	if err := dbschema.EnsureMetadataInitrans(db.DB()); err != nil {
+		return fmt.Errorf("failed to check the metadata INITRANS settings: %w", err)
+	}
+
 	// #813: remove system_settings rows for keys the registry no longer
 	// declares. Must run BEFORE the origin backfill -- see
 	// internal/dbschema/dead_setting_prune.go's ordering note. dbtool is the

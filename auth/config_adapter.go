@@ -314,6 +314,18 @@ func migrateSchemaForConfigAdapter(gormDB *db.GormDB, allModels []any, desiredFP
 		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
 	}
 
+	// #784 / #783: retire the metadata timestamp indexes, then raise INITRANS
+	// on METADATA and its survivors (Oracle only) -- same placement and
+	// reasoning as cmd/server/main.go's migrateSchema and
+	// cmd/dbtool/schema.go's runSchemaLocked. Both are idempotent, run even
+	// when the fast path above skipped AutoMigrate, and never fail on DDL.
+	if err := dbschema.DropRetiredMetadataIndexes(gormDB.DB()); err != nil {
+		return fmt.Errorf("failed to check the retired metadata indexes: %w", err)
+	}
+	if err := dbschema.EnsureMetadataInitrans(gormDB.DB()); err != nil {
+		return fmt.Errorf("failed to check the metadata INITRANS settings: %w", err)
+	}
+
 	// #813: remove system_settings rows for keys the registry no longer
 	// declares. Must run BEFORE the origin backfill -- see
 	// internal/dbschema/dead_setting_prune.go's ordering note.
