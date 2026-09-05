@@ -38,13 +38,15 @@ func TestRetiredMetadataIndexDropDDL(t *testing.T) {
 	assert.Equal(t, "DROP INDEX IDX_METADATA_CREATED", retiredMetadataIndexDropDDL("oracle", "idx_metadata_created"))
 }
 
-// TestMetadataInitransDDL pins the Oracle statements: INITRANS on the table
-// affects only new blocks, so MOVE ONLINE rewrites the existing ones; each
-// index is rebuilt online with the new INITRANS.
+// TestMetadataInitransDDL pins the Oracle statements: a single MOVE ONLINE
+// with INITRANS in its physical_attributes_clause, so the catalog only ever
+// reads the new INITRANS if the block rewrite actually committed (a split
+// INITRANS/MOVE ONLINE let a failed MOVE hide behind an already-raised
+// catalog value, oracle-db-admin review, #783); each index is rebuilt online
+// with the new INITRANS.
 func TestMetadataInitransDDL(t *testing.T) {
 	assert.Equal(t, []string{
-		"ALTER TABLE METADATA INITRANS 16",
-		"ALTER TABLE METADATA MOVE ONLINE",
+		"ALTER TABLE METADATA MOVE ONLINE INITRANS 16",
 	}, metadataTableInitransDDL("METADATA"))
 	assert.Equal(t, "ALTER INDEX IDX_METADATA_KEY REBUILD ONLINE INITRANS 16", metadataIndexInitransDDL("IDX_METADATA_KEY"))
 }

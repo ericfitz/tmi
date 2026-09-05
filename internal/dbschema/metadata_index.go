@@ -65,16 +65,19 @@ func retiredMetadataIndexDropDDL(dialect, indexName string) string {
 	return "DROP INDEX IF EXISTS " + indexName
 }
 
-// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: build the ALTER TABLE statements that raise INITRANS and rewrite existing blocks (pure)
+// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: build the ALTER TABLE statement that rewrites existing blocks at the target INITRANS (pure)
 func metadataTableInitransDDL(upperTable string) []string {
-	// INITRANS on a table applies only to blocks formatted afterwards; MOVE
-	// ONLINE rewrites the existing blocks with the new setting while keeping
-	// the indexes usable (12.2+). Two statements rather than one MOVE with
-	// physical attributes so the catalog change and the block rewrite are
-	// separately visible in the log.
+	// A plain "ALTER TABLE ... INITRANS n" only commits a dictionary change;
+	// it does not touch existing blocks. Splitting it from MOVE ONLINE meant
+	// a failed MOVE could leave the catalog already reading the new INITRANS
+	// while no block was ever rewritten, and no later boot would retry it
+	// (oracle-db-admin review, #783). Oracle's physical_attributes_clause
+	// inside MOVE folds both into one statement that is atomic per Oracle's
+	// own DDL commit semantics: INI_TRANS reads the target only if the block
+	// rewrite committed. Kept as a slice for the caller's loop shape even
+	// though it is now always length 1.
 	return []string{
-		fmt.Sprintf("ALTER TABLE %s INITRANS %d", upperTable, metadataInitransTarget),
-		fmt.Sprintf("ALTER TABLE %s MOVE ONLINE", upperTable),
+		fmt.Sprintf("ALTER TABLE %s MOVE ONLINE INITRANS %d", upperTable, metadataInitransTarget),
 	}
 }
 
@@ -253,6 +256,9 @@ func metadataInitransProbe(db *gorm.DB, table string) (metadataInitransState, er
 	).Scan(&pkIndexes).Error; err != nil {
 		return state, err
 	}
+	if len(pkIndexes) == 0 {
+		slogging.Get().Warn("no primary-key index found on %s in CURRENT_SCHEMA (disabled or deferrable PK?); its INITRANS will not be raised (#783)", upperTable)
+	}
 
 	names := make([]string, 0, len(pkIndexes)+len(metadataInitransIndexes))
 	names = append(names, pkIndexes...)
@@ -350,7 +356,7 @@ func EnsureMetadataInitrans(db *gorm.DB) error {
 		if err := withDDLRetry("metadata INITRANS "+ddl, func() error {
 			return execMigrationDDL(db, ddl)
 		}); err != nil {
-			logger.Error("%q failed: %v (#783)", ddl, err)
+			logger.Error("%q failed: %v; if the error is ORA-08104, run DBMS_REPAIR.ONLINE_INDEX_CLEAN for the index before retrying (#783)", ddl, err)
 		}
 	}
 
