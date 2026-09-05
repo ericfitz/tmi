@@ -786,6 +786,63 @@ func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 	assert.Equal(t, "dark", plain)
 }
 
+// TestSettingsService_ReEncryptAll_ReportsVanishedRow is the #805
+// oracle-db-admin follow-up: a row deleted between ReEncryptAll's initial
+// Find and its per-row UpdateColumn must be reported as a SettingError, not
+// counted as re-encrypted. A GORM "before update" callback deletes the row
+// out from under the write to simulate that race deterministically.
+func TestSettingsService_ReEncryptAll_ReportsVanishedRow(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(i)
+	}
+	enc, err := crypto.NewSettingsEncryptorFromKeys(key, nil, 1)
+	require.NoError(t, err)
+
+	svc := NewSettingsService(gormDB, nil)
+	svc.SetEncryptor(enc)
+
+	require.NoError(t, gormDB.Create(&models.SystemSetting{
+		SettingKey:  "will.vanish",
+		Value:       "60",
+		SettingType: models.SystemSettingTypeInt,
+	}).Error)
+	require.NoError(t, gormDB.Create(&models.SystemSetting{
+		SettingKey:  "will.survive",
+		Value:       "dark",
+		SettingType: models.SystemSettingTypeString,
+	}).Error)
+
+	// Delete "will.vanish" the moment any row's UpdateColumn is about to
+	// run, regardless of which row it is: whichever of the two updates
+	// fires first, "will.vanish" is gone from under its own write by the
+	// time that write executes. Reuses the pending statement's own
+	// session/connection (NewDB: true clones the session without carrying
+	// over the pending update's Statement) so this doesn't contend with it
+	// for a second SQLite ":memory:" connection, which would otherwise be a
+	// distinct, schema-less database.
+	require.NoError(t, gormDB.Callback().Update().Before("gorm:update").
+		Register("test:vanish_row", func(tx *gorm.DB) {
+			tx.Session(&gorm.Session{NewDB: true, SkipDefaultTransaction: true}).
+				Exec("DELETE FROM system_settings WHERE setting_key = ?", "will.vanish")
+		}))
+
+	count, settingErrors, err := svc.ReEncryptAll(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count, "the surviving row is still counted")
+	require.Len(t, settingErrors, 1)
+	assert.Equal(t, "will.vanish", settingErrors[0].Key)
+	assert.Equal(t, "setting no longer exists", settingErrors[0].Error)
+
+	var reloadedSurvivor models.SystemSetting
+	require.NoError(t, gormDB.Where("setting_key = ?", "will.survive").First(&reloadedSurvivor).Error)
+	plain, err := enc.Decrypt(string(reloadedSurvivor.Value))
+	require.NoError(t, err)
+	assert.Equal(t, "dark", plain)
+}
+
 // A missing row is negative-cached so unauthenticated hot paths do not pay a
 // DB round trip per request for keys that are never seeded (#770).
 // SEM@42f901dab9ff2a3942068435a791d370c03c8f6b: verify a missing setting is negative-cached in memory until invalidated

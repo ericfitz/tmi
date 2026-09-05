@@ -708,12 +708,19 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError
 		// Write only the ciphertext. UpdateColumn skips GORM hooks, so
 		// autoUpdateTime does not move modified_at and modified_by is never
 		// mentioned in the statement (a full-struct Save would write both).
-		if err := s.gormDB.WithContext(ctx).
+		result := s.gormDB.WithContext(ctx).
 			Model(&models.SystemSetting{}).
 			Where("setting_key = ?", setting.SettingKey).
-			UpdateColumn("value", models.DBText(encrypted)).Error; err != nil {
-			logger.Error("Failed to save re-encrypted setting %s: %v", setting.SettingKey, err)
-			settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: err.Error()})
+			UpdateColumn("value", models.DBText(encrypted))
+		if result.Error != nil {
+			logger.Error("Failed to save re-encrypted setting %s: %v", setting.SettingKey, result.Error)
+			settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: result.Error.Error()})
+			continue
+		}
+		if result.RowsAffected == 0 {
+			// Deleted between the Find above and this write.
+			logger.Warn("Setting %s vanished during re-encryption", setting.SettingKey)
+			settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: "setting no longer exists"})
 			continue
 		}
 
