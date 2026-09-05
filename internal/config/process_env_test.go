@@ -87,7 +87,11 @@ var tmiTokenExclusions = map[string]string{
 // a registry EnvVar, a ProcessEnvVar name, an instance of a ProcessEnvVar
 // prefix pattern, or a justified tmiTokenExclusions entry. Anything else is
 // an env var — or a new non-env-var naming collision — that
-// config-reference.md, the TMI_* allowlist, does not know about.
+// config-reference.md, the TMI_* allowlist, does not know about. Ceiling: a
+// name composed at runtime (`"TMI_" + x`, fmt.Sprintf("TMI_%s", ...)) is
+// invisible to this token scan; today the only such construction is a
+// JetStream stream name in internal/platform/controller/render_jetstream.go,
+// not an env var.
 func TestRepoTMIEnvTokens_AreAllDocumented(t *testing.T) {
 	known := map[string]bool{}
 	for _, d := range AllSettingDefs() {
@@ -118,6 +122,9 @@ func TestRepoTMIEnvTokens_AreAllDocumented(t *testing.T) {
 	}
 
 	const root = "../.." // this package is internal/config
+	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
+		t.Fatalf("%s is not the repo root (no go.mod): %v; the gate would scan nothing and pass vacuously", root, err)
+	}
 	tokenRe := regexp.MustCompile(`TMI_[A-Z0-9_]+`)
 	offenders := map[string]bool{}
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -137,7 +144,10 @@ func TestRepoTMIEnvTokens_AreAllDocumented(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		rel, _ := filepath.Rel(root, path)
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			rel = path
+		}
 		for _, tok := range tokenRe.FindAllString(string(src), -1) {
 			if !documented(tok) {
 				offenders[tok+"  ("+rel+")"] = true
