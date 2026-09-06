@@ -35,11 +35,14 @@ var ErrUserNotFound = fmt.Errorf("user not found: %w", repository.ErrUserNotFoun
 
 // ClaimsEnricher enriches JWT claims with application-specific data (e.g., group membership)
 // that cannot be directly accessed from the auth package without creating circular dependencies.
-// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: interface for enriching JWT claims with TMI group membership and role flags
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: interface for enriching JWT claims with TMI group membership, role flags, and administrator status
 type ClaimsEnricher interface {
 	// EnrichClaims checks built-in group membership and resolves TMI-managed group names for a user.
 	// Returns whether the user is an administrator, security reviewer, and the user's TMI group names.
 	EnrichClaims(ctx context.Context, userInternalUUID string, provider string, groupNames []string) (isAdmin bool, isSecurityReviewer bool, tmiGroupNames []string, err error)
+	// IsAdministrator reports Administrators membership (direct or via nested
+	// TMI-managed groups) for a user id alone; used to gate direct_write (#856).
+	IsAdministrator(ctx context.Context, userInternalUUID string) (bool, error)
 }
 
 // UserContentTokenRevoker is called before a user is deleted to sweep any
@@ -220,7 +223,7 @@ type TokenPair struct {
 }
 
 // Claims represents the JWT claims
-// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: JWT claims struct carrying email, groups, role flags, delegation context, and auth_time (pure)
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: JWT claims struct carrying email, groups, role flags, delegation context, direct_write, and auth_time (pure)
 type Claims struct {
 	Email              string             `json:"email"`
 	EmailVerified      bool               `json:"email_verified,omitempty"`
@@ -230,6 +233,7 @@ type Claims struct {
 	IsAdministrator    *bool              `json:"tmi_is_administrator,omitempty"`     // TMI Administrators group membership
 	IsSecurityReviewer *bool              `json:"tmi_is_security_reviewer,omitempty"` // TMI Security Reviewers group membership
 	Delegation         *DelegationContext `json:"delegation,omitempty"`               // T18: scoped delegation token for addon invocations
+	DirectWrite        *bool              `json:"tmi_direct_write,omitempty"`         // #856: SA token may pass the invoker-only gate (owner's roles still apply)
 	// AuthTime is the timestamp (Unix seconds) of the user's last interactive
 	// IdP authentication. OIDC-standard claim. #355 step-up middleware reads
 	// this to decide whether a /admin/* write requires re-authentication.
@@ -1114,7 +1118,7 @@ func (s *Service) ClearUserGroups(ctx context.Context, email string) error {
 
 // HandleClientCredentialsGrant processes OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4)
 // Returns an access token for machine-to-machine authentication
-// SEM@18f87a010aa0bba84d6fa6221cfb289094caf982: validate client credentials and mint a service-account JWT without refresh token (reads DB)
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: validate client credentials and mint a service-account JWT with direct_write claim unless owner is admin (reads DB)
 func (s *Service) HandleClientCredentialsGrant(ctx context.Context, clientID, clientSecret string) (*TokenPair, error) {
 	logger := slogging.Get()
 
@@ -1195,6 +1199,22 @@ func (s *Service) HandleClientCredentialsGrant(ctx context.Context, clientID, cl
 				}
 				claims.Groups = mergeGroups(claims.Groups, filtered)
 			}
+		}
+	}
+
+	// direct_write (#856) is re-checked at issue time and fails closed: the
+	// claim is withheld if the owner is (or has become) an administrator,
+	// directly or via a nested TMI group, or if that cannot be determined.
+	if creds.DirectWrite {
+		if s.claimsEnricher == nil || owner.InternalUUID == "" {
+			logger.Warn("direct_write claim withheld: cannot verify owner of credential %s is not an administrator", creds.ID)
+		} else if isAdmin, adminErr := s.claimsEnricher.IsAdministrator(ctx, owner.InternalUUID); adminErr != nil {
+			logger.Warn("direct_write claim withheld: administrator check failed for credential %s: %v", creds.ID, adminErr)
+		} else if isAdmin {
+			logger.Warn("direct_write claim withheld: credential %s is owned by an administrator (T18)", creds.ID)
+		} else {
+			directWrite := true
+			claims.DirectWrite = &directWrite
 		}
 	}
 

@@ -672,7 +672,7 @@ func transformSurveyResponses(responses []SeedSpecSurveyResp, users map[string]u
 	return seeds
 }
 
-// SEM@869f9bc78ec9e1c5d66cf3ac70991b70d07f20e1: convert admin webhooks, test deliveries, addons, and client credentials to seed entries (pure)
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: convert admin webhooks, test deliveries, addons, and client credentials to seed entries (pure)
 func transformAdminWebhooksAndAddons(admin *SeedSpecAdmin) []SeedEntry {
 	if admin == nil {
 		return nil
@@ -736,6 +736,9 @@ func transformAdminWebhooksAndAddons(admin *SeedSpecAdmin) []SeedEntry {
 		}
 		if cc.Description != "" {
 			data["description"] = cc.Description
+		}
+		if cc.DirectWrite {
+			data["direct_write"] = true
 		}
 		seeds = append(seeds, SeedEntry{
 			Kind: kindClientCredential,
@@ -920,7 +923,7 @@ func surveyRef(name string) string { return "survey:" + sanitizeName(name) }
 func webhookRef(name string) string { return "webhook:" + sanitizeName(name) }
 
 // SEM@none: build a deterministic seed ref key for a webhook's test delivery (pure)
-// SEM@f8ffe6c945c910d2994d6001a33010cd2e51a325: build a stable lookup key for a webhook's test delivery (pure)
+// SEM@e8d9e23927681c41551b5fb90464e5bd976c1c50: build a stable lookup key for a webhook's test delivery (pure)
 func webhookDeliveryRef(webhookName string) string {
 	return "webhook-delivery:" + sanitizeName(webhookName)
 }

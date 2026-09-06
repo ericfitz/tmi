@@ -199,3 +199,23 @@ func TestTruncateValue(t *testing.T) {
 func unmarshalJSON(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }
+
+// #856: writes under a direct_write service-account token are tagged with the
+// credential id so the audit trail separates the automation from its owner.
+func TestExtractAuditActor_DirectWriteTag(t *testing.T) {
+	c, _ := CreateTestGinContext("POST", "/threat_models/x/notes")
+	c.Set("userEmail", "bot@tmi.local")
+	c.Set("userID", "tmi-automation-bot")
+	c.Set("userIdP", "tmi")
+	c.Set("userDisplayName", "[Service Account] tf-wh")
+	c.Set("isServiceAccount", true)
+	c.Set("serviceAccountCredentialID", "cred-123")
+
+	plain := ExtractAuditActor(c)
+	assert.Equal(t, "[Service Account] tf-wh", plain.DisplayName, "no tag without direct_write")
+
+	c.Set("directWrite", true)
+	tagged := ExtractAuditActor(c)
+	assert.Equal(t, "[Service Account] tf-wh [direct_write credential_id=cred-123]", tagged.DisplayName)
+	assert.Equal(t, "bot@tmi.local", tagged.Email)
+}

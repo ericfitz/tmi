@@ -638,3 +638,59 @@ func TestValidateClientCredentialDescription(t *testing.T) {
 		assert.Empty(t, result, "Short description should be valid")
 	})
 }
+
+// #856: direct_write is refused on administrator-owned credentials (T18), and
+// accepted (past the policy check) for a non-admin security reviewer.
+func TestCreateCurrentUserClientCredential_DirectWrite(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	validUserUUID := uuid.New().String()
+	body := `{"name": "tf-wh", "direct_write": true}`
+
+	t.Run("RefusedForAdministratorOwner", func(t *testing.T) {
+		server := newTestServerWithNilAuth()
+		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
+		SetFullUserContext(c, "admin@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("isServiceAccount", false)
+		c.Set("tmiIsAdministrator", true)
+		c.Set("tmiIsSecurityReviewer", false)
+
+		server.CreateCurrentUserClientCredential(c)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		var errResp Error
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+		assert.Equal(t, "invalid_request", errResp.Error)
+		assert.Contains(t, errResp.ErrorDescription, "direct_write")
+	})
+
+	t.Run("PassesPolicyCheckForSecurityReviewer", func(t *testing.T) {
+		// With a nil auth service the handler stops later with 503; the point
+		// is that the direct_write policy check does not 400 a non-admin owner.
+		server := newTestServerWithNilAuth()
+		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
+		SetFullUserContext(c, "reviewer@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("isServiceAccount", false)
+		c.Set("tmiIsAdministrator", false)
+		c.Set("tmiIsSecurityReviewer", true)
+
+		server.CreateCurrentUserClientCredential(c)
+
+		assert.NotEqual(t, http.StatusBadRequest, w.Code)
+		assert.NotEqual(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("AbsentFieldIsFalseForAdministrator", func(t *testing.T) {
+		// Omitting direct_write keeps today's behaviour: an administrator may
+		// still create an ordinary credential (reaches the 503 nil-auth stop).
+		server := newTestServerWithNilAuth()
+		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(testCredBody))
+		SetFullUserContext(c, "admin@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("isServiceAccount", false)
+		c.Set("tmiIsAdministrator", true)
+		c.Set("tmiIsSecurityReviewer", false)
+
+		server.CreateCurrentUserClientCredential(c)
+
+		assert.NotEqual(t, http.StatusBadRequest, w.Code)
+	})
+}

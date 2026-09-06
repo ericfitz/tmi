@@ -155,8 +155,35 @@ func NewClaimsExtractor(authHandlers *auth.Handlers, cfg *config.Config) *Claims
 	}
 }
 
+// setServiceAccountContext parses a "sa:{credential_id}:{owner_provider_user_id}"
+// subject and sets the service-account context keys, including the #856
+// direct_write marker when the token carries tmi_direct_write=true.
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: parse a service-account JWT subject and set service-account and direct_write context keys (mutates shared state)
+func setServiceAccountContext(c *gin.Context, logger slogging.SimpleLogger, sub string, claims jwt.MapClaims) {
+	parts := strings.SplitN(sub, ":", 3)
+	if len(parts) != 3 {
+		logger.Warn("Invalid service account subject format: %s", sub)
+		c.Set("isServiceAccount", false)
+		c.Set("userID", sub)
+		return
+	}
+	credentialID := parts[1]
+	ownerProviderUserID := parts[2]
+
+	c.Set("isServiceAccount", true)
+	c.Set("serviceAccountCredentialID", credentialID)
+	c.Set("userID", ownerProviderUserID) // Owner's provider user ID
+	// #856: opt-in direct_write lets this SA token pass the T18 invoker-only
+	// gate; the owner's roles are still enforced by the authz middleware.
+	if dw, ok := claims["tmi_direct_write"].(bool); ok && dw {
+		c.Set("directWrite", true)
+	}
+
+	logger.Debug("Service account authenticated: credential_id=%s, owner=%s", credentialID, ownerProviderUserID)
+}
+
 // ExtractAndSetClaims extracts claims from a valid token and sets them in the context
-// SEM@cd03830752a2340795cda20675039d295961c9a6: parse JWT claims and set user identity fields in the Gin context (mutates shared state)
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: parse JWT claims and set user identity fields in the Gin context (mutates shared state)
 func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) error {
 	logger := slogging.GetContextLogger(c)
 
@@ -178,23 +205,7 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 	if sub, ok := claims["sub"].(string); ok {
 		// Check if this is a service account token
 		if strings.HasPrefix(sub, "sa:") {
-			// Parse service account subject: "sa:{credential_id}:{owner_provider_user_id}"
-			parts := strings.SplitN(sub, ":", 3)
-			if len(parts) == 3 {
-				credentialID := parts[1]
-				ownerProviderUserID := parts[2]
-
-				// Set service account context
-				c.Set("isServiceAccount", true)
-				c.Set("serviceAccountCredentialID", credentialID)
-				c.Set("userID", ownerProviderUserID) // Owner's provider user ID
-
-				logger.Debug("Service account authenticated: credential_id=%s, owner=%s", credentialID, ownerProviderUserID)
-			} else {
-				logger.Warn("Invalid service account subject format: %s", sub)
-				c.Set("isServiceAccount", false)
-				c.Set("userID", sub)
-			}
+			setServiceAccountContext(c, logger, sub, claims)
 		} else {
 			// Regular user token
 			c.Set("isServiceAccount", false)

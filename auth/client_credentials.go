@@ -11,7 +11,7 @@ import (
 )
 
 // ClientCredential represents an OAuth 2.0 client credential for machine-to-machine authentication
-// SEM@2e1e229947d57021bf27a7c51c052e3e2a18c98e: domain model for an OAuth 2.0 client credential used in machine-to-machine authentication
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: domain model for an OAuth 2.0 client credential, with an opt-in direct_write authorization flag
 type ClientCredential struct {
 	ID               uuid.UUID
 	OwnerUUID        uuid.UUID
@@ -20,6 +20,7 @@ type ClientCredential struct {
 	Name             string
 	Description      string
 	IsActive         bool
+	DirectWrite      bool
 	LastUsedAt       *time.Time
 	CreatedAt        time.Time
 	ModifiedAt       time.Time
@@ -27,18 +28,19 @@ type ClientCredential struct {
 }
 
 // ClientCredentialCreateParams contains parameters for creating a new client credential
-// SEM@2e1e229947d57021bf27a7c51c052e3e2a18c98e: parameters for creating a new client credential
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: parameters for creating a new client credential, including the direct_write flag
 type ClientCredentialCreateParams struct {
 	OwnerUUID        uuid.UUID
 	ClientID         string
 	ClientSecretHash string
 	Name             string
 	Description      string
+	DirectWrite      bool
 	ExpiresAt        *time.Time
 }
 
 // CreateClientCredential creates a new client credential in the database
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: store a new client credential and return the persisted entity (mutates DB)
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: store a new client credential and return the persisted entity (mutates DB)
 func (s *Service) CreateClientCredential(ctx context.Context, params ClientCredentialCreateParams) (*ClientCredential, error) {
 	repoParams := repository.ClientCredentialCreateParams{
 		OwnerUUID:        params.OwnerUUID,
@@ -46,6 +48,7 @@ func (s *Service) CreateClientCredential(ctx context.Context, params ClientCrede
 		ClientSecretHash: params.ClientSecretHash,
 		Name:             params.Name,
 		Description:      params.Description,
+		DirectWrite:      params.DirectWrite,
 		ExpiresAt:        params.ExpiresAt,
 	}
 
@@ -121,7 +124,7 @@ func (s *Service) DeleteClientCredential(ctx context.Context, id uuid.UUID, owne
 }
 
 // convertRepoCredToServiceCred converts a repository ClientCredential to a service ClientCredential
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: convert a repository client credential to the service-layer credential type (pure)
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: convert a repository client credential to the service-layer credential type (pure)
 func convertRepoCredToServiceCred(rc *repository.ClientCredential) *ClientCredential {
 	return &ClientCredential{
 		ID:               rc.ID,
@@ -131,6 +134,7 @@ func convertRepoCredToServiceCred(rc *repository.ClientCredential) *ClientCreden
 		Name:             rc.Name,
 		Description:      rc.Description,
 		IsActive:         rc.IsActive,
+		DirectWrite:      rc.DirectWrite,
 		LastUsedAt:       rc.LastUsedAt,
 		CreatedAt:        rc.CreatedAt,
 		ModifiedAt:       rc.ModifiedAt,

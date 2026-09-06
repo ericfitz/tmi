@@ -125,7 +125,7 @@ func authzMiddlewareWithTable(tbl *AuthzTable) gin.HandlerFunc {
 //     SA-internal endpoints if any are introduced.
 //
 // Returns false after writing a 403 on rejection. Returns true on allow.
-// SEM@e6be8a8f816c564356a656ac18f3693ac7f10369: authorize the caller's authentication kind against a route's subject_authority constraint, rejecting mismatched tokens
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: authorize the caller's authentication kind against a route's subject_authority constraint, allowing direct_write service-account tokens on invoker-only routes
 func enforceSubjectAuthority(c *gin.Context, sa SubjectAuthority) bool {
 	if sa == SubjectAuthorityAny {
 		return true
@@ -143,6 +143,17 @@ func enforceSubjectAuthority(c *gin.Context, sa SubjectAuthority) bool {
 		// tokens look like user tokens (sub is the invoker's
 		// provider_user_id, isServiceAccount=false), so they pass.
 		if isServiceAccount {
+			// #856: credentials created with direct_write opt out of the
+			// categorical rejection; the role/ownership gates below still
+			// apply exactly as they would for the owning user.
+			if dwVal, hasDW := c.Get("directWrite"); hasDW && dwVal == true {
+				credID, _ := c.Get("serviceAccountCredentialID")
+				slogging.Get().WithContext(c).Info(
+					"AuthzMiddleware: direct_write service-account token allowed on invoker-only route %s %s (credential_id=%v)",
+					c.Request.Method, c.Request.URL.Path, credID,
+				)
+				return true
+			}
 			slogging.Get().WithContext(c).Warn(
 				"AuthzMiddleware: rejecting service-account token on invoker-only route %s %s (T18)",
 				c.Request.Method, c.Request.URL.Path,
@@ -420,7 +431,7 @@ type childParentageChecker func(ctx context.Context, family, childID, threatMode
 
 var checkChildParentage childParentageChecker = gormChildParentageCheck
 
-// SEM@7383e0ea: verify a sub-resource child row belongs to a threat model (reads DB)
+// SEM@436c1840b3eef9687193078750dec3e22874f10e: verify a sub-resource child row belongs to a threat model (reads DB)
 func gormChildParentageCheck(ctx context.Context, family, childID, threatModelID string, includeDeleted bool) (bool, error) {
 	if adminDB == nil {
 		// In-memory mode (unit tests): no relational store to consult.
@@ -465,7 +476,7 @@ func gormChildParentageCheck(ctx context.Context, family, childID, threatModelID
 // model. It runs after enforceOwnership so it never leaks whether a child
 // exists to a caller who lacks parent-level access. Non-family segments and
 // non-UUID child segments (e.g. "bulk") pass through untouched.
-// SEM@7383e0ea: enforce that the child id in a sub-resource path belongs to the parent threat model, answering 404 on mismatch
+// SEM@436c1840b3eef9687193078750dec3e22874f10e: enforce that the child id in a sub-resource path belongs to the parent threat model, answering 404 on mismatch
 func enforceChildParentage(c *gin.Context) bool {
 	logger := slogging.Get().WithContext(c)
 	path := c.Request.URL.Path
