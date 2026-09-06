@@ -72,8 +72,8 @@ func TestEventEmitter_Deduplication(t *testing.T) {
 	err := emitter.EmitEvent(ctx, payload)
 	require.NoError(t, err)
 
-	// Try to emit same event again (should be deduplicated within 5-second window)
-	payload.Timestamp = time.Now().UTC() // Update timestamp slightly
+	// Emit the same event again with the same timestamp (dedup key uses a 1-second window;
+	// a fresh time.Now() here flakes whenever the two calls straddle a second boundary)
 	err = emitter.EmitEvent(ctx, payload)
 	require.NoError(t, err)
 
