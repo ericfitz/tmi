@@ -50,6 +50,7 @@ const (
 	subjectUser
 	subjectServiceAccount
 	subjectDelegation
+	subjectServiceAccountDirectWrite // #856: SA token minted from a direct_write credential
 )
 
 func setSubjectKind(c *gin.Context, kind subjectKind) {
@@ -77,6 +78,14 @@ func setSubjectKind(c *gin.Context, kind subjectKind) {
 		c.Set("isServiceAccount", false)
 		c.Set("isDelegation", true)
 		c.Set("delegationAddonID", "addon-test-id")
+	case subjectServiceAccountDirectWrite:
+		c.Set("userEmail", TestFixtures.WriterUser)
+		c.Set("userID", TestFixtures.WriterUser)
+		c.Set("userProvider", "test")
+		c.Set("userIdP", "test")
+		c.Set("isServiceAccount", true)
+		c.Set("serviceAccountCredentialID", "test-cred-id")
+		c.Set("directWrite", true)
 	}
 }
 
@@ -201,5 +210,35 @@ func TestAuthzMiddleware_SubjectAuthority_T18ConfusedDeputy(t *testing.T) {
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("CRITICAL T18: SA token wrote to TM (got %d, want 403). body=%s",
 			w.Code, w.Body.String())
+	}
+}
+
+// #856: a service-account token minted from a direct_write credential is not
+// categorically rejected on subject_authority=invoker routes; it falls through
+// to the role/ownership gates (here: the fixture writer, so 200).
+func TestAuthzMiddleware_SubjectAuthority_InvokerAllowsDirectWriteSA(t *testing.T) {
+	InitTestFixtures()
+	r := newSubjectAuthorityRouter(t, subjectServiceAccountDirectWrite)
+	req := httptest.NewRequest(http.MethodPost,
+		"/threat_models/"+TestFixtures.ThreatModelID+"/threats", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("status: got %d, want 200; direct_write SA token must pass subject_authority=invoker. body=%s",
+			w.Code, w.Body.String())
+	}
+}
+
+// #856: direct_write never unlocks routes that require the service_account
+// subject or admin role; it only removes the invoker-only rejection. The SA
+// route in the fixture also requires admin, and SA tokens never carry admin.
+func TestAuthzMiddleware_SubjectAuthority_DirectWriteDoesNotGrantAdmin(t *testing.T) {
+	InitTestFixtures()
+	r := newSubjectAuthorityRouter(t, subjectServiceAccountDirectWrite)
+	req := httptest.NewRequest(http.MethodPost, "/admin/internal/sa", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code == http.StatusOK {
+		t.Errorf("status: got 200; direct_write must not satisfy an admin-role route. body=%s", w.Body.String())
 	}
 }

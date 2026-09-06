@@ -50,7 +50,7 @@ func (s *Server) getAutomationUser(c *gin.Context, internalUuid openapi_types.UU
 }
 
 // ListAdminUserClientCredentials handles GET /admin/users/{user_id}/client_credentials
-// SEM@469dc723f406bfcd7fd46bc19ba3a1f279f40f25: list client credentials for an automation user account with pagination (reads DB)
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: list client credentials for an automation user account with pagination (reads DB)
 func (s *Server) ListAdminUserClientCredentials(c *gin.Context, internalUuid openapi_types.UUID, params ListAdminUserClientCredentialsParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -121,6 +121,7 @@ func (s *Server) ListAdminUserClientCredentials(c *gin.Context, internalUuid ope
 			Name:        cred.Name,
 			Description: strPtr(cred.Description),
 			IsActive:    cred.IsActive,
+			DirectWrite: &cred.DirectWrite,
 			LastUsedAt:  timePtr(cred.LastUsedAt),
 			CreatedAt:   cred.CreatedAt,
 			ModifiedAt:  cred.ModifiedAt,
@@ -139,7 +140,7 @@ func (s *Server) ListAdminUserClientCredentials(c *gin.Context, internalUuid ope
 }
 
 // CreateAdminUserClientCredential handles POST /admin/users/{user_id}/client_credentials
-// SEM@469dc723f406bfcd7fd46bc19ba3a1f279f40f25: build and store a new client credential for an automation user account, bypassing quota (mutates shared state)
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: build and store a new client credential for an automation user account, refusing direct_write for administrator owners, bypassing quota (mutates shared state)
 func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 
@@ -192,6 +193,30 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 		return
 	}
 
+	// direct_write (#856) is refused when the automation user is an
+	// administrator, so the T18 (#358) confused-deputy case stays closed.
+	directWrite := boolFromPtr(req.DirectWrite)
+	if directWrite {
+		// Direct or nested (TMI group) membership; fails closed on error.
+		ownerIsAdmin, err := IsEffectiveAdministratorByUUID(c.Request.Context(), GlobalGroupMemberRepository, internalUuid.String())
+		if err != nil {
+			logger.Error("Failed to check Administrators membership for automation user %s: %v", internalUuid, err)
+			c.JSON(http.StatusInternalServerError, Error{
+				Error:            "server_error",
+				ErrorDescription: "Failed to create client credential",
+			})
+			return
+		}
+		if ownerIsAdmin {
+			logger.Warn("[AUDIT] Refused direct_write credential for administrator automation user %s", internalUuid)
+			c.JSON(http.StatusBadRequest, Error{
+				Error:            "invalid_request",
+				ErrorDescription: directWriteAdminOwnerMessage,
+			})
+			return
+		}
+	}
+
 	// Get auth service
 	authServiceAdapter, ok := s.authService.(*AuthServiceAdapter)
 	if !ok || authServiceAdapter == nil {
@@ -209,6 +234,7 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 	resp, err := ccService.Create(c.Request.Context(), internalUuid, CreateClientCredentialRequest{
 		Name:        req.Name,
 		Description: description,
+		DirectWrite: directWrite,
 		ExpiresAt:   timeFromPtr(req.ExpiresAt),
 	})
 	if err != nil {
@@ -241,8 +267,8 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 		return
 	}
 
-	logger.Info("[AUDIT] Admin created client credential for automation user: user=%s, client_id=%s, name=%s",
-		internalUuid, resp.ClientID, sanitizeForLogging(resp.Name))
+	logger.Info("[AUDIT] Admin created client credential for automation user: user=%s, client_id=%s, name=%s, direct_write=%t",
+		internalUuid, resp.ClientID, sanitizeForLogging(resp.Name), resp.DirectWrite)
 
 	c.JSON(http.StatusCreated, ClientCredentialResponse{
 		Id:           resp.ID,
@@ -250,6 +276,7 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 		ClientSecret: resp.ClientSecret,
 		Name:         resp.Name,
 		Description:  strPtr(resp.Description),
+		DirectWrite:  &resp.DirectWrite,
 		CreatedAt:    resp.CreatedAt,
 		ExpiresAt:    timePtr(resp.ExpiresAt),
 	})

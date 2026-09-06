@@ -132,6 +132,32 @@ func IsGroupMemberFromParams(ctx context.Context, memberStore GroupMemberReposit
 	return memberStore.IsEffectiveMember(ctx, group.UUID, userUUID, groupUUIDs)
 }
 
+// IsEffectiveAdministratorByUUID reports whether a user is an administrator
+// through direct membership or through any TMI-managed group they belong to.
+// It needs no request context or IdP group list, so it is the check to use
+// when the user is not the caller (credential owners, automation accounts).
+// Errors are returned, never swallowed: callers gating a privilege on this
+// answer must fail closed (#856, T18).
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: validate Administrators membership for a user via direct or nested TMI-group membership (reads DB)
+func IsEffectiveAdministratorByUUID(ctx context.Context, memberStore GroupMemberRepository, userInternalUUID string) (bool, error) {
+	if memberStore == nil {
+		return false, fmt.Errorf("group member repository not initialized")
+	}
+	userUUID, err := uuid.Parse(userInternalUUID)
+	if err != nil {
+		return false, fmt.Errorf("invalid user UUID: %w", err)
+	}
+	groups, err := memberStore.GetGroupsForUser(ctx, userUUID)
+	if err != nil {
+		return false, fmt.Errorf("failed to resolve user groups: %w", err)
+	}
+	groupUUIDs := make([]uuid.UUID, 0, len(groups))
+	for _, g := range groups {
+		groupUUIDs = append(groupUUIDs, g.InternalUUID)
+	}
+	return memberStore.IsEffectiveMember(ctx, GroupAdministrators.UUID, userUUID, groupUUIDs)
+}
+
 // checkGroupMembershipFromStrings is a shared helper for GroupBasedAdminChecker methods.
 // It parses string UUIDs and calls IsEffectiveMember on the given repository.
 // SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: validate effective group membership from raw string UUIDs for cross-package callers (reads DB)

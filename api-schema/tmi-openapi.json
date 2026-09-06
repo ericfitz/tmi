@@ -6008,6 +6008,10 @@
             "type": "string",
             "format": "date-time",
             "description": "Optional expiration timestamp (ISO 8601)"
+          },
+          "direct_write": {
+            "type": "boolean",
+            "description": "Whether direct_write was enabled for this credential (see ClientCredentialInfo.direct_write)."
           }
         },
         "example": {
@@ -6020,7 +6024,8 @@
           "is_active": true,
           "expires_at": "2025-12-31T23:59:59Z",
           "created_at": "2024-01-21T11:00:00Z",
-          "modified_at": "2024-01-21T11:00:00Z"
+          "modified_at": "2024-01-21T11:00:00Z",
+          "direct_write": false
         }
       },
       "ClientCredentialInfo": {
@@ -6076,6 +6081,10 @@
             "type": "string",
             "format": "date-time",
             "description": "Optional expiration timestamp (ISO 8601)"
+          },
+          "direct_write": {
+            "type": "boolean",
+            "description": "When true, tokens minted from this credential may write threat-model sub-resources (notes, threats, diagrams, metadata, ...) that are otherwise reserved for interactive users; the owner's roles still apply. Never true for credentials owned by an administrator."
           }
         },
         "example": {
@@ -6087,7 +6096,8 @@
           "is_active": true,
           "last_used_at": "2024-01-21T09:00:00Z",
           "created_at": "2024-01-15T10:00:00Z",
-          "modified_at": "2024-01-15T10:00:00Z"
+          "modified_at": "2024-01-15T10:00:00Z",
+          "direct_write": false
         }
       },
       "MinimalDiagramModel": {
@@ -10379,6 +10389,11 @@
             "description": "Optional custom email address. If not provided, defaults to tmi-automation-{normalized_name}@tmi.local.",
             "maxLength": 254,
             "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+          },
+          "direct_write": {
+            "type": "boolean",
+            "default": false,
+            "description": "Opt in to direct writes for the initial client credential: tokens from it may modify threat-model sub-resources, authorized by the automation user's roles. Omitting the field is the same as false."
           }
         },
         "additionalProperties": false,
@@ -10424,7 +10439,8 @@
             "name": "webhook-analyzer",
             "created_at": "2024-01-01T00:00:00Z",
             "description": "example",
-            "expires_at": "2026-01-01T00:00:00Z"
+            "expires_at": "2026-01-01T00:00:00Z",
+            "direct_write": true
           }
         }
       },
@@ -42243,6 +42259,11 @@
                     "format": "date-time",
                     "description": "Optional expiration timestamp (ISO 8601)",
                     "example": "2027-01-17T00:00:00Z"
+                  },
+                  "direct_write": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Opt in to direct writes: tokens from this credential may modify threat-model sub-resources, authorized by your normal roles. Omitting the field is the same as false. Rejected with 400 when the owner is a member of the Administrators group."
                   }
                 }
               },
@@ -42600,7 +42621,8 @@
                       "created_at": "2024-01-15T10:00:00Z",
                       "modified_at": "2024-01-15T10:00:00Z",
                       "expires_at": "2026-01-01T00:00:00Z",
-                      "last_used_at": "2026-01-01T00:00:00Z"
+                      "last_used_at": "2026-01-01T00:00:00Z",
+                      "direct_write": false
                     }
                   ],
                   "total": 4,
@@ -74055,6 +74077,11 @@
                     "format": "date-time",
                     "description": "Optional expiration timestamp (ISO 8601)",
                     "example": "2027-01-17T00:00:00Z"
+                  },
+                  "direct_write": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Opt in to direct writes for this automation account: tokens from this credential may modify threat-model sub-resources, authorized by the automation user's roles. Omitting the field is the same as false. Rejected with 400 when the automation user is a member of the Administrators group."
                   }
                 }
               }

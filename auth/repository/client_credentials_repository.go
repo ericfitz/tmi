@@ -29,7 +29,7 @@ func NewGormClientCredentialRepository(db *gorm.DB) *GormClientCredentialReposit
 }
 
 // Create creates a new client credential
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: store a new client credential record and return the persisted entity (reads DB)
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: store a new client credential record and return the persisted entity (reads DB)
 func (r *GormClientCredentialRepository) Create(ctx context.Context, params ClientCredentialCreateParams) (*ClientCredential, error) {
 	now := time.Now()
 
@@ -41,6 +41,7 @@ func (r *GormClientCredentialRepository) Create(ctx context.Context, params Clie
 		Name:             models.DBVarchar(params.Name),
 		Description:      models.NewNullableDBText(&params.Description),
 		IsActive:         models.DBBool(true),
+		DirectWrite:      models.DBBool(params.DirectWrite),
 		CreatedAt:        now,
 		ModifiedAt:       now,
 		ExpiresAt:        params.ExpiresAt,
@@ -112,7 +113,7 @@ func (r *GormClientCredentialRepository) UpdateLastUsed(ctx context.Context, id 
 }
 
 // Deactivate deactivates a client credential (soft delete)
-// SEM@8077d4387088ee7e6e22cce2171ad54ee850e10b: soft-delete a client credential by marking it inactive, scoped to owner (reads DB)
+// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: soft-delete a client credential by marking it inactive, scoped to owner (reads DB)
 func (r *GormClientCredentialRepository) Deactivate(ctx context.Context, id, ownerUUID uuid.UUID) error {
 	result := r.db.WithContext(ctx).Model(&models.ClientCredential{}).
 		Where("id = ? AND owner_uuid = ?", id.String(), ownerUUID.String()).
@@ -154,7 +155,7 @@ func (r *GormClientCredentialRepository) Delete(ctx context.Context, id, ownerUU
 }
 
 // convertModelToClientCredential converts a GORM ClientCredential model to a repository ClientCredential
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a GORM ClientCredential model to the repository domain type (pure)
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: convert a GORM ClientCredential model to the repository domain type (pure)
 func convertModelToClientCredential(m *models.ClientCredential) *ClientCredential {
 	id, _ := uuid.Parse(string(m.ID))
 	ownerUUID, _ := uuid.Parse(string(m.OwnerUUID))
@@ -169,6 +170,7 @@ func convertModelToClientCredential(m *models.ClientCredential) *ClientCredentia
 		Name:             string(m.Name),
 		Description:      description,
 		IsActive:         m.IsActive.Bool(), // Convert DBBool to bool
+		DirectWrite:      m.DirectWrite.Bool(),
 		LastUsedAt:       m.LastUsedAt,
 		CreatedAt:        m.CreatedAt,
 		ModifiedAt:       m.ModifiedAt,

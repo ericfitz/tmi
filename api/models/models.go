@@ -96,7 +96,7 @@ func (r *RefreshTokenRecord) BeforeCreate(tx *gorm.DB) error {
 
 // ClientCredential represents OAuth 2.0 client credentials for machine-to-machine auth
 // Note: Explicit column tags removed for Oracle compatibility
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model for an OAuth 2.0 client credential used in machine-to-machine auth
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: GORM model for an OAuth 2.0 client credential, with an opt-in direct_write authorization flag
 type ClientCredential struct {
 	ID               DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	OwnerUUID        DBVarchar      `gorm:"size:36;not null;index"`
@@ -105,10 +105,14 @@ type ClientCredential struct {
 	Name             DBVarchar      `gorm:"size:256;not null"`
 	Description      NullableDBText `gorm:""`
 	IsActive         DBBool         `gorm:"default:1"`
-	LastUsedAt       *time.Time
-	CreatedAt        time.Time `gorm:"not null;autoCreateTime"`
-	ModifiedAt       time.Time `gorm:"not null;autoUpdateTime"`
-	ExpiresAt        *time.Time
+	// DirectWrite lets this credential's service-account token pass the T18
+	// subject_authority=invoker gate and be authorized by the owner's normal
+	// roles (#856). Opt-in; never set on administrator-owned credentials.
+	DirectWrite DBBool `gorm:"default:0"`
+	LastUsedAt  *time.Time
+	CreatedAt   time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt  time.Time `gorm:"not null;autoUpdateTime"`
+	ExpiresAt   *time.Time
 
 	// Relationships
 	Owner User `gorm:"foreignKey:OwnerUUID;references:InternalUUID"`

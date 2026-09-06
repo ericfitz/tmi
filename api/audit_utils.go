@@ -24,12 +24,19 @@ var serverManagedFields = map[string]bool{
 
 // ExtractAuditActor extracts denormalized user information from the Gin context
 // for recording in audit entries. Uses the same context keys set by JWT middleware.
-// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: extract denormalized user identity from Gin context for audit entries (pure)
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: extract denormalized user identity from Gin context for audit entries, tagging direct_write credential writes (pure)
 func ExtractAuditActor(c *gin.Context) InternalAuditActor {
 	email := getContextString(c, "userEmail")
 	providerID := getContextString(c, "userID")
 	displayName := getContextString(c, "userDisplayName")
 	provider := getContextString(c, "userIdP")
+	// #856: writes made under a direct_write service-account token carry the
+	// credential id so the audit trail separates automation from its owner.
+	if dw, ok := c.Get("directWrite"); ok && dw == true {
+		if credID := getContextString(c, "serviceAccountCredentialID"); credID != "" {
+			displayName += " [direct_write credential_id=" + credID + "]"
+		}
+	}
 
 	return InternalAuditActor{
 		Email:       email,

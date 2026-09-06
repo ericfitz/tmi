@@ -46,7 +46,7 @@ func normalizeAutomationName(name string) string {
 // CreateAutomationAccount handles POST /admin/users/automation
 // Creates an automation (service) account with TMI provider, sets automation=true,
 // adds to TMI Automation group, and creates a client credential.
-// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: handle POST /admin/users/automation: create a service account with group membership and client credential (reads DB)
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: handle POST /admin/users/automation: create a service account with group membership and client credential (reads DB)
 func (s *Server) CreateAutomationAccount(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -180,9 +180,12 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 
 	// Create client credential
 	ccService := NewClientCredentialService(authSvc)
+	// A just-created automation user cannot be an administrator, so the
+	// #856 admin-owner refusal does not apply here.
 	ccResp, err := ccService.Create(c.Request.Context(), userUUID, CreateClientCredentialRequest{
 		Name:        name,
 		Description: "Auto-created for automation account " + displayName,
+		DirectWrite: boolFromPtr(req.DirectWrite),
 	})
 	if err != nil {
 		logger.Error("Failed to create client credential for automation user: %v", err)
@@ -218,12 +221,13 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 		ClientSecret: ccResp.ClientSecret,
 		Name:         ccResp.Name,
 		Description:  strPtr(ccResp.Description),
+		DirectWrite:  &ccResp.DirectWrite,
 		CreatedAt:    ccResp.CreatedAt,
 		ExpiresAt:    timePtr(ccResp.ExpiresAt),
 	}
 
-	logger.Info("[AUDIT] Automation account created: name=%s, email=%s, provider_user_id=%s, client_id=%s",
-		sanitizeForLogging(displayName), email, providerUserID, ccResp.ClientID)
+	logger.Info("[AUDIT] Automation account created: name=%s, email=%s, provider_user_id=%s, client_id=%s, direct_write=%t",
+		sanitizeForLogging(displayName), email, providerUserID, ccResp.ClientID, ccResp.DirectWrite)
 
 	c.JSON(http.StatusCreated, CreateAutomationAccountResponse{
 		User:             userResp,

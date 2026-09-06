@@ -17,7 +17,7 @@ import (
 
 // CreateCurrentUserClientCredential handles POST /me/client_credentials
 // Creates a new OAuth 2.0 client credential for machine-to-machine authentication
-// SEM@469dc723f406bfcd7fd46bc19ba3a1f279f40f25: create a client credential for the authenticated user; enforces admin/reviewer authorization and quota (reads DB)
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: create a client credential for the authenticated user; enforces admin/reviewer authorization, quota, and refuses direct_write for administrator owners (reads DB)
 func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -97,6 +97,18 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 		return
 	}
 
+	// direct_write (#856) is never granted to administrator-owned credentials:
+	// that is exactly the confused-deputy case T18 (#358) closes.
+	directWrite := boolFromPtr(req.DirectWrite)
+	if directWrite && isAdminBool {
+		logger.Warn("Administrator attempted to create a direct_write client credential: %s", GetUserIdentityForLogging(c))
+		c.JSON(http.StatusBadRequest, Error{
+			Error:            "invalid_request",
+			ErrorDescription: directWriteAdminOwnerMessage,
+		})
+		return
+	}
+
 	// Parse user UUID
 	ownerUUID, err := uuid.Parse(userUUID)
 	if err != nil {
@@ -139,6 +151,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	resp, err := service.Create(c.Request.Context(), ownerUUID, CreateClientCredentialRequest{
 		Name:        req.Name,
 		Description: description,
+		DirectWrite: directWrite,
 		ExpiresAt:   timeFromPtr(req.ExpiresAt),
 	})
 	if err != nil {
@@ -171,8 +184,8 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 		return
 	}
 
-	logger.Info("Client credential created: client_id=%s, name=%s, owner=%s",
-		resp.ClientID, sanitizeForLogging(resp.Name), userUUID)
+	logger.Info("Client credential created: client_id=%s, name=%s, owner=%s, direct_write=%t",
+		resp.ClientID, sanitizeForLogging(resp.Name), userUUID, resp.DirectWrite)
 
 	// Convert to OpenAPI response type
 	apiResp := ClientCredentialResponse{
@@ -181,6 +194,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 		ClientSecret: resp.ClientSecret,
 		Name:         resp.Name,
 		Description:  strPtr(resp.Description),
+		DirectWrite:  &resp.DirectWrite,
 		CreatedAt:    resp.CreatedAt,
 		ExpiresAt:    timePtr(resp.ExpiresAt),
 	}
@@ -190,7 +204,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 
 // ListCurrentUserClientCredentials handles GET /me/client_credentials
 // Retrieves all client credentials owned by the authenticated user (without secrets)
-// SEM@469dc723f406bfcd7fd46bc19ba3a1f279f40f25: list all client credentials owned by the authenticated user with pagination, omitting secrets (reads DB)
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: list all client credentials owned by the authenticated user with pagination, omitting secrets (reads DB)
 func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCurrentUserClientCredentialsParams) {
 	logger := slogging.Get().WithContext(c)
 	userUUID := c.GetString("userInternalUUID")
@@ -275,6 +289,7 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 			Name:        cred.Name,
 			Description: strPtr(cred.Description),
 			IsActive:    cred.IsActive,
+			DirectWrite: &cred.DirectWrite,
 			LastUsedAt:  timePtr(cred.LastUsedAt),
 			CreatedAt:   cred.CreatedAt,
 			ModifiedAt:  cred.ModifiedAt,
@@ -362,6 +377,15 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId 
 }
 
 // Input validation for client credentials
+
+// directWriteAdminOwnerMessage explains the #856 refusal to callers.
+const directWriteAdminOwnerMessage = "direct_write cannot be enabled on a credential owned by a member of the Administrators group"
+
+// boolFromPtr dereferences an optional boolean request field; absent means false.
+// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: convert an optional bool pointer to a bool, treating nil as false (pure)
+func boolFromPtr(b *bool) bool {
+	return b != nil && *b
+}
 
 // validateClientCredentialName validates the name field for security issues
 // Returns an error message if validation fails, empty string if valid
