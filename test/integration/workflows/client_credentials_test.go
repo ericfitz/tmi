@@ -647,3 +647,42 @@ func TestClientCredentialsDeleteRevokesTokens_Integration(t *testing.T) {
 	}
 	t.Log("✓ Token minted before delete is rejected with 401")
 }
+
+// TestAdminUserDeleteRevokesClientCredentialTokens_Integration pins the #862
+// follow-up: deleting an automation user through the admin API rejects tokens
+// already minted from its client credential on the next request.
+func TestAdminUserDeleteRevokesClientCredentialTokens_Integration(t *testing.T) {
+	if os.Getenv("INTEGRATION_TESTS") != "true" {
+		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")
+	}
+	serverURL := os.Getenv("TMI_SERVER_URL")
+	if serverURL == "" {
+		serverURL = "http://localhost:8080"
+	}
+	if err := framework.EnsureOAuthStubRunning(); err != nil {
+		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
+	}
+	tokens, err := framework.AuthenticateAdmin()
+	framework.AssertNoError(t, err, "Admin authentication failed")
+	admin, err := framework.NewClient(serverURL, tokens)
+	framework.AssertNoError(t, err, "Failed to create integration client")
+
+	userUUID, _, _, clientID, clientSecret := createAutomationAccount(t, admin, "revoke-on-user-delete-"+framework.UniqueUserID(), false)
+	sa, err := framework.NewClient(serverURL, &framework.OAuthTokens{AccessToken: mintCCToken(t, serverURL, clientID, clientSecret)})
+	framework.AssertNoError(t, err, "Failed to create SA client")
+
+	resp, err := sa.Do(framework.Request{Method: "GET", Path: "/me/client_credentials"})
+	framework.AssertNoError(t, err, "SA request before user delete")
+	framework.AssertStatusOK(t, resp)
+
+	resp, err = admin.Do(framework.Request{Method: "DELETE", Path: "/admin/users/" + userUUID})
+	framework.AssertNoError(t, err, "Failed to delete automation user")
+	framework.AssertStatusNoContent(t, resp)
+
+	resp, err = sa.Do(framework.Request{Method: "GET", Path: "/me/client_credentials"})
+	framework.AssertNoError(t, err, "SA request after user delete")
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("SA token after owner deletion: got %d, want 401: %s", resp.StatusCode, string(resp.Body))
+	}
+	t.Log("✓ Token minted before user delete is rejected with 401")
+}
