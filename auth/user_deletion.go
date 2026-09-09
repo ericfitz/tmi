@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/google/uuid"
 )
 
 // DeletionResult contains statistics about the user deletion operation
@@ -110,17 +111,11 @@ func (s *Service) ValidateDeletionChallenge(ctx context.Context, userEmail, chal
 // Used by the self-deletion flow (DELETE /me) where identity comes from JWT email.
 // SEM@cd187b523b66aef0fa87861d3a929c2017787b86: delete a user by email and transfer or remove owned threat models (mutates shared state)
 func (s *Service) DeleteUserAndData(ctx context.Context, userEmail string) (*DeletionResult, error) {
-	// Sweep content-token revocations BEFORE the DB delete so the token rows
-	// are still present for the hook to read. Best-effort — failures are
-	// logged inside the hook and must never block deletion.
-	if s.preUserDeleteHook != nil {
-		// Resolve email → internal UUID so the hook can query by user ID.
-		user, err := s.userRepo.GetByEmail(ctx, userEmail)
-		if err == nil {
-			s.preUserDeleteHook.RevokeUserTokens(ctx, user.InternalUUID)
-		} else {
-			slogging.Get().Warn("pre-delete hook: could not resolve email to internal UUID for user %s: %v — skipping content-token revocations", userEmail, err)
-		}
+	// Resolve email → internal UUID so the pre-delete sweeps can query by user ID.
+	if user, err := s.userRepo.GetByEmail(ctx, userEmail); err == nil {
+		s.preUserDeleteSweep(ctx, user.InternalUUID)
+	} else {
+		slogging.Get().Warn("pre-delete hook: could not resolve email to internal UUID for user %s: %v — skipping token revocations", userEmail, err)
 	}
 
 	repoResult, err := s.deletionRepo.DeleteUserAndData(ctx, userEmail)
@@ -135,16 +130,37 @@ func (s *Service) DeleteUserAndData(ctx context.Context, userEmail string) (*Del
 	}, nil
 }
 
+// preUserDeleteSweep revokes everything minted for a user that would otherwise
+// outlive the row: content tokens via the pre-delete hook, and service-account
+// tokens of every client credential the user owns (#862 follow-up). It runs
+// BEFORE the DB delete so the rows are still present to read, and is
+// best-effort: failures are logged and never block deletion. Revoking before a
+// delete that then fails only costs a re-mint.
+// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: revoke a user's content and service-account tokens before deleting the user, best-effort (reads DB)
+func (s *Service) preUserDeleteSweep(ctx context.Context, internalUUID string) {
+	if s.preUserDeleteHook != nil {
+		s.preUserDeleteHook.RevokeUserTokens(ctx, internalUUID)
+	}
+	ownerUUID, err := uuid.Parse(internalUUID)
+	if err != nil {
+		slogging.Get().Warn("pre-delete sweep: invalid internal UUID %q: %v — skipping client credential revocations", internalUUID, err)
+		return
+	}
+	creds, err := s.credRepo.ListByOwner(ctx, ownerUUID)
+	if err != nil {
+		slogging.Get().Warn("pre-delete sweep: could not list client credentials for user %s: %v — skipping client credential revocations", internalUUID, err)
+		return
+	}
+	for _, cred := range creds {
+		s.revokeCredentialTokens(ctx, cred.ID)
+	}
+}
+
 // DeleteUserByInternalUUID deletes a user by internal UUID and handles ownership transfer.
 // Used by admin deletion to avoid multi-hop identity resolution that can target the wrong user.
 // SEM@cd187b523b66aef0fa87861d3a929c2017787b86: delete a user by internal UUID and transfer or remove owned threat models (mutates shared state)
 func (s *Service) DeleteUserByInternalUUID(ctx context.Context, internalUUID string) (*DeletionResult, error) {
-	// Sweep content-token revocations BEFORE the DB delete so the token rows
-	// are still present for the hook to read. Best-effort — failures are
-	// logged inside the hook and must never block deletion.
-	if s.preUserDeleteHook != nil {
-		s.preUserDeleteHook.RevokeUserTokens(ctx, internalUUID)
-	}
+	s.preUserDeleteSweep(ctx, internalUUID)
 
 	repoResult, err := s.deletionRepo.DeleteUserByInternalUUID(ctx, internalUUID)
 	if err != nil {
