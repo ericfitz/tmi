@@ -43,6 +43,7 @@ PostgreSQL for persistence, Redis for caching and sessions, in-memory storage fo
 
 - Unit: `make test-unit` (`name=TestName` for one test; options `count1=true passfail=true`)
 - Integration: `make test-integration` / `make test-integration-pg` (PostgreSQL); `make test-integration-oci` (Oracle ADB, needs `scripts/oci-env.sh`)
+  - Integration test function names must contain `Integration` (Oracle-only tests: `OracleIntegration`); the runner selects tests with `-run Integration`, so a misnamed test silently never runs.
 - Coverage: `make test-coverage`
 
 ### CATS API fuzzing
@@ -110,7 +111,7 @@ curl -X POST http://localhost:8080/oauth2/token \
 
 **Client bug triage.** If the root cause of a problem is in the client ([tmi-ux](https://github.com/ericfitz/tmi-ux)) rather than the server — the server follows the spec but the client mishandles the response, sends malformed requests, misuses the auth flow, or mishandles documented errors — stop, explain the evidence, and ask: "This appears to be a client bug. Would you like me to file a bug against tmi-ux?" If confirmed, file it with the `/file-client-bug` skill, then resume remaining server work or report the task blocked.
 
-**Oracle compatibility review.** PostgreSQL in development, Oracle ADB in production; they diverge subtly (cascade semantics, identifier limits, types, error codes, isolation, upsert syntax) and Oracle-only bugs are expensive. Any change that can affect Oracle must be reviewed by the **`oracle-db-admin` subagent** (invoke the `oracle-db-admin` skill; definition in `.claude/agents/oracle-db-admin.md`) before the task is complete. What counts: migrations, GORM models/tags, `*_repository.go`, `*_store_gorm.go`, raw SQL, transaction/locking patterns, FKs/cascades, JSON/CLOB handling, retry logic, `internal/dberrors/`, schema-affecting config; when in doubt, dispatch. A **minor or patch** bump of `github.com/godror/godror` or any other DB driver does **not** need review (no TMI code changes; normal gates still apply); a **major** bump, or any bump with accompanying code changes, does. Verdicts: `APPROVED` (proceed, note it in the summary); `APPROVED WITH NOTES` (fix the easy items now, file follow-ups); `BLOCKING ISSUES` (fix every item, or get an explicit user waiver with reasoning). Don't argue with findings in your own head; if one seems wrong, ask the user to adjudicate.
+**Oracle compatibility review.** PostgreSQL in development, Oracle ADB in production; they diverge subtly (cascade semantics, identifier limits, types, error codes, isolation, upsert syntax) and Oracle-only bugs are expensive. Any change that can affect Oracle must be reviewed by the **`oracle-db-admin` subagent** (invoke the `oracle-db-admin` skill; definition in `.claude/agents/oracle-db-admin.md`) before the task is complete. What counts: migrations, GORM models/tags, `*_repository.go`, `*_store_gorm.go`, raw SQL, transaction/locking patterns, FKs/cascades, JSON/CLOB handling, retry logic, `internal/dberrors/`, schema-affecting config; when in doubt, dispatch. Before committing a schema or FK change, also check for residual constraints and GORM hooks; prefer `UpdateColumn` over `Save` when a hook must be bypassed. A **minor or patch** bump of `github.com/godror/godror` or any other DB driver does **not** need review (no TMI code changes; normal gates still apply); a **major** bump, or any bump with accompanying code changes, does. Verdicts: `APPROVED` (proceed, note it in the summary); `APPROVED WITH NOTES` (fix the easy items now, file follow-ups); `BLOCKING ISSUES` (fix every item, or get an explicit user waiver with reasoning). Don't argue with findings in your own head; if one seems wrong, ask the user to adjudicate.
 
 ## Task completion checklist
 
@@ -231,13 +232,3 @@ Secret *values* must never reach a command line, environment variable, log, or t
 - Injecting a secret into the cluster: follow `scripts/set-oauth-secret.sh` / `scripts/set-embedding-secret.sh` — the operator writes the value to a `umask 077` file and `kubectl --from-file` reads it from disk, so it never appears in argv or the environment.
 - Reading a secret for a deploy: `scripts/deploy-aws.sh` is the sanctioned caller of `aws secretsmanager get-secret-value`; it fetches DB credentials into a `umask 077` temp config and never prints them. Extend that script rather than adding ad-hoc callers.
 - Terraform-managed secrets (`terraform/modules/secrets/aws`, `random_password`) land in remote state, which is why `encrypt = true` is pinned in `terraform/environments/aws-public/main.tf` while bucket/table come per-deployer from the gitignored `backend.hcl`. Never write state locally or paste it anywhere; mark secret outputs `sensitive`.
-
-<!-- xfa:begin (managed by `xfa init` — edits between the markers are overwritten on re-init) -->
-## xfa — the agent message board
-
-This project has an `xfa` board: a shared message board agents use to ask, answer, and record what they learn. A few rules keep it working:
-
-- **Every agent uses xfa** — the main session, orchestrators, workers, tech leads, and any subagent at any depth. An agent that isn't on the board can't answer questions, never shares what it learns, and hides everything its own subagents find.
-- **Awareness does not arrive on its own.** Nothing tells a spawned agent that xfa exists — the agent that spawns it must say so. Whenever you spawn a subagent, in its prompt tell it to register (`xfa register --parent <your-handle> --session <session-id>`, the same session id as yours), catch up with `xfa read --unread`, and do exactly the same for every agent IT spawns. Skip this for one agent and its whole branch of the tree goes dark.
-- **Respond in-thread.** Answering, confirming, or correcting a specific post is `xfa reply <id>` — never a new top-level post that @mentions the author. Replies thread and land in the inbox; broadcasts scatter the conversation and never resolve. Announce a multi-step task once; status updates on it are replies on that announcement, not new posts.
-<!-- xfa:end -->
