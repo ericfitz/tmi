@@ -266,3 +266,36 @@ func TestIsTokenBlacklistedHonoursCancelledContext(t *testing.T) {
 	_, err = tb.IsTokenBlacklisted(ctx, "some-token")
 	require.Error(t, err)
 }
+
+// TestTokenBlacklist_RevokeCredential pins #862: revoking a client credential
+// marks it for the given TTL, and unknown credentials are not revoked.
+func TestTokenBlacklist_RevokeCredential(t *testing.T) {
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+	defer mr.Close()
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() { _ = rdb.Close() }()
+
+	tb := NewTokenBlacklist(rdb, nil)
+	ctx := context.Background()
+
+	revoked, err := tb.IsCredentialRevoked(ctx, "cred-1")
+	require.NoError(t, err)
+	assert.False(t, revoked)
+
+	require.NoError(t, tb.RevokeCredential(ctx, "cred-1", time.Hour))
+
+	revoked, err = tb.IsCredentialRevoked(ctx, "cred-1")
+	require.NoError(t, err)
+	assert.True(t, revoked)
+	assert.Equal(t, time.Hour, mr.TTL("blacklist:credential:cred-1"))
+
+	revoked, err = tb.IsCredentialRevoked(ctx, "cred-2")
+	require.NoError(t, err)
+	assert.False(t, revoked, "revocation must be scoped to the credential")
+
+	mr.FastForward(time.Hour + time.Second)
+	revoked, err = tb.IsCredentialRevoked(ctx, "cred-1")
+	require.NoError(t, err)
+	assert.False(t, revoked, "marker must expire with the token lifetime")
+}
