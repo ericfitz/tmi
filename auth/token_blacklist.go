@@ -29,7 +29,7 @@ const (
 // be worth retrying. Redis answering with an application-level error (a wrong
 // type, a rejected command) will answer identically next time, so only
 // connectivity failures qualify.
-// SEM@new: classify a Redis error as transient and worth retrying (pure)
+// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: classify a Redis error as transient and worth retrying (pure)
 func isRetryableRedisError(err error) bool {
 	if err == nil || errors.Is(err, redis.Nil) {
 		return false
@@ -129,19 +129,52 @@ func (tb *TokenBlacklist) BlacklistToken(ctx context.Context, tokenString string
 }
 
 // IsTokenBlacklisted checks if a JWT token is blacklisted
-// SEM@70ff47b7829f38ef04399520210ae8765d39495d: check whether a JWT has been revoked (reads DB)
+// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: check whether a JWT has been revoked (reads DB)
 func (tb *TokenBlacklist) IsTokenBlacklisted(ctx context.Context, tokenString string) (bool, error) {
 	logger := slogging.Get()
 	tokenHash := tb.hashToken(tokenString)
 	key := fmt.Sprintf("blacklist:token:%s", tokenHash)
 
 	logger.Debug("Checking token blacklist status token_hash=%v", tokenHash[:16]+"...")
+	isBlacklisted, err := tb.keyExists(ctx, key, "token_hash="+tokenHash[:16]+"...")
+	if err != nil {
+		return false, err
+	}
+	logger.Debug("Token blacklist check completed token_hash=%v is_blacklisted=%v", tokenHash[:16]+"...", isBlacklisted)
+	return isBlacklisted, nil
+}
 
-	// Check if key exists in Redis. This sits on the authenticated path of every
-	// request, so a brief Redis blip would otherwise fail an otherwise valid
-	// request outright. Retry transient failures a bounded number of times
-	// before giving up; a genuine outage still surfaces, just as 503 rather
-	// than 500 (see issue #660).
+// RevokeCredential marks every service-account token minted from a client
+// credential as revoked (#862). The server does not retain issued SA tokens,
+// so they cannot be blacklisted individually; instead the credential ID is
+// marked for ttl, which must be at least the access-token lifetime so that the
+// last token minted before the revoke has expired by the time the marker does.
+// SEM@48ae1daff849c4fbb75fe51c29185be3f169d27d: mark all service-account tokens of a client credential revoked until they expire (reads DB)
+func (tb *TokenBlacklist) RevokeCredential(ctx context.Context, credentialID string, ttl time.Duration) error {
+	key := fmt.Sprintf("blacklist:credential:%s", credentialID)
+	if err := tb.redis.Set(ctx, key, "revoked", ttl).Err(); err != nil {
+		slogging.Get().Error("Failed to revoke client credential tokens credential_id=%v error=%v", credentialID, err)
+		return fmt.Errorf("failed to revoke credential tokens: %w", err)
+	}
+	slogging.Get().Info("Client credential tokens revoked credential_id=%v ttl_seconds=%v", credentialID, int(ttl.Seconds()))
+	return nil
+}
+
+// IsCredentialRevoked reports whether service-account tokens minted from a
+// client credential have been revoked via RevokeCredential.
+// SEM@48ae1daff849c4fbb75fe51c29185be3f169d27d: check whether a client credential's service-account tokens are revoked (reads DB)
+func (tb *TokenBlacklist) IsCredentialRevoked(ctx context.Context, credentialID string) (bool, error) {
+	return tb.keyExists(ctx, fmt.Sprintf("blacklist:credential:%s", credentialID), "credential_id="+credentialID)
+}
+
+// keyExists checks a revocation key in Redis. This sits on the authenticated
+// path of every request, so a brief Redis blip would otherwise fail an
+// otherwise valid request outright. Retry transient failures a bounded number
+// of times before giving up; a genuine outage still surfaces, just as 503
+// rather than 500 (see issue #660).
+// SEM@48ae1daff849c4fbb75fe51c29185be3f169d27d: check whether a Redis revocation key exists, retrying transient failures (reads DB)
+func (tb *TokenBlacklist) keyExists(ctx context.Context, key, logID string) (bool, error) {
+	logger := slogging.Get()
 	var exists int64
 	var err error
 	for attempt := 0; ; attempt++ {
@@ -150,22 +183,17 @@ func (tb *TokenBlacklist) IsTokenBlacklisted(ctx context.Context, tokenString st
 			break
 		}
 		if attempt >= blacklistCheckRetries || !isRetryableRedisError(err) {
-			logger.Error("Failed to check token blacklist token_hash=%v attempts=%d error=%v",
-				tokenHash[:16]+"...", attempt+1, err)
+			logger.Error("Failed to check token blacklist %s attempts=%d error=%v", logID, attempt+1, err)
 			return false, fmt.Errorf("failed to check token blacklist: %w", err)
 		}
-		logger.Warn("Transient Redis failure checking token blacklist, retrying token_hash=%v attempt=%d error=%v",
-			tokenHash[:16]+"...", attempt+1, err)
+		logger.Warn("Transient Redis failure checking token blacklist, retrying %s attempt=%d error=%v", logID, attempt+1, err)
 		select {
 		case <-ctx.Done():
 			return false, fmt.Errorf("failed to check token blacklist: %w", ctx.Err())
 		case <-time.After(blacklistCheckBackoff << attempt):
 		}
 	}
-
-	isBlacklisted := exists > 0
-	logger.Debug("Token blacklist check completed token_hash=%v is_blacklisted=%v", tokenHash[:16]+"...", isBlacklisted)
-	return isBlacklisted, nil
+	return exists > 0, nil
 }
 
 // hashToken creates a SHA-256 hash of the token for storage

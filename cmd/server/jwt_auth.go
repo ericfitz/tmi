@@ -139,6 +139,26 @@ func (b *TokenBlacklistChecker) CheckBlacklist(ctx context.Context, tokenStr str
 	return nil
 }
 
+// CheckCredentialRevoked rejects service-account tokens whose client credential
+// has been deleted or deactivated since the token was minted (#862).
+// SEM@48ae1daff849c4fbb75fe51c29185be3f169d27d: verify a service-account token's client credential has not been revoked (reads DB)
+func (b *TokenBlacklistChecker) CheckCredentialRevoked(ctx context.Context, credentialID string) error {
+	if b.tokenBlacklist == nil {
+		return nil
+	}
+
+	revoked, err := b.tokenBlacklist.IsCredentialRevoked(ctx, credentialID)
+	if err != nil {
+		return fmt.Errorf("failed to check token blacklist: %w", err)
+	}
+
+	if revoked {
+		return fmt.Errorf("token has been revoked")
+	}
+
+	return nil
+}
+
 // ClaimsExtractor handles extracting and setting claims in the context
 // SEM@4544fe064a8e91cf6d4c8a495f43f7f7830f6fe7: component that reads JWT claims and populates the Gin request context (mutates shared state)
 type ClaimsExtractor struct {
@@ -523,6 +543,30 @@ func NewJWTAuthenticator(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist
 	}
 }
 
+// revocationAuthError maps a blacklist-check failure to the client-facing
+// error: 401 when the token is revoked, 503 when the revocation store is
+// unreachable. The latter fails closed (the request is refused rather than
+// admitted unchecked), but it is a dependency outage, not a bug in handling
+// this request, so it gets a Retry-After rather than 500. See issue #660.
+// SEM@48ae1daff849c4fbb75fe51c29185be3f169d27d: convert a revocation-check error into a 401 or 503 auth error (pure)
+func revocationAuthError(logger slogging.SimpleLogger, err error) *AuthError {
+	if strings.Contains(err.Error(), "revoked") {
+		// Use generic error message to avoid leaking implementation details
+		return &AuthError{
+			Code:        "unauthorized",
+			Description: "Authentication required",
+			StatusCode:  http.StatusUnauthorized,
+		}
+	}
+	logger.Error("Failed to check token blacklist: %v", err)
+	return &AuthError{
+		Code:        "service_unavailable",
+		Description: "Authentication service temporarily unavailable - please retry",
+		StatusCode:  http.StatusServiceUnavailable,
+		RetryAfter:  blacklistUnavailableRetryAfterSeconds,
+	}
+}
+
 // AuthenticateRequest performs the complete JWT authentication process
 // SEM@2daf3be663df9da54323f16d115f12d78d435c3f: authenticate a request end-to-end: extract, validate, blacklist-check, set claims, and auto-promote user (reads DB)
 func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
@@ -573,25 +617,7 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 
 	// Check if token is blacklisted
 	if err := a.blacklistChecker.CheckBlacklist(c.Request.Context(), tokenStr); err != nil {
-		if strings.Contains(err.Error(), "revoked") {
-			// Use generic error message to avoid leaking implementation details
-			return &AuthError{
-				Code:        "unauthorized",
-				Description: "Authentication required",
-				StatusCode:  http.StatusUnauthorized,
-			}
-		}
-		// The token itself is fine; the revocation store is unreachable. This
-		// fails closed (the request is refused rather than admitted unchecked),
-		// but it is a dependency outage, not a bug in handling this request, so
-		// it gets 503 with a Retry-After rather than 500. See issue #660.
-		logger.Error("Failed to check token blacklist: %v", err)
-		return &AuthError{
-			Code:        "service_unavailable",
-			Description: "Authentication service temporarily unavailable - please retry",
-			StatusCode:  http.StatusServiceUnavailable,
-			RetryAfter:  blacklistUnavailableRetryAfterSeconds,
-		}
+		return revocationAuthError(logger, err)
 	}
 
 	// Extract claims and set in context
@@ -601,6 +627,14 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 			Code:        "server_error",
 			Description: "Authentication processing error",
 			StatusCode:  http.StatusInternalServerError,
+		}
+	}
+
+	// Service-account tokens are not tracked individually, so a deleted or
+	// deactivated client credential is revoked by ID instead (#862).
+	if credentialID := c.GetString("serviceAccountCredentialID"); credentialID != "" {
+		if err := a.blacklistChecker.CheckCredentialRevoked(c.Request.Context(), credentialID); err != nil {
+			return revocationAuthError(logger, err)
 		}
 	}
 

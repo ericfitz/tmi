@@ -594,3 +594,56 @@ func TestClientCredentialsDeniedOnAdminRoutes(t *testing.T) {
 		})
 	}
 }
+
+// TestClientCredentialsDeleteRevokesTokens_Integration pins #862: deleting a
+// client credential rejects tokens already minted from it on the next request,
+// not only new mints.
+func TestClientCredentialsDeleteRevokesTokens_Integration(t *testing.T) {
+	if os.Getenv("INTEGRATION_TESTS") != "true" {
+		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")
+	}
+	serverURL := os.Getenv("TMI_SERVER_URL")
+	if serverURL == "" {
+		serverURL = "http://localhost:8080"
+	}
+	if err := framework.EnsureOAuthStubRunning(); err != nil {
+		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
+	}
+	tokens, err := framework.AuthenticateAdmin()
+	framework.AssertNoError(t, err, "Admin authentication failed")
+	admin, err := framework.NewClient(serverURL, tokens)
+	framework.AssertNoError(t, err, "Failed to create integration client")
+
+	resp, err := admin.Do(framework.Request{
+		Method: "POST",
+		Path:   "/me/client_credentials",
+		Body:   map[string]any{"name": "Revoke Test " + framework.UniqueUserID()},
+	})
+	framework.AssertNoError(t, err, "Failed to create client credential")
+	framework.AssertStatusCreated(t, resp)
+	var cred struct {
+		ID           string `json:"id"`
+		ClientID     string `json:"client_id"`
+		ClientSecret string `json:"client_secret"`
+	}
+	framework.AssertNoError(t, json.Unmarshal(resp.Body, &cred), "parse credential")
+
+	saToken := mintCCToken(t, serverURL, cred.ClientID, cred.ClientSecret)
+	sa, err := framework.NewClient(serverURL, &framework.OAuthTokens{AccessToken: saToken})
+	framework.AssertNoError(t, err, "Failed to create SA client")
+
+	resp, err = sa.Do(framework.Request{Method: "GET", Path: "/me/client_credentials"})
+	framework.AssertNoError(t, err, "SA request before delete")
+	framework.AssertStatusOK(t, resp)
+
+	resp, err = admin.Do(framework.Request{Method: "DELETE", Path: "/me/client_credentials/" + cred.ID})
+	framework.AssertNoError(t, err, "Failed to delete client credential")
+	framework.AssertStatusNoContent(t, resp)
+
+	resp, err = sa.Do(framework.Request{Method: "GET", Path: "/me/client_credentials"})
+	framework.AssertNoError(t, err, "SA request after delete")
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("pre-delete SA token after credential delete: got %d, want 401: %s", resp.StatusCode, string(resp.Body))
+	}
+	t.Log("✓ Token minted before delete is rejected with 401")
+}
