@@ -660,6 +660,15 @@ verify_image_tag_present() {
         echo "  build and push it, or check out the commit you intend to deploy."
         exit 1
     fi
+
+    # verify_image_tag_present() only confirms presence; it never scanned the
+    # image it just found. Reuse the same scanner (--scan-only), which scans
+    # by the immutable ${IMAGE_TAG} instead of :latest (see scan_component()
+    # in build-app-containers.py), so a --skip-build deploy still runs the
+    # gate on the exact images it is about to roll out.
+    log_info "Scanning existing ECR images for tag ${IMAGE_TAG}..."
+    (cd "${PROJECT_ROOT}" && uv run "${SCRIPT_DIR}/build-app-containers.py" \
+        --target aws --component all --scan-only)
 }
 
 # ============================================================================
