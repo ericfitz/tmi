@@ -129,18 +129,28 @@ func (tb *TokenBlacklist) BlacklistToken(ctx context.Context, tokenString string
 }
 
 // IsTokenBlacklisted checks if a JWT token is blacklisted
-// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: check whether a JWT has been revoked (reads DB)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: check whether a JWT has been revoked (reads DB)
 func (tb *TokenBlacklist) IsTokenBlacklisted(ctx context.Context, tokenString string) (bool, error) {
-	logger := slogging.Get()
-	tokenHash := tb.hashToken(tokenString)
-	key := fmt.Sprintf("blacklist:token:%s", tokenHash)
+	return tb.IsTokenHashBlacklisted(ctx, HashToken(tokenString))
+}
 
-	logger.Debug("Checking token blacklist status token_hash=%v", tokenHash[:16]+"...")
-	isBlacklisted, err := tb.keyExists(ctx, key, "token_hash="+tokenHash[:16]+"...")
+// IsTokenHashBlacklisted checks the blacklist by a hash from HashToken, for
+// callers that retain only the hash (WebSocket tickets, #869).
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: check whether a token hash has been revoked (reads DB)
+func (tb *TokenBlacklist) IsTokenHashBlacklisted(ctx context.Context, tokenHash string) (bool, error) {
+	logger := slogging.Get()
+	key := fmt.Sprintf("blacklist:token:%s", tokenHash)
+	short := tokenHash
+	if len(short) > 16 {
+		short = short[:16] + "..."
+	}
+
+	logger.Debug("Checking token blacklist status token_hash=%v", short)
+	isBlacklisted, err := tb.keyExists(ctx, key, "token_hash="+short)
 	if err != nil {
 		return false, err
 	}
-	logger.Debug("Token blacklist check completed token_hash=%v is_blacklisted=%v", tokenHash[:16]+"...", isBlacklisted)
+	logger.Debug("Token blacklist check completed token_hash=%v is_blacklisted=%v", short, isBlacklisted)
 	return isBlacklisted, nil
 }
 
@@ -199,6 +209,12 @@ func (tb *TokenBlacklist) keyExists(ctx context.Context, key, logID string) (boo
 // hashToken creates a SHA-256 hash of the token for storage
 // SEM@f5734776629db6dda852abe358113df500f282f0: compute a SHA-256 hex digest of a JWT string (pure)
 func (tb *TokenBlacklist) hashToken(token string) string {
+	return HashToken(token)
+}
+
+// HashToken returns the blacklist key hash for a token string.
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: hash a token string for blacklist lookup (pure)
+func HashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
 }

@@ -237,3 +237,18 @@ func GetOwnerInternalUUID(ctx context.Context, provider, providerID string) stri
 
 	return user.InternalUUID
 }
+
+// threatModelOwnerInternalUUID resolves the owner id that webhook fan-out
+// (ListActiveByOwner) keys on, for events emitted from a threat model's
+// sub-resources. Empty when the threat model cannot be loaded.
+// SEM@b995eca7382401969c43fb8c3d092d9e59d1411e: resolve a threat model's owner internal UUID for event fan-out (reads DB)
+func threatModelOwnerInternalUUID(ctx context.Context, threatModelID string) string {
+	if ThreatModelStore == nil {
+		return ""
+	}
+	tm, err := ThreatModelStore.Get(threatModelID)
+	if err != nil {
+		return ""
+	}
+	return GetOwnerInternalUUID(ctx, tm.Owner.Provider, tm.Owner.ProviderId)
+}

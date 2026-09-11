@@ -131,6 +131,7 @@ def resolve_components(component: str, target: str) -> list[str]:
     return components
 
 
+# SEM@722ae4c635149d53c73f2831ee3d366695967cce: build one component's image, returning its pushed digest if known
 def build_component(
     component: str,
     config: helpers.TargetConfig,
@@ -142,8 +143,9 @@ def build_component(
     push: bool,
     no_cache: bool,
     build_tags: str = "",
-) -> None:
-    """Build a single component container."""
+) -> str | None:
+    """Build a single component container. Returns the pushed manifest
+    digest when the build was a buildx push that produced one, else None."""
     if component not in config.dockerfile_map:
         helpers.log_error(f"No Dockerfile configured for component: {component}")
         sys.exit(1)
@@ -170,7 +172,7 @@ def build_component(
     if component == "server" and build_tags:
         extra_args.extend(["--build-arg", f"BUILD_TAGS={build_tags}"])
 
-    helpers.run_docker_build(
+    return helpers.run_docker_build(
         config,
         dockerfile,
         project_root,
@@ -182,6 +184,7 @@ def build_component(
     )
 
 
+# SEM@722ae4c635149d53c73f2831ee3d366695967cce: scan the artifact just pushed, pinned by digest over a mutable tag
 def scan_component(
     component: str,
     config: helpers.TargetConfig,
@@ -190,18 +193,29 @@ def scan_component(
     git_commit: str,
     *,
     from_registry: bool = False,
+    digest: str | None = None,
 ) -> bool:
     """Scan a component's container image. Returns True if passed.
 
     `from_registry` must be True when the image was pushed rather than
-    loaded into the local daemon (see helpers.scan_image).
+    loaded into the local daemon (see helpers.scan_image). Prefers scanning
+    by manifest `digest` (the exact artifact just pushed) when known; falls
+    back to the immutable `<git-sha>` tag for a from-registry scan with no
+    digest (e.g. scan-only mode); otherwise scans `:latest` as before.
     """
     image_name = config.image_name_map.get(
         component, f"{config.image_name_prefix}{component}"
     )
+    if digest:
+        ref = f"{image_name}@{digest}"
+    elif from_registry:
+        ref = f"{image_name}:{git_commit}"
+    else:
+        ref = f"{image_name}:latest"
+    helpers.log_info(f"Scan target for {component}: {ref}")
     reports_dir = project_root / "security-reports"
     return helpers.scan_image(
-        f"{image_name}:latest", reports_dir, platform=config.platform, from_registry=from_registry
+        ref, reports_dir, platform=config.platform, from_registry=from_registry
     )
 
 
@@ -274,7 +288,7 @@ def main() -> None:
     # Build each component
     all_passed = True
     for component in components:
-        build_component(
+        digest = build_component(
             component,
             config,
             project_root,
@@ -288,7 +302,8 @@ def main() -> None:
 
         if args.scan:
             if not scan_component(
-                component, config, project_root, version, git_commit, from_registry=args.push
+                component, config, project_root, version, git_commit,
+                from_registry=args.push, digest=digest,
             ):
                 all_passed = False
 

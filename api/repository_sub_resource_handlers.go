@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -9,6 +10,25 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: publish repository created/updated event tagged with owning threat model's owner (best-effort)
+func emitRepositoryEvent(ctx context.Context, eventType, threatModelID string, repository *Repository) {
+	if GlobalEventEmitter == nil || repository == nil || repository.Id == nil {
+		return
+	}
+	ownerID := threatModelOwnerInternalUUID(ctx, threatModelID)
+	_ = GlobalEventEmitter.EmitEvent(ctx, EventPayload{
+		EventType:     eventType,
+		ThreatModelID: threatModelID,
+		ObjectID:      repository.Id.String(),
+		ObjectType:    "repository",
+		OwnerID:       ownerID,
+		Data: map[string]any{
+			"name": repository.Name,
+			"uri":  repository.Uri,
+		},
+	})
+}
 
 // RepositorySubResourceHandler provides handlers for repository code sub-resource operations
 // SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: handler for repository code reference CRUD operations scoped to a threat model
@@ -149,7 +169,7 @@ func (h *RepositorySubResourceHandler) GetRepository(c *gin.Context) {
 
 // CreateRepository creates a new repository code reference in a threat model
 // POST /threat_models/{threat_model_id}/repositorys
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: create and store a new repository code reference under a threat model (reads DB)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: create and store a repository reference, emit created event (mutates DB)
 func (h *RepositorySubResourceHandler) CreateRepository(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateRepository - creating new repository code reference")
@@ -213,6 +233,7 @@ func (h *RepositorySubResourceHandler) CreateRepository(c *gin.Context) {
 
 	RecordAuditCreate(c, threatModelID, "repository", repository.Id.String(), repository)
 	invalidateThreatModelCaches(c, threatModelID)
+	emitRepositoryEvent(c.Request.Context(), EventRepositoryCreated, threatModelID, repository)
 
 	logger.Debug("Successfully created repository code reference %s", repository.Id.String())
 	c.JSON(http.StatusCreated, repository)
@@ -220,7 +241,7 @@ func (h *RepositorySubResourceHandler) CreateRepository(c *gin.Context) {
 
 // UpdateRepository updates an existing repository code reference
 // PUT /threat_models/{threat_model_id}/repositorys/{repository_id}
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: update a repository code reference under a threat model, with audit and cache invalidation (mutates DB)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: update a repository reference, audit, invalidate cache, emit updated event (mutates DB)
 func (h *RepositorySubResourceHandler) UpdateRepository(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("UpdateRepository - updating existing repository code reference")
@@ -295,6 +316,7 @@ func (h *RepositorySubResourceHandler) UpdateRepository(c *gin.Context) {
 
 	RecordAuditUpdate(c, "updated", threatModelID, "repository", repositoryID, preState, repository)
 	invalidateThreatModelCaches(c, threatModelID)
+	emitRepositoryEvent(c.Request.Context(), EventRepositoryUpdated, threatModelID, repository)
 
 	logger.Debug("Successfully updated repository code reference %s", repositoryID)
 	c.JSON(http.StatusOK, repository)
@@ -353,7 +375,7 @@ func (h *RepositorySubResourceHandler) DeleteRepository(c *gin.Context) {
 
 // BulkCreateRepositorys creates multiple repository code references in a single request
 // POST /threat_models/{threat_model_id}/repositorys/bulk
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: bulk create up to 50 repository code references under a threat model (mutates DB)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: bulk create up to 50 repository references, emit created events (mutates DB)
 func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateRepositorys - creating multiple repository code references")
@@ -441,6 +463,9 @@ func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 	}
 
 	invalidateThreatModelCaches(c, threatModelID)
+	for i := range repositorys {
+		emitRepositoryEvent(c.Request.Context(), EventRepositoryCreated, threatModelID, &repositorys[i])
+	}
 
 	logger.Debug("Successfully bulk created %d repository code references", len(repositorys))
 	c.JSON(http.StatusCreated, repositorys)
@@ -448,7 +473,7 @@ func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 
 // PatchRepository applies JSON patch operations to a repository
 // PATCH /threat_models/{threat_model_id}/repositories/{repository_id}
-// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON patch operations to a repository reference, with audit (mutates DB)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: apply JSON patch to a repository reference, audit, emit updated event (mutates DB)
 func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchRepository - applying patch operations to repository")
@@ -534,6 +559,7 @@ func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 	threatModelID := c.Param("threat_model_id")
 	RecordAuditUpdate(c, "patched", threatModelID, "repository", repositoryID, preState, updatedRepository)
 	invalidateThreatModelCaches(c, threatModelID)
+	emitRepositoryEvent(c.Request.Context(), EventRepositoryUpdated, threatModelID, updatedRepository)
 
 	logger.Info("Successfully patched repository %s (user: %s)", repositoryID, user.Email)
 	c.JSON(http.StatusOK, updatedRepository)
@@ -541,7 +567,7 @@ func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 
 // BulkUpdateRepositorys updates or creates multiple repositories (upsert operation)
 // PUT /threat_models/{threat_model_id}/repositories/bulk
-// SEM@2de6d9ced98fa6de4821500a03f276a35f1c450e: upsert multiple repository references under a threat model (mutates DB)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: upsert multiple repository references, emit created/updated events (mutates DB)
 func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkUpdateRepositorys - upserting multiple repositories")
@@ -628,6 +654,7 @@ func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
 					fmt.Sprintf("Failed to create repository %s", repository.Id.String())))
 				return
 			}
+			emitRepositoryEvent(c.Request.Context(), EventRepositoryCreated, threatModelID, &repository)
 			upsertedRepositories = append(upsertedRepositories, repository)
 		} else {
 			// Repository exists, update it
@@ -638,6 +665,7 @@ func (h *RepositorySubResourceHandler) BulkUpdateRepositorys(c *gin.Context) {
 					fmt.Sprintf("Failed to update repository %s", repository.Id.String())))
 				return
 			}
+			emitRepositoryEvent(c.Request.Context(), EventRepositoryUpdated, threatModelID, &repository)
 			upsertedRepositories = append(upsertedRepositories, repository)
 		}
 	}

@@ -9,6 +9,7 @@ import os
 import platform
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -567,6 +568,7 @@ def get_image_tags(
     ]
 
 
+# SEM@722ae4c635149d53c73f2831ee3d366695967cce: run docker/buildx build, returning the pushed manifest digest if known
 def run_docker_build(
     config: TargetConfig,
     dockerfile: str,
@@ -577,8 +579,14 @@ def run_docker_build(
     push: bool = False,
     no_cache: bool = False,
     extra_build_args: list[str] | None = None,
-) -> None:
-    """Run docker build or docker buildx build."""
+) -> str | None:
+    """Run docker build or docker buildx build.
+
+    Returns the pushed image's manifest digest (e.g. "sha256:...") when a
+    buildx push produced one via --metadata-file, else None. Callers that
+    need to scan exactly the artifact just pushed — rather than whatever a
+    tag happens to point at — use this to pin the scan to that digest.
+    """
     is_multiarch = "," in config.platform
 
     if is_multiarch and not push:
@@ -589,12 +597,19 @@ def run_docker_build(
         )
         sys.exit(1)
 
+    metadata_path: Path | None = None
     if config.use_buildx:
         ensure_buildx_builder()
         cmd = ["docker", "buildx", "build"]
         cmd.extend(["--platform", config.platform])
         if push:
             cmd.append("--push")
+            # Capture the pushed manifest digest so callers can scan the
+            # exact artifact just pushed instead of resolving a mutable tag.
+            metadata_fd, metadata_name = tempfile.mkstemp(suffix=".json", prefix="buildx-metadata-")
+            os.close(metadata_fd)
+            metadata_path = Path(metadata_name)
+            cmd.extend(["--metadata-file", str(metadata_path)])
         else:
             cmd.append("--load")
     else:
@@ -615,11 +630,21 @@ def run_docker_build(
 
     cmd.append(str(context))
 
+    digest: str | None = None
     try:
         run(cmd)
+        if metadata_path is not None:
+            try:
+                metadata = json.loads(metadata_path.read_text())
+                digest = metadata.get("containerimage.digest")
+            except (OSError, json.JSONDecodeError) as e:
+                log_warn(f"Could not read buildx metadata file: {e}")
     except subprocess.CalledProcessError:
         log_error(f"Docker build failed for {dockerfile}")
         sys.exit(1)
+    finally:
+        if metadata_path is not None:
+            metadata_path.unlink(missing_ok=True)
 
     if push and not config.use_buildx:
         # Plain docker build — need explicit push
@@ -631,6 +656,7 @@ def run_docker_build(
                 sys.exit(1)
 
     log_success(f"Built: {tags[0]}")
+    return digest
 
 
 # --- Security Scanning ---
