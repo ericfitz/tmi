@@ -12,7 +12,7 @@ import (
 const wsTicketTTL = 30 * time.Second
 
 // GetWsTicket issues a short-lived WebSocket authentication ticket.
-// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: issue a short-lived WebSocket authentication ticket for an authorized collaboration session participant
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: issue a short-lived WebSocket ticket bound to the caller's token for revocation
 func (s *Server) GetWsTicket(c *gin.Context, params GetWsTicketParams) {
 	logger := slogging.GetContextLogger(c)
 
@@ -60,11 +60,17 @@ func (s *Server) GetWsTicket(c *gin.Context, params GetWsTicketParams) {
 		return
 	}
 
-	provider := c.GetString("userProvider")
-	internalUUID := c.GetString("userInternalUUID")
-
-	// Issue ticket
-	ticket, err := s.ticketStore.IssueTicket(c.Request.Context(), user.ProviderID, provider, internalUUID, sessionID, wsTicketTTL)
+	// Bind the ticket to the issuing token so the upgrade is refused once that
+	// token or its client credential is revoked (#869).
+	claims := TicketClaims{
+		UserID:       user.ProviderID,
+		Provider:     c.GetString("userProvider"),
+		InternalUUID: c.GetString("userInternalUUID"),
+		SessionID:    sessionID,
+		TokenHash:    c.GetString("authTokenHash"),
+		CredentialID: c.GetString("serviceAccountCredentialID"),
+	}
+	ticket, err := s.ticketStore.IssueTicket(c.Request.Context(), claims, wsTicketTTL)
 	if err != nil {
 		logger.Error("Failed to issue WebSocket ticket: %v", err)
 		HandleRequestError(c, ServerError("Failed to issue ticket"))

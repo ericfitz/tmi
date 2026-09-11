@@ -7,8 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/ericfitz/tmi/api"
+	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 )
 
 const errTicketSessionMismatch = "ticket session mismatch"
@@ -19,18 +23,23 @@ type mockTicketStore struct {
 	provider     string
 	internalUUID string
 	sessionID    string
+	tokenHash    string
+	credentialID string
 	err          error
 }
 
-func (m *mockTicketStore) IssueTicket(_ context.Context, _, _, _, _ string, _ time.Duration) (string, error) {
+func (m *mockTicketStore) IssueTicket(_ context.Context, _ api.TicketClaims, _ time.Duration) (string, error) {
 	return "mock-ticket", nil
 }
 
-func (m *mockTicketStore) ValidateTicket(_ context.Context, _ string) (string, string, string, string, error) {
+func (m *mockTicketStore) ValidateTicket(_ context.Context, _ string) (api.TicketClaims, error) {
 	if m.err != nil {
-		return "", "", "", "", m.err
+		return api.TicketClaims{}, m.err
 	}
-	return m.userID, m.provider, m.internalUUID, m.sessionID, nil
+	return api.TicketClaims{
+		UserID: m.userID, Provider: m.provider, InternalUUID: m.internalUUID, SessionID: m.sessionID,
+		TokenHash: m.tokenHash, CredentialID: m.credentialID,
+	}, nil
 }
 
 func TestTicketValidator_SessionIDMatch(t *testing.T) {
@@ -162,6 +171,80 @@ func TestExtractToken_WebSocketMissingTicket(t *testing.T) {
 	_, err := extractor.ExtractToken(c)
 	if err == nil {
 		t.Fatal("expected error for missing ticket, got nil")
+	}
+}
+
+// #869: the ticket path must expose the minting token's revocation handles so
+// checkRevocation can refuse the upgrade after a revoke.
+func TestTicketValidator_SetsRevocationContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	store := &mockTicketStore{
+		userID: "user123", provider: "tmi", sessionID: "session-abc",
+		tokenHash: "hash-1", credentialID: "cred-1",
+	}
+	validator := &TicketValidator{ticketStore: store}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request, _ = http.NewRequest(http.MethodGet, "/ws/diagrams/123?ticket=tok", nil)
+
+	_ = validator.ValidateTicket(c, "tok") // user lookup fails (no DB); context is set before it
+	if got := c.GetString("authTokenHash"); got != "hash-1" {
+		t.Fatalf("authTokenHash = %q, want hash-1", got)
+	}
+	if got := c.GetString("serviceAccountCredentialID"); got != "cred-1" {
+		t.Fatalf("serviceAccountCredentialID = %q, want cred-1", got)
+	}
+	if !c.GetBool("isServiceAccount") {
+		t.Fatal("isServiceAccount should be true for a credential-minted ticket")
+	}
+}
+
+// #869: checkRevocation is shared by the JWT and ticket paths; a blacklisted
+// token hash or a revoked credential must yield 401.
+func TestCheckRevocation_TicketHandles(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("miniredis: %v", err)
+	}
+	defer mr.Close()
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer func() { _ = client.Close() }()
+	blacklist := auth.NewTokenBlacklist(client, nil)
+	a := &JWTAuthenticator{blacklistChecker: NewTokenBlacklistChecker(blacklist)}
+	logger := slogging.Get()
+
+	newCtx := func(hash, cred string) *gin.Context {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request, _ = http.NewRequest(http.MethodGet, "/ws/diagrams/123", nil)
+		c.Set("authTokenHash", hash)
+		if cred != "" {
+			c.Set("serviceAccountCredentialID", cred)
+		}
+		return c
+	}
+
+	if e := a.checkRevocation(newCtx("clean", "cred-ok"), logger); e != nil {
+		t.Fatalf("clean token/credential rejected: %v", e)
+	}
+	if e := a.checkRevocation(newCtx("", ""), logger); e != nil {
+		t.Fatalf("legacy ticket without hash rejected: %v", e)
+	}
+
+	if err := mr.Set("blacklist:token:"+auth.HashToken("tok"), "blacklisted"); err != nil {
+		t.Fatalf("miniredis set: %v", err)
+	}
+	if e := a.checkRevocation(newCtx(auth.HashToken("tok"), ""), logger); e == nil || e.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("blacklisted token hash not rejected with 401: %v", e)
+	}
+
+	if err := blacklist.RevokeCredential(context.Background(), "cred-gone", time.Hour); err != nil {
+		t.Fatalf("RevokeCredential: %v", err)
+	}
+	if e := a.checkRevocation(newCtx("clean", "cred-gone"), logger); e == nil || e.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("revoked credential not rejected with 401: %v", e)
 	}
 }
 

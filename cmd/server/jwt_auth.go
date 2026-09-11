@@ -120,14 +120,14 @@ func NewTokenBlacklistChecker(tokenBlacklist *auth.TokenBlacklist) *TokenBlackli
 	}
 }
 
-// CheckBlacklist checks if a token is blacklisted
-// SEM@4544fe064a8e91cf6d4c8a495f43f7f7830f6fe7: verify a token string is not on the revocation blacklist; return error if revoked (reads DB)
-func (b *TokenBlacklistChecker) CheckBlacklist(ctx context.Context, tokenStr string) error {
-	if b.tokenBlacklist == nil {
+// CheckBlacklist checks if a token, identified by its auth.HashToken hash, is blacklisted
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: verify a token hash is not on the revocation blacklist; return error if revoked (reads DB)
+func (b *TokenBlacklistChecker) CheckBlacklist(ctx context.Context, tokenHash string) error {
+	if b.tokenBlacklist == nil || tokenHash == "" {
 		return nil
 	}
 
-	isBlacklisted, err := b.tokenBlacklist.IsTokenBlacklisted(ctx, tokenStr)
+	isBlacklisted, err := b.tokenBlacklist.IsTokenHashBlacklisted(ctx, tokenHash)
 	if err != nil {
 		return fmt.Errorf("failed to check token blacklist: %w", err)
 	}
@@ -407,15 +407,16 @@ func NewTicketValidator(ticketStore api.TicketStore, authHandlers *auth.Handlers
 }
 
 // ValidateTicket validates a WebSocket ticket and populates user context.
-// SEM@cd03830752a2340795cda20675039d295961c9a6: validate a WebSocket ticket, cross-check session ID, and set user context (reads DB)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: validate a WebSocket ticket, cross-check session ID, and set user and revocation context (reads DB)
 func (v *TicketValidator) ValidateTicket(c *gin.Context, ticketStr string) error {
 	logger := slogging.GetContextLogger(c)
 
-	userID, provider, internalUUID, sessionID, err := v.ticketStore.ValidateTicket(c.Request.Context(), ticketStr)
+	claims, err := v.ticketStore.ValidateTicket(c.Request.Context(), ticketStr)
 	if err != nil {
 		logger.Warn("WebSocket ticket validation failed: %v", err)
 		return fmt.Errorf("invalid or expired ticket")
 	}
+	userID, provider, internalUUID, sessionID := claims.UserID, claims.Provider, claims.InternalUUID, claims.SessionID
 
 	// Cross-check session_id from ticket against query param
 	querySessionID := c.Query("session_id")
@@ -430,6 +431,13 @@ func (v *TicketValidator) ValidateTicket(c *gin.Context, ticketStr string) error
 	c.Set("userIdP", provider)
 	if internalUUID != "" {
 		c.Set("userInternalUUID", internalUUID)
+	}
+	// Revocation handles of the token that minted the ticket (#869); consumed
+	// by checkRevocation after the ticket is accepted.
+	c.Set("authTokenHash", claims.TokenHash)
+	if claims.CredentialID != "" {
+		c.Set("isServiceAccount", true)
+		c.Set("serviceAccountCredentialID", claims.CredentialID)
 	}
 	// WebSocket tickets do not carry an auth_time claim; set typed nil so
 	// downstream code can distinguish "claim absent" from "key absent".
@@ -601,6 +609,9 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 				StatusCode:  http.StatusUnauthorized,
 			}
 		}
+		if err := a.checkRevocation(c, logger); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -615,10 +626,8 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 		}
 	}
 
-	// Check if token is blacklisted
-	if err := a.blacklistChecker.CheckBlacklist(c.Request.Context(), tokenStr); err != nil {
-		return revocationAuthError(logger, err)
-	}
+	// Retained (not the raw token) so /ws/ticket can bind a ticket to it (#869).
+	c.Set("authTokenHash", auth.HashToken(tokenStr))
 
 	// Extract claims and set in context
 	if err := a.claimsExtractor.ExtractAndSetClaims(c, token); err != nil {
@@ -630,12 +639,8 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 		}
 	}
 
-	// Service-account tokens are not tracked individually, so a deleted or
-	// deactivated client credential is revoked by ID instead (#862).
-	if credentialID := c.GetString("serviceAccountCredentialID"); credentialID != "" {
-		if err := a.blacklistChecker.CheckCredentialRevoked(c.Request.Context(), credentialID); err != nil {
-			return revocationAuthError(logger, err)
-		}
+	if err := a.checkRevocation(c, logger); err != nil {
+		return err
 	}
 
 	// Auto-promotion: If enabled and no administrators exist, promote first user
@@ -653,6 +658,25 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 		}
 	}
 
+	return nil
+}
+
+// checkRevocation rejects a request whose token has been blacklisted or whose
+// service-account client credential has been revoked (#862). It reads the
+// authTokenHash and serviceAccountCredentialID context keys, which both the
+// JWT path and the WebSocket ticket path populate (#869).
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: reject the request if its token or client credential is revoked (reads DB)
+func (a *JWTAuthenticator) checkRevocation(c *gin.Context, logger slogging.SimpleLogger) *AuthError {
+	if err := a.blacklistChecker.CheckBlacklist(c.Request.Context(), c.GetString("authTokenHash")); err != nil {
+		return revocationAuthError(logger, err)
+	}
+	// Service-account tokens are not tracked individually, so a deleted or
+	// deactivated client credential is revoked by ID instead (#862).
+	if credentialID := c.GetString("serviceAccountCredentialID"); credentialID != "" {
+		if err := a.blacklistChecker.CheckCredentialRevoked(c.Request.Context(), credentialID); err != nil {
+			return revocationAuthError(logger, err)
+		}
+	}
 	return nil
 }
 
