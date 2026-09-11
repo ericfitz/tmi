@@ -89,6 +89,31 @@ for n in rp2 rp3 rp4; do
 done
 ```
 
+## 3. Configuration: what `dev-up` regenerates, and where browser origins live
+
+`make dev-up CLUSTER=k3s` and `make dev-deploy CLUSTER=k3s` re-render the
+`tmi-server-config` ConfigMap from `config-development.yml` on **every** run
+(only the Postgres URL host is rewritten for the pod). Anything patched into the
+live ConfigMap with `kubectl edit`/`kubectl patch` is silently discarded on the
+next deploy, so put bootstrap changes in `config-development.yml`, not in the
+cluster. As of 2026-09-10 the live ConfigMap on k3s-rp is byte-identical to what
+the sources render (#774).
+
+The ConfigMap carries **bootstrap keys only** (server, database, JWT secret,
+logging). Operational settings, including the OAuth callback allowlist that
+authorizes browser origins such as `http://rp2:30081/*`, live in the
+`system_settings` table and are read at request time (#419). Editing the
+`auth.oauth.client_callback_allowlist` block in the ConfigMap has no effect once
+the DB row exists. To authorize a new origin:
+
+```bash
+uv run scripts/set-server-setting.py --help    # PUT /admin/settings/auth.oauth.client_callback_allowlist
+```
+
+`make dev-config-snapshot CLUSTER=k3s` saves those DB settings to
+`.local/dev-config-k3s.yaml`; teardown takes the snapshot automatically and
+`dev-up` restores it, so a `dev-nuke` does not lose the allowlist.
+
 ## Notes
 
 - These steps are **idempotent** and only needed once per machine (they persist
