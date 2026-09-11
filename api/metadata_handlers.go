@@ -59,6 +59,25 @@ func sanitizeMetadataValue(value string) (string, error) {
 	return sanitized, nil
 }
 
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: publish metadata.updated for any metadata write, tagged with owning threat model's owner
+func (h *GenericMetadataHandler) emitMetadataUpdated(c *gin.Context, entityID string) {
+	if GlobalEventEmitter == nil {
+		return
+	}
+	threatModelID := c.Param("threat_model_id")
+	if threatModelID == "" {
+		return
+	}
+	ownerID := threatModelOwnerInternalUUID(c.Request.Context(), threatModelID)
+	_ = GlobalEventEmitter.EmitEvent(c.Request.Context(), EventPayload{
+		EventType:     EventMetadataUpdated,
+		ThreatModelID: threatModelID,
+		ObjectID:      entityID,
+		ObjectType:    h.entityType,
+		OwnerID:       ownerID,
+	})
+}
+
 // ParentVerifier is a function that checks if a parent entity exists.
 // It returns nil if the entity exists, or an error if not.
 // SEM@59c58c6a840231ad2c078c9afd1e7bac7a07b651: function type that confirms a parent entity exists by UUID (reads DB)
@@ -187,7 +206,7 @@ func (h *GenericMetadataHandler) GetByKey(c *gin.Context) {
 }
 
 // Create creates a new metadata entry.
-// SEM@3c1a01558012bffd79e59f37ab15f2ccc823c29c: store a new metadata key-value pair under a parent entity, rejecting duplicates (reads DB)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: store a metadata key-value pair, reject duplicates, emit metadata.updated (mutates DB)
 func (h *GenericMetadataHandler) Create(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GenericMetadataHandler.Create - creating new metadata entry for %s", h.entityType)
@@ -243,6 +262,7 @@ func (h *GenericMetadataHandler) Create(c *gin.Context) {
 		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to create metadata"))
 		return
 	}
+	h.emitMetadataUpdated(c, entityID)
 
 	createdMetadata, err := h.metadataStore.Get(c.Request.Context(), h.entityType, entityID, metadata.Key)
 	if err != nil {
@@ -256,7 +276,7 @@ func (h *GenericMetadataHandler) Create(c *gin.Context) {
 }
 
 // Update updates an existing metadata entry.
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: replace the value of an existing metadata entry identified by key (reads DB)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: replace value of an existing metadata entry, emit metadata.updated (mutates DB)
 func (h *GenericMetadataHandler) Update(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GenericMetadataHandler.Update - updating metadata entry for %s", h.entityType)
@@ -318,6 +338,7 @@ func (h *GenericMetadataHandler) Update(c *gin.Context) {
 		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to update metadata"))
 		return
 	}
+	h.emitMetadataUpdated(c, entityID)
 
 	updatedMetadata, err := h.metadataStore.Get(c.Request.Context(), h.entityType, entityID, key)
 	if err != nil {
@@ -331,7 +352,7 @@ func (h *GenericMetadataHandler) Update(c *gin.Context) {
 }
 
 // Delete deletes a metadata entry.
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: delete a metadata entry by key from a parent entity (reads DB)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: delete a metadata entry by key, emit metadata.updated (mutates DB)
 func (h *GenericMetadataHandler) Delete(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GenericMetadataHandler.Delete - deleting metadata entry for %s", h.entityType)
@@ -361,12 +382,14 @@ func (h *GenericMetadataHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	h.emitMetadataUpdated(c, entityID)
+
 	logger.Debug("Successfully deleted metadata key '%s' for %s %s", key, h.entityType, entityID)
 	c.Status(http.StatusNoContent)
 }
 
 // BulkCreate creates multiple metadata entries in a single request.
-// SEM@3c1a01558012bffd79e59f37ab15f2ccc823c29c: store multiple new metadata entries for an entity, rejecting duplicates or conflicts (reads DB)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: store multiple metadata entries, reject conflicts, emit metadata.updated (mutates DB)
 func (h *GenericMetadataHandler) BulkCreate(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GenericMetadataHandler.BulkCreate - creating multiple metadata entries for %s", h.entityType)
@@ -444,6 +467,7 @@ func (h *GenericMetadataHandler) BulkCreate(c *gin.Context) {
 		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to create metadata entries"))
 		return
 	}
+	h.emitMetadataUpdated(c, entityID)
 
 	createdMetadata, err := h.metadataStore.List(c.Request.Context(), h.entityType, entityID)
 	if err != nil {
@@ -457,7 +481,7 @@ func (h *GenericMetadataHandler) BulkCreate(c *gin.Context) {
 }
 
 // BulkUpsert updates or creates multiple metadata entries in a single request.
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: update or create multiple metadata entries for an entity in one request (reads DB)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: upsert multiple metadata entries in one request, emit metadata.updated (mutates DB)
 func (h *GenericMetadataHandler) BulkUpsert(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GenericMetadataHandler.BulkUpsert - upserting multiple metadata entries for %s", h.entityType)
@@ -529,6 +553,7 @@ func (h *GenericMetadataHandler) BulkUpsert(c *gin.Context) {
 		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to upsert metadata entries"))
 		return
 	}
+	h.emitMetadataUpdated(c, entityID)
 
 	upsertedMetadata, err := h.metadataStore.List(c.Request.Context(), h.entityType, entityID)
 	if err != nil {
@@ -544,7 +569,7 @@ func (h *GenericMetadataHandler) BulkUpsert(c *gin.Context) {
 // BulkReplace replaces all metadata for an entity with the provided set.
 // All existing metadata is deleted and replaced with the provided entries.
 // An empty array clears all metadata for the entity.
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: replace all metadata entries for an entity with the provided set, deleting previous entries (mutates shared state)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: replace all metadata entries for an entity, emit metadata.updated (mutates shared state)
 func (h *GenericMetadataHandler) BulkReplace(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GenericMetadataHandler.BulkReplace - replacing all metadata for %s", h.entityType)
@@ -611,6 +636,7 @@ func (h *GenericMetadataHandler) BulkReplace(c *gin.Context) {
 		HandleRequestError(c, StoreErrorToRequestError(err, "Metadata not found", "Failed to replace metadata entries"))
 		return
 	}
+	h.emitMetadataUpdated(c, entityID)
 
 	replacedMetadata, err := h.metadataStore.List(c.Request.Context(), h.entityType, entityID)
 	if err != nil {

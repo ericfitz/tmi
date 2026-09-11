@@ -1090,6 +1090,53 @@ func TestRepositoryMetadata(t *testing.T) {
 
 		mockStore.AssertExpectations(t)
 	})
+
+	t.Run("EmitsMetadataUpdatedEvent", func(t *testing.T) {
+		r, mockStore := setupRepositoryMetadataHandler()
+
+		threatModelID := testUUID1
+		repositoryID := testUUID2
+
+		origTMStore := ThreatModelStore
+		origEmitter := GlobalEventEmitter
+		defer func() {
+			ThreatModelStore = origTMStore
+			GlobalEventEmitter = origEmitter
+		}()
+		ThreatModelStore = &MockThreatModelStore{data: map[string]ThreatModel{
+			threatModelID: {Owner: User{Provider: "test", ProviderId: "owner-1"}},
+		}}
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+		GlobalEventEmitter = NewEventEmitter(client, "test:events")
+
+		requestBody := map[string]any{
+			"key":   "repository_type",
+			"value": "git",
+		}
+		createdMetadata := &Metadata{Key: "repository_type", Value: "git"}
+
+		mockStore.On("Create", mock.Anything, "repository", repositoryID, mock.AnythingOfType("*api.Metadata")).Return(nil)
+		mockStore.On("Get", mock.Anything, "repository", repositoryID, "repository_type").Return(createdMetadata, nil)
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/repositories/"+repositoryID+"/metadata", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusCreated, w.Code)
+
+		messages, err := client.XRange(context.Background(), "test:events", "-", "+").Result()
+		require.NoError(t, err)
+		require.Len(t, messages, 1)
+		assert.Equal(t, EventMetadataUpdated, messages[0].Values["event_type"])
+		assert.Equal(t, threatModelID, messages[0].Values["threat_model_id"])
+		assert.Equal(t, repositoryID, messages[0].Values["object_id"])
+		assert.Equal(t, "repository", messages[0].Values["object_type"])
+		assert.Equal(t, "owner-1", messages[0].Values["owner_id"])
+	})
 }
 
 // TestThreatModelMetadata tests threat model metadata operations

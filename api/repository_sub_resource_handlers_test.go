@@ -414,6 +414,53 @@ func TestCreateRepository(t *testing.T) {
 
 		mockStore.AssertExpectations(t)
 	})
+
+	t.Run("EmitsRepositoryCreatedEvent", func(t *testing.T) {
+		r, mockStore := setupRepositorySubRerepositoryHandler()
+
+		threatModelID := testUUID1
+		repositoryUUID, _ := uuid.Parse(testUUID2)
+
+		origTMStore := ThreatModelStore
+		origEmitter := GlobalEventEmitter
+		defer func() {
+			ThreatModelStore = origTMStore
+			GlobalEventEmitter = origEmitter
+		}()
+		ThreatModelStore = &MockThreatModelStore{data: map[string]ThreatModel{
+			threatModelID: {Owner: User{Provider: "test", ProviderId: "owner-1"}},
+		}}
+		client, mr := setupTestRedis(t)
+		defer mr.Close()
+		defer func() { _ = client.Close() }()
+		GlobalEventEmitter = NewEventEmitter(client, "test:events")
+
+		requestBody := map[string]any{
+			"name": "Event Test Repository",
+			"uri":  "https://github.com/user/event-repo",
+		}
+
+		mockStore.On("Create", mock.Anything, mock.AnythingOfType("*api.Repository"), threatModelID).Return(nil).Run(func(args mock.Arguments) {
+			repository := args.Get(1).(*Repository)
+			repository.Id = &repositoryUUID
+		})
+
+		body, _ := json.Marshal(requestBody)
+		req := httptest.NewRequest("POST", "/threat_models/"+threatModelID+"/repositorys", bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		require.Equal(t, http.StatusCreated, w.Code)
+
+		messages, err := client.XRange(context.Background(), "test:events", "-", "+").Result()
+		require.NoError(t, err)
+		require.Len(t, messages, 1)
+		assert.Equal(t, EventRepositoryCreated, messages[0].Values["event_type"])
+		assert.Equal(t, threatModelID, messages[0].Values["threat_model_id"])
+		assert.Equal(t, repositoryUUID.String(), messages[0].Values["object_id"])
+		assert.Equal(t, "owner-1", messages[0].Values["owner_id"])
+	})
 }
 
 // TestUpdateRepository tests updating an existing repository code reference
