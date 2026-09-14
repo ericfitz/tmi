@@ -121,6 +121,30 @@ func TestSetGet_EncryptsAndDecryptsSensitiveKey(t *testing.T) {
 	assert.Equal(t, plaintext, result)
 }
 
+// TestSetGet_EncryptsByteSliceValue verifies []byte values (e.g. json.Marshal output)
+// round-trip as their string content, not as a "%v" rendering like "[123 34 ...]".
+func TestSetGet_EncryptsByteSliceValue(t *testing.T) {
+	rdb, mr := setupTestRedisDB(t)
+	ctx := context.Background()
+
+	enc, err := crypto.NewSettingsEncryptorFromKeys(testKey(t), nil, 1)
+	require.NoError(t, err)
+	rdb.SetEncryptor(enc)
+
+	key := "webhook:delivery:01a0a072-2cff-7450-b9b3-9e4d0f542ff9"
+	payload := []byte(`{"id":"01a0a072","status":"pending"}`)
+
+	require.NoError(t, rdb.Set(ctx, key, payload, time.Minute))
+
+	rawValue, err := mr.Get(key)
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(rawValue, "ENC:v1:"), "raw value should be encrypted, got: %s", rawValue)
+
+	result, err := rdb.Get(ctx, key)
+	require.NoError(t, err)
+	assert.Equal(t, string(payload), result)
+}
+
 // TestSetGet_DoesNotEncryptNonSensitiveKey verifies non-sensitive keys are stored as plaintext.
 func TestSetGet_DoesNotEncryptNonSensitiveKey(t *testing.T) {
 	rdb, mr := setupTestRedisDB(t)
