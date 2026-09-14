@@ -172,10 +172,19 @@ func (db *RedisDB) LogStats(ctx context.Context) {
 // Set sets a key-value pair with expiration.
 // If an encryptor is configured and the key matches a sensitive pattern,
 // the value is encrypted before writing to Redis.
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: store a key-value pair in Redis, encrypting sensitive keys at rest
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: store a key-value pair in Redis, encrypting sensitive string or byte values at rest
 func (db *RedisDB) Set(ctx context.Context, key string, value any, expiration time.Duration) error {
 	if db.encryptor != nil && db.encryptor.IsEnabled() && shouldEncrypt(key) {
-		strValue := fmt.Sprintf("%v", value)
+		var strValue string
+		switch v := value.(type) {
+		case []byte:
+			// %v would render a byte slice as "[123 34 ...]", corrupting JSON payloads
+			strValue = string(v)
+		case string:
+			strValue = v
+		default:
+			strValue = fmt.Sprintf("%v", value)
+		}
 		encrypted, err := db.encryptor.Encrypt(strValue)
 		if err != nil {
 			if errors.Is(err, crypto.ErrValueTooLong) {
@@ -224,7 +233,16 @@ func (db *RedisDB) Del(ctx context.Context, key string) error {
 // SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: store a hash field in Redis, encrypting sensitive keys at rest
 func (db *RedisDB) HSet(ctx context.Context, key, field string, value any) error {
 	if db.encryptor != nil && db.encryptor.IsEnabled() && shouldEncrypt(key) {
-		strValue := fmt.Sprintf("%v", value)
+		var strValue string
+		switch v := value.(type) {
+		case []byte:
+			// %v would render a byte slice as "[123 34 ...]", corrupting JSON payloads
+			strValue = string(v)
+		case string:
+			strValue = v
+		default:
+			strValue = fmt.Sprintf("%v", value)
+		}
 		encrypted, err := db.encryptor.Encrypt(strValue)
 		if err != nil {
 			if errors.Is(err, crypto.ErrValueTooLong) {
