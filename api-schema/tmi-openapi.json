@@ -37055,6 +37055,133 @@
             "admin"
           ]
         }
+      },
+      "patch": {
+        "summary": "Partially update add-on",
+        "description": "Apply JSON Patch operations to partially update an add-on (administrators only). Only /name, /description, /icon, /objects, /parameters and /threat_model_id may be modified; an operation targeting any other path, including /webhook_id, is rejected with 400.",
+        "operationId": "patchAddon",
+        "tags": [
+          "Addons"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GenericId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "JSON Patch operations to apply to the add-on",
+          "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonPatchDocument"
+              },
+              "example": [
+                {
+                  "op": "replace",
+                  "path": "/name",
+                  "value": "Updated Add-on"
+                },
+                {
+                  "op": "add",
+                  "path": "/description",
+                  "value": "New description"
+                }
+              ]
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully patched add-on",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddonResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "resource-operations",
+          "limits": [
+            {
+              "type": "requests_per_minute",
+              "default": 100,
+              "configurable": true,
+              "quota_source": "user_api_quotas"
+            }
+          ]
+        },
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        }
       }
     },
     "/addons/{id}/invoke": {
@@ -61835,6 +61962,155 @@
         "x-tmi-authz-step-up": "optional",
         "x-preserve-fixture": "true",
         "x-preserve-fixture-reason": "Anchor path for a seeded CATS decoy. refData binds one id per path, so a DELETE that succeeds here removes the resource every later GET/PATCH/PUT on this path depends on, and the rest of the ~2,300-request block runs against a 404. Fuzzers that issue an otherwise-valid DELETE are skipped for this operation only; every other DELETE fuzzer still runs. See issue #651."
+      },
+      "patch": {
+        "summary": "Partially update webhook subscription",
+        "description": "Apply JSON Patch operations to partially update a webhook subscription. Requires administrator privileges. Only /name, /events, /threat_model_id and /url may be modified; an operation targeting any other path is rejected with 400. Changing /url resets the subscription to pending_verification and issues a new challenge, because the destination URL must prove ownership again.",
+        "operationId": "patchAdminWebhookSubscription",
+        "tags": [
+          "Webhooks"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WebhookId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "JSON Patch operations to apply to the webhook subscription",
+          "content": {
+            "application/json-patch+json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonPatchDocument"
+              },
+              "example": [
+                {
+                  "op": "replace",
+                  "path": "/name",
+                  "value": "Updated Subscription"
+                },
+                {
+                  "op": "replace",
+                  "path": "/events",
+                  "value": [
+                    "threat_model.created"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully patched webhook subscription",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSubscription"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-rate-limit": {
+          "scope": "user",
+          "tier": "webhooks",
+          "limits": [
+            {
+              "type": "subscription_requests_per_minute",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_minute"
+            },
+            {
+              "type": "subscription_requests_per_day",
+              "default": 20,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscription_requests_per_day"
+            },
+            {
+              "type": "events_per_minute",
+              "default": 12,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_events_per_minute"
+            },
+            {
+              "type": "max_subscriptions",
+              "default": 10,
+              "configurable": true,
+              "quota_source": "webhook_quotas.max_subscriptions"
+            }
+          ]
+        },
+        "x-admin-only": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "roles": [
+            "admin"
+          ]
+        },
+        "x-tmi-authz-step-up": "optional"
       }
     },
     "/admin/webhooks/subscriptions/{webhook_id}/test": {

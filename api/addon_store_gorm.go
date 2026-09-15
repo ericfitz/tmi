@@ -130,6 +130,49 @@ func (s *GormAddonStore) List(ctx context.Context, limit, offset int, threatMode
 	return addons, int(total), nil
 }
 
+// addonUpdatableFields are the add-on fields a caller may rewrite. They are
+// selected explicitly because struct-based Updates skips zero values, so a
+// cleared description, icon or threat_model_id would otherwise not be written.
+// Struct (not map) Updates keeps the custom StringArray / JSONRaw types
+// serializing through their Value() methods. These are struct FIELD names, not
+// column names: GORM resolves a Select entry through LookUpField, which on
+// Oracle holds UPPERCASE DBNames, so a lowercase column literal would match
+// nothing and silently drop the column from the UPDATE.
+var addonUpdatableFields = []string{
+	"Name", "Description", "Icon", "Objects", "Parameters", "ThreatModelID",
+}
+
+// Update writes the mutable fields of an existing add-on
+// SEM@263482d75164f5d9cc6ecfbf63ecc20515b79b0d: update the mutable fields of an add-on by ID, not-found if absent (mutates DB)
+func (s *GormAddonStore) Update(ctx context.Context, addon *Addon) error {
+	logger := slogging.Get()
+
+	model := s.apiToModel(*addon)
+
+	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		result := tx.Model(&models.Addon{}).
+			Where("id = ?", addon.ID.String()).
+			Select(addonUpdatableFields).
+			Updates(model)
+		if result.Error != nil {
+			logger.Error("Failed to update add-on: id=%s, error=%v", addon.ID, result.Error)
+			return dberrors.Classify(result.Error)
+		}
+		if result.RowsAffected == 0 {
+			logger.Debug("Add-on not found for update: id=%s", addon.ID)
+			return ErrAddonNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	logger.Info("Add-on updated: id=%s, name=%s", addon.ID, addon.Name)
+
+	return nil
+}
+
 // Delete removes an add-on by ID
 // SEM@263482d75164f5d9cc6ecfbf63ecc20515b79b0d: delete an add-on by UUID, returning ErrAddonNotFound if not present (writes DB)
 func (s *GormAddonStore) Delete(ctx context.Context, id uuid.UUID) error {

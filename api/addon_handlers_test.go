@@ -39,6 +39,11 @@ func (m *MockAddonStore) Get(ctx context.Context, id uuid.UUID) (*Addon, error) 
 	return args.Get(0).(*Addon), args.Error(1)
 }
 
+func (m *MockAddonStore) Update(ctx context.Context, addon *Addon) error {
+	args := m.Called(ctx, addon)
+	return args.Error(0)
+}
+
 func (m *MockAddonStore) List(ctx context.Context, limit, offset int, threatModelID *uuid.UUID) ([]Addon, int, error) {
 	args := m.Called(ctx, limit, offset, threatModelID)
 	return args.Get(0).([]Addon), args.Int(1), args.Error(2)
@@ -98,6 +103,7 @@ func setupAddonHandlerTest(mockStore *MockAddonStore, isAdmin bool) *gin.Engine 
 	r.POST("/addons", CreateAddon)
 	r.GET("/addons/:id", GetAddon)
 	r.GET("/addons", ListAddons)
+	r.PATCH("/addons/:id", PatchAddon)
 	r.DELETE("/addons/:id", DeleteAddon)
 
 	// Store original references for cleanup
@@ -482,6 +488,149 @@ func TestListAddons(t *testing.T) {
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 		mockStore.AssertExpectations(t)
+	})
+}
+
+func TestPatchAddon(t *testing.T) {
+	// Save original stores
+	originalAddonStore := GlobalAddonStore
+	originalAdminStore := GlobalGroupMemberRepository
+	defer restoreAddonStores(originalAddonStore, originalAdminStore)
+
+	existingAddon := func() *Addon {
+		return &Addon{
+			ID:          uuid.New(),
+			CreatedAt:   time.Now().UTC(),
+			Name:        "Security Scanner",
+			WebhookID:   uuid.New(),
+			Description: "Scans for security vulnerabilities",
+			Icon:        "material-symbols:security",
+			Objects:     []string{"threat_model"},
+		}
+	}
+
+	sendPatch := func(t *testing.T, r *gin.Engine, id uuid.UUID, ops []map[string]any) *httptest.ResponseRecorder {
+		t.Helper()
+		body, err := json.Marshal(ops)
+		require.NoError(t, err)
+		req := httptest.NewRequest("PATCH", "/addons/"+id.String(), bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json-patch+json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w
+	}
+
+	t.Run("Success", func(t *testing.T) {
+		addon := existingAddon()
+		mockStore := &MockAddonStore{}
+		r := setupAddonHandlerTest(mockStore, true)
+
+		mockStore.On("Get", mock.Anything, addon.ID).Return(addon, nil)
+		mockStore.On("Update", mock.Anything, mock.AnythingOfType("*api.Addon")).Return(nil)
+
+		w := sendPatch(t, r, addon.ID, []map[string]any{
+			{"op": "replace", "path": "/name", "value": "Renamed Scanner"},
+			{"op": "replace", "path": "/description", "value": "Now with more scanning"},
+		})
+
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+		var response AddonResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+		assert.Equal(t, "Renamed Scanner", response.Name)
+		require.NotNil(t, response.Description)
+		assert.Equal(t, "Now with more scanning", *response.Description)
+		assert.Equal(t, addon.ID, response.Id)
+		assert.Equal(t, addon.WebhookID, response.WebhookId)
+
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("BadRequest_ImmutablePath", func(t *testing.T) {
+		addon := existingAddon()
+
+		for _, path := range []string{"/webhook_id", "/id", "/created_at"} {
+			mockStore := &MockAddonStore{}
+			r := setupAddonHandlerTest(mockStore, true)
+			mockStore.On("Get", mock.Anything, addon.ID).Return(addon, nil)
+
+			w := sendPatch(t, r, addon.ID, []map[string]any{
+				{"op": "replace", "path": path, "value": uuid.New().String()},
+			})
+
+			assert.Equal(t, http.StatusBadRequest, w.Code, "path %s must be rejected", path)
+			mockStore.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+		}
+	})
+
+	t.Run("BadRequest_UnknownPath", func(t *testing.T) {
+		addon := existingAddon()
+		mockStore := &MockAddonStore{}
+		r := setupAddonHandlerTest(mockStore, true)
+		mockStore.On("Get", mock.Anything, addon.ID).Return(addon, nil)
+
+		w := sendPatch(t, r, addon.ID, []map[string]any{
+			{"op": "add", "path": "/not_a_field", "value": "x"},
+		})
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		mockStore.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	})
+
+	t.Run("BadRequest_InvalidName", func(t *testing.T) {
+		addon := existingAddon()
+		mockStore := &MockAddonStore{}
+		r := setupAddonHandlerTest(mockStore, true)
+		mockStore.On("Get", mock.Anything, addon.ID).Return(addon, nil)
+
+		w := sendPatch(t, r, addon.ID, []map[string]any{
+			{"op": "replace", "path": "/name", "value": ""},
+		})
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		mockStore.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		mockStore := &MockAddonStore{}
+		r := setupAddonHandlerTest(mockStore, true)
+
+		missingID := uuid.New()
+		mockStore.On("Get", mock.Anything, missingID).Return(nil, ErrAddonNotFound)
+
+		w := sendPatch(t, r, missingID, []map[string]any{
+			{"op": "replace", "path": "/name", "value": "Renamed"},
+		})
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("NotFound_OnUpdate", func(t *testing.T) {
+		addon := existingAddon()
+		mockStore := &MockAddonStore{}
+		r := setupAddonHandlerTest(mockStore, true)
+
+		mockStore.On("Get", mock.Anything, addon.ID).Return(addon, nil)
+		mockStore.On("Update", mock.Anything, mock.AnythingOfType("*api.Addon")).Return(ErrAddonNotFound)
+
+		w := sendPatch(t, r, addon.ID, []map[string]any{
+			{"op": "replace", "path": "/name", "value": "Renamed"},
+		})
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		mockStore.AssertExpectations(t)
+	})
+
+	t.Run("Forbidden_NotAdmin", func(t *testing.T) {
+		addon := existingAddon()
+		mockStore := &MockAddonStore{}
+		r := setupAddonHandlerTest(mockStore, false)
+
+		w := sendPatch(t, r, addon.ID, []map[string]any{
+			{"op": "replace", "path": "/name", "value": "Renamed"},
+		})
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
 	})
 }
 

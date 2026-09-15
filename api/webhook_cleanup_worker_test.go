@@ -34,6 +34,14 @@ func (m *minimalMockAddonStore) Get(_ context.Context, id uuid.UUID) (*Addon, er
 	return nil, nil
 }
 
+func (m *minimalMockAddonStore) Update(_ context.Context, addon *Addon) error {
+	if _, ok := m.addons[addon.ID.String()]; !ok {
+		return ErrAddonNotFound
+	}
+	m.addons[addon.ID.String()] = addon
+	return nil
+}
+
 func (m *minimalMockAddonStore) List(_ context.Context, _, _ int, _ *uuid.UUID) ([]Addon, int, error) {
 	return nil, 0, nil
 }

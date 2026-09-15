@@ -1,9 +1,11 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -214,6 +216,152 @@ func ListAddons(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+// addonPatchPaths is the set of JSON Pointer paths an add-on PATCH may target.
+// /webhook_id is deliberately absent: re-pointing an add-on at a different
+// subscription changes who receives the delegation token, which stays a
+// delete-and-create operation.
+var addonPatchPaths = []string{
+	"/name", "/description", "/icon", "/objects", "/parameters", "/threat_model_id",
+}
+
+// PatchAddon partially updates an add-on (admin only)
+// SEM@6e6f341493ef17352815b59696dcdead01383e70: handle JSON Patch update of an add-on's mutable fields for administrators (mutates DB)
+func PatchAddon(c *gin.Context) {
+	logger := slogging.Get().WithContext(c)
+	ctx := c.Request.Context()
+
+	// Check if user is an administrator
+	if err := requireAdministrator(c); err != nil {
+		return // Error response already sent by requireAdministrator
+	}
+
+	addonIDStr := c.Param("id")
+	addonID, err := uuid.Parse(addonIDStr)
+	if err != nil {
+		logger.Error("Invalid add-on ID: %s", addonIDStr)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusBadRequest,
+			Code:    "invalid_input",
+			Message: "Invalid add-on ID format",
+		})
+		return
+	}
+
+	if GlobalAddonStore == nil {
+		logger.Error("Add-on store not initialized")
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusServiceUnavailable,
+			Code:    "service_unavailable",
+			Message: "Add-ons are not available",
+		})
+		return
+	}
+
+	existing, err := GlobalAddonStore.Get(ctx, addonID)
+	if err != nil {
+		logger.Error("Failed to get add-on: id=%s, error=%v", addonID, err)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusNotFound,
+			Code:    "not_found",
+			Message: "Add-on not found",
+		})
+		return
+	}
+
+	operations, parseErr := ParsePatchRequest(c)
+	if parseErr != nil {
+		HandleRequestError(c, parseErr)
+		return
+	}
+
+	if reqErr := ValidatePatchPathsAllowed(addonPatchPaths, operations); reqErr != nil {
+		HandleRequestError(c, reqErr)
+		return
+	}
+
+	patched, err := ApplyPatchOperations(*existing, operations)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Identity and linkage are server-managed and unreachable through the
+	// allowlist; restore them anyway so an allowlist change cannot leak drift.
+	patched.ID = existing.ID
+	patched.WebhookID = existing.WebhookID
+	patched.CreatedAt = existing.CreatedAt
+
+	// Sanitize text fields (defense-in-depth)
+	patched.Name = SanitizePlainText(patched.Name)
+	patched.Description = SanitizePlainText(patched.Description)
+
+	if reqErr := validatePatchedAddon(&patched, existing); reqErr != nil {
+		HandleRequestError(c, reqErr)
+		return
+	}
+
+	if err := GlobalAddonStore.Update(ctx, &patched); err != nil {
+		if errors.Is(err, ErrAddonNotFound) {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusNotFound,
+				Code:    "not_found",
+				Message: "Add-on not found",
+			})
+			return
+		}
+		// The referenced threat model can be deleted between validation and
+		// write; the resulting FK violation is the caller's 400, not a 500.
+		if errors.Is(err, dberrors.ErrConstraint) {
+			HandleRequestError(c, InvalidInputError("threat_model_id does not refer to an existing threat model"))
+			return
+		}
+		logger.Error("Failed to update add-on: id=%s, error=%v", addonID, err)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Failed to update add-on",
+		})
+		return
+	}
+
+	logger.Info("Add-on patched: id=%s, name=%s", patched.ID, patched.Name)
+	c.JSON(http.StatusOK, addonToResponse(&patched))
+}
+
+// validatePatchedAddon rejects a patched add-on that would not have been
+// accepted by CreateAddon, and rejects a threat model reference that does not
+// exist (which would otherwise surface as a foreign key failure).
+// SEM@6e6f341493ef17352815b59696dcdead01383e70: validate a patched add-on's fields and referenced threat model (reads DB)
+func validatePatchedAddon(patched *Addon, existing *Addon) error {
+	if err := ValidateAddonName(patched.Name); err != nil {
+		return err
+	}
+	if err := ValidateAddonDescription(patched.Description); err != nil {
+		return err
+	}
+	if err := ValidateIcon(patched.Icon); err != nil {
+		return err
+	}
+	if err := ValidateObjects(patched.Objects); err != nil {
+		return err
+	}
+	if err := ValidateAddonParameters(patched.Parameters); err != nil {
+		return err
+	}
+
+	// A nil threat model ID means the add-on is not scoped to one.
+	if patched.ThreatModelID != nil && ThreatModelStore != nil {
+		changed := existing.ThreatModelID == nil || *existing.ThreatModelID != *patched.ThreatModelID
+		if changed {
+			if _, err := ThreatModelStore.Get(patched.ThreatModelID.String()); err != nil {
+				return InvalidInputError("threat_model_id does not refer to an existing threat model")
+			}
+		}
+	}
+
+	return nil
 }
 
 // DeleteAddon deletes an add-on (admin only)

@@ -82,7 +82,7 @@ type WebhookUrlDenyListEntry struct {
 // instead of falling back to context.Background(). This makes Oracle
 // ORA-08177/ORA-00060 retry chains cancellable when the originating HTTP
 // request is cancelled.
-// SEM@c13f85301f7c723dfb20f687cb8fddc4ed77e703: store contract for CRUD and lifecycle queries on webhook subscriptions (reads DB)
+// SEM@6e6f341493ef17352815b59696dcdead01383e70: store contract for CRUD, field-selective update, and lifecycle queries on webhook subscriptions (reads DB)
 type WebhookSubscriptionStoreInterface interface {
 	Get(ctx context.Context, id string) (DBWebhookSubscription, error)
 	List(ctx context.Context, offset, limit int, filter func(DBWebhookSubscription) bool) []DBWebhookSubscription
@@ -95,7 +95,10 @@ type WebhookSubscriptionStoreInterface interface {
 	ListIdle(ctx context.Context, daysIdle int) ([]DBWebhookSubscription, error)
 	ListBroken(ctx context.Context, minFailures int, daysSinceSuccess int) ([]DBWebhookSubscription, error)
 	Create(ctx context.Context, item DBWebhookSubscription, idSetter func(DBWebhookSubscription, string) DBWebhookSubscription) (DBWebhookSubscription, error)
-	Update(ctx context.Context, id string, item DBWebhookSubscription) error
+	// Update writes item over the subscription with the given id. With no
+	// fields, a default set of mutable fields is written; passing struct field
+	// names narrows the write to exactly those fields.
+	Update(ctx context.Context, id string, item DBWebhookSubscription, fields ...string) error
 	UpdateStatus(ctx context.Context, id string, status string) error
 	UpdateChallenge(ctx context.Context, id string, challenge string, challengesSent int) error
 	UpdatePublicationStats(ctx context.Context, id string, success bool) error

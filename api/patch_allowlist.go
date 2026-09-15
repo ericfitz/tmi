@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -95,47 +96,106 @@ func isClearingOp(op PatchOperation) bool {
 // order: OwnerOnly → SecurityReviewerOnly → MutablePaths → reject. Empty
 // path operations and operations whose path lacks a leading "/" are
 // rejected as malformed.
-// SEM@9ec514da7fdbd094b7c66fd638baafb5c2c17f18: validate all PATCH operations against the allowlist and caller roles, rejecting unauthorized paths (pure)
+// SEM@6e6f341493ef17352815b59696dcdead01383e70: validate all PATCH operations, including move/copy sources, against the allowlist and caller roles (pure)
 func ValidatePatchAllowlist(allow PatchPathAllowList, ops []PatchOperation, ac PatchAuthContext) *RequestError {
 	for _, op := range ops {
-		if op.Path == "" || op.Path[0] != '/' {
-			return InvalidInputError(fmt.Sprintf("Invalid PATCH path: %q", op.Path))
-		}
+		// "move" and "copy" also READ from op.From, so the source path is
+		// checked against the same allowlist; otherwise a copy from a
+		// server-managed field into a mutable one exfiltrates its value.
+		for _, path := range patchOpPaths(op) {
+			if path == "" || path[0] != '/' {
+				return InvalidInputError(fmt.Sprintf("Invalid PATCH path: %q", path))
+			}
 
-		if allow.matchesAny(allow.OwnerOnly, op.Path) {
-			if !ac.IsOwner {
+			if allow.matchesAny(allow.OwnerOnly, path) {
+				if !ac.IsOwner {
+					return ForbiddenError(fmt.Sprintf(
+						"Field '%s' may only be modified by the resource owner",
+						strings.TrimPrefix(path, "/")))
+				}
+				continue
+			}
+
+			if allow.matchesAny(allow.SecurityReviewerOnly, path) {
+				if ac.IsSecurityReviewer || ac.IsServiceAccount {
+					continue
+				}
+				// Owner may clear (but not set) reviewer-gated fields listed
+				// in OwnerCanClear. A "remove" op or a "replace" whose value
+				// is JSON null both qualify as clearing.
+				if ac.IsOwner && allow.matchesAny(allow.OwnerCanClear, path) && isClearingOp(op) {
+					continue
+				}
 				return ForbiddenError(fmt.Sprintf(
-					"Field '%s' may only be modified by the resource owner",
-					strings.TrimPrefix(op.Path, "/")))
+					"Field '%s' may only be modified by a security reviewer or a service account",
+					strings.TrimPrefix(path, "/")))
 			}
-			continue
-		}
 
-		if allow.matchesAny(allow.SecurityReviewerOnly, op.Path) {
-			if ac.IsSecurityReviewer || ac.IsServiceAccount {
+			if allow.matchesAny(allow.MutablePaths, path) {
 				continue
 			}
-			// Owner may clear (but not set) reviewer-gated fields listed
-			// in OwnerCanClear. A "remove" op or a "replace" whose value
-			// is JSON null both qualify as clearing.
-			if ac.IsOwner && allow.matchesAny(allow.OwnerCanClear, op.Path) && isClearingOp(op) {
-				continue
-			}
-			return ForbiddenError(fmt.Sprintf(
-				"Field '%s' may only be modified by a security reviewer or a service account",
-				strings.TrimPrefix(op.Path, "/")))
-		}
 
-		if allow.matchesAny(allow.MutablePaths, op.Path) {
-			continue
+			return InvalidInputError(fmt.Sprintf(
+				"Field '%s' is not allowed in PATCH requests. %s",
+				strings.TrimPrefix(path, "/"),
+				getFieldErrorMessage(strings.TrimPrefix(path, "/"))))
 		}
-
-		return InvalidInputError(fmt.Sprintf(
-			"Field '%s' is not allowed in PATCH requests. %s",
-			strings.TrimPrefix(op.Path, "/"),
-			getFieldErrorMessage(strings.TrimPrefix(op.Path, "/"))))
 	}
 	return nil
+}
+
+// ValidatePatchPathsAllowed rejects any operation whose path is not equal to,
+// or a child of, one of the allowed JSON Pointer prefixes. It is the
+// role-free variant of ValidatePatchAllowlist, for resources whose mutable
+// field set does not vary by caller role. Returns nil when every operation is
+// permitted, otherwise a 400 invalid_patch error naming the offending field.
+// SEM@6e6f341493ef17352815b59696dcdead01383e70: validate PATCH operation paths and move/copy sources against a role-free allowlist (pure)
+func ValidatePatchPathsAllowed(allowed []string, ops []PatchOperation) *RequestError {
+	for _, op := range ops {
+		// "move" and "copy" READ from op.From, so a source outside the
+		// allowlist would exfiltrate a server-managed field (e.g. copying
+		// /secret into /name and reading it back off the 200 response).
+		for _, path := range patchOpPaths(op) {
+			if path == "" || path[0] != '/' {
+				return &RequestError{
+					Status:  http.StatusBadRequest,
+					Code:    "invalid_patch",
+					Message: fmt.Sprintf("Invalid PATCH path: %q", path),
+				}
+			}
+
+			permitted := false
+			for _, prefix := range allowed {
+				if pathMatchesPrefix(path, prefix) {
+					permitted = true
+					break
+				}
+			}
+
+			if !permitted {
+				return &RequestError{
+					Status: http.StatusBadRequest,
+					Code:   "invalid_patch",
+					Message: fmt.Sprintf("Field '%s' is not allowed in PATCH requests",
+						strings.TrimPrefix(path, "/")),
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// patchOpPaths returns every JSON Pointer an operation touches: its target
+// path, plus the source path for the "move" and "copy" operations, which read
+// from op.From.
+// SEM@6e6f341493ef17352815b59696dcdead01383e70: list the paths a JSON Patch operation reads or writes (pure)
+func patchOpPaths(op PatchOperation) []string {
+	switch JsonPatchDocumentOp(op.Op) {
+	case Move, Copy:
+		return []string{op.Path, op.From}
+	default:
+		return []string{op.Path}
+	}
 }
 
 // getResourceRoleSafe reads the resource role from the Gin context, returning
