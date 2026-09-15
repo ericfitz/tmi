@@ -29,6 +29,13 @@ func (s *Server) GetAddon(c *gin.Context, id openapi_types.UUID) {
 	GetAddon(c)
 }
 
+// PatchAddon partially updates an add-on (admin only)
+// SEM@6e6f341493ef17352815b59696dcdead01383e70: route the generated add-on PATCH operation to the standalone handler
+func (s *Server) PatchAddon(c *gin.Context, id openapi_types.UUID) {
+	// Delegate to existing standalone handler
+	PatchAddon(c)
+}
+
 // DeleteAddon deletes an add-on (admin only)
 // SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: delegate addon deletion to the standalone admin handler (mutates shared state)
 func (s *Server) DeleteAddon(c *gin.Context, id openapi_types.UUID) {

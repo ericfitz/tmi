@@ -320,9 +320,19 @@ func (s *GormWebhookSubscriptionStore) Create(ctx context.Context, item DBWebhoo
 	return item, nil
 }
 
-// Update updates an existing webhook subscription using GORM
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: update all fields of an existing webhook subscription by ID (mutates DB)
-func (s *GormWebhookSubscriptionStore) Update(ctx context.Context, id string, item DBWebhookSubscription) error {
+// webhookSubscriptionUpdatableFields is the default set of struct fields
+// Update writes when the caller does not narrow it. Secret is included because
+// the operator-pinned bootstrap rotates the alert-sink secret through Update.
+var webhookSubscriptionUpdatableFields = []string{
+	"Name", "URL", "Events", "ThreatModelID",
+	"Status", "Challenge", "ChallengesSent", "Secret",
+}
+
+// Update updates an existing webhook subscription using GORM. Callers may pass
+// an explicit field list to narrow the write, so a caller that did not touch
+// the verification state does not clobber a concurrent challenge-worker update.
+// SEM@6e6f341493ef17352815b59696dcdead01383e70: update the given or default mutable fields of a webhook subscription by ID (mutates DB)
+func (s *GormWebhookSubscriptionStore) Update(ctx context.Context, id string, item DBWebhookSubscription, fields ...string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -335,8 +345,22 @@ func (s *GormWebhookSubscriptionStore) Update(ctx context.Context, id string, it
 	// are properly serialized via their Value() method. Map-based Updates bypasses custom type handling.
 	gormSub := s.toGormModel(&item)
 
+	// Select the written fields explicitly: struct-based Updates skips zero
+	// values, so without it a cleared threat_model_id (or a reset
+	// challenges_sent) would silently not be written. Struct FIELD names, not
+	// column names: GORM resolves a Select entry through LookUpField, which on
+	// Oracle holds UPPERCASE DBNames, so a lowercase column literal would match
+	// nothing and silently drop the column from the UPDATE. ModifiedAt is
+	// absent on purpose: GORM injects autoUpdateTime fields even under a
+	// restricted Select.
+	updatable := fields
+	if len(updatable) == 0 {
+		updatable = webhookSubscriptionUpdatableFields
+	}
+
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		result := tx.Model(&models.WebhookSubscription{}).Where("id = ?", id).Updates(gormSub)
+		result := tx.Model(&models.WebhookSubscription{}).Where("id = ?", id).
+			Select(updatable).Updates(gormSub)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
 		}
@@ -369,7 +393,7 @@ func (s *GormWebhookSubscriptionStore) UpdateStatus(ctx context.Context, id stri
 }
 
 // UpdateChallenge updates challenge-related fields using GORM
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: update verification challenge and challenge-sent count for a webhook subscription (mutates DB)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: update verification challenge and challenge-sent count for a webhook subscription (mutates DB)
 func (s *GormWebhookSubscriptionStore) UpdateChallenge(ctx context.Context, id string, challenge string, challengesSent int) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -689,7 +713,7 @@ func (s *GormWebhookQuotaStore) Create(ctx context.Context, item DBWebhookQuota)
 }
 
 // Update updates an existing webhook quota using GORM
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: update rate-limit fields of a webhook quota record by owner ID (mutates DB)
+// SEM@6e6f341493ef17352815b59696dcdead01383e70: update rate-limit fields of a webhook quota record by owner ID (mutates DB)
 func (s *GormWebhookQuotaStore) Update(ctx context.Context, ownerID string, item DBWebhookQuota) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

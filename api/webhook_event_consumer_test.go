@@ -70,7 +70,7 @@ func (s *consumerTestSubStore) ListBroken(_ context.Context, _, _ int) ([]DBWebh
 func (s *consumerTestSubStore) Create(_ context.Context, item DBWebhookSubscription, idSetter func(DBWebhookSubscription, string) DBWebhookSubscription) (DBWebhookSubscription, error) {
 	return item, nil
 }
-func (s *consumerTestSubStore) Update(_ context.Context, _ string, _ DBWebhookSubscription) error {
+func (s *consumerTestSubStore) Update(_ context.Context, _ string, _ DBWebhookSubscription, _ ...string) error {
 	return nil
 }
 func (s *consumerTestSubStore) UpdateStatus(_ context.Context, _, _ string) error { return nil }

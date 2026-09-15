@@ -219,7 +219,7 @@ func (m *mockSubscriptionStore) Create(_ context.Context, item DBWebhookSubscrip
 	return item, nil
 }
 
-func (m *mockSubscriptionStore) Update(_ context.Context, id string, item DBWebhookSubscription) error {
+func (m *mockSubscriptionStore) Update(_ context.Context, id string, item DBWebhookSubscription, _ ...string) error {
 	return nil
 }
 

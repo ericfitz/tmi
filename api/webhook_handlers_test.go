@@ -26,6 +26,9 @@ type mockWebhookSubscriptionStore struct {
 	subscriptions map[string]DBWebhookSubscription
 	ownerCounts   map[string]int
 	err           error
+	// lastUpdateFields records the field list of the most recent Update call,
+	// so tests can assert which fields a handler intended to write.
+	lastUpdateFields []string
 }
 
 func newMockWebhookSubscriptionStore() *mockWebhookSubscriptionStore {
@@ -150,10 +153,11 @@ func (m *mockWebhookSubscriptionStore) Create(_ context.Context, sub DBWebhookSu
 	return sub, nil
 }
 
-func (m *mockWebhookSubscriptionStore) Update(_ context.Context, id string, sub DBWebhookSubscription) error {
+func (m *mockWebhookSubscriptionStore) Update(_ context.Context, id string, sub DBWebhookSubscription, fields ...string) error {
 	if m.err != nil {
 		return m.err
 	}
+	m.lastUpdateFields = fields
 	m.subscriptions[id] = sub
 	return nil
 }
@@ -399,6 +403,11 @@ func setupWebhookRouter(userID, userInternalUUID string, isAdmin bool) (*gin.Eng
 			webhookIDStr := c.Param("webhook_id")
 			webhookID, _ := uuid.Parse(webhookIDStr)
 			server.GetWebhookSubscription(c, webhookID)
+		})
+		adminGroup.PATCH("/webhooks/subscriptions/:webhook_id", func(c *gin.Context) {
+			webhookIDStr := c.Param("webhook_id")
+			webhookID, _ := uuid.Parse(webhookIDStr)
+			server.PatchAdminWebhookSubscription(c, webhookID)
 		})
 		adminGroup.DELETE("/webhooks/subscriptions/:webhook_id", func(c *gin.Context) {
 			webhookIDStr := c.Param("webhook_id")
@@ -900,6 +909,223 @@ func TestGetWebhookSubscription(t *testing.T) {
 // =============================================================================
 // DeleteWebhookSubscription Tests
 // =============================================================================
+
+func TestPatchAdminWebhookSubscription(t *testing.T) {
+	// Save and restore global stores
+	origSubStore := GlobalWebhookSubscriptionStore
+	origQuotaStore := GlobalWebhookQuotaStore
+	origAdminStore := GlobalGroupMemberRepository
+	origDenyListStore := GlobalWebhookUrlDenyListStore
+	defer func() {
+		GlobalWebhookSubscriptionStore = origSubStore
+		GlobalWebhookQuotaStore = origQuotaStore
+		GlobalGroupMemberRepository = origAdminStore
+		GlobalWebhookUrlDenyListStore = origDenyListStore
+	}()
+	GlobalWebhookUrlDenyListStore = &mockDenyListStore{entries: []WebhookUrlDenyListEntry{}}
+
+	// seedSubscription installs a fresh mock store holding one active subscription.
+	seedSubscription := func(t *testing.T) (*mockWebhookSubscriptionStore, DBWebhookSubscription) {
+		t.Helper()
+		mockSubStore := newMockWebhookSubscriptionStore()
+		GlobalWebhookSubscriptionStore = mockSubStore
+		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
+
+		sub, err := mockSubStore.Create(context.Background(), DBWebhookSubscription{
+			OwnerId:        uuid.New(),
+			Name:           "Test Webhook",
+			Url:            "https://example.com/webhook",
+			Events:         []string{"threat.created"},
+			Status:         "active",
+			Secret:         "existing-secret",
+			Challenge:      "existing-challenge",
+			ChallengesSent: 2,
+		}, nil)
+		require.NoError(t, err)
+		return mockSubStore, sub
+	}
+
+	sendPatch := func(t *testing.T, id string, ops []map[string]any) *httptest.ResponseRecorder {
+		t.Helper()
+		r, _ := setupWebhookRouter("admin@example.com", uuid.New().String(), true)
+		body, err := json.Marshal(ops)
+		require.NoError(t, err)
+		req, _ := http.NewRequest("PATCH", "/admin/webhooks/subscriptions/"+id, bytes.NewBuffer(body))
+		req.Header.Set("Content-Type", "application/json-patch+json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w
+	}
+
+	t.Run("Success_UpdatesNameAndEvents", func(t *testing.T) {
+		mockSubStore, sub := seedSubscription(t)
+
+		w := sendPatch(t, sub.Id.String(), []map[string]any{
+			{"op": "replace", "path": "/name", "value": "Renamed Webhook"},
+			{"op": "replace", "path": "/events", "value": []string{"threat.created", "threat.updated"}},
+		})
+
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+		var response WebhookSubscription
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+		assert.Equal(t, "Renamed Webhook", response.Name)
+		assert.Len(t, response.Events, 2)
+		// Secret is never returned on a patch response.
+		assert.Nil(t, response.Secret)
+		// Unchanged URL leaves verification state alone.
+		assert.Equal(t, WebhookSubscriptionStatusActive, response.Status)
+
+		stored, err := mockSubStore.Get(context.Background(), sub.Id.String())
+		require.NoError(t, err)
+		assert.Equal(t, "Renamed Webhook", stored.Name)
+		assert.Equal(t, []string{"threat.created", "threat.updated"}, stored.Events)
+		assert.Equal(t, "existing-secret", stored.Secret, "secret must survive a patch")
+		assert.Equal(t, 2, stored.ChallengesSent)
+
+		// The verification state is not part of the write when the URL is
+		// unchanged, so a concurrent challenge-worker transition survives.
+		assert.Equal(t, []string{"Name", "URL", "Events", "ThreatModelID"}, mockSubStore.lastUpdateFields)
+	})
+
+	t.Run("BadRequest_CopyOrMoveFromServerManagedPath", func(t *testing.T) {
+		mockSubStore, sub := seedSubscription(t)
+
+		for _, op := range []string{"copy", "move"} {
+			for _, from := range []string{"/secret", "/challenge", "/status"} {
+				w := sendPatch(t, sub.Id.String(), []map[string]any{
+					{"op": op, "from": from, "path": "/name"},
+				})
+				require.Equal(t, http.StatusBadRequest, w.Code,
+					"%s from %s must be rejected", op, from)
+				assert.NotContains(t, w.Body.String(), "existing-secret")
+				assert.NotContains(t, w.Body.String(), "existing-challenge")
+			}
+		}
+
+		// Nothing was written, and the stored secret is untouched.
+		stored, err := mockSubStore.Get(context.Background(), sub.Id.String())
+		require.NoError(t, err)
+		assert.Equal(t, "Test Webhook", stored.Name)
+		assert.Equal(t, "existing-secret", stored.Secret)
+	})
+
+	t.Run("LegacyNonEnumEvents_StayPatchableOnOtherFields", func(t *testing.T) {
+		mockSubStore := newMockWebhookSubscriptionStore()
+		GlobalWebhookSubscriptionStore = mockSubStore
+		GlobalWebhookQuotaStore = newMockWebhookQuotaStore()
+
+		sub, err := mockSubStore.Create(context.Background(), DBWebhookSubscription{
+			OwnerId: uuid.New(),
+			Name:    "Legacy Webhook",
+			Url:     "https://example.com/webhook",
+			Events:  []string{"legacy.event"},
+			Status:  "active",
+		}, nil)
+		require.NoError(t, err)
+
+		w := sendPatch(t, sub.Id.String(), []map[string]any{
+			{"op": "replace", "path": "/name", "value": "Legacy Renamed"},
+		})
+
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+		stored, storeErr := mockSubStore.Get(context.Background(), sub.Id.String())
+		require.NoError(t, storeErr)
+		assert.Equal(t, "Legacy Renamed", stored.Name)
+		assert.Equal(t, []string{"legacy.event"}, stored.Events, "untouched events are left alone")
+	})
+
+	t.Run("UrlChange_ResetsVerificationState", func(t *testing.T) {
+		mockSubStore, sub := seedSubscription(t)
+
+		w := sendPatch(t, sub.Id.String(), []map[string]any{
+			{"op": "replace", "path": "/url", "value": "https://relocated.example.com/webhook"},
+		})
+
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+		var response WebhookSubscription
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+		assert.Equal(t, "https://relocated.example.com/webhook", response.Url)
+		assert.Equal(t, WebhookSubscriptionStatusPendingVerification, response.Status)
+		require.NotNil(t, response.ChallengesSent)
+		assert.Equal(t, 0, *response.ChallengesSent)
+
+		stored, err := mockSubStore.Get(context.Background(), sub.Id.String())
+		require.NoError(t, err)
+		assert.NotEqual(t, "existing-challenge", stored.Challenge, "a new challenge must be minted")
+		assert.NotEmpty(t, stored.Challenge)
+		assert.Contains(t, mockSubStore.lastUpdateFields, "Status")
+		assert.Contains(t, mockSubStore.lastUpdateFields, "Challenge")
+		assert.Contains(t, mockSubStore.lastUpdateFields, "ChallengesSent")
+	})
+
+	t.Run("BadRequest_ImmutablePath", func(t *testing.T) {
+		_, sub := seedSubscription(t)
+
+		for _, path := range []string{"/id", "/owner_id", "/status", "/secret", "/challenge", "/operator_pinned"} {
+			w := sendPatch(t, sub.Id.String(), []map[string]any{
+				{"op": "replace", "path": path, "value": "whatever"},
+			})
+			assert.Equal(t, http.StatusBadRequest, w.Code, "path %s must be rejected", path)
+		}
+	})
+
+	t.Run("BadRequest_UnknownPath", func(t *testing.T) {
+		_, sub := seedSubscription(t)
+
+		w := sendPatch(t, sub.Id.String(), []map[string]any{
+			{"op": "add", "path": "/not_a_field", "value": "x"},
+		})
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("BadRequest_UnknownEventType", func(t *testing.T) {
+		_, sub := seedSubscription(t)
+
+		w := sendPatch(t, sub.Id.String(), []map[string]any{
+			{"op": "replace", "path": "/events", "value": []string{"not.an.event"}},
+		})
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("BadRequest_EmptyEvents", func(t *testing.T) {
+		_, sub := seedSubscription(t)
+
+		w := sendPatch(t, sub.Id.String(), []map[string]any{
+			{"op": "replace", "path": "/events", "value": []string{}},
+		})
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		seedSubscription(t)
+
+		w := sendPatch(t, uuid.New().String(), []map[string]any{
+			{"op": "replace", "path": "/name", "value": "Renamed"},
+		})
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("Forbidden_OperatorPinned", func(t *testing.T) {
+		mockSubStore, _ := seedSubscription(t)
+		pinned, err := mockSubStore.Create(context.Background(), DBWebhookSubscription{
+			OwnerId:        uuid.New(),
+			Name:           "Pinned",
+			Url:            "https://internal.example.com/sink",
+			Events:         []string{"threat.created"},
+			Status:         "active",
+			OperatorPinned: true,
+		}, nil)
+		require.NoError(t, err)
+
+		w := sendPatch(t, pinned.Id.String(), []map[string]any{
+			{"op": "replace", "path": "/name", "value": "Renamed"},
+		})
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+}
 
 func TestDeleteWebhookSubscription(t *testing.T) {
 	// Save and restore global stores

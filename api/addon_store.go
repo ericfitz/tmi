@@ -22,13 +22,17 @@ type Addon struct {
 }
 
 // AddonStore defines the interface for add-on storage operations
-// SEM@0752a420273337759ce2f45c2aeb1671409c30b0: storage interface for add-on CRUD, listing, and invocation count operations
+// SEM@6e6f341493ef17352815b59696dcdead01383e70: storage interface for add-on CRUD, update, listing, and invocation count operations
 type AddonStore interface {
 	// Create creates a new add-on
 	Create(ctx context.Context, addon *Addon) error
 
 	// Get retrieves an add-on by ID
 	Get(ctx context.Context, id uuid.UUID) (*Addon, error)
+
+	// Update writes the mutable fields of an existing add-on, identified by
+	// addon.ID. Returns ErrAddonNotFound when no such add-on exists.
+	Update(ctx context.Context, addon *Addon) error
 
 	// List retrieves add-ons with pagination, optionally filtered by threat model
 	List(ctx context.Context, limit, offset int, threatModelID *uuid.UUID) ([]Addon, int, error)

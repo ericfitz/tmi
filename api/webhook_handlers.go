@@ -1,10 +1,15 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/ericfitz/tmi/internal/dberrors"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -273,6 +278,210 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 	logger.Info("deleted webhook subscription %s for %s", webhookId, userIdentity)
 
 	c.Status(http.StatusNoContent)
+}
+
+// webhookSubscriptionPatchPaths is the set of JSON Pointer paths a webhook
+// subscription PATCH may target. Every other field (id, owner, status, secret,
+// challenge state, counters, timestamps, operator_pinned) is server-managed.
+var webhookSubscriptionPatchPaths = []string{"/name", "/events", "/threat_model_id", "/url"}
+
+// PatchAdminWebhookSubscription partially updates a webhook subscription (admin only).
+// PATCH /admin/webhooks/subscriptions/{webhook_id}
+// SEM@6e6f341493ef17352815b59696dcdead01383e70: handle JSON Patch update of a webhook subscription, re-verifying on URL change (mutates DB)
+func (s *Server) PatchAdminWebhookSubscription(c *gin.Context, webhookId openapi_types.UUID) {
+	logger := slogging.Get().WithContext(c)
+	ctx := c.Request.Context()
+
+	if GlobalWebhookSubscriptionStore == nil {
+		logger.Error("webhook subscription store not initialized")
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusServiceUnavailable,
+			Code:    "service_unavailable",
+			Message: "Webhook subscriptions are not available",
+		})
+		return
+	}
+
+	existing, err := GlobalWebhookSubscriptionStore.Get(ctx, webhookId.String())
+	if err != nil {
+		logger.Error("failed to get subscription %s: %v", webhookId, err)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusNotFound,
+			Code:    "not_found",
+			Message: "Subscription not found",
+		})
+		return
+	}
+
+	// Operator-pinned subscriptions are managed by server configuration and may
+	// not be mutated through the API.
+	if existing.OperatorPinned {
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusForbidden,
+			Code:    "forbidden",
+			Message: "Operator-pinned subscription is managed by server configuration and cannot be modified through the API",
+		})
+		return
+	}
+
+	operations, parseErr := ParsePatchRequest(c)
+	if parseErr != nil {
+		HandleRequestError(c, parseErr)
+		return
+	}
+
+	if reqErr := ValidatePatchPathsAllowed(webhookSubscriptionPatchPaths, operations); reqErr != nil {
+		HandleRequestError(c, reqErr)
+		return
+	}
+
+	patched, err := ApplyPatchOperations(existing, operations)
+	if err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+
+	// Server-managed fields are not reachable through the allowlist; restore
+	// them anyway so a future allowlist change cannot leak identity drift.
+	patched.Id = existing.Id
+	patched.OwnerId = existing.OwnerId
+	patched.Secret = existing.Secret
+	patched.OperatorPinned = existing.OperatorPinned
+
+	patched.Name = SanitizePlainText(patched.Name)
+
+	if reqErr := s.validatePatchedWebhookSubscription(ctx, patched, existing, patchedPaths(operations)); reqErr != nil {
+		HandleRequestError(c, reqErr)
+		return
+	}
+
+	// Only the fields this patch actually rewrites are written back, so a
+	// concurrent challenge-worker transition is not reverted.
+	written := []string{"Name", "URL", "Events", "ThreatModelID"}
+
+	// The destination URL is the trust anchor: a new endpoint must prove
+	// ownership again before it receives events. The challenge worker picks the
+	// subscription back up from its pending_verification status.
+	urlChanged := patched.Url != existing.Url
+	if urlChanged {
+		patched.Status = "pending_verification"
+		patched.Challenge = generateRandomHex(32)
+		patched.ChallengesSent = 0
+		written = append(written, "Status", "Challenge", "ChallengesSent")
+	}
+
+	if err := GlobalWebhookSubscriptionStore.Update(ctx, webhookId.String(), patched, written...); err != nil {
+		if errors.Is(err, ErrWebhookNotFound) {
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusNotFound,
+				Code:    "not_found",
+				Message: "Subscription not found",
+			})
+			return
+		}
+		// The referenced threat model can be deleted between validation and
+		// write; the resulting FK violation is the caller's 400, not a 500.
+		if errors.Is(err, dberrors.ErrConstraint) {
+			HandleRequestError(c, InvalidInputError("threat_model_id does not refer to an existing threat model"))
+			return
+		}
+		logger.Error("failed to update subscription %s: %v", webhookId, err)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Failed to update subscription",
+		})
+		return
+	}
+
+	updated, err := GlobalWebhookSubscriptionStore.Get(ctx, webhookId.String())
+	if err != nil {
+		logger.Error("failed to re-read subscription %s after update: %v", webhookId, err)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "server_error",
+			Message: "Failed to update subscription",
+		})
+		return
+	}
+
+	userIdentity := GetUserIdentityForLogging(c)
+	logger.Info("patched webhook subscription %s for %s (url_changed=%t)", webhookId, userIdentity, urlChanged)
+
+	c.JSON(http.StatusOK, dbWebhookSubscriptionToAPI(updated, false))
+}
+
+// patchedPaths returns the set of top-level fields a patch touches, as JSON
+// Pointer prefixes ("/name"), so validation can skip fields the caller left
+// alone. A "move"/"copy" source counts as touched too, since it is rewritten.
+// SEM@6e6f341493ef17352815b59696dcdead01383e70: compute the set of top-level fields a JSON Patch touches (pure)
+func patchedPaths(operations []PatchOperation) map[string]bool {
+	touched := make(map[string]bool, len(operations))
+	for _, op := range operations {
+		for _, path := range patchOpPaths(op) {
+			if path == "" {
+				continue
+			}
+			if idx := strings.Index(path[1:], "/"); idx >= 0 {
+				path = path[:idx+1]
+			}
+			touched[path] = true
+		}
+	}
+	return touched
+}
+
+// validatePatchedWebhookSubscription rejects a patched subscription that would
+// not have been accepted by CreateWebhookSubscription: empty or over-long name,
+// empty or unknown event list, unsafe URL, or a threat model that does not
+// exist. Only fields the patch actually touched are re-validated, so a legacy
+// row carrying a non-enum event stays patchable on its other fields.
+// SEM@6e6f341493ef17352815b59696dcdead01383e70: validate the touched fields of a patched webhook subscription (reads DB)
+func (s *Server) validatePatchedWebhookSubscription(ctx context.Context, patched, existing DBWebhookSubscription, touched map[string]bool) *RequestError {
+	if touched["/name"] {
+		if strings.TrimSpace(patched.Name) == "" {
+			return InvalidInputError("name is required")
+		}
+		if len(patched.Name) > 255 {
+			return InvalidInputError("name must be 255 characters or fewer")
+		}
+	}
+
+	if touched["/events"] {
+		if len(patched.Events) == 0 {
+			return InvalidInputError("at least one event type is required")
+		}
+		if len(patched.Events) > 50 {
+			return InvalidInputError("at most 50 event types are allowed")
+		}
+		for _, event := range patched.Events {
+			if !WebhookEventType(event).Valid() {
+				return InvalidInputError(fmt.Sprintf("unknown event type: %s", event))
+			}
+		}
+	}
+
+	if patched.Url != existing.Url {
+		if patched.Url == "" {
+			return InvalidInputError("url is required")
+		}
+		urlValidator := NewWebhookUrlValidatorWithHTTP(GlobalWebhookUrlDenyListStore, s.allowHTTPWebhooks)
+		if err := urlValidator.ValidateWebhookURL(ctx, patched.Url); err != nil {
+			return InvalidInputError(fmt.Sprintf("invalid webhook URL: %s", err.Error()))
+		}
+	}
+
+	// A nil threat model ID means "all threat models" and is always allowed.
+	if patched.ThreatModelId != nil && ThreatModelStore != nil {
+		changed := existing.ThreatModelId == nil || *existing.ThreatModelId != *patched.ThreatModelId
+		if changed {
+			if _, err := ThreatModelStore.Get(patched.ThreatModelId.String()); err != nil {
+				return InvalidInputError("threat_model_id does not refer to an existing threat model")
+			}
+		}
+	}
+
+	return nil
 }
 
 // TestWebhookSubscription sends a test event to the webhook (admin only)
