@@ -261,3 +261,59 @@ func TestListActiveByEventType_StoreMethod(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, result, 2, "only active subs matching the event type (including wildcard) should be returned")
 }
+
+// consumerTestAddonStore is a minimal AddonStore that only supports Get.
+type consumerTestAddonStore struct {
+	AddonStore
+	addons map[uuid.UUID]*Addon
+}
+
+func (s *consumerTestAddonStore) Get(_ context.Context, id uuid.UUID) (*Addon, error) {
+	if a, ok := s.addons[id]; ok {
+		return a, nil
+	}
+	return nil, ErrAddonNotFound
+}
+
+// TestProcessMessage_SkipsSubscriptionOfSourceAddon verifies that an event
+// caused by an addon's delegation token is not delivered back to the
+// subscription that owns that addon, while other matching subscriptions of
+// the same owner still receive it (#876).
+func TestProcessMessage_SkipsSubscriptionOfSourceAddon(t *testing.T) {
+	owner := uuid.New()
+	tmID := uuid.New()
+	selfSubID := uuid.New()
+	otherSubID := uuid.New()
+	addonID := uuid.New()
+
+	subStore := &consumerTestSubStore{subs: []DBWebhookSubscription{
+		{Id: selfSubID, OwnerId: owner, Status: "active", Events: []string{EventMetadataUpdated}, Url: "https://self.example.com"},
+		{Id: otherSubID, OwnerId: owner, Status: "active", Events: []string{EventMetadataUpdated}, Url: "https://other.example.com"},
+	}}
+	deliveryStore := &capturingDeliveryStore{
+		mockDeliveryRedisStore: mockDeliveryRedisStore{records: make(map[uuid.UUID]*WebhookDeliveryRecord)},
+	}
+	addonStore := &consumerTestAddonStore{addons: map[uuid.UUID]*Addon{addonID: {ID: addonID, WebhookID: selfSubID}}}
+
+	origSub, origDel, origAddon := GlobalWebhookSubscriptionStore, GlobalWebhookDeliveryRedisStore, GlobalAddonStore
+	GlobalWebhookSubscriptionStore, GlobalWebhookDeliveryRedisStore, GlobalAddonStore = subStore, deliveryStore, addonStore
+	defer func() {
+		GlobalWebhookSubscriptionStore, GlobalWebhookDeliveryRedisStore, GlobalAddonStore = origSub, origDel, origAddon
+	}()
+
+	consumer := NewWebhookEventConsumer(nil, "stream", "group", "consumer-1")
+	payload := EventPayload{
+		EventType: EventMetadataUpdated, ThreatModelID: tmID.String(), ObjectID: uuid.New().String(),
+		ObjectType: "note", OwnerID: owner.String(), Timestamp: time.Now().UTC(), SourceAddonID: addonID.String(),
+	}
+	require.NoError(t, consumer.processMessage(context.Background(), makeConsumerMessage(EventMetadataUpdated, owner.String(), payload.ObjectID, payload)))
+
+	require.Len(t, deliveryStore.created, 1, "only the non-self subscription gets a delivery")
+	assert.Equal(t, otherSubID, deliveryStore.created[0].SubscriptionID)
+
+	// Unknown source addon: nothing is suppressed.
+	deliveryStore.created = nil
+	payload.SourceAddonID = uuid.New().String()
+	require.NoError(t, consumer.processMessage(context.Background(), makeConsumerMessage(EventMetadataUpdated, owner.String(), payload.ObjectID, payload)))
+	require.Len(t, deliveryStore.created, 2)
+}

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -141,4 +142,34 @@ func TestEventTypes_Constants(t *testing.T) {
 	assert.Equal(t, "document.created", EventDocumentCreated)
 	assert.Equal(t, "document.updated", EventDocumentUpdated)
 	assert.Equal(t, "document.deleted", EventDocumentDeleted)
+}
+
+// TestEventEmitter_SourceAddonIDFromContext verifies that an event emitted
+// under a delegation-tagged context carries the source addon in its payload
+// (#876), and that an untagged context leaves it empty.
+func TestEventEmitter_SourceAddonIDFromContext(t *testing.T) {
+	client, mr := setupTestRedis(t)
+	defer mr.Close()
+	defer func() { _ = client.Close() }()
+
+	emitter := NewEventEmitter(client, "test:events")
+	addonID := uuid.New().String()
+
+	require.NoError(t, emitter.EmitEvent(WithSourceAddonID(context.Background(), addonID), EventPayload{
+		EventType: EventMetadataUpdated, ObjectID: uuid.New().String(), ObjectType: "note", OwnerID: uuid.New().String(),
+	}))
+	require.NoError(t, emitter.EmitEvent(context.Background(), EventPayload{
+		EventType: EventMetadataUpdated, ObjectID: uuid.New().String(), ObjectType: "note", OwnerID: uuid.New().String(),
+	}))
+
+	messages, err := client.XRange(context.Background(), "test:events", "-", "+").Result()
+	require.NoError(t, err)
+	require.Len(t, messages, 2)
+
+	var tagged, untagged EventPayload
+	require.NoError(t, json.Unmarshal([]byte(messages[0].Values["payload"].(string)), &tagged))
+	require.NoError(t, json.Unmarshal([]byte(messages[1].Values["payload"].(string)), &untagged))
+	assert.Equal(t, addonID, tagged.SourceAddonID)
+	assert.Empty(t, untagged.SourceAddonID)
+	assert.Empty(t, SourceAddonIDFromContext(context.Background()))
 }

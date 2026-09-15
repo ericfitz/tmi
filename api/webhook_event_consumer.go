@@ -125,7 +125,7 @@ func (c *WebhookEventConsumer) consumeLoop(ctx context.Context) {
 }
 
 // processMessage processes a single event message
-// SEM@c13f85301f7c723dfb20f687cb8fddc4ed77e703: route a stream message to matching webhook subscriptions and store delivery records (reads DB)
+// SEM@b2651daf2f388dbef96d4ddd4a0bb46fcb8da56b: route a stream message to matching webhook subscriptions, skipping the source addon's own, and store delivery records (reads DB)
 func (c *WebhookEventConsumer) processMessage(ctx context.Context, message redis.XMessage) error {
 	logger := slogging.Get()
 
@@ -188,8 +188,14 @@ func (c *WebhookEventConsumer) processMessage(ctx context.Context, message redis
 
 	logger.Debug("found %d matching subscriptions for event %s", len(matchingSubscriptions), eventType)
 
+	selfSubscriptionID := c.selfSubscriptionID(ctx, payload.SourceAddonID)
+
 	// Create delivery records for each matching subscription
 	for _, sub := range matchingSubscriptions {
+		if sub.Id == selfSubscriptionID {
+			logger.Debug("skipping delivery of %s to subscription %s: event was caused by its own addon %s", eventType, sub.Id, payload.SourceAddonID)
+			continue
+		}
 		if err := c.createDelivery(ctx, sub, eventType, payloadStr); err != nil {
 			logger.Error("failed to create delivery for subscription %s: %v", sub.Id, err)
 			// Continue with other subscriptions
@@ -231,6 +237,27 @@ func (c *WebhookEventConsumer) processSystemAuditEvent(ctx context.Context, even
 	}
 
 	return nil
+}
+
+// selfSubscriptionID resolves the subscription that owns the addon whose
+// delegation token caused the event, so the consumer never delivers an
+// addon's own write-backs back to it (#876). Returns uuid.Nil when the event
+// had no delegating addon or the addon cannot be resolved.
+// SEM@b2651daf2f388dbef96d4ddd4a0bb46fcb8da56b: fetch the webhook subscription owning a delegating addon, Nil if none (reads DB)
+func (c *WebhookEventConsumer) selfSubscriptionID(ctx context.Context, sourceAddonID string) uuid.UUID {
+	if sourceAddonID == "" || GlobalAddonStore == nil {
+		return uuid.Nil
+	}
+	addonID, err := uuid.Parse(sourceAddonID)
+	if err != nil {
+		return uuid.Nil
+	}
+	addon, err := GlobalAddonStore.Get(ctx, addonID)
+	if err != nil || addon == nil {
+		slogging.Get().Warn("webhook consumer: could not resolve source addon %s for self-delivery suppression: %v", sourceAddonID, err)
+		return uuid.Nil
+	}
+	return addon.WebhookID
 }
 
 // filterSubscriptions filters subscriptions based on event type and threat model

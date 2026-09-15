@@ -121,7 +121,7 @@ func NewTokenBlacklistChecker(tokenBlacklist *auth.TokenBlacklist) *TokenBlackli
 }
 
 // CheckBlacklist checks if a token, identified by its auth.HashToken hash, is blacklisted
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: verify a token hash is not on the revocation blacklist; return error if revoked (reads DB)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: validate a token hash is not revoked via the blacklist (reads cache)
 func (b *TokenBlacklistChecker) CheckBlacklist(ctx context.Context, tokenHash string) error {
 	if b.tokenBlacklist == nil || tokenHash == "" {
 		return nil
@@ -141,7 +141,7 @@ func (b *TokenBlacklistChecker) CheckBlacklist(ctx context.Context, tokenHash st
 
 // CheckCredentialRevoked rejects service-account tokens whose client credential
 // has been deleted or deactivated since the token was minted (#862).
-// SEM@48ae1daff849c4fbb75fe51c29185be3f169d27d: verify a service-account token's client credential has not been revoked (reads DB)
+// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: validate a client credential is not revoked via the blacklist (reads cache)
 func (b *TokenBlacklistChecker) CheckCredentialRevoked(ctx context.Context, credentialID string) error {
 	if b.tokenBlacklist == nil {
 		return nil
@@ -203,7 +203,7 @@ func setServiceAccountContext(c *gin.Context, logger slogging.SimpleLogger, sub 
 }
 
 // ExtractAndSetClaims extracts claims from a valid token and sets them in the context
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: parse JWT claims and set user identity fields in the Gin context (mutates shared state)
+// SEM@b2651daf2f388dbef96d4ddd4a0bb46fcb8da56b: parse JWT claims and set user identity and delegation fields in the Gin context (mutates shared state)
 func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) error {
 	logger := slogging.GetContextLogger(c)
 
@@ -311,6 +311,10 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 				c.Set("isDelegation", true)
 				if addonID, ok := delegationMap["addon_id"].(string); ok {
 					c.Set("delegationAddonID", addonID)
+					// Tag the request context so events emitted by this
+					// write-back are not delivered back to the addon's own
+					// subscription (#876).
+					c.Request = c.Request.WithContext(api.WithSourceAddonID(c.Request.Context(), addonID))
 				}
 				if deliveryID, ok := delegationMap["delivery_id"].(string); ok {
 					c.Set("delegationDeliveryID", deliveryID)
@@ -407,7 +411,7 @@ func NewTicketValidator(ticketStore api.TicketStore, authHandlers *auth.Handlers
 }
 
 // ValidateTicket validates a WebSocket ticket and populates user context.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: validate a WebSocket ticket, cross-check session ID, and set user and revocation context (reads DB)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: authenticate a WebSocket ticket and populate request identity from it (reads DB)
 func (v *TicketValidator) ValidateTicket(c *gin.Context, ticketStr string) error {
 	logger := slogging.GetContextLogger(c)
 
@@ -556,7 +560,7 @@ func NewJWTAuthenticator(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist
 // unreachable. The latter fails closed (the request is refused rather than
 // admitted unchecked), but it is a dependency outage, not a bug in handling
 // this request, so it gets a Retry-After rather than 500. See issue #660.
-// SEM@48ae1daff849c4fbb75fe51c29185be3f169d27d: convert a revocation-check error into a 401 or 503 auth error (pure)
+// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: convert a revocation-check error into a 401 or retryable 503 auth error (pure)
 func revocationAuthError(logger slogging.SimpleLogger, err error) *AuthError {
 	if strings.Contains(err.Error(), "revoked") {
 		// Use generic error message to avoid leaking implementation details
@@ -576,7 +580,7 @@ func revocationAuthError(logger slogging.SimpleLogger, err error) *AuthError {
 }
 
 // AuthenticateRequest performs the complete JWT authentication process
-// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: authenticate a request end-to-end: extract, validate, blacklist-check, set claims, and auto-promote user (reads DB)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: authenticate a request via bearer JWT or WebSocket ticket and enforce revocation
 func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 	logger := slogging.GetContextLogger(c)
 
@@ -665,7 +669,7 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 // service-account client credential has been revoked (#862). It reads the
 // authTokenHash and serviceAccountCredentialID context keys, which both the
 // JWT path and the WebSocket ticket path populate (#869).
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: reject the request if its token or client credential is revoked (reads DB)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: validate the request's token hash and service-account credential are not revoked
 func (a *JWTAuthenticator) checkRevocation(c *gin.Context, logger slogging.SimpleLogger) *AuthError {
 	if err := a.blacklistChecker.CheckBlacklist(c.Request.Context(), c.GetString("authTokenHash")); err != nil {
 		return revocationAuthError(logger, err)

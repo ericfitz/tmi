@@ -87,7 +87,7 @@ const (
 )
 
 // EventPayload represents the structure of an event emitted to Redis
-// SEM@00add3d4f7dc1c0a9cc072d7e6ca32ace4d03641: struct carrying event type, resource references, owner, and data for a Redis Stream entry (pure)
+// SEM@b2651daf2f388dbef96d4ddd4a0bb46fcb8da56b: struct carrying event type, resource references, owner, source addon, and data for a Redis Stream entry (pure)
 type EventPayload struct {
 	EventType     string         `json:"event_type"`
 	ThreatModelID string         `json:"threat_model_id,omitempty"`
@@ -96,6 +96,24 @@ type EventPayload struct {
 	OwnerID       string         `json:"owner_id"`
 	Timestamp     time.Time      `json:"timestamp"`
 	Data          map[string]any `json:"data,omitempty"`
+	// SourceAddonID is set when the request that caused the event acted under
+	// an addon delegation token (#876). The webhook consumer uses it to skip
+	// delivering the event back to that addon's own subscription.
+	SourceAddonID string `json:"source_addon_id,omitempty"`
+}
+
+// SEM@9ea792b9df3b1ab947a5ab9a404a0fbccd779d21: context key type for the delegating addon of a request (pure)
+type sourceAddonIDContextKey struct{}
+
+// SEM@b2651daf2f388dbef96d4ddd4a0bb46fcb8da56b: build a context tagging subsequent events with the delegating addon (pure)
+func WithSourceAddonID(ctx context.Context, addonID string) context.Context {
+	return context.WithValue(ctx, sourceAddonIDContextKey{}, addonID)
+}
+
+// SEM@b2651daf2f388dbef96d4ddd4a0bb46fcb8da56b: fetch the delegating addon ID from a context, empty if none (pure)
+func SourceAddonIDFromContext(ctx context.Context) string {
+	s, _ := ctx.Value(sourceAddonIDContextKey{}).(string)
+	return s
 }
 
 // EventEmitter handles event emission to Redis Streams
@@ -115,13 +133,16 @@ func NewEventEmitter(redisClient *redis.Client, streamKey string) *EventEmitter 
 }
 
 // EmitEvent emits an event to Redis Stream with deduplication
-// SEM@914adca66ed5ce0bcfa6a1233361a298648ccf00: publish a deduplicated resource event to the Redis Stream; skips on duplicate or unavailable Redis
+// SEM@b2651daf2f388dbef96d4ddd4a0bb46fcb8da56b: publish a deduplicated resource event tagged with any delegating addon to the Redis Stream; skips on duplicate or unavailable Redis
 func (e *EventEmitter) EmitEvent(ctx context.Context, payload EventPayload) error {
 	logger := slogging.Get()
 
 	// Set timestamp if not already set
 	if payload.Timestamp.IsZero() {
 		payload.Timestamp = time.Now().UTC()
+	}
+	if payload.SourceAddonID == "" {
+		payload.SourceAddonID = SourceAddonIDFromContext(ctx)
 	}
 
 	// Check for Redis availability
@@ -241,7 +262,7 @@ func GetOwnerInternalUUID(ctx context.Context, provider, providerID string) stri
 // threatModelOwnerInternalUUID resolves the owner id that webhook fan-out
 // (ListActiveByOwner) keys on, for events emitted from a threat model's
 // sub-resources. Empty when the threat model cannot be loaded.
-// SEM@b995eca7382401969c43fb8c3d092d9e59d1411e: resolve a threat model's owner internal UUID for event fan-out (reads DB)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: fetch a threat model owner's internal UUID for event fan-out (reads DB)
 func threatModelOwnerInternalUUID(ctx context.Context, threatModelID string) string {
 	if ThreatModelStore == nil {
 		return ""
