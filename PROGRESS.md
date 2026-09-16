@@ -1,3 +1,18 @@
+# Session progress — 2026-09-16
+
+## Landed (pushed to main)
+
+- **PR #886 merged** (`32e22d40`, 1.12.0) — `feat(auth)`: optional `addon_id` on client credentials
+  (requires `direct_write` + existing addon) so a direct_write automation's writes are not delivered back
+  to its own addon's webhook subscription; `tmi_addon_id` claim feeds the #876 source-addon context.
+  ADR: `docs/superpowers/specs/2026-09-16-adr-client-credential-addon-link.md`. Closes #883.
+  Oracle review APPROVED WITH NOTES (notes applied).
+- **PR #887 merged** (`f643ff94`, 1.12.1) — `fix(api)`: HTML-injection event-handler regex now requires
+  `<tag ...` context, so prose like `deletion_protection = true` is accepted. Fixes #885.
+- **PR #888 merged** (`57fd42ef`, 1.12.2) — `test(webhooks)`: Oracle integration test proving map-keyed
+  `UpdateStatus` resolves on ADB (#881 premise was false: `SkipQuoteIdentifiers` folds unquoted keys). Closes #881.
+- Deployed: k3s-rp on 1.12.x from main. api.tmi.dev still on 1.11.1 until the AWS push runs.
+
 # Session progress — 2026-09-05 (later session)
 
 ## Landed (pushed to main)
