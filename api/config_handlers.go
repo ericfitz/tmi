@@ -2,12 +2,15 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ericfitz/tmi/internal/dberrors"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth"
@@ -799,7 +802,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 }
 
 // ReencryptSystemSettings re-encrypts all system settings with the current encryption key (admin only)
-// SEM@9a4d6109d4ad52d5adc53c0fe0d9925022535958: handle admin re-encryption of all stored settings with the current key (writes DB)
+// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: handle admin re-encryption of all settings; map not-enabled to 409, transient DB failure to 503 (writes DB)
 func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
@@ -829,13 +832,33 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 	}
 
 	reencrypted, settingErrors, err := s.settingsService.ReEncryptAll(ctx)
-	if err != nil {
-		// Encryption not enabled returns 409 Conflict
-		logger.Warn("Re-encryption failed: %v", err)
+	switch {
+	case errors.Is(err, ErrEncryptionNotEnabled):
+		// Precondition, not a failure: 409 Conflict.
+		logger.Warn("Re-encryption refused: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusConflict,
 			Code:    "encryption_not_enabled",
 			Message: err.Error(),
+		})
+		return
+	case errors.Is(err, dberrors.ErrTransient):
+		// The pass ran in one transaction (#845) and was rolled back on a
+		// transient database error (serialization conflict, connection
+		// blip); nothing changed, the caller should retry.
+		logger.Warn("Re-encryption rolled back on a transient database error: %v", err)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusServiceUnavailable,
+			Code:    "service_unavailable",
+			Message: "Re-encryption was rolled back due to a transient database error; retry the request",
+		})
+		return
+	case err != nil:
+		logger.Error("Re-encryption rolled back: %v", err)
+		HandleRequestError(c, &RequestError{
+			Status:  http.StatusInternalServerError,
+			Code:    "internal_error",
+			Message: "Re-encryption failed and was rolled back",
 		})
 		return
 	}
@@ -916,5 +939,14 @@ func modelToAPISystemSetting(m models.SystemSetting) SystemSetting {
 			setting.ModifiedBy = &parsedUUID
 		}
 	}
+	// origin (#803): NULL means seeded, the fail-safe direction documented on
+	// models.SystemSetting.Origin, so a row is reported as explicit only when
+	// it says so. Only rows carry an origin; config/env/vault settings never
+	// pass through here.
+	origin := Seeded
+	if m.IsExplicit() {
+		origin = Explicit
+	}
+	setting.Origin = &origin
 	return setting
 }

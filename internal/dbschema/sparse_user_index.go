@@ -23,6 +23,7 @@
 package dbschema
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -75,7 +76,7 @@ type sparseDupKey struct {
 // degrades to a single cheap catalog lookup in steady state instead of a
 // full-table GROUP BY on every boot.
 // SEM@1a0e294d083ec4d01a180cf33f9f58d98159a878: build a dialect-appropriate unique index over sparse user emails (writes DB)
-func EnsureSparseUserEmailIndex(db *gorm.DB) error {
+func EnsureSparseUserEmailIndex(ctx context.Context, db *gorm.DB) error {
 	usersTable := (&models.User{}).TableName()
 	// #736: owner-aware probe. gorm's HasTable resolves through Oracle's
 	// USER_TABLES, which is empty on a schema-owner-separated deployment even
@@ -154,7 +155,7 @@ func EnsureSparseUserEmailIndex(db *gorm.DB) error {
 	// backoff rather than withMigrationRetry's 60ms total, which was
 	// effectively one shot inside a rolling deploy's DML window (#734).
 	err = withDDLRetry("sparse-user email index create", func() error {
-		return execMigrationDDL(db, ddl)
+		return execMigrationDDL(ctx, db, ddl)
 	})
 	switch {
 	case err == nil:

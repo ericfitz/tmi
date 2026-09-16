@@ -164,18 +164,30 @@ func SchemaFingerprintCurrent(db *gorm.DB, desired string) bool {
 // fingerprint, if any.
 // SEM@70c02e3f4b4dd833280d8f3ca9d152b483013ffe: fetch the stored schema fingerprint from the DB stamp table (reads DB)
 func readSchemaFingerprint(db *gorm.DB) (string, bool, error) {
+	fp, _, found, err := ReadSchemaStamp(db)
+	return fp, found, err
+}
+
+// ReadSchemaStamp returns the recorded schema fingerprint and when it was
+// applied, for callers that need to report a mismatch rather than act on it
+// (tmi-dbtool's preflight, #807). found is false when no stamp row exists
+// (a pre-#480 database, or one never migrated by a stamping binary). Ensures
+// the stamp table exists, so the one side effect is an empty table on a
+// database that never had one.
+// SEM@0000000000000000000000000000000000000000: fetch the stored schema fingerprint stamp with its applied-at time (reads DB)
+func ReadSchemaStamp(db *gorm.DB) (fingerprint string, appliedAt time.Time, found bool, err error) {
 	if err := ensureSchemaVersionTable(db); err != nil {
-		return "", false, err
+		return "", time.Time{}, false, err
 	}
 	var row schemaVersion
-	err := db.Where("id = ?", schemaVersionRowID).Take(&row).Error
+	err = db.Where("id = ?", schemaVersionRowID).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return "", false, nil
+		return "", time.Time{}, false, nil
 	}
 	if err != nil {
-		return "", false, err
+		return "", time.Time{}, false, err
 	}
-	return row.Fingerprint, true, nil
+	return row.Fingerprint, row.AppliedAt, true, nil
 }
 
 // ensureSchemaVersionTable creates the single-row stamp table if it does not

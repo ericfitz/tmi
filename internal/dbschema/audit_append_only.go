@@ -186,7 +186,7 @@ func installPostgresAppendOnly(ctx context.Context, db *gorm.DB, logger *sloggin
 	}
 
 	for _, sql := range statements {
-		if err := db.WithContext(ctx).Exec(sql).Error; err != nil {
+		if err := db.WithContext(ctx).Exec(sql).Error; err != nil { // ddl-via-gorm:ok postgres-only (dispatched by dialect in InstallAuditAppendOnlyTriggers)
 			return fmt.Errorf("postgres install: %w (sql: %s)", err, sql)
 		}
 	}
@@ -239,8 +239,13 @@ func installOracleAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.
 		 END;`, systemAuditFloorDays, systemAuditFloorDays),
 	}
 
+	// Through execMigrationDDL, never gorm.Exec (#763): under PrepareStmt a
+	// byte-identical DDL string re-executed on the same *gorm.DB is a silent
+	// no-op on Oracle, so a future "reinstall triggers" self-heal would apply
+	// nothing. The pinned session also waits out DDL_LOCK_TIMEOUT on these hot
+	// tables instead of failing fast with ORA-00054 during a rolling deploy.
 	for _, sql := range statements {
-		if err := db.WithContext(ctx).Exec(sql).Error; err != nil {
+		if err := execMigrationDDL(ctx, db, sql); err != nil {
 			return fmt.Errorf("oracle install: %w (sql: %s)", err, sql)
 		}
 	}

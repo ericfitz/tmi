@@ -19,7 +19,7 @@ import (
 // error, the error surfaces loudly — the operator should drop and recreate
 // the schema first.
 // SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: acquire the migration lock, then migrate DB schema and seed system data (mutates DB)
-func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
+func runSchema(ctx context.Context, db *testdb.TestDB, dryRun, verbose bool) error {
 	if dryRun {
 		return runSchemaDryRun(db, verbose)
 	}
@@ -37,15 +37,15 @@ func runSchema(db *testdb.TestDB, dryRun, verbose bool) error {
 	// back once this finishes); on PostgreSQL pg_advisory_lock waits
 	// indefinitely. Previously the two simply raced, which was worse
 	// (oracle-db-admin review, #737).
-	return dbschema.WithMigrationLock(context.Background(), db.DB(), dbschema.MigrationLockName, func() error {
-		return runSchemaLocked(db)
+	return dbschema.WithMigrationLock(ctx, db.DB(), dbschema.MigrationLockName, func() error {
+		return runSchemaLocked(ctx, db)
 	})
 }
 
 // runSchemaLocked performs the schema migration and system seed. Always called
 // with the cross-replica migration advisory lock held (see runSchema).
 // SEM@7ffca610d050b6fdbe2db2796298d3e746bb7491: migrate DB schema via AutoMigrate, upgrade legacy indexes, and seed system data (mutates DB)
-func runSchemaLocked(db *testdb.TestDB) error {
+func runSchemaLocked(ctx context.Context, db *testdb.TestDB) error {
 	log := slogging.Get()
 
 	// Step 1: AutoMigrate (Oracle-aware path via GormDB.AutoMigrate)
@@ -93,7 +93,7 @@ func runSchemaLocked(db *testdb.TestDB) error {
 	// DDL-less server runtime user can only log that the upgrade is needed.
 	// Same placement and reasoning as cmd/server/main.go's runMigrationsLocked
 	// and auth/config_adapter.go.
-	if err := dbschema.EnsureUserProviderLookupUnique(db.DB()); err != nil {
+	if err := dbschema.EnsureUserProviderLookupUnique(ctx, db.DB()); err != nil {
 		return fmt.Errorf("failed to check the users provider-lookup index: %w", err)
 	}
 
@@ -126,7 +126,7 @@ func runSchemaLocked(db *testdb.TestDB) error {
 	// #720: unique sparse-email index (partial/function-based) is raw DDL
 	// AutoMigrate cannot express; idempotent, same placement and reasoning as
 	// cmd/server/main.go's runMigrationsLocked and auth/config_adapter.go.
-	if err := dbschema.EnsureSparseUserEmailIndex(db.DB()); err != nil {
+	if err := dbschema.EnsureSparseUserEmailIndex(ctx, db.DB()); err != nil {
 		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
 	}
 
@@ -136,10 +136,10 @@ func runSchemaLocked(db *testdb.TestDB) error {
 	// likely to succeed at the MOVE ONLINE / REBUILD ONLINE where a DDL-less
 	// server runtime user can only log that it is needed. Same placement as
 	// cmd/server/main.go's migrateSchema and auth/config_adapter.go.
-	if err := dbschema.DropRetiredMetadataIndexes(db.DB()); err != nil {
+	if err := dbschema.DropRetiredMetadataIndexes(ctx, db.DB()); err != nil {
 		return fmt.Errorf("failed to check the retired metadata indexes: %w", err)
 	}
-	if err := dbschema.EnsureMetadataInitrans(db.DB()); err != nil {
+	if err := dbschema.EnsureMetadataInitrans(ctx, db.DB()); err != nil {
 		return fmt.Errorf("failed to check the metadata INITRANS settings: %w", err)
 	}
 
@@ -169,7 +169,7 @@ func runSchemaLocked(db *testdb.TestDB) error {
 	// #794: enforce system_settings.origin IN (NULL, 'seeded', 'explicit') at
 	// the database level. Same placement and reasoning as
 	// cmd/server/main.go's runMigrationsLocked.
-	if err := dbschema.EnsureSystemSettingOriginCheckConstraint(db.DB()); err != nil {
+	if err := dbschema.EnsureSystemSettingOriginCheckConstraint(ctx, db.DB()); err != nil {
 		return fmt.Errorf("failed to ensure system_settings.origin CHECK constraint: %w", err)
 	}
 

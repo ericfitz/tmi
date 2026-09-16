@@ -23,6 +23,7 @@
 package dbschema
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -63,7 +64,7 @@ import (
 // alternative -- crash-looping a server over an index it may not be
 // privileged to touch -- is a larger outage than the missing constraint.
 // SEM@30424a23a3e8112b8be171d3d0fcb5cb63ca48a1: repair the users provider-lookup index to its intended unique definition, else warn and continue (mutates DB)
-func EnsureUserProviderLookupUnique(db *gorm.DB) error {
+func EnsureUserProviderLookupUnique(ctx context.Context, db *gorm.DB) error {
 	usersTable := (&models.User{}).TableName()
 	present, err := requireMigrationTable(db, usersTable, "users provider-lookup unique-index upgrade (#732)")
 	if err != nil {
@@ -127,7 +128,7 @@ func EnsureUserProviderLookupUnique(db *gorm.DB) error {
 
 	if exists {
 		if err := withDDLRetry("users provider-lookup index drop", func() error {
-			return execMigrationDDL(db, dropDDL)
+			return execMigrationDDL(ctx, db, dropDDL)
 		}); err != nil {
 			// Oracle commits before and after every DDL statement, so a
 			// transient failure can arrive *after* the DROP itself took
@@ -167,7 +168,7 @@ func EnsureUserProviderLookupUnique(db *gorm.DB) error {
 	// every login, so a failed CREATE UNIQUE is followed by an attempt to put
 	// the original non-unique index back.
 	if err := withDDLRetry("users provider-lookup unique index create", func() error {
-		return execMigrationDDL(db, createUniqueDDL)
+		return execMigrationDDL(ctx, db, createUniqueDDL)
 	}); err != nil {
 		// Same auto-commit reasoning as the DROP above, and it also covers the
 		// ORA-00955 cases without string-matching the driver error: re-probe,
@@ -200,7 +201,7 @@ func EnsureUserProviderLookupUnique(db *gorm.DB) error {
 
 		logger.Error("failed to create %s as UNIQUE: %v", userProviderLookupIndexName, err)
 		if restoreErr := withDDLRetry("users provider-lookup index restore", func() error {
-			return execMigrationDDL(db, restoreDDL)
+			return execMigrationDDL(ctx, db, restoreDDL)
 		}); restoreErr != nil {
 			logger.Error(
 				"AND failed to restore the previous non-unique %s: %v. The users table may now have NO (provider, provider_user_id) index -- "+

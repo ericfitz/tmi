@@ -1,6 +1,7 @@
 package dbschema
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -94,8 +95,8 @@ func TestMetadataInitransIndexes_NamesMatchModel(t *testing.T) {
 func TestDropRetiredMetadataIndexes_SQLiteIsNoOp(t *testing.T) {
 	db := newMetadataIndexTestDB(t)
 
-	require.NoError(t, DropRetiredMetadataIndexes(db))
-	require.NoError(t, DropRetiredMetadataIndexes(db), "must be idempotent")
+	require.NoError(t, DropRetiredMetadataIndexes(context.Background(), db))
+	require.NoError(t, DropRetiredMetadataIndexes(context.Background(), db), "must be idempotent")
 
 	for _, name := range retiredMetadataIndexes {
 		exists, err := metadataIndexExists(db, name, "metadata")
@@ -110,7 +111,7 @@ func TestDropRetiredMetadataIndexes_SQLiteIsNoOp(t *testing.T) {
 func TestDropRetiredMetadataIndexes_NoTable(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, DropRetiredMetadataIndexes(db))
+	require.NoError(t, DropRetiredMetadataIndexes(context.Background(), db))
 }
 
 // TestMetadataInitransState_Below pins the skip decision: only objects
@@ -144,9 +145,9 @@ func TestMetadataInitransState_Below(t *testing.T) {
 func TestEnsureMetadataInitrans_NonOracleIsNoOp(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, EnsureMetadataInitrans(db), "no table, no Oracle, no error")
+	require.NoError(t, EnsureMetadataInitrans(context.Background(), db), "no table, no Oracle, no error")
 
 	db = newMetadataIndexTestDB(t)
-	require.NoError(t, EnsureMetadataInitrans(db))
-	require.NoError(t, EnsureMetadataInitrans(db), "must be idempotent")
+	require.NoError(t, EnsureMetadataInitrans(context.Background(), db))
+	require.NoError(t, EnsureMetadataInitrans(context.Background(), db), "must be idempotent")
 }

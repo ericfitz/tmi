@@ -124,7 +124,7 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-genconfig generate-config-example build-genconfigdocs generate-config-docs clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz check-response-examples check-oracle-unsafe-map-keys check-oracle-table-names check-scan-struct-column-tags check-sensitive-log-args
+.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-genconfig generate-config-example build-genconfigdocs generate-config-docs clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz check-response-examples check-oracle-unsafe-map-keys check-oracle-table-names check-oracle-ddl-via-gorm check-scan-struct-column-tags check-sensitive-log-args
 
 build-server:
 	@uv run scripts/build-server.py
@@ -205,6 +205,13 @@ check-oracle-unsafe-map-keys:
 # Aliased forms (.Table("t alias")) are emitted unquoted and are safe. See #504.
 check-oracle-table-names:
 	@uv run scripts/check-oracle-table-names.py
+
+# Check that no DDL statement is executed through gorm Exec/Raw. Under
+# PrepareStmt a byte-identical DDL string re-executed on the same *gorm.DB is
+# a silent no-op on Oracle (DDL runs at parse time). DDL must go through
+# internal/dbschema.execMigrationDDL / ExecDDL (pinned *sql.Conn). See #763.
+check-oracle-ddl-via-gorm:
+	@uv run scripts/check-oracle-ddl-via-gorm.py
 
 # Check that GORM structs (models and ad-hoc scan structs) do not hardcode
 # lowercase gorm:"column:..." tags in api/, auth/, cmd/, internal/. Result-set

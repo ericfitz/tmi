@@ -3,6 +3,7 @@
 package dbschema
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -21,8 +22,8 @@ func TestSparseUserEmailIndex_Integration(t *testing.T) {
 	dsn := pgIsolationDSN(t)
 	db := openPG(t, dsn)
 
-	require.NoError(t, EnsureSparseUserEmailIndex(db), "creating the index must succeed against a live schema")
-	require.NoError(t, EnsureSparseUserEmailIndex(db), "must be idempotent")
+	require.NoError(t, EnsureSparseUserEmailIndex(context.Background(), db), "creating the index must succeed against a live schema")
+	require.NoError(t, EnsureSparseUserEmailIndex(context.Background(), db), "must be idempotent")
 
 	usersTable := (&models.User{}).TableName()
 	var indexExists bool

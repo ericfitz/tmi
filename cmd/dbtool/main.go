@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -57,6 +60,7 @@ func run() int {
 	provider := flag.String("provider", "tmi", "OAuth provider name (with -t)")
 
 	dryRun := flag.Bool("dry-run", false, "Show what would happen without writing")
+	skipSchemaCheck := flag.Bool("skip-schema-check", false, "Proceed even if the database schema fingerprint does not match this binary (#807)")
 	verbose := flag.Bool("verbose", false, "Print step-by-step operations and DB messages")
 	flag.BoolVar(verbose, "v", false, "Print step-by-step operations (short)")
 
@@ -96,6 +100,7 @@ func run() int {
 		"export_config":          *exportConfig,
 		"backfill_empty_strings": *backfillEmptyStrings,
 		"dry_run":                *dryRun,
+		"skip_schema_check":      *skipSchemaCheck,
 	}
 	if *configFile != "" {
 		args["config"] = *configFile
@@ -131,6 +136,18 @@ func run() int {
 		}
 	}()
 	log.Info("Connected to %s database", db.DialectName())
+
+	// #807: every data operation runs against the schema this binary was
+	// compiled for, or fails here with a remedy instead of deep inside a
+	// write. --schema is the remedy and the no-flag health check is a
+	// diagnostic, so both are exempt.
+	if opCount > 0 && !*schema {
+		if err := preflightSchemaVersion(db.DB(), info.Version, *skipSchemaCheck); err != nil {
+			log.Error("%v", err)
+			printExitSummary(info, args, "failure", "schema version mismatch (see above; --skip-schema-check to override)")
+			return 1
+		}
+	}
 
 	// Dispatch
 	runErr := dispatchOperation(db, log, opCount, cliFlags{
@@ -197,7 +214,12 @@ func dispatchOperation(db *testdb.TestDB, log *slogging.Logger, opCount int, f c
 	case opCount > 1:
 		return fmt.Errorf("only one operation flag can be specified at a time (-s, -c, -t, -l, --export-config, --backfill-empty-strings)")
 	case f.schema:
-		return runSchema(db, f.dryRun, f.verbose)
+		// #758: a cancellable context so Ctrl-C / SIGTERM releases the
+		// cross-replica migration lock (pg_advisory_lock otherwise waits
+		// forever) and interrupts an in-flight DDL wait.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return runSchema(ctx, db, f.dryRun, f.verbose)
 	case f.importConfig:
 		return dispatchImportConfig(db, log, f)
 	case f.importTestData:
@@ -327,6 +349,9 @@ Output:
 
 Behavior:
       --dry-run             Show what would happen without writing
+      --skip-schema-check   Proceed even if the database schema fingerprint does
+                            not match this binary (data operations refuse by
+                            default; --schema and the health check are exempt)
       --overwrite           Overwrite existing settings (with -c)
       --no-backup           Skip the timestamped source backup (with -l default flow)
       --no-rewrite          Write a sibling *-migrated.yml and leave the source

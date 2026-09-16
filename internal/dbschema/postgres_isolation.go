@@ -46,7 +46,7 @@ func InstallPostgresDefaultIsolation(ctx context.Context, db *gorm.DB) error {
 	}
 
 	const stmt = `ALTER ROLE CURRENT_USER SET default_transaction_isolation = 'serializable'`
-	if err := db.WithContext(ctx).Exec(stmt).Error; err != nil {
+	if err := db.WithContext(ctx).Exec(stmt).Error; err != nil { // ddl-via-gorm:ok postgres-only (returns above on every other dialect)
 		return fmt.Errorf("postgres default isolation install: %w", err)
 	}
 	logger.Info("InstallPostgresDefaultIsolation: role default_transaction_isolation pinned to 'serializable' (effective for sessions opened after this point)")

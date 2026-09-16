@@ -43,6 +43,7 @@
 package dbschema
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -211,7 +212,7 @@ func BackfillSystemSettingOrigin(db *gorm.DB) (int64, error) {
 // sparseUserEmailIndexExists), and unlike CREATE INDEX, SQLite's ALTER TABLE
 // has no ADD CONSTRAINT form at all -- there is nothing to probe or run.
 // SEM@2daf3be663df9da54323f16d115f12d78d435c3f: add the origin CHECK constraint to system_settings, idempotently per dialect (writes DB)
-func EnsureSystemSettingOriginCheckConstraint(db *gorm.DB) error {
+func EnsureSystemSettingOriginCheckConstraint(ctx context.Context, db *gorm.DB) error {
 	settingsTable := (&models.SystemSetting{}).TableName()
 
 	present, err := requireMigrationTable(db, settingsTable, "system_settings.origin CHECK constraint (#794)")
@@ -258,7 +259,7 @@ func EnsureSystemSettingOriginCheckConstraint(db *gorm.DB) error {
 	}
 
 	err = withDDLRetry("system_settings origin check-constraint create", func() error {
-		return execMigrationDDL(db, ddl)
+		return execMigrationDDL(ctx, db, ddl)
 	})
 	switch {
 	case err == nil:

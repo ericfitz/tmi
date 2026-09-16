@@ -64,6 +64,12 @@ def main() -> None:
         cwd=project_root,
     )
 
+    log_info("Checking that no DDL goes through gorm Exec/Raw (Oracle-safe)...")
+    run_cmd(
+        ["uv", "run", "scripts/check-oracle-ddl-via-gorm.py"],
+        cwd=project_root,
+    )
+
     log_info('Checking for hardcoded lowercase gorm:"column:..." tags (Oracle-safe)...')
     run_cmd(
         ["uv", "run", "scripts/check-scan-struct-column-tags.py"],

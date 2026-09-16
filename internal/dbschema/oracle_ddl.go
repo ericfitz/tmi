@@ -64,10 +64,14 @@ var ddlBaseRetryDelay = 500 * time.Millisecond
 //
 // The statement text is built by this package from constants, never from user
 // input.
-// SEM@605e29546fe60dc8ac69862013475720a74dea8b: execute migration DDL on a pinned Oracle session to avoid lock-contention failures (mutates DB)
-func execMigrationDDL(db *gorm.DB, ddl string) error {
+//
+// ctx is the caller's migration context (#758): the 5-minute statement
+// deadline is layered on top of it, so a shutdown signal can interrupt a slow
+// DDL wait instead of the wait outliving the process that asked for it.
+// SEM@605e29546fe60dc8ac69862013475720a74dea8b: execute migration DDL on a pinned Oracle session under the caller's context, waiting out lock contention (mutates DB)
+func execMigrationDDL(ctx context.Context, db *gorm.DB, ddl string) error {
 	if db.Name() != "oracle" {
-		return db.Exec(ddl).Error
+		return db.WithContext(ctx).Exec(ddl).Error
 	}
 
 	sqlDB, err := db.DB()
@@ -83,7 +87,7 @@ func execMigrationDDL(db *gorm.DB, ddl string) error {
 		sqlDB.SetMaxOpenConns(2)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), oracleDDLStatementTimeout)
+	ctx, cancel := context.WithTimeout(ctx, oracleDDLStatementTimeout)
 	defer cancel()
 
 	conn, err := sqlDB.Conn(ctx)
@@ -97,7 +101,13 @@ func execMigrationDDL(db *gorm.DB, ddl string) error {
 		// surprising even though it is harmless (it only affects DDL, and
 		// waiting beats failing fast). Best effort -- if the reset fails the
 		// session is still usable (oracle-db-admin review, #734).
-		if _, rerr := conn.ExecContext(ctx, "ALTER SESSION SET DDL_LOCK_TIMEOUT = 0"); rerr != nil {
+		// On a context detached from ctx (#758): ctx is dead in exactly the
+		// cases the reset matters (statement deadline fired, or the caller's
+		// migration ctx was cancelled), and a reset issued on it would fail
+		// before reaching the server.
+		resetCtx, cancelReset := context.WithTimeout(context.WithoutCancel(ctx), lockReleaseTimeout)
+		defer cancelReset()
+		if _, rerr := conn.ExecContext(resetCtx, "ALTER SESSION SET DDL_LOCK_TIMEOUT = 0"); rerr != nil {
 			slogging.Get().Debug("could not reset DDL_LOCK_TIMEOUT on the pinned DDL session before returning it to the pool: %v", rerr)
 		}
 		if cerr := conn.Close(); cerr != nil {
@@ -118,6 +128,15 @@ func execMigrationDDL(db *gorm.DB, ddl string) error {
 
 	_, err = conn.ExecContext(ctx, ddl)
 	return err
+}
+
+// ExecDDL is execMigrationDDL for callers outside this package (test
+// fixtures such as test/testdb.Truncate on Oracle). Same contract: DDL must
+// never go through gorm.DB.Exec/Raw on Oracle (#763), and the statement text
+// must come from code, not from user input.
+// SEM@0000000000000000000000000000000000000000: expose pinned-session DDL execution to other packages (mutates DB)
+func ExecDDL(ctx context.Context, db *gorm.DB, ddl string) error {
+	return execMigrationDDL(ctx, db, ddl)
 }
 
 // withDDLRetry runs a migration DDL attempt up to ddlMaxAttempts times with

@@ -101,7 +101,7 @@ func installPostgresAliasSequence(ctx context.Context, db *gorm.DB, logger *slog
 	// only applies once and an advanced sequence is preserved across boots.
 	stmt := fmt.Sprintf(`CREATE SEQUENCE IF NOT EXISTS %s AS integer START WITH %d INCREMENT BY 1 MINVALUE 1`,
 		ThreatModelAliasSequenceName, start)
-	if err := db.WithContext(ctx).Exec(stmt).Error; err != nil {
+	if err := db.WithContext(ctx).Exec(stmt).Error; err != nil { // ddl-via-gorm:ok postgres-only (dialect-guarded by caller); the Oracle path uses execMigrationDDL
 		return fmt.Errorf("postgres alias sequence install: %w", err)
 	}
 	logger.Info("InstallThreatModelAliasSequence: postgres sequence %s ensured (seed start=%d)", ThreatModelAliasSequenceName, start)
