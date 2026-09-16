@@ -2,6 +2,15 @@
 
 ## Landed (pushed to main)
 
+- **PR #890 merged** (`9d72eab2`, 1.13.0) — backlog batch, five issues in one squash:
+  `fix(settings)` ReEncryptAll runs in one transaction (#845); `chore(dbschema)` migration context threaded
+  through the schema-evolution helpers, dbtool `--schema` cancels on Ctrl-C (#758); `feat(api)`
+  `SystemSetting.origin` (seeded|explicit, readOnly) on the admin settings API (#803); `chore(db)`
+  `make check-oracle-ddl-via-gorm` lint plus `dbschema.ExecDDL` (#763); `feat(dbtool)` schema fingerprint
+  preflight with `--skip-schema-check` (#807). All five closed. Oracle reviews APPROVED WITH NOTES;
+  follow-ups filed as #891 (ctx-aware withDDLRetry backoff), #892 (ctx in BackfillSystemSettingOrigin),
+  #893 (skip append-only trigger DDL on steady-state boots). Oracle ADB verification of the batch still
+  pending (`make test-integration-oci`). Not deployed.
 - **PR #886 merged** (`32e22d40`, 1.12.0) — `feat(auth)`: optional `addon_id` on client credentials
   (requires `direct_write` + existing addon) so a direct_write automation's writes are not delivered back
   to its own addon's webhook subscription; `tmi_addon_id` claim feeds the #876 source-addon context.
