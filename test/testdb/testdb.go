@@ -3,12 +3,14 @@
 package testdb
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
+	"github.com/ericfitz/tmi/internal/dbschema"
 	"gorm.io/gorm"
 )
 
@@ -276,12 +278,21 @@ func (t *TestDB) Truncate(tables ...string) error {
 			// SQLite has no TRUNCATE
 			sql = fmt.Sprintf("DELETE FROM %s", table)
 		case "oracle":
-			sql = fmt.Sprintf("TRUNCATE TABLE %s CASCADE CONSTRAINTS", table)
+			// CASCADE CONSTRAINTS is DROP TABLE grammar; TRUNCATE takes a bare
+			// CASCADE (and raises ORA-14705 unless every referencing FK is ON
+			// DELETE CASCADE, which TMI's soft FKs are not). Caller orders
+			// children before parents instead (oracle-db-admin review, #763).
+			sql = fmt.Sprintf("TRUNCATE TABLE %s", table)
 		default:
 			sql = fmt.Sprintf("TRUNCATE TABLE %s", table)
 		}
 
-		if err := t.db.Exec(sql).Error; err != nil {
+		// TRUNCATE is DDL on Oracle: through gorm.Exec under PrepareStmt the
+		// second byte-identical statement on this *gorm.DB is a silent no-op
+		// (#763), so a suite truncating the same table between tests would run
+		// against stale rows. ExecDDL pins a raw *sql.Conn; on every other
+		// dialect it is a plain gorm Exec.
+		if err := dbschema.ExecDDL(context.Background(), t.db, sql); err != nil {
 			return fmt.Errorf("failed to truncate table %s: %w", table, err)
 		}
 

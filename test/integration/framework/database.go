@@ -93,7 +93,7 @@ func (t *TestDatabase) TruncateTable(tableName string) error {
 	if err := validateTableName(tableName); err != nil {
 		return fmt.Errorf("invalid table name for truncate: %w", err)
 	}
-	_, err := t.db.Exec(fmt.Sprintf("TRUNCATE TABLE %s CASCADE", tableName))
+	_, err := t.db.Exec(fmt.Sprintf("TRUNCATE TABLE %s CASCADE", tableName)) // ddl-via-gorm:ok raw *sql.DB, no gorm prepared-statement cache
 	if err != nil {
 		return fmt.Errorf("failed to truncate table %s: %w", tableName, err)
 	}

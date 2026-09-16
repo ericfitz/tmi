@@ -130,6 +130,15 @@ func execMigrationDDL(ctx context.Context, db *gorm.DB, ddl string) error {
 	return err
 }
 
+// ExecDDL is execMigrationDDL for callers outside this package (test
+// fixtures such as test/testdb.Truncate on Oracle). Same contract: DDL must
+// never go through gorm.DB.Exec/Raw on Oracle (#763), and the statement text
+// must come from code, not from user input.
+// SEM@0000000000000000000000000000000000000000: expose pinned-session DDL execution to other packages (mutates DB)
+func ExecDDL(ctx context.Context, db *gorm.DB, ddl string) error {
+	return execMigrationDDL(ctx, db, ddl)
+}
+
 // withDDLRetry runs a migration DDL attempt up to ddlMaxAttempts times with
 // exponential backoff, retrying only transient errors (ORA-00054 "resource
 // busy" and the connection blips dberrors classifies as ErrTransient).

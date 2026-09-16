@@ -446,6 +446,19 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
+		// PrepareStmt stays on (oracle-db-admin, #763): flipping it would change
+		// the execution path of every DML statement on Oracle. The one
+		// consequence to know: on Oracle, DDL executed through gorm.DB.Exec/Raw
+		// (CREATE/DROP/ALTER/TRUNCATE/RENAME/GRANT/COMMENT/PURGE...) runs
+		// once and is then a SILENT NO-OP for any later byte-identical string
+		// on the same *gorm.DB -- Oracle performs DDL at parse time, and the
+		// pool-level PreparedStmtDB re-executes the cached handle. Session{
+		// PrepareStmt: false} does not bypass it. All DDL therefore goes
+		// through internal/dbschema.execMigrationDDL / ExecDDL (pinned
+		// *sql.Conn); oracle-tagged tests use execOracleTestDDL. ALTER SESSION
+		// is session control rather than DDL but has the same rule for a
+		// different reason: through the pool it lands on an arbitrary session.
+		// Enforced by `make check-oracle-ddl-via-gorm`.
 		PrepareStmt: true,
 		// Cap the prepared-statement cache. GORM's defaults are unbounded
 		// capacity and a 24h TTL, and every cached *sql.Stmt can hold an open
