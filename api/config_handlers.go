@@ -615,7 +615,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 }
 
 // UpdateSystemSetting creates or updates a system setting (admin only)
-// SEM@0000000000000000000000000000000000000000: create or update a database system setting with explicit origin, validating provider enables and invalidating cache (reads DB)
+// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: create or update a system setting with explicit origin; validate provider enables, invalidate cache (writes DB)
 func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
@@ -804,15 +804,18 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
 
-	// Reject unexpected request bodies
+	// Tolerate an empty JSON object body (#880); reject anything with fields
 	if c.Request.ContentLength > 0 {
-		logger.Warn("Unexpected request body in settings re-encryption request")
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
-			Message: "This endpoint does not accept a request body",
-		})
-		return
+		var body map[string]any
+		if bindErr := c.ShouldBindJSON(&body); bindErr != nil || len(body) > 0 {
+			logger.Warn("Unexpected request body in settings re-encryption request")
+			HandleRequestError(c, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_request",
+				Message: "This endpoint does not accept a request body",
+			})
+			return
+		}
 	}
 
 	if s.settingsService == nil {

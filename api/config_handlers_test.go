@@ -1422,3 +1422,50 @@ func TestBuildContentProviders_PickerConfigDeepCopy(t *testing.T) {
 		t.Errorf("operator-supplied map was mutated: %+v", source)
 	}
 }
+
+func TestReencryptSystemSettings_BodyHandling(t *testing.T) {
+	originalAdminStore := GlobalGroupMemberRepository
+	defer restoreConfigStores(originalAdminStore)
+	gin.SetMode(gin.TestMode)
+	GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+	server := &Server{settingsService: NewMockSettingsService()}
+
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", uuid.New().String())
+		c.Set("userProvider", "test")
+		c.Next()
+	})
+	r.POST("/admin/settings/reencrypt", server.ReencryptSystemSettings)
+
+	cases := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"no body", "", http.StatusOK},
+		{"empty object", "{}", http.StatusOK},
+		{"null", "null", http.StatusOK},
+		{"fields present", `{"x":1}`, http.StatusBadRequest},
+		{"malformed", `{`, http.StatusBadRequest},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var rdr *strings.Reader
+			if tc.body != "" {
+				rdr = strings.NewReader(tc.body)
+			}
+			var req *http.Request
+			if rdr != nil {
+				req, _ = http.NewRequest("POST", "/admin/settings/reencrypt", rdr)
+				req.Header.Set("Content-Type", "application/json")
+			} else {
+				req, _ = http.NewRequest("POST", "/admin/settings/reencrypt", nil)
+			}
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			assert.Equal(t, tc.want, w.Code, w.Body.String())
+		})
+	}
+}
