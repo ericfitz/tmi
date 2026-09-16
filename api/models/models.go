@@ -109,10 +109,15 @@ type ClientCredential struct {
 	// subject_authority=invoker gate and be authorized by the owner's normal
 	// roles (#856). Opt-in; never set on administrator-owned credentials.
 	DirectWrite DBBool `gorm:"default:0"`
-	LastUsedAt  *time.Time
-	CreatedAt   time.Time `gorm:"not null;autoCreateTime"`
-	ModifiedAt  time.Time `gorm:"not null;autoUpdateTime"`
-	ExpiresAt   *time.Time
+	// AddonID links a direct_write credential to the addon whose automation
+	// uses it, so events caused by its writes are not delivered back to that
+	// addon's own subscription (#883). Not a FK: deleting the addon must not
+	// invalidate the credential; a dangling link just stops suppressing.
+	AddonID    NullableDBVarchar `gorm:"size:36"`
+	LastUsedAt *time.Time
+	CreatedAt  time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt time.Time `gorm:"not null;autoUpdateTime"`
+	ExpiresAt  *time.Time
 
 	// Relationships
 	Owner User `gorm:"foreignKey:OwnerUUID;references:InternalUUID"`

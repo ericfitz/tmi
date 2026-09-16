@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -693,4 +694,39 @@ func TestCreateCurrentUserClientCredential_DirectWrite(t *testing.T) {
 
 		assert.NotEqual(t, http.StatusBadRequest, w.Code)
 	})
+}
+
+// #883: addon_id on a credential requires direct_write and an existing addon.
+func TestCreateCurrentUserClientCredential_AddonLink(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	validUserUUID := uuid.New().String()
+	knownAddon := uuid.New()
+	prev := GlobalAddonStore
+	GlobalAddonStore = &consumerTestAddonStore{addons: map[uuid.UUID]*Addon{knownAddon: {ID: knownAddon}}}
+	t.Cleanup(func() { GlobalAddonStore = prev })
+
+	post := func(body string) (*httptest.ResponseRecorder, Error) {
+		server := newTestServerWithNilAuth()
+		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
+		SetFullUserContext(c, "bot@example.com", "provider-id", validUserUUID, "tmi", nil)
+		c.Set("isServiceAccount", false)
+		c.Set("tmiIsAdministrator", false)
+		c.Set("tmiIsSecurityReviewer", true)
+		server.CreateCurrentUserClientCredential(c)
+		var errResp Error
+		_ = json.Unmarshal(w.Body.Bytes(), &errResp)
+		return w, errResp
+	}
+
+	w, e := post(`{"name":"tf-wh","addon_id":"` + knownAddon.String() + `"}`)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, e.ErrorDescription, "requires direct_write")
+
+	w, e = post(`{"name":"tf-wh","direct_write":true,"addon_id":"` + uuid.New().String() + `"}`)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, e.ErrorDescription, "existing addon")
+
+	// Valid link passes validation and reaches the nil-auth 503 stop.
+	w, _ = post(`{"name":"tf-wh","direct_write":true,"addon_id":"` + knownAddon.String() + `"}`)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }

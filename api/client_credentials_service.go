@@ -32,17 +32,18 @@ func NewClientCredentialService(authService *auth.Service) *ClientCredentialServ
 }
 
 // CreateClientCredentialRequest contains parameters for creating a new client credential
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: parameters for creating a new client credential, including name, direct_write flag, and optional expiry (pure)
+// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: parameters for creating a new client credential, including name, direct_write flag, addon link, and optional expiry (pure)
 type CreateClientCredentialRequest struct {
 	Name        string     `json:"name" binding:"required,min=1,max=100"`
 	Description string     `json:"description" binding:"max=500"`
 	DirectWrite bool       `json:"direct_write,omitempty"`
+	AddonID     string     `json:"addon_id,omitempty"`
 	ExpiresAt   *time.Time `json:"expires_at,omitempty"`
 }
 
 // CreateClientCredentialResponse contains the response from creating a client credential
 // WARNING: The client_secret is ONLY returned at creation time and cannot be retrieved later
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: response for a new client credential including the plaintext secret and direct_write flag, shown once (pure)
+// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: response for a new client credential including the plaintext secret, direct_write flag, and addon link, shown once (pure)
 type CreateClientCredentialResponse struct {
 	ID           uuid.UUID  `json:"id"`
 	ClientID     string     `json:"client_id"`
@@ -50,12 +51,13 @@ type CreateClientCredentialResponse struct {
 	Name         string     `json:"name"`
 	Description  string     `json:"description"`
 	DirectWrite  bool       `json:"direct_write"`
+	AddonID      string     `json:"addon_id,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
 	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
 }
 
 // ClientCredentialInfoInternal represents a client credential without the secret (internal type)
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: client credential metadata including direct_write flag, without the secret, for listing responses (pure)
+// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: client credential metadata including direct_write flag and addon link, without the secret, for listing responses (pure)
 type ClientCredentialInfoInternal struct {
 	ID          uuid.UUID  `json:"id"`
 	ClientID    string     `json:"client_id"`
@@ -63,6 +65,7 @@ type ClientCredentialInfoInternal struct {
 	Description string     `json:"description"`
 	IsActive    bool       `json:"is_active"`
 	DirectWrite bool       `json:"direct_write"`
+	AddonID     string     `json:"addon_id,omitempty"`
 	LastUsedAt  *time.Time `json:"last_used_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	ModifiedAt  time.Time  `json:"modified_at"`
@@ -104,6 +107,7 @@ func (s *ClientCredentialService) Create(ctx context.Context, ownerUUID uuid.UUI
 			Name:             req.Name,
 			Description:      req.Description,
 			DirectWrite:      req.DirectWrite,
+			AddonID:          req.AddonID,
 			ExpiresAt:        req.ExpiresAt,
 		})
 		return createErr
@@ -124,6 +128,7 @@ func (s *ClientCredentialService) Create(ctx context.Context, ownerUUID uuid.UUI
 		Name:         cred.Name,
 		Description:  cred.Description,
 		DirectWrite:  cred.DirectWrite,
+		AddonID:      cred.AddonID,
 		CreatedAt:    cred.CreatedAt,
 		ExpiresAt:    cred.ExpiresAt,
 	}, nil
@@ -155,6 +160,7 @@ func (s *ClientCredentialService) List(ctx context.Context, ownerUUID uuid.UUID)
 			Description: cred.Description,
 			IsActive:    cred.IsActive,
 			DirectWrite: cred.DirectWrite,
+			AddonID:     cred.AddonID,
 			LastUsedAt:  cred.LastUsedAt,
 			CreatedAt:   cred.CreatedAt,
 			ModifiedAt:  cred.ModifiedAt,

@@ -223,7 +223,7 @@ type TokenPair struct {
 }
 
 // Claims represents the JWT claims
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: JWT claims struct carrying email, groups, role flags, delegation context, direct_write, and auth_time (pure)
+// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: JWT claims struct carrying email, groups, role flags, delegation context, direct_write, addon link, and auth_time (pure)
 type Claims struct {
 	Email              string             `json:"email"`
 	EmailVerified      bool               `json:"email_verified,omitempty"`
@@ -234,6 +234,7 @@ type Claims struct {
 	IsSecurityReviewer *bool              `json:"tmi_is_security_reviewer,omitempty"` // TMI Security Reviewers group membership
 	Delegation         *DelegationContext `json:"delegation,omitempty"`               // T18: scoped delegation token for addon invocations
 	DirectWrite        *bool              `json:"tmi_direct_write,omitempty"`         // #856: SA token may pass the invoker-only gate (owner's roles still apply)
+	AddonID            string             `json:"tmi_addon_id,omitempty"`             // #883: addon whose subscription must not receive events caused by this token
 	// AuthTime is the timestamp (Unix seconds) of the user's last interactive
 	// IdP authentication. OIDC-standard claim. #355 step-up middleware reads
 	// this to decide whether a /admin/* write requires re-authentication.
@@ -1118,7 +1119,7 @@ func (s *Service) ClearUserGroups(ctx context.Context, email string) error {
 
 // HandleClientCredentialsGrant processes OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4)
 // Returns an access token for machine-to-machine authentication
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: validate client credentials and mint a service-account JWT with direct_write claim unless owner is admin (reads DB)
+// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: validate client credentials and mint a service-account JWT with direct_write and addon-link claims unless owner is admin (reads DB)
 func (s *Service) HandleClientCredentialsGrant(ctx context.Context, clientID, clientSecret string) (*TokenPair, error) {
 	logger := slogging.Get()
 
@@ -1215,6 +1216,9 @@ func (s *Service) HandleClientCredentialsGrant(ctx context.Context, clientID, cl
 		} else {
 			directWrite := true
 			claims.DirectWrite = &directWrite
+			// #883: only a direct_write token can cause events, so the
+			// self-delivery link is only meaningful alongside it.
+			claims.AddonID = creds.AddonID
 		}
 	}
 

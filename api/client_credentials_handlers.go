@@ -109,6 +109,12 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 		return
 	}
 
+	addonID, err := resolveCredentialAddonID(c, req.AddonId, directWrite)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Error{Error: "invalid_request", ErrorDescription: err.Error()})
+		return
+	}
+
 	// Parse user UUID
 	ownerUUID, err := uuid.Parse(userUUID)
 	if err != nil {
@@ -152,6 +158,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 		Name:        req.Name,
 		Description: description,
 		DirectWrite: directWrite,
+		AddonID:     addonID,
 		ExpiresAt:   timeFromPtr(req.ExpiresAt),
 	})
 	if err != nil {
@@ -195,6 +202,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 		Name:         resp.Name,
 		Description:  strPtr(resp.Description),
 		DirectWrite:  &resp.DirectWrite,
+		AddonId:      uuidPtrFromString(resp.AddonID),
 		CreatedAt:    resp.CreatedAt,
 		ExpiresAt:    timePtr(resp.ExpiresAt),
 	}
@@ -290,6 +298,7 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 			Description: strPtr(cred.Description),
 			IsActive:    cred.IsActive,
 			DirectWrite: &cred.DirectWrite,
+			AddonId:     uuidPtrFromString(cred.AddonID),
 			LastUsedAt:  timePtr(cred.LastUsedAt),
 			CreatedAt:   cred.CreatedAt,
 			ModifiedAt:  cred.ModifiedAt,
@@ -417,4 +426,36 @@ func validateClientCredentialDescription(description string) string {
 // SEM@99fb5e219721394dfd5b0ad63c85d3f01d469306: convert a string to a log-safe form by replacing control and zero-width chars (pure)
 func sanitizeForLogging(s string) string {
 	return unicodecheck.SanitizeForLogging(s)
+}
+
+// resolveCredentialAddonID validates the optional addon link on a credential
+// create request (#883): it requires direct_write and an existing addon.
+// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: validate a credential's optional addon link against direct_write and addon existence (reads DB)
+func resolveCredentialAddonID(c *gin.Context, addonID *openapi_types.UUID, directWrite bool) (string, error) {
+	if addonID == nil {
+		return "", nil
+	}
+	if !directWrite {
+		return "", errors.New("addon_id requires direct_write")
+	}
+	if GlobalAddonStore == nil {
+		return "", errors.New("addon_id cannot be verified: addon store unavailable")
+	}
+	if _, err := GlobalAddonStore.Get(c.Request.Context(), *addonID); err != nil {
+		return "", errors.New("addon_id does not refer to an existing addon")
+	}
+	return addonID.String(), nil
+}
+
+// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: convert an optional UUID string to an OpenAPI UUID pointer (pure)
+func uuidPtrFromString(s string) *openapi_types.UUID {
+	if s == "" {
+		return nil
+	}
+	id, err := uuid.Parse(s)
+	if err != nil {
+		return nil
+	}
+	u := id
+	return &u
 }

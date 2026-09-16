@@ -77,6 +77,12 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 		})
 		return
 	}
+	// #883: validate the addon link before any side effects (user creation).
+	addonID, err := resolveCredentialAddonID(c, req.AddonId, boolFromPtr(req.DirectWrite))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Error{Error: "invalid_request", ErrorDescription: err.Error()})
+		return
+	}
 
 	// Normalize name to SMTP-safe local-part
 	normalized := normalizeAutomationName(name)
@@ -99,7 +105,7 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 	}
 
 	// Check for duplicate provider_user_id
-	_, err := GlobalUserStore.GetByProviderAndID(c.Request.Context(), "tmi", providerUserID)
+	_, err = GlobalUserStore.GetByProviderAndID(c.Request.Context(), "tmi", providerUserID)
 	if err == nil {
 		c.JSON(http.StatusConflict, Error{
 			Error:            "conflict",
@@ -186,6 +192,7 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 		Name:        name,
 		Description: "Auto-created for automation account " + displayName,
 		DirectWrite: boolFromPtr(req.DirectWrite),
+		AddonID:     addonID,
 	})
 	if err != nil {
 		logger.Error("Failed to create client credential for automation user: %v", err)
@@ -222,6 +229,7 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 		Name:         ccResp.Name,
 		Description:  strPtr(ccResp.Description),
 		DirectWrite:  &ccResp.DirectWrite,
+		AddonId:      uuidPtrFromString(ccResp.AddonID),
 		CreatedAt:    ccResp.CreatedAt,
 		ExpiresAt:    timePtr(ccResp.ExpiresAt),
 	}

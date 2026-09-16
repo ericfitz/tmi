@@ -122,6 +122,7 @@ func (s *Server) ListAdminUserClientCredentials(c *gin.Context, internalUuid ope
 			Description: strPtr(cred.Description),
 			IsActive:    cred.IsActive,
 			DirectWrite: &cred.DirectWrite,
+			AddonId:     uuidPtrFromString(cred.AddonID),
 			LastUsedAt:  timePtr(cred.LastUsedAt),
 			CreatedAt:   cred.CreatedAt,
 			ModifiedAt:  cred.ModifiedAt,
@@ -229,12 +230,19 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 		return
 	}
 
+	addonID, err := resolveCredentialAddonID(c, req.AddonId, directWrite)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, Error{Error: "invalid_request", ErrorDescription: err.Error()})
+		return
+	}
+
 	// Create credential (no quota check — admin operation)
 	ccService := NewClientCredentialService(authServiceAdapter.GetService())
 	resp, err := ccService.Create(c.Request.Context(), internalUuid, CreateClientCredentialRequest{
 		Name:        req.Name,
 		Description: description,
 		DirectWrite: directWrite,
+		AddonID:     addonID,
 		ExpiresAt:   timeFromPtr(req.ExpiresAt),
 	})
 	if err != nil {
@@ -277,6 +285,7 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 		Name:         resp.Name,
 		Description:  strPtr(resp.Description),
 		DirectWrite:  &resp.DirectWrite,
+		AddonId:      uuidPtrFromString(resp.AddonID),
 		CreatedAt:    resp.CreatedAt,
 		ExpiresAt:    timePtr(resp.ExpiresAt),
 	})

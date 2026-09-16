@@ -42,6 +42,7 @@ func (r *GormClientCredentialRepository) Create(ctx context.Context, params Clie
 		Description:      models.NewNullableDBText(&params.Description),
 		IsActive:         models.DBBool(true),
 		DirectWrite:      models.DBBool(params.DirectWrite),
+		AddonID:          models.NewNullableDBVarchar(&params.AddonID),
 		CreatedAt:        now,
 		ModifiedAt:       now,
 		ExpiresAt:        params.ExpiresAt,
@@ -171,6 +172,7 @@ func convertModelToClientCredential(m *models.ClientCredential) *ClientCredentia
 		Description:      description,
 		IsActive:         m.IsActive.Bool(), // Convert DBBool to bool
 		DirectWrite:      m.DirectWrite.Bool(),
+		AddonID:          m.AddonID.String,
 		LastUsedAt:       m.LastUsedAt,
 		CreatedAt:        m.CreatedAt,
 		ModifiedAt:       m.ModifiedAt,

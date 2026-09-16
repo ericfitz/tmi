@@ -12,7 +12,7 @@ import (
 )
 
 // ClientCredential represents an OAuth 2.0 client credential for machine-to-machine authentication
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: domain model for an OAuth 2.0 client credential, with an opt-in direct_write authorization flag
+// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: domain model for an OAuth 2.0 client credential, with opt-in direct_write flag and addon link
 type ClientCredential struct {
 	ID               uuid.UUID
 	OwnerUUID        uuid.UUID
@@ -22,6 +22,7 @@ type ClientCredential struct {
 	Description      string
 	IsActive         bool
 	DirectWrite      bool
+	AddonID          string // linked addon for self-delivery suppression (#883); empty when unlinked
 	LastUsedAt       *time.Time
 	CreatedAt        time.Time
 	ModifiedAt       time.Time
@@ -29,7 +30,7 @@ type ClientCredential struct {
 }
 
 // ClientCredentialCreateParams contains parameters for creating a new client credential
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: parameters for creating a new client credential, including the direct_write flag
+// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: parameters for creating a new client credential, including direct_write flag and addon link
 type ClientCredentialCreateParams struct {
 	OwnerUUID        uuid.UUID
 	ClientID         string
@@ -37,6 +38,7 @@ type ClientCredentialCreateParams struct {
 	Name             string
 	Description      string
 	DirectWrite      bool
+	AddonID          string
 	ExpiresAt        *time.Time
 }
 
@@ -50,6 +52,7 @@ func (s *Service) CreateClientCredential(ctx context.Context, params ClientCrede
 		Name:             params.Name,
 		Description:      params.Description,
 		DirectWrite:      params.DirectWrite,
+		AddonID:          params.AddonID,
 		ExpiresAt:        params.ExpiresAt,
 	}
 
@@ -106,7 +109,7 @@ func (s *Service) UpdateClientCredentialLastUsed(ctx context.Context, id uuid.UU
 
 // DeactivateClientCredential deactivates a client credential (soft delete)
 // and revokes its outstanding service-account tokens.
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: soft-delete a client credential and revoke its issued tokens (mutates shared state)
+// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: soft-delete a client credential and revoke its issued tokens (mutates shared state)
 func (s *Service) DeactivateClientCredential(ctx context.Context, id uuid.UUID, ownerUUID uuid.UUID) error {
 	if err := s.credRepo.Deactivate(ctx, id, ownerUUID); err != nil {
 		return err // Repository already returns appropriate error message
@@ -117,7 +120,7 @@ func (s *Service) DeactivateClientCredential(ctx context.Context, id uuid.UUID, 
 
 // DeleteClientCredential permanently deletes a client credential and revokes
 // its outstanding service-account tokens.
-// SEM@b4b216a8ad19c2ca17d1d9e7466281e90c7b2f41: permanently delete a client credential and revoke its issued tokens (mutates shared state)
+// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: permanently delete a client credential and revoke its issued tokens (mutates shared state)
 func (s *Service) DeleteClientCredential(ctx context.Context, id uuid.UUID, ownerUUID uuid.UUID) error {
 	if err := s.credRepo.Delete(ctx, id, ownerUUID); err != nil {
 		return err // Repository already returns appropriate error message
@@ -132,7 +135,7 @@ func (s *Service) DeleteClientCredential(ctx context.Context, id uuid.UUID, owne
 // JWT middleware is failing closed on every request anyway (#660); the only
 // residual gap is a marker lost across a Redis outage, bounded by the token
 // lifetime.
-// SEM@48ae1daff849c4fbb75fe51c29185be3f169d27d: revoke service-account tokens of a client credential, best-effort (reads DB)
+// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: revoke service-account tokens of a client credential, best-effort (reads DB)
 func (s *Service) revokeCredentialTokens(ctx context.Context, id uuid.UUID) {
 	if s.dbManager == nil || s.dbManager.Redis() == nil {
 		slogging.Get().Warn("Client credential token revocation skipped: Redis not available credential_id=%v", id)
@@ -154,6 +157,7 @@ func convertRepoCredToServiceCred(rc *repository.ClientCredential) *ClientCreden
 		Description:      rc.Description,
 		IsActive:         rc.IsActive,
 		DirectWrite:      rc.DirectWrite,
+		AddonID:          rc.AddonID,
 		LastUsedAt:       rc.LastUsedAt,
 		CreatedAt:        rc.CreatedAt,
 		ModifiedAt:       rc.ModifiedAt,

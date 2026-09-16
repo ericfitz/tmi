@@ -178,7 +178,7 @@ func NewClaimsExtractor(authHandlers *auth.Handlers, cfg *config.Config) *Claims
 // setServiceAccountContext parses a "sa:{credential_id}:{owner_provider_user_id}"
 // subject and sets the service-account context keys, including the #856
 // direct_write marker when the token carries tmi_direct_write=true.
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: parse a service-account JWT subject and set service-account and direct_write context keys (mutates shared state)
+// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: parse a service-account JWT subject and set service-account, direct_write, and source-addon context (mutates shared state)
 func setServiceAccountContext(c *gin.Context, logger slogging.SimpleLogger, sub string, claims jwt.MapClaims) {
 	parts := strings.SplitN(sub, ":", 3)
 	if len(parts) != 3 {
@@ -197,6 +197,12 @@ func setServiceAccountContext(c *gin.Context, logger slogging.SimpleLogger, sub 
 	// gate; the owner's roles are still enforced by the authz middleware.
 	if dw, ok := claims["tmi_direct_write"].(bool); ok && dw {
 		c.Set("directWrite", true)
+	}
+	// #883: a credential linked to an addon tags its requests so events it
+	// causes are not delivered back to that addon's own subscription, the
+	// same mechanism delegation tokens use (#876).
+	if addonID, ok := claims["tmi_addon_id"].(string); ok && addonID != "" {
+		c.Request = c.Request.WithContext(api.WithSourceAddonID(c.Request.Context(), addonID))
 	}
 
 	logger.Debug("Service account authenticated: credential_id=%s, owner=%s", credentialID, ownerProviderUserID)

@@ -305,11 +305,12 @@ type SeedSpecAddon struct {
 }
 
 // SeedSpecClientCred defines a client credential.
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: client credential definition with name, description, and direct_write flag for seeding (pure)
+// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: client credential definition with name, description, direct_write flag, and addon link for seeding (pure)
 type SeedSpecClientCred struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	DirectWrite bool   `json:"direct_write,omitempty"`
+	AddonID     string `json:"addon_id,omitempty"`
 }
 
 // SeedSpecWebhookTest defines a webhook test delivery trigger.
