@@ -209,3 +209,51 @@ func TestWebhookStore_TogglePinned_SelectUpdates_OracleIntegration(t *testing.T)
 	setPinned(true)
 	assert.True(t, readPinned(), "operator_pinned must be true after restoring it")
 }
+
+// TestWebhookStore_UpdateStatus_MapKey_OracleIntegration verifies that the
+// map-keyed UpdateStatus (#881) resolves its lowercase "status" key to the
+// uppercase Oracle column: SkipQuoteIdentifiers emits the key unquoted, so
+// Oracle folds it to STATUS. A regression to quoted identifiers would fail here
+// with ORA-00904.
+//
+// Run via `make test-integration-oci`.
+func TestWebhookStore_UpdateStatus_MapKey_OracleIntegration(t *testing.T) {
+	db := openWebhookStoreOracleDB(t)
+
+	ownerUUID := uuid.New().String()
+	owner := models.User{
+		InternalUUID: models.DBVarchar(ownerUUID),
+		Provider:     models.DBVarchar("tmi"),
+		Email:        models.DBVarchar("oracle-update-status-test@tmi.local"),
+		Name:         models.DBVarchar("Oracle Update Status Test User"),
+	}
+	require.NoError(t, db.Create(&owner).Error, "create synthetic owner user")
+	t.Cleanup(func() {
+		_ = db.Where("INTERNAL_UUID = ?", ownerUUID).Delete(&models.User{}).Error
+	})
+
+	subID := uuid.New().String()
+	sub := &models.WebhookSubscription{
+		ID:                models.DBVarchar(subID),
+		OwnerInternalUUID: models.DBVarchar(ownerUUID),
+		Name:              models.DBVarchar("oracle-update-status"),
+		URL:               models.DBText("https://example.com/oracle-update-status"),
+		Events:            models.StringArray{"*"},
+		Status:            models.DBVarchar("pending_verification"),
+	}
+	require.NoError(t, db.Create(sub).Error, "create subscription")
+	t.Cleanup(func() {
+		_ = db.Where("ID = ?", subID).Delete(&models.WebhookSubscription{}).Error
+	})
+
+	store := NewGormWebhookSubscriptionStore(db)
+	ctx := context.Background()
+	for _, want := range []string{"active", "pending_delete"} {
+		require.NoError(t, store.UpdateStatus(ctx, subID, want), "UpdateStatus(%q) on Oracle", want)
+		var got models.WebhookSubscription
+		require.NoError(t, db.First(&got, "id = ?", subID).Error, "read back subscription")
+		assert.Equal(t, want, string(got.Status))
+	}
+	assert.ErrorIs(t, store.UpdateStatus(ctx, uuid.New().String(), "active"), ErrWebhookNotFound,
+		"unknown id must report not found, not a silent no-op")
+}
