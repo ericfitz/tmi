@@ -43,10 +43,10 @@ type SystemSetting struct {
 	// empty string as NULL, so an empty string and NULL would be
 	// indistinguishable there. Only NULL, SystemSettingOriginSeeded, or
 	// SystemSettingOriginExplicit are valid values.
-	// Not part of the wire API: modelToAPISystemSetting (api/config_handlers.go)
-	// builds the API SystemSetting field by field and never copies Origin
-	// across, so it never reaches a client regardless of this tag. The tag is
-	// a real json name (not "-") because the Redis cache tier round-trips a
+	// Exposed read-only as SystemSetting.origin on the admin settings API by
+	// modelToAPISystemSetting (api/config_handlers.go, #803), which maps NULL
+	// to "seeded". The tag is a real json name (not "-") because the Redis
+	// cache tier round-trips a
 	// SystemSetting through json.Marshal/Unmarshal (setInRedisCache /
 	// getFromRedisCache) — "-" would silently drop Origin on every Redis
 	// cache hit and make every setting look explicit after a warm read

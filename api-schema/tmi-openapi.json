@@ -7036,7 +7036,7 @@
           },
           "source": {
             "type": "string",
-            "description": "Where the effective value of this setting comes from. Server-managed, not writable.",
+            "description": "Where the effective value of this setting comes from. Server-managed, not writable. Read together with origin: source says which layer wins for this key; origin says whether the database row (if any) was deliberately set.",
             "enum": [
               "database",
               "config",
@@ -7048,6 +7048,15 @@
           "read_only": {
             "type": "boolean",
             "description": "Whether this setting can be modified via the API. True when source is not database.",
+            "readOnly": true
+          },
+          "origin": {
+            "type": "string",
+            "description": "How the database row for this setting came to exist. seeded: inserted with a registry default at first boot (an explicitly configured config or environment value outranks it). explicit: deliberately set by an operator via the admin API, tmi-dbtool --import-config, or SettingsService.Set (it outranks config). Absent when the setting has no database row (source is config, environment, or vault). Server-managed, not writable.",
+            "enum": [
+              "seeded",
+              "explicit"
+            ],
             "readOnly": true
           }
         },
@@ -7065,7 +7074,8 @@
           "modified_at": "2026-01-15T10:30:00Z",
           "modified_by": "550e8400-e29b-41d4-a716-446655440000",
           "source": "database",
-          "read_only": false
+          "read_only": false,
+          "origin": "explicit"
         }
       },
       "SystemSettingUpdate": {

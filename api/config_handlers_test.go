@@ -545,6 +545,22 @@ func TestModelToAPISystemSetting(t *testing.T) {
 	assert.Equal(t, "Test description", *apiSetting.Description)
 	assert.NotNil(t, apiSetting.ModifiedAt)
 	assert.NotNil(t, apiSetting.ModifiedBy)
+	require.NotNil(t, apiSetting.Origin)
+	assert.Equal(t, Seeded, *apiSetting.Origin, "a row with no origin stamp is reported as seeded (#803)")
+}
+
+// origin is exposed read-only so an admin can see why a database row does or
+// does not outrank config (#794 precedence, #803 API exposure).
+// SEM@0000000000000000000000000000000000000000: verify explicit and seeded origin stamps map onto the API origin enum
+func TestModelToAPISystemSetting_Origin(t *testing.T) {
+	explicit := models.SystemSetting{SettingKey: "k", Value: "v", SettingType: "string",
+		Origin: models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true}}
+	seeded := models.SystemSetting{SettingKey: "k", Value: "v", SettingType: "string",
+		Origin: models.NullableDBVarchar{String: models.SystemSettingOriginSeeded, Valid: true}}
+	require.NotNil(t, modelToAPISystemSetting(explicit).Origin)
+	assert.Equal(t, Explicit, *modelToAPISystemSetting(explicit).Origin)
+	require.NotNil(t, modelToAPISystemSetting(seeded).Origin)
+	assert.Equal(t, Seeded, *modelToAPISystemSetting(seeded).Origin)
 }
 
 func TestModelToAPISystemSetting_NilOptionalFields(t *testing.T) {

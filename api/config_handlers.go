@@ -939,5 +939,14 @@ func modelToAPISystemSetting(m models.SystemSetting) SystemSetting {
 			setting.ModifiedBy = &parsedUUID
 		}
 	}
+	// origin (#803): NULL means seeded, the fail-safe direction documented on
+	// models.SystemSetting.Origin, so a row is reported as explicit only when
+	// it says so. Only rows carry an origin; config/env/vault settings never
+	// pass through here.
+	origin := Seeded
+	if m.IsExplicit() {
+		origin = Explicit
+	}
+	setting.Origin = &origin
 	return setting
 }
