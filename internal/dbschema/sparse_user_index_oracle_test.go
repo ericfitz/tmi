@@ -192,7 +192,7 @@ func TestSparseUserEmailIndexOracleIntegration(t *testing.T) {
 	t.Cleanup(func() {
 		dropOracleIndexIfPresent(t, db, oracleSparseDupIndexName)
 		dropOracleIndexIfPresent(t, db, oracleSparseIndexName)
-		if err := dbschema.EnsureSparseUserEmailIndex(db); err != nil {
+		if err := dbschema.EnsureSparseUserEmailIndex(context.Background(), db); err != nil {
 			t.Errorf("re-ensuring the production sparse-email index during cleanup: %v", err)
 		}
 		state, found := readOracleIndexState(t, db, oracleSparseIndexName)
@@ -201,7 +201,7 @@ func TestSparseUserEmailIndexOracleIntegration(t *testing.T) {
 	})
 
 	// --- Phase 1: create, and confirm what Oracle actually built -----------
-	require.NoError(t, dbschema.EnsureSparseUserEmailIndex(db),
+	require.NoError(t, dbschema.EnsureSparseUserEmailIndex(context.Background(), db),
 		"creating the sparse-email index must succeed against a live Oracle schema")
 
 	state, found := readOracleIndexState(t, db, oracleSparseIndexName)
@@ -212,7 +212,7 @@ func TestSparseUserEmailIndexOracleIntegration(t *testing.T) {
 		"the CASE-expression index must be function-based and enabled; a DISABLED function-based index enforces nothing")
 
 	// --- Phase 2: idempotency (the ORA-00955 swallow + verify path) --------
-	require.NoError(t, dbschema.EnsureSparseUserEmailIndex(db), "must be idempotent")
+	require.NoError(t, dbschema.EnsureSparseUserEmailIndex(context.Background(), db), "must be idempotent")
 	state, found = readOracleIndexState(t, db, oracleSparseIndexName)
 	require.True(t, found)
 	assert.Equal(t, "UNIQUE", state.Uniqueness, "a second call must not have degraded the index")
@@ -256,7 +256,7 @@ func TestSparseUserEmailIndexOracleIntegration(t *testing.T) {
 	// User column with no index of its own (oracle-db-admin review, #735).
 	require.NoError(t, execOracleTestDDL(t, db, "CREATE INDEX "+oracleSparseIndexName+" ON "+oracleUsersTable+" (NAME)"))
 
-	require.NoError(t, dbschema.EnsureSparseUserEmailIndex(db),
+	require.NoError(t, dbschema.EnsureSparseUserEmailIndex(context.Background(), db),
 		"an impostor index must not abort startup")
 	state, found = readOracleIndexState(t, db, oracleSparseIndexName)
 	require.True(t, found, "the impostor must still be there")
@@ -270,7 +270,7 @@ func TestSparseUserEmailIndexOracleIntegration(t *testing.T) {
 	require.NoError(t, execOracleTestDDL(t, db, "DROP INDEX "+oracleSparseIndexName))
 	_, found = readOracleIndexState(t, db, oracleSparseIndexName)
 	require.False(t, found, "the impostor must actually be gone before the real index is recreated")
-	require.NoError(t, dbschema.EnsureSparseUserEmailIndex(db))
+	require.NoError(t, dbschema.EnsureSparseUserEmailIndex(context.Background(), db))
 	state, found = readOracleIndexState(t, db, oracleSparseIndexName)
 	require.True(t, found)
 	require.Equal(t, "UNIQUE", state.Uniqueness, "the real index must be restored before the next phase")
@@ -285,7 +285,7 @@ func TestSparseUserEmailIndexOracleIntegration(t *testing.T) {
 	require.NoError(t, execOracleTestDDL(t, db,
 		"CREATE UNIQUE INDEX "+oracleSparseDupIndexName+" ON "+oracleUsersTable+" "+oracleSparseKeyExprs))
 
-	require.NoError(t, dbschema.EnsureSparseUserEmailIndex(db),
+	require.NoError(t, dbschema.EnsureSparseUserEmailIndex(context.Background(), db),
 		"ORA-01408 (same column/expression list under another name) must warn and continue, not abort startup")
 	_, found = readOracleIndexState(t, db, oracleSparseIndexName)
 	assert.False(t, found, "the real index name must still be free -- ORA-01408 means nothing was created under it")
@@ -315,11 +315,11 @@ func TestUserProviderLookupUniqueOracleIntegration(t *testing.T) {
 
 	// Restore a UNIQUE index no matter how this test exits.
 	t.Cleanup(func() {
-		require.NoError(t, dbschema.EnsureUserProviderLookupUnique(db),
+		require.NoError(t, dbschema.EnsureUserProviderLookupUnique(context.Background(), db),
 			"the production provider-lookup index must be UNIQUE after this test")
 	})
 
-	require.NoError(t, dbschema.EnsureUserProviderLookupUnique(db))
+	require.NoError(t, dbschema.EnsureUserProviderLookupUnique(context.Background(), db))
 	state, found := readOracleIndexState(t, db, lookupIndexName)
 	require.True(t, found, "%s must exist", lookupIndexName)
 	require.Equal(t, "UNIQUE", state.Uniqueness, "baseline: the index must be unique before the downgrade below")
@@ -342,7 +342,7 @@ func TestUserProviderLookupUniqueOracleIntegration(t *testing.T) {
 	assert.False(t, db.Migrator().HasIndex(&models.User{}, "idx_users_provider_lookup"),
 		"documents the #732 root cause: gorm-oracle's HasIndex binds the lowercase tag name against uppercase USER_INDEXES rows and never matches")
 
-	require.NoError(t, dbschema.EnsureUserProviderLookupUnique(db), "the upgrade must run and must not abort startup")
+	require.NoError(t, dbschema.EnsureUserProviderLookupUnique(context.Background(), db), "the upgrade must run and must not abort startup")
 
 	state, found = readOracleIndexState(t, db, lookupIndexName)
 	require.True(t, found, "the index must exist after the upgrade")

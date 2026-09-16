@@ -21,6 +21,11 @@ import (
 // startup indefinitely. 5 minutes is generous for schema migration steps.
 const oracleLockTimeoutSeconds = 300
 
+// lockReleaseTimeout bounds the unlock statement (and the pinned DDL session's
+// DDL_LOCK_TIMEOUT reset in oracle_ddl.go), which run on a context detached
+// from the possibly cancelled migration context (#758).
+const lockReleaseTimeout = 10 * time.Second
+
 // oracleLockKeepaliveInterval is how often the pinned lock session is pinged
 // while the lock is held (#723). A var so tests can shrink it. 60s sits far
 // under any plausible ADB IDLE_TIME floor (resource-manager minimums are
@@ -145,8 +150,14 @@ func acquirePGLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slog
 					logger.Warn("closing pinned advisory-lock connection failed: %v", err)
 				}
 			}()
+			// Release on a context that outlives a cancelled migration ctx
+			// (#758): the common way to get here after Ctrl-C is with ctx
+			// already dead, and a clean unlock is cheaper than discarding the
+			// session. Bounded so a wedged backend cannot hang shutdown.
+			releaseCtx, cancelRelease := context.WithTimeout(context.WithoutCancel(ctx), lockReleaseTimeout)
+			defer cancelRelease()
 			var unlocked bool
-			if err := conn.QueryRowContext(ctx, "SELECT pg_advisory_unlock($1)", key).Scan(&unlocked); err != nil {
+			if err := conn.QueryRowContext(releaseCtx, "SELECT pg_advisory_unlock($1)", key).Scan(&unlocked); err != nil {
 				logger.Error("pg_advisory_unlock(%d) failed: %v", key, err)
 				dropConn = true
 				return
@@ -308,8 +319,11 @@ func acquireOracleLock(ctx context.Context, sqlDB *sql.DB, name string, logger *
 				}
 			}()
 
+			// See the pg_advisory_unlock release for why this is not ctx (#758).
+			releaseCtx, cancelRelease := context.WithTimeout(context.WithoutCancel(ctx), lockReleaseTimeout)
+			defer cancelRelease()
 			var rstatus int
-			if _, err := conn.ExecContext(ctx,
+			if _, err := conn.ExecContext(releaseCtx,
 				`BEGIN :1 := DBMS_LOCK.RELEASE(lockhandle => :2); END;`,
 				sql.Out{Dest: &rstatus}, handle,
 			); err != nil {

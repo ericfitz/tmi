@@ -1,6 +1,7 @@
 package dbschema
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -33,7 +34,7 @@ func TestEnsureUserProviderLookupUnique_UpgradesNonUniqueIndex(t *testing.T) {
 	require.True(t, exists)
 	require.False(t, unique, "fixture must start in the pre-#701 non-unique state")
 
-	require.NoError(t, EnsureUserProviderLookupUnique(db))
+	require.NoError(t, EnsureUserProviderLookupUnique(context.Background(), db))
 
 	exists, unique, err = userProviderLookupIndexState(db, "users")
 	require.NoError(t, err)
@@ -55,8 +56,8 @@ func TestEnsureUserProviderLookupUnique_Idempotent(t *testing.T) {
 	db := newSparseIndexTestDB(t)
 	createNonUniqueLookupIndex(t, db)
 
-	require.NoError(t, EnsureUserProviderLookupUnique(db))
-	require.NoError(t, EnsureUserProviderLookupUnique(db), "must be idempotent")
+	require.NoError(t, EnsureUserProviderLookupUnique(context.Background(), db))
+	require.NoError(t, EnsureUserProviderLookupUnique(context.Background(), db), "must be idempotent")
 
 	exists, unique, err := userProviderLookupIndexState(db, "users")
 	require.NoError(t, err)
@@ -74,7 +75,7 @@ func TestEnsureUserProviderLookupUnique_CreatesMissingIndex(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, exists, "fixture must start with no lookup index at all")
 
-	require.NoError(t, EnsureUserProviderLookupUnique(db))
+	require.NoError(t, EnsureUserProviderLookupUnique(context.Background(), db))
 
 	exists, unique, err := userProviderLookupIndexState(db, "users")
 	require.NoError(t, err)
@@ -97,7 +98,7 @@ func TestEnsureUserProviderLookupUnique_DuplicatesBlockUpgrade(t *testing.T) {
 		}).Error)
 	}
 
-	require.NoError(t, EnsureUserProviderLookupUnique(db), "duplicates must not abort startup")
+	require.NoError(t, EnsureUserProviderLookupUnique(context.Background(), db), "duplicates must not abort startup")
 
 	exists, unique, err := userProviderLookupIndexState(db, "users")
 	require.NoError(t, err)
@@ -111,7 +112,7 @@ func TestEnsureUserProviderLookupUnique_DuplicatesBlockUpgrade(t *testing.T) {
 func TestEnsureUserProviderLookupUnique_NoTable(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, EnsureUserProviderLookupUnique(db))
+	require.NoError(t, EnsureUserProviderLookupUnique(context.Background(), db))
 }
 
 // TestUserProviderLookupDDL_OracleUsesUppercase pins the Oracle identifier
@@ -181,7 +182,7 @@ func TestUserProviderLookupIndexState_WrongColumnListReadsAsNotOurs(t *testing.T
 	assert.False(t, unique, "a UNIQUE index over the wrong column list must not read as the intended definition")
 
 	// The Ensure flow must drop the impostor and recreate the intended index.
-	require.NoError(t, EnsureUserProviderLookupUnique(db))
+	require.NoError(t, EnsureUserProviderLookupUnique(context.Background(), db))
 	exists, unique, err = userProviderLookupIndexState(db, "users")
 	require.NoError(t, err)
 	assert.True(t, exists)

@@ -1,6 +1,7 @@
 package dbschema
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -78,7 +79,7 @@ func TestWithDDLRetry_DoesNotRetryPermanentErrors(t *testing.T) {
 func TestExecMigrationDDL_NonOracleUsesGorm(t *testing.T) {
 	db := newSparseIndexTestDB(t)
 
-	require.NoError(t, execMigrationDDL(db, "CREATE UNIQUE INDEX idx_exec_ddl_test ON users (email)"))
+	require.NoError(t, execMigrationDDL(context.Background(), db, "CREATE UNIQUE INDEX idx_exec_ddl_test ON users (email)"))
 
 	var cnt int64
 	require.NoError(t, db.Raw(
@@ -86,6 +87,6 @@ func TestExecMigrationDDL_NonOracleUsesGorm(t *testing.T) {
 	).Scan(&cnt).Error)
 	assert.Equal(t, int64(1), cnt, "the DDL must have been applied")
 
-	require.Error(t, execMigrationDDL(db, "CREATE UNIQUE INDEX idx_exec_ddl_test ON users (email)"),
+	require.Error(t, execMigrationDDL(context.Background(), db, "CREATE UNIQUE INDEX idx_exec_ddl_test ON users (email)"),
 		"a genuine DDL failure must still surface as an error")
 }

@@ -512,14 +512,14 @@ func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error 
 	// the sparse-email index below, index uniqueness is not part of the model
 	// fingerprint, so this must run even when the fast path skips AutoMigrate.
 	// Never fatal: it logs and continues if the upgrade cannot be performed.
-	if err := dbschema.EnsureUserProviderLookupUnique(gormDB.DB()); err != nil {
+	if err := dbschema.EnsureUserProviderLookupUnique(ctx, gormDB.DB()); err != nil {
 		return fmt.Errorf("failed to check the users provider-lookup index: %w", err)
 	}
 
 	// #720: unique sparse-email index (partial/function-based) is raw DDL
 	// AutoMigrate cannot express; idempotent, runs even when the fingerprint
 	// fast path skips AutoMigrate (it is not part of the model fingerprint).
-	if err := dbschema.EnsureSparseUserEmailIndex(gormDB.DB()); err != nil {
+	if err := dbschema.EnsureSparseUserEmailIndex(ctx, gormDB.DB()); err != nil {
 		if dbcheck.IsPermissionError(err, dbType) {
 			// A DDL-less server user hits this on a database that hasn't
 			// been provisioned with the #720 index yet: usually the index
@@ -553,7 +553,7 @@ func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error 
 	// call (rather than two inline `if`s) to keep migrateSchema's cyclomatic
 	// complexity under the gocyclo gate; see ensureMetadataSchema for the
 	// per-step reasoning.
-	if err := ensureMetadataSchema(gormDB.DB()); err != nil {
+	if err := ensureMetadataSchema(ctx, gormDB.DB()); err != nil {
 		return err
 	}
 
@@ -606,7 +606,7 @@ func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error 
 	// into an actual invariant. Idempotent; non-fatal — a missing
 	// defense-in-depth constraint is a smaller outage than a server that
 	// will not boot, and the next boot retries.
-	if err := dbschema.EnsureSystemSettingOriginCheckConstraint(gormDB.DB()); err != nil {
+	if err := dbschema.EnsureSystemSettingOriginCheckConstraint(ctx, gormDB.DB()); err != nil {
 		logger.Warn("EnsureSystemSettingOriginCheckConstraint failed (non-fatal; the origin invariant is not enforced at the database level): %v", err)
 	}
 
@@ -661,11 +661,11 @@ func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error 
 // when the fingerprint fast path skips AutoMigrate; never fatal on a DDL
 // failure -- each step logs and continues, and the next boot retries.
 // SEM@7ffca610d050b6fdbe2db2796298d3e746bb7491: drop retired metadata indexes then raise METADATA INITRANS in sequence (mutates DB)
-func ensureMetadataSchema(gormDB *gorm.DB) error {
-	if err := dbschema.DropRetiredMetadataIndexes(gormDB); err != nil {
+func ensureMetadataSchema(ctx context.Context, gormDB *gorm.DB) error {
+	if err := dbschema.DropRetiredMetadataIndexes(ctx, gormDB); err != nil {
 		return fmt.Errorf("failed to check the retired metadata indexes: %w", err)
 	}
-	if err := dbschema.EnsureMetadataInitrans(gormDB); err != nil {
+	if err := dbschema.EnsureMetadataInitrans(ctx, gormDB); err != nil {
 		return fmt.Errorf("failed to check the metadata INITRANS settings: %w", err)
 	}
 	return nil

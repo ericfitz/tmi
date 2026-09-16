@@ -3,6 +3,7 @@
 package dbschema
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -48,7 +49,7 @@ func TestDropRetiredMetadataIndexes_Integration(t *testing.T) {
 		require.True(t, exists, "seeded index %s must exist before the drop", name)
 	}
 
-	require.NoError(t, DropRetiredMetadataIndexes(db))
+	require.NoError(t, DropRetiredMetadataIndexes(context.Background(), db))
 
 	for _, name := range retiredMetadataIndexes {
 		exists, err := metadataIndexExists(db, name, table)
@@ -56,7 +57,7 @@ func TestDropRetiredMetadataIndexes_Integration(t *testing.T) {
 		require.False(t, exists, "retired index %s must be gone after the drop", name)
 	}
 
-	require.NoError(t, DropRetiredMetadataIndexes(db), "must be idempotent")
+	require.NoError(t, DropRetiredMetadataIndexes(context.Background(), db), "must be idempotent")
 
 	for _, name := range metadataInitransIndexes {
 		exists, err := metadataIndexExists(db, name, table)

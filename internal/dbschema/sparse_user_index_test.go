@@ -1,6 +1,7 @@
 package dbschema
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -44,8 +45,8 @@ func newSparseIndexTestDB(t *testing.T) *gorm.DB {
 func TestEnsureSparseUserEmailIndex_CreatesAndIsIdempotent(t *testing.T) {
 	db := newSparseIndexTestDB(t)
 
-	require.NoError(t, EnsureSparseUserEmailIndex(db))
-	require.NoError(t, EnsureSparseUserEmailIndex(db), "must be idempotent")
+	require.NoError(t, EnsureSparseUserEmailIndex(context.Background(), db))
+	require.NoError(t, EnsureSparseUserEmailIndex(context.Background(), db), "must be idempotent")
 
 	// Two sparse (NULL provider_user_id) rows sharing (provider, email) must
 	// collide on the new unique index.
@@ -82,7 +83,7 @@ func TestEnsureSparseUserEmailIndex_PreexistingSparseDuplicates(t *testing.T) {
 		ID: uuid.NewString(), Provider: "okta", ProviderUserID: nil, Email: "dup@example.com",
 	}).Error)
 
-	err := EnsureSparseUserEmailIndex(db)
+	err := EnsureSparseUserEmailIndex(context.Background(), db)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "okta")
 	assert.Contains(t, err.Error(), "dup@example.com")
@@ -112,7 +113,7 @@ func TestEnsureSparseUserEmailIndex_ImpostorIndexWarnsAndContinues(t *testing.T)
 		"CREATE INDEX "+sparseUserIndexName+" ON users(provider, email)",
 	).Error)
 
-	err := EnsureSparseUserEmailIndex(db)
+	err := EnsureSparseUserEmailIndex(context.Background(), db)
 	require.NoError(t, err, "an impostor index must not abort startup")
 
 	// If the impostor had been silently treated as #720's own valid index,
@@ -158,7 +159,7 @@ func TestEnsureSparseUserEmailIndex_LegacyNullProviderRowsIgnored(t *testing.T) 
 		uuid.NewString(), "legacy@example.com",
 	).Error)
 
-	require.NoError(t, EnsureSparseUserEmailIndex(db), "NULL-provider rows must not false-positive the duplicate-sparse-email abort")
+	require.NoError(t, EnsureSparseUserEmailIndex(context.Background(), db), "NULL-provider rows must not false-positive the duplicate-sparse-email abort")
 }
 
 // SEM@87d1696b4bf3edbe042353cf7586a60de78c2028: validate sparse user email index creation is a no-op when the users table is absent
@@ -166,7 +167,7 @@ func TestEnsureSparseUserEmailIndex_NoTable(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 
-	err = EnsureSparseUserEmailIndex(db)
+	err = EnsureSparseUserEmailIndex(context.Background(), db)
 	assert.NoError(t, err)
 }
 
@@ -194,7 +195,7 @@ func TestSparseUserEmailIndexExists_WrongColumnListReadsAsAbsent(t *testing.T) {
 	require.NoError(t, db.Exec("DROP INDEX "+sparseUserIndexName).Error)
 
 	// The genuine article reads as present.
-	require.NoError(t, EnsureSparseUserEmailIndex(db))
+	require.NoError(t, EnsureSparseUserEmailIndex(context.Background(), db))
 	exists, err = sparseUserEmailIndexExists(db, "users")
 	require.NoError(t, err)
 	assert.True(t, exists, "the intended index must read as present")

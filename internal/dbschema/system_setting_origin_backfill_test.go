@@ -1,6 +1,7 @@
 package dbschema
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -281,7 +282,7 @@ func TestBackfillSystemSettingOrigin_NoRows(t *testing.T) {
 // SEM@0000000000000000000000000000000000000000: validate the origin CHECK constraint installer no-ops cleanly on SQLite
 func TestEnsureSystemSettingOriginCheckConstraint_NoOpOnSQLite(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
-	require.NoError(t, EnsureSystemSettingOriginCheckConstraint(db))
+	require.NoError(t, EnsureSystemSettingOriginCheckConstraint(context.Background(), db))
 	// Calling it again must remain a harmless no-op.
-	require.NoError(t, EnsureSystemSettingOriginCheckConstraint(db))
+	require.NoError(t, EnsureSystemSettingOriginCheckConstraint(context.Background(), db))
 }

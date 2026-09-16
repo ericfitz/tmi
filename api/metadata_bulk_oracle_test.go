@@ -205,10 +205,10 @@ func TestMetadataBulkWriteOracleIntegration(t *testing.T) {
 		// them again to pin idempotence. Both must return nil on a
 		// catalog-readable database whatever the DDL outcome; the probes
 		// below are what decide pass/fail.
-		require.NoError(t, dbschema.DropRetiredMetadataIndexes(db))
-		require.NoError(t, dbschema.EnsureMetadataInitrans(db))
-		require.NoError(t, dbschema.DropRetiredMetadataIndexes(db), "must be idempotent")
-		require.NoError(t, dbschema.EnsureMetadataInitrans(db), "must be idempotent")
+		require.NoError(t, dbschema.DropRetiredMetadataIndexes(context.Background(), db))
+		require.NoError(t, dbschema.EnsureMetadataInitrans(context.Background(), db))
+		require.NoError(t, dbschema.DropRetiredMetadataIndexes(context.Background(), db), "must be idempotent")
+		require.NoError(t, dbschema.EnsureMetadataInitrans(context.Background(), db), "must be idempotent")
 
 		// Same CURRENT_SCHEMA scoping as the production probes (#736);
 		// spelled out rather than imported so the test asserts against what

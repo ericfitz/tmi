@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -197,7 +200,12 @@ func dispatchOperation(db *testdb.TestDB, log *slogging.Logger, opCount int, f c
 	case opCount > 1:
 		return fmt.Errorf("only one operation flag can be specified at a time (-s, -c, -t, -l, --export-config, --backfill-empty-strings)")
 	case f.schema:
-		return runSchema(db, f.dryRun, f.verbose)
+		// #758: a cancellable context so Ctrl-C / SIGTERM releases the
+		// cross-replica migration lock (pg_advisory_lock otherwise waits
+		// forever) and interrupts an in-flight DDL wait.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		return runSchema(ctx, db, f.dryRun, f.verbose)
 	case f.importConfig:
 		return dispatchImportConfig(db, log, f)
 	case f.importTestData:

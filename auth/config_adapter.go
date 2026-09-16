@@ -225,8 +225,14 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 	// as a server boot's runMigrationsLocked against the same schema, so it
 	// must contend for the same cross-replica advisory lock rather than run
 	// unserialized alongside one.
-	if err := dbschema.WithMigrationLock(context.Background(), gormDB.DB(), dbschema.MigrationLockName, func() error {
-		return migrateSchemaForConfigAdapter(gormDB, allModels, desiredFP)
+	// #758: bounded rather than context.Background() so a stalled lock holder
+	// cannot park this caller forever (pg_advisory_lock has no timeout of its
+	// own). The deadline covers lock acquisition and the Ensure*/Drop* DDL
+	// helpers; gorm's AutoMigrate takes no context and is not interruptible.
+	migrationCtx, cancelMigration := context.WithTimeout(context.Background(), configAdapterMigrationTimeout)
+	defer cancelMigration()
+	if err := dbschema.WithMigrationLock(migrationCtx, gormDB.DB(), dbschema.MigrationLockName, func() error {
+		return migrateSchemaForConfigAdapter(migrationCtx, gormDB, allModels, desiredFP)
 	}); err != nil {
 		return nil, err
 	}
@@ -261,7 +267,14 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 // AutoMigrate cannot express. Always called with the cross-replica migration
 // advisory lock held (see InitAuthWithConfig, #737).
 // SEM@7ffca610d050b6fdbe2db2796298d3e746bb7491: run pre-migration checks, AutoMigrate, and raw-DDL indexes for schema evolution (mutates DB)
-func migrateSchemaForConfigAdapter(gormDB *db.GormDB, allModels []any, desiredFP string) error {
+// configAdapterMigrationTimeout bounds the whole lock-plus-migrate sequence in
+// InitAuthWithConfig, which has no caller-supplied context (#758). Generous:
+// a cold Oracle ADB AutoMigrate takes minutes, and the advisory lock alone may
+// wait up to 300s for another replica.
+const configAdapterMigrationTimeout = 20 * time.Minute
+
+// SEM@0000000000000000000000000000000000000000: run the config-adapter schema migration sequence under the caller's context: AutoMigrate, backfills, index upgrades (mutates DB)
+func migrateSchemaForConfigAdapter(ctx context.Context, gormDB *db.GormDB, allModels []any, desiredFP string) error {
 	logger := slogging.Get()
 
 	if dbschema.SchemaFingerprintCurrent(gormDB.DB(), desiredFP) {
@@ -301,7 +314,7 @@ func migrateSchemaForConfigAdapter(gormDB *db.GormDB, allModels []any, desiredFP
 	// cmd/server/main.go's runMigrationsLocked and cmd/dbtool/schema.go's
 	// runSchema. Index uniqueness is not part of the model fingerprint, so
 	// this must run even when the fast path above skipped AutoMigrate.
-	if err := dbschema.EnsureUserProviderLookupUnique(gormDB.DB()); err != nil {
+	if err := dbschema.EnsureUserProviderLookupUnique(ctx, gormDB.DB()); err != nil {
 		return fmt.Errorf("failed to check the users provider-lookup index: %w", err)
 	}
 
@@ -310,7 +323,7 @@ func migrateSchemaForConfigAdapter(gormDB *db.GormDB, allModels []any, desiredFP
 	// fast path skips AutoMigrate (it is not part of the model fingerprint) --
 	// same placement and reasoning as cmd/server/main.go's runMigrationsLocked
 	// and cmd/dbtool/schema.go's runSchema.
-	if err := dbschema.EnsureSparseUserEmailIndex(gormDB.DB()); err != nil {
+	if err := dbschema.EnsureSparseUserEmailIndex(ctx, gormDB.DB()); err != nil {
 		return fmt.Errorf("failed to ensure sparse-user email index: %w", err)
 	}
 
@@ -319,10 +332,10 @@ func migrateSchemaForConfigAdapter(gormDB *db.GormDB, allModels []any, desiredFP
 	// reasoning as cmd/server/main.go's migrateSchema and
 	// cmd/dbtool/schema.go's runSchemaLocked. Both are idempotent, run even
 	// when the fast path above skipped AutoMigrate, and never fail on DDL.
-	if err := dbschema.DropRetiredMetadataIndexes(gormDB.DB()); err != nil {
+	if err := dbschema.DropRetiredMetadataIndexes(ctx, gormDB.DB()); err != nil {
 		return fmt.Errorf("failed to check the retired metadata indexes: %w", err)
 	}
-	if err := dbschema.EnsureMetadataInitrans(gormDB.DB()); err != nil {
+	if err := dbschema.EnsureMetadataInitrans(ctx, gormDB.DB()); err != nil {
 		return fmt.Errorf("failed to check the metadata INITRANS settings: %w", err)
 	}
 
@@ -344,7 +357,7 @@ func migrateSchemaForConfigAdapter(gormDB *db.GormDB, allModels []any, desiredFP
 	} else if updated > 0 {
 		logger.Info("[AUTH_CONFIG_ADAPTER] Backfilled explicit origin on %d pre-existing system_settings row(s)", updated)
 	}
-	if err := dbschema.EnsureSystemSettingOriginCheckConstraint(gormDB.DB()); err != nil {
+	if err := dbschema.EnsureSystemSettingOriginCheckConstraint(ctx, gormDB.DB()); err != nil {
 		return fmt.Errorf("failed to ensure system_settings.origin CHECK constraint: %w", err)
 	}
 
