@@ -18,8 +18,10 @@ var htmlInjectionPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)<applet[^>]*>`),
 	// javascript: URI scheme
 	regexp.MustCompile(`(?i)javascript:`),
-	// Generic on-event handler pattern (covers onclick, onmouseover, onfocus, onblur, onerror, onload, etc.)
-	regexp.MustCompile(`(?i)on\w+\s*=`),
+	// Event-handler attribute inside a tag (onclick=, onerror=, onload=, ...).
+	// Requires the `<tag ...` context so prose such as `deletion_protection = true`
+	// or `version = 2` is not rejected (#885).
+	regexp.MustCompile(`(?i)<\w+[^>]*\bon\w+\s*=`),
 }
 
 // templateInjectionPatterns detects server-side template injection (SSTI) attacks.
@@ -40,7 +42,7 @@ var templateInjectionPatterns = []struct {
 // CheckHTMLInjection is the unified HTML/XSS and template injection checker.
 // It combines regex precision from the validation registry with broader pattern
 // coverage from addon validation, providing consistent security checking.
-// SEM@ea4348bffa66284d10fa60dbe3b7ea079942bab0: validate a field value for HTML/XSS and template injection patterns; reject if unsafe (pure)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: validate a field value for HTML/XSS and template injection patterns; reject if unsafe (pure)
 func CheckHTMLInjection(value, fieldName string) error {
 	// Check compiled regex patterns for HTML/XSS
 	for _, pattern := range htmlInjectionPatterns {
