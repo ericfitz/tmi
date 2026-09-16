@@ -147,8 +147,8 @@ func ExecDDL(ctx context.Context, db *gorm.DB, ddl string) error {
 // shapes: that one guards cheap catalog SELECTs where a fixed 20ms retry is
 // right, this one guards lock-contended DDL where the contending window is
 // measured in seconds (#734).
-// SEM@1a0e294d083ec4d01a180cf33f9f58d98159a878: retry a migration DDL attempt with exponential backoff on transient errors (mutates DB)
-func withDDLRetry(label string, fn func() error) error {
+// SEM@0000000000000000000000000000000000000000: retry a migration DDL attempt with interruptible exponential backoff on transient errors (mutates DB)
+func withDDLRetry(ctx context.Context, label string, fn func() error) error {
 	var err error
 	delay := ddlBaseRetryDelay
 	for attempt := 1; attempt <= ddlMaxAttempts; attempt++ {
@@ -161,7 +161,11 @@ func withDDLRetry(label string, fn func() error) error {
 		}
 		slogging.Get().Warn("migration DDL %q: transient error (attempt %d/%d), retrying in %s: %v",
 			label, attempt, ddlMaxAttempts, delay, err)
-		time.Sleep(delay)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
 		delay *= 2
 	}
 	return err

@@ -127,7 +127,7 @@ func EnsureUserProviderLookupUnique(ctx context.Context, db *gorm.DB) error {
 	dropDDL, createUniqueDDL, restoreDDL := userProviderLookupDDL(db.Name(), usersTable)
 
 	if exists {
-		if err := withDDLRetry("users provider-lookup index drop", func() error {
+		if err := withDDLRetry(ctx, "users provider-lookup index drop", func() error {
 			return execMigrationDDL(ctx, db, dropDDL)
 		}); err != nil {
 			// Oracle commits before and after every DDL statement, so a
@@ -167,7 +167,7 @@ func EnsureUserProviderLookupUnique(ctx context.Context, db *gorm.DB) error {
 	// users table without its identity lookup index, which is a table scan on
 	// every login, so a failed CREATE UNIQUE is followed by an attempt to put
 	// the original non-unique index back.
-	if err := withDDLRetry("users provider-lookup unique index create", func() error {
+	if err := withDDLRetry(ctx, "users provider-lookup unique index create", func() error {
 		return execMigrationDDL(ctx, db, createUniqueDDL)
 	}); err != nil {
 		// Same auto-commit reasoning as the DROP above, and it also covers the
@@ -200,7 +200,7 @@ func EnsureUserProviderLookupUnique(ctx context.Context, db *gorm.DB) error {
 		}
 
 		logger.Error("failed to create %s as UNIQUE: %v", userProviderLookupIndexName, err)
-		if restoreErr := withDDLRetry("users provider-lookup index restore", func() error {
+		if restoreErr := withDDLRetry(ctx, "users provider-lookup index restore", func() error {
 			return execMigrationDDL(ctx, db, restoreDDL)
 		}); restoreErr != nil {
 			logger.Error(

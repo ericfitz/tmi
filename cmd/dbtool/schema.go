@@ -160,7 +160,7 @@ func runSchemaLocked(ctx context.Context, db *testdb.TestDB) error {
 	// cmd/server/main.go's runMigrationsLocked. dbtool is the
 	// admin-privileged remediation path, so a failure here is surfaced
 	// rather than swallowed.
-	if updated, err := dbschema.BackfillSystemSettingOrigin(db.DB()); err != nil {
+	if updated, err := dbschema.BackfillSystemSettingOrigin(ctx, db.DB()); err != nil {
 		return fmt.Errorf("failed to backfill system_settings.origin: %w", err)
 	} else if updated > 0 {
 		log.Info("Backfilled explicit origin on %d pre-existing system_settings row(s)", updated)

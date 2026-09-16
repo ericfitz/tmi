@@ -1,6 +1,7 @@
 package dbschema
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -176,7 +177,7 @@ func TestPruneRetiredSystemSettings_RunsBeforeOriginBackfill(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), removed)
 
-	stamped, err := BackfillSystemSettingOrigin(db)
+	stamped, err := BackfillSystemSettingOrigin(context.Background(), db)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), stamped,
 		"the retired row must be gone before the backfill runs, so it never gets stamped explicit")

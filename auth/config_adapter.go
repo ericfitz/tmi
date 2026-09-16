@@ -352,7 +352,7 @@ func migrateSchemaForConfigAdapter(ctx context.Context, gormDB *db.GormDB, allMo
 	// show operator intent, and enforce the origin CHECK constraint -- same
 	// placement and reasoning as cmd/server/main.go's runMigrationsLocked and
 	// cmd/dbtool/schema.go's runSchema.
-	if updated, err := dbschema.BackfillSystemSettingOrigin(gormDB.DB()); err != nil {
+	if updated, err := dbschema.BackfillSystemSettingOrigin(ctx, gormDB.DB()); err != nil {
 		return fmt.Errorf("failed to backfill system_settings.origin: %w", err)
 	} else if updated > 0 {
 		logger.Info("[AUTH_CONFIG_ADAPTER] Backfilled explicit origin on %d pre-existing system_settings row(s)", updated)
