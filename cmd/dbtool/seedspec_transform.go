@@ -740,6 +740,9 @@ func transformAdminWebhooksAndAddons(admin *SeedSpecAdmin) []SeedEntry {
 		if cc.DirectWrite {
 			data["direct_write"] = true
 		}
+		if cc.AddonID != "" {
+			data["addon_id"] = cc.AddonID
+		}
 		seeds = append(seeds, SeedEntry{
 			Kind: kindClientCredential,
 			Ref:  fmt.Sprintf("cred:%s", sanitizeName(cc.Name)),

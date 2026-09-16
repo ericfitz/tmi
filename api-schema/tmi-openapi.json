@@ -6012,6 +6012,11 @@
           "direct_write": {
             "type": "boolean",
             "description": "Whether direct_write was enabled for this credential (see ClientCredentialInfo.direct_write)."
+          },
+          "addon_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Addon this credential is linked to for self-delivery suppression, if any (see ClientCredentialInfo.addon_id)."
           }
         },
         "example": {
@@ -6025,7 +6030,8 @@
           "expires_at": "2025-12-31T23:59:59Z",
           "created_at": "2024-01-21T11:00:00Z",
           "modified_at": "2024-01-21T11:00:00Z",
-          "direct_write": false
+          "direct_write": false,
+          "addon_id": "fed11e3a-0000-4000-8000-000000000000"
         }
       },
       "ClientCredentialInfo": {
@@ -6085,6 +6091,11 @@
           "direct_write": {
             "type": "boolean",
             "description": "When true, tokens minted from this credential may write threat-model sub-resources (notes, threats, diagrams, metadata, ...) that are otherwise reserved for interactive users; the owner's roles still apply. Never true for credentials owned by an administrator."
+          },
+          "addon_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Addon this credential is linked to, if any. Events caused by writes made with this credential's tokens are not delivered to that addon's own webhook subscription. Only set on direct_write credentials."
           }
         },
         "example": {
@@ -6097,7 +6108,8 @@
           "last_used_at": "2024-01-21T09:00:00Z",
           "created_at": "2024-01-15T10:00:00Z",
           "modified_at": "2024-01-15T10:00:00Z",
-          "direct_write": false
+          "direct_write": false,
+          "addon_id": "fed11e3a-0000-4000-8000-000000000000"
         }
       },
       "MinimalDiagramModel": {
@@ -10394,6 +10406,11 @@
             "type": "boolean",
             "default": false,
             "description": "Opt in to direct writes for the initial client credential: tokens from it may modify threat-model sub-resources, authorized by the automation user's roles. Omitting the field is the same as false."
+          },
+          "addon_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional addon to link this credential to (only valid with direct_write=true; 400 otherwise, or if the addon does not exist). Events caused by writes made with tokens from this credential are not delivered to the linked addon's own webhook subscription, matching the suppression applied to delegation-token write-backs. Not a foreign key: deleting the addon leaves the credential intact and simply stops the suppression."
           }
         },
         "additionalProperties": false,
@@ -10440,7 +10457,8 @@
             "created_at": "2024-01-01T00:00:00Z",
             "description": "example",
             "expires_at": "2026-01-01T00:00:00Z",
-            "direct_write": true
+            "direct_write": true,
+            "addon_id": "fed11e3a-0000-4000-8000-000000000000"
           }
         }
       },
@@ -42391,6 +42409,11 @@
                     "type": "boolean",
                     "default": false,
                     "description": "Opt in to direct writes: tokens from this credential may modify threat-model sub-resources, authorized by your normal roles. Omitting the field is the same as false. Rejected with 400 when the owner is a member of the Administrators group."
+                  },
+                  "addon_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Optional addon to link this credential to (only valid with direct_write=true; 400 otherwise, or if the addon does not exist). Events caused by writes made with tokens from this credential are not delivered to the linked addon's own webhook subscription, matching the suppression applied to delegation-token write-backs. Not a foreign key: deleting the addon leaves the credential intact and simply stops the suppression."
                   }
                 }
               },
@@ -42749,7 +42772,8 @@
                       "modified_at": "2024-01-15T10:00:00Z",
                       "expires_at": "2026-01-01T00:00:00Z",
                       "last_used_at": "2026-01-01T00:00:00Z",
-                      "direct_write": false
+                      "direct_write": false,
+                      "addon_id": "fed11e3a-0000-4000-8000-000000000000"
                     }
                   ],
                   "total": 4,
@@ -74358,6 +74382,11 @@
                     "type": "boolean",
                     "default": false,
                     "description": "Opt in to direct writes for this automation account: tokens from this credential may modify threat-model sub-resources, authorized by the automation user's roles. Omitting the field is the same as false. Rejected with 400 when the automation user is a member of the Administrators group."
+                  },
+                  "addon_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Optional addon to link this credential to (only valid with direct_write=true; 400 otherwise, or if the addon does not exist). Events caused by writes made with tokens from this credential are not delivered to the linked addon's own webhook subscription, matching the suppression applied to delegation-token write-backs. Not a foreign key: deleting the addon leaves the credential intact and simply stops the suppression."
                   }
                 }
               }
