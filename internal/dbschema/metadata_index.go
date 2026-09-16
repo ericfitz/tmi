@@ -168,7 +168,7 @@ func DropRetiredMetadataIndexes(ctx context.Context, db *gorm.DB) error {
 		}
 
 		ddl := retiredMetadataIndexDropDDL(dialect, name)
-		if err := withDDLRetry("retired metadata index drop "+name, func() error {
+		if err := withDDLRetry(ctx, "retired metadata index drop "+name, func() error {
 			return execMigrationDDL(ctx, db, ddl)
 		}); err != nil {
 			// Oracle commits before and after every DDL statement, so a
@@ -355,7 +355,7 @@ func EnsureMetadataInitrans(ctx context.Context, db *gorm.DB) error {
 
 	if tableBelow {
 		ddl := metadataTableInitransDDL(upperTable)
-		if err := withDDLRetry("metadata INITRANS "+ddl, func() error {
+		if err := withDDLRetry(ctx, "metadata INITRANS "+ddl, func() error {
 			return execMigrationDDL(ctx, db, ddl)
 		}); err != nil {
 			logger.Error("%q failed: %v (#783)", ddl, err)
@@ -363,7 +363,7 @@ func EnsureMetadataInitrans(ctx context.Context, db *gorm.DB) error {
 	}
 	for _, name := range indexesBelow {
 		ddl := metadataIndexInitransDDL(name)
-		if err := withDDLRetry("metadata INITRANS "+ddl, func() error {
+		if err := withDDLRetry(ctx, "metadata INITRANS "+ddl, func() error {
 			return execMigrationDDL(ctx, db, ddl)
 		}); err != nil {
 			logger.Error("%q failed: %v; if the error is ORA-08104, run DBMS_REPAIR.ONLINE_INDEX_CLEAN for the index before retrying (#783)", ddl, err)

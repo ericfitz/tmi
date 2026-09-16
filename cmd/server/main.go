@@ -595,7 +595,7 @@ func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error 
 	// internal/dbschema/system_setting_origin_backfill.go. Non-fatal: a
 	// database issue here just leaves the affected rows reading as seeded
 	// (the fail-safe default) until the next successful boot retries.
-	if updated, err := dbschema.BackfillSystemSettingOrigin(gormDB.DB()); err != nil {
+	if updated, err := dbschema.BackfillSystemSettingOrigin(ctx, gormDB.DB()); err != nil {
 		logger.Warn("BackfillSystemSettingOrigin failed (non-fatal; affected rows keep reading as seeded until the next successful boot): %v", err)
 	} else if updated > 0 {
 		logger.Info("Backfilled explicit origin on %d pre-existing system_settings row(s)", updated)

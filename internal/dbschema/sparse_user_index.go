@@ -154,7 +154,7 @@ func EnsureSparseUserEmailIndex(ctx context.Context, db *gorm.DB) error {
 	// withDDLRetry covers what still gets through with seconds of exponential
 	// backoff rather than withMigrationRetry's 60ms total, which was
 	// effectively one shot inside a rolling deploy's DML window (#734).
-	err = withDDLRetry("sparse-user email index create", func() error {
+	err = withDDLRetry(ctx, "sparse-user email index create", func() error {
 		return execMigrationDDL(ctx, db, ddl)
 	})
 	switch {

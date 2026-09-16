@@ -57,7 +57,7 @@ func TestBackfillSystemSettingOrigin_ModifiedByStampsExplicit(t *testing.T) {
 		ModifiedAt:  time.Now(),
 	}).Error)
 
-	updated, err := BackfillSystemSettingOrigin(db)
+	updated, err := BackfillSystemSettingOrigin(context.Background(), db)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), updated)
 
@@ -86,7 +86,7 @@ func TestBackfillSystemSettingOrigin_PreservesModifiedAt(t *testing.T) {
 		ModifiedAt:  original,
 	}).Error)
 
-	updated, err := BackfillSystemSettingOrigin(db)
+	updated, err := BackfillSystemSettingOrigin(context.Background(), db)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), updated)
 
@@ -113,7 +113,7 @@ func TestBackfillSystemSettingOrigin_EncryptedValueRelinquishesToSeeded(t *testi
 		ModifiedAt:  time.Now(),
 	}).Error)
 
-	updated, err := BackfillSystemSettingOrigin(db)
+	updated, err := BackfillSystemSettingOrigin(context.Background(), db)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), updated, "an encrypted value must not be compared against the plaintext default")
 
@@ -137,7 +137,7 @@ func TestBackfillSystemSettingOrigin_ValueDiffersStampsExplicit(t *testing.T) {
 		ModifiedAt:  time.Now(),
 	}).Error)
 
-	updated, err := BackfillSystemSettingOrigin(db)
+	updated, err := BackfillSystemSettingOrigin(context.Background(), db)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), updated)
 
@@ -160,7 +160,7 @@ func TestBackfillSystemSettingOrigin_UnknownKeyStampsExplicit(t *testing.T) {
 		ModifiedAt:  time.Now(),
 	}).Error)
 
-	updated, err := BackfillSystemSettingOrigin(db)
+	updated, err := BackfillSystemSettingOrigin(context.Background(), db)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), updated)
 
@@ -182,7 +182,7 @@ func TestBackfillSystemSettingOrigin_UntouchedDefaultStaysNil(t *testing.T) {
 		ModifiedAt:  time.Now(),
 	}).Error)
 
-	updated, err := BackfillSystemSettingOrigin(db)
+	updated, err := BackfillSystemSettingOrigin(context.Background(), db)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), updated)
 
@@ -214,7 +214,7 @@ func TestBackfillSystemSettingOrigin_AlreadyStampedRowsUntouched(t *testing.T) {
 		ModifiedAt:  time.Now(),
 	}).Error)
 
-	updated, err := BackfillSystemSettingOrigin(db)
+	updated, err := BackfillSystemSettingOrigin(context.Background(), db)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), updated, "already-stamped rows must not be touched")
 
@@ -247,14 +247,14 @@ func TestBackfillSystemSettingOrigin_Idempotent(t *testing.T) {
 		ModifiedAt:  time.Now(),
 	}).Error)
 
-	firstUpdated, err := BackfillSystemSettingOrigin(db)
+	firstUpdated, err := BackfillSystemSettingOrigin(context.Background(), db)
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), firstUpdated)
 
 	explicitAfterFirst := getSystemSetting(t, db, "websocket.max_participants")
 	seededAfterFirst := getSystemSetting(t, db, "upload.max_file_size_mb")
 
-	secondUpdated, err := BackfillSystemSettingOrigin(db)
+	secondUpdated, err := BackfillSystemSettingOrigin(context.Background(), db)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), secondUpdated, "a second pass must find nothing left to stamp")
 
@@ -270,7 +270,7 @@ func TestBackfillSystemSettingOrigin_Idempotent(t *testing.T) {
 func TestBackfillSystemSettingOrigin_NoRows(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 
-	updated, err := BackfillSystemSettingOrigin(db)
+	updated, err := BackfillSystemSettingOrigin(context.Background(), db)
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), updated)
 }

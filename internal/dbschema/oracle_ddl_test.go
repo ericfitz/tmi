@@ -27,7 +27,7 @@ func TestWithDDLRetry_RetriesTransientUntilSuccess(t *testing.T) {
 	shrinkDDLBackoff(t)
 
 	calls := 0
-	err := withDDLRetry("test ddl", func() error {
+	err := withDDLRetry(context.Background(), "test ddl", func() error {
 		calls++
 		if calls < ddlMaxAttempts {
 			return dberrors.Wrap(errors.New("ORA-00054: resource busy"), dberrors.ErrTransient)
@@ -46,7 +46,7 @@ func TestWithDDLRetry_StopsAtMaxAttempts(t *testing.T) {
 
 	calls := 0
 	sentinel := dberrors.Wrap(errors.New("ORA-00054: resource busy"), dberrors.ErrTransient)
-	err := withDDLRetry("test ddl", func() error {
+	err := withDDLRetry(context.Background(), "test ddl", func() error {
 		calls++
 		return sentinel
 	})
@@ -64,7 +64,7 @@ func TestWithDDLRetry_DoesNotRetryPermanentErrors(t *testing.T) {
 	shrinkDDLBackoff(t)
 
 	calls := 0
-	err := withDDLRetry("test ddl", func() error {
+	err := withDDLRetry(context.Background(), "test ddl", func() error {
 		calls++
 		return errors.New("ORA-00955: name is already used by an existing object")
 	})
@@ -89,4 +89,26 @@ func TestExecMigrationDDL_NonOracleUsesGorm(t *testing.T) {
 
 	require.Error(t, execMigrationDDL(context.Background(), db, "CREATE UNIQUE INDEX idx_exec_ddl_test ON users (email)"),
 		"a genuine DDL failure must still surface as an error")
+}
+
+// TestWithDDLRetry_ReturnsPromptlyOnCancelledContext covers #891: a context
+// cancelled during the backoff must interrupt the wait and surface
+// context.Canceled instead of sleeping out the remaining budget.
+func TestWithDDLRetry_ReturnsPromptlyOnCancelledContext(t *testing.T) {
+	original := ddlBaseRetryDelay
+	ddlBaseRetryDelay = time.Minute
+	t.Cleanup(func() { ddlBaseRetryDelay = original })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	calls := 0
+	start := time.Now()
+	err := withDDLRetry(ctx, "test ddl", func() error {
+		calls++
+		cancel()
+		return dberrors.Wrap(errors.New("ORA-00054: resource busy"), dberrors.ErrTransient)
+	})
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Equal(t, 1, calls, "no further attempts after cancellation")
+	assert.Less(t, time.Since(start), 5*time.Second, "backoff must be interrupted by cancellation")
 }

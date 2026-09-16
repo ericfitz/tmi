@@ -113,8 +113,12 @@ func expectedSeedValues() map[string]string {
 // Idempotent and cheap in steady state: once a row is stamped, it no longer
 // matches `origin IS NULL` and is never re-examined. Safe to run on every
 // boot, ahead of AutoMigrate, mirroring DeduplicateGroups (group_dedupe.go).
-// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: backfill explicit origin onto pre-existing system_settings rows that show operator intent (writes DB)
-func BackfillSystemSettingOrigin(db *gorm.DB) (int64, error) {
+// SEM@0000000000000000000000000000000000000000: backfill explicit origin onto pre-existing system_settings rows that show operator intent, honoring ctx (writes DB)
+func BackfillSystemSettingOrigin(ctx context.Context, db *gorm.DB) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err // HasTable swallows ctx errors on non-Oracle; fail loudly instead of reading as "no table"
+	}
+	db = db.WithContext(ctx)
 	logger := slogging.Get()
 	settingsTable := (&models.SystemSetting{}).TableName()
 
@@ -258,7 +262,7 @@ func EnsureSystemSettingOriginCheckConstraint(ctx context.Context, db *gorm.DB) 
 			settingsTable, systemSettingOriginCheckName)
 	}
 
-	err = withDDLRetry("system_settings origin check-constraint create", func() error {
+	err = withDDLRetry(ctx, "system_settings origin check-constraint create", func() error {
 		return execMigrationDDL(ctx, db, ddl)
 	})
 	switch {
