@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net"
 	"testing"
 	"time"
@@ -843,6 +844,59 @@ func TestSettingsService_ReEncryptAll_ReportsVanishedRow(t *testing.T) {
 	plain, err := enc.Decrypt(string(reloadedSurvivor.Value))
 	require.NoError(t, err)
 	assert.Equal(t, "dark", plain)
+}
+
+// TestSettingsService_ReEncryptAll_RollsBackOnWriteFailure is the #845
+// guard: the pass runs in one transaction, so a database failure on any row
+// must leave every row exactly as it was (no split-key table) and surface as
+// the fatal error, not as a per-setting error.
+// SEM@0000000000000000000000000000000000000000: verify a mid-pass write failure rolls back every re-encrypted row
+func TestSettingsService_ReEncryptAll_RollsBackOnWriteFailure(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+
+	key := make([]byte, 32)
+	for i := range key {
+		key[i] = byte(i)
+	}
+	enc, err := crypto.NewSettingsEncryptorFromKeys(key, nil, 1)
+	require.NoError(t, err)
+
+	svc := NewSettingsService(gormDB, nil)
+	svc.SetEncryptor(enc)
+
+	require.NoError(t, gormDB.Create(&models.SystemSetting{
+		SettingKey:  "first.row",
+		Value:       "60",
+		SettingType: models.SystemSettingTypeInt,
+	}).Error)
+	require.NoError(t, gormDB.Create(&models.SystemSetting{
+		SettingKey:  "second.row",
+		Value:       "dark",
+		SettingType: models.SystemSettingTypeString,
+	}).Error)
+
+	// Fail the second UpdateColumn only, so the first row has already been
+	// written inside the transaction when the pass aborts.
+	updates := 0
+	require.NoError(t, gormDB.Callback().Update().Before("gorm:update").
+		Register("test:fail_second_update", func(tx *gorm.DB) {
+			updates++
+			if updates == 2 {
+				_ = tx.AddError(errors.New("simulated write failure"))
+			}
+		}))
+
+	count, settingErrors, err := svc.ReEncryptAll(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "simulated write failure")
+	assert.Equal(t, 0, count)
+	assert.Empty(t, settingErrors, "a database failure is fatal, not per-setting")
+
+	var first, second models.SystemSetting
+	require.NoError(t, gormDB.Where("setting_key = ?", "first.row").First(&first).Error)
+	require.NoError(t, gormDB.Where("setting_key = ?", "second.row").First(&second).Error)
+	assert.Equal(t, "60", string(first.Value), "first row must be rolled back to plaintext")
+	assert.Equal(t, "dark", string(second.Value), "second row must be untouched")
 }
 
 // A missing row is negative-cached so unauthenticated hot paths do not pay a

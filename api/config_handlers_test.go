@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/config"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +26,8 @@ var _ SettingsServiceInterface = (*MockSettingsService)(nil)
 
 // MockSettingsService is a mock implementation of SettingsService for testing
 type MockSettingsService struct {
-	settings map[string]*models.SystemSetting
+	reencryptErr error // returned by ReEncryptAll; nil = success
+	settings     map[string]*models.SystemSetting
 }
 
 func NewMockSettingsService() *MockSettingsService {
@@ -102,8 +106,9 @@ func (m *MockSettingsService) SeedDefaults(ctx context.Context) error {
 	return nil
 }
 
+// SEM@9ba3e0e15d47226d12e6aafbf3a7b268b45e1919: return the injected re-encryption error for handler tests (pure)
 func (m *MockSettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
-	return 0, nil, nil
+	return 0, nil, m.reencryptErr
 }
 
 // Helper to add a setting to the mock
@@ -1420,6 +1425,48 @@ func TestBuildContentProviders_PickerConfigDeepCopy(t *testing.T) {
 	(*got[0].PickerConfig)["client_id"] = "mutated"
 	if source["client_id"] != "cid" {
 		t.Errorf("operator-supplied map was mutated: %+v", source)
+	}
+}
+
+// The pass runs in one transaction (#845), so a database failure is a whole-
+// request failure and must be reported as 503 (transient, retry) or 500, never
+// as the 409 "encryption_not_enabled" precondition.
+// SEM@0000000000000000000000000000000000000000: verify reencrypt maps not-enabled to 409, transient DB failure to 503, other failure to 500
+func TestReencryptSystemSettings_ErrorMapping(t *testing.T) {
+	originalAdminStore := GlobalGroupMemberRepository
+	defer restoreConfigStores(originalAdminStore)
+	gin.SetMode(gin.TestMode)
+	GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+
+	cases := []struct {
+		name     string
+		err      error
+		want     int
+		wantCode string
+	}{
+		{"not enabled", ErrEncryptionNotEnabled, http.StatusConflict, "encryption_not_enabled"},
+		{"transient rolled back", fmt.Errorf("transaction failed after 3 attempts: %w", dberrors.Wrap(errors.New("ORA-08177"), dberrors.ErrTransient)), http.StatusServiceUnavailable, "service_unavailable"},
+		{"other failure", errors.New("boom"), http.StatusInternalServerError, "internal_error"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := NewMockSettingsService()
+			mock.reencryptErr = tc.err
+			server := &Server{settingsService: mock}
+			r := gin.New()
+			r.Use(func(c *gin.Context) {
+				c.Set("userEmail", "test@example.com")
+				c.Set("userInternalUUID", uuid.New().String())
+				c.Set("userProvider", "test")
+				c.Next()
+			})
+			r.POST("/admin/settings/reencrypt", server.ReencryptSystemSettings)
+			req, _ := http.NewRequest("POST", "/admin/settings/reencrypt", nil)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			assert.Equal(t, tc.want, w.Code, w.Body.String())
+			assert.Contains(t, w.Body.String(), tc.wantCode)
+		})
 	}
 }
 

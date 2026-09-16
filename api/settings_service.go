@@ -662,6 +662,11 @@ type SettingError struct {
 	Error string `json:"error"`
 }
 
+// ErrEncryptionNotEnabled is returned by ReEncryptAll when no settings
+// encryptor is configured. Handlers distinguish it from a database failure
+// (#845): the former is a 409 precondition, the latter is 503/500.
+var ErrEncryptionNotEnabled = errors.New("encryption is not enabled")
+
 // ReEncryptAll re-encrypts all settings with the current encryption key.
 // Returns the count of settings re-encrypted, any per-setting errors, and a fatal error if applicable.
 //
@@ -671,60 +676,80 @@ type SettingError struct {
 // operator intent, and only SettingsService.Set may create that signal. The
 // actor of a rotation is recorded by AdminAuditMiddleware
 // (REENCRYPT system_settings), not by the row (#805).
-// SEM@5740a75fafc8da46a061901361ed61990a6c8916: re-encrypt every stored setting value in place without touching audit fields (writes DB)
+//
+// The whole pass runs in one transaction (#845): a write failure part-way
+// through rolls every row back, so the table is never left split across two
+// keys. Rows whose ciphertext cannot be decrypted or re-encrypted are not a
+// database failure -- they are skipped, reported in []SettingError, and the
+// rest of the pass still commits (Decrypt still accepts the previous key, so
+// those rows remain readable). A row deleted concurrently is reported the
+// same way. The table is small (hundreds of rows), so one SERIALIZABLE
+// transaction is also fewer round-trips than N autocommits on Oracle ADB.
+// SEM@5740a75fafc8da46a061901361ed61990a6c8916: re-encrypt every stored setting value atomically without touching audit fields (writes DB)
 func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 	logger := slogging.Get()
 
 	if s.encryptor == nil || !s.encryptor.IsEnabled() {
-		return 0, nil, fmt.Errorf("encryption is not enabled")
-	}
-
-	// Load all settings directly from database (may be encrypted with old key or plaintext)
-	var settings []models.SystemSetting
-	if err := s.gormDB.WithContext(ctx).Find(&settings).Error; err != nil {
-		return 0, nil, fmt.Errorf("failed to list settings for re-encryption: %w", err)
+		return 0, nil, ErrEncryptionNotEnabled
 	}
 
 	var reencrypted int
 	var settingErrors []SettingError
 
-	for _, setting := range settings {
-		// Decrypt (handles both plaintext and encrypted values, tries current then previous key)
-		plaintext, err := s.encryptor.Decrypt(string(setting.Value))
-		if err != nil {
-			logger.Error("Failed to decrypt setting %s during re-encryption: %v", setting.SettingKey, err)
-			settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: err.Error()})
-			continue
+	err := db.WithRetryableGormTransaction(ctx, s.gormDB, db.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// A retried attempt starts over; do not carry the previous attempt's tallies.
+		reencrypted = 0
+		settingErrors = nil
+
+		// Load all settings inside the transaction (may be encrypted with old key or plaintext)
+		// Ordered so concurrent passes lock rows in the same order (no
+		// ORA-00060 deadlock between two overlapping rotations).
+		var settings []models.SystemSetting
+		if err := tx.Order("setting_key").Find(&settings).Error; err != nil {
+			return fmt.Errorf("failed to list settings for re-encryption: %w", err)
 		}
 
-		// Re-encrypt with current key
-		encrypted, err := s.encryptor.Encrypt(plaintext)
-		if err != nil {
-			logger.Error("Failed to re-encrypt setting %s: %v", setting.SettingKey, err)
-			settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: err.Error()})
-			continue
-		}
+		for _, setting := range settings {
+			// Decrypt (handles both plaintext and encrypted values, tries current then previous key)
+			plaintext, err := s.encryptor.Decrypt(string(setting.Value))
+			if err != nil {
+				logger.Error("Failed to decrypt setting %s during re-encryption: %v", setting.SettingKey, err)
+				settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: err.Error()})
+				continue
+			}
 
-		// Write only the ciphertext. UpdateColumn skips GORM hooks, so
-		// autoUpdateTime does not move modified_at and modified_by is never
-		// mentioned in the statement (a full-struct Save would write both).
-		result := s.gormDB.WithContext(ctx).
-			Model(&models.SystemSetting{}).
-			Where("setting_key = ?", setting.SettingKey).
-			UpdateColumn("value", models.DBText(encrypted))
-		if result.Error != nil {
-			logger.Error("Failed to save re-encrypted setting %s: %v", setting.SettingKey, result.Error)
-			settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: result.Error.Error()})
-			continue
-		}
-		if result.RowsAffected == 0 {
-			// Deleted between the Find above and this write.
-			logger.Warn("Setting %s vanished during re-encryption", setting.SettingKey)
-			settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: "setting no longer exists"})
-			continue
-		}
+			// Re-encrypt with current key
+			encrypted, err := s.encryptor.Encrypt(plaintext)
+			if err != nil {
+				logger.Error("Failed to re-encrypt setting %s: %v", setting.SettingKey, err)
+				settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: err.Error()})
+				continue
+			}
 
-		reencrypted++
+			// Write only the ciphertext. UpdateColumn skips GORM hooks, so
+			// autoUpdateTime does not move modified_at and modified_by is never
+			// mentioned in the statement (a full-struct Save would write both).
+			result := tx.Model(&models.SystemSetting{}).
+				Where("setting_key = ?", setting.SettingKey).
+				UpdateColumn("value", models.DBText(encrypted))
+			if result.Error != nil {
+				// A database failure aborts and rolls back the whole pass.
+				return fmt.Errorf("failed to save re-encrypted setting %s: %w", setting.SettingKey, result.Error)
+			}
+			if result.RowsAffected == 0 {
+				// Deleted between the Find above and this write.
+				logger.Warn("Setting %s vanished during re-encryption", setting.SettingKey)
+				settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: "setting no longer exists"})
+				continue
+			}
+
+			reencrypted++
+		}
+		return nil
+	})
+	if err != nil {
+		logger.Error("Re-encryption rolled back: %v", err)
+		return 0, nil, err
 	}
 
 	// Invalidate all caches
