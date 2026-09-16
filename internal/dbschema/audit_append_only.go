@@ -25,7 +25,10 @@ package dbschema
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"gorm.io/gorm"
@@ -206,8 +209,51 @@ func installOracleAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.
 	// does the same for the DB clock. Without wrapping :OLD.created_at,
 	// Oracle promotes the comparison using SESSIONTIMEZONE, which pooled ADB
 	// connections do not reliably set to UTC, producing incorrect results.
-	statements := []string{
-		fmt.Sprintf(`CREATE OR REPLACE TRIGGER tmi_audit_entries_no_mutate
+	triggers := oracleAppendOnlyTriggers(auditFloorDays, snapshotFloorDays, systemAuditFloorDays)
+
+	// Through execMigrationDDL, never gorm.Exec (#763): under PrepareStmt a
+	// byte-identical DDL string re-executed on the same *gorm.DB is a silent
+	// no-op on Oracle, so a future "reinstall triggers" self-heal would apply
+	// nothing. The pinned session also waits out DDL_LOCK_TIMEOUT on these hot
+	// tables instead of failing fast with ORA-00054 during a rolling deploy.
+	//
+	// Steady-state boots issue no DDL (#893): each body carries a marker
+	// comment with the sha256 of its own DDL, and the catalog is probed for a
+	// VALID, ENABLED trigger of that name whose source still holds the marker.
+	// An unconditional CREATE OR REPLACE recompiled three triggers on hot
+	// audit tables and invalidated their library-cache objects on every boot,
+	// and each could wait out DDL_LOCK_TIMEOUT under the advisory lock.
+	installed := 0
+	for _, trg := range triggers {
+		sql := oracleTriggerDDLWithMarker(trg.ddl)
+		marker := oracleTriggerMarker(trg.ddl)
+		current, err := oracleTriggerIsCurrent(ctx, db, trg.name, marker)
+		if err != nil {
+			// A catalog blip must not block T19: fall through to the
+			// unconditional CREATE OR REPLACE this replaced.
+			logger.Warn("InstallAuditAppendOnlyTriggers: probing trigger %s failed, reinstalling unconditionally: %v", trg.name, err)
+		}
+		if current {
+			continue
+		}
+		if err := execMigrationDDL(ctx, db, sql); err != nil {
+			return fmt.Errorf("oracle install: %w (sql: %s)", err, sql)
+		}
+		installed++
+		// CREATE OR REPLACE succeeds even when the body fails to compile,
+		// leaving an INVALID trigger that enforces nothing; make that visible.
+		if current, err = oracleTriggerIsCurrent(ctx, db, trg.name, marker); err != nil || !current {
+			logger.Warn("InstallAuditAppendOnlyTriggers: trigger %s is not VALID and ENABLED after install; append-only protection may not be in effect (probe err: %v)", trg.name, err)
+		}
+	}
+	logger.Info("InstallAuditAppendOnlyTriggers: oracle triggers current (%d of %d (re)installed; audit_entries floor=%dd, version_snapshots floor=%dd, system_audit_entries floor=%dd)", installed, len(triggers), auditFloorDays, snapshotFloorDays, systemAuditFloorDays)
+	return nil
+}
+
+// SEM@0000000000000000000000000000000000000000: build the three Oracle append-only trigger definitions for the given floors (pure)
+func oracleAppendOnlyTriggers(auditFloorDays, snapshotFloorDays, systemAuditFloorDays int) []oracleTrigger {
+	return []oracleTrigger{
+		{"tmi_audit_entries_no_mutate", fmt.Sprintf(`CREATE OR REPLACE TRIGGER tmi_audit_entries_no_mutate
 		 BEFORE UPDATE OR DELETE ON audit_entries
 		 FOR EACH ROW
 		 BEGIN
@@ -216,8 +262,8 @@ func installOracleAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.
 		   ELSE
 		     RAISE_APPLICATION_ERROR(-20001, 'audit history is append-only: ' || (CASE WHEN UPDATING THEN 'UPDATE' ELSE 'DELETE' END) || ' on audit_entries blocked by tmi_audit_entries_no_mutate (DELETE allowed only for rows older than %d days)');
 		   END IF;
-		 END;`, auditFloorDays, auditFloorDays),
-		fmt.Sprintf(`CREATE OR REPLACE TRIGGER tmi_version_snapshots_no_mutate
+		 END;`, auditFloorDays, auditFloorDays)},
+		{"tmi_version_snapshots_no_mutate", fmt.Sprintf(`CREATE OR REPLACE TRIGGER tmi_version_snapshots_no_mutate
 		 BEFORE UPDATE OR DELETE ON version_snapshots
 		 FOR EACH ROW
 		 BEGIN
@@ -226,8 +272,8 @@ func installOracleAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.
 		   ELSE
 		     RAISE_APPLICATION_ERROR(-20001, 'version snapshots are append-only: ' || (CASE WHEN UPDATING THEN 'UPDATE' ELSE 'DELETE' END) || ' on version_snapshots blocked by tmi_version_snapshots_no_mutate (DELETE allowed only for rows older than %d days)');
 		   END IF;
-		 END;`, snapshotFloorDays, snapshotFloorDays),
-		fmt.Sprintf(`CREATE OR REPLACE TRIGGER tmi_system_audit_entries_no_mutate
+		 END;`, snapshotFloorDays, snapshotFloorDays)},
+		{"tmi_system_audit_entries_no_mutate", fmt.Sprintf(`CREATE OR REPLACE TRIGGER tmi_system_audit_entries_no_mutate
 		 BEFORE UPDATE OR DELETE ON system_audit_entries
 		 FOR EACH ROW
 		 BEGIN
@@ -236,19 +282,50 @@ func installOracleAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.
 		   ELSE
 		     RAISE_APPLICATION_ERROR(-20001, 'system audit history is append-only: ' || (CASE WHEN UPDATING THEN 'UPDATE' ELSE 'DELETE' END) || ' on system_audit_entries blocked by tmi_system_audit_entries_no_mutate (DELETE allowed only for rows older than %d days)');
 		   END IF;
-		 END;`, systemAuditFloorDays, systemAuditFloorDays),
+		 END;`, systemAuditFloorDays, systemAuditFloorDays)},
 	}
+}
 
-	// Through execMigrationDDL, never gorm.Exec (#763): under PrepareStmt a
-	// byte-identical DDL string re-executed on the same *gorm.DB is a silent
-	// no-op on Oracle, so a future "reinstall triggers" self-heal would apply
-	// nothing. The pinned session also waits out DDL_LOCK_TIMEOUT on these hot
-	// tables instead of failing fast with ORA-00054 during a rolling deploy.
-	for _, sql := range statements {
-		if err := execMigrationDDL(ctx, db, sql); err != nil {
-			return fmt.Errorf("oracle install: %w (sql: %s)", err, sql)
-		}
-	}
-	logger.Info("InstallAuditAppendOnlyTriggers: oracle triggers installed (audit_entries floor=%dd, version_snapshots floor=%dd, system_audit_entries floor=%dd)", auditFloorDays, snapshotFloorDays, systemAuditFloorDays)
-	return nil
+// oracleTrigger is one append-only trigger: its unquoted name and the
+// CREATE OR REPLACE TRIGGER statement that defines it (without the marker).
+type oracleTrigger struct {
+	name string
+	ddl  string
+}
+
+// oracleTriggerMarkerPrefix opens the marker comment stamped into every
+// trigger body; the sha256 of the unmarked DDL follows it.
+const oracleTriggerMarkerPrefix = "-- tmi-ddl-sha256:"
+
+// SEM@0000000000000000000000000000000000000000: build the identity marker comment for a trigger DDL text (pure)
+func oracleTriggerMarker(ddl string) string {
+	sum := sha256.Sum256([]byte(ddl))
+	return oracleTriggerMarkerPrefix + hex.EncodeToString(sum[:])
+}
+
+// oracleTriggerDDLWithMarker inserts the marker comment as the first line of
+// the trigger body (right after BEGIN), where Oracle preserves it verbatim in
+// ALL_SOURCE.
+// SEM@0000000000000000000000000000000000000000: embed the identity marker into a trigger body after BEGIN (pure)
+func oracleTriggerDDLWithMarker(ddl string) string {
+	return strings.Replace(ddl, "BEGIN\n", "BEGIN\n\t\t   "+oracleTriggerMarker(ddl)+"\n", 1)
+}
+
+// oracleTriggerIsCurrent reports whether a VALID, ENABLED trigger named name
+// exists in CURRENT_SCHEMA whose source carries marker. ALL_* views filtered
+// to CURRENT_SCHEMA, like every other catalog probe here (#736).
+// SEM@0000000000000000000000000000000000000000: probe whether an Oracle trigger with the given identity marker is installed and valid (reads DB)
+func oracleTriggerIsCurrent(ctx context.Context, db *gorm.DB, name, marker string) (bool, error) {
+	var cnt int64
+	err := withMigrationRetry("append-only trigger "+name+" currency probe", func() error {
+		return db.WithContext(ctx).Raw(
+			"SELECT COUNT(*) FROM ALL_TRIGGERS t "+
+				"JOIN ALL_OBJECTS o ON o.OWNER = t.OWNER AND o.OBJECT_NAME = t.TRIGGER_NAME AND o.OBJECT_TYPE = 'TRIGGER' "+
+				"JOIN ALL_SOURCE s ON s.OWNER = t.OWNER AND s.NAME = t.TRIGGER_NAME AND s.TYPE = 'TRIGGER' "+
+				"WHERE t.OWNER = "+oracleCurrentSchema+" AND t.TRIGGER_NAME = ? "+
+				"AND t.STATUS = 'ENABLED' AND o.STATUS = 'VALID' AND s.TEXT LIKE ?",
+			strings.ToUpper(name), "%"+marker+"%",
+		).Scan(&cnt).Error
+	})
+	return cnt > 0, err
 }
