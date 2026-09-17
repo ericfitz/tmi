@@ -2,6 +2,7 @@ package dbschema
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -120,4 +121,31 @@ func TestInstallAuditAppendOnlyTriggers_SqliteSkipsCleanly(t *testing.T) {
 		"SQLite install must be a no-op (no trigger blocking writes)")
 	require.NoError(t, db.Delete(&row).Error,
 		"SQLite install must be a no-op (no trigger blocking writes)")
+}
+
+// TestOracleTriggerMarker covers #893: the marker embedded in each Oracle
+// trigger body identifies the exact DDL (so a changed floor or body text is
+// reinstalled) and lands as the first line after BEGIN, where ALL_SOURCE
+// preserves it for the currency probe.
+func TestOracleTriggerMarker(t *testing.T) {
+	ddl := "CREATE OR REPLACE TRIGGER t\n BEFORE UPDATE ON x\n FOR EACH ROW\n BEGIN\n   NULL;\n END;"
+	other := "CREATE OR REPLACE TRIGGER t\n BEFORE UPDATE ON x\n FOR EACH ROW\n BEGIN\n   RAISE_APPLICATION_ERROR(-20001, 'no');\n END;"
+
+	assert.NotEqual(t, oracleTriggerMarker(ddl), oracleTriggerMarker(other), "different bodies must carry different markers")
+	assert.Equal(t, oracleTriggerMarker(ddl), oracleTriggerMarker(ddl), "marker must be deterministic")
+
+	marked := oracleTriggerDDLWithMarker(ddl)
+	assert.Contains(t, marked, "BEGIN\n\t\t   "+oracleTriggerMarker(ddl)+"\n   NULL;", "marker must be the first body line after BEGIN")
+	assert.Equal(t, 1, strings.Count(marked, oracleTriggerMarkerPrefix), "exactly one marker per body")
+
+	// The production DDL strings, not just a synthetic one: the insertion
+	// keys on the literal "BEGIN\n", and a reformat that broke it would
+	// silently reinstall every boot (oracle-db-admin review, #893).
+	for _, trg := range oracleAppendOnlyTriggers(364, 29, 364) {
+		m := oracleTriggerDDLWithMarker(trg.ddl)
+		assert.Contains(t, m, "BEGIN\n\t\t   "+oracleTriggerMarker(trg.ddl)+"\n", "%s: marker must follow BEGIN", trg.name)
+		assert.Contains(t, m, "TRIGGER "+trg.name+"\n", "%s: name must match the DDL", trg.name)
+	}
+	assert.NotEqual(t, oracleTriggerMarker(oracleAppendOnlyTriggers(364, 29, 364)[0].ddl),
+		oracleTriggerMarker(oracleAppendOnlyTriggers(399, 29, 364)[0].ddl), "a changed floor must change the marker")
 }
