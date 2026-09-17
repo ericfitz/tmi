@@ -14,7 +14,15 @@
   originally failing OCI cases pass on tmiadb; PostgreSQL integration 91/0/9.
 - Filed #903: false ORA-08177 exhaustion on THREAT_MODEL_ACCESS / USERS inserts on ADB (now a 503, root cause
   visible in the captured pod log).
-- Deploy: k3s-rp from main 1.13.5; api.tmi.dev pending Eric's image push (classifier blocks it in auto mode).
+- Deploy: k3s-rp from main 1.13.5; api.tmi.dev deployed at 1.13.6 (main `86449c22`).
+- **PR #907 merged** (`4c9d5815`, 1.13.7) — `fix(db)` closes #903. Measured on tmiadb with a single session and
+  no concurrent writer: INI_TRANS already 10/20, so not ITL exhaustion; false ORA-08177 tracks index leaf splits
+  and delayed block cleanout inside the SERIALIZABLE transaction (120 creates: 20 hits, 2 exhausted = 503).
+  `GormThreatModelStore.Create` now runs at READ COMMITTED (insert-only on a fresh UUID; #801/#900 pattern);
+  60 creates, 0 hits. New oracle-tagged regression `TestThreatModelCreateFalse08177OracleIntegration`. Oracle
+  review APPROVED WITH NOTES (applied); PostgreSQL integration 91/0/9. Not deployed.
+- Filed #906 (Backlog): decide whether the retryable transaction wrappers should default to READ COMMITTED with
+  SERIALIZABLE opt-in. Reverses #451/#449, so it needs Eric's architectural decision and an ADR.
 
 # Session progress — 2026-09-16
 
