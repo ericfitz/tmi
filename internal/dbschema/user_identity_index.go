@@ -200,8 +200,13 @@ func EnsureUserProviderLookupUnique(ctx context.Context, db *gorm.DB) error {
 		}
 
 		logger.Error("failed to create %s as UNIQUE: %v", userProviderLookupIndexName, err)
-		if restoreErr := withDDLRetry(ctx, "users provider-lookup index restore", func() error {
-			return execMigrationDDL(ctx, db, restoreDDL)
+		// The restore is compensation for a DROP that already committed: if the
+		// migration context was cancelled between the two statements, the
+		// restore must still run, bounded by its own deadline (#895).
+		restoreCtx, cancelRestore := context.WithTimeout(context.WithoutCancel(ctx), oracleDDLStatementTimeout)
+		defer cancelRestore()
+		if restoreErr := withDDLRetry(restoreCtx, "users provider-lookup index restore", func() error {
+			return execMigrationDDL(restoreCtx, db, restoreDDL)
 		}); restoreErr != nil {
 			logger.Error(
 				"AND failed to restore the previous non-unique %s: %v. The users table may now have NO (provider, provider_user_id) index -- "+
