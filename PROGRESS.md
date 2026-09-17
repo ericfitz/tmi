@@ -2,6 +2,18 @@
 
 ## Landed (pushed to main)
 
+- **PR #899 merged** (`23e80035`, 1.13.3) — `chore(dbschema)`: `installOracleAppendOnly` compares the
+  installed trigger source against the intended DDL and skips `CREATE OR REPLACE TRIGGER` when they match,
+  so steady-state boots issue no DDL on the three audit tables. Oracle integration test
+  `TestAuditAppendOnlyTriggersSteadyStateNoDDLOracleIntegration` passed on ADB. Closes #893.
+  Oracle review APPROVED WITH NOTES (notes applied).
+- **PR #896 merged** (`9d11bae9`, 1.13.2) — `chore(dbschema)`: `withDDLRetry` backoff honors the migration
+  context (#891) and `BackfillSystemSettingOrigin` takes a ctx (#892). Both closed.
+- Oracle ADB verification pass of the #890 batch done (`make test-integration-oci`): #845/#758/#763/#807
+  code paths show no Oracle regressions. Filed #897 (ADB ignores METADATA INITRANS), #898 (workflow suite
+  cascades when the reused ADB already has admins), #900 (one `POST /threat_models` 500 under ORA-08177
+  contention; the OCI runner captures no server pod log, so the root cause was lost).
+- Not deployed: api.tmi.dev and k3s-rp remain on 1.12.3.
 - **PR #890 merged** (`9d72eab2`, 1.13.0) — backlog batch, five issues in one squash:
   `fix(settings)` ReEncryptAll runs in one transaction (#845); `chore(dbschema)` migration context threaded
   through the schema-evolution helpers, dbtool `--schema` cancels on Ctrl-C (#758); `feat(api)`
