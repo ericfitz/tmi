@@ -67,7 +67,7 @@ type ThreatModelStoreInterface interface {
 	GetAuthorizationIncludingDeleted(id string) ([]Authorization, User, error)
 	List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel
 	// ListWithCounts returns paginated threat model list items with counts and total count (before pagination)
-	ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int)
+	ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int, error)
 	Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error)
 	// Update accepts a context.Context so the underlying retry wrapper uses
 	// the caller's ctx instead of context.Background(); see #334.

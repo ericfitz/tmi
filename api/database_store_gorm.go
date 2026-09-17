@@ -500,7 +500,7 @@ func applyThreatModelFilters(query *gorm.DB, filters *ThreatModelFilters) *gorm.
 		query = query.Where("LOWER(threat_models.issue_uri) LIKE LOWER(?)", "%"+*filters.IssueUri+"%")
 	}
 	if filters.Owner != nil && *filters.Owner != "" {
-		query = query.Joins("LEFT JOIN users AS owner_filter ON threat_models.owner_internal_uuid = owner_filter.internal_uuid").
+		query = query.Joins("LEFT JOIN users owner_filter ON threat_models.owner_internal_uuid = owner_filter.internal_uuid").
 			Where("LOWER(owner_filter.email) LIKE LOWER(?) OR LOWER(owner_filter.name) LIKE LOWER(?)",
 				"%"+*filters.Owner+"%", "%"+*filters.Owner+"%")
 	}
@@ -537,7 +537,7 @@ func applyThreatModelFilters(query *gorm.DB, filters *ThreatModelFilters) *gorm.
 			query = query.Where("threat_models.security_reviewer_internal_uuid IS NOT NULL")
 		case FilterOpNone:
 			if filters.SecurityReviewer.Value != "" {
-				query = query.Joins("LEFT JOIN users AS reviewer_filter ON threat_models.security_reviewer_internal_uuid = reviewer_filter.internal_uuid").
+				query = query.Joins("LEFT JOIN users reviewer_filter ON threat_models.security_reviewer_internal_uuid = reviewer_filter.internal_uuid").
 					Where("LOWER(reviewer_filter.email) LIKE LOWER(?) OR LOWER(reviewer_filter.name) LIKE LOWER(?)",
 						"%"+filters.SecurityReviewer.Value+"%", "%"+filters.SecurityReviewer.Value+"%")
 			}
@@ -547,7 +547,7 @@ func applyThreatModelFilters(query *gorm.DB, filters *ThreatModelFilters) *gorm.
 }
 
 // SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: list paginated threat model summaries with per-model sub-resource counts and auth filtering (reads DB)
-func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int) {
+func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -566,7 +566,9 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 	var tmModels []models.ThreatModel
 	result := query.Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").Order("threat_models.created_at DESC").Find(&tmModels)
 	if result.Error != nil {
-		return results, 0
+		// Surface the failure: returning an empty page here turned a broken
+		// query into a silent 200 with no items (#909).
+		return nil, 0, dberrors.Classify(result.Error)
 	}
 
 	// Build owner map and collect IDs for batch operations
@@ -621,7 +623,7 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 
 	// Apply pagination
 	if offset >= total {
-		return []TMListItem{}, total
+		return []TMListItem{}, total, nil
 	}
 
 	end := offset + limit
@@ -654,7 +656,7 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 		results[i] = li
 	}
 
-	return results, total
+	return results, total, nil
 }
 
 // entityCounts holds pre-fetched counts for all sub-resources of a threat model.

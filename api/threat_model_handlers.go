@@ -84,7 +84,12 @@ func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 	}
 
 	// Get threat models from store with filtering and counts
-	items, total := ThreatModelStore.ListWithCounts(offset, limit, filter, filters)
+	items, total, err := ThreatModelStore.ListWithCounts(offset, limit, filter, filters)
+	if err != nil {
+		slogging.Get().WithContext(c).Error("Failed to list threat models: %v", err)
+		HandleRequestError(c, WriteErrorToRequestError(err, "Failed to list threat models"))
+		return
+	}
 
 	// Return wrapped response with pagination metadata
 	c.JSON(http.StatusOK, ListThreatModelsResponse{
