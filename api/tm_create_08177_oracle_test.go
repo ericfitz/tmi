@@ -25,7 +25,7 @@ import (
 // before blaming the isolation level.
 //
 // Run via `make test-integration-oci`.
-// SEM@178dbd0418cfb7e057d4297c7a88c5879cb64c7f: verify back-to-back threat model creates raise no false ORA-08177 on Oracle ADB (writes DB)
+// SEM@4bb1ca6bbafe7a223150ef101f24eb54a547dce1: verify back-to-back threat model creates raise no false ORA-08177 on Oracle ADB (writes DB)
 func TestThreatModelCreateFalse08177OracleIntegration(t *testing.T) {
 	// Bounded for the same #671 reason as the alias sequence tests.
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)

@@ -806,7 +806,7 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 }
 
 // Create adds a new threat model using GORM
-// SEM@178dbd0418cfb7e057d4297c7a88c5879cb64c7f: persist a new threat model with authorization and metadata in a read-committed retryable transaction (writes DB)
+// SEM@4bb1ca6bbafe7a223150ef101f24eb54a547dce1: persist a new threat model with authorization and metadata in a read-committed retryable transaction (writes DB)
 func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
