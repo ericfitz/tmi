@@ -227,7 +227,7 @@ func (h *RepositorySubResourceHandler) CreateRepository(c *gin.Context) {
 	// Create repository in store
 	if err := h.repositoryStore.Create(c.Request.Context(), repository, threatModelID); err != nil {
 		logger.Error("Failed to create repository code reference: %v", err)
-		HandleRequestError(c, ServerError("Failed to create repository code reference"))
+		HandleRequestError(c, WriteErrorToRequestError(err, "Failed to create repository code reference"))
 		return
 	}
 
@@ -310,7 +310,7 @@ func (h *RepositorySubResourceHandler) UpdateRepository(c *gin.Context) {
 	// Update repository in store
 	if err := h.repositoryStore.Update(c.Request.Context(), repository, threatModelID); err != nil {
 		logger.Error("Failed to update repository code reference %s: %v", repositoryID, err)
-		HandleRequestError(c, ServerError("Failed to update repository code reference"))
+		HandleRequestError(c, WriteErrorToRequestError(err, "Failed to update repository code reference"))
 		return
 	}
 

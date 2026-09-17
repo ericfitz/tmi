@@ -236,13 +236,11 @@ func findOrCreateUserWithResolver(ctx context.Context, c *gin.Context, r userRes
 			// (now a unique index, #701) rejected this insert. Re-read the winner
 			// instead of surfacing a 500 — same "insert lost the race" pattern as #705.
 			//
-			// This re-fetch tolerates a duplicate-key failure on the same
-			// connection on both engines, but for opposite reasons, and only
-			// because CreateUser is not wrapped in an explicit transaction here:
-			// Oracle rolls a failed statement back to an implicit savepoint and
-			// leaves the session usable; PostgreSQL poisons the whole
-			// transaction (25P02) until an explicit rollback. Re-verify this
-			// still works on Postgres if CreateUser is ever moved inside one.
+			// CreateUser runs inside its own retrying transaction (#900), which
+			// GORM rolls back before the error escapes, so the session is
+			// usable for this re-fetch on both engines: PostgreSQL would
+			// otherwise poison the transaction (25P02) until a rollback, and
+			// Oracle rolls the failed statement back to an implicit savepoint.
 			logger.Warn("CreateUser hit duplicate-key conflict, re-fetching winner: provider=%s, provider_id=%s",
 				providerID, providerUserID)
 			winner, lookupErr := r.GetUserByProviderID(ctx, providerID, providerUserID)

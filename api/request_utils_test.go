@@ -821,3 +821,11 @@ func TestStoreErrorToRequestError_UnclassifiedStays500(t *testing.T) {
 	assert.Equal(t, "server_error", reqErr.Code)
 	assert.Equal(t, "Failed to create user", reqErr.Message)
 }
+
+// TestWriteErrorToRequestError covers #900: a transient store failure that
+// exhausted its retries is the documented 503, anything else stays a 500.
+func TestWriteErrorToRequestError(t *testing.T) {
+	transient := fmt.Errorf("transaction failed after 3 attempts: %w", dberrors.ErrTransient)
+	assert.Equal(t, http.StatusServiceUnavailable, WriteErrorToRequestError(transient, "Failed to create thing").Status)
+	assert.Equal(t, http.StatusInternalServerError, WriteErrorToRequestError(errors.New("boom"), "Failed to create thing").Status)
+}

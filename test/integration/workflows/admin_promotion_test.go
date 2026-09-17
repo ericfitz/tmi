@@ -328,7 +328,7 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		}
 
 		// Verify the admin member record has correct notes indicating auto-promotion
-		notes, err := db.QueryString("SELECT notes FROM group_members WHERE group_internal_uuid = '" + administratorsGroupUUID + "' LIMIT 1")
+		notes, err := db.QueryString("SELECT notes FROM group_members WHERE group_internal_uuid = '" + administratorsGroupUUID + "' FETCH FIRST 1 ROWS ONLY")
 		if err != nil {
 			t.Logf("Note: Could not retrieve admin notes: %v", err)
 		} else if notes != "" {
@@ -352,16 +352,15 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		defer adminDB.Close()
 
 		userUUID, _ := adminDB.QueryString(
-			"SELECT internal_uuid FROM users WHERE provider_user_id = 'test-admin' AND provider = 'tmi' LIMIT 1",
+			"SELECT internal_uuid FROM users WHERE provider_user_id = 'test-admin' AND provider = 'tmi' FETCH FIRST 1 ROWS ONLY",
 		)
 		if userUUID == "" {
 			t.Log("Warning: test-admin user not found in DB, cannot restore admin status")
 			return
 		}
-		_ = adminDB.ExecSQL(fmt.Sprintf(
+		_ = adminDB.InsertIgnoreDuplicate(fmt.Sprintf(
 			"INSERT INTO group_members (id, group_internal_uuid, user_internal_uuid, subject_type, added_at, notes) "+
-				"VALUES ('test-admin-restore', '%s', '%s', 'user', NOW(), 'Restored by admin_promotion_test cleanup') "+
-				"ON CONFLICT DO NOTHING",
+				"VALUES ('test-admin-restore', '%s', '%s', 'user', CURRENT_TIMESTAMP, 'Restored by admin_promotion_test cleanup')",
 			administratorsGroupUUID, userUUID,
 		))
 		t.Log("Restored test-admin to Administrators group")

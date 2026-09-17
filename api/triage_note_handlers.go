@@ -241,7 +241,7 @@ func (h *TriageNoteSubResourceHandler) CreateTriageNote(c *gin.Context) {
 
 	if err := h.triageNoteStore.Create(c.Request.Context(), note, surveyResponseID, userInternalUUID); err != nil {
 		logger.Error("Failed to create triage note: %v", err)
-		HandleRequestError(c, ServerError("Failed to create triage note"))
+		HandleRequestError(c, WriteErrorToRequestError(err, "Failed to create triage note"))
 		return
 	}
 

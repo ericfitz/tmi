@@ -618,6 +618,21 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 	return ServerError(serverErrorMsg)
 }
 
+// WriteErrorToRequestError maps the error from a store write that has no
+// domain-specific outcome (create/update/delete fallbacks) to the response.
+// It only distinguishes the transient class: a serialization failure that
+// exhausted its retries (ORA-08177, SQLSTATE 40001), a deadlock, or an ADB
+// connection drop is a documented 503 with Retry-After, not a server bug, so
+// the client can retry instead of reporting a 500 (#900). Every operation
+// documents 503 (#665), so this is safe at any handler's fallback branch.
+// SEM@0000000000000000000000000000000000000000: map a store write error to 503 if transient, else 500 (pure)
+func WriteErrorToRequestError(err error, serverErrorMsg string) *RequestError {
+	if errors.Is(err, dberrors.ErrTransient) {
+		return ServiceUnavailableError("Storage service temporarily unavailable - please retry")
+	}
+	return ServerError(serverErrorMsg)
+}
+
 // NotFoundErrorWithDetails creates a RequestError for resource not found with additional context
 // SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: build a 404 RequestError with structured diagnostic context (pure)
 func NotFoundErrorWithDetails(message string, code string, context map[string]any, suggestion string) *RequestError {

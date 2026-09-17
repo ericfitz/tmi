@@ -180,7 +180,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 	createdDiagram, err := DiagramStore.CreateWithThreatModel(d, threatModelId, idSetter)
 	if err != nil {
 		slogging.Get().WithContext(c).Error("Failed to create diagram in store for threat model %s (user: %s, diagram type: %s): %v", threatModelId, user.Email, d.Type, err)
-		HandleRequestError(c, ServerError("Failed to create diagram"))
+		HandleRequestError(c, WriteErrorToRequestError(err, "Failed to create diagram"))
 		return
 	}
 
@@ -601,7 +601,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 	// Delete(id) shim passes context.Background() and would not cancel under
 	// client disconnect or shutdown).
 	if err := DiagramStore.SoftDelete(c.Request.Context(), diagramId); err != nil {
-		HandleRequestError(c, ServerError("Failed to delete diagram"))
+		HandleRequestError(c, WriteErrorToRequestError(err, "Failed to delete diagram"))
 		return
 	}
 

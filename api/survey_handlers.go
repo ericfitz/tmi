@@ -1541,7 +1541,7 @@ func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyRespo
 	createdTM, err := createThreatModelFromResponse(ctx, response)
 	if err != nil {
 		logger.WithContext(c).Error("failed to create threat model from survey response %s: %v", surveyResponseId.String(), err)
-		HandleRequestError(c, ServerError("Failed to create threat model"))
+		HandleRequestError(c, WriteErrorToRequestError(err, "Failed to create threat model"))
 		return
 	}
 

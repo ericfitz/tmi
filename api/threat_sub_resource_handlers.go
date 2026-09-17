@@ -390,7 +390,7 @@ func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 	// Create threat in store
 	if err := h.threatStore.Create(c.Request.Context(), threat); err != nil {
 		logger.Error("Failed to create threat: %v", err)
-		HandleRequestError(c, ServerError("Failed to create threat"))
+		HandleRequestError(c, WriteErrorToRequestError(err, "Failed to create threat"))
 		return
 	}
 

@@ -253,7 +253,7 @@ func (s *Server) DeleteEmbeddings(c *gin.Context, threatModelId ThreatModelId, p
 		deleted, err = GlobalTimmyEmbeddingStore.DeleteByEntity(ctx, tmID, entityType, entityID)
 		if err != nil {
 			logger.Error("Failed to delete embeddings by entity for threat model %s: %v", tmID, err)
-			HandleRequestError(c, ServerError("Failed to delete embeddings"))
+			HandleRequestError(c, WriteErrorToRequestError(err, "Failed to delete embeddings"))
 			return
 		}
 		// Invalidate the index that corresponds to this entity type.
@@ -268,7 +268,7 @@ func (s *Server) DeleteEmbeddings(c *gin.Context, threatModelId ThreatModelId, p
 		deleted, err = GlobalTimmyEmbeddingStore.DeleteByThreatModelAndIndexType(ctx, tmID, indexType)
 		if err != nil {
 			logger.Error("Failed to delete embeddings by index type for threat model %s: %v", tmID, err)
-			HandleRequestError(c, ServerError("Failed to delete embeddings"))
+			HandleRequestError(c, WriteErrorToRequestError(err, "Failed to delete embeddings"))
 			return
 		}
 		// Best-effort cache invalidation: must not gate the delete response.

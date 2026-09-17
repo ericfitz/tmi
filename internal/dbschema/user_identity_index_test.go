@@ -196,3 +196,27 @@ func TestUserProviderLookupIndexState_WrongColumnListReadsAsNotOurs(t *testing.T
 		ID: uuid.NewString(), Provider: "tmi", ProviderUserID: strPtr("subject-756"), Email: "b756@example.com",
 	}).Error, "a duplicate (provider, provider_user_id) must be rejected after the repair")
 }
+
+// TestEnsureUserProviderLookupUnique_RestoreSurvivesCancelledContext covers
+// #895: when the migration context is cancelled after the DROP has committed,
+// the CREATE UNIQUE fails on the dead context, and the compensating restore of
+// the non-unique index must still run rather than fail on the same context.
+func TestEnsureUserProviderLookupUnique_RestoreSurvivesCancelledContext(t *testing.T) {
+	db := newSparseIndexTestDB(t)
+	createNonUniqueLookupIndex(t, db)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	require.NoError(t, db.Callback().Raw().After("gorm:raw").Register("test:cancel-after-drop", func(tx *gorm.DB) {
+		if strings.HasPrefix(strings.ToUpper(tx.Statement.SQL.String()), "DROP INDEX") {
+			cancel()
+		}
+	}))
+
+	require.NoError(t, EnsureUserProviderLookupUnique(ctx, db), "the failure path must not abort startup")
+
+	exists, unique, err := userProviderLookupIndexState(db, "users")
+	require.NoError(t, err)
+	assert.True(t, exists, "the non-unique index must have been restored despite the cancelled context")
+	assert.False(t, unique, "the restore puts back the original non-unique index")
+}

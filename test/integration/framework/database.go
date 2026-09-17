@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 
 	_ "github.com/lib/pq"
 )
@@ -11,36 +12,36 @@ import (
 // validTableNames is a whitelist of allowed table names for SQL operations.
 // This prevents SQL injection when executing raw SQL in tests.
 var validTableNames = map[string]bool{
-	"users":                   true,
-	"threat_models":           true,
-	"threat_model_access":     true,
-	"diagrams":                true,
-	"threats":                 true,
-	"assets":                  true,
-	"groups":                  true,
-	"group_members":           true,
-	"documents":               true,
-	"metadata":                true,
-	"repositories":            true,
-	"collaboration_sessions":  true,
-	"session_participants":    true,
-	"webhook_subscriptions":   true,
-	"webhook_quotas":          true,
-	"addons":                  true,
-	"addon_invocation_quotas": true,
-	"user_api_quotas":         true,
-	"client_credentials":      true,
-	"notes":                   true,
-	"survey_templates":         true,
-	"survey_responses":         true,
-	"survey_response_access":   true,
-	"teams":                    true,
-	"team_members":             true,
-	"team_responsible_parties": true,
-	"team_relationships":       true,
-	"projects":                 true,
+	"users":                       true,
+	"threat_models":               true,
+	"threat_model_access":         true,
+	"diagrams":                    true,
+	"threats":                     true,
+	"assets":                      true,
+	"groups":                      true,
+	"group_members":               true,
+	"documents":                   true,
+	"metadata":                    true,
+	"repositories":                true,
+	"collaboration_sessions":      true,
+	"session_participants":        true,
+	"webhook_subscriptions":       true,
+	"webhook_quotas":              true,
+	"addons":                      true,
+	"addon_invocation_quotas":     true,
+	"user_api_quotas":             true,
+	"client_credentials":          true,
+	"notes":                       true,
+	"survey_templates":            true,
+	"survey_responses":            true,
+	"survey_response_access":      true,
+	"teams":                       true,
+	"team_members":                true,
+	"team_responsible_parties":    true,
+	"team_relationships":          true,
+	"projects":                    true,
 	"project_responsible_parties": true,
-	"project_relationships":    true,
+	"project_relationships":       true,
 }
 
 // validateTableName checks if a table name is in the allowed whitelist.
@@ -55,6 +56,27 @@ func validateTableName(tableName string) error {
 // TestDatabase provides direct database access for integration tests
 type TestDatabase struct {
 	db *sql.DB
+	// dialect is "postgres" or "oracle"; the handful of statements that
+	// differ between the two (upsert syntax) branch on it (#898).
+	dialect string
+}
+
+// Dialect reports the SQL dialect of the connected database: "postgres" or "oracle".
+func (t *TestDatabase) Dialect() string { return t.dialect }
+
+// InsertIgnoreDuplicate runs an INSERT that must be a no-op when the row's
+// primary key already exists. PostgreSQL spells that ON CONFLICT DO NOTHING;
+// Oracle has no equivalent short form, so the unique-constraint error from the
+// second insert is swallowed instead (#898).
+func (t *TestDatabase) InsertIgnoreDuplicate(insertSQL string) error {
+	if t.dialect == "postgres" {
+		return t.ExecSQL(insertSQL + " ON CONFLICT DO NOTHING")
+	}
+	err := t.ExecSQL(insertSQL)
+	if err != nil && strings.Contains(err.Error(), "ORA-00001") {
+		return nil
+	}
+	return err
 }
 
 // NewTestDatabase creates a new test database connection using environment variables
@@ -77,7 +99,7 @@ func NewTestDatabase() (*TestDatabase, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return &TestDatabase{db: db}, nil
+	return &TestDatabase{db: db, dialect: "postgres"}, nil
 }
 
 // Close closes the database connection

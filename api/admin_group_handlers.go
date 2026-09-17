@@ -245,7 +245,7 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 			})
 		default:
 			logger.Error("Failed to create group: %v", err)
-			HandleRequestError(c, ServerError("Failed to create group"))
+			HandleRequestError(c, WriteErrorToRequestError(err, "Failed to create group"))
 		}
 		return
 	}
@@ -349,7 +349,7 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 			})
 		default:
 			logger.Error("Failed to update group: %v", err)
-			HandleRequestError(c, ServerError("Failed to update group"))
+			HandleRequestError(c, WriteErrorToRequestError(err, "Failed to update group"))
 		}
 		return
 	}
@@ -390,7 +390,7 @@ func (s *Server) DeleteAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 			})
 		default:
 			logger.Error("Failed to delete group: %v", err)
-			HandleRequestError(c, ServerError("Failed to delete group"))
+			HandleRequestError(c, WriteErrorToRequestError(err, "Failed to delete group"))
 		}
 		return
 	}

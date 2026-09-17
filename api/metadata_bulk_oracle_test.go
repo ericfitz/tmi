@@ -220,7 +220,16 @@ func TestMetadataBulkWriteOracleIntegration(t *testing.T) {
 			"SELECT INI_TRANS FROM ALL_TABLES WHERE TABLE_NAME = 'METADATA' AND OWNER = "+owner,
 		).Scan(&tableIni).Error)
 		require.Len(t, tableIni, 1, "METADATA must exist in CURRENT_SCHEMA")
-		assert.GreaterOrEqual(t, tableIni[0], int64(16), "METADATA INI_TRANS (#783)")
+		var cloudService []*string
+		require.NoError(t, db.Raw("SELECT SYS_CONTEXT('USERENV','CLOUD_SERVICE') FROM DUAL").Scan(&cloudService).Error)
+		if len(cloudService) == 1 && cloudService[0] != nil && *cloudService[0] != "" {
+			// Autonomous Database ignores ALTER TABLE's physical_attributes_clause,
+			// so the table stays at the ADB default; only the indexes can be
+			// raised there (#897).
+			t.Logf("Autonomous Database (%s): table INITRANS assertion skipped, table at %d", *cloudService[0], tableIni[0])
+		} else {
+			assert.GreaterOrEqual(t, tableIni[0], int64(16), "METADATA INI_TRANS (#783)")
+		}
 
 		var pk []string
 		require.NoError(t, db.Raw(

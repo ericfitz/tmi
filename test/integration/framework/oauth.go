@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -34,10 +35,10 @@ type OAuthFlowInitRequest struct {
 
 // OAuthFlowInitResponse represents the response from OAuth init
 type OAuthFlowInitResponse struct {
-	State              string `json:"state"`
-	CodeVerifier       string `json:"code_verifier"`
-	CodeChallenge      string `json:"code_challenge"`
-	AuthorizationURL   string `json:"authorization_url"`
+	State            string `json:"state"`
+	CodeVerifier     string `json:"code_verifier"`
+	CodeChallenge    string `json:"code_challenge"`
+	AuthorizationURL string `json:"authorization_url"`
 }
 
 // OAuthFlowStartRequest represents automated flow start request
@@ -266,7 +267,7 @@ func promoteToAdmin() {
 	var userUUID string
 	for range 10 {
 		userUUID, _ = db.QueryString(
-			"SELECT internal_uuid FROM users WHERE provider_user_id = 'test-admin' AND provider = 'tmi' LIMIT 1",
+			"SELECT internal_uuid FROM users WHERE provider_user_id = 'test-admin' AND provider = 'tmi' FETCH FIRST 1 ROWS ONLY",
 		)
 		if userUUID != "" {
 			break
@@ -279,10 +280,9 @@ func promoteToAdmin() {
 
 	// Idempotent insert into group_members
 	id := fmt.Sprintf("test-admin-%s", adminsGroupUUID[:8])
-	_ = db.ExecSQL(fmt.Sprintf(
+	_ = db.InsertIgnoreDuplicate(fmt.Sprintf(
 		"INSERT INTO group_members (id, group_internal_uuid, user_internal_uuid, subject_type, added_at, notes) "+
-			"VALUES ('%s', '%s', '%s', 'user', NOW(), 'Integration test admin') "+
-			"ON CONFLICT DO NOTHING",
+			"VALUES ('%s', '%s', '%s', 'user', CURRENT_TIMESTAMP, 'Integration test admin')",
 		id, adminsGroupUUID, userUUID,
 	))
 }
@@ -304,6 +304,13 @@ func AllowLocalhostWebhooks() {
 // NewDevDatabase creates a connection to the development database (the one the dev server uses).
 // Uses TEST_DEV_DB_PORT env var if set, otherwise defaults to 5432.
 func NewDevDatabase() (*TestDatabase, error) {
+	// The Oracle-backed dev server (make dev-up DB=oracle / make
+	// test-integration-oci) keeps its state in ADB, not in the local
+	// PostgreSQL, so the direct-DB helpers must follow TMI_DATABASE_URL there
+	// or every admin drain/seed silently lands in the wrong database (#898).
+	if dbURL := os.Getenv("TMI_DATABASE_URL"); strings.HasPrefix(dbURL, "oracle://") {
+		return newOracleDevDatabase(dbURL)
+	}
 	host := getEnvOrDefault("TEST_DB_HOST", "127.0.0.1")
 	port := getEnvOrDefault("TEST_DEV_DB_PORT", "5432")
 	user := getEnvOrDefault("TEST_DB_USER", "tmi_dev")
@@ -320,7 +327,7 @@ func NewDevDatabase() (*TestDatabase, error) {
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping dev database: %w", err)
 	}
-	return &TestDatabase{db: sqlDB}, nil
+	return &TestDatabase{db: sqlDB, dialect: "postgres"}, nil
 }
 
 // EnsureOAuthStubRunning checks if OAuth stub is running, returns error if not
