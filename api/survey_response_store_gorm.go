@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -125,6 +126,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 	}
 
 	// Start transaction (with retry on transient errors)
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err = authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Create the response
 		if err := tx.Create(&model).Error; err != nil {
@@ -190,7 +192,7 @@ func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyRe
 			return dberrors.Classify(err)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return err
 	}

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -131,6 +132,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 	}
 
 	// Begin transaction (with retry on transient errors)
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Create the team record
 		record := &models.TeamRecord{
@@ -235,7 +237,7 @@ func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID
 		}
 
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 
 	if err != nil {
 		return nil, err

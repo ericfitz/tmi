@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -75,6 +76,7 @@ func (s *GormSurveyStore) Create(ctx context.Context, survey *Survey, userIntern
 	// Set the creator
 	model.CreatedByInternalUUID = models.DBVarchar(userInternalUUID)
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err = authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(&model).Error; err != nil {
 			logger.Error("Failed to create survey: name=%s, version=%s, error=%v",
@@ -82,7 +84,7 @@ func (s *GormSurveyStore) Create(ctx context.Context, survey *Survey, userIntern
 			return dberrors.Classify(err)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return err
 	}

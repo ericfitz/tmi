@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"sync"
 	"time"
@@ -35,13 +36,14 @@ func (s *GormTimmySessionStore) Create(ctx context.Context, session *models.Timm
 	logger := slogging.Get()
 	logger.Debug("Creating Timmy session for user %s, threat model %s", session.UserID, session.ThreatModelID)
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(session).Error; err != nil {
 			logger.Error("Failed to create Timmy session: %v", err)
 			return dberrors.Classify(err)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return err
 	}
@@ -244,13 +246,14 @@ func (s *GormTimmyMessageStore) Create(ctx context.Context, message *models.Timm
 	logger := slogging.Get()
 	logger.Debug("Creating Timmy message for session %s (sequence=%d)", message.SessionID, message.Sequence)
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(message).Error; err != nil {
 			logger.Error("Failed to create Timmy message: %v", err)
 			return dberrors.Classify(err)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return err
 	}

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -61,6 +62,7 @@ func (s *GormAssetRepository) Create(ctx context.Context, asset *Asset, threatMo
 	gormAsset.ModifiedAt = now
 
 	// Insert into database (with retry on transient errors)
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		alias, err := AllocateNextAlias(ctx, tx, threatModelID, "asset")
 		if err != nil {
@@ -74,7 +76,7 @@ func (s *GormAssetRepository) Create(ctx context.Context, asset *Asset, threatMo
 		// callers (handlers serializing the response) see the assigned value.
 		asset.Alias = &alias
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		logger.Error("Failed to create asset in database: %v", err)
 		return err
@@ -487,6 +489,7 @@ func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, th
 	// Create all in a transaction (with retry). Allocate an alias for each
 	// asset before the bulk insert; the counter row's lock holds for the
 	// whole transaction so the allocations are atomic with the insert.
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		for i := range gormAssets {
 			alias, err := AllocateNextAlias(ctx, tx, threatModelID, "asset")
@@ -504,7 +507,7 @@ func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, th
 			assets[i].Alias = &alias
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		logger.Error("Failed to bulk create assets: %v", err)
 		return err

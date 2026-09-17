@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -64,6 +65,7 @@ func (s *GormThreatRepository) Create(ctx context.Context, threat *Threat) error
 
 	// Use GORM's standard Create - this handles all type conversions correctly
 	// (StringArray, OracleBool, etc.) across different database dialects.
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		alias, err := AllocateNextAlias(ctx, tx, string(gormThreat.ThreatModelID), "threat")
 		if err != nil {
@@ -77,7 +79,7 @@ func (s *GormThreatRepository) Create(ctx context.Context, threat *Threat) error
 		// callers (handlers serializing the response) see the assigned value.
 		threat.Alias = &alias
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		logger.Error("Failed to create threat in database: %v", err)
 		return err
@@ -927,6 +929,7 @@ func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat)
 	// Create all in a transaction (with retry). Allocate an alias for each
 	// threat before the bulk insert; the counter row's lock holds for the
 	// whole transaction so the allocations are atomic with the insert.
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		for i := range gormThreats {
 			alias, err := AllocateNextAlias(ctx, tx, string(gormThreats[i].ThreatModelID), "threat")
@@ -939,7 +942,7 @@ func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat)
 			return dberrors.Classify(err)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 
 	if err != nil {
 		logger.Error("Failed to bulk create threats: %v", err)

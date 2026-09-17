@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -133,13 +134,14 @@ func (s *GormProjectNoteStore) Create(ctx context.Context, note *ProjectNote, pr
 	record := projectNoteToRecord(note, projectID)
 	record.ID = models.DBVarchar(note.Id.String())
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(record).Error; err != nil {
 			logger.Error("Failed to create project note: %v", err)
 			return dberrors.Classify(err)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return nil, err
 	}
