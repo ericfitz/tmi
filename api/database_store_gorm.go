@@ -563,12 +563,17 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 
 	query = applyThreatModelFilters(query, filters)
 
+	// Retried without a transaction: now that a failure is surfaced, a momentary
+	// ADB connection drop on the most-hit list endpoint should not become a 503.
 	var tmModels []models.ThreatModel
-	result := query.Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").Order("threat_models.created_at DESC").Find(&tmModels)
-	if result.Error != nil {
+	if err := authdb.WithRetryableGormRead(context.Background(), authdb.DefaultRetryConfig(), func() error {
+		tmModels = nil
+		return query.Session(&gorm.Session{}).Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").
+			Order("threat_models.created_at DESC").Find(&tmModels).Error
+	}); err != nil {
 		// Surface the failure: returning an empty page here turned a broken
 		// query into a silent 200 with no items (#909).
-		return nil, 0, dberrors.Classify(result.Error)
+		return nil, 0, dberrors.Classify(err)
 	}
 
 	// Build owner map and collect IDs for batch operations

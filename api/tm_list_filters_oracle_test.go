@@ -15,6 +15,8 @@ import (
 // owner and security_reviewer list filters join USERS under a table alias,
 // and Oracle rejects `JOIN users AS alias` with ORA-02000. The query only has
 // to parse and run; matching rows are not required.
+// Precondition: the application schema must already exist on the target
+// database, otherwise the test skips and proves nothing.
 //
 // Run via `make test-integration-oci`.
 // SEM@0000000000000000000000000000000000000000: verify threat model list owner and reviewer filters execute on Oracle ADB (reads DB)
