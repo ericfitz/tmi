@@ -325,7 +325,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 			return
 		}
 
-		HandleRequestError(c, ServerError("Failed to create threat model"))
+		HandleRequestError(c, WriteErrorToRequestError(err, "Failed to create threat model"))
 		return
 	}
 
@@ -897,7 +897,7 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	// disconnect or shutdown).
 	if err := ThreatModelStore.SoftDelete(c.Request.Context(), id); err != nil {
 		slogging.Get().WithContext(c).Error("Failed to delete threat model %s from store (user: %s, name: %s): %v", id, user.Email, tm.Name, err)
-		HandleRequestError(c, ServerError("Failed to delete threat model"))
+		HandleRequestError(c, WriteErrorToRequestError(err, "Failed to delete threat model"))
 		return
 	}
 

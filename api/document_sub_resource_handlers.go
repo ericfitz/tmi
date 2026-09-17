@@ -523,7 +523,7 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 	// Create document in store
 	if err := h.documentStore.Create(c.Request.Context(), document, threatModelID); err != nil {
 		logger.Error("Failed to create document: %v", err)
-		HandleRequestError(c, ServerError("Failed to create document"))
+		HandleRequestError(c, WriteErrorToRequestError(err, "Failed to create document"))
 		return
 	}
 

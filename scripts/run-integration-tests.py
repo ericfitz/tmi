@@ -56,7 +56,19 @@ from tmi_test_runner import extract_failed_test_output, parse_output, print_resu
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run TMI integration tests with formatted output."
+        description="Run TMI integration tests with formatted output.",
+        epilog=(
+            "--target oci runs against the live `make dev-up DB=oracle` server on "
+            "localhost:8080 with scripts/oci-env.sh sourced (TMI_DATABASE_URL, "
+            "ORACLE_PASSWORD, TNS_ADMIN) and the workflow suite built with -tags "
+            "oracle so its direct-DB helpers reach the same ADB. The ADB keeps state "
+            "between runs; the suite tolerates that (it drains/seeds its own test "
+            "admins) but skips the first-user promotion cases while a non-test "
+            "administrator is present. Filters: TMI_TEST_HTTP_RUN, "
+            "TMI_TEST_ORACLE_RUN and TMI_TEST_WORKFLOW_RUN narrow each phase's "
+            "`go test -run` (OCI only). The server pod log for the run is saved to "
+            "logs/tmi-test-server.log."
+        ),
     )
     add_verbosity_args(parser)
     parser.add_argument(
@@ -517,6 +529,32 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
     return workflow_exit, workflows_skipped
 
 
+def dump_dev_server_pod_logs(project_root: Path, since: str) -> None:
+    """Save the dev server pod's log for this run to logs/tmi-test-server.log.
+
+    The OCI target drives the `make dev-up` pod, whose container log rotates
+    within minutes at DEBUG level, so an Oracle-only 500 is undiagnosable once
+    the run is over unless the log is captured immediately (#900).
+    """
+    if not shutil.which("kubectl"):
+        log_warn("kubectl not found; dev server pod log not captured")
+        return
+    server_log = project_root / "logs" / "tmi-test-server.log"
+    server_log.parent.mkdir(exist_ok=True)
+    result = subprocess.run(
+        ["kubectl", "-n", "tmi-platform", "logs", "deploy/tmi-server", f"--since-time={since}"],
+        capture_output=True, text=True, check=False,
+    )
+    if result.returncode != 0:
+        log_warn(f"could not capture dev server pod log: {result.stderr.strip()}")
+        return
+    server_log.write_text(result.stdout)
+    first = result.stdout.split("\n", 1)[0]
+    if first.startswith("time=") and first[5:25] > since:
+        log_warn(f"dev server pod log rotated during the run; it starts at {first[5:25]}, run started {since}")
+    log_info(f"Dev server pod log for this run: {server_log}")
+
+
 def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
     oci_env_file = project_root / "scripts" / "oci-env.sh"
     if not oci_env_file.exists():
@@ -532,6 +570,11 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
 
     log_info("Server is ready")
     ensure_oauth_stub(project_root)
+    run_started = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    def go_run(env_name: str) -> str:
+        pattern = os.environ.get(env_name, "").strip()
+        return f" -run '{pattern}'" if pattern else ""
 
     # Source oci-env.sh and run go test in the resulting environment. This
     # mirrors the original bash wrapper's behavior — the env file sets
@@ -546,7 +589,8 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
         f"TEST_SERVER_URL='{server_url}' "
         "TEST_REDIS_HOST=localhost "
         "TEST_REDIS_PORT=6379 "
-        "go test -v -count=1 -timeout=10m ./api/... -run Integration"
+        "go test -v -count=1 -timeout=10m ./api/..."
+        + (go_run("TMI_TEST_HTTP_RUN") or " -run Integration")
     )
     with open(log_path, "a") as fh:
         result = subprocess.run(
@@ -575,7 +619,8 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
         f"source '{oci_env_file}' && "
         "LOGGING_IS_TEST=true "
         "CGO_ENABLED=1 "
-        "go test -v -count=1 -timeout=10m -tags oracle ./api/... ./internal/dbschema/... -run OracleIntegration"
+        "go test -v -count=1 -timeout=10m -tags oracle ./api/... ./internal/dbschema/..."
+        + (go_run("TMI_TEST_ORACLE_RUN") or " -run OracleIntegration")
     )
     with open(log_path, "a") as fh:
         oracle_result = subprocess.run(
@@ -596,12 +641,16 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
     workflows_skipped: str | None = None
     log_info("Running workflow integration tests against the Oracle-backed dev server")
     workflow_run = os.environ.get("TMI_TEST_WORKFLOW_RUN", "").strip()
-    wf_go_cmd = "go test -v -count=1 -timeout=15m -p 1 ./workflows/..."
+    # -tags oracle: framework.NewDevDatabase follows TMI_DATABASE_URL to the
+    # ADB, so the admin drain/seed helpers act on the database the server is
+    # actually using (#898).
+    wf_go_cmd = "go test -v -count=1 -timeout=15m -p 1 -tags oracle ./workflows/..."
     if workflow_run:
         wf_go_cmd += f" -run '{workflow_run}'"
     wf_cmd = (
         f"source '{oci_env_file}' && "
         "LOGGING_IS_TEST=true "
+        "CGO_ENABLED=1 "
         "INTEGRATION_TESTS=true "
         f"TMI_SERVER_URL='{server_url}' "
         f"TEST_SERVER_URL='{server_url}' "
@@ -621,6 +670,8 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
         reason = build_failure_reason(log_path)
         if reason:
             workflows_skipped = f"workflows package failed to build: {reason}"
+
+    dump_dev_server_pod_logs(project_root, run_started)
 
     for code in (http_exit, oracle_result.returncode, workflow_result.returncode):
         if code != 0:
