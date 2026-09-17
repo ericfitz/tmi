@@ -625,7 +625,7 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 // connection drop is a documented 503 with Retry-After, not a server bug, so
 // the client can retry instead of reporting a 500 (#900). Every operation
 // documents 503 (#665), so this is safe at any handler's fallback branch.
-// SEM@0000000000000000000000000000000000000000: map a store write error to 503 if transient, else 500 (pure)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: classify an error into a RequestError, mapping transient faults to 503 (pure)
 func WriteErrorToRequestError(err error, serverErrorMsg string) *RequestError {
 	if errors.Is(err, dberrors.ErrTransient) {
 		return ServiceUnavailableError("Storage service temporarily unavailable - please retry")

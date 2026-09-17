@@ -211,7 +211,7 @@ func DropRetiredMetadataIndexes(ctx context.Context, db *gorm.DB) error {
 // empty when ALL_CONSTRAINTS found no primary-key index (disabled or
 // deferrable PK); the caller warns once for that, since the probe itself
 // runs both before and after the DDL.
-// SEM@341b00825096972c8f824f2ad4b3356d8c0c21b6: hold the catalog INITRANS values of the metadata table and its indexes (pure)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: hold observed INITRANS values for the metadata table and indexes (pure)
 type metadataInitransState struct {
 	Table   int64
 	PKIndex string
@@ -223,7 +223,7 @@ type metadataInitransState struct {
 	Autonomous bool
 }
 
-// SEM@ab48d653f43808ff3c2f52355ef6eda46c8f20aa: report which of the table and its indexes sit below the INITRANS target (pure)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: report which of the table and its indexes sit below the INITRANS target (pure)
 func (s metadataInitransState) below() (tableBelow bool, indexesBelow []string) {
 	tableBelow = !s.Autonomous && s.Table < metadataInitransTarget
 	for name, ini := range s.Indexes {
@@ -245,7 +245,7 @@ func (s metadataInitransState) below() (tableBelow bool, indexesBelow []string) 
 // labels and an untagged field's DBName follows the active dialect's naming
 // strategy, so IndexName binds to INDEX_NAME and IniTrans to INI_TRANS (the
 // same convention as userProviderLookupIndexState).
-// SEM@341b00825096972c8f824f2ad4b3356d8c0c21b6: fetch INITRANS of the metadata table, PK index, and named indexes from the Oracle catalog (reads DB)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: fetch INITRANS of the metadata table, PK index, and named indexes from the Oracle catalog (reads DB)
 func metadataInitransProbe(db *gorm.DB, table string) (metadataInitransState, error) {
 	state := metadataInitransState{Indexes: map[string]int64{}}
 	upperTable := strings.ToUpper(table)
@@ -326,7 +326,7 @@ func metadataInitransProbe(db *gorm.DB, table string) (metadataInitransState, er
 // was (each statement is its own transaction) and the next boot or
 // `tmi-dbtool --schema` retries. The outcome is decided by re-reading the
 // catalog after the DDL, not by trusting the DDL's error.
-// SEM@341b00825096972c8f824f2ad4b3356d8c0c21b6: raise INITRANS on the Oracle metadata table and its indexes to the target, else warn and continue (mutates DB)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: raise INITRANS on the Oracle metadata table and indexes below target (writes DB)
 func EnsureMetadataInitrans(ctx context.Context, db *gorm.DB) error {
 	if db.Name() != "oracle" {
 		return nil

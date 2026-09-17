@@ -54,6 +54,7 @@ func validateTableName(tableName string) error {
 }
 
 // TestDatabase provides direct database access for integration tests
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: hold a test's SQL connection and its dialect, postgres or oracle
 type TestDatabase struct {
 	db *sql.DB
 	// dialect is "postgres" or "oracle"; the handful of statements that
@@ -62,12 +63,14 @@ type TestDatabase struct {
 }
 
 // Dialect reports the SQL dialect of the connected database: "postgres" or "oracle".
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: report the connected test database's SQL dialect (pure)
 func (t *TestDatabase) Dialect() string { return t.dialect }
 
 // InsertIgnoreDuplicate runs an INSERT that must be a no-op when the row's
 // primary key already exists. PostgreSQL spells that ON CONFLICT DO NOTHING;
 // Oracle has no equivalent short form, so the unique-constraint error from the
 // second insert is swallowed instead (#898).
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: insert a row, ignoring a duplicate-key conflict, across dialects (writes DB)
 func (t *TestDatabase) InsertIgnoreDuplicate(insertSQL string) error {
 	if t.dialect == "postgres" {
 		return t.ExecSQL(insertSQL + " ON CONFLICT DO NOTHING")
