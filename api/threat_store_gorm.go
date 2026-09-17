@@ -551,6 +551,19 @@ var severityOrder = map[string]int{
 	"medium":        3,
 	"high":          4,
 	"critical":      5,
+	// Legacy stored values (#910). tmi-ux still renders these as their current
+	// equivalents (tm-edit-formatting.service.ts severityMap) but only
+	// migrates them for display, so without a rank here a row shown as
+	// "Critical" sorted below "unknown". Old numeric keys run the other way:
+	// "0" was critical.
+	"0":    5,
+	"1":    4,
+	"2":    3,
+	"3":    2,
+	"4":    1,
+	"info": 1,
+	"5":    0,
+	"none": 0,
 }
 
 // priorityOrder maps priority values to their semantic rank for sorting.

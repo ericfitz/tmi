@@ -157,3 +157,54 @@ func TestSortPaginationStability(t *testing.T) {
 	assert.Empty(t, duplicates, "no threat ID should appear across more than one page")
 	assert.Equal(t, allIDs, seen, "union of all pages should equal the full inserted set")
 }
+
+// TestSeverityDescAcrossPages pins the order the UI expects from
+// sort=severity:desc (#910): critical > high > medium > low > informational >
+// unknown, with legacy stored values ranked as the client renders them and
+// unranked or missing values last, read through LIMIT/OFFSET pages.
+// SEM@0000000000000000000000000000000000000000: verify severity descending sort ranks current and legacy values across pages (reads DB)
+func TestSeverityDescAcrossPages(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&models.Threat{}, &models.AliasCounter{}))
+
+	store := &GormThreatRepository{db: db}
+	tmUUID := uuid.New()
+	ctx := context.Background()
+
+	// stored value -> label the client shows for it
+	shown := map[string]string{
+		"critical": "critical", "0": "critical", "Critical": "critical",
+		"high": "high", "1": "high",
+		"medium": "medium", "2": "medium",
+		"low": "low", "3": "low",
+		"informational": "informational", "4": "informational", "Info": "informational",
+		"unknown": "unknown", "5": "unknown", "None": "unknown",
+		"bogus": "other",
+	}
+	for stored := range shown {
+		tid := uuid.New()
+		desc := "desc"
+		sev := stored
+		require.NoError(t, store.Create(ctx, &Threat{
+			Id: &tid, ThreatModelId: &tmUUID, Name: "t-" + stored,
+			Description: &desc, ThreatType: []string{"test"}, Severity: &sev,
+		}))
+	}
+
+	sort := "severity:desc"
+	var got []string
+	for offset := 0; offset < len(shown); offset += 5 {
+		results, _, err := store.List(ctx, tmUUID.String(), ThreatFilter{Sort: &sort, Offset: offset, Limit: 5})
+		require.NoError(t, err)
+		for _, r := range results {
+			got = append(got, shown[*r.Severity])
+		}
+	}
+
+	want := []string{
+		"critical", "critical", "critical", "high", "high", "medium", "medium", "low", "low",
+		"informational", "informational", "informational", "unknown", "unknown", "unknown", "other",
+	}
+	assert.Equal(t, want, got)
+}
