@@ -193,7 +193,7 @@ func (r *GormUserRepository) GetPrimaryProviderID(ctx context.Context, userID st
 }
 
 // Create creates a new user
-// SEM@8077d4387088ee7e6e22cce2171ad54ee850e10b: store a new user record, generating UUID and timestamps if absent (mutates shared state)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: create a user via retryable transaction, generating UUID/timestamps (writes DB)
 func (r *GormUserRepository) Create(ctx context.Context, user *User) (*User, error) {
 	// Generate a new internal UUID if not provided
 	if user.InternalUUID == "" {

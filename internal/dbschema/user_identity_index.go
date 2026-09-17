@@ -63,7 +63,7 @@ import (
 // `tmi-dbtool --schema` run by an admin-privileged user, retries. The
 // alternative -- crash-looping a server over an index it may not be
 // privileged to touch -- is a larger outage than the missing constraint.
-// SEM@30424a23a3e8112b8be171d3d0fcb5cb63ca48a1: repair the users provider-lookup index to its intended unique definition, else warn and continue (mutates DB)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: upgrade the users provider-lookup index to UNIQUE, recreating it if needed (writes DB)
 func EnsureUserProviderLookupUnique(ctx context.Context, db *gorm.DB) error {
 	usersTable := (&models.User{}).TableName()
 	present, err := requireMigrationTable(db, usersTable, "users provider-lookup unique-index upgrade (#732)")

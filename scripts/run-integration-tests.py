@@ -529,6 +529,7 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
     return workflow_exit, workflows_skipped
 
 
+# SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: capture the dev server pod's log to a file for this run
 def dump_dev_server_pod_logs(project_root: Path, since: str) -> None:
     """Save the dev server pod's log for this run to logs/tmi-test-server.log.
 
@@ -555,6 +556,7 @@ def dump_dev_server_pod_logs(project_root: Path, since: str) -> None:
     log_info(f"Dev server pod log for this run: {server_log}")
 
 
+# SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: run the OCI integration test suite against an Oracle-backed dev server
 def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
     oci_env_file = project_root / "scripts" / "oci-env.sh"
     if not oci_env_file.exists():
@@ -572,6 +574,7 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
     ensure_oauth_stub(project_root)
     run_started = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
+    # SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: build a go test -run flag from an environment variable (pure)
     def go_run(env_name: str) -> str:
         pattern = os.environ.get(env_name, "").strip()
         return f" -run '{pattern}'" if pattern else ""

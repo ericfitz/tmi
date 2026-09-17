@@ -17,6 +17,7 @@ import (
 // parseOracleURL): oracle://user@tns_alias with the wallet resolved through
 // TNS_ADMIN, or oracle://user:pass@host:port/service; the password comes from
 // the URL or ORACLE_PASSWORD, exactly as scripts/oci-env.sh exports it (#898).
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: open the Oracle test database connection from TMI_DATABASE_URL
 func newOracleDevDatabase(rawURL string) (*TestDatabase, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {

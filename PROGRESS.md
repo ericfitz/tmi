@@ -1,3 +1,21 @@
+# Session progress — 2026-09-17
+
+## Landed (pushed to main)
+
+- **PR #902 merged** (`b01ccb8e`, 1.13.5) — Oracle follow-ups, one commit per issue: `chore(dbschema)` the users
+  provider-lookup index restore runs on `context.WithoutCancel` (#895); `fix(api)` every create/update/delete
+  fallback maps `dberrors.ErrTransient` to the documented 503 via `WriteErrorToRequestError`, user creation at
+  login retries transient faults at READ COMMITTED, and the OCI runner saves the dev server pod log plus honors
+  `TMI_TEST_HTTP_RUN` / `TMI_TEST_ORACLE_RUN` / `TMI_TEST_WORKFLOW_RUN` (#900); `fix(dbschema)` the METADATA
+  table INITRANS raise is skipped on Autonomous Database, which ignores ALTER TABLE's physical attributes,
+  detected via `SYS_CONTEXT('USERENV','CLOUD_SERVICE')` (#897); `test(oci)` the workflow suite's direct-DB
+  helpers open the ADB through godror (`-tags oracle`, UTC session pinned) so admin drain/seed hit the server's
+  database (#898). All four closed. Oracle review APPROVED WITH NOTES after one blocking timezone fix. The six
+  originally failing OCI cases pass on tmiadb; PostgreSQL integration 91/0/9.
+- Filed #903: false ORA-08177 exhaustion on THREAT_MODEL_ACCESS / USERS inserts on ADB (now a 503, root cause
+  visible in the captured pod log).
+- Deploy: k3s-rp from main 1.13.5; api.tmi.dev pending Eric's image push (classifier blocks it in auto mode).
+
 # Session progress — 2026-09-16
 
 ## Landed (pushed to main)
