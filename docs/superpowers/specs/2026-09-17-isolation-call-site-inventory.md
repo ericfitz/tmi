@@ -1,6 +1,6 @@
 # Transaction call-site isolation inventory (2026-09-17, #906)
 
-Companion to `2026-09-17-adr-transaction-isolation-opt-down.md`. Every `WithRetryable*Transaction` call site at main `f0f17a98`, classified against the ADR rules by four read-only review agents and spot-checked. Line numbers are as of that commit. `OPT_DOWN` sites run at READ COMMITTED after #906, except `api/client_credentials_service.go:101`, which was left alone because its closure ignores the transaction handle (#911). Everything else keeps the SERIALIZABLE default.
+Companion to `2026-09-17-adr-transaction-isolation-opt-down.md`. Every `WithRetryable*Transaction` call site at main `f0f17a98`, classified against the ADR rules by four read-only review agents and spot-checked. Line numbers are as of that commit. `OPT_DOWN` sites run at READ COMMITTED after #906, except `api/client_credentials_service.go:101`, which was left alone because its closure ignores the transaction handle (#911). Everything else keeps the SERIALIZABLE default. `GormMetadataRepository.BulkUpdate` can emit more than one MERGE above `metadataBatchSize`, so a concurrent writer can interleave between batches; metadata keys are independent, so the per-key outcome is unchanged.
 
 | file:line | function | writes (tables + verb) | reads that feed decisions | class | reason |
 |---|---|---|---|---|---|
