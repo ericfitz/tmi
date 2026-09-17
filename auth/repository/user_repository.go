@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -210,12 +211,15 @@ func (r *GormUserRepository) Create(ctx context.Context, user *User) (*User, err
 
 	gormUser := convertUserToModel(user)
 
-	// A single INSERT still runs under the SERIALIZABLE session default, so a
-	// false ORA-08177 on a hot USERS block used to surface straight to the
-	// caller as a 503 at login. Retry it like every other write (#900).
+	// A bare Create had no retry, so one transient fault (a deadlock, an
+	// Autonomous Database connection drop, a false ORA-08177) surfaced straight
+	// to the token exchange as a 503 at login. Retry it like every other
+	// write; READ COMMITTED because a single INSERT gains nothing from the
+	// wrapper's SERIALIZABLE default except the serialization-failure class
+	// itself (#900).
 	if err := authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		return tx.Create(gormUser).Error
-	}); err != nil {
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted}); err != nil {
 		return nil, dberrors.Classify(err)
 	}
 
