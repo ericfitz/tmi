@@ -170,8 +170,10 @@ jobs:
         # bump if a newer stable tag exists.
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
+      # Fails on any reachable vulnerability that is not listed, unexpired, in
+      # .github/govulncheck-allow.txt (for advisories with no fixed release).
       - name: Run govulncheck
-        run: govulncheck ./...
+        run: scripts/ci-govulncheck.sh .github/govulncheck-allow.txt
 
       # functions/certmgr is a standalone Go module (no `replace` back to root);
       # `./...` from the repo root never crosses into it, so it needs its own

@@ -335,3 +335,17 @@ func TestCtxReader_PassesThroughBeforeCancel(t *testing.T) {
 	assert.Equal(t, 5, n)
 	assert.Equal(t, "hello", string(buf))
 }
+
+// A panicking extractor (adversarial input tripping a parser bug, e.g.
+// GO-2026-6452) must surface as ErrMalformed, not crash the process.
+// SEM@0000000000000000000000000000000000000000: verify ExtractWithDeadline converts an extractor panic into ErrMalformed (pure)
+func TestExtractWithDeadlineContainsPanic(t *testing.T) {
+	_, err := ExtractWithDeadline(context.Background(), time.Second, func(context.Context) (ExtractedContent, error) {
+		var shared []string
+		idx := -1
+		return ExtractedContent{Text: shared[idx]}, nil
+	})
+	if !errors.Is(err, ErrMalformed) {
+		t.Fatalf("want ErrMalformed, got %v", err)
+	}
+}

@@ -433,6 +433,16 @@ func ExtractWithDeadline(ctx context.Context, budget time.Duration, fn func(cont
 	}
 	ch := make(chan result, 1)
 	go func() {
+		// A panic in a parsing library on adversarial input (for example
+		// GO-2026-6452 in excelize, which has no fixed release) would otherwise
+		// take down the whole process: this goroutine is outside any HTTP
+		// recovery middleware. Contain it as a malformed-document error. The
+		// panic value is not logged or returned; it can echo document content.
+		defer func() {
+			if r := recover(); r != nil {
+				ch <- result{ExtractedContent{}, fmt.Errorf("%w: extractor panicked", ErrMalformed)}
+			}
+		}()
 		c, e := fn(ctx)
 		ch <- result{c, e}
 	}()
