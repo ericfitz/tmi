@@ -216,11 +216,16 @@ type metadataInitransState struct {
 	Table   int64
 	PKIndex string
 	Indexes map[string]int64
+	// Autonomous is true on Oracle Autonomous Database, which ignores the
+	// physical_attributes_clause of ALTER TABLE (INITRANS included), so the
+	// table-level raise can never take effect there and is not attempted; the
+	// index rebuilds are unrestricted and still run (#897).
+	Autonomous bool
 }
 
 // SEM@ab48d653f43808ff3c2f52355ef6eda46c8f20aa: report which of the table and its indexes sit below the INITRANS target (pure)
 func (s metadataInitransState) below() (tableBelow bool, indexesBelow []string) {
-	tableBelow = s.Table < metadataInitransTarget
+	tableBelow = !s.Autonomous && s.Table < metadataInitransTarget
 	for name, ini := range s.Indexes {
 		if ini < metadataInitransTarget {
 			indexesBelow = append(indexesBelow, name)
@@ -256,6 +261,15 @@ func metadataInitransProbe(db *gorm.DB, table string) (metadataInitransState, er
 		return state, fmt.Errorf("table %s not found in ALL_TABLES for CURRENT_SCHEMA", upperTable)
 	}
 	state.Table = tableIni[0]
+
+	// CLOUD_SERVICE is set only on Autonomous Database (OLTP, DWCS, JDCS,
+	// APEX); NULL on any other Oracle. Treat a probe error as "not
+	// Autonomous" rather than failing the boot: the worst case is one
+	// ineffective MOVE, which is what every boot did before #897.
+	var cloudService []*string
+	if err := db.Raw("SELECT SYS_CONTEXT('USERENV','CLOUD_SERVICE') FROM DUAL").Scan(&cloudService).Error; err == nil {
+		state.Autonomous = len(cloudService) == 1 && cloudService[0] != nil && *cloudService[0] != ""
+	}
 
 	var pkIndexes []string
 	if err := db.Raw(
@@ -347,6 +361,10 @@ func EnsureMetadataInitrans(ctx context.Context, db *gorm.DB) error {
 	}
 
 	tableBelow, indexesBelow := state.below()
+	if state.Autonomous && state.Table < metadataInitransTarget && len(indexesBelow) > 0 {
+		logger.Info("%s INITRANS stays at %d: Autonomous Database ignores the physical_attributes_clause of ALTER TABLE, so only the index rebuilds are applied (#897)",
+			upperTable, state.Table)
+	}
 	if !tableBelow && len(indexesBelow) == 0 {
 		return nil
 	}

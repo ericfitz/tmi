@@ -151,3 +151,20 @@ func TestEnsureMetadataInitrans_NonOracleIsNoOp(t *testing.T) {
 	require.NoError(t, EnsureMetadataInitrans(context.Background(), db))
 	require.NoError(t, EnsureMetadataInitrans(context.Background(), db), "must be idempotent")
 }
+
+// TestMetadataInitransState_AutonomousIgnoresTable covers #897: on Autonomous
+// Database the table can never reach the target (ALTER TABLE's physical
+// attributes are ignored there), so it must not count as "below" while the
+// indexes still do.
+func TestMetadataInitransState_AutonomousIgnoresTable(t *testing.T) {
+	state := metadataInitransState{Table: 10, Indexes: map[string]int64{"IDX_METADATA_KEY": 2, "IDX_METADATA_UNIQUE": 16}}
+
+	tableBelow, indexesBelow := state.below()
+	assert.True(t, tableBelow)
+	assert.Equal(t, []string{"IDX_METADATA_KEY"}, indexesBelow)
+
+	state.Autonomous = true
+	tableBelow, indexesBelow = state.below()
+	assert.False(t, tableBelow, "the table raise is a no-op on Autonomous Database and must not be reported as pending")
+	assert.Equal(t, []string{"IDX_METADATA_KEY"}, indexesBelow, "index rebuilds are unaffected")
+}
