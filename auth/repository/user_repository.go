@@ -5,11 +5,14 @@ import (
 	"errors"
 	"time"
 
+	authdb "github.com/ericfitz/tmi/auth/db"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
-	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 // GormUserRepository implements UserRepository using GORM
@@ -207,9 +210,13 @@ func (r *GormUserRepository) Create(ctx context.Context, user *User) (*User, err
 
 	gormUser := convertUserToModel(user)
 
-	result := r.db.WithContext(ctx).Create(gormUser)
-	if result.Error != nil {
-		return nil, dberrors.Classify(result.Error)
+	// A single INSERT still runs under the SERIALIZABLE session default, so a
+	// false ORA-08177 on a hot USERS block used to surface straight to the
+	// caller as a 503 at login. Retry it like every other write (#900).
+	if err := authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		return tx.Create(gormUser).Error
+	}); err != nil {
+		return nil, dberrors.Classify(err)
 	}
 
 	// Return the created user with the generated UUID

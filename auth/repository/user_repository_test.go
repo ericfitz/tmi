@@ -2,14 +2,20 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
-	"github.com/ericfitz/tmi/api/models"
-	"github.com/ericfitz/tmi/auth/db"
+	"gorm.io/gorm"
+
+	"github.com/ericfitz/tmi/internal/dberrors"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/auth/db"
 )
 
 func TestGormUserRepository_Create_Success(t *testing.T) {
@@ -603,4 +609,28 @@ func TestConvertUserToModel_EmptyProviderUserID(t *testing.T) {
 	model := convertUserToModel(user)
 
 	assert.False(t, model.ProviderUserID.Valid, "expected ProviderUserID to be invalid/empty")
+}
+
+// TestGormUserRepository_Create_RetriesTransientFailure covers #900: a
+// serialization failure on the INSERT (ORA-08177 / SQLSTATE 40001, classified
+// as transient) must be retried instead of surfacing as a 503 at login.
+func TestGormUserRepository_Create_RetriesTransientFailure(t *testing.T) {
+	tdb := db.MustCreateTestDB(t)
+	defer tdb.Cleanup()
+
+	failures := 0
+	require.NoError(t, tdb.DB.Callback().Create().Before("gorm:create").Register("test:transient-once", func(tx *gorm.DB) {
+		if tx.Statement.Table == "users" && failures == 0 {
+			failures++
+			_ = tx.AddError(dberrors.Wrap(errors.New("ORA-08177: can't serialize access for this transaction"), dberrors.ErrTransient))
+		}
+	}))
+
+	repo := NewGormUserRepository(tdb.DB)
+	created, err := repo.Create(context.Background(), &User{
+		Provider: "tmi", ProviderUserID: "retry-me", Email: "retry@example.com", Name: "Retry Me",
+	})
+	require.NoError(t, err, "one transient failure must be absorbed by the retry")
+	assert.Equal(t, 1, failures, "the first attempt must have failed")
+	assert.NotEmpty(t, created.InternalUUID)
 }
