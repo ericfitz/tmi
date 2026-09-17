@@ -361,7 +361,7 @@ func EnsureMetadataInitrans(ctx context.Context, db *gorm.DB) error {
 	}
 
 	tableBelow, indexesBelow := state.below()
-	if state.Autonomous && state.Table < metadataInitransTarget && len(indexesBelow) > 0 {
+	if state.Autonomous && state.Table < metadataInitransTarget {
 		logger.Info("%s INITRANS stays at %d: Autonomous Database ignores the physical_attributes_clause of ALTER TABLE, so only the index rebuilds are applied (#897)",
 			upperTable, state.Table)
 	}

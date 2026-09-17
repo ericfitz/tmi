@@ -221,7 +221,7 @@ func TestStepUpRoundTrip(t *testing.T) {
 			auditFieldPath, queryErr = db.QueryString(fmt.Sprintf(
 				"SELECT field_path FROM system_audit_entries "+
 					"WHERE actor_email = '%s' AND field_path = 'groups.create' AND http_method = 'POST' "+
-					"AND created_at >= TIMESTAMP '%s' ORDER BY created_at DESC FETCH FIRST 1 ROWS ONLY",
+					"AND created_at >= TIMESTAMP '%s +00:00' ORDER BY created_at DESC FETCH FIRST 1 ROWS ONLY",
 				adminEmail, beforeCreate.Format("2006-01-02 15:04:05"),
 			))
 			auditMethod = "POST"
@@ -230,7 +230,7 @@ func TestStepUpRoundTrip(t *testing.T) {
 			auditFieldPath, queryErr = db.QueryString(fmt.Sprintf(
 				"SELECT field_path FROM system_audit_entries "+
 					"WHERE field_path = 'groups.create' AND http_method = 'POST' "+
-					"AND created_at >= TIMESTAMP '%s' ORDER BY created_at DESC FETCH FIRST 1 ROWS ONLY",
+					"AND created_at >= TIMESTAMP '%s +00:00' ORDER BY created_at DESC FETCH FIRST 1 ROWS ONLY",
 				beforeCreate.Format("2006-01-02 15:04:05"),
 			))
 			auditMethod = "POST"

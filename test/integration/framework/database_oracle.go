@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/godror/godror"
 )
@@ -40,6 +41,12 @@ func newOracleDevDatabase(rawURL string) (*TestDatabase, error) {
 		}
 		params.ConnectString = fmt.Sprintf("%s:%s%s", u.Hostname(), port, u.Path)
 	}
+	// Same UTC session basis as the server's connector (auth/db/gorm_oracle.go,
+	// #459): pooled ADB sessions otherwise sit at the client host's local zone,
+	// which shifts every naked TIMESTAMP literal the tests compare against.
+	params.Timezone = time.UTC
+	params.OnInitStmts = []string{"ALTER SESSION SET TIME_ZONE = '+00:00'"}
+	params.InitOnNewConn = false
 	sqlDB := sql.OpenDB(godror.NewConnector(params))
 	if err := sqlDB.Ping(); err != nil {
 		_ = sqlDB.Close()

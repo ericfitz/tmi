@@ -328,7 +328,7 @@ func TestFirstUserAdminPromotion(t *testing.T) {
 		}
 
 		// Verify the admin member record has correct notes indicating auto-promotion
-		notes, err := db.QueryString("SELECT notes FROM group_members WHERE group_internal_uuid = '" + administratorsGroupUUID + "' LIMIT 1")
+		notes, err := db.QueryString("SELECT notes FROM group_members WHERE group_internal_uuid = '" + administratorsGroupUUID + "' FETCH FIRST 1 ROWS ONLY")
 		if err != nil {
 			t.Logf("Note: Could not retrieve admin notes: %v", err)
 		} else if notes != "" {
