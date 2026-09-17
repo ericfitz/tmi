@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -805,23 +806,23 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 }
 
 // Create adds a new threat model using GORM
-// SEM@178dbd0418cfb7e057d4297c7a88c5879cb64c7f: persist a new threat model with authorization and metadata in a serializable retryable transaction (reads DB)
+// SEM@4bb1ca6bbafe7a223150ef101f24eb54a547dce1: persist a new threat model with authorization and metadata in a read-committed retryable transaction (writes DB)
 func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	// Generate ID if not set. Done once, outside the retry closure, so the ID is
-	// stable if the serializable transaction aborts (40001 / ORA-08177) and the
-	// whole closure re-runs.
+	// stable if the transaction hits a transient error and the whole closure
+	// re-runs.
 	id := uuid.New().String()
 	if idSetter != nil {
 		item = idSetter(item, id)
 	}
 
-	// Run the entire create as one serializable, retryable transaction. A
-	// serialization failure retries the whole closure instead of surfacing as a
-	// 500. s.db is the root handle (never an in-progress tx), as the wrapper
-	// requires.
+	// Run the entire create as one retryable transaction (isolation: see
+	// runCreate below). A transient failure retries the whole closure instead
+	// of surfacing as a 500. s.db is the root handle (never an in-progress tx),
+	// as the wrapper requires.
 	createTx := func(tx *gorm.DB) error {
 		// Resolve owner identifier to internal_uuid
 		ownerUUID, err := s.resolveUserIdentifierToUUID(tx, item.Owner.ProviderId)
@@ -932,8 +933,21 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		return nil
 	}
 
+	// READ COMMITTED, not the wrapper's SERIALIZABLE default (#903). Every write
+	// here is an INSERT keyed by the fresh id generated above, so no other
+	// transaction can write those rows and SERIALIZABLE protects nothing. The
+	// two shared rows, the group upsert and (only when the alias sequence gate
+	// is off) the row-locked alias counter, are lock-then-increment patterns
+	// that are correct at READ COMMITTED and merely abort at SERIALIZABLE. On
+	// Oracle SERIALIZABLE only adds a failure mode: a recursive transaction
+	// (index leaf split, probably also ASSM/LOB space allocation) commits past
+	// the snapshot, the insert raises a false ORA-08177, and delayed block
+	// cleanout can carry it into the next attempt. Measured on ADB with
+	// no concurrent writer and INITRANS already 20: ~8% of creates hit it and
+	// ~2% exhausted all three attempts (503).
 	runCreate := func() error {
-		return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), createTx)
+		return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), createTx,
+			&sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	}
 
 	err := runCreate()
