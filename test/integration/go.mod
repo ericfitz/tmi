@@ -7,6 +7,7 @@ replace github.com/ericfitz/tmi => ../..
 require (
 	github.com/ericfitz/tmi v0.0.0-00010101000000-000000000000
 	github.com/getkin/kin-openapi v0.149.0
+	github.com/godror/godror v0.51.4
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.12.3
 	github.com/nats-io/nats.go v1.53.1
@@ -69,7 +70,6 @@ require (
 	github.com/go-sql-driver/mysql v1.10.0 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
-	github.com/godror/godror v0.51.4 // indirect
 	github.com/godror/knownpb v0.3.0 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect

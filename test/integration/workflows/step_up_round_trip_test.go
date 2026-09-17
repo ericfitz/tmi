@@ -94,7 +94,7 @@ func TestStepUpRoundTrip(t *testing.T) {
 	// 2a. Look up the admin user's internal UUID from the DB.
 	t.Log("Step 2a: Looking up admin user's internal UUID")
 	adminInternalUUID, err := db.QueryString(
-		"SELECT internal_uuid FROM users WHERE provider_user_id = 'test-admin' AND provider = 'tmi' LIMIT 1",
+		"SELECT internal_uuid FROM users WHERE provider_user_id = 'test-admin' AND provider = 'tmi' FETCH FIRST 1 ROWS ONLY",
 	)
 	if err != nil || adminInternalUUID == "" {
 		t.Fatalf("Could not find test-admin user in DB (err=%v uuid=%q); is the dev server running and test-admin previously authenticated?",
@@ -204,7 +204,7 @@ func TestStepUpRoundTrip(t *testing.T) {
 
 	// Look up the admin's email to match against the audit row.
 	adminEmail, _ := db.QueryString(
-		"SELECT email FROM users WHERE provider_user_id = 'test-admin' AND provider = 'tmi' LIMIT 1",
+		"SELECT email FROM users WHERE provider_user_id = 'test-admin' AND provider = 'tmi' FETCH FIRST 1 ROWS ONLY",
 	)
 	if adminEmail == "" {
 		t.Log("Warning: could not determine test-admin email; audit row check will be less precise")
@@ -221,8 +221,8 @@ func TestStepUpRoundTrip(t *testing.T) {
 			auditFieldPath, queryErr = db.QueryString(fmt.Sprintf(
 				"SELECT field_path FROM system_audit_entries "+
 					"WHERE actor_email = '%s' AND field_path = 'groups.create' AND http_method = 'POST' "+
-					"AND created_at >= '%s' ORDER BY created_at DESC LIMIT 1",
-				adminEmail, beforeCreate.Format("2006-01-02T15:04:05"),
+					"AND created_at >= TIMESTAMP '%s' ORDER BY created_at DESC FETCH FIRST 1 ROWS ONLY",
+				adminEmail, beforeCreate.Format("2006-01-02 15:04:05"),
 			))
 			auditMethod = "POST"
 		} else {
@@ -230,8 +230,8 @@ func TestStepUpRoundTrip(t *testing.T) {
 			auditFieldPath, queryErr = db.QueryString(fmt.Sprintf(
 				"SELECT field_path FROM system_audit_entries "+
 					"WHERE field_path = 'groups.create' AND http_method = 'POST' "+
-					"AND created_at >= '%s' ORDER BY created_at DESC LIMIT 1",
-				beforeCreate.Format("2006-01-02T15:04:05"),
+					"AND created_at >= TIMESTAMP '%s' ORDER BY created_at DESC FETCH FIRST 1 ROWS ONLY",
+				beforeCreate.Format("2006-01-02 15:04:05"),
 			))
 			auditMethod = "POST"
 		}
