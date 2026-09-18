@@ -307,7 +307,8 @@ func TestThreatModelCRUD(t *testing.T) {
 		framework.AssertStatusOK(t, resp)
 
 		// Validate patched field
-		framework.AssertJSONField(t, resp, "status", "Resolved")
+		// The display form "Resolved" is stored and returned as canonical "resolved" (#925).
+		framework.AssertJSONField(t, resp, "status", "resolved")
 		// Name should remain unchanged
 		framework.AssertJSONField(t, resp, "name", "SQL Injection (Updated)")
 

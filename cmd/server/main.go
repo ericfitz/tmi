@@ -566,13 +566,14 @@ func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error 
 	} else if result.RowsAffected > 0 {
 		logger.Info("Normalized %d severity values to lowercase", result.RowsAffected)
 	}
-	// Migrate 'none' severity to 'informational'
-	if result := gormDB.DB().Exec(
-		"UPDATE threats SET severity = 'informational' WHERE severity = 'none'",
-	); result.Error != nil {
-		logger.Warn("Failed to migrate 'none' severity to 'informational' (non-fatal): %v", result.Error)
-	} else if result.RowsAffected > 0 {
-		logger.Info("Migrated %d severity values from 'none' to 'informational'", result.RowsAffected)
+	// #925: rewrite legacy stored threat severity/priority/status values (old
+	// tmi-ux numeric keys and display strings, 'none') to canonical form.
+	// Idempotent and non-fatal: the store canonicalizes every write, so a
+	// failure here only leaves old rows legacy until the next boot retries.
+	if migrated, err := api.MigrateLegacyThreatValues(ctx, gormDB.DB()); err != nil {
+		logger.Warn("MigrateLegacyThreatValues failed (non-fatal): %v", err)
+	} else if migrated > 0 {
+		logger.Info("Migrated %d legacy threat severity/priority/status values to canonical form", migrated)
 	}
 
 	// #813: remove system_settings rows for keys the registry no longer
