@@ -40,13 +40,6 @@ type ThreatFilter struct {
 	Limit  int
 }
 
-// normalizeSeverity is a no-op that returns severity as-is without modification
-// Severity is now a free-form string field and should not be normalized
-// SEM@b110c1a606d320e3e927019adfe2962042680f18: return severity string unchanged; severity is free-form and requires no normalization (pure)
-func normalizeSeverity(severity string) string {
-	return severity
-}
-
 // ThreatRepository defines the interface for threat operations with caching support
 // SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: store interface for threat CRUD, soft-delete, restore, bulk, patch, and cache operations
 type ThreatRepository interface {

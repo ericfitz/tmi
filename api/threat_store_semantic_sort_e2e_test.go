@@ -191,6 +191,10 @@ func TestSeverityDescAcrossPages(t *testing.T) {
 			Id: &tid, ThreatModelId: &tmUUID, Name: "t-" + stored,
 			Description: &desc, ThreatType: []string{"test"}, Severity: &sev,
 		}))
+		// Create canonicalizes legacy values (#925); this test ranks rows that
+		// predate the migration, so put the raw stored value back.
+		require.NoError(t, db.Model(&models.Threat{}).Where("id = ?", tid.String()).
+			UpdateColumn("severity", stored).Error)
 	}
 
 	sort := "severity:desc"

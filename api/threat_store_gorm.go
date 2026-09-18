@@ -50,12 +50,6 @@ func (s *GormThreatRepository) Create(ctx context.Context, threat *Threat) error
 		threat.Id = &id
 	}
 
-	// Normalize severity
-	if threat.Severity != nil {
-		normalized := normalizeSeverity(*threat.Severity)
-		threat.Severity = &normalized
-	}
-
 	// Convert API model to GORM model
 	gormThreat := s.toGormModelForCreate(threat)
 
@@ -183,12 +177,6 @@ func (s *GormThreatRepository) update(ctx context.Context, threat *Threat, expec
 	// Update modified timestamp
 	now := time.Now().UTC()
 	threat.ModifiedAt = &now
-
-	// Normalize severity
-	if threat.Severity != nil {
-		normalized := normalizeSeverity(*threat.Severity)
-		threat.Severity = &normalized
-	}
 
 	// Build update map with ALL fields included unconditionally.
 	// Map-based Updates() writes nil values as NULL, unlike struct-based Updates()
@@ -472,22 +460,19 @@ func (s *GormThreatRepository) applyFilters(query *gorm.DB, filter ThreatFilter)
 		query = query.Where(strings.Join(orConditions, " OR "), orArgs...)
 	}
 
-	if len(filter.Severity) == 1 {
-		query = query.Where("severity = ?", filter.Severity[0])
-	} else if len(filter.Severity) > 1 {
-		query = query.Where("severity IN ?", filter.Severity)
+	if len(filter.Severity) > 0 {
+		// Canonicalized like writes are, so a legacy filter value still matches (#925).
+		query = query.Where("severity IN ?", canonicalThreatValues("severity", filter.Severity))
 	}
 
-	if len(filter.Priority) == 1 {
-		query = query.Where("priority = ?", filter.Priority[0])
-	} else if len(filter.Priority) > 1 {
-		query = query.Where("priority IN ?", filter.Priority)
+	if len(filter.Priority) > 0 {
+		// Canonicalized like writes are, so a legacy filter value still matches (#925).
+		query = query.Where("priority IN ?", canonicalThreatValues("priority", filter.Priority))
 	}
 
-	if len(filter.Status) == 1 {
-		query = query.Where("status = ?", filter.Status[0])
-	} else if len(filter.Status) > 1 {
-		query = query.Where("status IN ?", filter.Status)
+	if len(filter.Status) > 0 {
+		// Canonicalized like writes are, so a legacy filter value still matches (#925).
+		query = query.Where("status IN ?", canonicalThreatValues("status", filter.Status))
 	}
 
 	if filter.Mitigated != nil {
@@ -789,8 +774,7 @@ func (s *GormThreatRepository) applyPatchOperation(threat *Threat, op PatchOpera
 	case "/severity":
 		if op.Op == string(Replace) {
 			if sev, ok := op.Value.(string); ok {
-				normalized := normalizeSeverity(sev)
-				threat.Severity = &normalized
+				threat.Severity = &sev
 				return nil
 			}
 			return fmt.Errorf("invalid value type for severity: expected string")
@@ -914,11 +898,6 @@ func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat)
 			threat.Id = &id
 		}
 
-		if threat.Severity != nil {
-			normalized := normalizeSeverity(*threat.Severity)
-			threat.Severity = &normalized
-		}
-
 		if parentThreatModelID == "" {
 			parentThreatModelID = threat.ThreatModelId.String()
 		}
@@ -995,11 +974,6 @@ func (s *GormThreatRepository) BulkUpdate(ctx context.Context, threats []Threat)
 			// transaction (Zero-500 policy).
 			if threat.ThreatModelId == nil {
 				return ErrThreatNotFound
-			}
-
-			if threat.Severity != nil {
-				normalized := normalizeSeverity(*threat.Severity)
-				threat.Severity = &normalized
 			}
 
 			if parentThreatModelID == "" {
@@ -1168,8 +1142,9 @@ func (s *GormThreatRepository) convertUUIDToString(id *uuid.UUID) *string {
 // as NULL to the database, unlike struct-based Updates() which skips zero values.
 // Custom types (StringArray, CVSSArray, DBBool) are handled explicitly since map-based
 // Updates() bypasses GORM's Value() methods.
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: build a map of a threat's fields for a GORM map-based update, normalizing nulls (pure)
+// SEM@a590912b68a0537a660bf71dd19959b3db635967: build a map of a threat's fields for a GORM map-based update, canonicalizing legacy values (mutates input)
 func (s *GormThreatRepository) buildThreatUpdateMap(threat *Threat, now time.Time) map[string]any {
+	canonicalizeThreatValues(threat)
 	// Handle boolean fields: default to false if nil
 	mitigated := models.DBBool(false)
 	if threat.Mitigated != nil {
@@ -1263,8 +1238,9 @@ func (s *GormThreatRepository) buildThreatUpdateMap(threat *Threat, now time.Tim
 
 // toGormModelForCreate converts an API Threat to a GORM model for CREATE operations.
 // Timestamps are set explicitly to ensure compatibility across all database backends.
-// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: convert an API threat to a GORM model with explicit timestamps for DB insert (pure)
+// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: convert an API threat to a GORM model for DB insert, canonicalizing legacy values (mutates input)
 func (s *GormThreatRepository) toGormModelForCreate(threat *Threat) *models.Threat {
+	canonicalizeThreatValues(threat)
 	var id string
 	var threatModelID string
 	if threat.Id != nil {
