@@ -1,0 +1,6 @@
+# Advisories govulncheck may report without failing CI.
+# One per line: <OSV id>  <review-by YYYY-MM-DD>  <justification>
+# An entry is only acceptable when no fixed release exists AND the exposure is
+# mitigated in code. Past its review-by date an entry stops being honored, so
+# it cannot rot: re-justify it or remove it.
+GO-2026-6452  2026-10-17  excelize panic on negative shared-string index; no fixed release; panics contained in extract.ExtractWithDeadline
