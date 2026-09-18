@@ -39,7 +39,7 @@ func NewGormThreatRepository(db *gorm.DB, cache *CacheService, invalidator *Cach
 }
 
 // Create creates a new threat with write-through caching using GORM
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new threat with alias allocation and write-through cache update (reads DB)
+// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: store a new threat with alias allocation and write-through cache update (reads DB)
 func (s *GormThreatRepository) Create(ctx context.Context, threat *Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Creating threat: %s in threat model: %s", threat.Name, threat.ThreatModelId)
@@ -162,7 +162,7 @@ func (s *GormThreatRepository) Get(ctx context.Context, id string) (*Threat, err
 
 // update runs the threat content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update threat fields and metadata, optionally CAS-guarded, in one transaction (reads DB)
+// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: update threat fields and metadata, optionally CAS-guarded, in one transaction (reads DB)
 func (s *GormThreatRepository) update(ctx context.Context, threat *Threat, expectedVersion *int) (int, error) {
 	logger := slogging.Get()
 	logger.Debug("Updating threat: %s", threat.Id)
@@ -437,7 +437,7 @@ func (s *GormThreatRepository) executeListQuery(ctx context.Context, threatModel
 }
 
 // applyFilters applies the filter conditions to the GORM query
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: apply threat filter conditions to a GORM query (pure)
+// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: apply threat filter conditions to a GORM query (pure)
 func (s *GormThreatRepository) applyFilters(query *gorm.DB, filter ThreatFilter) *gorm.DB {
 	// Text filters - use LOWER() for cross-database case-insensitive search
 	if filter.Name != nil {
@@ -744,7 +744,7 @@ func (s *GormThreatRepository) patch(ctx context.Context, threatModelID string, 
 }
 
 // applyPatchOperation applies a single patch operation to a threat
-// SEM@19668dc6d5b4991c9b461b7b41f18a37d90dfacc: apply a single JSON Patch operation to a threat's in-memory fields (pure)
+// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: apply a single JSON Patch operation to a threat's in-memory fields (pure)
 func (s *GormThreatRepository) applyPatchOperation(threat *Threat, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:
@@ -877,7 +877,7 @@ func (s *GormThreatRepository) patchThreatTypeGorm(threat *Threat, op PatchOpera
 }
 
 // BulkCreate creates multiple threats in a single transaction using GORM
-// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store multiple threats in a single transaction with alias allocation and cache invalidation (reads DB)
+// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: store multiple threats in a single transaction with alias allocation and cache invalidation (reads DB)
 func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk creating %d threats", len(threats))
@@ -951,7 +951,7 @@ func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat)
 }
 
 // BulkUpdate updates multiple threats in a single transaction using GORM
-// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: atomically update multiple threats and their metadata in one transaction (reads DB)
+// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: atomically update multiple threats and their metadata in one transaction (reads DB)
 func (s *GormThreatRepository) BulkUpdate(ctx context.Context, threats []Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk updating %d threats", len(threats))
@@ -1142,7 +1142,7 @@ func (s *GormThreatRepository) convertUUIDToString(id *uuid.UUID) *string {
 // as NULL to the database, unlike struct-based Updates() which skips zero values.
 // Custom types (StringArray, CVSSArray, DBBool) are handled explicitly since map-based
 // Updates() bypasses GORM's Value() methods.
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: build a map of a threat's fields for a GORM map-based update, canonicalizing legacy values (mutates input)
+// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: build a map of a threat's fields for a GORM map-based update, canonicalizing legacy values (mutates input)
 func (s *GormThreatRepository) buildThreatUpdateMap(threat *Threat, now time.Time) map[string]any {
 	canonicalizeThreatValues(threat)
 	// Handle boolean fields: default to false if nil
@@ -1238,7 +1238,7 @@ func (s *GormThreatRepository) buildThreatUpdateMap(threat *Threat, now time.Tim
 
 // toGormModelForCreate converts an API Threat to a GORM model for CREATE operations.
 // Timestamps are set explicitly to ensure compatibility across all database backends.
-// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: convert an API threat to a GORM model for DB insert, canonicalizing legacy values (mutates input)
+// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: convert an API threat to a GORM model for DB insert, canonicalizing legacy values (mutates input)
 func (s *GormThreatRepository) toGormModelForCreate(threat *Threat) *models.Threat {
 	canonicalizeThreatValues(threat)
 	var id string

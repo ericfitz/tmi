@@ -40,7 +40,7 @@ var legacyThreatValues = map[string]map[string]string{
 // canonicalThreatValue returns the canonical form of a severity, priority or
 // status value: a legacy value is mapped, a known value in the wrong case is
 // lowercased, and anything else (free-form) is returned unchanged.
-// SEM@0000000000000000000000000000000000000000: convert a legacy or mis-cased threat field value to its canonical form (pure)
+// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: convert a legacy or mis-cased threat field value to its canonical form (pure)
 func canonicalThreatValue(column, value string) string {
 	legacy, ok := legacyThreatValues[column]
 	if !ok {
@@ -58,7 +58,7 @@ func canonicalThreatValue(column, value string) string {
 
 // canonicalizeThreatValues rewrites the threat's severity, priority and status
 // in place so legacy values cannot be stored again (#925).
-// SEM@0000000000000000000000000000000000000000: normalize a threat's severity, priority, and status to canonical values (mutates input)
+// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: normalize a threat's severity, priority, and status to canonical values (mutates input)
 func canonicalizeThreatValues(threat *Threat) {
 	for column, field := range map[string]**string{
 		"severity": &threat.Severity, "priority": &threat.Priority, "status": &threat.Status,
@@ -71,7 +71,7 @@ func canonicalizeThreatValues(threat *Threat) {
 }
 
 // canonicalThreatValues maps canonicalThreatValue over a filter value list.
-// SEM@0000000000000000000000000000000000000000: convert a list of threat filter values to canonical form (pure)
+// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: convert a list of threat filter values to canonical form (pure)
 func canonicalThreatValues(column string, values []string) []string {
 	out := make([]string, len(values))
 	for i, v := range values {
@@ -90,7 +90,7 @@ func canonicalThreatValues(column string, values []string) []string {
 // UPDATE under a leftover SERIALIZABLE raises ORA-08177 instead of restarting
 // (#906). The LOWER() predicates cannot use the column indexes; the caller is
 // expected to drop this once every environment has been migrated (#926).
-// SEM@0000000000000000000000000000000000000000: rewrite stored legacy threat severity, priority, and status values to canonical form (writes DB)
+// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: rewrite stored legacy threat severity, priority, and status values to canonical form (writes DB)
 func MigrateLegacyThreatValues(ctx context.Context, db *gorm.DB) (int64, error) {
 	var total int64
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

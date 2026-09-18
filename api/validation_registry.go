@@ -135,7 +135,7 @@ func ValidateRoleFields(data any) error {
 }
 
 // ValidateMetadataKey validates metadata key format against validation.MetadataKeyPattern
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate metadata key fields against the spec character set (pure)
+// SEM@a7cac3f9cd8e77b1dc209e5a213cb6c7f7e40a29: validate metadata key fields against the spec character set (pure)
 func ValidateMetadataKey(data any) error {
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Pointer {

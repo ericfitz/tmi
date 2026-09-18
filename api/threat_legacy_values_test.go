@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// SEM@0000000000000000000000000000000000000000: verify legacy threat field values map to canonical and free-form values pass through (pure)
+// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: verify legacy threat field values map to canonical and free-form values pass through (pure)
 func TestCanonicalThreatValue(t *testing.T) {
 	tests := []struct{ column, in, want string }{
 		{"severity", "0", "critical"}, // old numeric keys run opposite to rank
@@ -37,7 +37,7 @@ func TestCanonicalThreatValue(t *testing.T) {
 	}
 }
 
-// SEM@0000000000000000000000000000000000000000: verify the startup migration rewrites stored legacy threat values once and is idempotent (reads DB)
+// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: verify the startup migration rewrites stored legacy threat values once and is idempotent (reads DB)
 func TestMigrateLegacyThreatValues(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	require.NoError(t, err)

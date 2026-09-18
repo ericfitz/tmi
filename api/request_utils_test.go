@@ -798,7 +798,7 @@ func TestStoreErrorToRequestError_NotFoundUsesNotFoundMessage(t *testing.T) {
 // TestStoreErrorToRequestError_HookValidationMapsTo400 verifies a model
 // BeforeSave validation failure is a 400, not a 500, and that the mapping
 // survives dberrors.Classify as the repositories apply it (#921).
-// SEM@0000000000000000000000000000000000000000: verify a model-hook validation error maps to HTTP 400 through Classify (pure)
+// SEM@a7cac3f9cd8e77b1dc209e5a213cb6c7f7e40a29: verify a model-hook validation error maps to HTTP 400 through Classify (pure)
 func TestStoreErrorToRequestError_HookValidationMapsTo400(t *testing.T) {
 	hookErr := dberrors.Classify(validation.NewValidationError("value", "cannot be empty"))
 	reqErr := StoreErrorToRequestError(hookErr, "Metadata not found", "Failed to upsert metadata entries")
