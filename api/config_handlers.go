@@ -371,6 +371,19 @@ func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientCo
 	}
 }
 
+// isAPIHiddenSettingKey reports whether the by-key admin endpoints must treat
+// a key as not found. Only keys the registry CLASSIFIES as VisibilityInternal
+// (bootstrap and internal-operational keys) are hidden. A key the registry
+// does not know has the zero ConfigClass, whose Visibility is also
+// VisibilityInternal, but it can only exist because an admin created it via
+// PUT /admin/settings/{key}, so that admin must be able to read and delete it
+// (#916; docs/superpowers/specs/2026-09-18-adr-unclassified-settings-keys-addressable.md).
+// SEM@0000000000000000000000000000000000000000: report whether a settings key is classified internal and hidden from by-key admin endpoints (pure)
+func isAPIHiddenSettingKey(key string) bool {
+	cls := config.ClassificationFor(key)
+	return cls.Category != config.CategoryUnclassified && cls.Visibility == config.VisibilityInternal
+}
+
 // filterByVisibility returns the subset of settings whose classification meets
 // the requested visibility level.
 //
@@ -556,11 +569,9 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		return
 	}
 
-	// VisibilityInternal settings are never surfaced via the API, regardless of
-	// category. This covers bootstrap keys (file/env-only, never DB-stored) and
-	// any internal-operational keys, as well as unclassified keys (zero
-	// ConfigClass = VisibilityInternal). Treat them as not found.
-	if config.ClassificationFor(key).Visibility == config.VisibilityInternal {
+	// Keys classified internal are never surfaced via the API; unclassified
+	// (admin-created) keys are addressable. See isAPIHiddenSettingKey.
+	if isAPIHiddenSettingKey(key) {
 		logger.Debug("System setting not found (internal-visibility key, not API-visible): %s", key)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
@@ -747,12 +758,10 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		return
 	}
 
-	// VisibilityInternal settings are never surfaced or mutated via the API,
-	// regardless of category. This covers bootstrap keys (file/env-only, never
-	// DB-stored, nothing to delete) and any internal-operational keys, as well
-	// as unclassified keys (zero ConfigClass = VisibilityInternal). Treat them
-	// as not found.
-	if config.ClassificationFor(key).Visibility == config.VisibilityInternal {
+	// Keys classified internal are never surfaced or mutated via the API
+	// (bootstrap keys are never DB-stored, so there is nothing to delete);
+	// unclassified (admin-created) keys are deletable. See isAPIHiddenSettingKey.
+	if isAPIHiddenSettingKey(key) {
 		logger.Debug("System setting not found for deletion (internal-visibility key, not API-visible): %s", key)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
