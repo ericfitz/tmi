@@ -1532,3 +1532,43 @@ func TestReencryptSystemSettings_BodyHandling(t *testing.T) {
 		})
 	}
 }
+
+// TestSystemSetting_UnclassifiedKeyGetAndDelete verifies that an admin-created
+// key the registry does not classify is addressable: GET returns it and DELETE
+// removes it (#916). Only keys CLASSIFIED internal stay hidden.
+// SEM@0000000000000000000000000000000000000000: verify admin-created unclassified settings keys can be read and deleted by key (pure)
+func TestSystemSetting_UnclassifiedKeyGetAndDelete(t *testing.T) {
+	originalAdminStore := GlobalGroupMemberRepository
+	defer restoreConfigStores(originalAdminStore)
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	mockSettings := NewMockSettingsService()
+	mockSettings.AddSetting("e2e_admin_setting_custom", "hello", "string")
+	server := &Server{settingsService: mockSettings}
+
+	GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+	userUUID := uuid.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", userUUID.String())
+		c.Set("userProvider", "test")
+		c.Next()
+	})
+	r.GET("/admin/settings/:key", func(c *gin.Context) { server.GetSystemSetting(c, c.Param("key")) })
+	r.DELETE("/admin/settings/:key", func(c *gin.Context) { server.DeleteSystemSetting(c, c.Param("key")) })
+
+	do := func(method, key string) int {
+		req, _ := http.NewRequest(method, "/admin/settings/"+key, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	assert.Equal(t, http.StatusOK, do("GET", "e2e_admin_setting_custom"))
+	assert.Equal(t, http.StatusNoContent, do("DELETE", "e2e_admin_setting_custom"))
+	assert.Equal(t, http.StatusNotFound, do("GET", "e2e_admin_setting_custom"), "gone after delete")
+	assert.Equal(t, http.StatusNotFound, do("GET", "never_created_key"), "unclassified and absent is a plain 404")
+	assert.Equal(t, http.StatusNotFound, do("DELETE", "never_created_key"))
+}
