@@ -591,6 +591,8 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 
 	// A GORM BeforeSave hook rejected the entity: the caller's input is bad,
 	// not the server (#921). The message is a fixed field-level string.
+	// Deliberately ahead of the dberrors sentinel checks: Classify string-matches
+	// messages, and a validator message must never be re-read as a 404/409.
 	var valErr *validation.ValidationError
 	if errors.As(err, &valErr) {
 		return InvalidInputError(valErr.Error())
