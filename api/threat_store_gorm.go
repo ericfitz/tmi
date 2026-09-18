@@ -39,7 +39,7 @@ func NewGormThreatRepository(db *gorm.DB, cache *CacheService, invalidator *Cach
 }
 
 // Create creates a new threat with write-through caching using GORM
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: store a new threat with alias allocation and write-through cache update (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new threat with alias allocation and write-through cache update (reads DB)
 func (s *GormThreatRepository) Create(ctx context.Context, threat *Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Creating threat: %s in threat model: %s", threat.Name, threat.ThreatModelId)
@@ -168,7 +168,7 @@ func (s *GormThreatRepository) Get(ctx context.Context, id string) (*Threat, err
 
 // update runs the threat content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@0000000000000000000000000000000000000000: update threat fields and metadata, optionally CAS-guarded, in one transaction (reads DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update threat fields and metadata, optionally CAS-guarded, in one transaction (reads DB)
 func (s *GormThreatRepository) update(ctx context.Context, threat *Threat, expectedVersion *int) (int, error) {
 	logger := slogging.Get()
 	logger.Debug("Updating threat: %s", threat.Id)
@@ -269,7 +269,7 @@ func (s *GormThreatRepository) update(ctx context.Context, threat *Threat, expec
 }
 
 // Update updates an existing threat with write-through caching using GORM
-// SEM@436c1840b3eef9687193078750dec3e22874f10e: store updated threat fields and metadata, then refresh the cache (reads DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: store updated threat fields and metadata, then refresh the cache (reads DB)
 func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error {
 	_, err := s.update(ctx, threat, nil)
 	return err
@@ -277,7 +277,7 @@ func (s *GormThreatRepository) Update(ctx context.Context, threat *Threat) error
 
 // UpdateWithVersion updates a threat guarded by a same-transaction
 // optimistic-lock CAS (#594).
-// SEM@0000000000000000000000000000000000000000: update a threat guarded by a same-transaction version CAS (reads DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update a threat guarded by a same-transaction version CAS (reads DB)
 func (s *GormThreatRepository) UpdateWithVersion(ctx context.Context, threat *Threat, expectedVersion int) (int, error) {
 	return s.update(ctx, threat, &expectedVersion)
 }
@@ -690,7 +690,7 @@ func (s *GormThreatRepository) buildOrderBy(sort string) string {
 // Patch applies JSON patch operations to a threat using GORM, scoped to the
 // parent threat model so a bulk-patch caller supplying only a child id
 // cannot load and overwrite a threat belonging to a different threat model
-// SEM@436c1840b3eef9687193078750dec3e22874f10e: apply JSON Patch operations to a threat scoped to its parent threat model and persist the result (reads DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: apply JSON Patch operations to a threat scoped to its parent threat model and persist the result (reads DB)
 func (s *GormThreatRepository) Patch(ctx context.Context, threatModelID string, id string, operations []PatchOperation) (*Threat, error) {
 	threat, _, err := s.patch(ctx, threatModelID, id, operations, nil)
 	return threat, err
@@ -698,14 +698,14 @@ func (s *GormThreatRepository) Patch(ctx context.Context, threatModelID string, 
 
 // PatchWithVersion applies JSON patch operations to a threat guarded by a
 // same-transaction optimistic-lock CAS (#594).
-// SEM@0000000000000000000000000000000000000000: apply JSON patch operations to a threat guarded by a same-transaction version CAS (mutates shared state)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: apply JSON patch operations to a threat guarded by a same-transaction version CAS (mutates shared state)
 func (s *GormThreatRepository) PatchWithVersion(ctx context.Context, threatModelID string, id string, operations []PatchOperation, expectedVersion int) (*Threat, int, error) {
 	return s.patch(ctx, threatModelID, id, operations, &expectedVersion)
 }
 
 // patch runs patch-operation application then the content write, CAS-guarded
 // first when expectedVersion is non-nil (#594).
-// SEM@0000000000000000000000000000000000000000: apply JSON patch operations to a threat, optionally CAS-guarded, and persist the result (mutates shared state)
+// SEM@436c1840b3eef9687193078750dec3e22874f10e: apply JSON patch operations to a threat, optionally CAS-guarded, and persist the result (mutates shared state)
 func (s *GormThreatRepository) patch(ctx context.Context, threatModelID string, id string, operations []PatchOperation, expectedVersion *int) (*Threat, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching threat %s with %d operations", id, len(operations))
@@ -893,7 +893,7 @@ func (s *GormThreatRepository) patchThreatTypeGorm(threat *Threat, op PatchOpera
 }
 
 // BulkCreate creates multiple threats in a single transaction using GORM
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: store multiple threats in a single transaction with alias allocation and cache invalidation (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store multiple threats in a single transaction with alias allocation and cache invalidation (reads DB)
 func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk creating %d threats", len(threats))
@@ -972,7 +972,7 @@ func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat)
 }
 
 // BulkUpdate updates multiple threats in a single transaction using GORM
-// SEM@436c1840b3eef9687193078750dec3e22874f10e: atomically update multiple threats and their metadata in one transaction (reads DB)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: atomically update multiple threats and their metadata in one transaction (reads DB)
 func (s *GormThreatRepository) BulkUpdate(ctx context.Context, threats []Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk updating %d threats", len(threats))

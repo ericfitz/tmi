@@ -36,7 +36,7 @@ func NewGormAssetRepository(db *gorm.DB, cache *CacheService, invalidator *Cache
 }
 
 // Create creates a new asset with write-through caching using GORM
-// SEM@76be6ab76e896b646e29868be2ffc9503d184cad: store a new asset under a threat model, allocate its alias, and warm the cache (mutates shared state)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new asset under a threat model, allocate its alias, and warm the cache (mutates shared state)
 func (s *GormAssetRepository) Create(ctx context.Context, asset *Asset, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Creating asset: %s in threat model: %s", asset.Name, threatModelID)
@@ -173,7 +173,7 @@ func (s *GormAssetRepository) Get(ctx context.Context, id string) (*Asset, error
 
 // update runs the asset content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@0000000000000000000000000000000000000000: update asset fields and cache, optionally CAS-guarded, in one transaction (reads DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update asset fields and cache, optionally CAS-guarded, in one transaction (reads DB)
 func (s *GormAssetRepository) update(ctx context.Context, asset *Asset, threatModelID string, expectedVersion *int) (int, error) {
 	logger := slogging.Get()
 	logger.Debug("Updating asset: %s", asset.Id)
@@ -298,7 +298,7 @@ func (s *GormAssetRepository) update(ctx context.Context, asset *Asset, threatMo
 }
 
 // Update updates an existing asset with write-through caching using GORM
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: update all asset fields in the DB and refresh the cache entry (mutates shared state)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update all asset fields in the DB and refresh the cache entry (mutates shared state)
 func (s *GormAssetRepository) Update(ctx context.Context, asset *Asset, threatModelID string) error {
 	_, err := s.update(ctx, asset, threatModelID, nil)
 	return err
@@ -306,7 +306,7 @@ func (s *GormAssetRepository) Update(ctx context.Context, asset *Asset, threatMo
 
 // UpdateWithVersion updates an asset guarded by a same-transaction
 // optimistic-lock CAS (#594).
-// SEM@0000000000000000000000000000000000000000: update an asset guarded by a same-transaction version CAS (mutates shared state)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update an asset guarded by a same-transaction version CAS (mutates shared state)
 func (s *GormAssetRepository) UpdateWithVersion(ctx context.Context, asset *Asset, threatModelID string, expectedVersion int) (int, error) {
 	return s.update(ctx, asset, threatModelID, &expectedVersion)
 }
@@ -453,7 +453,7 @@ func (s *GormAssetRepository) List(ctx context.Context, threatModelID string, of
 }
 
 // BulkCreate creates multiple assets in a single transaction using GORM
-// SEM@2a92752bd40820690b955370428f08e99f122b5e: store multiple assets in a single transaction with alias allocation and cache warming (mutates shared state)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store multiple assets in a single transaction with alias allocation and cache warming (mutates shared state)
 func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, threatModelID string) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk creating %d assets", len(assets))
@@ -545,7 +545,7 @@ func (s *GormAssetRepository) BulkCreate(ctx context.Context, assets []Asset, th
 
 // patch runs patch-operation application then the content write, CAS-guarded
 // first when expectedVersion is non-nil (#594).
-// SEM@0000000000000000000000000000000000000000: apply JSON patch operations to an asset, optionally CAS-guarded, and persist the result (mutates shared state)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: apply JSON patch operations to an asset, optionally CAS-guarded, and persist the result (mutates shared state)
 func (s *GormAssetRepository) patch(ctx context.Context, id string, operations []PatchOperation, expectedVersion *int) (*Asset, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching asset %s with %d operations", id, len(operations))
@@ -592,7 +592,7 @@ func (s *GormAssetRepository) patch(ctx context.Context, id string, operations [
 }
 
 // Patch applies JSON patch operations to an asset using GORM
-// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON patch operations to an asset and persist the result (mutates shared state)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: apply JSON patch operations to an asset and persist the result (mutates shared state)
 func (s *GormAssetRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Asset, error) {
 	asset, _, err := s.patch(ctx, id, operations, nil)
 	return asset, err
@@ -600,7 +600,7 @@ func (s *GormAssetRepository) Patch(ctx context.Context, id string, operations [
 
 // PatchWithVersion applies JSON patch operations to an asset guarded by a
 // same-transaction optimistic-lock CAS (#594).
-// SEM@0000000000000000000000000000000000000000: apply JSON patch operations to an asset guarded by a same-transaction version CAS (mutates shared state)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: apply JSON patch operations to an asset guarded by a same-transaction version CAS (mutates shared state)
 func (s *GormAssetRepository) PatchWithVersion(ctx context.Context, id string, operations []PatchOperation, expectedVersion int) (*Asset, int, error) {
 	return s.patch(ctx, id, operations, &expectedVersion)
 }
@@ -773,7 +773,7 @@ func (s *GormAssetRepository) loadMetadata(ctx context.Context, assetID string) 
 }
 
 // saveMetadata saves metadata for an asset using GORM (delete-first pattern)
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: replace all metadata for an asset using a delete-then-insert pattern (mutates shared state)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: replace all metadata for an asset using a delete-then-insert pattern (mutates shared state)
 func (s *GormAssetRepository) saveMetadata(ctx context.Context, assetID string, metadata *[]Metadata) error {
 	// One transaction for the delete-then-insert: on the root *gorm.DB each
 	// half autocommitted, so an insert failure (e.g. a value past Oracle's

@@ -41,7 +41,7 @@ const metadataBatchSize = 100
 // turning every bulk write into a process-wide bottleneck. In a multi-replica
 // deployment concurrent writers are in different processes anyway, so the
 // mutex bought no additional safety there either (#666).
-// SEM@0000000000000000000000000000000000000000: GORM-backed repository for entity metadata key-value pairs with cache and invalidation support
+// SEM@a5b7b373f8a1891fdebab83445e3a88db3b57727: GORM-backed repository for entity metadata key-value pairs with cache and invalidation support
 type GormMetadataRepository struct {
 	db               *gorm.DB
 	cache            *CacheService
@@ -69,7 +69,7 @@ func (r *GormMetadataRepository) validateEntityType(entityType string) error {
 }
 
 // Create creates a new metadata entry
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: store a single metadata entry for an entity, rejecting duplicate keys (mutates shared state)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a single metadata entry for an entity, rejecting duplicate keys (mutates shared state)
 func (r *GormMetadataRepository) Create(ctx context.Context, entityType, entityID string, metadata *Metadata) error {
 	r.logger.Debug("Creating metadata: %s=%s for %s:%s", metadata.Key, metadata.Value, entityType, entityID)
 
@@ -128,7 +128,7 @@ func (r *GormMetadataRepository) Create(ctx context.Context, entityType, entityI
 }
 
 // Get retrieves a specific metadata entry by key
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch a metadata entry by key, using the cache when available (reads DB)
+// SEM@a5b7b373f8a1891fdebab83445e3a88db3b57727: fetch a metadata entry by key, using the cache when available (reads DB)
 func (r *GormMetadataRepository) Get(ctx context.Context, entityType, entityID, key string) (*Metadata, error) {
 	r.logger.Debug("Getting metadata: %s for %s:%s", key, entityType, entityID)
 
@@ -179,7 +179,7 @@ func (r *GormMetadataRepository) Get(ctx context.Context, entityType, entityID, 
 }
 
 // Update updates an existing metadata entry
-// SEM@c65573c7e7d2c1566c489a62f575cb72550438f9: update a metadata entry's value, setting modified_at explicitly (mutates shared state)
+// SEM@a5b7b373f8a1891fdebab83445e3a88db3b57727: update a metadata entry's value, setting modified_at explicitly (mutates shared state)
 func (r *GormMetadataRepository) Update(ctx context.Context, entityType, entityID string, metadata *Metadata) error {
 	r.logger.Debug("Updating metadata: %s=%s for %s:%s", metadata.Key, metadata.Value, entityType, entityID)
 
@@ -245,7 +245,7 @@ func (r *GormMetadataRepository) Update(ctx context.Context, entityType, entityI
 }
 
 // Delete removes a metadata entry
-// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: delete a metadata entry by key and invalidate related caches (mutates shared state)
+// SEM@a5b7b373f8a1891fdebab83445e3a88db3b57727: delete a metadata entry by key and invalidate related caches (mutates shared state)
 func (r *GormMetadataRepository) Delete(ctx context.Context, entityType, entityID, key string) error {
 	r.logger.Debug("Deleting metadata: %s for %s:%s", key, entityType, entityID)
 
@@ -295,7 +295,7 @@ func (r *GormMetadataRepository) Delete(ctx context.Context, entityType, entityI
 }
 
 // List retrieves all metadata for an entity
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: list all metadata entries for an entity, using the cache when available (reads DB)
+// SEM@a5b7b373f8a1891fdebab83445e3a88db3b57727: list all metadata entries for an entity, using the cache when available (reads DB)
 func (r *GormMetadataRepository) List(ctx context.Context, entityType, entityID string) ([]Metadata, error) {
 	r.logger.Debug("Listing metadata for %s:%s", entityType, entityID)
 
@@ -358,7 +358,7 @@ func (r *GormMetadataRepository) Post(ctx context.Context, entityType, entityID 
 }
 
 // BulkCreate creates multiple metadata entries in a single transaction
-// SEM@0000000000000000000000000000000000000000: batch-insert multiple metadata entries in one transaction, rejecting any duplicate keys (mutates shared state)
+// SEM@a5b7b373f8a1891fdebab83445e3a88db3b57727: batch-insert multiple metadata entries in one transaction, rejecting any duplicate keys (mutates shared state)
 func (r *GormMetadataRepository) BulkCreate(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
 	r.logger.Debug("Bulk creating %d metadata entries", len(metadata))
 
@@ -454,7 +454,7 @@ func (r *GormMetadataRepository) BulkCreate(ctx context.Context, entityType, ent
 // BulkUpdate upserts multiple metadata entries in a single transaction.
 // Keys present in the request are created or updated; keys not present are left untouched.
 // This implements PATCH (merge/upsert) semantics.
-// SEM@0000000000000000000000000000000000000000: batch-upsert multiple metadata entries in one transaction using PATCH merge semantics (mutates shared state)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: batch-upsert multiple metadata entries in one transaction using PATCH merge semantics (mutates shared state)
 func (r *GormMetadataRepository) BulkUpdate(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
 	r.logger.Debug("Bulk upserting %d metadata entries", len(metadata))
 
@@ -541,7 +541,7 @@ func (r *GormMetadataRepository) BulkUpdate(ctx context.Context, entityType, ent
 // All existing metadata is deleted, then the provided entries are inserted.
 // An empty metadata slice clears all metadata for the entity.
 // This implements PUT (full replace) semantics.
-// SEM@0000000000000000000000000000000000000000: atomically replace all metadata for an entity with a batch-inserted new set using PUT semantics (mutates shared state)
+// SEM@50b051373834dc45ed4e2d88dc357367927b6ab0: atomically replace all metadata for an entity with a batch-inserted new set using PUT semantics (mutates shared state)
 func (r *GormMetadataRepository) BulkReplace(ctx context.Context, entityType, entityID string, metadata []Metadata) error {
 	r.logger.Debug("Bulk replacing metadata for %s:%s with %d entries", entityType, entityID, len(metadata))
 
@@ -621,7 +621,7 @@ func (r *GormMetadataRepository) BulkReplace(ctx context.Context, entityType, en
 }
 
 // BulkDelete deletes multiple metadata entries by key in a single statement
-// SEM@0000000000000000000000000000000000000000: delete multiple metadata entries by key in one statement and invalidate caches (mutates shared state)
+// SEM@a5b7b373f8a1891fdebab83445e3a88db3b57727: delete multiple metadata entries by key in one statement and invalidate caches (mutates shared state)
 func (r *GormMetadataRepository) BulkDelete(ctx context.Context, entityType, entityID string, keys []string) error {
 	r.logger.Debug("Bulk deleting %d metadata keys", len(keys))
 
@@ -664,7 +664,7 @@ func (r *GormMetadataRepository) BulkDelete(ctx context.Context, entityType, ent
 }
 
 // GetByKey retrieves all metadata entries with a specific key across all entities
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch all metadata entries with a given key across all entities (reads DB)
+// SEM@a5b7b373f8a1891fdebab83445e3a88db3b57727: fetch all metadata entries with a given key across all entities (reads DB)
 func (r *GormMetadataRepository) GetByKey(ctx context.Context, key string) ([]Metadata, error) {
 	r.logger.Debug("Getting metadata by key: %s", key)
 
@@ -692,7 +692,7 @@ func (r *GormMetadataRepository) GetByKey(ctx context.Context, key string) ([]Me
 }
 
 // ListKeys retrieves all metadata keys for an entity
-// SEM@4b5601a9cbb59c0d9d34db8808624707ebd7501e: list all distinct metadata keys for an entity (reads DB)
+// SEM@a5b7b373f8a1891fdebab83445e3a88db3b57727: list all distinct metadata keys for an entity (reads DB)
 func (r *GormMetadataRepository) ListKeys(ctx context.Context, entityType, entityID string) ([]string, error) {
 	r.logger.Debug("Listing metadata keys for %s:%s", entityType, entityID)
 

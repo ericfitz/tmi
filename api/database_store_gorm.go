@@ -84,7 +84,7 @@ func (s *GormThreatModelStore) resolveUserIdentifierToUUID(tx *gorm.DB, identifi
 // = ?" clause is NOT Oracle-safe. Not-found is reported as a wrapped
 // ErrGroupNotFound (carrying group@provider context and unwrapping via
 // errors.Is); any other DB error is classified via dberrors.Classify.
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: resolve a group name and provider to an internal UUID (reads DB)
+// SEM@b0cc9e0204e841bf8d5ad00bf86cfaa5149847ed: resolve a group name and provider to an internal UUID (reads DB)
 func resolveGroupUUID(tx *gorm.DB, groupName string, idp *string) (string, error) {
 	provider := BuiltInProvider
 	if idp != nil && *idp != "" {
@@ -485,7 +485,7 @@ func (s *GormThreatModelStore) List(offset, limit int, filter func(ThreatModel) 
 // ListWithCounts returns filtered and paginated threat models with count information using GORM
 // Returns the paginated slice and the total count (before pagination)
 // applyThreatModelFilters applies database-level filter clauses to a threat model query.
-// SEM@a4ac8573f7346f39edd66fb2589bf1a90892b301: append WHERE/JOIN clauses to a threat model query based on filter criteria (pure)
+// SEM@c91b16ea67b50cc273cb925b803aeb2cac07d517: append WHERE/JOIN clauses to a threat model query based on filter criteria (pure)
 func applyThreatModelFilters(query *gorm.DB, filters *ThreatModelFilters) *gorm.DB {
 	if filters == nil {
 		return query
@@ -546,7 +546,7 @@ func applyThreatModelFilters(query *gorm.DB, filters *ThreatModelFilters) *gorm.
 	return query
 }
 
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: list paginated threat model summaries with per-model sub-resource counts and auth filtering (reads DB)
+// SEM@c91b16ea67b50cc273cb925b803aeb2cac07d517: list paginated threat model summaries with per-model sub-resource counts and auth filtering (reads DB)
 func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -985,7 +985,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 
 // update runs the threat model content write inside one retryable
 // transaction, CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@0000000000000000000000000000000000000000: update threat model fields, authorization, and metadata, optionally CAS-guarded, in one transaction (reads DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update threat model fields, authorization, and metadata, optionally CAS-guarded, in one transaction (reads DB)
 func (s *GormThreatModelStore) update(ctx context.Context, id string, item ThreatModel, expectedVersion *int) (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -1116,7 +1116,7 @@ func (s *GormThreatModelStore) update(ctx context.Context, id string, item Threa
 }
 
 // Update modifies an existing threat model using GORM
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: update threat model fields, authorization, and metadata in a retryable transaction (reads DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update threat model fields, authorization, and metadata in a retryable transaction (reads DB)
 func (s *GormThreatModelStore) Update(ctx context.Context, id string, item ThreatModel) error {
 	_, err := s.update(ctx, id, item, nil)
 	return err
@@ -1124,7 +1124,7 @@ func (s *GormThreatModelStore) Update(ctx context.Context, id string, item Threa
 
 // UpdateWithVersion updates a threat model guarded by a same-transaction
 // optimistic-lock CAS (#594).
-// SEM@0000000000000000000000000000000000000000: update a threat model guarded by a same-transaction version CAS (reads DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update a threat model guarded by a same-transaction version CAS (reads DB)
 func (s *GormThreatModelStore) UpdateWithVersion(ctx context.Context, id string, item ThreatModel, expectedVersion int) (int, error) {
 	return s.update(ctx, id, item, &expectedVersion)
 }
@@ -1556,7 +1556,7 @@ func (s *GormThreatModelStore) updateAuthorizationTx(tx *gorm.DB, threatModelID 
 }
 
 // updateMetadataTx updates metadata entries within a transaction using GORM
-// SEM@22b222cb8680df2700e22f0e8538874669789920: replace all metadata entries for a threat model within an existing transaction (reads DB)
+// SEM@c2d51500de49392c195719f34de17e21c51a2d96: replace all metadata entries for a threat model within an existing transaction (reads DB)
 func (s *GormThreatModelStore) updateMetadataTx(tx *gorm.DB, threatModelID string, metadata []Metadata) error {
 	return deleteAndSaveEntityMetadata(tx, "threat_model", threatModelID, metadata)
 }
@@ -1732,7 +1732,7 @@ func (s *GormDiagramStore) List(offset, limit int, filter func(DfdDiagram) bool)
 }
 
 // CreateWithThreatModel adds a new diagram with a specific threat model ID using GORM
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: persist a new diagram linked to a threat model, allocating an alias in a transaction (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: persist a new diagram linked to a threat model, allocating an alias in a transaction (reads DB)
 func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID string, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -1842,14 +1842,14 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 }
 
 // Create adds a new diagram using GORM (maintains backward compatibility)
-// SEM@178dbd0418cfb7e057d4297c7a88c5879cb64c7f: persist a new diagram with a nil threat model ID for backward compatibility (reads DB)
+// SEM@4c9d5815bc681f2c8dce2f5e3b22a82775ba58b9: persist a new diagram with a nil threat model ID for backward compatibility (reads DB)
 func (s *GormDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
 	return s.CreateWithThreatModel(item, uuid.Nil.String(), idSetter)
 }
 
 // update runs the diagram content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@0000000000000000000000000000000000000000: update diagram fields and metadata, optionally CAS-guarded, in one transaction (reads DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update diagram fields and metadata, optionally CAS-guarded, in one transaction (reads DB)
 func (s *GormDiagramStore) update(ctx context.Context, id string, item DfdDiagram, expectedVersion *int) (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -1951,7 +1951,7 @@ func (s *GormDiagramStore) update(ctx context.Context, id string, item DfdDiagra
 }
 
 // Update modifies an existing diagram using GORM
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: update diagram fields and metadata in a retryable transaction (reads DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update diagram fields and metadata in a retryable transaction (reads DB)
 func (s *GormDiagramStore) Update(ctx context.Context, id string, item DfdDiagram) error {
 	_, err := s.update(ctx, id, item, nil)
 	return err
@@ -1959,7 +1959,7 @@ func (s *GormDiagramStore) Update(ctx context.Context, id string, item DfdDiagra
 
 // UpdateWithVersion updates a diagram guarded by a same-transaction
 // optimistic-lock CAS (#594).
-// SEM@0000000000000000000000000000000000000000: update a diagram guarded by a same-transaction version CAS (reads DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update a diagram guarded by a same-transaction version CAS (reads DB)
 func (s *GormDiagramStore) UpdateWithVersion(ctx context.Context, id string, item DfdDiagram, expectedVersion int) (int, error) {
 	return s.update(ctx, id, item, &expectedVersion)
 }
@@ -2039,7 +2039,7 @@ func (s *GormDiagramStore) saveMetadata(diagramID string, metadata []Metadata) e
 // updateMetadataTx updates metadata for a diagram within a transaction using GORM.
 // Mirrors GormThreatModelStore.updateMetadataTx so the metadata delete+insert
 // participates in the surrounding retry envelope.
-// SEM@22b222cb8680df2700e22f0e8538874669789920: replace diagram metadata within an existing transaction (mutates shared state)
+// SEM@c2d51500de49392c195719f34de17e21c51a2d96: replace diagram metadata within an existing transaction (mutates shared state)
 func (s *GormDiagramStore) updateMetadataTx(tx *gorm.DB, diagramID string, metadata []Metadata) error {
 	return deleteAndSaveEntityMetadata(tx, "diagram", diagramID, metadata)
 }

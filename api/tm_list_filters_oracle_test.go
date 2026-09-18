@@ -19,7 +19,7 @@ import (
 // database, otherwise the test skips and proves nothing.
 //
 // Run via `make test-integration-oci`.
-// SEM@0000000000000000000000000000000000000000: verify threat model list owner and reviewer filters execute on Oracle ADB (reads DB)
+// SEM@c91b16ea67b50cc273cb925b803aeb2cac07d517: verify threat model list owner and reviewer filters execute on Oracle ADB (reads DB)
 func TestThreatModelListUserFiltersOracleIntegration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	defer cancel()

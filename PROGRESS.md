@@ -1,3 +1,26 @@
+# Session progress — 2026-09-18
+
+## Landed (pushed to main)
+
+- **PR #914 merged** (`4359a42e`, 1.13.9) — `fix(extract)`: `extract.ExtractWithDeadline` recovers extractor
+  panics and returns `ErrMalformed`; govulncheck gate gains an allowlist with a review-by expiry
+  (`scripts/ci-govulncheck.sh`, `.github/govulncheck-allow.txt`) for GO-2026-6452 (excelize v2.11.0, no fixed
+  release; review by 2026-10-17). Security-gate change, merged on Eric's approval.
+- **PR #912 merged** (`c91b16ea`, 1.13.10) — `fix(api)` closes #909: threat model list owner/reviewer filters
+  drop the Oracle-invalid `JOIN ... AS`, `ListWithCounts` returns its query error instead of an empty 200, and
+  the list read retries transient faults. Server half of #910: severity sort ranks legacy values. The
+  integration runner now starts the OAuth stub itself. Oracle review APPROVED WITH NOTES; Oracle test verified
+  red/green on ADB; PostgreSQL integration 91/0/9. #910 stays open for the tmi-ux half (default sort direction).
+- **PR #917 merged** (`dcd8d846`, 1.13.11) — `fix(db)` closes #906. Eric's architectural decision: keep
+  SERIALIZABLE as the wrapper default and proactively opt 31 provably insert-only transactions down to READ
+  COMMITTED (ADR `docs/superpowers/specs/2026-09-17-adr-transaction-isolation-opt-down.md`, inventory of 141
+  sites alongside it). First-ever alias counter allocation absorbs ORA-00001 (`api/alias_allocator.go`), a real
+  finding from the Oracle review, with a deterministic Oracle regression test. Oracle review APPROVED WITH
+  NOTES (applied); security-review clean; oracle-tagged api suite 16 pass on ADB.
+- Filed #911 (Backlog): remaining swallowed list/count errors and related store cleanups. #913 (tmi-tf-wh:
+  list/cancel own webhook deliveries) is in the backlog.
+- SEM markers re-anchored for the entities touched by the three PRs.
+
 # Session progress — 2026-09-17
 
 ## Landed (pushed to main)
