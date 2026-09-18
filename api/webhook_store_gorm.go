@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"sync"
 	"time"
@@ -307,12 +308,13 @@ func (s *GormWebhookSubscriptionStore) Create(ctx context.Context, item DBWebhoo
 	// Convert to GORM model
 	gormSub := s.toGormModel(&item)
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(&gormSub).Error; err != nil {
 			return dberrors.Classify(err)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return DBWebhookSubscription{}, err
 	}
@@ -699,12 +701,13 @@ func (s *GormWebhookQuotaStore) Create(ctx context.Context, item DBWebhookQuota)
 	// Convert to GORM model
 	gormQuota := s.toGormModel(&item)
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(&gormQuota).Error; err != nil {
 			return dberrors.Classify(err)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return DBWebhookQuota{}, err
 	}
@@ -847,12 +850,13 @@ func (s *GormWebhookUrlDenyListStore) Create(ctx context.Context, item WebhookUr
 	// Convert to GORM model
 	gormEntry := s.toGormModel(&item)
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(&gormEntry).Error; err != nil {
 			return dberrors.Classify(err)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return WebhookUrlDenyListEntry{}, err
 	}

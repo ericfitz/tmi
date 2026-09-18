@@ -122,8 +122,16 @@ func allocateNextAliasRowLocked(ctx context.Context, tx *gorm.DB, parentID, obje
 	// Insert counter row if missing. ON CONFLICT DO NOTHING is idempotent.
 	row := models.AliasCounter{ParentID: models.DBVarchar(parentID), ObjectType: models.DBVarchar(objectType), NextAlias: 1}
 	if err := tx.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&row).Error; err != nil {
-		logger.Error("alias_counters upsert failed: parent=%s type=%s err=%v", parentID, objectType, err)
-		return 0, fmt.Errorf("alias_counters upsert: %w", dberrors.Classify(err))
+		// Oracle only: gorm-oracle emits MERGE ... WHEN NOT MATCHED, so two
+		// sessions making the first-ever allocation for a scope can both plan
+		// the INSERT, and the loser gets ORA-00001 once the winner commits. The
+		// row exists now, which is all this step wanted; Oracle rolls back only
+		// the failed statement, and the locked read below sees the winner's row
+		// at READ COMMITTED (#906). PostgreSQL's ON CONFLICT never raises here.
+		if classified := dberrors.Classify(err); !errors.Is(classified, dberrors.ErrDuplicate) {
+			logger.Error("alias_counters upsert failed: parent=%s type=%s err=%v", parentID, objectType, err)
+			return 0, fmt.Errorf("alias_counters upsert: %w", classified)
+		}
 	}
 
 	// Lock the row and read the current value.

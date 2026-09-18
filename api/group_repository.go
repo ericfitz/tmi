@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -189,6 +190,7 @@ func (r *GormGroupRepository) Create(ctx context.Context, group Group) error {
 
 	gormGroup := r.convertFromGroup(&group)
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Create(gormGroup)
 		if result.Error != nil {
@@ -199,7 +201,7 @@ func (r *GormGroupRepository) Create(ctx context.Context, group Group) error {
 			return classified
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 }
 
 // Update updates group metadata (name, description)

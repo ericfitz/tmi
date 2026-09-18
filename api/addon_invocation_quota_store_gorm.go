@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -134,6 +135,7 @@ func (s *GormAddonInvocationQuotaStore) Set(ctx context.Context, quota *AddonInv
 
 	model := s.apiToModel(*quota)
 
+	// READ COMMITTED: a single-statement atomic upsert reads nothing it acts on, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Use Col()/ColumnName() so the Oracle GORM driver receives uppercase
 		// column identifiers when emitting MERGE INTO.
@@ -150,7 +152,7 @@ func (s *GormAddonInvocationQuotaStore) Set(ctx context.Context, quota *AddonInv
 			return dberrors.Classify(err)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return err
 	}

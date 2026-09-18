@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"sync"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -60,6 +61,7 @@ func (s *GormTimmyEmbeddingStore) CreateBatch(ctx context.Context, embeddings []
 		return nil
 	}
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(&embeddings).Error; err != nil {
 			logger.Error("Failed to create embedding batch: %v", err)
@@ -67,7 +69,7 @@ func (s *GormTimmyEmbeddingStore) CreateBatch(ctx context.Context, embeddings []
 		}
 		logger.Debug("Successfully created %d embeddings", len(embeddings))
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 }
 
 // DeleteByEntity deletes all embeddings for a specific entity within a threat model

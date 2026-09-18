@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -90,6 +91,7 @@ func (s *GormRepositoryRepository) Create(ctx context.Context, repository *Repos
 		model.TimmyEnabled = models.DBBool(*repository.TimmyEnabled)
 	}
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		alias, err := AllocateNextAlias(ctx, tx, threatModelID, "repository")
 		if err != nil {
@@ -103,7 +105,7 @@ func (s *GormRepositoryRepository) Create(ctx context.Context, repository *Repos
 		// callers (handlers serializing the response) see the assigned value.
 		repository.Alias = &alias
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		logger.Error("Failed to create repository in database: %v", err)
 		return err
@@ -510,6 +512,7 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 
 	now := time.Now().UTC()
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		for i := range repositories {
 			repository := &repositories[i]
@@ -572,7 +575,7 @@ func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories 
 		}
 
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 }
 
 // Patch applies JSON patch operations to a repository

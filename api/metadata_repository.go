@@ -90,6 +90,7 @@ func (r *GormMetadataRepository) Create(ctx context.Context, entityType, entityI
 		ModifiedAt: now,
 	}
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		result := tx.Create(&model)
 		if result.Error != nil {
@@ -100,7 +101,7 @@ func (r *GormMetadataRepository) Create(ctx context.Context, entityType, entityI
 			return classified
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 
 	if err != nil {
 		r.logger.Error("Failed to create metadata in database: %v", err)
@@ -481,6 +482,7 @@ func (r *GormMetadataRepository) BulkUpdate(ctx context.Context, entityType, ent
 		}
 	}
 
+	// READ COMMITTED: a single-statement atomic upsert reads nothing it acts on, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	return authdb.WithRetryableGormTransaction(ctx, r.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Use Col()/ColumnName() so the Oracle GORM driver receives
 		// uppercase column identifiers when emitting MERGE INTO.
@@ -532,7 +534,7 @@ func (r *GormMetadataRepository) BulkUpdate(ctx context.Context, entityType, ent
 
 		r.logger.Debug("Successfully bulk upserted %d metadata entries", len(metadata))
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 }
 
 // BulkReplace replaces all metadata for an entity atomically.

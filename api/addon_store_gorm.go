@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"time"
@@ -43,6 +44,7 @@ func (s *GormAddonStore) Create(ctx context.Context, addon *Addon) error {
 
 	model := s.apiToModel(*addon)
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(&model).Error; err != nil {
 			logger.Error("Failed to create add-on: name=%s, webhook_id=%s, error=%v",
@@ -50,7 +52,7 @@ func (s *GormAddonStore) Create(ctx context.Context, addon *Addon) error {
 			return dberrors.Classify(err)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return err
 	}

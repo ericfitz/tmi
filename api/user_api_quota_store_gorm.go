@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"sync"
 	"time"
@@ -124,13 +125,14 @@ func (s *GormUserAPIQuotaStore) Create(ctx context.Context, item UserAPIQuota) (
 
 	model := s.apiToModel(item)
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(&model).Error; err != nil {
 			logger.Error("Failed to create user API quota for user_id=%s: %v", item.UserId, err)
 			return dberrors.Classify(err)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return UserAPIQuota{}, err
 	}
@@ -224,6 +226,7 @@ func (s *GormUserAPIQuotaStore) Upsert(ctx context.Context, item UserAPIQuota) (
 
 	model := s.apiToModel(item)
 
+	// READ COMMITTED: a single-statement atomic upsert reads nothing it acts on, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		// Use Col()/ColumnName() so the Oracle GORM driver receives uppercase
 		// column identifiers when emitting MERGE INTO.
@@ -240,7 +243,7 @@ func (s *GormUserAPIQuotaStore) Upsert(ctx context.Context, item UserAPIQuota) (
 			return dberrors.Classify(err)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return UserAPIQuota{}, err
 	}

@@ -1813,6 +1813,7 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 
 	// Allocate alias and insert diagram inside a transaction
 	ctx := context.Background()
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	if err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		alias, err := AllocateNextAlias(ctx, tx, threatModelID, "diagram")
 		if err != nil {
@@ -1826,7 +1827,7 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 			return dberrors.Classify(err)
 		}
 		return nil
-	}); err != nil {
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted}); err != nil {
 		return item, err
 	}
 

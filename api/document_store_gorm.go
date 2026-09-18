@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -78,6 +79,7 @@ func (s *GormDocumentRepository) Create(ctx context.Context, document *Document,
 		model.ContentSource = models.NewNullableDBVarchar(document.ContentSource)
 	}
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		alias, err := AllocateNextAlias(ctx, tx, threatModelID, "document")
 		if err != nil {
@@ -91,7 +93,7 @@ func (s *GormDocumentRepository) Create(ctx context.Context, document *Document,
 			return dberrors.Classify(err)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		logger.Error("Failed to create document in database: %v", err)
 		return err
@@ -519,6 +521,7 @@ func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Doc
 
 	now := time.Now().UTC()
 
+	// READ COMMITTED: insert-only on freshly keyed rows, so SERIALIZABLE only adds false ORA-08177 (#906, ADR 2026-09-17).
 	return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		for i := range documents {
 			document := &documents[i]
@@ -560,7 +563,7 @@ func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Doc
 		}
 
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 }
 
 // Patch applies JSON patch operations to a document
