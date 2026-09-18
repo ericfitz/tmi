@@ -162,11 +162,19 @@ func TestBuildSemanticOrderExpr(t *testing.T) {
 		// call means every semantic sort misses the prepared-statement cache
 		// and opens a fresh cursor (ORA-01000 once enough accumulate).
 		expected := "CASE" +
+			" WHEN LOWER(severity) = '0' THEN 5" +
+			" WHEN LOWER(severity) = '1' THEN 4" +
+			" WHEN LOWER(severity) = '2' THEN 3" +
+			" WHEN LOWER(severity) = '3' THEN 2" +
+			" WHEN LOWER(severity) = '4' THEN 1" +
+			" WHEN LOWER(severity) = '5' THEN 0" +
 			" WHEN LOWER(severity) = 'critical' THEN 5" +
 			" WHEN LOWER(severity) = 'high' THEN 4" +
+			" WHEN LOWER(severity) = 'info' THEN 1" +
 			" WHEN LOWER(severity) = 'informational' THEN 1" +
 			" WHEN LOWER(severity) = 'low' THEN 2" +
 			" WHEN LOWER(severity) = 'medium' THEN 3" +
+			" WHEN LOWER(severity) = 'none' THEN 0" +
 			" WHEN LOWER(severity) = 'unknown' THEN 0" +
 			" ELSE -1 END"
 		for i := 0; i < 50; i++ {
@@ -206,6 +214,16 @@ func TestSemanticOrderMaps(t *testing.T) {
 		}
 		for val, rank := range expected {
 			assert.Equal(t, rank, statusOrder[val], "status %q should have rank %d", val, rank)
+		}
+	})
+
+	t.Run("legacy severity values rank alongside their current equivalents", func(t *testing.T) {
+		// Mirrors tmi-ux's display-only severityMap (#910).
+		for legacy, current := range map[string]string{
+			"0": "critical", "1": "high", "2": "medium", "3": "low",
+			"4": "informational", "info": "informational", "5": "unknown", "none": "unknown",
+		} {
+			assert.Equal(t, severityOrder[current], severityOrder[legacy], "legacy severity %q", legacy)
 		}
 	})
 

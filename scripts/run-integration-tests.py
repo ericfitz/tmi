@@ -106,6 +106,9 @@ def ensure_oauth_stub(project_root: Path) -> bool:
         subprocess.run(
             ["bash", "-c", f"source '{helper}' && ensure_oauth_stub"],
             cwd=str(project_root),
+            # The helper refuses to run without PROJECT_ROOT; without this the
+            # stub only ever "started" when one was already running.
+            env={**os.environ, "PROJECT_ROOT": str(project_root)},
             check=False,
             capture_output=True,
         )

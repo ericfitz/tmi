@@ -278,7 +278,7 @@ func (m *MockThreatModelStore) List(offset, limit int, filter func(ThreatModel) 
 }
 
 // SEM@ce7f0b599ec1a118c3d01ee48ad1e397e9f0c19d: list threat models as list items with query-param filters, pagination, and total count (pure)
-func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int) {
+func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int, error) {
 	var result []TMListItem
 	for _, item := range m.data {
 		// Apply authorization filter
@@ -326,7 +326,7 @@ func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 
 	// Apply pagination
 	if offset >= total {
-		return []TMListItem{}, total
+		return []TMListItem{}, total, nil
 	}
 
 	end := offset + limit
@@ -334,7 +334,7 @@ func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 		end = total
 	}
 
-	return result[offset:end], total
+	return result[offset:end], total, nil
 }
 
 // matchesThreatModelFilters checks if a threat model matches the provided filters
