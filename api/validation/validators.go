@@ -64,8 +64,9 @@ var (
 
 // Regex patterns for validation
 var (
-	// metadataKeyPattern validates metadata keys: alphanumeric, underscore, hyphen only
-	metadataKeyPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	// MetadataKeyPattern is the single metadata key rule; it must match the
+	// OpenAPI Metadata.key pattern. Length (1-256) is checked separately.
+	MetadataKeyPattern = regexp.MustCompile(`^[a-zA-Z0-9_./:-]+$`)
 )
 
 // ValidationError represents a validation failure
@@ -208,17 +209,17 @@ func ValidateStatusLength(status *string) error {
 // --- Metadata Validators ---
 
 // ValidateMetadataKey validates a metadata key
-// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate a metadata key for non-empty, length, and alphanumeric-plus-hyphen pattern (pure)
+// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate a metadata key for non-empty, length, and the spec character set (pure)
 func ValidateMetadataKey(key string) error {
 	trimmed := strings.TrimSpace(key)
 	if len(trimmed) == 0 {
 		return NewValidationError("key", "cannot be empty")
 	}
-	if len(key) > 128 {
-		return NewValidationError("key", "must be at most 128 characters")
+	if len(key) > 256 {
+		return NewValidationError("key", "must be at most 256 characters")
 	}
-	if !metadataKeyPattern.MatchString(key) {
-		return NewValidationError("key", "must contain only alphanumeric characters, underscores, and hyphens")
+	if !MetadataKeyPattern.MatchString(key) {
+		return NewValidationError("key", "must contain only alphanumeric characters, underscores, hyphens, dots, slashes, and colons")
 	}
 	return nil
 }

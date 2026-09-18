@@ -5,32 +5,28 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/ericfitz/tmi/api/validation"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
-
-// validMetadataKeyPattern matches allowed metadata key characters:
-// alphanumeric, hyphens, underscores, dots, colons. Length 1-256.
-var validMetadataKeyPattern = regexp.MustCompile(`^[a-zA-Z0-9._\-:]{1,256}$`)
 
 // maxMetadataValueBytes is the maximum byte length for metadata values,
 // matching the database varchar(1024) constraint.
 const maxMetadataValueBytes = 1024
 
 // validateMetadataKeyString validates a metadata key string.
-// Keys must be 1-256 characters and contain only alphanumeric, hyphens, underscores, dots, and colons.
+// Keys must be 1-256 characters matching validation.MetadataKeyPattern (the OpenAPI pattern).
 // SEM@59c58c6a840231ad2c078c9afd1e7bac7a07b651: validate a metadata key against length and character-set constraints (pure)
 func validateMetadataKeyString(key string) error {
 	if key == "" {
 		return InvalidInputError("Metadata key must not be empty")
 	}
-	if !validMetadataKeyPattern.MatchString(key) {
-		return InvalidInputError("Metadata key must be 1-256 characters and contain only alphanumeric characters, hyphens, underscores, dots, and colons")
+	if len(key) > 256 || !validation.MetadataKeyPattern.MatchString(key) {
+		return InvalidInputError("Metadata key must be 1-256 characters and contain only alphanumeric characters, hyphens, underscores, dots, slashes, and colons")
 	}
 	return nil
 }

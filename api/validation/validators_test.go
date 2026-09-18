@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -125,10 +126,13 @@ func TestValidateMetadataKey(t *testing.T) {
 		{"valid simple", "key", false},
 		{"empty", "", true},
 		{"whitespace only", "   ", true},
-		{"too long", string(make([]byte, 129)), true},
+		{"valid colon (spec pattern, #921)", "tf_child:01a0:prod", false},
+		{"valid dot", "test.key", false},
+		{"valid slash", "a/b", false},
+		{"max length 256", strings.Repeat("a", 256), false},
+		{"too long", strings.Repeat("a", 257), true},
 		{"invalid chars space", "test key", true},
 		{"invalid chars special", "test@key", true},
-		{"invalid chars dot", "test.key", true},
 	}
 
 	for _, tt := range tests {

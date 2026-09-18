@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ericfitz/tmi/api/validation"
 	"github.com/google/uuid"
 )
 
@@ -133,19 +134,17 @@ func ValidateRoleFields(data any) error {
 	})
 }
 
-// ValidateMetadataKey validates metadata key format (no spaces, special chars)
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate metadata key fields contain only alphanumeric, underscore, or hyphen characters (pure)
+// ValidateMetadataKey validates metadata key format against validation.MetadataKeyPattern
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: validate metadata key fields against the spec character set (pure)
 func ValidateMetadataKey(data any) error {
-	keyRegex := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-
 	v := reflect.ValueOf(data)
 	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 
 	return validateFieldsByPattern(v, "key", func(fieldValue string) error {
-		if fieldValue != "" && !keyRegex.MatchString(fieldValue) {
-			return InvalidInputError(fmt.Sprintf("Invalid metadata key '%s'. Must contain only letters, numbers, underscores, and hyphens.", fieldValue))
+		if fieldValue != "" && !validation.MetadataKeyPattern.MatchString(fieldValue) {
+			return InvalidInputError(fmt.Sprintf("Invalid metadata key '%s'. Must contain only letters, numbers, underscores, hyphens, dots, slashes, and colons.", fieldValue))
 		}
 		return nil
 	})

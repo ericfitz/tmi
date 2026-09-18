@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ericfitz/tmi/api/validation"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -792,6 +793,19 @@ func TestStoreErrorToRequestError_NotFoundUsesNotFoundMessage(t *testing.T) {
 	require.NotNil(t, reqErr)
 	assert.Equal(t, http.StatusNotFound, reqErr.Status)
 	assert.Equal(t, "User not found", reqErr.Message)
+}
+
+// TestStoreErrorToRequestError_HookValidationMapsTo400 verifies a model
+// BeforeSave validation failure is a 400, not a 500, and that the mapping
+// survives dberrors.Classify as the repositories apply it (#921).
+// SEM@0000000000000000000000000000000000000000: verify a model-hook validation error maps to HTTP 400 through Classify (pure)
+func TestStoreErrorToRequestError_HookValidationMapsTo400(t *testing.T) {
+	hookErr := dberrors.Classify(validation.NewValidationError("value", "cannot be empty"))
+	reqErr := StoreErrorToRequestError(hookErr, "Metadata not found", "Failed to upsert metadata entries")
+
+	require.NotNil(t, reqErr)
+	assert.Equal(t, http.StatusBadRequest, reqErr.Status)
+	assert.Equal(t, "value: cannot be empty", reqErr.Message)
 }
 
 // TestStoreErrorToRequestError_TransientMapsTo503 verifies a transient DB fault
