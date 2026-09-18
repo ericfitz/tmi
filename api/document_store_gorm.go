@@ -38,7 +38,7 @@ func NewGormDocumentRepository(db *gorm.DB, cache *CacheService, invalidator *Ca
 }
 
 // Create creates a new document
-// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: store a new document under a threat model, allocate its alias, and warm cache (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new document under a threat model, allocate its alias, and warm cache (reads DB)
 func (s *GormDocumentRepository) Create(ctx context.Context, document *Document, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -193,7 +193,7 @@ func (s *GormDocumentRepository) Get(ctx context.Context, id string) (*Document,
 
 // update runs the document content write inside one retryable transaction,
 // CAS-guarded first when expectedVersion is non-nil (#594).
-// SEM@0000000000000000000000000000000000000000: update a document's fields, optionally CAS-guarded, and refresh cache (mutates shared state)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update a document's fields, optionally CAS-guarded, and refresh cache (mutates shared state)
 func (s *GormDocumentRepository) update(ctx context.Context, document *Document, threatModelID string, expectedVersion *int) (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -329,7 +329,7 @@ func (s *GormDocumentRepository) update(ctx context.Context, document *Document,
 }
 
 // Update updates an existing document
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: update a document's fields, set modified_at explicitly, and refresh cache (mutates shared state)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update a document's fields, set modified_at explicitly, and refresh cache (mutates shared state)
 func (s *GormDocumentRepository) Update(ctx context.Context, document *Document, threatModelID string) error {
 	_, err := s.update(ctx, document, threatModelID, nil)
 	return err
@@ -337,7 +337,7 @@ func (s *GormDocumentRepository) Update(ctx context.Context, document *Document,
 
 // UpdateWithVersion updates a document guarded by a same-transaction
 // optimistic-lock CAS (#594).
-// SEM@0000000000000000000000000000000000000000: update a document guarded by a same-transaction version CAS (mutates shared state)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: update a document guarded by a same-transaction version CAS (mutates shared state)
 func (s *GormDocumentRepository) UpdateWithVersion(ctx context.Context, document *Document, threatModelID string, expectedVersion int) (int, error) {
 	return s.update(ctx, document, threatModelID, &expectedVersion)
 }
@@ -507,7 +507,7 @@ func (s *GormDocumentRepository) ListByAccessStatus(ctx context.Context, status 
 }
 
 // BulkCreate creates multiple documents in a single transaction
-// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: store multiple documents for a threat model in a single transaction, allocating aliases (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store multiple documents for a threat model in a single transaction, allocating aliases (reads DB)
 func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Document, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -567,7 +567,7 @@ func (s *GormDocumentRepository) BulkCreate(ctx context.Context, documents []Doc
 }
 
 // Patch applies JSON patch operations to a document
-// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON patch operations to a document and persist the result (reads DB)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: apply JSON patch operations to a document and persist the result (reads DB)
 func (s *GormDocumentRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Document, error) {
 	document, _, err := s.patch(ctx, id, operations, nil)
 	return document, err
@@ -575,14 +575,14 @@ func (s *GormDocumentRepository) Patch(ctx context.Context, id string, operation
 
 // PatchWithVersion applies JSON patch operations to a document guarded by a
 // same-transaction optimistic-lock CAS (#594).
-// SEM@0000000000000000000000000000000000000000: apply JSON patch operations to a document guarded by a same-transaction version CAS (mutates shared state)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: apply JSON patch operations to a document guarded by a same-transaction version CAS (mutates shared state)
 func (s *GormDocumentRepository) PatchWithVersion(ctx context.Context, id string, operations []PatchOperation, expectedVersion int) (*Document, int, error) {
 	return s.patch(ctx, id, operations, &expectedVersion)
 }
 
 // patch runs patch-operation application then the content write, CAS-guarded
 // first when expectedVersion is non-nil (#594).
-// SEM@0000000000000000000000000000000000000000: apply JSON patch operations to a document, optionally CAS-guarded, and persist the result (mutates shared state)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: apply JSON patch operations to a document, optionally CAS-guarded, and persist the result (mutates shared state)
 func (s *GormDocumentRepository) patch(ctx context.Context, id string, operations []PatchOperation, expectedVersion *int) (*Document, int, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching document %s with %d operations", id, len(operations))
@@ -1013,7 +1013,7 @@ func (s *GormDocumentRepository) saveMetadata(ctx context.Context, documentID st
 }
 
 // updateMetadata updates metadata for a document
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: replace metadata key-value pairs for a document by delete-then-insert (reads DB)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: replace metadata key-value pairs for a document by delete-then-insert (reads DB)
 func (s *GormDocumentRepository) updateMetadata(ctx context.Context, documentID string, metadata []Metadata) error {
 	// One transaction so a failed insert rolls back the delete instead of
 	// committing a bare metadata wipe (#670).
