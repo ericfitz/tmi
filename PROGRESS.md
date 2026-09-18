@@ -2,6 +2,28 @@
 
 ## Landed (pushed to main)
 
+- **PR #923 merged** (`a7cac3f9`, 1.13.13) — `fix(api)` closes #921 (prod 500 reported by tmi-tf-wh): three
+  metadata key rules disagreed (spec and handler accepted `:`, the GORM `BeforeSave` hook allowed only
+  `[a-zA-Z0-9_-]`/128), so a spec-valid key became a 500 on every metadata endpoint. One exported
+  `validation.MetadataKeyPattern` (the spec pattern, 1-256) is reused everywhere, and
+  `StoreErrorToRequestError` maps any model-hook `ValidationError` to 400. Oracle review APPROVED WITH NOTES;
+  follow-up #922 (`/` keys are storable via bulk but not addressable at `/metadata/{key}`).
+- **PR #927 merged** (`d4baf920`, 1.13.14) — `fix(api)` closes #925 (requested by Eric and tmi-ux): idempotent
+  startup migration of legacy stored threat `severity`/`priority`/`status` values (old tmi-ux numeric keys and
+  display strings) to canonical strings, in one READ COMMITTED transaction. Decision on write: normalize, not
+  reject; the threat store canonicalizes the three fields on every write path and canonicalizes list filter
+  values, and the fields stay free-form. Oracle review APPROVED WITH NOTES; PostgreSQL integration 91/0/9.
+  Follow-up #926: retire the migration and the legacy `severityOrder` entries once every environment has run
+  it, and settle `none` = informational vs unknown.
+- **PR #928 merged** (`7a68fcda`, 1.13.15) — `fix(api)` closes #916. Eric's decision (option A, ADR
+  `docs/superpowers/specs/2026-09-18-adr-unclassified-settings-keys-addressable.md`): the by-key admin settings
+  endpoints hide a key only when the registry classifies it as internal, so admin-created custom keys can be
+  read and deleted. PostgreSQL integration 91/0/9.
+- **Deployed:** k3s-rp on 1.13.15. api.tmi.dev: images for `7a68fcda` built, scanned (0 critical/high on all
+  five) and pushed; Terraform plan shows no changes; the apply was pending at the time of writing.
+
+## Landed (pushed to main)
+
 - **PR #914 merged** (`4359a42e`, 1.13.9) — `fix(extract)`: `extract.ExtractWithDeadline` recovers extractor
   panics and returns `ErrMalformed`; govulncheck gate gains an allowlist with a review-by expiry
   (`scripts/ci-govulncheck.sh`, `.github/govulncheck-allow.txt`) for GO-2026-6452 (excelize v2.11.0, no fixed
