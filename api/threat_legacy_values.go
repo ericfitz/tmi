@@ -59,7 +59,7 @@ func canonicalThreatValue(column, value string) string {
 
 // canonicalizeThreatValues rewrites the threat's severity, priority and status
 // in place so legacy values cannot be stored again (#925).
-// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: normalize a threat's severity, priority, and status to canonical values (mutates input)
+// SEM@0009f617a671a8b1d6ad8d25e96274ad7368888e: normalize a threat's severity, priority, and status to canonical values (mutates input)
 func canonicalizeThreatValues(threat *Threat) {
 	for column, field := range map[string]**string{
 		"severity": &threat.Severity, "priority": &threat.Priority, "status": &threat.Status,
@@ -95,7 +95,7 @@ func canonicalThreatValues(column string, values []string) []string {
 // UPDATE under a leftover SERIALIZABLE raises ORA-08177 instead of restarting
 // (#906). The LOWER() predicates cannot use the column indexes; the caller is
 // expected to drop this once every environment has been migrated (#926).
-// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: rewrite stored legacy threat severity, priority, and status values to canonical form (writes DB)
+// SEM@0009f617a671a8b1d6ad8d25e96274ad7368888e: rewrite stored legacy threat severity, priority, and status values to canonical form (writes DB)
 func MigrateLegacyThreatValues(ctx context.Context, db *gorm.DB) (int64, error) {
 	var total int64
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

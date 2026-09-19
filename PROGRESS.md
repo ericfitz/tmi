@@ -1,3 +1,19 @@
+# Session progress — 2026-09-19
+
+## Landed (pushed to main)
+
+- **PR #930 merged** (`0009f617`, 1.13.17) — `fix(api)`, refs #926 (open question settled; the issue stays open
+  for retiring the migration). Eric's decision (ADR
+  `docs/superpowers/specs/2026-09-19-adr-retire-none-unknown-severity.md`): severity `none` means
+  `informational`, and `unknown` is retired: stored `unknown`/legacy `5` are cleared to NULL by the existing
+  idempotent boot migration, a write of `unknown` is stored as unset, and `unknown` leaves the `severity`
+  list-filter enum. Oracle review APPROVED WITH NOTES (typed `ELSE` added to the migration `CASE`);
+  PostgreSQL integration 91/0/9; security review no findings. tmi-ux told of the client changes.
+- **Deployed:** api.tmi.dev on 1.13.17 (main `0009f617`); Terraform applied no infrastructure changes; no
+  stored `unknown` rows existed there. k3s-rp remains on 1.13.15. Four images 0 critical/high; `tmi-redis`
+  carries glibc CVE-2026-19499 (High, no fix published, `strfmon` only, not reachable from Redis), tracked
+  in #931.
+
 # Session progress — 2026-09-18
 
 ## Landed (pushed to main)
