@@ -88,7 +88,7 @@ func TestMigrateLegacyThreatValues(t *testing.T) {
 	assert.Zero(t, n, "second run must be a no-op")
 }
 
-// SEM@0000000000000000000000000000000000000000: verify a written retired severity is stored as unset and "none" as informational (pure)
+// SEM@0009f617a671a8b1d6ad8d25e96274ad7368888e: verify a written retired severity is stored as unset and "none" as informational (pure)
 func TestCanonicalizeThreatValuesRetiresUnknown(t *testing.T) {
 	unknown, none := "Unknown", "none"
 	threat := &Threat{Severity: &unknown}
