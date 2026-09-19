@@ -19,8 +19,9 @@
   `docs/superpowers/specs/2026-09-18-adr-unclassified-settings-keys-addressable.md`): the by-key admin settings
   endpoints hide a key only when the registry classifies it as internal, so admin-created custom keys can be
   read and deleted. PostgreSQL integration 91/0/9.
-- **Deployed:** k3s-rp on 1.13.15. api.tmi.dev: images for `7a68fcda` built, scanned (0 critical/high on all
-  five) and pushed; Terraform plan shows no changes; the apply was pending at the time of writing.
+- **Deployed:** k3s-rp and api.tmi.dev on 1.13.15 (main `7a68fcda`; api.tmi.dev applied 2026-09-19). All five
+  images 0 critical/high; Terraform applied no infrastructure changes; the boot migration canonicalized 34
+  legacy threat severity/priority/status values.
 
 ## Landed (pushed to main)
 
