@@ -16,12 +16,13 @@ import (
 // builds wrote (tm-edit-formatting.service.ts severityMap/priorityMap/
 // statusMap); note the numeric severity keys run opposite to the sort rank:
 // "0" was critical. "none" -> "informational" predates #925 (startup
-// migration in cmd/server). The columns stay free-form: anything not listed
-// here or in the rank tables is left untouched.
+// migration in cmd/server). An empty target means unset: "unknown" is retired
+// as a severity (#926) and is stored as NULL. The columns stay free-form:
+// anything not listed here or in the rank tables is left untouched.
 var legacyThreatValues = map[string]map[string]string{
 	"severity": {
-		"0": "critical", "1": "high", "2": "medium", "3": "low", "4": "informational", "5": "unknown",
-		"info": "informational", "none": "informational",
+		"0": "critical", "1": "high", "2": "medium", "3": "low", "4": "informational", "5": "",
+		"info": "informational", "none": "informational", "unknown": "",
 	},
 	"priority": {
 		"0": "immediate", "1": "high", "2": "medium", "3": "low", "4": "deferred",
@@ -65,6 +66,10 @@ func canonicalizeThreatValues(threat *Threat) {
 	} {
 		if *field != nil {
 			v := canonicalThreatValue(column, **field)
+			if v == "" {
+				*field = nil // retired value ("unknown") or empty: store as unset
+				continue
+			}
 			*field = &v
 		}
 	}
@@ -107,10 +112,19 @@ func MigrateLegacyThreatValues(ctx context.Context, db *gorm.DB) (int64, error) 
 			fmt.Fprintf(&b, "UPDATE threats SET %s = CASE LOWER(%s)", column, column)
 			args := make([]any, 0, 2*len(keys)+1)
 			for _, k := range keys {
+				if legacy[k] == "" {
+					// Retired value: clear it. A literal NULL, not a bind, so no
+					// driver has to infer a type for it.
+					b.WriteString(" WHEN ? THEN NULL")
+					args = append(args, k)
+					continue
+				}
 				b.WriteString(" WHEN ? THEN ?")
 				args = append(args, k, legacy[k])
 			}
-			fmt.Fprintf(&b, " END WHERE LOWER(%s) IN ?", column)
+			// ELSE is never taken (WHERE matches only the keys); it gives the CASE a
+			// typed branch so Oracle never sees all-NULL results (ORA-00932).
+			fmt.Fprintf(&b, " ELSE %s END WHERE LOWER(%s) IN ?", column, column)
 			args = append(args, keys)
 			res := tx.Exec(b.String(), args...)
 			if res.Error != nil {
