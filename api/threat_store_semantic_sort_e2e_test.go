@@ -43,7 +43,7 @@ func TestSemanticSortEndToEnd(t *testing.T) {
 	}{
 		{
 			field:  "severity",
-			values: []string{"unknown", "informational", "low", "medium", "high", "critical"},
+			values: []string{"informational", "low", "medium", "high", "critical"},
 			set:    func(t *Threat, v *string) { t.Severity = v },
 			get:    func(t Threat) string { return ptrStr(t.Severity) },
 		},
@@ -179,8 +179,9 @@ func TestSeverityDescAcrossPages(t *testing.T) {
 		"high": "high", "1": "high",
 		"medium": "medium", "2": "medium",
 		"low": "low", "3": "low",
-		"informational": "informational", "4": "informational", "Info": "informational",
-		"unknown": "unknown", "5": "unknown", "None": "unknown",
+		"informational": "informational", "4": "informational", "Info": "informational", "None": "informational",
+		// "unknown" is retired (#926): unmigrated rows rank with free-form values.
+		"unknown": "other", "5": "other",
 		"bogus": "other",
 	}
 	for stored := range shown {
@@ -209,7 +210,7 @@ func TestSeverityDescAcrossPages(t *testing.T) {
 
 	want := []string{
 		"critical", "critical", "critical", "high", "high", "medium", "medium", "low", "low",
-		"informational", "informational", "informational", "unknown", "unknown", "unknown", "other",
+		"informational", "informational", "informational", "informational", "other", "other", "other",
 	}
 	assert.Equal(t, want, got)
 }

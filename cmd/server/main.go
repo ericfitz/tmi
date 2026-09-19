@@ -568,6 +568,7 @@ func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error 
 	}
 	// #925: rewrite legacy stored threat severity/priority/status values (old
 	// tmi-ux numeric keys and display strings, 'none') to canonical form.
+	// #926: 'unknown' is retired as a severity and is cleared to NULL here.
 	// Idempotent and non-fatal: the store canonicalizes every write, so a
 	// failure here only leaves old rows legacy until the next boot retries.
 	if migrated, err := api.MigrateLegacyThreatValues(ctx, gormDB.DB()); err != nil {

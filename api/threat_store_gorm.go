@@ -530,9 +530,8 @@ func (s *GormThreatRepository) applyFilters(query *gorm.DB, filter ThreatFilter)
 }
 
 // severityOrder maps severity values to their semantic rank for sorting.
-// Higher rank = more severe. Unknown values sort to 0 (lowest).
+// Higher rank = more severe. Unset and free-form values sort below every rank.
 var severityOrder = map[string]int{
-	"unknown":       0,
 	"informational": 1,
 	"low":           2,
 	"medium":        3,
@@ -549,8 +548,7 @@ var severityOrder = map[string]int{
 	"3":    2,
 	"4":    1,
 	"info": 1,
-	"5":    0,
-	"none": 0,
+	"none": 1,
 }
 
 // priorityOrder maps priority values to their semantic rank for sorting.

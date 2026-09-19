@@ -132,7 +132,7 @@ func TestBuildSemanticOrderExpr(t *testing.T) {
 	t.Run("severity ordering ranks", func(t *testing.T) {
 		expr := buildSemanticOrderExpr("severity", severityOrder, "sqlite")
 		// All severity values should appear in the expression
-		for _, val := range []string{"unknown", "informational", "low", "medium", "high", "critical"} {
+		for _, val := range []string{"informational", "low", "medium", "high", "critical"} {
 			assert.Contains(t, expr, "'"+val+"'", "should contain severity value: %s", val)
 		}
 		assert.Contains(t, expr, "ELSE -1", "unknown values should sort to -1")
@@ -167,15 +167,13 @@ func TestBuildSemanticOrderExpr(t *testing.T) {
 			" WHEN LOWER(severity) = '2' THEN 3" +
 			" WHEN LOWER(severity) = '3' THEN 2" +
 			" WHEN LOWER(severity) = '4' THEN 1" +
-			" WHEN LOWER(severity) = '5' THEN 0" +
 			" WHEN LOWER(severity) = 'critical' THEN 5" +
 			" WHEN LOWER(severity) = 'high' THEN 4" +
 			" WHEN LOWER(severity) = 'info' THEN 1" +
 			" WHEN LOWER(severity) = 'informational' THEN 1" +
 			" WHEN LOWER(severity) = 'low' THEN 2" +
 			" WHEN LOWER(severity) = 'medium' THEN 3" +
-			" WHEN LOWER(severity) = 'none' THEN 0" +
-			" WHEN LOWER(severity) = 'unknown' THEN 0" +
+			" WHEN LOWER(severity) = 'none' THEN 1" +
 			" ELSE -1 END"
 		for i := 0; i < 50; i++ {
 			assert.Equal(t, expected, buildSemanticOrderExpr("severity", severityOrder, "sqlite"))
@@ -185,10 +183,11 @@ func TestBuildSemanticOrderExpr(t *testing.T) {
 
 func TestSemanticOrderMaps(t *testing.T) {
 	t.Run("severity order is correct", func(t *testing.T) {
-		expected := []string{"unknown", "informational", "low", "medium", "high", "critical"}
+		expected := []string{"informational", "low", "medium", "high", "critical"}
 		for i, val := range expected {
-			assert.Equal(t, i, severityOrder[val], "severity %q should have rank %d", val, i)
+			assert.Equal(t, i+1, severityOrder[val], "severity %q should have rank %d", val, i+1)
 		}
+		assert.NotContains(t, severityOrder, "unknown", "unknown is retired (#926)")
 	})
 
 	t.Run("priority order is correct", func(t *testing.T) {
@@ -221,7 +220,7 @@ func TestSemanticOrderMaps(t *testing.T) {
 		// Mirrors tmi-ux's display-only severityMap (#910).
 		for legacy, current := range map[string]string{
 			"0": "critical", "1": "high", "2": "medium", "3": "low",
-			"4": "informational", "info": "informational", "5": "unknown", "none": "unknown",
+			"4": "informational", "info": "informational", "none": "informational",
 		} {
 			assert.Equal(t, severityOrder[current], severityOrder[legacy], "legacy severity %q", legacy)
 		}
@@ -237,8 +236,8 @@ func TestSemanticOrderMaps(t *testing.T) {
 func TestSemanticSortOrderIntegration(t *testing.T) {
 	// Verify that semantic sort produces the correct relative ordering
 	// by checking the CASE WHEN values assigned to each enum value
-	t.Run("severity ascending: unknown < informational < low < medium < high < critical", func(t *testing.T) {
-		ordered := []string{"unknown", "informational", "low", "medium", "high", "critical"}
+	t.Run("severity ascending: informational < low < medium < high < critical", func(t *testing.T) {
+		ordered := []string{"informational", "low", "medium", "high", "critical"}
 		for i := 0; i < len(ordered)-1; i++ {
 			assert.Less(t, severityOrder[ordered[i]], severityOrder[ordered[i+1]],
 				"%s should sort before %s", ordered[i], ordered[i+1])

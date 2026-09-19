@@ -16,7 +16,8 @@ func TestCanonicalThreatValue(t *testing.T) {
 	tests := []struct{ column, in, want string }{
 		{"severity", "0", "critical"}, // old numeric keys run opposite to rank
 		{"severity", "4", "informational"},
-		{"severity", "5", "unknown"},
+		{"severity", "5", ""}, // retired: stored as unset (#926)
+		{"severity", "Unknown", ""},
 		{"severity", "Info", "informational"},
 		{"severity", "none", "informational"},
 		{"severity", "High", "high"},
@@ -49,6 +50,7 @@ func TestMigrateLegacyThreatValues(t *testing.T) {
 		{"d", "Sev-A (custom)", "P-custom", "WIP"}, // free-form
 		{"e", nil, nil, nil},
 		{"f", "5", "Low", "in_progress"},
+		{"g", "Unknown", nil, nil}, // retired severity is cleared (#926)
 	}
 	for _, r := range rows {
 		require.NoError(t, db.Exec("INSERT INTO threats VALUES (?, ?, ?, ?)", r[0], r[1], r[2], r[3]).Error)
@@ -56,7 +58,7 @@ func TestMigrateLegacyThreatValues(t *testing.T) {
 
 	n, err := MigrateLegacyThreatValues(context.Background(), db)
 	require.NoError(t, err)
-	assert.Equal(t, int64(8), n)
+	assert.Equal(t, int64(9), n)
 
 	type row struct{ ID, Severity, Priority, Status *string }
 	var got []row
@@ -73,7 +75,8 @@ func TestMigrateLegacyThreatValues(t *testing.T) {
 		{"critical", "high", "open"},
 		{"Sev-A (custom)", "P-custom", "WIP"},
 		{"<nil>", "<nil>", "<nil>"},
-		{"unknown", "low", "in_progress"},
+		{"<nil>", "low", "in_progress"},
+		{"<nil>", "<nil>", "<nil>"},
 	}
 	require.Len(t, got, len(want))
 	for i, w := range want {
@@ -83,4 +86,17 @@ func TestMigrateLegacyThreatValues(t *testing.T) {
 	n, err = MigrateLegacyThreatValues(context.Background(), db)
 	require.NoError(t, err)
 	assert.Zero(t, n, "second run must be a no-op")
+}
+
+// SEM@0000000000000000000000000000000000000000: verify a written retired severity is stored as unset and "none" as informational (pure)
+func TestCanonicalizeThreatValuesRetiresUnknown(t *testing.T) {
+	unknown, none := "Unknown", "none"
+	threat := &Threat{Severity: &unknown}
+	canonicalizeThreatValues(threat)
+	assert.Nil(t, threat.Severity)
+
+	threat = &Threat{Severity: &none}
+	canonicalizeThreatValues(threat)
+	require.NotNil(t, threat.Severity)
+	assert.Equal(t, "informational", *threat.Severity)
 }
