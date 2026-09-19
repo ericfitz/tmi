@@ -551,7 +551,7 @@ func TestModelToAPISystemSetting(t *testing.T) {
 
 // origin is exposed read-only so an admin can see why a database row does or
 // does not outrank config (#794 precedence, #803 API exposure).
-// SEM@0000000000000000000000000000000000000000: verify explicit and seeded origin stamps map onto the API origin enum
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: verify explicit and seeded origin stamps map onto the API origin enum
 func TestModelToAPISystemSetting_Origin(t *testing.T) {
 	explicit := models.SystemSetting{SettingKey: "k", Value: "v", SettingType: "string",
 		Origin: models.NullableDBVarchar{String: models.SystemSettingOriginExplicit, Valid: true}}
@@ -1447,7 +1447,7 @@ func TestBuildContentProviders_PickerConfigDeepCopy(t *testing.T) {
 // The pass runs in one transaction (#845), so a database failure is a whole-
 // request failure and must be reported as 503 (transient, retry) or 500, never
 // as the 409 "encryption_not_enabled" precondition.
-// SEM@0000000000000000000000000000000000000000: verify reencrypt maps not-enabled to 409, transient DB failure to 503, other failure to 500
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: verify reencrypt maps not-enabled to 409, transient DB failure to 503, other failure to 500
 func TestReencryptSystemSettings_ErrorMapping(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
@@ -1536,7 +1536,7 @@ func TestReencryptSystemSettings_BodyHandling(t *testing.T) {
 // TestSystemSetting_UnclassifiedKeyGetAndDelete verifies that an admin-created
 // key the registry does not classify is addressable: GET returns it and DELETE
 // removes it (#916). Only keys CLASSIFIED internal stay hidden.
-// SEM@0000000000000000000000000000000000000000: verify admin-created unclassified settings keys can be read and deleted by key (pure)
+// SEM@7a68fcda23a48c1ef4aac20676a9050cd7e7dcdc: verify admin-created unclassified settings keys can be read and deleted by key (pure)
 func TestSystemSetting_UnclassifiedKeyGetAndDelete(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)

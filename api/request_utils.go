@@ -581,7 +581,7 @@ func ServiceUnavailableError(message string) *RequestError {
 // StoreErrorToRequestError converts a store error to an appropriate RequestError.
 // If the error is already a *RequestError, it is returned as-is (preserving its status code).
 // All store errors must use typed dberrors sentinels (#271 umbrella migration is complete).
-// SEM@53e5dbb80f05c732363f66086fc9ba5e4b2c4e9f: convert a store or dberrors error to the appropriate HTTP RequestError (pure)
+// SEM@a7cac3f9cd8e77b1dc209e5a213cb6c7f7e40a29: convert a store or dberrors error to the appropriate HTTP RequestError (pure)
 func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *RequestError {
 	// If already a RequestError, return it directly to preserve its status code
 	var reqErr *RequestError

@@ -209,7 +209,7 @@ func ValidateStatusLength(status *string) error {
 // --- Metadata Validators ---
 
 // ValidateMetadataKey validates a metadata key
-// SEM@acf29174839ed9f1cb1950265092e2bdacdcb5bd: validate a metadata key for non-empty, length, and the spec character set (pure)
+// SEM@a7cac3f9cd8e77b1dc209e5a213cb6c7f7e40a29: validate a metadata key for non-empty, length, and the spec character set (pure)
 func ValidateMetadataKey(key string) error {
 	trimmed := strings.TrimSpace(key)
 	if len(trimmed) == 0 {

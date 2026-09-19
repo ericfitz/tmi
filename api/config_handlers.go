@@ -378,7 +378,7 @@ func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientCo
 // VisibilityInternal, but it can only exist because an admin created it via
 // PUT /admin/settings/{key}, so that admin must be able to read and delete it
 // (#916; docs/superpowers/specs/2026-09-18-adr-unclassified-settings-keys-addressable.md).
-// SEM@0000000000000000000000000000000000000000: report whether a settings key is classified internal and hidden from by-key admin endpoints (pure)
+// SEM@7a68fcda23a48c1ef4aac20676a9050cd7e7dcdc: report whether a settings key is classified internal and hidden from by-key admin endpoints (pure)
 func isAPIHiddenSettingKey(key string) bool {
 	cls := config.ClassificationFor(key)
 	return cls.Category != config.CategoryUnclassified && cls.Visibility == config.VisibilityInternal
@@ -543,7 +543,7 @@ func (s *Server) ListSystemSettings(c *gin.Context) {
 }
 
 // GetSystemSetting returns a specific system setting by key (admin only)
-// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: fetch a single system setting by key, masking secrets and hiding internal keys (reads DB)
+// SEM@7a68fcda23a48c1ef4aac20676a9050cd7e7dcdc: fetch a single system setting by key, masking secrets and hiding internal keys (reads DB)
 func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
@@ -732,7 +732,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 }
 
 // DeleteSystemSetting deletes a system setting (admin only)
-// SEM@dcb09b6afcb6a3a78ce7ba3c345e459ba9cf55a2: delete a system setting by key, rejecting reserved or internal-visibility keys (reads DB)
+// SEM@7a68fcda23a48c1ef4aac20676a9050cd7e7dcdc: delete a system setting by key, rejecting reserved or internal-visibility keys (reads DB)
 func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
