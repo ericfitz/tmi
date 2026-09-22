@@ -246,7 +246,7 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 }
 
 // JWT Middleware factory function that takes config, token blacklist, auth handlers, and ticket validator
-// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: build middleware that validates JWT tokens and aborts unauthenticated requests to protected paths
+// SEM@0000000000000000000000000000000000000000: build middleware that validates JWT tokens on protected paths and on bearer-carrying handler-auth paths
 func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, authHandlers *auth.Handlers, ticketValidator *TicketValidator) gin.HandlerFunc {
 	// Initialize authentication components
 	publicPathChecker := &PublicPathChecker{}
@@ -260,7 +260,13 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 		logger.Debug("[JWT_MIDDLEWARE] Processing request: %s %s", c.Request.Method, c.Request.URL.Path)
 
 		// Check if this is a public path
-		if publicPathChecker.IsPublicPath(c) {
+		// /webhook-deliveries/ is public only so HMAC callers (no bearer) reach the
+		// handler; a bearer that IS present must be validated here, otherwise the
+		// handler's JWT branch (owner/invoker/admin/linked addon) never sees any
+		// claims and always 401s (#913).
+		bearerOnHandlerAuthPath := strings.HasPrefix(c.Request.URL.Path, "/webhook-deliveries/") &&
+			c.GetHeader("Authorization") != ""
+		if !bearerOnHandlerAuthPath && publicPathChecker.IsPublicPath(c) {
 			logger.Debug("[JWT_MIDDLEWARE] Continuing to next middleware (public path)")
 			c.Next()
 			logger.Debug("[JWT_MIDDLEWARE] Returned from middleware chain (public path)")

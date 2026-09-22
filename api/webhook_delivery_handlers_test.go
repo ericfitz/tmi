@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -114,7 +115,14 @@ func (m *mockDeliveryRedisStore) ListBySubscription(_ context.Context, _ uuid.UU
 }
 
 func (m *mockDeliveryRedisStore) ListAll(_ context.Context, _, _ int) ([]WebhookDeliveryRecord, int, error) {
-	return nil, 0, m.err
+	if m.err != nil {
+		return nil, 0, m.err
+	}
+	out := make([]WebhookDeliveryRecord, 0, len(m.records))
+	for _, r := range m.records {
+		out = append(out, *r)
+	}
+	return out, len(out), nil
 }
 
 func (m *mockDeliveryRedisStore) CountActiveByAddon(_ context.Context, _ uuid.UUID) (int, error) {
@@ -144,6 +152,8 @@ func setupDeliveryHandlerTest(isAdmin bool, userUUID uuid.UUID) *gin.Engine {
 
 	r.GET("/webhook_deliveries/:delivery_id", GetWebhookDeliveryStatus)
 	r.PUT("/webhook_deliveries/:delivery_id/status", UpdateWebhookDeliveryStatus)
+	r.DELETE("/webhook_deliveries/:delivery_id", CancelWebhookDelivery)
+	r.GET("/webhook_deliveries", func(c *gin.Context) { ListMyWebhookDeliveries(c, ListMyWebhookDeliveriesParams{}) })
 
 	return r
 }
@@ -700,5 +710,121 @@ func TestUpdateWebhookDeliveryStatus(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+// =============================================================================
+// #913: CancelWebhookDelivery / ListMyWebhookDeliveries / linked-addon access
+// =============================================================================
+
+// withSourceAddon tags every request with the addon id a linked client
+// credential would carry (cmd/server/jwt_auth.go sets it the same way).
+func withSourceAddon(r *gin.Engine, addonID uuid.UUID) *gin.Engine {
+	tagged := gin.New()
+	tagged.Use(func(c *gin.Context) {
+		c.Request = c.Request.WithContext(WithSourceAddonID(c.Request.Context(), addonID.String()))
+		c.Next()
+	})
+	tagged.Any("/*path", func(c *gin.Context) { r.HandleContext(c) })
+	return tagged
+}
+
+func TestWebhookDeliveryCancelAndList(t *testing.T) {
+	origDeliveryStore := GlobalWebhookDeliveryRedisStore
+	origSubStore := GlobalWebhookSubscriptionStore
+	origGroupStore := GlobalGroupMemberRepository
+	defer func() {
+		GlobalWebhookDeliveryRedisStore = origDeliveryStore
+		GlobalWebhookSubscriptionStore = origSubStore
+		GlobalGroupMemberRepository = origGroupStore
+	}()
+
+	addonID := uuid.New()
+	otherAddonID := uuid.New()
+	ownerUUID := uuid.New()
+	invokerUUID := uuid.New()
+	strangerUUID := uuid.New()
+	subID := uuid.New()
+
+	seed := func() (*mockDeliveryRedisStore, *WebhookDeliveryRecord, *WebhookDeliveryRecord, *WebhookDeliveryRecord) {
+		store := newMockDeliveryRedisStore()
+		mine := createTestDeliveryRecord(subID, DeliveryStatusInProgress)
+		mine.AddonID = &addonID
+		mine.InvokedByUUID = &invokerUUID
+		theirs := createTestDeliveryRecord(subID, DeliveryStatusPending)
+		theirs.AddonID = &otherAddonID
+		done := createTestDeliveryRecord(subID, DeliveryStatusDelivered)
+		done.AddonID = &addonID
+		for _, rec := range []*WebhookDeliveryRecord{mine, theirs, done} {
+			store.records[rec.ID] = rec
+		}
+		GlobalWebhookDeliveryRedisStore = store
+		subStore := newMockWebhookSubscriptionStore()
+		subStore.subscriptions[subID.String()] = DBWebhookSubscription{Id: subID, OwnerId: ownerUUID, Status: "active"}
+		GlobalWebhookSubscriptionStore = subStore
+		return store, mine, theirs, done
+	}
+	do := func(r *gin.Engine, method, path string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(method, path, nil))
+		return w
+	}
+
+	t.Run("LinkedAddon_GetListCancel", func(t *testing.T) {
+		store, mine, theirs, _ := seed()
+		r := withSourceAddon(setupDeliveryHandlerTest(false, strangerUUID), addonID)
+
+		assert.Equal(t, http.StatusOK, do(r, "GET", "/webhook_deliveries/"+mine.ID.String()).Code)
+		assert.Equal(t, http.StatusForbidden, do(r, "GET", "/webhook_deliveries/"+theirs.ID.String()).Code)
+
+		w := do(r, "GET", "/webhook_deliveries")
+		require.Equal(t, http.StatusOK, w.Code)
+		var list ListWebhookDeliveriesResponse
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &list))
+		assert.Equal(t, 2, list.Total, "own addon's deliveries only (active + delivered)")
+		for _, d := range list.Deliveries {
+			assert.Equal(t, addonID, *d.AddonId)
+		}
+
+		assert.Equal(t, http.StatusNoContent, do(r, "DELETE", "/webhook_deliveries/"+mine.ID.String()).Code)
+		assert.Equal(t, DeliveryStatusCancelled, store.records[mine.ID].Status)
+		assert.Equal(t, http.StatusConflict, do(r, "DELETE", "/webhook_deliveries/"+mine.ID.String()).Code, "already cancelled")
+		assert.Equal(t, http.StatusForbidden, do(r, "DELETE", "/webhook_deliveries/"+theirs.ID.String()).Code)
+
+		// The addon's own status callback after cancel is rejected, status stays cancelled
+		req := httptest.NewRequest("PUT", "/webhook_deliveries/"+mine.ID.String()+"/status", strings.NewReader(`{"status":"failed"}`))
+		w = httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Equal(t, DeliveryStatusCancelled, store.records[mine.ID].Status)
+	})
+
+	t.Run("Cancel_TerminalIs409_MissingIs404", func(t *testing.T) {
+		_, _, _, done := seed()
+		r := setupDeliveryHandlerTest(true, ownerUUID)
+		assert.Equal(t, http.StatusConflict, do(r, "DELETE", "/webhook_deliveries/"+done.ID.String()).Code)
+		assert.Equal(t, http.StatusNotFound, do(r, "DELETE", "/webhook_deliveries/"+uuid.New().String()).Code)
+		assert.Equal(t, http.StatusBadRequest, do(r, "DELETE", "/webhook_deliveries/nope").Code)
+	})
+
+	t.Run("List_Visibility", func(t *testing.T) {
+		seed()
+		count := func(r *gin.Engine) int {
+			w := do(r, "GET", "/webhook_deliveries")
+			require.Equal(t, http.StatusOK, w.Code)
+			var list ListWebhookDeliveriesResponse
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &list))
+			return list.Total
+		}
+		assert.Equal(t, 3, count(setupDeliveryHandlerTest(true, strangerUUID)), "admin sees all")
+		assert.Equal(t, 3, count(setupDeliveryHandlerTest(false, ownerUUID)), "subscription owner sees all of its deliveries")
+		assert.Equal(t, 1, count(setupDeliveryHandlerTest(false, invokerUUID)), "invoker sees what they invoked")
+		assert.Equal(t, 0, count(setupDeliveryHandlerTest(false, strangerUUID)), "stranger sees nothing")
+	})
+
+	t.Run("Cancel_InvokerAndOwnerAllowed", func(t *testing.T) {
+		_, mine, theirs, _ := seed()
+		assert.Equal(t, http.StatusNoContent, do(setupDeliveryHandlerTest(false, invokerUUID), "DELETE", "/webhook_deliveries/"+mine.ID.String()).Code)
+		assert.Equal(t, http.StatusNoContent, do(setupDeliveryHandlerTest(false, ownerUUID), "DELETE", "/webhook_deliveries/"+theirs.ID.String()).Code)
 	})
 }

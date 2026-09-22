@@ -611,3 +611,100 @@ func TestAddonInvocation_Unauthorized(t *testing.T) {
 
 	t.Log("Unauthorized addon invocation test passed")
 }
+
+// TestAddonInvocationCancel covers #913: the invoker reads, lists and cancels
+// their own delivery with a plain JWT on /webhook-deliveries (no HMAC), and the
+// addon's status callback after the cancel is rejected with 409.
+func TestAddonInvocationCancel(t *testing.T) {
+	if os.Getenv("INTEGRATION_TESTS") != "true" {
+		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")
+	}
+
+	serverURL := os.Getenv("TMI_SERVER_URL")
+	if serverURL == "" {
+		serverURL = "http://localhost:8080"
+	}
+
+	if err := framework.EnsureOAuthStubRunning(); err != nil {
+		t.Fatalf("OAuth stub not running: %v\nPlease run: make start-oauth-stub", err)
+	}
+
+	tokens, err := framework.AuthenticateAdmin()
+	framework.AssertNoError(t, err, "Authentication failed")
+
+	client, err := framework.NewClient(serverURL, tokens)
+	framework.AssertNoError(t, err, "Failed to create integration client")
+
+	noValClient, err := framework.NewClient(serverURL, tokens, framework.WithValidation(false))
+	framework.AssertNoError(t, err, "Failed to create no-validation client")
+
+	receiver := framework.NewWebhookReceiver(framework.WithCallbackMode("async"))
+	defer receiver.Close()
+
+	_, secret, addonID, threatModelID := setupAddonInfrastructure(t, client, receiver)
+
+	resp, err := client.Do(framework.Request{
+		Method: "POST",
+		Path:   "/addons/" + addonID + "/invoke",
+		Body:   map[string]any{"threat_model_id": threatModelID},
+	})
+	framework.AssertNoError(t, err, "Failed to invoke addon")
+	framework.AssertStatusCode(t, resp, 202)
+	deliveryID := framework.ExtractID(t, resp, "delivery_id")
+
+	receiver.WaitForDelivery(t, 30*time.Second)
+
+	// JWT read on the dual-auth endpoint (was 401 for every bearer before #913)
+	resp, err = client.Do(framework.Request{Method: "GET", Path: "/webhook-deliveries/" + deliveryID})
+	framework.AssertNoError(t, err, "Failed to GET delivery with JWT")
+	framework.AssertStatusOK(t, resp)
+
+	// Listed for the caller
+	resp, err = client.Do(framework.Request{Method: "GET", Path: "/webhook-deliveries?limit=100"})
+	framework.AssertNoError(t, err, "Failed to list deliveries")
+	framework.AssertStatusOK(t, resp)
+	var list struct {
+		Deliveries []map[string]any `json:"deliveries"`
+	}
+	framework.AssertNoError(t, json.Unmarshal(resp.Body, &list), "Failed to parse delivery list")
+	found := false
+	for _, d := range list.Deliveries {
+		if d["id"] == deliveryID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("delivery %s missing from GET /webhook-deliveries", deliveryID)
+	}
+
+	// Cancel, then confirm it is terminal
+	resp, err = client.Do(framework.Request{Method: "DELETE", Path: "/webhook-deliveries/" + deliveryID})
+	framework.AssertNoError(t, err, "Failed to cancel delivery")
+	framework.AssertStatusCode(t, resp, 204)
+
+	resp, err = client.Do(framework.Request{Method: "DELETE", Path: "/webhook-deliveries/" + deliveryID})
+	framework.AssertNoError(t, err, "Failed to re-cancel delivery")
+	framework.AssertStatusCode(t, resp, 409)
+
+	resp, err = client.Do(framework.Request{Method: "GET", Path: "/webhook-deliveries/" + deliveryID})
+	framework.AssertNoError(t, err, "Failed to GET cancelled delivery")
+	framework.AssertStatusOK(t, resp)
+	var del map[string]any
+	framework.AssertNoError(t, json.Unmarshal(resp.Body, &del), "Failed to parse delivery")
+	if del["status"] != "cancelled" {
+		t.Fatalf("expected status cancelled, got %v", del["status"])
+	}
+
+	// The addon's HMAC callback after the cancel is rejected
+	body, _ := json.Marshal(map[string]any{"status": "failed", "status_message": "aborted"})
+	resp, err = noValClient.Do(framework.Request{
+		Method:  "POST",
+		Path:    "/webhook-deliveries/" + deliveryID + "/status",
+		Body:    json.RawMessage(body),
+		Headers: map[string]string{"X-Webhook-Signature": computeHMAC(body, secret)},
+	})
+	framework.AssertNoError(t, err, "Failed to send post-cancel callback")
+	framework.AssertStatusCode(t, resp, 409)
+
+	t.Logf("Addon cancel test passed: addon=%s, delivery=%s", addonID, deliveryID)
+}

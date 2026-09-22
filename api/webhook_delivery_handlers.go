@@ -273,14 +273,14 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 		logger.Warn("Webhook has no secret, skipping HMAC verification for delivery: %s", deliveryID)
 	}
 
-	// Validate status transition: can't update delivered/failed
-	if record.Status == DeliveryStatusDelivered || record.Status == DeliveryStatusFailed {
-		logger.Warn("Cannot update delivered/failed delivery: id=%s, current_status=%s",
+	// Validate status transition: terminal states (delivered/failed/cancelled) are final
+	if isTerminalDeliveryStatus(record.Status) {
+		logger.Warn("Cannot update terminal delivery: id=%s, current_status=%s",
 			deliveryID, record.Status)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusConflict,
 			Code:    "conflict",
-			Message: "Cannot update delivery that is already delivered or failed",
+			Message: "Cannot update delivery that is already delivered, failed, or cancelled",
 		})
 		return
 	}
@@ -401,22 +401,35 @@ func verifyDeliveryHMAC(c *gin.Context, record *WebhookDeliveryRecord, signature
 }
 
 // verifyDeliveryJWTAccess verifies JWT-based access to a delivery record.
-// Allows access for admins, subscription owners, or addon invokers.
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: authorize delivery access for admins, subscription owners, or addon invokers via JWT (reads DB)
+// Allows access for admins, subscription owners, addon invokers, or the
+// client-credentials identity linked to the delivery's addon.
+// SEM@0000000000000000000000000000000000000000: authorize delivery access for admins, owners, invokers, or the linked addon identity via JWT (reads DB)
 func verifyDeliveryJWTAccess(c *gin.Context, record *WebhookDeliveryRecord) error {
 	logger := slogging.Get().WithContext(c)
 
 	// Validate JWT auth
-	_, err := GetAuthenticatedUser(c)
-	if err != nil {
+	if _, err := GetAuthenticatedUser(c); err != nil {
 		logger.Error("Authentication failed: %v", err)
 		return err
 	}
-
-	// Check if user is admin
-	isAdmin, _ := IsUserAdministrator(c)
-	if isAdmin {
+	if deliveryVisibleToCaller(c, record) {
 		return nil
+	}
+	logger.Warn("Caller denied access to delivery %s", record.ID)
+	return &RequestError{
+		Status:  http.StatusForbidden,
+		Code:    "forbidden",
+		Message: "Access denied",
+	}
+}
+
+// deliveryVisibleToCaller applies the delivery access rule to an already
+// authenticated caller: admin, addon invoker, linked addon identity, or
+// subscription owner.
+// SEM@0000000000000000000000000000000000000000: report whether the authenticated caller may see a delivery record (reads DB)
+func deliveryVisibleToCaller(c *gin.Context, record *WebhookDeliveryRecord) bool {
+	if isAdmin, _ := IsUserAdministrator(c); isAdmin {
+		return true
 	}
 
 	// Get user's internal UUID
@@ -429,25 +442,25 @@ func verifyDeliveryJWTAccess(c *gin.Context, record *WebhookDeliveryRecord) erro
 		}
 	}
 
-	// Check if user is the addon invoker
+	// Addon invoker
 	if record.InvokedByUUID != nil && *record.InvokedByUUID == userUUID {
-		return nil
+		return true
 	}
 
-	// Check if user owns the subscription
+	// #913: a client-credentials identity linked to the delivery's addon
+	// (tmi_addon_id claim, see cmd/server/jwt_auth.go) owns that addon's deliveries
+	if record.AddonID != nil && SourceAddonIDFromContext(c.Request.Context()) == record.AddonID.String() {
+		return true
+	}
+
+	// Subscription owner
 	if GlobalWebhookSubscriptionStore != nil {
 		webhook, err := GlobalWebhookSubscriptionStore.Get(c.Request.Context(), record.SubscriptionID.String())
 		if err == nil && webhook.OwnerId == userUUID {
-			return nil
+			return true
 		}
 	}
-
-	logger.Warn("User %s denied access to delivery %s", userUUID, record.ID)
-	return &RequestError{
-		Status:  http.StatusForbidden,
-		Code:    "forbidden",
-		Message: "Access denied",
-	}
+	return false
 }
 
 // sanitizePinnedLastError removes URL substrings from LastError for operator-pinned subscriptions.
@@ -515,6 +528,110 @@ func deliveryRecordToWebhookDelivery(r *WebhookDeliveryRecord, sub *DBWebhookSub
 	}
 
 	return delivery
+}
+
+// CancelWebhookDelivery marks a non-terminal delivery as cancelled (#913).
+// JWT only: admin, subscription owner, addon invoker, or the addon-linked credential.
+// SEM@0000000000000000000000000000000000000000: cancel a webhook delivery for an authorized JWT caller, rejecting terminal states (mutates shared state)
+func CancelWebhookDelivery(c *gin.Context) {
+	logger := slogging.Get().WithContext(c)
+
+	deliveryID, err := uuid.Parse(c.Param("delivery_id"))
+	if err != nil {
+		HandleRequestError(c, &RequestError{Status: http.StatusBadRequest, Code: "invalid_input", Message: "Invalid delivery ID format"})
+		return
+	}
+	if GlobalWebhookDeliveryRedisStore == nil {
+		logger.Error("Webhook delivery store not initialized")
+		HandleRequestError(c, &RequestError{Status: http.StatusServiceUnavailable, Code: "service_unavailable", Message: "Delivery tracking not available"})
+		return
+	}
+	record, err := GlobalWebhookDeliveryRedisStore.Get(c.Request.Context(), deliveryID)
+	if err != nil {
+		HandleRequestError(c, &RequestError{Status: http.StatusNotFound, Code: "not_found", Message: "Delivery record not found or expired"})
+		return
+	}
+	if err := verifyDeliveryJWTAccess(c, record); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	if isTerminalDeliveryStatus(record.Status) {
+		HandleRequestError(c, &RequestError{Status: http.StatusConflict, Code: "conflict", Message: "Cannot cancel delivery that is already delivered, failed, or cancelled"})
+		return
+	}
+	// ponytail: get-then-update race with the delivery worker; a delivery that is
+	// mid-flight keeps running until the addon polls and sees cancelled, which is
+	// the agreed contract. Add a Redis WATCH/MULTI if a lost cancel ever matters.
+	record.Status = DeliveryStatusCancelled
+	if err := GlobalWebhookDeliveryRedisStore.Update(c.Request.Context(), record); err != nil {
+		logger.Error("Failed to cancel delivery record: id=%s, error=%v", deliveryID, err)
+		HandleRequestError(c, &RequestError{Status: http.StatusInternalServerError, Code: "server_error", Message: "Failed to cancel delivery"})
+		return
+	}
+	logger.Info("Delivery cancelled: id=%s", deliveryID)
+	c.Status(http.StatusNoContent)
+}
+
+// ListMyWebhookDeliveries lists the deliveries the JWT caller may see (#913):
+// everything for admins; otherwise the same rule as verifyDeliveryJWTAccess.
+// SEM@0000000000000000000000000000000000000000: list webhook deliveries visible to the caller with pagination (reads DB)
+func ListMyWebhookDeliveries(c *gin.Context, params ListMyWebhookDeliveriesParams) {
+	logger := slogging.Get().WithContext(c)
+
+	if _, err := GetAuthenticatedUser(c); err != nil {
+		HandleRequestError(c, err)
+		return
+	}
+	if GlobalWebhookDeliveryRedisStore == nil {
+		logger.Error("Webhook delivery store not initialized")
+		HandleRequestError(c, &RequestError{Status: http.StatusServiceUnavailable, Code: "service_unavailable", Message: "Delivery tracking not available"})
+		return
+	}
+	offset, limit := 0, 20
+	if params.Offset != nil {
+		offset = *params.Offset
+	}
+	if params.Limit != nil {
+		limit = min(*params.Limit, 100)
+	}
+
+	ctx := c.Request.Context()
+	// ponytail: the Redis store is a full SCAN either way (ListAll does the same);
+	// fetch everything, filter by access, paginate in memory. Index by
+	// addon/invoker if delivery volume ever makes this slow.
+	all, _, err := GlobalWebhookDeliveryRedisStore.ListAll(ctx, 1<<30, 0)
+	if err != nil {
+		logger.Error("Failed to list delivery records: %v", err)
+		HandleRequestError(c, &RequestError{Status: http.StatusInternalServerError, Code: "server_error", Message: "Failed to list deliveries"})
+		return
+	}
+	visible := all[:0]
+	for i := range all {
+		if deliveryVisibleToCaller(c, &all[i]) {
+			visible = append(visible, all[i])
+		}
+	}
+	total := len(visible)
+	end := min(offset+limit, total)
+	page := []WebhookDeliveryRecord{}
+	if offset < total {
+		page = visible[offset:end]
+	}
+
+	subCache := map[string]*DBWebhookSubscription{}
+	items := make([]WebhookDelivery, 0, len(page))
+	for i := range page {
+		subID := page[i].SubscriptionID.String()
+		sub, ok := subCache[subID]
+		if !ok && GlobalWebhookSubscriptionStore != nil {
+			if fetched, fetchErr := GlobalWebhookSubscriptionStore.Get(ctx, subID); fetchErr == nil {
+				sub = &fetched
+			}
+			subCache[subID] = sub
+		}
+		items = append(items, deliveryRecordToWebhookDelivery(&page[i], sub))
+	}
+	c.JSON(http.StatusOK, ListWebhookDeliveriesResponse{Deliveries: items, Total: total, Limit: limit, Offset: offset})
 }
 
 // intPtr converts an int to a pointer.

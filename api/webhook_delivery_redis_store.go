@@ -22,7 +22,7 @@ type WebhookDeliveryRecord struct {
 	SubscriptionID uuid.UUID  `json:"subscription_id"`
 	EventType      string     `json:"event_type"`
 	Payload        string     `json:"payload"`
-	Status         string     `json:"status"`         // pending, in_progress, delivered, failed
+	Status         string     `json:"status"`         // pending, in_progress, delivered, failed, cancelled
 	StatusPercent  int        `json:"status_percent"` // 0-100 progress indicator
 	StatusMessage  string     `json:"status_message"` // human-readable status description
 	Attempts       int        `json:"attempts"`       // number of delivery attempts so far
@@ -45,7 +45,18 @@ const (
 	DeliveryStatusInProgress = "in_progress"
 	DeliveryStatusDelivered  = "delivered"
 	DeliveryStatusFailed     = "failed"
+	DeliveryStatusCancelled  = "cancelled" // #913: set by DELETE /webhook-deliveries/{id}; terminal
 )
+
+// isTerminalDeliveryStatus reports whether a delivery can no longer change state.
+// SEM@0000000000000000000000000000000000000000: report whether a delivery status is terminal (pure)
+func isTerminalDeliveryStatus(status string) bool {
+	switch status {
+	case DeliveryStatusDelivered, DeliveryStatusFailed, DeliveryStatusCancelled, "completed":
+		return true
+	}
+	return false
+}
 
 // Delivery TTL and timeout constants
 const (
@@ -118,12 +129,10 @@ func (s *WebhookDeliveryRedisStore) buildDeliveryKey(id uuid.UUID) string {
 // ttlForStatus returns the appropriate TTL for a delivery record based on its status
 // SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: return the Redis TTL for a delivery record based on its status (pure)
 func ttlForStatus(status string) time.Duration {
-	switch status {
-	case DeliveryStatusDelivered, DeliveryStatusFailed, "completed":
+	if isTerminalDeliveryStatus(status) {
 		return DeliveryTTLTerminal
-	default:
-		return DeliveryTTLActive
 	}
+	return DeliveryTTLActive
 }
 
 // truncateDeliveryTimestamps rounds every timestamp on the record down to
