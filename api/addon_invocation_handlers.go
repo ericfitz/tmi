@@ -18,14 +18,16 @@ import (
 // invokerContext holds the authenticated user context for an addon invocation
 // SEM@ca61a567c4babc9270ee913396aaa4fb530505a3: authenticated user identity used when recording an addon invocation
 type invokerContext struct {
-	userEmail string
-	userUUID  uuid.UUID
-	userName  string
+	userEmail    string
+	userUUID     uuid.UUID
+	userName     string
+	provider     string
+	providerUser string
 }
 
 // extractInvokerContext extracts and validates the authenticated user context from a gin context.
 // Returns an error suitable for HandleRequestError if validation fails.
-// SEM@c85b80a7fe0b19a3e43a1c6f9dc121ba2ccd093c: parse and validate the authenticated user identity from a request context
+// SEM@0000000000000000000000000000000000000000: parse and validate the authenticated user identity, incl. IdP identity, from a request context
 func extractInvokerContext(c *gin.Context) (*invokerContext, error) {
 	logger := slogging.Get().WithContext(c)
 
@@ -34,7 +36,6 @@ func extractInvokerContext(c *gin.Context) (*invokerContext, error) {
 		logger.Error("Authentication failed: %v", err)
 		return nil, err
 	}
-	_ = user.ProviderID // available if needed for logging
 
 	var userUUID uuid.UUID
 	if internalUUIDInterface, exists := c.Get("userInternalUUID"); exists {
@@ -69,9 +70,11 @@ func extractInvokerContext(c *gin.Context) (*invokerContext, error) {
 	}
 
 	return &invokerContext{
-		userEmail: user.Email,
-		userUUID:  userUUID,
-		userName:  userName,
+		userEmail:    user.Email,
+		userUUID:     userUUID,
+		userName:     userName,
+		provider:     user.Provider,
+		providerUser: user.ProviderID,
 	}, nil
 }
 
@@ -243,14 +246,16 @@ func InvokeAddon(c *gin.Context) {
 	}
 
 	deliveryRecord := &WebhookDeliveryRecord{
-		SubscriptionID: addon.WebhookID,
-		EventType:      "addon.invoked",
-		Payload:        string(envelopeBytes),
-		Status:         DeliveryStatusPending,
-		AddonID:        &addonID,
-		InvokedByUUID:  &invoker.userUUID,
-		InvokedByEmail: invoker.userEmail,
-		InvokedByName:  invoker.userName,
+		SubscriptionID:      addon.WebhookID,
+		EventType:           "addon.invoked",
+		Payload:             string(envelopeBytes),
+		Status:              DeliveryStatusPending,
+		AddonID:             &addonID,
+		InvokedByUUID:       &invoker.userUUID,
+		InvokedByEmail:      invoker.userEmail,
+		InvokedByName:       invoker.userName,
+		InvokedByProvider:   invoker.provider,
+		InvokedByProviderID: invoker.providerUser,
 	}
 
 	if err := GlobalWebhookDeliveryRedisStore.Create(c.Request.Context(), deliveryRecord); err != nil {

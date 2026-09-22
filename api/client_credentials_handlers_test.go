@@ -697,15 +697,30 @@ func TestCreateCurrentUserClientCredential_DirectWrite(t *testing.T) {
 }
 
 // #883: addon_id on a credential requires direct_write and an existing addon.
+// #913: and the caller must be an admin or own the addon's webhook subscription,
+// because the link grants access to that addon's deliveries.
 func TestCreateCurrentUserClientCredential_AddonLink(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	validUserUUID := uuid.New().String()
 	knownAddon := uuid.New()
-	prev := GlobalAddonStore
-	GlobalAddonStore = &consumerTestAddonStore{addons: map[uuid.UUID]*Addon{knownAddon: {ID: knownAddon}}}
-	t.Cleanup(func() { GlobalAddonStore = prev })
+	foreignAddon := uuid.New()
+	mySub, foreignSub := uuid.New(), uuid.New()
+	prev, prevSub, prevGroups := GlobalAddonStore, GlobalWebhookSubscriptionStore, GlobalGroupMemberRepository
+	GlobalAddonStore = &consumerTestAddonStore{addons: map[uuid.UUID]*Addon{
+		knownAddon:   {ID: knownAddon, WebhookID: mySub},
+		foreignAddon: {ID: foreignAddon, WebhookID: foreignSub},
+	}}
+	subStore := newMockWebhookSubscriptionStore()
+	subStore.subscriptions[mySub.String()] = DBWebhookSubscription{Id: mySub, OwnerId: uuid.MustParse(validUserUUID)}
+	subStore.subscriptions[foreignSub.String()] = DBWebhookSubscription{Id: foreignSub, OwnerId: uuid.New()}
+	GlobalWebhookSubscriptionStore = subStore
+	t.Cleanup(func() {
+		GlobalAddonStore, GlobalWebhookSubscriptionStore, GlobalGroupMemberRepository = prev, prevSub, prevGroups
+	})
 
+	isAdmin := false
 	post := func(body string) (*httptest.ResponseRecorder, Error) {
+		GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: isAdmin}
 		server := newTestServerWithNilAuth()
 		c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(body))
 		SetFullUserContext(c, "bot@example.com", "provider-id", validUserUUID, "tmi", nil)
@@ -718,7 +733,16 @@ func TestCreateCurrentUserClientCredential_AddonLink(t *testing.T) {
 		return w, errResp
 	}
 
-	w, e := post(`{"name":"tf-wh","addon_id":"` + knownAddon.String() + `"}`)
+	// Someone else's addon: rejected for a plain user, allowed for an admin.
+	w, e := post(`{"name":"tf-wh","direct_write":true,"addon_id":"` + foreignAddon.String() + `"}`)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, e.ErrorDescription, "ownership of the addon's webhook")
+	isAdmin = true
+	w, _ = post(`{"name":"tf-wh","direct_write":true,"addon_id":"` + foreignAddon.String() + `"}`)
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	isAdmin = false
+
+	w, e = post(`{"name":"tf-wh","addon_id":"` + knownAddon.String() + `"}`)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, e.ErrorDescription, "requires direct_write")
 
