@@ -37,6 +37,9 @@ type WebhookDeliveryRecord struct {
 	InvokedByUUID  *uuid.UUID `json:"invoked_by_uuid,omitempty"`
 	InvokedByEmail string     `json:"invoked_by_email,omitempty"`
 	InvokedByName  string     `json:"invoked_by_name,omitempty"`
+	// Invoker's IdP identity so invoked_by can be a valid User in responses (#913)
+	InvokedByProvider   string `json:"invoked_by_provider,omitempty"`
+	InvokedByProviderID string `json:"invoked_by_provider_id,omitempty"`
 }
 
 // Delivery status constants

@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -481,7 +482,7 @@ func sanitizePinnedLastError(lastError, pinnedURL string) string {
 // deliveryRecordToWebhookDelivery converts a WebhookDeliveryRecord to the API response type.
 // sub is the owning subscription, used to redact the LastError field for operator-pinned
 // subscriptions. Pass nil to skip redaction (fail-open).
-// SEM@a870b93778753735e380098f91f8c25076bbb50a: convert a webhook delivery record to the API response DTO, sanitizing pinned URLs (pure)
+// SEM@0000000000000000000000000000000000000000: convert a webhook delivery record to the API response DTO, sanitizing pinned URLs and filling invoker identity (pure)
 func deliveryRecordToWebhookDelivery(r *WebhookDeliveryRecord, sub *DBWebhookSubscription) WebhookDelivery {
 	delivery := WebhookDelivery{
 		Id:             r.ID,
@@ -516,12 +517,21 @@ func deliveryRecordToWebhookDelivery(r *WebhookDeliveryRecord, sub *DBWebhookSub
 		}
 	}
 
-	// Build InvokedBy user if addon-specific fields are populated
+	// Build InvokedBy user if addon-specific fields are populated. Records
+	// written before #913 lack the provider identity; fall back to the
+	// internal UUID so the User schema (provider_id minLength 1) still holds.
 	if r.InvokedByEmail != "" {
+		provider, providerID := r.InvokedByProvider, r.InvokedByProviderID
+		if provider == "" {
+			provider = "unknown"
+		}
+		if providerID == "" && r.InvokedByUUID != nil {
+			providerID = r.InvokedByUUID.String()
+		}
 		delivery.InvokedBy = &User{
 			PrincipalType: UserPrincipalTypeUser,
-			Provider:      "unknown",
-			ProviderId:    "",
+			Provider:      provider,
+			ProviderId:    providerID,
 			DisplayName:   r.InvokedByName,
 			Email:         openapi_types.Email(r.InvokedByEmail),
 		}
@@ -589,10 +599,10 @@ func ListMyWebhookDeliveries(c *gin.Context, params ListMyWebhookDeliveriesParam
 	}
 	offset, limit := 0, 20
 	if params.Offset != nil {
-		offset = *params.Offset
+		offset = max(*params.Offset, 0)
 	}
 	if params.Limit != nil {
-		limit = min(*params.Limit, 100)
+		limit = min(max(*params.Limit, 1), 100)
 	}
 
 	ctx := c.Request.Context()
@@ -611,6 +621,8 @@ func ListMyWebhookDeliveries(c *gin.Context, params ListMyWebhookDeliveriesParam
 			visible = append(visible, all[i])
 		}
 	}
+	// Newest first: callers want their current jobs, not the oldest history
+	sort.Slice(visible, func(i, j int) bool { return visible[i].CreatedAt.After(visible[j].CreatedAt) })
 	total := len(visible)
 	end := min(offset+limit, total)
 	page := []WebhookDeliveryRecord{}

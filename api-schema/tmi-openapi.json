@@ -75456,7 +75456,7 @@
       "get": {
         "operationId": "listMyWebhookDeliveries",
         "summary": "List my webhook deliveries",
-        "description": "List deliveries the caller may see: admins see every delivery; other callers see deliveries they invoked, deliveries of subscriptions they own, and (for a client-credentials identity linked to an addon) every delivery of that addon. Ordered by creation time, oldest first.",
+        "description": "List deliveries the caller may see: admins see every delivery; other callers see deliveries they invoked, deliveries of subscriptions they own, and (for a client-credentials identity linked to an addon) every delivery of that addon. Newest first.",
         "tags": [
           "Webhook Deliveries"
         ],

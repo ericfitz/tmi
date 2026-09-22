@@ -429,8 +429,12 @@ func sanitizeForLogging(s string) string {
 }
 
 // resolveCredentialAddonID validates the optional addon link on a credential
-// create request (#883): it requires direct_write and an existing addon.
-// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: validate a credential's optional addon link against direct_write and addon existence (reads DB)
+// create request (#883): it requires direct_write, an existing addon, and a
+// caller entitled to act for that addon (admin, or owner of the addon's
+// webhook subscription). The link is an authorization grant (#913: it makes
+// the credential the owner of the addon's deliveries), so a plain user must
+// not be able to attach someone else's addon to their credential.
+// SEM@0000000000000000000000000000000000000000: validate a credential's addon link: direct_write, addon exists, caller is admin or owns its webhook (reads DB)
 func resolveCredentialAddonID(c *gin.Context, addonID *openapi_types.UUID, directWrite bool) (string, error) {
 	if addonID == nil {
 		return "", nil
@@ -441,8 +445,20 @@ func resolveCredentialAddonID(c *gin.Context, addonID *openapi_types.UUID, direc
 	if GlobalAddonStore == nil {
 		return "", errors.New("addon_id cannot be verified: addon store unavailable")
 	}
-	if _, err := GlobalAddonStore.Get(c.Request.Context(), *addonID); err != nil {
+	addon, err := GlobalAddonStore.Get(c.Request.Context(), *addonID)
+	if err != nil {
 		return "", errors.New("addon_id does not refer to an existing addon")
+	}
+	if isAdmin, _ := IsUserAdministrator(c); isAdmin {
+		return addonID.String(), nil
+	}
+	userUUID, _ := GetUserInternalUUID(c)
+	if GlobalWebhookSubscriptionStore == nil {
+		return "", errors.New("addon_id cannot be verified: webhook store unavailable")
+	}
+	sub, err := GlobalWebhookSubscriptionStore.Get(c.Request.Context(), addon.WebhookID.String())
+	if err != nil || userUUID == "" || sub.OwnerId.String() != userUUID {
+		return "", errors.New("addon_id requires administrator role or ownership of the addon's webhook subscription")
 	}
 	return addonID.String(), nil
 }
