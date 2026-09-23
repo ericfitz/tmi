@@ -194,7 +194,7 @@ resource "kubernetes_config_map_v1" "fluent_bit" {
       [OUTPUT]
           Name                cloudwatch_logs
           Match               kube.*
-          region              ${data.aws_region.current.name}
+          region              ${data.aws_region.current.region}
           log_group_name      ${aws_cloudwatch_log_group.tmi.name}
           log_stream_prefix   pod/
           auto_create_group   false
