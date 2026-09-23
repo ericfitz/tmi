@@ -148,7 +148,7 @@ func (TriageNote) TableName() string {
 // serialize. The lock is only sufficient at READ COMMITTED, where MAX(id) sees
 // a note committed while this transaction waited; GormTriageNoteStore.Create
 // runs at that level (#911).
-// SEM@0000000000000000000000000000000000000000: assign the next per-response triage note ID under a parent row lock (reads DB)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: assign the next per-response triage note ID under a parent row lock (reads DB)
 func (t *TriageNote) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == 0 {
 		var parent []string

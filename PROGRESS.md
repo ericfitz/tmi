@@ -1,3 +1,19 @@
+# Session progress — 2026-09-23
+
+## Landed (pushed to main)
+
+- **PR #938 merged** (`cdeba66c`, 1.14.2) — `fix(api)` closes #911: list/count queries no longer swallow
+  errors (`batchCounts`, `batchLoadAuthorizationLightweight`, `resolveUsersAndGroupsBatch` return classified
+  errors instead of a 200 with zero counts or missing grants); `GormThreatModelStore.List` deleted (the websocket
+  diagram→threat-model lookup now uses `DiagramStore.GetThreatModelID`); `ClientCredentialService` closures now
+  use their `tx` (List via `WithRetryableGormRead`, Create/Delete single statements, no retry);
+  `ThreatModelStore.Create` takes ctx; `TriageNote.BeforeCreate` locks the parent response row before `MAX(id)`,
+  and note creation runs at READ COMMITTED. Item 3 (SQL-level pagination) split to #937, which also carries the
+  Oracle review's read-retry/ctx note. Oracle review APPROVED WITH NOTES; security review no findings; unit 2822;
+  PostgreSQL integration 92/0/9; OCI Oracle-tagged 20/0, OCI HTTP+workflow 73/2 (both pass alone → #940).
+- **Filed:** #939 (dev-config restore on `DB=oracle` uses the non-Oracle dbtool), #940 (Oracle full-run flakes).
+- **Deployed:** 1.14.1 (main `98ad876f`) to k3s-rp and api.tmi.dev. 1.14.2 is not deployed yet.
+
 # Session progress — 2026-09-22
 
 ## Landed (pushed to main)
