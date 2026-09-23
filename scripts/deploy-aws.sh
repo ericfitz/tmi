@@ -1028,22 +1028,37 @@ verify_deployment() {
     echo "    kubectl logs -n ${NAMESPACE} -l app=tmi-server   # View API logs"
     echo "    ./scripts/deploy-aws.sh --destroy                # Tear down"
     echo ""
-    log_warning "Auth posture: production build mode. The tmi provider is enabled but"
-    log_warning "restricted to the Client Credentials Grant — the login_hint/authorization-code"
-    log_warning "flow is disabled at runtime, so no anonymous JWTs. Interactive human sign-in"
-    log_warning "uses the real OAuth providers (e.g. Google) from the replicated config."
-    log_warning "First-user auto-promotion is OFF; admin comes solely from the 'administrators'"
-    log_warning "setting (expected: the configured Google admin identity) — if none is seeded,"
-    log_warning "NO ONE will have admin, so verify the imported config. Every authenticated"
-    log_warning "user is a security reviewer (everyone_is_a_reviewer=true)."
+    log_info "Auth posture: production build mode. The tmi provider is enabled but"
+    log_info "restricted to the Client Credentials Grant — the login_hint/authorization-code"
+    log_info "flow is disabled at runtime, so no anonymous JWTs. Interactive human sign-in"
+    log_info "uses the real OAuth providers (e.g. Google) from the replicated config."
+    log_info "First-user auto-promotion is OFF; admin comes solely from the 'administrators'"
+    log_info "setting (expected: the configured Google admin identity). Every authenticated"
+    log_info "user is a security reviewer (everyone_is_a_reviewer=true)."
     echo ""
-    log_warning "Settings-at-rest encryption (#547) is enabled, but it only applies to values"
-    log_warning "written from now on. Any Secret-classified setting already stored in RDS as"
-    log_warning "plaintext by an earlier deploy STAYS plaintext until it is rewritten. To"
-    log_warning "convert them, sign in as an administrator and call:"
-    log_warning "    POST https://${DOMAIN}/admin/settings/reencrypt"
-    log_warning "This needs an interactive (PKCE) admin token — service-account tokens are"
-    log_warning "refused on /admin/* — so it cannot be done from this script."
+    check_plaintext_secrets
+}
+
+# The server checks at startup whether any Secret-classified setting is still
+# stored as plaintext (#547) and logs the affected keys, never values, with the
+# remediation endpoint. Surface that here only when the new pod actually
+# logged it, so a deployment that is already encrypted is not told otherwise.
+check_plaintext_secrets() {
+    if ! kubectl rollout status deployment/tmi-server -n "${NAMESPACE}" --timeout=300s >/dev/null 2>&1; then
+        log_warning "tmi-server rollout did not finish; skipped the plaintext-secrets check."
+        return 0
+    fi
+    local finding
+    finding=$(kubectl logs deployment/tmi-server -n "${NAMESPACE}" 2>/dev/null \
+        | grep -m1 'settings/reencrypt' || true)
+    if [[ -z "${finding}" ]]; then
+        log_success "No Secret-classified settings are stored as plaintext"
+        return 0
+    fi
+    log_warning "The server found Secret-classified settings stored as plaintext:"
+    echo "  ${finding}"
+    log_warning "Sign in as an administrator and call POST https://${DOMAIN}/admin/settings/reencrypt"
+    log_warning "(needs an interactive PKCE admin token; service-account tokens are refused on /admin/*)."
 }
 
 # ============================================================================

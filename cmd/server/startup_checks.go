@@ -16,6 +16,7 @@ import (
 // SEM@99c7bf92a70c0288330ba2861b823dbda8ce3aa2: fetch a single system setting by key (reads DB)
 type secretKeyGetter interface {
 	Get(ctx context.Context, key string) (*models.SystemSetting, error)
+	PlaintextKeys(ctx context.Context, keys []string) ([]string, error)
 }
 
 // settingsLister is the subset of SettingsServiceInterface needed by the
@@ -30,8 +31,12 @@ type settingsLister interface {
 	List(ctx context.Context) ([]models.SystemSetting, error)
 }
 
-// warnIfPlaintextSecretsAtRest checks whether any Secret-classified settings have a
-// non-empty plaintext value stored in the database while encryption is disabled.
+// warnIfPlaintextSecretsAtRest checks whether any Secret-classified settings are
+// stored as plaintext in the database. With encryption disabled, any non-empty
+// secret value is plaintext. With encryption enabled, only rows written before
+// it was enabled can be, and those are what POST /admin/settings/reencrypt
+// converts; if there are none, nothing is logged, so a deployment that is
+// actually secure is never told it is not.
 //
 // Severity is scaled by build mode:
 //   - dev / test build → WARN
@@ -39,7 +44,8 @@ type settingsLister interface {
 //
 // The function NEVER returns an error; a warning is informational only and must not
 // abort startup. Call this after both the settings service and its encryptor are ready.
-// SEM@99c7bf92a70c0288330ba2861b823dbda8ce3aa2: warn when secret-classified settings are stored as plaintext while encryption is disabled (reads DB)
+// Only key names are logged, never values.
+// SEM@0000000000000000000000000000000000000000: warn when secret-classified settings are stored as plaintext, whether or not encryption is enabled (reads DB)
 func warnIfPlaintextSecretsAtRest(
 	ctx context.Context,
 	encryptor *crypto.SettingsEncryptor,
@@ -47,14 +53,34 @@ func warnIfPlaintextSecretsAtRest(
 	cfg *config.Config,
 	logger slogging.SimpleLogger,
 ) {
-	// Fast path: encryption is active — nothing to warn about.
-	if encryptor != nil && encryptor.IsEnabled() {
+	secretKeys := secretClassifiedKeys(cfg)
+	if len(secretKeys) == 0 {
 		return
 	}
 
-	// Collect the names of Secret-classified settings keys that have values in the DB.
-	secretKeys := secretClassifiedKeys(cfg)
-	if len(secretKeys) == 0 {
+	report := func(msg string) {
+		if cfg.Auth.BuildMode == "production" {
+			logger.Error("%s", msg)
+		} else {
+			logger.Warn("%s", msg)
+		}
+	}
+
+	if encryptor != nil && encryptor.IsEnabled() {
+		plaintextKeys, err := svc.PlaintextKeys(ctx, secretKeys)
+		if err != nil {
+			// Best-effort: a failed read must not produce a false alarm.
+			logger.Debug("startup check: could not read settings for plaintext check: %v", err)
+			return
+		}
+		if len(plaintextKeys) == 0 {
+			return
+		}
+		report("SECURITY WARNING: Secret-classified settings written before settings " +
+			"encryption was enabled are still stored as plaintext in the database. " +
+			"Affected keys: [" + strings.Join(plaintextKeys, ", ") + "]. " +
+			"To remediate: sign in as an administrator and call " +
+			"POST /admin/settings/reencrypt to encrypt them at rest.")
 		return
 	}
 
@@ -75,19 +101,12 @@ func warnIfPlaintextSecretsAtRest(
 		return // No secrets stored → no warning needed.
 	}
 
-	msg := "SECURITY WARNING: Secret-classified settings are stored as plaintext in the " +
+	report("SECURITY WARNING: Secret-classified settings are stored as plaintext in the " +
 		"database because settings encryption is not configured. " +
 		"Affected keys: [" + strings.Join(plaintextKeys, ", ") + "]. " +
 		"To remediate: set the TMI_SECRET_SETTINGS_ENCRYPTION_KEY environment variable " +
 		"(or configure a secrets vault), then call POST /admin/settings/reencrypt to " +
-		"encrypt existing values at rest."
-
-	isProduction := cfg.Auth.BuildMode == "production"
-	if isProduction {
-		logger.Error("%s", msg)
-	} else {
-		logger.Warn("%s", msg)
-	}
+		"encrypt existing values at rest.")
 }
 
 // warnIfConfigDatabaseDiverges checks whether any operational setting has both an

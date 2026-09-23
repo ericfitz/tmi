@@ -113,6 +113,18 @@ func (m *mockSecretKeyGetter) Get(_ context.Context, key string) (*models.System
 
 // listErr, when set, makes List fail — the divergence check must then skip
 // silently rather than abort startup.
+// PlaintextKeys treats the mock store as raw DB values: a non-empty value
+// without the ENC: prefix is plaintext.
+func (m *mockSecretKeyGetter) PlaintextKeys(_ context.Context, keys []string) ([]string, error) {
+	var out []string
+	for _, k := range keys {
+		if v, ok := m.store[k]; ok && v != "" && !crypto.IsEncrypted(v) {
+			out = append(out, k)
+		}
+	}
+	return out, nil
+}
+
 func (m *mockSecretKeyGetter) List(_ context.Context) ([]models.SystemSetting, error) {
 	if err, ok := m.errKeys[listErrSentinelKey]; ok {
 		return nil, err
@@ -261,27 +273,51 @@ func TestWarnIfPlaintextSecretsAtRest_ProductionBuildPlaintextSecrets(t *testing
 	}
 }
 
-// TestWarnIfPlaintextSecretsAtRest_EncryptionEnabled verifies that when encryption
-// is ON, no warning is emitted regardless of what the DB contains.
-func TestWarnIfPlaintextSecretsAtRest_EncryptionEnabled(t *testing.T) {
+// TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledAllEncrypted verifies that
+// when encryption is ON and every stored secret carries the ENC: prefix, nothing
+// is logged: a secure deployment must not be told it is insecure.
+// SEM@0000000000000000000000000000000000000000: validate no plaintext warning when encryption is on and all secrets are encrypted
+func TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledAllEncrypted(t *testing.T) {
 	cfg := minimalConfigWithBuildMode("production") // worst case
 	secretKeys := secretClassifiedKeys(cfg)
 	require.NotEmpty(t, secretKeys)
 
-	// All secret keys have values — but encryption IS enabled.
 	store := make(map[string]string)
 	for _, k := range secretKeys {
-		store[k] = "some-value"
+		store[k] = "ENC:v1:ciphertext"
 	}
 
 	log := &testLogger{}
-	svc := newMockSecretKeyGetter(store)
-	enc := enabledEncryptor(t)
+	warnIfPlaintextSecretsAtRest(context.Background(), enabledEncryptor(t), newMockSecretKeyGetter(store), cfg, log)
 
-	warnIfPlaintextSecretsAtRest(context.Background(), enc, svc, cfg, log)
+	assert.Empty(t, log.allLogs(), "expected no log output when every secret is encrypted")
+}
 
-	all := log.allLogs()
-	assert.Empty(t, all, "expected no log output when encryption is enabled")
+// TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledLegacyPlaintext verifies that
+// when encryption is ON but a secret stored before it was enabled is still
+// plaintext, one production ERROR names the key and the re-encrypt endpoint
+// (and not the env var, which is already set).
+// SEM@0000000000000000000000000000000000000000: validate the re-encrypt warning names legacy plaintext secrets when encryption is on
+func TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledLegacyPlaintext(t *testing.T) {
+	cfg := minimalConfigWithBuildMode("production")
+	secretKeys := secretClassifiedKeys(cfg)
+	require.NotEmpty(t, secretKeys)
+
+	store := map[string]string{secretKeys[0]: "legacy-plaintext"}
+	for _, k := range secretKeys[1:] {
+		store[k] = "ENC:v1:ciphertext"
+	}
+
+	log := &testLogger{}
+	warnIfPlaintextSecretsAtRest(context.Background(), enabledEncryptor(t), newMockSecretKeyGetter(store), cfg, log)
+
+	errs := log.logsAtLevel("ERROR")
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].msg, "/admin/settings/reencrypt")
+	assert.Contains(t, errs[0].msg, secretKeys[0])
+	assert.NotContains(t, errs[0].msg, "TMI_SECRET_SETTINGS_ENCRYPTION_KEY")
+	assert.NotContains(t, errs[0].msg, "legacy-plaintext", "values must never be logged")
+	assert.Empty(t, log.logsAtLevel("WARN"))
 }
 
 // TestWarnIfPlaintextSecretsAtRest_NoSecretsStored verifies that when encryption is
