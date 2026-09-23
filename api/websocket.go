@@ -1157,7 +1157,7 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, user ResolvedUse
 }
 
 // getThreatModelIdForDiagram finds the threat model that contains a specific diagram
-// SEM@0000000000000000000000000000000000000000: fetch the parent threat model UUID for a diagram; empty UUID if absent or on error (reads DB)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: fetch the parent threat model UUID for a diagram; empty UUID if absent or on error (reads DB)
 func (h *WebSocketHub) getThreatModelIdForDiagram(diagramID string) openapi_types.UUID {
 	// Safety check: if DiagramStore is not initialized (e.g., in tests), return empty UUID
 	if DiagramStore == nil {
