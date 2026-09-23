@@ -404,7 +404,7 @@ func verifyDeliveryHMAC(c *gin.Context, record *WebhookDeliveryRecord, signature
 // verifyDeliveryJWTAccess verifies JWT-based access to a delivery record.
 // Allows access for admins, subscription owners, addon invokers, or the
 // client-credentials identity linked to the delivery's addon.
-// SEM@0000000000000000000000000000000000000000: authorize delivery access for admins, owners, invokers, or the linked addon identity via JWT (reads DB)
+// SEM@411a53c663401d55a0f66913e00979599a208c93: authorize delivery access for admins, owners, invokers, or the linked addon identity via JWT (reads DB)
 func verifyDeliveryJWTAccess(c *gin.Context, record *WebhookDeliveryRecord) error {
 	logger := slogging.Get().WithContext(c)
 
@@ -427,7 +427,7 @@ func verifyDeliveryJWTAccess(c *gin.Context, record *WebhookDeliveryRecord) erro
 // deliveryVisibleToCaller applies the delivery access rule to an already
 // authenticated caller: admin, addon invoker, linked addon identity, or
 // subscription owner.
-// SEM@0000000000000000000000000000000000000000: report whether the authenticated caller may see a delivery record (reads DB)
+// SEM@411a53c663401d55a0f66913e00979599a208c93: report whether the authenticated caller may see a delivery record (reads DB)
 func deliveryVisibleToCaller(c *gin.Context, record *WebhookDeliveryRecord) bool {
 	if isAdmin, _ := IsUserAdministrator(c); isAdmin {
 		return true
@@ -482,7 +482,7 @@ func sanitizePinnedLastError(lastError, pinnedURL string) string {
 // deliveryRecordToWebhookDelivery converts a WebhookDeliveryRecord to the API response type.
 // sub is the owning subscription, used to redact the LastError field for operator-pinned
 // subscriptions. Pass nil to skip redaction (fail-open).
-// SEM@0000000000000000000000000000000000000000: convert a webhook delivery record to the API response DTO, sanitizing pinned URLs and filling invoker identity (pure)
+// SEM@411a53c663401d55a0f66913e00979599a208c93: convert a webhook delivery record to the API response DTO, sanitizing pinned URLs and filling invoker identity (pure)
 func deliveryRecordToWebhookDelivery(r *WebhookDeliveryRecord, sub *DBWebhookSubscription) WebhookDelivery {
 	delivery := WebhookDelivery{
 		Id:             r.ID,
@@ -542,7 +542,7 @@ func deliveryRecordToWebhookDelivery(r *WebhookDeliveryRecord, sub *DBWebhookSub
 
 // CancelWebhookDelivery marks a non-terminal delivery as cancelled (#913).
 // JWT only: admin, subscription owner, addon invoker, or the addon-linked credential.
-// SEM@0000000000000000000000000000000000000000: cancel a webhook delivery for an authorized JWT caller, rejecting terminal states (mutates shared state)
+// SEM@411a53c663401d55a0f66913e00979599a208c93: cancel a webhook delivery for an authorized JWT caller, rejecting terminal states (mutates shared state)
 func CancelWebhookDelivery(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -584,7 +584,7 @@ func CancelWebhookDelivery(c *gin.Context) {
 
 // ListMyWebhookDeliveries lists the deliveries the JWT caller may see (#913):
 // everything for admins; otherwise the same rule as verifyDeliveryJWTAccess.
-// SEM@0000000000000000000000000000000000000000: list webhook deliveries visible to the caller with pagination (reads DB)
+// SEM@411a53c663401d55a0f66913e00979599a208c93: list webhook deliveries visible to the caller with pagination (reads DB)
 func ListMyWebhookDeliveries(c *gin.Context, params ListMyWebhookDeliveriesParams) {
 	logger := slogging.Get().WithContext(c)
 

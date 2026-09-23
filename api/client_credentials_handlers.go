@@ -434,7 +434,7 @@ func sanitizeForLogging(s string) string {
 // webhook subscription). The link is an authorization grant (#913: it makes
 // the credential the owner of the addon's deliveries), so a plain user must
 // not be able to attach someone else's addon to their credential.
-// SEM@0000000000000000000000000000000000000000: validate a credential's addon link: direct_write, addon exists, caller is admin or owns its webhook (reads DB)
+// SEM@411a53c663401d55a0f66913e00979599a208c93: validate a credential's addon link: direct_write, addon exists, caller is admin or owns its webhook (reads DB)
 func resolveCredentialAddonID(c *gin.Context, addonID *openapi_types.UUID, directWrite bool) (string, error) {
 	if addonID == nil {
 		return "", nil
