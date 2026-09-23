@@ -1157,41 +1157,25 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, user ResolvedUse
 }
 
 // getThreatModelIdForDiagram finds the threat model that contains a specific diagram
-// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: fetch the parent threat model UUID for a diagram by searching the store (reads DB)
+// SEM@0000000000000000000000000000000000000000: fetch the parent threat model UUID for a diagram; empty UUID if absent or on error (reads DB)
 func (h *WebSocketHub) getThreatModelIdForDiagram(diagramID string) openapi_types.UUID {
-	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), return empty UUID
-	if ThreatModelStore == nil {
-		slogging.Get().Debug(" ThreatModelStore is nil, denying WebSocket access for diagram %s", diagramID)
+	// Safety check: if DiagramStore is not initialized (e.g., in tests), return empty UUID
+	if DiagramStore == nil {
+		slogging.Get().Debug(" DiagramStore is nil, denying WebSocket access for diagram %s", diagramID)
 		return openapi_types.UUID{}
 	}
 
-	// Search through all threat models to find the one containing this diagram
-	// Use a large limit to get all threat models (in practice we should have pagination)
-	threatModels := ThreatModelStore.List(0, 1000, nil)
-	slogging.Get().Debug(" Searching for diagram %s in %d threat models", diagramID, len(threatModels))
-
-	for _, tm := range threatModels {
-		if tm.Diagrams != nil {
-			slogging.Get().Debug(" Checking threat model %s with %d diagrams", tm.Id.String(), len(*tm.Diagrams))
-			for _, diagramUnion := range *tm.Diagrams {
-				// Convert union type to DfdDiagram to get the ID
-				if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
-					slogging.Get().Debug(" Found diagram %s in threat model %s", dfdDiag.Id.String(), tm.Id.String())
-					if dfdDiag.Id.String() == diagramID {
-						slogging.Get().Debug(" Match found! Diagram %s belongs to threat model %s", diagramID, tm.Id.String())
-						return *tm.Id
-					}
-				} else {
-					slogging.Get().Debug(" Failed to convert diagram union to DfdDiagram: %v", err)
-				}
-			}
-		} else {
-			slogging.Get().Debug(" Threat model %s has nil Diagrams", tm.Id.String())
-		}
+	tmID, err := DiagramStore.GetThreatModelID(diagramID)
+	if err != nil {
+		slogging.Get().Debug(" Threat model lookup failed for diagram %s: %v", diagramID, err)
+		return openapi_types.UUID{}
 	}
-
-	slogging.Get().Debug(" Diagram %s not found in any threat model", diagramID)
-	return openapi_types.UUID{}
+	parsed, err := uuid.Parse(tmID)
+	if err != nil {
+		slogging.Get().Debug(" Diagram %s has an unparseable threat model id", diagramID)
+		return openapi_types.UUID{}
+	}
+	return parsed
 }
 
 // validateWebSocketDiagramAccessWithFlexibleMatching validates that a user has at least reader access to a diagram

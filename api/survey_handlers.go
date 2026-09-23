@@ -1442,7 +1442,7 @@ func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse
 		return tm
 	}
 
-	createdTM, err := ThreatModelStore.Create(tm, idSetter)
+	createdTM, err := ThreatModelStore.Create(ctx, tm, idSetter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create threat model: %w", err)
 	}

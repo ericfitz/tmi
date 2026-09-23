@@ -443,45 +443,6 @@ func (s *GormThreatModelStore) convertToListItem(tm *models.ThreatModel) TMListI
 	}
 }
 
-// List returns filtered and paginated threat models using GORM
-// SEM@8992eaca709573d0f6834edf30a3ef57370db6fa: list filtered and paginated threat models with full sub-resource hydration (reads DB)
-func (s *GormThreatModelStore) List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel {
-	s.mutex.RLock()
-	defer s.mutex.RUnlock()
-
-	var results []ThreatModel
-
-	var tmModels []models.ThreatModel
-	result := s.db.Where("deleted_at IS NULL").Preload("Owner").Preload("CreatedBy").Preload("SecurityReviewer").Order("created_at DESC").Find(&tmModels)
-	if result.Error != nil {
-		return results
-	}
-
-	for _, tm := range tmModels {
-		apiTM, err := s.convertToAPIModel(&tm)
-		if err != nil {
-			continue
-		}
-
-		// Apply filter if provided
-		if filter == nil || filter(apiTM) {
-			results = append(results, apiTM)
-		}
-	}
-
-	// Apply pagination
-	if offset >= len(results) {
-		return []ThreatModel{}
-	}
-
-	end := offset + limit
-	if end > len(results) || limit <= 0 {
-		end = len(results)
-	}
-
-	return results[offset:end]
-}
-
 // ListWithCounts returns filtered and paginated threat models with count information using GORM
 // Returns the paginated slice and the total count (before pagination)
 // applyThreatModelFilters applies database-level filter clauses to a threat model query.
@@ -594,7 +555,10 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 	// Batch load authorization data for auth filtering (only if filter is provided)
 	var authMap map[string]authWithOwner
 	if filter != nil {
-		authMap = s.batchLoadAuthorizationLightweight(allIDs, ownerMap)
+		var err error
+		if authMap, err = s.batchLoadAuthorizationLightweight(allIDs, ownerMap); err != nil {
+			return nil, 0, err
+		}
 	}
 
 	// Apply authorization filter using lightweight ThreatModel with only Owner + Authorization
@@ -643,7 +607,10 @@ func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(Thr
 	for i, f := range paginated {
 		paginatedIDs[i] = f.modelID
 	}
-	counts := s.batchCounts(paginatedIDs)
+	counts, err := s.batchCounts(paginatedIDs)
+	if err != nil {
+		return nil, 0, err
+	}
 
 	// Build final results from list items + batch counts
 	results = make([]TMListItem, len(paginated))
@@ -678,10 +645,10 @@ type entityCounts struct {
 // batchCounts loads sub-resource counts for multiple threat models in batch using
 // GROUP BY queries (6 queries total instead of 6×N).
 // SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: fetch sub-resource counts for multiple threat models in batch GROUP BY queries (reads DB)
-func (s *GormThreatModelStore) batchCounts(ids []string) map[string]entityCounts {
+func (s *GormThreatModelStore) batchCounts(ids []string) (map[string]entityCounts, error) {
 	result := make(map[string]entityCounts, len(ids))
 	if len(ids) == 0 {
-		return result
+		return result, nil
 	}
 
 	// Table names come from the models so they are cased correctly for the
@@ -708,11 +675,13 @@ func (s *GormThreatModelStore) batchCounts(ids []string) map[string]entityCounts
 	for _, t := range tables {
 		for _, chunk := range chunkStrings(ids, 999) {
 			var rows []countRow
-			s.db.Table(t.name).
+			if err := s.db.Table(t.name).
 				Select("threat_model_id, COUNT(*) as count").
 				Where("threat_model_id IN ? AND deleted_at IS NULL", chunk).
 				Group("threat_model_id").
-				Find(&rows)
+				Find(&rows).Error; err != nil {
+				return nil, dberrors.Classify(err)
+			}
 
 			for _, row := range rows {
 				ec := result[row.ThreatModelID]
@@ -722,7 +691,7 @@ func (s *GormThreatModelStore) batchCounts(ids []string) map[string]entityCounts
 		}
 	}
 
-	return result
+	return result, nil
 }
 
 // authWithOwner holds owner and authorization data for a threat model,
@@ -736,10 +705,10 @@ type authWithOwner struct {
 // batchLoadAuthorizationLightweight loads authorization entries for multiple threat models
 // in batch for use by the list's auth filter.
 // SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: batch-load owner and authorization entries for multiple threat models for list auth filtering (reads DB)
-func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, ownerMap map[string]User) map[string]authWithOwner {
+func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, ownerMap map[string]User) (map[string]authWithOwner, error) {
 	result := make(map[string]authWithOwner, len(ids))
 	if len(ids) == 0 {
-		return result
+		return result, nil
 	}
 
 	// Initialize with owners
@@ -751,7 +720,9 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 	var accessEntries []models.ThreatModelAccess
 	for _, chunk := range chunkStrings(ids, 999) {
 		var entries []models.ThreatModelAccess
-		s.db.Where("threat_model_id IN ?", chunk).Order("role DESC").Find(&entries)
+		if err := s.db.Where("threat_model_id IN ?", chunk).Order("role DESC").Find(&entries).Error; err != nil {
+			return nil, dberrors.Classify(err)
+		}
 		accessEntries = append(accessEntries, entries...)
 	}
 
@@ -775,7 +746,10 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 		groupUUIDs = append(groupUUIDs, g)
 	}
 
-	userMap, groupMap := s.resolveUsersAndGroupsBatch(userUUIDs, groupUUIDs)
+	userMap, groupMap, err := s.resolveUsersAndGroupsBatch(userUUIDs, groupUUIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	// Build authorization entries grouped by threat model ID
 	for _, entry := range accessEntries {
@@ -809,12 +783,12 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 		result[string(entry.ThreatModelID)] = awo
 	}
 
-	return result
+	return result, nil
 }
 
 // Create adds a new threat model using GORM
 // SEM@4bb1ca6bbafe7a223150ef101f24eb54a547dce1: persist a new threat model with authorization and metadata in a read-committed retryable transaction (writes DB)
-func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
+func (s *GormThreatModelStore) Create(ctx context.Context, item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -904,7 +878,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 		}
 
 		// Allocate alias before inserting
-		tmAlias, err := AllocateNextAlias(context.Background(), tx, "__global__", "threat_model")
+		tmAlias, err := AllocateNextAlias(ctx, tx, "__global__", "threat_model")
 		if err != nil {
 			return fmt.Errorf("allocate threat_model alias: %w", err)
 		}
@@ -953,7 +927,7 @@ func (s *GormThreatModelStore) Create(item ThreatModel, idSetter func(ThreatMode
 	// no concurrent writer and INITRANS already 20: ~8% of creates hit it and
 	// ~2% exhausted all three attempts (503).
 	runCreate := func() error {
-		return authdb.WithRetryableGormTransaction(context.Background(), s.db, authdb.DefaultRetryConfig(), createTx,
+		return authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), createTx,
 			&sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	}
 
@@ -1185,7 +1159,10 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 		groupUUIDs = append(groupUUIDs, uuid)
 	}
 
-	userMap, groupMap := s.resolveUsersAndGroupsBatch(userUUIDs, groupUUIDs)
+	userMap, groupMap, err := s.resolveUsersAndGroupsBatch(userUUIDs, groupUUIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	// Build authorization entries from maps
 	authorization := []Authorization{}
@@ -1234,14 +1211,16 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 // resolveUsersAndGroupsBatch loads users and groups by internal UUIDs in batch.
 // Returns lookup maps keyed by internal_uuid. Oracle-compatible (chunks IN clauses at 999).
 // SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: batch-fetch users and groups by internal UUIDs, chunked for Oracle IN-clause limits (reads DB)
-func (s *GormThreatModelStore) resolveUsersAndGroupsBatch(userUUIDs, groupUUIDs []string) (map[string]models.User, map[string]models.Group) {
+func (s *GormThreatModelStore) resolveUsersAndGroupsBatch(userUUIDs, groupUUIDs []string) (map[string]models.User, map[string]models.Group, error) {
 	userMap := make(map[string]models.User, len(userUUIDs))
 	groupMap := make(map[string]models.Group, len(groupUUIDs))
 
 	if len(userUUIDs) > 0 {
 		for _, chunk := range chunkStrings(userUUIDs, 999) {
 			var users []models.User
-			s.db.Where("internal_uuid IN ?", chunk).Find(&users)
+			if err := s.db.Where("internal_uuid IN ?", chunk).Find(&users).Error; err != nil {
+				return nil, nil, dberrors.Classify(err)
+			}
 			for _, u := range users {
 				userMap[string(u.InternalUUID)] = u
 			}
@@ -1251,14 +1230,16 @@ func (s *GormThreatModelStore) resolveUsersAndGroupsBatch(userUUIDs, groupUUIDs 
 	if len(groupUUIDs) > 0 {
 		for _, chunk := range chunkStrings(groupUUIDs, 999) {
 			var groups []models.Group
-			s.db.Where("internal_uuid IN ?", chunk).Find(&groups)
+			if err := s.db.Where("internal_uuid IN ?", chunk).Find(&groups).Error; err != nil {
+				return nil, nil, dberrors.Classify(err)
+			}
 			for _, g := range groups {
 				groupMap[string(g.InternalUUID)] = g
 			}
 		}
 	}
 
-	return userMap, groupMap
+	return userMap, groupMap, nil
 }
 
 // chunkStrings splits a slice into chunks of at most size n.

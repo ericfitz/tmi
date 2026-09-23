@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ericfitz/tmi/api/models"
@@ -77,7 +78,7 @@ func TestGormThreatModelStore_CreateAssignsAlias(t *testing.T) {
 		return item
 	}
 
-	created, err := store.Create(tm, idSetter)
+	created, err := store.Create(context.Background(), tm, idSetter)
 	require.NoError(t, err)
 	require.NotNil(t, created.Id)
 
@@ -85,4 +86,37 @@ func TestGormThreatModelStore_CreateAssignsAlias(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, stored.Alias)
 	assert.GreaterOrEqual(t, *stored.Alias, int32(1))
+}
+
+// SEM@0000000000000000000000000000000000000000: validate a failed count or access query fails the threat model list instead of returning zeros
+func TestGormThreatModelStore_ListWithCountsSurfacesQueryErrors(t *testing.T) {
+	db, user := setupThreatModelAliasTestDB(t)
+	store := NewGormThreatModelStore(db)
+
+	providerID := user.ProviderUserID.String
+	owner := User{PrincipalType: UserPrincipalTypeUser, Provider: string(user.Provider), ProviderId: providerID}
+	emptyAuth := []Authorization{}
+	_, err := store.Create(context.Background(), ThreatModel{
+		Name: "List error surfacing", Owner: owner, CreatedBy: &owner, Authorization: &emptyAuth,
+	}, func(item ThreatModel, id string) ThreatModel {
+		uid, _ := uuid.Parse(id)
+		item.Id = &uid
+		return item
+	})
+	require.NoError(t, err)
+
+	items, total, err := store.ListWithCounts(0, 10, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, 1, total)
+	require.Len(t, items, 1)
+
+	// A broken access query must fail the auth-filtered list (#911).
+	require.NoError(t, db.Migrator().DropTable(&models.ThreatModelAccess{}))
+	_, _, err = store.ListWithCounts(0, 10, func(ThreatModel) bool { return true }, nil)
+	assert.Error(t, err)
+
+	// A broken count query must fail the list, not report zero counts (#911).
+	require.NoError(t, db.Migrator().DropTable(&models.Document{}))
+	_, _, err = store.ListWithCounts(0, 10, nil, nil)
+	assert.Error(t, err)
 }

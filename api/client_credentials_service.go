@@ -12,14 +12,12 @@ import (
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 )
 
 // ClientCredentialService handles client credential generation and management
 // SEM@d5abf2700f59ec278f7e45a485c9d19c90b0050f: service for creating, listing, and revoking machine-to-machine client credentials (reads DB)
 type ClientCredentialService struct {
 	authService *auth.Service
-	gormDB      *gorm.DB
 }
 
 // NewClientCredentialService creates a new client credential service
@@ -27,7 +25,6 @@ type ClientCredentialService struct {
 func NewClientCredentialService(authService *auth.Service) *ClientCredentialService {
 	return &ClientCredentialService{
 		authService: authService,
-		gormDB:      authService.GormDB(),
 	}
 }
 
@@ -96,21 +93,18 @@ func (s *ClientCredentialService) Create(ctx context.Context, ownerUUID uuid.UUI
 		dberrors.HandleFatal(fmt.Errorf("bcrypt failure hashing client_secret: %w", err))
 	}
 
-	// 4. Store in database with retryable transaction
-	var cred *auth.ClientCredential
-	dbErr := authdb.WithRetryableGormTransaction(ctx, s.gormDB, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		var createErr error
-		cred, createErr = s.authService.CreateClientCredential(ctx, auth.ClientCredentialCreateParams{
-			OwnerUUID:        ownerUUID,
-			ClientID:         clientID,
-			ClientSecretHash: string(hash),
-			Name:             req.Name,
-			Description:      req.Description,
-			DirectWrite:      req.DirectWrite,
-			AddonID:          req.AddonID,
-			ExpiresAt:        req.ExpiresAt,
-		})
-		return createErr
+	// 4. Store in database. One INSERT, so no transaction; and no retry, since a
+	// retry after an ambiguous commit would leave an orphaned credential whose
+	// secret the caller never saw (#911).
+	cred, dbErr := s.authService.CreateClientCredential(ctx, auth.ClientCredentialCreateParams{
+		OwnerUUID:        ownerUUID,
+		ClientID:         clientID,
+		ClientSecretHash: string(hash),
+		Name:             req.Name,
+		Description:      req.Description,
+		DirectWrite:      req.DirectWrite,
+		AddonID:          req.AddonID,
+		ExpiresAt:        req.ExpiresAt,
 	})
 
 	if dbErr != nil {
@@ -138,7 +132,7 @@ func (s *ClientCredentialService) Create(ctx context.Context, ownerUUID uuid.UUI
 // SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: list all client credentials for an owner, excluding secrets (reads DB)
 func (s *ClientCredentialService) List(ctx context.Context, ownerUUID uuid.UUID) ([]*ClientCredentialInfoInternal, error) {
 	var creds []*auth.ClientCredential
-	dbErr := authdb.WithRetryableGormTransaction(ctx, s.gormDB, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+	dbErr := authdb.WithRetryableGormRead(ctx, authdb.DefaultRetryConfig(), func() error {
 		var err error
 		creds, err = s.authService.ListClientCredentialsByOwner(ctx, ownerUUID)
 		return err
@@ -174,9 +168,8 @@ func (s *ClientCredentialService) List(ctx context.Context, ownerUUID uuid.UUID)
 // Delete permanently deletes a client credential
 // SEM@d5abf2700f59ec278f7e45a485c9d19c90b0050f: permanently delete a client credential by ID and owner (reads DB)
 func (s *ClientCredentialService) Delete(ctx context.Context, credID uuid.UUID, ownerUUID uuid.UUID) error {
-	dbErr := authdb.WithRetryableGormTransaction(ctx, s.gormDB, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		return s.authService.DeleteClientCredential(ctx, credID, ownerUUID)
-	})
+	// Single DELETE: no transaction needed, and no retry, matching Deactivate (#911).
+	dbErr := s.authService.DeleteClientCredential(ctx, credID, ownerUUID)
 
 	if dbErr != nil {
 		if dberrors.IsFatal(dbErr) {

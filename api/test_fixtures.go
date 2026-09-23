@@ -213,7 +213,7 @@ func InitTestFixtures() {
 	// Always populate the stores with test data
 	// Use the updated threat model that has the diagram association
 	updatedThreatModel := TestFixtures.ThreatModel
-	_, _ = ThreatModelStore.Create(updatedThreatModel, func(tm ThreatModel, _ string) ThreatModel {
+	_, _ = ThreatModelStore.Create(context.Background(), updatedThreatModel, func(tm ThreatModel, _ string) ThreatModel {
 		parsedId, _ := ParseUUID(tmID)
 		tm.Id = &parsedId
 		return tm
@@ -264,17 +264,6 @@ func (m *MockThreatModelStore) Get(id string) (ThreatModel, error) {
 		return item, nil
 	}
 	return ThreatModel{}, fmt.Errorf("threat model not found")
-}
-
-// SEM@9936be5037906d553ff6e5c579ca9f27d222d149: list threat models from in-memory store with optional predicate filter (pure)
-func (m *MockThreatModelStore) List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel {
-	var result []ThreatModel
-	for _, item := range m.data {
-		if filter == nil || filter(item) {
-			result = append(result, item)
-		}
-	}
-	return result
 }
 
 // SEM@ce7f0b599ec1a118c3d01ee48ad1e397e9f0c19d: list threat models as list items with query-param filters, pagination, and total count (pure)
@@ -474,7 +463,7 @@ func containsIgnoreCase(haystack, needle string) bool {
 }
 
 // SEM@5981ac53dd2229e2bb211a96f0b495fe72df5f32: store a threat model in the mock store, assigning a UUID and default status if absent
-func (m *MockThreatModelStore) Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
+func (m *MockThreatModelStore) Create(_ context.Context, item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
 	var id string
 	if item.Id != nil {
 		id = item.Id.String()

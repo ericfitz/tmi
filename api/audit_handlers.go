@@ -261,7 +261,7 @@ func (h *AuditHandler) rollbackThreatModel(ctx context.Context, entry *AuditEntr
 		if err := ThreatModelStore.Restore(entry.ObjectID); err == nil {
 			return ThreatModelStore.Update(ctx, entry.ObjectID, tm)
 		}
-		_, err := ThreatModelStore.Create(tm, func(t ThreatModel, id string) ThreatModel { return t })
+		_, err := ThreatModelStore.Create(ctx, tm, func(t ThreatModel, id string) ThreatModel { return t })
 		return err
 	}
 	return ThreatModelStore.Update(ctx, entry.ObjectID, tm)

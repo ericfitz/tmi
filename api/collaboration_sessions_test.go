@@ -101,17 +101,17 @@ func TestGetCurrentUserSessions(t *testing.T) {
 	}
 
 	// Create threat models in store
-	tm1, _ := ThreatModelStore.Create(threatModelWithAccess1, func(tm ThreatModel, id string) ThreatModel {
+	tm1, _ := ThreatModelStore.Create(context.Background(), threatModelWithAccess1, func(tm ThreatModel, id string) ThreatModel {
 		uuid, _ := ParseUUID(id)
 		tm.Id = &uuid
 		return tm
 	})
-	tm2, _ := ThreatModelStore.Create(threatModelWithAccess2, func(tm ThreatModel, id string) ThreatModel {
+	tm2, _ := ThreatModelStore.Create(context.Background(), threatModelWithAccess2, func(tm ThreatModel, id string) ThreatModel {
 		uuid, _ := ParseUUID(id)
 		tm.Id = &uuid
 		return tm
 	})
-	tm3, _ := ThreatModelStore.Create(threatModelWithoutAccess, func(tm ThreatModel, id string) ThreatModel {
+	tm3, _ := ThreatModelStore.Create(context.Background(), threatModelWithoutAccess, func(tm ThreatModel, id string) ThreatModel {
 		uuid, _ := ParseUUID(id)
 		tm.Id = &uuid
 		return tm

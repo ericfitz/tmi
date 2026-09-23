@@ -178,7 +178,7 @@ func TestThreatModelAliasSequence_SelfHealsOnMissingSequenceIntegration(t *testi
 	}
 
 	// Baseline: create succeeds on the sequence path.
-	first, err := store.Create(newTM("alias self-heal baseline"), idSetter)
+	first, err := store.Create(context.Background(), newTM("alias self-heal baseline"), idSetter)
 	require.NoError(t, err)
 	require.NotNil(t, first.Id)
 	require.NotNil(t, first.Alias)
@@ -200,7 +200,7 @@ func TestThreatModelAliasSequence_SelfHealsOnMissingSequenceIntegration(t *testi
 	// End-to-end: Create self-heals (reinstall + retry) instead of 500-ing, and
 	// the reinstall seeds above the max alias so the new alias does not collide
 	// with the unique threat_models.alias index.
-	second, err := store.Create(newTM("alias self-heal recovered"), idSetter)
+	second, err := store.Create(context.Background(), newTM("alias self-heal recovered"), idSetter)
 	require.NoError(t, err, "Create must self-heal a dropped alias sequence, not return a 500")
 	require.NotNil(t, second.Id)
 	require.NotNil(t, second.Alias)
