@@ -44,14 +44,14 @@ terraform {
   }
 
   # T6/T11 (#344): remote, encrypted state is the default. Bucket / region /
-  # lock table are provided via `terraform init -backend-config=<file>` so
+  # S3 lockfile are provided via `terraform init -backend-config=<file>` so
   # the state location is per-deployer/environment but the encryption flag
   # and key path are pinned here. Local state is no longer a silent fallback.
   #
   # Example backend.hcl (NOT committed):
   #   bucket         = "tmi-deployer-tfstate"
   #   region         = "us-east-1"
-  #   dynamodb_table = "tmi-tf-locks"
+  #   use_lockfile   = true
   #
   # Then: terraform init -backend-config=backend.hcl
   backend "s3" {

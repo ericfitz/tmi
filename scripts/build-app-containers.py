@@ -18,6 +18,7 @@ build-chunkembed-container remain valid for local dev and CI.
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -104,6 +105,12 @@ def parse_args() -> argparse.Namespace:
         help='Go build tags passed to the server image build via the BUILD_TAGS '
         'build-arg (e.g. "dev" to compile in login_hint + the test OAuth provider). '
         "Only applies to the server component.",
+    )
+    parser.add_argument(
+        "--profile",
+        default="tmi",
+        help="AWS CLI profile for the aws target, exported as AWS_PROFILE "
+        "(default: tmi, matching deploy-aws.sh)",
     )
     return parser.parse_args()
 
@@ -239,6 +246,11 @@ def main() -> None:
         sys.exit(1)
 
     project_root = helpers.get_project_root()
+
+    # Pin the AWS account the same way deploy-aws.sh does; otherwise ECR
+    # discovery, login, and push use the shell's default credentials.
+    if args.target == "aws":
+        os.environ["AWS_PROFILE"] = args.profile
 
     # Get target config
     config = helpers.get_target_config(
