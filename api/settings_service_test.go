@@ -971,3 +971,35 @@ func TestSettingsService_NegativeCache_Redis(t *testing.T) {
 	require.NotNil(t, setting)
 	require.Equal(t, `["http://a/"]`, string(setting.Value))
 }
+
+// SEM@0000000000000000000000000000000000000000: validate PlaintextKeys reports only requested unencrypted non-empty settings, before and after re-encryption
+func TestSettingsService_PlaintextKeys(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+	enc, err := crypto.NewSettingsEncryptorFromKeys(make([]byte, 32), nil, 1)
+	require.NoError(t, err)
+	svc := NewSettingsService(gormDB, nil)
+	svc.SetEncryptor(enc)
+
+	ciphertext, err := enc.Encrypt("already-secret")
+	require.NoError(t, err)
+	for key, value := range map[string]string{
+		"secret.legacy":    "plaintext-value",
+		"secret.encrypted": ciphertext,
+		"other.plain":      "not-requested",
+	} {
+		require.NoError(t, gormDB.Create(&models.SystemSetting{
+			SettingKey: models.DBVarchar(key), Value: models.DBText(value), SettingType: models.SystemSettingTypeString,
+		}).Error)
+	}
+
+	keys := []string{"secret.legacy", "secret.encrypted", "secret.absent"}
+	got, err := svc.PlaintextKeys(context.Background(), keys)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"secret.legacy"}, got)
+
+	_, _, err = svc.ReEncryptAll(context.Background())
+	require.NoError(t, err)
+	got, err = svc.PlaintextKeys(context.Background(), keys)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}

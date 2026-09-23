@@ -759,6 +759,28 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError
 	return reencrypted, settingErrors, nil
 }
 
+// PlaintextKeys returns which of the given keys have a non-empty stored value
+// without the ENC: prefix, i.e. rows written before settings encryption was
+// enabled that ReEncryptAll would convert. It reads the raw rows (List and Get
+// decrypt, which hides the prefix) and returns key names only, never values.
+// SEM@0000000000000000000000000000000000000000: list setting keys whose stored value is unencrypted, without exposing values (reads DB)
+func (s *SettingsService) PlaintextKeys(ctx context.Context, keys []string) ([]string, error) {
+	if len(keys) == 0 {
+		return nil, nil
+	}
+	var rows []models.SystemSetting
+	if err := s.gormDB.WithContext(ctx).Where("setting_key IN ?", keys).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("failed to read settings for plaintext check: %w", err)
+	}
+	var plaintext []string
+	for _, row := range rows {
+		if v := string(row.Value); v != "" && !crypto.IsEncrypted(v) {
+			plaintext = append(plaintext, string(row.SettingKey))
+		}
+	}
+	return plaintext, nil
+}
+
 // validateValue validates that the value matches the declared type
 // SEM@1a4ca5f99be4a25df66b2836e9b9f4c87628184a: validate that a setting value matches its declared type (pure)
 func (s *SettingsService) validateValue(setting *models.SystemSetting) error {

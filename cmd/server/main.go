@@ -924,9 +924,13 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 		}
 	}
 
-	// Warn if Secret-classified settings are stored as plaintext (encryption not configured).
+	// Warn if Secret-classified settings are stored as plaintext: encryption not
+	// configured, or rows written before it was enabled. Bounded so a slow DB
+	// cannot stall startup on a best-effort check.
 	// Severity is scaled by build mode: WARN in dev/test, ERROR in production.
-	warnIfPlaintextSecretsAtRest(context.Background(), startupEncryptor, settingsService, config, logger)
+	plaintextCheckCtx, cancelPlaintextCheck := context.WithTimeout(context.Background(), 30*time.Second)
+	warnIfPlaintextSecretsAtRest(plaintextCheckCtx, startupEncryptor, settingsService, config, logger)
+	cancelPlaintextCheck()
 
 	// Seed default settings (non-blocking - continue even if seeding fails)
 	if err := settingsService.SeedDefaults(context.Background()); err != nil {
