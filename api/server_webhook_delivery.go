@@ -21,13 +21,13 @@ func (s *Server) UpdateWebhookDeliveryStatus(c *gin.Context, deliveryId Delivery
 }
 
 // CancelWebhookDelivery cancels a delivery (JWT authenticated) (#913)
-// SEM@0000000000000000000000000000000000000000: delegate delivery cancellation to the standalone handler
+// SEM@411a53c663401d55a0f66913e00979599a208c93: delegate delivery cancellation to the standalone handler
 func (s *Server) CancelWebhookDelivery(c *gin.Context, deliveryId DeliveryId) {
 	CancelWebhookDelivery(c)
 }
 
 // ListMyWebhookDeliveries lists the caller's visible deliveries (#913)
-// SEM@0000000000000000000000000000000000000000: delegate the caller-scoped delivery list to the standalone handler
+// SEM@411a53c663401d55a0f66913e00979599a208c93: delegate the caller-scoped delivery list to the standalone handler
 func (s *Server) ListMyWebhookDeliveries(c *gin.Context, params ListMyWebhookDeliveriesParams) {
 	ListMyWebhookDeliveries(c, params)
 }

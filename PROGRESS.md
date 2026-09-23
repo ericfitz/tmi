@@ -1,3 +1,20 @@
+# Session progress — 2026-09-22
+
+## Landed (pushed to main)
+
+- **PR #935 merged** (`411a53c6`, 1.14.0) — `feat(api)` closes #913 (requested by tmi-tf-wh): automations can
+  list and cancel their own webhook deliveries. `GET /webhook-deliveries` returns the caller-visible deliveries,
+  newest first; `DELETE /webhook-deliveries/{id}` moves a delivery to the terminal `cancelled` status, and a
+  later status callback gets 409. A credential linked to an addon may act on that addon's deliveries. Root cause
+  of every JWT caller's 401 on `/webhook-deliveries/`: the JWT middleware skipped the public prefix even when a
+  bearer was present; it now validates it. `invoked_by` carries the real provider/provider_id. Security review
+  found one High (any user could link a client credential to any addon); fixed before merge: the link now needs
+  admin or ownership of the addon's webhook subscription. Redis only, so no Oracle review. PostgreSQL
+  integration 92/0/9 (new `TestAddonInvocationCancel`); 17 CI checks green.
+- **Dependabot #933, #934 merged** — Go minor/patch groups (main and `functions/certmgr`); `test/integration`
+  needed `go mod tidy` afterwards, folded into #935.
+- **Deployed:** k3s-rp on 1.13.18 (main `4fcf6923`), before #935.
+
 # Session progress — 2026-09-19
 
 ## Landed (pushed to main)

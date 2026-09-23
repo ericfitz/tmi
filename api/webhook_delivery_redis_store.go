@@ -52,7 +52,7 @@ const (
 )
 
 // isTerminalDeliveryStatus reports whether a delivery can no longer change state.
-// SEM@0000000000000000000000000000000000000000: report whether a delivery status is terminal (pure)
+// SEM@411a53c663401d55a0f66913e00979599a208c93: report whether a delivery status is terminal (pure)
 func isTerminalDeliveryStatus(status string) bool {
 	switch status {
 	case DeliveryStatusDelivered, DeliveryStatusFailed, DeliveryStatusCancelled, "completed":

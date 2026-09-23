@@ -246,7 +246,7 @@ func PublicPathsMiddleware() gin.HandlerFunc {
 }
 
 // JWT Middleware factory function that takes config, token blacklist, auth handlers, and ticket validator
-// SEM@0000000000000000000000000000000000000000: build middleware that validates JWT tokens on protected paths and on bearer-carrying handler-auth paths
+// SEM@411a53c663401d55a0f66913e00979599a208c93: build middleware that validates JWT tokens on protected paths and on bearer-carrying handler-auth paths
 func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, authHandlers *auth.Handlers, ticketValidator *TicketValidator) gin.HandlerFunc {
 	// Initialize authentication components
 	publicPathChecker := &PublicPathChecker{}

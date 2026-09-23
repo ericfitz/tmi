@@ -27,7 +27,7 @@ type invokerContext struct {
 
 // extractInvokerContext extracts and validates the authenticated user context from a gin context.
 // Returns an error suitable for HandleRequestError if validation fails.
-// SEM@0000000000000000000000000000000000000000: parse and validate the authenticated user identity, incl. IdP identity, from a request context
+// SEM@411a53c663401d55a0f66913e00979599a208c93: parse and validate the authenticated user identity, incl. IdP identity, from a request context
 func extractInvokerContext(c *gin.Context) (*invokerContext, error) {
 	logger := slogging.Get().WithContext(c)
 
