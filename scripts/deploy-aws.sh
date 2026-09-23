@@ -375,7 +375,7 @@ preflight_checks() {
             echo "  backend comment block, e.g.:"
             echo "    bucket         = \"tmi-deployer-tfstate\""
             echo "    region         = \"us-east-1\""
-            echo "    dynamodb_table = \"tmi-tf-locks\""
+            echo "    use_lockfile   = true"
             echo "  Or set BACKEND_CONFIG=/path/to/backend.hcl"
             failed=1
         fi
