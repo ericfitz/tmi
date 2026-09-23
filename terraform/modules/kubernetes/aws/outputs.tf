@@ -52,7 +52,7 @@ output "tmi_pod_role_arn" {
 # Kubernetes config command
 output "kubernetes_config_command" {
   description = "Command to configure kubectl for this cluster"
-  value       = "aws eks update-kubeconfig --region ${data.aws_region.current.name} --name ${aws_eks_cluster.tmi.name}"
+  value       = "aws eks update-kubeconfig --region ${data.aws_region.current.region} --name ${aws_eks_cluster.tmi.name}"
 }
 
 # Namespace

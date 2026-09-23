@@ -718,7 +718,7 @@ resource "helm_release" "aws_lb_controller" {
 
   set {
     name  = "region"
-    value = data.aws_region.current.name
+    value = data.aws_region.current.region
   }
 
   set {
