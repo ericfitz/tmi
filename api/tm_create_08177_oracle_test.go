@@ -73,7 +73,7 @@ func TestThreatModelCreateFalse08177OracleIntegration(t *testing.T) {
 	start := time.Now()
 	for i := 0; i < creates; i++ {
 		auth := []Authorization{{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "tmi", ProviderId: userID, Role: AuthorizationRoleOwner}}
-		_, err := store.Create(ThreatModel{Name: "repro903", Owner: owner, CreatedBy: &owner, Authorization: &auth},
+		_, err := store.Create(context.Background(), ThreatModel{Name: "repro903", Owner: owner, CreatedBy: &owner, Authorization: &auth},
 			func(tm ThreatModel, id string) ThreatModel { ids = append(ids, id); return tm })
 		if err != nil {
 			failures++
