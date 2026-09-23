@@ -56,7 +56,7 @@ func TestWebSocketAuthorizationValidation(t *testing.T) {
 	}
 
 	// Add threat model to store
-	tm, err := ThreatModelStore.Create(threatModel, func(tm ThreatModel, id string) ThreatModel {
+	tm, err := ThreatModelStore.Create(context.Background(), threatModel, func(tm ThreatModel, id string) ThreatModel {
 		uuid, _ := ParseUUID(id)
 		tm.Id = &uuid
 		return tm
@@ -75,8 +75,8 @@ func TestWebSocketAuthorizationValidation(t *testing.T) {
 		Cells:      []DfdDiagram_Cells_Item{},
 	}
 
-	// Add diagram to store
-	d, err := DiagramStore.Create(diagram, func(d DfdDiagram, id string) DfdDiagram {
+	// Add diagram to store, linked to its threat model as the handlers do
+	d, err := DiagramStore.CreateWithThreatModel(diagram, tm.Id.String(), func(d DfdDiagram, id string) DfdDiagram {
 		uuid, _ := ParseUUID(id)
 		d.Id = &uuid
 		return d

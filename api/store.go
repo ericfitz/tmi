@@ -65,10 +65,10 @@ type ThreatModelStoreInterface interface {
 	GetIncludingDeleted(id string) (ThreatModel, error)
 	GetAuthorization(id string) ([]Authorization, User, error)
 	GetAuthorizationIncludingDeleted(id string) ([]Authorization, User, error)
-	List(offset, limit int, filter func(ThreatModel) bool) []ThreatModel
 	// ListWithCounts returns paginated threat model list items with counts and total count (before pagination)
 	ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int, error)
-	Create(item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error)
+	// Create accepts a context.Context so a client disconnect cancels the transaction (#911).
+	Create(ctx context.Context, item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error)
 	// Update accepts a context.Context so the underlying retry wrapper uses
 	// the caller's ctx instead of context.Background(); see #334.
 	Update(ctx context.Context, id string, item ThreatModel) error

@@ -288,7 +288,7 @@ func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 		return tm
 	}
 
-	createdTM, err := ThreatModelStore.Create(tm, idSetter)
+	createdTM, err := ThreatModelStore.Create(c.Request.Context(), tm, idSetter)
 	if err != nil {
 		// Log the actual error for debugging
 		slogging.Get().WithContext(c).Error("Failed to create threat model: %v", err)

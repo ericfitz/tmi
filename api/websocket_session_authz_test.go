@@ -453,7 +453,7 @@ func TestCheckMutationPermission_EmptyThreatModelIDBypass(t *testing.T) {
 			ModifiedAt: func() *time.Time { now := time.Now().UTC(); return &now }(),
 		}
 
-		created, err := ThreatModelStore.Create(tm, func(tm ThreatModel, id string) ThreatModel {
+		created, err := ThreatModelStore.Create(context.Background(), tm, func(tm ThreatModel, id string) ThreatModel {
 			uid, _ := ParseUUID(id)
 			tm.Id = &uid
 			return tm
@@ -879,7 +879,7 @@ func TestCheckReadPermission_RevokedUserDenied(t *testing.T) {
 		ModifiedAt: func() *time.Time { now := time.Now().UTC(); return &now }(),
 	}
 
-	created, err := ThreatModelStore.Create(tm, func(tm ThreatModel, id string) ThreatModel {
+	created, err := ThreatModelStore.Create(context.Background(), tm, func(tm ThreatModel, id string) ThreatModel {
 		uid, _ := ParseUUID(id)
 		tm.Id = &uid
 		return tm

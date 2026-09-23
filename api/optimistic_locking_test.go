@@ -632,7 +632,7 @@ func TestGormThreatModelStore_UpdateWithVersion_SameTxAtomicity(t *testing.T) {
 		item.Id = &uid
 		return item
 	}
-	created, err := store.Create(tm, idSetter)
+	created, err := store.Create(context.Background(), tm, idSetter)
 	require.NoError(t, err)
 	id := created.Id.String()
 

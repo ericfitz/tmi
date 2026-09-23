@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // SurveyTemplate represents a survey template for security review intake
@@ -142,15 +143,28 @@ func (TriageNote) TableName() string {
 	return tableName("triage_notes")
 }
 
-// BeforeCreate assigns the next sequential ID for the survey response
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: assign the next sequential per-response ID to a triage note before DB insert (reads DB)
+// BeforeCreate assigns the next sequential ID for the survey response.
+// The parent response row is locked first so concurrent notes on one response
+// serialize. The lock is only sufficient at READ COMMITTED, where MAX(id) sees
+// a note committed while this transaction waited; GormTriageNoteStore.Create
+// runs at that level (#911).
+// SEM@0000000000000000000000000000000000000000: assign the next per-response triage note ID under a parent row lock (reads DB)
 func (t *TriageNote) BeforeCreate(tx *gorm.DB) error {
 	if t.ID == 0 {
+		var parent []string
+		if err := tx.Model(&SurveyResponse{}).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ?", t.SurveyResponseID).
+			Pluck("id", &parent).Error; err != nil {
+			return err
+		}
 		var maxID *int
-		tx.Model(&TriageNote{}).
+		if err := tx.Model(&TriageNote{}).
 			Where("survey_response_id = ?", t.SurveyResponseID).
 			Select("MAX(id)").
-			Scan(&maxID)
+			Scan(&maxID).Error; err != nil {
+			return err
+		}
 		if maxID != nil {
 			t.ID = *maxID + 1
 		} else {

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -42,14 +43,17 @@ func (s *GormTriageNoteStore) Create(ctx context.Context, note *TriageNote, surv
 		ModifiedAt:             now,
 	}
 
-	// BeforeCreate hook on the model handles sequential ID assignment
+	// BeforeCreate hook on the model handles sequential ID assignment. READ
+	// COMMITTED so that after the hook's parent-row lock is granted its MAX(id)
+	// sees a concurrent note that just committed; under Oracle SERIALIZABLE the
+	// snapshot would hide it and the insert would hit ORA-00001 (#911).
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		if err := tx.Create(&model).Error; err != nil {
 			logger.Error("Failed to create triage note: %v", err)
 			return dberrors.Classify(err)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
 		return err
 	}

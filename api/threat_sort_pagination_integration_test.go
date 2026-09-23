@@ -90,7 +90,7 @@ func TestSortPaginationStability_Integration(t *testing.T) {
 		item.Id = &uid
 		return item
 	}
-	tm, err := tmStore.Create(ThreatModel{
+	tm, err := tmStore.Create(context.Background(), ThreatModel{
 		Name:          "Sort pagination stability (integration)",
 		Owner:         User{PrincipalType: UserPrincipalTypeUser, Provider: "test", ProviderId: providerID},
 		CreatedBy:     &User{PrincipalType: UserPrincipalTypeUser, Provider: "test", ProviderId: providerID},

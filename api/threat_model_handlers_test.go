@@ -121,7 +121,7 @@ type fkErrorThreatModelStore struct {
 }
 
 // SEM@5bacd53eee87984ab4d2aab453afb59913aa79dc: simulate a foreign key constraint violation on threat model creation (test double)
-func (m *fkErrorThreatModelStore) Create(_ ThreatModel, _ func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
+func (m *fkErrorThreatModelStore) Create(_ context.Context, _ ThreatModel, _ func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
 	return ThreatModel{}, fmt.Errorf("foreign key: constraint violation: ORA-02291: integrity constraint (ADMIN.FK_THREAT_MODEL_ACCESS_GROUP) violated - parent key not found")
 }
 
