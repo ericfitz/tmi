@@ -43,7 +43,8 @@
 # Environment variables:
 #   TMI_EMBEDDING_API_KEY          API key for the chunk-embed worker's embedding
 #                                   provider (Secret/tmi-embedding, key api-key). If
-#                                   unset, the secret is NOT created and a warning is
+#                                   unset, an existing secret is kept; if there is
+#                                   none, it is NOT created and a warning is
 #                                   printed — chunk-embed will fail with
 #                                   CreateContainerConfigError when KEDA scales it up
 #                                   from zero. Not stored anywhere by this script;
@@ -753,6 +754,12 @@ apply_platform_base() {
 # with CreateContainerConfigError.
 create_embedding_secret() {
     log_step "Phase 4.5: Chunk-Embed API Key Secret"
+
+    if [[ -z "${TMI_EMBEDDING_API_KEY:-}" ]] && \
+        kubectl get secret tmi-embedding -n "${NAMESPACE}" >/dev/null 2>&1; then
+        log_info "TMI_EMBEDDING_API_KEY not set; keeping the existing Secret/tmi-embedding"
+        return 0
+    fi
 
     if [[ -z "${TMI_EMBEDDING_API_KEY:-}" ]]; then
         log_warning "TMI_EMBEDDING_API_KEY is not set — Secret/tmi-embedding will NOT be created."
