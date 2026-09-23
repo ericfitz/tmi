@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -82,6 +83,8 @@ type mockSecretKeyGetter struct {
 	store map[string]string
 	// errKeys maps key → error to return for that key.
 	errKeys map[string]error
+	// plaintextErr, if set, is returned by PlaintextKeys.
+	plaintextErr error
 	// origins maps key → Origin value (models.SystemSettingOriginSeeded or
 	// models.SystemSettingOriginExplicit). Absent means NULL, which
 	// SystemSetting.IsExplicit() treats as NOT explicit (fail-safe).
@@ -116,6 +119,9 @@ func (m *mockSecretKeyGetter) Get(_ context.Context, key string) (*models.System
 // PlaintextKeys treats the mock store as raw DB values: a non-empty value
 // without the ENC: prefix is plaintext.
 func (m *mockSecretKeyGetter) PlaintextKeys(_ context.Context, keys []string) ([]string, error) {
+	if m.plaintextErr != nil {
+		return nil, m.plaintextErr
+	}
 	var out []string
 	for _, k := range keys {
 		if v, ok := m.store[k]; ok && v != "" && !crypto.IsEncrypted(v) {
@@ -290,7 +296,30 @@ func TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledAllEncrypted(t *testing.T
 	log := &testLogger{}
 	warnIfPlaintextSecretsAtRest(context.Background(), enabledEncryptor(t), newMockSecretKeyGetter(store), cfg, log)
 
-	assert.Empty(t, log.allLogs(), "expected no log output when every secret is encrypted")
+	assert.Empty(t, log.logsAtLevel("WARN"))
+	assert.Empty(t, log.logsAtLevel("ERROR"))
+	infos := log.logsAtLevel("INFO")
+	require.Len(t, infos, 1, "expected one all-clear line for deploy-aws.sh")
+	assert.True(t, strings.HasPrefix(infos[0].msg, settingsAtRestCheckPrefix+"no Secret-classified"))
+}
+
+// TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledReadFails verifies that a
+// failed read yields a "could not verify" warning: neither an alarm naming
+// keys nor an all-clear.
+// SEM@0000000000000000000000000000000000000000: validate a failed plaintext-check read reports unverified, not clean or insecure
+func TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledReadFails(t *testing.T) {
+	cfg := minimalConfigWithBuildMode("production")
+	svc := newMockSecretKeyGetter(map[string]string{})
+	svc.plaintextErr = errors.New("db down")
+
+	log := &testLogger{}
+	warnIfPlaintextSecretsAtRest(context.Background(), enabledEncryptor(t), svc, cfg, log)
+
+	warns := log.logsAtLevel("WARN")
+	require.Len(t, warns, 1)
+	assert.Equal(t, settingsAtRestCheckPrefix+"could not verify: settings read failed", warns[0].msg)
+	assert.Empty(t, log.logsAtLevel("ERROR"))
+	assert.Empty(t, log.logsAtLevel("INFO"))
 }
 
 // TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledLegacyPlaintext verifies that

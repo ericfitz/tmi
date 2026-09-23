@@ -46,6 +46,11 @@ type settingsLister interface {
 // abort startup. Call this after both the settings service and its encryptor are ready.
 // Only key names are logged, never values.
 // SEM@0000000000000000000000000000000000000000: warn when secret-classified settings are stored as plaintext, whether or not encryption is enabled (reads DB)
+// settingsAtRestCheckPrefix starts every log line warnIfPlaintextSecretsAtRest
+// writes, so deploy-aws.sh can find its result in the pod log without matching
+// anything else (request logs start with REQUEST_COMPLETE).
+const settingsAtRestCheckPrefix = "settings-at-rest check: "
+
 func warnIfPlaintextSecretsAtRest(
 	ctx context.Context,
 	encryptor *crypto.SettingsEncryptor,
@@ -55,25 +60,31 @@ func warnIfPlaintextSecretsAtRest(
 ) {
 	secretKeys := secretClassifiedKeys(cfg)
 	if len(secretKeys) == 0 {
+		logger.Info("%sno Secret-classified settings are stored as plaintext", settingsAtRestCheckPrefix)
 		return
 	}
 
 	report := func(msg string) {
 		if cfg.Auth.BuildMode == "production" {
-			logger.Error("%s", msg)
+			logger.Error("%s%s", settingsAtRestCheckPrefix, msg)
 		} else {
-			logger.Warn("%s", msg)
+			logger.Warn("%s%s", settingsAtRestCheckPrefix, msg)
 		}
+	}
+	clean := func() {
+		logger.Info("%sno Secret-classified settings are stored as plaintext", settingsAtRestCheckPrefix)
 	}
 
 	if encryptor != nil && encryptor.IsEnabled() {
 		plaintextKeys, err := svc.PlaintextKeys(ctx, secretKeys)
 		if err != nil {
-			// Best-effort: a failed read must not produce a false alarm.
-			logger.Debug("startup check: could not read settings for plaintext check: %v", err)
+			// Best-effort: neither a false alarm nor a false all-clear.
+			logger.Warn("%scould not verify: settings read failed", settingsAtRestCheckPrefix)
+			logger.Debug("startup check: plaintext check read error: %v", err)
 			return
 		}
 		if len(plaintextKeys) == 0 {
+			clean()
 			return
 		}
 		report("SECURITY WARNING: Secret-classified settings written before settings " +
@@ -98,7 +109,8 @@ func warnIfPlaintextSecretsAtRest(
 	}
 
 	if len(plaintextKeys) == 0 {
-		return // No secrets stored → no warning needed.
+		clean() // No secrets stored → nothing is plaintext.
+		return
 	}
 
 	report("SECURITY WARNING: Secret-classified settings are stored as plaintext in the " +

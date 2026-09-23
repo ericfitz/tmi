@@ -1040,25 +1040,34 @@ verify_deployment() {
 }
 
 # The server checks at startup whether any Secret-classified setting is still
-# stored as plaintext (#547) and logs the affected keys, never values, with the
-# remediation endpoint. Surface that here only when the new pod actually
-# logged it, so a deployment that is already encrypted is not told otherwise.
+# stored as plaintext (#547) and logs exactly one line whose message starts
+# with "settings-at-rest check: ": all clear, the affected key names (never
+# values) plus the remediation, or "could not verify". Report that line from
+# the newest server pod, so an already-encrypted deployment is not told it
+# might be insecure. Only the text after the prefix is printed, never the
+# whole log line. On a re-run of the same commit the pod is not replaced, so
+# the result is as of that pod's start.
 check_plaintext_secrets() {
-    if ! kubectl rollout status deployment/tmi-server -n "${NAMESPACE}" --timeout=300s >/dev/null 2>&1; then
-        log_warning "tmi-server rollout did not finish; skipped the plaintext-secrets check."
+    local prefix='settings-at-rest check: '
+    local pod logs result
+    kubectl rollout status deployment/tmi-server -n "${NAMESPACE}" --timeout=300s >/dev/null 2>&1 || true
+    pod=$(kubectl get pods -n "${NAMESPACE}" -l app=tmi-server \
+        --sort-by=.metadata.creationTimestamp -o name 2>/dev/null | tail -n 1)
+    if [[ -z "${pod}" ]] || ! logs=$(kubectl logs "${pod}" -n "${NAMESPACE}" 2>/dev/null); then
+        log_warning "Could not read the tmi-server log to confirm settings are encrypted at rest."
         return 0
     fi
-    local finding
-    finding=$(kubectl logs deployment/tmi-server -n "${NAMESPACE}" 2>/dev/null \
-        | grep -m1 'settings/reencrypt' || true)
-    if [[ -z "${finding}" ]]; then
-        log_success "No Secret-classified settings are stored as plaintext"
-        return 0
-    fi
-    log_warning "The server found Secret-classified settings stored as plaintext:"
-    echo "  ${finding}"
-    log_warning "Sign in as an administrator and call POST https://${DOMAIN}/admin/settings/reencrypt"
-    log_warning "(needs an interactive PKCE admin token; service-account tokens are refused on /admin/*)."
+    result=$(grep -o "\"msg\":\"${prefix}[^\"]*" <<<"${logs}" | tail -n 1 || true)
+    result=${result#*"${prefix}"}
+    case "${result}" in
+        "no Secret-classified settings are stored as plaintext")
+            log_success "Settings at rest: no Secret-classified settings are stored as plaintext" ;;
+        "SECURITY WARNING:"*)
+            log_warning "Settings at rest: ${result}"
+            log_warning "The call needs an interactive (PKCE) admin token; service-account tokens are refused on /admin/*." ;;
+        *)
+            log_warning "Could not confirm that settings are encrypted at rest (${result:-no check result in ${pod} log})." ;;
+    esac
 }
 
 # ============================================================================
