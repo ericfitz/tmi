@@ -635,8 +635,14 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 // connection drop is a documented 503 with Retry-After, not a server bug, so
 // the client can retry instead of reporting a 500 (#900). Every operation
 // documents 503 (#665), so this is safe at any handler's fallback branch.
-// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: classify an error into a RequestError, mapping transient faults to 503 (pure)
+// A GORM BeforeSave hook rejection is the caller's bad input, so it is a 400,
+// as in StoreErrorToRequestError (#921).
+// SEM@0000000000000000000000000000000000000000: classify a store write error into a RequestError: hook rejection 400, transient 503, else 500 (pure)
 func WriteErrorToRequestError(err error, serverErrorMsg string) *RequestError {
+	var valErr *validation.ValidationError
+	if errors.As(err, &valErr) {
+		return InvalidInputError(valErr.Error())
+	}
 	if errors.Is(err, dberrors.ErrTransient) {
 		return ServiceUnavailableError("Storage service temporarily unavailable - please retry")
 	}

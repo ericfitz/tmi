@@ -69,6 +69,9 @@ func (s *GormThreatRepository) Create(ctx context.Context, threat *Threat) error
 		if err := tx.Create(gormThreat).Error; err != nil {
 			return dberrors.Classify(err)
 		}
+		if err := saveThreatMetadataOnCreate(tx, threat); err != nil {
+			return err
+		}
 		// Mirror the allocated alias back into the API-level argument so
 		// callers (handlers serializing the response) see the assigned value.
 		threat.Alias = &alias
@@ -921,6 +924,11 @@ func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat)
 		if err := tx.Create(&gormThreats).Error; err != nil {
 			return dberrors.Classify(err)
 		}
+		for i := range threats {
+			if err := saveThreatMetadataOnCreate(tx, &threats[i]); err != nil {
+				return err
+			}
+		}
 		return nil
 	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 
@@ -1078,6 +1086,19 @@ func (s *GormThreatRepository) saveMetadata(ctx context.Context, threatID string
 // SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: replace all metadata for a threat within a transaction (reads DB)
 func (s *GormThreatRepository) saveMetadataTx(tx *gorm.DB, threatID string, metadata []Metadata) error {
 	return deleteAndSaveEntityMetadata(tx, "threat", threatID, metadata)
+}
+
+// saveThreatMetadataOnCreate inserts a new threat's request metadata in the
+// creating transaction, so the threat and its metadata commit together.
+// SEM@0000000000000000000000000000000000000000: store a new threat's request metadata inside the create transaction (writes DB)
+func saveThreatMetadataOnCreate(tx *gorm.DB, threat *Threat) error {
+	if threat.Metadata == nil || len(*threat.Metadata) == 0 {
+		return nil
+	}
+	if err := saveEntityMetadata(tx, "threat", threat.Id.String(), *threat.Metadata); err != nil {
+		return dberrors.Classify(err)
+	}
+	return nil
 }
 
 // Helper functions
