@@ -282,7 +282,7 @@ func TestWarnIfPlaintextSecretsAtRest_ProductionBuildPlaintextSecrets(t *testing
 // TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledAllEncrypted verifies that
 // when encryption is ON and every stored secret carries the ENC: prefix, nothing
 // is logged: a secure deployment must not be told it is insecure.
-// SEM@0000000000000000000000000000000000000000: validate no plaintext warning when encryption is on and all secrets are encrypted
+// SEM@7430764167888f43111b8fe959e8c73449a4f9af: validate no plaintext warning when encryption is on and all secrets are encrypted
 func TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledAllEncrypted(t *testing.T) {
 	cfg := minimalConfigWithBuildMode("production") // worst case
 	secretKeys := secretClassifiedKeys(cfg)
@@ -306,7 +306,7 @@ func TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledAllEncrypted(t *testing.T
 // TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledReadFails verifies that a
 // failed read yields a "could not verify" warning: neither an alarm naming
 // keys nor an all-clear.
-// SEM@0000000000000000000000000000000000000000: validate a failed plaintext-check read reports unverified, not clean or insecure
+// SEM@7430764167888f43111b8fe959e8c73449a4f9af: validate a failed plaintext-check read reports unverified, not clean or insecure
 func TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledReadFails(t *testing.T) {
 	cfg := minimalConfigWithBuildMode("production")
 	svc := newMockSecretKeyGetter(map[string]string{})
@@ -326,7 +326,7 @@ func TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledReadFails(t *testing.T) {
 // when encryption is ON but a secret stored before it was enabled is still
 // plaintext, one production ERROR names the key and the re-encrypt endpoint
 // (and not the env var, which is already set).
-// SEM@0000000000000000000000000000000000000000: validate the re-encrypt warning names legacy plaintext secrets when encryption is on
+// SEM@7430764167888f43111b8fe959e8c73449a4f9af: validate the re-encrypt warning names legacy plaintext secrets when encryption is on
 func TestWarnIfPlaintextSecretsAtRest_EncryptionEnabledLegacyPlaintext(t *testing.T) {
 	cfg := minimalConfigWithBuildMode("production")
 	secretKeys := secretClassifiedKeys(cfg)

@@ -1090,7 +1090,7 @@ func (s *GormThreatRepository) saveMetadataTx(tx *gorm.DB, threatID string, meta
 
 // saveThreatMetadataOnCreate inserts a new threat's request metadata in the
 // creating transaction, so the threat and its metadata commit together.
-// SEM@0000000000000000000000000000000000000000: store a new threat's request metadata inside the create transaction (writes DB)
+// SEM@d8c2762cd09ad64046f317cab75b4bf7f53e48ba: store a new threat's request metadata inside the create transaction (writes DB)
 func saveThreatMetadataOnCreate(tx *gorm.DB, threat *Threat) error {
 	if threat.Metadata == nil || len(*threat.Metadata) == 0 {
 		return nil
