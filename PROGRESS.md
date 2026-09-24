@@ -1,3 +1,27 @@
+# Session progress — 2026-09-24
+
+## Landed (pushed to main)
+
+- **PR #942 merged** (`1ba42483`, 1.14.4) — `fix(deploy)`: `build-app-containers.py` takes `--profile` (default
+  `tmi`; it used to push images to the personal AWS account), and the S3 backend uses `use_lockfile = true`.
+- **PR #943 merged** (`dd9b5cbd`) — `fix(terraform)`: `data.aws_region.current.region` replaces the deprecated `.name`.
+- **PR #946 merged** (`d8c2762c`, 1.14.6) — `fix(api)`, fixes #945 (reported by tmi-tf-wh): threat create and bulk
+  create now persist request `metadata` in the create transaction; `WriteErrorToRequestError` maps a hook
+  `ValidationError` to 400 (other failures: transient 503, else 500). Oracle review APPROVED WITH NOTES (applied);
+  security review found nothing new (a pre-existing Low was filed as #947).
+- **PR #948 merged** (`7344edae`) — `fix(deploy)`: `deploy-aws.sh` keeps the existing `Secret/tmi-embedding`
+  instead of warning.
+- **PR #949 merged** (`74307641`, 1.14.8) — `fix(deploy)`: `SettingsService.PlaintextKeys` lists Secret-classified
+  settings stored without `ENC:` (names only, never values). At startup the server logs one
+  `settings-at-rest check:` line (clean, keys plus remediation, or could not verify), and `deploy-aws.sh`
+  reports it; auth posture is now INFO. Eric's decision: warn only when plaintext secrets actually exist. Oracle
+  review APPROVED WITH NOTES (applied); security review F1/F2 fixed before merge. CodeQL clear-text-logging
+  alerts #1348/#1387/#1388 dismissed as false positives (key names only).
+- **Infra:** DynamoDB lock table `tmi-tf-locks` deleted once tmi-ux and tmi-tf-wh had switched to `use_lockfile`;
+  stray 1.14.3 images removed from the personal-account ECR.
+- **Deployed:** k3s-rp on 1.14.8; api.tmi.dev on 1.14.4, then 1.14.8 (Eric ran both). Terraform had no changes,
+  and the settings-at-rest check reports clean.
+
 # Session progress — 2026-09-23
 
 ## Landed (pushed to main)

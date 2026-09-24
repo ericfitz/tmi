@@ -637,7 +637,7 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 // documents 503 (#665), so this is safe at any handler's fallback branch.
 // A GORM BeforeSave hook rejection is the caller's bad input, so it is a 400,
 // as in StoreErrorToRequestError (#921).
-// SEM@0000000000000000000000000000000000000000: classify a store write error into a RequestError: hook rejection 400, transient 503, else 500 (pure)
+// SEM@d8c2762cd09ad64046f317cab75b4bf7f53e48ba: classify a store write error into a RequestError: hook rejection 400, transient 503, else 500 (pure)
 func WriteErrorToRequestError(err error, serverErrorMsg string) *RequestError {
 	var valErr *validation.ValidationError
 	if errors.As(err, &valErr) {

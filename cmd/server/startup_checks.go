@@ -45,7 +45,7 @@ type settingsLister interface {
 // The function NEVER returns an error; a warning is informational only and must not
 // abort startup. Call this after both the settings service and its encryptor are ready.
 // Only key names are logged, never values.
-// SEM@0000000000000000000000000000000000000000: warn when secret-classified settings are stored as plaintext, whether or not encryption is enabled (reads DB)
+// SEM@7430764167888f43111b8fe959e8c73449a4f9af: warn when secret-classified settings are stored as plaintext, whether or not encryption is enabled (reads DB)
 // settingsAtRestCheckPrefix starts every log line warnIfPlaintextSecretsAtRest
 // writes, so deploy-aws.sh can find its result in the pod log without matching
 // anything else (request logs start with REQUEST_COMPLETE).

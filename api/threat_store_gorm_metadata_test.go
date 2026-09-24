@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// SEM@0000000000000000000000000000000000000000: validate threat create and bulk create persist request metadata
+// SEM@d8c2762cd09ad64046f317cab75b4bf7f53e48ba: validate threat create and bulk create persist request metadata
 func TestGormThreatRepository_CreatePersistsMetadata(t *testing.T) {
 	db, tm := setupThreatAliasTestDB(t)
 	repo := NewGormThreatRepository(db, nil, nil)
@@ -40,7 +40,7 @@ func TestGormThreatRepository_CreatePersistsMetadata(t *testing.T) {
 	assertMetadata(bulk[1].Id, "run", "2")
 }
 
-// SEM@0000000000000000000000000000000000000000: validate a hook-rejected metadata value on threat create surfaces as a 400, not a 500
+// SEM@d8c2762cd09ad64046f317cab75b4bf7f53e48ba: validate a hook-rejected metadata value on threat create surfaces as a 400, not a 500
 func TestGormThreatRepository_CreateRejectedMetadataIsInvalidInput(t *testing.T) {
 	db, tm := setupThreatAliasTestDB(t)
 	repo := NewGormThreatRepository(db, nil, nil)

@@ -972,7 +972,7 @@ func TestSettingsService_NegativeCache_Redis(t *testing.T) {
 	require.Equal(t, `["http://a/"]`, string(setting.Value))
 }
 
-// SEM@0000000000000000000000000000000000000000: validate PlaintextKeys reports only requested unencrypted non-empty settings, before and after re-encryption
+// SEM@7430764167888f43111b8fe959e8c73449a4f9af: validate PlaintextKeys reports only requested unencrypted non-empty settings, before and after re-encryption
 func TestSettingsService_PlaintextKeys(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 	enc, err := crypto.NewSettingsEncryptorFromKeys(make([]byte, 32), nil, 1)

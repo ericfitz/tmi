@@ -763,7 +763,7 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError
 // without the ENC: prefix, i.e. rows written before settings encryption was
 // enabled that ReEncryptAll would convert. It reads the raw rows (List and Get
 // decrypt, which hides the prefix) and returns key names only, never values.
-// SEM@0000000000000000000000000000000000000000: list setting keys whose stored value is unencrypted, without exposing values (reads DB)
+// SEM@7430764167888f43111b8fe959e8c73449a4f9af: list setting keys whose stored value is unencrypted, without exposing values (reads DB)
 func (s *SettingsService) PlaintextKeys(ctx context.Context, keys []string) ([]string, error) {
 	if len(keys) == 0 {
 		return nil, nil
