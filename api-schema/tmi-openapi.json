@@ -23504,7 +23504,6 @@
                   "summary": "Create multiple documents at once",
                   "value": [
                     {
-                      "id": "770e8400-e29b-41d4-a716-446655440009",
                       "name": "Threat Model Report",
                       "uri": "https://docs.example.com/threat-report-v1.pdf",
                       "description": "Comprehensive threat assessment document",
@@ -23525,8 +23524,7 @@
                           "value": "security"
                         }
                       ],
-                      "uri": "https://docs.company.com/security.pdf",
-                      "id": "550e8400-e29b-41d4-a716-446655440001"
+                      "uri": "https://docs.company.com/security.pdf"
                     }
                   ]
                 }
@@ -26079,7 +26077,6 @@
                   "summary": "Create multiple source references at once",
                   "value": [
                     {
-                      "id": "990e8400-e29b-41d4-a716-446655440012",
                       "name": "API Repository",
                       "uri": "https://github.com/example/api",
                       "description": "Backend API source code",
@@ -26100,8 +26097,7 @@
                           "value": "high"
                         }
                       ],
-                      "uri": "https://github.com/company/repo/blob/main/db/pool.go",
-                      "id": "550e8400-e29b-41d4-a716-446655440001"
+                      "uri": "https://github.com/company/repo/blob/main/db/pool.go"
                     }
                   ]
                 }

@@ -806,7 +806,7 @@ func (h *DocumentSubResourceHandler) DeleteDocument(c *gin.Context) {
 
 // BulkCreateDocuments creates multiple documents in a single request
 // POST /threat_models/{threat_model_id}/documents/bulk
-// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: create up to 50 documents under a threat model in one request (mutates DB)
+// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: create up to 50 documents under a threat model; reject client-supplied IDs (mutates DB)
 func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateDocuments - creating multiple documents")
@@ -879,10 +879,13 @@ func (h *DocumentSubResourceHandler) BulkCreateDocuments(c *gin.Context) {
 			return
 		}
 
-		if document.Id == nil {
-			id := uuid.New()
-			document.Id = &id
+		// IDs are server-assigned, as in single create (#947).
+		if document.Id != nil {
+			HandleRequestError(c, InvalidInputError("Field 'id' is not allowed in bulk create requests. IDs are assigned by the server."))
+			return
 		}
+		id := uuid.New()
+		document.Id = &id
 	}
 
 	logger.Debug("Bulk creating %d documents in threat model %s (user: %s)",

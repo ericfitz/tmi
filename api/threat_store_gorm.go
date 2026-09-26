@@ -280,7 +280,7 @@ func (s *GormThreatRepository) Delete(ctx context.Context, id string) error {
 }
 
 // hardDeleteThreat permanently removes a threat and invalidates related caches using GORM
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: permanently remove a threat from DB and invalidate related caches (reads DB)
+// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: permanently delete a threat and its metadata in one transaction, invalidate caches (mutates DB)
 func (s *GormThreatRepository) hardDeleteThreat(ctx context.Context, id string) error {
 	logger := slogging.Get()
 	logger.Debug("Deleting threat: %s", id)
@@ -293,6 +293,13 @@ func (s *GormThreatRepository) hardDeleteThreat(ctx context.Context, id string) 
 
 	// Delete from database (with retry)
 	err = authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Metadata has no FK to its entity: delete it in the same transaction
+		// (before the row, matching the tombstone purge's lock order) so a
+		// reused ID cannot inherit it (#947). Not-found rolls this back.
+		if err := tx.Where("entity_type = ? AND entity_id = ?", "threat", id).
+			Delete(&models.Metadata{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
 		result := tx.Delete(&models.Threat{}, "id = ?", id)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)

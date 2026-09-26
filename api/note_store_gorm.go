@@ -286,7 +286,7 @@ func (s *GormNoteRepository) Delete(ctx context.Context, id string) error {
 }
 
 // hardDeleteNote permanently removes a note and its metadata from the database
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: permanently remove a note and its metadata from the DB and invalidate its cache (reads DB)
+// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: permanently delete a note and its metadata in one transaction, invalidate caches (mutates DB)
 func (s *GormNoteRepository) hardDeleteNote(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -306,6 +306,13 @@ func (s *GormNoteRepository) hardDeleteNote(ctx context.Context, id string) erro
 
 	// Delete from database (with retry)
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Metadata has no FK to its entity: delete it in the same transaction
+		// (before the row, matching the tombstone purge's lock order) so a
+		// reused ID cannot inherit it (#947). Not-found rolls this back.
+		if err := tx.Where("entity_type = ? AND entity_id = ?", "note", id).
+			Delete(&models.Metadata{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
 		result := tx.Delete(&models.Note{}, "id = ?", id)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
@@ -321,9 +328,6 @@ func (s *GormNoteRepository) hardDeleteNote(ctx context.Context, id string) erro
 		}
 		return err
 	}
-
-	// Delete metadata
-	s.db.WithContext(ctx).Where("entity_type = ? AND entity_id = ?", "note", id).Delete(&models.Metadata{})
 
 	// Remove from cache
 	if s.cache != nil {
