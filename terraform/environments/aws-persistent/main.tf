@@ -7,8 +7,7 @@
 # IP 34.232.165.1 (eipalloc-07c325e51173c0bc9) is NEVER released unless Eric
 # explicitly instructs it, naming the address. An external system monitors
 # traffic from this address; once released, AWS may hand it to someone else.
-# See the ADR "Fixed NAT egress EIP" in the wiki and
-# docs/superpowers/specs (tmi-tf-wh) 2026-09-26-fixed-egress-eip-and-aws-logging-design.md.
+# See docs/superpowers/specs/2026-09-26-adr-fixed-nat-egress-eip.md.
 #
 # This stack creates:
 # - The NAT egress EIP (adopted via import, prevent_destroy)

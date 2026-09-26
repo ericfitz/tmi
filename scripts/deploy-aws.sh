@@ -36,6 +36,8 @@
 #                                   database after the overlay is up (optional)
 #   --skip-build                   Skip container image build/push (use existing ECR images)
 #   --destroy                      Destroy the deployment instead of creating it (--domain/--zone-id still required)
+#                                  Does not release the NAT egress EIP or the log bucket/trail;
+#                                  those live in terraform/environments/aws-persistent.
 #   --dry-run                      Run terraform plan only (no apply, no build/push, no cluster changes)
 #   --auto-approve                 Skip terraform apply confirmation
 #   --help                         Show this help message

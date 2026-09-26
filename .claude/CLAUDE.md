@@ -217,10 +217,11 @@ marker whose entity didn't logically change.
 
 # AWS guidance
 
+- **Never release the NAT egress EIP `34.232.165.1`** (`eipalloc-07c325e51173c0bc9`) unless Eric explicitly instructs it, naming the address: an external monitor depends on it. It lives in `terraform/environments/aws-persistent` (never destroyed; no `state rm`); `aws-public` only looks it up. See `docs/superpowers/specs/2026-09-26-adr-fixed-nat-egress-eip.md`.
 - **Terraform is the only IaC tool.** Infrastructure lives in `terraform/environments/<env>` (`aws-public` is live) and `terraform/modules/<name>/aws`. Change infrastructure there, not with `aws` CLI mutations. There is no CDK or CloudFormation, so ignore advice that assumes either (including `{{resolve:secretsmanager:...}}`).
 - **Workloads are not Terraform's job.** Terraform owns infra and bootstrap objects (namespace, ConfigMap, Secret, IRSA service account); every Deployment/Service/Ingress belongs to the kustomize overlay in `deployments/k8s/dev/aws`. Adding a workload to Terraform re-breaks that boundary.
 - Run Terraform from the environment directory with the `tmi` profile (`cd terraform/environments/aws-public && AWS_PROFILE=tmi terraform plan`) and read the plan before applying. `terraform.tfvars` is generated and gitignored; `scripts/deploy-aws.sh` rewrites it on every run, so hand-edits are temporary.
-- The `aws` CLI is for *reading* state and the few operations Terraform doesn't own (Route 53 record surgery during a cutover, ECR pushes, `eks update-kubeconfig`). Prefer the AWS MCP Server when it can do the job, for sandboxing and audit logging.
+- The `aws` CLI is for *reading* state and the few operations Terraform doesn't own (Route 53 record surgery during a cutover, ECR pushes, `eks update-kubeconfig`). The AWS MCP Server always targets the default (personal) account, so for the tmi account use the CLI with `AWS_PROFILE=tmi`.
 - Before an AWS task, check for a relevant AWS skill via `retrieve_skill` and prefer it over general knowledge; verify skill names, since the set here may not match AWS's catalogue. Verify uncertain details (API parameters, permissions, limits, error codes) against documentation and state uncertainty explicitly.
 - Follow AWS Well-Architected Framework principles. No em dashes in AWS resource names or descriptions; use hyphens.
 
