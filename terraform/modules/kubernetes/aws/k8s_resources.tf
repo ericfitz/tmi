@@ -118,7 +118,12 @@ resource "kubernetes_config_map_v1" "tmi" {
       # /oauth2/content-callback?return_to=...), one with a dynamic query
       # string, so a single origin-prefix wildcard covers them all. Comma-
       # separated list.
-      TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST = "https://www.tmi.dev/*"
+      #
+      # http://127.0.0.1:8765/* is tmi-mcp's PKCE loopback callback on its
+      # default fixed port (approved by Eric, 2026-09-26). The trailing slash
+      # keeps it safe under the prefix matcher: without it,
+      # "http://127.0.0.1:8765@evil.example/" would match.
+      TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST = "https://www.tmi.dev/*,http://127.0.0.1:8765/*"
 
       # CORS: pin the allowed browser origin(s). config.go:107
       # (TMI_CORS_ALLOWED_ORIGINS). Unset, the server reflects any Origin back
