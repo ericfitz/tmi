@@ -268,6 +268,18 @@ variable "lb_controller_chart_local_path" {
   default     = ""
 }
 
+variable "cluster_log_types" {
+  description = "EKS control plane log types to send to CloudWatch (e.g. audit, authenticator). Empty disables them."
+  type        = list(string)
+  default     = []
+}
+
+variable "log_retention_days" {
+  description = "Retention for the EKS control plane log group"
+  type        = number
+  default     = 30
+}
+
 variable "tags" {
   description = "Tags to apply to all AWS resources"
   type        = map(string)

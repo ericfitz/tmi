@@ -81,6 +81,24 @@ variable "deletion_protection" {
   default     = false
 }
 
+variable "enable_log_export" {
+  description = "Log connections/disconnections via a custom parameter group and export the postgresql log to CloudWatch"
+  type        = bool
+  default     = false
+}
+
+variable "log_retention_days" {
+  description = "Retention for the exported postgresql log group"
+  type        = number
+  default     = 30
+}
+
+variable "apply_immediately" {
+  description = "Apply instance modifications at apply time instead of the next maintenance window. Parameter group changes still need a reboot."
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "Tags to apply to all resources"
   type        = map(string)

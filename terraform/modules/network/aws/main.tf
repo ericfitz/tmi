@@ -42,8 +42,11 @@ resource "aws_internet_gateway" "tmi" {
   })
 }
 
-# Elastic IP for NAT Gateway
+# Elastic IP for NAT Gateway. Created here only when the caller does not pass
+# a long-lived EIP: aws-public passes the permanent egress EIP owned by the
+# aws-persistent stack, which must never be released (see that stack).
 resource "aws_eip" "nat" {
+  count  = var.nat_eip_allocation_id == null ? 1 : 0
   domain = "vpc"
 
   tags = merge(var.tags, {
@@ -51,9 +54,14 @@ resource "aws_eip" "nat" {
   })
 }
 
+moved {
+  from = aws_eip.nat
+  to   = aws_eip.nat[0]
+}
+
 # NAT Gateway (placed in public subnet for outbound internet access from private subnets)
 resource "aws_nat_gateway" "tmi" {
-  allocation_id = aws_eip.nat.id
+  allocation_id = coalesce(var.nat_eip_allocation_id, one(aws_eip.nat[*].id))
   subnet_id     = var.enable_public_subnets ? aws_subnet.public[0].id : aws_subnet.private.id
 
   tags = merge(var.tags, {
@@ -399,4 +407,21 @@ resource "aws_vpc_security_group_ingress_rule" "rds_from_nodes" {
   to_port                      = 5432
   ip_protocol                  = "tcp"
   referenced_security_group_id = aws_security_group.eks_nodes.id
+}
+
+# VPC flow logs (only when a destination bucket ARN is passed)
+resource "aws_flow_log" "tmi" {
+  count                = var.flow_log_s3_arn == null ? 0 : 1
+  vpc_id               = aws_vpc.tmi.id
+  traffic_type         = "ALL"
+  log_destination_type = "s3"
+  log_destination      = var.flow_log_s3_arn
+
+  destination_options {
+    file_format = "parquet"
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-vpc-flow-log"
+  })
 }

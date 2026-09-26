@@ -60,6 +60,18 @@ variable "alb_ingress_cidr" {
   default     = "0.0.0.0/0"
 }
 
+variable "nat_eip_allocation_id" {
+  description = "Allocation ID of an existing EIP for the NAT gateway. null creates a module-owned EIP."
+  type        = string
+  default     = null
+}
+
+variable "flow_log_s3_arn" {
+  description = "S3 ARN (bucket or bucket/prefix/) for VPC flow logs. null disables flow logs."
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Tags to apply to all resources"
   type        = map(string)
