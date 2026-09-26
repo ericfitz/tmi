@@ -69,9 +69,21 @@ func (h *Handlers) GetSAMLMetadata(c *gin.Context, providerID string) {
 }
 
 // InitiateSAMLLogin starts SAML authentication flow
-// SEM@3256ece0f5730b6c910aa6e61025555c7726a4a5: build a SAML auth request, store relay state, and redirect to the IdP
+// SEM@8ca5b826b2afb7199c5784087940df39d67cbaeb: validate the client callback, build a SAML auth request, store relay state, and redirect to the IdP
 func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCallback *string) {
 	logger := slogging.Get()
+
+	// The ACS redirects to client_callback with the access and refresh
+	// tokens, so it must pass the same allowlist as /oauth2/authorize;
+	// otherwise any URL could receive a victim's tokens.
+	if clientCallback != nil && *clientCallback != "" {
+		allow := NewClientCallbackAllowList(h.clientCallbackAllowList(c.Request.Context()))
+		if !allow.Allowed(*clientCallback) {
+			logger.WithContext(c).Warn("Rejected SAML login: client_callback %q is not in the allowlist", *clientCallback)
+			samlErrorJSON(c, http.StatusBadRequest, "invalid_request", "client_callback is not in the allowlist")
+			return
+		}
+	}
 
 	// Check if SAML is enabled
 	if !h.samlEnabled(c.Request.Context()) {

@@ -178,3 +178,35 @@ func TestAuthorize_EmptyAllowlistRejectsAnyCallback(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "invalid_request", resp["error"])
 }
+
+// TestInitiateSAMLLogin_RejectsClientCallbackOutsideAllowlist pins the SAML
+// counterpart of T16: the ACS redirects to client_callback with the access
+// and refresh tokens, so an unlisted callback must be refused up front.
+func TestInitiateSAMLLogin_RejectsClientCallbackOutsideAllowlist(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	h := &Handlers{config: Config{OAuth: OAuthConfig{
+		ClientCallbackAllowList: []string{"http://localhost:4200/*"},
+	}}}
+	router.GET("/saml/:provider/login", func(c *gin.Context) {
+		cb := c.Query("client_callback")
+		h.InitiateSAMLLogin(c, c.Param("provider"), &cb)
+	})
+
+	for _, cb := range []string{
+		"https://evil.example/cb",
+		"http://localhost:4200@evil.example/cb",
+		"http://localhost:4200.evil.example/cb",
+	} {
+		t.Run(cb, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/saml/entra/login?client_callback="+url.QueryEscape(cb), nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+			var resp map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+			assert.Equal(t, "invalid_request", resp["error"])
+		})
+	}
+}
