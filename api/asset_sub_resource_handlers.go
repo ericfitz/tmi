@@ -362,7 +362,7 @@ func (h *AssetSubResourceHandler) DeleteAsset(c *gin.Context) {
 
 // BulkCreateAssets creates multiple assets in a single request
 // POST /threat_models/{threat_model_id}/assets/bulk
-// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: validate, sanitize, and bulk-create multiple assets under a threat model (mutates shared state)
+// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: create up to 50 assets under a threat model; reject client-supplied IDs (mutates DB)
 func (h *AssetSubResourceHandler) BulkCreateAssets(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateAssets - creating multiple assets")
@@ -439,10 +439,13 @@ func (h *AssetSubResourceHandler) BulkCreateAssets(c *gin.Context) {
 			return
 		}
 
-		if asset.Id == nil {
-			id := uuid.New()
-			asset.Id = &id
+		// IDs are server-assigned, as in single create (#947).
+		if asset.Id != nil {
+			HandleRequestError(c, InvalidInputError("Field 'id' is not allowed in bulk create requests. IDs are assigned by the server."))
+			return
 		}
+		id := uuid.New()
+		asset.Id = &id
 	}
 
 	logger.Debug("Bulk creating %d assets in threat model %s (user: %s)",

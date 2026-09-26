@@ -375,7 +375,7 @@ func (h *RepositorySubResourceHandler) DeleteRepository(c *gin.Context) {
 
 // BulkCreateRepositorys creates multiple repository code references in a single request
 // POST /threat_models/{threat_model_id}/repositorys/bulk
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: bulk create up to 50 repository references, emit created events (mutates DB)
+// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: create up to 50 repository references, reject client-supplied IDs, emit events (mutates DB)
 func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateRepositorys - creating multiple repository code references")
@@ -444,10 +444,13 @@ func (h *RepositorySubResourceHandler) BulkCreateRepositorys(c *gin.Context) {
 			return
 		}
 
-		if repository.Id == nil {
-			id := uuid.New()
-			repository.Id = &id
+		// IDs are server-assigned, as in single create (#947).
+		if repository.Id != nil {
+			HandleRequestError(c, InvalidInputError("Field 'id' is not allowed in bulk create requests. IDs are assigned by the server."))
+			return
 		}
+		id := uuid.New()
+		repository.Id = &id
 	}
 
 	logger.Debug("Bulk creating %d repository code references in threat model %s (user: %s)",
