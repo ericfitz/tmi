@@ -154,6 +154,23 @@ resource "aws_ecr_repository" "tmi" {
 # Network
 # ============================================================================
 
+# The NAT egress EIP (34.232.165.1) and the log bucket are owned by the
+# long-lived aws-persistent stack, which must be applied first. The EIP is
+# NEVER released: an external system monitors traffic from it (human-made
+# architectural decision, Eric, 2026-09-26). Destroying this environment
+# leaves both untouched.
+data "aws_caller_identity" "current" {}
+
+data "aws_eip" "nat_egress" {
+  tags = {
+    Name = "tmi-nat-eip"
+  }
+}
+
+locals {
+  log_bucket_arn = "arn:aws:s3:::tmi-logs-${data.aws_caller_identity.current.account_id}"
+}
+
 module "network" {
   source = "../../modules/network/aws"
 
@@ -161,6 +178,8 @@ module "network" {
   vpc_cidr              = var.vpc_cidr
   enable_public_subnets = true
   alb_ingress_cidr      = "0.0.0.0/0"
+  nat_eip_allocation_id = data.aws_eip.nat_egress.id
+  flow_log_s3_arn       = "${local.log_bucket_arn}/vpc-flow/"
 
   tags = local.common_tags
 }
@@ -195,6 +214,12 @@ module "database" {
   deletion_protection    = false
   skip_final_snapshot    = true
 
+  # Connection logging exported to CloudWatch (30 d). The parameter group
+  # needs a reboot to take effect. RDS modifications wait for the maintenance
+  # window (apply_immediately stays false; Eric, 2026-09-26: true was used
+  # for the one apply that introduced this logging only).
+  enable_log_export = true
+
   tags = local.common_tags
 }
 
@@ -227,6 +252,8 @@ module "kubernetes" {
   # one place unless an operator is deliberately stepping through an upgrade.
   kubernetes_version = var.kubernetes_version
   node_instance_type = "t3.medium"
+
+  cluster_log_types = ["audit", "authenticator"]
 
   # Two nodes, not one (#575). The binding constraint is the VPC CNI's
   # pod-per-node ceiling, not CPU or memory: a t3.medium allows 3 ENIs x 6 IPs

@@ -62,10 +62,21 @@ resource "aws_iam_role_policy_attachment" "eks_vpc_resource_controller" {
 # EKS Cluster
 # ============================================================================
 
+# Pre-created so control-plane logs get a retention period instead of the
+# never-expire group EKS would create on its own.
+resource "aws_cloudwatch_log_group" "eks_cluster" {
+  count             = length(var.cluster_log_types) > 0 ? 1 : 0
+  name              = "/aws/eks/${var.name_prefix}-eks/cluster"
+  retention_in_days = var.log_retention_days
+  tags              = var.tags
+}
+
 resource "aws_eks_cluster" "tmi" {
   name     = "${var.name_prefix}-eks"
   role_arn = aws_iam_role.eks_cluster.arn
   version  = var.kubernetes_version
+
+  enabled_cluster_log_types = var.cluster_log_types
 
   vpc_config {
     subnet_ids              = var.subnet_ids
@@ -80,6 +91,7 @@ resource "aws_eks_cluster" "tmi" {
   depends_on = [
     aws_iam_role_policy_attachment.eks_cluster_policy,
     aws_iam_role_policy_attachment.eks_vpc_resource_controller,
+    aws_cloudwatch_log_group.eks_cluster,
   ]
 }
 

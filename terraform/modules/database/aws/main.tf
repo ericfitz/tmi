@@ -10,6 +10,38 @@ terraform {
   }
 }
 
+# Connection logging, exported to CloudWatch (only when enable_log_export).
+# Switching the instance to this parameter group needs one reboot to take effect.
+resource "aws_db_parameter_group" "tmi" {
+  count  = var.enable_log_export ? 1 : 0
+  name   = "${var.name_prefix}-postgres${split(".", var.engine_version)[0]}"
+  family = "postgres${split(".", var.engine_version)[0]}"
+
+  parameter {
+    name  = "log_connections"
+    value = "1"
+  }
+
+  parameter {
+    name  = "log_disconnections"
+    value = "1"
+  }
+
+  tags = var.tags
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# Pre-created so the exported log gets a retention period.
+resource "aws_cloudwatch_log_group" "postgresql" {
+  count             = var.enable_log_export ? 1 : 0
+  name              = "/aws/rds/instance/${var.name_prefix}-postgres/postgresql"
+  retention_in_days = var.log_retention_days
+  tags              = var.tags
+}
+
 resource "aws_db_instance" "tmi" {
   identifier = "${var.name_prefix}-postgres"
 
@@ -52,6 +84,11 @@ resource "aws_db_instance" "tmi" {
 
   # Maintenance
   auto_minor_version_upgrade = true
+  apply_immediately          = var.apply_immediately
+
+  # Logging
+  parameter_group_name            = one(aws_db_parameter_group.tmi[*].name)
+  enabled_cloudwatch_logs_exports = var.enable_log_export ? ["postgresql"] : []
 
   # Public accessibility (always false - database stays in private subnets)
   publicly_accessible = false
@@ -59,4 +96,6 @@ resource "aws_db_instance" "tmi" {
   tags = merge(var.tags, {
     Name = "${var.name_prefix}-postgres"
   })
+
+  depends_on = [aws_cloudwatch_log_group.postgresql]
 }
