@@ -674,7 +674,7 @@ func (h *ThreatSubResourceHandler) DeleteThreat(c *gin.Context) {
 
 // BulkCreateThreats creates multiple threats in a single request
 // POST /threat_models/{threat_model_id}/threats/bulk
-// SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: store up to 50 new threats under a threat model in a single request (mutates shared state)
+// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: create up to 50 threats under a threat model; reject client-supplied IDs (mutates DB)
 func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkCreateThreats - creating multiple threats")
@@ -748,11 +748,14 @@ func (h *ThreatSubResourceHandler) BulkCreateThreats(c *gin.Context) {
 		// Set threat model ID from URL
 		threat.ThreatModelId = &threatModelUUID
 
-		// Generate UUIDv7 if not provided (for better index locality)
-		if threat.Id == nil {
-			id := uuidgen.MustNewForEntity(uuidgen.EntityTypeThreat)
-			threat.Id = &id
+		// IDs are server-assigned, as in single create (#947): a client ID
+		// could reclaim a hard-deleted entity's ID.
+		if threat.Id != nil {
+			HandleRequestError(c, InvalidInputError("Field 'id' is not allowed in bulk create requests. IDs are assigned by the server."))
+			return
 		}
+		id := uuidgen.MustNewForEntity(uuidgen.EntityTypeThreat)
+		threat.Id = &id
 	}
 
 	logger.Debug("Bulk creating %d threats in threat model %s (user: %s)",

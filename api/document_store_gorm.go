@@ -349,7 +349,7 @@ func (s *GormDocumentRepository) Delete(ctx context.Context, id string) error {
 }
 
 // hardDeleteDocument permanently removes a document and its metadata from the database
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: permanently delete a document, its metadata, cache entry, and related cache keys (reads DB)
+// SEM@72e97a5fe3efd8612113f9b4ff7dd27df233dd77: permanently delete a document and its metadata in one transaction, invalidate caches (mutates DB)
 func (s *GormDocumentRepository) hardDeleteDocument(ctx context.Context, id string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -369,6 +369,13 @@ func (s *GormDocumentRepository) hardDeleteDocument(ctx context.Context, id stri
 
 	// Delete from database (with retry)
 	err := authdb.WithRetryableGormTransaction(ctx, s.db, authdb.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		// Metadata has no FK to its entity: delete it in the same transaction
+		// (before the row, matching the tombstone purge's lock order) so a
+		// reused ID cannot inherit it (#947). Not-found rolls this back.
+		if err := tx.Where("entity_type = ? AND entity_id = ?", "document", id).
+			Delete(&models.Metadata{}).Error; err != nil {
+			return dberrors.Classify(err)
+		}
 		result := tx.Delete(&models.Document{}, "id = ?", id)
 		if result.Error != nil {
 			return dberrors.Classify(result.Error)
@@ -384,9 +391,6 @@ func (s *GormDocumentRepository) hardDeleteDocument(ctx context.Context, id stri
 		}
 		return err
 	}
-
-	// Delete metadata
-	s.db.WithContext(ctx).Where("entity_type = ? AND entity_id = ?", "document", id).Delete(&models.Metadata{})
 
 	// Remove from cache
 	if s.cache != nil {
