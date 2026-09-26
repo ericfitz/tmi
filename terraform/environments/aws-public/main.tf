@@ -214,11 +214,11 @@ module "database" {
   deletion_protection    = false
   skip_final_snapshot    = true
 
-  # Connection logging exported to CloudWatch (30 d). apply_immediately so a
-  # reviewed plan takes effect at apply rather than at an unannounced
-  # maintenance window; the parameter group itself still needs a reboot.
+  # Connection logging exported to CloudWatch (30 d). The parameter group
+  # needs a reboot to take effect. RDS modifications wait for the maintenance
+  # window (apply_immediately stays false; Eric, 2026-09-26: true was used
+  # for the one apply that introduced this logging only).
   enable_log_export = true
-  apply_immediately = true
 
   tags = local.common_tags
 }

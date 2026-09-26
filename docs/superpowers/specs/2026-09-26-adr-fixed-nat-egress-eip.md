@@ -23,6 +23,9 @@ Full design: `tmi-tf-wh/docs/superpowers/specs/2026-09-26-fixed-egress-eip-and-a
    and tmi-webhooks); SQS DLQ alarm; RDS `postgresql` log export with connection logging.
    Not adopted: GuardDuty, Config, Security Hub, Resolver query logs.
 5. Every step that mutates the live AWS deployment waits for Eric's explicit approval.
+6. RDS `apply_immediately = true` was used only for the one apply that introduced the logging
+   changes; aws-public then went back to the default (false), so later RDS modifications wait
+   for the maintenance window.
 
 ## Consequences
 
