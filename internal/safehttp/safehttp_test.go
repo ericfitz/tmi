@@ -25,6 +25,8 @@ func (r stubResolver) LookupHost(_ context.Context, host string) ([]string, erro
 
 func TestCheckIP(t *testing.T) {
 	blocked := map[string]string{
+		"0.0.0.0":         "unspecified",
+		"::":              "unspecified",
 		"127.0.0.1":       "loopback",
 		"::1":             "loopback",
 		"10.0.0.1":        "private",

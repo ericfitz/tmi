@@ -48,12 +48,17 @@ func (defaultResolver) LookupHost(ctx context.Context, host string) ([]string, e
 var DefaultResolver HostResolver = defaultResolver{}
 
 // CheckIP returns a non-nil error when ip falls in a range that
-// server-originated outbound HTTP must never reach: loopback, RFC1918 private
-// space, the cloud-metadata endpoint (169.254.169.254), or any other
-// link-local address. It is the single source of truth for the SSRF IP
-// blocklist shared by api/ and auth/.
-// SEM@e55d63794c48585aafab36880122df63ab8ab1be: validate that an IP is not in any SSRF-blocked range (loopback, private, link-local, metadata) (pure)
+// server-originated outbound HTTP must never reach: the unspecified address
+// (0.0.0.0, ::), loopback, RFC1918 private space, the cloud-metadata endpoint
+// (169.254.169.254), or any other link-local address. It is the single source
+// of truth for the SSRF IP blocklist shared by api/ and auth/.
+// SEM@8ca5b826b2afb7199c5784087940df39d67cbaeb: validate that an IP is not in any SSRF-blocked range (unspecified, loopback, private, link-local, metadata) (pure)
 func CheckIP(ip net.IP) error {
+	// 0.0.0.0 and :: are "this host": on Linux a connection to them reaches
+	// the pod's own listeners, the same as loopback.
+	if ip.IsUnspecified() {
+		return fmt.Errorf("blocked: unspecified address %s", ip)
+	}
 	if ip.IsLoopback() {
 		return fmt.Errorf("blocked: loopback address %s", ip)
 	}

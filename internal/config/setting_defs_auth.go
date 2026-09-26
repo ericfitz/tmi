@@ -164,7 +164,7 @@ var authSettingDefs = []SettingDef{
 		Key:         "auth.oauth.client_callback_allowlist",
 		Class:       operationalClass(VisibilityAdminOnly, false),
 		Type:        "json",
-		Description: "Allowlist of client_callback URLs for /oauth2/authorize and /oauth2/step_up (exact URL or wildcard pattern ending in '*')",
+		Description: "Allowlist of client_callback URLs for /oauth2/authorize and /oauth2/step_up (exact URL, prefix pattern ending in '*', or loopback any-port pattern like 'http://127.0.0.1:*' per RFC 8252; URLs with userinfo are always rejected)",
 		Default:     "[]",
 		YAMLPath:    "auth.oauth.client_callback_allowlist",
 		EnvVar:      "TMI_OAUTH_CLIENT_CALLBACK_ALLOWLIST",
