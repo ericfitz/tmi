@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -110,5 +111,41 @@ func TestJWTAuth_PopulatesUserAuthTime_Missing(t *testing.T) {
 
 	if gotPtr != nil {
 		t.Errorf("expected nil *time.Time for missing auth_time, got %v", *gotPtr)
+	}
+}
+
+// TestJWTAuth_ServiceAccountSubjectRequiresClaim pins the fix for a user
+// whose IdP subject starts with "sa:": without the tmi_service_account
+// claim that TMI sets only on client-credentials tokens, such a subject must
+// be rejected rather than resolved as the service account of another user.
+func TestJWTAuth_ServiceAccountSubjectRequiresClaim(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	run := func(claims jwt.MapClaims) (*gin.Context, error) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request, _ = http.NewRequest(http.MethodGet, "/threat_models", nil)
+		err := (&ClaimsExtractor{}).ExtractAndSetClaims(c, &jwt.Token{Claims: claims, Valid: true})
+		return c, err
+	}
+	base := func() jwt.MapClaims {
+		return jwt.MapClaims{
+			"sub": "sa:cred-1:victim-provider-id",
+			"exp": float64(time.Now().Add(time.Hour).Unix()),
+		}
+	}
+
+	_, err := run(base())
+	if !errors.Is(err, errUnmarkedServiceAccountSubject) {
+		t.Fatalf("unmarked sa: subject: got err %v, want errUnmarkedServiceAccountSubject", err)
+	}
+
+	marked := base()
+	marked["tmi_service_account"] = true
+	c, _ := run(marked)
+	if isSA, _ := c.Get("isServiceAccount"); isSA != true {
+		t.Fatalf("marked sa: token: isServiceAccount = %v, want true", isSA)
+	}
+	if uid, _ := c.Get("userID"); uid != "victim-provider-id" {
+		t.Fatalf("marked sa: token: userID = %v, want owner provider id", uid)
 	}
 }

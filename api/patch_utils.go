@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -12,7 +13,7 @@ import (
 )
 
 // ApplyPatchOperations applies JSON Patch operations to an entity and returns the modified entity
-// SEM@4aeb9143566d7b7712cdee5ecbbb16e134f6c684: apply RFC 6902 JSON Patch operations to an entity, promoting replace to add for absent fields (pure)
+// SEM@95fbc20511ce80f464d07e7723483035dbf87346: apply RFC 6902 JSON Patch operations to an entity, promoting replace to add and rejecting case-aliased keys (pure)
 func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, error) {
 	var zero T
 
@@ -84,6 +85,20 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 	modifiedBytes = fixMetadataField(modifiedBytes, originalBytes)
 	modifiedBytes = fixImageField(modifiedBytes, originalBytes)
 	modifiedBytes = fixOwnerField(modifiedBytes, originalBytes)
+
+	// Reject keys that differ from a field name only by case: encoding/json
+	// would decode them into that field, bypassing every exact-path check
+	// (read-only fields, owner/authorization gates) done before the apply.
+	var patchedDoc any
+	if err := json.Unmarshal(modifiedBytes, &patchedDoc); err == nil {
+		if p, bad := findCaseAliasedKey(patchedDoc, reflect.TypeFor[T](), ""); bad {
+			return zero, &RequestError{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_input",
+				Message: "Patch path must match the field name exactly (case-sensitive): " + p,
+			}
+		}
+	}
 
 	// Deserialize back into entity. The patched document is caller-supplied
 	// content, so a value that no longer fits the schema (wrong type, failed

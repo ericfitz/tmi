@@ -1827,13 +1827,14 @@ func serverContextMiddleware(apiServer *api.Server) gin.HandlerFunc {
 }
 
 // serverConfigMiddleware provides server configuration values to all handlers via context.
-// SEM@034968fa0e0ba8c15e9af9052b475f4d5dd72d50: build middleware that injects server configuration values into the request context
+// SEM@95fbc20511ce80f464d07e7723483035dbf87346: build middleware that injects server configuration values, including CORS origins, into the request context
 func serverConfigMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set("tlsEnabled", cfg.Server.TLSEnabled)
 		c.Set("tlsSubjectName", cfg.Server.TLSSubjectName)
 		c.Set("serverPort", cfg.Server.Port)
 		c.Set("isDev", cfg.Logging.IsDev)
+		c.Set("corsAllowedOrigins", cfg.Server.CORS.AllowedOrigins)
 		c.Set("operatorName", cfg.Operator.Name)
 		c.Set("operatorContact", cfg.Operator.Contact)
 		c.Next()

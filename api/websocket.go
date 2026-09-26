@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"runtime/debug"
-	"strings"
 	"sync"
 	"time"
 
@@ -220,82 +218,6 @@ func (c *WebSocketClient) trySend(msg []byte) bool {
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	// More secure origin check
-	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-
-		// Get dev mode flag from context or default to false
-		isDev := false
-		if ctx := r.Context(); ctx != nil {
-			if val := ctx.Value("isDev"); val != nil {
-				if devMode, ok := val.(bool); ok {
-					isDev = devMode
-				}
-			}
-		}
-
-		// In development mode, accept all origins
-		if isDev {
-			return true
-		}
-
-		// If no origin header, assume it's same-origin request
-		if origin == "" {
-			return true
-		}
-
-		// Get allowed origins from context
-		tlsSubjectName := ""
-		if ctx := r.Context(); ctx != nil {
-			if val := ctx.Value("tlsSubjectName"); val != nil {
-				if name, ok := val.(string); ok {
-					tlsSubjectName = name
-				}
-			}
-		}
-
-		// Basic default allowed origins
-		allowedOrigins := []string{
-			"http://localhost",
-			"https://localhost",
-			"http://127.0.0.1",
-			"https://127.0.0.1",
-		}
-
-		// Add the configured subject name if available
-		if tlsSubjectName != "" {
-			allowedOrigins = append(allowedOrigins,
-				"http://"+tlsSubjectName,
-				"https://"+tlsSubjectName)
-		}
-
-		// Get the host from the request
-		host := r.Host
-		allowedOrigins = append(allowedOrigins,
-			"http://"+host,
-			"https://"+host)
-
-		// Add environment-configured allowed origins
-		if envOrigins := os.Getenv("WEBSOCKET_ALLOWED_ORIGINS"); envOrigins != "" {
-			// Split by comma and add each origin
-			for envOrigin := range strings.SplitSeq(envOrigins, ",") {
-				envOrigin = strings.TrimSpace(envOrigin)
-				if envOrigin != "" {
-					allowedOrigins = append(allowedOrigins, envOrigin)
-				}
-			}
-		}
-
-		// Check if origin matches any allowed origins
-		for _, allowed := range allowedOrigins {
-			if strings.HasPrefix(origin, allowed) {
-				return true
-			}
-		}
-
-		slogging.Get().Warn("Rejected WebSocket connection from origin: %s", origin)
-		return false
-	},
 }
 
 // NewWebSocketHub creates a new WebSocket hub
@@ -1704,7 +1626,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	}
 
 	// Upgrade to WebSocket first
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	conn, err := withOriginCheck(c, upgrader).Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		slogging.Get().Info("Failed to upgrade connection: %v", err)
 		return

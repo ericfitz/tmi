@@ -232,6 +232,7 @@ func TestHandleClientCredentialsGrant_OwnerProviderInJWT(t *testing.T) {
 			require.True(t, ok)
 			assert.True(t, strings.HasPrefix(sub, "sa:"), "subject should have sa: prefix")
 			assert.Contains(t, sub, tc.ownerProviderUID, "subject should contain owner's provider user ID")
+			assert.Equal(t, true, claims["tmi_service_account"], "client-credentials tokens must carry the service-account claim")
 		})
 	}
 }

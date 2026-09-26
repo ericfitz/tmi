@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -208,6 +209,10 @@ func setServiceAccountContext(c *gin.Context, logger slogging.SimpleLogger, sub 
 	logger.Debug("Service account authenticated: credential_id=%s, owner=%s", credentialID, ownerProviderUserID)
 }
 
+// errUnmarkedServiceAccountSubject rejects a token whose subject looks like a
+// service account ("sa:...") but lacks the tmi_service_account claim.
+var errUnmarkedServiceAccountSubject = errors.New("service-account subject without service-account claim")
+
 // ExtractAndSetClaims extracts claims from a valid token and sets them in the context
 // SEM@b2651daf2f388dbef96d4ddd4a0bb46fcb8da56b: parse JWT claims and set user identity and delegation fields in the Gin context (mutates shared state)
 func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) error {
@@ -229,8 +234,14 @@ func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) 
 	}
 
 	if sub, ok := claims["sub"].(string); ok {
-		// Check if this is a service account token
+		// Check if this is a service account token. The subject prefix alone
+		// is not trusted: a user IdP could issue a subject that starts with
+		// "sa:", so only tokens TMI minted with the service-account claim
+		// qualify, and an unmarked "sa:" subject is rejected outright.
 		if strings.HasPrefix(sub, "sa:") {
+			if isSA, _ := claims["tmi_service_account"].(bool); !isSA {
+				return errUnmarkedServiceAccountSubject
+			}
 			setServiceAccountContext(c, logger, sub, claims)
 		} else {
 			// Regular user token
@@ -641,6 +652,14 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 
 	// Extract claims and set in context
 	if err := a.claimsExtractor.ExtractAndSetClaims(c, token); err != nil {
+		if errors.Is(err, errUnmarkedServiceAccountSubject) {
+			logger.Warn("Rejected token: %v", err)
+			return &AuthError{
+				Code:        "unauthorized",
+				Description: "Authentication required",
+				StatusCode:  http.StatusUnauthorized,
+			}
+		}
 		logger.Error("Failed to extract claims: %v", err)
 		return &AuthError{
 			Code:        "server_error",
