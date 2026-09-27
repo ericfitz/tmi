@@ -75,7 +75,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from deploy import (  # noqa: E402
-    OAUTH_PROVIDERS_ENV_FILE, ensure_port_forward,
+    OAUTH_PROVIDERS_ENV_FILE, ensure_port_forward, set_active_context,
 )
 from tmi_common import (  # noqa: E402
     add_config_arg, add_verbosity_args, apply_verbosity, get_project_root,
@@ -106,7 +106,7 @@ def build_dbtool() -> Path:
     return root / "bin" / "tmi-dbtool"
 
 
-def _dbtool(argv: list[str]) -> None:
+def _dbtool(argv: list[str], cluster: str) -> None:
     """Run tmi-dbtool from the project root.
 
     The bootstrap config points the database at localhost:5432 for host-side
@@ -115,7 +115,14 @@ def _dbtool(argv: list[str]) -> None:
     the port rather than silently talking to some other database -- which is
     the failure mode that matters most here, since restoring into the wrong
     database would be worse than not restoring at all.
+
+    Pins the active kube context to `cluster` first (#955): this runs as its
+    own `uv run` subprocess (invoked by deploy.py's snapshot_dev_config /
+    restore_dev_config), so it has no context pinned yet, and ensure_port_forward
+    must target the cluster this snapshot/restore is actually for, not
+    whatever the ambient kubeconfig happens to have selected.
     """
+    set_active_context(cluster)
     ensure_port_forward("postgres")
     run_cmd(argv, cwd=str(get_project_root()))
 
@@ -139,7 +146,7 @@ def cmd_snapshot(args: argparse.Namespace) -> None:
         f"--config={args.config}",
         "-f", args.config,
         "--output", str(out),
-    ])
+    ], cluster=args.cluster)
     os.chmod(out, 0o600)
     log_success(f"Snapshot written: {out.relative_to(get_project_root())}")
 
@@ -170,7 +177,7 @@ def cmd_restore(args: argparse.Namespace) -> None:
     if args.overwrite:
         argv.append("--overwrite")
     try:
-        _dbtool(argv)
+        _dbtool(argv, cluster=args.cluster)
     finally:
         byproduct.unlink(missing_ok=True)
     log_success("Settings restored. Roll the server to pick up startup-read values:")

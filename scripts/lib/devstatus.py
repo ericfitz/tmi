@@ -30,16 +30,21 @@ def _row(ok: bool, label: str, detail: str) -> None:
     print(f"{mark} {label:<26} {detail}")
 
 
-def print_dashboard() -> None:
+def print_dashboard(cluster_target: str = "docker-desktop") -> None:
     print("TMI Dev Environment Status")
     print("==========================\n")
+
+    # Pin the context for the CLUSTER being asked about (#955): the
+    # in-cluster deployments query below must target that specific cluster,
+    # not whatever the ambient kubeconfig happens to have selected.
+    deploy.set_active_context(cluster_target)
 
     ctx = deploy.current_kube_context()
     _row(bool(ctx), "kube context", ctx or "none — run 'make dev-cluster-up'")
 
     # In-cluster deployments
-    r = run_cmd(["kubectl", "get", "deploy", "-n", deploy.NS, "-o", "json"],
-                check=False, capture=True)
+    r = deploy.kubectl(["get", "deploy", "-n", deploy.NS, "-o", "json"],
+                        check=False, capture=True)
     if r.returncode != 0:
         print(f"{YELLOW}⦿{NC} in-cluster deployments     unreachable (no cluster/context)")
     else:

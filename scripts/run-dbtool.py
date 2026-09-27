@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from deploy import ensure_port_forward  # noqa: E402
+from deploy import ensure_port_forward, pin_ambient_context  # noqa: E402
 from tmi_common import (  # noqa: E402
     add_config_arg,
     add_verbosity_args,
@@ -135,9 +135,15 @@ def _ensure_forwards(args: argparse.Namespace) -> None:
     `make cats-seed`, `make e2e-seed`, and the cats plugin's `seed` hook (hence
     `make cats-fuzz`). Requiring a developer to have started these by hand was
     never workable -- a hand-started forward is killed as an orphan by the next
-    dev-up/dev-restart/dev-down (see deploy.POSTGRES_PORT_FORWARD_PID), so it
-    reliably disappears and the failure surfaces later as a confusing seed
-    error rather than a missing prerequisite.
+    dev-up/dev-restart/dev-down (see deploy.stop_port_forward), so it reliably
+    disappears and the failure surfaces later as a confusing seed error rather
+    than a missing prerequisite.
+
+    This script has no --cluster of its own -- it always seeds "whatever
+    cluster is up". pin_ambient_context() snapshots the ambient kube context
+    once, up front, so ensure_port_forward()'s kubectl calls (#955) are pinned
+    for the rest of this run instead of re-resolving the ambient context on
+    every respawn.
 
     Skipped for --oci: that target is an external managed Oracle ADB reached
     over the internet, with no in-cluster Service to forward. Also skipped when
@@ -148,6 +154,7 @@ def _ensure_forwards(args: argparse.Namespace) -> None:
         log_info("Oracle target: skipping port-forwards (ADB is external)")
         return
 
+    pin_ambient_context()
     ensure_port_forward("postgres")
 
     if "localhost" in args.server or "127.0.0.1" in args.server:
