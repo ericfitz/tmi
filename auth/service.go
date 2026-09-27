@@ -235,6 +235,7 @@ type Claims struct {
 	Delegation         *DelegationContext `json:"delegation,omitempty"`               // T18: scoped delegation token for addon invocations
 	DirectWrite        *bool              `json:"tmi_direct_write,omitempty"`         // #856: SA token may pass the invoker-only gate (owner's roles still apply)
 	AddonID            string             `json:"tmi_addon_id,omitempty"`             // #883: addon whose subscription must not receive events caused by this token
+	ServiceAccount     bool               `json:"tmi_service_account,omitempty"`      // set only on client-credentials tokens; an "sa:" subject without it is rejected
 	// AuthTime is the timestamp (Unix seconds) of the user's last interactive
 	// IdP authentication. OIDC-standard claim. #355 step-up middleware reads
 	// this to decide whether a /admin/* write requires re-authentication.
@@ -1161,6 +1162,7 @@ func (s *Service) HandleClientCredentialsGrant(ctx context.Context, clientID, cl
 	claims := Claims{
 		Email:            owner.Email,
 		Name:             fmt.Sprintf("[Service Account] %s", creds.Name),
+		ServiceAccount:   true,
 		IdentityProvider: owner.Provider,
 		Groups:           owner.Groups,
 		// CC grants set auth_time = now: each token mint counts as fresh

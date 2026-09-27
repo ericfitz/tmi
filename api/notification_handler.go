@@ -61,15 +61,11 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 
 	// Upgrade HTTP connection to WebSocket
 	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			// In production, implement proper origin checking
-			return true
-		},
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 	}
 
-	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	conn, err := withOriginCheck(c, upgrader).Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		logger.Error("Failed to upgrade HTTP connection to WebSocket for user %s: %v", userEmail, err)
 		c.JSON(http.StatusInternalServerError, Error{
