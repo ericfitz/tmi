@@ -2,9 +2,11 @@ import json
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import devstatus  # noqa: E402
+import deploy      # noqa: E402
+import devstatus   # noqa: E402
 
 
 class TestDeploymentReadinessParsesReadyAndDesired(unittest.TestCase):
@@ -25,6 +27,29 @@ class TestDeploymentReadinessParsesReadyAndDesired(unittest.TestCase):
 class TestDeploymentReadinessEmpty(unittest.TestCase):
     def test_empty_list(self):
         self.assertEqual(devstatus.deployment_readiness('{"items": []}'), [])
+
+
+class TestPrintDashboardPinsRequestedCluster(unittest.TestCase):
+    """#955: the dashboard's `kubectl get deploy` must target the CLUSTER the
+    caller asked about, not whatever the ambient kubeconfig has selected."""
+
+    def setUp(self):
+        saved = deploy._active_context
+        self.addCleanup(setattr, deploy, "_active_context", saved)
+
+    def test_queries_deployments_with_the_requested_clusters_context(self):
+        with mock.patch.object(deploy, "run_cmd") as run_cmd, \
+             mock.patch.object(deploy, "server_http_status", return_value=(True, "200")), \
+             mock.patch("devstatus.run_cmd", return_value=mock.Mock(returncode=1)):
+            run_cmd.return_value = mock.Mock(returncode=0, stdout='{"items": []}')
+            devstatus.print_dashboard(cluster_target="k3s")
+        # The deploy query went through deploy.kubectl(), which must carry
+        # --context k3s-rp (the resolved k3s context), not docker-desktop.
+        call_args = [c.args[0] for c in run_cmd.call_args_list]
+        self.assertTrue(
+            any(a[:3] == ["kubectl", "--context", "k3s-rp"] for a in call_args),
+            f"expected a kubectl call pinned to --context k3s-rp, got {call_args}",
+        )
 
 
 if __name__ == "__main__":

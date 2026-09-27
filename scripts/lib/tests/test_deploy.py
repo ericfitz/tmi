@@ -305,7 +305,7 @@ class TestPostgresPortForward(unittest.TestCase):
     def test_stop_port_forward_tears_down_postgres(self):
         src = (Path(deploy.__file__)).read_text()
         stop_body = src.split("def stop_port_forward()")[1].split("\ndef ")[0]
-        self.assertIn("POSTGRES_PORT_FORWARD_PID", stop_body,
+        self.assertIn('_pidfile_path("postgres")', stop_body,
                       "stop_port_forward must tear the postgres forward down by pidfile")
 
     def test_each_starter_stops_only_its_own_pidfile(self):
@@ -378,12 +378,141 @@ class TestEnsurePortForward(unittest.TestCase):
 
     def test_forward_on_another_context_is_not_healthy(self):
         """#580: a live supervisor pointing localhost at a DIFFERENT cluster is
-        worse than none -- it must be replaced, not reused."""
+        worse than none -- it must be replaced, not reused. Compared against
+        the process's PINNED active context (#955), not the ambient one."""
+        saved = deploy._active_context
+        self.addCleanup(setattr, deploy, "_active_context", saved)
+        deploy.set_active_context("k3s")
         record = mock.Mock(pid=os.getpid(), context="some-other-context")
         with mock.patch.object(deploy.portfwd, "read_pidfile", return_value=record), \
-             mock.patch.object(deploy, "current_kube_context", return_value="k3s-rp"), \
              mock.patch.object(deploy.portfwd, "port_listeners", return_value=[(1, "x")]):
             self.assertFalse(deploy._forward_is_healthy("postgres"))
+
+
+class _ActiveContextTestCase(unittest.TestCase):
+    """Base class that saves/restores deploy._active_context around each test,
+    since it is process-global module state that tests must not leak between
+    each other."""
+
+    def setUp(self):
+        super().setUp()
+        saved = deploy._active_context
+        self.addCleanup(setattr, deploy, "_active_context", saved)
+
+
+class TestActiveContextPinning(_ActiveContextTestCase):
+    """#955: kubectl() must always carry an explicit --context resolved from
+    the caller's own CLUSTER, never the ambient `kubectl config
+    current-context` -- the shared, mutable state that let a concurrent
+    devenv run for a DIFFERENT cluster race this one (a `dev-down
+    CLUSTER=docker-desktop` deleted a concurrent `dev-up CLUSTER=k3s`'s
+    workloads)."""
+
+    def test_kubectl_uses_context_pinned_for_k3s(self):
+        deploy.set_active_context("k3s")
+        with mock.patch.object(deploy, "run_cmd") as run_cmd:
+            deploy.kubectl(["get", "pods"])
+        run_cmd.assert_called_once()
+        self.assertEqual(run_cmd.call_args.args[0],
+                         ["kubectl", "--context", "k3s-rp", "get", "pods"])
+
+    def test_kubectl_uses_context_pinned_for_docker_desktop(self):
+        deploy.set_active_context("docker-desktop")
+        with mock.patch.object(deploy, "run_cmd") as run_cmd:
+            deploy.kubectl(["get", "pods"])
+        self.assertEqual(run_cmd.call_args.args[0],
+                         ["kubectl", "--context", "docker-desktop", "get", "pods"])
+
+    def test_kubectl_fails_loudly_without_a_pinned_context(self):
+        """Never silently fall back to the ambient context -- raise instead."""
+        deploy._active_context = None
+        with self.assertRaises(RuntimeError):
+            deploy.kubectl(["get", "pods"])
+
+    def test_set_active_context_rejects_unknown_cluster(self):
+        with self.assertRaises(ValueError):
+            deploy.set_active_context("kind")
+
+    def test_pin_ambient_context_fails_loudly_with_no_context(self):
+        with mock.patch.object(deploy, "current_kube_context", return_value=""):
+            with self.assertRaises(RuntimeError):
+                deploy.pin_ambient_context()
+
+    def test_pin_ambient_context_pins_whatever_is_current(self):
+        with mock.patch.object(deploy, "current_kube_context", return_value="some-ambient-ctx"):
+            self.assertEqual(deploy.pin_ambient_context(), "some-ambient-ctx")
+        self.assertEqual(deploy._require_active_context(), "some-ambient-ctx")
+
+
+class TestPidfilePathIsPerContext(_ActiveContextTestCase):
+    """#955: each forward's pidfile path is scoped to the active context, so
+    docker-desktop and k3s can never share, read, or clobber each other's
+    pidfile -- the mechanism that let a docker-desktop `dev-down` tear down
+    k3s's live server/redis/postgres port-forwards."""
+
+    def test_paths_differ_by_cluster(self):
+        deploy.set_active_context("k3s")
+        k3s_path = deploy._pidfile_path("server")
+        deploy.set_active_context("docker-desktop")
+        dd_path = deploy._pidfile_path("server")
+        self.assertNotEqual(k3s_path, dd_path)
+        self.assertIn("k3s-rp", k3s_path)
+        self.assertIn("docker-desktop", dd_path)
+        self.assertNotIn("docker-desktop", k3s_path)
+        self.assertNotIn("k3s-rp", dd_path)
+
+    def test_kinds_differ_within_one_cluster(self):
+        deploy.set_active_context("docker-desktop")
+        paths = {deploy._pidfile_path(k) for k in ("server", "redis", "postgres")}
+        self.assertEqual(len(paths), 3)
+
+    def test_requires_a_pinned_context(self):
+        deploy._active_context = None
+        with self.assertRaises(RuntimeError):
+            deploy._pidfile_path("server")
+
+
+class TestStopPortForwardIsClusterScoped(_ActiveContextTestCase):
+    """#955, second half of the incident: `teardown() -> stop_port_forward()`
+    used to kill the server/redis/postgres port-forwards regardless of
+    cluster -- a docker-desktop `dev-down` killed k3s's live forwards. Every
+    pidfile stop_port_forward() touches, and the legacy-reaper pattern it
+    falls back to, must be scoped to the ACTIVE cluster only."""
+
+    def test_stop_only_targets_pidfiles_for_the_active_context(self):
+        deploy.set_active_context("docker-desktop")
+        stopped_paths = []
+        with mock.patch.object(deploy, "_stop_port_forward_pidfile",
+                                side_effect=lambda p: stopped_paths.append(p)), \
+             mock.patch.object(deploy.portfwd, "reap_supervisors", return_value=[]) as reap:
+            deploy.stop_port_forward()
+
+        self.assertEqual(len(stopped_paths), 3, "server, redis, and postgres pidfiles")
+        for p in stopped_paths:
+            self.assertIn("docker-desktop", p)
+            self.assertNotIn("k3s-rp", p)
+
+        # The legacy reap pattern must be scoped to THIS cluster's --context,
+        # so it can never match a different cluster's supervisor.
+        reap.assert_called_once()
+        pattern = reap.call_args.args[0]
+        self.assertIn("--context docker-desktop", pattern)
+        self.assertNotIn("k3s-rp", pattern)
+
+    def test_stop_for_k3s_never_mentions_docker_desktop(self):
+        deploy.set_active_context("k3s")
+        stopped_paths = []
+        with mock.patch.object(deploy, "_stop_port_forward_pidfile",
+                                side_effect=lambda p: stopped_paths.append(p)), \
+             mock.patch.object(deploy.portfwd, "reap_supervisors", return_value=[]) as reap:
+            deploy.stop_port_forward()
+
+        for p in stopped_paths:
+            self.assertIn("k3s-rp", p)
+            self.assertNotIn("docker-desktop", p)
+        pattern = reap.call_args.args[0]
+        self.assertIn("--context k3s-rp", pattern)
+        self.assertNotIn("docker-desktop", pattern)
 
 
 class TestServerRolloutTimeout(unittest.TestCase):

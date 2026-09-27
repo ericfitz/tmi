@@ -81,7 +81,7 @@ def _clean_logs_and_files() -> None:
 
 
 def cmd_status(args) -> None:
-    devstatus.print_dashboard()
+    devstatus.print_dashboard(cluster_target=args.cluster)
 
 
 def cmd_deploy(args) -> None:
@@ -90,7 +90,7 @@ def cmd_deploy(args) -> None:
 
 
 def cmd_logs(args) -> None:
-    deploy.tail_server_logs()
+    deploy.tail_server_logs(cluster_target=args.cluster)
 
 
 def cmd_cluster(args) -> None:

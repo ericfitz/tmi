@@ -51,31 +51,38 @@ HOST_PORT = 8080
 NODE_PORT = 30080
 SERVER_URL = f"http://localhost:{HOST_PORT}"
 
-# Server port-forward pidfile. The server is reached on the host at localhost:8080
-# via the server port-forward (k3s and docker-desktop), which writes this pidfile
-# so stop_port_forward() can tear it down. Also cleans up any stale forwarder
-# left running on :8080 from a prior session.
-PORT_FORWARD_PID = "/tmp/tmi-dev-portforward.pid"
+# Server port-forward. The server is reached on the host at localhost:8080 via
+# the server port-forward (k3s and docker-desktop), which writes a pidfile so
+# stop_port_forward() can tear it down. Also cleans up any stale forwarder left
+# running on :8080 from a prior session.
+#
 # Redis is an in-cluster ClusterIP service; the server reaches it as redis:6379.
 # Integration tests that seed Redis directly (e.g. the step-up legacy refresh
 # token round-trip) connect to TEST_REDIS_HOST:TEST_REDIS_PORT, defaulting to
 # localhost:6379 — so forward the in-cluster Redis to the host as well. Redis is
 # low-throughput from the host (test setup only), so a port-forward is fine here.
-REDIS_PORT_FORWARD_PID = "/tmp/tmi-dev-redis-portforward.pid"
+#
 # Postgres is an in-cluster StatefulSet reachable only as a ClusterIP Service.
 # Seeding (scripts/run-dbtool.py, which the cats plugin also calls as its `seed`
 # hook) opens a DIRECT database connection using config-development.yml's
 # localhost:5432, so it needs this forward on top of the server one.
 #
-# Unlike the redis and server forwards, this one is NOT started by dev-up: 5432
-# collides with a locally installed PostgreSQL on many machines, and a developer
-# who never runs CATS should not have to care. It is established on demand by
-# ensure_port_forward("postgres"). It is tracked by a pidfile like the others so
-# stop_port_forward() tears it down deliberately -- a hand-started forward is
-# instead matched by that function's legacy reaper (its "-n tmi-platform
-# port-forward svc/" pattern) and killed as an orphan on the next dev-up /
-# dev-restart / dev-down, which is exactly why seeding could not rely on one.
-POSTGRES_PORT_FORWARD_PID = "/tmp/tmi-dev-postgres-portforward.pid"
+# Unlike the redis and server forwards, the postgres one is NOT started by
+# dev-up: 5432 collides with a locally installed PostgreSQL on many machines,
+# and a developer who never runs CATS should not have to care. It is
+# established on demand by ensure_port_forward("postgres"). It is tracked by a
+# pidfile like the others so stop_port_forward() tears it down deliberately --
+# a hand-started forward is instead matched by that function's legacy reaper
+# (its "-n tmi-platform port-forward svc/" pattern) and killed as an orphan on
+# the next dev-up / dev-restart / dev-down, which is exactly why seeding could
+# not rely on one.
+#
+# Each forward's pidfile path is scoped to the ACTIVE kube context (see
+# _pidfile_path() below), not a fixed filename -- two devenv runs for
+# DIFFERENT clusters must never share, read, or clobber each other's
+# port-forward pidfile (#955: a docker-desktop `dev-down` killed k3s's live
+# server/redis/postgres port-forwards because all three pidfiles were single,
+# cluster-agnostic paths).
 POSTGRES_PORT = 5432
 
 # Public base images the docker-desktop node would otherwise pull from cgr.dev on
@@ -90,6 +97,70 @@ POSTGRES_PORT = 5432
 DD_POSTGRES_IMAGE = "cgr.dev/chainguard/postgres:latest"
 DD_REDIS_IMAGE = "cgr.dev/chainguard/redis:latest"
 DD_BASE_IMAGES = (DD_POSTGRES_IMAGE, DD_REDIS_IMAGE)
+
+
+# ---------------------------------------------------------------------------
+# Active kube context (per-process, pinned)
+# ---------------------------------------------------------------------------
+#
+# #955: every kubectl() call and every port-forward spawn used to resolve its
+# context from the AMBIENT `kubectl config current-context` (either directly,
+# or via cluster.py's `kubectl config use-context`, itself shared mutable
+# state in ~/.kube/config). Two concurrent devenv runs for DIFFERENT clusters
+# then raced on that one global setting: `dev-up CLUSTER=k3s` switched the
+# ambient context, a concurrent `dev-down CLUSTER=docker-desktop` read it back
+# and deleted k3s's workloads while reporting success for docker-desktop.
+#
+# The fix is to never read ambient state for anything that affects
+# correctness. Each devenv command instead resolves its context ONCE, from
+# its own CLUSTER argument (a pure lookup, not shared state), and pins it here
+# for the rest of the process via set_active_context(). Every kubectl() call
+# and port-forward spawn then uses this pinned value. current_kube_context()
+# (which DOES read the ambient value) remains for advisory/reporting use only
+# (_guard_context's sanity warning, the status dashboard) -- never for
+# anything that mutates or targets the cluster.
+_active_context: str | None = None
+
+
+def set_active_context(cluster_target: str) -> str:
+    """Resolve and pin the kube context for this process from CLUSTER.
+
+    Must be called once, before any kubectl() call, by every devenv entry
+    point (start/restart/teardown/teardown_namespace here; the CLI/db-tool
+    scripts that drive them). Fails loudly (ValueError, from
+    cluster.expected_context) for an unrecognized cluster target rather than
+    leaving kubectl() to silently fall back to the ambient context.
+    """
+    global _active_context
+    _active_context = cluster.expected_context(cluster_target)
+    return _active_context
+
+
+def pin_ambient_context() -> str:
+    """Pin whatever kube context is CURRENTLY active, for callers that have no
+    CLUSTER of their own and have always operated against "whatever cluster is
+    up" (scripts/run-dbtool.py's seeding path). Snapshotting it once still
+    closes the respawn-time race (#580) for THIS process's forwards, even
+    though -- lacking a CLUSTER to resolve independently -- it cannot detect a
+    concurrent switch the way set_active_context()'s callers can. Fails loudly
+    if no context is set at all rather than proceeding with an empty one.
+    """
+    global _active_context
+    ctx = current_kube_context()
+    if not ctx:
+        raise RuntimeError("No kubectl context is set; run 'make dev-cluster-up' first.")
+    _active_context = ctx
+    return _active_context
+
+
+def _require_active_context() -> str:
+    """Return the pinned context, failing loudly if nothing pinned it yet."""
+    if _active_context is None:
+        raise RuntimeError(
+            "No active kube context: call deploy.set_active_context(cluster_target) "
+            "(or pin_ambient_context()) before any kubectl operation."
+        )
+    return _active_context
 
 
 # ---------------------------------------------------------------------------
@@ -253,9 +324,21 @@ def current_kube_context() -> str:
         return ""
 
 
-def kubectl(args: list[str], *, check: bool = True, input_text: str | None = None):
-    """Run kubectl with the given args."""
-    return run_cmd(["kubectl", *args], check=check, input_text=input_text)
+def kubectl(args: list[str], *, check: bool = True, capture: bool = False,
+            input_text: str | None = None):
+    """Run kubectl pinned to the active context (see set_active_context()).
+
+    This is the single enforcement point for #955: every kubectl invocation in
+    the devenv code path goes through here, and every one carries an explicit
+    --context, so correctness never depends on the ambient
+    `kubectl config current-context` -- which is exactly the shared, mutable
+    state that let a concurrent devenv run for a different CLUSTER race this
+    one. _require_active_context() raises rather than silently omitting
+    --context if a caller forgot to pin one first.
+    """
+    ctx = _require_active_context()
+    return run_cmd(["kubectl", "--context", ctx, *args], check=check, capture=capture,
+                    input_text=input_text)
 
 
 # ---------------------------------------------------------------------------
@@ -263,14 +346,23 @@ def kubectl(args: list[str], *, check: bool = True, input_text: str | None = Non
 # ---------------------------------------------------------------------------
 
 def _preflight() -> None:
+    """Verify the tools exist and the PINNED (active) context's cluster is
+    reachable. Callers must call set_active_context() first -- this checks
+    the cluster the caller actually asked for via CLUSTER=, not whatever
+    happens to be ambient."""
     for tool in ("docker", "kubectl"):
         check_tool(tool)
-    if run_cmd(["kubectl", "cluster-info"], check=False).returncode != 0:
+    if kubectl(["cluster-info"], check=False).returncode != 0:
         log_error("No reachable cluster. Run 'make dev-cluster-up' to set the cluster context.")
         sys.exit(1)
 
 
 def _guard_context(skip: bool, cluster_target: str = "docker-desktop") -> str:
+    """Advisory sanity check only: warns/fails if the AMBIENT kubectl context
+    looks wrong for CLUSTER=cluster_target, catching operator confusion (a
+    shell pointed somewhere unexpected). Every actual kubectl() call is pinned
+    to set_active_context()'s resolution instead, so this check is not what
+    correctness depends on (#955)."""
     ctx = current_kube_context()
     log_info(f"kubectl context: {ctx or '(none)'}  namespace: {NS}")
     if not ctx:
@@ -383,8 +475,8 @@ def deliver_config(cluster_target: str = "docker-desktop") -> None:
 
 def create_embedding_secret() -> None:
     key = os.environ.get("TMI_EMBEDDING_API_KEY", "sk-e2e-placeholder")
-    rendered = run_cmd(
-        ["kubectl", "create", "secret", "generic", "tmi-embedding", "-n", NS,
+    rendered = kubectl(
+        ["create", "secret", "generic", "tmi-embedding", "-n", NS,
          f"--from-literal=api-key={key}", "--dry-run=client", "-o", "yaml"],
         capture=True,
     ).stdout
@@ -434,8 +526,8 @@ def create_oauth_providers_secret() -> None:
         )
         sys.exit(1)
 
-    rendered = run_cmd(
-        ["kubectl", "create", "secret", "generic", "tmi-oauth-providers", "-n", NS,
+    rendered = kubectl(
+        ["create", "secret", "generic", "tmi-oauth-providers", "-n", NS,
          "--from-env-file", str(path), "--dry-run=client", "-o", "yaml"],
         capture=True,
     ).stdout
@@ -473,8 +565,8 @@ def create_oracle_wallet_secret() -> None:
     if not wallet or not Path(wallet).is_file():
         log_error("DB=oracle requires TMI_ORACLE_WALLET_ZIP to point at your ADB wallet .zip")
         sys.exit(1)
-    rendered = run_cmd(
-        ["kubectl", "create", "secret", "generic", "tmi-oracle-wallet", "-n", NS,
+    rendered = kubectl(
+        ["create", "secret", "generic", "tmi-oracle-wallet", "-n", NS,
          f"--from-file=wallet.zip={wallet}", "--dry-run=client", "-o", "yaml"],
         capture=True,
     ).stdout
@@ -501,8 +593,8 @@ def create_oracle_db_secret() -> None:
     if not password:
         log_error("DB=oracle requires ORACLE_PASSWORD to be set (run: source scripts/oci-env.sh)")
         sys.exit(1)
-    rendered = run_cmd(
-        ["kubectl", "create", "secret", "generic", "tmi-oracle-db", "-n", NS,
+    rendered = kubectl(
+        ["create", "secret", "generic", "tmi-oracle-db", "-n", NS,
          f"--from-literal=database-url={url}",
          f"--from-literal=oracle-password={password}",
          "--dry-run=client", "-o", "yaml"],
@@ -659,30 +751,43 @@ def _spawn_supervised_forward(argv: list[str], pid_path: str, human_desc: str,
     log_info(f"Port-forward started (PID {proc.pid}): {human_desc}")
 
 
+def _pidfile_path(kind: str) -> str:
+    """Per-context pidfile path for a named forward ("server"/"redis"/"postgres").
+
+    Scoped to the ACTIVE (pinned) context rather than a fixed filename, so
+    concurrent devenv runs for DIFFERENT clusters get entirely separate
+    pidfiles and can never read, stop, or overwrite each other's forward
+    record (#955). Fails loudly via _require_active_context() if nothing
+    pinned a context yet.
+    """
+    return f"/tmp/tmi-dev-{kind}-portforward-{_require_active_context()}.pid"
+
+
 def start_redis_port_forward() -> None:
     """Forward the in-cluster Redis to localhost:6379 for host integration tests.
 
     Redis is low-throughput from the host (test setup only), so a port-forward
-    is fine here. The kube context is pinned via --context (rather than left
-    to resolve from the ambient kubeconfig) because the supervisor re-execs
-    kubectl on every pod roll — an unpinned kubectl would silently retarget
-    to whatever context is CURRENT at each respawn, so switching context (say,
-    to a remote EKS cluster) after this forward starts would re-point "local"
-    Redis at the wrong cluster without any visible error (#580).
+    is fine here. The kube context is pinned via --context to the process-wide
+    active context (set_active_context()/pin_ambient_context()), not resolved
+    from the ambient kubeconfig on each respawn -- an unpinned kubectl would
+    silently retarget to whatever context is CURRENT at each respawn, so
+    switching context (say, to a remote EKS cluster, or a concurrent devenv
+    run for another CLUSTER) after this forward starts would re-point "local"
+    Redis at the wrong cluster without any visible error (#580, #955).
 
-    Stops only its OWN forward, via _spawn_supervised_forward's per-pidfile
-    stop. This used to call the blanket stop_port_forward(), which cleared
-    every pidfile — forcing the server forward to be started afterwards to
-    survive, an ordering constraint that would silently extend to any third
-    forward, and destroying an on-demand postgres forward (see
-    POSTGRES_PORT_FORWARD_PID) on every dev-up/dev-restart. Squatters are
-    still handled: _spawn_supervised_forward reaps marker-scoped orphans and
-    _preflight_port reclaims the port from any other kubectl forward.
+    Stops only its OWN (per-context) pidfile, via _spawn_supervised_forward's
+    per-pidfile stop. This used to call the blanket stop_port_forward(), which
+    cleared every pidfile — forcing the server forward to be started
+    afterwards to survive, an ordering constraint that would silently extend
+    to any third forward, and destroying an on-demand postgres forward on
+    every dev-up/dev-restart. Squatters are still handled:
+    _spawn_supervised_forward reaps marker-scoped orphans and _preflight_port
+    reclaims the port from any other kubectl forward.
     """
-    ctx = current_kube_context()
+    ctx = _require_active_context()
     _spawn_supervised_forward(
         ["kubectl", "--context", ctx, "-n", NS, "port-forward", "svc/redis", "6379:6379"],
-        REDIS_PORT_FORWARD_PID,
+        _pidfile_path("redis"),
         "localhost:6379 -> svc/redis:6379",
         port=6379,
         context=ctx,
@@ -701,12 +806,13 @@ def start_server_port_forward() -> None:
     (see _spawn_supervised_forward). The kube context is pinned via --context
     for the same reason as start_redis_port_forward: an unpinned kubectl
     resolves the CURRENT context on every respawn, so a context switch after
-    this forward starts (e.g. to EKS) would silently retarget "local" traffic
-    at the wrong cluster — the likely mechanism behind the #580 incident."""
-    ctx = current_kube_context()
+    this forward starts (e.g. to EKS, or a concurrent devenv run for another
+    CLUSTER) would silently retarget "local" traffic at the wrong cluster —
+    the mechanism behind both the #580 incident and #955."""
+    ctx = _require_active_context()
     _spawn_supervised_forward(
         ["kubectl", "--context", ctx, "-n", NS, "port-forward", "svc/tmi-server", f"{HOST_PORT}:{HOST_PORT}"],
-        PORT_FORWARD_PID,
+        _pidfile_path("server"),
         f"localhost:{HOST_PORT} -> svc/tmi-server:{HOST_PORT}",
         port=HOST_PORT,
         context=ctx,
@@ -725,13 +831,13 @@ def start_postgres_port_forward() -> None:
     and server forwards: the supervisor re-execs kubectl on every pod roll, and
     an unpinned kubectl would resolve whatever context is CURRENT at each
     respawn -- so switching context mid-run would silently re-point "localhost"
-    Postgres at another cluster (#580).
+    Postgres at another cluster (#580, #955).
     """
-    ctx = current_kube_context()
+    ctx = _require_active_context()
     _spawn_supervised_forward(
         ["kubectl", "--context", ctx, "-n", NS, "port-forward", "svc/postgres",
          f"{POSTGRES_PORT}:{POSTGRES_PORT}"],
-        POSTGRES_PORT_FORWARD_PID,
+        _pidfile_path("postgres"),
         f"localhost:{POSTGRES_PORT} -> svc/postgres:{POSTGRES_PORT}",
         port=POSTGRES_PORT,
         context=ctx,
@@ -740,11 +846,13 @@ def start_postgres_port_forward() -> None:
 
 # Named dev port-forwards that ensure_port_forward() knows how to establish.
 # The starter functions own their kubectl argv; this table only maps a name to
-# the pidfile/port used for the health check and to the starter itself.
-_FORWARDS: dict[str, tuple[str, int]] = {
-    "server": (PORT_FORWARD_PID, HOST_PORT),
-    "redis": (REDIS_PORT_FORWARD_PID, 6379),
-    "postgres": (POSTGRES_PORT_FORWARD_PID, POSTGRES_PORT),
+# the port used for the health check and to the starter itself. The pidfile
+# path for a name is always _pidfile_path(name) (see above) -- "kind" and
+# "name" are deliberately the same string.
+_FORWARDS: dict[str, int] = {
+    "server": HOST_PORT,
+    "redis": 6379,
+    "postgres": POSTGRES_PORT,
 }
 
 
@@ -752,19 +860,22 @@ def _forward_is_healthy(name: str) -> bool:
     """True when the named forward is already up, on-target, and listening.
 
     All three conditions matter. A live supervisor whose recorded context is
-    not the current one is NOT healthy: it is forwarding localhost to a
-    different cluster, which is the #580 failure mode, so it must be replaced
-    rather than reused.
+    not the process's ACTIVE (pinned) context is NOT healthy: it is
+    forwarding localhost to a different cluster, which is the #580 failure
+    mode, so it must be replaced rather than reused. Compared against the
+    pinned context rather than the ambient one for the same reason as
+    everything else in this module (#955): a concurrent context switch must
+    not change the answer.
     """
-    pid_path, port = _FORWARDS[name]
-    record = portfwd.read_pidfile(pid_path)
+    port = _FORWARDS[name]
+    record = portfwd.read_pidfile(_pidfile_path(name))
     if record is None:
         return False
     try:
         os.killpg(os.getpgid(record.pid), 0)
     except (ProcessLookupError, PermissionError, OSError):
         return False
-    if record.context and record.context != current_kube_context():
+    if record.context and record.context != _require_active_context():
         return False
     return bool(portfwd.port_listeners(port))
 
@@ -774,8 +885,9 @@ def ensure_port_forward(name: str) -> None:
 
     The routine that needs a forward should call this rather than relying on a
     developer having started one by hand -- a hand-started forward does not
-    survive the next dev-up/dev-restart/dev-down (see POSTGRES_PORT_FORWARD_PID)
-    and nothing detects its absence until a confusing downstream failure.
+    survive the next dev-up/dev-restart/dev-down and nothing detects its
+    absence until a confusing downstream failure. Requires an active context
+    to already be pinned (set_active_context() or pin_ambient_context()).
 
     Modelled on tmi_common.ensure_oauth_stub: probe, return quietly if already
     healthy, otherwise start and let the underlying helpers hard-fail loudly.
@@ -803,7 +915,7 @@ def ensure_port_forward(name: str) -> None:
     # wait the contract would be "started", not "usable", and an immediate
     # connect would race it. ensure_oauth_stub does the same for the same
     # reason. Callers may then connect as soon as this returns.
-    wait_for_port(_FORWARDS[name][1], timeout=30, label=f"{name} port-forward")
+    wait_for_port(_FORWARDS[name], timeout=30, label=f"{name} port-forward")
 
 
 def _stop_port_forward_pidfile(pid_path: str) -> None:
@@ -832,35 +944,47 @@ def _stop_port_forward_pidfile(pid_path: str) -> None:
 
 
 def stop_port_forward() -> None:
-    _stop_port_forward_pidfile(PORT_FORWARD_PID)
-    _stop_port_forward_pidfile(REDIS_PORT_FORWARD_PID)
+    """Tear down THIS cluster's server/redis/postgres port-forwards only.
+
+    #955: every pidfile path is scoped to the active (pinned) context (see
+    _pidfile_path()), so this can only ever read/kill forwards this context
+    itself started -- a docker-desktop teardown literally cannot see, let
+    alone stop, a k3s pidfile. The legacy reap pattern below is scoped the
+    same way, for the same reason: killing a k3s dev-up's live server/redis
+    port-forward from a concurrent docker-desktop dev-down was the second half
+    of #955's incident, caused by a pattern that matched ANY cluster's forward.
+    """
+    ctx = _require_active_context()
+    _stop_port_forward_pidfile(_pidfile_path("server"))
+    _stop_port_forward_pidfile(_pidfile_path("redis"))
     # Tear the on-demand postgres forward down deliberately here, by pidfile,
     # rather than leaving it to the legacy reaper below — whose pattern does
     # match it, but which would report it as an "orphan" and, being a blanket
     # sweep, gives no way to distinguish a tracked forward from a stray one.
-    _stop_port_forward_pidfile(POSTGRES_PORT_FORWARD_PID)
+    _stop_port_forward_pidfile(_pidfile_path("postgres"))
     # Legacy tier (#580): reap any kubectl port-forward supervisor for a
     # tmi-platform Service that predates marker-based pidfile tracking
     # entirely — e.g. a forward started before this module existed, or one
-    # whose pidfile was lost/removed out-of-band. The pattern is deliberately
-    # narrow: it requires the literal substring "-n tmi-platform port-forward
-    # svc/" (namespace flag immediately followed by the port-forward verb and
-    # a Service target) to appear in the command line, in that exact order —
-    # a combination that only ever appears in our own dev port-forward
-    # supervisors. reap_supervisors additionally requires the "while true"
+    # whose pidfile was lost/removed out-of-band. The pattern requires the
+    # literal substring "--context <ctx> -n tmi-platform port-forward svc/",
+    # in that exact order, scoped to THIS process's active context (#955) so
+    # it can never match a different cluster's supervisor — a combination
+    # that only ever appears in our own dev port-forward supervisors for this
+    # context. reap_supervisors additionally requires the "while true"
     # supervisor-loop shape (or the kubectl-forward shape) and pgid isolation
     # from our own group before signaling anything (see portfwd.py).
-    reaped = portfwd.reap_supervisors("-n tmi-platform port-forward svc/")
+    reaped = portfwd.reap_supervisors(f"--context {ctx} -n {NS} port-forward svc/")
     if reaped:
-        log_info(f"Reaped {len(reaped)} orphaned legacy port-forward supervisor(s)")
+        log_info(f"Reaped {len(reaped)} orphaned legacy port-forward supervisor(s) for {ctx}")
 
 
 # ---------------------------------------------------------------------------
 # New helpers (consumed by devstatus / devenv nuke)
 # ---------------------------------------------------------------------------
 
-def tail_server_logs() -> None:
+def tail_server_logs(cluster_target: str = "docker-desktop") -> None:
     """Stream the tmi-server pod logs (Ctrl-C to stop)."""
+    set_active_context(cluster_target)
     kubectl(["-n", NS, "logs", "-f", "deploy/tmi-server", "--tail=200"], check=False)
 
 
@@ -889,6 +1013,7 @@ def server_http_status() -> tuple[bool, str]:
 def start(*, db: str, cluster_target: str = "docker-desktop",
           skip_context_guard: bool = False) -> None:
     """Build images, deploy all components, wait for readiness, and start port-forwards."""
+    set_active_context(cluster_target)   # #955: pin before any kubectl() call
     _preflight()
     _guard_context(skip_context_guard, cluster_target)
     if db == "oracle" and cluster_target == "k3s":
@@ -1000,6 +1125,7 @@ def db_flavor_is_external(cluster_target: str) -> bool:
 def restart(*, db: str, cluster_target: str = "docker-desktop",
             skip_context_guard: bool = False) -> None:
     """Rebuild the server image, re-deliver config, and roll the server deployment."""
+    set_active_context(cluster_target)   # #955: pin before any kubectl() call
     _preflight()
     _guard_context(skip_context_guard, cluster_target)
     if cluster_target == "k3s":
@@ -1048,6 +1174,7 @@ def teardown(*, db: str = "postgres", cluster_target: str = "docker-desktop") ->
     teardown() then start(), and a snapshot taken here is what start()'s restore
     reads back if anything goes wrong in between.
     """
+    set_active_context(cluster_target)   # #955: pin before any kubectl() call
     snapshot_dev_config(cluster_target)   # before stop_port_forward: the export needs it
     stop_port_forward()
 
@@ -1111,6 +1238,7 @@ def teardown_namespace(cluster_target: str = "docker-desktop") -> None:
     system_settings is gone, and the next start() re-seeds bare registry
     defaults. Snapshot first so start()'s restore can put them back.
     """
+    set_active_context(cluster_target)   # #955: pin before any kubectl() call
     snapshot_dev_config(cluster_target)   # before stop_port_forward: the export needs it
     stop_port_forward()
     kubectl(["delete", "namespace", NS, "--ignore-not-found", "--wait=true"])
