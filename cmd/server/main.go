@@ -1168,6 +1168,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	r.Use(api.DuplicateHeaderValidationMiddleware())  // Reject duplicate critical security headers (RFC 7230)
 	r.Use(api.TransferEncodingValidationMiddleware()) // Reject Transfer-Encoding headers (unsupported)
 	r.Use(api.ContentTypeValidationMiddleware())      // Validate Content-Type (415 for unsupported)
+	r.Use(api.BodySizeLimitMiddleware())              // 413 for oversized bodies on routes that document it, before any body parsing
 	r.Use(api.AcceptLanguageMiddleware())             // Handle Accept-Language gracefully
 	r.Use(api.UnicodeNormalizationMiddleware())       // Normalize and reject problematic Unicode (security hardening)
 	r.Use(api.StrictJSONValidationMiddleware())       // Reject malformed JSON (trailing garbage, duplicate keys)
