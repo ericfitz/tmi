@@ -28,11 +28,17 @@ scripts, and the `oracle-db-admin` review gate). Only OCI as a *deployment targe
 Kubernetes, container registry, functions) is removed — Oracle as a *database* target is a
 separate concern and stays fully supported.
 
-Go server runtime code that only served a removed target (e.g. the OCI/Azure/GCP secrets
-provider stubs in `internal/secrets/provider.go`, the OCI cloud log writer in
-`internal/slogging/oci_cloud_writer.go`, Heroku `PORT`/`DATABASE_URL` env-var compatibility in
-`internal/config/config.go` and `auth/config.go`) was intentionally left in place; it is
-listed for a separate decision, not removed here.
+**Go server runtime code that only served a removed target was also removed (2026-09-28,
+follow-up decision).** The OCI Vault secrets provider (`internal/secrets/oci_provider.go`) and
+the unimplemented Azure/GCP secrets-provider stubs in `internal/secrets/provider.go`; the OCI
+cloud log writer (`internal/slogging/oci_cloud_writer.go`) and its wiring in
+`cmd/server/main.go`; and Heroku `PORT`/`DATABASE_URL` env-var compatibility in
+`internal/config/config.go` and `auth/config.go`, plus `SOURCE_VERSION`/`HEROKU_SLUG_COMMIT`
+handling in `api/version.go`, are all deleted. `github.com/oracle/oci-go-sdk/v65` was dropped
+from `go.mod` via `go mod tidy` once nothing imported it; `godror` (Oracle DB driver) and the
+`mattn/go-sqlite3` v1.x pin are unaffected. The `env`, `aws`, and (still-unimplemented)
+HashiCorp `vault` secrets providers, and the generic `CloudLogWriter`/`NoopCloudWriter`
+logging extension point, remain.
 
 ## Rationale
 
