@@ -100,8 +100,6 @@ To reset the local dev database (drop and recreate schema):
 make reset-database  # Drop and recreate the local dev schema
 ```
 
-For the Heroku database, use `make reset-db-heroku` (DESTRUCTIVE).
-
 ### Clear Generated Test Data (without dropping the database)
 
 To clear automatically generated test data (test users with `@tmi.local`

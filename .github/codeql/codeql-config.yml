@@ -15,7 +15,6 @@ paths-ignore:
   # Development-only Python scripts (OAuth testing harness, deployment tools)
   # These intentionally log OAuth tokens/credentials for debugging purposes
   - scripts/oauth-client-callback-stub.py
-  - scripts/setup-heroku-env.py
 
 # Query filters to reduce false positives
 query-filters:

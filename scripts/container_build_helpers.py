@@ -146,7 +146,7 @@ class TargetConfig:
     dockerfile_map: dict[str, str]
     image_name_prefix: str
     labels: dict[str, str] = field(default_factory=dict)
-    # Override image names for specific components (e.g., OCI maps "server" to "tmi/tmi")
+    # Override image names for specific components per target
     image_name_map: dict[str, str] = field(default_factory=dict)
 
 
@@ -169,8 +169,6 @@ def _resolve_arch(arch: str | None, target: str) -> str:
     # Auto-detect based on target
     if target == "local":
         return _local_arch()
-    if target == "oci":
-        return "linux/arm64"
     return "linux/amd64"
 
 
@@ -182,28 +180,15 @@ def _get_dockerfile_map(target: str, db_backend: str) -> dict[str, str]:
     of target/db-backend — they do not link Oracle Instant Client — so they
     have a single Dockerfile each.
     """
-    use_oracle = target == "oci" or db_backend == "oracle-adb"
+    use_oracle = db_backend == "oracle-adb"
     return {
         "server": "Dockerfile.server-oracle" if use_oracle else "Dockerfile.server",
-        "redis": "Dockerfile.redis-oracle" if target == "oci" else "Dockerfile.redis",
+        "redis": "Dockerfile.redis",
         "postgres": "Dockerfile.postgres",
         "extractor": "Dockerfile.extractor",
         "chunkembed": "Dockerfile.chunkembed",
         "controller": "Dockerfile.controller",
     }
-
-
-def _discover_oci_namespace(profile: str) -> str:
-    """Get OCI tenancy namespace via OCI CLI."""
-    ns_result = run(
-        ["oci", "os", "ns", "get", "--query", "data", "--raw-output", "--profile", profile],
-        capture=True,
-        check=False,
-    )
-    if ns_result.returncode != 0 or not ns_result.stdout.strip():
-        log_error("Failed to get OCI tenancy namespace. Check OCI CLI configuration.")
-        sys.exit(1)
-    return ns_result.stdout.strip()
 
 
 def get_target_config(
@@ -232,33 +217,6 @@ def get_target_config(
                 image_name_map={
                     "controller": "tmi/tmi-component-controller",
                     "chunkembed": "tmi/tmi-chunk-embed",
-                },
-            )
-
-        case "oci":
-            profile = os.environ.get("OCI_CLI_PROFILE", "tmi")
-            region = os.environ.get("OCI_REGION", "us-ashburn-1")
-            name_prefix = os.environ.get("TMI_NAME_PREFIX", "tmi")
-
-            if registry_override:
-                base = registry_override
-            else:
-                namespace = _discover_oci_namespace(profile)
-                base = f"{region}.ocir.io/{namespace}"
-
-            return TargetConfig(
-                registry=f"{base}/{name_prefix}",
-                platform=platform_str,
-                use_buildx=True,
-                auth_commands=[
-                    ["__oci_docker_login__", region, profile],
-                ],
-                dockerfile_map=dockerfile_map,
-                image_name_prefix=f"{base}/{name_prefix}/tmi-",
-                image_name_map={
-                    "server": f"{base}/{name_prefix}/tmi",
-                    "controller": f"{base}/{name_prefix}/tmi-component-controller",
-                    "chunkembed": f"{base}/{name_prefix}/tmi-chunk-embed",
                 },
             )
 
@@ -298,66 +256,6 @@ def get_target_config(
                     "controller": f"{ecr_registry}/tmi-component-controller",
                     "chunkembed": f"{ecr_registry}/tmi-chunk-embed",
                 },
-            )
-
-        case "azure":
-            if not registry_override:
-                log_error("Azure requires --registry (e.g., --registry myacr.azurecr.io/tmi)")
-                sys.exit(1)
-            assert registry_override is not None  # guaranteed by check above
-            acr_name = registry_override.split(".")[0]
-            return TargetConfig(
-                registry=registry_override,
-                platform=platform_str,
-                use_buildx=True,
-                auth_commands=[
-                    ["az", "acr", "login", "--name", acr_name],
-                ],
-                dockerfile_map=dockerfile_map,
-                image_name_prefix=f"{registry_override}/tmi-",
-                image_name_map={
-                    "controller": f"{registry_override}/tmi-component-controller",
-                    "chunkembed": f"{registry_override}/tmi-chunk-embed",
-                },
-            )
-
-        case "gcp":
-            if not registry_override:
-                log_error("GCP requires --registry (e.g., --registry us-docker.pkg.dev/project/repo)")
-                sys.exit(1)
-            assert registry_override is not None  # guaranteed by check above
-            gcp_host = registry_override.split("/")[0]
-            return TargetConfig(
-                registry=registry_override,
-                platform=platform_str,
-                use_buildx=True,
-                auth_commands=[
-                    ["gcloud", "auth", "configure-docker", gcp_host],
-                ],
-                dockerfile_map=dockerfile_map,
-                image_name_prefix=f"{registry_override}/tmi-",
-                image_name_map={
-                    "controller": f"{registry_override}/tmi-component-controller",
-                    "chunkembed": f"{registry_override}/tmi-chunk-embed",
-                },
-            )
-
-        case "heroku":
-            app_name = registry_override or os.environ.get("HEROKU_APP", "")
-            if not app_name:
-                log_error(
-                    "Heroku requires app name via --registry or HEROKU_APP env var"
-                )
-                sys.exit(1)
-            return TargetConfig(
-                registry=f"registry.heroku.com/{app_name}",
-                platform="linux/amd64",
-                use_buildx=False,
-                auth_commands=[
-                    ["heroku", "container:login"],
-                ],
-                dockerfile_map=dockerfile_map,
-                image_name_prefix=f"registry.heroku.com/{app_name}/",
             )
 
         case _:
@@ -456,8 +354,6 @@ def authenticate_registry(config: TargetConfig) -> None:
         try:
             if cmd[0] == "__aws_ecr_login__":
                 _aws_ecr_login(cmd[1], cmd[2])
-            elif cmd[0] == "__oci_docker_login__":
-                _oci_docker_login(cmd[1], cmd[2])
             else:
                 run(cmd)
         except subprocess.CalledProcessError:
@@ -479,75 +375,6 @@ def _aws_ecr_login(region: str, registry: str) -> None:
         check=True,
     )
     log_success("Authenticated with AWS ECR")
-
-
-def _oci_docker_login(region: str, profile: str) -> None:
-    """Authenticate with OCI Container Registry (OCIR).
-
-    Checks (in order):
-    1. OCIR_AUTH_TOKEN env var — uses it directly with OCI username
-    2. Existing Docker credentials — skips login if already authenticated
-    3. Otherwise — prints instructions and exits
-    """
-    registry = f"{region}.ocir.io"
-    namespace = _discover_oci_namespace(profile)
-
-    # Check if already logged in by inspecting Docker config
-    docker_config_path = Path.home() / ".docker" / "config.json"
-    if docker_config_path.exists():
-        try:
-            docker_config = json.loads(docker_config_path.read_text())
-            auths = docker_config.get("auths", {})
-            if registry in auths or f"https://{registry}" in auths:
-                log_info(f"Already authenticated with {registry}")
-                return
-            # Also check credsStore/credHelpers
-            cred_helpers = docker_config.get("credHelpers", {})
-            creds_store = docker_config.get("credsStore", "")
-            if registry in cred_helpers or creds_store:
-                log_info(f"Credential helper configured for {registry}")
-                return
-        except (json.JSONDecodeError, OSError):
-            pass
-
-    # Try OCIR_AUTH_TOKEN env var
-    auth_token = os.environ.get("OCIR_AUTH_TOKEN", "")
-    if auth_token:
-        # Get username from OCI CLI
-        user_result = run(
-            ["oci", "iam", "user", "list", "--profile", profile,
-             "--query", "data[0].name", "--raw-output"],
-            capture=True,
-            check=False,
-        )
-        if user_result.returncode != 0 or not user_result.stdout.strip():
-            log_error("Failed to get OCI username. Check OCI CLI configuration.")
-            sys.exit(1)
-        username = f"{namespace}/{user_result.stdout.strip()}"
-
-        log_info(f"Authenticating with OCIR ({registry}) as {username}...")
-        login_result = subprocess.run(
-            ["docker", "login", registry, "-u", username, "--password-stdin"],
-            input=auth_token,
-            text=True,
-            check=False,
-            capture_output=True,
-        )
-        if login_result.returncode != 0:
-            log_error(f"OCIR login failed: {login_result.stderr.strip()}")
-            sys.exit(1)
-        log_success(f"Authenticated with OCIR ({registry})")
-        return
-
-    # Not logged in and no token — print instructions
-    log_error("OCIR authentication required.")
-    log_info("Option 1: Set OCIR_AUTH_TOKEN env var:")
-    log_info("  export OCIR_AUTH_TOKEN='<your-auth-token>'")
-    log_info("Option 2: Log in manually:")
-    log_info(f"  docker login {registry} -u {namespace}/<your-oci-username>")
-    log_info("Use an OCI Auth Token as the password.")
-    log_info("Create one at: OCI Console > User Settings > Auth Tokens")
-    sys.exit(1)
 
 
 def get_image_tags(
@@ -717,7 +544,7 @@ def scan_image(
 
     for p in platforms:
         # Derive report base name from image; suffix with the arch when a
-        # platform was requested so e.g. the OCI-registry amd64 image and a
+        # platform was requested so e.g. a registry amd64 image and a
         # local arm64 image that would otherwise share a report_name don't
         # overwrite each other's artifacts.
         report_name = image_name.split("/")[-1].replace(":", "-")

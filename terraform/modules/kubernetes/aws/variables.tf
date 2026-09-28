@@ -82,23 +82,6 @@ variable "cluster_security_group_ids" {
   default     = []
 }
 
-variable "alb_subnet_ids" {
-  description = "(Unused by this module; kept for aws-private compatibility — see the note above tmi_image_url) Subnet IDs for ALB placement"
-  type        = list(string)
-  default     = []
-}
-
-variable "alb_scheme" {
-  description = "(Unused by this module; kept for aws-private compatibility — see the note above tmi_image_url) ALB scheme: internet-facing or internal"
-  type        = string
-  default     = "internet-facing"
-
-  validation {
-    condition     = contains(["internet-facing", "internal"], var.alb_scheme)
-    error_message = "ALB scheme must be internet-facing or internal."
-  }
-}
-
 # Secrets Manager ARNs (for IRSA policy)
 variable "secret_arns" {
   description = "List of Secrets Manager ARNs the TMI pod should have access to"
@@ -108,40 +91,11 @@ variable "secret_arns" {
 
 # TMI Server configuration
 #
-# tmi_image_url / tmi_replicas / alb_scheme / alb_subnet_ids below are no
-# longer consumed inside this module (the TMI API Deployment/Service/Ingress
-# moved to the deployments/k8s/dev/aws kustomize overlay — see the note atop
-# k8s_resources.tf). They are KEPT here (with defaults, so aws-public can
-# simply stop passing them) solely because terraform/environments/aws-private
-# still passes them explicitly to this module; removing the declarations
-# would break `terraform validate` for aws-private, which this refactor must
-# not touch. Follow-up: once aws-private is refactored the same way (out of
-# scope here), these can be deleted for real.
-variable "tmi_image_url" {
-  description = "(Unused by this module; kept for aws-private compatibility) Container image URL for TMI server"
-  type        = string
-  default     = null
-}
-
-variable "tmi_replicas" {
-  description = "(Unused by this module; kept for aws-private compatibility) Number of TMI API pod replicas"
-  type        = number
-  default     = 1
-
-  # Hard cap, not advice. TMI keeps collaboration session state in the
-  # in-process WebSocketHub (api/websocket.go), so a second instance behind the
-  # same load balancer gets its own hub: participants are split across sessions
-  # by whichever pod they are routed to, and edits do not propagate between
-  # them. The description below has warned about this for a long time, but
-  # nothing enforced it -- a deployer could set 2 and get a silently broken
-  # deployment. Raising this ceiling requires externalising session state
-  # first, not just editing this number.
-  validation {
-    condition     = var.tmi_replicas == 1
-    error_message = "tmi_replicas must be 1: TMI holds collaboration session state in-process, so multiple instances behind one load balancer split sessions and lose edits."
-  }
-}
-
+# TMI replica count is a hard cap of 1, not a variable: TMI keeps
+# collaboration session state in the in-process WebSocketHub
+# (api/websocket.go), so a second instance behind the same load balancer gets
+# its own hub and edits do not propagate between pods. The Deployment replica
+# count lives in the deployments/k8s/dev/aws kustomize overlay, not here.
 variable "tmi_build_mode" {
   description = "TMI build mode (dev, staging, production)"
   type        = string
@@ -166,12 +120,6 @@ variable "extra_environment_variables" {
 }
 
 # Redis configuration
-variable "redis_image_url" {
-  description = "(Unused by this module; kept for aws-private compatibility — see the note above tmi_image_url) Container image URL for Redis"
-  type        = string
-  default     = null
-}
-
 variable "redis_password" {
   description = "Redis password (feeds the tmi-secrets Secret's TMI_REDIS_PASSWORD key)"
   type        = string
@@ -237,9 +185,8 @@ variable "settings_encryption_key" {
 # the Ingress annotations owned by the deployments/k8s/dev/aws overlay (Task
 # 5/6), not by this module. terraform/modules/certificates/aws still creates
 # and DNS-validates the ACM certificate; its ARN flows to the overlay via the
-# deploy script, not through this module. Neither aws-public nor aws-private
-# passed this variable explicitly, so removing it does not break either
-# environment.
+# deploy script, not through this module. aws-public never passed this
+# variable explicitly, so removing it does not break the environment.
 
 # Load Balancer Controller
 #

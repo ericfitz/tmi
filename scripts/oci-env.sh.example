@@ -10,7 +10,6 @@
 #
 # This file is sourced by:
 #   - scripts/run-integration-tests-oci.sh
-#   - scripts/start-dev-oci.sh
 #   - scripts/drop-oracle-tables.sh
 
 # ============================================================================

@@ -7,8 +7,8 @@
 """Build TMI application containers (server, redis, extractor, chunkembed,
 controller).
 
-Supports local Docker builds and cloud registry push for OCI, AWS, Azure, GCP,
-and Heroku targets. See --help for full usage.
+Supports local Docker builds and cloud registry push for the AWS target.
+See --help for full usage.
 
 The TMI Component Platform worker images (extractor, chunkembed) and the
 component-controller image are first-class components here so they get
@@ -27,21 +27,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import container_build_helpers as helpers  # noqa: E402
 
 
-VALID_TARGETS = ("local", "oci", "aws", "azure", "gcp", "heroku")
+VALID_TARGETS = ("local", "aws")
 VALID_COMPONENTS = ("server", "redis", "extractor", "chunkembed", "controller", "all")
 VALID_ARCHS = ("arm64", "amd64", "both")
 VALID_DB_BACKENDS = ("postgresql", "oracle-adb")
 
-# Components built when --component=all. Redis is NOT excluded from 'all' for
-# cloud targets in general — aws/oci/azure/gcp all build and push their own
-# tmi-redis image (see each target's overlay). Only Heroku restricts this
-# down to server only (via HEROKU_COMPONENTS in resolve_components), because
-# Heroku uses a managed Redis addon instead.
+# Components built when --component=all. Every supported target builds and
+# pushes its own tmi-redis image (see each target's overlay).
 ALL_COMPONENTS = ("server", "redis", "extractor", "chunkembed", "controller")
-
-
-# Components that are valid per target
-HEROKU_COMPONENTS = {"server"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -116,26 +109,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def resolve_components(component: str, target: str) -> list[str]:
-    """Resolve 'all' to component list, applying target restrictions."""
+    """Resolve 'all' to component list."""
     if component == "all":
-        components = list(ALL_COMPONENTS)
-    else:
-        components = [component]
-
-    if target == "heroku":
-        skipped = [c for c in components if c not in HEROKU_COMPONENTS]
-        if skipped:
-            helpers.log_warn(
-                f"Heroku runs the server only (Redis via addon; the component "
-                f"platform workers are Kubernetes-native); "
-                f"skipping: {', '.join(skipped)}. Only building server."
-            )
-        components = [c for c in components if c in HEROKU_COMPONENTS]
-        if not components:
-            helpers.log_error("No valid components to build for Heroku target")
-            sys.exit(1)
-
-    return components
+        return list(ALL_COMPONENTS)
+    return [component]
 
 
 # SEM@722ae4c635149d53c73f2831ee3d366695967cce: build one component's image, returning its pushed digest if known

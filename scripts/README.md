@@ -79,13 +79,6 @@ TMI uses [Chainguard](https://chainguard.dev/) images for minimal attack surface
 - **PostgreSQL**: `cgr.dev/chainguard/postgres:latest` - Secure database
 - Static binaries built with `CGO_ENABLED=0` (Oracle support excluded)
 
-### Heroku Operations
-
-- **`heroku-reset-database.sh`** - Drops and recreates the Heroku PostgreSQL database schema from scratch (DESTRUCTIVE)
-- **`heroku-drop-database.sh`** - Drops the Heroku PostgreSQL database schema, leaving it empty without running migrations (DESTRUCTIVE)
-- **`configure-heroku-env.sh`** - Configures Heroku environment variables for TMI server
-- **`setup-heroku-env.py`** - Automated configuration of Heroku environment variables for TMI server and client applications
-
 ## Directory Structure
 
 ```

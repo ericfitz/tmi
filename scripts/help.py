@@ -54,11 +54,7 @@ Container Builds (Local):
   start-containers-environment - Build all containers then start database + Redis
 
 Container Builds (Cloud):
-  build-app-oci          - Build and push app containers for OCI
   build-app-aws          - Build and push app containers for AWS
-  build-app-azure        - Build and push app containers for Azure
-  build-app-gcp          - Build and push app containers for GCP
-  build-app-heroku       - Build and push server container for Heroku
 
 Testing:
   test-unit              - Run unit tests
@@ -157,14 +153,8 @@ Test Infrastructure:
 
 Process Management:
 
-OCI Functions (Certificate Manager):
-  fn-build-certmgr      - Build the certificate manager function
-  fn-deploy-certmgr     - Deploy certificate manager to OCI
-  fn-invoke-certmgr     - Invoke certificate manager for testing
-  fn-logs-certmgr       - View certificate manager logs
-
 Terraform:
-  tf-init                - Initialize Terraform (TF_ENV=oci-public)
+  tf-init                - Initialize Terraform (TF_ENV=aws-public)
   tf-validate            - Validate Terraform configuration
   tf-fmt                 - Format all Terraform files
   tf-plan                - Plan infrastructure changes
@@ -174,17 +164,6 @@ Terraform:
   tf-destroy             - Destroy infrastructure (DESTRUCTIVE!)
 
 Deployment:
-  deploy-oci             - Deploy TMI to OCI (infra + build + K8s)
-  deploy-oci-plan        - Plan TMI OCI deployment (dry run)
-  deploy-oci-skip-build  - Deploy TMI to OCI without rebuilding containers
-  destroy-oci            - Destroy TMI OCI infrastructure (DESTRUCTIVE!)
-  push-oci-info          - Show OCIR push info for external containers
-  push-oci-env           - Output OCIR registry env vars (eval-able)
-  deploy-heroku          - Deploy TMI to Heroku
-  setup-heroku           - Configure Heroku environment variables
-  setup-heroku-dry-run   - Preview Heroku configuration without applying
-  reset-db-heroku        - Drop and recreate Heroku database (DESTRUCTIVE)
-  drop-db-heroku         - Drop Heroku database schema (DESTRUCTIVE)
   reset-db-oci           - Drop all tables in OCI ADB (DESTRUCTIVE)
   deploy-aws             - Deploy TMI to AWS (EKS + RDS + Secrets Manager)
   deploy-aws-dry-run     - Preview AWS deployment changes

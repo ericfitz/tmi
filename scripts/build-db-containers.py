@@ -8,8 +8,7 @@
 
 The DB container is always PostgreSQL (Chainguard Dockerfile.postgres).
 There is no --db-backend flag — the database engine choice affects only the
-server container. Cloud deployments that use managed database services
-(OCI Oracle ADB, Heroku Postgres addon) do not need a database container.
+server container.
 """
 
 import argparse
@@ -21,11 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import container_build_helpers as helpers  # noqa: E402
 
 
-VALID_TARGETS = ("local", "aws", "azure", "gcp")
-UNSUPPORTED_TARGETS = {
-    "oci": "OCI uses Oracle ADB (managed service); no database container to build.",
-    "heroku": "Heroku uses Postgres addon; no database container to build.",
-}
+VALID_TARGETS = ("local", "aws")
 VALID_ARCHS = ("arm64", "amd64", "both")
 
 
@@ -75,11 +70,6 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-
-    # Check for unsupported targets
-    if args.target in UNSUPPORTED_TARGETS:
-        helpers.log_error(UNSUPPORTED_TARGETS[args.target])
-        sys.exit(1)
 
     if args.target not in VALID_TARGETS:
         helpers.log_error(

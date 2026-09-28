@@ -39,9 +39,3 @@ paths = [
   '''api/api\.go''',
   '''api-schema/tmi-openapi\.json''',
 ]
-
-# Specific known false positives by commit (placeholder examples).
-regexes = [
-  # OAuth example client secret in docs.
-  '''tmi-oci-deployment''',
-]
