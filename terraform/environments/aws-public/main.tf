@@ -3,7 +3,7 @@
 #
 # This template creates:
 # - VPC with public and private subnets
-# - EKS cluster with single t3.medium managed node
+# - EKS cluster with two t3.medium managed nodes
 # - RDS PostgreSQL (db.t3.micro, deletion protection enabled)
 # - ECR repository for container images
 # - Secrets Manager for credentials
