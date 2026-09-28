@@ -194,7 +194,7 @@ go test -v ./test/integration/workflows -run TestThreatModelCRUD
 INTEGRATION_TESTS=true go test -v ./test/integration/workflows/...
 
 # Run against different server
-TMI_SERVER_URL=https://tmi-staging.herokuapp.com make test-integration
+TMI_SERVER_URL=https://tmi-staging.example.com make test-integration
 ```
 
 ## Debugging

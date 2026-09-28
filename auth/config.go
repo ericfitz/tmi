@@ -148,8 +148,7 @@ type SAMLProviderConfig struct {
 }
 
 // LoadConfig loads configuration from environment variables.
-// This uses DATABASE_URL as the primary database configuration method.
-// SEM@e03fc554584eab95175850a0591c019a25ec0d56: build the auth Config from environment variables; fail if TMI_DATABASE_URL is absent (reads env)
+// SEM@0000000000000000000000000000000000000000: build the auth Config from environment variables; fail if TMI_DATABASE_URL is absent (reads env)
 func LoadConfig() (Config, error) {
 	logger := slogging.Get()
 	logger.Info("TRACE: LoadConfig() function called - START")
@@ -167,8 +166,8 @@ func LoadConfig() (Config, error) {
 		jwtExpiration = 3600
 	}
 
-	// Load database configuration from DATABASE_URL
-	databaseURL := envutil.Get("TMI_DATABASE_URL", envutil.Get("DATABASE_URL", ""))
+	// Load database configuration from TMI_DATABASE_URL
+	databaseURL := envutil.Get("TMI_DATABASE_URL", "")
 	if databaseURL == "" {
 		logger.Error("Database configuration missing: TMI_DATABASE_URL environment variable must be set")
 		return Config{}, fmt.Errorf("TMI_DATABASE_URL environment variable is required")

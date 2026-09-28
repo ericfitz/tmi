@@ -606,7 +606,7 @@ cats-report:  ## Generate an HTML report from the latest run
 # CONTAINER SECURITY AND BUILD MANAGEMENT
 # ============================================================================
 
-.PHONY: build-app build-app-scan build-app-oci build-app-aws build-app-azure build-app-gcp build-app-heroku build-db build-db-scan build-server-container build-redis-container build-all build-all-scan scan-containers start-containers-environment
+.PHONY: build-app build-app-scan build-app-aws build-db build-db-scan build-server-container build-redis-container build-all build-all-scan scan-containers start-containers-environment
 
 # ---- App Container Builds ----
 build-app:  ## Build app containers for local development
@@ -615,20 +615,8 @@ build-app:  ## Build app containers for local development
 build-app-scan:  ## Build app containers locally with security scanning
 	@uv run scripts/build-app-containers.py --target local --scan
 
-build-app-oci:  ## Build and push app containers for OCI
-	@uv run scripts/build-app-containers.py --target oci --push --scan
-
 build-app-aws:  ## Build and push app containers for AWS
 	@uv run scripts/build-app-containers.py --target aws --push --scan
-
-build-app-azure:  ## Build and push app containers for Azure
-	@uv run scripts/build-app-containers.py --target azure --push --scan
-
-build-app-gcp:  ## Build and push app containers for GCP
-	@uv run scripts/build-app-containers.py --target gcp --push --scan
-
-build-app-heroku:  ## Build and push server container for Heroku
-	@uv run scripts/build-app-containers.py --target heroku --component server --push
 
 # ---- DB Container Builds ----
 build-db:  ## Build database containers for local development
@@ -659,28 +647,10 @@ start-containers-environment: build-all  ## Build containers then start dev envi
 	@$(MAKE) start-redis
 
 # ============================================================================
-# OCI FUNCTIONS - Certificate Manager
-# ============================================================================
-
-.PHONY: fn-build-certmgr fn-deploy-certmgr fn-invoke-certmgr fn-logs-certmgr
-
-fn-build-certmgr:  ## Build the certificate manager OCI function
-	@uv run scripts/manage-oci-functions.py build
-
-fn-deploy-certmgr:  ## Deploy certificate manager function to OCI
-	@uv run scripts/manage-oci-functions.py --app $(FN_APP) deploy
-
-fn-invoke-certmgr:  ## Invoke certificate manager function manually
-	@uv run scripts/manage-oci-functions.py --app $(FN_APP) invoke
-
-fn-logs-certmgr:  ## View certificate manager function logs
-	@uv run scripts/manage-oci-functions.py --app $(FN_APP) logs
-
-# ============================================================================
 # TERRAFORM INFRASTRUCTURE MANAGEMENT
 # ============================================================================
 
-TF_ENV ?= oci-public
+TF_ENV ?= aws-public
 
 .PHONY: tf-init tf-plan tf-apply tf-apply-plan tf-validate tf-fmt tf-output tf-destroy
 
@@ -708,27 +678,6 @@ tf-output:
 tf-destroy:  ## Destroy Terraform infrastructure (DESTRUCTIVE!)
 	@uv run scripts/manage-terraform.py --environment $(TF_ENV) $(if $(AUTO_APPROVE),--auto-approve,) destroy
 
-# OCI-specific deployment shortcuts
-.PHONY: deploy-oci deploy-oci-plan deploy-oci-skip-build destroy-oci push-oci-info push-oci-env
-
-deploy-oci:  ## Deploy TMI to OCI (two-phase: infra, build containers, then K8s resources)
-	@scripts/deploy-oci.sh $(if $(AUTO_APPROVE),--auto-approve,)
-
-deploy-oci-plan:  ## Plan TMI OCI deployment (dry run)
-	@scripts/deploy-oci.sh --dry-run
-
-deploy-oci-skip-build:  ## Deploy TMI to OCI without rebuilding containers
-	@scripts/deploy-oci.sh --skip-build $(if $(AUTO_APPROVE),--auto-approve,)
-
-destroy-oci:  ## Destroy TMI OCI infrastructure (DESTRUCTIVE!)
-	@scripts/deploy-oci.sh --destroy $(if $(AUTO_APPROVE),--auto-approve,)
-
-push-oci-info:  ## Show OCIR push instructions for external containers (tmi-ux)
-	@scripts/deploy-oci.sh --push-info
-
-push-oci-env:  ## Output OCIR registry info as env vars (use: eval $$(make push-oci-env))
-	@scripts/deploy-oci.sh --push-env
-
 
 # ============================================================================
 # BACKWARD COMPATIBILITY ALIASES
@@ -744,34 +693,6 @@ lint:
 	@uv run scripts/lint.py
 clean: clean-everything
 dev: dev-up
-
-# ============================================================================
-# Heroku Configuration
-# ============================================================================
-
-.PHONY: setup-heroku setup-heroku-dry-run
-
-setup-heroku: ## Configure Heroku environment variables interactively
-	@uv run scripts/setup-heroku-env.py
-
-setup-heroku-dry-run: ## Preview Heroku configuration without applying
-	@uv run scripts/setup-heroku-env.py --dry-run
-
-.PHONY: reset-db-heroku drop-db-heroku
-reset-db-heroku: ## Drop and recreate Heroku database schema (DESTRUCTIVE - deletes all data). Use ARGS="--yes" to skip confirmation
-	@./scripts/heroku-reset-database.sh $(ARGS) tmi-server
-
-drop-db-heroku: ## Drop Heroku database schema leaving it empty (DESTRUCTIVE - deletes all data, no migrations). Use ARGS="--yes" to skip confirmation
-	@./scripts/heroku-drop-database.sh $(ARGS) tmi-server
-
-# ============================================================================
-# Heroku Deployment
-# ============================================================================
-
-# Deploy to Heroku production
-# This target builds the server, commits changes, and deploys to Heroku
-deploy-heroku:
-	@uv run scripts/deploy-heroku.py
 
 
 # ============================================================================

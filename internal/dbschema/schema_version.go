@@ -207,7 +207,7 @@ func ensureSchemaVersionTable(db *gorm.DB) error {
 	// Run the probe under a silenced logger: a genuinely-absent table is the
 	// expected first-boot case and emits a hard error (Oracle ORA-00942, PG
 	// 42P01), which would otherwise surface as a spurious ERROR line and trip
-	// error-based alerting (the OKE log pipeline) on every first boot. Use
+	// error-based log alerting on every first boot. Use
 	// gorm's built-in logger at Silent level rather than db.Logger.LogMode():
 	// TMI's custom gormLogger ignores LogMode (it returns itself unchanged), so
 	// that route would not actually silence the probe.

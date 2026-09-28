@@ -37,10 +37,6 @@ var processEnvVars = []ProcessEnvVar{
 	{Name: "TMI_ADMIN_EMAIL", Binary: "server", Purpose: "Bootstrap administrator: email address"},
 	{Name: "TMI_ADMIN_GROUP_NAME", Binary: "server", Purpose: "Bootstrap administrator: group name when the subject type is group"},
 	{Name: "TMI_JWT_KEY_ID", Binary: "server", Purpose: "JWKS key id; falls back to JWT_KEY_ID, then 1. Read by auth/config.go rather than internal/config"},
-	{Name: "TMI_CLOUD_LOG_ENABLED", Binary: "server", Purpose: "Enable the cloud log writer when set to true"},
-	{Name: "TMI_CLOUD_LOG_PROVIDER", Binary: "server", Purpose: "Cloud log provider; only oci is supported"},
-	{Name: "TMI_CLOUD_LOG_LEVEL", Binary: "server", Purpose: "Minimum log level forwarded to the cloud log writer"},
-	{Name: "TMI_OCI_LOG_ID", Binary: "server", Purpose: "OCI Logging log OCID the cloud log writer sends to"},
 	{Name: "TMI_TEST_FORCE_AUTH_FLOW_RATE_LIMITING", Binary: "server", Purpose: "Test-only: force auth-flow rate limiting on. Honoured only when TMI_BUILD_MODE is test"},
 	// SSRF overrides: cmd/server/main.go buildURIValidator reads these with
 	// os.Getenv at startup, on top of the ssrf.* config settings.

@@ -28,7 +28,7 @@ updates:
       # Will disappear when upstream deps drop it. Cannot pin in go.mod (go mod tidy removes it).
       - dependency-name: "github.com/golang/protobuf"
 
-  # Nested Go modules. The repo has four go.mod files, and a bump that reaches
+  # Nested Go modules. The repo has three go.mod files, and a bump that reaches
   # only "/" leaves the others pinned to older versions of the same packages.
   # wstest/ and test/integration/ additionally `replace github.com/ericfitz/tmi
   # => ..`, so they compile the ROOT module's source against their OWN pins —
@@ -77,24 +77,6 @@ updates:
           - "patch"
     ignore:
       - dependency-name: "github.com/golang/protobuf"
-
-  - package-ecosystem: "gomod"
-    directory: "/functions/certmgr"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    commit-message:
-      prefix: "chore(deps)"
-    labels:
-      - "dependencies"
-      - "go"
-    groups:
-      go-minor-patch:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
 
   # GitHub Actions - keep workflows up to date
   - package-ecosystem: "github-actions"

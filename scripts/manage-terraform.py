@@ -111,8 +111,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--environment",
-        default="oci-public",
-        help="Terraform environment (default: oci-public)",
+        default="aws-public",
+        help="Terraform environment (default: aws-public)",
     )
     parser.add_argument(
         "--auto-approve",

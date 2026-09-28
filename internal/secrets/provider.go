@@ -1,6 +1,6 @@
 // Package secrets provides a unified interface for retrieving secrets from various providers.
-// This supports environment variables, AWS Secrets Manager, OCI Vault, and future providers
-// like HashiCorp Vault, Azure Key Vault, and GCP Secret Manager.
+// This supports environment variables and AWS Secrets Manager, with HashiCorp Vault as a
+// future provider.
 package secrets
 
 import (
@@ -30,7 +30,7 @@ type Provider interface {
 	// This may not be supported by all providers (returns empty list if unsupported).
 	ListSecrets(ctx context.Context) ([]string, error)
 
-	// Name returns the provider's identifier (e.g., "env", "aws", "oci")
+	// Name returns the provider's identifier (e.g., "env", "aws")
 	Name() string
 
 	// Close releases any resources held by the provider
@@ -38,22 +38,19 @@ type Provider interface {
 }
 
 // ProviderType represents the type of secrets provider
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: string alias identifying a secrets backend (env, aws, oci, etc.) (pure)
+// SEM@0000000000000000000000000000000000000000: string alias identifying a secrets backend (env, aws, vault) (pure)
 type ProviderType string
 
 // Provider type constants
 const (
 	ProviderTypeEnv   ProviderType = "env"
 	ProviderTypeAWS   ProviderType = "aws"
-	ProviderTypeOCI   ProviderType = "oci"
 	ProviderTypeVault ProviderType = "vault" // Future: HashiCorp Vault
-	ProviderTypeAzure ProviderType = "azure" // Future: Azure Key Vault
-	ProviderTypeGCP   ProviderType = "gcp"   // Future: GCP Secret Manager
 )
 
 // NewProvider creates a new secrets provider based on configuration.
 // If no provider is configured, it defaults to the environment variable provider.
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: build a secrets provider from config, defaulting to the environment variable backend
+// SEM@0000000000000000000000000000000000000000: build a secrets provider (env, aws, or vault) from config, defaulting to env
 func NewProvider(ctx context.Context, cfg *config.SecretsConfig) (Provider, error) {
 	logger := slogging.Get()
 
@@ -75,20 +72,8 @@ func NewProvider(ctx context.Context, cfg *config.SecretsConfig) (Provider, erro
 		}
 		return NewAWSProvider(ctx, cfg.AWSRegion, cfg.AWSSecretName)
 
-	case ProviderTypeOCI:
-		if cfg.OCICompartmentID == "" || cfg.OCIVaultID == "" {
-			return nil, fmt.Errorf("%w: OCI secrets provider requires compartment ID and vault ID", ErrInvalidConfig)
-		}
-		return NewOCIProvider(ctx, cfg.OCICompartmentID, cfg.OCIVaultID, cfg.OCISecretName)
-
 	case ProviderTypeVault:
 		return nil, fmt.Errorf("%w: HashiCorp Vault provider not yet implemented", ErrProviderNotEnabled)
-
-	case ProviderTypeAzure:
-		return nil, fmt.Errorf("%w: Azure Key Vault provider not yet implemented", ErrProviderNotEnabled)
-
-	case ProviderTypeGCP:
-		return nil, fmt.Errorf("%w: GCP Secret Manager provider not yet implemented", ErrProviderNotEnabled)
 
 	default:
 		return nil, fmt.Errorf("%w: unknown provider type: %s", ErrInvalidConfig, cfg.Provider)
