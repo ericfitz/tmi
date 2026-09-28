@@ -959,14 +959,13 @@ func TestOverrideWithEnv(t *testing.T) {
 }
 
 // =============================================================================
-// Heroku PORT Compatibility Tests
+// PORT Env Var Tests (Heroku-style bare PORT fallback was removed; only
+// TMI_SERVER_PORT is honored now)
 // =============================================================================
 
-func TestHerokuPortFallback(t *testing.T) {
-	// Helper to create a minimal valid config file for testing Load()
-	createMinimalConfigFile := func(t *testing.T) string {
-		t.Helper()
-		content := `
+// SEM@0000000000000000000000000000000000000000: verify a bare PORT env var no longer overrides Server.Port (reads env)
+func TestBarePortEnvVarIsIgnored(t *testing.T) {
+	content := `
 server:
   port: "8080"
 database:
@@ -981,60 +980,22 @@ auth:
   oauth:
     callback_url: "http://localhost:8080/oauth2/callback"
 `
-		tmpFile, err := os.CreateTemp(t.TempDir(), "config-*.yml")
-		require.NoError(t, err)
-		_, err = tmpFile.WriteString(content)
-		require.NoError(t, err)
-		require.NoError(t, tmpFile.Close())
-		return tmpFile.Name()
-	}
+	tmpFile, err := os.CreateTemp(t.TempDir(), "config-*.yml")
+	require.NoError(t, err)
+	_, err = tmpFile.WriteString(content)
+	require.NoError(t, err)
+	require.NoError(t, tmpFile.Close())
 
-	t.Run("PortFallbackWhenTmiServerPortNotSet", func(t *testing.T) {
-		// Set PORT (Heroku's env var) but not TMI_SERVER_PORT
-		t.Setenv("PORT", "12345")
+	// Set PORT (the old Heroku fallback var) but not TMI_SERVER_PORT.
+	t.Setenv("PORT", "12345")
+	t.Setenv("OAUTH_PROVIDERS_GOOGLE_ENABLED", "true")
+	t.Setenv("OAUTH_PROVIDERS_GOOGLE_CLIENT_ID", "test-client-id")
+	t.Setenv("OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET", "test-client-secret")
 
-		// Set required OAuth provider for validation
-		t.Setenv("OAUTH_PROVIDERS_GOOGLE_ENABLED", "true")
-		t.Setenv("OAUTH_PROVIDERS_GOOGLE_CLIENT_ID", "test-client-id")
-		t.Setenv("OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET", "test-client-secret")
+	config, err := Load(tmpFile.Name())
 
-		configFile := createMinimalConfigFile(t)
-		config, err := Load(configFile)
-
-		assert.NoError(t, err)
-		assert.Equal(t, "12345", config.Server.Port, "PORT should be used when TMI_SERVER_PORT is not set")
-	})
-
-	t.Run("TmiServerPortTakesPrecedenceOverPort", func(t *testing.T) {
-		// Set both PORT and TMI_SERVER_PORT
-		t.Setenv("PORT", "12345")
-		t.Setenv("TMI_SERVER_PORT", "9999")
-
-		// Set required OAuth provider for validation
-		t.Setenv("OAUTH_PROVIDERS_GOOGLE_ENABLED", "true")
-		t.Setenv("OAUTH_PROVIDERS_GOOGLE_CLIENT_ID", "test-client-id")
-		t.Setenv("OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET", "test-client-secret")
-
-		configFile := createMinimalConfigFile(t)
-		config, err := Load(configFile)
-
-		assert.NoError(t, err)
-		assert.Equal(t, "9999", config.Server.Port, "TMI_SERVER_PORT should take precedence over PORT")
-	})
-
-	t.Run("DefaultPortWhenNeitherSet", func(t *testing.T) {
-		// Don't set PORT or TMI_SERVER_PORT - use defaults
-		// Set required OAuth provider for validation
-		t.Setenv("OAUTH_PROVIDERS_GOOGLE_ENABLED", "true")
-		t.Setenv("OAUTH_PROVIDERS_GOOGLE_CLIENT_ID", "test-client-id")
-		t.Setenv("OAUTH_PROVIDERS_GOOGLE_CLIENT_SECRET", "test-client-secret")
-
-		configFile := createMinimalConfigFile(t)
-		config, err := Load(configFile)
-
-		assert.NoError(t, err)
-		assert.Equal(t, "8080", config.Server.Port, "Default port should be 8080 when neither PORT nor TMI_SERVER_PORT is set")
-	})
+	assert.NoError(t, err)
+	assert.Equal(t, "8080", config.Server.Port, "bare PORT must not override Server.Port; only TMI_SERVER_PORT does")
 }
 
 // =============================================================================

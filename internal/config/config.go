@@ -336,7 +336,7 @@ type AlertingConfig struct {
 // SecretsConfig holds configuration for external secret providers
 // SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: configuration struct for external secret-provider selection and per-provider connection settings (pure)
 type SecretsConfig struct {
-	Provider string `yaml:"provider" env:"TMI_SECRETS_PROVIDER"` // "env" (default), "vault", "aws", "azure", "gcp", "oci"
+	Provider string `yaml:"provider" env:"TMI_SECRETS_PROVIDER"` // "env" (default), "vault", "aws"
 
 	// HashiCorp Vault (design only - implementation deferred)
 	VaultAddress string `yaml:"vault_address" env:"TMI_VAULT_ADDRESS"`
@@ -346,18 +346,6 @@ type SecretsConfig struct {
 	// AWS Secrets Manager
 	AWSRegion     string `yaml:"aws_region" env:"TMI_AWS_REGION"`
 	AWSSecretName string `yaml:"aws_secret_name" env:"TMI_AWS_SECRET_NAME"`
-
-	// Azure Key Vault (design only - implementation deferred)
-	AzureVaultURL string `yaml:"azure_vault_url" env:"TMI_AZURE_VAULT_URL"`
-
-	// GCP Secret Manager (design only - implementation deferred)
-	GCPProjectID  string `yaml:"gcp_project_id" env:"TMI_GCP_PROJECT_ID"`
-	GCPSecretName string `yaml:"gcp_secret_name" env:"TMI_GCP_SECRET_NAME"`
-
-	// OCI Secrets Management Service
-	OCICompartmentID string `yaml:"oci_compartment_id" env:"TMI_OCI_COMPARTMENT_ID"`
-	OCIVaultID       string `yaml:"oci_vault_id" env:"TMI_OCI_VAULT_ID"`
-	OCISecretName    string `yaml:"oci_secret_name" env:"TMI_OCI_SECRET_NAME"`
 }
 
 // Load loads configuration from YAML file with environment variable overrides
@@ -419,13 +407,7 @@ func loadConfig(configFile string, validateBootstrap bool) (*Config, error) {
 		return nil, fmt.Errorf("failed to override with environment variables: %w", err)
 	}
 
-	// Heroku compatibility: Use PORT env var if TMI_SERVER_PORT is not set
-	// Heroku dynamically assigns a port via PORT and apps must bind to it
-	if port := os.Getenv("PORT"); port != "" && os.Getenv("TMI_SERVER_PORT") == "" {
-		config.Server.Port = port
-	}
-
-	// Load single administrator from environment variables (Heroku-friendly)
+	// Load single administrator from environment variables
 	if provider := os.Getenv("TMI_ADMIN_PROVIDER"); provider != "" {
 		adminConfig := AdministratorConfig{
 			Provider:    provider,

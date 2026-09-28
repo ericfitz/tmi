@@ -1842,49 +1842,6 @@ func serverConfigMiddleware(cfg *config.Config) gin.HandlerFunc {
 	}
 }
 
-// initCloudLogging initializes cloud logging based on environment variables.
-// Returns a CloudLogWriter if enabled and configured, nil otherwise.
-// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: initialize OCI cloud log writer when TMI_CLOUD_LOG_ENABLED is set, returning the writer and log level
-func initCloudLogging() (slogging.CloudLogWriter, *slogging.LogLevel) {
-	if os.Getenv("TMI_CLOUD_LOG_ENABLED") != "true" {
-		return nil, nil
-	}
-
-	provider := os.Getenv("TMI_CLOUD_LOG_PROVIDER")
-	if provider != "oci" {
-		slogging.Get().Warn("TMI_CLOUD_LOG_ENABLED=true but TMI_CLOUD_LOG_PROVIDER=%s is not supported", provider)
-		return nil, nil
-	}
-
-	logID := os.Getenv("TMI_OCI_LOG_ID")
-	if logID == "" {
-		slogging.Get().Warn("TMI_CLOUD_LOG_ENABLED=true but TMI_OCI_LOG_ID not set")
-		return nil, nil
-	}
-
-	ociWriter, err := slogging.NewOCICloudWriter(context.Background(), slogging.OCICloudWriterConfig{
-		LogID:        logID,
-		Source:       "tmi-server",
-		BatchSize:    100,
-		FlushTimeout: 5 * time.Second,
-	})
-	if err != nil {
-		slogging.Get().Error("Failed to create OCI cloud writer: %v (continuing without cloud logging)", err)
-		return nil, nil
-	}
-
-	slogging.Get().Info("OCI cloud logging enabled, log ID: %s", logID)
-
-	// Parse cloud log level if specified
-	var cloudLogLevel *slogging.LogLevel
-	if cloudLevelStr := os.Getenv("TMI_CLOUD_LOG_LEVEL"); cloudLevelStr != "" {
-		level := slogging.ParseLogLevel(cloudLevelStr)
-		cloudLogLevel = &level
-	}
-
-	return ociWriter, cloudLogLevel
-}
-
 // startWebhookWorkers initializes and starts all webhook workers
 // SEM@b554bb5371f70e0115912131e032671de29e8c09: start event consumer, challenge verifier, delivery, and cleanup webhook workers (mutates shared state)
 func startWebhookWorkers(ctx context.Context, cfg *config.Config) (*api.WebhookEventConsumer, *api.WebhookChallengeWorker, *api.WebhookDeliveryWorker, *api.WebhookCleanupWorker) {
@@ -1986,10 +1943,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize cloud logging if enabled via environment variables
-	cloudWriter, cloudLogLevel := initCloudLogging()
-
-	// Initialize logger
+	// Initialize logger. CloudWriter/CloudLogLevel are left unset (nil): no
+	// cloud logging provider is currently wired in (the OCI writer was
+	// removed; NoopCloudWriter/CloudLogWriter remain as the extension point
+	// for a future one).
 	if err := slogging.Initialize(slogging.Config{
 		Level:                       cfg.GetLogLevel(),
 		IsDev:                       cfg.Logging.IsDev,
@@ -2000,8 +1957,6 @@ func main() {
 		AlsoLogToConsole:            cfg.Logging.AlsoLogToConsole,
 		CloudErrorThreshold:         cfg.Logging.CloudErrorThreshold,
 		SuppressUnauthenticatedLogs: cfg.Logging.SuppressUnauthenticatedLogs,
-		CloudWriter:                 cloudWriter,
-		CloudLogLevel:               cloudLogLevel,
 	}); err != nil {
 		slogging.Get().Error("Failed to initialize logger: %v", err)
 		os.Exit(1)

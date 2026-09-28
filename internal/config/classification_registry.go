@@ -224,18 +224,12 @@ var exactClassifications = map[string]ConfigClass{
 	"alerting.webhook_secret": bootstrapClass(false, VisibilityInternal, true),
 
 	// --- Bootstrap: secrets provider ---
-	"secrets.provider":           bootstrapClass(false, VisibilityInternal, false),
-	"secrets.vault_address":      bootstrapClass(false, VisibilityInternal, false),
-	"secrets.vault_path":         bootstrapClass(false, VisibilityInternal, false),
-	"secrets.vault_token":        bootstrapClass(false, VisibilityInternal, true),
-	"secrets.aws_region":         bootstrapClass(false, VisibilityInternal, false),
-	"secrets.aws_secret_name":    bootstrapClass(false, VisibilityInternal, false),
-	"secrets.azure_vault_url":    bootstrapClass(false, VisibilityInternal, false),
-	"secrets.gcp_project_id":     bootstrapClass(false, VisibilityInternal, false),
-	"secrets.gcp_secret_name":    bootstrapClass(false, VisibilityInternal, false),
-	"secrets.oci_compartment_id": bootstrapClass(false, VisibilityInternal, false),
-	"secrets.oci_vault_id":       bootstrapClass(false, VisibilityInternal, false),
-	"secrets.oci_secret_name":    bootstrapClass(false, VisibilityInternal, false),
+	"secrets.provider":        bootstrapClass(false, VisibilityInternal, false),
+	"secrets.vault_address":   bootstrapClass(false, VisibilityInternal, false),
+	"secrets.vault_path":      bootstrapClass(false, VisibilityInternal, false),
+	"secrets.vault_token":     bootstrapClass(false, VisibilityInternal, true),
+	"secrets.aws_region":      bootstrapClass(false, VisibilityInternal, false),
+	"secrets.aws_secret_name": bootstrapClass(false, VisibilityInternal, false),
 
 	// --- Shared: embedding profile (text) ---
 	"timmy.text_embedding_model":    sharedEmbeddingClass(false),
