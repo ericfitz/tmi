@@ -7,7 +7,7 @@ import (
 )
 
 func TestLoadWorker_Success(t *testing.T) {
-	t.Setenv("TMI_WORKER_NATS_URL", "nats://localhost:4222")
+	t.Setenv("TMI_NATS_URL", "nats://localhost:4222")
 	t.Setenv("TMI_WORKER_HEARTBEAT_SUBJECT", "workers.heartbeat.probe")
 	t.Setenv("TMI_WORKER_SECRET_MOUNT_EMBEDDING_API_KEY", "/var/run/secrets/embedding/key")
 	t.Setenv("TMI_WORKER_LOG_LEVEL", "debug")
@@ -31,15 +31,15 @@ func TestLoadWorker_Success(t *testing.T) {
 }
 
 func TestLoadWorker_MissingNATSURLFails(t *testing.T) {
-	t.Setenv("TMI_WORKER_NATS_URL", "")
+	t.Setenv("TMI_NATS_URL", "")
 	_, err := LoadWorker()
-	if err == nil || !strings.Contains(err.Error(), "TMI_WORKER_NATS_URL") {
+	if err == nil || !strings.Contains(err.Error(), "TMI_NATS_URL") {
 		t.Fatalf("want missing-NATS-URL error, got %v", err)
 	}
 }
 
 func TestLoadWorker_LogLevelDefaults(t *testing.T) {
-	t.Setenv("TMI_WORKER_NATS_URL", "nats://localhost:4222")
+	t.Setenv("TMI_NATS_URL", "nats://localhost:4222")
 	t.Setenv("TMI_WORKER_HEARTBEAT_SUBJECT", "workers.heartbeat.probe")
 	t.Setenv("TMI_WORKER_LOG_LEVEL", "")
 	wb, err := LoadWorker()

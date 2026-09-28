@@ -52,7 +52,7 @@ var processEnvVars = []ProcessEnvVar{
 	{Name: "TMI_SSRF_WEBHOOK_SCHEMES", Binary: "server", Purpose: "Env override of the ssrf.webhook.schemes setting; read by cmd/server buildURIValidator at startup"},
 
 	// --- workers: chunkembed, extractor, worker-probe, component-controller ---
-	{Name: "TMI_NATS_URL", Binary: "workers", Purpose: "NATS endpoint. Required by every worker; also read by the server (extraction wiring) and component-controller (JetStream provisioning)"},
+	{Name: "TMI_NATS_URL", Binary: "workers", Purpose: "NATS endpoint (tls:// or nats://). Required by every worker (internal/worker and internal/config/bootstrap); also read by the server (extraction wiring) and component-controller (JetStream provisioning)"},
 	{Name: "TMI_NATS_CREDS", Binary: "workers", Purpose: "Path to a NATS credentials file used when connecting (the file is secret; the path is not)"},
 	{Name: "TMI_NATS_TLS_CA_FILE", Binary: "workers", Purpose: "PEM CA that signed the NATS server certificate; setting it turns on TLS for every NATS client (workers, server, component-controller). See internal/tlsconfig"},
 	{Name: "TMI_NATS_TLS_CERT_FILE", Binary: "workers", Purpose: "Client certificate presented to NATS (mTLS); re-read on every handshake so renewals apply on reconnect"},
@@ -65,7 +65,6 @@ var processEnvVars = []ProcessEnvVar{
 	{Name: "TMI_EMBEDDING_MODEL", Binary: "workers", Purpose: "Embedding model name (chunkembed)"},
 	{Name: "TMI_EMBEDDING_BASE_URL", Binary: "workers", Purpose: "Embedding API base URL (chunkembed)"},
 	{Name: "TMI_EMBEDDING_API_KEY", Binary: "workers", Purpose: "Embedding API key (chunkembed)", Secret: true},
-	{Name: "TMI_WORKER_NATS_URL", Binary: "workers", Purpose: "NATS URL for the worker bootstrap config; required (internal/config/bootstrap)"},
 	{Name: "TMI_WORKER_LOG_LEVEL", Binary: "workers", Purpose: "Worker log level (internal/config/bootstrap)"},
 	{Name: "TMI_WORKER_HEARTBEAT_SUBJECT", Binary: "workers", Purpose: "NATS subject worker heartbeats are published to (internal/config/bootstrap)"},
 
