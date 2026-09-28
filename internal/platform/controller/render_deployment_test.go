@@ -94,10 +94,16 @@ func TestRenderDeployment_ScratchVolumeWhenRequested(t *testing.T) {
 	c.Spec.ScratchVolume = &platformv1alpha1.ScratchVolume{MountPath: "/scratch", SizeLimit: resource.MustParse("256Mi")}
 	d := RenderDeployment(c)
 	pod := d.Spec.Template.Spec
-	if len(pod.Volumes) != 1 || pod.Volumes[0].EmptyDir == nil {
-		t.Fatal("scratchVolume must render exactly one emptyDir volume")
+	var scratch *corev1.Volume
+	for i := range pod.Volumes {
+		if pod.Volumes[i].Name == "scratch" {
+			scratch = &pod.Volumes[i]
+		}
 	}
-	if pod.Volumes[0].EmptyDir.SizeLimit == nil {
+	if scratch == nil || scratch.EmptyDir == nil {
+		t.Fatal("scratchVolume must render an emptyDir volume named scratch")
+	}
+	if scratch.EmptyDir.SizeLimit == nil {
 		t.Fatal("scratch emptyDir must be size-capped")
 	}
 	if _, ok := volumeMountByPath(pod.Containers[0], "/scratch"); !ok {
@@ -112,4 +118,53 @@ func volumeMountByPath(c corev1.Container, path string) (corev1.VolumeMount, boo
 		}
 	}
 	return corev1.VolumeMount{}, false
+}
+
+func TestRenderDeployment_NATSClientTLS(t *testing.T) {
+	d := RenderDeployment(deployComp())
+	if d.Annotations["reloader.stakater.com/auto"] != "true" {
+		t.Fatal("worker Deployment must carry reloader.stakater.com/auto=true so a renewed cert Secret rolls the pods")
+	}
+	pod := d.Spec.Template.Spec
+	var vol *corev1.Volume
+	for i := range pod.Volumes {
+		if pod.Volumes[i].Name == "nats-client-tls" {
+			vol = &pod.Volumes[i]
+		}
+	}
+	if vol == nil || vol.Secret == nil {
+		t.Fatal("nats-client-tls Secret volume missing")
+	}
+	if vol.Secret.SecretName != "nats-client-extractor" {
+		t.Fatalf("secret name = %q, want nats-client-extractor (component tmi-extractor)", vol.Secret.SecretName)
+	}
+	if vol.Secret.Optional == nil || !*vol.Secret.Optional {
+		t.Fatal("volume must be optional so a component that never dials NATS still schedules")
+	}
+	m, ok := volumeMountByPath(pod.Containers[0], "/etc/tmi-nats-tls")
+	if !ok || !m.ReadOnly || m.Name != "nats-client-tls" {
+		t.Fatalf("client cert must be mounted read-only at /etc/tmi-nats-tls, got %+v", m)
+	}
+	want := map[string]string{
+		"TMI_NATS_TLS_CA_FILE":   "/etc/tmi-nats-tls/ca.crt",
+		"TMI_NATS_TLS_CERT_FILE": "/etc/tmi-nats-tls/tls.crt",
+		"TMI_NATS_TLS_KEY_FILE":  "/etc/tmi-nats-tls/tls.key",
+	}
+	for _, e := range pod.Containers[0].Env {
+		if v, ok := want[e.Name]; ok && v == e.Value {
+			delete(want, e.Name)
+		}
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing NATS TLS env vars: %v", want)
+	}
+}
+
+func TestRenderDeployment_ScratchAndTLSVolumesCoexist(t *testing.T) {
+	c := deployComp()
+	c.Spec.ScratchVolume = &platformv1alpha1.ScratchVolume{MountPath: "/scratch", SizeLimit: resource.MustParse("256Mi")}
+	pod := RenderDeployment(c).Spec.Template.Spec
+	if len(pod.Volumes) != 2 {
+		t.Fatalf("want scratch + nats-client-tls volumes, got %d", len(pod.Volumes))
+	}
 }

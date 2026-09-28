@@ -139,3 +139,15 @@ func TestApply_CreatesWhenAbsent(t *testing.T) {
 		t.Fatalf("object was not created: %v", err)
 	}
 }
+
+func TestLiveSatisfies_RequiresReloaderAnnotation(t *testing.T) {
+	rendered := RenderDeployment(deployComp())
+	live := rendered.DeepCopy()
+	if !liveSatisfies(rendered, live) {
+		t.Fatal("identical objects must satisfy")
+	}
+	delete(live.Annotations, "reloader.stakater.com/auto")
+	if liveSatisfies(rendered, live) {
+		t.Fatal("a live Deployment missing the Reloader annotation must be updated")
+	}
+}
