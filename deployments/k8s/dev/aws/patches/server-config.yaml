@@ -147,3 +147,27 @@ spec:
                 secretKeyRef:
                   name: tmi-timmy
                   key: text-embedding-api-key
+          # T371/T355: the ALB re-encrypts to the pod (ingress.yml
+          # backend-protocol: HTTPS), so the server listens with TLS only on
+          # 8080. Cert/key are the terraform-owned tmi-server-tls Secret
+          # (kubernetes_secret_v1.server_tls); the TMI_SERVER_TLS_* keys in the
+          # tmi-server-config ConfigMap point at this mount. Not under /etc/tmi,
+          # where the ConfigMap is mounted. Probes must speak HTTPS to match
+          # (the kubelet does not verify the cert). Local overlays stay HTTP.
+          # The Secret volume keeps the default mode (0644): the image runs as
+          # a non-root user with no fsGroup, so a root-owned 0400 key would be
+          # unreadable and the server would fail to start.
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/tmi-tls
+              readOnly: true
+          startupProbe:
+            httpGet: { scheme: HTTPS }
+          readinessProbe:
+            httpGet: { scheme: HTTPS }
+          livenessProbe:
+            httpGet: { scheme: HTTPS }
+      volumes:
+        - name: tls
+          secret:
+            secretName: tmi-server-tls

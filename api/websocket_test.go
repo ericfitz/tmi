@@ -542,3 +542,53 @@ func TestWebSocketConnection(t *testing.T) {
 		}
 	})
 }
+
+// TestBuildWebSocketURL_BehindTLSProxy pins that generated WebSocket URLs use
+// the Host the client dialed, never the pod's TLS subject name and port: behind
+// the AWS ALB the pod serves TLS on 8080 as "tmi-server", which clients cannot reach.
+func TestBuildWebSocketURL_BehindTLSProxy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	c.Request.Host = "api.tmi.dev"
+	c.Set("tlsEnabled", true)
+	c.Set("tlsSubjectName", "tmi-server")
+	c.Set("serverPort", "8080")
+
+	tmID := uuid.New()
+	got := NewWebSocketHubForTests().buildWebSocketURL(c, tmID, "d1", "s1")
+	assert.Equal(t, "wss://api.tmi.dev/threat_models/"+tmID.String()+"/diagrams/d1/ws?session_id=s1", got)
+	assert.Equal(t, "wss://api.tmi.dev/ws", (&Server{}).buildWebSocketURL(c))
+}
+
+// TestWebSocketScheme pins the scheme choice: wss when the pod serves TLS or a
+// TLS-terminating proxy reports X-Forwarded-Proto=https, ws otherwise.
+func TestWebSocketScheme(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cases := []struct {
+		name      string
+		tls       bool
+		forwarded string
+		want      string
+	}{
+		{"plain http", false, "", "ws"},
+		{"pod tls", true, "", "wss"},
+		{"proxy terminates tls", false, "https", "wss"},
+		{"proxy http", false, "http", "ws"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+			c.Request.Host = "api.tmi.dev"
+			if tc.tls {
+				c.Set("tlsEnabled", true)
+			}
+			if tc.forwarded != "" {
+				c.Request.Header.Set("X-Forwarded-Proto", tc.forwarded)
+			}
+			assert.Equal(t, tc.want, websocketScheme(c))
+			assert.Equal(t, tc.want+"://api.tmi.dev/ws", (&Server{}).buildWebSocketURL(c))
+		})
+	}
+}

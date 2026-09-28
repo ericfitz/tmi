@@ -117,49 +117,31 @@ func (s *Server) GetCurrentUserSessions(c *gin.Context) {
 	c.JSON(http.StatusOK, sessions)
 }
 
+// websocketScheme returns "wss" when the client reached us over TLS, either
+// directly (server TLS enabled) or through a TLS-terminating proxy that sets
+// X-Forwarded-Proto (AWS ALB, Heroku router); otherwise "ws". Mirrors
+// auth.getBaseURL so auth and WebSocket URLs agree on the scheme.
+// SEM@827fca9702ebf3b2d415a499d701a41667df1a5a: determine the client-facing WebSocket scheme from TLS state and X-Forwarded-Proto (pure)
+func websocketScheme(c *gin.Context) string {
+	if enabled, ok := c.Get("tlsEnabled"); ok {
+		if b, isBool := enabled.(bool); isBool && b {
+			return SchemeWSS
+		}
+	}
+	if c.GetHeader("X-Forwarded-Proto") == "https" {
+		return SchemeWSS
+	}
+	return "ws"
+}
+
 // buildWebSocketURL constructs the WebSocket base URL from request context
-// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: compute the WebSocket base URL from TLS and host request context (pure)
+// SEM@827fca9702ebf3b2d415a499d701a41667df1a5a: build the WebSocket base URL from the client-facing scheme and request Host (pure)
 func (s *Server) buildWebSocketURL(c *gin.Context) string {
-	// Get config information from the context
-	tlsEnabled := false
-	tlsSubjectName := ""
-	serverPort := "8080"
+	scheme := websocketScheme(c)
 
-	// Try to extract from request context
-	if val, exists := c.Get("tlsEnabled"); exists {
-		if enabled, ok := val.(bool); ok {
-			tlsEnabled = enabled
-		}
-	}
-
-	if val, exists := c.Get("tlsSubjectName"); exists {
-		if name, ok := val.(string); ok {
-			tlsSubjectName = name
-		}
-	}
-
-	if val, exists := c.Get("serverPort"); exists {
-		if port, ok := val.(string); ok {
-			serverPort = port
-		}
-	}
-
-	// Determine websocket protocol
-	scheme := "ws"
-	if tlsEnabled {
-		scheme = SchemeWSS
-	}
-
-	// Determine host
+	// Host is what the client dialed; the TLS subject name and pod port are
+	// internal behind a TLS-terminating proxy (see WebSocketHub.buildWebSocketURL).
 	host := c.Request.Host
-	if tlsSubjectName != "" && tlsEnabled {
-		// Use configured subject name if available
-		host = tlsSubjectName
-		// Add port if not the default HTTPS port
-		if serverPort != "443" {
-			host = fmt.Sprintf("%s:%s", host, serverPort)
-		}
-	}
 
 	// Build WebSocket URL
 	return fmt.Sprintf("%s://%s/ws", scheme, host)

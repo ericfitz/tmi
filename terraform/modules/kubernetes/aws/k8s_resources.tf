@@ -92,6 +92,20 @@ resource "kubernetes_config_map_v1" "tmi" {
       TMI_SERVER_INTERFACE = "0.0.0.0"
       TMI_SERVER_PORT      = "8080"
 
+      # T371/T355: the listener on 8080 serves TLS only, so the ALB re-encrypts
+      # to the pod (ingress backend-protocol: HTTPS). The cert/key come from the
+      # tmi-server-tls Secret below, mounted read-only at /etc/tmi-tls by the
+      # overlay's server-config.yaml patch. TLSEnabled also turns on HSTS
+      # (api/middleware.go HSTSMiddleware). The subject name only feeds the
+      # server's CN-mismatch startup warning; it never reaches client-facing
+      # URLs. The redirect is off: the ALB already redirects 80 -> 443, and a
+      # server-side redirect would point at https://tmi-server:8080.
+      TMI_SERVER_TLS_ENABLED            = "true"
+      TMI_SERVER_TLS_CERT_FILE          = "/etc/tmi-tls/tls.crt"
+      TMI_SERVER_TLS_KEY_FILE           = "/etc/tmi-tls/tls.key"
+      TMI_SERVER_TLS_SUBJECT_NAME       = local.server_tls_subject_name
+      TMI_SERVER_HTTP_TO_HTTPS_REDIRECT = "false"
+
       # Redis accessed via the K8s ClusterIP service created by the deploy
       # overlay (deployments/k8s/dev/redis.yml -> Service "redis"). The
       # correct env var per internal/config/config.go is TMI_REDIS_HOST
@@ -214,6 +228,56 @@ resource "kubernetes_secret_v1" "tmi" {
     # stored in plaintext stay that way until POST /admin/settings/reencrypt
     # is called — see the deploy notes in scripts/deploy-aws.sh.
     TMI_SECRET_SETTINGS_ENCRYPTION_KEY = var.settings_encryption_key
+  }
+}
+
+# ============================================================================
+# Backend TLS certificate for ALB -> pod re-encryption (T371/T355)
+# ============================================================================
+# The ALB does not validate target certificates, so a self-signed cert is
+# enough to encrypt the hop inside the VPC; no cert-manager or private CA.
+# The private key lands in the encrypted remote state like the other
+# Terraform-managed secrets (T378). Valid 5 years; Terraform re-issues it on
+# the first apply in its final year (early_renewal_hours), well clear of the
+# server's 1-month expiry warning. The server reads the files once at startup,
+# so a re-issued cert takes effect on the next rollout.
+
+locals {
+  server_tls_subject_name = "tmi-server"
+}
+
+resource "tls_private_key" "server" {
+  algorithm = "RSA" # RSA 2048: the most conservative choice for ALB target TLS
+  rsa_bits  = 2048
+}
+
+resource "tls_self_signed_cert" "server" {
+  private_key_pem = tls_private_key.server.private_key_pem
+
+  subject {
+    common_name = local.server_tls_subject_name
+  }
+  dns_names = [
+    local.server_tls_subject_name,
+    "${local.server_tls_subject_name}.${kubernetes_namespace_v1.tmi.metadata[0].name}.svc",
+    "${local.server_tls_subject_name}.${kubernetes_namespace_v1.tmi.metadata[0].name}.svc.cluster.local",
+  ]
+
+  validity_period_hours = 43800 # 5 years
+  early_renewal_hours   = 8760  # re-issue during the final year
+  allowed_uses          = ["digital_signature", "key_encipherment", "server_auth"]
+}
+
+resource "kubernetes_secret_v1" "server_tls" {
+  metadata {
+    name      = "tmi-server-tls"
+    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
+  }
+
+  type = "kubernetes.io/tls"
+  data = {
+    "tls.crt" = tls_self_signed_cert.server.cert_pem
+    "tls.key" = tls_private_key.server.private_key_pem
   }
 }
 
