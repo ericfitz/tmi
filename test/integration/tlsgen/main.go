@@ -21,6 +21,7 @@ import (
 	"github.com/ericfitz/tmi/internal/tlsconfig/testpki"
 )
 
+// SEM@new: parse -out flag and generate the harness PKI, exiting nonzero on failure (writes files)
 func main() {
 	out := flag.String("out", "", "output directory (created if missing)")
 	flag.Parse()

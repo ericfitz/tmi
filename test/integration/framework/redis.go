@@ -15,6 +15,7 @@ import (
 // default 0). dev uses DB 0; the test path sets TEST_REDIS_DB=1 so dev and test
 // never share a keyspace (#477).
 // Errors are intentionally ignored — if Redis is unavailable, tests may hit rate limits.
+// SEM@new: delete rate-limit keys from the harness Redis; return error if client options are invalid (writes Redis)
 func ClearRateLimits() error {
 	ctx := context.Background()
 
