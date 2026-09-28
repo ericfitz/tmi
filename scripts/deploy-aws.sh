@@ -39,10 +39,6 @@
 #                                   does not fail, if it differs from this machine's current
 #                                   public IP (checkip.amazonaws.com) — deploying away from
 #                                   home would otherwise lock this machine out afterwards.
-#   --close-api                    After a successful deploy, disable the EKS public
-#                                   endpoint entirely (endpointPublicAccess=false) instead
-#                                   of leaving --api-cidr allowed. The next deploy (or a
-#                                   manual `aws eks update-cluster-config`) reopens it.
 #   --skip-build                   Skip container image build/push (use existing ECR images)
 #   --destroy                      Destroy the deployment instead of creating it (--domain/--zone-id still required)
 #                                  Does not release the NAT egress EIP or the log bucket/trail;
@@ -67,7 +63,6 @@
 #   ./scripts/deploy-aws.sh --domain tmi.example.com --zone-id Z1234567890ABC --config-export /tmp/tmi-config.yaml
 #   ./scripts/deploy-aws.sh --destroy --domain tmi.example.com --zone-id Z1234567890ABC
 #   ./scripts/deploy-aws.sh --domain tmi.example.com --zone-id Z1234567890ABC --api-cidr 203.0.113.5/32
-#   ./scripts/deploy-aws.sh --domain tmi.example.com --zone-id Z1234567890ABC --close-api
 #
 # Removed flags (no longer apply — see terraform/environments/aws-public/variables.tf):
 #   --san, --alert-email, --db-instance-class, --db-multi-az, --multi-az-nat
@@ -113,7 +108,6 @@ DESTROY=false
 DRY_RUN=false
 AUTO_APPROVE=false
 API_CIDR=""
-CLOSE_API=false
 
 # API_CIDR is set by resolve_api_cidr(); an IPv4 CIDR, e.g. "203.0.113.5/32".
 CIDR_REGEX='^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$'
@@ -205,8 +199,6 @@ parse_args() {
                 CONFIG_EXPORT_FILE="$2"; shift 2 ;;
             --api-cidr)
                 API_CIDR="$2"; shift 2 ;;
-            --close-api)
-                CLOSE_API=true; shift ;;
             --skip-build)
                 SKIP_BUILD=true; shift ;;
             --destroy)
@@ -536,47 +528,6 @@ sync_eks_public_access() {
     log_info "Waiting for cluster to become ACTIVE..."
     aws eks wait cluster-active --name "${cluster_name}" --region "${REGION}"
     log_success "EKS public endpoint restricted to ${API_CIDR}"
-}
-
-# --close-api: fully disable the public endpoint rather than pointing it at a
-# placeholder CIDR. EKS requires at least one CIDR whenever
-# endpointPublicAccess=true, so a "closed but technically open" placeholder
-# (e.g. 192.0.2.1/32) is the only alternative there — and it is unverifiable
-# read-only, since confirming EKS actually rejects that address needs a
-# mutating call to test. endpointPublicAccess=false is the documented,
-# honestly-closed state: endpoint_private_access stays true (module
-# default), so nodes and the ALB controller are unaffected; only the
-# deployer's own kubectl/terraform access closes. The next deploy (or a
-# manual sync_eks_public_access) reopens it to API_CIDR.
-# aws_eks_cluster.tmi's lifecycle.ignore_changes covers both
-# vpc_config[0].public_access_cidrs and vpc_config[0].endpoint_public_access,
-# so Terraform does not fight this.
-close_eks_public_access() {
-    log_step "Closing EKS Public Endpoint (--close-api)"
-
-    local cluster_name="${NAME_PREFIX}-eks"
-    local current_public
-    # This only runs right after verify_deployment succeeded against this
-    # cluster, so describe-cluster failing here is a real error (permissions,
-    # throttling), not "cluster doesn't exist yet" — fail loud rather than
-    # silently skipping the close the caller asked for.
-    if ! current_public=$(aws eks describe-cluster --name "${cluster_name}" --region "${REGION}" \
-        --query 'cluster.resourcesVpcConfig.endpointPublicAccess' --output text); then
-        log_error "Could not read EKS cluster ${cluster_name}'s public endpoint state; not closing it."
-        exit 1
-    fi
-
-    if [[ "${current_public}" == "False" ]]; then
-        log_success "EKS public endpoint already closed"
-        return 0
-    fi
-
-    log_warning "Disabling the EKS public endpoint. Terraform/kubectl from any location will fail"
-    log_warning "until the next deploy (or a manual 'aws eks update-cluster-config') reopens it."
-    aws eks update-cluster-config --name "${cluster_name}" --region "${REGION}" \
-        --resources-vpc-config "endpointPublicAccess=false" >/dev/null
-    aws eks wait cluster-active --name "${cluster_name}" --region "${REGION}"
-    log_success "EKS public endpoint closed"
 }
 
 # ============================================================================
@@ -1268,10 +1219,6 @@ main() {
     upsert_cname
     import_config
     verify_deployment
-
-    if [[ "${CLOSE_API}" == "true" ]]; then
-        close_eks_public_access
-    fi
 
     log_success "Deployment complete!"
 }

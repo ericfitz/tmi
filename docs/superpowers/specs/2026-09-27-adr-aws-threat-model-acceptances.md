@@ -34,7 +34,9 @@ the remediation plan.
     `checkip.amazonaws.com`), idempotently runs `aws eks update-cluster-config` before any
     terraform/kubectl step, passes the /32 into `public_access_cidrs` on first deploy, and
     Terraform ignores later changes to that attribute. Access stays open to that IP after the
-    deploy; `--close-api` optionally removes it.
+    deploy. **Amended 2026-09-28 (human decision, Eric):** the optional `--close-api` flag is
+    dropped; there is no close-after-deploy step, and `ignore_changes` covers only
+    `public_access_cidrs`.
 12. **PR 6 (T388 / T356, Redis and NATS TLS): deferred to a design session** before any
     implementation (Go TLS config, `nats.RootCAs` vs `SSL_CERT_FILE`, CA source).
 13. **Security alarms:** file a backlog issue for CIS-style CloudTrail metric filters/alarms,
