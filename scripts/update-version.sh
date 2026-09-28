@@ -7,6 +7,15 @@
 # Versioning Rules:
 #   - feat: commits increment MINOR version, reset PATCH to 0
 #   - All other commits (fix, refactor, docs, etc.) increment PATCH version
+#
+# SERVER version only: this script writes .version and api/version.go and
+# never touches api-schema/tmi-openapi.json's info.version. Since the
+# 2026-09-28 decoupling (see
+# docs/superpowers/specs/2026-09-28-adr-versioning-docs-skip-and-schema-decoupling.md),
+# the OpenAPI schema has its own version that only moves when the schema
+# itself changes; bump it with
+# `scripts/ci-version-bump.sh compute-schema-version` / `apply-schema-version`
+# instead, then `make generate-api`.
 
 set -e
 
