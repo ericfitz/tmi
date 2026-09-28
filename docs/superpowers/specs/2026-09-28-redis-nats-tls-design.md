@@ -37,14 +37,16 @@ half shipped in PR 4 (#971). Supersedes the plan's "Terraform CA" sketch
   - NATS client (usage `client auth`): `nats-client-server`, `nats-client-controller`,
     `nats-client-extractor`, `nats-client-chunk-embed`, `nats-client-worker-probe`; CN = component name.
 - Every leaf Secret carries `ca.crt`, `tls.crt`, `tls.key`, so one mount gives a pod its trust anchor.
-- Redis, NATS, server, and controller carry `reloader.stakater.com/auto: "true"`; worker
-  Deployments get it from the TMIComponent renderer.
+- Server and controller carry `reloader.stakater.com/auto: "true"`; worker Deployments get it
+  from the TMIComponent renderer. Redis and NATS use the targeted
+  `secret.reloader.stakater.com/reload: "redis-tls"` / `"nats-tls"` instead: `auto` would roll Redis
+  whenever `tmi-secrets` changes (e.g. #965 rotations) and wipe its in-memory sessions.
 - CA rotation is manual and rare (5 years); the runbook goes into #965 (trust old+new CA, reissue, drop old).
 - Out of scope: the PR 5 `tmi-server-tls` cert stays on Terraform.
 
 ## 2. Redis and NATS servers
 
-- **Redis** (`deployments/k8s/dev/redis.yml`, base): `--port 0 --tls-port 6379
+- **Redis** (`deployments/k8s/dev/redis.yml`, base; Reloader annotation targets `redis-tls` only): `--port 0 --tls-port 6379
   --tls-cert-file /tls/tls.crt --tls-key-file /tls/tls.key --tls-ca-cert-file /tls/ca.crt
   --tls-auth-clients no`, Secret `redis-tls` mounted at `/tls`.
   - Password everywhere: the `requirepass` patch moves from the AWS overlay into the base.
