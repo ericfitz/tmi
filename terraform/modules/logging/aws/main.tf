@@ -254,8 +254,37 @@ resource "kubernetes_daemon_set_v1" "fluent_bit" {
         automount_service_account_token = true
 
         container {
-          name  = "fluent-bit"
-          image = "amazon/aws-for-fluent-bit:latest"
+          name = "fluent-bit"
+
+          # Pinned to the version that ECR Public's own ":stable"/":latest" tags
+          # currently resolve to (verified 2026-09-27 with `docker buildx
+          # imagetools inspect`; the Docker Hub mirror `amazon/aws-for-fluent-bit`
+          # publishes the identical manifest). To bump: pick a newer tag from
+          # https://github.com/aws/aws-for-fluent-bit/releases, re-run
+          # `docker buildx imagetools inspect public.ecr.aws/aws-observability/aws-for-fluent-bit:<ver>`
+          # for the multi-arch index digest, and update both here.
+          image = "public.ecr.aws/aws-observability/aws-for-fluent-bit:2.34.3.20260918@sha256:cb8ddc965dbe5bc47e0bfdd24280d6e60907090c2c26bc911a386acb647948de"
+
+          # Hardening (T382): stays root because /var/log is only readable by
+          # root, but everything else is locked down. read_only_root_filesystem
+          # is safe here: the entrypoint only execs fluent-bit (no temp-file
+          # writes), the config comes from a ConfigMap (read-only regardless),
+          # there's no `storage.path` buffering configured, and the one file
+          # fluent-bit writes -- the tail DB -- already lives on the
+          # "fluentbitstate" hostPath mount below, which sits outside the
+          # container's root filesystem.
+          security_context {
+            allow_privilege_escalation = false
+            read_only_root_filesystem  = true
+
+            capabilities {
+              drop = ["ALL"]
+            }
+
+            seccomp_profile {
+              type = "RuntimeDefault"
+            }
+          }
 
           volume_mount {
             name       = "config"
