@@ -10,7 +10,9 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-28-secret-rotation-design.md` §4 and §5. Builds on PR 1 (`docs/superpowers/plans/2026-09-28-secret-rotation-pr1-rotator.md`): `rotator.Env`, `Rotation`, `Env.Transition`, `Env.WaitServerRolled`, `Env.Secrets` (`SecretStore.Get/Update`), `AnnPhase`, `AnnRotatedAt`, `AnnGeneration`, `NewPassword`, `MemorySecretStore`, `NewFakeRolloutWaiter`, `testEnv`, `cmd/rotator` `options`/`run`, `scripts/rotate-secret.py`, `deployments/k8s/dev/rotator.yml` (Role already names `tmi-rotator-admin`), `internal/secrets` `file` provider, `deploy-aws.sh import_config`.
 
-## Open questions for Eric
+## Open questions (resolved 2026-09-28)
+
+HUMAN DECISIONS (Eric, 2026-09-28): every item below keeps the default the plan states (items 1-6 accepted as written). Related: (A) webhook secrets and the content-token key are out of #965 (separate issue), so nothing in this PR's DB-user work touches them.
 
 1. **Ownership transfer scope.** `REASSIGN OWNED` is out (spec) because the RDS master owns objects we must not move. The plan transfers every relation, sequence, view, function and trigger function in schema `public` that the *current app user* owns and that AutoMigrate/`internal/dbschema` created. On PostgreSQL 15+ `public` itself is owned by `pg_database_owner`, so `tmi_owner` also needs `GRANT USAGE, CREATE ON SCHEMA public`. Anything outside `public` (extensions such as `vector`) stays with the master. If a future object lands outside `public`, the bootstrap must be extended: acceptable?
 2. **`ALTER DEFAULT PRIVILEGES` is dropped.** With `ALTER ROLE tmi_a SET role = 'tmi_owner'`, every session of `tmi_a`/`tmi_b` runs as `tmi_owner`, so objects AutoMigrate creates are owned by `tmi_owner` directly and no default-privilege rule is needed. Spec lists it; the plan omits it and verifies the claim in the integration test (`TestDBRotationIntegration_BootstrapOwnership`).

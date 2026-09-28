@@ -10,7 +10,9 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-28-secret-rotation-design.md` (sections 1, 2, 5). Depends on PR 6: `docs/superpowers/specs/2026-09-28-redis-nats-tls-design.md`.
 
-## Open questions for Eric
+## Open questions (resolved 2026-09-28)
+
+HUMAN DECISIONS (Eric, 2026-09-28): (A) item 4 is OUT of #965: webhook secrets (plaintext `WebhookSubscription.Secret`) and content-token key rotation get a separate issue; PR 1 re-encrypts `system_settings` only. (B) item 7 is IN scope: Redis persistence (PVC + AOF) is Task 5 of this plan, for every cluster flavour that runs in-cluster Redis. All other items keep the defaults stated below.
 
 Nothing here changes an approved decision; each item is a place where the spec text is infeasible or silent, and the plan records the choice it makes so it can be overturned cheaply.
 
@@ -18,10 +20,10 @@ Nothing here changes an approved decision; each item is a place where the spec t
 1. **Forced rotation command.** `kubectl create job --from=cronjob/tmi-rotator` cannot set an env var, so the spec's literal command is infeasible. The plan adds `make rotate-secret name=<rotation>` (`scripts/rotate-secret.py`: dry-run the CronJob's job template, inject `ROTATE=<name>`, apply). Same effect, one wrapper.
 2. **100-day alarm shape.** A CloudWatch alarm cannot look back 100 days (period x evaluation periods is capped at one day). The plan has the rotator log `secret=<name> age_days=<n>` on every run; a log metric filter extracts `age_days` and the alarm fires on `Maximum > 100` over one day with `treat_missing_data = breaching` (a CronJob that stops running is also an incident).
 3. **`ReEncryptAll` atomicity (#845 reversal, FYI).** The spec's resumable, per-row transactions replace the single-transaction pass chosen in #845. The handler's "rolled back, nothing changed" 503 wording and the code comments are updated to "partial progress is kept; retry finishes it".
-4. **"Webhook secrets included" is not true today.** `WebhookSubscription.Secret` (`api/models/models.go:661`) is stored in plaintext (varchar 128) and content tokens use a separate `TMI_CONTENT_TOKEN_ENCRYPTION_KEY`. Under the settings key, the only `ENC:` column is `system_settings.value`; Redis holds the rest (all with TTLs). This plan re-encrypts `system_settings` only. Encrypting webhook secrets, or rotating the content-token key, would be a new feature (own issue?).
+4. **"Webhook secrets included" is not true today.** `WebhookSubscription.Secret` (`api/models/models.go:661`) is stored in plaintext (varchar 128) and content tokens use a separate `TMI_CONTENT_TOKEN_ENCRYPTION_KEY`. Under the settings key, the only `ENC:` column is `system_settings.value`; Redis holds the rest (all with TTLs). This plan re-encrypts `system_settings` only. Encrypting webhook secrets, or rotating the content-token key, would be a new feature. **Resolved: out of scope (decision A); separate issue to be filed.**
 5. **Secrets Manager removal is split per PR.** Removing the DB and JWT copies in PR 1 would break `deploy-aws.sh import_config` (DB credentials) and PR 2's not-yet-existing keyring. PR 1 removes the Redis and settings-key copies; PR 2 removes JWT; PR 3 removes DB credentials.
 6. **Oracle dev overlay (`docker-desktop-oracle`).** The rotator is not wired into it in PR 1: the Oracle server reads `TMI_DATABASE_URL` from `tmi-oracle-db`, not `tmi-secrets`, and PR 3 does the Oracle wiring anyway. `ReEncryptAll` on Oracle is covered by `make test-integration-oci`.
-7. **Redis persistence.** PR 6 defers it to #965 and the #965 spec only notes it. Not in this plan; say if you want it in scope.
+7. **Redis persistence.** PR 6 defers it to #965 and the #965 spec only notes it. **Resolved: IN scope (decision B); new Task 5** (PVC + AOF `everysec`, `Recreate`, longhorn/gp3 patches, EBS CSI addon in Terraform; ACL state deliberately not persisted, the `default` user is rebuilt from `tmi-secrets` at every start).
 8. **Previous-key grace period.** The Redis `ENC:` TTLs are operator-configurable (`auth.jwt.refresh_token_days`, `auth.jwt.session_lifetime_days`, default 7 days). The plan uses a fixed `TMI_ROTATOR_SETTINGS_PREVIOUS_GRACE` (default `192h` = 8 days) rather than reading the live settings; the runbook says to raise it if those settings exceed 7 days.
 
 ## Assumed post-PR 6 state (verify at the start of Task 1; adjust names if PR 6 landed differently)
@@ -39,7 +41,8 @@ Nothing here changes an approved decision; each item is a place where the spec t
 - **Logging:** only `github.com/ericfitz/tmi/internal/slogging` (`Get()`, `Info/Warn/Error`, `InfoCtx(ctx, msg, attrs...)` for structured fields). Never log a secret value; log key names, ids, phases, counts. `scripts/check-sensitive-log-args.py` runs in `make lint`.
 - **Secret safety:** no secret value in argv, env of an operator shell, logs, or chat. Scripts use `umask 077` files and `kubectl --from-file` / `--patch-file`.
 - **SEM markers:** every new function/method/type gets `// SEM@<sha>: <intent>` (one line, canonical verb, no mechanism); changed functions get their description updated (keep the sha, tooling refreshes it).
-- **Terraform owns** namespace, ConfigMap, Secrets, IRSA SA; **kustomize overlays own workloads**, including the new CronJob, ServiceAccount, Role, RoleBinding.
+- **Terraform owns** namespace, ConfigMap, Secrets, IRSA SA, and (Task 5) the EBS CSI addon and `gp3` StorageClass; **kustomize overlays own workloads**, including the new CronJob, ServiceAccount, Role, RoleBinding and the `redis-data` PVC.
+- **Redis data lifecycle:** the `redis-data` PVC survives `make dev-down` (like the Postgres PVC and `tmi-secrets`) and is deleted with the namespace on `make dev-nuke`. Never delete it while `tmi-secrets` stays, or vice versa: `ENC:` entries need both.
 - **Oracle review is mandatory** before the PR is reported complete (Task 13): `ReEncryptAll` touches `system_settings`.
 - **Branch:** `feat/965-secret-rotation` (worktree `/Users/efitz/Projects/tmi-965`), rebased on `main` after PR 6 merges. `main` is PR-only.
 - **Commits:** conventional commits; the PR title is `feat(rotator): scheduled rotation of the Redis password and settings key (#965)`. Every commit ends with:
@@ -56,8 +59,8 @@ Nothing here changes an approved decision; each item is a place where the spec t
 Inputs the spec implies but no test would otherwise exercise, most likely to bite first:
 
 1. A forced run (`ROTATE=redis-password`) overlapping the nightly run: both read `tmi-secrets`, both write. Expected: the second write fails with a conflict and exits non-zero; nothing is lost. (Test in Task 3: `MemorySecretStore` conflict; Task 4: `KubeSecretStore` conflict via `PrependReactor`.)
-2. Redis restarted mid-rotation: its ACL is in-memory, so `NEW` is gone and `--requirepass` is whatever the Secret held at restart. Expected: resume re-adds `NEW` before waiting. (Task 5 test `TestRedisPasswordRotation_ResumeReAddsNewPassword`.)
-3. A `system_settings` row whose ciphertext no key can open (legacy id, wrong key). Expected: reported in `settingErrors`, skipped, never re-selected in a loop, everything else still re-encrypted. (Task 6 test `TestReEncryptAll_UndecryptableRowIsSkippedOnce`.)
+2. Redis restarted mid-rotation: its ACL is in-memory (the AOF from Task 5 does not persist ACL changes), so `NEW` is gone and `--requirepass` is whatever the Secret held at restart. Expected: resume re-adds `NEW` before waiting. (Task 6 test `TestRedisPasswordRotation_ResumeReAddsNewPassword`.)
+3. A `system_settings` row whose ciphertext no key can open (legacy id, wrong key). Expected: reported in `settingErrors`, skipped, never re-selected in a loop, everything else still re-encrypted. (Task 7 test `TestReEncryptAll_UndecryptableRowIsSkippedOnce`.)
 4. `tmi.dev/rotate-every.<name>` unparsable (`"3 months"`). Expected: warn, fall back to `90d`, never treat as "due now". (Task 3 test `TestParseRotateEvery`.)
 5. A Redis `ENC:` entry encrypted under a dropped key id. Expected: `Decrypt` fails cleanly, the caller treats the entry as missing (existing behaviour: `RedisDB.Get` returns an error), never a panic or a 500 on a hot path. (Task 1 test `TestDecrypt_UnknownIDAfterDrop`; the auth handlers already map a missing refresh token to 401.)
 
@@ -77,11 +80,15 @@ Inputs the spec implies but no test would otherwise exercise, most likely to bit
 | `internal/rotator/*.go` (new) | `Secret`, `SecretStore`, `MemorySecretStore`, `KubeSecretStore`, `RolloutWaiter`, `KubeRolloutWaiter`, `FakeRolloutWaiter`, `Env`, `Rotation`, `Run`, `RedisPasswordRotation`, `SettingsKeyRotation`, key generation, schedule parsing |
 | `cmd/rotator/main.go` (new) | wiring: env, kube client, Redis, DB, `rotator.Run`, exit code |
 | `scripts/build-server.py`, `Makefile`, `Dockerfile.server`, `Dockerfile.server-oracle` | build `tmi-rotator` into the server image |
+| `deployments/k8s/dev/redis.yml` | AOF (`appendonly yes`, `appendfsync everysec`, `--dir /data`), `Recreate`, `fsGroup`, `/data` volume; new `PersistentVolumeClaim` `redis-data` |
+| `deployments/k8s/dev/k3s/patches/redis-storageclass.yaml`, `deployments/k8s/dev/aws/patches/redis-storageclass.yaml` (new); the two `kustomization.yaml` | `storageClassName` longhorn / gp3 on `redis-data` |
+| `terraform/modules/kubernetes/aws/main.tf` | `aws-ebs-csi-driver` addon, IRSA role `ebs-csi`, `kubernetes_storage_class_v1.gp3` |
+| `deployments/k8s/dev/aws/README.md` | "Redis persistence" paragraph |
 | `deployments/k8s/dev/rotator.yml` (new) | ServiceAccount, Role, RoleBinding, CronJob |
 | `deployments/k8s/dev/networkpolicy-redis.yml`, `deployments/k8s/dev/k3s/networkpolicy-k3s.yml` | admit `app: tmi-rotator` to Redis and (k3s) Postgres |
 | `deployments/k8s/dev/server.yml`, `deployments/k8s/dev/aws/patches/server-config.yaml` | settings-key env from `tmi-secrets` (four keys, previous pair optional) |
 | `deployments/k8s/dev/{docker-desktop,k3s,aws}/kustomization.yaml` | add `../rotator.yml` |
-| `scripts/lib/deploy.py` | seed settings key (id 1) into `tmi-secrets` if absent; keep `tmi-secrets` on `dev-down` |
+| `scripts/lib/deploy.py` | seed settings key (id 1) into `tmi-secrets` if absent; keep `tmi-secrets` (and the `redis-data` PVC) on `dev-down`; PR 6 docstring wording |
 | `scripts/rotate-secret.py` (new), `Makefile` | `make rotate-secret name=<rotation>` |
 | `terraform/modules/kubernetes/aws/k8s_resources.tf` | `ignore_changes = [data]`, seed `_CONTEXT_ID = "1"` |
 | `terraform/modules/secrets/aws/{main,outputs}.tf` | drop the Redis and settings-key Secrets Manager secrets |
@@ -275,7 +282,7 @@ git commit -m "feat(crypto): select the settings encryption key by envelope id (
 
 ### Task 2: `file` secrets provider
 
-Needed by `deploy-aws.sh import_config` (Task 12) so the settings keyring reaches `dbtool` from files, never env or argv.
+Needed by `deploy-aws.sh import_config` (Task 11) so the settings keyring reaches `dbtool` from files, never env or argv.
 
 **Files:**
 - Create: `internal/secrets/file_provider.go`
@@ -1324,7 +1331,367 @@ git commit -m "feat(rotator): Kubernetes SecretStore and Deployment rollout wait
 
 ---
 
-### Task 5: Redis password rotation
+### Task 5: Redis persistence (PVC + AOF) so rotations and rolls keep sessions
+
+**Files:**
+- Modify: `deployments/k8s/dev/redis.yml` (post-PR 6 Deployment: AOF args, `/data` volume, `Recreate`; new `PersistentVolumeClaim`)
+- Create: `deployments/k8s/dev/k3s/patches/redis-storageclass.yaml`, `deployments/k8s/dev/aws/patches/redis-storageclass.yaml`
+- Modify: `deployments/k8s/dev/k3s/kustomization.yaml`, `deployments/k8s/dev/aws/kustomization.yaml` (patch entries)
+- Modify: `terraform/modules/kubernetes/aws/main.tf` (EBS CSI addon + IRSA role, `gp3` StorageClass)
+- Modify: `deployments/k8s/dev/aws/README.md` (new "Redis persistence" paragraph), `scripts/lib/deploy.py` (comment in PR 6's `ensure_redis_password_secret()` docstring)
+
+**Interfaces:**
+- Consumes: PR 6's `redis.yml` (TLS + `--requirepass $(REDIS_PASSWORD)` from `tmi-secrets`, Reloader annotation `secret.reloader.stakater.com/reload: "redis-tls"`).
+- Produces: PVC `redis-data` in `tmi-platform`, mounted at `/data`; Redis keeps `ENC:` sessions and refresh tokens across any restart (cert renewal roll, image roll, crash, `dev-down`/`dev-up`). Task 6's rotation relies on the restart semantics documented in step 2 (`default` user rebuilt from the Secret). Nothing in Go changes.
+
+Why now: Task 6 rotates the Redis password and PR 6 rolls Redis on cert renewal; without persistence every roll logs every user out. `docker-desktop-oracle` includes `../redis.yml`, so it gets the PVC from the base with no overlay change.
+
+Why a Deployment and not a StatefulSet: everything targets `kind: Deployment` / `deploy/redis` today (the docker-desktop `redis-pullpolicy.yaml` patch, `scripts/cats-prep.py` `REDIS_DEPLOYMENT`, `deploy.py`'s `delete deploy,svc ... redis`, `scripts/lib/devstatus.py` `_WANT`, PR 6's verification, Task 14 step 3). One replica with one named PVC is the same thing a StatefulSet would give, without touching any of those. `strategy: Recreate` is required: the PVC is `ReadWriteOnce`, and on the two-node EKS cluster a `RollingUpdate` surge pod scheduled to the other node could never attach the EBS volume, so the roll would hang. Recreate costs a few seconds of Redis downtime per roll (the server's go-redis client reconnects; the same trade PR 6 accepted for `tmi-server`).
+
+- [ ] **Step 1: `deployments/k8s/dev/redis.yml`**
+
+Replace the Deployment (the Service is unchanged). This is PR 6 Task 6 step 1's manifest with the changes marked `# PR 1 (#965)`; if PR 6 landed with different flags, keep PR 6's flags and apply only the marked lines.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: tmi-platform
+  annotations:
+    # Roll ONLY when the TLS Secret is re-issued (cert-manager renewal, about
+    # every 60 days). Not `auto`: that would also roll on every tmi-secrets
+    # change (#965 rotations). Data survives a roll (AOF on redis-data, #965
+    # PR 1), but each roll is still a few seconds of Redis downtime.
+    secret.reloader.stakater.com/reload: "redis-tls"
+spec:
+  replicas: 1
+  # PR 1 (#965): redis-data is ReadWriteOnce. A RollingUpdate surge pod on the
+  # other EKS node could never attach the volume and the roll would hang;
+  # Recreate stops the old pod first.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: { app: redis }
+  template:
+    metadata:
+      labels: { app: redis }
+    spec:
+      # PR 1 (#965): the PVC is mounted with this group so the non-root redis
+      # user (uid/gid 65532 in cgr.dev/chainguard/redis, verified 2026-09-28; step 3 re-checks) can
+      # write /data. redis:7-alpine (k3s image remap) starts as root and chowns
+      # /data to its own redis user, so the group is harmless there.
+      securityContext:
+        fsGroup: 65532
+      containers:
+        - name: redis
+          image: cgr.dev/chainguard/redis:latest
+          # TLS only: --port 0 closes the plaintext listener, clients verify
+          # the server cert (redis-tls, SANs redis / redis.tmi-platform.svc /
+          # ...svc.cluster.local); the server does not require client certs,
+          # the password does that job (PR 6, T388).
+          #
+          # $(REDIS_PASSWORD) is expanded by the kubelet from the container's
+          # own env, not by a shell: the literal string is what appears in
+          # the PodSpec; the value is visible only in the container's process
+          # table, which is inherent to --requirepass. --protected-mode no is
+          # kept: with requirepass it is redundant, and enabling it would
+          # reject the server pod (another pod IP, not loopback).
+          #
+          # Persistence (#965 PR 1): append-only file on the redis-data PVC,
+          # fsync once per second (at most one second of writes lost on a
+          # crash; a clean stop loses nothing). --save "" stays: no RDB
+          # snapshots on top of the AOF (Redis 7 keeps its own base file in
+          # appendonlydir). ACL changes are NOT in the AOF: the default user's
+          # password is rebuilt from --requirepass at every start, which is
+          # exactly what tmi-rotator relies on for password rotation (#965).
+          args:
+            - "--save"
+            - ""
+            - "--appendonly"
+            - "yes"
+            - "--appendfsync"
+            - "everysec"
+            - "--dir"
+            - "/data"
+            - "--bind"
+            - "0.0.0.0"
+            - "--protected-mode"
+            - "no"
+            - "--port"
+            - "0"
+            - "--tls-port"
+            - "6379"
+            - "--tls-cert-file"
+            - "/tls/tls.crt"
+            - "--tls-key-file"
+            - "/tls/tls.key"
+            - "--tls-ca-cert-file"
+            - "/tls/ca.crt"
+            - "--tls-auth-clients"
+            - "no"
+            - "--requirepass"
+            - "$(REDIS_PASSWORD)"
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tmi-secrets
+                  key: TMI_REDIS_PASSWORD
+          ports:
+            - containerPort: 6379
+          volumeMounts:
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            - name: data
+              mountPath: /data
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+      volumes:
+        - name: tls
+          secret:
+            secretName: redis-tls
+        - name: data
+          persistentVolumeClaim:
+            claimName: redis-data
+---
+# Redis data (#965 PR 1): sessions, refresh tokens and cached authorization
+# decisions, all ENC:-encrypted under the settings key and all with TTLs.
+# 1Gi is far above the 256Mi memory limit; the AOF rewrite needs about 2x the
+# dataset on disk. No storageClassName here: docker-desktop uses its default
+# (hostpath) class; the k3s and aws overlays patch in longhorn / gp3.
+#
+# Lifecycle: `make dev-down` deletes the redis Deployment and Service but not
+# this claim (same as the Postgres PVC), so sessions survive a dev-down /
+# dev-up. `make dev-nuke` deletes the namespace and the claim with it, which
+# is consistent: tmi-secrets goes at the same time, and ENC: entries are
+# unreadable without it anyway.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  namespace: tmi-platform
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+Note: `Dockerfile.redis` (the `tmi-redis` image the AWS overlay uses) has `CMD ["--appendonly", "yes", ...]`, but Kubernetes `args` replaces CMD entirely, so the manifest above is the only place the flags matter.
+
+- [ ] **Step 2: Resolve ACL persistence (design note; no code)**
+
+Redis does not write `ACL SETUSER` to the AOF; ACL state persists only through `CONFIG REWRITE` or an `aclfile` plus `ACL SAVE`. This plan uses **neither**, and the rotation stays correct because:
+
+- tmi-rotator (Task 6) creates no ACL users. It only adds a password hash to the `default` user (`ACL SETUSER default >NEW`) and later removes one (`ACL SETUSER default !<sha256>`).
+- At every start Redis rebuilds `default` from `--requirepass $(REDIS_PASSWORD)`. The kubelet resolves `$(REDIS_PASSWORD)` from `tmi-secrets` when it starts the container (a fresh pod after a roll, and also a crash restart of the container inside the same pod: env is built on every container start). So after any restart `default` accepts exactly the Secret's current password, which is NEW from the rotation's first Secret write onward.
+- The `swapped` phase re-runs `ACL SETUSER default >NEW` idempotently before waiting for the server roll (Task 6 test `TestRedisPasswordRotation_ResumeReAddsNewPassword`), so a restart between the two phases changes nothing.
+- Accepted cost: if Redis restarts mid-rotation, OLD is gone, and any `tmi-server` pod Reloader has not yet replaced fails auth (`WRONGPASS`) until the roll completes (minutes; the rotator's rollout wait covers it). An `aclfile` would avoid that window but makes the Secret and the file two sources of truth for `default`'s password, needs a writable file plus `ACL SAVE` from the rotator, and conflicts with `--requirepass`; rejected.
+
+Step 6 verifies the restart behaviour on a real cluster.
+
+- [ ] **Step 3: Confirm the redis uid in the chainguard image**
+
+```bash
+docker pull cgr.dev/chainguard/redis:latest
+docker image inspect cgr.dev/chainguard/redis:latest --format '{{.Config.User}}'
+c=$(docker create cgr.dev/chainguard/redis:latest); docker cp "$c:/etc/passwd" - | tar -xO | rg '^redis'; docker rm "$c" >/dev/null
+```
+
+Expected: `redis` (or `65532`), and the passwd line `redis:x:65532:65532:...`. If the uid differs, set `fsGroup` in step 1 to that value.
+
+- [ ] **Step 4: k3s and aws overlay patches (storage class)**
+
+`deployments/k8s/dev/k3s/patches/redis-storageclass.yaml`:
+
+```yaml
+# Redis data on longhorn, like k3s/postgres.yml. The base PVC has no
+# storageClassName so docker-desktop can use its default; k3s's default
+# (local-path) pins the pod to one node, longhorn does not.
+- op: add
+  path: /spec/storageClassName
+  value: longhorn
+```
+
+`deployments/k8s/dev/aws/patches/redis-storageclass.yaml`:
+
+```yaml
+# Redis data on EBS gp3 via the ebs.csi.aws.com StorageClass that
+# terraform/modules/kubernetes/aws/main.tf creates (kubernetes_storage_class_v1
+# "gp3", volumeBindingMode WaitForFirstConsumer so the volume lands in the
+# AZ of whichever node schedules the pod).
+- op: add
+  path: /spec/storageClassName
+  value: gp3
+```
+
+Add to `deployments/k8s/dev/k3s/kustomization.yaml` and `deployments/k8s/dev/aws/kustomization.yaml` under `patches:`:
+
+```yaml
+  - path: patches/redis-storageclass.yaml
+    target:
+      kind: PersistentVolumeClaim
+      name: redis-data
+```
+
+- [ ] **Step 5: Terraform: EBS CSI driver addon, IRSA role, `gp3` StorageClass**
+
+The module manages only `vpc-cni`, `kube-proxy` and `coredns`; there is no EBS CSI driver and no StorageClass anywhere in `terraform/`, so on EKS 1.36 a PVC stays `Pending` forever. Add to `terraform/modules/kubernetes/aws/main.tf`, after the `coredns` addon:
+
+```hcl
+# ============================================================================
+# EBS CSI driver (#965 PR 1): backs the redis-data PVC. Nothing else in the
+# platform claims storage (Postgres is RDS, NATS JetStream is an emptyDir).
+# ============================================================================
+
+data "aws_eks_addon_version" "ebs_csi" {
+  addon_name         = "aws-ebs-csi-driver"
+  kubernetes_version = var.kubernetes_version
+}
+
+resource "aws_iam_role" "ebs_csi" {
+  name = "${var.name_prefix}-ebs-csi-driver"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Effect = "Allow"
+        Principal = {
+          Federated = local.oidc_provider_arn
+        }
+        Condition = {
+          StringEquals = {
+            "${local.oidc_provider_url}:aud" = "sts.amazonaws.com"
+            # The addon creates this ServiceAccount itself.
+            "${local.oidc_provider_url}:sub" = "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  role       = aws_iam_role.ebs_csi.name
+}
+
+resource "aws_eks_addon" "ebs_csi" {
+  cluster_name             = aws_eks_cluster.tmi.name
+  addon_name               = "aws-ebs-csi-driver"
+  addon_version            = data.aws_eks_addon_version.ebs_csi.version
+  service_account_role_arn = aws_iam_role.ebs_csi.arn
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  tags = var.tags
+
+  depends_on = [aws_eks_node_group.tmi, aws_iam_role_policy_attachment.ebs_csi]
+}
+
+# gp3 is cheaper than the legacy gp2 class EKS creates by default and lets
+# the volume be encrypted at rest with the account's default EBS key.
+# WaitForFirstConsumer: the volume is created in the AZ of the node that
+# schedules the pod (the node group spans two AZs).
+resource "kubernetes_storage_class_v1" "gp3" {
+  metadata {
+    name = "gp3"
+  }
+  storage_provisioner    = "ebs.csi.aws.com"
+  reclaim_policy         = "Delete"
+  volume_binding_mode    = "WaitForFirstConsumer"
+  allow_volume_expansion = true
+  parameters = {
+    type      = "gp3"
+    encrypted = "true"
+  }
+
+  depends_on = [aws_eks_addon.ebs_csi]
+}
+```
+
+Pod-ceiling check (the module's comment on the two-node group explains that a t3.medium tops out at 17 pods and the platform sits at 16 at rest): the addon adds a 2-replica `ebs-csi-controller` Deployment and one `ebs-csi-node` DaemonSet pod per node. Run
+
+```bash
+cd /Users/efitz/Projects/tmi-965/terraform/environments/aws-public
+AWS_PROFILE=tmi aws eks describe-addon-configuration --addon-name aws-ebs-csi-driver \
+  --addon-version "$(AWS_PROFILE=tmi aws eks describe-addon-versions --addon-name aws-ebs-csi-driver --kubernetes-version 1.36 --query 'addons[0].addonVersions[0].addonVersion' --output text)" \
+  --query configurationSchema --output text | jq '.properties.controller.properties | keys'
+```
+
+If `replicaCount` is in the list, add `configuration_values = jsonencode({ controller = { replicaCount = 1 } })` to `aws_eks_addon.ebs_csi` (two pods on a two-node cluster: one controller, one node agent per node, plus Redis's PVC costs nothing). If it is not, record in the PR body that the platform goes from 16 to 20 pods at rest against a 34-pod ceiling (2 nodes x 17), still leaving surge room for one rolling workload at a time.
+
+Then `AWS_PROFILE=tmi terraform init -backend-config=backend.hcl && AWS_PROFILE=tmi terraform validate && AWS_PROFILE=tmi terraform plan` from `terraform/environments/aws-public`; expected: 4 to add (`aws_iam_role.ebs_csi`, `aws_iam_role_policy_attachment.ebs_csi`, `aws_eks_addon.ebs_csi`, `kubernetes_storage_class_v1.gp3`), nothing changed or destroyed. Do **not** apply; Eric applies at the deferred AWS deploy (same rule as PR 6 Task 6 step 6). Add a paragraph "Redis persistence" to `deployments/k8s/dev/aws/README.md` next to the "NATS storage class" section: the base PVC, the `gp3` patch, the Terraform addon/StorageClass, and that the first `kubectl apply -k` after the Terraform apply creates the volume (about a minute before Redis is Ready).
+
+In `scripts/lib/deploy.py`, PR 6's `ensure_redis_password_secret()` docstring (or the `start()` comment next to its call) says "Redis has no persistence; nothing to migrate" for `dev-nuke`. Change it to: "`dev-nuke` deletes the namespace, which takes tmi-secrets AND the redis-data PVC together, so the next start() regenerates the password against an empty Redis; `dev-down` keeps both."
+
+- [ ] **Step 6: Verify on docker-desktop: render, AOF on, session survives a Redis restart**
+
+```bash
+cd /Users/efitz/Projects/tmi-965
+for o in docker-desktop docker-desktop-oracle k3s aws; do
+  echo "== $o"
+  kubectl kustomize --load-restrictor LoadRestrictionsNone deployments/k8s/dev/$o > /tmp/pr1-$o.yml
+  rg -c 'kind: PersistentVolumeClaim' /tmp/pr1-$o.yml          # 1
+  rg -c -- '--appendonly' /tmp/pr1-$o.yml                        # 1 (followed by "yes")
+  rg -n 'storageClassName' /tmp/pr1-$o.yml || echo "default class"   # k3s: longhorn; aws: gp3; docker-desktop*: default class
+  rg -c 'type: Recreate' /tmp/pr1-$o.yml                         # 2 (tmi-server already uses Recreate; redis is the second)
+done
+make dev-up
+kubectl -n tmi-platform get pvc redis-data                      # STATUS Bound
+kubectl -n tmi-platform exec deploy/redis -- sh -c 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli --tls --cacert /tls/ca.crt INFO persistence' | rg 'aof_enabled|aof_last_write_status|aof_last_bgrewrite_status'
+```
+
+Expected: `aof_enabled:1`, `aof_last_write_status:ok`, `aof_last_bgrewrite_status:ok`. A `Permission denied` on `/data/appendonlydir` in `kubectl -n tmi-platform logs deploy/redis` means the `fsGroup` from step 3 is wrong.
+
+Session survival (no secret on any command line):
+
+```bash
+make start-oauth-stub
+curl -s -X POST http://localhost:8079/flows/start -H 'Content-Type: application/json' -d '{"userid":"alice"}'
+# wait for the flow, then:
+curl -s "http://localhost:8079/creds?userid=alice" | jq -r '.refresh_token' > "$SCRATCH/alice.rt"   # SCRATCH = the scratchpad dir
+kubectl -n tmi-platform rollout restart deploy/redis && kubectl -n tmi-platform rollout status deploy/redis --timeout=120s
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:8079/refresh -H 'Content-Type: application/json' -d "{\"userid\":\"alice\",\"refresh_token\":\"$(cat "$SCRATCH/alice.rt")\"}"
+rm "$SCRATCH/alice.rt"
+```
+
+Expected: `200` (the refresh token persisted through the pod replacement). Before this task the same sequence returns `401`. Then the crash-restart case from step 2 (container restart inside the same pod, env re-resolved):
+
+```bash
+kubectl -n tmi-platform exec deploy/redis -- sh -c 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli --tls --cacert /tls/ca.crt SHUTDOWN'
+kubectl -n tmi-platform get pod -l app=redis      # RESTARTS 1, same pod name, Running
+kubectl -n tmi-platform exec deploy/redis -- sh -c 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli --tls --cacert /tls/ca.crt DBSIZE'
+```
+
+Expected: the pod restarts in place, the password from `tmi-secrets` is accepted and `DBSIZE` is non-zero (the AOF was replayed; `SHUTDOWN` without `NOSAVE` flushes it first). Finally `make dev-down && make dev-up` and repeat the `/refresh` call with a fresh token taken before the down: `200`.
+
+- [ ] **Step 7: Commit**
+
+```bash
+cd /Users/efitz/Projects/tmi-965
+git add deployments/k8s/dev/redis.yml deployments/k8s/dev/k3s deployments/k8s/dev/aws terraform/modules/kubernetes/aws/main.tf scripts/lib/deploy.py
+git commit -m "feat(deploy): persist Redis on a PVC with AOF so rotations keep sessions (#965)
+
+redis-data PVC (default class on docker-desktop, longhorn on k3s, gp3 on
+AWS via a new EBS CSI addon + StorageClass in Terraform), appendonly yes
+with appendfsync everysec, Recreate strategy for the RWO volume. ACL
+changes are not persisted by design: the default user is rebuilt from
+--requirepass (tmi-secrets) at every start, which is what the password
+rotation relies on."
+```
+
+---
+
+### Task 6: Redis password rotation
 
 **Files:**
 - Create: `internal/rotator/redis_password.go`
@@ -1554,7 +1921,7 @@ git commit -m "feat(rotator): rotate the Redis password via ACL SETUSER without 
 ```
 
 ---
-### Task 6: Batched, resumable `ReEncryptAll`
+### Task 7: Batched, resumable `ReEncryptAll`
 
 **Files:**
 - Modify: `api/settings_service.go:658-760` (`ReEncryptAll`, new `reEncryptOne`, `CountValuesWithContextID`)
@@ -1774,7 +2141,7 @@ func (s *SettingsService) CountValuesWithContextID(ctx context.Context, id int) 
 }
 ```
 
-Add `"gorm.io/gorm/clause"` to the imports. Oracle notes for the reviewer (Task 12): `value` is a CLOB on Oracle; `LIKE` on a CLOB is supported, `=` is not (which is why the guard is a row lock rather than `AND value = ?`); `NOT IN` lists are capped at `maxUnreadableSettings` (900) so they stay under Oracle's 1000-element limit.
+Add `"gorm.io/gorm/clause"` to the imports. Oracle notes for the reviewer (Task 13): `value` is a CLOB on Oracle; `LIKE` on a CLOB is supported, `=` is not (which is why the guard is a row lock rather than `AND value = ?`); `NOT IN` lists are capped at `maxUnreadableSettings` (900) so they stay under Oracle's 1000-element limit.
 
 `api/server.go:36`: add `CountValuesWithContextID(ctx context.Context, id int) (int64, error)` to `SettingsServiceInterface`; add a trivial implementation to `MockSettingsService` (`api/config_handlers_test.go`) and `fakeSettingsService` (`api/runtime_config_reader_adapter_test.go`).
 
@@ -1796,7 +2163,7 @@ git commit -m "feat(settings): make ReEncryptAll batched and resumable by envelo
 
 ---
 
-### Task 7: Settings-key rotation
+### Task 8: Settings-key rotation
 
 **Files:**
 - Create: `internal/rotator/settings_key.go`
@@ -2240,7 +2607,7 @@ git commit -m "feat(rotator): stage, promote, re-encrypt and drop the settings e
 ```
 
 ---
-### Task 8: `cmd/rotator` binary, build targets, image
+### Task 9: `cmd/rotator` binary, build targets, image
 
 **Files:**
 - Create: `cmd/rotator/main.go`
@@ -2511,7 +2878,7 @@ git commit -m "feat(rotator): tmi-rotator binary built into the server image (#9
 
 ---
 
-### Task 9: Manifests, dev-cluster seeding, forced runs
+### Task 10: Manifests, dev-cluster seeding, forced runs
 
 **Files:**
 - Create: `deployments/k8s/dev/rotator.yml`
@@ -2674,7 +3041,7 @@ def ensure_settings_key_seeded() -> None:
     log_success("Secret/tmi-secrets seeded with a settings encryption key (id 1)")
 ```
 
-Call it from `start()` right after `ensure_redis_password_secret()`. Imports needed at the top of `deploy.py`: `base64`, `json`, `secrets`, `tempfile` (check which already exist). In the `dev-down`/`stop` cleanup list (line ~1210), `tmi-secrets` must NOT be deleted while the Postgres PVC survives (encrypted rows would become unreadable); add a comment next to the kept `tmi-oauth-providers` explaining this. `dev-nuke` deletes the namespace and the PVC together, which is consistent.
+Call it from `start()` right after `ensure_redis_password_secret()`. Imports needed at the top of `deploy.py`: `base64`, `json`, `secrets`, `tempfile` (check which already exist). In the `dev-down`/`stop` cleanup list (line ~1210), `tmi-secrets` must NOT be deleted while the Postgres PVC survives (encrypted rows would become unreadable), and the `redis-data` PVC (Task 5) is not in that list either, so the `ENC:` sessions it holds stay readable; add a comment next to the kept `tmi-oauth-providers` explaining both. `dev-nuke` deletes the namespace and the PVC together, which is consistent.
 
 The server now reads the settings key from env, which beats `config-development.yml`; no change to that file.
 
@@ -2741,7 +3108,7 @@ git commit -m "feat(deploy): tmi-rotator CronJob, RBAC, network policy and setti
 ```
 
 ---
-### Task 10: Terraform hand-off, `deploy-aws.sh import_config`, CloudWatch alarm
+### Task 11: Terraform hand-off, `deploy-aws.sh import_config`, CloudWatch alarm
 
 **Files:**
 - Modify: `terraform/modules/kubernetes/aws/k8s_resources.tf:160-190` (`kubernetes_secret_v1.tmi`)
@@ -2869,14 +3236,14 @@ git commit -m "feat(terraform): hand tmi-secrets to the rotator, drop redis/sett
 
 ---
 
-### Task 11: Integration tests and harness settings key
+### Task 12: Integration tests and harness settings key
 
 **Files:**
 - Modify: `scripts/run-integration-tests.py:318-340` (`start_test_server_container`) and `test/integration/framework` env plumbing
 - Create: `test/integration/workflows/secret_rotation_test.go`
 - Modify: `test/integration/go.mod` (`go mod tidy` in `test/integration` if a new package is imported; memory: a stale module silently skips tests)
 
-What is testable here (Docker-run server, no Kubernetes): the Redis password rotation end to end against the harness Redis with a `MemorySecretStore` and `FakeRolloutWaiter`, while a background loop hits the API; and `POST /admin/settings/reencrypt` while the loop runs. The stage/promote server rolls cannot happen in this harness; Task 13 covers them on k3s-rp (spec §5).
+What is testable here (Docker-run server, no Kubernetes): the Redis password rotation end to end against the harness Redis with a `MemorySecretStore` and `FakeRolloutWaiter`, while a background loop hits the API; and `POST /admin/settings/reencrypt` while the loop runs. The stage/promote server rolls cannot happen in this harness; Task 14 covers them on k3s-rp (spec §5).
 
 - [ ] **Step 1: Harness gets a settings key**
 
@@ -3025,16 +3392,16 @@ git commit -m "test(integration): Redis password rotation and re-encryption unde
 
 ---
 
-### Task 12: Oracle compatibility review
+### Task 13: Oracle compatibility review
 
-- [ ] **Step 1:** Invoke the `oracle-db-admin` skill with the diff of `api/settings_service.go`, `internal/rotator/settings_key.go`, and the notes from Task 6 (CLOB `LIKE`, no CLOB `=`, `NOT IN` cap, per-row `FOR UPDATE` transactions replacing the single SERIALIZABLE pass, the ORA-08177 history in memory `project_oracle_false_08177_recursive_txn`: per-row READ COMMITTED-style short transactions are the pattern that memory recommends).
+- [ ] **Step 1:** Invoke the `oracle-db-admin` skill with the diff of `api/settings_service.go`, `internal/rotator/settings_key.go`, and the notes from Task 7 (CLOB `LIKE`, no CLOB `=`, `NOT IN` cap, per-row `FOR UPDATE` transactions replacing the single SERIALIZABLE pass, the ORA-08177 history in memory `project_oracle_false_08177_recursive_txn`: per-row READ COMMITTED-style short transactions are the pattern that memory recommends).
 - [ ] **Step 2:** Address the verdict: `APPROVED` -> note in the PR; `APPROVED WITH NOTES` -> fix easy items now, file follow-ups; `BLOCKING ISSUES` -> fix all or get Eric's explicit waiver.
 - [ ] **Step 3:** `make test-integration-oci` if `scripts/oci-env.sh` is available (start tmiadb first: memory `project_oracle_adb_search_state_stale`).
 - [ ] **Step 4:** Commit any fixes: `git commit -m "fix(settings): Oracle review follow-ups for resumable re-encryption (#965)"`.
 
 ---
 
-### Task 13: Cluster verification on k3s-rp, runbook, PR
+### Task 14: Cluster verification on k3s-rp, runbook, PR
 
 - [ ] **Step 1: docker-desktop smoke**
 
@@ -3048,7 +3415,7 @@ git commit -m "test(integration): Redis password rotation and re-encryption unde
 
 `CLUSTER=k3s make dev-up`; `make rotate-secret name=settings-key` and watch two rolls; `kubectl -n tmi-platform get secret tmi-secrets -o jsonpath='{.metadata.annotations}'` shows `rotation-phase.settings-key: reencrypted`, `promoted-at`, `rotated-at`. `make test-integration` against the cluster passes. Then set `TMI_ROTATOR_SETTINGS_PREVIOUS_GRACE=1s` on the CronJob (temporary `kubectl set env cronjob/tmi-rotator ...`), force `settings-key` again: expected `Settings previous key dropped id=1`, one roll, previous pair gone, server healthy, `GET /admin/settings` (admin) still decrypts every secret-classified setting. Revert the env.
 - Forced run overlapping the nightly: start `make rotate-secret name=redis-password` twice in two terminals; one must exit non-zero with `another rotator run is active?`, the other completes; the Secret is consistent.
-- Redis restart mid-rotation: force `redis-password`, and while `tmi-server` is rolling, `kubectl -n tmi-platform rollout restart deploy/redis`; the run may fail on the rollout wait; the next forced run resumes from `swapped`, re-adds the password and completes.
+- Redis restart mid-rotation: force `redis-password`, and while `tmi-server` is rolling, `kubectl -n tmi-platform rollout restart deploy/redis`; the run may fail on the rollout wait; the next forced run resumes from `swapped`, re-adds the password and completes. Sessions created before the restart still refresh (`POST /refresh` on the OAuth stub returns 200): the AOF from Task 5 replayed them.
 
 - [ ] **Step 4: Runbook**
 
@@ -3056,7 +3423,7 @@ In the wiki repo (`/Users/efitz/Projects/tmi.wiki`, per `.local/repos.json`) add
 
 - [ ] **Step 5: Gates**
 
-`make lint`, `make build-server`, `make test-unit`, `make test-integration`, `make validate-openapi` (schema changed in Task 6). Then the `security-review` skill on the branch; stop and report if it finds issues.
+`make lint`, `make build-server`, `make test-unit`, `make test-integration`, `make validate-openapi` (schema changed in Task 7). Then the `security-review` skill on the branch; stop and report if it finds issues.
 
 - [ ] **Step 6: PR**
 
@@ -3064,5 +3431,6 @@ In the wiki repo (`/Users/efitz/Projects/tmi.wiki`, per `.local/repos.json`) add
 
 ## Self-review notes (writer)
 
-- Spec coverage: §1 rotator shape (Tasks 3, 4, 8, 9, 10), §2 Redis (Task 5), settings key ids (Task 1), keyring rollout (Task 7), resumable ReEncryptAll (Task 6), Terraform hand-off and `import_config` (Task 10), CloudWatch (Task 10), §5 unit/integration/cluster/runbook (Tasks 11, 13).
-- Review Focus 5 (`TestDecrypt_UnknownIDAfterDrop`) lives in Task 1, not Task 6, and Review Focus 3 in Task 6.
+- Spec coverage: §1 rotator shape (Tasks 3, 4, 9, 10, 11), §2 Redis (Task 6; persistence Task 5, decision B), settings key ids (Task 1), keyring rollout (Task 8), resumable ReEncryptAll (Task 7), Terraform hand-off and `import_config` (Task 11), CloudWatch (Task 11), §5 unit/integration/cluster/runbook (Tasks 12, 14).
+- Review Focus 5 (`TestDecrypt_UnknownIDAfterDrop`) lives in Task 1, not Task 7, and Review Focus 3 in Task 7.
+- Renumbered 2026-09-28: Redis persistence inserted as Task 5; former Tasks 5-13 are now 6-14. Every `Task N` reference was re-checked by content.

@@ -10,7 +10,9 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-28-secret-rotation-design.md` §3 and §5. Builds on PR 1 (`docs/superpowers/plans/2026-09-28-secret-rotation-pr1-rotator.md`): `rotator.Env`, `rotator.Rotation`, `Env.Transition`, `Env.WaitServerRolled`, `rotator.Run`, annotation constants `AnnPhase`, `AnnRotatedAt`, `AnnGeneration`, `AnnPromotedAt`, `rotator.MemorySecretStore`, `rotator.NewFakeRolloutWaiter`, `cmd/rotator` `options`/`run`, `scripts/rotate-secret.py`, `deployments/k8s/dev/rotator.yml`.
 
-## Open questions for Eric
+## Open questions (resolved 2026-09-28)
+
+HUMAN DECISIONS (Eric, 2026-09-28): (C) item 1: one rotation phase per daily run is kept (a full JWT rotation takes three days). (D) item 2: the JWT keyring is bootstrapped by the rotator's first run, accepting the brief `CreateContainerConfigError` on a first deploy. Items 3 and 4 keep the defaults stated below. Also relevant: (B) Redis persistence lands in PR 1 (Task 5 there), so the HS256 to ES256 cutover does not additionally lose sessions to a Redis roll.
 
 1. **One phase per run.** The spec's stage/promote/drop each need a server roll; with the daily CronJob this plan advances exactly one phase per run, so a full JWT rotation takes three days (a forced `make rotate-secret name=jwt-keyring` advances one phase). The upside: the JWKS `Cache-Control: max-age=3600` floor for any external verifier is met by construction. Say if you want stage+promote in one run.
 2. **Bootstrap through the rotator.** Terraform cannot compute an RFC 7638 thumbprint, so it no longer seeds a JWT value at all; the rotator's first run writes the keyring and `deploy.py` / `deploy-aws.sh` trigger that run right after applying the overlay. Until it completes (a minute or two on a fresh cluster), the `tmi-server` pod sits in `CreateContainerConfigError` (the `TMI_JWT_KEYRING` secretKeyRef is required and the key does not exist yet); the kubelet retries on its own once the Secret is written. Alternative: generate the keyring in the deploy scripts with the same Go code (`bin/tmi-rotator -print-new-jwt-keyring > umask-077 file`). The plan does the former; both are cheap.

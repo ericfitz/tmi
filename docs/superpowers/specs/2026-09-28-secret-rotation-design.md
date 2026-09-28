@@ -127,3 +127,11 @@ Stakater Reloader and Redis TLS.
 - Order: PR 6, then #965 PRs 1, 2, 3. One AWS deploy after all of them plus #968 and #972. The first
   deploy hands `tmi-secrets` from Terraform to the rotator; the rotator bootstraps DB users and the
   JWT keyring on its first run (planning decides whether `deploy-aws.sh` triggers it).
+
+## Human decisions recorded during planning (Eric, 2026-09-28)
+
+- **A. Webhook secrets and the content-token key are out of #965.** `WebhookSubscription.Secret` is stored in plaintext and content tokens use `TMI_CONTENT_TOKEN_ENCRYPTION_KEY`; neither is under the settings key today. PR 1 re-encrypts `system_settings` only; a separate issue will be filed for encrypting webhook secrets and rotating the content-token key.
+- **B. Redis persistence is in scope for #965 PR 1.** Redis moves onto a PVC with AOF (`appendfsync everysec`) in every cluster flavour that runs in-cluster Redis (docker-desktop, docker-desktop-oracle, k3s, aws: EBS gp3 via an EBS CSI addon and StorageClass in Terraform), so rotations and rolls (cert renewal via Reloader, Redis password rotation) keep sessions and refresh tokens. ACL state is deliberately not persisted: the `default` user is rebuilt from `--requirepass` (`tmi-secrets`) at every start. Plan: PR 1 Task 5.
+- **C. PR 2 advances one JWT rotation phase per daily run** (stage, promote, drop on three consecutive days; a forced run advances one phase). The plan's default is kept.
+- **D. PR 2 bootstraps the JWT keyring through the rotator's first run**, accepting a brief `CreateContainerConfigError` on `tmi-server` at first deploy until the Secret key exists. The plan's default is kept.
+- All other open questions in the three plans keep the defaults the plans state.
