@@ -365,23 +365,27 @@ resource "aws_vpc_security_group_egress_rule" "nodes_self" {
   referenced_security_group_id = aws_security_group.eks_nodes.id
 }
 
-# EKS nodes outbound DNS
+# EKS nodes outbound DNS, VPC only (T374). Nodes and CoreDNS resolve through
+# the VPC resolver (VPC base + 2), so there is no reason to reach external DNS
+# servers; this closes DNS tunnelling to arbitrary resolvers. (Security groups
+# do not filter traffic to the Amazon-provided resolver, so this cannot break
+# normal resolution.)
 resource "aws_vpc_security_group_egress_rule" "nodes_dns_tcp" {
   security_group_id = aws_security_group.eks_nodes.id
-  description       = "Allow outbound DNS (TCP)"
+  description       = "Allow outbound DNS (TCP) within the VPC"
   from_port         = 53
   to_port           = 53
   ip_protocol       = "tcp"
-  cidr_ipv4         = "0.0.0.0/0"
+  cidr_ipv4         = var.vpc_cidr
 }
 
 resource "aws_vpc_security_group_egress_rule" "nodes_dns_udp" {
   security_group_id = aws_security_group.eks_nodes.id
-  description       = "Allow outbound DNS (UDP)"
+  description       = "Allow outbound DNS (UDP) within the VPC"
   from_port         = 53
   to_port           = 53
   ip_protocol       = "udp"
-  cidr_ipv4         = "0.0.0.0/0"
+  cidr_ipv4         = var.vpc_cidr
 }
 
 # RDS Security Group
