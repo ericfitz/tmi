@@ -21,10 +21,12 @@
 # bump from the PR TITLE (the string that becomes the squash-merge commit
 # subject) and pushes a `chore(version): bump to X.Y.Z` commit onto the PR's
 # own branch — so squash-merge lands it as part of the same change. A
-# "Version Check" job in the same workflow fails the PR if `.version`, the
-# OpenAPI `info.version`, and the version embedded in `api/api.go` ever drift
-# out of step. See CLAUDE.md's "Versioning" section and #627 for the full
-# design.
+# "Version Check" job in the same workflow fails the PR if `.version`/
+# `api/version.go` disagree with the expected server version, or if the
+# OpenAPI `info.version` and the version embedded in `api/api.go` ever drift
+# out of step. Since 2026-09-28 the schema's `info.version` is its own value,
+# decoupled from `.version` — it only bumps when the schema itself changes.
+# See CLAUDE.md's "Versioning" section and #627 for the full design.
 #
 # Deliberately kept as an explanatory no-op rather than deleted, so the
 # history is discoverable from the path the docs point at, and so

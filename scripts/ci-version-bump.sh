@@ -21,10 +21,29 @@
 #       [version-file] (default: .version). Does not modify anything.
 #
 #   ./ci-version-bump.sh apply-version <MAJOR.MINOR.PATCH>
-#       Writes the given version into .version, api/version.go, and
-#       api-schema/tmi-openapi.json (info.version). Does not run
-#       `make generate-api` or `make build-server` -- the caller (the CI
-#       workflow) does that afterward so it can also install oapi-codegen.
+#       Writes the given version into .version and api/version.go (the
+#       SERVER version only -- see decoupling note below). Does not touch
+#       the OpenAPI spec or run `make build-server`.
+#
+#   ./ci-version-bump.sh is-docs-only [file ...]
+#       Reads a list of changed file paths (one per line on stdin, or as
+#       positional args) and prints "true" if every path matches docs/**,
+#       PROGRESS.md, or *.md anywhere, "false" otherwise. An empty list
+#       prints "true" (nothing non-doc changed). Pure: prints only.
+#
+#   ./ci-version-bump.sh compute-schema-version "<PR title>" <base-spec> <head-spec>
+#       Prints the OpenAPI schema's own MAJOR.MINOR.PATCH. Compares
+#       <base-spec> and <head-spec> with `.info.version` removed from both:
+#       if they're otherwise identical, the schema didn't change and the
+#       BASE spec's info.version is printed unchanged. If they differ, the
+#       PR title's conventional-commit type bumps the base version: a
+#       breaking marker (`^[a-z]+(\(.+\))?!:`) -> MAJOR + 1 (MINOR/PATCH
+#       reset), `feat:` -> MINOR + 1 (PATCH reset), anything else -> PATCH + 1.
+#
+#   ./ci-version-bump.sh apply-schema-version <MAJOR.MINOR.PATCH>
+#       Writes the given version into api-schema/tmi-openapi.json's
+#       info.version only. Does not run `make generate-api` -- the caller
+#       does that afterward so it can also install oapi-codegen.
 #
 #   ./ci-version-bump.sh embedded-spec-version [api.go path]
 #       Prints the `info.version` baked into the generated api.go's embedded
@@ -48,6 +67,16 @@
 # update-version.sh is left in place and keeps working for direct/manual
 # invocation (e.g. a maintainer bumping by hand); this script is CI's entry
 # point and is title-driven rather than last-commit-driven.
+#
+# Decoupling (human decision, Eric 2026-09-28; see
+# docs/superpowers/specs/2026-09-28-adr-versioning-docs-skip-and-schema-decoupling.md):
+# the SERVER version (.version, api/version.go) bumps on every non-docs-only
+# PR per the rule above. The OpenAPI SCHEMA version (info.version) is a
+# separate value that only moves when the PR actually changes the schema
+# (diff excluding info.version itself); it then uses its own bump rule,
+# which additionally recognizes a `!` breaking marker as a MAJOR bump. A
+# docs-only PR (every changed file under docs/**, PROGRESS.md, or *.md)
+# bumps neither.
 
 set -euo pipefail
 
@@ -143,8 +172,89 @@ EOF
         log_error "$VERSION_GO_FILE not found"
         exit 1
     fi
+}
 
-    # api-schema/tmi-openapi.json info.version
+# Decide whether a list of changed file paths is docs-only (see usage doc
+# above). Reads stdin one path per line when no positional args are given.
+# Pure: prints "true"/"false", touches nothing.
+cmd_is_docs_only() {
+    local -a files=()
+    if [ "$#" -gt 0 ]; then
+        files=("$@")
+    else
+        local line
+        while IFS= read -r line; do
+            [ -n "$line" ] && files+=("$line")
+        done
+    fi
+
+    local f
+    for f in "${files[@]}"; do
+        case "$f" in
+        docs/* | *.md) ;;
+        *)
+            echo "false"
+            return 0
+            ;;
+        esac
+    done
+    echo "true"
+}
+
+cmd_compute_schema_version() {
+    local title="${1:-}" base_spec="${2:-}" head_spec="${3:-}"
+    if [ -z "$title" ] || [ -z "$base_spec" ] || [ -z "$head_spec" ]; then
+        log_error "compute-schema-version requires <PR title> <base-spec> <head-spec>"
+        exit 1
+    fi
+    if [ ! -f "$base_spec" ] || [ ! -f "$head_spec" ]; then
+        log_error "compute-schema-version: spec file(s) not found"
+        exit 1
+    fi
+
+    local base_version
+    base_version=$(jq -r '.info.version' "$base_spec")
+
+    local base_norm head_norm
+    base_norm=$(jq -S 'del(.info.version)' "$base_spec")
+    head_norm=$(jq -S 'del(.info.version)' "$head_spec")
+
+    if [ "$base_norm" = "$head_norm" ]; then
+        # Schema unchanged: the version continues from base, untouched.
+        echo "$base_version"
+        return 0
+    fi
+
+    local major minor patch
+    IFS='.' read -r major minor patch <<<"$base_version"
+
+    if echo "$title" | grep -qE '^[a-z]+(\(.+\))?!:'; then
+        major=$((major + 1))
+        minor=0
+        patch=0
+    elif echo "$title" | grep -qE '^feat(\(.+\))?(!)?:'; then
+        minor=$((minor + 1))
+        patch=0
+    else
+        patch=$((patch + 1))
+    fi
+
+    echo "${major}.${minor}.${patch}"
+}
+
+cmd_apply_schema_version() {
+    local new_version="${1:-}"
+    if [ -z "$new_version" ]; then
+        log_error "apply-schema-version requires a MAJOR.MINOR.PATCH argument"
+        exit 1
+    fi
+    if ! [[ "$new_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        log_error "apply-schema-version argument must be MAJOR.MINOR.PATCH, got: $new_version"
+        exit 1
+    fi
+
+    cd "$REPO_ROOT"
+
     if [ -f "$OPENAPI_FILE" ]; then
         local tmp
         tmp=$(mktemp)
@@ -226,6 +336,56 @@ EOF
     assert_bump "docs: update readme" "1.8.17"
     assert_bump "refactor(auth): simplify token check" "1.8.17"
 
+    assert_docs_only() {
+        local expected="$1"
+        shift
+        local got
+        got=$(cmd_is_docs_only "$@")
+        if [ "$got" = "$expected" ]; then
+            echo "PASS: is-docs-only($*) -> $got"
+        else
+            echo "FAIL: is-docs-only($*) -> $got (expected $expected)"
+            failures=$((failures + 1))
+        fi
+    }
+
+    assert_docs_only "true" "docs/foo.md" "PROGRESS.md" "README.md"
+    assert_docs_only "true" "docs/superpowers/specs/2026-01-01-x.md"
+    assert_docs_only "false" "docs/foo.md" "api/version.go"
+    assert_docs_only "false" "api-schema/tmi-openapi.json"
+    assert_docs_only "true"
+
+    local spec_base="$tmpdir/base-spec.json"
+    local spec_head_same="$tmpdir/head-spec-same.json"
+    local spec_head_changed="$tmpdir/head-spec-changed.json"
+    cat >"$spec_base" <<'EOF'
+{"info": {"version": "2.3.1", "title": "x"}, "paths": {"/a": {}}}
+EOF
+    cat >"$spec_head_same" <<'EOF'
+{"info": {"version": "9.9.9", "title": "x"}, "paths": {"/a": {}}}
+EOF
+    cat >"$spec_head_changed" <<'EOF'
+{"info": {"version": "9.9.9", "title": "x"}, "paths": {"/a": {}, "/b": {}}}
+EOF
+
+    assert_schema() {
+        local title="$1" base="$2" head="$3" expected="$4"
+        local got
+        got=$(cmd_compute_schema_version "$title" "$base" "$head")
+        if [ "$got" = "$expected" ]; then
+            echo "PASS: schema '$title' -> $got"
+        else
+            echo "FAIL: schema '$title' -> $got (expected $expected)"
+            failures=$((failures + 1))
+        fi
+    }
+
+    assert_schema "fix: typo" "$spec_base" "$spec_head_same" "2.3.1"
+    assert_schema "feat: add endpoint" "$spec_base" "$spec_head_changed" "2.4.0"
+    assert_schema "feat(api)!: breaking rewrite" "$spec_base" "$spec_head_changed" "3.0.0"
+    assert_schema "fix: patch bump" "$spec_base" "$spec_head_changed" "2.3.2"
+    assert_schema "chore!: breaking chore" "$spec_base" "$spec_head_changed" "3.0.0"
+
     rm -rf "$tmpdir"
 
     if [ "$failures" -eq 0 ]; then
@@ -246,6 +406,15 @@ main() {
     apply-version)
         cmd_apply_version "$@"
         ;;
+    is-docs-only)
+        cmd_is_docs_only "$@"
+        ;;
+    compute-schema-version)
+        cmd_compute_schema_version "$@"
+        ;;
+    apply-schema-version)
+        cmd_apply_schema_version "$@"
+        ;;
     embedded-spec-version)
         cmd_embedded_spec_version "$@"
         ;;
@@ -257,6 +426,9 @@ main() {
         echo "Usage:"
         echo "  $0 compute-version \"<PR title>\" [version-file]"
         echo "  $0 apply-version <MAJOR.MINOR.PATCH>"
+        echo "  $0 is-docs-only [file ...]   # or pipe paths on stdin"
+        echo "  $0 compute-schema-version \"<PR title>\" <base-spec> <head-spec>"
+        echo "  $0 apply-schema-version <MAJOR.MINOR.PATCH>"
         echo "  $0 embedded-spec-version [api.go path]"
         echo "  $0 self-test"
         exit 1
