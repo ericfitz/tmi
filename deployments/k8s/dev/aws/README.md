@@ -175,8 +175,7 @@ only from the API server pods. Two independent controls:
 
 - The base `../redis.yml` starts redis TLS-only (`--port 0 --tls-port 6379`)
   with `--requirepass $(REDIS_PASSWORD)`, sourced from the terraform-owned
-  `tmi-secrets` Secret's `TMI_REDIS_PASSWORD` key (PR 6; there is no longer an
-  overlay patch for this any more). The server side
+  `tmi-secrets` Secret's `TMI_REDIS_PASSWORD` key (PR 6; the overlay patch is gone). The server side
   of the same Secret and the TLS client settings are injected by
   `patches/server-config.yaml`; the certificate Secrets (`redis-tls`,
   `nats-tls`, `nats-client-*`) come from `deployments/k8s/platform/pki.yml`.
@@ -193,9 +192,8 @@ set`, while a passwordless server against an authenticated redis gets
 `NOAUTH Authentication required`. Since PR 6 both are base behaviour, so this
 only matters if you edit one of them.
 
-Local dev (docker-desktop, k3s) is deliberately **unchanged** and still runs
-redis unauthenticated. Only this overlay patches it, so the dev inner loop
-keeps working without secrets plumbing.
+Local dev (docker-desktop, k3s) runs the same TLS + password redis: `deploy.py`
+seeds a random `TMI_REDIS_PASSWORD` into `tmi-secrets` on first start.
 
 ### Why this reversed the previous decision
 
