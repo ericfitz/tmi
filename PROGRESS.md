@@ -1,3 +1,40 @@
+# Session progress — 2026-09-25 to 2026-09-28
+
+## Landed (pushed to main)
+
+- **#951** (`3e928af9`) — `feat(terraform)`: NAT egress EIP `34.232.165.1` pinned in the never-destroyed
+  `aws-persistent` stack, plus expanded AWS logging (log bucket, CloudTrail, `tmi-security-alerts`). Applied.
+- **#954** (`dbdc87b3`) — hard delete removes metadata; bulk create rejects client-supplied ids.
+- **#957** (`a1a430fe`) — `client_callback` matching hardened, SAML callbacks checked, `0.0.0.0` SSRF blocked.
+- **#958** (`0210835e`) — AWS callback allowlist adds tmi-mcp's `http://127.0.0.1:8765/*`.
+- **#960** (`ee5d2776`) — CATS false-positive rules from run 20260926T222641Z.
+- **#961** (`a7d1b052`, 1.15.4) — exact WebSocket origin match, `sa:` subject claim, PATCH case-alias guard.
+  Deployed to api.tmi.dev and k3s-rp.
+- **#963** (`f4bb4ab5`, fixes #959) — oversized feedback bodies get 413 before parsing.
+- **#964** (`1f715c04`, fixes #955) — `devenv.py` pins every kubectl call and port-forward to the requested cluster.
+- **AWS Terraform threat model** (triage and plan in `docs/superpowers/specs/2026-09-27-aws-threat-*.md`):
+  - **#967** (`e6a5b9a3`) — ADR of accepted risks and plan decisions 10-13.
+  - **#970** (`b47614f4`) — PR2: Fluent Bit DaemonSet pinned and hardened.
+  - **#969** (`85923a03`) — PR3: EKS node DNS egress limited to the VPC CIDR.
+  - **#971** (`396aaa37`) — PR4: default-deny ingress NetworkPolicies for `tmi-platform` (also applied on k3s-rp).
+  - **#974** (`7e8b7dca`) — PR1: unused NodePort SG rules removed, S3 gateway endpoint, RDS deletion protection +
+    final snapshot + `max_allocated_storage = 100` + FreeStorageSpace alarm, EKS public endpoint restricted to the
+    deployer's /32 by `deploy-aws.sh` (T366). `--close-api` dropped by Eric; ADR decision 11 amended.
+  - **#973** (`70a1ab73`, 1.15.13) — PR5: ALB to pod traffic over HTTPS; WebSocket URLs use `wss` when TLS is on or
+    `X-Forwarded-Proto=https`.
+- Dependabot: #975, #976, #977 (go-minor-patch groups).
+
+## Not yet applied or deployed
+
+PRs 1-5 are merged but not applied. Eric decided (2026-09-28) to finish PR6 (Redis/NATS TLS, design session first),
+#968 (security alarms), #972 (startup retry) and #965 (secret rotation) before the next AWS deploy. Filed: #962, #965,
+#968, #972.
+
+## Decided (Eric, 2026-09-28)
+
+Remove the OCI, GCP, Azure, `aws-private` and Heroku deployment tooling; keep AWS (`aws-public`, `aws-persistent`),
+k3s-rp and docker-desktop. Oracle DB support (driver, `DB=oracle`, ADB-backed tests, oracle-db-admin gate) stays.
+
 # Session progress — 2026-09-24
 
 ## Landed (pushed to main)
