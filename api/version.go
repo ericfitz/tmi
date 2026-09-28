@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -11,6 +12,26 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
+
+// SEM@82a3444e3d58a2e4d97fabaf3b6cbf06d6e7c800: populate git commit hash from runtime env vars when not set at build time (mutates shared state)
+func init() {
+	// If GitCommit wasn't set at build time via ldflags, try environment variables.
+	// Heroku sets SOURCE_VERSION during builds and HEROKU_SLUG_COMMIT at runtime
+	// (when dyno metadata is enabled via `heroku labs:enable runtime-dyno-metadata`).
+	if GitCommit == "development" {
+		for _, envVar := range []string{"SOURCE_VERSION", "HEROKU_SLUG_COMMIT"} {
+			if commit := os.Getenv(envVar); commit != "" {
+				// Use short commit hash (7 chars) like git rev-parse --short
+				if len(commit) > 7 {
+					GitCommit = commit[:7]
+				} else {
+					GitCommit = commit
+				}
+				break
+			}
+		}
+	}
+}
 
 // Version contains versioning information for the API
 // SEM@6acba406c94a7bc4caaf713a960fd4f28bb3e6a7: structured type holding semantic version, pre-release, commit, build date, and API version (pure)
@@ -31,7 +52,7 @@ var (
 	// Minor version number
 	VersionMinor = "15"
 	// Patch version number
-	VersionPatch = "16"
+	VersionPatch = "15"
 	// VersionPreRelease is the pre-release label (e.g., "rc.0", "beta.1"), empty for stable releases
 	VersionPreRelease = ""
 	// GitCommit is the git commit hash from build
