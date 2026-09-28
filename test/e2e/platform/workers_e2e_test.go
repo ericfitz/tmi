@@ -132,7 +132,7 @@ spec:
         ports: [8443]
   config:
     TMI_COMPONENT_NAME: tmi-chunk-embed
-    TMI_NATS_URL: nats://nats.tmi-platform.svc:4222
+    TMI_NATS_URL: tls://nats.tmi-platform.svc:4222
     TMI_EMBEDDING_MODEL: text-embedding-3-small
     TMI_EMBEDDING_BASE_URL: http://embed-stub.tmi-platform.svc:8443/v1
     TMI_JOB_ACK_WAIT: 120s

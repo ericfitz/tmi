@@ -62,10 +62,6 @@ patches:
     target:
       kind: Deployment
       name: tmi-server
-  - path: patches/redis-auth.yaml
-    target:
-      kind: Deployment
-      name: redis
   - path: patches/extractor-image.yaml
     target:
       group: tmi.dev

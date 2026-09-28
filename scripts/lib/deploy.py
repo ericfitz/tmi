@@ -9,10 +9,12 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import secrets
 import shlex
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -473,6 +475,28 @@ def ensure_namespace() -> None:
         ["apply", "-f", "-"],
         input_text=f"apiVersion: v1\nkind: Namespace\nmetadata:\n  name: {NS}\n",
     )
+
+
+def ensure_redis_password_secret() -> None:
+    """Create Secret/tmi-secrets with a random TMI_REDIS_PASSWORD on a dev
+    cluster if it does not exist. AWS gets this Secret from Terraform; since
+    PR 6 the base redis.yml/server.yml read it in every environment.
+
+    The value is written to a 0600 file in a private temp dir and handed to
+    kubectl with --from-file, so it never appears on a command line, in the
+    environment, in a log, or on this script's stdout."""
+    if kubectl(["-n", NS, "get", "secret", "tmi-secrets"], check=False, capture=True).returncode == 0:
+        return
+    old_umask = os.umask(0o077)
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            pw_file = Path(tmp) / "TMI_REDIS_PASSWORD"
+            pw_file.write_text(secrets.token_urlsafe(32))
+            kubectl(["-n", NS, "create", "secret", "generic", "tmi-secrets",
+                     f"--from-file=TMI_REDIS_PASSWORD={pw_file}"], capture=True)
+    finally:
+        os.umask(old_umask)
+    log_success("Secret/tmi-secrets created with a random TMI_REDIS_PASSWORD")
 
 
 def ensure_k3s_registry() -> None:
@@ -1059,6 +1083,7 @@ def start(*, db: str, cluster_target: str = "docker-desktop",
     # docker-desktop: no registry — build_and_push imports the images directly.
     build_and_push(db, cluster_target)
     ensure_namespace()
+    ensure_redis_password_secret()
     apply_platform_base()
     if cluster_target in ("k3s", "docker-desktop") and db != "oracle":
         apply_incluster_postgres(cluster_target)  # in-cluster DB up before the server (AutoMigrate)

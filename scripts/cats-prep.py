@@ -244,13 +244,12 @@ def _detect_redis_target(*, allow_any_context: bool) -> list[str] | None:
 
 
 def _redis_cli_shell(cli_args: list[str]) -> list[str]:
-    """Build a shell invocation that runs redis-cli with auth iff the
-    container's own REDIS_PASSWORD env var is set.
+    """Build a shell invocation that runs redis-cli over TLS (the container
+    mounts the redis-tls Secret at /tls), with auth iff the container's own
+    REDIS_PASSWORD env var is set.
 
-    This lets one code path handle both authenticated Redis (e.g. the AWS
-    overlay, which sets --requirepass from a Secret-sourced REDIS_PASSWORD
-    env var) and unauthenticated Redis (local dev) without this script ever
-    needing to know or carry the password itself — it is resolved by the
+    Every cluster's Redis is TLS + password now (PR 6); the conditional is
+    kept so the script never needs to know or carry the password itself — it is resolved by the
     container's own shell, not interpolated by us.
 
     Auth is passed via the REDISCLI_AUTH env var rather than `-a`: `-a` puts
@@ -262,8 +261,8 @@ def _redis_cli_shell(cli_args: list[str]) -> list[str]:
     quoted = " ".join(shlex.quote(a) for a in cli_args)
     script = (
         'if [ -n "$REDIS_PASSWORD" ]; then '
-        f'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli {quoted}; '
-        f"else redis-cli {quoted}; fi"
+        f'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli --tls --cacert /tls/ca.crt {quoted}; '
+        f"else redis-cli --tls --cacert /tls/ca.crt {quoted}; fi"
     )
     return ["sh", "-c", script]
 

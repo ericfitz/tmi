@@ -173,21 +173,25 @@ Strategic-merge patch on the `tmi-server` Deployment:
 The in-cluster redis this overlay deploys is **authenticated**, and reachable
 only from the API server pods. Two independent controls:
 
-- `patches/redis-auth.yaml` starts redis with
-  `--requirepass $(REDIS_PASSWORD)`, sourced from the terraform-owned
-  `tmi-secrets` Secret's `TMI_REDIS_PASSWORD` key. The server side of the same
-  Secret is injected by `patches/server-config.yaml`.
+- The base `../redis.yml` starts redis TLS-only (`--port 0 --tls-port 6379`)
+  with `--requirepass $(REDIS_PASSWORD)`, sourced from the terraform-owned
+  `tmi-secrets` Secret's `TMI_REDIS_PASSWORD` key (PR 6; there is no longer an
+  overlay patch for this any more). The server side
+  of the same Secret and the TLS client settings are injected by
+  `patches/server-config.yaml`; the certificate Secrets (`redis-tls`,
+  `nats-tls`, `nats-client-*`) come from `deployments/k8s/platform/pki.yml`.
 - `../networkpolicy-redis.yml` restricts ingress to port 6379 to pods labelled
   `app=tmi-server`. It sits under the namespace-wide default-deny ingress in
   `../networkpolicy.yml`, which also limits NATS 4222 to TMI pods and 8222 to
   KEDA, and leaves tmi-server 8080 open for the ALB.
 
-**These two patches must move together.** Injecting `TMI_REDIS_PASSWORD` into
-the server without the redis patch (or vice versa) breaks every redis
+**Both sides must move together.** Injecting `TMI_REDIS_PASSWORD` into
+the server without redis requiring it (or vice versa) breaks every redis
 connection — in opposite and equally confusing ways: a server with a password
 against a passwordless redis gets `ERR Client sent AUTH, but no password is
 set`, while a passwordless server against an authenticated redis gets
-`NOAUTH Authentication required`.
+`NOAUTH Authentication required`. Since PR 6 both are base behaviour, so this
+only matters if you edit one of them.
 
 Local dev (docker-desktop, k3s) is deliberately **unchanged** and still runs
 redis unauthenticated. Only this overlay patches it, so the dev inner loop

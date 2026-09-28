@@ -15,6 +15,17 @@ data:
       max_memory_store: 256MB
       max_file_store: 2GB
     }
+    # Client port 4222: TLS with client-cert verification (mTLS, PR 6/T356).
+    # Every client presents a cert from the tmi-internal CA (pki.yml).
+    # Monitoring (8222) stays plain HTTP for KEDA's nats-jetstream scaler;
+    # the nats-allow-clients NetworkPolicy restricts who can reach it.
+    tls {
+      cert_file: "/tls/tls.crt"
+      key_file: "/tls/tls.key"
+      ca_file: "/tls/ca.crt"
+      verify: true
+      timeout: 2
+    }
     http: 8222
 ---
 apiVersion: apps/v1
@@ -22,6 +33,10 @@ kind: StatefulSet
 metadata:
   name: nats
   namespace: tmi-platform
+  annotations:
+    # A roll re-reads the renewed cert; JetStream is an emptyDir and is lost
+    # on any restart, as before.
+    secret.reloader.stakater.com/reload: "nats-tls"
 spec:
   serviceName: nats
   replicas: 1
@@ -41,11 +56,14 @@ spec:
           volumeMounts:
             - { name: config, mountPath: /etc/nats }
             - { name: data, mountPath: /data/jetstream }
+            - { name: tls, mountPath: /tls, readOnly: true }
       volumes:
         - name: config
           configMap: { name: nats-config }
         - name: data
           emptyDir: {}
+        - name: tls
+          secret: { secretName: nats-tls }
 ---
 apiVersion: v1
 kind: Service

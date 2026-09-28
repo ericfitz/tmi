@@ -112,11 +112,12 @@ resource "kubernetes_config_map_v1" "tmi" {
       # (TMI_DATABASE_REDIS_HOST is not a recognized key).
       TMI_REDIS_HOST = "redis.tmi-platform.svc.cluster.local"
 
-      # NATS runs in-cluster, applied by the deploy script ahead of the
-      # workload overlay (see deployments/k8s/platform/nats.yml). Read
-      # directly via os.Getenv/MustEnv in internal/worker/nats.go, not a
-      # config.go struct tag — this name is already correct.
-      TMI_NATS_URL = "nats://nats.tmi-platform.svc:4222"
+      # NATS runs in-cluster with mTLS, applied by the deploy script ahead of
+      # the workload overlay (see deployments/k8s/platform/nats.yml); the
+      # client cert env vars are set by the overlay patch. Read directly via
+      # os.Getenv/MustEnv in internal/worker/nats.go, not a config.go struct
+      # tag — this name is already correct.
+      TMI_NATS_URL = "tls://nats.tmi-platform.svc:4222"
 
       # OAuth client_callback allowlist for the tmi-ux web UI (S3+CloudFront at
       # www.tmi.dev). The transitional app.aws.tmi.dev entry is gone: the

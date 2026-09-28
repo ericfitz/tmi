@@ -46,6 +46,8 @@ kind: Deployment
 metadata:
   name: tmi-component-controller
   namespace: tmi-platform
+  annotations:
+    reloader.stakater.com/auto: "true"
 spec:
   replicas: 1
   selector:
@@ -70,7 +72,12 @@ spec:
             # embedding jobs are never delivered — the whole Timmy ingest path is
             # silently inert. Same service DNS the workers themselves use.
             - name: TMI_NATS_URL
-              value: nats://nats.tmi-platform.svc:4222
+              value: tls://nats.tmi-platform.svc:4222
+            - { name: TMI_NATS_TLS_CA_FILE, value: "/etc/tmi-nats-tls/ca.crt" }
+            - { name: TMI_NATS_TLS_CERT_FILE, value: "/etc/tmi-nats-tls/tls.crt" }
+            - { name: TMI_NATS_TLS_KEY_FILE, value: "/etc/tmi-nats-tls/tls.key" }
+          volumeMounts:
+            - { name: nats-client-tls, mountPath: /etc/tmi-nats-tls, readOnly: true }
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532
@@ -81,3 +88,5 @@ spec:
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { cpu: 500m, memory: 256Mi }
+      volumes:
+        - { name: nats-client-tls, secret: { secretName: nats-client-controller } }

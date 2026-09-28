@@ -29,15 +29,10 @@
 #   without TMI_DATABASE_URL; JWT secret is validated at startup too) — do
 #   not remove.
 #
-#   TMI_REDIS_PASSWORD is now also injected (#551). This REVERSES the previous
-#   posture, in which redis ran with no requirepass and this variable was
-#   deliberately omitted so the go-redis client would not send AUTH. The AWS
-#   overlay's redis-auth.yaml patch now starts redis with
-#   `--requirepass $(REDIS_PASSWORD)` from this same tmi-secrets key, so the
-#   two sides must move together: injecting the password without the redis
-#   patch (or vice versa) breaks every redis connection. Local dev
-#   (docker-desktop / k3s) is unchanged and still runs redis unauthenticated —
-#   only this overlay patches it.
+#   TMI_REDIS_PASSWORD is injected from tmi-secrets (#551). Since PR 6 the
+#   base redis.yml starts redis with TLS and `--requirepass` from this same
+#   key in every environment, so this side and redis move together; local dev
+#   gets the Secret from scripts/lib/deploy.py, AWS from Terraform.
 #
 #   Still deliberately explicit secretKeyRef entries rather than
 #   `envFrom: secretRef: tmi-secrets`: sweeping the whole Secret in would also
@@ -95,7 +90,12 @@ spec:
             - { name: TMI_SERVER_INTERFACE, value: "0.0.0.0" }
             - { name: TMI_SERVER_PORT, value: "8080" }
             - { name: TMI_REDIS_HOST, value: "redis" }
-            - { name: TMI_NATS_URL, value: "nats://nats.tmi-platform.svc:4222" }
+            - { name: TMI_REDIS_TLS_ENABLED, value: "true" }
+            - { name: TMI_REDIS_TLS_CA_FILE, value: "/etc/tmi-redis-tls/ca.crt" }
+            - { name: TMI_NATS_URL, value: "tls://nats.tmi-platform.svc:4222" }
+            - { name: TMI_NATS_TLS_CA_FILE, value: "/etc/tmi-nats-tls/ca.crt" }
+            - { name: TMI_NATS_TLS_CERT_FILE, value: "/etc/tmi-nats-tls/tls.crt" }
+            - { name: TMI_NATS_TLS_KEY_FILE, value: "/etc/tmi-nats-tls/tls.key" }
             - { name: TMI_LOG_DIR, value: "/tmp/logs" }
             # The dev-only "tmi" provider is intentionally NOT enabled: on a
             # production build it is client-credentials-only, and the interactive
@@ -111,8 +111,8 @@ spec:
                 secretKeyRef:
                   name: tmi-secrets
                   key: TMI_JWT_SECRET
-            # Must stay in lockstep with patches/redis-auth.yaml, which starts
-            # redis with --requirepass from this same key (#551).
+            # Must match the base redis.yml, which starts redis with
+            # --requirepass from this same key (#551, PR 6).
             - name: TMI_REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
