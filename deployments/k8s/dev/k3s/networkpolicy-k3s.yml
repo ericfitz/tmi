@@ -1,0 +1,61 @@
+# k3s-only ingress allows under ../networkpolicy.yml's default-deny, for pods
+# that exist on k3s but not on EKS (RDS there; images from ECR).
+#
+# postgres: only the server talks to it. `kubectl port-forward` (make db etc.)
+# enters the pod's netns directly and is not subject to NetworkPolicy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-allow-tmi-server
+  namespace: tmi-platform
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: tmi-server
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# registry: the Mac pushes and the nodes' containerd pull via NodePort 30500,
+# i.e. from outside the pod network, so no `from`.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: registry-allow-push-pull
+  namespace: tmi-platform
+spec:
+  podSelector:
+    matchLabels:
+      app: registry
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 5000
+---
+# tmi-ux is deployed into this namespace from the tmi-ux repo, not this
+# overlay, but the default-deny still selects it. Traefik (kube-system) and
+# NodePort 30081 reach it, so no `from`.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tmi-ux-allow-http
+  namespace: tmi-platform
+spec:
+  podSelector:
+    matchLabels:
+      app: tmi-ux
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080

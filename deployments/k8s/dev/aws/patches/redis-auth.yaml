@@ -5,7 +5,7 @@
 # own machine. On an internet-facing cluster that leaves an unauthenticated
 # datastore — holding sessions and cached authorization decisions — reachable by
 # anything that gets a foothold in the cluster. This patch, together with the
-# NetworkPolicy in ../networkpolicy-redis.yml, closes that.
+# NetworkPolicy in ../../networkpolicy-redis.yml, closes that.
 #
 # `args` is an atomic list under strategic-merge, so the ENTIRE arg list is
 # restated here, not just the added flag. Dropping one of the base flags by
