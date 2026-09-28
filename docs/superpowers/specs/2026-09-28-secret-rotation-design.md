@@ -85,6 +85,11 @@ Stakater Reloader and Redis TLS.
 - HS256 cutover, once at deploy: old access tokens get 401, and clients refresh to ES256. Verify that
   tmi-ux refreshes on 401; if it doesn't, accept a one-time re-login (no HS256 verify path). Ask
   tmi-mcp and addons on Agentbus before merge, and move any local verifier to JWKS.
+- Consumer check (Agentbus, 2026-09-28): tmi-ux, tmi-mcp, tmi-tf-wh, and the wiki treat tokens
+  as opaque and refresh on 401; none verify locally or use `TMI_JWT_SECRET`. Open item from tmi-ux:
+  verify the WebSocket collab handshake with an old HS256 token also triggers a refresh (test at
+  cutover; fix client-side via a tmi-ux bug if not). Keep `/oauth2/token` client_credentials
+  unchanged (tmi-tf-wh). After merge, ping dm/tmi-wiki: 14 pages document HS256/`TMI_JWT_SECRET`.
 - No code default key: the server refuses to start without a keyring. `devenv.py` generates one
   into `tmi-secrets` when absent; the integration framework generates one per run.
 
