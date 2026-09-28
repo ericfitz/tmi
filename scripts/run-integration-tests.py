@@ -117,7 +117,7 @@ def ensure_oauth_stub(project_root: Path) -> bool:
     return server_is_running(stub_url)
 
 
-def clear_redis_rate_limits(redis_db: str = "0") -> None:
+def clear_redis_rate_limits(tls_dir: Path, redis_db: str = "0") -> None:
     """Best-effort: drop auth/IP rate-limit keys from the test Redis logical DB.
 
     Targets the test logical DB (``-n redis_db``) so it never touches dev's
@@ -126,10 +126,13 @@ def clear_redis_rate_limits(redis_db: str = "0") -> None:
     """
     if not shutil.which("docker"):
         return
+    # The password reaches redis-cli as REDISCLI_AUTH from the env file, never argv.
+    cli = ["redis-cli", "--tls", "--cacert", "/tls/ca.crt"]
+    envf = ["--env-file", str(tls_dir / "secrets.env")]
     for pattern in ("auth:ratelimit:*", "ip:ratelimit:*"):
         try:
             scan = subprocess.run(
-                ["docker", "exec", TEST_REDIS_CONTAINER, "redis-cli", "-n", redis_db,
+                ["docker", "exec", *envf, TEST_REDIS_CONTAINER, *cli, "-n", redis_db,
                  "--scan", "--pattern", pattern],
                 capture_output=True, text=True, check=False,
             )
@@ -137,7 +140,7 @@ def clear_redis_rate_limits(redis_db: str = "0") -> None:
             if not keys:
                 continue
             subprocess.run(
-                ["docker", "exec", "-i", TEST_REDIS_CONTAINER, "redis-cli", "-n", redis_db,
+                ["docker", "exec", "-i", *envf, TEST_REDIS_CONTAINER, *cli, "-n", redis_db,
                  "DEL", *keys],
                 check=False, capture_output=True,
             )
@@ -208,9 +211,36 @@ def wait_for_server(url: str, timeout: int = 60) -> bool:
 
 TEST_REDIS_CONTAINER = "tmi-redis-test"
 TEST_REDIS_HOST_PORT = "6380"
+TEST_TLS_DIR = ".local/test-tls"  # gitignored throwaway PKI + Redis password (tlsgen)
+TEST_NATS_CONTAINER = "tmi-nats-itest"  # not tmi-nats-test: `make test-workers` owns that name
+TEST_NATS_HOST_PORT = "4223"
 
 
-def ensure_redis(project_root: Path) -> bool:
+def ensure_test_tls(project_root: Path) -> Path:
+    """Generate the harness PKI once (see test/integration/tlsgen)."""
+    tls_dir = project_root / TEST_TLS_DIR
+    if not (tls_dir / "ca.crt").exists():
+        log_info(f"Generating harness TLS material in {TEST_TLS_DIR}")
+        subprocess.run(["go", "run", "./tlsgen", "-out", str(tls_dir)],
+                       cwd=str(project_root / "test" / "integration"), check=True)
+    return tls_dir
+
+
+def ensure_nats(project_root: Path, tls_dir: Path) -> bool:
+    """Start the isolated test NATS container in mTLS mode on its own port."""
+    script = str(project_root / "scripts" / "manage-nats.py")
+    try:
+        subprocess.run(["uv", "run", script, "--test", "--tls-dir", str(tls_dir), "start"],
+                       cwd=str(project_root), check=True, capture_output=True)
+        subprocess.run(["uv", "run", script, "--test", "wait"],
+                       cwd=str(project_root), check=True, capture_output=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        log_error(f"Could not start the test NATS container: {exc}")
+        return False
+    return True
+
+
+def ensure_redis(project_root: Path, tls_dir: Path) -> bool:
     """Start the ISOLATED test Redis container and verify it owns its port.
 
     Redis used to share the dev instance on localhost:6379, so whatever
@@ -223,7 +253,8 @@ def ensure_redis(project_root: Path) -> bool:
     scripts_dir = project_root / "scripts"
     try:
         subprocess.run(
-            ["uv", "run", str(scripts_dir / "manage-redis.py"), "--test", "start"],
+            ["uv", "run", str(scripts_dir / "manage-redis.py"), "--test",
+             "--tls-dir", str(tls_dir), "start"],
             cwd=str(project_root), check=False, capture_output=True,
         )
     except OSError as exc:
@@ -283,7 +314,7 @@ def stop_test_server_container() -> None:
 
 def start_test_server_container(
     project_root: Path, config_path: Path, container_db_url: str,
-    redis_host: str, redis_port: str, host_port: str,
+    redis_host: str, redis_port: str, host_port: str, tls_dir: Path,
     *, disable_rate_limiting: bool = True,
     force_auth_flow_rate_limiting: bool = False,
 ) -> str | None:
@@ -307,6 +338,9 @@ def start_test_server_container(
     sets the server-side override that enforces it anyway — required for the
     auth-flow multi-scope workflow test to actually run instead of skip.
 
+    Redis is TLS + password: the PKI dir is mounted read-only and the password
+    arrives via --env-file (TMI_REDIS_PASSWORD), never on the docker command line.
+
     Returns the container name, or None on failure.
     """
     stop_test_server_container()
@@ -314,6 +348,10 @@ def start_test_server_container(
         "docker", "run", "-d", "--name", TEST_SERVER_CONTAINER,
         "--add-host", "host.docker.internal:host-gateway",
         "-p", f"{host_port}:8080",
+        "-v", f"{tls_dir}:/etc/tmi-test-tls:ro",
+        "--env-file", str(tls_dir / "secrets.env"),
+        "-e", "TMI_REDIS_TLS_ENABLED=true",
+        "-e", "TMI_REDIS_TLS_CA_FILE=/etc/tmi-test-tls/ca.crt",
         "-v", f"{config_path}:/etc/tmi/config.yml:ro",
         "-e", f"TMI_DATABASE_URL={container_db_url}",
         "-e", f"TMI_REDIS_HOST={redis_host}",
@@ -387,7 +425,10 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
     log_info("Running migrations against the isolated test DB")
     database.migrate(profile)
 
-    if not ensure_redis(project_root):
+    tls_dir = ensure_test_tls(project_root)
+    if not ensure_redis(project_root, tls_dir):
+        return 1, None
+    if not ensure_nats(project_root, tls_dir):
         return 1, None
 
     db_host = "localhost"
@@ -409,6 +450,15 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
 
     base_env = {
         **os.environ,
+        "TEST_REDIS_TLS_CA_FILE": str(tls_dir / "ca.crt"),
+        "TEST_REDIS_PASSWORD": (tls_dir / "redis-password").read_text().strip(),
+        "TMI_TEST_NATS_URL": f"tls://127.0.0.1:{TEST_NATS_HOST_PORT}",
+        # The production TLS contract (internal/tlsconfig): every in-process
+        # worker.Connect and the spawned worker-probe present the harness
+        # client cert.
+        "TMI_NATS_TLS_CA_FILE": str(tls_dir / "ca.crt"),
+        "TMI_NATS_TLS_CERT_FILE": str(tls_dir / "client.crt"),
+        "TMI_NATS_TLS_KEY_FILE": str(tls_dir / "client.key"),
         "TMI_DATABASE_URL": db_url,
         "LOGGING_IS_TEST": "true",
         "TEST_DB_HOST": db_host,
@@ -488,7 +538,7 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
         enable_rl = os.environ.get("TMI_TEST_ENABLE_RATE_LIMITING", "").lower() == "true"
         container = start_test_server_container(
             project_root, test_cfg, container_db_url,
-            "host.docker.internal", redis_port, TEST_SERVER_HOST_PORT,
+            "host.docker.internal", redis_port, TEST_SERVER_HOST_PORT, tls_dir,
             disable_rate_limiting=not enable_rl,
             force_auth_flow_rate_limiting=enable_rl,
         )
@@ -499,13 +549,15 @@ def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
                 log_warn(f"{workflows_skipped} — skipping workflow tests")
             else:
                 log_info(f"Test server ready on {server_url}")
-                clear_redis_rate_limits(redis_db)
+                clear_redis_rate_limits(tls_dir, redis_db)
                 log_info("Running workflow integration tests against the isolated test server")
                 wf_env = {
                     **base_env,
                     "INTEGRATION_TESTS": "true",
                     "TMI_SERVER_URL": server_url,
                     "TEST_SERVER_URL": server_url,
+                    # api/ NATS tests keep their opt-in; the worker-probe contract test runs always.
+                    "TMI_RUN_NATS_TESTS": "1",
                 }
                 wf_cmd = ["go", "test", "-v", "-count=1", "-timeout=15m", "-p", "1", "./workflows/..."]
                 if workflow_run:

@@ -262,13 +262,11 @@ func TestStepUpRoundTrip(t *testing.T) {
 func writeRefreshTokenToRedis(t *testing.T, refreshTokenID, userInternalUUID string, sessionCreatedAt int64) error {
 	t.Helper()
 
-	host := getEnvOrDefault("TEST_REDIS_HOST", "localhost")
-	port := getEnvOrDefault("TEST_REDIS_PORT", "6379")
-
-	rdb := redis.NewClient(&redis.Options{
-		Addr: fmt.Sprintf("%s:%s", host, port),
-		DB:   framework.TestRedisDB(),
-	})
+	opts, err := framework.RedisOptions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rdb := redis.NewClient(opts)
 	defer rdb.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -276,7 +274,7 @@ func writeRefreshTokenToRedis(t *testing.T, refreshTokenID, userInternalUUID str
 
 	// Ping to give an early, clear error if Redis is unreachable.
 	if err := rdb.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("Redis not reachable at %s:%s: %w", host, port, err)
+		return fmt.Errorf("Redis not reachable at %s: %w", opts.Addr, err)
 	}
 
 	key := "refresh_token:" + refreshTokenID

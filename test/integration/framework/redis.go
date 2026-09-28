@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/ericfitz/tmi/internal/tlsconfig"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -17,15 +18,39 @@ import (
 func ClearRateLimits() error {
 	ctx := context.Background()
 
-	redisPort := getEnvOrDefault("TEST_REDIS_PORT", "6379")
-	client := redis.NewClient(&redis.Options{
-		Addr: fmt.Sprintf("%s:%s", getEnvOrDefault("TEST_REDIS_HOST", "localhost"), redisPort),
-		DB:   TestRedisDB(),
-	})
+	opts, err := RedisOptions()
+	if err != nil {
+		return err
+	}
+	client := redis.NewClient(opts)
 	clearRateLimitKeys(ctx, client)
 	client.Close()
 
 	return nil
+}
+
+// RedisOptions returns client options for the harness Redis: TEST_REDIS_HOST/
+// PORT/DB, TEST_REDIS_PASSWORD, and CA-pinned TLS when TEST_REDIS_TLS_CA_FILE
+// is set (scripts/run-integration-tests.py sets all of them). Without the CA
+// variable it is a plaintext client, for a developer pointing the tests at an
+// ad-hoc Redis.
+// SEM@new: build go-redis options for the harness Redis from TEST_REDIS_* env (reads env)
+func RedisOptions() (*redis.Options, error) {
+	host := getEnvOrDefault("TEST_REDIS_HOST", "localhost")
+	opts := &redis.Options{
+		Addr:     fmt.Sprintf("%s:%s", host, getEnvOrDefault("TEST_REDIS_PORT", "6379")),
+		Password: os.Getenv("TEST_REDIS_PASSWORD"),
+		DB:       TestRedisDB(),
+	}
+	if ca := os.Getenv("TEST_REDIS_TLS_CA_FILE"); ca != "" {
+		tlsCfg, err := tlsconfig.Load(ca, "", "")
+		if err != nil {
+			return nil, fmt.Errorf("harness redis tls: %w", err)
+		}
+		tlsCfg.ServerName = host
+		opts.TLSConfig = tlsCfg
+	}
+	return opts, nil
 }
 
 // TestRedisDB returns the Redis logical DB index for integration tests from
