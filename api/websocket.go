@@ -389,23 +389,9 @@ func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []DfdDiagra
 }
 
 // buildWebSocketURL constructs the absolute WebSocket URL from request context
-// SEM@827fca9702ebf3b2d415a499d701a41667df1a5a: build the absolute WebSocket URL for a diagram session from TLS state and request Host (pure)
+// SEM@827fca9702ebf3b2d415a499d701a41667df1a5a: build the absolute WebSocket URL for a diagram session from the client-facing scheme and request Host (pure)
 func (h *WebSocketHub) buildWebSocketURL(c *gin.Context, threatModelId openapi_types.UUID, diagramID string, sessionID string) string {
-	// Get config information from the context
-	tlsEnabled := false
-
-	// Try to extract from request context
-	if val, exists := c.Get("tlsEnabled"); exists {
-		if enabled, ok := val.(bool); ok {
-			tlsEnabled = enabled
-		}
-	}
-
-	// Determine websocket protocol
-	scheme := "ws"
-	if tlsEnabled {
-		scheme = SchemeWSS
-	}
+	scheme := websocketScheme(c)
 
 	// Host is what the client dialed. Behind a TLS-terminating proxy (the AWS
 	// ALB) the pod's TLS subject name and port are internal and must never
