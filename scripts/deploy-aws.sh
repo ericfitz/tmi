@@ -839,13 +839,30 @@ configure_kubeconfig() {
 # ============================================================================
 
 apply_platform_base() {
-    log_step "Phase 4: Platform Base (NATS, KEDA, TMIComponent CRD)"
+    log_step "Phase 4: Platform Base (cert-manager, Reloader, PKI, NATS, KEDA, TMIComponent CRD)"
 
     # Re-asserted here rather than trusting the check in configure_kubeconfig:
     # this is the first mutating apply, and the two are separated by the image
     # build/push phase, which takes long enough for the environment to change.
     assert_cluster_identity
 
+    # Mirrors apply_platform_base() in scripts/lib/deploy.py; keep in sync.
+    kubectl apply --server-side -f "${PLATFORM_DIR}/cert-manager.yml"
+    local dep
+    for dep in cert-manager cert-manager-cainjector cert-manager-webhook; do
+        kubectl -n cert-manager rollout status "deploy/${dep}" --timeout=180s
+    done
+    kubectl apply -f "${PLATFORM_DIR}/reloader.yml"
+    # The webhook's serving cert can lag its rollout by a few seconds.
+    local attempt
+    for attempt in 1 2 3 4 5; do
+        if kubectl apply -f "${PLATFORM_DIR}/pki.yml"; then break; fi
+        if [[ "${attempt}" == "5" ]]; then log_error "pki.yml apply failed after 5 attempts"; exit 1; fi
+        log_warning "pki.yml apply failed (attempt ${attempt}/5); retrying in 3s"
+        sleep 3
+    done
+    kubectl -n cert-manager wait --for=condition=Ready certificate/tmi-internal-ca --timeout=120s
+    kubectl -n "${NAMESPACE}" wait --for=condition=Ready certificate --all --timeout=180s
     kubectl apply -f "${PLATFORM_DIR}/nats.yml"
     kubectl apply --server-side -f "${PLATFORM_DIR}/keda.yml"
     kubectl apply -f "${PROJECT_ROOT}/config/crd/bases/tmi.dev_tmicomponents.yaml"

@@ -825,10 +825,17 @@ test-platform:  ## Run platform controller unit tests (downloads envtest assets 
 		go test ./internal/platform/... ./api/platform/...; \
 	fi
 
-e2e-platform-up:  ## Create the kind cluster and install platform dependencies (NATS, KEDA, CRD)
+e2e-platform-up:  ## Create the kind cluster and install platform dependencies (cert-manager, Reloader, PKI, NATS, KEDA, CRD)
 	kind create cluster --config deployments/k8s/platform/kind-cluster.yml
 	kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/calico.yml
 	kubectl --context kind-tmi-platform wait --for=condition=Ready nodes --all --timeout=180s
+	kubectl --context kind-tmi-platform apply --server-side -f deployments/k8s/platform/cert-manager.yml
+	for d in cert-manager cert-manager-cainjector cert-manager-webhook; do kubectl --context kind-tmi-platform -n cert-manager rollout status deploy/$$d --timeout=180s; done
+	kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/reloader.yml
+	kubectl --context kind-tmi-platform create namespace tmi-platform --dry-run=client -o yaml | kubectl --context kind-tmi-platform apply -f -
+	for i in 1 2 3 4 5; do kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/pki.yml && break; sleep 3; done
+	kubectl --context kind-tmi-platform -n cert-manager wait --for=condition=Ready certificate/tmi-internal-ca --timeout=120s
+	kubectl --context kind-tmi-platform -n tmi-platform wait --for=condition=Ready certificate --all --timeout=180s
 	kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/nats.yml
 	kubectl --context kind-tmi-platform apply --server-side -f deployments/k8s/platform/keda.yml
 	kubectl --context kind-tmi-platform apply -f config/crd/bases/tmi.dev_tmicomponents.yaml

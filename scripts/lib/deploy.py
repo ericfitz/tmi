@@ -426,11 +426,46 @@ def build_and_push(db: str, cluster_target: str = "docker-desktop") -> None:
 # Kubernetes helpers
 # ---------------------------------------------------------------------------
 
+CERT_MANAGER_DEPLOYMENTS = ("cert-manager", "cert-manager-cainjector", "cert-manager-webhook")
+
+
 def apply_platform_base() -> None:
+    """Apply the cluster-wide platform in dependency order: cert-manager and
+    Reloader, the internal PKI, then NATS, KEDA and the TMIComponent CRD.
+
+    cert-manager's webhook admits every cert-manager.io object, so pki.yml
+    waits for the three cert-manager Deployments; even then the webhook's
+    serving cert (injected by cainjector) can lag a few seconds, hence the
+    retry. NATS mounts nats-tls and the workloads mount the client certs, so
+    every Certificate must be Ready before anything that uses one is applied.
+    Namespace tmi-platform must already exist (ensure_namespace())."""
     project_root = get_project_root()
-    kubectl(["apply", "-f", str(project_root / PLATFORM_DIR / "nats.yml")])
-    kubectl(["apply", "--server-side", "-f", str(project_root / PLATFORM_DIR / "keda.yml")])
+    platform = project_root / PLATFORM_DIR
+    kubectl(["apply", "--server-side", "-f", str(platform / "cert-manager.yml")])
+    for dep in CERT_MANAGER_DEPLOYMENTS:
+        kubectl(["-n", "cert-manager", "rollout", "status", f"deploy/{dep}", "--timeout=180s"])
+    kubectl(["apply", "-f", str(platform / "reloader.yml")])
+    _apply_with_retry(str(platform / "pki.yml"))
+    kubectl(["-n", "cert-manager", "wait", "--for=condition=Ready", "certificate/tmi-internal-ca", "--timeout=120s"])
+    kubectl(["-n", NS, "wait", "--for=condition=Ready", "certificate", "--all", "--timeout=180s"])
+    kubectl(["apply", "-f", str(platform / "nats.yml")])
+    kubectl(["apply", "--server-side", "-f", str(platform / "keda.yml")])
     kubectl(["apply", "-f", str(project_root / "config/crd/bases/tmi.dev_tmicomponents.yaml")])
+    log_success("Platform base applied (cert-manager, Reloader, PKI, NATS, KEDA, CRD)")
+
+
+def _apply_with_retry(path: str, attempts: int = 5, delay_s: float = 3.0) -> None:
+    """kubectl apply with retries, for objects admitted by a webhook that may
+    still be warming up (cert-manager right after its rollout)."""
+    for attempt in range(1, attempts + 1):
+        result = kubectl(["apply", "-f", path], check=False, capture=True)
+        if result.returncode == 0:
+            return
+        if attempt == attempts:
+            log_error(f"kubectl apply -f {path} failed after {attempts} attempts:\n{result.stderr}")
+            sys.exit(1)
+        log_warn(f"kubectl apply -f {path} failed (attempt {attempt}/{attempts}); retrying in {delay_s:.0f}s")
+        time.sleep(delay_s)
 
 
 def ensure_namespace() -> None:
