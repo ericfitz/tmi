@@ -12,7 +12,9 @@ workload set on **Amazon EKS**, from the same bases local dev uses
 - **Terraform** provisions infrastructure (VPC, EKS cluster/node group, RDS
   Postgres, ECR, IAM/IRSA) and bootstrap objects in the `tmi-platform`
   namespace: the namespace itself, the `tmi-server-config` ConfigMap (mounted
-  by the server at `/etc/tmi`), secrets, and the IRSA-annotated
+  by the server at `/etc/tmi`), secrets (including `tmi-server-tls`, the
+  self-signed certificate the server serves on 8080 so the ALB re-encrypts
+  to the pod; mounted at `/etc/tmi-tls`), and the IRSA-annotated
   `tmi-api` ServiceAccount
   (`kubernetes_service_account_v1.tmi_api` in
   `terraform/modules/kubernetes/aws/k8s_resources.tf`).

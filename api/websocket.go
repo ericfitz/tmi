@@ -389,29 +389,15 @@ func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []DfdDiagra
 }
 
 // buildWebSocketURL constructs the absolute WebSocket URL from request context
-// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: construct the absolute WebSocket URL for a diagram session from request context (pure)
+// SEM@827fca9702ebf3b2d415a499d701a41667df1a5a: build the absolute WebSocket URL for a diagram session from TLS state and request Host (pure)
 func (h *WebSocketHub) buildWebSocketURL(c *gin.Context, threatModelId openapi_types.UUID, diagramID string, sessionID string) string {
 	// Get config information from the context
 	tlsEnabled := false
-	tlsSubjectName := ""
-	serverPort := "8080"
 
 	// Try to extract from request context
 	if val, exists := c.Get("tlsEnabled"); exists {
 		if enabled, ok := val.(bool); ok {
 			tlsEnabled = enabled
-		}
-	}
-
-	if val, exists := c.Get("tlsSubjectName"); exists {
-		if name, ok := val.(string); ok {
-			tlsSubjectName = name
-		}
-	}
-
-	if val, exists := c.Get("serverPort"); exists {
-		if port, ok := val.(string); ok {
-			serverPort = port
 		}
 	}
 
@@ -421,16 +407,10 @@ func (h *WebSocketHub) buildWebSocketURL(c *gin.Context, threatModelId openapi_t
 		scheme = SchemeWSS
 	}
 
-	// Determine host
+	// Host is what the client dialed. Behind a TLS-terminating proxy (the AWS
+	// ALB) the pod's TLS subject name and port are internal and must never
+	// reach a client-facing URL, so they are not substituted here.
 	host := c.Request.Host
-	if tlsSubjectName != "" && tlsEnabled {
-		// Use configured subject name if available
-		host = tlsSubjectName
-		// Add port if not the default HTTPS port
-		if serverPort != "443" {
-			host = fmt.Sprintf("%s:%s", host, serverPort)
-		}
-	}
 
 	// Build WebSocket URL with the specific path
 	url := fmt.Sprintf("%s://%s/threat_models/%s/diagrams/%s/ws", scheme, host, threatModelId.String(), diagramID)

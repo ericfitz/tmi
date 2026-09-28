@@ -16,6 +16,11 @@ metadata:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/healthcheck-path: /
+    # T371/T355: re-encrypt ALB -> pod. The server serves TLS on 8080 with a
+    # self-signed cert (terraform tmi-server-tls Secret); the ALB does not
+    # validate target certs. Health checks must use HTTPS too.
+    alb.ingress.kubernetes.io/backend-protocol: HTTPS
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTPS
     alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=3600,access_logs.s3.enabled=true,access_logs.s3.bucket=tmi-logs-967218005408,access_logs.s3.prefix=alb/tmi-server
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
     alb.ingress.kubernetes.io/ssl-redirect: "443"

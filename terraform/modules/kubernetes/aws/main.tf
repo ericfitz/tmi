@@ -19,6 +19,10 @@ terraform {
       # used by the environments that instantiate this module.
       version = ">= 2.12.0, < 3.0.0"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = ">= 4.0.0"
+    }
   }
 }
 
