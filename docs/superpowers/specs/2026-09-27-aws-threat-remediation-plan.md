@@ -19,7 +19,7 @@ Totals: fix 12, accept 12, backlog 1, false positive 3, duplicate 14.
   1. `deploy-aws.sh` resolves `home.efitz.net` to a /32. It supports an `--api-cidr` override and warns when the /32 differs from `curl checkip.amazonaws.com`, for deploys away from home.
   2. Before any terraform command or kubectl preflight: `describe-cluster` and compare the CIDRs. If they differ, run `aws eks update-cluster-config --resources-vpc-config publicAccessCidrs=<ip>/32` and then `aws eks wait cluster-active`. Skip the update when nothing changed, because EKS rejects no-op updates.
   3. First deploy (no cluster yet): pass the /32 into `public_access_cidrs` (aws-public doesn't set it today; the module defaults to 0.0.0.0/0). Add `lifecycle { ignore_changes = [vpc_config[0].public_access_cidrs] }` so Terraform doesn't fight the script.
-  4. The IP stays allowed after the deploy by default so kubectl works from home. An optional `--close-api` removes it.
+  4. The IP stays allowed after the deploy by default so kubectl works from home. (`--close-api` was dropped on 2026-09-28; see ADR decision 11.)
   5. No CI path touches EKS.
 
 ### PR 2: logging module

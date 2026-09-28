@@ -177,8 +177,10 @@ only from the API server pods. Two independent controls:
   `--requirepass $(REDIS_PASSWORD)`, sourced from the terraform-owned
   `tmi-secrets` Secret's `TMI_REDIS_PASSWORD` key. The server side of the same
   Secret is injected by `patches/server-config.yaml`.
-- `networkpolicy-redis.yml` restricts ingress to port 6379 to pods labelled
-  `app=tmi-server`.
+- `../networkpolicy-redis.yml` restricts ingress to port 6379 to pods labelled
+  `app=tmi-server`. It sits under the namespace-wide default-deny ingress in
+  `../networkpolicy.yml`, which also limits NATS 4222 to TMI pods and 8222 to
+  KEDA, and leaves tmi-server 8080 open for the ALB.
 
 **These two patches must move together.** Injecting `TMI_REDIS_PASSWORD` into
 the server without the redis patch (or vice versa) breaks every redis

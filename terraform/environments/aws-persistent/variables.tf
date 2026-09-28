@@ -11,3 +11,9 @@ variable "security_alert_email" {
   type        = string
   default     = "security@tmi.dev"
 }
+
+variable "rds_instance_identifier" {
+  description = "DBInstanceIdentifier of the aws-public RDS instance to alarm on (T362). A literal default, not a cross-stack read: aws-persistent must not depend on aws-public state (dependency direction is aws-public -> aws-persistent only)."
+  type        = string
+  default     = "tmi-postgres"
+}

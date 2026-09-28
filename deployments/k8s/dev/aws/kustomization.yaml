@@ -33,7 +33,8 @@ resources:
   - ../../platform/components/tmi-extractor.yml
   - ../../platform/components/tmi-chunk-embed.yml
   - ingress.yml
-  - networkpolicy-redis.yml
+  - ../networkpolicy-redis.yml
+  - ../networkpolicy.yml
 images:
   # Repo names must match scripts/container_build_helpers.py's aws
   # image_name_map (controller, chunkembed) / image_name_prefix (server,

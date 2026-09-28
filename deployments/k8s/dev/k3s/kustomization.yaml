@@ -6,7 +6,9 @@
 # of this overlay: deploy.py applies them as prerequisites (registry before the
 # image build/push; Postgres before the server, mirroring how kind brings the DB
 # up first). This overlay is the workload set: server, controller, redis, and the
-# extractor/chunk-embed worker TMIComponents.
+# extractor/chunk-embed worker TMIComponents, plus the namespace NetworkPolicies
+# (networkpolicy-k3s.yml admits postgres, registry and tmi-ux under the shared
+# default-deny).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: tmi-platform
@@ -16,6 +18,9 @@ resources:
   - ../server.yml
   - ../../platform/components/tmi-extractor.yml
   - ../../platform/components/tmi-chunk-embed.yml
+  - ../networkpolicy-redis.yml
+  - ../networkpolicy.yml
+  - networkpolicy-k3s.yml
 # Deployment container images (server, controller) — remapped by the images
 # transformer (preserves the :dev tag).
 images:

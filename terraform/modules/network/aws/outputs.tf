@@ -65,3 +65,8 @@ output "internet_gateway_id" {
   description = "ID of the internet gateway (null if private mode)"
   value       = var.enable_public_subnets ? aws_internet_gateway.tmi[0].id : null
 }
+
+output "s3_endpoint_id" {
+  description = "ID of the S3 gateway VPC endpoint"
+  value       = aws_vpc_endpoint.s3.id
+}

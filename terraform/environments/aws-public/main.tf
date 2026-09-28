@@ -4,7 +4,7 @@
 # This template creates:
 # - VPC with public and private subnets
 # - EKS cluster with single t3.medium managed node
-# - RDS PostgreSQL (db.t3.micro, no deletion protection)
+# - RDS PostgreSQL (db.t3.micro, deletion protection enabled)
 # - ECR repository for container images
 # - Secrets Manager for credentials
 # - CloudWatch logging with Fluent Bit
@@ -204,15 +204,25 @@ module "secrets" {
 module "database" {
   source = "../../modules/database/aws"
 
-  name_prefix            = var.name_prefix
-  instance_class         = "db.t3.micro"
+  name_prefix    = var.name_prefix
+  instance_class = "db.t3.micro"
+  # Storage autoscaling ceiling (T362): live allocated storage is 20 GB with
+  # no ceiling (module default 0 = disabled), so growth past it fails
+  # writes instead of growing. 100 GB gives headroom without a Multi-AZ-style
+  # cost jump; the FreeStorageSpace alarm in aws-persistent is the earlier
+  # warning before autoscaling would even kick in.
+  max_allocated_storage  = 100
   db_name                = var.db_name
   db_username            = var.db_username
   db_password            = module.secrets.db_password
   db_subnet_group_name   = module.network.db_subnet_group_name
   vpc_security_group_ids = [module.network.rds_security_group_id]
-  deletion_protection    = false
-  skip_final_snapshot    = true
+  # T376: protect against an accidental destroy/replace, and always take a
+  # final snapshot (backups are already 7-day; this just stops the LAST
+  # copy from being discarded too). `terraform destroy` now needs
+  # deletion_protection disabled first — a deliberate two-step teardown.
+  deletion_protection = true
+  skip_final_snapshot = false
 
   # Connection logging exported to CloudWatch (30 d). The parameter group
   # needs a reboot to take effect. RDS modifications wait for the maintenance
@@ -274,6 +284,10 @@ module "kubernetes" {
   # replacement capacity before draining.
   node_count             = 2
   endpoint_public_access = true
+  # T366: restricted to the deployer's dynamic-DNS IP by deploy-aws.sh at
+  # deploy time; the module's lifecycle block ignores subsequent drift on
+  # this attribute so Terraform does not fight the script.
+  public_access_cidrs = var.eks_public_access_cidrs
 
   # Network
   vpc_id                     = module.network.vpc_id

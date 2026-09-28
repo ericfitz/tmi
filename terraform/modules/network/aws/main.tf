@@ -15,6 +15,8 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
+data "aws_region" "current" {}
+
 locals {
   az = data.aws_availability_zones.available.names[0]
   # EKS requires at least 2 AZs for the control plane
@@ -205,14 +207,27 @@ resource "aws_subnet" "database_secondary" {
   })
 }
 
+# Local-only route table for the database subnets: no NAT/internet route, so
+# even a misconfigured RDS security group has no path out of the VPC (T375).
+# route = [] is explicit (an empty block, not an omitted one), so Terraform
+# enforces zero routes rather than leaving the table route-agnostic.
+resource "aws_route_table" "database" {
+  vpc_id = aws_vpc.tmi.id
+  route  = []
+
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-database-rt"
+  })
+}
+
 resource "aws_route_table_association" "database" {
   subnet_id      = aws_subnet.database.id
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.database.id
 }
 
 resource "aws_route_table_association" "database_secondary" {
   subnet_id      = aws_subnet.database_secondary.id
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.database.id
 }
 
 # RDS Subnet Group
@@ -222,6 +237,24 @@ resource "aws_db_subnet_group" "tmi" {
 
   tags = merge(var.tags, {
     Name = "${var.name_prefix}-db-subnet-group"
+  })
+}
+
+# S3 gateway endpoint: free (no hourly/data charge), keeps S3 traffic (ECR
+# layer pulls, log/flow-log writes) off the NAT gateway. Gateway endpoints
+# add a prefix-list route to their associated route tables directly in AWS,
+# not through this table's inline `route` block, so it does not fight
+# aws_route_table.private's own route management. Associated with the
+# private route table only — NOT the database table, which stays route-free
+# by design (T375).
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.tmi.id
+  service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_route_table.private.id]
+
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-s3-endpoint"
   })
 }
 
@@ -274,16 +307,6 @@ resource "aws_vpc_security_group_egress_rule" "alb_to_nodes_tmi" {
   referenced_security_group_id = aws_security_group.eks_nodes.id
 }
 
-# ALB outbound to EKS nodes on NodePort range
-resource "aws_vpc_security_group_egress_rule" "alb_to_nodes_nodeport" {
-  security_group_id            = aws_security_group.alb.id
-  description                  = "Allow traffic to NodePort range"
-  from_port                    = 30000
-  to_port                      = 32767
-  ip_protocol                  = "tcp"
-  referenced_security_group_id = aws_security_group.eks_nodes.id
-}
-
 # EKS Nodes Security Group
 resource "aws_security_group" "eks_nodes" {
   name_prefix = "${var.name_prefix}-eks-nodes-"
@@ -305,16 +328,6 @@ resource "aws_vpc_security_group_ingress_rule" "nodes_from_alb_tmi" {
   description                  = "Allow traffic from ALB to TMI pods"
   from_port                    = 8080
   to_port                      = 8080
-  ip_protocol                  = "tcp"
-  referenced_security_group_id = aws_security_group.alb.id
-}
-
-# EKS nodes inbound from ALB on NodePort range
-resource "aws_vpc_security_group_ingress_rule" "nodes_from_alb_nodeport" {
-  security_group_id            = aws_security_group.eks_nodes.id
-  description                  = "Allow traffic from ALB NodePort range"
-  from_port                    = 30000
-  to_port                      = 32767
   ip_protocol                  = "tcp"
   referenced_security_group_id = aws_security_group.alb.id
 }
@@ -365,23 +378,27 @@ resource "aws_vpc_security_group_egress_rule" "nodes_self" {
   referenced_security_group_id = aws_security_group.eks_nodes.id
 }
 
-# EKS nodes outbound DNS
+# EKS nodes outbound DNS, VPC only (T374). Nodes and CoreDNS resolve through
+# the VPC resolver (VPC base + 2), so there is no reason to reach external DNS
+# servers; this closes DNS tunnelling to arbitrary resolvers. (Security groups
+# do not filter traffic to the Amazon-provided resolver, so this cannot break
+# normal resolution.)
 resource "aws_vpc_security_group_egress_rule" "nodes_dns_tcp" {
   security_group_id = aws_security_group.eks_nodes.id
-  description       = "Allow outbound DNS (TCP)"
+  description       = "Allow outbound DNS (TCP) within the VPC"
   from_port         = 53
   to_port           = 53
   ip_protocol       = "tcp"
-  cidr_ipv4         = "0.0.0.0/0"
+  cidr_ipv4         = var.vpc_cidr
 }
 
 resource "aws_vpc_security_group_egress_rule" "nodes_dns_udp" {
   security_group_id = aws_security_group.eks_nodes.id
-  description       = "Allow outbound DNS (UDP)"
+  description       = "Allow outbound DNS (UDP) within the VPC"
   from_port         = 53
   to_port           = 53
   ip_protocol       = "udp"
-  cidr_ipv4         = "0.0.0.0/0"
+  cidr_ipv4         = var.vpc_cidr
 }
 
 # RDS Security Group
