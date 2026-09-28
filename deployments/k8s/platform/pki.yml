@@ -29,6 +29,9 @@ spec:
   privateKey:
     algorithm: ECDSA
     size: 256
+    # CA key rotation is a manual runbook step (#965); an automatic renewal
+    # must not mint a new key and diverge trust.
+    rotationPolicy: Never
   issuerRef:
     name: tmi-bootstrap
     kind: ClusterIssuer

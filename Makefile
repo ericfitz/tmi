@@ -833,7 +833,7 @@ e2e-platform-up:  ## Create the kind cluster and install platform dependencies (
 	for d in cert-manager cert-manager-cainjector cert-manager-webhook; do kubectl --context kind-tmi-platform -n cert-manager rollout status deploy/$$d --timeout=180s; done
 	kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/reloader.yml
 	kubectl --context kind-tmi-platform create namespace tmi-platform --dry-run=client -o yaml | kubectl --context kind-tmi-platform apply -f -
-	for i in 1 2 3 4 5; do kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/pki.yml && break; sleep 3; done
+	for i in 1 2 3 4 5; do kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/pki.yml && break; [ $$i = 5 ] && exit 1; sleep 3; done
 	kubectl --context kind-tmi-platform -n cert-manager wait --for=condition=Ready certificate/tmi-internal-ca --timeout=120s
 	kubectl --context kind-tmi-platform -n tmi-platform wait --for=condition=Ready certificate --all --timeout=180s
 	kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/nats.yml

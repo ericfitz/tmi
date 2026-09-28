@@ -30,7 +30,8 @@ type PKI struct {
 // New creates a CA valid for one year and writes dir/ca.crt.
 // SEM@new: create a throwaway CA and write its certificate to a directory
 func New(dir string) (*PKI, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil { // #nosec G301 -- throwaway test PKI
+	// #nosec G301 -- throwaway test PKI
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

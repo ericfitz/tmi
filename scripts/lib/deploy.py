@@ -1200,6 +1200,11 @@ def restart(*, db: str, cluster_target: str = "docker-desktop",
     if db == "oracle":
         create_oracle_wallet_secret()
         create_oracle_db_secret()
+    # Same order as start(): an existing pre-TLS cluster needs redis-tls,
+    # tmi-secrets and the TLS NATS before the server (which dials tls://) rolls.
+    ensure_namespace()
+    ensure_redis_password_secret()
+    apply_platform_base()
     apply_overlay(db, cluster_target)
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", f"--timeout={server_rollout_timeout(db)}"])
