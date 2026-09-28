@@ -20,7 +20,7 @@ import (
 )
 
 // PKI is a throwaway CA rooted at Dir (Dir/ca.crt).
-// SEM@new: throwaway certificate authority for tests, writing PEM files under one directory
+// SEM@d2c63e2: throwaway certificate authority for tests, writing PEM files under one directory
 type PKI struct {
 	Dir    string
 	caCert *x509.Certificate
@@ -28,7 +28,7 @@ type PKI struct {
 }
 
 // New creates a CA valid for one year and writes dir/ca.crt.
-// SEM@new: create a throwaway CA and write its certificate to a directory
+// SEM@d2c63e2: create a throwaway CA and write its certificate to a directory
 func New(dir string) (*PKI, error) {
 	// #nosec G301 -- throwaway test PKI
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -63,7 +63,7 @@ func New(dir string) (*PKI, error) {
 
 // WriteServer writes Dir/<name>.crt and Dir/<name>.key for a server with the
 // given DNS and IP SANs (server auth usage).
-// SEM@new: issue and write a server certificate with DNS and IP SANs signed by the test CA
+// SEM@d2c63e2: issue and write a server certificate with DNS and IP SANs signed by the test CA
 func (p *PKI) WriteServer(name string, dnsNames []string, ips []net.IP) error {
 	return p.write(name, &x509.Certificate{
 		Subject:     pkix.Name{CommonName: name},
@@ -77,7 +77,7 @@ func (p *PKI) WriteServer(name string, dnsNames []string, ips []net.IP) error {
 // WriteClient writes Dir/<name>.crt and Dir/<name>.key for a client with
 // CN=cn (client auth usage). Calling it again with the same name overwrites
 // both files, which is how tests simulate a cert-manager renewal.
-// SEM@new: issue and write a client-auth certificate with the given CN signed by the test CA
+// SEM@d2c63e2: issue and write a client-auth certificate with the given CN signed by the test CA
 func (p *PKI) WriteClient(name, cn string) error {
 	return p.write(name, &x509.Certificate{
 		Subject:     pkix.Name{CommonName: cn},
@@ -86,7 +86,7 @@ func (p *PKI) WriteClient(name, cn string) error {
 	})
 }
 
-// SEM@new: sign a leaf template with the CA and write its cert and key PEM files
+// SEM@d2c63e2: sign a leaf template with the CA and write its cert and key PEM files
 func (p *PKI) write(name string, tmpl *x509.Certificate) error {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -109,7 +109,7 @@ func (p *PKI) write(name string, tmpl *x509.Certificate) error {
 	return writePEM(filepath.Join(p.Dir, name+".key"), "EC PRIVATE KEY", keyDER)
 }
 
-// SEM@new: write one DER blob as a PEM file, world-readable for container bind mounts
+// SEM@d2c63e2: write one DER blob as a PEM file, world-readable for container bind mounts
 func writePEM(path, typ string, der []byte) error {
 	// 0644 on purpose: see the package comment.
 	return os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: typ, Bytes: der}), 0o644) // #nosec G306 -- throwaway test PKI

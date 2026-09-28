@@ -14,7 +14,7 @@ import (
 )
 
 // ConfigFromUnified converts unified config to auth-specific config
-// SEM@new: convert the unified application config, including Redis TLS settings, to the auth-package Config (pure)
+// SEM@6bac11e: convert the unified application config, including Redis TLS settings, to the auth-package Config (pure)
 func ConfigFromUnified(unified *config.Config) Config {
 	return Config{
 		Database: DatabaseConfig{

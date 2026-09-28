@@ -40,7 +40,7 @@ type NATSProvisioner struct {
 // RetryOnFailedConnect so the controller can start before the port-forward (or
 // the NATS pod) is reachable: JetStream calls then fail until the connection
 // establishes, which surfaces as a reconcile error and a requeue.
-// SEM@new: connect to NATS with retry and optional TLS, returning a JetStream provisioner
+// SEM@946ec29: connect to NATS with retry and optional TLS, returning a JetStream provisioner
 func NewNATSProvisioner(url string) (*NATSProvisioner, error) {
 	opts := []nats.Option{
 		nats.Name("tmi-component-controller"),

@@ -21,7 +21,7 @@ import (
 	"github.com/ericfitz/tmi/internal/tlsconfig/testpki"
 )
 
-// SEM@new: parse -out flag and generate the harness PKI, exiting nonzero on failure (writes files)
+// SEM@249dea6: parse -out flag and generate the harness PKI, exiting nonzero on failure (writes files)
 func main() {
 	out := flag.String("out", "", "output directory (created if missing)")
 	flag.Parse()
@@ -35,7 +35,7 @@ func main() {
 	}
 }
 
-// SEM@new: generate the harness CA, server/client certs, redis.conf and secrets.env once (writes files)
+// SEM@249dea6: generate the harness CA, server/client certs, redis.conf and secrets.env once (writes files)
 func run(dir string) error {
 	if _, err := os.Stat(filepath.Join(dir, "ca.crt")); err == nil {
 		return nil // already generated

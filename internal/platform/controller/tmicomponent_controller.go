@@ -173,7 +173,7 @@ func preserveAutoscaledReplicas(rendered, live client.Object) {
 // need to clear anything, so the trade is sound here. An unrecognised type
 // returns false — always update — because a wrong "no change" is a stuck
 // controller, while a redundant update is merely wasteful.
-// SEM@new: report whether a live object already matches the rendered spec and Reloader annotation (pure)
+// SEM@6b7b976: report whether a live object already matches the rendered spec and Reloader annotation (pure)
 func liveSatisfies(rendered, live client.Object) bool {
 	switch d := rendered.(type) {
 	case *appsv1.Deployment:

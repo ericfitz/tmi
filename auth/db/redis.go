@@ -15,7 +15,7 @@ import (
 )
 
 // RedisConfig holds the configuration for Redis connection
-// SEM@new: Redis connection coordinates, credentials, and CA-pinned TLS settings (pure)
+// SEM@e50244f: Redis connection coordinates, credentials, and CA-pinned TLS settings (pure)
 type RedisConfig struct {
 	Host       string
 	Port       string
@@ -27,7 +27,7 @@ type RedisConfig struct {
 
 // redisOptions builds the go-redis client options for cfg. With TLS on, the
 // only trusted CA is cfg.TLSCAFile and the server name checked is cfg.Host.
-// SEM@new: build go-redis client options, adding CA-pinned TLS when enabled (pure)
+// SEM@e50244f: build go-redis client options, adding CA-pinned TLS when enabled (pure)
 func redisOptions(cfg RedisConfig) (*redis.Options, error) {
 	opts := &redis.Options{
 		Addr:            fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
@@ -102,7 +102,7 @@ func (db *RedisDB) SetEncryptor(enc *crypto.SettingsEncryptor) {
 }
 
 // NewRedisDB creates a new Redis database connection
-// SEM@new: connect to Redis (optionally TLS) with OpenTelemetry instrumentation and verify liveness
+// SEM@e50244f: connect to Redis (optionally TLS) with OpenTelemetry instrumentation and verify liveness
 func NewRedisDB(cfg RedisConfig) (*RedisDB, error) {
 	logger := slogging.Get()
 	opts, err := redisOptions(cfg)

@@ -32,14 +32,14 @@ const (
 // natsClientSecretName maps a component to its cert-manager client-cert
 // Secret: nats-client-<name without the tmi- prefix>, e.g. tmi-extractor ->
 // nats-client-extractor, matching deployments/k8s/platform/pki.yml.
-// SEM@new: derive the NATS client-cert Secret name for a component (pure)
+// SEM@6b7b976: derive the NATS client-cert Secret name for a component (pure)
 func natsClientSecretName(c *platformv1alpha1.TMIComponent) string {
 	return "nats-client-" + strings.TrimPrefix(c.Name, "tmi-")
 }
 
 // natsTLSEnv points internal/worker.Connect (via tlsconfig.NATSFromEnv) at
 // the mounted client cert.
-// SEM@new: build the NATS TLS file-path env vars for the mounted client cert (pure)
+// SEM@6b7b976: build the NATS TLS file-path env vars for the mounted client cert (pure)
 func natsTLSEnv() []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{Name: "TMI_NATS_TLS_CA_FILE", Value: natsTLSMountPath + "/ca.crt"},
@@ -52,7 +52,7 @@ func natsTLSEnv() []corev1.EnvVar {
 // Pod hardening (readOnlyRootFilesystem, runAsNonRoot, all caps dropped,
 // RuntimeDefault seccomp) is applied unconditionally — it is a hard
 // platform invariant, not a per-component option.
-// SEM@new: build a hardened worker Deployment with NATS client-cert mount and Reloader annotation (pure)
+// SEM@6b7b976: build a hardened worker Deployment with NATS client-cert mount and Reloader annotation (pure)
 func RenderDeployment(c *platformv1alpha1.TMIComponent) *appsv1.Deployment {
 	labels := componentPodLabels(c)
 

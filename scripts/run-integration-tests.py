@@ -117,7 +117,7 @@ def ensure_oauth_stub(project_root: Path) -> bool:
     return server_is_running(stub_url)
 
 
-# SEM@new: delete rate-limit keys from the test Redis over TLS (writes Redis)
+# SEM@249dea6: delete rate-limit keys from the test Redis over TLS (writes Redis)
 def clear_redis_rate_limits(tls_dir: Path, redis_db: str = "0") -> None:
     """Best-effort: drop auth/IP rate-limit keys from the test Redis logical DB.
 
@@ -217,7 +217,7 @@ TEST_NATS_CONTAINER = "tmi-nats-itest"  # not tmi-nats-test: `make test-workers`
 TEST_NATS_HOST_PORT = "4223"
 
 
-# SEM@new: generate the harness TLS material once (writes files)
+# SEM@249dea6: generate the harness TLS material once (writes files)
 def ensure_test_tls(project_root: Path) -> Path:
     """Generate the harness PKI once (see test/integration/tlsgen)."""
     tls_dir = project_root / TEST_TLS_DIR
@@ -228,7 +228,7 @@ def ensure_test_tls(project_root: Path) -> Path:
     return tls_dir
 
 
-# SEM@new: start the isolated test NATS container in mTLS mode (starts container)
+# SEM@249dea6: start the isolated test NATS container in mTLS mode (starts container)
 def ensure_nats(project_root: Path, tls_dir: Path) -> bool:
     """Start the isolated test NATS container in mTLS mode on its own port."""
     script = str(project_root / "scripts" / "manage-nats.py")
@@ -243,7 +243,7 @@ def ensure_nats(project_root: Path, tls_dir: Path) -> bool:
     return True
 
 
-# SEM@new: start the isolated test Redis container in TLS mode and reject stale plaintext ones (starts container)
+# SEM@8de74d0: start the isolated test Redis container in TLS mode and reject stale plaintext ones (starts container)
 def ensure_redis(project_root: Path, tls_dir: Path) -> bool:
     """Start the ISOLATED test Redis container and verify it owns its port.
 
@@ -326,7 +326,7 @@ def stop_test_server_container() -> None:
     )
 
 
-# SEM@new: start the test server container wired to TLS Redis and host dependencies (starts container)
+# SEM@249dea6: start the test server container wired to TLS Redis and host dependencies (starts container)
 def start_test_server_container(
     project_root: Path, config_path: Path, container_db_url: str,
     redis_host: str, redis_port: str, host_port: str, tls_dir: Path,

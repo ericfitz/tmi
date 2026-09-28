@@ -11,7 +11,7 @@ import (
 // NATS TLS env vars of the production contract (scripts/run-integration-tests.py sets them to the
 // harness PKI); nil when TMI_NATS_TLS_CA_FILE is unset, so a developer's
 // ad-hoc plaintext NATS still works. Same contract as internal/worker.
-// SEM@new: build NATS mTLS connect options from the production NATS TLS env contract (reads env)
+// SEM@249dea6: build NATS mTLS connect options from the production NATS TLS env contract (reads env)
 func NATSTLSOptions(t *testing.T) []nats.Option {
 	t.Helper()
 	cfg, err := tlsconfig.NATSFromEnv()

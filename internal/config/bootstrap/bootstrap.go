@@ -36,7 +36,7 @@ const secretMountEnvPrefix = "TMI_WORKER_SECRET_MOUNT_" // #nosec G101 -- env-va
 
 // LoadWorker builds a WorkerBootstrap from environment variables only.
 // It reads no YAML and touches no database.
-// SEM@new: build worker startup config from environment variables only, no YAML or DB (pure)
+// SEM@946ec29: build worker startup config from environment variables only, no YAML or DB (pure)
 func LoadWorker() (*WorkerBootstrap, error) {
 	natsURL := os.Getenv("TMI_NATS_URL")
 	if natsURL == "" {

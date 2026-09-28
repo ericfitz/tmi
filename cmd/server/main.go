@@ -2776,7 +2776,7 @@ func buildGormConfig(cfg *config.Config) db.GormConfig {
 // If TMI_REDIS_URL is set, it takes precedence over individual fields; a
 // rediss:// scheme turns TLS on (the CA file still comes from
 // TMI_REDIS_TLS_CA_FILE).
-// SEM@new: build a Redis connection config from URL or fields, enabling TLS for rediss URLs (pure)
+// SEM@e50244f: build a Redis connection config from URL or fields, enabling TLS for rediss URLs (pure)
 func buildRedisConfig(cfg *config.Config) db.RedisConfig {
 	log := slogging.Get()
 	rc := db.RedisConfig{

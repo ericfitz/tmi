@@ -80,7 +80,7 @@ func openIntegrationDB(t *testing.T) *gorm.DB {
 
 // openIntegrationRedis returns a Redis client for integration tests.
 // Uses TEST_REDIS_* env vars when available, otherwise starts a miniredis server.
-// SEM@new: open a Redis client for integration tests, TLS+password when configured, else miniredis (reads env)
+// SEM@249dea6: open a Redis client for integration tests, TLS+password when configured, else miniredis (reads env)
 func openIntegrationRedis(t *testing.T) redis.UniversalClient {
 	t.Helper()
 

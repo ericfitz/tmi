@@ -30,7 +30,7 @@ const (
 // Load builds a client TLS config that trusts only caFile. When certFile and
 // keyFile are both set the config presents that client certificate,
 // re-reading the pair on every handshake.
-// SEM@new: build a CA-pinned client TLS config, re-reading the client cert per handshake
+// SEM@d2c63e2: build a CA-pinned client TLS config, re-reading the client cert per handshake
 func Load(caFile, certFile, keyFile string) (*tls.Config, error) {
 	if caFile == "" {
 		return nil, fmt.Errorf("tlsconfig: CA file path is empty")
@@ -68,7 +68,7 @@ func Load(caFile, certFile, keyFile string) (*tls.Config, error) {
 // NATSFromEnv returns the NATS client TLS config described by the
 // environment variables above, or (nil, nil) when EnvNATSCAFile is unset
 // (plaintext, the code default). Callers pass a non-nil result to nats.Secure.
-// SEM@new: build the NATS client TLS config from NATS TLS env vars; nil when unset (reads env)
+// SEM@d2c63e2: build the NATS client TLS config from NATS TLS env vars; nil when unset (reads env)
 func NATSFromEnv() (*tls.Config, error) {
 	ca := os.Getenv(EnvNATSCAFile)
 	if ca == "" {

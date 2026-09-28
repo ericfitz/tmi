@@ -48,7 +48,7 @@ type Conn struct {
 
 // natsOptions builds the connect options: client name, unlimited reconnects,
 // optional credentials file, and TLS (nats.Secure) when tlsCfg is non-nil.
-// SEM@new: build NATS connect options from worker config, credentials path, and optional TLS (pure)
+// SEM@946ec29: build NATS connect options from worker config, credentials path, and optional TLS (pure)
 func natsOptions(cfg Config, credsFile string, tlsCfg *tls.Config) []nats.Option {
 	opts := []nats.Option{
 		nats.Name("tmi-" + cfg.ComponentName),
@@ -72,7 +72,7 @@ func natsOptions(cfg Config, credsFile string, tlsCfg *tls.Config) []nats.Option
 // If TMI_NATS_TLS_CA_FILE is set (see internal/tlsconfig), the connection uses
 // TLS with that CA and, when TMI_NATS_TLS_CERT_FILE/TMI_NATS_TLS_KEY_FILE are
 // set, a client certificate.
-// SEM@new: connect to NATS (TLS when configured), open JetStream, and ensure the payload object store
+// SEM@946ec29: connect to NATS (TLS when configured), open JetStream, and ensure the payload object store
 func Connect(ctx context.Context, cfg Config) (*Conn, error) {
 	tlsCfg, err := tlsconfig.NATSFromEnv()
 	if err != nil {

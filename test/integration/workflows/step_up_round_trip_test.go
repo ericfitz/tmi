@@ -259,7 +259,7 @@ func TestStepUpRoundTrip(t *testing.T) {
 // Value: "<userInternalUUID>|<sessionCreatedAtUnix>"
 // This is the pre-#355 format that causes RefreshToken() to mint a JWT with
 // auth_time = epoch zero (stale sentinel for StepUpMiddleware).
-// SEM@new: store a legacy two-field refresh token in the harness Redis over TLS (writes Redis)
+// SEM@249dea6: store a legacy two-field refresh token in the harness Redis over TLS (writes Redis)
 func writeRefreshTokenToRedis(t *testing.T, refreshTokenID, userInternalUUID string, sessionCreatedAt int64) error {
 	t.Helper()
 

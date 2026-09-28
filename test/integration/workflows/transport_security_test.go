@@ -16,7 +16,7 @@ import (
 // TestTransportSecurity_PlaintextRejected_Integration pins PR 6's goal: the
 // harness Redis refuses plaintext and the harness NATS refuses a client that
 // has no certificate, while the TLS/mTLS control paths work.
-// SEM@new: verify harness Redis rejects plaintext and NATS rejects cert-less clients (reads env, network)
+// SEM@249dea6: verify harness Redis rejects plaintext and NATS rejects cert-less clients (reads env, network)
 func TestTransportSecurity_PlaintextRejected_Integration(t *testing.T) {
 	if os.Getenv("TEST_REDIS_TLS_CA_FILE") == "" || os.Getenv("TMI_NATS_TLS_CA_FILE") == "" {
 		t.Skip("harness TLS not configured; run via make test-integration")

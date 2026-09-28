@@ -44,7 +44,7 @@ type DatabaseConfig struct {
 }
 
 // RedisConfig holds Redis configuration
-// SEM@new: Redis connection settings including host, port, password, DB index, and TLS CA (pure)
+// SEM@e50244f: Redis connection settings including host, port, password, DB index, and TLS CA (pure)
 type RedisConfig struct {
 	Host       string
 	Port       string
@@ -252,7 +252,7 @@ func (c *Config) ToGormConfig() db.GormConfig {
 }
 
 // ToRedisConfig converts Config to db.RedisConfig
-// SEM@new: convert the auth Redis config, including TLS settings, to a db.RedisConfig (pure)
+// SEM@e50244f: convert the auth Redis config, including TLS settings, to a db.RedisConfig (pure)
 func (c *Config) ToRedisConfig() db.RedisConfig {
 	return db.RedisConfig{
 		Host:       c.Redis.Host,

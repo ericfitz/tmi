@@ -134,7 +134,7 @@ type ConnectionPoolConfig struct {
 }
 
 // RedisConfig holds Redis configuration
-// SEM@new: configuration struct for Redis connection coordinates, credentials, and CA-pinned TLS (pure)
+// SEM@e50244f: configuration struct for Redis connection coordinates, credentials, and CA-pinned TLS (pure)
 type RedisConfig struct {
 	URL        string `yaml:"url" env:"TMI_REDIS_URL"` // Connection string URL (redis://[:password@]host:port[/db]), takes precedence over individual fields; rediss:// also enables TLS
 	Host       string `yaml:"host" env:"TMI_REDIS_HOST"`
@@ -1100,7 +1100,7 @@ func (c *Config) validateServer() error {
 	return nil
 }
 
-// SEM@new: validate database URL, Redis coordinates, and that Redis TLS names a CA file (pure)
+// SEM@6bac11e: validate database URL, Redis coordinates, and that Redis TLS names a CA file (pure)
 func (c *Config) validateDatabase() error {
 	// DATABASE_URL is required (contains all connection parameters including type, host, port, user, password, database)
 	if c.Database.URL == "" {
