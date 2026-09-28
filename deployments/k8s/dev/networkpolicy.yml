@@ -1,0 +1,88 @@
+# Default-deny ingress for tmi-platform, plus the allows the workloads need
+# (T373/T357; the NetworkPolicy half of T356 NATS and T388 redis). Shared by
+# the aws and k3s overlays; the redis allow is in networkpolicy-redis.yml.
+#
+# Enforced by the VPC CNI NetworkPolicy agent on EKS (see
+# networkpolicy-redis.yml) and by k3s's embedded kube-router. Docker Desktop's
+# CNI does not enforce NetworkPolicy, so its overlays don't carry these.
+#
+# Ingress-only, like the redis policy: egress stays open, so DNS, AWS APIs and
+# the LLM/embedding endpoints are unaffected. The controller's own per-worker
+# policies (named tmi-extractor / tmi-chunk-embed) already restrict worker
+# egress.
+#
+# Kubelet probes come from the pod's node, which the NetworkPolicy spec always
+# admits; and the only probed port (tmi-server 8080) is open to all anyway.
+#
+# Symptom of a missing allow: a connect timeout on EKS (the agent drops), a
+# "connection refused" on k3s (kube-router rejects). If a new client needs NATS
+# or redis, add its labels to `from`. Both CNIs take a second or two to admit a
+# NEW client pod's IP, so tmi-server's fail-fast startup can restart once.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tmi-server-allow-http
+  namespace: tmi-platform
+spec:
+  podSelector:
+    matchLabels:
+      app: tmi-server
+  policyTypes:
+    - Ingress
+  ingress:
+    # No `from`: on EKS the ALB uses target-type ip, so traffic arrives from
+    # the ALB's VPC ENIs, not a pod; on k3s it comes via tmi-ux, Traefik and
+    # NodePort 30080. The API is public by design; auth is the server's job.
+    - ports:
+        - protocol: TCP
+          port: 8080
+---
+# NATS has no auth or TLS yet (T356 follow-up), so this is its only control.
+# 4222: server, controller, and every TMIComponent worker (pods labelled
+# tmi.dev/component, created by the controller). 8222 (monitoring): KEDA's
+# nats-jetstream scaler reads consumer lag from it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nats-allow-clients
+  namespace: tmi-platform
+spec:
+  podSelector:
+    matchLabels:
+      app: nats
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: tmi-server
+        - podSelector:
+            matchLabels:
+              app: tmi-component-controller
+        - podSelector:
+            matchExpressions:
+              - key: tmi.dev/component
+                operator: Exists
+      ports:
+        - protocol: TCP
+          port: 4222
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: keda
+      ports:
+        - protocol: TCP
+          port: 8222
+---
+# Everything else in the namespace (controller, workers, anything new) gets no
+# ingress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: tmi-platform
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress

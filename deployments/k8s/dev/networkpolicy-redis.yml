@@ -1,14 +1,15 @@
 # Restrict who can reach in-cluster redis (#551).
 #
-# Defence in depth alongside the --requirepass added by patches/redis-auth.yaml:
+# Defence in depth alongside the --requirepass added by aws/patches/redis-auth.yaml:
 # the password stops an unauthenticated caller, this stops the connection being
-# made at all from anywhere except the API server pods.
+# made at all from anywhere except the API server pods. Shared by the aws and
+# k3s overlays; networkpolicy.yml holds the namespace default-deny it sits under.
 #
-# This is only enforceable because terraform enables the VPC CNI's NetworkPolicy
+# On EKS this is only enforceable because terraform enables the VPC CNI's NetworkPolicy
 # agent (enableNetworkPolicy = "true" on the vpc-cni addon, see
 # terraform/modules/kubernetes/aws/main.tf). Without that agent EKS accepts
 # NetworkPolicy objects and silently does not enforce them, which is the state
-# this deployment's README previously described as "isolated" when it was not.
+# the aws overlay README previously described as "isolated" when it was not.
 #
 # Ingress-only on purpose. policyTypes lists Ingress alone, so redis's egress is
 # untouched — adding an Egress policy here would also have to re-permit DNS to
