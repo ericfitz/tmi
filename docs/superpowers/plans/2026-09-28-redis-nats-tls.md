@@ -10,7 +10,9 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-28-redis-nats-tls-design.md` (approved by Eric 2026-09-28). The plan argues from the spec; executors read both.
 
-## Open questions for Eric
+## Open questions (resolved 2026-09-28)
+
+HUMAN DECISIONS (Eric, 2026-09-28): #2 throwaway per-machine test Redis password; #6 accept NATS JetStream wipe on Reloader roll. The rest (#1, #3, #4, #5, #7, #8) use the defaults below, which the orchestrator accepted as implementation details.
 
 None of these block starting Tasks 1-4. Each has the default the plan assumes; say so if you want a different answer.
 

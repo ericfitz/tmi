@@ -99,3 +99,8 @@ half shipped in PR 4 (#971). Supersedes the plan's "Terraform CA" sketch
   the Certificates to be Ready, then Redis, NATS, and workloads. The AWS deploy waits for #968,
   #972, and #965, per Eric.
 - No Oracle review needed: no database-touching change.
+
+## Human decisions recorded during planning (Eric, 2026-09-28)
+
+- A Reloader roll of NATS wipes the emptyDir JetStream store (streams, consumers, payload bucket), about every 60 days on cert renewal. Accepted, the same trade-off as Redis. Re-ensuring streams after a NATS reconnect is a follow-up.
+- The integration-test Redis container also uses a password: a throwaway per-machine password in gitignored `.local/test-tls/`, delivered by redis.conf/--env-file and never argv.
