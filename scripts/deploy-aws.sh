@@ -34,6 +34,15 @@
 #   --zone-id ZONE_ID              Route 53 hosted zone ID for --domain (required)
 #   --config-export FILE           Import this dbtool config-export YAML into the deployed
 #                                   database after the overlay is up (optional)
+#   --api-cidr CIDR                EKS public API endpoint allowlist, e.g. 203.0.113.5/32
+#                                   (default: resolve home.efitz.net to a /32). Warns, but
+#                                   does not fail, if it differs from this machine's current
+#                                   public IP (checkip.amazonaws.com) — deploying away from
+#                                   home would otherwise lock this machine out afterwards.
+#   --close-api                    After a successful deploy, disable the EKS public
+#                                   endpoint entirely (endpointPublicAccess=false) instead
+#                                   of leaving --api-cidr allowed. The next deploy (or a
+#                                   manual `aws eks update-cluster-config`) reopens it.
 #   --skip-build                   Skip container image build/push (use existing ECR images)
 #   --destroy                      Destroy the deployment instead of creating it (--domain/--zone-id still required)
 #                                  Does not release the NAT egress EIP or the log bucket/trail;
@@ -57,6 +66,8 @@
 #   ./scripts/deploy-aws.sh --domain tmi.example.com --zone-id Z1234567890ABC --skip-build --dry-run
 #   ./scripts/deploy-aws.sh --domain tmi.example.com --zone-id Z1234567890ABC --config-export /tmp/tmi-config.yaml
 #   ./scripts/deploy-aws.sh --destroy --domain tmi.example.com --zone-id Z1234567890ABC
+#   ./scripts/deploy-aws.sh --domain tmi.example.com --zone-id Z1234567890ABC --api-cidr 203.0.113.5/32
+#   ./scripts/deploy-aws.sh --domain tmi.example.com --zone-id Z1234567890ABC --close-api
 #
 # Removed flags (no longer apply — see terraform/environments/aws-public/variables.tf):
 #   --san, --alert-email, --db-instance-class, --db-multi-az, --multi-az-nat
@@ -101,6 +112,11 @@ SKIP_BUILD=false
 DESTROY=false
 DRY_RUN=false
 AUTO_APPROVE=false
+API_CIDR=""
+CLOSE_API=false
+
+# API_CIDR is set by resolve_api_cidr(); an IPv4 CIDR, e.g. "203.0.113.5/32".
+CIDR_REGEX='^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$'
 
 # Populated as the script progresses; used by cleanup() on exit.
 PF_PID=""
@@ -187,6 +203,10 @@ parse_args() {
                 ZONE_ID="$2"; shift 2 ;;
             --config-export)
                 CONFIG_EXPORT_FILE="$2"; shift 2 ;;
+            --api-cidr)
+                API_CIDR="$2"; shift 2 ;;
+            --close-api)
+                CLOSE_API=true; shift ;;
             --skip-build)
                 SKIP_BUILD=true; shift ;;
             --destroy)
@@ -213,7 +233,7 @@ parse_args() {
 }
 
 show_help() {
-    sed -n '2,64p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,77p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # ============================================================================
@@ -423,6 +443,143 @@ preflight_checks() {
 }
 
 # ============================================================================
+# PHASE 1.5: EKS Public Endpoint (T366)
+#
+# Runs before any terraform or kubectl step, including --destroy: the
+# kubernetes/helm terraform providers and this script's own kubectl calls
+# (pre_destroy_cleanup, apply_overlay, etc.) all need a reachable public
+# endpoint from wherever this script is run, not just from home.
+# ============================================================================
+
+# Resolve the /32 to allow on the EKS public endpoint into API_CIDR: either
+# --api-cidr verbatim, or home.efitz.net's current address. Warns (does not
+# fail) when that /32 differs from this machine's own current public IP,
+# since deploying from somewhere other than home would otherwise lock this
+# machine's own kubectl/terraform out once the endpoint is restricted.
+resolve_api_cidr() {
+    log_step "Phase 1.5a: Resolve EKS API CIDR"
+
+    if [[ -n "${API_CIDR}" ]]; then
+        if [[ ! "${API_CIDR}" =~ ${CIDR_REGEX} ]]; then
+            log_error "--api-cidr must be an IPv4 CIDR (e.g. 203.0.113.5/32), got: ${API_CIDR}"
+            exit 1
+        fi
+        log_info "Using --api-cidr override: ${API_CIDR}"
+    else
+        local resolved
+        resolved=$(dig +short home.efitz.net A 2>/dev/null | grep -E '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$' | tail -n1 || true)
+        if [[ -z "${resolved}" ]]; then
+            resolved=$(python3 -c 'import socket; print(socket.gethostbyname("home.efitz.net"))' 2>/dev/null || true)
+        fi
+        if [[ -z "${resolved}" ]]; then
+            log_error "Could not resolve home.efitz.net to an IPv4 address."
+            echo "  Pass --api-cidr <ip>/32 to set the EKS public endpoint allowlist explicitly."
+            exit 1
+        fi
+        API_CIDR="${resolved}/32"
+        log_success "Resolved home.efitz.net -> ${API_CIDR}"
+    fi
+
+    local current_ip
+    current_ip=$(curl -s --max-time 5 https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]' || true)
+    if [[ -n "${current_ip}" ]] && [[ "${API_CIDR}" != "${current_ip}/32" ]]; then
+        log_warning "EKS API CIDR (${API_CIDR}) differs from this machine's current public IP (${current_ip}/32)."
+        log_warning "If this deploy is not from home, this machine's own kubectl/terraform will be"
+        log_warning "locked out once the endpoint is restricted. Rerun with --api-cidr ${current_ip}/32"
+        log_warning "to allow this location instead."
+    fi
+}
+
+# Idempotently point the EKS public endpoint's allowlist at API_CIDR. EKS
+# rejects a no-op update-cluster-config call, so this compares against the
+# live cluster first and only calls the API when something would actually
+# change. If the cluster does not exist yet, generate_tfvars() passes
+# API_CIDR into eks_public_access_cidrs for the initial apply instead.
+sync_eks_public_access() {
+    log_step "Phase 1.5b: Sync EKS Public Endpoint"
+
+    local cluster_name="${NAME_PREFIX}-eks"
+    local current_json describe_err err_file
+    err_file=$(mktemp -t tmi-eks-describe-err)
+    if ! current_json=$(aws eks describe-cluster --name "${cluster_name}" --region "${REGION}" \
+        --query 'cluster.resourcesVpcConfig.{public:endpointPublicAccess,cidrs:publicAccessCidrs}' \
+        --output json 2>"${err_file}"); then
+        describe_err=$(cat "${err_file}" 2>/dev/null || true)
+        rm -f "${err_file}"
+        if [[ "${describe_err}" == *"ResourceNotFoundException"* ]]; then
+            log_info "EKS cluster ${cluster_name} does not exist yet — ${API_CIDR} will be set via terraform.tfvars on create."
+            return 0
+        fi
+        log_error "Could not read EKS cluster ${cluster_name}'s public endpoint config:"
+        echo "  ${describe_err}"
+        exit 1
+    fi
+    rm -f "${err_file}"
+
+    local current_public current_cidrs
+    current_public=$(jq -r '.public' <<<"${current_json}")
+    current_cidrs=$(jq -r '.cidrs | sort | join(",")' <<<"${current_json}")
+
+    if [[ "${current_public}" == "true" ]] && [[ "${current_cidrs}" == "${API_CIDR}" ]]; then
+        log_success "EKS public endpoint already restricted to ${API_CIDR} — no update needed"
+        return 0
+    fi
+
+    if [[ "${DRY_RUN}" == "true" ]]; then
+        log_info "Dry run: would run 'aws eks update-cluster-config' (public=${current_public}, cidrs=${current_cidrs:-none} -> ${API_CIDR})"
+        return 0
+    fi
+
+    log_info "Restricting EKS public endpoint to ${API_CIDR} (was: ${current_cidrs:-none}, public=${current_public})..."
+    aws eks update-cluster-config --name "${cluster_name}" --region "${REGION}" \
+        --resources-vpc-config "endpointPublicAccess=true,publicAccessCidrs=${API_CIDR}" >/dev/null
+    log_info "Waiting for cluster to become ACTIVE..."
+    aws eks wait cluster-active --name "${cluster_name}" --region "${REGION}"
+    log_success "EKS public endpoint restricted to ${API_CIDR}"
+}
+
+# --close-api: fully disable the public endpoint rather than pointing it at a
+# placeholder CIDR. EKS requires at least one CIDR whenever
+# endpointPublicAccess=true, so a "closed but technically open" placeholder
+# (e.g. 192.0.2.1/32) is the only alternative there — and it is unverifiable
+# read-only, since confirming EKS actually rejects that address needs a
+# mutating call to test. endpointPublicAccess=false is the documented,
+# honestly-closed state: endpoint_private_access stays true (module
+# default), so nodes and the ALB controller are unaffected; only the
+# deployer's own kubectl/terraform access closes. The next deploy (or a
+# manual sync_eks_public_access) reopens it to API_CIDR.
+# aws_eks_cluster.tmi's lifecycle.ignore_changes covers both
+# vpc_config[0].public_access_cidrs and vpc_config[0].endpoint_public_access,
+# so Terraform does not fight this.
+close_eks_public_access() {
+    log_step "Closing EKS Public Endpoint (--close-api)"
+
+    local cluster_name="${NAME_PREFIX}-eks"
+    local current_public
+    # This only runs right after verify_deployment succeeded against this
+    # cluster, so describe-cluster failing here is a real error (permissions,
+    # throttling), not "cluster doesn't exist yet" — fail loud rather than
+    # silently skipping the close the caller asked for.
+    if ! current_public=$(aws eks describe-cluster --name "${cluster_name}" --region "${REGION}" \
+        --query 'cluster.resourcesVpcConfig.endpointPublicAccess' --output text); then
+        log_error "Could not read EKS cluster ${cluster_name}'s public endpoint state; not closing it."
+        exit 1
+    fi
+
+    if [[ "${current_public}" == "False" ]]; then
+        log_success "EKS public endpoint already closed"
+        return 0
+    fi
+
+    log_warning "Disabling the EKS public endpoint. Terraform/kubectl from any location will fail"
+    log_warning "until the next deploy (or a manual 'aws eks update-cluster-config') reopens it."
+    aws eks update-cluster-config --name "${cluster_name}" --region "${REGION}" \
+        --resources-vpc-config "endpointPublicAccess=false" >/dev/null
+    aws eks wait cluster-active --name "${cluster_name}" --region "${REGION}"
+    log_success "EKS public endpoint closed"
+}
+
+# ============================================================================
 # PHASE 2: Terraform (infrastructure only, including the 5 ECR repos)
 # ============================================================================
 
@@ -587,6 +744,11 @@ generate_tfvars() {
 
 aws_region  = "${REGION}"
 name_prefix = "${NAME_PREFIX}"
+
+# EKS public API endpoint allowlist (T366). Kept in sync out of band by
+# sync_eks_public_access() on every deploy; this only matters for the
+# cluster's initial creation.
+eks_public_access_cidrs = ["${API_CIDR}"]
 
 # Certificate (ACM) + DNS
 domain_name    = "${DOMAIN}"
@@ -1083,6 +1245,8 @@ main() {
     parse_args "$@"
 
     preflight_checks
+    resolve_api_cidr
+    sync_eks_public_access
     terraform_deploy
 
     if [[ "${DESTROY}" == "true" ]] || [[ "${DRY_RUN}" == "true" ]]; then
@@ -1104,6 +1268,10 @@ main() {
     upsert_cname
     import_config
     verify_deployment
+
+    if [[ "${CLOSE_API}" == "true" ]]; then
+        close_eks_public_access
+    fi
 
     log_success "Deployment complete!"
 }

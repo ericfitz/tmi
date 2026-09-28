@@ -32,6 +32,12 @@ variable "kubernetes_version" {
   default     = null
 }
 
+variable "eks_public_access_cidrs" {
+  description = "CIDRs allowed to reach the EKS public API endpoint. Set by scripts/deploy-aws.sh at deploy time (T366); null falls through to the kubernetes module's own default (0.0.0.0/0). The EKS cluster resource ignores later drift on this attribute, since deploy-aws.sh keeps it in sync out of band."
+  type        = list(string)
+  default     = null
+}
+
 variable "db_name" {
   description = "Name of the PostgreSQL database"
   type        = string
