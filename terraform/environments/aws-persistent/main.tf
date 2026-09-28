@@ -15,6 +15,7 @@
 # - S3 log bucket (CloudTrail, ALB access logs, VPC flow logs), 30 d retention
 # - CloudTrail (multi-region) to S3 + CloudWatch Logs
 # - SNS security alert topic + EventBridge rules for sensitive API calls
+# - RDS FreeStorageSpace alarm on the aws-public database, to the same topic
 # - IAM Access Analyzer (account)
 #
 # Run with: export AWS_PROFILE=tmi
@@ -435,6 +436,36 @@ resource "aws_cloudwatch_event_target" "security" {
   for_each = local.alert_rules
   rule     = aws_cloudwatch_event_rule.security[each.key].name
   arn      = aws_sns_topic.security_alerts.arn
+}
+
+################################################################################
+# RDS storage alarm (T362)
+################################################################################
+
+# Early warning before max_allocated_storage autoscaling (aws-public) would
+# even need to kick in. 2 GiB threshold, two consecutive 5-minute breaches so
+# a single sampling blip does not page. treat_missing_data = "missing" (the
+# default, set explicitly): this stack outlives the RDS instance, so a
+# destroyed/not-yet-created aws-public database must not be treated as a
+# breach.
+resource "aws_cloudwatch_metric_alarm" "rds_free_storage_space" {
+  alarm_name          = "tmi-rds-free-storage-space-low"
+  alarm_description   = "RDS free storage space on ${var.rds_instance_identifier} is below 2 GiB"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "FreeStorageSpace"
+  namespace           = "AWS/RDS"
+  period              = 300
+  statistic           = "Average"
+  threshold           = 2 * 1024 * 1024 * 1024 # 2 GiB, in bytes (the metric's unit)
+  treat_missing_data  = "missing"
+
+  dimensions = {
+    DBInstanceIdentifier = var.rds_instance_identifier
+  }
+
+  alarm_actions = [aws_sns_topic.security_alerts.arn]
+  ok_actions    = [aws_sns_topic.security_alerts.arn]
 }
 
 ################################################################################

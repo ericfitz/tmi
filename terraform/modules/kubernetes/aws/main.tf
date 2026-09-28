@@ -93,6 +93,15 @@ resource "aws_eks_cluster" "tmi" {
     aws_iam_role_policy_attachment.eks_vpc_resource_controller,
     aws_cloudwatch_log_group.eks_cluster,
   ]
+
+  # T366: scripts/deploy-aws.sh keeps the public endpoint's CIDR allowlist
+  # in sync out of band with `aws eks update-cluster-config`, ahead of every
+  # terraform/kubectl step. Without ignore_changes, the next `terraform apply`
+  # would revert that live change back to var.public_access_cidrs, and EKS
+  # rejects a no-op update-cluster-config call, so the two must not fight.
+  lifecycle {
+    ignore_changes = [vpc_config[0].public_access_cidrs]
+  }
 }
 
 # ============================================================================
