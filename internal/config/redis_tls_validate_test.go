@@ -18,4 +18,12 @@ func TestValidate_RedisTLSNeedsCAFile(t *testing.T) {
 	if err := c.validateDatabase(); err != nil {
 		t.Fatalf("valid TLS config rejected: %v", err)
 	}
+
+	u := &Config{Database: DatabaseConfig{
+		URL:   "postgres://u:p@localhost:5432/db",
+		Redis: RedisConfig{URL: "rediss://redis.example:6380"},
+	}}
+	if err := u.validateDatabase(); err == nil || !strings.Contains(err.Error(), "TMI_REDIS_TLS_CA_FILE") {
+		t.Fatalf("rediss:// URL without CA file must be rejected, got %v", err)
+	}
 }

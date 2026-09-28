@@ -14,7 +14,7 @@ import (
 )
 
 // ConfigFromUnified converts unified config to auth-specific config
-// SEM@72ef5c64a4ca8965f90ee105cc73893284c60b1a: convert the unified application config to the auth-package Config struct (pure)
+// SEM@new: convert the unified application config, including Redis TLS settings, to the auth-package Config (pure)
 func ConfigFromUnified(unified *config.Config) Config {
 	return Config{
 		Database: DatabaseConfig{
@@ -27,10 +27,12 @@ func ConfigFromUnified(unified *config.Config) Config {
 			ConnMaxIdleTime: unified.Database.ConnectionPool.ConnMaxIdleTime,
 		},
 		Redis: RedisConfig{
-			Host:     unified.Database.Redis.Host,
-			Port:     unified.Database.Redis.Port,
-			Password: unified.Database.Redis.Password,
-			DB:       unified.Database.Redis.DB,
+			Host:       unified.Database.Redis.Host,
+			Port:       unified.Database.Redis.Port,
+			Password:   unified.Database.Redis.Password,
+			DB:         unified.Database.Redis.DB,
+			TLSEnabled: unified.Database.Redis.TLSEnabled,
+			TLSCAFile:  unified.Database.Redis.TLSCAFile,
 		},
 		JWT: JWTConfig{
 			Secret:              unified.Auth.JWT.Secret,
