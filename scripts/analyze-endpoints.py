@@ -17,13 +17,11 @@ Usage: uv run scripts/analyze-endpoints.py
 """
 
 import json
-import os
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
-import subprocess
+from typing import Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -604,7 +602,7 @@ def main():
             print("Usage: uv run scripts/analyze-endpoints.py [project_root]")
             sys.exit(1)
 
-    print(f"🚀 Starting TMI API endpoint analysis...")
+    print("🚀 Starting TMI API endpoint analysis...")
     print(f"📁 Project root: {project_root}")
 
     analyzer = EndpointAnalyzer(project_root)

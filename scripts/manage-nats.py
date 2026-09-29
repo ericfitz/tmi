@@ -22,7 +22,6 @@ from tmi_common import (  # noqa: E402
     log_warn,
     remove_container,
     stop_container,
-    wait_for_container_ready,
 )
 
 # ---------------------------------------------------------------------------

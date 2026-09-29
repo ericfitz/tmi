@@ -83,7 +83,7 @@ def cmd_start(args: argparse.Namespace) -> None:
             break
         time.sleep(0.5)
     else:
-        log_error(f"Failed to start OAuth stub (timeout after 5s)")
+        log_error("Failed to start OAuth stub (timeout after 5s)")
         pid_file.unlink(missing_ok=True)
         sys.exit(1)
 
@@ -173,7 +173,7 @@ def cmd_status(args: argparse.Namespace) -> None:
     # Step 2: No valid PID file — check for orphans via port
     orphan_pids = get_pids_on_port(STUB_PORT)
     if orphan_pids:
-        log_warn(f"OAuth stub is running but no PID file found")
+        log_warn("OAuth stub is running but no PID file found")
         log_info(f"PIDs: {orphan_pids}")
         return
 

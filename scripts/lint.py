@@ -88,6 +88,12 @@ def main() -> None:
         cwd=project_root,
     )
 
+    log_info("Checking Python scripts for undefined names and unused imports (ruff F)...")
+    run_cmd(
+        ["uvx", "ruff", "check", "--select", "F", "scripts"],
+        cwd=project_root,
+    )
+
     log_info("Running golangci-lint...")
     golangci = Path.home() / "go" / "bin" / "golangci-lint"
     run_cmd(

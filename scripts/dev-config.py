@@ -181,7 +181,7 @@ def cmd_restore(args: argparse.Namespace) -> None:
     finally:
         byproduct.unlink(missing_ok=True)
     log_success("Settings restored. Roll the server to pick up startup-read values:")
-    log_success(f"    kubectl -n tmi-platform rollout restart deploy/tmi-server")
+    log_success("    kubectl -n tmi-platform rollout restart deploy/tmi-server")
 
 
 def cmd_status(args: argparse.Namespace) -> None:
