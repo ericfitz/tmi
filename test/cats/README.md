@@ -9,7 +9,7 @@ tracked.
 ## Rule set and order
 
 `false-positives.yaml` is evaluated by the CATS plugin at
-`/Users/efitz/Projects/skills/cats/scripts/` (`catslib.rules`). Rules are
+`<cats-plugin>/scripts/` (`catslib.rules`). Rules are
 matched in **file order, first match wins** — this mirrors the sequential
 if-chain with early returns in the legacy Python function
 (`detect_false_positive()`, formerly in `scripts/parse_cats_results.py`,
@@ -47,7 +47,7 @@ If you intentionally change a rule's conditions (not just comments), update
    `test/results/cats/report-<run_id>/` instead of deleting it after parsing,
    or reuse an existing retained report directory.
 2. Write a short script that imports `catslib.rules` and `catslib.parse`
-   from `/Users/efitz/Projects/skills/cats/scripts/`, loads
+   from `<cats-plugin>/scripts/`, loads
    `false-positives.yaml` via `load_rules`, and for each classified record
    calls `match_rule` per rule (for `matched`) and `classify_record` /
    first-match iteration (for `fired`). Run it with

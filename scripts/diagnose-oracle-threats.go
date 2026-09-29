@@ -30,7 +30,7 @@ func main() {
 
 	walletLocation := os.Getenv("TNS_ADMIN")
 	if walletLocation == "" {
-		walletLocation = "/Users/efitz/Projects/tmi/wallet"
+		walletLocation = "wallet" // relative to the repo root
 	}
 
 	// Connect to Oracle
