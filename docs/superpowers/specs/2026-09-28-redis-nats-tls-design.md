@@ -104,3 +104,4 @@ half shipped in PR 4 (#971). Supersedes the plan's "Terraform CA" sketch
 
 - A Reloader roll of NATS wipes the emptyDir JetStream store (streams, consumers, payload bucket), about every 60 days on cert renewal. Accepted, the same trade-off as Redis. Re-ensuring streams after a NATS reconnect is a follow-up.
 - The integration-test Redis container also uses a password: a throwaway per-machine password in gitignored `.local/test-tls/`, delivered by redis.conf/--env-file and never argv.
+- Clusters that already run cert-manager (for example the Helm install on k3s-rp) keep it. The deploy scripts skip the vendored cert-manager apply when its CRDs and webhook Deployment already exist, still wait for the webhook, and then apply pki.yml. Reloader works the same way. Clusters without them (docker-desktop, AWS) get the vendored versions. (Eric, 2026-09-29)
