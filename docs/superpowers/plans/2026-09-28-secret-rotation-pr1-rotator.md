@@ -14,6 +14,8 @@
 
 HUMAN DECISIONS (Eric, 2026-09-28): (A) item 4 is OUT of #965: webhook secrets (plaintext `WebhookSubscription.Secret`) and content-token key rotation get a separate issue; PR 1 re-encrypts `system_settings` only. (B) item 7 is IN scope: Redis persistence (PVC + AOF) is Task 5 of this plan, for every cluster flavour that runs in-cluster Redis. All other items keep the defaults stated below.
 
+HUMAN DECISIONS (Eric, 2026-09-29): single EBS CSI controller replica (TMI runs stateful single-instance pods); Task 5 step 5 sets `controller.replicaCount = 1`.
+
 Nothing here changes an approved decision; each item is a place where the spec text is infeasible or silent, and the plan records the choice it makes so it can be overturned cheaply.
 
 0. **Resolved while planning:** `TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID` is not seeded by Terraform and is `optional: true` on the server (an existing `tmi-secrets` never gains keys from Terraform once `ignore_changes` is on; a missing id means 1), so nothing wedges on the first AWS apply.
@@ -32,7 +34,7 @@ Nothing here changes an approved decision; each item is a place where the spec t
 - `deployments/k8s/dev/server.yml` carries `reloader.stakater.com/auto: "true"` and reads `TMI_REDIS_PASSWORD`, `TMI_REDIS_TLS_ENABLED=true`, `TMI_REDIS_TLS_CA_FILE=/etc/tmi-redis-tls/ca.crt` (Secret `redis-tls` mounted at `/etc/tmi-redis-tls`).
 - `scripts/lib/deploy.py` creates `tmi-secrets` with a random `TMI_REDIS_PASSWORD` on docker-desktop/k3s when absent (PR 6 plan names it `ensure_redis_password_secret()`). It must merge, never replace: this plan adds keys to the same function.
 - `auth/db.RedisConfig` gained `TLSEnabled bool` and `TLSCAFile string`; `internal/tlsconfig.Load(caFile, certFile, keyFile string) (*tls.Config, error)` exists.
-- `deployments/k8s/platform/reloader.yml` is applied by `deploy.py apply_platform_base` and `deploy-aws.sh apply_platform_base`.
+- `deployments/k8s/platform/reloader.yml` is applied by `deploy.py apply_platform_base` and `deploy-aws.sh apply_platform_base`, except where a Helm-managed Reloader (or cert-manager) already exists, which is reused instead (PR 6 as merged; k3s-rp is such a cluster, so Task 14's Reloader check runs against the Helm install there).
 - Reloader rolls a Deployment when the **data** of a referenced Secret changes; annotation-only changes do not roll (confirmed on k3s in Task 14 before relying on it).
 
 ## Global Constraints
@@ -1589,6 +1591,11 @@ resource "aws_eks_addon" "ebs_csi" {
   addon_version            = data.aws_eks_addon_version.ebs_csi.version
   service_account_role_arn = aws_iam_role.ebs_csi.arn
 
+  # One controller replica (Eric, 2026-09-29): TMI runs stateful
+  # single-instance pods and the two-node group is close to its pod ceiling.
+  # Upstream default is 2; the schema key is controller.replicaCount.
+  configuration_values = jsonencode({ controller = { replicaCount = 1 } })
+
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
 
@@ -1618,7 +1625,9 @@ resource "kubernetes_storage_class_v1" "gp3" {
 }
 ```
 
-Pod-ceiling check (the module's comment on the two-node group explains that a t3.medium tops out at 17 pods and the platform sits at 16 at rest): the addon adds a 2-replica `ebs-csi-controller` Deployment and one `ebs-csi-node` DaemonSet pod per node. Run
+Pod-ceiling check (the module's comment on the two-node group explains that a t3.medium tops out at 17 pods and the platform sits at 16 at rest): with `controller.replicaCount = 1` the addon adds one `ebs-csi-controller` pod plus one `ebs-csi-node` DaemonSet pod per node. The DaemonSet stays on both nodes: nothing pins Redis to a node (`redis.yml` has no `nodeSelector`/`affinity`; `WaitForFirstConsumer` + `ReadWriteOnce` + `Recreate` let the scheduler pick, and the node agent must run wherever the volume attaches), so do not set `node.nodeSelector`. Total addon pods = 3; the platform goes from 16 to 19 pods at rest against a 34-pod ceiling (2 nodes x 17), leaving surge room for one rolling workload at a time.
+
+The key was verified on 2026-09-29 against the public add-on catalogue (`describe-addon-configuration`, `aws-ebs-csi-driver` `v1.66.0-eksbuild.1` for EKS 1.36): `properties.controller.properties.replicaCount` is an integer, default 2, minimum 1. `data.aws_eks_addon_version` may resolve a newer build, so re-check before `terraform plan`:
 
 ```bash
 cd /Users/efitz/Projects/tmi-965/terraform/environments/aws-public
@@ -1627,11 +1636,11 @@ AWS_PROFILE=tmi aws eks describe-addon-configuration --addon-name aws-ebs-csi-dr
   --query configurationSchema --output text | jq '.properties.controller.properties | keys'
 ```
 
-If `replicaCount` is in the list, add `configuration_values = jsonencode({ controller = { replicaCount = 1 } })` to `aws_eks_addon.ebs_csi` (two pods on a two-node cluster: one controller, one node agent per node, plus Redis's PVC costs nothing). If it is not, record in the PR body that the platform goes from 16 to 20 pods at rest against a 34-pod ceiling (2 nodes x 17), still leaving surge room for one rolling workload at a time.
+Expected: `replicaCount` is in the list. If a newer build dropped or renamed it, stop and report; do not remove `configuration_values` (that silently reverts to 2 replicas). After Eric's deferred apply, verify `kubectl -n kube-system get deploy ebs-csi-controller` shows `1/1` and `kubectl -n kube-system get ds ebs-csi-node` shows `2/2` (record both in the PR body at the deferred AWS deploy).
 
 Then `AWS_PROFILE=tmi terraform init -backend-config=backend.hcl && AWS_PROFILE=tmi terraform validate && AWS_PROFILE=tmi terraform plan` from `terraform/environments/aws-public`; expected: 4 to add (`aws_iam_role.ebs_csi`, `aws_iam_role_policy_attachment.ebs_csi`, `aws_eks_addon.ebs_csi`, `kubernetes_storage_class_v1.gp3`), nothing changed or destroyed. Do **not** apply; Eric applies at the deferred AWS deploy (same rule as PR 6 Task 6 step 6). Add a paragraph "Redis persistence" to `deployments/k8s/dev/aws/README.md` next to the "NATS storage class" section: the base PVC, the `gp3` patch, the Terraform addon/StorageClass, and that the first `kubectl apply -k` after the Terraform apply creates the volume (about a minute before Redis is Ready).
 
-In `scripts/lib/deploy.py`, PR 6's `ensure_redis_password_secret()` docstring (or the `start()` comment next to its call) says "Redis has no persistence; nothing to migrate" for `dev-nuke`. Change it to: "`dev-nuke` deletes the namespace, which takes tmi-secrets AND the redis-data PVC together, so the next start() regenerates the password against an empty Redis; `dev-down` keeps both."
+In `scripts/lib/deploy.py`, add to the `ensure_redis_password_secret()` docstring (as merged in PR 6 it says nothing about persistence): "`dev-nuke` deletes the namespace, which takes tmi-secrets AND the redis-data PVC together, so the next start() regenerates the password against an empty Redis; `dev-down` keeps both."
 
 - [ ] **Step 6: Verify on docker-desktop: render, AOF on, session survives a Redis restart**
 
@@ -3041,7 +3050,7 @@ def ensure_settings_key_seeded() -> None:
     log_success("Secret/tmi-secrets seeded with a settings encryption key (id 1)")
 ```
 
-Call it from `start()` right after `ensure_redis_password_secret()`. Imports needed at the top of `deploy.py`: `base64`, `json`, `secrets`, `tempfile` (check which already exist). In the `dev-down`/`stop` cleanup list (line ~1210), `tmi-secrets` must NOT be deleted while the Postgres PVC survives (encrypted rows would become unreadable), and the `redis-data` PVC (Task 5) is not in that list either, so the `ENC:` sessions it holds stay readable; add a comment next to the kept `tmi-oauth-providers` explaining both. `dev-nuke` deletes the namespace and the PVC together, which is consistent.
+Call it from both `start()` and `restart()` right after their `ensure_redis_password_secret()` calls (PR 6 as merged has `restart()` re-run `ensure_redis_password_secret()` and `apply_platform_base()` too, `deploy.py:1259`). Imports needed at the top of `deploy.py`: `base64`, `json`, `secrets`, `tempfile` (check which already exist). In the `dev-down`/`stop` cleanup list (line ~1210), `tmi-secrets` must NOT be deleted while the Postgres PVC survives (encrypted rows would become unreadable), and the `redis-data` PVC (Task 5) is not in that list either, so the `ENC:` sessions it holds stay readable; add a comment next to the kept `tmi-oauth-providers` explaining both. `dev-nuke` deletes the namespace and the PVC together, which is consistent.
 
 The server now reads the settings key from env, which beats `config-development.yml`; no change to that file.
 
@@ -3239,7 +3248,7 @@ git commit -m "feat(terraform): hand tmi-secrets to the rotator, drop redis/sett
 ### Task 12: Integration tests and harness settings key
 
 **Files:**
-- Modify: `scripts/run-integration-tests.py:318-340` (`start_test_server_container`) and `test/integration/framework` env plumbing
+- Modify: `scripts/run-integration-tests.py:330` (`start_test_server_container`; the harness NATS is `tmi-nats-itest` on 4223 and `ensure_redis` rejects a stale plaintext container, neither affects this task) and `test/integration/framework` env plumbing
 - Create: `test/integration/workflows/secret_rotation_test.go`
 - Modify: `test/integration/go.mod` (`go mod tidy` in `test/integration` if a new package is imported; memory: a stale module silently skips tests)
 
