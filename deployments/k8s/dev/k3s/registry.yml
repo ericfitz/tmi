@@ -1,6 +1,6 @@
 # In-cluster image registry for the k3s (CLUSTER=k3s) dev target.
 #
-# The Mac builds arm64 images and pushes them to this registry at rp2:30500
+# The Mac builds arm64 images and pushes them to this registry at <node>:30500
 # (NodePort 30500). The k3s nodes pull from it via a one-time
 # /etc/rancher/k3s/registries.yaml mirror entry (see README-node-setup.md).
 #

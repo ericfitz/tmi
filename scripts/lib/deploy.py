@@ -47,9 +47,12 @@ ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # publishes the NodePort directly on the host (only the former kind cluster did
 # that via extraPortMappings). The port-forward replaces the removed kind path;
 # for high-throughput testing (CATS) against k3s, hit the NodePort at
-# rp2:30080 directly — the userspace forward throttles under load (#463).
+# <node>:30080 directly — the userspace forward throttles under load (#463).
 # KEEP NODE_PORT IN SYNC with server.yml/server-oracle.yml (.spec.ports[].nodePort).
 HOST_PORT = 8080
+# Placeholder registry host in the tracked k3s overlay; keep byte-identical with
+# deployments/k8s/dev/k3s/kustomization.yaml and patches/*.yaml.
+K3S_REGISTRY_PLACEHOLDER = "k3s-registry.invalid:30500"
 NODE_PORT = 30080
 SERVER_URL = f"http://localhost:{HOST_PORT}"
 
@@ -385,7 +388,7 @@ def _guard_context(skip: bool, cluster_target: str = "docker-desktop") -> str:
 def build_and_push(db: str, cluster_target: str = "docker-desktop") -> None:
     """Build all images and deliver them to the target cluster.
 
-    k3s -> push to the in-cluster registry at rp2:30500; docker-desktop ->
+    k3s -> push to the in-cluster registry at <node>:30500; docker-desktop ->
     import straight into the DD node's containerd via `docker save | ctr import`
     (no registry, no push). The Mac and the k3s nodes are both arm64, so a plain
     host-arch `docker build` already produces arm64 images — no buildx/--platform
@@ -448,7 +451,7 @@ def apply_platform_base() -> None:
     Namespace tmi-platform must already exist (ensure_namespace())."""
     project_root = get_project_root()
     platform = project_root / PLATFORM_DIR
-    # Keep only Helm-managed cert-manager/Reloader installs (e.g. k3s-rp): the
+    # Keep only Helm-managed cert-manager/Reloader installs (e.g. a k3s cluster): the
     # vendored apply would fight Helm's field manager. Everything else (fresh or
     # our own vendored install) gets the vendored manifests re-applied (idempotent
     # via SSA). Leftover-CRD recovery: after a Helm uninstall the CRDs stay with
@@ -555,12 +558,12 @@ def ensure_redis_password_secret() -> None:
 def ensure_k3s_registry() -> None:
     """Apply the in-cluster registry and wait for it (k3s prerequisite before push).
 
-    The Mac builds images and pushes them to this registry (rp2:30500), and the
+    The Mac builds images and pushes them to this registry, and the
     nodes pull from it, so it must be Running before build_and_push."""
     project_root = get_project_root()
     kubectl(["apply", "-f", str(project_root / DEV_DIR / "k3s" / "registry.yml")])
     kubectl(["-n", NS, "rollout", "status", "deploy/registry", "--timeout=180s"])
-    log_success("In-cluster registry ready (rp2:30500)")
+    log_success("In-cluster registry ready")
 
 
 def apply_incluster_postgres(cluster_target: str) -> None:
@@ -592,6 +595,10 @@ def create_embedding_secret() -> None:
          f"--from-literal=api-key={key}", "--dry-run=client", "-o", "yaml"],
         capture=True,
     ).stdout
+    if cluster_target == "k3s":
+        # The tracked overlay carries a placeholder registry; swap in the real
+        # one from .local/k3s.json (same source build_and_push tags from).
+        rendered = rendered.replace(K3S_REGISTRY_PLACEHOLDER + "/", cluster.registry_for("k3s") + "/")
     kubectl(["apply", "-f", "-"], input_text=rendered)
 
 
@@ -643,6 +650,10 @@ def create_oauth_providers_secret() -> None:
          "--from-env-file", str(path), "--dry-run=client", "-o", "yaml"],
         capture=True,
     ).stdout
+    if cluster_target == "k3s":
+        # The tracked overlay carries a placeholder registry; swap in the real
+        # one from .local/k3s.json (same source build_and_push tags from).
+        rendered = rendered.replace(K3S_REGISTRY_PLACEHOLDER + "/", cluster.registry_for("k3s") + "/")
     kubectl(["apply", "-f", "-"], input_text=rendered)
     log_success("OAuth/SAML provider config delivered as Secret/tmi-oauth-providers")
 
@@ -682,6 +693,10 @@ def create_oracle_wallet_secret() -> None:
          f"--from-file=wallet.zip={wallet}", "--dry-run=client", "-o", "yaml"],
         capture=True,
     ).stdout
+    if cluster_target == "k3s":
+        # The tracked overlay carries a placeholder registry; swap in the real
+        # one from .local/k3s.json (same source build_and_push tags from).
+        rendered = rendered.replace(K3S_REGISTRY_PLACEHOLDER + "/", cluster.registry_for("k3s") + "/")
     kubectl(["apply", "-f", "-"], input_text=rendered)
     log_success("oracle wallet delivered as Secret/tmi-oracle-wallet")
 
@@ -712,6 +727,10 @@ def create_oracle_db_secret() -> None:
          "--dry-run=client", "-o", "yaml"],
         capture=True,
     ).stdout
+    if cluster_target == "k3s":
+        # The tracked overlay carries a placeholder registry; swap in the real
+        # one from .local/k3s.json (same source build_and_push tags from).
+        rendered = rendered.replace(K3S_REGISTRY_PLACEHOLDER + "/", cluster.registry_for("k3s") + "/")
     kubectl(["apply", "-f", "-"], input_text=rendered)
     log_success("oracle DB connection delivered as Secret/tmi-oracle-db")
 
@@ -729,6 +748,10 @@ def apply_overlay(db: str, cluster_target: str = "docker-desktop") -> None:
          str(project_root / overlay_dir_for(db, cluster_target))],
         capture=True,
     ).stdout
+    if cluster_target == "k3s":
+        # The tracked overlay carries a placeholder registry; swap in the real
+        # one from .local/k3s.json (same source build_and_push tags from).
+        rendered = rendered.replace(K3S_REGISTRY_PLACEHOLDER + "/", cluster.registry_for("k3s") + "/")
     kubectl(["apply", "-f", "-"], input_text=rendered)
 
 
@@ -911,7 +934,7 @@ def start_server_port_forward() -> None:
 
     Neither target publishes the server NodePort directly on the host, so we
     preserve the localhost:8080 contract with a port-forward. (For CATS/high-
-    throughput against k3s, hit the NodePort at rp2:30080 directly — the
+    throughput against k3s, hit the NodePort at <node>:30080 directly — the
     userspace forward throttles under load, the #463 problem.) Stops only a
     prior SERVER forward so it does not disturb the redis forward started
     just before it. The forward is supervised so it survives server pod rolls

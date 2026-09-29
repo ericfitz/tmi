@@ -1,110 +1,94 @@
 # k3s dev target — one-time host & node setup
 
-`make dev-up CLUSTER=k3s` deploys TMI to the remote **k3s-rp** cluster
-(nodes `rp2`/`rp3`/`rp4` = `192.168.1.2`/`.3`/`.4`, all arm64). Images are served
-from an in-cluster registry at **`rp2:30500`** (plain HTTP). Two one-time,
-out-of-band configuration steps are required before the first `dev-up CLUSTER=k3s`,
-because they need root/SSH on machines the dev tooling cannot reach.
+`make dev-up CLUSTER=k3s` deploys TMI to a remote k3s cluster you own (all nodes
+arm64 in the reference setup). Images are served from an in-cluster registry at
+**`<registry>`** (`<node1>:30500`, plain HTTP). Lab-specific values (kube context,
+registry, node host) live in the untracked **`.local/k3s.json`**; copy
+`deployments/k8s/dev/k3s/k3s.json.example` there and fill it in. Machine-specific
+notes (real names/IPs) can go in `.local/k3s-node-setup.md`.
 
-## 0. Mac: make `rp2` resolve reliably
+Two one-time, out-of-band configuration steps are required before the first
+`dev-up CLUSTER=k3s`, because they need root/SSH on machines the dev tooling
+cannot reach.
 
-The k3s kubeconfig context (`k3s-rp`) and the registry ref (`rp2:30500`) both use
-the bare short name `rp2`. On macOS that resolves only via mDNS (`rp2.local`), and
-the bare form is unreliable — in particular, kubectl's Go resolver returns
-`lookup rp2: no such host` right after the node reboots (mDNS hasn't re-advertised
-yet), which aborts `make dev-up CLUSTER=k3s` in pre-flight. Pin it in `/etc/hosts`
-so every resolver (kubectl, docker, curl) resolves it deterministically:
+## 0. Mac: make `<node1>` resolve reliably
+
+The k3s kubeconfig context (`<k3s-context>`) and the registry ref (`<registry>`) may
+use a bare short name. On macOS that resolves only via mDNS (`<node1>.local`), and
+mDNS is flaky: `dev-up` can fail with `lookup <node1>: no such host` right after the
+node reboots. Pin the name in `/etc/hosts`:
 
 ```bash
-echo "192.168.1.2  rp2" | sudo tee -a /etc/hosts
-# verify
-dscacheutil -q host -a name rp2   # -> ip_address: 192.168.1.2
+echo "<node1-ip>  <node1>" | sudo tee -a /etc/hosts
+dscacheutil -q host -a name <node1>   # -> ip_address: <node1-ip>
 ```
 
-One-time and persists across reboots. Use `rp2.local` or `192.168.1.2` directly if
-you prefer not to edit `/etc/hosts`, but then the kubeconfig server URL and the
-registry refs would need to match — pinning `rp2` keeps everything as-is.
+One-time and persists across reboots. Alternatively use the IP directly, but then
+`registry` in `.local/k3s.json` and the kube context server URL must match.
 
-## 1. Mac: trust the registry over plain HTTP
+## 1. Mac: allow the plain-HTTP registry in Docker
 
-The registry has no TLS, so the Docker daemon must treat `rp2:30500` as insecure,
-or `docker push` refuses it.
-
-Docker Desktop → **Settings → Docker Engine**, add `rp2:30500` to
-`insecure-registries`:
+The registry has no TLS, so the Docker daemon must treat `<registry>` as insecure.
+Docker Desktop -> **Settings -> Docker Engine**, add `<registry>` to
+`insecure-registries`, then **Apply & Restart**:
 
 ```json
 {
-  "insecure-registries": ["rp2:30500"]
+  "insecure-registries": ["<registry>"]
 }
 ```
 
-**Apply & Restart**. Verify:
+Verify:
 
 ```bash
-docker info 2>/dev/null | grep -A2 "Insecure Registries"   # should list rp2:30500
+docker info 2>/dev/null | grep -A2 "Insecure Registries"   # should list <registry>
 ```
 
-## 2. Each k3s node: mirror rp2:30500 over HTTP
+## 2. Each k3s node: mirror `<registry>` over HTTP
 
-containerd on every node must also be told the registry is plain HTTP, or pods
-fail to pull with an `http: server gave HTTP response to HTTPS client` error.
-
-On **each** node (`rp2`, `rp3`, `rp4`), create/merge
-`/etc/rancher/k3s/registries.yaml`. Note the endpoint is the **IP**
-`192.168.1.2` (rp2), not the hostname: the nodes do not resolve each other's
-bare hostnames (`lookup rp2: no such host`), so the mirror must dial an IP. The
-mirror *key* stays `rp2:30500` so image references and the Mac's Docker config
-are unchanged.
+k3s' containerd pulls from the registry over plain HTTP via a mirror. On **each**
+node create/merge `/etc/rancher/k3s/registries.yaml`, using **`<node1-ip>`**, not
+the hostname: nodes may not resolve each other's bare hostnames, so the mirror must
+dial an IP. The mirror *key* stays `<registry>` so image references and the Mac's
+Docker config are unchanged:
 
 ```yaml
 mirrors:
-  "rp2:30500":
+  "<registry>":
     endpoint:
-      - "http://192.168.1.2:30500"
+      - "http://<node1-ip>:30500"
 ```
 
-Then restart k3s so containerd reloads:
+Then restart the agent (`sudo systemctl restart k3s` on servers,
+`k3s-agent` on agents) and verify:
 
 ```bash
-# server nodes (this cluster is 3x control-plane):
-sudo systemctl restart k3s
+sudo k3s crictl pull <registry>/tmi-server:dev   # should succeed
 ```
 
-Verify a node can pull once an image has been pushed (after the first build):
+Optional helper to push the file to every node (requires SSH + sudo on each):
 
 ```bash
-sudo k3s crictl pull rp2:30500/tmi-server:dev   # should succeed
-```
-
-### Optional helper
-
-To push the file to all three nodes at once (requires SSH + sudo on each):
-
-```bash
-for n in rp2 rp3 rp4; do
+for n in <node1> <node2> <node3>; do
   ssh "$n" 'sudo mkdir -p /etc/rancher/k3s && \
-    printf "mirrors:\n  \"rp2:30500\":\n    endpoint:\n      - \"http://192.168.1.2:30500\"\n" | sudo tee /etc/rancher/k3s/registries.yaml >/dev/null && \
+    printf "mirrors:\n  \"<registry>\":\n    endpoint:\n      - \"http://<node1-ip>:30500\"\n" | sudo tee /etc/rancher/k3s/registries.yaml >/dev/null && \
     sudo systemctl restart k3s'
 done
 ```
 
-## 3. Configuration: what `dev-up` regenerates, and where browser origins live
+## 3. Server configuration
 
-`make dev-up CLUSTER=k3s` and `make dev-deploy CLUSTER=k3s` re-render the
-`tmi-server-config` ConfigMap from `config-development.yml` on **every** run
-(only the Postgres URL host is rewritten for the pod). Anything patched into the
-live ConfigMap with `kubectl edit`/`kubectl patch` is silently discarded on the
-next deploy, so put bootstrap changes in `config-development.yml`, not in the
-cluster. As of 2026-09-10 the live ConfigMap on k3s-rp is byte-identical to what
-the sources render (#774).
+`dev-up` regenerates the `tmi-server-config` ConfigMap from
+`config-development.yml` on **every** run (only the Postgres URL host is rewritten
+for the pod). Anything patched into the live ConfigMap with `kubectl edit`/`kubectl
+patch` is silently discarded on the next deploy, so put bootstrap changes in
+`config-development.yml`, not in the cluster.
 
 The ConfigMap carries **bootstrap keys only** (server, database, JWT secret,
 logging). Operational settings, including the OAuth callback allowlist that
-authorizes browser origins such as `http://rp2:30081/*`, live in the
-`system_settings` table and are read at request time (#419). Editing the
-`auth.oauth.client_callback_allowlist` block in the ConfigMap has no effect once
-the DB row exists. To authorize a new origin:
+authorizes browser origins such as `http://<node1>:30081/*`, live in the
+`system_settings` table and are read at request time (#419). To authorize a new
+origin:
 
 ```bash
 uv run scripts/set-server-setting.py --help    # PUT /admin/settings/auth.oauth.client_callback_allowlist
@@ -116,7 +100,6 @@ uv run scripts/set-server-setting.py --help    # PUT /admin/settings/auth.oauth.
 
 ## Notes
 
-- These steps are **idempotent** and only needed once per machine (they persist
-  across reboots). They do not affect the default `kind` dev path.
-- `rp2` must resolve from the Mac — pin it in `/etc/hosts` (step 0). Relying on
-  mDNS alone is what breaks `dev-up` after a node reboot.
+- These steps are **idempotent** and only needed once per machine.
+- `<node1>` must resolve from the Mac; relying on mDNS alone is what breaks
+  `dev-up` after a node reboot.
