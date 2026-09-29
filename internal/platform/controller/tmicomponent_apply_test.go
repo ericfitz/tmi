@@ -139,3 +139,27 @@ func TestApply_CreatesWhenAbsent(t *testing.T) {
 		t.Fatalf("object was not created: %v", err)
 	}
 }
+
+func TestLiveSatisfies_RequiresReloaderAnnotation(t *testing.T) {
+	rendered := RenderDeployment(deployComp())
+	live := rendered.DeepCopy()
+	if !liveSatisfies(rendered, live) {
+		t.Fatal("identical objects must satisfy")
+	}
+	delete(live.Annotations, "reloader.stakater.com/auto")
+	if liveSatisfies(rendered, live) {
+		t.Fatal("a live Deployment missing the Reloader annotation must be updated")
+	}
+	// Reloader mutates the live Deployment (env var + pod-template annotation);
+	// that must not read as drift or the controller loops.
+	live = rendered.DeepCopy()
+	c := &live.Spec.Template.Spec.Containers[0]
+	c.Env = append(c.Env, corev1.EnvVar{Name: "STAKATER_NATS_CLIENT_EXTRACTOR_SECRET", Value: "abc"})
+	if live.Spec.Template.Annotations == nil {
+		live.Spec.Template.Annotations = map[string]string{}
+	}
+	live.Spec.Template.Annotations["reloader.stakater.com/last-reload"] = "now"
+	if !liveSatisfies(rendered, live) {
+		t.Fatal("Reloader-added env var/annotation must not count as drift")
+	}
+}

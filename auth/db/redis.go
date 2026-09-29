@@ -9,17 +9,51 @@ import (
 
 	"github.com/ericfitz/tmi/internal/crypto"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/tlsconfig"
 	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 )
 
 // RedisConfig holds the configuration for Redis connection
-// SEM@d885c7955d5a30affb8ddde84ee1cf757aab2a6b: Redis connection configuration parameters (pure)
+// SEM@e50244f: Redis connection coordinates, credentials, and CA-pinned TLS settings (pure)
 type RedisConfig struct {
-	Host     string
-	Port     string
-	Password string
-	DB       int
+	Host       string
+	Port       string
+	Password   string
+	DB         int
+	TLSEnabled bool   // connect with TLS, verifying the server against TLSCAFile only
+	TLSCAFile  string // PEM CA file; required when TLSEnabled
+}
+
+// redisOptions builds the go-redis client options for cfg. With TLS on, the
+// only trusted CA is cfg.TLSCAFile and the server name checked is cfg.Host.
+// SEM@e50244f: build go-redis client options, adding CA-pinned TLS when enabled (pure)
+func redisOptions(cfg RedisConfig) (*redis.Options, error) {
+	opts := &redis.Options{
+		Addr:            fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
+		Password:        cfg.Password,
+		DB:              cfg.DB,
+		DialTimeout:     5 * time.Second,
+		ReadTimeout:     3 * time.Second,
+		WriteTimeout:    3 * time.Second,
+		PoolSize:        10,
+		MinIdleConns:    2,
+		ConnMaxLifetime: time.Hour,
+		ConnMaxIdleTime: 30 * time.Minute,
+	}
+	if !cfg.TLSEnabled {
+		return opts, nil
+	}
+	if cfg.TLSCAFile == "" {
+		return nil, fmt.Errorf("redis: TLS enabled but no CA file configured (TMI_REDIS_TLS_CA_FILE)")
+	}
+	tlsCfg, err := tlsconfig.Load(cfg.TLSCAFile, "", "")
+	if err != nil {
+		return nil, fmt.Errorf("redis: %w", err)
+	}
+	tlsCfg.ServerName = cfg.Host
+	opts.TLSConfig = tlsCfg
+	return opts, nil
 }
 
 // RedisDB represents a Redis database connection
@@ -68,23 +102,16 @@ func (db *RedisDB) SetEncryptor(enc *crypto.SettingsEncryptor) {
 }
 
 // NewRedisDB creates a new Redis database connection
-// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: connect to Redis with OpenTelemetry instrumentation and verify liveness
+// SEM@e50244f: connect to Redis (optionally TLS) with OpenTelemetry instrumentation and verify liveness
 func NewRedisDB(cfg RedisConfig) (*RedisDB, error) {
 	logger := slogging.Get()
-	logger.Debug("Initializing Redis connection to %s:%s DB=%d", cfg.Host, cfg.Port, cfg.DB)
-
-	client := redis.NewClient(&redis.Options{
-		Addr:            fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
-		Password:        cfg.Password,
-		DB:              cfg.DB,
-		DialTimeout:     5 * time.Second,
-		ReadTimeout:     3 * time.Second,
-		WriteTimeout:    3 * time.Second,
-		PoolSize:        10,
-		MinIdleConns:    2,
-		ConnMaxLifetime: time.Hour,
-		ConnMaxIdleTime: 30 * time.Minute,
-	})
+	opts, err := redisOptions(cfg)
+	if err != nil {
+		logger.Error("Invalid Redis configuration: %v", err)
+		return nil, err
+	}
+	logger.Debug("Initializing Redis connection to %s DB=%d tls=%v", opts.Addr, cfg.DB, cfg.TLSEnabled)
+	client := redis.NewClient(opts)
 
 	logger.Debug("Redis connection pool parameters: poolSize=10, minIdleConns=2, maxConnAge=1h, idleTimeout=30m")
 

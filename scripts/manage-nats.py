@@ -36,8 +36,10 @@ DEV_DEFAULTS = {
 }
 
 TEST_DEFAULTS = {
-    "container": "tmi-nats-test",
-    "port": 4222,
+    "container": "tmi-nats-itest",
+    # 4222 is the default for TMI_TEST_NATS_URL and ad-hoc dev NATS; the isolated
+    # harness container gets its own port like the test DB and Redis (#778).
+    "port": 4223,
     "image": "nats:2.10-alpine",
 }
 
@@ -72,6 +74,7 @@ def resolve_config(args: argparse.Namespace) -> dict:
     if args.test and not args.container:
         cfg["container"] = TEST_DEFAULTS["container"]
 
+    cfg["tls_dir"] = args.tls_dir
     return cfg
 
 
@@ -82,12 +85,18 @@ def resolve_config(args: argparse.Namespace) -> dict:
 
 def cmd_start(cfg: dict, args: argparse.Namespace) -> None:
     """Start the NATS container (create if needed)."""
+    tls_dir = cfg.get("tls_dir")
+    cmd_args = list(NATS_CMD_ARGS)
+    if tls_dir:
+        cmd_args += ["--tlsverify", "--tlscert", "/tls/nats.crt", "--tlskey", "/tls/nats.key",
+                     "--tlscacert", "/tls/ca.crt"]
     ensure_container(
         name=cfg["container"],
         host_port=cfg["port"],
         container_port=NATS_CONTAINER_PORT,
         image=cfg["image"],
-        cmd_args=NATS_CMD_ARGS,
+        volumes={str(Path(tls_dir).resolve()): "/tls"} if tls_dir else None,
+        cmd_args=cmd_args,
     )
     log_success(f"NATS container is running on port {cfg['port']}")
 
@@ -137,7 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--test",
         action="store_true",
         default=False,
-        help="Use test container (isolated from dev, container name: tmi-nats-test)",
+        help="Use test container (isolated from dev, container name: tmi-nats-itest)",
     )
     parser.add_argument(
         "--container",
@@ -157,6 +166,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="IMAGE",
         default=None,
         help="Override Docker image (default: nats:2.10-alpine)",
+    )
+    parser.add_argument(
+        "--tls-dir",
+        metavar="DIR",
+        default=None,
+        help="Directory with the harness PKI (ca.crt, nats.crt/.key; NATS then requires client certs); the container then runs TLS-only",
     )
     add_verbosity_args(parser)
 

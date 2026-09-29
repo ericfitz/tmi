@@ -37,7 +37,7 @@ spec:
         - protocol: TCP
           port: 8080
 ---
-# NATS has no auth or TLS yet (T356 follow-up), so this is its only control.
+# NATS speaks mTLS (PR 6); this policy is the network-layer control on top of it.
 # 4222: server, controller, and every TMIComponent worker (pods labelled
 # tmi.dev/component, created by the controller). 8222 (monitoring): KEDA's
 # nats-jetstream scaler reads consumer lag from it.

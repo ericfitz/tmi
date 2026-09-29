@@ -23,7 +23,10 @@ spec:
     # kube-proxy DNATs the ClusterIP to the nats pod, which the egress policy
     # permits. This preserves true "no DNS" — opening DNS egress would create a
     # DNS-exfiltration channel for a parser exploit, defeating the sandbox.
-    TMI_NATS_URL: nats://$(NATS_SERVICE_HOST):4222
+    TMI_NATS_URL: tls://$(NATS_SERVICE_HOST):4222
+    # The URL carries an IP, so tell the TLS client which SAN to verify
+    # (nats-tls is issued for nats / nats.tmi-platform.svc / ...cluster.local).
+    TMI_NATS_TLS_SERVER_NAME: nats
     TMI_CONTENT_EXTRACTORS_WALL_CLOCK_BUDGET: 30s
     TMI_JOB_ACK_WAIT: 90s
   resources:

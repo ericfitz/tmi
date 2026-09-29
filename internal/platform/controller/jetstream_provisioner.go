@@ -7,6 +7,7 @@ import (
 	"time"
 
 	platformv1alpha1 "github.com/ericfitz/tmi/api/platform/v1alpha1"
+	"github.com/ericfitz/tmi/internal/tlsconfig"
 	"github.com/nats-io/nats.go"
 )
 
@@ -27,7 +28,7 @@ type StreamProvisioner interface {
 // connection. In the current out-of-cluster e2e flow the controller reaches
 // NATS through the host port-forward (nats://127.0.0.1:4222); once the
 // controller ships as an in-cluster Deployment it will use the in-cluster
-// service DNS (nats://nats.tmi-platform.svc:4222). Either way the URL is
+// service DNS (tls://nats.tmi-platform.svc:4222). Either way the URL is
 // supplied via the TMI_NATS_URL env var.
 // SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: live StreamProvisioner backed by a NATS JetStream connection (pure)
 type NATSProvisioner struct {
@@ -39,14 +40,22 @@ type NATSProvisioner struct {
 // RetryOnFailedConnect so the controller can start before the port-forward (or
 // the NATS pod) is reachable: JetStream calls then fail until the connection
 // establishes, which surfaces as a reconcile error and a requeue.
-// SEM@e69b1723153a31aa74eb58c885a3ca54a9cbb016: connect to NATS with retry and return a provisioner with a JetStream context
+// SEM@946ec29: connect to NATS with retry and optional TLS, returning a JetStream provisioner
 func NewNATSProvisioner(url string) (*NATSProvisioner, error) {
-	nc, err := nats.Connect(url,
+	opts := []nats.Option{
 		nats.Name("tmi-component-controller"),
 		nats.RetryOnFailedConnect(true),
 		nats.MaxReconnects(-1),
-		nats.ReconnectWait(2*time.Second),
-	)
+		nats.ReconnectWait(2 * time.Second),
+	}
+	tlsCfg, err := tlsconfig.NATSFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("controller: %w", err)
+	}
+	if tlsCfg != nil {
+		opts = append(opts, nats.Secure(tlsCfg))
+	}
+	nc, err := nats.Connect(url, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("controller: nats connect %s: %w", url, err)
 	}

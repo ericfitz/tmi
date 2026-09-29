@@ -33,6 +33,7 @@ import (
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/config/bootstrap"
 	"github.com/ericfitz/tmi/internal/slogging"
+	"github.com/ericfitz/tmi/internal/tlsconfig"
 	"github.com/ericfitz/tmi/internal/worker"
 )
 
@@ -149,7 +150,7 @@ func runEmbedStub() error {
 
 // run is the real entry point. Separating it from main allows defers to
 // execute before os.Exit is called by main.
-// SEM@0aba7f3799aed0f98991b3f45a64df18fbb029bd: bootstrap, connect to NATS, receive one probe job, and publish the probe result
+// SEM@946ec29: bootstrap, connect to NATS (TLS when configured), receive one probe job, and publish the result
 func run() error {
 	logger := slogging.Get()
 
@@ -160,8 +161,17 @@ func run() error {
 	}
 	logger.Info("worker-probe: bootstrap succeeded nats_url=%s", wb.NATSURL)
 
-	// Step 2: connect to NATS via plain nats.go (see package doc for rationale)
-	nc, err := nats.Connect(wb.NATSURL, nats.Name("tmi-worker-probe"))
+	// Step 2: connect to NATS via plain nats.go (see package doc for rationale).
+	// TLS follows the same TMI_NATS_TLS_CA_FILE contract as internal/worker.
+	tlsCfg, err := tlsconfig.NATSFromEnv()
+	if err != nil {
+		return fmt.Errorf("NATS TLS config: %w", err)
+	}
+	natsOpts := []nats.Option{nats.Name("tmi-worker-probe")}
+	if tlsCfg != nil {
+		natsOpts = append(natsOpts, nats.Secure(tlsCfg))
+	}
+	nc, err := nats.Connect(wb.NATSURL, natsOpts...)
 	if err != nil {
 		return fmt.Errorf("NATS connect failed: %w", err)
 	}

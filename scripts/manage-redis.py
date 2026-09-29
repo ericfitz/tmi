@@ -86,6 +86,7 @@ def resolve_config(args: argparse.Namespace) -> dict:
     if args.test and not args.container:
         cfg["container"] = TEST_DEFAULTS["container"]
 
+    cfg["tls_dir"] = args.tls_dir
     return cfg
 
 
@@ -96,11 +97,16 @@ def resolve_config(args: argparse.Namespace) -> dict:
 
 def cmd_start(cfg: dict, args: argparse.Namespace) -> None:
     """Start the Redis container (create if needed)."""
+    tls_dir = cfg.get("tls_dir")
     ensure_container(
         name=cfg["container"],
         host_port=cfg["port"],
         container_port=REDIS_CONTAINER_PORT,
         image=cfg["image"],
+        volumes={str(Path(tls_dir).resolve()): "/tls"} if tls_dir else None,
+        # The image's entrypoint is redis-server; a config path as the only
+        # argument replaces the image CMD flags entirely.
+        cmd_args=["/tls/redis.conf"] if tls_dir else None,
     )
     log_success(f"Redis container is running on port {cfg['port']}")
 
@@ -162,6 +168,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="IMAGE",
         default=None,
         help="Override Docker image",
+    )
+    parser.add_argument(
+        "--tls-dir",
+        metavar="DIR",
+        default=None,
+        help="Directory with the harness PKI (ca.crt, redis.crt/.key, redis.conf; Redis also requires the password in redis.conf); the container then runs TLS-only",
     )
     add_verbosity_args(parser)
 

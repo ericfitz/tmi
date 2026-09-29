@@ -4,10 +4,10 @@
 # token ECR_REGISTRY_PLACEHOLDER, which the deploy script rewrites in place
 # (sed) to the account's real ECR registry URI immediately before `kubectl
 # apply -k` — the same mechanism used for CERT_ARN_PLACEHOLDER in ingress.yml.
-# There is no generated/gitignored kustomize component involved. NATS + KEDA +
-# the TMIComponent CRD are applied by scripts/deploy-aws.sh before this
-# overlay (same order as scripts/lib/deploy.py apply_platform_base). Postgres
-# is RDS — no in-cluster DB.
+# There is no generated/gitignored kustomize component involved. cert-manager +
+# Reloader + the internal PKI + NATS + KEDA + the TMIComponent
+# CRD are applied by scripts/deploy-aws.sh before this overlay (same order
+# as scripts/lib/deploy.py apply_platform_base). Postgres is RDS — no in-cluster DB.
 #
 # Resolved caveats (see README.md for full detail):
 #   - No NATS storage-class patch: deployments/k8s/platform/nats.yml's
@@ -62,10 +62,6 @@ patches:
     target:
       kind: Deployment
       name: tmi-server
-  - path: patches/redis-auth.yaml
-    target:
-      kind: Deployment
-      name: redis
   - path: patches/extractor-image.yaml
     target:
       group: tmi.dev

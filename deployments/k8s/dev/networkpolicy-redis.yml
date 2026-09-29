@@ -1,6 +1,6 @@
 # Restrict who can reach in-cluster redis (#551).
 #
-# Defence in depth alongside the --requirepass added by aws/patches/redis-auth.yaml:
+# Defence in depth alongside the TLS + --requirepass in ../redis.yml (base, every environment since PR 6):
 # the password stops an unauthenticated caller, this stops the connection being
 # made at all from anywhere except the API server pods. Shared by the aws and
 # k3s overlays; networkpolicy.yml holds the namespace default-deny it sits under.

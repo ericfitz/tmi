@@ -839,13 +839,61 @@ configure_kubeconfig() {
 # ============================================================================
 
 apply_platform_base() {
-    log_step "Phase 4: Platform Base (NATS, KEDA, TMIComponent CRD)"
+    log_step "Phase 4: Platform Base (cert-manager, Reloader, PKI, NATS, KEDA, TMIComponent CRD)"
 
     # Re-asserted here rather than trusting the check in configure_kubeconfig:
     # this is the first mutating apply, and the two are separated by the image
     # build/push phase, which takes long enough for the environment to change.
     assert_cluster_identity
 
+    # Mirrors apply_platform_base() in scripts/lib/deploy.py; keep in sync.
+    # Keep only Helm-managed cert-manager/Reloader installs; everything else gets the
+    # vendored manifests re-applied (idempotent via SSA). Leftover-CRD recovery: after a
+    # Helm uninstall the CRDs stay with no webhook, so the fresh apply can hit an SSA
+    # conflict on the Helm-created CRDs; fix with
+    # `kubectl delete crd -l app.kubernetes.io/instance=cert-manager`.
+    local webhook="" sel
+    if kubectl get crd certificates.cert-manager.io -o name >/dev/null 2>&1; then
+        for sel in "app.kubernetes.io/name=webhook,app.kubernetes.io/instance=cert-manager,app.kubernetes.io/managed-by=Helm" \
+                   "app.kubernetes.io/component=webhook,app.kubernetes.io/instance=cert-manager,app.kubernetes.io/managed-by=Helm"; do
+            webhook=$(kubectl get deploy -A -l "${sel}" \
+                -o jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.name}{"\n"}{end}' | head -n1) || true
+            [[ -n "${webhook}" ]] && break
+        done
+    fi
+    local cm_ns cm_webhook
+    if [[ -n "${webhook}" ]]; then
+        read -r cm_ns cm_webhook <<<"${webhook}"
+        if [[ "${cm_ns}" != "cert-manager" ]]; then
+            log_error "Existing cert-manager runs in namespace '${cm_ns}', but pki.yml assumes 'cert-manager'; refusing to guess."
+            exit 1
+        fi
+        log_info "Existing cert-manager found (webhook ${cm_ns}/${cm_webhook}); skipping the vendored cert-manager.yml"
+    else
+        kubectl apply --server-side -f "${PLATFORM_DIR}/cert-manager.yml"
+        local dep
+        for dep in cert-manager cert-manager-cainjector cert-manager-webhook; do
+            kubectl -n cert-manager rollout status "deploy/${dep}" --timeout=180s
+        done
+        cm_ns=cert-manager
+        cm_webhook=cert-manager-webhook
+    fi
+    kubectl -n "${cm_ns}" wait --for=condition=Available "deploy/${cm_webhook}" --timeout=180s
+    if [[ -n "$(kubectl get deploy -A -l app.kubernetes.io/name=reloader,app.kubernetes.io/managed-by=Helm -o name 2>/dev/null || true)" ]]; then
+        log_info "Existing Reloader found; skipping the vendored reloader.yml"
+    else
+        kubectl apply -f "${PLATFORM_DIR}/reloader.yml"
+    fi
+    # The webhook's serving cert can lag its rollout by a few seconds.
+    local attempt
+    for attempt in 1 2 3 4 5; do
+        if kubectl apply -f "${PLATFORM_DIR}/pki.yml"; then break; fi
+        if [[ "${attempt}" == "5" ]]; then log_error "pki.yml apply failed after 5 attempts"; exit 1; fi
+        log_warning "pki.yml apply failed (attempt ${attempt}/5); retrying in 3s"
+        sleep 3
+    done
+    kubectl -n cert-manager wait --for=condition=Ready certificate/tmi-internal-ca --timeout=120s
+    kubectl -n "${NAMESPACE}" wait --for=condition=Ready certificate --all --timeout=180s
     kubectl apply -f "${PLATFORM_DIR}/nats.yml"
     kubectl apply --server-side -f "${PLATFORM_DIR}/keda.yml"
     kubectl apply -f "${PROJECT_ROOT}/config/crd/bases/tmi.dev_tmicomponents.yaml"

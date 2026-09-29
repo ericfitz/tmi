@@ -700,7 +700,7 @@ func (s *GormThreatRepository) SoftDelete(ctx context.Context, id string) error 
 //     SERIALIZABLE isolation these transactions request, ORA-00060, and the
 //     connection drops ADB raises while autoscaling.
 //
-// SEM@new: soft-delete a batch of threats atomically within one threat model (mutates DB)
+// SEM@7383e0e: soft-delete a batch of threats atomically within one threat model (mutates DB)
 func (s *GormThreatRepository) BulkSoftDelete(ctx context.Context, threatModelID string, ids []string) error {
 	if len(ids) == 0 {
 		return nil

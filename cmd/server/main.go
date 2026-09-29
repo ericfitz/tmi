@@ -2773,32 +2773,32 @@ func buildGormConfig(cfg *config.Config) db.GormConfig {
 }
 
 // buildRedisConfig creates a Redis configuration from the application config.
-// If TMI_REDIS_URL is set, it takes precedence over individual fields.
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: build a Redis connection config from URL or individual config fields (pure)
+// If TMI_REDIS_URL is set, it takes precedence over individual fields; a
+// rediss:// scheme turns TLS on (the CA file still comes from
+// TMI_REDIS_TLS_CA_FILE).
+// SEM@e50244f: build a Redis connection config from URL or fields, enabling TLS for rediss URLs (pure)
 func buildRedisConfig(cfg *config.Config) db.RedisConfig {
 	log := slogging.Get()
-
-	// If REDIS_URL is provided, parse it and use those values
-	if cfg.Database.Redis.URL != "" {
-		log.Info("Using TMI_REDIS_URL for Redis configuration")
-		host, port, password, dbNum, err := db.ParseRedisURL(cfg.Database.Redis.URL)
-		if err != nil {
-			log.Error("Failed to parse TMI_REDIS_URL: %v, falling back to individual fields", err)
-		} else {
-			return db.RedisConfig{
-				Host:     host,
-				Port:     port,
-				Password: password,
-				DB:       dbNum,
-			}
-		}
+	rc := db.RedisConfig{
+		Host:       cfg.Database.Redis.Host,
+		Port:       cfg.Database.Redis.Port,
+		Password:   cfg.Database.Redis.Password,
+		DB:         cfg.Database.Redis.DB,
+		TLSEnabled: cfg.Database.Redis.TLSEnabled,
+		TLSCAFile:  cfg.Database.Redis.TLSCAFile,
 	}
-
-	// Fall back to individual fields
-	return db.RedisConfig{
-		Host:     cfg.Database.Redis.Host,
-		Port:     cfg.Database.Redis.Port,
-		Password: cfg.Database.Redis.Password,
-		DB:       cfg.Database.Redis.DB,
+	if cfg.Database.Redis.URL == "" {
+		return rc
 	}
+	log.Info("Using TMI_REDIS_URL for Redis configuration")
+	host, port, password, dbNum, err := db.ParseRedisURL(cfg.Database.Redis.URL)
+	if err != nil {
+		log.Error("Failed to parse TMI_REDIS_URL: %v, falling back to individual fields", err)
+		return rc
+	}
+	rc.Host, rc.Port, rc.Password, rc.DB = host, port, password, dbNum
+	if strings.HasPrefix(cfg.Database.Redis.URL, "rediss://") {
+		rc.TLSEnabled = true
+	}
+	return rc
 }

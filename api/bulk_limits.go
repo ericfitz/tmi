@@ -62,7 +62,7 @@ var maxBulkMetadataByEntity = map[string]int{
 // unregistered entity type falls back to the more restrictive value rather than
 // the more permissive one, so a new handler that forgets to add itself here is
 // merely stricter than the spec instead of unbounded.
-// SEM@new: return the spec-declared bulk metadata cap for an entity type (pure)
+// SEM@7383e0e: return the spec-declared bulk metadata cap for an entity type (pure)
 func MaxBulkMetadataFor(entityType string) int {
 	if limit, ok := maxBulkMetadataByEntity[entityType]; ok {
 		return limit

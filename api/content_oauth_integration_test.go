@@ -24,6 +24,7 @@ import (
 	"github.com/ericfitz/tmi/api/testhelpers"
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/config"
+	"github.com/ericfitz/tmi/internal/tlsconfig"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -79,6 +80,7 @@ func openIntegrationDB(t *testing.T) *gorm.DB {
 
 // openIntegrationRedis returns a Redis client for integration tests.
 // Uses TEST_REDIS_* env vars when available, otherwise starts a miniredis server.
+// SEM@249dea6: open a Redis client for integration tests, TLS+password when configured, else miniredis (reads env)
 func openIntegrationRedis(t *testing.T) redis.UniversalClient {
 	t.Helper()
 
@@ -99,10 +101,20 @@ func openIntegrationRedis(t *testing.T) redis.UniversalClient {
 			db = n
 		}
 	}
-	return redis.NewClient(&redis.Options{
-		Addr: fmt.Sprintf("%s:%s", host, port),
-		DB:   db,
-	})
+	opts := &redis.Options{
+		Addr:     fmt.Sprintf("%s:%s", host, port),
+		Password: os.Getenv("TEST_REDIS_PASSWORD"),
+		DB:       db,
+	}
+	if ca := os.Getenv("TEST_REDIS_TLS_CA_FILE"); ca != "" {
+		tlsCfg, err := tlsconfig.Load(ca, "", "")
+		if err != nil {
+			t.Fatalf("TEST_REDIS_TLS_CA_FILE: %v", err)
+		}
+		tlsCfg.ServerName = host
+		opts.TLSConfig = tlsCfg
+	}
+	return redis.NewClient(opts)
 }
 
 // createIntegrationUser inserts a minimal User row and returns its InternalUUID.

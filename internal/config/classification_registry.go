@@ -119,6 +119,8 @@ var exactClassifications = map[string]ConfigClass{
 	"database.redis.port":                         bootstrapClass(false, VisibilityInternal, false),
 	"database.redis.password":                     bootstrapClass(false, VisibilityInternal, true),
 	"database.redis.db":                           bootstrapClass(false, VisibilityInternal, false),
+	"database.redis.tls_enabled":                  bootstrapClass(false, VisibilityInternal, false),
+	"database.redis.tls_ca_file":                  bootstrapClass(false, VisibilityInternal, false),
 
 	// --- Bootstrap: auth (JWT signing, build mode) ---
 	"auth.build_mode":         bootstrapClass(true, VisibilityInternal, false),

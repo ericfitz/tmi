@@ -2,6 +2,7 @@ package controller
 
 import (
 	"sort"
+	"strings"
 
 	platformv1alpha1 "github.com/ericfitz/tmi/api/platform/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -18,16 +19,46 @@ const (
 	nonRootGID int64 = 65532
 )
 
+const (
+	// natsTLSMountPath is where every worker finds its NATS client cert
+	// (ca.crt, tls.crt, tls.key from the cert-manager Secret).
+	natsTLSMountPath  = "/etc/tmi-nats-tls"
+	natsTLSVolumeName = "nats-client-tls"
+	// reloaderAutoAnnotation makes Stakater Reloader roll the Deployment when
+	// any Secret/ConfigMap it mounts changes (cert renewals included).
+	reloaderAutoAnnotation = "reloader.stakater.com/auto"
+)
+
+// natsClientSecretName maps a component to its cert-manager client-cert
+// Secret: nats-client-<name without the tmi- prefix>, e.g. tmi-extractor ->
+// nats-client-extractor, matching deployments/k8s/platform/pki.yml.
+// SEM@6b7b976: derive the NATS client-cert Secret name for a component (pure)
+func natsClientSecretName(c *platformv1alpha1.TMIComponent) string {
+	return "nats-client-" + strings.TrimPrefix(c.Name, "tmi-")
+}
+
+// natsTLSEnv points internal/worker.Connect (via tlsconfig.NATSFromEnv) at
+// the mounted client cert.
+// SEM@6b7b976: build the NATS TLS file-path env vars for the mounted client cert (pure)
+func natsTLSEnv() []corev1.EnvVar {
+	return []corev1.EnvVar{
+		{Name: "TMI_NATS_TLS_CA_FILE", Value: natsTLSMountPath + "/ca.crt"},
+		{Name: "TMI_NATS_TLS_CERT_FILE", Value: natsTLSMountPath + "/tls.crt"},
+		{Name: "TMI_NATS_TLS_KEY_FILE", Value: natsTLSMountPath + "/tls.key"},
+	}
+}
+
 // RenderDeployment builds the worker Deployment for a TMIComponent.
 // Pod hardening (readOnlyRootFilesystem, runAsNonRoot, all caps dropped,
 // RuntimeDefault seccomp) is applied unconditionally — it is a hard
 // platform invariant, not a per-component option.
-// SEM@033363404fa8d485d9d46c5454abf63fe8bfc1e5: build a hardened Kubernetes Deployment for a TMIComponent worker with non-root security context (pure)
+// SEM@6b7b976: build a hardened worker Deployment with NATS client-cert mount and Reloader annotation (pure)
 func RenderDeployment(c *platformv1alpha1.TMIComponent) *appsv1.Deployment {
 	labels := componentPodLabels(c)
 
 	env := configEnv(c)
 	env = append(env, secretEnv(c)...)
+	env = append(env, natsTLSEnv()...)
 
 	ctr := corev1.Container{
 		Name:      "worker",
@@ -60,19 +91,36 @@ func RenderDeployment(c *platformv1alpha1.TMIComponent) *appsv1.Deployment {
 		// SizeLimit is already a resource.Quantity (validated at admission
 		// time by the CRD schema), so no parsing is needed here.
 		sizeLimit := c.Spec.ScratchVolume.SizeLimit
-		pod.Volumes = []corev1.Volume{{
+		pod.Volumes = append(pod.Volumes, corev1.Volume{
 			Name: "scratch",
 			VolumeSource: corev1.VolumeSource{
 				EmptyDir: &corev1.EmptyDirVolumeSource{SizeLimit: &sizeLimit},
 			},
-		}}
-		pod.Containers[0].VolumeMounts = []corev1.VolumeMount{{
+		})
+		pod.Containers[0].VolumeMounts = append(pod.Containers[0].VolumeMounts, corev1.VolumeMount{
 			Name: "scratch", MountPath: c.Spec.ScratchVolume.MountPath,
-		}}
+		})
 	}
 
+	// Optional: a component that never dials NATS (the e2e static-image probe)
+	// still schedules; one that does dial fails loudly in tlsconfig.Load on
+	// the missing files rather than silently falling back to plaintext.
+	pod.Volumes = append(pod.Volumes, corev1.Volume{
+		Name: natsTLSVolumeName,
+		VolumeSource: corev1.VolumeSource{Secret: &corev1.SecretVolumeSource{
+			SecretName: natsClientSecretName(c),
+			Optional:   boolPtr(true),
+		}},
+	})
+	pod.Containers[0].VolumeMounts = append(pod.Containers[0].VolumeMounts, corev1.VolumeMount{
+		Name: natsTLSVolumeName, MountPath: natsTLSMountPath, ReadOnly: true,
+	})
+
 	return &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Name: c.Name, Namespace: c.Namespace, Labels: labels},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: c.Name, Namespace: c.Namespace, Labels: labels,
+			Annotations: map[string]string{reloaderAutoAnnotation: "true"},
+		},
 		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{MatchLabels: labels},
 			Template: corev1.PodTemplateSpec{

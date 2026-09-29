@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ericfitz/tmi/test/integration/framework"
 	nats "github.com/nats-io/nats.go"
 )
 
@@ -59,8 +60,9 @@ type probeResult struct {
 
 // workerProbeNATSURL returns the NATS endpoint for integration tests. Mirrors
 // natsURL in internal/worker/nats_test.go and hbTestNATSURL in
-// internal/worker/heartbeat_test.go: CI sets TMI_TEST_NATS_URL; locally
-// defaults to localhost.
+// internal/worker/heartbeat_test.go: the runner sets
+// TMI_TEST_NATS_URL=tls://127.0.0.1:4223 (mTLS harness container); CI sets it
+// too; locally it defaults to localhost.
 func workerProbeNATSURL() string {
 	if v := os.Getenv("TMI_TEST_NATS_URL"); v != "" {
 		return v
@@ -80,7 +82,7 @@ func TestWorkerProbe_ContractEndToEnd_Integration(t *testing.T) {
 
 	// ── Step 1: verify NATS is reachable ─────────────────────────────────────
 	// Attempt a quick connection; skip (never fail) if the server is not up.
-	pingConn, err := nats.Connect(natsURL, nats.Timeout(3*time.Second))
+	pingConn, err := nats.Connect(natsURL, append(framework.NATSTLSOptions(t), nats.Timeout(3*time.Second))...)
 	if err != nil {
 		t.Skipf("NATS not reachable at %s (skip, not fail): %v", natsURL, err)
 	}
@@ -120,7 +122,7 @@ func TestWorkerProbe_ContractEndToEnd_Integration(t *testing.T) {
 
 	probeEnv := append(
 		os.Environ(),
-		"TMI_WORKER_NATS_URL="+natsURL,
+		"TMI_NATS_URL="+natsURL,
 		"TMI_WORKER_HEARTBEAT_SUBJECT=workers.heartbeat.probe",
 		"TMI_WORKER_SECRET_MOUNT_EMBEDDING_API_KEY="+secretPath,
 	)
@@ -143,7 +145,7 @@ func TestWorkerProbe_ContractEndToEnd_Integration(t *testing.T) {
 	})
 
 	// ── Step 5: connect to NATS as the "monolith side" ───────────────────────
-	nc, err := nats.Connect(natsURL, nats.Name("tmi-test-monolith"))
+	nc, err := nats.Connect(natsURL, append(framework.NATSTLSOptions(t), nats.Name("tmi-test-monolith"))...)
 	if err != nil {
 		t.Fatalf("NATS connect (monolith side): %v", err)
 	}

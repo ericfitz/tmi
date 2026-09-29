@@ -2,11 +2,13 @@ package worker
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/tlsconfig"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -44,22 +46,39 @@ type Conn struct {
 	cfg  Config
 }
 
+// natsOptions builds the connect options: client name, unlimited reconnects,
+// optional credentials file, and TLS (nats.Secure) when tlsCfg is non-nil.
+// SEM@946ec29: build NATS connect options from worker config, credentials path, and optional TLS (pure)
+func natsOptions(cfg Config, credsFile string, tlsCfg *tls.Config) []nats.Option {
+	opts := []nats.Option{
+		nats.Name("tmi-" + cfg.ComponentName),
+		nats.MaxReconnects(-1),
+	}
+	if credsFile != "" {
+		opts = append(opts, nats.UserCredentials(credsFile))
+	}
+	if tlsCfg != nil {
+		opts = append(opts, nats.Secure(tlsCfg))
+	}
+	return opts
+}
+
 // Connect dials NATS, opens a JetStream context, and ensures the payload
 // Object Store bucket exists.
 //
 // If TMI_NATS_CREDS is set in the environment, it is used as the path to a
 // NATS credentials file, giving each component its own bus identity once the
 // server enables authorization. Unset preserves the credential-less default.
-// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: connect to NATS, open JetStream context, and ensure payload object store bucket exists
+// If TMI_NATS_TLS_CA_FILE is set (see internal/tlsconfig), the connection uses
+// TLS with that CA and, when TMI_NATS_TLS_CERT_FILE/TMI_NATS_TLS_KEY_FILE are
+// set, a client certificate.
+// SEM@946ec29: connect to NATS (TLS when configured), open JetStream, and ensure the payload object store
 func Connect(ctx context.Context, cfg Config) (*Conn, error) {
-	opts := []nats.Option{
-		nats.Name("tmi-" + cfg.ComponentName),
-		nats.MaxReconnects(-1),
+	tlsCfg, err := tlsconfig.NATSFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("worker: %w", err)
 	}
-	if creds := os.Getenv("TMI_NATS_CREDS"); creds != "" {
-		opts = append(opts, nats.UserCredentials(creds))
-	}
-	nc, err := nats.Connect(cfg.NATSURL, opts...)
+	nc, err := nats.Connect(cfg.NATSURL, natsOptions(cfg, os.Getenv("TMI_NATS_CREDS"), tlsCfg)...)
 	if err != nil {
 		return nil, fmt.Errorf("worker: nats connect: %w", err)
 	}

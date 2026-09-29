@@ -17,12 +17,9 @@ file must already exist (`make cats-seed` writes it; see `_check_ref_data`),
 and the active kubectl context must look like a local dev cluster before
 `kubectl exec` is used to reach Redis (see `_check_kube_context`).
 
-Redis access: the legacy script shelled out to `docker exec tmi-redis`,
-which assumed Redis ran as a plain Docker container. `make dev-up` now
-deploys Redis as an in-cluster Kubernetes Deployment (namespace
-`tmi-platform`), so this script prefers `kubectl exec` against that
-Deployment and falls back to the legacy `docker exec tmi-redis` form if
-that container happens to exist instead. Some environments (e.g. the AWS
+Redis access: `make dev-up` deploys Redis as an in-cluster Kubernetes
+Deployment (namespace `tmi-platform`, TLS with the CA mounted at /tls), so
+this script uses `kubectl exec` against that Deployment. Some environments (e.g. the AWS
 overlay) run Redis with `--requirepass`, sourced into the container's own
 `REDIS_PASSWORD` env var; others (local dev) run it unauthenticated. Both
 are handled by asking the container's own shell whether that env var is
@@ -50,7 +47,6 @@ from cluster import is_local_kube_context  # noqa: E402
 from tmi_common import get_project_root, log_error, log_info, log_success  # noqa: E402
 
 REDIS_NAMESPACE = "tmi-platform"
-REDIS_DOCKER_CONTAINER = "tmi-redis"
 REDIS_DEPLOYMENT = "redis"
 
 # Where dbtool writes the CATS refData file (test/seeds/cats-seed-data.json's
@@ -201,26 +197,12 @@ def _check_kube_context(allow_any_context: bool) -> None:
 
 
 def _detect_redis_target(*, allow_any_context: bool) -> list[str] | None:
-    """Return an exec command prefix for reaching Redis, or None if unreachable.
+    """Return a `kubectl exec` prefix for reaching the in-cluster Redis
+    Deployment that `make dev-up` deploys, or None if it is not ready.
 
-    Prefers the legacy `docker exec tmi-redis` container if it is actually
-    running, otherwise falls back to `kubectl exec` against the in-cluster
-    Redis Deployment that `make dev-up` deploys. The kubectl fallback acts on
-    whatever context happens to be active, so `_check_kube_context` runs right
-    before committing to that path -- not unconditionally -- since a Docker
-    container being available makes the active kube context irrelevant.
+    `_check_kube_context` runs right before committing to the path, since
+    kubectl acts on whatever context happens to be active.
     """
-    try:
-        docker_check = subprocess.run(
-            ["docker", "ps", "--filter", f"name=^{REDIS_DOCKER_CONTAINER}$", "--format", "{{.Names}}"],
-            capture_output=True, text=True, check=False,
-        )
-        if docker_check.returncode == 0 and REDIS_DOCKER_CONTAINER in docker_check.stdout.split():
-            log_info(f"Found Docker container {REDIS_DOCKER_CONTAINER}; using docker exec")
-            return ["docker", "exec", REDIS_DOCKER_CONTAINER]
-    except FileNotFoundError:
-        pass  # docker not installed; fall through to kubectl
-
     try:
         kubectl_check = subprocess.run(
             [
@@ -244,13 +226,12 @@ def _detect_redis_target(*, allow_any_context: bool) -> list[str] | None:
 
 
 def _redis_cli_shell(cli_args: list[str]) -> list[str]:
-    """Build a shell invocation that runs redis-cli with auth iff the
-    container's own REDIS_PASSWORD env var is set.
+    """Build a shell invocation that runs redis-cli over TLS (the container
+    mounts the redis-tls Secret at /tls), with auth iff the container's own
+    REDIS_PASSWORD env var is set.
 
-    This lets one code path handle both authenticated Redis (e.g. the AWS
-    overlay, which sets --requirepass from a Secret-sourced REDIS_PASSWORD
-    env var) and unauthenticated Redis (local dev) without this script ever
-    needing to know or carry the password itself — it is resolved by the
+    Every cluster's Redis is TLS + password now (PR 6); the conditional is
+    kept so the script never needs to know or carry the password itself — it is resolved by the
     container's own shell, not interpolated by us.
 
     Auth is passed via the REDISCLI_AUTH env var rather than `-a`: `-a` puts
@@ -260,11 +241,8 @@ def _redis_cli_shell(cli_args: list[str]) -> list[str]:
     doesn't trigger it, so --no-auth-warning is no longer needed either).
     """
     quoted = " ".join(shlex.quote(a) for a in cli_args)
-    script = (
-        'if [ -n "$REDIS_PASSWORD" ]; then '
-        f'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli {quoted}; '
-        f"else redis-cli {quoted}; fi"
-    )
+    cli = f"redis-cli --tls --cacert /tls/ca.crt {quoted}"
+    script = f'if [ -n "$REDIS_PASSWORD" ]; then REDISCLI_AUTH="$REDIS_PASSWORD" {cli}; else {cli}; fi'
     return ["sh", "-c", script]
 
 
@@ -315,10 +293,10 @@ def main() -> None:
     target = _detect_redis_target(allow_any_context=args.allow_any_context)
     if target is None:
         log_error(
-            f"Could not reach Redis via docker (container {REDIS_DOCKER_CONTAINER!r}) "
-            f"or kubectl (deployment/{REDIS_DEPLOYMENT} in namespace {REDIS_NAMESPACE}). "
+            f"Could not reach Redis via kubectl (deployment/{REDIS_DEPLOYMENT} "
+            f"in namespace {REDIS_NAMESPACE}). "
             "CATS requests would be rate-limited without this step; ensure the dev "
-            "environment is running (make dev-up) and kubectl/docker are on PATH."
+            "environment is running (make dev-up) and kubectl is on PATH."
         )
         sys.exit(1)
 

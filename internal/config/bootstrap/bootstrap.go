@@ -15,7 +15,7 @@ import (
 // WorkerBootstrap is the complete startup configuration of a worker.
 // SEM@7b63ecf38ff4d7eac724b5c8b36efc784b466c6f: configuration struct holding worker startup settings from environment (pure)
 type WorkerBootstrap struct {
-	// NATSURL is the JetStream connection URL. Required — a worker cannot
+	// NATSURL is the JetStream connection URL (env TMI_NATS_URL, shared with internal/worker). Required — a worker cannot
 	// receive a job without it.
 	NATSURL string
 	// HeartbeatSubject is the NATS subject the worker publishes liveness on.
@@ -36,11 +36,11 @@ const secretMountEnvPrefix = "TMI_WORKER_SECRET_MOUNT_" // #nosec G101 -- env-va
 
 // LoadWorker builds a WorkerBootstrap from environment variables only.
 // It reads no YAML and touches no database.
-// SEM@7b63ecf38ff4d7eac724b5c8b36efc784b466c6f: build worker startup config from environment variables only, no YAML or DB (pure)
+// SEM@946ec29: build worker startup config from environment variables only, no YAML or DB (pure)
 func LoadWorker() (*WorkerBootstrap, error) {
-	natsURL := os.Getenv("TMI_WORKER_NATS_URL")
+	natsURL := os.Getenv("TMI_NATS_URL")
 	if natsURL == "" {
-		return nil, fmt.Errorf("worker bootstrap: required env var TMI_WORKER_NATS_URL is not set")
+		return nil, fmt.Errorf("worker bootstrap: required env var TMI_NATS_URL is not set")
 	}
 
 	logLevel := os.Getenv("TMI_WORKER_LOG_LEVEL")

@@ -44,12 +44,14 @@ type DatabaseConfig struct {
 }
 
 // RedisConfig holds Redis configuration
-// SEM@d885c7955d5a30affb8ddde84ee1cf757aab2a6b: Redis connection settings including host, port, password, and DB index (pure)
+// SEM@e50244f: Redis connection settings including host, port, password, DB index, and TLS CA (pure)
 type RedisConfig struct {
-	Host     string
-	Port     string
-	Password string
-	DB       int
+	Host       string
+	Port       string
+	Password   string
+	DB         int
+	TLSEnabled bool
+	TLSCAFile  string
 }
 
 // JWTConfig holds JWT configuration
@@ -182,10 +184,12 @@ func LoadConfig() (Config, error) {
 	config := Config{
 		Database: dbConfig,
 		Redis: RedisConfig{
-			Host:     envutil.Get("TMI_REDIS_HOST", envutil.Get("REDIS_HOST", "localhost")),
-			Port:     envutil.Get("TMI_REDIS_PORT", envutil.Get("REDIS_PORT", "6379")),
-			Password: envutil.Get("TMI_REDIS_PASSWORD", envutil.Get("REDIS_PASSWORD", "")),
-			DB:       redisDB,
+			Host:       envutil.Get("TMI_REDIS_HOST", envutil.Get("REDIS_HOST", "localhost")),
+			Port:       envutil.Get("TMI_REDIS_PORT", envutil.Get("REDIS_PORT", "6379")),
+			Password:   envutil.Get("TMI_REDIS_PASSWORD", envutil.Get("REDIS_PASSWORD", "")),
+			DB:         redisDB,
+			TLSEnabled: envutil.Get("TMI_REDIS_TLS_ENABLED", "false") == "true",
+			TLSCAFile:  envutil.Get("TMI_REDIS_TLS_CA_FILE", ""),
 		},
 		JWT: JWTConfig{
 			Secret:              envutil.Get("TMI_JWT_SECRET", envutil.Get("JWT_SECRET", "your-secret-key")),
@@ -248,13 +252,15 @@ func (c *Config) ToGormConfig() db.GormConfig {
 }
 
 // ToRedisConfig converts Config to db.RedisConfig
-// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: convert the auth Redis config to a db.RedisConfig for initializing the Redis client (pure)
+// SEM@e50244f: convert the auth Redis config, including TLS settings, to a db.RedisConfig (pure)
 func (c *Config) ToRedisConfig() db.RedisConfig {
 	return db.RedisConfig{
-		Host:     c.Redis.Host,
-		Port:     c.Redis.Port,
-		Password: c.Redis.Password,
-		DB:       c.Redis.DB,
+		Host:       c.Redis.Host,
+		Port:       c.Redis.Port,
+		Password:   c.Redis.Password,
+		DB:         c.Redis.DB,
+		TLSEnabled: c.Redis.TLSEnabled,
+		TLSCAFile:  c.Redis.TLSCAFile,
 	}
 }
 

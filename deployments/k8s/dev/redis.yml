@@ -3,6 +3,11 @@ kind: Deployment
 metadata:
   name: redis
   namespace: tmi-platform
+  annotations:
+    # Roll ONLY when the TLS Secret is re-issued (cert-manager renewal, about
+    # every 60 days). Not `auto`: that would also roll on every tmi-secrets
+    # change (#965 rotations) and wipe the in-memory sessions each time.
+    secret.reloader.stakater.com/reload: "redis-tls"
 spec:
   replicas: 1
   selector:
@@ -14,12 +19,59 @@ spec:
       containers:
         - name: redis
           image: cgr.dev/chainguard/redis:latest
-          args: ["--save", "", "--appendonly", "no", "--bind", "0.0.0.0", "--protected-mode", "no"]
+          # TLS only: --port 0 closes the plaintext listener, clients verify
+          # the server cert (redis-tls, SANs redis / redis.tmi-platform.svc /
+          # ...svc.cluster.local); the server does not require client certs,
+          # the password does that job (PR 6, T388).
+          #
+          # $(REDIS_PASSWORD) is expanded by the kubelet from the container's
+          # own env, not by a shell: the literal string is what appears in
+          # the PodSpec; the value is visible only in the container's process
+          # table, which is inherent to --requirepass. --protected-mode no is
+          # kept: with requirepass it is redundant, and enabling it would
+          # reject the server pod (another pod IP, not loopback).
+          args:
+            - "--save"
+            - ""
+            - "--appendonly"
+            - "no"
+            - "--bind"
+            - "0.0.0.0"
+            - "--protected-mode"
+            - "no"
+            - "--port"
+            - "0"
+            - "--tls-port"
+            - "6379"
+            - "--tls-cert-file"
+            - "/tls/tls.crt"
+            - "--tls-key-file"
+            - "/tls/tls.key"
+            - "--tls-ca-cert-file"
+            - "/tls/ca.crt"
+            - "--tls-auth-clients"
+            - "no"
+            - "--requirepass"
+            - "$(REDIS_PASSWORD)"
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tmi-secrets
+                  key: TMI_REDIS_PASSWORD
           ports:
             - containerPort: 6379
+          volumeMounts:
+            - name: tls
+              mountPath: /tls
+              readOnly: true
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { cpu: 500m, memory: 256Mi }
+      volumes:
+        - name: tls
+          secret:
+            secretName: redis-tls
 ---
 apiVersion: v1
 kind: Service

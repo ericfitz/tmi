@@ -134,13 +134,15 @@ type ConnectionPoolConfig struct {
 }
 
 // RedisConfig holds Redis configuration
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: configuration struct for Redis connection coordinates and credentials (pure)
+// SEM@e50244f: configuration struct for Redis connection coordinates, credentials, and CA-pinned TLS (pure)
 type RedisConfig struct {
-	URL      string `yaml:"url" env:"TMI_REDIS_URL"` // Connection string URL (redis://[:password@]host:port[/db]), takes precedence over individual fields
-	Host     string `yaml:"host" env:"TMI_REDIS_HOST"`
-	Port     string `yaml:"port" env:"TMI_REDIS_PORT"`
-	Password string `yaml:"password" env:"TMI_REDIS_PASSWORD"`
-	DB       int    `yaml:"db" env:"TMI_REDIS_DB"`
+	URL        string `yaml:"url" env:"TMI_REDIS_URL"` // Connection string URL (redis://[:password@]host:port[/db]), takes precedence over individual fields; rediss:// also enables TLS
+	Host       string `yaml:"host" env:"TMI_REDIS_HOST"`
+	Port       string `yaml:"port" env:"TMI_REDIS_PORT"`
+	Password   string `yaml:"password" env:"TMI_REDIS_PASSWORD"`
+	DB         int    `yaml:"db" env:"TMI_REDIS_DB"`
+	TLSEnabled bool   `yaml:"tls_enabled" env:"TMI_REDIS_TLS_ENABLED"` // Connect with TLS; the server cert is verified against tls_ca_file only
+	TLSCAFile  string `yaml:"tls_ca_file" env:"TMI_REDIS_TLS_CA_FILE"` // PEM CA that signed the Redis server certificate (required when TLS is on)
 }
 
 // AuthConfig holds authentication configuration
@@ -1098,7 +1100,7 @@ func (c *Config) validateServer() error {
 	return nil
 }
 
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: validate that the database URL and Redis connection settings are present (pure)
+// SEM@6bac11e: validate database URL, Redis coordinates, and that Redis TLS names a CA file (pure)
 func (c *Config) validateDatabase() error {
 	// DATABASE_URL is required (contains all connection parameters including type, host, port, user, password, database)
 	if c.Database.URL == "" {
@@ -1112,6 +1114,9 @@ func (c *Config) validateDatabase() error {
 	}
 	if c.Database.Redis.URL == "" && c.Database.Redis.Port == "" {
 		return fmt.Errorf("redis port is required when not using TMI_REDIS_URL")
+	}
+	if (c.Database.Redis.TLSEnabled || strings.HasPrefix(c.Database.Redis.URL, "rediss://")) && c.Database.Redis.TLSCAFile == "" {
+		return fmt.Errorf("database.redis.tls_ca_file (TMI_REDIS_TLS_CA_FILE) is required when database.redis.tls_enabled is true")
 	}
 	return nil
 }

@@ -18,6 +18,10 @@ kind: Deployment
 metadata:
   name: tmi-server
   namespace: tmi-platform
+  annotations:
+    # Reloader rolls the server (Recreate strategy: a few seconds of downtime)
+    # when any mounted Secret/ConfigMap changes, including cert renewals.
+    reloader.stakater.com/auto: "true"
 spec:
   # See the equivalent block in server.yml for the full reasoning: TMI holds
   # collaboration session state in the in-process WebSocketHub, so two
@@ -55,7 +59,20 @@ spec:
             - { name: TMI_SERVER_INTERFACE, value: "0.0.0.0" }
             - { name: TMI_SERVER_PORT, value: "8080" }
             - { name: TMI_REDIS_HOST, value: "redis" }
-            - { name: TMI_NATS_URL, value: "nats://nats.tmi-platform.svc:4222" }
+            # Redis is TLS-only with a password (PR 6). tmi-secrets is created
+            # by deploy.py on dev clusters (random password, never printed) and
+            # by Terraform on AWS.
+            - name: TMI_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: tmi-secrets, key: TMI_REDIS_PASSWORD }
+            - { name: TMI_REDIS_TLS_ENABLED, value: "true" }
+            - { name: TMI_REDIS_TLS_CA_FILE, value: "/etc/tmi-redis-tls/ca.crt" }
+            # NATS is mTLS; the client cert is the cert-manager Secret
+            # nats-client-server mounted below.
+            - { name: TMI_NATS_URL, value: "tls://nats.tmi-platform.svc:4222" }
+            - { name: TMI_NATS_TLS_CA_FILE, value: "/etc/tmi-nats-tls/ca.crt" }
+            - { name: TMI_NATS_TLS_CERT_FILE, value: "/etc/tmi-nats-tls/tls.crt" }
+            - { name: TMI_NATS_TLS_KEY_FILE, value: "/etc/tmi-nats-tls/tls.key" }
             - { name: TMI_LOG_DIR, value: "/tmp/logs" }
             # Enable the built-in TMI OAuth provider for local dev authentication.
             # The tmi provider is a dev/test-only identity provider that supports
@@ -96,6 +113,12 @@ spec:
                   name: tmi-oracle-db
                   key: oracle-password
           volumeMounts:
+            - name: redis-tls
+              mountPath: /etc/tmi-redis-tls
+              readOnly: true
+            - name: nats-client-tls
+              mountPath: /etc/tmi-nats-tls
+              readOnly: true
             - name: config
               mountPath: /etc/tmi
               readOnly: true
@@ -143,6 +166,13 @@ spec:
             requests: { cpu: 100m, memory: 128Mi }
             limits: { cpu: 2000m, memory: 1Gi }
       volumes:
+        - name: redis-tls
+          secret:
+            secretName: redis-tls
+            items: [{ key: ca.crt, path: ca.crt }] # trust anchor only; the server key never reaches a client
+        - name: nats-client-tls
+          secret:
+            secretName: nats-client-server
         - name: config
           configMap:
             name: tmi-server-config

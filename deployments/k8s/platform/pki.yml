@@ -1,0 +1,153 @@
+# Internal PKI for Redis/NATS TLS (PR 6, T356/T388). Needs cert-manager
+# (cert-manager.yml) and is applied by scripts/lib/deploy.py and
+# scripts/deploy-aws.sh after the cert-manager webhook is Available.
+#
+# The CA private key exists only in Secret cert-manager/tmi-internal-ca:
+# never in Terraform state or on disk. CA rotation is manual (5-year cert);
+# runbook in #965: trust old+new CA, reissue leaves, drop the old CA.
+#
+# Every leaf Secret carries ca.crt, tls.crt and tls.key, so one mount gives
+# a pod both its identity and its trust anchor. Namespace tmi-platform must
+# already exist (deploy.py ensure_namespace / Terraform on AWS).
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: tmi-bootstrap
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tmi-internal-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: tmi-internal-ca
+  secretName: tmi-internal-ca
+  duration: 43800h # 5 years
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    # CA key rotation is a manual runbook step (#965); an automatic renewal
+    # must not mint a new key and diverge trust.
+    rotationPolicy: Never
+  issuerRef:
+    name: tmi-bootstrap
+    kind: ClusterIssuer
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: tmi-internal
+spec:
+  ca:
+    secretName: tmi-internal-ca
+---
+# ---- server certificates (90 days, renewed 30 days early) -------------------
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: redis-tls
+  namespace: tmi-platform
+spec:
+  secretName: redis-tls
+  duration: 2160h
+  renewBefore: 720h
+  privateKey: { algorithm: ECDSA, size: 256 }
+  usages: [digital signature, server auth]
+  dnsNames:
+    - redis
+    - redis.tmi-platform.svc
+    - redis.tmi-platform.svc.cluster.local
+  issuerRef: { name: tmi-internal, kind: ClusterIssuer }
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-tls
+  namespace: tmi-platform
+spec:
+  secretName: nats-tls
+  duration: 2160h
+  renewBefore: 720h
+  privateKey: { algorithm: ECDSA, size: 256 }
+  usages: [digital signature, server auth]
+  dnsNames:
+    - nats
+    - nats.tmi-platform.svc
+    - nats.tmi-platform.svc.cluster.local
+  issuerRef: { name: tmi-internal, kind: ClusterIssuer }
+---
+# ---- NATS client certificates (mTLS); CN = component name -------------------
+# Secret name = nats-client-<component without the tmi- prefix>; the
+# TMIComponent controller derives it the same way (render_deployment.go).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-client-server
+  namespace: tmi-platform
+spec:
+  secretName: nats-client-server
+  commonName: server
+  duration: 2160h
+  renewBefore: 720h
+  privateKey: { algorithm: ECDSA, size: 256 }
+  usages: [digital signature, client auth]
+  issuerRef: { name: tmi-internal, kind: ClusterIssuer }
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-client-controller
+  namespace: tmi-platform
+spec:
+  secretName: nats-client-controller
+  commonName: controller
+  duration: 2160h
+  renewBefore: 720h
+  privateKey: { algorithm: ECDSA, size: 256 }
+  usages: [digital signature, client auth]
+  issuerRef: { name: tmi-internal, kind: ClusterIssuer }
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-client-extractor
+  namespace: tmi-platform
+spec:
+  secretName: nats-client-extractor
+  commonName: extractor
+  duration: 2160h
+  renewBefore: 720h
+  privateKey: { algorithm: ECDSA, size: 256 }
+  usages: [digital signature, client auth]
+  issuerRef: { name: tmi-internal, kind: ClusterIssuer }
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-client-chunk-embed
+  namespace: tmi-platform
+spec:
+  secretName: nats-client-chunk-embed
+  commonName: chunk-embed
+  duration: 2160h
+  renewBefore: 720h
+  privateKey: { algorithm: ECDSA, size: 256 }
+  usages: [digital signature, client auth]
+  issuerRef: { name: tmi-internal, kind: ClusterIssuer }
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nats-client-worker-probe
+  namespace: tmi-platform
+spec:
+  secretName: nats-client-worker-probe
+  commonName: worker-probe
+  duration: 2160h
+  renewBefore: 720h
+  privateKey: { algorithm: ECDSA, size: 256 }
+  usages: [digital signature, client auth]
+  issuerRef: { name: tmi-internal, kind: ClusterIssuer }

@@ -304,6 +304,25 @@ var serverSettingDefs = []SettingDef{
 		EnvVar:      "TMI_REDIS_DB",
 		Get:         func(c *Config) string { return strconv.Itoa(c.Database.Redis.DB) },
 	},
+	{
+		Key:         "database.redis.tls_enabled",
+		Class:       bootstrapClass(false, VisibilityInternal, false),
+		Type:        "bool",
+		Description: "Connect to Redis with TLS (a rediss:// URL also enables it); the server certificate is verified against tls_ca_file only",
+		YAMLPath:    "database.redis.tls_enabled",
+		EnvVar:      "TMI_REDIS_TLS_ENABLED",
+		Get:         func(c *Config) string { return strconv.FormatBool(c.Database.Redis.TLSEnabled) },
+	},
+	{
+		Key:           "database.redis.tls_ca_file",
+		Class:         bootstrapClass(false, VisibilityInternal, false),
+		Type:          "string",
+		Description:   "PEM CA file that signed the Redis server certificate; the only CA trusted (required when tls_enabled)",
+		YAMLPath:      "database.redis.tls_ca_file",
+		EnvVar:        "TMI_REDIS_TLS_CA_FILE",
+		Get:           func(c *Config) string { return c.Database.Redis.TLSCAFile },
+		OmitWhenEmpty: true,
+	},
 
 	// --- logging.* ---
 	{

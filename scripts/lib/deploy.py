@@ -9,10 +9,12 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import secrets
 import shlex
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -426,11 +428,99 @@ def build_and_push(db: str, cluster_target: str = "docker-desktop") -> None:
 # Kubernetes helpers
 # ---------------------------------------------------------------------------
 
+CERT_MANAGER_WEBHOOK_SELECTORS = (
+    "app.kubernetes.io/name=webhook,app.kubernetes.io/instance=cert-manager,app.kubernetes.io/managed-by=Helm",
+    "app.kubernetes.io/component=webhook,app.kubernetes.io/instance=cert-manager,app.kubernetes.io/managed-by=Helm",
+)
+RELOADER_SELECTOR = "app.kubernetes.io/name=reloader,app.kubernetes.io/managed-by=Helm"
+CERT_MANAGER_DEPLOYMENTS = ("cert-manager", "cert-manager-cainjector", "cert-manager-webhook")
+
+
 def apply_platform_base() -> None:
+    """Apply the cluster-wide platform in dependency order: cert-manager and
+    Reloader, the internal PKI, then NATS, KEDA and the TMIComponent CRD.
+
+    cert-manager's webhook admits every cert-manager.io object, so pki.yml
+    waits for the three cert-manager Deployments; even then the webhook's
+    serving cert (injected by cainjector) can lag a few seconds, hence the
+    retry. NATS mounts nats-tls and the workloads mount the client certs, so
+    every Certificate must be Ready before anything that uses one is applied.
+    Namespace tmi-platform must already exist (ensure_namespace())."""
     project_root = get_project_root()
-    kubectl(["apply", "-f", str(project_root / PLATFORM_DIR / "nats.yml")])
-    kubectl(["apply", "--server-side", "-f", str(project_root / PLATFORM_DIR / "keda.yml")])
+    platform = project_root / PLATFORM_DIR
+    # Keep only Helm-managed cert-manager/Reloader installs (e.g. k3s-rp): the
+    # vendored apply would fight Helm's field manager. Everything else (fresh or
+    # our own vendored install) gets the vendored manifests re-applied (idempotent
+    # via SSA). Leftover-CRD recovery: after a Helm uninstall the CRDs stay with
+    # no webhook, so the fresh apply can hit an SSA conflict on the Helm-created
+    # CRDs; fix with `kubectl delete crd -l app.kubernetes.io/instance=cert-manager`.
+    webhook = _find_cert_manager_webhook()
+    if webhook and webhook[0] != "cert-manager":
+        # pki.yml puts the CA Certificate/Secret in ns cert-manager, which must
+        # also be the ClusterIssuer's cluster resource namespace.
+        log_error(f"Existing cert-manager runs in namespace {webhook[0]!r}, but pki.yml "
+                  "assumes 'cert-manager'; refusing to guess.")
+        sys.exit(1)
+    if webhook:
+        log_info(f"Existing cert-manager found (webhook {webhook[0]}/{webhook[1]}); "
+                 "skipping the vendored cert-manager.yml")
+    else:
+        kubectl(["apply", "--server-side", "-f", str(platform / "cert-manager.yml")])
+        for dep in CERT_MANAGER_DEPLOYMENTS:
+            kubectl(["-n", "cert-manager", "rollout", "status", f"deploy/{dep}", "--timeout=180s"])
+        webhook = ("cert-manager", "cert-manager-webhook")
+    kubectl(["-n", webhook[0], "wait", "--for=condition=Available",
+             f"deploy/{webhook[1]}", "--timeout=180s"])
+    if _reloader_exists():
+        log_info("Existing Reloader found; skipping the vendored reloader.yml")
+    else:
+        kubectl(["apply", "-f", str(platform / "reloader.yml")])
+    _apply_with_retry(str(platform / "pki.yml"))
+    kubectl(["-n", "cert-manager", "wait", "--for=condition=Ready", "certificate/tmi-internal-ca", "--timeout=120s"])
+    kubectl(["-n", NS, "wait", "--for=condition=Ready", "certificate", "--all", "--timeout=180s"])
+    kubectl(["apply", "-f", str(platform / "nats.yml")])
+    kubectl(["apply", "--server-side", "-f", str(platform / "keda.yml")])
     kubectl(["apply", "-f", str(project_root / "config/crd/bases/tmi.dev_tmicomponents.yaml")])
+    log_success("Platform base applied (cert-manager, Reloader, PKI, NATS, KEDA, CRD)")
+
+
+def _find_cert_manager_webhook() -> tuple[str, str] | None:
+    """Return (namespace, name) of an existing cert-manager webhook Deployment,
+    or None. Helm-managed only; requires the certificates.cert-manager.io CRD too."""
+    crd = kubectl(["get", "crd", "certificates.cert-manager.io", "-o", "name"],
+                  check=False, capture=True)
+    if crd.returncode != 0:
+        return None
+    for selector in CERT_MANAGER_WEBHOOK_SELECTORS:
+        r = kubectl(["get", "deploy", "-A", "-l", selector, "-o",
+                     "jsonpath={range .items[*]}{.metadata.namespace} {.metadata.name}{\"\\n\"}{end}"],
+                    check=False, capture=True)
+        line = r.stdout.strip().splitlines()[0] if r.returncode == 0 and r.stdout.strip() else ""
+        if line:
+            ns, name = line.split()
+            return ns, name
+    return None
+
+
+def _reloader_exists() -> bool:
+    """True if a Helm-managed Reloader Deployment exists in any namespace."""
+    r = kubectl(["get", "deploy", "-A", "-l", RELOADER_SELECTOR, "-o", "name"],
+                check=False, capture=True)
+    return r.returncode == 0 and bool(r.stdout.strip())
+
+
+def _apply_with_retry(path: str, attempts: int = 5, delay_s: float = 3.0) -> None:
+    """kubectl apply with retries, for objects admitted by a webhook that may
+    still be warming up (cert-manager right after its rollout)."""
+    for attempt in range(1, attempts + 1):
+        result = kubectl(["apply", "-f", path], check=False, capture=True)
+        if result.returncode == 0:
+            return
+        if attempt == attempts:
+            log_error(f"kubectl apply -f {path} failed after {attempts} attempts:\n{result.stderr}")
+            sys.exit(1)
+        log_warn(f"kubectl apply -f {path} failed (attempt {attempt}/{attempts}); retrying in {delay_s:.0f}s")
+        time.sleep(delay_s)
 
 
 def ensure_namespace() -> None:
@@ -438,6 +528,28 @@ def ensure_namespace() -> None:
         ["apply", "-f", "-"],
         input_text=f"apiVersion: v1\nkind: Namespace\nmetadata:\n  name: {NS}\n",
     )
+
+
+def ensure_redis_password_secret() -> None:
+    """Create Secret/tmi-secrets with a random TMI_REDIS_PASSWORD on a dev
+    cluster if it does not exist. AWS gets this Secret from Terraform; since
+    PR 6 the base redis.yml/server.yml read it in every environment.
+
+    The value is written to a 0600 file in a private temp dir and handed to
+    kubectl with --from-file, so it never appears on a command line, in the
+    environment, in a log, or on this script's stdout."""
+    if kubectl(["-n", NS, "get", "secret", "tmi-secrets"], check=False, capture=True).returncode == 0:
+        return
+    old_umask = os.umask(0o077)
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            pw_file = Path(tmp) / "TMI_REDIS_PASSWORD"
+            pw_file.write_text(secrets.token_urlsafe(32))
+            kubectl(["-n", NS, "create", "secret", "generic", "tmi-secrets",
+                     f"--from-file=TMI_REDIS_PASSWORD={pw_file}"], capture=True)
+    finally:
+        os.umask(old_umask)
+    log_success("Secret/tmi-secrets created with a random TMI_REDIS_PASSWORD")
 
 
 def ensure_k3s_registry() -> None:
@@ -1024,6 +1136,7 @@ def start(*, db: str, cluster_target: str = "docker-desktop",
     # docker-desktop: no registry — build_and_push imports the images directly.
     build_and_push(db, cluster_target)
     ensure_namespace()
+    ensure_redis_password_secret()
     apply_platform_base()
     if cluster_target in ("k3s", "docker-desktop") and db != "oracle":
         apply_incluster_postgres(cluster_target)  # in-cluster DB up before the server (AutoMigrate)
@@ -1140,6 +1253,11 @@ def restart(*, db: str, cluster_target: str = "docker-desktop",
     if db == "oracle":
         create_oracle_wallet_secret()
         create_oracle_db_secret()
+    # Same order as start(): an existing pre-TLS cluster needs redis-tls,
+    # tmi-secrets and the TLS NATS before the server (which dials tls://) rolls.
+    ensure_namespace()
+    ensure_redis_password_secret()
+    apply_platform_base()
     apply_overlay(db, cluster_target)
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
     kubectl(["-n", NS, "rollout", "status", "deploy/tmi-server", f"--timeout={server_rollout_timeout(db)}"])

@@ -1,0 +1,6 @@
+# The :dev tag is reused on every rebuild and the k3s nodes cache it, so with the
+# default IfNotPresent a rebuilt controller is never pulled (workers then render
+# without the NATS client cert). Always pull, like server.yml.
+- op: add
+  path: /spec/template/spec/containers/0/imagePullPolicy
+  value: Always
