@@ -1,3 +1,38 @@
+# Session progress — 2026-09-28 to 2026-09-29
+
+## Landed (pushed to main)
+
+- **#979** (`d0dd04da`) — `chore(deploy)`: removed the OCI, GCP, Azure, `aws-private` and Heroku deploy tooling.
+- **#980** (`db664069`) — `ci(version)`: docs-only PRs skip the version bump; the OpenAPI schema version bumps only
+  when the schema changes.
+- **#981** (`5f9de076`) — removed an unused absolute symlink to the OpenAPI spec.
+- **#982** (`19d3916c`) — AWS callback allowlist accepts loopback callbacks on any port (`http://127.0.0.1:*`) for
+  tmi-mcp. Goes live with the next AWS deploy.
+- **#991** (`66341796`, 1.16.0) — `feat(security)`: PR 6 of the AWS threat remediation (T356/T388).
+  - In-cluster Redis requires TLS plus a password, and NATS requires mTLS, in every shipped environment.
+  - cert-manager runs an internal CA (5-year root; the CA key never rotates automatically). It issues 90-day
+    ECDSA P-256 certificates, and Stakater Reloader rolls pods when they renew.
+  - New `internal/tlsconfig` package. `TMI_NATS_URL` replaces `TMI_WORKER_NATS_URL`.
+  - Deploy scripts reuse a Helm-managed cert-manager or Reloader and re-apply the vendored v1.21.2 / v1.4.22
+    manifests everywhere else.
+  - The integration harness runs TLS Redis and NATS (port 4223) with a throwaway PKI, plus a plaintext-rejection
+    test.
+  - Verified after `make dev-nuke` on docker-desktop and k3s-rp. Security review found nothing.
+  - Eric's decisions (in the spec): accept that a NATS roll wipes JetStream, use a throwaway test Redis password,
+    reuse only Helm-managed installs.
+- **Plans written** (on branch `feat/965-secret-rotation`, not merged): #965 secret rotation in three PRs.
+  Eric's decisions:
+  - Webhook-secret encryption and content-token key rotation are out of scope (filed #984).
+  - Redis persistence (PVC + AOF) is in PR 1.
+  - JWT rotation advances one phase per daily run, and the rotator's first run creates the JWT keyring.
+- **Filed:** #984, #988 (stale worker `:dev` images on k3s), #989 (e2e harness host-side NATS mTLS), #990 (NATS
+  per-component permissions). tmi-ux filed #985, #986, #987 and #992 from its e2e triage.
+
+## Not yet applied or deployed
+
+Nothing has been deployed to AWS since 1.15.4. The AWS deploy is held until #968, #972 and #965 are done; PR 6 is
+merged. docker-desktop and k3s-rp run 1.16.0 with fresh databases after the PR 6 verification.
+
 # Session progress — 2026-09-25 to 2026-09-28
 
 ## Landed (pushed to main)
