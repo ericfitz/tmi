@@ -829,16 +829,27 @@ e2e-platform-up:  ## Create the kind cluster and install platform dependencies (
 	kind create cluster --config deployments/k8s/platform/kind-cluster.yml
 	kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/calico.yml
 	kubectl --context kind-tmi-platform wait --for=condition=Ready nodes --all --timeout=180s
-	@# Reuse a pre-installed cert-manager/Reloader; fresh clusters get the vendored ones.
-	if kubectl --context kind-tmi-platform get crd certificates.cert-manager.io -o name >/dev/null 2>&1 && \
-	   [ -n "$$(kubectl --context kind-tmi-platform -n cert-manager get deploy -l app.kubernetes.io/name=webhook,app.kubernetes.io/instance=cert-manager -o name 2>/dev/null)" ]; then \
+	@# Keep only Helm-managed cert-manager/Reloader installs; everything else gets the vendored
+	@# manifests re-applied (idempotent via SSA). Leftover-CRD recovery: after a Helm uninstall the
+	@# CRDs stay with no webhook, so the fresh apply can hit an SSA conflict on the Helm-created
+	@# CRDs; fix with `kubectl delete crd -l app.kubernetes.io/instance=cert-manager`.
+	webhook_ns=""; \
+	if kubectl --context kind-tmi-platform get crd certificates.cert-manager.io -o name >/dev/null 2>&1; then \
+		for sel in "app.kubernetes.io/name=webhook,app.kubernetes.io/instance=cert-manager,app.kubernetes.io/managed-by=Helm" "app.kubernetes.io/component=webhook,app.kubernetes.io/instance=cert-manager,app.kubernetes.io/managed-by=Helm"; do \
+			webhook_ns=$$(kubectl --context kind-tmi-platform get deploy -A -l "$$sel" -o jsonpath='{range .items[*]}{.metadata.namespace}{"\n"}{end}' 2>/dev/null | head -n1) || true; \
+			[ -n "$$webhook_ns" ] && break; \
+		done; \
+	fi; \
+	if [ -n "$$webhook_ns" ] && [ "$$webhook_ns" != cert-manager ]; then \
+		echo "Existing cert-manager runs in namespace '$$webhook_ns', but pki.yml assumes 'cert-manager'; refusing to guess."; exit 1; \
+	elif [ -n "$$webhook_ns" ]; then \
 		echo "Existing cert-manager found; skipping the vendored cert-manager.yml"; \
 	else \
 		kubectl --context kind-tmi-platform apply --server-side -f deployments/k8s/platform/cert-manager.yml; \
 		for d in cert-manager cert-manager-cainjector cert-manager-webhook; do kubectl --context kind-tmi-platform -n cert-manager rollout status deploy/$$d --timeout=180s || exit 1; done; \
 	fi
 	kubectl --context kind-tmi-platform -n cert-manager wait --for=condition=Available deploy/cert-manager-webhook --timeout=180s
-	if [ -n "$$(kubectl --context kind-tmi-platform get deploy -A -l app.kubernetes.io/name=reloader -o name)$$(kubectl --context kind-tmi-platform get deploy -A --field-selector metadata.name=reloader-reloader -o name)" ]; then \
+	if [ -n "$$(kubectl --context kind-tmi-platform get deploy -A -l app.kubernetes.io/name=reloader,app.kubernetes.io/managed-by=Helm -o name 2>/dev/null)" ]; then \
 		echo "Existing Reloader found; skipping the vendored reloader.yml"; \
 	else \
 		kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/reloader.yml; \

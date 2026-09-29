@@ -428,6 +428,11 @@ def build_and_push(db: str, cluster_target: str = "docker-desktop") -> None:
 # Kubernetes helpers
 # ---------------------------------------------------------------------------
 
+CERT_MANAGER_WEBHOOK_SELECTORS = (
+    "app.kubernetes.io/name=webhook,app.kubernetes.io/instance=cert-manager,app.kubernetes.io/managed-by=Helm",
+    "app.kubernetes.io/component=webhook,app.kubernetes.io/instance=cert-manager,app.kubernetes.io/managed-by=Helm",
+)
+RELOADER_SELECTOR = "app.kubernetes.io/name=reloader,app.kubernetes.io/managed-by=Helm"
 CERT_MANAGER_DEPLOYMENTS = ("cert-manager", "cert-manager-cainjector", "cert-manager-webhook")
 
 
@@ -443,8 +448,12 @@ def apply_platform_base() -> None:
     Namespace tmi-platform must already exist (ensure_namespace())."""
     project_root = get_project_root()
     platform = project_root / PLATFORM_DIR
-    # Reuse a pre-installed cert-manager/Reloader (e.g. Helm-installed on k3s-rp)
-    # instead of fighting its field manager; fresh clusters get the vendored ones.
+    # Keep only Helm-managed cert-manager/Reloader installs (e.g. k3s-rp): the
+    # vendored apply would fight Helm's field manager. Everything else (fresh or
+    # our own vendored install) gets the vendored manifests re-applied (idempotent
+    # via SSA). Leftover-CRD recovery: after a Helm uninstall the CRDs stay with
+    # no webhook, so the fresh apply can hit an SSA conflict on the Helm-created
+    # CRDs; fix with `kubectl delete crd -l app.kubernetes.io/instance=cert-manager`.
     webhook = _find_cert_manager_webhook()
     if webhook and webhook[0] != "cert-manager":
         # pki.yml puts the CA Certificate/Secret in ns cert-manager, which must
@@ -477,13 +486,12 @@ def apply_platform_base() -> None:
 
 def _find_cert_manager_webhook() -> tuple[str, str] | None:
     """Return (namespace, name) of an existing cert-manager webhook Deployment,
-    or None. Requires the certificates.cert-manager.io CRD too."""
+    or None. Helm-managed only; requires the certificates.cert-manager.io CRD too."""
     crd = kubectl(["get", "crd", "certificates.cert-manager.io", "-o", "name"],
                   check=False, capture=True)
     if crd.returncode != 0:
         return None
-    for selector in ("app.kubernetes.io/name=webhook,app.kubernetes.io/instance=cert-manager",
-                     "app.kubernetes.io/component=webhook,app.kubernetes.io/instance=cert-manager"):
+    for selector in CERT_MANAGER_WEBHOOK_SELECTORS:
         r = kubectl(["get", "deploy", "-A", "-l", selector, "-o",
                      "jsonpath={range .items[*]}{.metadata.namespace} {.metadata.name}{\"\\n\"}{end}"],
                     check=False, capture=True)
@@ -495,14 +503,10 @@ def _find_cert_manager_webhook() -> tuple[str, str] | None:
 
 
 def _reloader_exists() -> bool:
-    """True if a Reloader Deployment already exists in any namespace (Helm
-    labels, or the vendored manifest's fixed name)."""
-    for args in (["-l", "app.kubernetes.io/name=reloader"],
-                 ["--field-selector", "metadata.name=reloader-reloader"]):
-        r = kubectl(["get", "deploy", "-A", *args, "-o", "name"], check=False, capture=True)
-        if r.returncode == 0 and r.stdout.strip():
-            return True
-    return False
+    """True if a Helm-managed Reloader Deployment exists in any namespace."""
+    r = kubectl(["get", "deploy", "-A", "-l", RELOADER_SELECTOR, "-o", "name"],
+                check=False, capture=True)
+    return r.returncode == 0 and bool(r.stdout.strip())
 
 
 def _apply_with_retry(path: str, attempts: int = 5, delay_s: float = 3.0) -> None:

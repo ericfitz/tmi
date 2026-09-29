@@ -655,11 +655,57 @@ class TestReusePreinstalledPlatform(unittest.TestCase):
         with mock.patch.object(deploy, "kubectl", return_value=self._res(1)):
             self.assertIsNone(deploy._find_cert_manager_webhook())
 
-    def test_reloader_detected_by_either_selector(self):
-        with mock.patch.object(deploy, "kubectl", side_effect=[self._res(0, ""), self._res(0, "deployment/r")]):
+    def test_second_selector_is_the_fallback(self):
+        calls = []
+
+        def fake(args, **_kw):
+            calls.append(args)
+            if args[:2] == ["get", "crd"]:
+                return self._res(0, "crd")
+            return self._res(0, "" if len(calls) == 2 else "cert-manager wh\n")
+        with mock.patch.object(deploy, "kubectl", side_effect=fake):
+            self.assertEqual(deploy._find_cert_manager_webhook(), ("cert-manager", "wh"))
+        self.assertEqual(len(calls), 3)
+        self.assertIn(deploy.CERT_MANAGER_WEBHOOK_SELECTORS[1], calls[2])
+
+    def test_selectors_require_helm_management(self):
+        for sel in (*deploy.CERT_MANAGER_WEBHOOK_SELECTORS, deploy.RELOADER_SELECTOR):
+            self.assertIn("app.kubernetes.io/managed-by=Helm", sel)
+
+    def test_reloader_uses_helm_selector_only(self):
+        with mock.patch.object(deploy, "kubectl", return_value=self._res(0, "deployment/r")) as k:
             self.assertTrue(deploy._reloader_exists())
+        self.assertIn(deploy.RELOADER_SELECTOR, k.call_args[0][0])
         with mock.patch.object(deploy, "kubectl", return_value=self._res(0, "")):
             self.assertFalse(deploy._reloader_exists())
+
+    def _run_base(self, webhook, reloader):
+        with mock.patch.object(deploy, "get_project_root", return_value=_REPO_ROOT), \
+             mock.patch.object(deploy, "_find_cert_manager_webhook", return_value=webhook), \
+             mock.patch.object(deploy, "_reloader_exists", return_value=reloader), \
+             mock.patch.object(deploy, "_apply_with_retry"), \
+             mock.patch.object(deploy, "kubectl") as k:
+            deploy.apply_platform_base()
+        return [c[0][0] for c in k.call_args_list]
+
+    def test_helm_install_skips_vendored_applies(self):
+        cmds = self._run_base(("cert-manager", "cert-manager-webhook"), True)
+        flat = [" ".join(c) for c in cmds]
+        self.assertFalse(any("cert-manager.yml" in c for c in flat))
+        self.assertFalse(any("reloader.yml" in c for c in flat))
+
+    def test_no_helm_install_applies_vendored(self):
+        flat = [" ".join(c) for c in self._run_base(None, False)]
+        self.assertTrue(any(c.startswith("apply --server-side") and "cert-manager.yml" in c for c in flat))
+        self.assertTrue(any("reloader.yml" in c for c in flat))
+
+    def test_webhook_outside_cert_manager_namespace_fails_fast(self):
+        with mock.patch.object(deploy, "get_project_root", return_value=_REPO_ROOT), \
+             mock.patch.object(deploy, "_find_cert_manager_webhook", return_value=("kube-system", "wh")), \
+             mock.patch.object(deploy, "kubectl") as k:
+            with self.assertRaises(SystemExit):
+                deploy.apply_platform_base()
+        k.assert_not_called()
 
 
 if __name__ == "__main__":

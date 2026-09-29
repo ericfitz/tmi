@@ -847,13 +847,17 @@ apply_platform_base() {
     assert_cluster_identity
 
     # Mirrors apply_platform_base() in scripts/lib/deploy.py; keep in sync.
-    # Reuse a pre-installed cert-manager/Reloader; fresh clusters get the vendored ones.
+    # Keep only Helm-managed cert-manager/Reloader installs; everything else gets the
+    # vendored manifests re-applied (idempotent via SSA). Leftover-CRD recovery: after a
+    # Helm uninstall the CRDs stay with no webhook, so the fresh apply can hit an SSA
+    # conflict on the Helm-created CRDs; fix with
+    # `kubectl delete crd -l app.kubernetes.io/instance=cert-manager`.
     local webhook="" sel
     if kubectl get crd certificates.cert-manager.io -o name >/dev/null 2>&1; then
-        for sel in "app.kubernetes.io/name=webhook,app.kubernetes.io/instance=cert-manager" \
-                   "app.kubernetes.io/component=webhook,app.kubernetes.io/instance=cert-manager"; do
+        for sel in "app.kubernetes.io/name=webhook,app.kubernetes.io/instance=cert-manager,app.kubernetes.io/managed-by=Helm" \
+                   "app.kubernetes.io/component=webhook,app.kubernetes.io/instance=cert-manager,app.kubernetes.io/managed-by=Helm"; do
             webhook=$(kubectl get deploy -A -l "${sel}" \
-                -o jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.name}{"\n"}{end}' | head -n1)
+                -o jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.name}{"\n"}{end}' | head -n1) || true
             [[ -n "${webhook}" ]] && break
         done
     fi
@@ -875,8 +879,7 @@ apply_platform_base() {
         cm_webhook=cert-manager-webhook
     fi
     kubectl -n "${cm_ns}" wait --for=condition=Available "deploy/${cm_webhook}" --timeout=180s
-    if [[ -n "$(kubectl get deploy -A -l app.kubernetes.io/name=reloader -o name)" ||
-          -n "$(kubectl get deploy -A --field-selector metadata.name=reloader-reloader -o name)" ]]; then
+    if [[ -n "$(kubectl get deploy -A -l app.kubernetes.io/name=reloader,app.kubernetes.io/managed-by=Helm -o name 2>/dev/null || true)" ]]; then
         log_info "Existing Reloader found; skipping the vendored reloader.yml"
     else
         kubectl apply -f "${PLATFORM_DIR}/reloader.yml"
