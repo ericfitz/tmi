@@ -10,8 +10,11 @@ import json
 from pathlib import Path
 
 from tmi_common import (
-    check_tool, get_project_root,
-    log_info, log_success, run_cmd,
+    check_tool,
+    get_project_root,
+    log_info,
+    log_success,
+    run_cmd,
 )
 
 # Remote k3s dev target (CLUSTER=k3s). We do not own this cluster: we select

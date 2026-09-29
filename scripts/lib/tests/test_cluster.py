@@ -85,8 +85,6 @@ class TestIsLocalKubeContext(unittest.TestCase):
         self.assertFalse(cluster.is_local_kube_context(""))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TestK3sConfig(unittest.TestCase):
@@ -109,3 +107,7 @@ class TestK3sConfig(unittest.TestCase):
             with mock.patch.object(cluster, "K3S_CONFIG_FILE", f):
                 with self.assertRaisesRegex(RuntimeError, "node_host"):
                     cluster.k3s_config()
+
+
+if __name__ == "__main__":
+    unittest.main()

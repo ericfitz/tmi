@@ -723,8 +723,6 @@ class TestReusePreinstalledPlatform(unittest.TestCase):
         k.assert_not_called()
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TestApplyOverlayRegistrySubstitution(unittest.TestCase):
@@ -742,3 +740,39 @@ class TestApplyOverlayRegistrySubstitution(unittest.TestCase):
         for rel in ("kustomization.yaml", "patches/extractor-image.yaml", "patches/chunkembed-image.yaml"):
             text = (_DEV_DIR / "k3s" / rel).read_text()
             self.assertIn(deploy.K3S_REGISTRY_PLACEHOLDER, text, rel)
+
+
+class TestSecretCreatorsRun(unittest.TestCase):
+    """Smoke-run each secret creator with kubectl mocked, so an undefined name
+    (F821) or bad signature in the function body fails a test."""
+
+    def _run(self, fn, env=None):
+        with mock.patch.object(deploy, "kubectl", return_value=mock.Mock(stdout="kind: Secret\n")) as kc, \
+             mock.patch.dict(os.environ, env or {}):
+            fn()
+        self.assertEqual(kc.call_args.args[0], ["apply", "-f", "-"])
+        self.assertEqual(kc.call_args.kwargs["input_text"], "kind: Secret\n")
+
+    def test_embedding(self):
+        self._run(deploy.create_embedding_secret)
+
+    def test_oauth_providers(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / ".local").mkdir()
+            (Path(d) / ".local" / "oauth-providers.env").write_text("FOO=bar\n")
+            with mock.patch.object(deploy, "get_project_root", return_value=Path(d)):
+                self._run(deploy.create_oauth_providers_secret)
+
+    def test_oracle_wallet(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".zip") as f:
+            self._run(deploy.create_oracle_wallet_secret, {"TMI_ORACLE_WALLET_ZIP": f.name})
+
+    def test_oracle_db(self):
+        self._run(deploy.create_oracle_db_secret,
+                  {"TMI_DATABASE_URL": "oracle://x", "ORACLE_PASSWORD": "p"})
+
+
+if __name__ == "__main__":
+    unittest.main()

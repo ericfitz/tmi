@@ -21,7 +21,7 @@ from pathlib import Path
 import cluster
 import portfwd
 from tmi_common import (
-    check_tool, container_exists, container_is_running, get_project_root,
+    check_tool, get_project_root,
     log_error, log_info, log_success, log_warn, run_cmd, wait_for_port,
 )
 
@@ -595,10 +595,6 @@ def create_embedding_secret() -> None:
          f"--from-literal=api-key={key}", "--dry-run=client", "-o", "yaml"],
         capture=True,
     ).stdout
-    if cluster_target == "k3s":
-        # The tracked overlay carries a placeholder registry; swap in the real
-        # one from .local/k3s.json (same source build_and_push tags from).
-        rendered = rendered.replace(K3S_REGISTRY_PLACEHOLDER + "/", cluster.registry_for("k3s") + "/")
     kubectl(["apply", "-f", "-"], input_text=rendered)
 
 
@@ -650,10 +646,6 @@ def create_oauth_providers_secret() -> None:
          "--from-env-file", str(path), "--dry-run=client", "-o", "yaml"],
         capture=True,
     ).stdout
-    if cluster_target == "k3s":
-        # The tracked overlay carries a placeholder registry; swap in the real
-        # one from .local/k3s.json (same source build_and_push tags from).
-        rendered = rendered.replace(K3S_REGISTRY_PLACEHOLDER + "/", cluster.registry_for("k3s") + "/")
     kubectl(["apply", "-f", "-"], input_text=rendered)
     log_success("OAuth/SAML provider config delivered as Secret/tmi-oauth-providers")
 
@@ -693,10 +685,6 @@ def create_oracle_wallet_secret() -> None:
          f"--from-file=wallet.zip={wallet}", "--dry-run=client", "-o", "yaml"],
         capture=True,
     ).stdout
-    if cluster_target == "k3s":
-        # The tracked overlay carries a placeholder registry; swap in the real
-        # one from .local/k3s.json (same source build_and_push tags from).
-        rendered = rendered.replace(K3S_REGISTRY_PLACEHOLDER + "/", cluster.registry_for("k3s") + "/")
     kubectl(["apply", "-f", "-"], input_text=rendered)
     log_success("oracle wallet delivered as Secret/tmi-oracle-wallet")
 
@@ -727,10 +715,6 @@ def create_oracle_db_secret() -> None:
          "--dry-run=client", "-o", "yaml"],
         capture=True,
     ).stdout
-    if cluster_target == "k3s":
-        # The tracked overlay carries a placeholder registry; swap in the real
-        # one from .local/k3s.json (same source build_and_push tags from).
-        rendered = rendered.replace(K3S_REGISTRY_PLACEHOLDER + "/", cluster.registry_for("k3s") + "/")
     kubectl(["apply", "-f", "-"], input_text=rendered)
     log_success("oracle DB connection delivered as Secret/tmi-oracle-db")
 
