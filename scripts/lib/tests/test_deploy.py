@@ -639,5 +639,28 @@ class TestImportImageToNode(unittest.TestCase):
         saver.wait.assert_called_once()           # reaped in the finally
 
 
+class TestReusePreinstalledPlatform(unittest.TestCase):
+    @staticmethod
+    def _res(rc=0, out=""):
+        return mock.Mock(returncode=rc, stdout=out)
+
+    def test_webhook_found_returns_namespace_and_name(self):
+        with mock.patch.object(deploy, "kubectl", side_effect=[
+                self._res(0, "customresourcedefinition/x"),
+                self._res(0, "cert-manager cert-manager-webhook\n")]):
+            self.assertEqual(deploy._find_cert_manager_webhook(),
+                             ("cert-manager", "cert-manager-webhook"))
+
+    def test_no_crd_means_fresh_cluster(self):
+        with mock.patch.object(deploy, "kubectl", return_value=self._res(1)):
+            self.assertIsNone(deploy._find_cert_manager_webhook())
+
+    def test_reloader_detected_by_either_selector(self):
+        with mock.patch.object(deploy, "kubectl", side_effect=[self._res(0, ""), self._res(0, "deployment/r")]):
+            self.assertTrue(deploy._reloader_exists())
+        with mock.patch.object(deploy, "kubectl", return_value=self._res(0, "")):
+            self.assertFalse(deploy._reloader_exists())
+
+
 if __name__ == "__main__":
     unittest.main()

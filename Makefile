@@ -829,9 +829,20 @@ e2e-platform-up:  ## Create the kind cluster and install platform dependencies (
 	kind create cluster --config deployments/k8s/platform/kind-cluster.yml
 	kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/calico.yml
 	kubectl --context kind-tmi-platform wait --for=condition=Ready nodes --all --timeout=180s
-	kubectl --context kind-tmi-platform apply --server-side -f deployments/k8s/platform/cert-manager.yml
-	for d in cert-manager cert-manager-cainjector cert-manager-webhook; do kubectl --context kind-tmi-platform -n cert-manager rollout status deploy/$$d --timeout=180s; done
-	kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/reloader.yml
+	@# Reuse a pre-installed cert-manager/Reloader; fresh clusters get the vendored ones.
+	if kubectl --context kind-tmi-platform get crd certificates.cert-manager.io -o name >/dev/null 2>&1 && \
+	   [ -n "$$(kubectl --context kind-tmi-platform -n cert-manager get deploy -l app.kubernetes.io/name=webhook,app.kubernetes.io/instance=cert-manager -o name 2>/dev/null)" ]; then \
+		echo "Existing cert-manager found; skipping the vendored cert-manager.yml"; \
+	else \
+		kubectl --context kind-tmi-platform apply --server-side -f deployments/k8s/platform/cert-manager.yml; \
+		for d in cert-manager cert-manager-cainjector cert-manager-webhook; do kubectl --context kind-tmi-platform -n cert-manager rollout status deploy/$$d --timeout=180s || exit 1; done; \
+	fi
+	kubectl --context kind-tmi-platform -n cert-manager wait --for=condition=Available deploy/cert-manager-webhook --timeout=180s
+	if [ -n "$$(kubectl --context kind-tmi-platform get deploy -A -l app.kubernetes.io/name=reloader -o name)$$(kubectl --context kind-tmi-platform get deploy -A --field-selector metadata.name=reloader-reloader -o name)" ]; then \
+		echo "Existing Reloader found; skipping the vendored reloader.yml"; \
+	else \
+		kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/reloader.yml; \
+	fi
 	kubectl --context kind-tmi-platform create namespace tmi-platform --dry-run=client -o yaml | kubectl --context kind-tmi-platform apply -f -
 	for i in 1 2 3 4 5; do kubectl --context kind-tmi-platform apply -f deployments/k8s/platform/pki.yml && break; [ $$i = 5 ] && exit 1; sleep 3; done
 	kubectl --context kind-tmi-platform -n cert-manager wait --for=condition=Ready certificate/tmi-internal-ca --timeout=120s

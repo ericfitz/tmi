@@ -847,12 +847,40 @@ apply_platform_base() {
     assert_cluster_identity
 
     # Mirrors apply_platform_base() in scripts/lib/deploy.py; keep in sync.
-    kubectl apply --server-side -f "${PLATFORM_DIR}/cert-manager.yml"
-    local dep
-    for dep in cert-manager cert-manager-cainjector cert-manager-webhook; do
-        kubectl -n cert-manager rollout status "deploy/${dep}" --timeout=180s
-    done
-    kubectl apply -f "${PLATFORM_DIR}/reloader.yml"
+    # Reuse a pre-installed cert-manager/Reloader; fresh clusters get the vendored ones.
+    local webhook="" sel
+    if kubectl get crd certificates.cert-manager.io -o name >/dev/null 2>&1; then
+        for sel in "app.kubernetes.io/name=webhook,app.kubernetes.io/instance=cert-manager" \
+                   "app.kubernetes.io/component=webhook,app.kubernetes.io/instance=cert-manager"; do
+            webhook=$(kubectl get deploy -A -l "${sel}" \
+                -o jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.name}{"\n"}{end}' | head -n1)
+            [[ -n "${webhook}" ]] && break
+        done
+    fi
+    local cm_ns cm_webhook
+    if [[ -n "${webhook}" ]]; then
+        read -r cm_ns cm_webhook <<<"${webhook}"
+        if [[ "${cm_ns}" != "cert-manager" ]]; then
+            log_error "Existing cert-manager runs in namespace '${cm_ns}', but pki.yml assumes 'cert-manager'; refusing to guess."
+            exit 1
+        fi
+        log_info "Existing cert-manager found (webhook ${cm_ns}/${cm_webhook}); skipping the vendored cert-manager.yml"
+    else
+        kubectl apply --server-side -f "${PLATFORM_DIR}/cert-manager.yml"
+        local dep
+        for dep in cert-manager cert-manager-cainjector cert-manager-webhook; do
+            kubectl -n cert-manager rollout status "deploy/${dep}" --timeout=180s
+        done
+        cm_ns=cert-manager
+        cm_webhook=cert-manager-webhook
+    fi
+    kubectl -n "${cm_ns}" wait --for=condition=Available "deploy/${cm_webhook}" --timeout=180s
+    if [[ -n "$(kubectl get deploy -A -l app.kubernetes.io/name=reloader -o name)" ||
+          -n "$(kubectl get deploy -A --field-selector metadata.name=reloader-reloader -o name)" ]]; then
+        log_info "Existing Reloader found; skipping the vendored reloader.yml"
+    else
+        kubectl apply -f "${PLATFORM_DIR}/reloader.yml"
+    fi
     # The webhook's serving cert can lag its rollout by a few seconds.
     local attempt
     for attempt in 1 2 3 4 5; do

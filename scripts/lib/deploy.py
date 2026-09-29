@@ -443,10 +443,29 @@ def apply_platform_base() -> None:
     Namespace tmi-platform must already exist (ensure_namespace())."""
     project_root = get_project_root()
     platform = project_root / PLATFORM_DIR
-    kubectl(["apply", "--server-side", "-f", str(platform / "cert-manager.yml")])
-    for dep in CERT_MANAGER_DEPLOYMENTS:
-        kubectl(["-n", "cert-manager", "rollout", "status", f"deploy/{dep}", "--timeout=180s"])
-    kubectl(["apply", "-f", str(platform / "reloader.yml")])
+    # Reuse a pre-installed cert-manager/Reloader (e.g. Helm-installed on k3s-rp)
+    # instead of fighting its field manager; fresh clusters get the vendored ones.
+    webhook = _find_cert_manager_webhook()
+    if webhook and webhook[0] != "cert-manager":
+        # pki.yml puts the CA Certificate/Secret in ns cert-manager, which must
+        # also be the ClusterIssuer's cluster resource namespace.
+        log_error(f"Existing cert-manager runs in namespace {webhook[0]!r}, but pki.yml "
+                  "assumes 'cert-manager'; refusing to guess.")
+        sys.exit(1)
+    if webhook:
+        log_info(f"Existing cert-manager found (webhook {webhook[0]}/{webhook[1]}); "
+                 "skipping the vendored cert-manager.yml")
+    else:
+        kubectl(["apply", "--server-side", "-f", str(platform / "cert-manager.yml")])
+        for dep in CERT_MANAGER_DEPLOYMENTS:
+            kubectl(["-n", "cert-manager", "rollout", "status", f"deploy/{dep}", "--timeout=180s"])
+        webhook = ("cert-manager", "cert-manager-webhook")
+    kubectl(["-n", webhook[0], "wait", "--for=condition=Available",
+             f"deploy/{webhook[1]}", "--timeout=180s"])
+    if _reloader_exists():
+        log_info("Existing Reloader found; skipping the vendored reloader.yml")
+    else:
+        kubectl(["apply", "-f", str(platform / "reloader.yml")])
     _apply_with_retry(str(platform / "pki.yml"))
     kubectl(["-n", "cert-manager", "wait", "--for=condition=Ready", "certificate/tmi-internal-ca", "--timeout=120s"])
     kubectl(["-n", NS, "wait", "--for=condition=Ready", "certificate", "--all", "--timeout=180s"])
@@ -454,6 +473,36 @@ def apply_platform_base() -> None:
     kubectl(["apply", "--server-side", "-f", str(platform / "keda.yml")])
     kubectl(["apply", "-f", str(project_root / "config/crd/bases/tmi.dev_tmicomponents.yaml")])
     log_success("Platform base applied (cert-manager, Reloader, PKI, NATS, KEDA, CRD)")
+
+
+def _find_cert_manager_webhook() -> tuple[str, str] | None:
+    """Return (namespace, name) of an existing cert-manager webhook Deployment,
+    or None. Requires the certificates.cert-manager.io CRD too."""
+    crd = kubectl(["get", "crd", "certificates.cert-manager.io", "-o", "name"],
+                  check=False, capture=True)
+    if crd.returncode != 0:
+        return None
+    for selector in ("app.kubernetes.io/name=webhook,app.kubernetes.io/instance=cert-manager",
+                     "app.kubernetes.io/component=webhook,app.kubernetes.io/instance=cert-manager"):
+        r = kubectl(["get", "deploy", "-A", "-l", selector, "-o",
+                     "jsonpath={range .items[*]}{.metadata.namespace} {.metadata.name}{\"\\n\"}{end}"],
+                    check=False, capture=True)
+        line = r.stdout.strip().splitlines()[0] if r.returncode == 0 and r.stdout.strip() else ""
+        if line:
+            ns, name = line.split()
+            return ns, name
+    return None
+
+
+def _reloader_exists() -> bool:
+    """True if a Reloader Deployment already exists in any namespace (Helm
+    labels, or the vendored manifest's fixed name)."""
+    for args in (["-l", "app.kubernetes.io/name=reloader"],
+                 ["--field-selector", "metadata.name=reloader-reloader"]):
+        r = kubectl(["get", "deploy", "-A", *args, "-o", "name"], check=False, capture=True)
+        if r.returncode == 0 and r.stdout.strip():
+            return True
+    return False
 
 
 def _apply_with_retry(path: str, attempts: int = 5, delay_s: float = 3.0) -> None:
