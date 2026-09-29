@@ -85,7 +85,7 @@ from tmi_common import (  # noqa: E402
 # Per-cluster because the two dev clusters legitimately disagree on
 # host-dependent values -- auth.oauth_callback_url is
 # http://localhost:8080/oauth2/callback on docker-desktop but
-# https://tmi.efitz.net/api/oauth2/callback on k3s -- and a single shared file
+# https://<your-ingress-host>/api/oauth2/callback on k3s -- and a single shared file
 # would push the wrong callback to whichever cluster it was not taken from.
 SNAPSHOT_DIR = ".local"
 CLUSTERS = ("k3s", "docker-desktop")

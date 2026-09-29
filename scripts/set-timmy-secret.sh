@@ -11,7 +11,7 @@
 #     (umask 077; printf '%s' 'sk-YOURKEY' > "$HOME/.tmi-timmy-key")
 # then run:
 #     scripts/set-timmy-secret.sh                     # AWS (tmi-eks), default
-#     scripts/set-timmy-secret.sh --context k3s-rp    # local dev cluster
+#     scripts/set-timmy-secret.sh --context <k3s-context>    # local dev cluster
 #     scripts/set-timmy-secret.sh /path/key           # explicit key file
 #
 # The key is read straight from the file by kubectl (--from-file), so it is

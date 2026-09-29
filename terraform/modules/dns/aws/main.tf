@@ -11,7 +11,7 @@ terraform {
   }
 }
 
-# Route 53 CNAME record for the TMI API server (tmiserver.efitz.net)
+# Route 53 CNAME record for the TMI API server (tmiserver.example.com)
 resource "aws_route53_record" "server" {
   zone_id = var.zone_id
   name    = var.server_domain
@@ -20,7 +20,7 @@ resource "aws_route53_record" "server" {
   records = [var.alb_dns_name]
 }
 
-# Route 53 CNAME record for the TMI-UX frontend (tmi.efitz.net)
+# Route 53 CNAME record for the TMI-UX frontend (tmi.example.com)
 resource "aws_route53_record" "ux" {
   count = var.ux_domain != null ? 1 : 0
 

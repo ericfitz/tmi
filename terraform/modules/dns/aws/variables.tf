@@ -6,12 +6,12 @@ variable "zone_id" {
 }
 
 variable "server_domain" {
-  description = "Domain name for the TMI API server (e.g., tmiserver.efitz.net)"
+  description = "Domain name for the TMI API server (e.g., tmiserver.example.com)"
   type        = string
 }
 
 variable "ux_domain" {
-  description = "Domain name for the TMI-UX frontend (e.g., tmi.efitz.net). Set to null to skip."
+  description = "Domain name for the TMI-UX frontend (e.g., tmi.example.com). Set to null to skip."
   type        = string
   default     = null
 }
