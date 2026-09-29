@@ -39,6 +39,10 @@ images:
 # The workers are TMIComponent custom resources; their .spec.image is not a
 # PodSpec container image, so the images transformer cannot reach it — patch it.
 patches:
+  - path: patches/controller-pullpolicy.yaml
+    target:
+      kind: Deployment
+      name: tmi-component-controller
   - path: patches/extractor-image.yaml
     target:
       group: tmi.dev
