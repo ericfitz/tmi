@@ -1,5 +1,5 @@
 # k3s (CLUSTER=k3s) dev overlay — full parity with the kind dev stack, but every
-# TMI image is served from the in-cluster registry from the in-cluster registry instead of the
+# TMI image is served from the in-cluster registry instead of the
 # kind-local localhost:5000. The registry host below is a placeholder
 # (reserved .invalid TLD); deploy.apply_overlay() substitutes the real host from
 # the untracked .local/k3s.json, so a raw `kubectl apply` fails visibly.

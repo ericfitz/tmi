@@ -723,8 +723,6 @@ class TestReusePreinstalledPlatform(unittest.TestCase):
         k.assert_not_called()
 
 
-
-
 class TestApplyOverlayRegistrySubstitution(unittest.TestCase):
     def test_k3s_placeholder_replaced_before_apply(self):
         rendered = f"image: {deploy.K3S_REGISTRY_PLACEHOLDER}/tmi-server:dev\n"

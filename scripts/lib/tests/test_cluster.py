@@ -85,8 +85,6 @@ class TestIsLocalKubeContext(unittest.TestCase):
         self.assertFalse(cluster.is_local_kube_context(""))
 
 
-
-
 class TestK3sConfig(unittest.TestCase):
     def test_example_file_loads(self):
         cfg = cluster.k3s_config()
