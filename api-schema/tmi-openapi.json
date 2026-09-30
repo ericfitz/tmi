@@ -51521,7 +51521,7 @@
           "Administration"
         ],
         "summary": "Re-encrypt all system settings",
-        "description": "Re-encrypts all system settings with the current encryption key. Use this after rotating the encryption key or when first enabling encryption on existing settings. Requires administrator privileges. Settings that cannot be decrypted are reported as errors but do not prevent other settings from being processed.",
+        "description": "Re-encrypts all system settings with the current encryption key. Use this after rotating the encryption key or when first enabling encryption on existing settings. Requires administrator privileges. Settings that cannot be decrypted are reported as errors but do not prevent other settings from being processed. The pass is resumable: each row is committed on its own, so a failure part-way keeps the rows already converted and a retry finishes the rest.",
         "operationId": "reencryptSystemSettings",
         "responses": {
           "400": {

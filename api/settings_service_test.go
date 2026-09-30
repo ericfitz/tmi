@@ -1,9 +1,12 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -837,7 +840,7 @@ func TestSettingsService_ReEncryptAll_ReportsVanishedRow(t *testing.T) {
 	assert.Equal(t, 1, count, "the surviving row is still counted")
 	require.Len(t, settingErrors, 1)
 	assert.Equal(t, "will.vanish", settingErrors[0].Key)
-	assert.Equal(t, "setting no longer exists", settingErrors[0].Error)
+	assert.Contains(t, settingErrors[0].Error, "setting no longer exists")
 
 	var reloadedSurvivor models.SystemSetting
 	require.NoError(t, gormDB.Where("setting_key = ?", "will.survive").First(&reloadedSurvivor).Error)
@@ -846,12 +849,12 @@ func TestSettingsService_ReEncryptAll_ReportsVanishedRow(t *testing.T) {
 	assert.Equal(t, "dark", plain)
 }
 
-// TestSettingsService_ReEncryptAll_RollsBackOnWriteFailure is the #845
-// guard: the pass runs in one transaction, so a database failure on any row
-// must leave every row exactly as it was (no split-key table) and surface as
-// the fatal error, not as a per-setting error.
-// SEM@0000000000000000000000000000000000000000: verify a mid-pass write failure rolls back every re-encrypted row
-func TestSettingsService_ReEncryptAll_RollsBackOnWriteFailure(t *testing.T) {
+// TestSettingsService_ReEncryptAll_KeepsProgressOnWriteFailure is the #965
+// reversal of #845: each row commits on its own, so a database failure part-way
+// keeps the rows already re-encrypted, counts them, surfaces as the fatal
+// error (not a per-setting error), and a retry finishes the rest.
+// SEM@0000000000000000000000000000000000000000: verify a mid-pass write failure keeps earlier rows re-encrypted and a retry resumes
+func TestSettingsService_ReEncryptAll_KeepsProgressOnWriteFailure(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 
 	key := make([]byte, 32)
@@ -875,8 +878,6 @@ func TestSettingsService_ReEncryptAll_RollsBackOnWriteFailure(t *testing.T) {
 		SettingType: models.SystemSettingTypeString,
 	}).Error)
 
-	// Fail the second UpdateColumn only, so the first row has already been
-	// written inside the transaction when the pass aborts.
 	updates := 0
 	require.NoError(t, gormDB.Callback().Update().Before("gorm:update").
 		Register("test:fail_second_update", func(tx *gorm.DB) {
@@ -889,14 +890,19 @@ func TestSettingsService_ReEncryptAll_RollsBackOnWriteFailure(t *testing.T) {
 	count, settingErrors, err := svc.ReEncryptAll(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "simulated write failure")
-	assert.Equal(t, 0, count)
+	assert.Equal(t, 1, count, "the row committed before the failure is counted")
 	assert.Empty(t, settingErrors, "a database failure is fatal, not per-setting")
 
 	var first, second models.SystemSetting
 	require.NoError(t, gormDB.Where("setting_key = ?", "first.row").First(&first).Error)
 	require.NoError(t, gormDB.Where("setting_key = ?", "second.row").First(&second).Error)
-	assert.Equal(t, "60", string(first.Value), "first row must be rolled back to plaintext")
+	assert.True(t, crypto.IsEncrypted(string(first.Value)), "first row stays re-encrypted")
 	assert.Equal(t, "dark", string(second.Value), "second row must be untouched")
+
+	// Retry resumes: only the remaining row is converted.
+	count, _, err = svc.ReEncryptAll(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
 }
 
 // A missing row is negative-cached so unauthenticated hot paths do not pay a
@@ -1002,4 +1008,83 @@ func TestSettingsService_PlaintextKeys(t *testing.T) {
 	got, err = svc.PlaintextKeys(context.Background(), keys)
 	require.NoError(t, err)
 	assert.Empty(t, got)
+}
+
+func seedEncrypted(t *testing.T, gormDB *gorm.DB, enc *crypto.SettingsEncryptor, key, plaintext string) {
+	t.Helper()
+	v, err := enc.Encrypt(plaintext)
+	require.NoError(t, err)
+	require.NoError(t, gormDB.Create(&models.SystemSetting{SettingKey: models.DBVarchar(key), Value: models.DBText(v), SettingType: models.SystemSettingTypeString, ModifiedAt: time.Now()}).Error)
+}
+
+// SEM@0000000000000000000000000000000000000000: verify re-encryption touches only rows not under the current key id and a second pass is a no-op
+func TestReEncryptAll_ResumesAndOnlyTouchesStaleRows(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+	k1, k2 := bytes.Repeat([]byte{1}, 32), bytes.Repeat([]byte{2}, 32)
+	old, _ := crypto.NewSettingsEncryptorFromKeyring(k1, 1, nil, 0)
+	cur, _ := crypto.NewSettingsEncryptorFromKeyring(k2, 2, k1, 1)
+	for i := 0; i < 250; i++ {
+		seedEncrypted(t, gormDB, old, fmt.Sprintf("k.%03d", i), fmt.Sprintf("v%d", i))
+	}
+	seedEncrypted(t, gormDB, cur, "already.current", "fresh")
+	require.NoError(t, gormDB.Create(&models.SystemSetting{SettingKey: "plain", Value: "text", SettingType: models.SystemSettingTypeString, ModifiedAt: time.Now()}).Error)
+
+	svc := NewSettingsService(gormDB, nil)
+	svc.SetEncryptor(cur)
+	n, errs, err := svc.ReEncryptAll(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, errs)
+	require.Equal(t, 251, n, "250 stale rows + 1 plaintext; the current row is untouched")
+
+	stale, err := svc.CountValuesWithContextID(context.Background(), 1)
+	require.NoError(t, err)
+	require.Zero(t, stale)
+	var row models.SystemSetting
+	require.NoError(t, gormDB.Where("setting_key = ?", "k.000").First(&row).Error)
+	require.True(t, strings.HasPrefix(string(row.Value), "ENC:v1:2:"))
+	got, err := cur.Decrypt(string(row.Value))
+	require.NoError(t, err)
+	require.Equal(t, "v0", got)
+
+	n, _, err = svc.ReEncryptAll(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, n)
+}
+
+// SEM@0000000000000000000000000000000000000000: verify a row no key can open is reported once, skipped, and does not stop other rows
+func TestReEncryptAll_UndecryptableRowIsSkippedOnce(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+	k1, k2, k3 := bytes.Repeat([]byte{1}, 32), bytes.Repeat([]byte{2}, 32), bytes.Repeat([]byte{3}, 32)
+	stranger, _ := crypto.NewSettingsEncryptorFromKeyring(k3, 9, nil, 0)
+	old, _ := crypto.NewSettingsEncryptorFromKeyring(k1, 1, nil, 0)
+	cur, _ := crypto.NewSettingsEncryptorFromKeyring(k2, 2, k1, 1)
+	seedEncrypted(t, gormDB, stranger, "bad", "x")
+	seedEncrypted(t, gormDB, old, "good", "y")
+
+	svc := NewSettingsService(gormDB, nil)
+	svc.SetEncryptor(cur)
+	n, errs, err := svc.ReEncryptAll(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	require.Len(t, errs, 1)
+	require.Equal(t, "bad", errs[0].Key)
+}
+
+// SEM@0000000000000000000000000000000000000000: verify re-encryption leaves modified_at and modified_by unchanged
+func TestReEncryptAll_PreservesAuditFields(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+	k1, k2 := bytes.Repeat([]byte{1}, 32), bytes.Repeat([]byte{2}, 32)
+	old, _ := crypto.NewSettingsEncryptorFromKeyring(k1, 1, nil, 0)
+	cur, _ := crypto.NewSettingsEncryptorFromKeyring(k2, 2, k1, 1)
+	v, _ := old.Encrypt("s")
+	then := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	require.NoError(t, gormDB.Create(&models.SystemSetting{SettingKey: "a", Value: models.DBText(v), SettingType: models.SystemSettingTypeString, ModifiedAt: then, ModifiedBy: models.NullableDBVarchar{String: "someone", Valid: true}}).Error)
+	svc := NewSettingsService(gormDB, nil)
+	svc.SetEncryptor(cur)
+	_, _, err := svc.ReEncryptAll(context.Background())
+	require.NoError(t, err)
+	var row models.SystemSetting
+	require.NoError(t, gormDB.Where("setting_key = ?", "a").First(&row).Error)
+	require.Equal(t, then.Unix(), row.ModifiedAt.Unix())
+	require.Equal(t, models.NullableDBVarchar{String: "someone", Valid: true}, row.ModifiedBy)
 }

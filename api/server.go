@@ -34,6 +34,7 @@ type SettingsServiceInterface interface {
 	Delete(ctx context.Context, key string) error
 	SeedDefaults(ctx context.Context) error
 	ReEncryptAll(ctx context.Context) (int, []SettingError, error)
+	CountValuesWithContextID(ctx context.Context, id int) (int64, error)
 }
 
 // Server is the main API server instance

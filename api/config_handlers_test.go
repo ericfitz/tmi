@@ -111,6 +111,11 @@ func (m *MockSettingsService) ReEncryptAll(ctx context.Context) (int, []SettingE
 	return 0, nil, m.reencryptErr
 }
 
+// SEM@5740a75fafc8da46a061901361ed61990a6c8916: return zero stale rows for handler tests (pure)
+func (m *MockSettingsService) CountValuesWithContextID(ctx context.Context, id int) (int64, error) {
+	return 0, nil
+}
+
 // Helper to add a setting to the mock
 func (m *MockSettingsService) AddSetting(key, value, settingType string) {
 	m.settings[key] = &models.SystemSetting{

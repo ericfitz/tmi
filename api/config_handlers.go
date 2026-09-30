@@ -852,22 +852,23 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 		})
 		return
 	case errors.Is(err, dberrors.ErrTransient):
-		// The pass ran in one transaction (#845) and was rolled back on a
-		// transient database error (serialization conflict, connection
-		// blip); nothing changed, the caller should retry.
-		logger.Warn("Re-encryption rolled back on a transient database error: %v", err)
+		// Each row commits on its own (#965): a transient database error
+		// (serialization conflict, connection blip) keeps the rows already
+		// converted; the caller retries to finish the rest.
+		logger.Warn("Re-encryption stopped on a transient database error: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusServiceUnavailable,
 			Code:    "service_unavailable",
-			Message: "Re-encryption was rolled back due to a transient database error; retry the request",
+			Message: "Re-encryption stopped on a transient database error; rows already re-encrypted are kept, retry to finish",
 		})
 		return
 	case err != nil:
-		logger.Error("Re-encryption rolled back: %v", err)
+		// Rows committed before the failure stay re-encrypted (#965).
+		logger.Error("Re-encryption stopped: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
 			Code:    "internal_error",
-			Message: "Re-encryption failed and was rolled back",
+			Message: "Re-encryption stopped on a database error; rows already re-encrypted are kept",
 		})
 		return
 	}

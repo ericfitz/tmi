@@ -74,6 +74,9 @@ func (f *fakeSettingsService) SeedDefaults(ctx context.Context) error       { re
 func (f *fakeSettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 	return 0, nil, nil
 }
+func (f *fakeSettingsService) CountValuesWithContextID(ctx context.Context, id int) (int64, error) {
+	return 0, nil
+}
 
 func TestRuntimeConfigReaderAdapter_GetClientCallbackAllowList(t *testing.T) {
 	ctx := context.Background()
