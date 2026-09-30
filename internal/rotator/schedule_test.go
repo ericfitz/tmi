@@ -18,6 +18,8 @@ func TestParseRotateEvery(t *testing.T) {
 	require.Error(t, err)
 	_, err = ParseRotateEvery("0d")
 	require.Error(t, err)
+	_, err = ParseRotateEvery("200000d")
+	require.Error(t, err)
 }
 
 func TestIsDue(t *testing.T) {
@@ -29,6 +31,8 @@ func TestIsDue(t *testing.T) {
 	s.Annotations[AnnEvery+"x"] = "7d"
 	require.True(t, IsDue(s, "x", now))
 	s.Annotations[AnnEvery+"x"] = "3 months" // unparsable: warn and use the default
+	require.False(t, IsDue(s, "x", now))
+	s.Annotations[AnnEvery+"x"] = "200000d" // overflow: rejected, default 90d applies
 	require.False(t, IsDue(s, "x", now))
 	s.Annotations[AnnRotatedAt+"x"] = "garbage"
 	require.True(t, IsDue(s, "x", now), "unparsable rotated-at is due")

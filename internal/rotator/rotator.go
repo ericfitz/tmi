@@ -28,6 +28,8 @@ type Rotation interface {
 	Name() string
 	// Run resumes from the phase recorded on the Secret and returns when the
 	// rotation is complete or parked (waiting on a later run). Idempotent.
+	// Returned errors must never contain secret values: implementations wrap
+	// credential-bearing errors (e.g. Redis echoing an ACL password) with fixed messages.
 	Run(ctx context.Context, env *Env) error
 }
 
@@ -73,12 +75,17 @@ func Run(ctx context.Context, env *Env, rotations []Rotation, force string) erro
 // Transition reads the Secret, applies mutate, records the phase (or, for
 // nextPhase == "", clears it and stamps rotated-at) together with the server
 // Deployment's generation before the write, and writes everything in one Update.
-// A conflict means another run touched the Secret: fail, do not retry.
-// SEM@<sha>: apply a rotation phase change to the Secret atomically with its bookkeeping annotations
-func (e *Env) Transition(ctx context.Context, name, nextPhase string, mutate func(s *Secret)) error {
+// It is a compare-and-swap on the phase: if the recorded phase (missing == "")
+// is not fromPhase, another run advanced it, so nothing is written and the error
+// wraps ErrConflict. A stale resourceVersion conflict is likewise not retried.
+// SEM@<sha>: advance a rotation from an expected phase to the next atomically with its bookkeeping annotations
+func (e *Env) Transition(ctx context.Context, name, fromPhase, nextPhase string, mutate func(s *Secret)) error {
 	s, err := e.Secrets.Get(ctx, e.SecretName)
 	if err != nil {
 		return err
+	}
+	if cur := s.Annotations[AnnPhase+name]; cur != fromPhase {
+		return fmt.Errorf("%s expected phase %q, found %q: %w (another rotator run is active?)", name, fromPhase, cur, ErrConflict)
 	}
 	gen, err := e.Rollouts.Generation(ctx, e.ServerDeployment)
 	if err != nil {

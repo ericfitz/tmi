@@ -25,7 +25,8 @@ func ParseRotateEvery(v string) (time.Duration, error) {
 	v = strings.TrimSpace(v)
 	if strings.HasSuffix(v, "d") {
 		n, err := strconv.Atoi(strings.TrimSuffix(v, "d"))
-		if err != nil || n <= 0 {
+		// 36500d (100y) cap keeps n*24h inside time.Duration.
+		if err != nil || n <= 0 || n > 36500 {
 			return 0, fmt.Errorf("invalid rotate-every %q", v)
 		}
 		return time.Duration(n) * 24 * time.Hour, nil

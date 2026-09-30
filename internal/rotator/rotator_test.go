@@ -58,7 +58,7 @@ func TestRun_FailureIsReportedAfterOthersRun(t *testing.T) {
 
 func TestTransition_WritesPhaseAndGenerationAtomically(t *testing.T) {
 	env, st := testEnv(&Secret{Name: "tmi-secrets", Data: map[string]string{"K": "old"}, Annotations: map[string]string{}})
-	err := env.Transition(context.Background(), "k", "swapped", func(s *Secret) { s.Data["K"] = "new" })
+	err := env.Transition(context.Background(), "k", "", "swapped", func(s *Secret) { s.Data["K"] = "new" })
 	require.NoError(t, err)
 	s, _ := st.Get(context.Background(), "tmi-secrets")
 	require.Equal(t, "new", s.Data["K"])
@@ -67,7 +67,7 @@ func TestTransition_WritesPhaseAndGenerationAtomically(t *testing.T) {
 	require.NoError(t, env.WaitServerRolled(context.Background(), s, "k"))
 
 	// Completing a rotation clears the phase and stamps rotated-at.
-	err = env.Transition(context.Background(), "k", "", nil)
+	err = env.Transition(context.Background(), "k", "swapped", "", nil)
 	require.NoError(t, err)
 	s, _ = st.Get(context.Background(), "tmi-secrets")
 	require.Empty(t, s.Annotations[AnnPhase+"k"])
@@ -83,4 +83,17 @@ func TestNewPasswordAndHexKey(t *testing.T) {
 	require.Len(t, k, 64)
 	q, _ := NewPassword()
 	require.NotEqual(t, p, q)
+}
+
+func TestTransition_SecondRunFromSamePhaseConflicts(t *testing.T) {
+	env1, st := testEnv(&Secret{Name: "tmi-secrets", Data: map[string]string{"K": "old"}, Annotations: map[string]string{}})
+	env2 := *env1
+	ctx := context.Background()
+	require.NoError(t, env1.Transition(ctx, "k", "", "swapped", func(s *Secret) { s.Data["K"] = "first" }))
+	err := env2.Transition(ctx, "k", "", "swapped", func(s *Secret) { s.Data["K"] = "second" })
+	require.True(t, errors.Is(err, ErrConflict))
+	s, _ := st.Get(ctx, "tmi-secrets")
+	require.Equal(t, "first", s.Data["K"])
+	require.Equal(t, "swapped", s.Annotations[AnnPhase+"k"])
+	require.Equal(t, 1, st.DataWrites)
 }
