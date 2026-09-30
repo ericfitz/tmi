@@ -286,7 +286,7 @@ clean-everything:
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-up dev-down dev-restart dev-reset dev-nuke dev-status dev-logs dev-deploy dev-cluster-up dev-cluster-down dev-config-snapshot dev-config-restore dev-config-status
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-up dev-down dev-restart dev-reset dev-nuke dev-status rotate-secret dev-logs dev-deploy dev-cluster-up dev-cluster-down dev-config-snapshot dev-config-restore dev-config-status
 
 # Dev-environment Python helpers unit tests
 test-dev-scripts:  ## Run unit tests for the dev-environment Python helpers
@@ -399,6 +399,9 @@ dev-reset:  ## Soft known-state: redeploy the stack with fresh images; KEEP db d
 dev-nuke:  ## Hard known-state: destroy everything incl. db data + images, rebuild
 	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) nuke
+
+rotate-secret:  ## Force one tmi-rotator rotation now: make rotate-secret name=redis-password|settings-key
+	@uv run scripts/rotate-secret.py $(name)
 
 dev-status:  ## dev environment status dashboard
 	@$(REQUIRE_CLUSTER)

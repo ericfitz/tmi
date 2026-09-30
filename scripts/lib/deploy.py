@@ -6,7 +6,9 @@ scripts/devenv.py. Depends on lib/cluster.py for registry + image refs.
 """
 from __future__ import annotations
 
+import base64
 import hashlib
+import json
 import os
 import re
 import secrets
@@ -557,6 +559,58 @@ def ensure_redis_password_secret() -> None:
     finally:
         os.umask(old_umask)
     log_success("Secret/tmi-secrets created with a random TMI_REDIS_PASSWORD")
+
+
+def _secret_has_key(name: str, key: str) -> bool:
+    out = kubectl(["-n", NS, "get", "secret", name, "-o", f"jsonpath={{.data.{key}}}"],
+                  check=False, capture=True)
+    return out.returncode == 0 and bool((out.stdout or "").strip())
+
+
+_DEV_DB_URL_RE = re.compile(r"^\s*url:\s*[\"']?(postgres://[^\"'\s]+)", re.MULTILINE)
+
+
+def dev_database_url(config_text: str, cluster_target: str) -> str | None:
+    """In-cluster Postgres URL from the dev config's database.url, or None (pure)."""
+    m = _DEV_DB_URL_RE.search(rewrite_db_host_for_incluster(
+        config_text, db_host=in_cluster_db_host(cluster_target)))
+    return m.group(1) if m else None
+
+
+def seed_tmi_secret_keys(cluster_target: str = "docker-desktop", db: str = "postgres") -> None:
+    """Merge the keys tmi-rotator (#965) needs into Secret/tmi-secrets on a dev
+    cluster: the settings-encryption key (id 1) and TMI_DATABASE_URL (from
+    config-development.yml, host rewritten to the in-cluster Postgres). Only
+    absent keys are written; present values are never touched. Values go
+    through a 0600 temp file and --patch-file, so nothing is printed or put on
+    a command line. tmi-rotator owns every later change."""
+    wanted: dict[str, callable] = {
+        "TMI_SECRET_SETTINGS_ENCRYPTION_KEY": lambda: secrets.token_hex(32),
+        "TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID": lambda: "1",
+    }
+    if db != "oracle":
+        def _db_url():
+            return dev_database_url((get_project_root() / CONFIG_FILE).read_text(), cluster_target)
+        wanted["TMI_DATABASE_URL"] = _db_url
+    data = {}
+    for key, make in wanted.items():
+        if _secret_has_key("tmi-secrets", key):
+            continue
+        val = make()
+        if val:
+            data[key] = base64.b64encode(val.encode()).decode()
+    if not data:
+        return
+    old_umask = os.umask(0o077)
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            patch = Path(tmp) / "patch.json"
+            patch.write_text(json.dumps({"data": data}))
+            kubectl(["-n", NS, "patch", "secret", "tmi-secrets", "--type=merge",
+                     f"--patch-file={patch}"], capture=True)
+    finally:
+        os.umask(old_umask)
+    log_success(f"Secret/tmi-secrets seeded with missing keys: {', '.join(sorted(data))}")
 
 
 def ensure_k3s_registry() -> None:
@@ -1148,6 +1202,7 @@ def start(*, db: str, cluster_target: str = "docker-desktop",
     build_and_push(db, cluster_target)
     ensure_namespace()
     ensure_redis_password_secret()
+    seed_tmi_secret_keys(cluster_target, db)
     apply_platform_base()
     if cluster_target in ("k3s", "docker-desktop") and db != "oracle":
         apply_incluster_postgres(cluster_target)  # in-cluster DB up before the server (AutoMigrate)
@@ -1268,6 +1323,7 @@ def restart(*, db: str, cluster_target: str = "docker-desktop",
     # tmi-secrets and the TLS NATS before the server (which dials tls://) rolls.
     ensure_namespace()
     ensure_redis_password_secret()
+    seed_tmi_secret_keys(cluster_target, db)
     apply_platform_base()
     apply_overlay(db, cluster_target)
     kubectl(["-n", NS, "rollout", "restart", "deploy/tmi-server"])
@@ -1298,6 +1354,12 @@ def teardown(*, db: str = "postgres", cluster_target: str = "docker-desktop") ->
     the exact failure this secret exists to prevent (#791). start() re-creates it
     from .local/oauth-providers.env anyway, so leaving it in place merely keeps
     the environment working between a down and the next up.
+
+    Also deliberately NOT removed: Secret/tmi-secrets and the redis-data PVC.
+    The Postgres PVC survives, and its settings rows are encrypted with the key
+    in tmi-secrets; deleting the Secret would make them unreadable. The redis-data
+    PVC holds ENC: sessions readable only with the same Secret. dev-nuke deletes
+    the namespace, so all three go together.
 
     The database survives this teardown, but snapshot it anyway: dev-reset calls
     teardown() then start(), and a snapshot taken here is what start()'s restore

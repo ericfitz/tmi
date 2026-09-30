@@ -1,3 +1,5 @@
+import base64
+import json
 import os
 import re
 import sys
@@ -774,3 +776,48 @@ class TestSecretCreatorsRun(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSeedTmiSecretKeys(unittest.TestCase):
+    """seed_tmi_secret_keys merges missing keys and never overwrites (#965)."""
+
+    CONFIG = 'database:\n  url: "postgres://u:pw@localhost:5432/d?sslmode=disable"\n'
+
+    def _run(self, present, db="postgres"):
+        patches = []
+
+        def fake_kubectl(args, **kw):
+            if args[:3] == ["-n", deploy.NS, "get"]:
+                key = args[-1].split(".data.")[1].rstrip("}")
+                return mock.Mock(returncode=0, stdout="x" if key in present else "")
+            if "patch" in args:
+                path = [a for a in args if a.startswith("--patch-file=")][0].split("=", 1)[1]
+                patches.append(json.loads(Path(path).read_text())["data"])
+            return mock.Mock(returncode=0, stdout="")
+
+        cfg = mock.Mock(read_text=lambda: self.CONFIG)
+        with mock.patch.object(deploy, "kubectl", side_effect=fake_kubectl), \
+             mock.patch.object(deploy, "get_project_root", return_value=mock.MagicMock(__truediv__=lambda s, o: cfg)), \
+             mock.patch.object(deploy, "log_success"):
+            deploy.seed_tmi_secret_keys("docker-desktop", db)
+        return patches
+
+    def test_adds_all_when_absent(self):
+        (data,) = self._run(set())
+        self.assertEqual(set(data), {"TMI_SECRET_SETTINGS_ENCRYPTION_KEY",
+                                     "TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID", "TMI_DATABASE_URL"})
+        self.assertEqual(base64.b64decode(data["TMI_DATABASE_URL"]).decode(),
+                         "postgres://u:pw@postgres:5432/d?sslmode=disable")
+        self.assertEqual(base64.b64decode(data["TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID"]), b"1")
+
+    def test_never_overwrites_existing(self):
+        (data,) = self._run({"TMI_SECRET_SETTINGS_ENCRYPTION_KEY", "TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID"})
+        self.assertEqual(set(data), {"TMI_DATABASE_URL"})
+
+    def test_no_patch_when_all_present(self):
+        self.assertEqual(self._run({"TMI_SECRET_SETTINGS_ENCRYPTION_KEY",
+                                    "TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID", "TMI_DATABASE_URL"}), [])
+
+    def test_oracle_skips_database_url(self):
+        (data,) = self._run(set(), db="oracle")
+        self.assertNotIn("TMI_DATABASE_URL", data)

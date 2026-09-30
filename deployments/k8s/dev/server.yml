@@ -82,6 +82,18 @@ spec:
             - name: TMI_REDIS_PASSWORD
               valueFrom:
                 secretKeyRef: { name: tmi-secrets, key: TMI_REDIS_PASSWORD }
+            # Settings-at-rest encryption keyring (#547, rotated by tmi-rotator #965).
+            # Only the key is required: the id defaults to 1 and the previous pair exists
+            # only mid-rotation. The three optional ones may be absent (an existing AWS
+            # Secret never gains them; Terraform ignores data after the first apply).
+            - name: TMI_SECRET_SETTINGS_ENCRYPTION_KEY
+              valueFrom: { secretKeyRef: { name: tmi-secrets, key: TMI_SECRET_SETTINGS_ENCRYPTION_KEY } }
+            - name: TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID
+              valueFrom: { secretKeyRef: { name: tmi-secrets, key: TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID, optional: true } }
+            - name: TMI_SECRET_SETTINGS_ENCRYPTION_PREVIOUS_KEY
+              valueFrom: { secretKeyRef: { name: tmi-secrets, key: TMI_SECRET_SETTINGS_ENCRYPTION_PREVIOUS_KEY, optional: true } }
+            - name: TMI_SECRET_SETTINGS_ENCRYPTION_PREVIOUS_CONTEXT_ID
+              valueFrom: { secretKeyRef: { name: tmi-secrets, key: TMI_SECRET_SETTINGS_ENCRYPTION_PREVIOUS_CONTEXT_ID, optional: true } }
             - { name: TMI_REDIS_TLS_ENABLED, value: "true" }
             - { name: TMI_REDIS_TLS_CA_FILE, value: "/etc/tmi-redis-tls/ca.crt" }
             # NATS is mTLS; the client cert is the cert-manager Secret

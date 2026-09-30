@@ -18,6 +18,7 @@ resources:
   - ../controller.yml
   - ../redis.yml
   - ../server.yml
+  - ../rotator.yml
   - ../../platform/components/tmi-extractor.yml
   - ../../platform/components/tmi-chunk-embed.yml
   - ../networkpolicy-redis.yml
