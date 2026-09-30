@@ -28,7 +28,7 @@ require (
 	github.com/nats-io/nats.go v1.54.0
 	github.com/oapi-codegen/gin-middleware v1.1.0
 	github.com/oapi-codegen/runtime v1.7.0
-	github.com/openai/openai-go/v3 v3.67.0
+	github.com/openai/openai-go/v3 v3.68.0
 	github.com/oracle-samples/gorm-oracle v1.1.3
 	github.com/prometheus/client_golang v1.24.1
 	github.com/redis/go-redis/extra/redisotel/v9 v9.22.0
@@ -202,7 +202,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/gabriel-vasile/mimetype v1.4.15 // indirect
 	github.com/gin-contrib/sse v1.1.1 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.5 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
