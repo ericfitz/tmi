@@ -19,9 +19,20 @@ func TestFileProvider_ReadsOneFilePerKey(t *testing.T) {
 	require.Equal(t, "abc", v)
 	_, err = p.GetSecret(context.Background(), "missing")
 	require.True(t, errors.Is(err, ErrSecretNotFound))
-	_, err = p.GetSecret(context.Background(), "../etc/passwd")
-	require.Error(t, err)
+	for _, k := range []string{"../etc/passwd", "a/b", "..", ".", ""} {
+		_, err = p.GetSecret(context.Background(), k)
+		require.ErrorIs(t, err, ErrInvalidConfig, k)
+	}
 	keys, err := p.ListSecrets(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, []string{"settings_encryption_key"}, keys)
+}
+
+func TestFileProvider_RejectsTraversalToRealFile(t *testing.T) {
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "secrets")
+	require.NoError(t, os.Mkdir(dir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(parent, "sibling"), []byte("leak"), 0o600))
+	_, err := NewFileProvider(dir).GetSecret(context.Background(), "../sibling")
+	require.ErrorIs(t, err, ErrInvalidConfig)
 }

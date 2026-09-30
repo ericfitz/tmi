@@ -38,7 +38,7 @@ type Provider interface {
 }
 
 // ProviderType represents the type of secrets provider
-// SEM@0000000000000000000000000000000000000000: string alias identifying a secrets backend (env, aws, vault) (pure)
+// SEM@0000000000000000000000000000000000000000: string alias identifying a secrets backend (env, file, aws, vault) (pure)
 type ProviderType string
 
 // Provider type constants
@@ -51,7 +51,7 @@ const (
 
 // NewProvider creates a new secrets provider based on configuration.
 // If no provider is configured, it defaults to the environment variable provider.
-// SEM@0000000000000000000000000000000000000000: build a secrets provider (env, aws, or vault) from config, defaulting to env
+// SEM@0000000000000000000000000000000000000000: build a secrets provider (env, file, aws, or vault) from config, defaulting to env
 func NewProvider(ctx context.Context, cfg *config.SecretsConfig) (Provider, error) {
 	logger := slogging.Get()
 

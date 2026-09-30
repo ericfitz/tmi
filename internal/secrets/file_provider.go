@@ -23,7 +23,7 @@ func NewFileProvider(dir string) *FileProvider {
 
 // SEM@0000000000000000000000000000000000000000: fetch a secret from the file named after its key, rejecting path traversal (reads files)
 func (p *FileProvider) GetSecret(_ context.Context, key string) (string, error) {
-	if key == "" || key != filepath.Base(key) {
+	if key == "" || key == "." || key == ".." || key != filepath.Base(key) {
 		return "", fmt.Errorf("%w: invalid secret key", ErrInvalidConfig)
 	}
 	data, err := os.ReadFile(filepath.Join(p.dir, key)) // #nosec G304 -- key is a validated single path element
