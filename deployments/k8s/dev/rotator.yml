@@ -52,6 +52,7 @@ spec:
   failedJobsHistoryLimit: 5
   jobTemplate:
     spec:
+      ttlSecondsAfterFinished: 86400  # manual Jobs (make rotate-secret) have no ownerReference; history limits never GC them
       backoffLimit: 0          # a failed phase is resumed tomorrow, not retried in a loop
       activeDeadlineSeconds: 2400
       template:

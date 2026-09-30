@@ -2,10 +2,15 @@ package rotator
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/stretchr/testify/require"
 )
 
@@ -96,4 +101,29 @@ func TestTransition_SecondRunFromSamePhaseConflicts(t *testing.T) {
 	require.Equal(t, "first", s.Data["K"])
 	require.Equal(t, "swapped", s.Annotations[AnnPhase+"k"])
 	require.Equal(t, 1, st.DataWrites)
+}
+
+// The status line feeds the CloudWatch metric filter ($.age_days); slogging's
+// default redaction drops attrs whose key looks secret-ish, so the rotation name
+// must not be logged under "secret".
+func TestRun_StatusLineSurvivesRedaction(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, slogging.Initialize(slogging.Config{Level: slogging.LogLevelInfo, LogDir: dir, MaxSizeMB: 1, MaxBackups: 1, MaxAgeDays: 1}))
+	env, _ := testEnv(&Secret{Name: "tmi-secrets", Data: map[string]string{}, Annotations: map[string]string{
+		AnnRotatedAt + "fresh": "2026-09-27T00:00:00Z",
+	}})
+	require.NoError(t, Run(context.Background(), env, []Rotation{&fakeRotation{name: "fresh"}}, ""))
+	b, err := os.ReadFile(filepath.Join(dir, "tmi.log"))
+	require.NoError(t, err)
+	var found bool
+	for _, line := range strings.Split(string(b), "\n") {
+		var m map[string]any
+		if json.Unmarshal([]byte(line), &m) != nil || m["msg"] != "rotation status" {
+			continue
+		}
+		found = true
+		require.Equal(t, "fresh", m["rotation"])
+		require.EqualValues(t, 1, m["age_days"])
+	}
+	require.True(t, found, "no rotation status line in %s", b)
 }

@@ -50,7 +50,17 @@ spec:
           # appendonlydir). ACL changes are NOT in the AOF: the default user's
           # password is rebuilt from --requirepass at every start, which is
           # exactly what tmi-rotator relies on for password rotation (#965).
+          #
+          # Memory cap: 160mb against the 256Mi container limit leaves
+          # headroom for the AOF-rewrite fork's copy-on-write. Without a cap an
+          # OOM-kill replays the same AOF and crash-loops. Trade-off:
+          # allkeys-lru may evict token-blacklist entries under memory
+          # pressure (before AOF an OOM wiped them all).
           args:
+            - "--maxmemory"
+            - "160mb"
+            - "--maxmemory-policy"
+            - "allkeys-lru"
             - "--save"
             - ""
             - "--appendonly"

@@ -47,7 +47,7 @@ func Run(ctx context.Context, env *Env, rotations []Rotation, force string) erro
 		phase := s.Annotations[AnnPhase+r.Name()]
 		now := env.Now()
 		logger.InfoCtx(ctx, "rotation status",
-			slog.String("secret", r.Name()),
+			slog.String("rotation", r.Name()),
 			slog.Int("age_days", AgeDays(s, r.Name(), now)),
 			slog.String("phase", phase))
 		switch {
