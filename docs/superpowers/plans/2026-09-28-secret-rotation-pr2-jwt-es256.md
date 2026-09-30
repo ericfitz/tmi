@@ -1337,7 +1337,7 @@ func TestJWTES256Integration_HS256TokenIsRejected(t *testing.T) {
 // The Docker-run server cannot reload its keyring, so the rotation itself is
 // exercised against a MemorySecretStore only: it proves the phase machine and
 // that a token signed before the rotation still verifies against the staged
-// keyring. The live cutover is verified on k3s-rp (plan Task 8).
+// keyring. The live cutover is verified on the k3s cluster (plan Task 8).
 func TestJWTES256Integration_RotationKeepsOldTokensValid(t *testing.T) {
 	kr0, _ := auth.NewJWTKeyring()
 	m0, _ := auth.NewJWTKeyManager(auth.JWTConfig{Keyring: kr0.String(), ExpirationSeconds: 60})
@@ -1377,10 +1377,10 @@ git commit -m "test(integration): ES256 tokens, JWKS verification and HS256 reje
 ### Task 8: Cutover verification, consumers, PR
 
 - [ ] **Step 1: Consumers before merge (spec).** On Agentbus, post to tmi-mcp and the addons channel: "TMI JWTs move to ES256 with `kid`; old tokens 401 once, refresh continues; JWKS at `/.well-known/jwks.json`; anyone verifying locally must use JWKS." Wait for acks or 24h.
-- [ ] **Step 2: k3s-rp cutover.** With the pre-PR server running and a tmi-ux session open (browser), deploy this branch (`CLUSTER=k3s make dev-up`). Expected: the rotator bootstrap Job completes, the server comes up, the open tmi-ux tab hits 401 once and refreshes silently. Then open a diagram for collaboration: the WebSocket handshake with the refreshed token must connect. If the WS path does not refresh on 401 (spec's open item), stop and ask: "This appears to be a client bug. Would you like me to file a bug against tmi-ux?" and use `/file-client-bug` if yes.
-- [ ] **Step 3: Rotation on k3s-rp.** `make rotate-secret name=jwt-keyring` three times (stage, promote; the third parks on grace), with `TMI_ROTATOR_JWT_PREVIOUS_GRACE=1h` temporarily set to `1h` and the clock allowed to pass, or wait a day for the CronJob. After promote, an old tmi-ux session keeps working without re-login; after drop, `/.well-known/jwks.json` has one key.
+- [ ] **Step 2: k3s cutover.** With the pre-PR server running and a tmi-ux session open (browser), deploy this branch (`CLUSTER=k3s make dev-up`; needs `.local/k3s.json`, #998). Expected: the rotator bootstrap Job completes, the server comes up, the open tmi-ux tab hits 401 once and refreshes silently. Then open a diagram for collaboration: the WebSocket handshake with the refreshed token must connect. If the WS path does not refresh on 401 (spec's open item), stop and ask: "This appears to be a client bug. Would you like me to file a bug against tmi-ux?" and use `/file-client-bug` if yes.
+- [ ] **Step 3: Rotation on k3s.** `make rotate-secret name=jwt-keyring` three times (stage, promote; the third parks on grace), with `TMI_ROTATOR_JWT_PREVIOUS_GRACE=1h` temporarily set to `1h` and the clock allowed to pass, or wait a day for the CronJob. After promote, an old tmi-ux session keeps working without re-login; after drop, `/.well-known/jwks.json` has one key.
 - [ ] **Step 4: Gates.** `make lint`, `make build-server`, `make test-unit`, `make test-integration`, `make validate-openapi`, `security-review` skill.
-- [ ] **Step 5: PR.** Push; `gh pr create --title "feat(auth)!: sign JWTs with ES256 from a rotatable JWKS keyring (#965)"` with the body listing the cutover behaviour, the consumer acks, the k3s-rp results and `Refs #965`; attribution trailer.
+- [ ] **Step 5: PR.** Push; `gh pr create --title "feat(auth)!: sign JWTs with ES256 from a rotatable JWKS keyring (#965)"` with the body listing the cutover behaviour, the consumer acks, the k3s results and `Refs #965`; attribution trailer.
 - [ ] **Step 6: After merge.** Ping `dm/tmi-wiki` on Agentbus: 14 wiki pages document HS256 / `TMI_JWT_SECRET` (`rg -l "HS256|TMI_JWT_SECRET" /Users/efitz/Projects/tmi.wiki`); hand over the keyring contract from `auth/README.md` and the rotation phases for the `Secret-Rotation.md` runbook (PR 1 Task 13).
 
 ## Self-review notes (writer)

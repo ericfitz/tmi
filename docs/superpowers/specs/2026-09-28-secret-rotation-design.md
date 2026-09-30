@@ -7,7 +7,7 @@ Stakater Reloader and Redis TLS.
 ## Human decisions (Eric, 2026-09-28)
 
 1. **Scheduled automatic rotation**, not only on-demand tooling or a runbook.
-2. Engine: an **in-cluster CronJob** (`tmi-rotator`), identical on AWS, k3s-rp, and docker-desktop.
+2. Engine: an **in-cluster CronJob** (`tmi-rotator`), identical on AWS, k3s, and docker-desktop.
 3. Source of truth: the **Kubernetes Secret `tmi-secrets` only**. Terraform seeds and then ignores it;
    the Secrets Manager copies of the rotating secrets are deleted.
 4. JWT moves to **ES256 with JWKS** and `kid`-based key rollover (from HS256 with a single secret).
@@ -120,7 +120,7 @@ Stakater Reloader and Redis TLS.
 - Integration: run the rotator in-process per secret while a background loop calls the API; on
   PostgreSQL assert no 5xx and no 401 (except the dedicated HS256-cutover test); on Oracle tolerate
   gap failures and assert recovery.
-- Cluster verification on k3s-rp before AWS: force each rotation, watch Reloader rolls, confirm
+- Cluster verification on the k3s cluster before AWS: force each rotation, watch Reloader rolls, confirm
   sessions survive where expected and the old credential is refused; full integration suite.
 - Runbook (wiki "Secret rotation"): forcing, reading phase annotations, recovering a stuck phase,
   RDS master recovery, PR 6 manual CA rotation.

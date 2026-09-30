@@ -28,13 +28,13 @@ Nothing here changes an approved decision; each item is a place where the spec t
 7. **Redis persistence.** PR 6 defers it to #965 and the #965 spec only notes it. **Resolved: IN scope (decision B); new Task 5** (PVC + AOF `everysec`, `Recreate`, longhorn/gp3 patches, EBS CSI addon in Terraform; ACL state deliberately not persisted, the `default` user is rebuilt from `tmi-secrets` at every start).
 8. **Previous-key grace period.** The Redis `ENC:` TTLs are operator-configurable (`auth.jwt.refresh_token_days`, `auth.jwt.session_lifetime_days`, default 7 days). The plan uses a fixed `TMI_ROTATOR_SETTINGS_PREVIOUS_GRACE` (default `192h` = 8 days) rather than reading the live settings; the runbook says to raise it if those settings exceed 7 days.
 
-## Assumed post-PR 6 state (verify at the start of Task 1; adjust names if PR 6 landed differently)
+## Post-PR 6 state (verified 2026-09-29 against `main` 3aee8c76, after #991/#995/#998)
 
 - `deployments/k8s/dev/redis.yml` starts Redis with `--tls-port 6379`, `--requirepass $(REDIS_PASSWORD)` from `tmi-secrets/TMI_REDIS_PASSWORD`, and carries `secret.reloader.stakater.com/reload: "redis-tls"` (NOT `auto`), so Redis never rolls when `tmi-secrets` changes.
 - `deployments/k8s/dev/server.yml` carries `reloader.stakater.com/auto: "true"` and reads `TMI_REDIS_PASSWORD`, `TMI_REDIS_TLS_ENABLED=true`, `TMI_REDIS_TLS_CA_FILE=/etc/tmi-redis-tls/ca.crt` (Secret `redis-tls` mounted at `/etc/tmi-redis-tls`).
 - `scripts/lib/deploy.py` creates `tmi-secrets` with a random `TMI_REDIS_PASSWORD` on docker-desktop/k3s when absent (PR 6 plan names it `ensure_redis_password_secret()`). It must merge, never replace: this plan adds keys to the same function.
 - `auth/db.RedisConfig` gained `TLSEnabled bool` and `TLSCAFile string`; `internal/tlsconfig.Load(caFile, certFile, keyFile string) (*tls.Config, error)` exists.
-- `deployments/k8s/platform/reloader.yml` is applied by `deploy.py apply_platform_base` and `deploy-aws.sh apply_platform_base`, except where a Helm-managed Reloader (or cert-manager) already exists, which is reused instead (PR 6 as merged; k3s-rp is such a cluster, so Task 14's Reloader check runs against the Helm install there).
+- `deployments/k8s/platform/reloader.yml` is applied by `deploy.py apply_platform_base` and `deploy-aws.sh apply_platform_base`, except where a Helm-managed Reloader (or cert-manager) already exists, which is reused instead (PR 6 as merged; the k3s lab cluster is such a cluster, so Task 14's Reloader check runs against the Helm install there).
 - Reloader rolls a Deployment when the **data** of a referenced Secret changes; annotation-only changes do not roll (confirmed on k3s in Task 14 before relying on it).
 
 ## Global Constraints
@@ -46,7 +46,8 @@ Nothing here changes an approved decision; each item is a place where the spec t
 - **Terraform owns** namespace, ConfigMap, Secrets, IRSA SA, and (Task 5) the EBS CSI addon and `gp3` StorageClass; **kustomize overlays own workloads**, including the new CronJob, ServiceAccount, Role, RoleBinding and the `redis-data` PVC.
 - **Redis data lifecycle:** the `redis-data` PVC survives `make dev-down` (like the Postgres PVC and `tmi-secrets`) and is deleted with the namespace on `make dev-nuke`. Never delete it while `tmi-secrets` stays, or vice versa: `ENC:` entries need both.
 - **Oracle review is mandatory** before the PR is reported complete (Task 13): `ReEncryptAll` touches `system_settings`.
-- **Branch:** `feat/965-secret-rotation` (worktree `/Users/efitz/Projects/tmi-965`), rebased on `main` after PR 6 merges. `main` is PR-only.
+- **Branch:** `feat/965-secret-rotation` (worktree `/Users/efitz/Projects/tmi-965`), rebased on `main` 3aee8c76 (PR 6 merged as #991; #995 removed Tilt; #998 moved lab details to untracked `.local/`). `main` is PR-only.
+- **No lab or deployment identifiers in tracked files (#998):** hostnames, IPs, kube context names, registry hosts and personal domains live in `.local/k3s.json` / `.local/aws-deploy.json`; plans, manifests and scripts say "the k3s cluster" and read those files. `CLUSTER=k3s make dev-up` needs `.local/k3s.json` (schema: `deployments/k8s/dev/k3s/k3s.json.example`).
 - **Commits:** conventional commits; the PR title is `feat(rotator): scheduled rotation of the Redis password and settings key (#965)`. Every commit ends with:
 
   ```
@@ -289,7 +290,7 @@ Needed by `deploy-aws.sh import_config` (Task 11) so the settings keyring reache
 **Files:**
 - Create: `internal/secrets/file_provider.go`
 - Modify: `internal/secrets/provider.go:44-80` (`ProviderTypeFile`, `NewProvider` case)
-- Modify: `internal/config/config.go:338-349` (`SecretsConfig.FileDir`)
+- Modify: `internal/config/config.go:340-351` (`SecretsConfig.FileDir`)
 - Test: `internal/secrets/file_provider_test.go`
 
 **Interfaces:**
@@ -1933,8 +1934,8 @@ git commit -m "feat(rotator): rotate the Redis password via ACL SETUSER without 
 ### Task 7: Batched, resumable `ReEncryptAll`
 
 **Files:**
-- Modify: `api/settings_service.go:658-760` (`ReEncryptAll`, new `reEncryptOne`, `CountValuesWithContextID`)
-- Modify: `api/server.go:36` (interface gains `CountValuesWithContextID`), `api/config_handlers.go:815-870` (503 wording), `api/config_handlers_test.go` and `api/runtime_config_reader_adapter_test.go` (mock/fake gain the new method)
+- Modify: `api/settings_service.go:689-790` (`ReEncryptAll`, new `reEncryptOne`, `CountValuesWithContextID`)
+- Modify: `api/server.go:36` (interface gains `CountValuesWithContextID`), `api/config_handlers.go:843-900` (503 wording), `api/config_handlers_test.go` and `api/runtime_config_reader_adapter_test.go` (mock/fake gain the new method)
 - Modify: `api-schema/tmi-openapi.json` (`reencryptSystemSettings` description, 503 description)
 - Test: `api/settings_service_test.go`
 
@@ -2894,7 +2895,8 @@ git commit -m "feat(rotator): tmi-rotator binary built into the server image (#9
 - Modify: `deployments/k8s/dev/networkpolicy-redis.yml:26-42`, `deployments/k8s/dev/k3s/networkpolicy-k3s.yml:9-25`
 - Modify: `deployments/k8s/dev/server.yml` (env), `deployments/k8s/dev/aws/patches/server-config.yaml` (env list is `$patch: replace`, so repeat the entries there)
 - Modify: `deployments/k8s/dev/docker-desktop/kustomization.yaml`, `deployments/k8s/dev/k3s/kustomization.yaml`, `deployments/k8s/dev/aws/kustomization.yaml` (`resources: - ../rotator.yml`)
-- Modify: `scripts/lib/deploy.py` (`ensure_redis_password_secret()` from PR 6 gains the settings key; `dev-down` keeps `tmi-secrets`)
+- Modify: `scripts/lib/deploy.py` (`ensure_redis_password_secret()` from PR 6 gains the settings key; `dev-down` keeps `tmi-secrets`), `scripts/lib/tests/test_deploy.py` (tests for the new seeding function; `make test-dev-scripts` runs them)
+- Create: `deployments/k8s/dev/docker-desktop/patches/rotator-pullpolicy.yaml` (+ `docker-desktop/kustomization.yaml` patch entry)
 - Create: `scripts/rotate-secret.py`; Modify: `Makefile` (`rotate-secret`)
 
 - [ ] **Step 1: `deployments/k8s/dev/rotator.yml`**
@@ -2983,7 +2985,18 @@ spec:
               secret: { secretName: redis-tls }
 ```
 
-The `resourceNames` on `deployments` with verb `get` is valid. The AWS overlay's `images:` transformer rewrites `localhost:5000/tmi-server` for CronJob pod templates too (kustomize handles `batch/v1 CronJob`).
+The `resourceNames` on `deployments` with verb `get` is valid. The `images:` transformer of every overlay rewrites `localhost:5000/tmi-server` for CronJob pod templates too (kustomize handles `batch/v1 CronJob`): aws to `ECR_REGISTRY_PLACEHOLDER/...`, k3s to the tracked placeholder registry (`k3s-registry.invalid:30500`, #998) that `deploy.apply_overlay()` swaps for the real host from `.local/k3s.json` at apply time, docker-desktop to the bare `tmi-server` name.
+
+docker-desktop imports images into the node by bare name, so `imagePullPolicy: Always` would make the Job pod `ImagePullBackOff` there (the server Deployment already needs `patches/server-pullpolicy.yaml` for the same reason). Add `deployments/k8s/dev/docker-desktop/patches/rotator-pullpolicy.yaml`:
+
+```yaml
+# Same reason as server-pullpolicy.yaml: the image is imported by bare name.
+- op: replace
+  path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
+  value: IfNotPresent
+```
+
+and in `docker-desktop/kustomization.yaml` under `patches:`: `- path: patches/rotator-pullpolicy.yaml` with `target: { kind: CronJob, name: tmi-rotator }`. k3s and aws pull from a registry and keep `Always`.
 
 - [ ] **Step 2: Network policies**
 
@@ -3050,7 +3063,7 @@ def ensure_settings_key_seeded() -> None:
     log_success("Secret/tmi-secrets seeded with a settings encryption key (id 1)")
 ```
 
-Call it from both `start()` and `restart()` right after their `ensure_redis_password_secret()` calls (PR 6 as merged has `restart()` re-run `ensure_redis_password_secret()` and `apply_platform_base()` too, `deploy.py:1259`). Imports needed at the top of `deploy.py`: `base64`, `json`, `secrets`, `tempfile` (check which already exist). In the `dev-down`/`stop` cleanup list (line ~1210), `tmi-secrets` must NOT be deleted while the Postgres PVC survives (encrypted rows would become unreadable), and the `redis-data` PVC (Task 5) is not in that list either, so the `ENC:` sessions it holds stay readable; add a comment next to the kept `tmi-oauth-providers` explaining both. `dev-nuke` deletes the namespace and the PVC together, which is consistent.
+Call it from both `start()` and `restart()` right after their `ensure_redis_password_secret()` calls (PR 6 as merged has `restart()` re-run `ensure_redis_password_secret()` and `apply_platform_base()` too). Imports needed at the top of `deploy.py`: `base64` and `json` (`secrets` and `tempfile` are already imported). In `teardown()` (the `dev-down` cleanup), `tmi-secrets` must NOT be deleted while the Postgres PVC survives (encrypted rows would become unreadable), and the `redis-data` PVC (Task 5) is not in that list either, so the `ENC:` sessions it holds stay readable; add a comment next to the kept `tmi-oauth-providers` explaining both. `dev-nuke` deletes the namespace and the PVC together, which is consistent.
 
 The server now reads the settings key from env, which beats `config-development.yml`; no change to that file.
 
@@ -3106,13 +3119,13 @@ rotate-secret:  ## Force one tmi-rotator rotation now: make rotate-secret name=r
 
 - [ ] **Step 6: Verify renders**
 
-Run: `kubectl kustomize deployments/k8s/dev/docker-desktop | rg -n "tmi-rotator|CronJob|SETTINGS_ENCRYPTION" | head`, same for `k3s` and `aws` (the aws render still carries the placeholders; that is fine). `kubectl kustomize deployments/k8s/dev/aws | kubectl apply --dry-run=client -f -` must parse.
+Run: `kubectl kustomize deployments/k8s/dev/docker-desktop | rg -n "tmi-rotator|CronJob|SETTINGS_ENCRYPTION" | head`, same for `k3s` and `aws` (both renders still carry their placeholder registries, `k3s-registry.invalid` and `ECR_REGISTRY_PLACEHOLDER`; that is fine, the deploy scripts substitute them). The docker-desktop render must show `imagePullPolicy: IfNotPresent` on the CronJob. `make lint` (which since #998 runs `ruff --select F` over `scripts/`, so `rotate-secret.py` must pass it) and `make test-dev-scripts`. `kubectl kustomize deployments/k8s/dev/aws | kubectl apply --dry-run=client -f -` must parse.
 Expected: CronJob, Role, RoleBinding, ServiceAccount present in all three; the server env shows the four keyring entries, three of them `optional: true` (only the key itself is required).
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add deployments/k8s scripts/lib/deploy.py scripts/rotate-secret.py Makefile
+git add deployments/k8s scripts/lib/deploy.py scripts/lib/tests/test_deploy.py scripts/rotate-secret.py Makefile
 git commit -m "feat(deploy): tmi-rotator CronJob, RBAC, network policy and settings-key seeding (#965)"
 ```
 
@@ -3120,10 +3133,10 @@ git commit -m "feat(deploy): tmi-rotator CronJob, RBAC, network policy and setti
 ### Task 11: Terraform hand-off, `deploy-aws.sh import_config`, CloudWatch alarm
 
 **Files:**
-- Modify: `terraform/modules/kubernetes/aws/k8s_resources.tf:160-190` (`kubernetes_secret_v1.tmi`)
+- Modify: `terraform/modules/kubernetes/aws/k8s_resources.tf:207-240` (`kubernetes_secret_v1.tmi`)
 - Modify: `terraform/modules/secrets/aws/main.tf`, `terraform/modules/secrets/aws/outputs.tf`
 - Modify: `terraform/environments/aws-public/main.tf` (metric filter + alarm after `module "logging"`)
-- Modify: `scripts/deploy-aws.sh:1019-1115` (`import_config`)
+- Modify: `scripts/deploy-aws.sh:1078-1170` (`import_config`)
 - Modify: `deployments/k8s/dev/aws/README.md` (secrets section: tmi-secrets is rotator-owned after the first apply)
 
 No tests; verification is `terraform validate`/`plan` and a shell dry run.
@@ -3252,7 +3265,7 @@ git commit -m "feat(terraform): hand tmi-secrets to the rotator, drop redis/sett
 - Create: `test/integration/workflows/secret_rotation_test.go`
 - Modify: `test/integration/go.mod` (`go mod tidy` in `test/integration` if a new package is imported; memory: a stale module silently skips tests)
 
-What is testable here (Docker-run server, no Kubernetes): the Redis password rotation end to end against the harness Redis with a `MemorySecretStore` and `FakeRolloutWaiter`, while a background loop hits the API; and `POST /admin/settings/reencrypt` while the loop runs. The stage/promote server rolls cannot happen in this harness; Task 14 covers them on k3s-rp (spec §5).
+What is testable here (Docker-run server, no Kubernetes): the Redis password rotation end to end against the harness Redis with a `MemorySecretStore` and `FakeRolloutWaiter`, while a background loop hits the API; and `POST /admin/settings/reencrypt` while the loop runs. The stage/promote server rolls cannot happen in this harness; Task 14 covers them on the k3s cluster (spec §5).
 
 - [ ] **Step 1: Harness gets a settings key**
 
@@ -3410,7 +3423,7 @@ git commit -m "test(integration): Redis password rotation and re-encryption unde
 
 ---
 
-### Task 14: Cluster verification on k3s-rp, runbook, PR
+### Task 14: Cluster verification on the k3s cluster, runbook, PR
 
 - [ ] **Step 1: docker-desktop smoke**
 
@@ -3420,9 +3433,9 @@ git commit -m "test(integration): Redis password rotation and re-encryption unde
 
 `kubectl -n tmi-platform annotate secret tmi-secrets tmi.dev/probe=1 --overwrite` must NOT roll `tmi-server` (watch `kubectl get deploy tmi-server -o jsonpath='{.metadata.generation}'` for 60s). Remove the annotation. If it does roll, the Redis rotation still works but costs one extra roll; record it in the PR and keep going.
 
-- [ ] **Step 3: k3s-rp full pass**
+- [ ] **Step 3: k3s full pass**
 
-`CLUSTER=k3s make dev-up`; `make rotate-secret name=settings-key` and watch two rolls; `kubectl -n tmi-platform get secret tmi-secrets -o jsonpath='{.metadata.annotations}'` shows `rotation-phase.settings-key: reencrypted`, `promoted-at`, `rotated-at`. `make test-integration` against the cluster passes. Then set `TMI_ROTATOR_SETTINGS_PREVIOUS_GRACE=1s` on the CronJob (temporary `kubectl set env cronjob/tmi-rotator ...`), force `settings-key` again: expected `Settings previous key dropped id=1`, one roll, previous pair gone, server healthy, `GET /admin/settings` (admin) still decrypts every secret-classified setting. Revert the env.
+`CLUSTER=k3s make dev-up` (needs `.local/k3s.json`, #998); `make rotate-secret name=settings-key` and watch two rolls; `kubectl -n tmi-platform get secret tmi-secrets -o jsonpath='{.metadata.annotations}'` shows `rotation-phase.settings-key: reencrypted`, `promoted-at`, `rotated-at`. `make test-integration` against the cluster passes. Then set `TMI_ROTATOR_SETTINGS_PREVIOUS_GRACE=1s` on the CronJob (temporary `kubectl set env cronjob/tmi-rotator ...`), force `settings-key` again: expected `Settings previous key dropped id=1`, one roll, previous pair gone, server healthy, `GET /admin/settings` (admin) still decrypts every secret-classified setting. Revert the env.
 - Forced run overlapping the nightly: start `make rotate-secret name=redis-password` twice in two terminals; one must exit non-zero with `another rotator run is active?`, the other completes; the Secret is consistent.
 - Redis restart mid-rotation: force `redis-password`, and while `tmi-server` is rolling, `kubectl -n tmi-platform rollout restart deploy/redis`; the run may fail on the rollout wait; the next forced run resumes from `swapped`, re-adds the password and completes. Sessions created before the restart still refresh (`POST /refresh` on the OAuth stub returns 200): the AOF from Task 5 replayed them.
 
@@ -3436,7 +3449,7 @@ In the wiki repo (`/Users/efitz/Projects/tmi.wiki`, per `.local/repos.json`) add
 
 - [ ] **Step 6: PR**
 
-`git push -u origin feat/965-secret-rotation`; `gh pr create --title "feat(rotator): scheduled rotation of the Redis password and settings key (#965)" --body-file <file>` whose body lists: the phase tables, the Open questions above (marked resolved or still open), the Oracle verdict, the k3s-rp verification results, and "Refs #965" (the issue closes after PR 3). End the body with the attribution trailer from the session reminder.
+`git push -u origin feat/965-secret-rotation`; `gh pr create --title "feat(rotator): scheduled rotation of the Redis password and settings key (#965)" --body-file <file>` whose body lists: the phase tables, the Open questions above (marked resolved or still open), the Oracle verdict, the k3s verification results, and "Refs #965" (the issue closes after PR 3). End the body with the attribution trailer from the session reminder.
 
 ## Self-review notes (writer)
 
