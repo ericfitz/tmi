@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"reflect"
 	"testing"
 	"time"
 
@@ -59,8 +60,9 @@ func TestSettingsKeyRotation_StageThenPromoteThenReencrypt(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, kr.CurrentID)
 	require.Equal(t, 1, kr.PreviousID)
-	require.Len(t, kr.CurrentKeyHex, 64)
-	require.Equal(t, "0000000000000000000000000000000000000000000000000000000000000001", kr.PreviousKeyHex)
+	require.Equal(t, 64, len(kr.CurrentKeyHex))
+	require.True(t, kr.PreviousKeyHex == "0000000000000000000000000000000000000000000000000000000000000001", "previous key is the old key")
+	require.True(t, fs.lastKr.CurrentKeyHex == kr.CurrentKeyHex && fs.lastKr.CurrentKeyHex != "0000000000000000000000000000000000000000000000000000000000000001", "re-encrypt ran under the new key")
 	require.Equal(t, 2, st.DataWrites, "stage and promote each roll the server once")
 	require.Equal(t, 1, fs.reencrypt)
 	require.EqualValues(t, 40, fs.rows[2])
@@ -113,7 +115,7 @@ func TestSettingsKeyRotation_ResumeFromStaged(t *testing.T) {
 	s, _ := st.Get(context.Background(), "tmi-secrets")
 	kr, _ := KeyringFromSecret(s)
 	require.Equal(t, 2, kr.CurrentID)
-	require.Equal(t, "0000000000000000000000000000000000000000000000000000000000000002", kr.CurrentKeyHex)
+	require.True(t, kr.CurrentKeyHex == "0000000000000000000000000000000000000000000000000000000000000002", "staged key promoted")
 	require.Equal(t, 1, kr.PreviousID)
 	require.Equal(t, "reencrypted", s.Annotations[AnnPhase+"settings-key"])
 }
@@ -153,4 +155,17 @@ func TestGormSettingsStore_UnreadableRowDoesNotFail(t *testing.T) {
 	left, err := store.CountWithID(context.Background(), kr, 1)
 	require.NoError(t, err)
 	require.Zero(t, left)
+}
+
+func TestSettingsKeyRotation_StagedWithoutPairRefusesToPromote(t *testing.T) {
+	sec := settingsSecret()
+	sec.Annotations[AnnPhase+"settings-key"] = "staged"
+	sec.Annotations[AnnGeneration+"settings-key"] = "0"
+	env, st := testEnv(sec)
+	before, _ := st.Get(context.Background(), "tmi-secrets")
+	dataBefore := before.Clone().Data
+	require.Error(t, NewSettingsKeyRotation(&fakeSettings{rows: map[int]int64{}}, time.Hour).Run(context.Background(), env))
+	after, _ := st.Get(context.Background(), "tmi-secrets")
+	require.True(t, reflect.DeepEqual(dataBefore, after.Data), "secret data must be unchanged")
+	require.Zero(t, st.DataWrites)
 }

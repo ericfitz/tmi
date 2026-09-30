@@ -194,7 +194,13 @@ func (r *SettingsKeyRotation) Run(ctx context.Context, env *Env) error {
 		if err := env.WaitServerRolled(ctx, s, name); err != nil {
 			return fmt.Errorf("staged key rollout: %w", err)
 		}
-		kr, _ := KeyringFromSecret(s)
+		kr, err := KeyringFromSecret(s)
+		if err != nil {
+			return err
+		}
+		if kr.PreviousKeyHex == "" || kr.PreviousID != kr.CurrentID+1 {
+			return fmt.Errorf("staged phase but the staged key pair is missing or inconsistent; refusing to promote")
+		}
 		if err := env.Transition(ctx, name, settingsPhaseStaged, settingsPhasePromoted, func(s *Secret) {
 			s.Data[SettingsKeyKey] = kr.PreviousKeyHex
 			s.Data[SettingsKeyIDKey] = strconv.Itoa(kr.PreviousID)
