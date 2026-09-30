@@ -97,10 +97,11 @@ var SecretKeys = struct {
 		ClientID     string
 		ClientSecret string
 	}
-	SettingsEncryptionKey         string
-	SettingsEncryptionPreviousKey string
-	SettingsEncryptionContextID   string
-	AlertWebhookSecret            string
+	SettingsEncryptionKey               string
+	SettingsEncryptionPreviousKey       string
+	SettingsEncryptionContextID         string
+	SettingsEncryptionPreviousContextID string
+	AlertWebhookSecret                  string
 }{
 	JWTSecret:        "jwt_secret",
 	DatabasePassword: "database_password",
@@ -126,8 +127,9 @@ var SecretKeys = struct {
 		ClientID:     "oauth_microsoft_client_id",
 		ClientSecret: "oauth_microsoft_client_secret",
 	},
-	SettingsEncryptionKey:         "settings_encryption_key",
-	SettingsEncryptionPreviousKey: "settings_encryption_previous_key",
-	SettingsEncryptionContextID:   "settings_encryption_context_id",
-	AlertWebhookSecret:            "alerting_webhook_secret",
+	SettingsEncryptionKey:               "settings_encryption_key",
+	SettingsEncryptionPreviousKey:       "settings_encryption_previous_key",
+	SettingsEncryptionContextID:         "settings_encryption_context_id",
+	SettingsEncryptionPreviousContextID: "settings_encryption_previous_context_id",
+	AlertWebhookSecret:                  "alerting_webhook_secret",
 }

@@ -38,6 +38,7 @@ type EncryptionContext struct {
 type SettingsEncryptor struct {
 	currentKey  []byte
 	previousKey []byte // nil if no previous key configured
+	previousID  int    // 0 when unknown (legacy config) or no previous key
 	context     EncryptionContext
 	enabled     bool
 }
@@ -90,6 +91,13 @@ func NewSettingsEncryptor(ctx context.Context, provider secrets.Provider) (*Sett
 			return nil, fmt.Errorf("invalid settings encryption previous key: %w", err)
 		}
 		enc.previousKey = prevKey
+		if pidStr, err := provider.GetSecret(ctx, secrets.SecretKeys.SettingsEncryptionPreviousContextID); err == nil {
+			if parsed, err := strconv.Atoi(strings.TrimSpace(pidStr)); err == nil && parsed > 0 {
+				enc.previousID = parsed
+			} else {
+				logger.Warn("Invalid settings encryption previous context ID, previous key will be selected by trial decrypt")
+			}
+		}
 		logger.Info("Previous encryption key configured for key rotation")
 	} else if !errors.Is(err, secrets.ErrSecretNotFound) {
 		return nil, fmt.Errorf("failed to retrieve settings encryption previous key: %w", err)
@@ -125,6 +133,43 @@ func NewSettingsEncryptorFromKeys(currentKey, previousKey []byte, contextID int)
 	}, nil
 }
 
+// NewSettingsEncryptorFromKeyring builds an encryptor from raw keys with explicit ids.
+// previousID 0 means "unknown" (selected by trial decrypt only).
+// SEM@2f083a01151eb27a7b1b29e7e608396f205f0818: build a SettingsEncryptor from current and previous key bytes with their ids (pure)
+func NewSettingsEncryptorFromKeyring(current []byte, currentID int, previous []byte, previousID int) (*SettingsEncryptor, error) {
+	enc, err := NewSettingsEncryptorFromKeys(current, previous, currentID)
+	if err != nil {
+		return nil, err
+	}
+	if previous != nil && previousID > 0 {
+		enc.previousID = previousID
+	}
+	return enc, nil
+}
+
+// CurrentPrefix returns the envelope prefix values written by this encryptor carry.
+// SEM@2f083a01151eb27a7b1b29e7e608396f205f0818: return the ENC:v1:<id>: prefix of the current key (pure)
+func (e *SettingsEncryptor) CurrentPrefix() string {
+	return fmt.Sprintf("ENC:v1:%d:", e.context.ContextID)
+}
+
+// ContextIDOf parses the key id out of an ENC:v1 envelope.
+// SEM@2f083a01151eb27a7b1b29e7e608396f205f0818: parse the key id from an encrypted setting envelope; false for plaintext or malformed (pure)
+func ContextIDOf(value string) (int, bool) {
+	if !IsEncrypted(value) {
+		return 0, false
+	}
+	parts := strings.SplitN(value, ":", 5)
+	if len(parts) != 5 || parts[1] != "v1" {
+		return 0, false
+	}
+	id, err := strconv.Atoi(parts[2])
+	if err != nil || id <= 0 {
+		return 0, false
+	}
+	return id, true
+}
+
 // Encrypt encrypts a plaintext value using AES-256-GCM with the current key.
 // Returns the original value unchanged if encryption is disabled.
 // SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: encrypt a plaintext setting value with AES-256-GCM and return the encoded envelope (pure)
@@ -153,7 +198,7 @@ func (e *SettingsEncryptor) Encrypt(plaintext string) (string, error) {
 // Decrypt decrypts an encrypted value. If the value doesn't have the ENC: prefix,
 // it is returned as-is (plaintext passthrough). Tries the current key first,
 // then the previous key if configured and the current key fails.
-// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: decrypt an ENC-prefixed setting value, falling back to the previous key if needed (pure)
+// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: decrypt an ENC-prefixed setting value selecting the key by envelope id, trial fallback for unknown ids (pure)
 func (e *SettingsEncryptor) Decrypt(value string) (string, error) {
 	if !IsEncrypted(value) {
 		return value, nil
@@ -164,7 +209,7 @@ func (e *SettingsEncryptor) Decrypt(value string) (string, error) {
 		return "", fmt.Errorf("invalid encrypted value format")
 	}
 
-	// parts[2] = contextId (informational)
+	// parts[2] = contextId (selects the key; unknown ids fall back to trial)
 	// parts[3] = timestamp (informational)
 	// parts[4] = base64(nonce + ciphertext + tag)
 
@@ -173,24 +218,26 @@ func (e *SettingsEncryptor) Decrypt(value string) (string, error) {
 		return "", fmt.Errorf("failed to decode encrypted value: %w", err)
 	}
 
-	// Try current key
-	if e.currentKey != nil {
-		plaintext, err := decryptAESGCM(e.currentKey, data)
-		if err == nil {
+	id, _ := strconv.Atoi(parts[2])
+	// Select by id; unknown ids (legacy data) fall back to trying every key.
+	order := []struct {
+		key []byte
+		id  int
+	}{{e.currentKey, e.context.ContextID}, {e.previousKey, e.previousID}}
+	if id == e.previousID && e.previousKey != nil {
+		order[0], order[1] = order[1], order[0]
+	}
+	for _, k := range order {
+		if k.key == nil {
+			continue
+		}
+		if plaintext, err := decryptAESGCM(k.key, data); err == nil {
+			if k.id != e.context.ContextID {
+				slogging.Get().Debug("Decrypted setting with a non-current key id=%d", k.id)
+			}
 			return string(plaintext), nil
 		}
 	}
-
-	// Try previous key if available
-	if e.previousKey != nil {
-		logger := slogging.Get()
-		plaintext, err := decryptAESGCM(e.previousKey, data)
-		if err == nil {
-			logger.Debug("Decrypted setting with previous key (will re-encrypt with current key on next write)")
-			return string(plaintext), nil
-		}
-	}
-
 	return "", fmt.Errorf("decryption failed: value could not be decrypted with current or previous key")
 }
 

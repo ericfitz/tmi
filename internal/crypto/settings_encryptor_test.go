@@ -1,11 +1,14 @@
 package crypto
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // generateTestKey generates a random 32-byte key for testing.
@@ -398,4 +401,51 @@ func TestEmptyPlaintext(t *testing.T) {
 	if decrypted != "" {
 		t.Errorf("got %q, want empty string", decrypted)
 	}
+}
+
+func TestKeyring_DecryptSelectsByID(t *testing.T) {
+	k1 := bytes.Repeat([]byte{1}, 32)
+	k2 := bytes.Repeat([]byte{2}, 32)
+	old, err := NewSettingsEncryptorFromKeyring(k1, 1, nil, 0)
+	require.NoError(t, err)
+	v1, err := old.Encrypt("secret-one")
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(v1, "ENC:v1:1:"))
+
+	cur, err := NewSettingsEncryptorFromKeyring(k2, 2, k1, 1)
+	require.NoError(t, err)
+	require.Equal(t, "ENC:v1:2:", cur.CurrentPrefix())
+	got, err := cur.Decrypt(v1)
+	require.NoError(t, err)
+	require.Equal(t, "secret-one", got)
+
+	v2, err := cur.Encrypt("secret-two")
+	require.NoError(t, err)
+	id, ok := ContextIDOf(v2)
+	require.True(t, ok)
+	require.Equal(t, 2, id)
+	_, ok = ContextIDOf("plaintext")
+	require.False(t, ok)
+}
+
+func TestKeyring_LegacyIDFallsBackToTrial(t *testing.T) {
+	k1 := bytes.Repeat([]byte{1}, 32)
+	k2 := bytes.Repeat([]byte{2}, 32)
+	// Value written with k1 but labelled with an id the keyring does not know (legacy data).
+	writer, _ := NewSettingsEncryptorFromKeyring(k1, 7, nil, 0)
+	v, _ := writer.Encrypt("legacy")
+	reader, _ := NewSettingsEncryptorFromKeyring(k2, 2, k1, 1)
+	got, err := reader.Decrypt(v)
+	require.NoError(t, err)
+	require.Equal(t, "legacy", got)
+}
+
+func TestDecrypt_UnknownIDAfterDrop(t *testing.T) {
+	k1 := bytes.Repeat([]byte{1}, 32)
+	k2 := bytes.Repeat([]byte{2}, 32)
+	writer, _ := NewSettingsEncryptorFromKeyring(k1, 1, nil, 0)
+	v, _ := writer.Encrypt("gone")
+	reader, _ := NewSettingsEncryptorFromKeyring(k2, 2, nil, 0) // k1 dropped
+	_, err := reader.Decrypt(v)
+	require.Error(t, err)
 }
