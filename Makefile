@@ -283,7 +283,7 @@ clean-everything:
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev tilt-up tilt-down test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-up dev-down dev-restart dev-reset dev-nuke dev-status dev-logs dev-deploy dev-cluster-up dev-cluster-down dev-config-snapshot dev-config-restore dev-config-status
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-up dev-down dev-restart dev-reset dev-nuke dev-status dev-logs dev-deploy dev-cluster-up dev-cluster-down dev-config-snapshot dev-config-restore dev-config-status
 
 # Dev-environment Python helpers unit tests
 test-dev-scripts:  ## Run unit tests for the dev-environment Python helpers
@@ -373,21 +373,6 @@ probe-oracle-clob-like:
 oracle-fix-quota-defaults:  ## One-off: repair quota column DEFAULTs on Oracle ADB (#682; requires scripts/oci-env.sh)
 	@bash -c "source scripts/oci-env.sh && go run -tags oracle ./scripts/oracle-quota-default-fix/..."
 
-# Development Environment - Optional Tilt fast server-only loop
-# Requires: tilt installed (https://docs.tilt.dev/install.html) + a running dev-up cluster
-# Usage: make tilt-up   - start the Tilt fast loop (runs in foreground; Ctrl-C to stop)
-#        make tilt-down - stop Tilt and restore the prod-shaped server
-tilt-up:  ## Optional fast server-only loop (requires tilt + a running dev-up cluster)
-	@command -v tilt >/dev/null 2>&1 || { echo "tilt not installed — see https://docs.tilt.dev/install.html"; exit 1; }
-	@kubectl cluster-info >/dev/null 2>&1 || { echo "no reachable cluster — run 'make dev-up' first"; exit 1; }
-	@tilt up --stream=true
-
-tilt-down:  ## Stop Tilt and restore the prod-shaped server
-	@command -v tilt >/dev/null 2>&1 && tilt down || true
-	@kubectl apply -f deployments/k8s/dev/server.yml
-	@kubectl -n tmi-platform rollout status deploy/tmi-server --timeout=180s
-	@echo "prod-shaped server restored"
-
 # ============================================================================
 # DEV ENVIRONMENT — single orchestrator (scripts/devenv.py). DB=postgres|oracle CLUSTER=docker-desktop|k3s
 # ============================================================================
@@ -400,7 +385,7 @@ dev-down:  ## Tear down the dev environment; KEEP db data
 	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) down
 
-dev-restart:  ## Rebuild the server image + roll the server pod (cluster + db untouched)
+dev-restart:  ## Rebuild all images and re-apply platform base + overlay (cluster + db untouched)
 	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) restart
 
