@@ -178,14 +178,18 @@ func TestSecretRotationIntegration_ReencryptUnderLoad(t *testing.T) {
 	// has real work. The value is random and never logged.
 	tdb, err := framework.NewTestDatabase()
 	framework.AssertNoError(t, err, "test database")
-	defer func() { _ = tdb.Close() }()
+	t.Cleanup(func() { _ = tdb.Close() }) // registered before the DELETE cleanup: LIFO runs DELETE first
 	raw := make([]byte, 16)
 	_, err = rand.Read(raw)
 	framework.AssertNoError(t, err, "random value")
 	const seedKey = "integration.rotation_test.secret_value"
 	framework.AssertNoError(t, tdb.ExecSQL("DELETE FROM system_settings WHERE setting_key = '"+seedKey+"'"), "clear seed")
 	framework.AssertNoError(t, tdb.ExecSQL("INSERT INTO system_settings (setting_key, value, setting_type, modified_at) VALUES ('"+seedKey+"', '"+hex.EncodeToString(raw)+"', 'string', CURRENT_TIMESTAMP)"), "seed stale setting")
-	t.Cleanup(func() { _ = tdb.ExecSQL("DELETE FROM system_settings WHERE setting_key = '" + seedKey + "'") })
+	t.Cleanup(func() {
+		if err := tdb.ExecSQL("DELETE FROM system_settings WHERE setting_key = '" + seedKey + "'"); err != nil {
+			t.Errorf("remove seeded setting %s: %v", seedKey, err)
+		}
+	})
 
 	load := startAPILoad(t, userClient)
 	for i := 0; i < 3; i++ { // idempotent: later passes are no-ops
