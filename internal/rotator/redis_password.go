@@ -2,8 +2,6 @@ package rotator
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -108,7 +106,6 @@ func (r *RedisPasswordRotation) Run(ctx context.Context, env *Env) error {
 		logger.Info("Redis accepts the new password; swapping the Secret")
 		if err := env.Transition(ctx, r.Name(), "", redisPhaseSwapped, func(s *Secret) {
 			s.Data[RedisPasswordKey] = next
-			s.Annotations[AnnRetire+r.Name()] = sha256Hex(old)
 		}); err != nil {
 			return err
 		}
@@ -128,20 +125,26 @@ func (r *RedisPasswordRotation) Run(ctx context.Context, env *Env) error {
 	if err := env.WaitServerRolled(ctx, s, r.Name()); err != nil {
 		return fmt.Errorf("waiting for %s to pick up the new Redis password: %w", env.ServerDeployment, err)
 	}
+	// Any later rollout satisfies the wait, including one from a peer that has
+	// since swapped to another password: resetting Redis to our NEW then would
+	// lock the server out. Re-check the Secret still holds our phase and NEW.
+	// ponytail: a peer swap in the ms between this re-read and the ACL write
+	// still races; closing it needs a Secret-level lease around the retire.
+	cur, err := env.Secrets.Get(ctx, env.SecretName)
+	if err != nil {
+		return err
+	}
+	if cur.Annotations[AnnPhase+r.Name()] != redisPhaseSwapped || cur.Data[RedisPasswordKey] != s.Data[RedisPasswordKey] {
+		return fmt.Errorf("%s changed while waiting for the rollout: %w (another rotator run is active?)", env.SecretName, ErrConflict)
+	}
 	// Retire by keeping only NEW: succeeds whether OLD is still set, already
 	// gone (Redis restart, peer run), or joined by an orphan from a lost race.
 	if err := r.acl.SetOnlyPassword(ctx, s.Data[RedisPasswordKey]); err != nil {
 		return fmt.Errorf("retire old Redis password: %w", err)
 	}
 	logger.Info("Old Redis password retired")
+	// AnnRetire is no longer written; the delete cleans up legacy Secrets.
 	return env.Transition(ctx, r.Name(), redisPhaseSwapped, "", func(s *Secret) {
 		delete(s.Annotations, AnnRetire+r.Name())
 	})
-}
-
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: hex SHA-256 of a string (pure)
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: compute the SHA-256 hex digest of a string (pure)
-func sha256Hex(s string) string {
-	h := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(h[:])
 }

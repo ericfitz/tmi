@@ -2,12 +2,11 @@ package rotator
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"net"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
@@ -55,9 +54,6 @@ func (f *fakeACL) list() []string {
 	return out
 }
 
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: compute the SHA-256 hex digest of a string for tests (pure)
-func sha(s string) string { h := sha256.Sum256([]byte(s)); return hex.EncodeToString(h[:]) }
-
 // SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: test that a Redis password rotation completes a full cycle
 func TestRedisPasswordRotation_FullCycle(t *testing.T) {
 	env, st := testEnv(&Secret{Name: "tmi-secrets", Data: map[string]string{"TMI_REDIS_PASSWORD": "old"}, Annotations: map[string]string{}})
@@ -83,7 +79,7 @@ func TestRedisPasswordRotation_FullCycle(t *testing.T) {
 func TestRedisPasswordRotation_ResumeReAddsNewPassword(t *testing.T) {
 	env, st := testEnv(&Secret{Name: "tmi-secrets",
 		Data:        map[string]string{"TMI_REDIS_PASSWORD": "new"},
-		Annotations: map[string]string{AnnPhase + "redis-password": "swapped", AnnRetire + "redis-password": sha("old"), AnnGeneration + "redis-password": "0"}})
+		Annotations: map[string]string{AnnPhase + "redis-password": "swapped", AnnGeneration + "redis-password": "0"}})
 	st.DataWrites = 1 // the swap write already happened and the server rolled
 	acl := &fakeACL{passwords: map[string]bool{"old": true, "new": true}}
 	require.NoError(t, NewRedisPasswordRotation(acl).Run(context.Background(), env))
@@ -97,7 +93,7 @@ func TestRedisPasswordRotation_ResumeReAddsNewPassword(t *testing.T) {
 func TestRedisPasswordRotation_RolloutTimeoutKeepsPhase(t *testing.T) {
 	env, st := testEnv(&Secret{Name: "tmi-secrets",
 		Data:        map[string]string{"TMI_REDIS_PASSWORD": "new"},
-		Annotations: map[string]string{AnnPhase + "redis-password": "swapped", AnnRetire + "redis-password": sha("old"), AnnGeneration + "redis-password": "5"}})
+		Annotations: map[string]string{AnnPhase + "redis-password": "swapped", AnnGeneration + "redis-password": "5"}})
 	// DataWrites (0) <= since (5): the fake waiter reports "did not roll".
 	acl := &fakeACL{passwords: map[string]bool{"old": true, "new": true}}
 	err := NewRedisPasswordRotation(acl).Run(context.Background(), env)
@@ -113,19 +109,23 @@ func TestRedisPasswordRotation_RolloutTimeoutKeepsPhase(t *testing.T) {
 func swappedSecret() *Secret {
 	return &Secret{Name: "tmi-secrets",
 		Data:        map[string]string{"TMI_REDIS_PASSWORD": "new"},
-		Annotations: map[string]string{AnnPhase + "redis-password": "swapped", AnnRetire + "redis-password": sha("old"), AnnGeneration + "redis-password": "0"}}
+		Annotations: map[string]string{AnnPhase + "redis-password": "swapped", AnnGeneration + "redis-password": "0"}}
 }
 
 // A Redis restart after the swap leaves only NEW (requirepass); OLD is gone.
 // SEM@451b8e1bd71b581392bf388c61e8d06507f13080: test that a resumed rotation completes when the old password is already gone
 func TestRedisPasswordRotation_ResumeAfterRedisRestart(t *testing.T) {
-	env, st := testEnv(swappedSecret())
+	sec := swappedSecret()
+	sec.Annotations[AnnRetire+"redis-password"] = "legacy-hash" // written by earlier builds
+	env, st := testEnv(sec)
 	st.DataWrites = 1
 	acl := &fakeACL{passwords: map[string]bool{"new": true}}
 	require.NoError(t, NewRedisPasswordRotation(acl).Run(context.Background(), env))
 	require.Equal(t, []string{"new"}, acl.list())
 	s, _ := st.Get(context.Background(), "tmi-secrets")
 	require.Empty(t, s.Annotations[AnnPhase+"redis-password"])
+	_, retireLeft := s.Annotations[AnnRetire+"redis-password"]
+	require.False(t, retireLeft, "legacy retire annotation cleaned up")
 }
 
 // An orphan from a run that lost the compare-and-swap is dropped by the retire.
@@ -157,6 +157,43 @@ func TestRedisPasswordRotation_ConcurrentRetireIsIdempotent(t *testing.T) {
 	require.Equal(t, []string{"new"}, acl.list())
 	s, _ := st.Get(context.Background(), "tmi-secrets")
 	require.Empty(t, s.Annotations[AnnPhase+"redis-password"])
+}
+
+// afterWaitWaiter runs a hook once a rollout wait has succeeded.
+// SEM@ee7c01797a4078bd6d4d1abf4b1775013b50dfbb: rollout waiter that runs a hook after a successful wait
+type afterWaitWaiter struct {
+	RolloutWaiter
+	after func()
+}
+
+// SEM@ee7c01797a4078bd6d4d1abf4b1775013b50dfbb: delegate the rollout wait, then run the hook on success
+func (w *afterWaitWaiter) WaitRolled(ctx context.Context, deployment string, since int64, timeout time.Duration) error {
+	if err := w.RolloutWaiter.WaitRolled(ctx, deployment, since, timeout); err != nil {
+		return err
+	}
+	w.after()
+	return nil
+}
+
+// Run A waits in swapped(new); meanwhile a peer completes it and another peer
+// swaps to "newer" and rolls the server, releasing A's wait. A must not reset
+// Redis to "new" (the server now uses "newer").
+// SEM@ee7c01797a4078bd6d4d1abf4b1775013b50dfbb: test that the retire refuses when a peer swapped the Secret during the wait
+func TestRedisPasswordRotation_RetireRefusesAfterPeerSwap(t *testing.T) {
+	env, st := testEnv(swappedSecret())
+	st.DataWrites = 1
+	acl := &fakeACL{passwords: map[string]bool{"new": true, "newer": true}}
+	env.Rollouts = &afterWaitWaiter{RolloutWaiter: env.Rollouts, after: func() {
+		s, _ := st.Get(context.Background(), "tmi-secrets")
+		s.Data["TMI_REDIS_PASSWORD"] = "newer"
+		s.Annotations[AnnPhase+"redis-password"] = "swapped"
+		require.NoError(t, st.Update(context.Background(), s))
+	}}
+
+	err := NewRedisPasswordRotation(acl).Run(context.Background(), env)
+	require.ErrorIs(t, err, ErrConflict)
+	require.Empty(t, acl.setOnly, "Redis passwords untouched")
+	require.Equal(t, []string{"new", "newer"}, acl.list(), "Redis still accepts the Secret's current password")
 }
 
 // echoHook makes every command fail the way Redis does: echoing the ACL modifier.
