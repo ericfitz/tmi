@@ -109,5 +109,8 @@ func ensureSettingsKey(dir string) error {
 	if len(cur) > 0 && cur[len(cur)-1] != '\n' {
 		add = "\n" + add
 	}
-	return os.WriteFile(path, append(cur, add...), 0o600)
+	if err := os.WriteFile(path, append(cur, add...), 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600) // WriteFile keeps an existing file's mode
 }

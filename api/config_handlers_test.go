@@ -1491,6 +1491,34 @@ func TestReencryptSystemSettings_ErrorMapping(t *testing.T) {
 	}
 }
 
+func TestReencryptSystemSettings_SuccessErrorsIsEmptyArray(t *testing.T) {
+	originalAdminStore := GlobalGroupMemberRepository
+	defer restoreConfigStores(originalAdminStore)
+	gin.SetMode(gin.TestMode)
+	GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+	server := &Server{settingsService: NewMockSettingsService()}
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", uuid.New().String())
+		c.Set("userProvider", "test")
+		c.Next()
+	})
+	r.POST("/admin/settings/reencrypt", server.ReencryptSystemSettings)
+	req, _ := http.NewRequest("POST", "/admin/settings/reencrypt", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	errs, present := body["errors"]
+	require.True(t, present, "errors must be present")
+	arr, isArray := errs.([]any)
+	require.True(t, isArray, "errors must be a JSON array, not null")
+	assert.Empty(t, arr)
+}
+
 func TestReencryptSystemSettings_BodyHandling(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)

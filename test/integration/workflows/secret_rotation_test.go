@@ -2,11 +2,14 @@ package workflows
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,26 +20,45 @@ import (
 	"github.com/ericfitz/tmi/test/integration/framework"
 )
 
-// apiLoop calls GET /me every 50ms until stop is closed, counting 5xx/401 responses.
-func apiLoop(client *framework.IntegrationClient, stop <-chan struct{}) *int32 {
-	var bad int32
+// apiLoad hits GET /me every 50ms in the background and counts 5xx/401 responses.
+type apiLoad struct {
+	stop chan struct{}
+	done chan struct{}
+	once sync.Once
+	bad  int32
+}
+
+// SEM@<sha>: start a background loop calling GET /me and counting server failures; stopped by t.Cleanup if not earlier
+func startAPILoad(t *testing.T, client *framework.IntegrationClient) *apiLoad {
+	l := &apiLoad{stop: make(chan struct{}), done: make(chan struct{})}
 	go func() {
+		defer close(l.done)
 		for {
 			select {
-			case <-stop:
+			case <-l.stop:
 				return
 			default:
 			}
 			resp, err := client.Do(framework.Request{Method: http.MethodGet, Path: "/me"})
 			if err != nil || resp.StatusCode >= 500 || resp.StatusCode == http.StatusUnauthorized {
-				atomic.AddInt32(&bad, 1)
+				atomic.AddInt32(&l.bad, 1)
 			}
 			time.Sleep(50 * time.Millisecond)
 		}
 	}()
-	return &bad
+	t.Cleanup(func() { l.finish() }) // no goroutine leak on any t.Fatal path
+	return l
 }
 
+// finish stops the loop, waits for it to exit, and returns the failure count.
+// SEM@<sha>: stop the API load loop, wait for it to exit, and return the failed-call count (idempotent)
+func (l *apiLoad) finish() int32 {
+	l.once.Do(func() { close(l.stop) })
+	<-l.done
+	return atomic.LoadInt32(&l.bad)
+}
+
+// SEM@<sha>: authenticate a test user (admin when empty) and build an integration client; skip unless integration tests are enabled
 func rotationTestClient(t *testing.T, user string) *framework.IntegrationClient {
 	t.Helper()
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
@@ -62,6 +84,12 @@ func rotationTestClient(t *testing.T, user string) *framework.IntegrationClient 
 	return client
 }
 
+// The Docker harness has no Reloader, so the running server never picks up the
+// new password: it only sees the post-retire window (OLD rejected for new
+// connections) until the inline restore below. This test therefore proves the
+// rotation's Redis-side behaviour and that the server stays healthy through the
+// add/swap, not a full server roll (Task 14 covers that on k3s).
+// SEM@<sha>: verify Redis password rotation against the harness Redis while the server serves API traffic
 func TestSecretRotationIntegration_RedisPassword(t *testing.T) {
 	client := rotationTestClient(t, "alice")
 
@@ -99,13 +127,9 @@ func TestSecretRotationIntegration_RedisPassword(t *testing.T) {
 		}
 	})
 
-	stop := make(chan struct{})
-	bad := apiLoop(client, stop)
+	load := startAPILoad(t, client)
 	rot := rotator.NewRedisPasswordRotation(rotator.NewGoRedisACL(rdb))
 	err = rot.Run(ctx, env)
-	if err != nil {
-		close(stop)
-	}
 	framework.AssertNoError(t, err, "rotation")
 
 	s, err := st.Get(ctx, "tmi-secrets")
@@ -128,7 +152,7 @@ func TestSecretRotationIntegration_RedisPassword(t *testing.T) {
 	restoreErr := acl.AddPassword(ctx, oldPassword)
 	closeFn()
 
-	close(stop)
+	badCalls := load.finish()
 	if newErr != nil {
 		t.Fatalf("new password rejected: %v", newErr)
 	}
@@ -136,8 +160,8 @@ func TestSecretRotationIntegration_RedisPassword(t *testing.T) {
 		t.Fatal("old password still accepted after rotation")
 	}
 	framework.AssertNoError(t, restoreErr, "restore old password")
-	if n := atomic.LoadInt32(bad); n != 0 {
-		t.Fatalf("%d failed API calls during Redis password rotation", n)
+	if badCalls != 0 {
+		t.Fatalf("%d failed API calls during Redis password rotation", badCalls)
 	}
 
 	resp, err := client.Do(framework.Request{Method: http.MethodGet, Path: "/me"})
@@ -145,28 +169,50 @@ func TestSecretRotationIntegration_RedisPassword(t *testing.T) {
 	framework.AssertStatusOK(t, resp)
 }
 
+// SEM@<sha>: verify settings re-encryption converts a stale row once and is idempotent while the server serves API traffic
 func TestSecretRotationIntegration_ReencryptUnderLoad(t *testing.T) {
 	adminClient := rotationTestClient(t, "")
 	userClient := rotationTestClient(t, "bob")
 
-	stop := make(chan struct{})
-	bad := apiLoop(userClient, stop)
-	var last *framework.Response
-	var err error
-	for i := 0; i < 3; i++ { // idempotent: a second and third pass are no-ops
-		last, err = adminClient.Do(framework.Request{Method: http.MethodPost, Path: "/admin/settings/reencrypt"})
-		if err != nil {
-			break
+	// Seed one stale (plaintext) row straight into the DB so the first pass
+	// has real work. The value is random and never logged.
+	tdb, err := framework.NewTestDatabase()
+	framework.AssertNoError(t, err, "test database")
+	defer func() { _ = tdb.Close() }()
+	raw := make([]byte, 16)
+	_, err = rand.Read(raw)
+	framework.AssertNoError(t, err, "random value")
+	const seedKey = "integration.rotation_test.secret_value"
+	framework.AssertNoError(t, tdb.ExecSQL("DELETE FROM system_settings WHERE setting_key = '"+seedKey+"'"), "clear seed")
+	framework.AssertNoError(t, tdb.ExecSQL("INSERT INTO system_settings (setting_key, value, setting_type, modified_at) VALUES ('"+seedKey+"', '"+hex.EncodeToString(raw)+"', 'string', CURRENT_TIMESTAMP)"), "seed stale setting")
+	t.Cleanup(func() { _ = tdb.ExecSQL("DELETE FROM system_settings WHERE setting_key = '" + seedKey + "'") })
+
+	load := startAPILoad(t, userClient)
+	for i := 0; i < 3; i++ { // idempotent: later passes are no-ops
+		resp, err := adminClient.Do(framework.Request{Method: http.MethodPost, Path: "/admin/settings/reencrypt"})
+		framework.AssertNoError(t, err, fmt.Sprintf("reencrypt %d", i))
+		framework.AssertStatusOK(t, resp)
+		var body struct {
+			Reencrypted int   `json:"reencrypted"`
+			Errors      []any `json:"errors"`
 		}
-		framework.AssertStatusOK(t, last)
+		framework.AssertNoError(t, json.Unmarshal(resp.Body, &body), "parse reencrypt response")
+		if body.Errors == nil {
+			t.Fatalf("pass %d: errors must be an array, got null", i)
+		}
+		if i == 0 && body.Reencrypted < 1 {
+			t.Fatalf("first pass re-encrypted %d rows, want >= 1", body.Reencrypted)
+		}
+		if i > 0 && body.Reencrypted != 0 {
+			t.Fatalf("pass %d re-encrypted %d rows, want 0", i, body.Reencrypted)
+		}
 	}
-	close(stop)
-	framework.AssertNoError(t, err, fmt.Sprintf("reencrypt (last status %v)", last != nil))
-	if n := atomic.LoadInt32(bad); n != 0 {
+	if n := load.finish(); n != 0 {
 		t.Fatalf("%d failed API calls during re-encryption", n)
 	}
 }
 
+// SEM@<sha>: hex SHA-256 of a string (pure)
 func sha256HexString(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])
