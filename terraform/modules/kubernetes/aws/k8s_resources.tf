@@ -217,20 +217,22 @@ resource "kubernetes_secret_v1" "tmi" {
     # (TMI_DATABASE_REDIS_PASSWORD is not a recognized key).
     TMI_REDIS_PASSWORD = var.redis_password
 
-    # Settings-at-rest encryption (#547). The name is not arbitrary: no
-    # secrets provider is configured for this deployment, so
-    # internal/secrets/provider.go falls back to the EnvProvider, which maps
-    # the secret key "settings_encryption_key" to the environment variable
-    # TMI_SECRET_<KEY> — i.e. exactly TMI_SECRET_SETTINGS_ENCRYPTION_KEY.
-    # Without it crypto.NewSettingsEncryptor returns a disabled encryptor and
-    # every Secret-classified setting (the OAuth client secrets in the
-    # replicated DB config among them) is written to RDS in plaintext, which
-    # cmd/server/startup_checks.go reports as a production-mode ERROR.
-    #
-    # Setting this only encrypts values written from here on. Rows already
-    # stored in plaintext stay that way until POST /admin/settings/reencrypt
-    # is called — see the deploy notes in scripts/deploy-aws.sh.
+    # Settings-at-rest encryption key (#547). See the keyring env contract in
+    # deployments/k8s/dev/server.yml for how the server consumes it.
     TMI_SECRET_SETTINGS_ENCRYPTION_KEY = var.settings_encryption_key
+    # No TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID seed: with ignore_changes
+    # below an existing Secret would never receive it anyway, and a missing
+    # id means 1 (internal/crypto, internal/rotator). The rotator writes it.
+  }
+
+  # #965: Terraform SEEDS these values on the first apply and never writes
+  # them again. Secret/tmi-secrets is owned by the tmi-rotator CronJob
+  # (deployments/k8s/dev/rotator.yml), which rewrites the data and records
+  # its progress in annotations. Without ignore_changes every apply would
+  # reset a rotated value to the Terraform seed and lock the server out of
+  # Redis (or make every encrypted setting unreadable).
+  lifecycle {
+    ignore_changes = [data, metadata[0].annotations]
   }
 }
 

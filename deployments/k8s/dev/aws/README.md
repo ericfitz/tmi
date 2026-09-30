@@ -237,8 +237,13 @@ holds more than ephemeral state.
 
 ## Settings-at-rest encryption (#547)
 
-`patches/server-config.yaml` injects `TMI_SECRET_SETTINGS_ENCRYPTION_KEY` from
-the terraform-owned `tmi-secrets` Secret. The name matters: this deployment
+`tmi-secrets` is **seeded** by Terraform on the first apply and **owned by the
+tmi-rotator CronJob afterwards** (#965): `kubernetes_secret_v1.tmi` has
+`ignore_changes` on `data` and annotations, so later applies never reset a
+rotated Redis password or settings key. The Redis password and settings key no
+longer have Secrets Manager copies. The server reads the key from
+`TMI_SECRET_SETTINGS_ENCRYPTION_KEY` (with the context-id and previous-key
+variants; see `deployments/k8s/dev/server.yml`) injected from `tmi-secrets`. The name matters: this deployment
 configures no secrets provider, so `internal/secrets/provider.go` falls back to
 the `EnvProvider`, which maps the secret key `settings_encryption_key` to
 `TMI_SECRET_<KEY>`. The value is a 32-byte AES-256-GCM key rendered as 64 hex
@@ -263,9 +268,14 @@ Two things this does **not** do:
 - **It does not cover `dbtool`.** `cmd/dbtool/config.go` builds its own
   secrets provider from its own config file, so `--import-config` would write
   plaintext even with the server correctly configured. `scripts/deploy-aws.sh`
-  therefore points dbtool's transient connect config at Secrets Manager
-  (`secrets.provider: aws`), letting it read the key under the deployer's own
-  AWS identity rather than passing the value through the environment.
+  therefore materialises the settings keyring from `tmi-secrets` into a
+  umask-077 temp directory and points dbtool's transient connect config at it
+  (`secrets.provider: file`), so the values never reach argv or the
+  environment.
+
+The stale-secret alarm (`tmi-secret-rotation-stale`) alarms on a day with no
+`rotation status` datapoint (`treat_missing_data = breaching`), so a fresh
+cluster alarms until the rotator's first run.
 
 ## ConfigMap flat keys — naming bug fixed, and now wired via `envFrom`
 
