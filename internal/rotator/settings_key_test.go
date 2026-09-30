@@ -162,10 +162,12 @@ func TestSettingsKeyRotation_StagedWithoutPairRefusesToPromote(t *testing.T) {
 	sec.Annotations[AnnPhase+"settings-key"] = "staged"
 	sec.Annotations[AnnGeneration+"settings-key"] = "0"
 	env, st := testEnv(sec)
+	st.DataWrites = 1 // the stage write already happened, so the rollout wait passes and the guard is reached
 	before, _ := st.Get(context.Background(), "tmi-secrets")
 	dataBefore := before.Clone().Data
-	require.Error(t, NewSettingsKeyRotation(&fakeSettings{rows: map[int]int64{}}, time.Hour).Run(context.Background(), env))
+	err := NewSettingsKeyRotation(&fakeSettings{rows: map[int]int64{}}, time.Hour).Run(context.Background(), env)
+	require.ErrorContains(t, err, "refusing to promote")
 	after, _ := st.Get(context.Background(), "tmi-secrets")
 	require.True(t, reflect.DeepEqual(dataBefore, after.Data), "secret data must be unchanged")
-	require.Zero(t, st.DataWrites)
+	require.Equal(t, 1, st.DataWrites)
 }
