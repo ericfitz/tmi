@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -704,7 +705,10 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError
 			q = q.Where("setting_key NOT IN ?", skip)
 		}
 		var keys []string
-		if err := q.Pluck("setting_key", &keys).Error; err != nil {
+		if err := db.WithRetryableGormRead(ctx, db.DefaultRetryConfig(), func() error {
+			keys = nil
+			return q.Pluck("setting_key", &keys).Error
+		}); err != nil {
 			s.InvalidateAll(ctx)
 			return reencrypted, settingErrors, fmt.Errorf("failed to list settings for re-encryption: %w", err)
 		}
@@ -741,6 +745,10 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError
 // SettingsService.Set cannot be overwritten.
 // SEM@5740a75fafc8da46a061901361ed61990a6c8916: re-encrypt a single setting row under a row lock in one transaction (writes DB)
 func (s *SettingsService) reEncryptOne(ctx context.Context, key string) error {
+	// READ COMMITTED, not the SERIALIZABLE default: under SERIALIZABLE, Oracle
+	// fails SELECT ... FOR UPDATE on a row committed after the tx start SCN
+	// with ORA-08177 instead of waiting (the false-08177 class, #903/#906).
+	// FOR UPDATE on the primary key already serializes writers of this row.
 	return db.WithRetryableGormTransaction(ctx, s.gormDB, db.DefaultRetryConfig(), func(tx *gorm.DB) error {
 		q := tx.Where("setting_key = ?", key)
 		if tx.Name() != "sqlite" {
@@ -774,7 +782,7 @@ func (s *SettingsService) reEncryptOne(ctx context.Context, key string) error {
 			return fmt.Errorf("%w: setting no longer exists", errSettingUnreadable)
 		}
 		return nil
-	})
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 }
 
 // CountValuesWithContextID counts rows still encrypted under the given key id;
@@ -782,8 +790,10 @@ func (s *SettingsService) reEncryptOne(ctx context.Context, key string) error {
 // SEM@5740a75fafc8da46a061901361ed61990a6c8916: count setting rows whose envelope carries a given key id (reads DB)
 func (s *SettingsService) CountValuesWithContextID(ctx context.Context, id int) (int64, error) {
 	var n int64
-	err := s.gormDB.WithContext(ctx).Model(&models.SystemSetting{}).
-		Where("value LIKE ?", fmt.Sprintf("ENC:v1:%d:%%", id)).Count(&n).Error
+	err := db.WithRetryableGormRead(ctx, db.DefaultRetryConfig(), func() error {
+		return s.gormDB.WithContext(ctx).Model(&models.SystemSetting{}).
+			Where("value LIKE ?", fmt.Sprintf("ENC:v1:%d:%%", id)).Count(&n).Error
+	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to count settings under key id %d: %w", id, err)
 	}
