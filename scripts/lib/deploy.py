@@ -538,6 +538,10 @@ def ensure_redis_password_secret() -> None:
     cluster if it does not exist. AWS gets this Secret from Terraform; since
     PR 6 the base redis.yml/server.yml read it in every environment.
 
+    `dev-nuke` deletes the namespace, which takes tmi-secrets AND the
+    redis-data PVC together, so the next start() regenerates the password
+    against an empty Redis; `dev-down` keeps both.
+
     The value is written to a 0600 file in a private temp dir and handed to
     kubectl with --from-file, so it never appears on a command line, in the
     environment, in a log, or on this script's stdout."""

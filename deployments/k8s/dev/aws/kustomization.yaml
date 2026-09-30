@@ -74,3 +74,7 @@ patches:
       version: v1alpha1
       kind: TMIComponent
       name: tmi-chunk-embed
+  - path: patches/redis-storageclass.yaml
+    target:
+      kind: PersistentVolumeClaim
+      name: redis-data

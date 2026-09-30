@@ -1,0 +1,6 @@
+# Redis data on longhorn, like k3s/postgres.yml. The base PVC has no
+# storageClassName so docker-desktop can use its default; k3s's default
+# (local-path) pins the pod to one node, longhorn does not.
+- op: add
+  path: /spec/storageClassName
+  value: longhorn

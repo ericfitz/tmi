@@ -6,16 +6,28 @@ metadata:
   annotations:
     # Roll ONLY when the TLS Secret is re-issued (cert-manager renewal, about
     # every 60 days). Not `auto`: that would also roll on every tmi-secrets
-    # change (#965 rotations) and wipe the in-memory sessions each time.
+    # change (#965 rotations). Data survives a roll (AOF on redis-data, #965
+    # PR 1), but each roll is still a few seconds of Redis downtime.
     secret.reloader.stakater.com/reload: "redis-tls"
 spec:
   replicas: 1
+  # PR 1 (#965): redis-data is ReadWriteOnce. A RollingUpdate surge pod on the
+  # other EKS node could never attach the volume and the roll would hang;
+  # Recreate stops the old pod first.
+  strategy:
+    type: Recreate
   selector:
     matchLabels: { app: redis }
   template:
     metadata:
       labels: { app: redis }
     spec:
+      # PR 1 (#965): the PVC is mounted with this group so the non-root redis
+      # user (uid/gid 65532 in cgr.dev/chainguard/redis) can write /data.
+      # redis:7-alpine (k3s image remap) starts as root and chowns /data to
+      # its own redis user, so the group is harmless there.
+      securityContext:
+        fsGroup: 65532
       containers:
         - name: redis
           image: cgr.dev/chainguard/redis:latest
@@ -30,11 +42,23 @@ spec:
           # table, which is inherent to --requirepass. --protected-mode no is
           # kept: with requirepass it is redundant, and enabling it would
           # reject the server pod (another pod IP, not loopback).
+          #
+          # Persistence (#965 PR 1): append-only file on the redis-data PVC,
+          # fsync once per second (at most one second of writes lost on a
+          # crash; a clean stop loses nothing). --save "" stays: no RDB
+          # snapshots on top of the AOF (Redis 7 keeps its own base file in
+          # appendonlydir). ACL changes are NOT in the AOF: the default user's
+          # password is rebuilt from --requirepass at every start, which is
+          # exactly what tmi-rotator relies on for password rotation (#965).
           args:
             - "--save"
             - ""
             - "--appendonly"
-            - "no"
+            - "yes"
+            - "--appendfsync"
+            - "everysec"
+            - "--dir"
+            - "/data"
             - "--bind"
             - "0.0.0.0"
             - "--protected-mode"
@@ -65,6 +89,8 @@ spec:
             - name: tls
               mountPath: /tls
               readOnly: true
+            - name: data
+              mountPath: /data
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { cpu: 500m, memory: 256Mi }
@@ -72,6 +98,31 @@ spec:
         - name: tls
           secret:
             secretName: redis-tls
+        - name: data
+          persistentVolumeClaim:
+            claimName: redis-data
+---
+# Redis data (#965 PR 1): sessions, refresh tokens and cached authorization
+# decisions, all ENC:-encrypted under the settings key and all with TTLs.
+# 1Gi is far above the 256Mi memory limit; the AOF rewrite needs about 2x the
+# dataset on disk. No storageClassName here: docker-desktop uses its default
+# (hostpath) class; the k3s and aws overlays patch in longhorn / gp3.
+#
+# Lifecycle: `make dev-down` deletes the redis Deployment and Service but not
+# this claim (same as the Postgres PVC), so sessions survive a dev-down /
+# dev-up. `make dev-nuke` deletes the namespace and the claim with it, which
+# is consistent: tmi-secrets goes at the same time, and ENC: entries are
+# unreadable without it anyway.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  namespace: tmi-platform
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
 ---
 apiVersion: v1
 kind: Service

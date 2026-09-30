@@ -1,0 +1,7 @@
+# Redis data on EBS gp3 via the ebs.csi.aws.com StorageClass that
+# terraform/modules/kubernetes/aws/main.tf creates (kubernetes_storage_class_v1
+# "gp3", volumeBindingMode WaitForFirstConsumer so the volume lands in the
+# AZ of whichever node schedules the pod).
+- op: add
+  path: /spec/storageClassName
+  value: gp3

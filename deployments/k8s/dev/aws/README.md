@@ -95,6 +95,21 @@ all". Consequently:
   `platform/nats.yml` base (to add a real `volumeClaimTemplate`), not to this
   overlay.
 
+### Redis persistence (#965)
+
+Redis keeps sessions and refresh tokens on a PVC with an append-only file, so
+rotations and cert-renewal rolls do not log every user out. The base
+`redis.yml` defines the `redis-data` PVC (1Gi, no `storageClassName`) and
+`patches/redis-storageclass.yaml` sets it to `gp3`. Terraform
+(`terraform/modules/kubernetes/aws/main.tf`) installs the EBS CSI driver addon
+(one controller replica, IRSA role) and creates the `gp3` StorageClass
+(`WaitForFirstConsumer`). The first `kubectl apply -k` after the Terraform
+apply creates the volume, which takes about a minute before Redis is Ready.
+The Deployment uses `strategy: Recreate` because the volume is
+ReadWriteOnce. On any restart Redis rebuilds the `default` user from
+`--requirepass` (the current `tmi-secrets` value); ACL changes are not
+persisted, which the password rotation relies on.
+
 ### 2. Ingress subnets — no explicit annotation needed
 
 The brief asked whether `terraform/modules/network/aws/main.tf` tags public
