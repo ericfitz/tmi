@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -127,8 +128,7 @@ func TestSecretRotationIntegration_RedisPassword(t *testing.T) {
 		if pw := s.Data[rotator.RedisPasswordKey]; pw != oldPassword {
 			acl, closeFn := withPassword(pw)
 			defer closeFn()
-			_ = acl.AddPassword(ctx, oldPassword)
-			_ = acl.RemovePasswordHash(ctx, sha256HexString(pw))
+			_ = acl.SetOnlyPassword(ctx, oldPassword)
 		}
 	})
 
@@ -172,6 +172,125 @@ func TestSecretRotationIntegration_RedisPassword(t *testing.T) {
 	resp, err := client.Do(framework.Request{Method: http.MethodGet, Path: "/me"})
 	framework.AssertNoError(t, err, "post-rotation call")
 	framework.AssertStatusOK(t, resp)
+}
+
+// failOnceWaiter reports the first rollout as timed out, leaving the rotation in phase swapped.
+// SEM@451b8e1bd71b581392bf388c61e8d06507f13080: rollout waiter that fails its first wait, then delegates
+type failOnceWaiter struct {
+	rotator.RolloutWaiter
+	failed bool
+}
+
+// SEM@451b8e1bd71b581392bf388c61e8d06507f13080: fail the first rollout wait, delegate later waits
+func (w *failOnceWaiter) WaitRolled(ctx context.Context, deployment string, since int64, timeout time.Duration) error {
+	if !w.failed {
+		w.failed = true
+		return fmt.Errorf("rollout of %s timed out (simulated)", deployment)
+	}
+	return w.RolloutWaiter.WaitRolled(ctx, deployment, since, timeout)
+}
+
+// defaultACLRule returns the default user's ACL LIST rule split into its
+// password hashes and every other token (flags, keys, channels, commands).
+// SEM@451b8e1bd71b581392bf388c61e8d06507f13080: read the Redis default user's password hashes and remaining ACL rule tokens
+func defaultACLRule(ctx context.Context, t *testing.T, rc *redis.Client) (hashes, rest []string) {
+	t.Helper()
+	rules, err := rc.ACLList(ctx).Result()
+	framework.AssertNoError(t, err, "ACL LIST")
+	for _, rule := range rules {
+		f := strings.Fields(rule)
+		if len(f) < 2 || f[0] != "user" || f[1] != "default" {
+			continue
+		}
+		for _, tok := range f[2:] {
+			if strings.HasPrefix(tok, "#") {
+				hashes = append(hashes, strings.TrimPrefix(tok, "#"))
+			} else {
+				rest = append(rest, tok)
+			}
+		}
+		return hashes, rest
+	}
+	t.Fatal("ACL LIST has no default user")
+	return nil, nil
+}
+
+// A Redis restart after the Secret swap (ACL is in-memory; Redis comes back
+// with requirepass = NEW only) or a peer run that already retired OLD leaves
+// the default user without OLD. The resumed run must still complete.
+// SEM@451b8e1bd71b581392bf388c61e8d06507f13080: verify a swapped Redis rotation completes after OLD vanished from the ACL
+func TestSecretRotationIntegration_RedisResumeAfterOldPasswordGone(t *testing.T) {
+	if os.Getenv("INTEGRATION_TESTS") != "true" {
+		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")
+	}
+	opts, err := framework.RedisOptions()
+	framework.AssertNoError(t, err, "redis options")
+	oldPassword := opts.Password
+	ctx := context.Background()
+	clientWith := func(pw string) *redis.Client {
+		c := *opts
+		c.Password = pw
+		return redis.NewClient(&c)
+	}
+
+	oldClient := clientWith(oldPassword)
+	defer func() { _ = oldClient.Close() }()
+	oldHashes, rulesBefore := defaultACLRule(ctx, t, oldClient)
+	framework.AssertEqual(t, sha256HexString(oldPassword), strings.Join(oldHashes, " "), "harness default user starts with exactly OLD")
+
+	st := rotator.NewMemorySecretStore(&rotator.Secret{Name: "tmi-secrets", Data: map[string]string{rotator.RedisPasswordKey: oldPassword}, Annotations: map[string]string{}})
+	env := &rotator.Env{Secrets: st, Rollouts: &failOnceWaiter{RolloutWaiter: rotator.NewFakeRolloutWaiter(st, "tmi-server")}, SecretName: "tmi-secrets", ServerDeployment: "tmi-server", RolloutTimeout: time.Second, Now: time.Now}
+
+	// Registered BEFORE the rotation: whatever happens, the harness Redis ends
+	// with exactly OLD, which the running server and the rest of the suite use.
+	t.Cleanup(func() {
+		s, err := st.Get(ctx, "tmi-secrets")
+		if err != nil {
+			return
+		}
+		if pw := s.Data[rotator.RedisPasswordKey]; pw != oldPassword {
+			rc := clientWith(pw)
+			defer func() { _ = rc.Close() }()
+			if err := rotator.NewGoRedisACL(rc).SetOnlyPassword(ctx, oldPassword); err != nil {
+				t.Errorf("restore harness Redis password failed")
+			}
+		}
+	})
+
+	// Run 1 stops at phase swapped (rollout "timed out").
+	err = rotator.NewRedisPasswordRotation(rotator.NewGoRedisACL(oldClient)).Run(ctx, env)
+	if err == nil {
+		t.Fatal("first run should stop at the simulated rollout timeout")
+	}
+	s, err := st.Get(ctx, "tmi-secrets")
+	framework.AssertNoError(t, err, "read swapped secret")
+	framework.AssertEqual(t, "swapped", s.Annotations[rotator.AnnPhase+"redis-password"], "phase after run 1")
+	newPassword := s.Data[rotator.RedisPasswordKey]
+
+	// Out of band: OLD disappears from the ACL (Redis restart / peer retire).
+	newClient := clientWith(newPassword)
+	defer func() { _ = newClient.Close() }()
+	framework.AssertNoError(t, newClient.Do(ctx, "ACL", "SETUSER", "default", "!"+sha256HexString(oldPassword)).Err(), "remove OLD out of band")
+
+	// Run 2 resumes, authenticated with the Secret's current password as the CronJob is.
+	err = rotator.NewRedisPasswordRotation(rotator.NewGoRedisACL(newClient)).Run(ctx, env)
+	framework.AssertNoError(t, err, "resumed rotation")
+
+	s, err = st.Get(ctx, "tmi-secrets")
+	framework.AssertNoError(t, err, "read final secret")
+	framework.AssertEqual(t, "", s.Annotations[rotator.AnnPhase+"redis-password"], "phase after resume")
+	hashes, rulesAfter := defaultACLRule(ctx, t, newClient)
+	framework.AssertEqual(t, sha256HexString(newPassword), strings.Join(hashes, " "), "default user holds exactly NEW")
+	framework.AssertEqual(t, strings.Join(rulesBefore, " "), strings.Join(rulesAfter, " "), "flags and permissions of the default user unchanged")
+
+	probe := clientWith(newPassword)
+	framework.AssertNoError(t, probe.Ping(ctx).Err(), "NEW accepted")
+	_ = probe.Close()
+	probe = clientWith(oldPassword)
+	if probe.Ping(ctx).Err() == nil {
+		t.Error("OLD still accepted after rotation")
+	}
+	_ = probe.Close()
 }
 
 // SEM@b17d2bf48d1db948c7f414b6045a194ace911bf7: verify settings re-encryption converts a stale row once and is idempotent while the server serves API traffic

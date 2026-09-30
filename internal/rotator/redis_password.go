@@ -23,11 +23,11 @@ const (
 
 // RedisACL manages the passwords accepted for the default Redis user.
 // Returned errors must never contain a password (Redis echoes ACL modifiers).
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: add or retire passwords on the Redis default user
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: define Redis ACL operations for adding and removing passwords
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: add a password to, or reset to one password on, the Redis default user
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: define Redis ACL operations for adding a password and keeping only one
 type RedisACL interface {
 	AddPassword(ctx context.Context, pw string) error
-	RemovePasswordHash(ctx context.Context, sha256hex string) error
+	SetOnlyPassword(ctx context.Context, pw string) error
 }
 
 // GoRedisACL implements RedisACL with ACL SETUSER.
@@ -45,10 +45,13 @@ func (a *GoRedisACL) AddPassword(ctx context.Context, pw string) error {
 	return aclError(a.client.Do(ctx, "ACL", "SETUSER", "default", ">"+pw).Err())
 }
 
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: remove a password from the default user by its SHA-256 (ACL SETUSER default !hash); idempotent
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: remove a password by hash from the Redis default user (writes Redis)
-func (a *GoRedisACL) RemovePasswordHash(ctx context.Context, sha256hex string) error {
-	return aclError(a.client.Do(ctx, "ACL", "SETUSER", "default", "!"+sha256hex).Err())
+// SetOnlyPassword makes pw the default user's only password in one atomic
+// ACL SETUSER (resetpass clears the password list; flags and permissions stay).
+// Idempotent: unlike "!hash", it does not fail when an old password is already gone.
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: replace all default-user passwords with one (ACL SETUSER default resetpass >pw); idempotent
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: set the sole password of the Redis default user (writes Redis)
+func (a *GoRedisACL) SetOnlyPassword(ctx context.Context, pw string) error {
+	return aclError(a.client.Do(ctx, "ACL", "SETUSER", "default", "resetpass", ">"+pw).Err())
 }
 
 // SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: replace a Redis ACL error with a fixed message, keeping only a known error class (pure)
@@ -125,12 +128,12 @@ func (r *RedisPasswordRotation) Run(ctx context.Context, env *Env) error {
 	if err := env.WaitServerRolled(ctx, s, r.Name()); err != nil {
 		return fmt.Errorf("waiting for %s to pick up the new Redis password: %w", env.ServerDeployment, err)
 	}
-	if retire := s.Annotations[AnnRetire+r.Name()]; retire != "" {
-		if err := r.acl.RemovePasswordHash(ctx, retire); err != nil {
-			return fmt.Errorf("retire old Redis password: %w", err)
-		}
-		logger.Info("Old Redis password retired")
+	// Retire by keeping only NEW: succeeds whether OLD is still set, already
+	// gone (Redis restart, peer run), or joined by an orphan from a lost race.
+	if err := r.acl.SetOnlyPassword(ctx, s.Data[RedisPasswordKey]); err != nil {
+		return fmt.Errorf("retire old Redis password: %w", err)
 	}
+	logger.Info("Old Redis password retired")
 	return env.Transition(ctx, r.Name(), redisPhaseSwapped, "", func(s *Secret) {
 		delete(s.Annotations, AnnRetire+r.Name())
 	})
