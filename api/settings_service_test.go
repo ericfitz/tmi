@@ -1060,6 +1060,9 @@ func TestReEncryptAll_UndecryptableRowIsSkippedOnce(t *testing.T) {
 	cur, _ := crypto.NewSettingsEncryptorFromKeyring(k2, 2, k1, 1)
 	seedEncrypted(t, gormDB, stranger, "bad", "x")
 	seedEncrypted(t, gormDB, old, "good", "y")
+	var badRow models.SystemSetting
+	require.NoError(t, gormDB.Where("setting_key = ?", "bad").First(&badRow).Error)
+	badBefore := string(badRow.Value)
 
 	svc := NewSettingsService(gormDB, nil)
 	svc.SetEncryptor(cur)
@@ -1068,6 +1071,10 @@ func TestReEncryptAll_UndecryptableRowIsSkippedOnce(t *testing.T) {
 	require.Equal(t, 1, n)
 	require.Len(t, errs, 1)
 	require.Equal(t, "bad", errs[0].Key)
+
+	var bad models.SystemSetting
+	require.NoError(t, gormDB.Where("setting_key = ?", "bad").First(&bad).Error)
+	require.Equal(t, badBefore, string(bad.Value), "undecryptable row keeps its original ciphertext")
 }
 
 // SEM@0000000000000000000000000000000000000000: verify re-encryption leaves modified_at and modified_by unchanged

@@ -746,13 +746,17 @@ func (s *SettingsService) reEncryptOne(ctx context.Context, key string) error {
 		if tx.Name() != "sqlite" {
 			q = q.Clauses(clause.Locking{Strength: "UPDATE"})
 		}
-		var row models.SystemSetting
-		if err := q.First(&row).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("%w: setting no longer exists", errSettingUnreadable)
-			}
+		// Find, not First: First adds ORDER BY + a row limit, and Oracle
+		// cannot combine the row_limiting_clause with FOR UPDATE (ORA-02014).
+		// setting_key is the primary key, so at most one row comes back.
+		var rows []models.SystemSetting
+		if err := q.Find(&rows).Error; err != nil {
 			return fmt.Errorf("failed to read setting %s: %w", key, err)
 		}
+		if len(rows) == 0 {
+			return fmt.Errorf("%w: setting no longer exists", errSettingUnreadable)
+		}
+		row := rows[0]
 		plaintext, err := s.encryptor.Decrypt(string(row.Value))
 		if err != nil {
 			return fmt.Errorf("%w: %w", errSettingUnreadable, err)
