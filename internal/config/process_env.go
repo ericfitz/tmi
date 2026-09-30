@@ -14,7 +14,7 @@ type ProcessEnvVar struct {
 	// "TMI_SECRET_<KEY>"; the text before the first '<' is the prefix the
 	// code scans for.
 	Name string
-	// Binary names the reader: "server" or "workers" (chunkembed,
+	// Binary names the reader: "server", "rotator" or "workers" (chunkembed,
 	// extractor, worker-probe, component-controller).
 	Binary string
 	// Purpose is the one-line operator-facing description. No angle
@@ -68,6 +68,13 @@ var processEnvVars = []ProcessEnvVar{
 	{Name: "TMI_WORKER_LOG_LEVEL", Binary: "workers", Purpose: "Worker log level (internal/config/bootstrap)"},
 	{Name: "TMI_WORKER_HEARTBEAT_SUBJECT", Binary: "workers", Purpose: "NATS subject worker heartbeats are published to (internal/config/bootstrap)"},
 
+	// --- rotator: cmd/rotator (#965); also reads the Redis, database URL and Oracle wallet variables declared elsewhere ---
+	{Name: "ROTATE", Binary: "rotator", Purpose: "Force one rotation by name (redis-password, settings-key) for a manually created Job"},
+	{Name: "TMI_ROTATOR_NAMESPACE", Binary: "rotator", Purpose: "Namespace of the Secret and Deployment the rotator manages (default tmi-platform)"},
+	{Name: "TMI_ROTATOR_SECRET", Binary: "rotator", Purpose: "Secret holding the rotating values (default tmi-secrets)"},
+	{Name: "TMI_ROTATOR_SERVER_DEPLOYMENT", Binary: "rotator", Purpose: "Deployment that Reloader rolls when the Secret changes (default tmi-server)"},
+	{Name: "TMI_ROTATOR_ROLLOUT_TIMEOUT", Binary: "rotator", Purpose: "Per-phase rollout wait as a Go duration (default 10m)"},
+	{Name: "TMI_ROTATOR_SETTINGS_PREVIOUS_GRACE", Binary: "rotator", Purpose: "Wait before the previous settings key is dropped, as a Go duration (default 192h)"},
 	// --- prefix patterns: the operator supplies the part in angle brackets ---
 	{Name: "TMI_SECRET_<KEY>", Binary: "server", Pattern: true, Secret: true, Purpose: "Environment secrets provider: logical secret key, upper-cased, e.g. TMI_SECRET_JWT_SECRET or TMI_SECRET_SETTINGS_ENCRYPTION_KEY. Every value is a secret"},
 	{Name: "TMI_WORKER_SECRET_MOUNT_<NAME>", Binary: "workers", Pattern: true, Purpose: "Filesystem path to a mounted secret file, exposed to the worker under the logical name, e.g. TMI_WORKER_SECRET_MOUNT_EMBEDDING_API_KEY"},

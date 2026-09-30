@@ -162,7 +162,7 @@ func TestGenerateReferenceMarkdown_DocumentsEveryConfigDeliveredDef(t *testing.T
 
 	var rows int
 	for _, line := range strings.Split(s, "\n") {
-		if strings.HasPrefix(line, "| `") && !strings.HasPrefix(line, "| `TMI_") && !strings.HasPrefix(line, "| `SAML_") {
+		if strings.HasPrefix(line, "| `") && !strings.HasPrefix(line, "| `TMI_") && !strings.HasPrefix(line, "| `SAML_") && !strings.HasPrefix(line, "| `ROTATE`") {
 			rows++
 		}
 	}

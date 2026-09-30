@@ -121,6 +121,8 @@ RUN MAJOR=${VERSION_MAJOR:-$(grep '"major"' .version | grep -o '[0-9]*')} && \
     -o tmiserver \
     ./cmd/server
 
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=${TARGETARCH} go build -tags "oracle ${EXTRA_TAGS}" -ldflags "-s -w" -trimpath -o tmi-rotator ./cmd/rotator
+
 # Stage 2: Runtime image using Oracle Linux 9 (minimal)
 FROM container-registry.oracle.com/os/oraclelinux:9-slim
 
@@ -172,7 +174,8 @@ RUN mkdir -p /wallet && chown tmi:tmi /wallet
 
 # Copy binary from builder
 COPY --from=builder /app/tmiserver /tmiserver
-RUN chmod +x /tmiserver && chown tmi:tmi /tmiserver
+COPY --from=builder /app/tmi-rotator /tmi-rotator
+RUN chmod +x /tmiserver /tmi-rotator && chown tmi:tmi /tmiserver /tmi-rotator
 
 # Create entrypoint script that extracts wallet if needed
 # Extract to /tmp/wallet since the mounted /wallet is read-only
