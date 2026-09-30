@@ -7,6 +7,21 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import deploy  # noqa: E402
+import cluster  # noqa: E402
+
+
+_patcher = None
+
+
+def setUpModule():
+    # Point the k3s loader at the tracked example; tests never read .local/.
+    global _patcher
+    _patcher = mock.patch.object(cluster, "K3S_CONFIG_FILE", cluster.K3S_EXAMPLE_FILE)
+    _patcher.start()
+
+
+def tearDownModule():
+    _patcher.stop()
 
 # Repo root: scripts/lib/tests -> up 3 == project root.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -414,7 +429,7 @@ class TestActiveContextPinning(_ActiveContextTestCase):
             deploy.kubectl(["get", "pods"])
         run_cmd.assert_called_once()
         self.assertEqual(run_cmd.call_args.args[0],
-                         ["kubectl", "--context", "k3s-rp", "get", "pods"])
+                         ["kubectl", "--context", "k3s-example", "get", "pods"])
 
     def test_kubectl_uses_context_pinned_for_docker_desktop(self):
         deploy.set_active_context("docker-desktop")
@@ -456,10 +471,10 @@ class TestPidfilePathIsPerContext(_ActiveContextTestCase):
         deploy.set_active_context("docker-desktop")
         dd_path = deploy._pidfile_path("server")
         self.assertNotEqual(k3s_path, dd_path)
-        self.assertIn("k3s-rp", k3s_path)
+        self.assertIn("k3s-example", k3s_path)
         self.assertIn("docker-desktop", dd_path)
         self.assertNotIn("docker-desktop", k3s_path)
-        self.assertNotIn("k3s-rp", dd_path)
+        self.assertNotIn("k3s-example", dd_path)
 
     def test_kinds_differ_within_one_cluster(self):
         deploy.set_active_context("docker-desktop")
@@ -490,14 +505,14 @@ class TestStopPortForwardIsClusterScoped(_ActiveContextTestCase):
         self.assertEqual(len(stopped_paths), 3, "server, redis, and postgres pidfiles")
         for p in stopped_paths:
             self.assertIn("docker-desktop", p)
-            self.assertNotIn("k3s-rp", p)
+            self.assertNotIn("k3s-example", p)
 
         # The legacy reap pattern must be scoped to THIS cluster's --context,
         # so it can never match a different cluster's supervisor.
         reap.assert_called_once()
         pattern = reap.call_args.args[0]
         self.assertIn("--context docker-desktop", pattern)
-        self.assertNotIn("k3s-rp", pattern)
+        self.assertNotIn("k3s-example", pattern)
 
     def test_stop_for_k3s_never_mentions_docker_desktop(self):
         deploy.set_active_context("k3s")
@@ -508,10 +523,10 @@ class TestStopPortForwardIsClusterScoped(_ActiveContextTestCase):
             deploy.stop_port_forward()
 
         for p in stopped_paths:
-            self.assertIn("k3s-rp", p)
+            self.assertIn("k3s-example", p)
             self.assertNotIn("docker-desktop", p)
         pattern = reap.call_args.args[0]
-        self.assertIn("--context k3s-rp", pattern)
+        self.assertIn("--context k3s-example", pattern)
         self.assertNotIn("docker-desktop", pattern)
 
 
@@ -706,6 +721,55 @@ class TestReusePreinstalledPlatform(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 deploy.apply_platform_base()
         k.assert_not_called()
+
+
+class TestApplyOverlayRegistrySubstitution(unittest.TestCase):
+    def test_k3s_placeholder_replaced_before_apply(self):
+        rendered = f"image: {deploy.K3S_REGISTRY_PLACEHOLDER}/tmi-server:dev\n"
+        run = mock.Mock(return_value=mock.Mock(stdout=rendered))
+        with mock.patch.object(deploy, "run_cmd", run), \
+             mock.patch.object(deploy, "kubectl") as kc:
+            deploy.apply_overlay("postgres", "k3s")
+        applied = kc.call_args.kwargs["input_text"]
+        self.assertIn("k3s-node.example:30500/tmi-server:dev", applied)
+        self.assertNotIn(".invalid", applied)
+
+    def test_placeholder_matches_tracked_overlay(self):
+        for rel in ("kustomization.yaml", "patches/extractor-image.yaml", "patches/chunkembed-image.yaml"):
+            text = (_DEV_DIR / "k3s" / rel).read_text()
+            self.assertIn(deploy.K3S_REGISTRY_PLACEHOLDER, text, rel)
+
+
+class TestSecretCreatorsRun(unittest.TestCase):
+    """Smoke-run each secret creator with kubectl mocked, so an undefined name
+    (F821) or bad signature in the function body fails a test."""
+
+    def _run(self, fn, env=None):
+        with mock.patch.object(deploy, "kubectl", return_value=mock.Mock(stdout="kind: Secret\n")) as kc, \
+             mock.patch.dict(os.environ, env or {}):
+            fn()
+        self.assertEqual(kc.call_args.args[0], ["apply", "-f", "-"])
+        self.assertEqual(kc.call_args.kwargs["input_text"], "kind: Secret\n")
+
+    def test_embedding(self):
+        self._run(deploy.create_embedding_secret)
+
+    def test_oauth_providers(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / ".local").mkdir()
+            (Path(d) / ".local" / "oauth-providers.env").write_text("FOO=bar\n")
+            with mock.patch.object(deploy, "get_project_root", return_value=Path(d)):
+                self._run(deploy.create_oauth_providers_secret)
+
+    def test_oracle_wallet(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".zip") as f:
+            self._run(deploy.create_oracle_wallet_secret, {"TMI_ORACLE_WALLET_ZIP": f.name})
+
+    def test_oracle_db(self):
+        self._run(deploy.create_oracle_db_secret,
+                  {"TMI_DATABASE_URL": "oracle://x", "ORACLE_PASSWORD": "p"})
 
 
 if __name__ == "__main__":

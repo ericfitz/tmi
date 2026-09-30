@@ -113,7 +113,7 @@ def main() -> None:
     build_date = helpers.get_build_date()
 
     helpers.log_info(f"Target: {args.target}")
-    helpers.log_info(f"Component: postgres")
+    helpers.log_info("Component: postgres")
     helpers.log_info(f"Platform: {config.platform}")
     helpers.log_info(f"Version: {helpers.format_version(version)}")
 

@@ -188,7 +188,7 @@ metadata:
 spec:
   # NodePort (not ClusterIP): the server is reached on the host at localhost:8080
   # via `kubectl port-forward` (deploy.py start_server_port_forward). The NodePort
-  # is also used for high-throughput CATS runs against k3s (hit rp2:30080 directly
+  # is also used for high-throughput CATS runs against k3s (hit <node>:30080 directly
   # to bypass the userspace port-forward, which throttles under load — issue #463).
   # KEEP nodePort IN SYNC with scripts/lib/deploy.py NODE_PORT.
   type: NodePort

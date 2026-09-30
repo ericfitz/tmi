@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy to .local/k3s.json (untracked) and fill in your lab's values. All keys are required strings.",
+  "context": "k3s-example",
+  "registry": "k3s-node.example:30500",
+  "node_host": "k3s-node.example"
+}

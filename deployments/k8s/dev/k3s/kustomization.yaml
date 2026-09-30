@@ -1,6 +1,8 @@
 # k3s (CLUSTER=k3s) dev overlay — full parity with the kind dev stack, but every
-# TMI image is served from the in-cluster registry at rp2:30500 instead of the
-# kind-local localhost:5000.
+# TMI image is served from the in-cluster registry instead of the
+# kind-local localhost:5000. The registry host below is a placeholder
+# (reserved .invalid TLD); deploy.apply_overlay() substitutes the real host from
+# the untracked .local/k3s.json, so a raw `kubectl apply` fails visibly.
 #
 # Postgres (postgres.yml) and the in-cluster registry (registry.yml) are NOT part
 # of this overlay: deploy.py applies them as prerequisites (registry before the
@@ -25,12 +27,12 @@ resources:
 # transformer (preserves the :dev tag).
 images:
   - name: localhost:5000/tmi-server
-    newName: rp2:30500/tmi-server
+    newName: k3s-registry.invalid:30500/tmi-server
   - name: localhost:5000/tmi-component-controller
-    newName: rp2:30500/tmi-component-controller
+    newName: k3s-registry.invalid:30500/tmi-component-controller
   # Redis: the kind path uses cgr.dev/chainguard/redis, whose bundled jemalloc is
   # compiled for 4KB pages and aborts with "Unsupported system page size" on the
-  # Pi 5 (BCM2712) nodes, which run a 16KB-page kernel. redis:7-alpine is built
+  # arm64 nodes that run a 16KB-page kernel. redis:7-alpine is built
   # with libc malloc (page-size-agnostic) and runs the same redis-server with the
   # same args. Verified starting cleanly on the nodes.
   - name: cgr.dev/chainguard/redis

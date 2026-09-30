@@ -114,7 +114,7 @@ def _check_ref_data() -> None:
 def _check_server_not_loopback(allow_local_server: bool) -> None:
     """Fail fast if CATS_SERVER points at localhost/loopback (TMI policy #578).
 
-    All CATS fuzzing targets the k3s-rp cluster directly (http://rp2:30080);
+    All CATS fuzzing targets the k3s cluster directly (http://<node_host>:30080);
     the cats plugin's own preflight only refuses a *detected kubectl
     port-forward* on a loopback URL (catslib.runner.detect_port_forward) --
     this check is deliberately stricter and also catches a natively-run local
@@ -132,11 +132,11 @@ def _check_server_not_loopback(allow_local_server: bool) -> None:
         return
     log_error(
         f"CATS_SERVER={server!r} points at a loopback address. TMI policy (#578): "
-        "fuzz the k3s-rp NodePort directly at http://rp2:30080, not a localhost "
+        "fuzz the k3s NodePort directly at http://<node_host>:30080, not a localhost "
         "endpoint -- a local server or a forwarded connection can silently drop "
         "requests under load, producing a run that looks clean but never reached "
         "most of the API. Point .local/cats/config.yaml's `server:` at "
-        "http://rp2:30080, or pass --allow-local-server if you specifically intend "
+        "http://<node_host>:30080 (node_host is in .local/k3s.json), or pass --allow-local-server if you specifically intend "
         "to fuzz a local server."
     )
     sys.exit(1)
@@ -170,8 +170,8 @@ def _check_kube_context(allow_any_context: bool) -> None:
     Uses `cluster.is_local_kube_context` -- the same predicate scripts/devenv.py
     uses to decide whether a `make dev-up` needs `--yes` -- rather than a second,
     independently-maintained list. That predicate exact-matches "k3s" (a generic
-    local context name) but NOT this repo's own K3S_CONTEXT = "k3s-rp" (a real,
-    remote home-lab cluster devenv.py itself requires --yes to touch); a
+    local context name) but NOT this repo's own k3s context (from .local/k3s.json; a real,
+    remote cluster devenv.py itself requires --yes to touch); a
     substring match here previously auto-approved it, which was actually looser
     than the rest of the project's own safety bar for that exact cluster.
     """

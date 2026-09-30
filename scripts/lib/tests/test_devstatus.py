@@ -7,6 +7,21 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import deploy      # noqa: E402
 import devstatus   # noqa: E402
+import cluster     # noqa: E402
+
+
+_patcher = None
+
+
+def setUpModule():
+    # Point the k3s loader at the tracked example; tests never read .local/.
+    global _patcher
+    _patcher = mock.patch.object(cluster, "K3S_CONFIG_FILE", cluster.K3S_EXAMPLE_FILE)
+    _patcher.start()
+
+
+def tearDownModule():
+    _patcher.stop()
 
 
 class TestDeploymentReadinessParsesReadyAndDesired(unittest.TestCase):
@@ -44,11 +59,11 @@ class TestPrintDashboardPinsRequestedCluster(unittest.TestCase):
             run_cmd.return_value = mock.Mock(returncode=0, stdout='{"items": []}')
             devstatus.print_dashboard(cluster_target="k3s")
         # The deploy query went through deploy.kubectl(), which must carry
-        # --context k3s-rp (the resolved k3s context), not docker-desktop.
+        # --context k3s-example (the resolved k3s context), not docker-desktop.
         call_args = [c.args[0] for c in run_cmd.call_args_list]
         self.assertTrue(
-            any(a[:3] == ["kubectl", "--context", "k3s-rp"] for a in call_args),
-            f"expected a kubectl call pinned to --context k3s-rp, got {call_args}",
+            any(a[:3] == ["kubectl", "--context", "k3s-example"] for a in call_args),
+            f"expected a kubectl call pinned to --context k3s-example, got {call_args}",
         )
 
 

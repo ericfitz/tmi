@@ -35,7 +35,8 @@
 #   --config-export FILE           Import this dbtool config-export YAML into the deployed
 #                                   database after the overlay is up (optional)
 #   --api-cidr CIDR                EKS public API endpoint allowlist, e.g. 203.0.113.5/32
-#                                   (default: resolve home.efitz.net to a /32). Warns, but
+#                                   (default: resolve `api_cidr_host` from the untracked
+#                                   .local/aws-deploy.json to a /32; required if absent). Warns, but
 #                                   does not fail, if it differs from this machine's current
 #                                   public IP (checkip.amazonaws.com) — deploying away from
 #                                   home would otherwise lock this machine out afterwards.
@@ -444,7 +445,8 @@ preflight_checks() {
 # ============================================================================
 
 # Resolve the /32 to allow on the EKS public endpoint into API_CIDR: either
-# --api-cidr verbatim, or home.efitz.net's current address. Warns (does not
+# --api-cidr verbatim, or the current address of `api_cidr_host` in the
+# untracked .local/aws-deploy.json ({"api_cidr_host": "<your-home-hostname>"}). Warns (does not
 # fail) when that /32 differs from this machine's own current public IP,
 # since deploying from somewhere other than home would otherwise lock this
 # machine's own kubectl/terraform out once the endpoint is restricted.
@@ -458,18 +460,27 @@ resolve_api_cidr() {
         fi
         log_info "Using --api-cidr override: ${API_CIDR}"
     else
-        local resolved
-        resolved=$(dig +short home.efitz.net A 2>/dev/null | grep -E '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$' | tail -n1 || true)
+        local cfg="${PROJECT_ROOT}/.local/aws-deploy.json" host="" resolved=""
+        if [[ -f "${cfg}" ]]; then
+            host=$(jq -r '.api_cidr_host // empty' "${cfg}" 2>/dev/null || true)
+        fi
+        if [[ -z "${host}" ]]; then
+            log_error "No EKS API CIDR: --api-cidr was not given and .local/aws-deploy.json has no api_cidr_host."
+            echo "  Pass --api-cidr <ip>/32, or create .local/aws-deploy.json containing"
+            echo "  {\"api_cidr_host\": \"<hostname that resolves to your public IP>\"}."
+            exit 1
+        fi
+        resolved=$(dig +short "${host}" A 2>/dev/null | grep -E '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$' | tail -n1 || true)
         if [[ -z "${resolved}" ]]; then
-            resolved=$(python3 -c 'import socket; print(socket.gethostbyname("home.efitz.net"))' 2>/dev/null || true)
+            resolved=$(python3 -c 'import socket, sys; print(socket.gethostbyname(sys.argv[1]))' "${host}" 2>/dev/null || true)
         fi
         if [[ -z "${resolved}" ]]; then
-            log_error "Could not resolve home.efitz.net to an IPv4 address."
+            log_error "Could not resolve ${host} to an IPv4 address."
             echo "  Pass --api-cidr <ip>/32 to set the EKS public endpoint allowlist explicitly."
             exit 1
         fi
         API_CIDR="${resolved}/32"
-        log_success "Resolved home.efitz.net -> ${API_CIDR}"
+        log_success "Resolved ${host} -> ${API_CIDR}"
     fi
 
     local current_ip

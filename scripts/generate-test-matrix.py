@@ -137,7 +137,6 @@ def main():
         # Extract test info
         test_name = execution.get('item', {}).get('name', '')
         expected_code = extract_test_case_type(test_name)
-        actual_code = execution.get('response', {}).get('code', 0)
         
         # Analyze assertions
         assertions = execution.get('assertions', [])

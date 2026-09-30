@@ -132,7 +132,7 @@ spec:
             - { name: TMI_TIMMY_TEXT_EMBEDDING_MODEL, value: "text-embedding-3-large" }
             - { name: TMI_TIMMY_TEXT_EMBEDDING_BASE_URL, value: "https://api.openai.com/v1" }
             - { name: TMI_TIMMY_EMBEDDING_DIMENSION, value: "3072" }
-            # Created out of band by scripts/set-timmy-secret.sh --context k3s-rp
+            # Created out of band by scripts/set-timmy-secret.sh --context <k3s-context>
             # so the provider key is never committed. optional: true keeps a
             # cluster without the secret from crashlooping the server — Timmy
             # then answers 503 (enabled but no key) instead of the pod failing.
@@ -209,7 +209,7 @@ metadata:
 spec:
   # NodePort (not ClusterIP): the server is reached on the host at localhost:8080
   # via `kubectl port-forward` (deploy.py start_server_port_forward). The NodePort
-  # is also used for high-throughput CATS runs against k3s (hit rp2:30080 directly
+  # is also used for high-throughput CATS runs against k3s (hit <node>:30080 directly
   # to bypass the userspace port-forward, which throttles under load — issue #463).
   # KEEP nodePort IN SYNC with scripts/lib/deploy.py NODE_PORT.
   type: NodePort

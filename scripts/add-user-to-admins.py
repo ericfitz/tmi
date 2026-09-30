@@ -18,6 +18,7 @@ Steps:
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import requests  # ty:ignore[unresolved-import]
 
@@ -59,7 +60,7 @@ def start_oauth_stub() -> bool:
     print("Starting OAuth client callback stub...")
     subprocess.run(
         ["make", "start-oauth-stub"],
-        cwd="/Users/efitz/Projects/tmi",
+        cwd=Path(__file__).resolve().parent.parent,
         capture_output=True,
         timeout=10,
     )
@@ -160,12 +161,12 @@ def add_to_administrators(token: str, user_uuid: str) -> None:
     )
     if r.status_code == 201:
         member = r.json()
-        print(f"  SUCCESS: Added to administrators group")
+        print("  SUCCESS: Added to administrators group")
         print(f"    Member ID: {member.get('id')}")
         print(f"    User: {member.get('user_email', 'N/A')} ({member.get('user_name', 'N/A')})")
         print(f"    Added by: {member.get('added_by_email', 'N/A')}")
     elif r.status_code == 409:
-        print(f"  User is already a member of the administrators group")
+        print("  User is already a member of the administrators group")
     else:
         print(f"  ERROR: {r.status_code} {r.text}")
         sys.exit(1)

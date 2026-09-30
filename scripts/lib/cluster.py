@@ -6,16 +6,46 @@ and are exercised against a live cluster by scripts/devenv.py.
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from tmi_common import (
     check_tool,
-    log_info, log_success, run_cmd,
+    get_project_root,
+    log_info,
+    log_success,
+    run_cmd,
 )
 
 # Remote k3s dev target (CLUSTER=k3s). We do not own this cluster: we select
 # its context but never create/delete it. Images go to an in-cluster registry
-# exposed at rp2:30500 (NodePort 30500).
-K3S_CONTEXT = "k3s-rp"
-K3S_REGISTRY = "rp2:30500"
+# exposed at <node>:30500 (NodePort 30500). The lab-specific values (context,
+# registry, node host) live in the untracked .local/k3s.json, never in tracked
+# files; deployments/k8s/dev/k3s/k3s.json.example documents the schema.
+K3S_CONFIG_FILE = get_project_root() / ".local" / "k3s.json"
+K3S_EXAMPLE_FILE = get_project_root() / "deployments/k8s/dev/k3s/k3s.json.example"
+_K3S_KEYS = ("context", "registry", "node_host")
+
+
+def k3s_config() -> dict[str, str]:
+    """Load the machine-local k3s settings; hard error if absent or malformed.
+
+    Read on every call (a ~100-byte file) so tests can repoint K3S_CONFIG_FILE.
+    Only the k3s branches call this, so docker-desktop never touches the file.
+    """
+    path = Path(K3S_CONFIG_FILE)
+    hint = (f"cp {K3S_EXAMPLE_FILE.relative_to(get_project_root())} "
+            f".local/k3s.json and fill it in")
+    try:
+        data = json.loads(path.read_text())
+    except FileNotFoundError:
+        raise RuntimeError(f"{path} not found: {hint}") from None
+    except (OSError, ValueError) as e:
+        raise RuntimeError(f"{path} is unreadable or not valid JSON ({e}): {hint}") from None
+    for key in _K3S_KEYS:
+        if not isinstance(data, dict) or not isinstance(data.get(key), str) or not data[key]:
+            raise RuntimeError(f"{path}: missing or empty string key {key!r}: {hint}")
+    return data
 
 # Docker Desktop dev target (CLUSTER=docker-desktop, the default). DD owns the
 # cluster lifecycle; we only select its context and never create/delete it.
@@ -31,7 +61,7 @@ def registry_for(cluster: str = "docker-desktop") -> str | None:
     if cluster == "docker-desktop":
         return None
     if cluster == "k3s":
-        return K3S_REGISTRY
+        return k3s_config()["registry"]
     raise ValueError(f"Unknown cluster target: {cluster!r}")
 
 
@@ -40,7 +70,7 @@ def expected_context(cluster: str = "docker-desktop") -> str:
     if cluster == "docker-desktop":
         return DD_CONTEXT
     if cluster == "k3s":
-        return K3S_CONTEXT
+        return k3s_config()["context"]
     raise ValueError(f"Unknown cluster target: {cluster!r}")
 
 
@@ -74,9 +104,10 @@ def up(cluster: str = "docker-desktop") -> None:
     """
     if cluster == "k3s":
         check_tool("kubectl")
-        log_info(f"Using existing k3s context '{K3S_CONTEXT}' (no cluster create)")
-        run_cmd(["kubectl", "config", "use-context", K3S_CONTEXT])
-        log_success(f"kube context set to '{K3S_CONTEXT}'")
+        ctx = k3s_config()["context"]
+        log_info(f"Using existing k3s context '{ctx}' (no cluster create)")
+        run_cmd(["kubectl", "config", "use-context", ctx])
+        log_success(f"kube context set to '{ctx}'")
         return
 
     if cluster == "docker-desktop":

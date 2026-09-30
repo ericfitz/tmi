@@ -282,8 +282,8 @@ YYYY-MM-DDTHH:MM:SS.sssZ <message>
 2025-01-15T10:30:15.124Z   GET / - OAuth callback handler
 2025-01-15T10:30:15.124Z   GET /latest - Latest credentials API
 2025-01-15T10:30:15.124Z   GET /?code=exit - Graceful shutdown
-2025-01-15T10:30:25.456Z [192.168.1.100] GET / HTTP/1.1 200 - Returned HTML for fragment extraction
-2025-01-15T10:30:25.567Z [192.168.1.100] POST /oauth-fragment HTTP/1.1 200 - {"flow_type": "implicit", "credentials_captured": true}
+2025-01-15T10:30:25.456Z [10.0.0.5] GET / HTTP/1.1 200 - Returned HTML for fragment extraction
+2025-01-15T10:30:25.567Z [10.0.0.5] POST /oauth-fragment HTTP/1.1 200 - {"flow_type": "implicit", "credentials_captured": true}
 2025-01-15T10:30:30.789Z [127.0.0.1] GET /latest HTTP/1.1 200 - {"flow_type": "implicit", "access_token": "eyJhbGc...", "token_type": "Bearer", "expires_in": 3600, "state": "AbCdEf123"}
 ```
 

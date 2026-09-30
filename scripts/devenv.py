@@ -29,7 +29,7 @@ import cluster      # noqa: E402
 import deploy       # noqa: E402
 import devstatus    # noqa: E402
 from tmi_common import (  # noqa: E402
-    add_verbosity_args, apply_verbosity, log_info, log_success,
+    add_verbosity_args, apply_verbosity, log_error, log_info, log_success,
 )
 
 VERBS = ["up", "down", "restart", "reset", "nuke",
@@ -153,7 +153,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     apply_verbosity(args)
-    _DISPATCH[args.verb](args)
+    try:
+        _DISPATCH[args.verb](args)
+    except RuntimeError as e:  # e.g. missing .local/k3s.json (cluster.k3s_config)
+        log_error(str(e))
+        sys.exit(1)
 
 
 if __name__ == "__main__":

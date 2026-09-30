@@ -72,9 +72,9 @@ class TestReadPidfile(unittest.TestCase):
     def test_reads_json_format(self):
         with TemporaryDirectory() as d:
             p = Path(d) / "pf.pid"
-            p.write_text('{"pid": 4242, "context": "k3s-rp", "port": 8080}')
+            p.write_text('{"pid": 4242, "context": "k3s-example", "port": 8080}')
             rec = portfwd.read_pidfile(p)
-            self.assertEqual(rec, portfwd.ForwardRecord(pid=4242, context="k3s-rp", port=8080))
+            self.assertEqual(rec, portfwd.ForwardRecord(pid=4242, context="k3s-example", port=8080))
 
     def test_reads_legacy_bare_int(self):
         with TemporaryDirectory() as d:
@@ -111,7 +111,7 @@ class TestReadPidfile(unittest.TestCase):
     def test_json_without_pid_key_returns_none(self):
         with TemporaryDirectory() as d:
             p = Path(d) / "pf.pid"
-            p.write_text('{"context": "k3s-rp"}')
+            p.write_text('{"context": "k3s-example"}')
             self.assertIsNone(portfwd.read_pidfile(p))
 
 
@@ -119,9 +119,9 @@ class TestWritePidfile(unittest.TestCase):
     def test_round_trip(self):
         with TemporaryDirectory() as d:
             p = Path(d) / "pf.pid"
-            portfwd.write_pidfile(p, 999, context="k3s-rp", port=6379)
+            portfwd.write_pidfile(p, 999, context="k3s-example", port=6379)
             rec = portfwd.read_pidfile(p)
-            self.assertEqual(rec, portfwd.ForwardRecord(pid=999, context="k3s-rp", port=6379))
+            self.assertEqual(rec, portfwd.ForwardRecord(pid=999, context="k3s-example", port=6379))
 
     def test_round_trip_defaults(self):
         with TemporaryDirectory() as d:
