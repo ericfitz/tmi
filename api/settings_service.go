@@ -687,7 +687,7 @@ var errSettingUnreadable = errors.New("setting unreadable")
 // modified_by are left as they were. Rows no key can open are reported in
 // []SettingError and excluded from later batches so the loop always terminates.
 // Returns the number of rows committed so far, also on error.
-// SEM@5740a75fafc8da46a061901361ed61990a6c8916: re-encrypt stale setting rows under the current key id in resumable per-row transactions (writes DB)
+// SEM@f8fb0cf9bf71ed4f21118aa813b9f9dea753beb3: re-encrypt stale setting rows under the current key id in resumable per-row transactions (writes DB)
 func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 	logger := slogging.Get()
 	if s.encryptor == nil || !s.encryptor.IsEnabled() {
@@ -745,7 +745,7 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError
 // reEncryptOne rewrites one row's ciphertext under the current key inside its
 // own transaction, holding a row lock on PostgreSQL/Oracle so a concurrent
 // SettingsService.Set cannot be overwritten.
-// SEM@5740a75fafc8da46a061901361ed61990a6c8916: re-encrypt a single setting row under a row lock in one transaction (writes DB)
+// SEM@e946e95b734bb607f104a0a97579fd1eb8f03875: re-encrypt a single setting row under a row lock in one transaction (writes DB)
 func (s *SettingsService) reEncryptOne(ctx context.Context, key string) error {
 	// READ COMMITTED, not the SERIALIZABLE default: under SERIALIZABLE, Oracle
 	// fails SELECT ... FOR UPDATE on a row committed after the tx start SCN
@@ -789,7 +789,7 @@ func (s *SettingsService) reEncryptOne(ctx context.Context, key string) error {
 
 // CountValuesWithContextID counts rows still encrypted under the given key id;
 // the rotator uses it to decide when the previous key can be dropped.
-// SEM@5740a75fafc8da46a061901361ed61990a6c8916: count setting rows whose envelope carries a given key id (reads DB)
+// SEM@e946e95b734bb607f104a0a97579fd1eb8f03875: count setting rows whose envelope carries a given key id (reads DB)
 func (s *SettingsService) CountValuesWithContextID(ctx context.Context, id int) (int64, error) {
 	var n int64
 	err := db.WithRetryableGormRead(ctx, db.DefaultRetryConfig(), func() error {

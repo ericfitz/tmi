@@ -23,30 +23,36 @@ const (
 
 // RedisACL manages the passwords accepted for the default Redis user.
 // Returned errors must never contain a password (Redis echoes ACL modifiers).
-// SEM@<sha>: add or retire passwords on the Redis default user
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: add or retire passwords on the Redis default user
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: define Redis ACL operations for adding and removing passwords
 type RedisACL interface {
 	AddPassword(ctx context.Context, pw string) error
 	RemovePasswordHash(ctx context.Context, sha256hex string) error
 }
 
 // GoRedisACL implements RedisACL with ACL SETUSER.
-// SEM@<sha>: RedisACL over a go-redis client using ACL SETUSER
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: RedisACL over a go-redis client using ACL SETUSER
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: Redis ACL manager backed by a go-redis client
 type GoRedisACL struct{ client *redis.Client }
 
-// SEM@<sha>: wrap a go-redis client as a RedisACL (pure)
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: wrap a go-redis client as a RedisACL (pure)
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: build a go-redis ACL manager
 func NewGoRedisACL(client *redis.Client) *GoRedisACL { return &GoRedisACL{client: client} }
 
-// SEM@<sha>: add a password to the default user (ACL SETUSER default >pw); idempotent
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: add a password to the default user (ACL SETUSER default >pw); idempotent
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: add a password to the Redis default user (writes Redis)
 func (a *GoRedisACL) AddPassword(ctx context.Context, pw string) error {
 	return aclError(a.client.Do(ctx, "ACL", "SETUSER", "default", ">"+pw).Err())
 }
 
-// SEM@<sha>: remove a password from the default user by its SHA-256 (ACL SETUSER default !hash); idempotent
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: remove a password from the default user by its SHA-256 (ACL SETUSER default !hash); idempotent
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: remove a password by hash from the Redis default user (writes Redis)
 func (a *GoRedisACL) RemovePasswordHash(ctx context.Context, sha256hex string) error {
 	return aclError(a.client.Do(ctx, "ACL", "SETUSER", "default", "!"+sha256hex).Err())
 }
 
-// SEM@<sha>: replace a Redis ACL error with a fixed message, keeping only a known error class (pure)
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: replace a Redis ACL error with a fixed message, keeping only a known error class (pure)
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: wrap a Redis ACL error in a fixed message that never leaks the password (pure)
 func aclError(err error) error {
 	if err == nil {
 		return nil
@@ -60,18 +66,22 @@ func aclError(err error) error {
 }
 
 // RedisPasswordRotation rotates TMI_REDIS_PASSWORD without a Redis restart.
-// SEM@<sha>: phased rotation of the Redis password: add new, swap Secret, roll server, retire old
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: phased rotation of the Redis password: add new, swap Secret, roll server, retire old
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: rotation of the Redis password
 type RedisPasswordRotation struct{ acl RedisACL }
 
-// SEM@<sha>: build a RedisPasswordRotation over a RedisACL (pure)
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: build a RedisPasswordRotation over a RedisACL (pure)
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: build a Redis password rotation
 func NewRedisPasswordRotation(acl RedisACL) *RedisPasswordRotation {
 	return &RedisPasswordRotation{acl: acl}
 }
 
-// SEM@<sha>: return the rotation name used in annotations and ROTATE (pure)
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: return the rotation name used in annotations and ROTATE (pure)
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: return the rotation's name (pure)
 func (r *RedisPasswordRotation) Name() string { return redisRotationName }
 
-// SEM@<sha>: advance the Redis password rotation from its recorded phase to completion
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: advance the Redis password rotation from its recorded phase to completion
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: run the phased, resumable Redis password rotation (writes secret, writes Redis)
 func (r *RedisPasswordRotation) Run(ctx context.Context, env *Env) error {
 	logger := slogging.Get()
 	s, err := env.Secrets.Get(ctx, env.SecretName)
@@ -126,7 +136,8 @@ func (r *RedisPasswordRotation) Run(ctx context.Context, env *Env) error {
 	})
 }
 
-// SEM@<sha>: hex SHA-256 of a string (pure)
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: hex SHA-256 of a string (pure)
+// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: compute the SHA-256 hex digest of a string (pure)
 func sha256Hex(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])

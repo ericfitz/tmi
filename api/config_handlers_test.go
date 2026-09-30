@@ -25,17 +25,20 @@ import (
 var _ SettingsServiceInterface = (*MockSettingsService)(nil)
 
 // MockSettingsService is a mock implementation of SettingsService for testing
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: mock settings service for handler tests
 type MockSettingsService struct {
 	reencryptErr error // returned by ReEncryptAll; nil = success
 	settings     map[string]*models.SystemSetting
 }
 
+// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: build a mock settings service for handler tests (pure)
 func NewMockSettingsService() *MockSettingsService {
 	return &MockSettingsService{
 		settings: make(map[string]*models.SystemSetting),
 	}
 }
 
+// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: fetch a setting from the mock settings store (pure)
 func (m *MockSettingsService) Get(ctx context.Context, key string) (*models.SystemSetting, error) {
 	if setting, ok := m.settings[key]; ok {
 		return setting, nil
@@ -43,6 +46,7 @@ func (m *MockSettingsService) Get(ctx context.Context, key string) (*models.Syst
 	return nil, nil
 }
 
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: fetch a string setting value from the mock settings store (pure)
 func (m *MockSettingsService) GetString(ctx context.Context, key string) (string, error) {
 	if setting, ok := m.settings[key]; ok {
 		return string(setting.Value), nil
@@ -50,6 +54,7 @@ func (m *MockSettingsService) GetString(ctx context.Context, key string) (string
 	return "", nil
 }
 
+// SEM@5ca61113c3ea1866b26898899b92516a2cd4669e: fetch a resolved string setting value from the mock settings store (pure)
 func (m *MockSettingsService) GetResolvedString(ctx context.Context, key string) (string, bool, error) {
 	if setting, ok := m.settings[key]; ok {
 		return string(setting.Value), true, nil
@@ -57,6 +62,7 @@ func (m *MockSettingsService) GetResolvedString(ctx context.Context, key string)
 	return "", false, nil
 }
 
+// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: fetch an integer setting value from the mock settings store (pure)
 func (m *MockSettingsService) GetInt(ctx context.Context, key string) (int, error) {
 	if setting, ok := m.settings[key]; ok {
 		var val int
@@ -67,6 +73,7 @@ func (m *MockSettingsService) GetInt(ctx context.Context, key string) (int, erro
 	return 0, nil
 }
 
+// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: fetch a boolean setting value from the mock settings store (pure)
 func (m *MockSettingsService) GetBool(ctx context.Context, key string) (bool, error) {
 	if setting, ok := m.settings[key]; ok {
 		return setting.Value == "true", nil
@@ -74,6 +81,7 @@ func (m *MockSettingsService) GetBool(ctx context.Context, key string) (bool, er
 	return false, nil
 }
 
+// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: list all settings from the mock settings store (pure)
 func (m *MockSettingsService) List(ctx context.Context) ([]models.SystemSetting, error) {
 	result := make([]models.SystemSetting, 0, len(m.settings))
 	for _, s := range m.settings {
@@ -82,16 +90,19 @@ func (m *MockSettingsService) List(ctx context.Context) ([]models.SystemSetting,
 	return result, nil
 }
 
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: store a setting in the mock settings store (pure)
 func (m *MockSettingsService) Set(ctx context.Context, setting *models.SystemSetting) error {
 	m.settings[string(setting.SettingKey)] = setting
 	return nil
 }
 
+// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: delete a setting from the mock settings store (pure)
 func (m *MockSettingsService) Delete(ctx context.Context, key string) error {
 	delete(m.settings, key)
 	return nil
 }
 
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: list settings by key prefix from the mock settings store (pure)
 func (m *MockSettingsService) ListByPrefix(ctx context.Context, prefix string) ([]models.SystemSetting, error) {
 	result := make([]models.SystemSetting, 0)
 	for _, s := range m.settings {
@@ -102,21 +113,23 @@ func (m *MockSettingsService) ListByPrefix(ctx context.Context, prefix string) (
 	return result, nil
 }
 
+// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: seed default settings in the mock settings store (pure)
 func (m *MockSettingsService) SeedDefaults(ctx context.Context) error {
 	return nil
 }
 
-// SEM@9ba3e0e15d47226d12e6aafbf3a7b268b45e1919: return the injected re-encryption error for handler tests (pure)
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: return the injected re-encryption error for handler tests (pure)
 func (m *MockSettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 	return 0, nil, m.reencryptErr
 }
 
-// SEM@5740a75fafc8da46a061901361ed61990a6c8916: return zero stale rows for handler tests (pure)
+// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: return zero stale rows for handler tests (pure)
 func (m *MockSettingsService) CountValuesWithContextID(ctx context.Context, id int) (int64, error) {
 	return 0, nil
 }
 
 // Helper to add a setting to the mock
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: register a setting in the mock settings store for a test (pure)
 func (m *MockSettingsService) AddSetting(key, value, settingType string) {
 	m.settings[key] = &models.SystemSetting{
 		SettingKey:  models.DBVarchar(key),
@@ -127,10 +140,12 @@ func (m *MockSettingsService) AddSetting(key, value, settingType string) {
 }
 
 // restoreConfigStores restores original global repositories after test
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: restore global config stores after a handler test
 func restoreConfigStores(originalAdminStore GroupMemberRepository) {
 	GlobalGroupMemberRepository = originalAdminStore
 }
 
+// SEM@3a14034a3f1269afac3c226b27ecd2df7e050a75: verify client config endpoint returns the expected config
 func TestGetClientConfig_Success(t *testing.T) {
 	// Save original admin store
 	originalAdminStore := GlobalGroupMemberRepository
@@ -181,6 +196,7 @@ func TestGetClientConfig_Success(t *testing.T) {
 	assert.Equal(t, "Accept", w.Header().Get("Vary"))
 }
 
+// SEM@3a14034a3f1269afac3c226b27ecd2df7e050a75: verify client config omits operator info when unset
 func TestGetClientConfig_WithoutOperatorInfo(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -210,6 +226,7 @@ func TestGetClientConfig_WithoutOperatorInfo(t *testing.T) {
 // TestGetClientConfig_FeatureFlagsFromSettings verifies all three feature flags
 // — including websocket_enabled, which was previously hardcoded — are read from
 // the settings service.
+// SEM@8f7b5125fd7a1b5bb10210ba480278708de918b0: verify client config feature flags are read from settings
 func TestGetClientConfig_FeatureFlagsFromSettings(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -244,6 +261,7 @@ func TestGetClientConfig_FeatureFlagsFromSettings(t *testing.T) {
 // TestGetClientConfig_MissingFlagKeepsDefault pins that a missing webhooks_enabled
 // key keeps the default-true value rather than collapsing to GetBool's
 // (false, nil) for a not-found key.
+// SEM@8f7b5125fd7a1b5bb10210ba480278708de918b0: verify a missing feature flag setting keeps the default
 func TestGetClientConfig_MissingFlagKeepsDefault(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -276,6 +294,7 @@ func TestGetClientConfig_MissingFlagKeepsDefault(t *testing.T) {
 // TestGetClientConfig_TimmyEnabled verifies features.timmy_enabled mirrors the
 // same two-stage gate as TimmyEnabledMiddleware: true only when Timmy is both
 // enabled and fully configured.
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: verify client config reports Timmy enabled state
 func TestGetClientConfig_TimmyEnabled(t *testing.T) {
 	tests := []struct {
 		name string
@@ -322,6 +341,7 @@ func TestGetClientConfig_TimmyEnabled(t *testing.T) {
 // TestGetClientConfig_TimmyReaderAbsent verifies a Server with no
 // timmyConfigReader wired (e.g. most unit tests) still reports
 // features.timmy_enabled as present and false, never nil or a panic.
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: verify client config omits Timmy reader when absent
 func TestGetClientConfig_TimmyReaderAbsent(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -345,6 +365,7 @@ func TestGetClientConfig_TimmyReaderAbsent(t *testing.T) {
 	assert.False(t, *cfg.Features.TimmyEnabled)
 }
 
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify listing system settings requires admin
 func TestListSystemSettings_AdminRequired(t *testing.T) {
 	// Save original admin store
 	originalAdminStore := GlobalGroupMemberRepository
@@ -384,6 +405,7 @@ func TestListSystemSettings_AdminRequired(t *testing.T) {
 	assert.Equal(t, "forbidden", errResp.Error)
 }
 
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify listing system settings returns 503 when the service is unavailable
 func TestListSystemSettings_ServiceUnavailable(t *testing.T) {
 	// Save original admin store
 	originalAdminStore := GlobalGroupMemberRepository
@@ -420,6 +442,7 @@ func TestListSystemSettings_ServiceUnavailable(t *testing.T) {
 	assert.Equal(t, "service_unavailable", errResp.Error)
 }
 
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify fetching a system setting requires admin
 func TestGetSystemSetting_AdminRequired(t *testing.T) {
 	// Save original admin store
 	originalAdminStore := GlobalGroupMemberRepository
@@ -455,6 +478,7 @@ func TestGetSystemSetting_AdminRequired(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify updating a system setting requires admin
 func TestUpdateSystemSetting_AdminRequired(t *testing.T) {
 	// Save original admin store
 	originalAdminStore := GlobalGroupMemberRepository
@@ -492,6 +516,7 @@ func TestUpdateSystemSetting_AdminRequired(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify deleting a system setting requires admin
 func TestDeleteSystemSetting_AdminRequired(t *testing.T) {
 	// Save original admin store
 	originalAdminStore := GlobalGroupMemberRepository
@@ -527,6 +552,7 @@ func TestDeleteSystemSetting_AdminRequired(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: verify system-setting model converts to its API DTO
 func TestModelToAPISystemSetting(t *testing.T) {
 	modifiedBy := "12345678-1234-1234-1234-123456789012"
 	description := "Test description"
@@ -568,6 +594,7 @@ func TestModelToAPISystemSetting_Origin(t *testing.T) {
 	assert.Equal(t, Seeded, *modelToAPISystemSetting(seeded).Origin)
 }
 
+// SEM@24f7dadfcf515c1af48310c466e75a45e19d6e3b: verify model-to-DTO conversion tolerates nil optional fields
 func TestModelToAPISystemSetting_NilOptionalFields(t *testing.T) {
 	now := time.Now()
 
@@ -588,14 +615,17 @@ func TestModelToAPISystemSetting_NilOptionalFields(t *testing.T) {
 }
 
 // MockConfigProvider is a mock implementation for testing migration
+// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: mock config provider for handler tests
 type MockConfigProvider struct {
 	settings []MigratableSetting
 }
 
+// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: list migratable settings from the mock config provider (pure)
 func (m *MockConfigProvider) GetMigratableSettings() []MigratableSetting {
 	return m.settings
 }
 
+// SEM@dcb09b6afcb6a3a78ce7ba3c345e459ba9cf55a2: verify system settings listing merges config-sourced settings
 func TestListSystemSettings_MergedWithConfigSettings(t *testing.T) {
 	// Uses VisibilityAdminOnly keys so that the visibility filter does not drop
 	// them. server.port (bootstrap/VisibilityInternal) and unclassified keys are
@@ -670,6 +700,7 @@ func TestListSystemSettings_MergedWithConfigSettings(t *testing.T) {
 	assert.Equal(t, "config", wsTimeout["source"])
 }
 
+// SEM@dcb09b6afcb6a3a78ce7ba3c345e459ba9cf55a2: verify system settings listing masks secret values
 func TestListSystemSettings_SecretMasking(t *testing.T) {
 	// auth.jwt.secret is VisibilityInternal (bootstrap) and must NOT appear in
 	// admin settings — the visibility filter correctly drops it. Secret masking
@@ -734,6 +765,7 @@ func TestListSystemSettings_SecretMasking(t *testing.T) {
 	assert.Equal(t, "<not configured>", emptySecret["value"])
 }
 
+// SEM@6452c8ee5c276cfd329d0c343b1947f17cc87218: verify fetching a config-sourced system setting
 func TestGetSystemSetting_ConfigSourced(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
@@ -780,6 +812,7 @@ func TestGetSystemSetting_ConfigSourced(t *testing.T) {
 	assert.Equal(t, true, setting["read_only"])
 }
 
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify updating a config-sourced setting returns 409
 func TestUpdateSystemSetting_409_ConfigSourced(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
@@ -822,6 +855,7 @@ func TestUpdateSystemSetting_409_ConfigSourced(t *testing.T) {
 	assert.Equal(t, "conflict", errResp.Error)
 }
 
+// SEM@69e1295132f4de6082654f6ddb5283252d637f60: verify deleting a config-only setting without DB row returns 404
 func TestDeleteSystemSetting_404_ConfigOnlyNoDB(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
@@ -865,6 +899,7 @@ func TestDeleteSystemSetting_404_ConfigOnlyNoDB(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+// SEM@6452c8ee5c276cfd329d0c343b1947f17cc87218: verify deleting a dual-source setting is allowed
 func TestDeleteSystemSetting_AllowDeleteDualSource(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
@@ -912,6 +947,7 @@ func TestDeleteSystemSetting_AllowDeleteDualSource(t *testing.T) {
 // key (file/env-only, never DB-stored) returns HTTP 404 — NOT 500. Without
 // the handler-level guard, the SettingsService bootstrap guard error would be
 // mapped to a 500, an unconditional user-triggerable 500 (Zero 500 policy).
+// SEM@6452c8ee5c276cfd329d0c343b1947f17cc87218: verify deleting a bootstrap key returns 404
 func TestDeleteSystemSetting_BootstrapKey404(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
@@ -949,6 +985,7 @@ func TestDeleteSystemSetting_BootstrapKey404(t *testing.T) {
 // TestGetSystemSetting_BootstrapKey404 verifies that getting a bootstrap key
 // returns HTTP 404 — NOT 500 — even when configProvider is nil (the path the
 // code explicitly handles).
+// SEM@6452c8ee5c276cfd329d0c343b1947f17cc87218: verify fetching a bootstrap key returns 404
 func TestGetSystemSetting_BootstrapKey404(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
@@ -982,6 +1019,7 @@ func TestGetSystemSetting_BootstrapKey404(t *testing.T) {
 	assert.NotEqual(t, http.StatusInternalServerError, w.Code)
 }
 
+// SEM@72dd09a3a2452db4ebcb144ebcf734b0140a67c7: verify provider secret keys are detected
 func TestIsProviderSecretKey(t *testing.T) {
 	tests := []struct {
 		key      string
@@ -1006,6 +1044,7 @@ func TestIsProviderSecretKey(t *testing.T) {
 	}
 }
 
+// SEM@72dd09a3a2452db4ebcb144ebcf734b0140a67c7: verify which setting values are masked
 func TestShouldMaskSettingValue(t *testing.T) {
 	tests := []struct {
 		key      string
@@ -1040,6 +1079,7 @@ func TestShouldMaskSettingValue(t *testing.T) {
 // path masks a DB-stored content OAuth client secret (f023). The key is
 // VisibilityAdminOnly via the content_oauth.providers.* prefix class, so it
 // passes the visibility gate and must be masked by shouldMaskSettingValue.
+// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: verify OAuth secret in DB content is masked on fetch
 func TestGetSystemSetting_DBContentOAuthSecretMasked(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
@@ -1081,26 +1121,37 @@ func TestGetSystemSetting_DBContentOAuthSecretMasked(t *testing.T) {
 }
 
 // mockProviderRegistry tracks InvalidateCache calls
+// SEM@8021854ca7c2ed0ff1bf92d0c81d12f62e8ee616: mock OAuth/SAML provider registry for handler tests
 type mockProviderRegistry struct {
 	invalidated bool
 }
 
+// SEM@8021854ca7c2ed0ff1bf92d0c81d12f62e8ee616: fetch an OAuth provider from the mock registry (pure)
 func (m *mockProviderRegistry) GetOAuthProvider(id string) (auth.OAuthProviderConfig, bool) {
 	return auth.OAuthProviderConfig{}, false
 }
+
+// SEM@8021854ca7c2ed0ff1bf92d0c81d12f62e8ee616: list enabled OAuth providers from the mock registry (pure)
 func (m *mockProviderRegistry) GetEnabledOAuthProviders() map[string]auth.OAuthProviderConfig {
 	return nil
 }
+
+// SEM@8021854ca7c2ed0ff1bf92d0c81d12f62e8ee616: fetch a SAML provider from the mock registry (pure)
 func (m *mockProviderRegistry) GetSAMLProvider(id string) (auth.SAMLProviderConfig, bool) {
 	return auth.SAMLProviderConfig{}, false
 }
+
+// SEM@8021854ca7c2ed0ff1bf92d0c81d12f62e8ee616: list enabled SAML providers from the mock registry (pure)
 func (m *mockProviderRegistry) GetEnabledSAMLProviders() map[string]auth.SAMLProviderConfig {
 	return nil
 }
+
+// SEM@8021854ca7c2ed0ff1bf92d0c81d12f62e8ee616: invalidate the mock provider registry cache (pure)
 func (m *mockProviderRegistry) InvalidateCache() {
 	m.invalidated = true
 }
 
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify enabling a provider setting is validated on update
 func TestUpdateSystemSetting_EnableValidation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -1194,6 +1245,7 @@ func TestUpdateSystemSetting_EnableValidation(t *testing.T) {
 	})
 }
 
+// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify updating a setting invalidates the provider cache
 func TestUpdateSystemSetting_InvalidatesProviderCache(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
@@ -1228,14 +1280,21 @@ func TestUpdateSystemSetting_InvalidatesProviderCache(t *testing.T) {
 
 // --- buildContentProviders TDD tests ---
 
+// SEM@0ec80e5ca018bb5550daa721488ddd1094931ad3: fake content source for handler tests
 type fakeContentSource struct{ name string }
 
-func (f *fakeContentSource) Name() string                               { return f.name }
+// SEM@0ec80e5ca018bb5550daa721488ddd1094931ad3: return the fake content source name (pure)
+func (f *fakeContentSource) Name() string { return f.name }
+
+// SEM@0ec80e5ca018bb5550daa721488ddd1094931ad3: report whether the fake content source handles a URL (pure)
 func (f *fakeContentSource) CanHandle(_ context.Context, _ string) bool { return false }
+
+// SEM@0ec80e5ca018bb5550daa721488ddd1094931ad3: fetch content from the fake content source (pure)
 func (f *fakeContentSource) Fetch(_ context.Context, _ string) ([]byte, string, error) {
 	return nil, "", nil
 }
 
+// SEM@f2e01937e40c91e87ac47a34d11870fde716d093: verify content providers build empty for an empty registry
 func TestBuildContentProviders_EmptyRegistry(t *testing.T) {
 	got := buildContentProviders(nil, nil, nil)
 	if got == nil {
@@ -1254,6 +1313,7 @@ func TestBuildContentProviders_EmptyRegistry(t *testing.T) {
 	}
 }
 
+// SEM@f2e01937e40c91e87ac47a34d11870fde716d093: verify content providers build from mixed source types
 func TestBuildContentProviders_MixedSources(t *testing.T) {
 	reg := NewContentSourceRegistry()
 	reg.Register(&fakeContentSource{name: ProviderHTTP})
@@ -1275,6 +1335,7 @@ func TestBuildContentProviders_MixedSources(t *testing.T) {
 	}
 }
 
+// SEM@f2e01937e40c91e87ac47a34d11870fde716d093: verify delegated content provider override is applied
 func TestBuildContentProviders_DelegatedOverride(t *testing.T) {
 	reg := NewContentSourceRegistry()
 	reg.Register(&fakeContentSource{name: "google_workspace"})
@@ -1295,6 +1356,7 @@ func TestBuildContentProviders_DelegatedOverride(t *testing.T) {
 	}
 }
 
+// SEM@f2e01937e40c91e87ac47a34d11870fde716d093: verify unknown content source is handled in provider build
 func TestBuildContentProviders_UnknownSource(t *testing.T) {
 	const unknownSourceID = "experimental"
 	reg := NewContentSourceRegistry()
@@ -1309,6 +1371,7 @@ func TestBuildContentProviders_UnknownSource(t *testing.T) {
 	}
 }
 
+// SEM@f2e01937e40c91e87ac47a34d11870fde716d093: verify override is ignored for non-delegated content sources
 func TestBuildContentProviders_OverrideIgnoredForNonDelegated(t *testing.T) {
 	reg := NewContentSourceRegistry()
 	reg.Register(&fakeContentSource{name: "google_drive"}) // service kind
@@ -1324,6 +1387,7 @@ func TestBuildContentProviders_OverrideIgnoredForNonDelegated(t *testing.T) {
 	}
 }
 
+// SEM@f2e01937e40c91e87ac47a34d11870fde716d093: verify partial content provider override is applied
 func TestBuildContentProviders_PartialOverride(t *testing.T) {
 	reg := NewContentSourceRegistry()
 	reg.Register(&fakeContentSource{name: "google_workspace"})
@@ -1344,6 +1408,7 @@ func TestBuildContentProviders_PartialOverride(t *testing.T) {
 	}
 }
 
+// SEM@f2e01937e40c91e87ac47a34d11870fde716d093: verify picker config is omitted from content providers by default
 func TestBuildContentProviders_PickerConfigOmittedByDefault(t *testing.T) {
 	reg := NewContentSourceRegistry()
 	reg.Register(&fakeContentSource{name: "google_drive"})
@@ -1357,6 +1422,7 @@ func TestBuildContentProviders_PickerConfigOmittedByDefault(t *testing.T) {
 	}
 }
 
+// SEM@f2e01937e40c91e87ac47a34d11870fde716d093: verify picker config is attached to content providers
 func TestBuildContentProviders_PickerConfigAttached(t *testing.T) {
 	reg := NewContentSourceRegistry()
 	reg.Register(&fakeContentSource{name: "google_drive"})
@@ -1384,6 +1450,7 @@ func TestBuildContentProviders_PickerConfigAttached(t *testing.T) {
 	}
 }
 
+// SEM@f2e01937e40c91e87ac47a34d11870fde716d093: verify empty picker config map is omitted
 func TestBuildContentProviders_PickerConfigEmptyMapOmitted(t *testing.T) {
 	reg := NewContentSourceRegistry()
 	reg.Register(&fakeContentSource{name: "google_drive"})
@@ -1398,6 +1465,7 @@ func TestBuildContentProviders_PickerConfigEmptyMapOmitted(t *testing.T) {
 	}
 }
 
+// SEM@dcb09b6afcb6a3a78ce7ba3c345e459ba9cf55a2: verify public visibility filter excludes secret and non-public settings
 func TestVisibilityFilter_PublicExcludesSecretsAndNonPublic(t *testing.T) {
 	// filterByVisibility takes the local api.MigratableSetting type and looks up
 	// classification from the registry via config.ClassificationFor(key).
@@ -1432,6 +1500,7 @@ func TestVisibilityFilter_PublicExcludesSecretsAndNonPublic(t *testing.T) {
 	}
 }
 
+// SEM@f2e01937e40c91e87ac47a34d11870fde716d093: verify picker config is deep-copied in content providers
 func TestBuildContentProviders_PickerConfigDeepCopy(t *testing.T) {
 	reg := NewContentSourceRegistry()
 	reg.Register(&fakeContentSource{name: "google_drive"})
@@ -1491,6 +1560,7 @@ func TestReencryptSystemSettings_ErrorMapping(t *testing.T) {
 	}
 }
 
+// SEM@f2ea1d518ec8795172d7958ce59d0ba011c7ae17: verify successful re-encryption returns an empty errors array
 func TestReencryptSystemSettings_SuccessErrorsIsEmptyArray(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
@@ -1519,6 +1589,7 @@ func TestReencryptSystemSettings_SuccessErrorsIsEmptyArray(t *testing.T) {
 	assert.Empty(t, arr)
 }
 
+// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: verify re-encryption request body handling
 func TestReencryptSystemSettings_BodyHandling(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)

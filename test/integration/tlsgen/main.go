@@ -37,7 +37,7 @@ func main() {
 	}
 }
 
-// SEM@249dea6: generate the harness CA, server/client certs, redis.conf and secrets.env once (writes files)
+// SEM@40992b5213a572faf401affb8031e3538e655c2d: build the integration test TLS certificate authority and certificates
 func run(dir string) error {
 	if _, err := os.Stat(filepath.Join(dir, "ca.crt")); err == nil {
 		return ensureSettingsKey(dir) // PKI already generated; older dirs lack the settings key
@@ -91,7 +91,8 @@ requirepass %s
 	return ensureSettingsKey(dir)
 }
 
-// SEM@<sha>: append a random settings encryption key to secrets.env when absent (writes file)
+// SEM@f2ea1d518ec8795172d7958ce59d0ba011c7ae17: append a random settings encryption key to secrets.env when absent (writes file)
+// SEM@f2ea1d518ec8795172d7958ce59d0ba011c7ae17: store a settings encryption key in the TLS directory if missing
 func ensureSettingsKey(dir string) error {
 	path := filepath.Join(dir, "secrets.env")
 	cur, err := os.ReadFile(path) // #nosec G304 -- harness-owned path

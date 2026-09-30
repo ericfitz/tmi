@@ -14,6 +14,7 @@ import (
 // subtrees have dynamic cardinality — one instance per configured provider —
 // so they cannot have a fixed dotted-key SettingDef and are out of scope for
 // the registry projection.
+// SEM@630c1302d39ea1066bc14eb1ab34cb8faaf95a08: test whether a setting key belongs to a generated per-provider group (pure)
 func isGeneratedProviderKey(key string) bool {
 	for _, p := range []string{
 		"auth.oauth.providers.",
@@ -30,6 +31,7 @@ func isGeneratedProviderKey(key string) bool {
 // sampleConfig returns a Config with enough fields populated to exercise the
 // OmitWhenEmpty conditional-emission paths (see OmitWhenEmpty's doc comment
 // on SettingDef).
+// SEM@630c1302d39ea1066bc14eb1ab34cb8faaf95a08: build a fully populated sample config for tests (pure)
 func sampleConfig() *Config {
 	c := &Config{}
 	c.Server.Port = "8080"
@@ -45,6 +47,7 @@ func sampleConfig() *Config {
 // TestGetMigratableSettings_ValuesComeFromConfig pins that projected values
 // come from the live Config for a representative sample of types, including
 // OmitWhenEmpty keys populated with a real value.
+// SEM@630c1302d39ea1066bc14eb1ab34cb8faaf95a08: test that migratable settings take their values from the config
 func TestGetMigratableSettings_ValuesComeFromConfig(t *testing.T) {
 	c := sampleConfig()
 	byKey := map[string]MigratableSetting{}
@@ -82,6 +85,7 @@ func TestGetMigratableSettings_ValuesComeFromConfig(t *testing.T) {
 // A zero-value Config must not emit any OmitWhenEmpty key, exactly
 // reproducing the pre-registry builders' `if x != ""` / `if len(x) > 0` /
 // `if x > 0` guards.
+// SEM@abca39ee1a644fe8e73eba37033a3eb67a12ae38: test that migratable settings omit empty optional keys
 func TestGetMigratableSettings_OmitsEmptyOptionalKeys(t *testing.T) {
 	c := &Config{}
 	byKey := map[string]MigratableSetting{}
@@ -154,6 +158,7 @@ func TestGetMigratableSettings_OmitsEmptyOptionalKeys(t *testing.T) {
 // key's Class and secrecy come from the registry — or, for generated
 // provider keys (which have no SettingDef by design), from prefix
 // classification.
+// SEM@630c1302d39ea1066bc14eb1ab34cb8faaf95a08: test that migratable settings carry the registry's class and secrecy
 func TestGetMigratableSettings_CarriesClassAndSecrecy(t *testing.T) {
 	c := sampleConfig()
 	for _, s := range c.GetMigratableSettings() {
@@ -173,6 +178,7 @@ func TestGetMigratableSettings_CarriesClassAndSecrecy(t *testing.T) {
 	}
 }
 
+// SEM@630c1302d39ea1066bc14eb1ab34cb8faaf95a08: test that migratable settings track env and file as explicit sources
 func TestGetMigratableSettings_ExplicitTracksEnvAndFile(t *testing.T) {
 	t.Setenv("TMI_SERVER_PORT", "9090")
 	c := sampleConfig()
@@ -202,6 +208,7 @@ func TestGetMigratableSettings_ExplicitTracksEnvAndFile(t *testing.T) {
 // disappears, or its value changes — a fresh database seeds different rows
 // and #794's backfill classifies existing rows differently. This test is
 // the gate that would catch that.
+// SEM@630c1302d39ea1066bc14eb1ab34cb8faaf95a08: test that default operational settings match the pre-registry baseline
 func TestDefaultOperationalSettings_MatchesPreRegistryBaseline(t *testing.T) {
 	want := map[string]string{
 		"auth.auto_promote_first_user":                    "false",

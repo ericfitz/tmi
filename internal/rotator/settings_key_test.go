@@ -17,12 +17,14 @@ import (
 	"github.com/ericfitz/tmi/internal/crypto"
 )
 
+// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: in-memory settings store test double for key rotation
 type fakeSettings struct {
 	rows      map[int]int64 // rows per key id
 	reencrypt int
 	lastKr    Keyring
 }
 
+// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: re-encrypt fake settings rows under the current key (test double)
 func (f *fakeSettings) ReEncrypt(_ context.Context, kr Keyring) (int, error) {
 	f.reencrypt++
 	f.lastKr = kr
@@ -37,10 +39,12 @@ func (f *fakeSettings) ReEncrypt(_ context.Context, kr Keyring) (int, error) {
 	return int(moved), nil
 }
 
+// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: count fake settings rows under a key id (test double)
 func (f *fakeSettings) CountWithID(_ context.Context, _ Keyring, id int) (int64, error) {
 	return f.rows[id], nil
 }
 
+// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: build a settings-key secret fixture for tests
 func settingsSecret() *Secret {
 	return &Secret{Name: "tmi-secrets", Data: map[string]string{
 		"TMI_SECRET_SETTINGS_ENCRYPTION_KEY": "0000000000000000000000000000000000000000000000000000000000000001",
@@ -48,6 +52,7 @@ func settingsSecret() *Secret {
 	}, Annotations: map[string]string{}}
 }
 
+// SEM@f5ed9122de949614f44d9fb1970d38d90f2d9081: test that StageThenPromoteThenReencrypt
 func TestSettingsKeyRotation_StageThenPromoteThenReencrypt(t *testing.T) {
 	env, st := testEnv(settingsSecret())
 	fs := &fakeSettings{rows: map[int]int64{1: 40}}
@@ -70,6 +75,7 @@ func TestSettingsKeyRotation_StageThenPromoteThenReencrypt(t *testing.T) {
 	require.Equal(t, "2026-09-28T12:00:00Z", s.Annotations[AnnPromotedAt+"settings-key"])
 }
 
+// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: test that DropWaitsForGraceAndZeroRows
 func TestSettingsKeyRotation_DropWaitsForGraceAndZeroRows(t *testing.T) {
 	env, st := testEnv(settingsSecret())
 	fs := &fakeSettings{rows: map[int]int64{1: 3}}
@@ -102,6 +108,7 @@ func TestSettingsKeyRotation_DropWaitsForGraceAndZeroRows(t *testing.T) {
 	require.Equal(t, writes+1, st.DataWrites)
 }
 
+// SEM@f5ed9122de949614f44d9fb1970d38d90f2d9081: test that ResumeFromStaged
 func TestSettingsKeyRotation_ResumeFromStaged(t *testing.T) {
 	sec := settingsSecret()
 	sec.Data["TMI_SECRET_SETTINGS_ENCRYPTION_PREVIOUS_KEY"] = "0000000000000000000000000000000000000000000000000000000000000002"
@@ -120,6 +127,7 @@ func TestSettingsKeyRotation_ResumeFromStaged(t *testing.T) {
 	require.Equal(t, "reencrypted", s.Annotations[AnnPhase+"settings-key"])
 }
 
+// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: test that Validation
 func TestKeyringFromSecret_Validation(t *testing.T) {
 	_, err := KeyringFromSecret(&Secret{Data: map[string]string{}})
 	require.Error(t, err, "no key")
@@ -131,6 +139,7 @@ func TestKeyringFromSecret_Validation(t *testing.T) {
 	require.Zero(t, kr.PreviousID)
 }
 
+// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: test that UnreadableRowDoesNotFail
 func TestGormSettingsStore_UnreadableRowDoesNotFail(t *testing.T) {
 	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: gormlogger.Discard, DisableForeignKeyConstraintWhenMigrating: true})
 	require.NoError(t, err)
@@ -157,6 +166,7 @@ func TestGormSettingsStore_UnreadableRowDoesNotFail(t *testing.T) {
 	require.Zero(t, left)
 }
 
+// SEM@5492df59c8facc3d077821c77a8dd7bed4281289: test that StagedWithoutPairRefusesToPromote
 func TestSettingsKeyRotation_StagedWithoutPairRefusesToPromote(t *testing.T) {
 	sec := settingsSecret()
 	sec.Annotations[AnnPhase+"settings-key"] = "staged"

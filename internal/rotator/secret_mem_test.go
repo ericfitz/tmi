@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// SEM@e9ba68231ad8e8bb838e0131e284b77148d8e5c1: test that the in-memory store rejects updates with a stale version
 func TestMemorySecretStore_ConflictOnStaleVersion(t *testing.T) {
 	st := NewMemorySecretStore(&Secret{Name: "tmi-secrets", Data: map[string]string{"A": "1"}})
 	ctx := context.Background()

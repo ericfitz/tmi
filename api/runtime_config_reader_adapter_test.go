@@ -17,6 +17,7 @@ import (
 // disjoint so the config-fallback tests fail if the adapter's explicit
 // fallback read is ever removed). errs fails both reads for a key; dbErrs
 // fails only the DB read (wrap dberrors.ErrTransient to simulate an ADB blip).
+// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: fake settings service for runtime config adapter tests
 type fakeSettingsService struct {
 	db      map[string]string
 	strings map[string]string
@@ -27,6 +28,7 @@ type fakeSettingsService struct {
 	getStringCalls int
 }
 
+// SEM@5ca61113c3ea1866b26898899b92516a2cd4669e: build a fake settings service for adapter tests (pure)
 func newFakeSettingsService() *fakeSettingsService {
 	return &fakeSettingsService{
 		db:      map[string]string{},
@@ -36,9 +38,12 @@ func newFakeSettingsService() *fakeSettingsService {
 	}
 }
 
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: fetch a setting from the fake settings store (pure)
 func (f *fakeSettingsService) Get(ctx context.Context, key string) (*models.SystemSetting, error) {
 	return nil, nil
 }
+
+// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: fetch a string setting value from the fake settings store (pure)
 func (f *fakeSettingsService) GetString(ctx context.Context, key string) (string, error) {
 	f.getStringCalls++
 	if err, ok := f.errs[key]; ok {
@@ -46,6 +51,8 @@ func (f *fakeSettingsService) GetString(ctx context.Context, key string) (string
 	}
 	return f.strings[key], nil
 }
+
+// SEM@5ca61113c3ea1866b26898899b92516a2cd4669e: fetch a resolved string setting value from the fake settings store (pure)
 func (f *fakeSettingsService) GetResolvedString(ctx context.Context, key string) (string, bool, error) {
 	if err, ok := f.dbErrs[key]; ok {
 		return "", false, err
@@ -56,28 +63,47 @@ func (f *fakeSettingsService) GetResolvedString(ctx context.Context, key string)
 	v, ok := f.db[key]
 	return v, ok, nil
 }
+
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: fetch an integer setting value from the fake settings store (pure)
 func (f *fakeSettingsService) GetInt(ctx context.Context, key string) (int, error) { return 0, nil }
+
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: fetch a boolean setting value from the fake settings store (pure)
 func (f *fakeSettingsService) GetBool(ctx context.Context, key string) (bool, error) {
 	return false, nil
 }
+
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: list settings from the fake settings store (pure)
 func (f *fakeSettingsService) List(ctx context.Context) ([]models.SystemSetting, error) {
 	return nil, nil
 }
+
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: list settings by key prefix from the fake settings store (pure)
 func (f *fakeSettingsService) ListByPrefix(ctx context.Context, prefix string) ([]models.SystemSetting, error) {
 	return nil, nil
 }
+
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: store a setting in the fake settings store (pure)
 func (f *fakeSettingsService) Set(ctx context.Context, setting *models.SystemSetting) error {
 	return nil
 }
+
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: delete a setting from the fake settings store (pure)
 func (f *fakeSettingsService) Delete(ctx context.Context, key string) error { return nil }
-func (f *fakeSettingsService) SeedDefaults(ctx context.Context) error       { return nil }
+
+// SEM@08e19a77d4d2c499f116e1a1ee3c875c06407335: seed default settings in the fake settings store (pure)
+func (f *fakeSettingsService) SeedDefaults(ctx context.Context) error { return nil }
+
+// SEM@9ba3e0e15d47226d12e6aafbf3a7b268b45e1919: re-encrypt all settings in the fake settings store (pure)
 func (f *fakeSettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 	return 0, nil, nil
 }
+
+// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: count stale setting rows in the fake settings store (pure)
 func (f *fakeSettingsService) CountValuesWithContextID(ctx context.Context, id int) (int64, error) {
 	return 0, nil
 }
 
+// SEM@5ca61113c3ea1866b26898899b92516a2cd4669e: verify adapter returns the client callback allow list
 func TestRuntimeConfigReaderAdapter_GetClientCallbackAllowList(t *testing.T) {
 	ctx := context.Background()
 
@@ -170,6 +196,7 @@ func TestRuntimeConfigReaderAdapter_GetClientCallbackAllowList(t *testing.T) {
 	})
 }
 
+// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: verify adapter reports whether SAML is enabled
 func TestRuntimeConfigReaderAdapter_IsSAMLEnabled(t *testing.T) {
 	ctx := context.Background()
 
@@ -233,6 +260,7 @@ func TestRuntimeConfigReaderAdapter_IsSAMLEnabled(t *testing.T) {
 	})
 }
 
+// SEM@5ca61113c3ea1866b26898899b92516a2cd4669e: verify adapter returns the OAuth callback URL
 func TestRuntimeConfigReaderAdapter_GetOAuthCallbackURL(t *testing.T) {
 	ctx := context.Background()
 
@@ -278,6 +306,7 @@ func TestRuntimeConfigReaderAdapter_GetOAuthCallbackURL(t *testing.T) {
 // an ADB blip (ORA-02396/03113/12537 class) must NOT fail closed — the
 // operator's YAML snapshot answers instead. Only non-transient errors keep
 // the fail-closed contract.
+// SEM@2e43fddcc4f977a73637e4f1a1d5798b170d79ed: verify adapter falls back to YAML config on transient DB fault
 func TestRuntimeConfigReaderAdapter_TransientDBFaultFallsBackToYAML(t *testing.T) {
 	ctx := context.Background()
 	transient := fmt.Errorf("simulated ADB blip: %w", dberrors.ErrTransient)
@@ -347,6 +376,7 @@ func TestRuntimeConfigReaderAdapter_TransientDBFaultFallsBackToYAML(t *testing.T
 // IsEveryoneAReviewer is the fifth key #794 catalogued. Before this change it
 // had no runtime reader at all — the only consumer read the config struct
 // directly, so the database row was visible, editable, and inert.
+// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: verify adapter reports whether everyone is a reviewer
 func TestRuntimeConfigReaderAdapter_IsEveryoneAReviewer(t *testing.T) {
 	const key = "auth.everyone_is_a_reviewer"
 

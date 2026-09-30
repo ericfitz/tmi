@@ -34,7 +34,7 @@ type EncryptionContext struct {
 }
 
 // SettingsEncryptor encrypts and decrypts setting values using AES-256-GCM.
-// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: hold AES-256-GCM keys and state for encrypting and decrypting setting values (pure)
+// SEM@4124923111c3953ff57a47b3a830053810b6cfcd: hold AES-256-GCM keys and state for encrypting and decrypting settings
 type SettingsEncryptor struct {
 	currentKey  []byte
 	previousKey []byte // nil if no previous key configured
@@ -45,7 +45,7 @@ type SettingsEncryptor struct {
 
 // NewSettingsEncryptor creates a new encryptor using the secrets provider.
 // If no encryption key is found, returns a disabled encryptor that passes values through.
-// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: build a SettingsEncryptor by fetching encryption keys from the secrets provider
+// SEM@4124923111c3953ff57a47b3a830053810b6cfcd: build a SettingsEncryptor by fetching encryption keys from a secrets provider (reads secrets)
 func NewSettingsEncryptor(ctx context.Context, provider secrets.Provider) (*SettingsEncryptor, error) {
 	logger := slogging.Get()
 
@@ -135,7 +135,7 @@ func NewSettingsEncryptorFromKeys(currentKey, previousKey []byte, contextID int)
 
 // NewSettingsEncryptorFromKeyring builds an encryptor from raw keys with explicit ids.
 // previousID 0 means "unknown" (selected by trial decrypt only).
-// SEM@2f083a01151eb27a7b1b29e7e608396f205f0818: build a SettingsEncryptor from current and previous key bytes with their ids (pure)
+// SEM@4124923111c3953ff57a47b3a830053810b6cfcd: build a SettingsEncryptor from a current and previous keyring with ids (pure)
 func NewSettingsEncryptorFromKeyring(current []byte, currentID int, previous []byte, previousID int) (*SettingsEncryptor, error) {
 	enc, err := NewSettingsEncryptorFromKeys(current, previous, currentID)
 	if err != nil {
@@ -148,13 +148,13 @@ func NewSettingsEncryptorFromKeyring(current []byte, currentID int, previous []b
 }
 
 // CurrentPrefix returns the envelope prefix values written by this encryptor carry.
-// SEM@2f083a01151eb27a7b1b29e7e608396f205f0818: return the ENC:v1:<id>: prefix of the current key (pure)
+// SEM@4124923111c3953ff57a47b3a830053810b6cfcd: return the encrypted-value prefix of the current key (pure)
 func (e *SettingsEncryptor) CurrentPrefix() string {
 	return fmt.Sprintf("ENC:v1:%d:", e.context.ContextID)
 }
 
 // ContextIDOf parses the key id out of an ENC:v1 envelope.
-// SEM@2f083a01151eb27a7b1b29e7e608396f205f0818: parse the key id from an encrypted setting envelope; false for plaintext or malformed (pure)
+// SEM@4124923111c3953ff57a47b3a830053810b6cfcd: parse the key id from an encrypted setting value; false for plaintext (pure)
 func ContextIDOf(value string) (int, bool) {
 	if !IsEncrypted(value) {
 		return 0, false
@@ -198,7 +198,7 @@ func (e *SettingsEncryptor) Encrypt(plaintext string) (string, error) {
 // Decrypt decrypts an encrypted value. If the value doesn't have the ENC: prefix,
 // it is returned as-is (plaintext passthrough). Tries the current key first,
 // then the previous key if configured and the current key fails.
-// SEM@b9272d08c168beb55fbc4db127cb1d4eec5f72c1: decrypt an ENC-prefixed setting value selecting the key by envelope id, trial fallback for unknown ids (pure)
+// SEM@4124923111c3953ff57a47b3a830053810b6cfcd: decrypt an encrypted setting value using the key matching its id, falling back to the previous key
 func (e *SettingsEncryptor) Decrypt(value string) (string, error) {
 	if !IsEncrypted(value) {
 		return value, nil

@@ -11,20 +11,23 @@ import (
 )
 
 // KubeSecretStore is the SecretStore for a real cluster.
-// SEM@<sha>: SecretStore over the Kubernetes API with resourceVersion-checked updates
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: SecretStore over the Kubernetes API with resourceVersion-checked updates
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: hold a Kubernetes client and namespace for reading and writing secrets
 type KubeSecretStore struct {
 	cs        kubernetes.Interface
 	namespace string
 }
 
 // NewKubeSecretStore builds a KubeSecretStore for one namespace.
-// SEM@<sha>: build a KubeSecretStore for one namespace (pure)
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: build a KubeSecretStore for one namespace (pure)
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: build a Kubernetes-backed secret store
 func NewKubeSecretStore(cs kubernetes.Interface, namespace string) *KubeSecretStore {
 	return &KubeSecretStore{cs: cs, namespace: namespace}
 }
 
 // Get fetches a Secret and decodes its data into strings.
-// SEM@<sha>: fetch a Secret and decode its data into strings
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: fetch a Secret and decode its data into strings
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: fetch a secret with its data and annotations from Kubernetes (reads cluster)
 func (k *KubeSecretStore) Get(ctx context.Context, name string) (*Secret, error) {
 	obj, err := k.cs.CoreV1().Secrets(k.namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
@@ -41,7 +44,8 @@ func (k *KubeSecretStore) Get(ctx context.Context, name string) (*Secret, error)
 }
 
 // Update writes data and annotations back; a stale resourceVersion or a 409 is ErrConflict.
-// SEM@<sha>: write a Secret's data and annotations back, mapping a 409 to ErrConflict
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: write a Secret's data and annotations back, mapping a 409 to ErrConflict
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: update a secret in Kubernetes, rejecting stale resource versions (writes cluster)
 func (k *KubeSecretStore) Update(ctx context.Context, s *Secret) error {
 	obj, err := k.cs.CoreV1().Secrets(k.namespace).Get(ctx, s.Name, metav1.GetOptions{})
 	if err != nil {
@@ -69,7 +73,8 @@ func (k *KubeSecretStore) Update(ctx context.Context, s *Secret) error {
 }
 
 // KubeRolloutWaiter polls a Deployment until Reloader's rollout completes.
-// SEM@<sha>: RolloutWaiter that polls Deployment generation and replica status
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: RolloutWaiter that polls Deployment generation and replica status
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: hold a Kubernetes client for waiting on deployment rollouts
 type KubeRolloutWaiter struct {
 	cs        kubernetes.Interface
 	namespace string
@@ -77,13 +82,15 @@ type KubeRolloutWaiter struct {
 }
 
 // NewKubeRolloutWaiter builds a waiter polling every 5s.
-// SEM@<sha>: build a KubeRolloutWaiter polling every 5s (pure)
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: build a KubeRolloutWaiter polling every 5s (pure)
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: build a Kubernetes rollout waiter with default poll interval
 func NewKubeRolloutWaiter(cs kubernetes.Interface, namespace string) *KubeRolloutWaiter {
 	return &KubeRolloutWaiter{cs: cs, namespace: namespace, Poll: 5 * time.Second}
 }
 
 // Generation reads a Deployment's metadata.generation.
-// SEM@<sha>: read a Deployment's metadata.generation
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: read a Deployment's metadata.generation
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: fetch a deployment's current generation from Kubernetes (reads cluster)
 func (w *KubeRolloutWaiter) Generation(ctx context.Context, deployment string) (int64, error) {
 	d, err := w.cs.AppsV1().Deployments(w.namespace).Get(ctx, deployment, metav1.GetOptions{})
 	if err != nil {
@@ -95,7 +102,8 @@ func (w *KubeRolloutWaiter) Generation(ctx context.Context, deployment string) (
 // WaitRolled first waits for the generation to pass since (Reloader has patched
 // the pod template), then for the rollout to complete. A Recreate Deployment
 // dips to zero available replicas in between; that is progress, not failure.
-// SEM@<sha>: block until a Deployment rolled past a generation and is fully available, or time out
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: block until a Deployment rolled past a generation and is fully available, or time out
+// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: wait until a deployment rollout completes after a generation or time out (reads cluster)
 func (w *KubeRolloutWaiter) WaitRolled(ctx context.Context, deployment string, since int64, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {

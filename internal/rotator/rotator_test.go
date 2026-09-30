@@ -14,18 +14,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// SEM@e9ba68231ad8e8bb838e0131e284b77148d8e5c1: fake rotation counting runs and returning a canned error for tests
 type fakeRotation struct {
 	name string
 	runs int
 	err  error
 }
 
+// SEM@e9ba68231ad8e8bb838e0131e284b77148d8e5c1: return the fake rotation's name (pure)
 func (f *fakeRotation) Name() string { return f.name }
+
+// SEM@e9ba68231ad8e8bb838e0131e284b77148d8e5c1: record a run of the fake rotation and return its canned error
 func (f *fakeRotation) Run(context.Context, *Env) error {
 	f.runs++
 	return f.err
 }
 
+// SEM@e9ba68231ad8e8bb838e0131e284b77148d8e5c1: build a test rotation environment with in-memory secret store
 func testEnv(s *Secret) (*Env, *MemorySecretStore) {
 	st := NewMemorySecretStore(s)
 	return &Env{
@@ -38,6 +43,7 @@ func testEnv(s *Secret) (*Env, *MemorySecretStore) {
 	}, st
 }
 
+// SEM@e9ba68231ad8e8bb838e0131e284b77148d8e5c1: test that runs skip not-due rotations and run forced and in-progress ones
 func TestRun_SkipsNotDue_RunsForcedAndInProgress(t *testing.T) {
 	env, _ := testEnv(&Secret{Name: "tmi-secrets", Data: map[string]string{}, Annotations: map[string]string{
 		AnnRotatedAt + "fresh":  "2026-09-27T00:00:00Z",
@@ -52,6 +58,7 @@ func TestRun_SkipsNotDue_RunsForcedAndInProgress(t *testing.T) {
 	require.Equal(t, 1, stuck.runs, "a recorded phase resumes even when not due")
 }
 
+// SEM@e9ba68231ad8e8bb838e0131e284b77148d8e5c1: test that a failing rotation is reported after the others run
 func TestRun_FailureIsReportedAfterOthersRun(t *testing.T) {
 	env, _ := testEnv(&Secret{Name: "tmi-secrets", Data: map[string]string{}, Annotations: map[string]string{}})
 	bad := &fakeRotation{name: "bad", err: errors.New("boom")}
@@ -61,6 +68,7 @@ func TestRun_FailureIsReportedAfterOthersRun(t *testing.T) {
 	require.Equal(t, 1, good.runs)
 }
 
+// SEM@19f107bd8470d276ab5c147a64827ace225adf2d: test that a transition writes phase and generation atomically
 func TestTransition_WritesPhaseAndGenerationAtomically(t *testing.T) {
 	env, st := testEnv(&Secret{Name: "tmi-secrets", Data: map[string]string{"K": "old"}, Annotations: map[string]string{}})
 	err := env.Transition(context.Background(), "k", "", "swapped", func(s *Secret) { s.Data["K"] = "new" })
@@ -79,6 +87,7 @@ func TestTransition_WritesPhaseAndGenerationAtomically(t *testing.T) {
 	require.Equal(t, "2026-09-28T12:00:00Z", s.Annotations[AnnRotatedAt+"k"])
 }
 
+// SEM@e9ba68231ad8e8bb838e0131e284b77148d8e5c1: test that generated passwords and hex keys have the right length and are unique
 func TestNewPasswordAndHexKey(t *testing.T) {
 	p, err := NewPassword()
 	require.NoError(t, err)
@@ -90,6 +99,7 @@ func TestNewPasswordAndHexKey(t *testing.T) {
 	require.NotEqual(t, p, q)
 }
 
+// SEM@19f107bd8470d276ab5c147a64827ace225adf2d: test that a second transition from the same phase conflicts
 func TestTransition_SecondRunFromSamePhaseConflicts(t *testing.T) {
 	env1, st := testEnv(&Secret{Name: "tmi-secrets", Data: map[string]string{"K": "old"}, Annotations: map[string]string{}})
 	env2 := *env1
@@ -106,6 +116,7 @@ func TestTransition_SecondRunFromSamePhaseConflicts(t *testing.T) {
 // The status line feeds the CloudWatch metric filter ($.age_days); slogging's
 // default redaction drops attrs whose key looks secret-ish, so the rotation name
 // must not be logged under "secret".
+// SEM@6530a1d2f54f463608f0c4289680271728b87a96: test that the run status line survives log redaction
 func TestRun_StatusLineSurvivesRedaction(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, slogging.Initialize(slogging.Config{Level: slogging.LogLevelInfo, LogDir: dir, MaxSizeMB: 1, MaxBackups: 1, MaxAgeDays: 1}))

@@ -21,6 +21,7 @@ import (
 )
 
 // apiLoad hits GET /me every 50ms in the background and counts 5xx/401 responses.
+// SEM@f2ea1d518ec8795172d7958ce59d0ba011c7ae17: track background API load with stop signal and failure count
 type apiLoad struct {
 	stop chan struct{}
 	done chan struct{}
@@ -28,7 +29,8 @@ type apiLoad struct {
 	bad  int32
 }
 
-// SEM@<sha>: start a background loop calling GET /me and counting server failures; stopped by t.Cleanup if not earlier
+// SEM@b17d2bf48d1db948c7f414b6045a194ace911bf7: start a background loop calling GET /me and counting server failures; stopped by t.Cleanup if not earlier
+// SEM@f2ea1d518ec8795172d7958ce59d0ba011c7ae17: start background API request load and return its handle
 func startAPILoad(t *testing.T, client *framework.IntegrationClient) *apiLoad {
 	l := &apiLoad{stop: make(chan struct{}), done: make(chan struct{})}
 	go func() {
@@ -51,14 +53,16 @@ func startAPILoad(t *testing.T, client *framework.IntegrationClient) *apiLoad {
 }
 
 // finish stops the loop, waits for it to exit, and returns the failure count.
-// SEM@<sha>: stop the API load loop, wait for it to exit, and return the failed-call count (idempotent)
+// SEM@b17d2bf48d1db948c7f414b6045a194ace911bf7: stop the API load loop, wait for it to exit, and return the failed-call count (idempotent)
+// SEM@f2ea1d518ec8795172d7958ce59d0ba011c7ae17: stop background API load and return the failure count
 func (l *apiLoad) finish() int32 {
 	l.once.Do(func() { close(l.stop) })
 	<-l.done
 	return atomic.LoadInt32(&l.bad)
 }
 
-// SEM@<sha>: authenticate a test user (admin when empty) and build an integration client; skip unless integration tests are enabled
+// SEM@b17d2bf48d1db948c7f414b6045a194ace911bf7: authenticate a test user (admin when empty) and build an integration client; skip unless integration tests are enabled
+// SEM@40992b5213a572faf401affb8031e3538e655c2d: build an authenticated integration client for secret rotation tests
 func rotationTestClient(t *testing.T, user string) *framework.IntegrationClient {
 	t.Helper()
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
@@ -89,7 +93,8 @@ func rotationTestClient(t *testing.T, user string) *framework.IntegrationClient 
 // connections) until the inline restore below. This test therefore proves the
 // rotation's Redis-side behaviour and that the server stays healthy through the
 // add/swap, not a full server roll (Task 14 covers that on k3s).
-// SEM@<sha>: verify Redis password rotation against the harness Redis while the server serves API traffic
+// SEM@b17d2bf48d1db948c7f414b6045a194ace911bf7: verify Redis password rotation against the harness Redis while the server serves API traffic
+// SEM@f2ea1d518ec8795172d7958ce59d0ba011c7ae17: validate API keeps working through a Redis password rotation
 func TestSecretRotationIntegration_RedisPassword(t *testing.T) {
 	client := rotationTestClient(t, "alice")
 
@@ -169,7 +174,8 @@ func TestSecretRotationIntegration_RedisPassword(t *testing.T) {
 	framework.AssertStatusOK(t, resp)
 }
 
-// SEM@<sha>: verify settings re-encryption converts a stale row once and is idempotent while the server serves API traffic
+// SEM@b17d2bf48d1db948c7f414b6045a194ace911bf7: verify settings re-encryption converts a stale row once and is idempotent while the server serves API traffic
+// SEM@b17d2bf48d1db948c7f414b6045a194ace911bf7: validate secret re-encryption completes under API load without failures
 func TestSecretRotationIntegration_ReencryptUnderLoad(t *testing.T) {
 	adminClient := rotationTestClient(t, "")
 	userClient := rotationTestClient(t, "bob")
@@ -216,7 +222,8 @@ func TestSecretRotationIntegration_ReencryptUnderLoad(t *testing.T) {
 	}
 }
 
-// SEM@<sha>: hex SHA-256 of a string (pure)
+// SEM@b17d2bf48d1db948c7f414b6045a194ace911bf7: hex SHA-256 of a string (pure)
+// SEM@40992b5213a572faf401affb8031e3538e655c2d: compute the hex-encoded SHA-256 digest of a string (pure)
 func sha256HexString(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])

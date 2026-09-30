@@ -811,7 +811,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 }
 
 // ReencryptSystemSettings re-encrypts all system settings with the current encryption key (admin only)
-// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: handle admin re-encryption of all settings; map not-enabled to 409, transient DB failure to 503 (writes DB)
+// SEM@40992b5213a572faf401affb8031e3538e655c2d: handle admin re-encryption of all settings; map not-enabled to 409, transient DB failure to 503 (writes DB)
 func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
@@ -938,7 +938,7 @@ func buildContentProviders(sources *ContentSourceRegistry, cfg *config.ContentOA
 }
 
 // modelToAPISystemSetting converts a models.SystemSetting to an API SystemSetting
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a DB system-setting model to its API DTO (pure)
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: convert a DB system-setting model to its API DTO (pure)
 func modelToAPISystemSetting(m models.SystemSetting) SystemSetting {
 	setting := SystemSetting{
 		Key:         string(m.SettingKey),

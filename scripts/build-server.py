@@ -88,6 +88,7 @@ COMPONENTS = {
 # ---------------------------------------------------------------------------
 
 
+# SEM@25005e78a16d2b91bd05d0908ab2f9eb5a227c01: fetch the current git commit hash for build metadata (reads git)
 def get_git_commit(project_root: Path) -> str:
     """Return the short git commit hash, or 'unknown' on failure."""
     try:
@@ -103,6 +104,7 @@ def get_git_commit(project_root: Path) -> str:
         return "unknown"
 
 
+# SEM@f8f1e9150bf065847364301d010781b81ee15589: build Go linker flags embedding version and commit info (pure)
 def build_ldflags(version: dict, commit: str, build_date: str, prefix: str = "github.com/ericfitz/tmi/api") -> str:
     """Construct the -ldflags string for a binary.
 
@@ -133,6 +135,7 @@ def build_ldflags(version: dict, commit: str, build_date: str, prefix: str = "gi
     return " ".join(flags)
 
 
+# SEM@25005e78a16d2b91bd05d0908ab2f9eb5a227c01: load Oracle environment variables from the oci env script (reads files)
 def source_oci_env(project_root: Path) -> dict:
     """Source scripts/oci-env.sh and return the resulting environment variables.
 
@@ -170,6 +173,7 @@ def source_oci_env(project_root: Path) -> dict:
 # ---------------------------------------------------------------------------
 
 
+# SEM@f8f1e9150bf065847364301d010781b81ee15589: build the server binary with version ldflags and build tags
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Build TMI Go binaries.",
