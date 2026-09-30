@@ -1128,7 +1128,10 @@ import_config() {
         | while IFS=$'\t' read -r name b64; do
             lower="$(printf '%s' "${name#TMI_SECRET_}" | tr '[:upper:]' '[:lower:]')"
             printf '%s' "${b64}" | base64 -d > "${tmp_dir}/keyring/${lower}"
-        done
+        done || {
+        log_error "cannot read tmi-secrets from the cluster"
+        exit 1
+    }
     [[ -s "${tmp_dir}/keyring/settings_encryption_key" ]] || {
         log_error "tmi-secrets has no TMI_SECRET_SETTINGS_ENCRYPTION_KEY; cannot encrypt the imported config"
         exit 1

@@ -243,8 +243,19 @@ tmi-rotator CronJob afterwards** (#965): `kubernetes_secret_v1.tmi` has
 rotated Redis password or settings key. The Redis password and settings key no
 longer have Secrets Manager copies. The server reads the key from
 `TMI_SECRET_SETTINGS_ENCRYPTION_KEY` (with the context-id and previous-key
-variants; see `deployments/k8s/dev/server.yml`) injected from `tmi-secrets`. The name matters: this deployment
-configures no secrets provider, so `internal/secrets/provider.go` falls back to
+variants; see `deployments/k8s/dev/server.yml`) injected from `tmi-secrets`.
+
+Consequences of `ignore_changes = [data, ...]` on `tmi-secrets`:
+
+- Terraform no longer updates `TMI_DATABASE_URL` or `TMI_JWT_SECRET` there.
+  After an RDS endpoint or password change, patch `tmi-secrets` manually with
+  `kubectl patch --patch-file` (a umask-077 file; never put values in argv).
+- Never `terraform apply -replace`, taint, or delete `tmi-secrets` (or the
+  namespace) on AWS while RDS holds encrypted settings: Terraform would reseed
+  the ORIGINAL settings key, and every `ENC:` row written under a rotated key
+  becomes unreadable.
+
+The name matters: this deployment configures no secrets provider, so `internal/secrets/provider.go` falls back to
 the `EnvProvider`, which maps the secret key `settings_encryption_key` to
 `TMI_SECRET_<KEY>`. The value is a 32-byte AES-256-GCM key rendered as 64 hex
 characters (`random_id.settings_encryption_key.hex` in

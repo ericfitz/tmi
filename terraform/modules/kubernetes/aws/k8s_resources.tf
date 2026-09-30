@@ -230,7 +230,8 @@ resource "kubernetes_secret_v1" "tmi" {
   # (deployments/k8s/dev/rotator.yml), which rewrites the data and records
   # its progress in annotations. Without ignore_changes every apply would
   # reset a rotated value to the Terraform seed and lock the server out of
-  # Redis (or make every encrypted setting unreadable).
+  # Redis (or make every encrypted setting unreadable). Consequences (manual
+  # DB URL/JWT patches, never replace this Secret): deployments/k8s/dev/aws/README.md.
   lifecycle {
     ignore_changes = [data, metadata[0].annotations]
   }

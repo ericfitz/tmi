@@ -360,7 +360,10 @@ module "logging" {
 # Maximum over a day > 100 means a secret is stale. Every run emits a
 # datapoint (age -1 = never rotated, never > 100), and treat_missing_data =
 # "breaching" turns a day with no datapoint (CronJob stopped, or none yet)
-# into an alarm. That also means a fresh cluster alarms until the rotator's
+# into an alarm. Two consecutive daily buckets must breach: buckets may align
+# to 00:00 UTC while the CronJob runs later, so a single empty current bucket
+# would flap daily (a one-day delay is irrelevant at a 100-day threshold).
+# That also means a fresh cluster alarms until the rotator's
 # first run.
 data "aws_sns_topic" "security_alerts" {
   name = "tmi-security-alerts" # owned by terraform/environments/aws-persistent
@@ -383,7 +386,8 @@ resource "aws_cloudwatch_metric_alarm" "secret_rotation_stale" {
   alarm_name          = "tmi-secret-rotation-stale"
   alarm_description   = "No successful rotation of a tmi-secrets value in 100 days, or the tmi-rotator CronJob stopped reporting"
   comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 1
+  evaluation_periods  = 2
+  datapoints_to_alarm = 2
   metric_name         = aws_cloudwatch_log_metric_filter.secret_age.metric_transformation[0].name
   namespace           = "TMI/Rotator"
   period              = 86400
