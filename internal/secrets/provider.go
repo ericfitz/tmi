@@ -44,6 +44,7 @@ type ProviderType string
 // Provider type constants
 const (
 	ProviderTypeEnv   ProviderType = "env"
+	ProviderTypeFile  ProviderType = "file"
 	ProviderTypeAWS   ProviderType = "aws"
 	ProviderTypeVault ProviderType = "vault" // Future: HashiCorp Vault
 )
@@ -65,6 +66,12 @@ func NewProvider(ctx context.Context, cfg *config.SecretsConfig) (Provider, erro
 	switch providerType {
 	case ProviderTypeEnv:
 		return NewEnvProvider(), nil
+
+	case ProviderTypeFile:
+		if cfg.FileDir == "" {
+			return nil, fmt.Errorf("%w: file secrets provider requires file_dir", ErrInvalidConfig)
+		}
+		return NewFileProvider(cfg.FileDir), nil
 
 	case ProviderTypeAWS:
 		if cfg.AWSRegion == "" || cfg.AWSSecretName == "" {

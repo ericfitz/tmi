@@ -104,6 +104,7 @@ func TestGetMigratableSettings_OmitsEmptyOptionalKeys(t *testing.T) {
 		"operator.jurisdiction",
 		"secrets.vault_address",
 		"secrets.vault_path",
+		"secrets.file_dir",
 		"secrets.aws_region",
 		"secrets.aws_secret_name",
 		"ssrf.issue_uri.allowlist",

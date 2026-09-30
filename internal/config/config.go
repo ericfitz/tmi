@@ -338,7 +338,10 @@ type AlertingConfig struct {
 // SecretsConfig holds configuration for external secret providers
 // SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: configuration struct for external secret-provider selection and per-provider connection settings (pure)
 type SecretsConfig struct {
-	Provider string `yaml:"provider" env:"TMI_SECRETS_PROVIDER"` // "env" (default), "vault", "aws"
+	Provider string `yaml:"provider" env:"TMI_SECRETS_PROVIDER"` // "env" (default), "file", "vault", "aws"
+
+	// Directory holding one file per secret key (provider "file").
+	FileDir string `yaml:"file_dir" env:"TMI_SECRETS_FILE_DIR"`
 
 	// HashiCorp Vault (design only - implementation deferred)
 	VaultAddress string `yaml:"vault_address" env:"TMI_VAULT_ADDRESS"`
