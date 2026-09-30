@@ -22,7 +22,9 @@ import (
 //
 // ReEncryptAll has no key filter, so it would rewrite every row in the shared
 // system_settings table under the test key. The test therefore skips unless
-// the table holds only its own rows.
+// the table holds only its own rows. The test-only schema must also have no
+// live TMI server attached: the guard counts once, so a concurrent writer
+// could race it.
 // SEM@5740a75fafc8da46a061901361ed61990a6c8916: verify batched re-encryption SQL shapes and row locking against Oracle ADB (writes DB)
 func TestSettingsReEncryptAllOracleIntegration(t *testing.T) {
 	gormDB := openAuditAppendOnlyOracleDB(t)

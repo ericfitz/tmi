@@ -698,15 +698,17 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError
 	var settingErrors []SettingError
 	var skip []string
 	for {
-		q := s.gormDB.WithContext(ctx).Model(&models.SystemSetting{}).
-			Where("value NOT LIKE ?", prefix+"%").
-			Order("setting_key").Limit(reEncryptBatchSize)
-		if len(skip) > 0 {
-			q = q.Where("setting_key NOT IN ?", skip)
-		}
 		var keys []string
 		if err := db.WithRetryableGormRead(ctx, db.DefaultRetryConfig(), func() error {
+			// Rebuild the chain per attempt: a GORM instance keeps db.Error
+			// after a failure, so a reused chain would replay the old error.
 			keys = nil
+			q := s.gormDB.WithContext(ctx).Model(&models.SystemSetting{}).
+				Where("value NOT LIKE ?", prefix+"%").
+				Order("setting_key").Limit(reEncryptBatchSize)
+			if len(skip) > 0 {
+				q = q.Where("setting_key NOT IN ?", skip)
+			}
 			return q.Pluck("setting_key", &keys).Error
 		}); err != nil {
 			s.InvalidateAll(ctx)

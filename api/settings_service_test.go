@@ -14,6 +14,7 @@ import (
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/crypto"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -1094,4 +1095,34 @@ func TestReEncryptAll_PreservesAuditFields(t *testing.T) {
 	require.NoError(t, gormDB.Where("setting_key = ?", "a").First(&row).Error)
 	require.Equal(t, then.Unix(), row.ModifiedAt.Unix())
 	require.Equal(t, models.NullableDBVarchar{String: "someone", Valid: true}, row.ModifiedBy)
+}
+
+// TestSettingsService_ReEncryptAll_RetriesBatchQuery fails the first batch
+// listing with a transient error and checks the retry re-queries (a reused
+// GORM chain would replay the stored error) and the rows still get converted.
+// SEM@5740a75fafc8da46a061901361ed61990a6c8916: verify re-encryption batch listing is retried with a fresh query after a transient error
+func TestSettingsService_ReEncryptAll_RetriesBatchQuery(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+	key := make([]byte, 32)
+	enc, err := crypto.NewSettingsEncryptorFromKeys(key, nil, 1)
+	require.NoError(t, err)
+	svc := NewSettingsService(gormDB, nil)
+	svc.SetEncryptor(enc)
+	require.NoError(t, gormDB.Create(&models.SystemSetting{
+		SettingKey: "retry.key", Value: "plain", SettingType: models.SystemSettingTypeString,
+	}).Error)
+
+	failed := false
+	require.NoError(t, gormDB.Callback().Query().Before("gorm:query").Register("test:fail_once", func(d *gorm.DB) {
+		if !failed {
+			failed = true
+			_ = d.AddError(dberrors.ErrTransient)
+		}
+	}))
+
+	n, errs, err := svc.ReEncryptAll(context.Background())
+	require.NoError(t, err)
+	assert.True(t, failed)
+	assert.Equal(t, 1, n)
+	assert.Empty(t, errs)
 }
