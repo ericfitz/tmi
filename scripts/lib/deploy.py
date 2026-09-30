@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import cluster
@@ -584,7 +585,7 @@ def seed_tmi_secret_keys(cluster_target: str = "docker-desktop", db: str = "post
     absent keys are written; present values are never touched. Values go
     through a 0600 temp file and --patch-file, so nothing is printed or put on
     a command line. tmi-rotator owns every later change."""
-    wanted: dict[str, callable] = {
+    wanted: dict[str, Callable[[], str | None]] = {
         "TMI_SECRET_SETTINGS_ENCRYPTION_KEY": lambda: secrets.token_hex(32),
         "TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID": lambda: "1",
     }
@@ -597,8 +598,10 @@ def seed_tmi_secret_keys(cluster_target: str = "docker-desktop", db: str = "post
         if _secret_has_key("tmi-secrets", key):
             continue
         val = make()
-        if val:
-            data[key] = base64.b64encode(val.encode()).decode()
+        if not val:
+            log_warn(f"could not derive {key}; not seeded into Secret/tmi-secrets")
+            continue
+        data[key] = base64.b64encode(val.encode()).decode()
     if not data:
         return
     old_umask = os.umask(0o077)

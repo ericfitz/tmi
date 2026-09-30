@@ -774,8 +774,6 @@ class TestSecretCreatorsRun(unittest.TestCase):
                   {"TMI_DATABASE_URL": "oracle://x", "ORACLE_PASSWORD": "p"})
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TestSeedTmiSecretKeys(unittest.TestCase):
@@ -821,3 +819,7 @@ class TestSeedTmiSecretKeys(unittest.TestCase):
     def test_oracle_skips_database_url(self):
         (data,) = self._run(set(), db="oracle")
         self.assertNotIn("TMI_DATABASE_URL", data)
+
+
+if __name__ == "__main__":
+    unittest.main()

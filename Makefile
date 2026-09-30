@@ -400,8 +400,9 @@ dev-nuke:  ## Hard known-state: destroy everything incl. db data + images, rebui
 	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) nuke
 
-rotate-secret:  ## Force one tmi-rotator rotation now: make rotate-secret name=redis-password|settings-key
-	@uv run scripts/rotate-secret.py $(name)
+rotate-secret:  ## Force one tmi-rotator rotation now: make rotate-secret CLUSTER=docker-desktop|k3s|aws [CONTEXT=<ctx> for aws] name=redis-password|settings-key
+	@$(REQUIRE_CLUSTER)
+	@uv run scripts/rotate-secret.py --cluster $(CLUSTER) $(if $(CONTEXT),--context $(CONTEXT)) $(name)
 
 dev-status:  ## dev environment status dashboard
 	@$(REQUIRE_CLUSTER)

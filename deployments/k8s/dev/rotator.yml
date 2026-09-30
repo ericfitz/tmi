@@ -72,14 +72,25 @@ spec:
                 - { name: TMI_REDIS_TLS_CA_FILE, value: "/etc/tmi-redis-tls/ca.crt" }
                 - { name: TMI_LOG_DIR, value: "/tmp/logs" }
                 # Postgres URL from tmi-secrets (seeded by deploy.py on dev,
-                # Terraform on AWS). Fails the pod if the key is absent.
+                # Terraform on AWS). optional: an absent key makes the rotator exit 2 with a
+                # fixed message instead of a silent CreateContainerConfigError.
                 - name: TMI_DATABASE_URL
-                  valueFrom: { secretKeyRef: { name: tmi-secrets, key: TMI_DATABASE_URL } }
+                  valueFrom: { secretKeyRef: { name: tmi-secrets, key: TMI_DATABASE_URL, optional: true } }
               volumeMounts:
                 - { name: redis-tls, mountPath: /etc/tmi-redis-tls, readOnly: true }
+                - { name: tmp, mountPath: /tmp }   # TMI_LOG_DIR=/tmp/logs; root fs is read-only
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65532                   # Chainguard nonroot, as in Dockerfile.server
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                seccompProfile: { type: RuntimeDefault }
               resources:
                 requests: { cpu: 50m, memory: 64Mi }
                 limits: { cpu: 500m, memory: 256Mi }
           volumes:
+            - { name: tmp, emptyDir: {} }
             - name: redis-tls
               secret: { secretName: redis-tls }
