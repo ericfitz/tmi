@@ -873,6 +873,10 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 		return
 	}
 
+	if settingErrors == nil {
+		settingErrors = []SettingError{} // schema requires an array, not null
+	}
+
 	logger.Info("Re-encryption completed: %d re-encrypted, %d errors", reencrypted, len(settingErrors))
 
 	c.JSON(http.StatusOK, gin.H{

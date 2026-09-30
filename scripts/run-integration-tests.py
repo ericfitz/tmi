@@ -367,6 +367,9 @@ def start_test_server_container(
         "--env-file", str(tls_dir / "secrets.env"),
         "-e", "TMI_REDIS_TLS_ENABLED=true",
         "-e", "TMI_REDIS_TLS_CA_FILE=/etc/tmi-test-tls/ca.crt",
+        # The settings encryption key itself arrives via secrets.env (tlsgen);
+        # without it POST /admin/settings/reencrypt returns 409.
+        "-e", "TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID=1",
         "-v", f"{config_path}:/etc/tmi/config.yml:ro",
         "-e", f"TMI_DATABASE_URL={container_db_url}",
         "-e", f"TMI_REDIS_HOST={redis_host}",

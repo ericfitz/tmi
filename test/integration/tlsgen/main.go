@@ -12,11 +12,13 @@ package main
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ericfitz/tmi/internal/tlsconfig/testpki"
 )
@@ -38,7 +40,7 @@ func main() {
 // SEM@249dea6: generate the harness CA, server/client certs, redis.conf and secrets.env once (writes files)
 func run(dir string) error {
 	if _, err := os.Stat(filepath.Join(dir, "ca.crt")); err == nil {
-		return nil // already generated
+		return ensureSettingsKey(dir) // PKI already generated; older dirs lack the settings key
 	}
 	p, err := testpki.New(dir)
 	if err != nil {
@@ -83,5 +85,29 @@ save ""
 appendonly no
 requirepass %s
 `, password)
-	return os.WriteFile(filepath.Join(dir, "redis.conf"), []byte(conf), 0o644) // #nosec G306 -- throwaway harness config
+	if err := os.WriteFile(filepath.Join(dir, "redis.conf"), []byte(conf), 0o644); err != nil { // #nosec G306 -- throwaway harness config
+		return err
+	}
+	return ensureSettingsKey(dir)
+}
+
+// SEM@<sha>: append a random settings encryption key to secrets.env when absent (writes file)
+func ensureSettingsKey(dir string) error {
+	path := filepath.Join(dir, "secrets.env")
+	cur, err := os.ReadFile(path) // #nosec G304 -- harness-owned path
+	if err != nil {
+		return err
+	}
+	if strings.Contains(string(cur), "TMI_SECRET_SETTINGS_ENCRYPTION_KEY=") {
+		return nil
+	}
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return err
+	}
+	add := "TMI_SECRET_SETTINGS_ENCRYPTION_KEY=" + hex.EncodeToString(raw) + "\n"
+	if len(cur) > 0 && cur[len(cur)-1] != '\n' {
+		add = "\n" + add
+	}
+	return os.WriteFile(path, append(cur, add...), 0o600)
 }
