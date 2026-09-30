@@ -20,6 +20,12 @@
   - Verified after `make dev-nuke` on docker-desktop and k3s-rp. Security review found nothing.
   - Eric's decisions (in the spec): accept that a NATS roll wipes JetStream, use a throwaway test Redis password,
     reuse only Helm-managed installs.
+- **#995** (`f45ed6b4`) — `chore(dev)`: removed the broken Tilt inner loop (`Tiltfile`, `Dockerfile.server-devloop`,
+  Makefile targets).
+- **#998** (`2004edc9`, 1.16.2) — `chore(dev)`: lab and local-deployment details (k3s context, registry, node host,
+  AWS API CIDR host) moved into untracked `.local/k3s.json` and `.local/aws-deploy.json`; tracked files carry
+  placeholders. `make lint` now runs ruff F on `scripts/`. Eric's rule: no lab info in tracked files or the public
+  wiki (ADR `docs/superpowers/specs/2026-09-29-adr-lab-info-in-local.md`).
 - **Plans written** (on branch `feat/965-secret-rotation`, not merged): #965 secret rotation in three PRs.
   Eric's decisions:
   - Webhook-secret encryption and content-token key rotation are out of scope (filed #984).
