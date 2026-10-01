@@ -66,6 +66,22 @@ func aclError(err error) error {
 	return errors.New("redis ACL SETUSER default failed")
 }
 
+// RedisPasswordFromSecret returns a go-redis credentials func that reads the
+// current password from the Secret on every (re)connect, so a Redis restart
+// mid-rotation reconnects with whatever the Secret holds now. Redis accepts
+// the Secret's password in every phase: OLD before the swap, then OLD+NEW
+// (and finally only NEW) once the Secret holds NEW.
+// SEM@0000000: build a func that reads the current Redis password from the Secret on each call (reads Secret)
+func RedisPasswordFromSecret(store SecretStore, secretName string) func(context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		s, err := store.Get(ctx, secretName)
+		if err != nil {
+			return "", err
+		}
+		return s.Data[RedisPasswordKey], nil
+	}
+}
+
 // RedisPasswordRotation rotates TMI_REDIS_PASSWORD without a Redis restart.
 // SEM@3b682947: phased rotation of the Redis password: add new, swap Secret, roll server, retire old
 // SEM@3b682947: rotation of the Redis password
