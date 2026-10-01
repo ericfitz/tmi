@@ -910,10 +910,7 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 	// unrelated validation afterward.
 	if hasStatusChange && patched.Status != nil && *patched.Status != *existing.Status {
 		if err := ValidateSurveyResponseStatusTransition(*patched.Status, nil); err != nil {
-			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
-				ErrorDescription: err.Error(),
-			})
+			HandleRequestError(c, InvalidInputError(err.Error())) // validation failure, not a conflict (#987)
 			return
 		}
 	}
@@ -961,10 +958,7 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 		newStatus := *patched.Status
 		if err := GlobalSurveyResponseStore.UpdateStatus(ctx, surveyResponseId, newStatus, nil, nil); err != nil {
 			if strings.Contains(err.Error(), "invalid status value") || strings.Contains(err.Error(), "revision_notes required") {
-				c.JSON(http.StatusConflict, Error{
-					Error:            "conflict",
-					ErrorDescription: err.Error(),
-				})
+				HandleRequestError(c, InvalidInputError(err.Error())) // validation failure, not a conflict (#987)
 				return
 			}
 			logger.Error("Failed to update survey response status: %v", err)
@@ -1199,10 +1193,7 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 		reviewerUUID := userUUID
 		if err := GlobalSurveyResponseStore.UpdateStatus(ctx, surveyResponseId, newStatus, &reviewerUUID, patched.RevisionNotes); err != nil {
 			if strings.Contains(err.Error(), "invalid status value") || strings.Contains(err.Error(), "revision_notes required") {
-				c.JSON(http.StatusConflict, Error{
-					Error:            "conflict",
-					ErrorDescription: err.Error(),
-				})
+				HandleRequestError(c, InvalidInputError(err.Error())) // validation failure, not a conflict (#987)
 				return
 			}
 			logger.Error("Failed to update survey response status: %v", err)
