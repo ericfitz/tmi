@@ -4274,9 +4274,10 @@
             "enum": [
               "pending_verification",
               "active",
+              "inactive",
               "pending_delete"
             ],
-            "description": "Subscription status",
+            "description": "Subscription status. 'inactive' means the subscription was deactivated (for example, an operator-pinned subscription whose pin configuration was removed): no deliveries are made, and the subscription is retained and can be re-activated by the server when its pin configuration is restored.",
             "maxLength": 1000
           },
           "challenges_sent": {
