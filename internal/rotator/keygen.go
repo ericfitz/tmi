@@ -12,7 +12,6 @@ const passwordAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01
 // so it needs no escaping in TMI_DATABASE_URL or redis-cli). int(b)%62 biases
 // the first 8 letters by 4/256; acceptable for ~190 bits and simpler than
 // rejection sampling.
-// SEM@3b682947: generate a random 32-char alphanumeric credential (pure)
 // SEM@3b682947: generate a random password (reads random source)
 func NewPassword() (string, error) {
 	buf := make([]byte, 32)
@@ -27,7 +26,6 @@ func NewPassword() (string, error) {
 }
 
 // NewHexKey returns 32 random bytes as 64 hex characters (AES-256 key).
-// SEM@3b682947: generate a random 32-byte key as hex text (pure)
 // SEM@3b682947: generate a random 256-bit key as hex (reads random source)
 func NewHexKey() (string, error) {
 	buf := make([]byte, 32)
