@@ -3,6 +3,7 @@ package db
 import (
 	"errors"
 	"fmt"
+	"regexp"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -22,8 +23,14 @@ func (e *redactedError) Error() string { return e.msg }
 // SEM@0000000: expose the original driver error for errors.Is/As (pure)
 func (e *redactedError) Unwrap() error { return e.err }
 
+// dpiCode matches the leading Oracle client-library code (e.g. DPI-1047).
+var dpiCode = regexp.MustCompile(`^DPI-\d+`)
+
 // safeErrClass returns a log-safe class for a driver error: SQLSTATE for
-// pgx, ORA-NNNNN for godror (anything with Code() int), else the Go type name.
+// pgx, ORA-NNNNN for godror (anything with Code() int), DPI-NNNN for client
+// library errors (godror reports Code() 0 for those), else the Go type name.
+// classifyByString in internal/dberrors cannot see driver text through the
+// redacted error; wrap startup connects in retries only via typed checks.
 // SEM@0000000: derive a credential-free error class from a database driver error (pure)
 func safeErrClass(err error) string {
 	var pgErr *pgconn.PgError
@@ -32,7 +39,15 @@ func safeErrClass(err error) string {
 	}
 	var oraErr interface{ Code() int }
 	if errors.As(err, &oraErr) {
-		return fmt.Sprintf("ORA-%05d", oraErr.Code())
+		if oraErr.Code() != 0 {
+			return fmt.Sprintf("ORA-%05d", oraErr.Code())
+		}
+		var msgErr interface{ Message() string }
+		if errors.As(err, &msgErr) {
+			if dpi := dpiCode.FindString(msgErr.Message()); dpi != "" {
+				return dpi
+			}
+		}
 	}
 	return fmt.Sprintf("%T", err)
 }

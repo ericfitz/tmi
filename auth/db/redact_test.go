@@ -19,6 +19,13 @@ type fakeOraErr struct{ msg string }
 func (e fakeOraErr) Error() string { return e.msg }
 func (fakeOraErr) Code() int       { return 1017 }
 
+// fakeDPIErr mimics a godror client-library error: Code() 0, DPI-NNNN message.
+type fakeDPIErr struct{ msg string }
+
+func (e fakeDPIErr) Error() string   { return e.msg }
+func (fakeDPIErr) Code() int         { return 0 }
+func (e fakeDPIErr) Message() string { return e.msg }
+
 func initTestLogger(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -34,6 +41,7 @@ func TestFailDB_DoesNotLeakDriverText(t *testing.T) {
 	}{
 		"pg":    {&pgconn.PgError{Code: "28P01", Message: "bad password " + leakyPassword}, "sqlstate=28P01"},
 		"ora":   {fakeOraErr{"ORA-01017 user/" + leakyPassword + "@host"}, "ORA-01017"},
+		"dpi":   {fakeDPIErr{"DPI-1047: Cannot locate client for user/" + leakyPassword}, "DPI-1047"},
 		"other": {errors.New("dial postgres://u:" + leakyPassword + "@h/db"), "*errors.errorString"},
 	}
 	for name, tc := range cases {
