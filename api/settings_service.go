@@ -128,7 +128,7 @@ func (s *SettingsService) isProductionMode() bool {
 // for its callers but wrong for GetResolvedString: the converged precedence
 // rule needs to know both what the config layer holds AND whether an operator
 // supplied it, and those are two different questions (#794).
-// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: fetch a config-layer setting with no precedence filtering, building the cache lazily (pure)
+// SEM@3b682947: fetch a config-layer setting with no precedence filtering, building the cache lazily (pure)
 func (s *SettingsService) getConfigSettingRaw(key string) (MigratableSetting, bool) {
 	if s.configProvider == nil {
 		return MigratableSetting{}, false
@@ -165,7 +165,7 @@ func (s *SettingsService) getConfigSettingRaw(key string) (MigratableSetting, bo
 // getConfigSetting retrieves a setting from the config provider, applying the
 // #415 rule that a bare struct default must not shadow the database.
 // Returns the setting and true when the config layer is authoritative.
-// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: fetch a config-layer setting, yielding to the database for bare defaults (pure)
+// SEM@3b682947: fetch a config-layer setting, yielding to the database for bare defaults (pure)
 func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool) {
 	setting, found := s.getConfigSettingRaw(key)
 	if !found {
@@ -198,7 +198,7 @@ func (s *SettingsService) getConfigSetting(key string) (MigratableSetting, bool)
 }
 
 // Get retrieves a setting by key, checking cache first
-// SEM@42f901dab9ff2a3942068435a791d370c03c8f6b: fetch a system setting by key, cache-first with negative caching and decryption (reads DB)
+// SEM@3b682947: fetch a system setting by key, cache-first with negative caching and decryption (reads DB)
 func (s *SettingsService) Get(ctx context.Context, key string) (*models.SystemSetting, error) {
 	logger := slogging.Get()
 
@@ -303,7 +303,7 @@ func (s *SettingsService) GetString(ctx context.Context, key string) (string, er
 // request hot paths (e.g. /oauth2/authorize) where an unretried ADB blip
 // (ORA-02396/03113/12537 class) would otherwise surface as a hard failure
 // PG testing cannot reproduce (oracle-db-admin review of #767).
-// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: resolve a string setting across config and database by the converged precedence rule (reads DB)
+// SEM@3b682947: resolve a string setting across config and database by the converged precedence rule (reads DB)
 func (s *SettingsService) GetResolvedString(ctx context.Context, key string) (string, bool, error) {
 	cfg, cfgFound := s.getConfigSettingRaw(key)
 
@@ -495,7 +495,7 @@ func (s *SettingsService) ListByPrefix(ctx context.Context, prefix string) ([]mo
 }
 
 // Set creates or updates a setting
-// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: store or update a system setting, stamping explicit origin, with type validation, encryption, and cache invalidation (reads DB)
+// SEM@3b682947: store or update a system setting, stamping explicit origin, with type validation, encryption, and cache invalidation (reads DB)
 func (s *SettingsService) Set(ctx context.Context, setting *models.SystemSetting) error {
 	logger := slogging.Get()
 
@@ -583,7 +583,7 @@ func (s *SettingsService) Delete(ctx context.Context, key string) error {
 }
 
 // SeedDefaults seeds the default settings if they don't exist
-// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: insert default system settings, stamped seeded origin, if they do not already exist (reads DB)
+// SEM@3b682947: insert default system settings, stamped seeded origin, if they do not already exist (reads DB)
 func (s *SettingsService) SeedDefaults(ctx context.Context) error {
 	logger := slogging.Get()
 	defaults := models.DefaultSystemSettings()
@@ -687,7 +687,7 @@ var errSettingUnreadable = errors.New("setting unreadable")
 // modified_by are left as they were. Rows no key can open are reported in
 // []SettingError and excluded from later batches so the loop always terminates.
 // Returns the number of rows committed so far, also on error.
-// SEM@f8fb0cf9bf71ed4f21118aa813b9f9dea753beb3: re-encrypt stale setting rows under the current key id in resumable per-row transactions (writes DB)
+// SEM@3b682947: re-encrypt stale setting rows under the current key id in resumable per-row transactions (writes DB)
 func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 	logger := slogging.Get()
 	if s.encryptor == nil || !s.encryptor.IsEnabled() {
@@ -745,7 +745,7 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError
 // reEncryptOne rewrites one row's ciphertext under the current key inside its
 // own transaction, holding a row lock on PostgreSQL/Oracle so a concurrent
 // SettingsService.Set cannot be overwritten.
-// SEM@e946e95b734bb607f104a0a97579fd1eb8f03875: re-encrypt a single setting row under a row lock in one transaction (writes DB)
+// SEM@3b682947: re-encrypt a single setting row under a row lock in one transaction (writes DB)
 func (s *SettingsService) reEncryptOne(ctx context.Context, key string) error {
 	// READ COMMITTED, not the SERIALIZABLE default: under SERIALIZABLE, Oracle
 	// fails SELECT ... FOR UPDATE on a row committed after the tx start SCN
@@ -789,7 +789,7 @@ func (s *SettingsService) reEncryptOne(ctx context.Context, key string) error {
 
 // CountValuesWithContextID counts rows still encrypted under the given key id;
 // the rotator uses it to decide when the previous key can be dropped.
-// SEM@e946e95b734bb607f104a0a97579fd1eb8f03875: count setting rows whose envelope carries a given key id (reads DB)
+// SEM@3b682947: count setting rows whose envelope carries a given key id (reads DB)
 func (s *SettingsService) CountValuesWithContextID(ctx context.Context, id int) (int64, error) {
 	var n int64
 	err := db.WithRetryableGormRead(ctx, db.DefaultRetryConfig(), func() error {
@@ -881,7 +881,7 @@ func (s *SettingsService) setInCache(ctx context.Context, setting *models.System
 // On the memory tier invalidation is process-local, so a row written by
 // another replica or by dbtool becomes visible here only when the tombstone
 // expires (up to memCacheTTL), the same window positive entries already have.
-// SEM@42f901dab9ff2a3942068435a791d370c03c8f6b: cache a not-found tombstone for a setting key in the active cache tier (mutates shared state)
+// SEM@3b682947: cache a not-found tombstone for a setting key in the active cache tier (mutates shared state)
 func (s *SettingsService) setMissingInCache(ctx context.Context, key string) {
 	if s.useMemCache {
 		s.memCacheMu.Lock()

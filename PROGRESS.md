@@ -1,3 +1,30 @@
+# Session progress — 2026-09-30
+
+## Landed (pushed to main)
+
+- **#999** (`3aee8c76`) — PROGRESS.md entry for #995 and #998 (docs only).
+- **#1010** (`47aa9252`, 1.16.3) — automated dependency bump.
+- **#1011** (`3b682947`, 1.17.0) — `feat(rotator)`: #965 PR 1 of 3, scheduled secret rotation.
+  - New `tmi-rotator` CronJob, run daily in every overlay. It rotates the in-cluster Redis password and the
+    settings-encryption key one phase at a time; phase state lives in annotations on `tmi-secrets`, and each phase
+    change is compare-and-swap. `make rotate-secret CLUSTER=<c> name=<rotation>` forces a run.
+  - The settings-key id travels in the `ENC:v1:<id>:` envelope; `ReEncryptAll` is batched, resumable and skips
+    unreadable rows.
+  - Redis persistence: `redis-data` PVC with AOF. On AWS: EBS CSI addon (one controller replica) and a gp3
+    StorageClass.
+  - Terraform seeds `tmi-secrets` and then ignores it. The Secrets Manager copies of the Redis password and settings
+    key are removed. A CloudWatch alarm fires on secrets older than 100 days or a silent CronJob.
+  - Fixed `POST /admin/settings/reencrypt` returning `"errors": null` on success.
+  - Oracle review and security review done in the PR; implementation rulings are recorded in the PR description.
+  - `.gitleaks.toml` allowlists the password-alphabet constant and elided PEM placeholders (Eric approved).
+- **Filed:** #1001-#1009 follow-ups from #1011. #1009 (off-cluster copy of the rotated settings key) needs Eric's
+  decision before the first AWS rotation; #1008 is security-labelled; #1006 is a bug.
+
+## Not yet applied or deployed
+
+Nothing has been deployed to AWS since 1.15.4. The next AWS deploy will carry #965 PR 1 plus the threat-remediation
+changes. #965 stays open for PR 2 (JWT ES256) and PR 3 (per-service DB users, which needs #1004).
+
 # Session progress — 2026-09-28 to 2026-09-29
 
 ## Landed (pushed to main)

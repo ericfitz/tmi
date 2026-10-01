@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// SEM@19f107bd8470d276ab5c147a64827ace225adf2d: test parsing of rotation intervals
+// SEM@3b682947: test parsing of rotation intervals
 func TestParseRotateEvery(t *testing.T) {
 	d, err := ParseRotateEvery("90d")
 	require.NoError(t, err)
@@ -23,7 +23,7 @@ func TestParseRotateEvery(t *testing.T) {
 	require.Error(t, err)
 }
 
-// SEM@19f107bd8470d276ab5c147a64827ace225adf2d: test determination of whether a rotation is due
+// SEM@3b682947: test determination of whether a rotation is due
 func TestIsDue(t *testing.T) {
 	now := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
 	s := &Secret{Annotations: map[string]string{}}

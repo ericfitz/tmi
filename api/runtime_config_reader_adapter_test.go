@@ -98,7 +98,7 @@ func (f *fakeSettingsService) ReEncryptAll(ctx context.Context) (int, []SettingE
 	return 0, nil, nil
 }
 
-// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: count stale setting rows in the fake settings store (pure)
+// SEM@3b682947: count stale setting rows in the fake settings store (pure)
 func (f *fakeSettingsService) CountValuesWithContextID(ctx context.Context, id int) (int64, error) {
 	return 0, nil
 }

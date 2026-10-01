@@ -240,7 +240,7 @@ func (s *Server) GetClientConfig(c *gin.Context) {
 }
 
 // buildClientConfig constructs the ClientConfig response from server config and settings
-// SEM@42ef5843bbac0234c5e9af2e1ed89f0c5f366f44: construct the ClientConfig response from server config and settings service (reads DB)
+// SEM@3b682947: construct the ClientConfig response from server config and settings service (reads DB)
 func (s *Server) buildClientConfig(ctx context.Context, c *gin.Context) ClientConfig {
 	logger := slogging.Get()
 
@@ -811,7 +811,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 }
 
 // ReencryptSystemSettings re-encrypts all system settings with the current encryption key (admin only)
-// SEM@40992b5213a572faf401affb8031e3538e655c2d: handle admin re-encryption of all settings; map not-enabled to 409, transient DB failure to 503 (writes DB)
+// SEM@3b682947: handle admin re-encryption of all settings; map not-enabled to 409, transient DB failure to 503 (writes DB)
 func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()

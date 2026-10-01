@@ -888,7 +888,7 @@ class TestSecretCreatorsRun(unittest.TestCase):
 
 
 
-# SEM@66902813772bbf4671fb38519c2f21a53dfa2b63: validate seeding adds missing secret keys without overwriting
+# SEM@3b682947: validate seeding adds missing secret keys without overwriting
 class TestSeedTmiSecretKeys(unittest.TestCase):
     """seed_tmi_secret_keys merges missing keys and never overwrites (#965)."""
 
@@ -898,7 +898,7 @@ class TestSeedTmiSecretKeys(unittest.TestCase):
     def _run(self, present, db="postgres"):
         patches = []
 
-        # SEM@66902813772bbf4671fb38519c2f21a53dfa2b63: simulate kubectl secret key presence lookups (test double)
+        # SEM@3b682947: simulate kubectl secret key presence lookups (test double)
         def fake_kubectl(args, **kw):
             if args[:3] == ["-n", deploy.NS, "get"]:
                 key = args[-1].split(".data.")[1].rstrip("}")
@@ -915,7 +915,7 @@ class TestSeedTmiSecretKeys(unittest.TestCase):
             deploy.seed_tmi_secret_keys("docker-desktop", db)
         return patches
 
-    # SEM@66902813772bbf4671fb38519c2f21a53dfa2b63: validate seeding adds all secret keys when none exist
+    # SEM@3b682947: validate seeding adds all secret keys when none exist
     def test_adds_all_when_absent(self):
         (data,) = self._run(set())
         self.assertEqual(set(data), {"TMI_SECRET_SETTINGS_ENCRYPTION_KEY",
@@ -924,17 +924,17 @@ class TestSeedTmiSecretKeys(unittest.TestCase):
                          "postgres://u:pw@postgres:5432/d?sslmode=disable")
         self.assertEqual(base64.b64decode(data["TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID"]), b"1")
 
-    # SEM@66902813772bbf4671fb38519c2f21a53dfa2b63: validate seeding never overwrites existing secret keys
+    # SEM@3b682947: validate seeding never overwrites existing secret keys
     def test_never_overwrites_existing(self):
         (data,) = self._run({"TMI_SECRET_SETTINGS_ENCRYPTION_KEY", "TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID"})
         self.assertEqual(set(data), {"TMI_DATABASE_URL"})
 
-    # SEM@66902813772bbf4671fb38519c2f21a53dfa2b63: validate seeding skips patching when all keys exist
+    # SEM@3b682947: validate seeding skips patching when all keys exist
     def test_no_patch_when_all_present(self):
         self.assertEqual(self._run({"TMI_SECRET_SETTINGS_ENCRYPTION_KEY",
                                     "TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID", "TMI_DATABASE_URL"}), [])
 
-    # SEM@66902813772bbf4671fb38519c2f21a53dfa2b63: validate seeding omits the database URL for oracle
+    # SEM@3b682947: validate seeding omits the database URL for oracle
     def test_oracle_skips_database_url(self):
         (data,) = self._run(set(), db="oracle")
         self.assertNotIn("TMI_DATABASE_URL", data)

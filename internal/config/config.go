@@ -134,7 +134,7 @@ type ConnectionPoolConfig struct {
 }
 
 // RedisConfig holds Redis configuration
-// SEM@e50244f: configuration struct for Redis connection coordinates, credentials, and CA-pinned TLS (pure)
+// SEM@3b682947: configuration struct for Redis connection coordinates, credentials, and CA-pinned TLS (pure)
 type RedisConfig struct {
 	URL        string `yaml:"url" env:"TMI_REDIS_URL"` // Connection string URL (redis://[:password@]host:port[/db]), takes precedence over individual fields; rediss:// also enables TLS
 	Host       string `yaml:"host" env:"TMI_REDIS_HOST"`
@@ -230,7 +230,7 @@ type SAMLConfig struct {
 // overrideSAMLProviders; that reads SAML_PROVIDERS_<ID>_<FIELD> (no TMI_
 // prefix), so env tags on these fields would never be consulted and there
 // are none.
-// SEM@9b96e105de48fdbc2f5c440e878ab6622001e201: configuration struct for a single SAML provider's SP/IdP metadata, keys, and attribute mappings (pure)
+// SEM@3b682947: configuration struct for a single SAML provider's SP/IdP metadata, keys, and attribute mappings (pure)
 type SAMLProviderConfig struct {
 	ID                  string `yaml:"id"`
 	Name                string `yaml:"name"`
@@ -336,7 +336,7 @@ type AlertingConfig struct {
 }
 
 // SecretsConfig holds configuration for external secret providers
-// SEM@abca39ee1a644fe8e73eba37033a3eb67a12ae38: configuration struct for external secret-provider selection and per-provider connection settings (pure)
+// SEM@3b682947: configuration struct for external secret-provider selection and per-provider connection settings (pure)
 type SecretsConfig struct {
 	Provider string `yaml:"provider" env:"TMI_SECRETS_PROVIDER"` // "env" (default), "file", "vault", "aws"
 
@@ -737,7 +737,7 @@ func overrideOAuthProviders(mapField reflect.Value) error {
 }
 
 // overrideSAMLProviders handles environment variable overrides for SAML providers
-// SEM@78155d54490599e00095eb72b817575bb1e8da5b: discover and populate enabled SAML provider configs from env vars (reads env, mutates shared state)
+// SEM@3b682947: discover and populate enabled SAML provider configs from env vars (reads env, mutates shared state)
 func overrideSAMLProviders(mapField reflect.Value) error {
 	logger := slogging.Get()
 	logger.Info("[CONFIG] overrideSAMLProviders called - starting dynamic SAML provider discovery")
@@ -1103,7 +1103,7 @@ func (c *Config) validateServer() error {
 	return nil
 }
 
-// SEM@6bac11e: validate database URL, Redis coordinates, and that Redis TLS names a CA file (pure)
+// SEM@3b682947: validate database URL, Redis coordinates, and that Redis TLS names a CA file (pure)
 func (c *Config) validateDatabase() error {
 	// DATABASE_URL is required (contains all connection parameters including type, host, port, user, password, database)
 	if c.Database.URL == "" {

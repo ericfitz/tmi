@@ -25,7 +25,7 @@ import (
 // the table holds only its own rows. The test-only schema must also have no
 // live TMI server attached: the guard counts once, so a concurrent writer
 // could race it.
-// SEM@e946e95b734bb607f104a0a97579fd1eb8f03875: verify batched re-encryption SQL shapes and row locking against Oracle ADB (writes DB)
+// SEM@3b682947: verify batched re-encryption SQL shapes and row locking against Oracle ADB (writes DB)
 func TestSettingsReEncryptAllOracleIntegration(t *testing.T) {
 	gormDB := openAuditAppendOnlyOracleDB(t)
 	ctx := context.Background()

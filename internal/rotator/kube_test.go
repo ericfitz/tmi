@@ -17,7 +17,7 @@ import (
 	k8stesting "k8s.io/client-go/testing"
 )
 
-// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: test that the Kubernetes secret store round-trips decoded data
+// SEM@3b682947: test that the Kubernetes secret store round-trips decoded data
 func TestKubeSecretStore_RoundTripDecodesData(t *testing.T) {
 	cs := fake.NewClientset(&corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{Name: "tmi-secrets", Namespace: "tmi-platform", ResourceVersion: "1",
@@ -38,7 +38,7 @@ func TestKubeSecretStore_RoundTripDecodesData(t *testing.T) {
 	require.False(t, hasA)
 }
 
-// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: test that Kubernetes update conflicts map to the conflict error
+// SEM@3b682947: test that Kubernetes update conflicts map to the conflict error
 func TestKubeSecretStore_ConflictMapsToErrConflict(t *testing.T) {
 	cs := fake.NewClientset(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "tmi-secrets", Namespace: "tmi-platform", ResourceVersion: "1"}})
 	cs.PrependReactor("update", "secrets", func(k8stesting.Action) (bool, runtime.Object, error) {
@@ -50,7 +50,7 @@ func TestKubeSecretStore_ConflictMapsToErrConflict(t *testing.T) {
 	require.ErrorIs(t, err, ErrConflict)
 }
 
-// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: test that a stale resource version yields the conflict error
+// SEM@3b682947: test that a stale resource version yields the conflict error
 func TestKubeSecretStore_StaleResourceVersionIsErrConflict(t *testing.T) {
 	cs := fake.NewClientset(&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "tmi-secrets", Namespace: "tmi-platform", ResourceVersion: "2"}})
 	st := NewKubeSecretStore(cs, "tmi-platform")
@@ -58,7 +58,7 @@ func TestKubeSecretStore_StaleResourceVersionIsErrConflict(t *testing.T) {
 	require.ErrorIs(t, err, ErrConflict)
 }
 
-// SEM@d1d4d5cee8eba3ab6cdb6db163a996d342c72afa: test that the rollout waiter waits for generation then availability
+// SEM@3b682947: test that the rollout waiter waits for generation then availability
 func TestKubeRolloutWaiter_WaitsForGenerationThenAvailability(t *testing.T) {
 	one := int32(1)
 	dep := &appsv1.Deployment{

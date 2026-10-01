@@ -23,7 +23,7 @@ import (
 	"github.com/ericfitz/tmi/internal/tlsconfig/testpki"
 )
 
-// SEM@249dea6: parse -out flag and generate the harness PKI, exiting nonzero on failure (writes files)
+// SEM@3b682947: parse -out flag and generate the harness PKI, exiting nonzero on failure (writes files)
 func main() {
 	out := flag.String("out", "", "output directory (created if missing)")
 	flag.Parse()
@@ -37,7 +37,7 @@ func main() {
 	}
 }
 
-// SEM@40992b5213a572faf401affb8031e3538e655c2d: build the integration test TLS certificate authority and certificates
+// SEM@3b682947: build the integration test TLS certificate authority and certificates
 func run(dir string) error {
 	if _, err := os.Stat(filepath.Join(dir, "ca.crt")); err == nil {
 		return ensureSettingsKey(dir) // PKI already generated; older dirs lack the settings key
@@ -91,8 +91,8 @@ requirepass %s
 	return ensureSettingsKey(dir)
 }
 
-// SEM@f2ea1d518ec8795172d7958ce59d0ba011c7ae17: append a random settings encryption key to secrets.env when absent (writes file)
-// SEM@f2ea1d518ec8795172d7958ce59d0ba011c7ae17: store a settings encryption key in the TLS directory if missing
+// SEM@3b682947: append a random settings encryption key to secrets.env when absent (writes file)
+// SEM@3b682947: store a settings encryption key in the TLS directory if missing
 func ensureSettingsKey(dir string) error {
 	path := filepath.Join(dir, "secrets.env")
 	cur, err := os.ReadFile(path) // #nosec G304 -- harness-owned path

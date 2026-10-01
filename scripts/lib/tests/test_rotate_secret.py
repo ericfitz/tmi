@@ -9,24 +9,24 @@ rs = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(rs)
 
 
-# SEM@cc8530bbec518aececbb4a9680c777b27f76809f: validate kube context resolution per cluster target
+# SEM@3b682947: validate kube context resolution per cluster target
 class TestResolveContext(unittest.TestCase):
-    # SEM@cc8530bbec518aececbb4a9680c777b27f76809f: validate docker-desktop resolves to its fixed context
+    # SEM@3b682947: validate docker-desktop resolves to its fixed context
     def test_docker_desktop_ignores_ambient(self):
         self.assertEqual(rs.resolve_context("docker-desktop", None), "docker-desktop")
 
-    # SEM@cc8530bbec518aececbb4a9680c777b27f76809f: validate aws target requires an explicit kube context
+    # SEM@3b682947: validate aws target requires an explicit kube context
     def test_aws_requires_explicit_context(self):
         with self.assertRaises(ValueError):
             rs.resolve_context("aws", None)
         self.assertEqual(rs.resolve_context("aws", "my-eks"), "my-eks")
 
-    # SEM@cc8530bbec518aececbb4a9680c777b27f76809f: validate k3s resolves to its configured context
+    # SEM@3b682947: validate k3s resolves to its configured context
     def test_k3s_uses_configured_context(self):
         with mock.patch.object(rs.cluster, "expected_context", return_value="c1"):
             self.assertEqual(rs.resolve_context("k3s", None), "c1")
 
-    # SEM@cc8530bbec518aececbb4a9680c777b27f76809f: validate listing only still-running rotator jobs
+    # SEM@3b682947: validate listing only still-running rotator jobs
     def test_active_jobs(self):
         jobs = {"items": [
             {"metadata": {"name": "tmi-rotator-1"}, "status": {"active": 1}},

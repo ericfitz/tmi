@@ -25,7 +25,7 @@ NS = "tmi-platform"
 VALID = ("redis-password", "settings-key")
 
 
-# SEM@cc8530bbec518aececbb4a9680c777b27f76809f: resolve the kube context for a cluster target, never the ambient one (pure)
+# SEM@3b682947: resolve the kube context for a cluster target, never the ambient one (pure)
 def resolve_context(cluster_target: str, context: str | None) -> str:
     """Kube context for this run; never the ambient one (pure). aws needs an explicit one."""
     if cluster_target == "aws":
@@ -35,19 +35,19 @@ def resolve_context(cluster_target: str, context: str | None) -> str:
     return cluster.expected_context(cluster_target)
 
 
-# SEM@cc8530bbec518aececbb4a9680c777b27f76809f: run kubectl against a given context and namespace
+# SEM@3b682947: run kubectl against a given context and namespace
 def _kubectl(ctx: str, args: list[str], **kw) -> subprocess.CompletedProcess:
     return subprocess.run(["kubectl", "--context", ctx, "-n", NS, *args], text=True, **kw)
 
 
-# SEM@cc8530bbec518aececbb4a9680c777b27f76809f: list names of secret rotator jobs that are still running (pure)
+# SEM@3b682947: list names of secret rotator jobs that are still running (pure)
 def active_rotator_jobs(jobs: dict) -> list[str]:
     """Names of tmi-rotator Jobs that are still running (pure)."""
     return [j["metadata"]["name"] for j in jobs.get("items", [])
             if j["metadata"]["name"].startswith("tmi-rotator-") and j.get("status", {}).get("active", 0) > 0]
 
 
-# SEM@cc8530bbec518aececbb4a9680c777b27f76809f: handle the secret rotation command-line entry point
+# SEM@3b682947: handle the secret rotation command-line entry point
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--cluster", required=True, choices=["docker-desktop", "k3s", "aws"])

@@ -558,7 +558,7 @@ def ensure_namespace() -> None:
     )
 
 
-# SEM@c05c0dbab821602196206f70622576910f500bf7: build the Redis password secret in the cluster if missing
+# SEM@3b682947: build the Redis password secret in the cluster if missing
 def ensure_redis_password_secret() -> None:
     """Create Secret/tmi-secrets with a random TMI_REDIS_PASSWORD on a dev
     cluster if it does not exist. AWS gets this Secret from Terraform; since
@@ -585,7 +585,7 @@ def ensure_redis_password_secret() -> None:
     log_success("Secret/tmi-secrets created with a random TMI_REDIS_PASSWORD")
 
 
-# SEM@66902813772bbf4671fb38519c2f21a53dfa2b63: validate whether a cluster secret contains a key (reads cluster)
+# SEM@3b682947: validate whether a cluster secret contains a key (reads cluster)
 def _secret_has_key(name: str, key: str) -> bool:
     out = kubectl(["-n", NS, "get", "secret", name, "-o", f"jsonpath={{.data.{key}}}"],
                   check=False, capture=True)
@@ -595,7 +595,7 @@ def _secret_has_key(name: str, key: str) -> bool:
 _DEV_DB_URL_RE = re.compile(r"^\s*url:\s*[\"']?(postgres://[^\"'\s]+)", re.MULTILINE)
 
 
-# SEM@66902813772bbf4671fb38519c2f21a53dfa2b63: build the development database URL (pure)
+# SEM@3b682947: build the development database URL (pure)
 def dev_database_url(config_text: str, cluster_target: str) -> str | None:
     """In-cluster Postgres URL from the dev config's database.url, or None (pure)."""
     m = _DEV_DB_URL_RE.search(rewrite_db_host_for_incluster(
@@ -603,7 +603,7 @@ def dev_database_url(config_text: str, cluster_target: str) -> str | None:
     return m.group(1) if m else None
 
 
-# SEM@cc8530bbec518aececbb4a9680c777b27f76809f: store default keys into the server secret in the cluster
+# SEM@3b682947: store default keys into the server secret in the cluster
 def seed_tmi_secret_keys(cluster_target: str = "docker-desktop", db: str = "postgres") -> None:
     """Merge the keys tmi-rotator (#965) needs into Secret/tmi-secrets on a dev
     cluster: the settings-encryption key (id 1) and TMI_DATABASE_URL (from
@@ -616,7 +616,7 @@ def seed_tmi_secret_keys(cluster_target: str = "docker-desktop", db: str = "post
         "TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID": lambda: "1",
     }
     if db != "oracle":
-        # SEM@66902813772bbf4671fb38519c2f21a53dfa2b63: build the database URL for seeding (pure)
+        # SEM@3b682947: build the database URL for seeding (pure)
         def _db_url():
             return dev_database_url((get_project_root() / CONFIG_FILE).read_text(), cluster_target)
         wanted["TMI_DATABASE_URL"] = _db_url
@@ -1242,7 +1242,7 @@ def server_http_status() -> tuple[bool, str]:
 # Orchestration entry points
 # ---------------------------------------------------------------------------
 
-# SEM@66902813772bbf4671fb38519c2f21a53dfa2b63: deploy the full dev stack into the cluster and forward ports
+# SEM@3b682947: deploy the full dev stack into the cluster and forward ports
 def start(*, db: str, cluster_target: str = "docker-desktop",
           skip_context_guard: bool = False) -> None:
     """Build images, deploy all components, wait for readiness, and start port-forwards."""
@@ -1361,7 +1361,7 @@ def db_flavor_is_external(cluster_target: str) -> bool:
     return cluster_target not in ("k3s", "docker-desktop")
 
 
-# SEM@66902813772bbf4671fb38519c2f21a53dfa2b63: restart the dev stack workloads in the cluster
+# SEM@3b682947: restart the dev stack workloads in the cluster
 def restart(*, db: str, cluster_target: str = "docker-desktop",
             skip_context_guard: bool = False) -> None:
     """Rebuild the server image, re-deliver config, and roll the server deployment."""
@@ -1396,7 +1396,7 @@ def restart(*, db: str, cluster_target: str = "docker-desktop",
     log_success(f"Server restarted; {SERVER_URL}")
 
 
-# SEM@66902813772bbf4671fb38519c2f21a53dfa2b63: tear down the dev stack, optionally deleting data
+# SEM@3b682947: tear down the dev stack, optionally deleting data
 def teardown(*, db: str = "postgres", cluster_target: str = "docker-desktop") -> None:
     """Tear down everything that start() deployed.
 
