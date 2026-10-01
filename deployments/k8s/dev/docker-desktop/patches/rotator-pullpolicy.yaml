@@ -1,0 +1,4 @@
+# Same reason as server-pullpolicy.yaml: the image is imported by bare name.
+- op: replace
+  path: /spec/jobTemplate/spec/template/spec/containers/0/imagePullPolicy
+  value: IfNotPresent

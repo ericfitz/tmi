@@ -38,19 +38,20 @@ type Provider interface {
 }
 
 // ProviderType represents the type of secrets provider
-// SEM@0000000000000000000000000000000000000000: string alias identifying a secrets backend (env, aws, vault) (pure)
+// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: identify a secrets backend kind (pure)
 type ProviderType string
 
 // Provider type constants
 const (
 	ProviderTypeEnv   ProviderType = "env"
+	ProviderTypeFile  ProviderType = "file"
 	ProviderTypeAWS   ProviderType = "aws"
 	ProviderTypeVault ProviderType = "vault" // Future: HashiCorp Vault
 )
 
 // NewProvider creates a new secrets provider based on configuration.
 // If no provider is configured, it defaults to the environment variable provider.
-// SEM@0000000000000000000000000000000000000000: build a secrets provider (env, aws, or vault) from config, defaulting to env
+// SEM@abca39ee1a644fe8e73eba37033a3eb67a12ae38: build a secrets provider from config, defaulting to env
 func NewProvider(ctx context.Context, cfg *config.SecretsConfig) (Provider, error) {
 	logger := slogging.Get()
 
@@ -65,6 +66,12 @@ func NewProvider(ctx context.Context, cfg *config.SecretsConfig) (Provider, erro
 	switch providerType {
 	case ProviderTypeEnv:
 		return NewEnvProvider(), nil
+
+	case ProviderTypeFile:
+		if cfg.FileDir == "" {
+			return nil, fmt.Errorf("%w: file secrets provider requires file_dir", ErrInvalidConfig)
+		}
+		return NewFileProvider(cfg.FileDir), nil
 
 	case ProviderTypeAWS:
 		if cfg.AWSRegion == "" || cfg.AWSSecretName == "" {
@@ -97,10 +104,11 @@ var SecretKeys = struct {
 		ClientID     string
 		ClientSecret string
 	}
-	SettingsEncryptionKey         string
-	SettingsEncryptionPreviousKey string
-	SettingsEncryptionContextID   string
-	AlertWebhookSecret            string
+	SettingsEncryptionKey               string
+	SettingsEncryptionPreviousKey       string
+	SettingsEncryptionContextID         string
+	SettingsEncryptionPreviousContextID string
+	AlertWebhookSecret                  string
 }{
 	JWTSecret:        "jwt_secret",
 	DatabasePassword: "database_password",
@@ -126,8 +134,9 @@ var SecretKeys = struct {
 		ClientID:     "oauth_microsoft_client_id",
 		ClientSecret: "oauth_microsoft_client_secret",
 	},
-	SettingsEncryptionKey:         "settings_encryption_key",
-	SettingsEncryptionPreviousKey: "settings_encryption_previous_key",
-	SettingsEncryptionContextID:   "settings_encryption_context_id",
-	AlertWebhookSecret:            "alerting_webhook_secret",
+	SettingsEncryptionKey:               "settings_encryption_key",
+	SettingsEncryptionPreviousKey:       "settings_encryption_previous_key",
+	SettingsEncryptionContextID:         "settings_encryption_context_id",
+	SettingsEncryptionPreviousContextID: "settings_encryption_previous_context_id",
+	AlertWebhookSecret:                  "alerting_webhook_secret",
 }

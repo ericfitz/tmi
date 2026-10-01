@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // SettingsService provides access to system settings with caching.
@@ -667,96 +669,137 @@ type SettingError struct {
 // (#845): the former is a 409 precondition, the latter is 503/500.
 var ErrEncryptionNotEnabled = errors.New("encryption is not enabled")
 
-// ReEncryptAll re-encrypts all settings with the current encryption key.
-// Returns the count of settings re-encrypted, any per-setting errors, and a fatal error if applicable.
-//
-// Only the value column is written. Re-encryption is a mechanical key
-// rotation, not an operator edit, so modified_at and modified_by are left
-// exactly as they were: the #794 origin backfill reads modified_by as
-// operator intent, and only SettingsService.Set may create that signal. The
-// actor of a rotation is recorded by AdminAuditMiddleware
-// (REENCRYPT system_settings), not by the row (#805).
-//
-// The whole pass runs in one transaction (#845): a write failure part-way
-// through rolls every row back, so the table is never left split across two
-// keys. Rows whose ciphertext cannot be decrypted or re-encrypted are not a
-// database failure -- they are skipped, reported in []SettingError, and the
-// rest of the pass still commits (Decrypt still accepts the previous key, so
-// those rows remain readable). A row deleted concurrently is reported the
-// same way. The table is small (hundreds of rows), so one SERIALIZABLE
-// transaction is also fewer round-trips than N autocommits on Oracle ADB.
-// SEM@5740a75fafc8da46a061901361ed61990a6c8916: re-encrypt every stored setting value atomically without touching audit fields (writes DB)
+// reEncryptBatchSize bounds one SELECT of stale keys; the pass loops until none remain.
+const reEncryptBatchSize = 100
+
+// maxUnreadableSettings caps the NOT IN exclusion list (Oracle allows 1000).
+const maxUnreadableSettings = 900
+
+// errSettingUnreadable marks a row that cannot be decrypted or re-encrypted:
+// reported, skipped, never a database failure.
+var errSettingUnreadable = errors.New("setting unreadable")
+
+// ReEncryptAll re-encrypts every system_settings value not already under the
+// current key id. Each row is its own short transaction (#965): a crash or a
+// database error leaves a readable mix of old-id and current-id rows and the
+// next call finishes the job, because the selection is by envelope prefix, not
+// by a full-table pass. Only the value column is written (#805): modified_at and
+// modified_by are left as they were. Rows no key can open are reported in
+// []SettingError and excluded from later batches so the loop always terminates.
+// Returns the number of rows committed so far, also on error.
+// SEM@f8fb0cf9bf71ed4f21118aa813b9f9dea753beb3: re-encrypt stale setting rows under the current key id in resumable per-row transactions (writes DB)
 func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 	logger := slogging.Get()
-
 	if s.encryptor == nil || !s.encryptor.IsEnabled() {
 		return 0, nil, ErrEncryptionNotEnabled
 	}
-
+	prefix := s.encryptor.CurrentPrefix()
 	var reencrypted int
 	var settingErrors []SettingError
-
-	err := db.WithRetryableGormTransaction(ctx, s.gormDB, db.DefaultRetryConfig(), func(tx *gorm.DB) error {
-		// A retried attempt starts over; do not carry the previous attempt's tallies.
-		reencrypted = 0
-		settingErrors = nil
-
-		// Load all settings inside the transaction (may be encrypted with old key or plaintext)
-		// Ordered so concurrent passes lock rows in the same order (no
-		// ORA-00060 deadlock between two overlapping rotations).
-		var settings []models.SystemSetting
-		if err := tx.Order("setting_key").Find(&settings).Error; err != nil {
-			return fmt.Errorf("failed to list settings for re-encryption: %w", err)
+	var skip []string
+	for {
+		var keys []string
+		if err := db.WithRetryableGormRead(ctx, db.DefaultRetryConfig(), func() error {
+			// Rebuild the chain per attempt: a GORM instance keeps db.Error
+			// after a failure, so a reused chain would replay the old error.
+			keys = nil
+			q := s.gormDB.WithContext(ctx).Model(&models.SystemSetting{}).
+				Where("value NOT LIKE ?", prefix+"%").
+				Order("setting_key").Limit(reEncryptBatchSize)
+			if len(skip) > 0 {
+				q = q.Where("setting_key NOT IN ?", skip)
+			}
+			return q.Pluck("setting_key", &keys).Error
+		}); err != nil {
+			s.InvalidateAll(ctx)
+			return reencrypted, settingErrors, fmt.Errorf("failed to list settings for re-encryption: %w", err)
 		}
-
-		for _, setting := range settings {
-			// Decrypt (handles both plaintext and encrypted values, tries current then previous key)
-			plaintext, err := s.encryptor.Decrypt(string(setting.Value))
-			if err != nil {
-				logger.Error("Failed to decrypt setting %s during re-encryption: %v", setting.SettingKey, err)
-				settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: err.Error()})
-				continue
-			}
-
-			// Re-encrypt with current key
-			encrypted, err := s.encryptor.Encrypt(plaintext)
-			if err != nil {
-				logger.Error("Failed to re-encrypt setting %s: %v", setting.SettingKey, err)
-				settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: err.Error()})
-				continue
-			}
-
-			// Write only the ciphertext. UpdateColumn skips GORM hooks, so
-			// autoUpdateTime does not move modified_at and modified_by is never
-			// mentioned in the statement (a full-struct Save would write both).
-			result := tx.Model(&models.SystemSetting{}).
-				Where("setting_key = ?", setting.SettingKey).
-				UpdateColumn("value", models.DBText(encrypted))
-			if result.Error != nil {
-				// A database failure aborts and rolls back the whole pass.
-				return fmt.Errorf("failed to save re-encrypted setting %s: %w", setting.SettingKey, result.Error)
-			}
-			if result.RowsAffected == 0 {
-				// Deleted between the Find above and this write.
-				logger.Warn("Setting %s vanished during re-encryption", setting.SettingKey)
-				settingErrors = append(settingErrors, SettingError{Key: string(setting.SettingKey), Error: "setting no longer exists"})
-				continue
-			}
-
-			reencrypted++
+		if len(keys) == 0 {
+			break
 		}
-		return nil
-	})
-	if err != nil {
-		logger.Error("Re-encryption rolled back: %v", err)
-		return 0, nil, err
+		for _, key := range keys {
+			err := s.reEncryptOne(ctx, key)
+			switch {
+			case err == nil:
+				reencrypted++
+			case errors.Is(err, errSettingUnreadable):
+				logger.Warn("Setting %s skipped during re-encryption: %v", key, err)
+				settingErrors = append(settingErrors, SettingError{Key: key, Error: err.Error()})
+				skip = append(skip, key)
+				if len(skip) >= maxUnreadableSettings { // stays under Oracle's 1000-element IN list
+					s.InvalidateAll(ctx)
+					return reencrypted, settingErrors, fmt.Errorf("re-encryption stopped: %d settings are unreadable", len(skip))
+				}
+			default:
+				logger.Error("Re-encryption stopped after %d rows: %v", reencrypted, err)
+				s.InvalidateAll(ctx)
+				return reencrypted, settingErrors, err
+			}
+		}
 	}
-
-	// Invalidate all caches
 	s.InvalidateAll(ctx)
-
 	logger.Info("Re-encryption completed: %d re-encrypted, %d errors", reencrypted, len(settingErrors))
 	return reencrypted, settingErrors, nil
+}
+
+// reEncryptOne rewrites one row's ciphertext under the current key inside its
+// own transaction, holding a row lock on PostgreSQL/Oracle so a concurrent
+// SettingsService.Set cannot be overwritten.
+// SEM@e946e95b734bb607f104a0a97579fd1eb8f03875: re-encrypt a single setting row under a row lock in one transaction (writes DB)
+func (s *SettingsService) reEncryptOne(ctx context.Context, key string) error {
+	// READ COMMITTED, not the SERIALIZABLE default: under SERIALIZABLE, Oracle
+	// fails SELECT ... FOR UPDATE on a row committed after the tx start SCN
+	// with ORA-08177 instead of waiting (the false-08177 class, #903/#906).
+	// FOR UPDATE on the primary key already serializes writers of this row.
+	return db.WithRetryableGormTransaction(ctx, s.gormDB, db.DefaultRetryConfig(), func(tx *gorm.DB) error {
+		q := tx.Where("setting_key = ?", key)
+		if tx.Name() != "sqlite" {
+			q = q.Clauses(clause.Locking{Strength: "UPDATE"})
+		}
+		// Find, not First: First adds ORDER BY + a row limit, and Oracle
+		// cannot combine the row_limiting_clause with FOR UPDATE (ORA-02014).
+		// setting_key is the primary key, so at most one row comes back.
+		var rows []models.SystemSetting
+		if err := q.Find(&rows).Error; err != nil {
+			return fmt.Errorf("failed to read setting %s: %w", key, err)
+		}
+		if len(rows) == 0 {
+			return fmt.Errorf("%w: setting no longer exists", errSettingUnreadable)
+		}
+		row := rows[0]
+		plaintext, err := s.encryptor.Decrypt(string(row.Value))
+		if err != nil {
+			return fmt.Errorf("%w: %w", errSettingUnreadable, err)
+		}
+		encrypted, err := s.encryptor.Encrypt(plaintext)
+		if err != nil {
+			return fmt.Errorf("%w: %w", errSettingUnreadable, err)
+		}
+		// UpdateColumn skips hooks: autoUpdateTime never moves modified_at (#805).
+		res := tx.Model(&models.SystemSetting{}).Where("setting_key = ?", key).UpdateColumn("value", models.DBText(encrypted))
+		if res.Error != nil {
+			return fmt.Errorf("failed to save re-encrypted setting %s: %w", key, res.Error)
+		}
+		if res.RowsAffected == 0 {
+			return fmt.Errorf("%w: setting no longer exists", errSettingUnreadable)
+		}
+		return nil
+	}, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+}
+
+// CountValuesWithContextID counts rows still encrypted under the given key id;
+// the rotator uses it to decide when the previous key can be dropped.
+// SEM@e946e95b734bb607f104a0a97579fd1eb8f03875: count setting rows whose envelope carries a given key id (reads DB)
+func (s *SettingsService) CountValuesWithContextID(ctx context.Context, id int) (int64, error) {
+	var n int64
+	err := db.WithRetryableGormRead(ctx, db.DefaultRetryConfig(), func() error {
+		return s.gormDB.WithContext(ctx).Model(&models.SystemSetting{}).
+			Where("value LIKE ?", fmt.Sprintf("ENC:v1:%d:%%", id)).Count(&n).Error
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to count settings under key id %d: %w", id, err)
+	}
+	return n, nil
 }
 
 // PlaintextKeys returns which of the given keys have a non-empty stored value

@@ -326,6 +326,86 @@ resource "aws_eks_addon" "coredns" {
 }
 
 # ============================================================================
+# EBS CSI driver (#965 PR 1): backs the redis-data PVC. Nothing else in the
+# platform claims storage (Postgres is RDS, NATS JetStream is an emptyDir).
+# ============================================================================
+
+data "aws_eks_addon_version" "ebs_csi" {
+  addon_name         = "aws-ebs-csi-driver"
+  kubernetes_version = var.kubernetes_version
+}
+
+resource "aws_iam_role" "ebs_csi" {
+  name = "${var.name_prefix}-ebs-csi-driver"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Effect = "Allow"
+        Principal = {
+          Federated = local.oidc_provider_arn
+        }
+        Condition = {
+          StringEquals = {
+            "${local.oidc_provider_url}:aud" = "sts.amazonaws.com"
+            # The addon creates this ServiceAccount itself.
+            "${local.oidc_provider_url}:sub" = "system:serviceaccount:kube-system:ebs-csi-controller-sa"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "ebs_csi" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  role       = aws_iam_role.ebs_csi.name
+}
+
+resource "aws_eks_addon" "ebs_csi" {
+  cluster_name             = aws_eks_cluster.tmi.name
+  addon_name               = "aws-ebs-csi-driver"
+  addon_version            = data.aws_eks_addon_version.ebs_csi.version
+  service_account_role_arn = aws_iam_role.ebs_csi.arn
+
+  # One controller replica (Eric, 2026-09-29): TMI runs stateful
+  # single-instance pods and the two-node group is close to its pod ceiling.
+  # Upstream default is 2; the schema key is controller.replicaCount.
+  configuration_values = jsonencode({ controller = { replicaCount = 1 } })
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  tags = var.tags
+
+  depends_on = [aws_eks_node_group.tmi, aws_iam_role_policy_attachment.ebs_csi]
+}
+
+# gp3 is cheaper than the legacy gp2 class EKS creates by default and lets
+# the volume be encrypted at rest with the account's default EBS key.
+# WaitForFirstConsumer: the volume is created in the AZ of the node that
+# schedules the pod (the node group spans two AZs).
+resource "kubernetes_storage_class_v1" "gp3" {
+  metadata {
+    name = "gp3"
+  }
+  storage_provisioner    = "ebs.csi.aws.com"
+  reclaim_policy         = "Delete"
+  volume_binding_mode    = "WaitForFirstConsumer"
+  allow_volume_expansion = true
+  parameters = {
+    type      = "gp3"
+    encrypted = "true"
+  }
+
+  depends_on = [aws_eks_addon.ebs_csi]
+}
+
+# ============================================================================
 # OIDC Provider for IRSA (IAM Roles for Service Accounts)
 # ============================================================================
 

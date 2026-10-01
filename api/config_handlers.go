@@ -811,7 +811,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 }
 
 // ReencryptSystemSettings re-encrypts all system settings with the current encryption key (admin only)
-// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: handle admin re-encryption of all settings; map not-enabled to 409, transient DB failure to 503 (writes DB)
+// SEM@40992b5213a572faf401affb8031e3538e655c2d: handle admin re-encryption of all settings; map not-enabled to 409, transient DB failure to 503 (writes DB)
 func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()
@@ -852,24 +852,29 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 		})
 		return
 	case errors.Is(err, dberrors.ErrTransient):
-		// The pass ran in one transaction (#845) and was rolled back on a
-		// transient database error (serialization conflict, connection
-		// blip); nothing changed, the caller should retry.
-		logger.Warn("Re-encryption rolled back on a transient database error: %v", err)
+		// Each row commits on its own (#965): a transient database error
+		// (serialization conflict, connection blip) keeps the rows already
+		// converted; the caller retries to finish the rest.
+		logger.Warn("Re-encryption stopped on a transient database error: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusServiceUnavailable,
 			Code:    "service_unavailable",
-			Message: "Re-encryption was rolled back due to a transient database error; retry the request",
+			Message: "Re-encryption stopped on a transient database error; rows already re-encrypted are kept, retry to finish",
 		})
 		return
 	case err != nil:
-		logger.Error("Re-encryption rolled back: %v", err)
+		// Rows committed before the failure stay re-encrypted (#965).
+		logger.Error("Re-encryption stopped: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
 			Code:    "internal_error",
-			Message: "Re-encryption failed and was rolled back",
+			Message: "Re-encryption stopped on a database error; rows already re-encrypted are kept",
 		})
 		return
+	}
+
+	if settingErrors == nil {
+		settingErrors = []SettingError{} // schema requires an array, not null
 	}
 
 	logger.Info("Re-encryption completed: %d re-encrypted, %d errors", reencrypted, len(settingErrors))
@@ -933,7 +938,7 @@ func buildContentProviders(sources *ContentSourceRegistry, cfg *config.ContentOA
 }
 
 // modelToAPISystemSetting converts a models.SystemSetting to an API SystemSetting
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a DB system-setting model to its API DTO (pure)
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: convert a DB system-setting model to its API DTO (pure)
 func modelToAPISystemSetting(m models.SystemSetting) SystemSetting {
 	setting := SystemSetting{
 		Key:         string(m.SettingKey),

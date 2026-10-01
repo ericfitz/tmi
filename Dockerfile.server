@@ -39,6 +39,8 @@ RUN MAJOR=$(cat .version | grep '"major"' | grep -o '[0-9]*') && \
     -o tmiserver \
     ./cmd/server
 
+RUN CGO_ENABLED=0 GOOS=linux go build -tags "${BUILD_TAGS}" -ldflags "-s -w" -trimpath -buildmode=exe -o tmi-rotator ./cmd/rotator
+
 # Stage 2: Chainguard static runtime (minimal attack surface)
 FROM cgr.dev/chainguard/static:latest
 
@@ -53,6 +55,7 @@ LABEL org.opencontainers.image.name="tmi/tmi-server"
 
 # Copy binary from builder
 COPY --from=builder /app/tmiserver /tmiserver
+COPY --from=builder /app/tmi-rotator /tmi-rotator
 
 # Note: No static files needed - migrations use GORM AutoMigrate (schema from Go code)
 

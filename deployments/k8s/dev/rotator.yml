@@ -1,0 +1,97 @@
+# tmi-rotator (#965): rotates TMI_REDIS_PASSWORD and the settings encryption
+# key in Secret/tmi-secrets on a schedule, one idempotent phase per run, and
+# relies on Stakater Reloader (PR 6) to roll tmi-server after each Secret write.
+# Terraform seeds tmi-secrets and then ignores its data; this CronJob is the
+# only writer. Force a run: `make rotate-secret name=redis-password`.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tmi-rotator
+  namespace: tmi-platform
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tmi-rotator
+  namespace: tmi-platform
+rules:
+  # get/update on the two named Secrets only. No list/watch: those verbs
+  # cannot be restricted by resourceName and would expose every Secret.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["tmi-secrets", "tmi-rotator-admin"]
+    verbs: ["get", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["tmi-server"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tmi-rotator
+  namespace: tmi-platform
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: tmi-rotator
+subjects:
+  - kind: ServiceAccount
+    name: tmi-rotator
+    namespace: tmi-platform
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: tmi-rotator
+  namespace: tmi-platform
+spec:
+  schedule: "17 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 86400  # manual Jobs (make rotate-secret) have no ownerReference; history limits never GC them
+      backoffLimit: 0          # a failed phase is resumed tomorrow, not retried in a loop
+      activeDeadlineSeconds: 2400
+      template:
+        metadata:
+          labels: { app: tmi-rotator }
+        spec:
+          serviceAccountName: tmi-rotator
+          restartPolicy: Never
+          containers:
+            - name: rotator
+              image: localhost:5000/tmi-server:dev
+              imagePullPolicy: Always
+              command: ["/tmi-rotator"]
+              env:
+                - { name: TMI_ROTATOR_NAMESPACE, value: "tmi-platform" }
+                - { name: TMI_REDIS_HOST, value: "redis" }
+                - { name: TMI_REDIS_TLS_ENABLED, value: "true" }
+                - { name: TMI_REDIS_TLS_CA_FILE, value: "/etc/tmi-redis-tls/ca.crt" }
+                - { name: TMI_LOG_DIR, value: "/tmp/logs" }
+                # Postgres URL from tmi-secrets (seeded by deploy.py on dev,
+                # Terraform on AWS). optional: an absent key makes the rotator exit 2 with a
+                # fixed message instead of a silent CreateContainerConfigError.
+                - name: TMI_DATABASE_URL
+                  valueFrom: { secretKeyRef: { name: tmi-secrets, key: TMI_DATABASE_URL, optional: true } }
+              volumeMounts:
+                - { name: redis-tls, mountPath: /etc/tmi-redis-tls, readOnly: true }
+                - { name: tmp, mountPath: /tmp }   # TMI_LOG_DIR=/tmp/logs; root fs is read-only
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65532                   # Chainguard nonroot, as in Dockerfile.server
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                seccompProfile: { type: RuntimeDefault }
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { cpu: 500m, memory: 256Mi }
+          volumes:
+            - { name: tmp, emptyDir: {} }
+            - name: redis-tls
+              secret: { secretName: redis-tls }

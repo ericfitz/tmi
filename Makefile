@@ -124,7 +124,7 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-genconfig generate-config-example build-genconfigdocs generate-config-docs clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz check-response-examples check-oracle-unsafe-map-keys check-oracle-table-names check-oracle-ddl-via-gorm check-scan-struct-column-tags check-sensitive-log-args
+.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-rotator build-genconfig generate-config-example build-genconfigdocs generate-config-docs clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz check-response-examples check-oracle-unsafe-map-keys check-oracle-table-names check-oracle-ddl-via-gorm check-scan-struct-column-tags check-sensitive-log-args
 
 build-server:
 	@uv run scripts/build-server.py
@@ -140,6 +140,9 @@ build-dbtool-oci:  ## Build TMI database administration tool with Oracle support
 
 build-worker-probe:  ## Build the worker-probe stub (proves the #415 worker bootstrap contract)
 	@uv run scripts/build-server.py --component worker-probe
+
+build-rotator:  ## Build the tmi-rotator secret rotation binary (#965)
+	@uv run scripts/build-server.py --component rotator
 
 build-genconfig:  ## Build the config-example.yml generator
 	@uv run scripts/build-server.py --component genconfig
@@ -283,7 +286,7 @@ clean-everything:
 # COMPOSITE TARGETS - Main User-Facing Commands
 # ============================================================================
 
-.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-up dev-down dev-restart dev-reset dev-nuke dev-status dev-logs dev-deploy dev-cluster-up dev-cluster-down dev-config-snapshot dev-config-restore dev-config-status
+.PHONY: test-unit test-integration test-integration-pg test-integration-oci test-api test-api-collection test-api-list start-dev start-dev-oci restart-dev stop-dev test-coverage test-manual-google-workspace test-corpus-ooxml test-dev-scripts dev-up dev-down dev-restart dev-reset dev-nuke dev-status rotate-secret dev-logs dev-deploy dev-cluster-up dev-cluster-down dev-config-snapshot dev-config-restore dev-config-status
 
 # Dev-environment Python helpers unit tests
 test-dev-scripts:  ## Run unit tests for the dev-environment Python helpers
@@ -396,6 +399,10 @@ dev-reset:  ## Soft known-state: redeploy the stack with fresh images; KEEP db d
 dev-nuke:  ## Hard known-state: destroy everything incl. db data + images, rebuild
 	@$(REQUIRE_CLUSTER)
 	@uv run scripts/devenv.py --db $(DB) --cluster $(CLUSTER) nuke
+
+rotate-secret:  ## Force one tmi-rotator rotation now: make rotate-secret CLUSTER=docker-desktop|k3s|aws [CONTEXT=<ctx> for aws] name=redis-password|settings-key
+	@$(REQUIRE_CLUSTER)
+	@uv run scripts/rotate-secret.py --cluster $(CLUSTER) $(if $(CONTEXT),--context $(CONTEXT)) $(name)
 
 dev-status:  ## dev environment status dashboard
 	@$(REQUIRE_CLUSTER)

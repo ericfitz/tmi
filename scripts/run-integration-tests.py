@@ -54,6 +54,7 @@ from tmi_common import (
 from tmi_test_runner import extract_failed_test_output, parse_output, print_results
 
 
+# SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: parse integration test runner command-line arguments (pure)
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run TMI integration tests with formatted output.",
@@ -80,6 +81,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+# SEM@a4ec8c0753dcb14987808e28f96817bf2be7c739: validate that a server URL responds without server error
 def server_is_running(url: str) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=2) as resp:
@@ -88,6 +90,7 @@ def server_is_running(url: str) -> bool:
         return False
 
 
+# SEM@c91b16ea67b50cc273cb925b803aeb2cac07d517: start the OAuth stub if needed and report whether it is reachable
 def ensure_oauth_stub(project_root: Path) -> bool:
     """Best-effort: try to start the OAuth stub via scripts/oauth-stub-lib.sh.
 
@@ -149,6 +152,7 @@ def clear_redis_rate_limits(tls_dir: Path, redis_db: str = "0") -> None:
             return
 
 
+# SEM@a4ec8c0753dcb14987808e28f96817bf2be7c739: run go test, append output to a log, and return exit code
 def run_go_test(cmd: list[str], cwd: Path, env: dict, log_path: str) -> int:
     """Run go test, append all output to log_path, return its exit code."""
     with open(log_path, "a") as fh:
@@ -173,6 +177,7 @@ BUILD_FAILURE_MARKERS = (
 )
 
 
+# SEM@4eedf6e7a203606a23a27a5bef308389d4fe211d: parse the run log for the line explaining a Go build failure
 def build_failure_reason(log_path: str) -> str | None:
     """Return the line explaining a Go build failure in the run log, or None.
 
@@ -200,6 +205,7 @@ def build_failure_reason(log_path: str) -> str | None:
     return None
 
 
+# SEM@619e1d90a1519deb4b56bda51c0a5f8b1a3bd79d: wait until a server URL responds or timeout elapses
 def wait_for_server(url: str, timeout: int = 60) -> bool:
     """Poll url until it answers (status < 500) or timeout elapses."""
     deadline = time.monotonic() + timeout
@@ -297,6 +303,7 @@ TEST_SERVER_IMAGE = "tmi/tmi-server:latest"
 TEST_SERVER_HOST_PORT = "8081"
 
 
+# SEM@619e1d90a1519deb4b56bda51c0a5f8b1a3bd79d: build the dev-tagged test server container image
 def build_server_image(project_root: Path) -> bool:
     """Build the dev-tagged test server image (tmi/tmi-server:latest).
 
@@ -316,6 +323,7 @@ def build_server_image(project_root: Path) -> bool:
     return result.returncode == 0
 
 
+# SEM@619e1d90a1519deb4b56bda51c0a5f8b1a3bd79d: delete the test server container (best-effort)
 def stop_test_server_container() -> None:
     """Remove the test server container (best-effort)."""
     if not shutil.which("docker"):
@@ -326,7 +334,7 @@ def stop_test_server_container() -> None:
     )
 
 
-# SEM@249dea6: start the test server container wired to TLS Redis and host dependencies (starts container)
+# SEM@40992b5213a572faf401affb8031e3538e655c2d: start the test server container with config, database, redis, and TLS
 def start_test_server_container(
     project_root: Path, config_path: Path, container_db_url: str,
     redis_host: str, redis_port: str, host_port: str, tls_dir: Path,
@@ -367,6 +375,9 @@ def start_test_server_container(
         "--env-file", str(tls_dir / "secrets.env"),
         "-e", "TMI_REDIS_TLS_ENABLED=true",
         "-e", "TMI_REDIS_TLS_CA_FILE=/etc/tmi-test-tls/ca.crt",
+        # The settings encryption key itself arrives via secrets.env (tlsgen);
+        # without it POST /admin/settings/reencrypt returns 409.
+        "-e", "TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID=1",
         "-v", f"{config_path}:/etc/tmi/config.yml:ro",
         "-e", f"TMI_DATABASE_URL={container_db_url}",
         "-e", f"TMI_REDIS_HOST={redis_host}",
@@ -411,6 +422,7 @@ def start_test_server_container(
     return TEST_SERVER_CONTAINER
 
 
+# SEM@619e1d90a1519deb4b56bda51c0a5f8b1a3bd79d: store test server container logs to a file
 def dump_test_server_logs(server_log: str) -> None:
     """Capture the test server container logs to a file for debugging."""
     if not shutil.which("docker"):
@@ -425,6 +437,7 @@ def dump_test_server_logs(server_log: str) -> None:
         pass
 
 
+# SEM@663417962552d1b180936cab2f93692cef6cb1c6: run integration tests against an isolated PostgreSQL test database
 def run_pg(project_root: Path, log_path: str) -> tuple[int, str | None]:
     # Bring up the ISOLATED test database container (tmi-postgresql-test on the
     # config-test.yml port, db tmi_test) and migrate it. This never touches the
@@ -752,6 +765,7 @@ def run_oci(project_root: Path, log_path: str) -> tuple[int, str | None]:
     return 0, workflows_skipped
 
 
+# SEM@41abfe5492bc32aa79cce6f93423506d112a3e8c: handle the integration test runner entry point
 def main() -> int:
     args = parse_args()
     apply_verbosity(args)

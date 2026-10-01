@@ -1,9 +1,12 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +14,7 @@ import (
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/crypto"
+	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
@@ -22,6 +26,7 @@ import (
 // system_settings table, for tests that need a real SettingsService write
 // path (SeedDefaults, Set, ReEncryptAll) rather than the nil-gormDB gate
 // tests above.
+// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: build an in-memory database for settings service tests
 func setupSettingsTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
@@ -33,6 +38,7 @@ func setupSettingsTestDB(t *testing.T) *gorm.DB {
 	return gormDB
 }
 
+// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: verify settings service in-memory cache behavior
 func TestSettingsService_MemCache(t *testing.T) {
 	// Create a service with only memory cache (no Redis, no GORM)
 	service := &SettingsService{
@@ -111,6 +117,7 @@ func TestSettingsService_MemCache(t *testing.T) {
 	})
 }
 
+// SEM@cf52eebf6620ebf59d6d9c90dfb1c4f874f70341: verify settings service validates setting values
 func TestSettingsService_ValidateValue(t *testing.T) {
 	service := &SettingsService{}
 
@@ -250,6 +257,7 @@ func TestSettingsService_ValidateValue(t *testing.T) {
 	})
 }
 
+// SEM@72dd09a3a2452db4ebcb144ebcf734b0140a67c7: verify default system settings are well-formed
 func TestDefaultSystemSettings(t *testing.T) {
 	defaults := models.DefaultSystemSettings()
 
@@ -311,6 +319,7 @@ func TestDefaultSystemSettings(t *testing.T) {
 	})
 }
 
+// SEM@f25790d896e8e128807a3c9a0a517fcbe6f710fe: verify settings service selects the cache implementation
 func TestSettingsService_CacheSelection(t *testing.T) {
 	t.Run("uses memory cache when Redis is nil", func(t *testing.T) {
 		service := NewSettingsService(nil, nil)
@@ -325,6 +334,7 @@ func TestSettingsService_CacheSelection(t *testing.T) {
 // Config only outranks the database for explicitly-configured operational
 // values; a bare struct default must yield, or the settings database is
 // unreachable (#415). See settings_precedence_test.go for that half.
+// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: verify config values take priority over DB settings
 func TestSettingsService_ConfigPriority(t *testing.T) {
 	t.Run("GetString returns config value over database", func(t *testing.T) {
 		service := &SettingsService{
@@ -464,6 +474,7 @@ func TestSettingsService_ConfigPriority(t *testing.T) {
 	})
 }
 
+// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: verify invalidating all cached settings
 func TestSettingsService_InvalidateAll(t *testing.T) {
 	service := &SettingsService{
 		memCache:    make(map[string]settingsCacheEntry),
@@ -492,6 +503,7 @@ func TestSettingsService_InvalidateAll(t *testing.T) {
 	assert.Equal(t, 0, len(service.memCache))
 }
 
+// SEM@2ba6ca336dfda2b02702948deea087afc0b1255b: verify listing settings by key prefix
 func TestSettingsService_ListByPrefix(t *testing.T) {
 	service := &SettingsService{
 		memCache:    make(map[string]settingsCacheEntry),
@@ -506,6 +518,7 @@ func TestSettingsService_ListByPrefix(t *testing.T) {
 	})
 }
 
+// SEM@6452c8ee5c276cfd329d0c343b1947f17cc87218: verify settings service refuses bootstrap keys from the database
 func TestSettingsService_RefusesBootstrapKeyFromDB(t *testing.T) {
 	// A CategoryBootstrap key must never be served from the DB path.
 	svc := NewSettingsService(nil, nil) // no DB, no Redis — exercises the guard
@@ -517,6 +530,7 @@ func TestSettingsService_RefusesBootstrapKeyFromDB(t *testing.T) {
 		"the bootstrap guard error should identify the key as a bootstrap key")
 }
 
+// SEM@6452c8ee5c276cfd329d0c343b1947f17cc87218: verify the bootstrap-key guard applies to the right scope
 func TestSettingsService_BootstrapGuardScope(t *testing.T) {
 	// The bootstrap guard must fire ONLY for bootstrap keys. For a
 	// non-bootstrap key the guard must NOT short-circuit Get: the call should
@@ -555,6 +569,7 @@ func TestSettingsService_BootstrapGuardScope(t *testing.T) {
 	})
 }
 
+// SEM@a3e7b116b059fa4c734b5c77def4c2de21df4dbc: verify storing a plaintext secret is refused in production
 func TestSettingsService_SetRefusesPlaintextSecretInProduction(t *testing.T) {
 	t.Setenv("TMI_BUILD_MODE", "production")
 
@@ -615,6 +630,7 @@ func TestSettingsService_SetRefusesPlaintextSecretInProduction(t *testing.T) {
 	})
 }
 
+// SEM@a3e7b116b059fa4c734b5c77def4c2de21df4dbc: verify storing a plaintext secret is allowed outside production
 func TestSettingsService_SetAllowsPlaintextSecretOutsideProduction(t *testing.T) {
 	t.Setenv("TMI_BUILD_MODE", "dev")
 
@@ -637,6 +653,7 @@ func TestSettingsService_SetAllowsPlaintextSecretOutsideProduction(t *testing.T)
 // SeedDefaults inserts — both the explicit models.DefaultSystemSettings()
 // entries and the config-derived operational defaults it appends — must be
 // stamped SystemSettingOriginSeeded, since no operator has set them.
+// SEM@72dd09a3a2452db4ebcb144ebcf734b0140a67c7: verify seeding defaults stamps the seeded origin
 func TestSettingsService_SeedDefaults_StampsSeededOrigin(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 	svc := NewSettingsService(gormDB, nil)
@@ -666,6 +683,7 @@ func TestSettingsService_SeedDefaults_StampsSeededOrigin(t *testing.T) {
 // operator deliberately wrote this value, so it must stamp explicit origin
 // regardless of what the caller's struct carried in, and it must reflect that
 // back onto the caller's setting the same way it already does for ModifiedAt.
+// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: verify storing a setting stamps the explicit origin
 func TestSettingsService_Set_StampsExplicitOrigin(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 	svc := NewSettingsService(gormDB, nil)
@@ -793,7 +811,7 @@ func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 // Find and its per-row UpdateColumn must be reported as a SettingError, not
 // counted as re-encrypted. A GORM "before update" callback deletes the row
 // out from under the write to simulate that race deterministically.
-// SEM@5740a75fafc8da46a061901361ed61990a6c8916: verify re-encryption reports a concurrently deleted row instead of counting it
+// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: verify re-encryption reports a concurrently deleted row instead of counting it
 func TestSettingsService_ReEncryptAll_ReportsVanishedRow(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 
@@ -837,7 +855,7 @@ func TestSettingsService_ReEncryptAll_ReportsVanishedRow(t *testing.T) {
 	assert.Equal(t, 1, count, "the surviving row is still counted")
 	require.Len(t, settingErrors, 1)
 	assert.Equal(t, "will.vanish", settingErrors[0].Key)
-	assert.Equal(t, "setting no longer exists", settingErrors[0].Error)
+	assert.Contains(t, settingErrors[0].Error, "setting no longer exists")
 
 	var reloadedSurvivor models.SystemSetting
 	require.NoError(t, gormDB.Where("setting_key = ?", "will.survive").First(&reloadedSurvivor).Error)
@@ -846,12 +864,12 @@ func TestSettingsService_ReEncryptAll_ReportsVanishedRow(t *testing.T) {
 	assert.Equal(t, "dark", plain)
 }
 
-// TestSettingsService_ReEncryptAll_RollsBackOnWriteFailure is the #845
-// guard: the pass runs in one transaction, so a database failure on any row
-// must leave every row exactly as it was (no split-key table) and surface as
-// the fatal error, not as a per-setting error.
-// SEM@0000000000000000000000000000000000000000: verify a mid-pass write failure rolls back every re-encrypted row
-func TestSettingsService_ReEncryptAll_RollsBackOnWriteFailure(t *testing.T) {
+// TestSettingsService_ReEncryptAll_KeepsProgressOnWriteFailure is the #965
+// reversal of #845: each row commits on its own, so a database failure part-way
+// keeps the rows already re-encrypted, counts them, surfaces as the fatal
+// error (not a per-setting error), and a retry finishes the rest.
+// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: verify a mid-pass write failure keeps earlier rows re-encrypted and a retry resumes
+func TestSettingsService_ReEncryptAll_KeepsProgressOnWriteFailure(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 
 	key := make([]byte, 32)
@@ -875,8 +893,6 @@ func TestSettingsService_ReEncryptAll_RollsBackOnWriteFailure(t *testing.T) {
 		SettingType: models.SystemSettingTypeString,
 	}).Error)
 
-	// Fail the second UpdateColumn only, so the first row has already been
-	// written inside the transaction when the pass aborts.
 	updates := 0
 	require.NoError(t, gormDB.Callback().Update().Before("gorm:update").
 		Register("test:fail_second_update", func(tx *gorm.DB) {
@@ -889,14 +905,19 @@ func TestSettingsService_ReEncryptAll_RollsBackOnWriteFailure(t *testing.T) {
 	count, settingErrors, err := svc.ReEncryptAll(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "simulated write failure")
-	assert.Equal(t, 0, count)
+	assert.Equal(t, 1, count, "the row committed before the failure is counted")
 	assert.Empty(t, settingErrors, "a database failure is fatal, not per-setting")
 
 	var first, second models.SystemSetting
 	require.NoError(t, gormDB.Where("setting_key = ?", "first.row").First(&first).Error)
 	require.NoError(t, gormDB.Where("setting_key = ?", "second.row").First(&second).Error)
-	assert.Equal(t, "60", string(first.Value), "first row must be rolled back to plaintext")
+	assert.True(t, crypto.IsEncrypted(string(first.Value)), "first row stays re-encrypted")
 	assert.Equal(t, "dark", string(second.Value), "second row must be untouched")
+
+	// Retry resumes: only the remaining row is converted.
+	count, _, err = svc.ReEncryptAll(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
 }
 
 // A missing row is negative-cached so unauthenticated hot paths do not pay a
@@ -1002,4 +1023,121 @@ func TestSettingsService_PlaintextKeys(t *testing.T) {
 	got, err = svc.PlaintextKeys(context.Background(), keys)
 	require.NoError(t, err)
 	assert.Empty(t, got)
+}
+
+// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: store an encrypted setting row for a re-encryption test
+func seedEncrypted(t *testing.T, gormDB *gorm.DB, enc *crypto.SettingsEncryptor, key, plaintext string) {
+	t.Helper()
+	v, err := enc.Encrypt(plaintext)
+	require.NoError(t, err)
+	require.NoError(t, gormDB.Create(&models.SystemSetting{SettingKey: models.DBVarchar(key), Value: models.DBText(v), SettingType: models.SystemSettingTypeString, ModifiedAt: time.Now()}).Error)
+}
+
+// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: verify re-encryption touches only rows not under the current key id and a second pass is a no-op
+func TestReEncryptAll_ResumesAndOnlyTouchesStaleRows(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+	k1, k2 := bytes.Repeat([]byte{1}, 32), bytes.Repeat([]byte{2}, 32)
+	old, _ := crypto.NewSettingsEncryptorFromKeyring(k1, 1, nil, 0)
+	cur, _ := crypto.NewSettingsEncryptorFromKeyring(k2, 2, k1, 1)
+	for i := 0; i < 250; i++ {
+		seedEncrypted(t, gormDB, old, fmt.Sprintf("k.%03d", i), fmt.Sprintf("v%d", i))
+	}
+	seedEncrypted(t, gormDB, cur, "already.current", "fresh")
+	require.NoError(t, gormDB.Create(&models.SystemSetting{SettingKey: "plain", Value: "text", SettingType: models.SystemSettingTypeString, ModifiedAt: time.Now()}).Error)
+
+	svc := NewSettingsService(gormDB, nil)
+	svc.SetEncryptor(cur)
+	n, errs, err := svc.ReEncryptAll(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, errs)
+	require.Equal(t, 251, n, "250 stale rows + 1 plaintext; the current row is untouched")
+
+	stale, err := svc.CountValuesWithContextID(context.Background(), 1)
+	require.NoError(t, err)
+	require.Zero(t, stale)
+	var row models.SystemSetting
+	require.NoError(t, gormDB.Where("setting_key = ?", "k.000").First(&row).Error)
+	require.True(t, strings.HasPrefix(string(row.Value), "ENC:v1:2:"))
+	got, err := cur.Decrypt(string(row.Value))
+	require.NoError(t, err)
+	require.Equal(t, "v0", got)
+
+	n, _, err = svc.ReEncryptAll(context.Background())
+	require.NoError(t, err)
+	require.Zero(t, n)
+}
+
+// SEM@a8faae4b8a18111a1bc7551087b27c58c46ec86e: verify a row no key can open is reported once, skipped, and does not stop other rows
+func TestReEncryptAll_UndecryptableRowIsSkippedOnce(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+	k1, k2, k3 := bytes.Repeat([]byte{1}, 32), bytes.Repeat([]byte{2}, 32), bytes.Repeat([]byte{3}, 32)
+	stranger, _ := crypto.NewSettingsEncryptorFromKeyring(k3, 9, nil, 0)
+	old, _ := crypto.NewSettingsEncryptorFromKeyring(k1, 1, nil, 0)
+	cur, _ := crypto.NewSettingsEncryptorFromKeyring(k2, 2, k1, 1)
+	seedEncrypted(t, gormDB, stranger, "bad", "x")
+	seedEncrypted(t, gormDB, old, "good", "y")
+	var badRow models.SystemSetting
+	require.NoError(t, gormDB.Where("setting_key = ?", "bad").First(&badRow).Error)
+	badBefore := string(badRow.Value)
+
+	svc := NewSettingsService(gormDB, nil)
+	svc.SetEncryptor(cur)
+	n, errs, err := svc.ReEncryptAll(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	require.Len(t, errs, 1)
+	require.Equal(t, "bad", errs[0].Key)
+
+	var bad models.SystemSetting
+	require.NoError(t, gormDB.Where("setting_key = ?", "bad").First(&bad).Error)
+	require.Equal(t, badBefore, string(bad.Value), "undecryptable row keeps its original ciphertext")
+}
+
+// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: verify re-encryption leaves modified_at and modified_by unchanged
+func TestReEncryptAll_PreservesAuditFields(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+	k1, k2 := bytes.Repeat([]byte{1}, 32), bytes.Repeat([]byte{2}, 32)
+	old, _ := crypto.NewSettingsEncryptorFromKeyring(k1, 1, nil, 0)
+	cur, _ := crypto.NewSettingsEncryptorFromKeyring(k2, 2, k1, 1)
+	v, _ := old.Encrypt("s")
+	then := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	require.NoError(t, gormDB.Create(&models.SystemSetting{SettingKey: "a", Value: models.DBText(v), SettingType: models.SystemSettingTypeString, ModifiedAt: then, ModifiedBy: models.NullableDBVarchar{String: "someone", Valid: true}}).Error)
+	svc := NewSettingsService(gormDB, nil)
+	svc.SetEncryptor(cur)
+	_, _, err := svc.ReEncryptAll(context.Background())
+	require.NoError(t, err)
+	var row models.SystemSetting
+	require.NoError(t, gormDB.Where("setting_key = ?", "a").First(&row).Error)
+	require.Equal(t, then.Unix(), row.ModifiedAt.Unix())
+	require.Equal(t, models.NullableDBVarchar{String: "someone", Valid: true}, row.ModifiedBy)
+}
+
+// TestSettingsService_ReEncryptAll_RetriesBatchQuery fails the first batch
+// listing with a transient error and checks the retry re-queries (a reused
+// GORM chain would replay the stored error) and the rows still get converted.
+// SEM@f8fb0cf9bf71ed4f21118aa813b9f9dea753beb3: verify re-encryption batch listing is retried with a fresh query after a transient error
+func TestSettingsService_ReEncryptAll_RetriesBatchQuery(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+	key := make([]byte, 32)
+	enc, err := crypto.NewSettingsEncryptorFromKeys(key, nil, 1)
+	require.NoError(t, err)
+	svc := NewSettingsService(gormDB, nil)
+	svc.SetEncryptor(enc)
+	require.NoError(t, gormDB.Create(&models.SystemSetting{
+		SettingKey: "retry.key", Value: "plain", SettingType: models.SystemSettingTypeString,
+	}).Error)
+
+	failed := false
+	require.NoError(t, gormDB.Callback().Query().Before("gorm:query").Register("test:fail_once", func(d *gorm.DB) {
+		if !failed {
+			failed = true
+			_ = d.AddError(dberrors.ErrTransient)
+		}
+	}))
+
+	n, errs, err := svc.ReEncryptAll(context.Background())
+	require.NoError(t, err)
+	assert.True(t, failed)
+	assert.Equal(t, 1, n)
+	assert.Empty(t, errs)
 }

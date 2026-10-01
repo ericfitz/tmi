@@ -16,7 +16,7 @@ import (
 )
 
 // SettingsServiceInterface defines the operations needed by handlers on settings.
-// SEM@2ba6ca336dfda2b02702948deea087afc0b1255b: interface for reading, writing, and managing database-stored system settings
+// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: interface for reading, writing, and managing database-stored system settings
 type SettingsServiceInterface interface {
 	Get(ctx context.Context, key string) (*models.SystemSetting, error)
 	GetString(ctx context.Context, key string) (string, error)
@@ -34,6 +34,7 @@ type SettingsServiceInterface interface {
 	Delete(ctx context.Context, key string) error
 	SeedDefaults(ctx context.Context) error
 	ReEncryptAll(ctx context.Context) (int, []SettingError, error)
+	CountValuesWithContextID(ctx context.Context, id int) (int64, error)
 }
 
 // Server is the main API server instance

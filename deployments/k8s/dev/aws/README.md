@@ -95,6 +95,21 @@ all". Consequently:
   `platform/nats.yml` base (to add a real `volumeClaimTemplate`), not to this
   overlay.
 
+### Redis persistence (#965)
+
+Redis keeps sessions and refresh tokens on a PVC with an append-only file, so
+rotations and cert-renewal rolls do not log every user out. The base
+`redis.yml` defines the `redis-data` PVC (1Gi, no `storageClassName`) and
+`patches/redis-storageclass.yaml` sets it to `gp3`. Terraform
+(`terraform/modules/kubernetes/aws/main.tf`) installs the EBS CSI driver addon
+(one controller replica, IRSA role) and creates the `gp3` StorageClass
+(`WaitForFirstConsumer`). The first `kubectl apply -k` after the Terraform
+apply creates the volume, which takes about a minute before Redis is Ready.
+The Deployment uses `strategy: Recreate` because the volume is
+ReadWriteOnce. On any restart Redis rebuilds the `default` user from
+`--requirepass` (the current `tmi-secrets` value); ACL changes are not
+persisted, which the password rotation relies on.
+
 ### 2. Ingress subnets — no explicit annotation needed
 
 The brief asked whether `terraform/modules/network/aws/main.tf` tags public
@@ -222,9 +237,25 @@ holds more than ephemeral state.
 
 ## Settings-at-rest encryption (#547)
 
-`patches/server-config.yaml` injects `TMI_SECRET_SETTINGS_ENCRYPTION_KEY` from
-the terraform-owned `tmi-secrets` Secret. The name matters: this deployment
-configures no secrets provider, so `internal/secrets/provider.go` falls back to
+`tmi-secrets` is **seeded** by Terraform on the first apply and **owned by the
+tmi-rotator CronJob afterwards** (#965): `kubernetes_secret_v1.tmi` has
+`ignore_changes` on `data` and annotations, so later applies never reset a
+rotated Redis password or settings key. The Redis password and settings key no
+longer have Secrets Manager copies. The server reads the key from
+`TMI_SECRET_SETTINGS_ENCRYPTION_KEY` (with the context-id and previous-key
+variants; see `deployments/k8s/dev/server.yml`) injected from `tmi-secrets`.
+
+Consequences of `ignore_changes = [data, ...]` on `tmi-secrets`:
+
+- Terraform no longer updates `TMI_DATABASE_URL` or `TMI_JWT_SECRET` there.
+  After an RDS endpoint or password change, patch `tmi-secrets` manually with
+  `kubectl patch --patch-file` (a umask-077 file; never put values in argv).
+- Never `terraform apply -replace`, taint, or delete `tmi-secrets` (or the
+  namespace) on AWS while RDS holds encrypted settings: Terraform would reseed
+  the ORIGINAL settings key, and every `ENC:` row written under a rotated key
+  becomes unreadable.
+
+The name matters: this deployment configures no secrets provider, so `internal/secrets/provider.go` falls back to
 the `EnvProvider`, which maps the secret key `settings_encryption_key` to
 `TMI_SECRET_<KEY>`. The value is a 32-byte AES-256-GCM key rendered as 64 hex
 characters (`random_id.settings_encryption_key.hex` in
@@ -248,9 +279,14 @@ Two things this does **not** do:
 - **It does not cover `dbtool`.** `cmd/dbtool/config.go` builds its own
   secrets provider from its own config file, so `--import-config` would write
   plaintext even with the server correctly configured. `scripts/deploy-aws.sh`
-  therefore points dbtool's transient connect config at Secrets Manager
-  (`secrets.provider: aws`), letting it read the key under the deployer's own
-  AWS identity rather than passing the value through the environment.
+  therefore materialises the settings keyring from `tmi-secrets` into a
+  umask-077 temp directory and points dbtool's transient connect config at it
+  (`secrets.provider: file`), so the values never reach argv or the
+  environment.
+
+The stale-secret alarm (`tmi-secret-rotation-stale`) alarms on a day with no
+`rotation status` datapoint (`treat_missing_data = breaching`), so a fresh
+cluster alarms until the rotator's first run.
 
 ## ConfigMap flat keys — naming bug fixed, and now wired via `envFrom`
 

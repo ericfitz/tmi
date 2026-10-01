@@ -336,9 +336,12 @@ type AlertingConfig struct {
 }
 
 // SecretsConfig holds configuration for external secret providers
-// SEM@fe6575f1c15d84b67ee9853a0e59055c1ebe44b6: configuration struct for external secret-provider selection and per-provider connection settings (pure)
+// SEM@abca39ee1a644fe8e73eba37033a3eb67a12ae38: configuration struct for external secret-provider selection and per-provider connection settings (pure)
 type SecretsConfig struct {
-	Provider string `yaml:"provider" env:"TMI_SECRETS_PROVIDER"` // "env" (default), "vault", "aws"
+	Provider string `yaml:"provider" env:"TMI_SECRETS_PROVIDER"` // "env" (default), "file", "vault", "aws"
+
+	// Directory holding one file per secret key (provider "file").
+	FileDir string `yaml:"file_dir" env:"TMI_SECRETS_FILE_DIR"`
 
 	// HashiCorp Vault (design only - implementation deferred)
 	VaultAddress string `yaml:"vault_address" env:"TMI_VAULT_ADDRESS"`
@@ -351,7 +354,7 @@ type SecretsConfig struct {
 }
 
 // Load loads configuration from YAML file with environment variable overrides
-// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: load and validate server configuration from a YAML file with env-var overrides (reads files, reads env)
+// SEM@1a4ca5f99be4a25df66b2836e9b9f4c87628184a: load and validate server configuration from a YAML file with env-var overrides (reads files, reads env)
 func Load(configFile string) (*Config, error) {
 	return loadConfig(configFile, true)
 }
@@ -372,12 +375,12 @@ func Load(configFile string) (*Config, error) {
 // Callers get a Config whose operational fields reflect the file and whose
 // bootstrap fields are defaults; only GetMigratableSettings() output is
 // meaningful. Do NOT use this to configure a running server.
-// SEM@0000000000000000000000000000000000000000: load an operational-settings-only YAML without bootstrap validation (reads files, reads env)
+// SEM@1a4ca5f99be4a25df66b2836e9b9f4c87628184a: load operational-settings config from YAML without bootstrap validation (reads files, reads env)
 func LoadSettingsSource(configFile string) (*Config, error) {
 	return loadConfig(configFile, false)
 }
 
-// SEM@0000000000000000000000000000000000000000: load configuration from YAML with env overrides, optionally validating bootstrap keys (reads files, reads env)
+// SEM@d0dd04daab6a17c9492d01d80920f869be8a735a: load config from YAML with env overrides, optionally validating bootstrap keys (reads files, reads env)
 func loadConfig(configFile string, validateBootstrap bool) (*Config, error) {
 	config := getDefaultConfig()
 
@@ -1078,7 +1081,7 @@ func (c *Config) ResolveSecretReferences(ctx context.Context, vault SecretResolv
 // NOTE: Timmy config is CategoryOperational (DB-seeded as of #415), so this is
 // NOT called from Load()-time Validate(). It is retained as a unit-testable
 // validator and may be invoked by callers that hold an effective Config.
-// SEM@0000000000000000000000000000000000000000: validate dev-only Timmy flags and LLM provider recognition (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: validate dev-only Timmy flags and LLM provider settings (pure)
 func (c *Config) validateTimmy() error {
 	if c.Timmy.DumpExtractedTextToNote && c.Auth.BuildMode == "production" {
 		return fmt.Errorf("timmy.dump_extracted_text_to_note is a dev/test-only flag; set TMI_BUILD_MODE != production or disable TMI_TIMMY_DUMP_EXTRACTED_TEXT_TO_NOTE")

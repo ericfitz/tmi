@@ -230,6 +230,7 @@ var exactClassifications = map[string]ConfigClass{
 	"secrets.vault_address":   bootstrapClass(false, VisibilityInternal, false),
 	"secrets.vault_path":      bootstrapClass(false, VisibilityInternal, false),
 	"secrets.vault_token":     bootstrapClass(false, VisibilityInternal, true),
+	"secrets.file_dir":        bootstrapClass(false, VisibilityInternal, false),
 	"secrets.aws_region":      bootstrapClass(false, VisibilityInternal, false),
 	"secrets.aws_secret_name": bootstrapClass(false, VisibilityInternal, false),
 

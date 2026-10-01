@@ -127,6 +127,16 @@ var miscSettingDefs = []SettingDef{
 		Get:         func(c *Config) string { return c.Secrets.VaultToken },
 	},
 	{
+		Key:           "secrets.file_dir",
+		Class:         classificationFor("secrets.file_dir"),
+		Type:          "string",
+		Description:   "Directory holding one file per secret key (provider \"file\")",
+		YAMLPath:      "secrets.file_dir",
+		EnvVar:        "TMI_SECRETS_FILE_DIR",
+		Get:           func(c *Config) string { return c.Secrets.FileDir },
+		OmitWhenEmpty: true,
+	},
+	{
 		Key:           "secrets.aws_region",
 		Class:         classificationFor("secrets.aws_region"),
 		Type:          "string",

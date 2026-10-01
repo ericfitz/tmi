@@ -10,6 +10,7 @@ resources:
   - ../controller.yml
   - ../redis.yml
   - ../server.yml
+  - ../rotator.yml
   - ../../platform/components/tmi-extractor.yml
   - ../../platform/components/tmi-chunk-embed.yml
 images:
@@ -22,6 +23,10 @@ patches:
     target:
       kind: Deployment
       name: tmi-server
+  - path: patches/rotator-pullpolicy.yaml
+    target:
+      kind: CronJob
+      name: tmi-rotator
   - path: patches/redis-pullpolicy.yaml
     target:
       kind: Deployment

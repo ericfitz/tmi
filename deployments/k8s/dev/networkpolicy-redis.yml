@@ -36,6 +36,9 @@ spec:
         - podSelector:
             matchLabels:
               app: tmi-server
+        - podSelector:
+            matchLabels:
+              app: tmi-rotator
       ports:
         - protocol: TCP
           port: 6379

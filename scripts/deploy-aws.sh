@@ -1113,8 +1113,31 @@ import_config() {
     local tmp_dir
     tmp_dir=$(mktemp -d)
     TMPDIR_TO_CLEAN="${tmp_dir}"
-    ( umask 077
-      cat > "${tmp_dir}/dbtool-connect.yaml" <<EOF
+    umask 077
+
+    # Settings keyring from tmi-secrets (#965): one file per secret key, the
+    # names internal/secrets/provider.go SecretKeys uses. The previous pair is
+    # only present mid-rotation; an absent key leaves no file, which the
+    # provider treats as not found. Values go straight from kubectl to disk.
+    mkdir -p "${tmp_dir}/keyring"
+    kubectl -n "${NAMESPACE}" get secret tmi-secrets -o json \
+        | jq -r --arg d "${tmp_dir}/keyring" '
+            .data // {} | to_entries[]
+            | select(.key | test("^TMI_SECRET_SETTINGS_ENCRYPTION_(KEY|CONTEXT_ID|PREVIOUS_KEY|PREVIOUS_CONTEXT_ID)$"))
+            | "\(.key)\t\(.value)"' \
+        | while IFS=$'\t' read -r name b64; do
+            lower="$(printf '%s' "${name#TMI_SECRET_}" | tr '[:upper:]' '[:lower:]')"
+            printf '%s' "${b64}" | base64 -d > "${tmp_dir}/keyring/${lower}"
+        done || {
+        log_error "cannot read tmi-secrets from the cluster"
+        exit 1
+    }
+    [[ -s "${tmp_dir}/keyring/settings_encryption_key" ]] || {
+        log_error "tmi-secrets has no TMI_SECRET_SETTINGS_ENCRYPTION_KEY; cannot encrypt the imported config"
+        exit 1
+    }
+
+    ( cat > "${tmp_dir}/dbtool-connect.yaml" <<EOF
 server:
   port: "8080"
   interface: "0.0.0.0"
@@ -1127,25 +1150,17 @@ auth:
   build_mode: "test"
   jwt:
     secret: "deploy-aws-transient-connect-only"
-# Settings-at-rest encryption for the imported config (#547).
+# Settings-at-rest encryption for the imported config (#547, #965).
 #
 # cmd/dbtool/config.go builds its OWN secrets provider from this file. Left
 # unset it defaults to the EnvProvider, finds no key, and writes every
-# Secret-classified setting (the OAuth client secrets among them) to RDS as
-# PLAINTEXT — silently, and regardless of the server being configured to
-# encrypt, because the server never re-writes rows the import just created.
-#
-# Pointing dbtool at Secrets Manager rather than exporting the key into this
-# script's environment is deliberate: dbtool authenticates with the deployer's
-# own AWS identity and reads the value directly, so the key never lands in a
-# shell variable, in argv, or in the environment of any process this script
-# spawns. aws_secret_name must match the secret created by
-# terraform/modules/secrets/aws, whose JSON payload carries the
-# "settings_encryption_key" property internal/secrets/aws_provider.go looks up.
+# Secret-classified setting to RDS as PLAINTEXT. The "file" provider reads the
+# keyring this function materialised from Secret/tmi-secrets (one file per
+# secret key) into ${tmp_dir}/keyring, so the values never reach a shell
+# variable, argv or the environment.
 secrets:
-  provider: "aws"
-  aws_region: "${REGION}"
-  aws_secret_name: "${NAME_PREFIX}-settings-encryption-key"
+  provider: "file"
+  file_dir: "${tmp_dir}/keyring"
 EOF
     )
     unset db_password_encoded
