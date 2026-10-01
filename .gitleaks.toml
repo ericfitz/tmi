@@ -39,3 +39,9 @@ paths = [
   '''api/api\.go''',
   '''api-schema/tmi-openapi\.json''',
 ]
+regexes = [
+  # Alphanumeric alphabet constant used to generate passwords (internal/rotator).
+  '''^ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789$''',
+  # Elided placeholder PEM in docs ("-----BEGIN ... KEY-----\n...\n").
+  '''-----BEGIN [A-Z ]*KEY-----\\n\.\.\.\\n''',
+]
