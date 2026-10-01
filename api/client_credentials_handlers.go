@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/unicodecheck"
@@ -363,8 +364,8 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId 
 			})
 			return
 		}
-		if errors.Is(err, dberrors.ErrTransient) {
-			logger.Warn("Transient DB error deleting client credential: %v", err)
+		if errors.Is(err, dberrors.ErrTransient) || errors.Is(err, auth.ErrRevocationStorage) {
+			logger.Warn("Transient error deleting client credential (nothing deleted if revocation failed): %v", err)
 			c.Header("Retry-After", "30")
 			c.JSON(http.StatusServiceUnavailable, Error{
 				Error:            "service_unavailable",
