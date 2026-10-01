@@ -44,3 +44,13 @@ func TestSanitizeMarkdownContent_XSSStillNeutralized(t *testing.T) {
 	}
 	assert.Equal(t, `"q" ok`, SanitizeMarkdownContent(`<script>x</script>"q" ok`))
 }
+
+func TestSanitizeMarkdownContent_VoidElementsKeepFollowingText(t *testing.T) {
+	for _, in := range []string{"<embed src=x> rest of note", "<applet> rest of note", "<frame> rest of note"} {
+		got := SanitizeMarkdownContent(in)
+		assert.Contains(t, got, "rest of note", in)
+		assert.NotContains(t, got, "<embed", in)
+		assert.NotContains(t, got, "<applet", in)
+		assert.NotContains(t, got, "<frame", in)
+	}
+}

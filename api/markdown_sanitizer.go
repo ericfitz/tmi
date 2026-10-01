@@ -116,9 +116,11 @@ func SanitizeMarkdownContent(content string) string {
 }
 
 // markdownSkipContent lists elements whose entire content is dropped with the tag.
+// Void or rarely-closed elements (embed, applet, frame) are left out: skipping
+// their "content" would swallow the rest of the note; bluemonday drops the tag.
 var markdownSkipContent = map[string]bool{
-	"applet": true, "frame": true, "frameset": true, "iframe": true,
-	"embed": true, "object": true, "script": true, "style": true, "noscript": true,
+	"frameset": true, "iframe": true,
+	"object": true, "script": true, "style": true, "noscript": true,
 }
 
 // SEM@0000000: remove disallowed HTML markup in one pass, copying text tokens unchanged (pure)
