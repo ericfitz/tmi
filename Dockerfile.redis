@@ -23,6 +23,6 @@ USER redis
 # Pass TMI-specific configuration flags as CMD
 CMD ["--appendonly", "yes", \
      "--maxmemory", "256mb", \
-     "--maxmemory-policy", "allkeys-lru", \
+     "--maxmemory-policy", "noeviction", \
      "--bind", "0.0.0.0", \
      "--protected-mode", "no"]
