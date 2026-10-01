@@ -1521,7 +1521,7 @@ func TestBuildContentProviders_PickerConfigDeepCopy(t *testing.T) {
 // The pass runs in one transaction (#845), so a database failure is a whole-
 // request failure and must be reported as 503 (transient, retry) or 500, never
 // as the 409 "encryption_not_enabled" precondition.
-// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: verify reencrypt maps not-enabled to 409, transient DB failure to 503, other failure to 500
+// SEM@0000000: verify reencrypt maps not-enabled and unreadable-cap to 409, transient DB failure to 503, other failure to 500
 func TestReencryptSystemSettings_ErrorMapping(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
@@ -1536,6 +1536,7 @@ func TestReencryptSystemSettings_ErrorMapping(t *testing.T) {
 	}{
 		{"not enabled", ErrEncryptionNotEnabled, http.StatusConflict, "encryption_not_enabled"},
 		{"transient rolled back", fmt.Errorf("transaction failed after 3 attempts: %w", dberrors.Wrap(errors.New("ORA-08177"), dberrors.ErrTransient)), http.StatusServiceUnavailable, "service_unavailable"},
+		{"unreadable cap", fmt.Errorf("%w: 900 settings are unreadable", ErrTooManyUnreadableSettings), http.StatusConflict, "unreadable_settings_limit"},
 		{"other failure", errors.New("boom"), http.StatusInternalServerError, "internal_error"},
 	}
 	for _, tc := range cases {
