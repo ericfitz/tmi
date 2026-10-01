@@ -16,7 +16,7 @@ import (
 )
 
 // SettingsServiceInterface defines the operations needed by handlers on settings.
-// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: interface for reading, writing, and managing database-stored system settings
+// SEM@3b682947: interface for reading, writing, and managing database-stored system settings
 type SettingsServiceInterface interface {
 	Get(ctx context.Context, key string) (*models.SystemSetting, error)
 	GetString(ctx context.Context, key string) (string, error)
@@ -38,7 +38,7 @@ type SettingsServiceInterface interface {
 }
 
 // Server is the main API server instance
-// SEM@42ef5843bbac0234c5e9af2e1ed89f0c5f366f44: main API server holding all handlers, services, and subsystem dependencies
+// SEM@3b682947: main API server holding all handlers, services, and subsystem dependencies
 type Server struct {
 	// Handlers
 	threatModelHandler *ThreatModelHandler

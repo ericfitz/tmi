@@ -51,7 +51,7 @@ const (
 
 // NewProvider creates a new secrets provider based on configuration.
 // If no provider is configured, it defaults to the environment variable provider.
-// SEM@abca39ee1a644fe8e73eba37033a3eb67a12ae38: build a secrets provider from config, defaulting to env
+// SEM@3b682947: build a secrets provider from config, defaulting to env
 func NewProvider(ctx context.Context, cfg *config.SecretsConfig) (Provider, error) {
 	logger := slogging.Get()
 

@@ -123,7 +123,7 @@ func (m *MockSettingsService) ReEncryptAll(ctx context.Context) (int, []SettingE
 	return 0, nil, m.reencryptErr
 }
 
-// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: return zero stale rows for handler tests (pure)
+// SEM@3b682947: return zero stale rows for handler tests (pure)
 func (m *MockSettingsService) CountValuesWithContextID(ctx context.Context, id int) (int64, error) {
 	return 0, nil
 }
@@ -1560,7 +1560,7 @@ func TestReencryptSystemSettings_ErrorMapping(t *testing.T) {
 	}
 }
 
-// SEM@f2ea1d518ec8795172d7958ce59d0ba011c7ae17: verify successful re-encryption returns an empty errors array
+// SEM@3b682947: verify successful re-encryption returns an empty errors array
 func TestReencryptSystemSettings_SuccessErrorsIsEmptyArray(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)

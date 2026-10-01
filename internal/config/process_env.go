@@ -7,7 +7,7 @@ package config
 // (which doubles as the TMI_* allowlist) by GenerateReferenceMarkdown. The
 // gate test in process_env_test.go fails when a TMI_* token appears in Go
 // source without being declared here or in the registry (#810).
-// SEM@4077bab0af75093efb1660aa34801b2c752c9c0f: describe an env var a binary reads outside the config registry (pure)
+// SEM@3b682947: describe an env var a binary reads outside the config registry (pure)
 type ProcessEnvVar struct {
 	// Name is the exact variable name or, for a Pattern, the documented
 	// shape with the operator-supplied part in angle brackets, e.g.
@@ -84,7 +84,7 @@ var processEnvVars = []ProcessEnvVar{
 
 // ProcessEnvVars returns a copy of the process-environment inventory, so
 // callers cannot mutate it.
-// SEM@4077bab0af75093efb1660aa34801b2c752c9c0f: list a defensive copy of the process-environment env var inventory (pure)
+// SEM@3b682947: list a defensive copy of the process-environment env var inventory (pure)
 func ProcessEnvVars() []ProcessEnvVar {
 	out := make([]ProcessEnvVar, len(processEnvVars))
 	copy(out, processEnvVars)

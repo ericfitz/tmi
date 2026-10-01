@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// SEM@3e2183271c16649b3d80fa48b96095d22676d4be: verify rotator options load defaults and environment overrides
+// SEM@3b682947: verify rotator options load defaults and environment overrides
 func TestLoadOptions_DefaultsAndOverrides(t *testing.T) {
 	o, err := loadOptions(func(string) string { return "" })
 	require.NoError(t, err)
@@ -30,7 +30,7 @@ func TestLoadOptions_DefaultsAndOverrides(t *testing.T) {
 	require.Error(t, err)
 }
 
-// SEM@3e2183271c16649b3d80fa48b96095d22676d4be: verify Redis authentication errors are recognized
+// SEM@3b682947: verify Redis authentication errors are recognized
 func TestIsRedisAuthError(t *testing.T) {
 	require.True(t, isRedisAuthError(errString("WRONGPASS invalid username-password pair")))
 	require.True(t, isRedisAuthError(errString("NOAUTH Authentication required")))
@@ -38,8 +38,8 @@ func TestIsRedisAuthError(t *testing.T) {
 	require.False(t, isRedisAuthError(nil))
 }
 
-// SEM@3e2183271c16649b3d80fa48b96095d22676d4be: string-backed error type for rotator tests
+// SEM@3b682947: string-backed error type for rotator tests
 type errString string
 
-// SEM@3e2183271c16649b3d80fa48b96095d22676d4be: return the error message string (pure)
+// SEM@3b682947: return the error message string (pure)
 func (e errString) Error() string { return string(e) }

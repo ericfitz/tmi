@@ -422,7 +422,7 @@ func TestEmptyPlaintext(t *testing.T) {
 	}
 }
 
-// SEM@4124923111c3953ff57a47b3a830053810b6cfcd: test that decrypt selects the key by envelope id
+// SEM@3b682947: test that decrypt selects the key by envelope id
 func TestKeyring_DecryptSelectsByID(t *testing.T) {
 	k1 := bytes.Repeat([]byte{1}, 32)
 	k2 := bytes.Repeat([]byte{2}, 32)
@@ -448,7 +448,7 @@ func TestKeyring_DecryptSelectsByID(t *testing.T) {
 	require.False(t, ok)
 }
 
-// SEM@4124923111c3953ff57a47b3a830053810b6cfcd: test that an unknown key id falls back to trying each key
+// SEM@3b682947: test that an unknown key id falls back to trying each key
 func TestKeyring_LegacyIDFallsBackToTrial(t *testing.T) {
 	k1 := bytes.Repeat([]byte{1}, 32)
 	k2 := bytes.Repeat([]byte{2}, 32)
@@ -461,7 +461,7 @@ func TestKeyring_LegacyIDFallsBackToTrial(t *testing.T) {
 	require.Equal(t, "legacy", got)
 }
 
-// SEM@4124923111c3953ff57a47b3a830053810b6cfcd: test that decrypting a value whose key was dropped fails
+// SEM@3b682947: test that decrypting a value whose key was dropped fails
 func TestDecrypt_UnknownIDAfterDrop(t *testing.T) {
 	k1 := bytes.Repeat([]byte{1}, 32)
 	k2 := bytes.Repeat([]byte{2}, 32)

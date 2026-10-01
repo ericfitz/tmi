@@ -19,7 +19,7 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
-// SEM@3e2183271c16649b3d80fa48b96095d22676d4be: configuration options for the secret rotator
+// SEM@3b682947: configuration options for the secret rotator
 type options struct {
 	Force                 string
 	Namespace             string
@@ -35,8 +35,8 @@ type options struct {
 	OracleWallet          string
 }
 
-// SEM@3e2183271c16649b3d80fa48b96095d22676d4be: read rotator settings from the environment with defaults (pure)
-// SEM@3e2183271c16649b3d80fa48b96095d22676d4be: parse rotator options from the environment with defaults (pure)
+// SEM@3b682947: read rotator settings from the environment with defaults (pure)
+// SEM@3b682947: parse rotator options from the environment with defaults (pure)
 func loadOptions(getenv func(string) string) (options, error) {
 	get := func(k, def string) string {
 		if v := getenv(k); v != "" {
@@ -69,8 +69,8 @@ func loadOptions(getenv func(string) string) (options, error) {
 	return o, nil
 }
 
-// SEM@3e2183271c16649b3d80fa48b96095d22676d4be: detect a Redis authentication rejection from an error (pure)
-// SEM@3e2183271c16649b3d80fa48b96095d22676d4be: validate whether an error is a Redis authentication failure (pure)
+// SEM@3b682947: detect a Redis authentication rejection from an error (pure)
+// SEM@3b682947: validate whether an error is a Redis authentication failure (pure)
 func isRedisAuthError(err error) bool {
 	if err == nil {
 		return false
@@ -79,13 +79,13 @@ func isRedisAuthError(err error) bool {
 	return strings.Contains(m, "WRONGPASS") || strings.Contains(m, "NOAUTH")
 }
 
-// SEM@3e2183271c16649b3d80fa48b96095d22676d4be: run the rotator and exit with its status code
+// SEM@3b682947: run the rotator and exit with its status code
 func main() {
 	os.Exit(run())
 }
 
-// SEM@3e2183271c16649b3d80fa48b96095d22676d4be: wire cluster, Redis and DB clients and run every rotation; return the exit code
-// SEM@3e2183271c16649b3d80fa48b96095d22676d4be: wire cluster, Redis and DB clients and run every rotation; return the exit code
+// SEM@3b682947: wire cluster, Redis and DB clients and run every rotation; return the exit code
+// SEM@3b682947: wire cluster, Redis and DB clients and run every rotation; return the exit code
 func run() int {
 	logger := slogging.Get()
 	o, err := loadOptions(os.Getenv)

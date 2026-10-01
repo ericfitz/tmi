@@ -733,7 +733,7 @@ func TestSettingsService_Set_StampsExplicitOrigin(t *testing.T) {
 // operational key would suddenly out-rank config) and it must NOT touch
 // modified_by or modified_at (the #794 origin backfill reads modified_by as
 // operator intent, and a nil actor used to clear it to NULL).
-// SEM@9a4d6109d4ad52d5adc53c0fe0d9925022535958: verify re-encryption rotates ciphertext but leaves origin and audit fields untouched
+// SEM@3b682947: verify re-encryption rotates ciphertext but leaves origin and audit fields untouched
 func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 
@@ -811,7 +811,7 @@ func TestSettingsService_ReEncryptAll_PreservesOrigin(t *testing.T) {
 // Find and its per-row UpdateColumn must be reported as a SettingError, not
 // counted as re-encrypted. A GORM "before update" callback deletes the row
 // out from under the write to simulate that race deterministically.
-// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: verify re-encryption reports a concurrently deleted row instead of counting it
+// SEM@3b682947: verify re-encryption reports a concurrently deleted row instead of counting it
 func TestSettingsService_ReEncryptAll_ReportsVanishedRow(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 
@@ -868,7 +868,7 @@ func TestSettingsService_ReEncryptAll_ReportsVanishedRow(t *testing.T) {
 // reversal of #845: each row commits on its own, so a database failure part-way
 // keeps the rows already re-encrypted, counts them, surfaces as the fatal
 // error (not a per-setting error), and a retry finishes the rest.
-// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: verify a mid-pass write failure keeps earlier rows re-encrypted and a retry resumes
+// SEM@3b682947: verify a mid-pass write failure keeps earlier rows re-encrypted and a retry resumes
 func TestSettingsService_ReEncryptAll_KeepsProgressOnWriteFailure(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 
@@ -922,7 +922,7 @@ func TestSettingsService_ReEncryptAll_KeepsProgressOnWriteFailure(t *testing.T) 
 
 // A missing row is negative-cached so unauthenticated hot paths do not pay a
 // DB round trip per request for keys that are never seeded (#770).
-// SEM@42f901dab9ff2a3942068435a791d370c03c8f6b: verify a missing setting is negative-cached in memory until invalidated
+// SEM@3b682947: verify a missing setting is negative-cached in memory until invalidated
 func TestSettingsService_NegativeCache(t *testing.T) {
 	ctx := context.Background()
 	gormDB := setupSettingsTestDB(t)
@@ -958,7 +958,7 @@ func TestSettingsService_NegativeCache(t *testing.T) {
 
 // Same contract on the Redis tier, which is what production runs: the
 // tombstone is the literal "null", which unmarshals to a zero SystemSetting.
-// SEM@60ebb8f27ed8310f384bb5c763ccff24a48e2cff: verify a missing setting is negative-cached in Redis until invalidated
+// SEM@3b682947: verify a missing setting is negative-cached in Redis until invalidated
 func TestSettingsService_NegativeCache_Redis(t *testing.T) {
 	ctx := context.Background()
 	mr, err := miniredis.Run()
@@ -1025,7 +1025,7 @@ func TestSettingsService_PlaintextKeys(t *testing.T) {
 	assert.Empty(t, got)
 }
 
-// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: store an encrypted setting row for a re-encryption test
+// SEM@3b682947: store an encrypted setting row for a re-encryption test
 func seedEncrypted(t *testing.T, gormDB *gorm.DB, enc *crypto.SettingsEncryptor, key, plaintext string) {
 	t.Helper()
 	v, err := enc.Encrypt(plaintext)
@@ -1033,7 +1033,7 @@ func seedEncrypted(t *testing.T, gormDB *gorm.DB, enc *crypto.SettingsEncryptor,
 	require.NoError(t, gormDB.Create(&models.SystemSetting{SettingKey: models.DBVarchar(key), Value: models.DBText(v), SettingType: models.SystemSettingTypeString, ModifiedAt: time.Now()}).Error)
 }
 
-// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: verify re-encryption touches only rows not under the current key id and a second pass is a no-op
+// SEM@3b682947: verify re-encryption touches only rows not under the current key id and a second pass is a no-op
 func TestReEncryptAll_ResumesAndOnlyTouchesStaleRows(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 	k1, k2 := bytes.Repeat([]byte{1}, 32), bytes.Repeat([]byte{2}, 32)
@@ -1067,7 +1067,7 @@ func TestReEncryptAll_ResumesAndOnlyTouchesStaleRows(t *testing.T) {
 	require.Zero(t, n)
 }
 
-// SEM@a8faae4b8a18111a1bc7551087b27c58c46ec86e: verify a row no key can open is reported once, skipped, and does not stop other rows
+// SEM@3b682947: verify a row no key can open is reported once, skipped, and does not stop other rows
 func TestReEncryptAll_UndecryptableRowIsSkippedOnce(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 	k1, k2, k3 := bytes.Repeat([]byte{1}, 32), bytes.Repeat([]byte{2}, 32), bytes.Repeat([]byte{3}, 32)
@@ -1093,7 +1093,7 @@ func TestReEncryptAll_UndecryptableRowIsSkippedOnce(t *testing.T) {
 	require.Equal(t, badBefore, string(bad.Value), "undecryptable row keeps its original ciphertext")
 }
 
-// SEM@bf3661c26eb9b0d6cc42f00cc8d322d11e3213a2: verify re-encryption leaves modified_at and modified_by unchanged
+// SEM@3b682947: verify re-encryption leaves modified_at and modified_by unchanged
 func TestReEncryptAll_PreservesAuditFields(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 	k1, k2 := bytes.Repeat([]byte{1}, 32), bytes.Repeat([]byte{2}, 32)
@@ -1115,7 +1115,7 @@ func TestReEncryptAll_PreservesAuditFields(t *testing.T) {
 // TestSettingsService_ReEncryptAll_RetriesBatchQuery fails the first batch
 // listing with a transient error and checks the retry re-queries (a reused
 // GORM chain would replay the stored error) and the rows still get converted.
-// SEM@f8fb0cf9bf71ed4f21118aa813b9f9dea753beb3: verify re-encryption batch listing is retried with a fresh query after a transient error
+// SEM@3b682947: verify re-encryption batch listing is retried with a fresh query after a transient error
 func TestSettingsService_ReEncryptAll_RetriesBatchQuery(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 	key := make([]byte, 32)

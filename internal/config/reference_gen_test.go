@@ -33,7 +33,7 @@ func TestGenerateReferenceMarkdown_BootstrapKeyHasEnvVar(t *testing.T) {
 	}
 }
 
-// SEM@2b405dc298a9b163f65c46256419a34afb630280: verify the config reference masks every secret-classed default
+// SEM@3b682947: verify the config reference masks every secret-classed default
 func TestGenerateReferenceMarkdown_NeverLeaksSecretDefault(t *testing.T) {
 	out, err := GenerateReferenceMarkdown()
 	if err != nil {
@@ -121,7 +121,7 @@ func findRowContaining(t *testing.T, doc, keyCell string) string {
 // OmitWhenEmpty on SettingDef) that do not apply to documentation, and a
 // setting with an empty default is exactly the one an operator needs to be
 // told about (#810). There is deliberately no exception list.
-// SEM@2b405dc298a9b163f65c46256419a34afb630280: verify the config reference names every registry env var
+// SEM@3b682947: verify the config reference names every registry env var
 func TestGenerateReferenceMarkdown_CoversEveryRegistryEnvVar(t *testing.T) {
 	out, err := GenerateReferenceMarkdown()
 	if err != nil {
@@ -151,7 +151,7 @@ func TestGenerateReferenceMarkdown_CoversEveryRegistryEnvVar(t *testing.T) {
 // from the settings path (content_token_encryption_key, in
 // ExpectedMigratableKeysSkipped). All three are real config/env settings
 // and must be documented.
-// SEM@3e2183271c16649b3d80fa48b96095d22676d4be: test that the generated config reference documents every config-delivered setting definition
+// SEM@3b682947: test that the generated config reference documents every config-delivered setting definition
 func TestGenerateReferenceMarkdown_DocumentsEveryConfigDeliveredDef(t *testing.T) {
 	out, err := GenerateReferenceMarkdown()
 	if err != nil {
@@ -187,7 +187,7 @@ func TestGenerateReferenceMarkdown_DocumentsEveryConfigDeliveredDef(t *testing.T
 // bootstrap, cloud logging, secret prefixes) never pass through the
 // registry, so the reference — the TMI_* allowlist — must render the
 // hand-maintained ProcessEnvVars table in full (#810).
-// SEM@4077bab0af75093efb1660aa34801b2c752c9c0f: verify the config reference lists every process-environment env var and pattern
+// SEM@3b682947: verify the config reference lists every process-environment env var and pattern
 func TestGenerateReferenceMarkdown_CoversEveryProcessEnvVar(t *testing.T) {
 	out, err := GenerateReferenceMarkdown()
 	if err != nil {

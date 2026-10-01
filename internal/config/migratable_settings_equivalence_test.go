@@ -85,7 +85,7 @@ func TestGetMigratableSettings_ValuesComeFromConfig(t *testing.T) {
 // A zero-value Config must not emit any OmitWhenEmpty key, exactly
 // reproducing the pre-registry builders' `if x != ""` / `if len(x) > 0` /
 // `if x > 0` guards.
-// SEM@abca39ee1a644fe8e73eba37033a3eb67a12ae38: test that migratable settings omit empty optional keys
+// SEM@3b682947: test that migratable settings omit empty optional keys
 func TestGetMigratableSettings_OmitsEmptyOptionalKeys(t *testing.T) {
 	c := &Config{}
 	byKey := map[string]MigratableSetting{}

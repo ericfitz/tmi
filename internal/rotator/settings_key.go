@@ -28,7 +28,7 @@ const (
 )
 
 // Keyring is the settings-encryption key material held in tmi-secrets.
-// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: current and previous settings encryption keys with their ids (pure)
+// SEM@3b682947: current and previous settings encryption keys with their ids (pure)
 type Keyring struct {
 	CurrentKeyHex  string
 	CurrentID      int
@@ -38,7 +38,7 @@ type Keyring struct {
 
 // KeyringFromSecret reads and validates the keyring; a missing context id is 1
 // (the id every pre-rotation value carries).
-// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: parse and validate the settings keyring from secret data (pure)
+// SEM@3b682947: parse and validate the settings keyring from secret data (pure)
 func KeyringFromSecret(s *Secret) (Keyring, error) {
 	kr := Keyring{CurrentKeyHex: s.Data[SettingsKeyKey], CurrentID: 1, PreviousKeyHex: s.Data[SettingsPrevKeyKey]}
 	if err := checkHexKey(kr.CurrentKeyHex); err != nil {
@@ -64,7 +64,7 @@ func KeyringFromSecret(s *Secret) (Keyring, error) {
 	return kr, nil
 }
 
-// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: validate a 64-hex-character key string (pure)
+// SEM@3b682947: validate a 64-hex-character key string (pure)
 func checkHexKey(v string) error {
 	b, err := hex.DecodeString(v)
 	if err != nil || len(b) != 32 {
@@ -74,7 +74,7 @@ func checkHexKey(v string) error {
 }
 
 // Encryptor builds the crypto keyring for this Keyring.
-// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: build a SettingsEncryptor from a keyring (pure)
+// SEM@3b682947: build a SettingsEncryptor from a keyring (pure)
 func (k Keyring) Encryptor() (*crypto.SettingsEncryptor, error) {
 	cur, _ := hex.DecodeString(k.CurrentKeyHex)
 	var prev []byte
@@ -85,25 +85,25 @@ func (k Keyring) Encryptor() (*crypto.SettingsEncryptor, error) {
 }
 
 // SettingsStore is the database side of the settings-key rotation.
-// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: define re-encrypting settings under a keyring and counting rows per key id
+// SEM@3b682947: define re-encrypting settings under a keyring and counting rows per key id
 type SettingsStore interface {
 	ReEncrypt(ctx context.Context, kr Keyring) (int, error)
 	CountWithID(ctx context.Context, kr Keyring, id int) (int64, error)
 }
 
 // GormSettingsStore runs the real SettingsService against the database.
-// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: settings store backed by the settings service over GORM (writes DB)
+// SEM@3b682947: settings store backed by the settings service over GORM (writes DB)
 type GormSettingsStore struct {
 	gormDB *gorm.DB
 	redis  *db.RedisDB
 }
 
-// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: build a GORM-backed settings store (pure)
+// SEM@3b682947: build a GORM-backed settings store (pure)
 func NewGormSettingsStore(gormDB *gorm.DB, redis *db.RedisDB) *GormSettingsStore {
 	return &GormSettingsStore{gormDB: gormDB, redis: redis}
 }
 
-// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: build a settings service configured with a keyring's encryptor (pure)
+// SEM@3b682947: build a settings service configured with a keyring's encryptor (pure)
 func (g *GormSettingsStore) service(kr Keyring) (*api.SettingsService, error) {
 	enc, err := kr.Encryptor()
 	if err != nil {
@@ -114,7 +114,7 @@ func (g *GormSettingsStore) service(kr Keyring) (*api.SettingsService, error) {
 	return svc, nil
 }
 
-// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: re-encrypt every stale settings row under the keyring's current key (writes DB)
+// SEM@3b682947: re-encrypt every stale settings row under the keyring's current key (writes DB)
 func (g *GormSettingsStore) ReEncrypt(ctx context.Context, kr Keyring) (int, error) {
 	svc, err := g.service(kr)
 	if err != nil {
@@ -129,7 +129,7 @@ func (g *GormSettingsStore) ReEncrypt(ctx context.Context, kr Keyring) (int, err
 	return n, err
 }
 
-// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: count settings rows still under a key id (reads DB)
+// SEM@3b682947: count settings rows still under a key id (reads DB)
 func (g *GormSettingsStore) CountWithID(ctx context.Context, kr Keyring, id int) (int64, error) {
 	svc, err := g.service(kr)
 	if err != nil {
@@ -140,21 +140,21 @@ func (g *GormSettingsStore) CountWithID(ctx context.Context, kr Keyring, id int)
 
 // SettingsKeyRotation rotates the settings-encryption key: stage, promote,
 // re-encrypt, and (after previousGrace, once nothing references the old id) drop.
-// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: phased rotation of the settings encryption key with deferred drop of the previous key
+// SEM@3b682947: phased rotation of the settings encryption key with deferred drop of the previous key
 type SettingsKeyRotation struct {
 	store         SettingsStore
 	previousGrace time.Duration
 }
 
-// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: build a SettingsKeyRotation (pure)
+// SEM@3b682947: build a SettingsKeyRotation (pure)
 func NewSettingsKeyRotation(store SettingsStore, previousGrace time.Duration) *SettingsKeyRotation {
 	return &SettingsKeyRotation{store: store, previousGrace: previousGrace}
 }
 
-// SEM@f9701c26907815153aebfeed71c2e2cbc5cd1622: return the rotation's name (pure)
+// SEM@3b682947: return the rotation's name (pure)
 func (r *SettingsKeyRotation) Name() string { return settingsRotationName }
 
-// SEM@f5ed9122de949614f44d9fb1970d38d90f2d9081: advance the settings-key rotation from its recorded phase
+// SEM@3b682947: advance the settings-key rotation from its recorded phase
 func (r *SettingsKeyRotation) Run(ctx context.Context, env *Env) error {
 	logger := slogging.Get()
 	s, err := env.Secrets.Get(ctx, env.SecretName)

@@ -21,24 +21,24 @@ const (
 
 // RedisACL manages the passwords accepted for the default Redis user.
 // Returned errors must never contain a password (Redis echoes ACL modifiers).
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: add a password to, or reset to one password on, the Redis default user
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: define Redis ACL operations for adding a password and keeping only one
+// SEM@3b682947: add a password to, or reset to one password on, the Redis default user
+// SEM@3b682947: define Redis ACL operations for adding a password and keeping only one
 type RedisACL interface {
 	AddPassword(ctx context.Context, pw string) error
 	SetOnlyPassword(ctx context.Context, pw string) error
 }
 
 // GoRedisACL implements RedisACL with ACL SETUSER.
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: RedisACL over a go-redis client using ACL SETUSER
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: Redis ACL manager backed by a go-redis client
+// SEM@3b682947: RedisACL over a go-redis client using ACL SETUSER
+// SEM@3b682947: Redis ACL manager backed by a go-redis client
 type GoRedisACL struct{ client *redis.Client }
 
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: wrap a go-redis client as a RedisACL (pure)
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: build a go-redis ACL manager
+// SEM@3b682947: wrap a go-redis client as a RedisACL (pure)
+// SEM@3b682947: build a go-redis ACL manager
 func NewGoRedisACL(client *redis.Client) *GoRedisACL { return &GoRedisACL{client: client} }
 
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: add a password to the default user (ACL SETUSER default >pw); idempotent
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: add a password to the Redis default user (writes Redis)
+// SEM@3b682947: add a password to the default user (ACL SETUSER default >pw); idempotent
+// SEM@3b682947: add a password to the Redis default user (writes Redis)
 func (a *GoRedisACL) AddPassword(ctx context.Context, pw string) error {
 	return aclError(a.client.Do(ctx, "ACL", "SETUSER", "default", ">"+pw).Err())
 }
@@ -46,14 +46,14 @@ func (a *GoRedisACL) AddPassword(ctx context.Context, pw string) error {
 // SetOnlyPassword makes pw the default user's only password in one atomic
 // ACL SETUSER (resetpass clears the password list; flags and permissions stay).
 // Idempotent: unlike "!hash", it does not fail when an old password is already gone.
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: replace all default-user passwords with one (ACL SETUSER default resetpass >pw); idempotent
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: set the sole password of the Redis default user (writes Redis)
+// SEM@3b682947: replace all default-user passwords with one (ACL SETUSER default resetpass >pw); idempotent
+// SEM@3b682947: set the sole password of the Redis default user (writes Redis)
 func (a *GoRedisACL) SetOnlyPassword(ctx context.Context, pw string) error {
 	return aclError(a.client.Do(ctx, "ACL", "SETUSER", "default", "resetpass", ">"+pw).Err())
 }
 
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: replace a Redis ACL error with a fixed message, keeping only a known error class (pure)
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: wrap a Redis ACL error in a fixed message that never leaks the password (pure)
+// SEM@3b682947: replace a Redis ACL error with a fixed message, keeping only a known error class (pure)
+// SEM@3b682947: wrap a Redis ACL error in a fixed message that never leaks the password (pure)
 func aclError(err error) error {
 	if err == nil {
 		return nil
@@ -67,22 +67,22 @@ func aclError(err error) error {
 }
 
 // RedisPasswordRotation rotates TMI_REDIS_PASSWORD without a Redis restart.
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: phased rotation of the Redis password: add new, swap Secret, roll server, retire old
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: rotation of the Redis password
+// SEM@3b682947: phased rotation of the Redis password: add new, swap Secret, roll server, retire old
+// SEM@3b682947: rotation of the Redis password
 type RedisPasswordRotation struct{ acl RedisACL }
 
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: build a RedisPasswordRotation over a RedisACL (pure)
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: build a Redis password rotation
+// SEM@3b682947: build a RedisPasswordRotation over a RedisACL (pure)
+// SEM@3b682947: build a Redis password rotation
 func NewRedisPasswordRotation(acl RedisACL) *RedisPasswordRotation {
 	return &RedisPasswordRotation{acl: acl}
 }
 
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: return the rotation name used in annotations and ROTATE (pure)
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: return the rotation's name (pure)
+// SEM@3b682947: return the rotation name used in annotations and ROTATE (pure)
+// SEM@3b682947: return the rotation's name (pure)
 func (r *RedisPasswordRotation) Name() string { return redisRotationName }
 
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: advance the Redis password rotation from its recorded phase to completion
-// SEM@29cc34458a8a4bb805834efb797ee212ac2f2792: run the phased, resumable Redis password rotation (writes secret, writes Redis)
+// SEM@3b682947: advance the Redis password rotation from its recorded phase to completion
+// SEM@3b682947: run the phased, resumable Redis password rotation (writes secret, writes Redis)
 func (r *RedisPasswordRotation) Run(ctx context.Context, env *Env) error {
 	logger := slogging.Get()
 	s, err := env.Secrets.Get(ctx, env.SecretName)
