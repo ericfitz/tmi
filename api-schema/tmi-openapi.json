@@ -21421,54 +21421,6 @@
           "description": "Document creation data"
         },
         "responses": {
-          "400": {
-            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
-          },
-          "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
-          },
-          "406": {
-            "$ref": "#/components/responses/NotAcceptable"
-          },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "500": {
-            "$ref": "#/components/responses/Error"
-          },
-          "415": {
-            "$ref": "#/components/responses/UnsupportedMediaType"
-          },
           "201": {
             "description": "Document created successfully",
             "content": {
@@ -21512,15 +21464,6 @@
                 }
               }
             }
-          },
-          "401": {
-            "$ref": "#/components/responses/Error"
-          },
-          "403": {
-            "$ref": "#/components/responses/Error"
-          },
-          "404": {
-            "$ref": "#/components/responses/Error"
           },
           "202": {
             "description": "Document created and queued for asynchronous content extraction. Returned instead of 201 when async extraction is enabled (extraction.async_enabled) and the document URI is extractable. The extraction outcome is delivered later via the document access_status and the document.extraction_completed / document.extraction_failed webhook events.",
@@ -21568,6 +21511,112 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters, malformed UUIDs, or validation failures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Unprocessable Entity - The document URI matches a content provider that is not configured on this server (provider_not_configured), or the picker_registration names a content provider that is not registered (provider_not_registered)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "providerNotConfigured": {
+                    "summary": "Content provider for the URI is not configured",
+                    "value": {
+                      "error": "provider_not_configured",
+                      "error_description": "google_drive document access is not configured on this server. Contact your administrator."
+                    }
+                  },
+                  "providerNotRegistered": {
+                    "summary": "picker_registration provider is not registered",
+                    "value": {
+                      "error": "provider_not_registered",
+                      "error_description": "content provider \"google_workspace\" is not configured on this server"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1640995200
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
           },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
