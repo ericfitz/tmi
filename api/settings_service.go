@@ -675,6 +675,11 @@ const reEncryptBatchSize = 100
 // maxUnreadableSettings caps the NOT IN exclusion list (Oracle allows 1000).
 const maxUnreadableSettings = 900
 
+// ErrTooManyUnreadableSettings is returned by ReEncryptAll when it stops at the
+// maxUnreadableSettings cap. It is an operator-fixable data condition (409),
+// not a database failure.
+var ErrTooManyUnreadableSettings = errors.New("too many unreadable settings")
+
 // errSettingUnreadable marks a row that cannot be decrypted or re-encrypted:
 // reported, skipped, never a database failure.
 var errSettingUnreadable = errors.New("setting unreadable")
@@ -687,7 +692,7 @@ var errSettingUnreadable = errors.New("setting unreadable")
 // modified_by are left as they were. Rows no key can open are reported in
 // []SettingError and excluded from later batches so the loop always terminates.
 // Returns the number of rows committed so far, also on error.
-// SEM@3b682947: re-encrypt stale setting rows under the current key id in resumable per-row transactions (writes DB)
+// SEM@0000000: re-encrypt stale setting rows in per-row transactions; stop with a conflict error at the unreadable-row cap (writes DB)
 func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 	logger := slogging.Get()
 	if s.encryptor == nil || !s.encryptor.IsEnabled() {
@@ -728,7 +733,7 @@ func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError
 				skip = append(skip, key)
 				if len(skip) >= maxUnreadableSettings { // stays under Oracle's 1000-element IN list
 					s.InvalidateAll(ctx)
-					return reencrypted, settingErrors, fmt.Errorf("re-encryption stopped: %d settings are unreadable", len(skip))
+					return reencrypted, settingErrors, fmt.Errorf("%w: re-encryption stopped at the %d unreadable-setting cap; repair or delete the unreadable settings, then retry", ErrTooManyUnreadableSettings, maxUnreadableSettings)
 				}
 			default:
 				logger.Error("Re-encryption stopped after %d rows: %v", reencrypted, err)

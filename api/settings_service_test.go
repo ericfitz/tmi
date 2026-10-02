@@ -1141,3 +1141,23 @@ func TestSettingsService_ReEncryptAll_RetriesBatchQuery(t *testing.T) {
 	assert.Equal(t, 1, n)
 	assert.Empty(t, errs)
 }
+
+// SEM@0000000: verify re-encryption stops with ErrTooManyUnreadableSettings naming the cap when unreadable rows reach it
+func TestReEncryptAll_UnreadableCap(t *testing.T) {
+	gormDB := setupSettingsTestDB(t)
+	enc, err := crypto.NewSettingsEncryptorFromKeys(make([]byte, 32), nil, 1)
+	require.NoError(t, err)
+	stranger, err := crypto.NewSettingsEncryptorFromKeys(bytes.Repeat([]byte{9}, 32), nil, 9)
+	require.NoError(t, err)
+	bad, err := stranger.Encrypt("x")
+	require.NoError(t, err)
+	for i := 0; i < maxUnreadableSettings; i++ {
+		require.NoError(t, gormDB.Create(&models.SystemSetting{SettingKey: models.DBVarchar(fmt.Sprintf("bad-%04d", i)), Value: models.DBText(bad), SettingType: models.SystemSettingTypeString}).Error)
+	}
+	svc := NewSettingsService(gormDB, nil)
+	svc.SetEncryptor(enc)
+	_, errs, err := svc.ReEncryptAll(context.Background())
+	require.ErrorIs(t, err, ErrTooManyUnreadableSettings)
+	assert.Contains(t, err.Error(), "900")
+	assert.Len(t, errs, maxUnreadableSettings)
+}
