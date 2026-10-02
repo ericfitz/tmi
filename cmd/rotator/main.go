@@ -123,8 +123,8 @@ func run() int {
 	}
 	redisDB, err := db.NewRedisDB(db.RedisConfig{
 		Host: o.RedisHost, Port: o.RedisPort, DB: o.RedisDB,
-		Password:   sec.Data[rotator.RedisPasswordKey],
-		TLSEnabled: o.RedisTLSEnabled, TLSCAFile: o.RedisTLSCAFile,
+		PasswordFunc: rotator.RedisPasswordFromSecret(secrets, o.SecretName),
+		TLSEnabled:   o.RedisTLSEnabled, TLSCAFile: o.RedisTLSCAFile,
 	})
 	if err != nil {
 		if isRedisAuthError(err) {
