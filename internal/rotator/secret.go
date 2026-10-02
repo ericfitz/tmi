@@ -9,7 +9,6 @@ import (
 )
 
 // Secret is a snapshot of one Kubernetes Secret with decoded data.
-// SEM@3b682947: snapshot of a Kubernetes Secret's data, annotations and resourceVersion (pure)
 // SEM@3b682947: in-memory representation of a secret with data, annotations and version
 type Secret struct {
 	Name            string
@@ -22,7 +21,6 @@ type Secret struct {
 var ErrConflict = errors.New("secret changed since it was read")
 
 // SecretStore reads and writes whole Secrets with optimistic concurrency.
-// SEM@3b682947: read/update a Kubernetes Secret with resourceVersion conflict detection
 // SEM@3b682947: define storing and fetching secrets with optimistic concurrency
 type SecretStore interface {
 	Get(ctx context.Context, name string) (*Secret, error)
@@ -31,7 +29,6 @@ type SecretStore interface {
 }
 
 // RolloutWaiter observes Deployment rollouts triggered by Secret changes (Reloader).
-// SEM@3b682947: observe a Deployment's generation and wait for a rollout past it
 // SEM@3b682947: define waiting for deployment rollouts
 type RolloutWaiter interface {
 	Generation(ctx context.Context, deployment string) (int64, error)
@@ -40,7 +37,6 @@ type RolloutWaiter interface {
 }
 
 // Clone returns a deep copy so a store can hand out independent snapshots.
-// SEM@3b682947: deep-copy a Secret snapshot (pure)
 // SEM@3b682947: build a deep copy of a secret (pure)
 func (s *Secret) Clone() *Secret {
 	c := &Secret{Name: s.Name, ResourceVersion: s.ResourceVersion, Data: map[string]string{}, Annotations: map[string]string{}}
