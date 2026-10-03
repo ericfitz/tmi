@@ -57,7 +57,8 @@ func getOracleDialector(cfg GormConfig) (gorm.Dialector, string) {
 
 	params, err := godror.ParseDSN(dsn)
 	if err != nil {
-		slogging.Get().Error("oracle: failed to parse godror DSN for connectString=%s: %v", cfg.OracleConnectString, err)
+		// The DSN embeds the password and parse errors may echo it (#1005).
+		slogging.Get().Error("oracle: failed to parse godror DSN (error_class=%T)", err)
 		return nil, ""
 	}
 	// Go-side: interpret/format naive TIMESTAMP and DATE as UTC, and let

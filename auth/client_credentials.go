@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/ericfitz/tmi/auth/repository"
@@ -118,30 +119,44 @@ func (s *Service) DeactivateClientCredential(ctx context.Context, id uuid.UUID, 
 	return nil
 }
 
-// DeleteClientCredential permanently deletes a client credential and revokes
-// its outstanding service-account tokens.
-// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: permanently delete a client credential and revoke its issued tokens (mutates shared state)
+// DeleteClientCredential permanently deletes a client credential, revoking its
+// outstanding service-account tokens first. Fail closed: if the revocation
+// cannot be stored it returns ErrRevocationStorage with nothing deleted, so the
+// caller can retry. Ownership is checked before revoking so a caller cannot
+// blacklist another user's credential.
+// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: revoke a client credential's issued tokens then permanently delete it, failing closed (mutates shared state)
 func (s *Service) DeleteClientCredential(ctx context.Context, id uuid.UUID, ownerUUID uuid.UUID) error {
-	if err := s.credRepo.Delete(ctx, id, ownerUUID); err != nil {
-		return err // Repository already returns appropriate error message
+	owned, err := s.credRepo.ListByOwner(ctx, ownerUUID)
+	if err != nil {
+		return err
 	}
-	s.revokeCredentialTokens(ctx, id)
-	return nil
+	if !slices.ContainsFunc(owned, func(c *repository.ClientCredential) bool { return c.ID == id }) {
+		return repository.ErrClientCredentialNotFound
+	}
+	if err := s.revokeCredentialTokensStrict(ctx, id); err != nil {
+		return err
+	}
+	return s.credRepo.Delete(ctx, id, ownerUUID)
 }
 
-// revokeCredentialTokens marks tokens already minted from a credential as
-// revoked (#862). Best-effort by design: the credential row is already gone,
-// so the delete must not be reported as failed. If Redis is unreachable the
-// JWT middleware is failing closed on every request anyway (#660); the only
-// residual gap is a marker lost across a Redis outage, bounded by the token
-// lifetime.
+// revokeCredentialTokens is the best-effort variant (deactivate and user-delete
+// sweeps): failures are logged, not returned.
 // SEM@24d835d0aa601cdfaea187838ff139f49228ea26: revoke service-account tokens of a client credential, best-effort (reads DB)
 func (s *Service) revokeCredentialTokens(ctx context.Context, id uuid.UUID) {
-	if s.dbManager == nil || s.dbManager.Redis() == nil {
-		slogging.Get().Warn("Client credential token revocation skipped: Redis not available credential_id=%v", id)
-		return
+	if err := s.revokeCredentialTokensStrict(ctx, id); err != nil {
+		slogging.Get().Warn("Client credential token revocation failed credential_id=%v error=%v", id, err)
 	}
-	_ = NewTokenBlacklist(s.dbManager.Redis().GetClient(), s.keyManager).
+}
+
+// revokeCredentialTokensStrict marks tokens already minted from a credential as
+// revoked (#862), returning ErrRevocationStorage if Redis is unavailable or the
+// write fails.
+// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: revoke service-account tokens of a client credential, returning storage errors (reads DB)
+func (s *Service) revokeCredentialTokensStrict(ctx context.Context, id uuid.UUID) error {
+	if s.dbManager == nil || s.dbManager.Redis() == nil {
+		return fmt.Errorf("%w: Redis not available", ErrRevocationStorage)
+	}
+	return NewTokenBlacklist(s.dbManager.Redis().GetClient(), s.keyManager).
 		RevokeCredential(ctx, id.String(), s.config.GetJWTDuration())
 }
 

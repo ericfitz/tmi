@@ -17,17 +17,20 @@ import (
 // RedisConfig holds the configuration for Redis connection
 // SEM@e50244f: Redis connection coordinates, credentials, and CA-pinned TLS settings (pure)
 type RedisConfig struct {
-	Host       string
-	Port       string
-	Password   string
-	DB         int
-	TLSEnabled bool   // connect with TLS, verifying the server against TLSCAFile only
-	TLSCAFile  string // PEM CA file; required when TLSEnabled
+	Host     string
+	Port     string
+	Password string
+	// PasswordFunc, when set, supplies the password on every (re)connect and
+	// takes precedence over Password, so a rotated password is picked up.
+	PasswordFunc func(ctx context.Context) (string, error)
+	DB           int
+	TLSEnabled   bool   // connect with TLS, verifying the server against TLSCAFile only
+	TLSCAFile    string // PEM CA file; required when TLSEnabled
 }
 
 // redisOptions builds the go-redis client options for cfg. With TLS on, the
 // only trusted CA is cfg.TLSCAFile and the server name checked is cfg.Host.
-// SEM@e50244f: build go-redis client options, adding CA-pinned TLS when enabled (pure)
+// SEM@0000000: build go-redis client options with per-connect credentials and optional CA-pinned TLS (pure)
 func redisOptions(cfg RedisConfig) (*redis.Options, error) {
 	opts := &redis.Options{
 		Addr:            fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
@@ -40,6 +43,12 @@ func redisOptions(cfg RedisConfig) (*redis.Options, error) {
 		MinIdleConns:    2,
 		ConnMaxLifetime: time.Hour,
 		ConnMaxIdleTime: 30 * time.Minute,
+	}
+	if cfg.PasswordFunc != nil {
+		opts.CredentialsProviderContext = func(ctx context.Context) (string, string, error) {
+			pw, err := cfg.PasswordFunc(ctx)
+			return "", pw, err
+		}
 	}
 	if !cfg.TLSEnabled {
 		return opts, nil
