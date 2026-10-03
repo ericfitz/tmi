@@ -398,3 +398,38 @@ resource "aws_cloudwatch_metric_alarm" "secret_rotation_stale" {
   ok_actions          = [data.aws_sns_topic.security_alerts.arn]
   tags                = local.common_tags
 }
+
+# #1003: the age alarm above cannot see a rotation that fails every night until
+# the secret is 100 days old. cmd/rotator logs the single JSON line
+# msg = "Rotation run failed: <err>" (Error is Sprintf'd into msg, so the
+# filter needs a trailing wildcard); one or more per day alarms. No failures
+# means no datapoints, which is healthy.
+resource "aws_cloudwatch_log_metric_filter" "rotation_failed" {
+  name           = "tmi-rotation-run-failed"
+  log_group_name = module.logging.log_group_name
+  pattern        = "{ $.msg = \"Rotation run failed*\" }"
+
+  metric_transformation {
+    name      = "RotationRunFailed"
+    namespace = "TMI/Rotator"
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "secret_rotation_failing" {
+  alarm_name          = "tmi-secret-rotation-failing"
+  alarm_description   = "The tmi-rotator CronJob logged a failed rotation run in the last day"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  metric_name         = aws_cloudwatch_log_metric_filter.rotation_failed.metric_transformation[0].name
+  namespace           = "TMI/Rotator"
+  period              = 86400
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [data.aws_sns_topic.security_alerts.arn]
+  ok_actions          = [data.aws_sns_topic.security_alerts.arn]
+  tags                = local.common_tags
+}
