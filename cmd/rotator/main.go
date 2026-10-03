@@ -35,7 +35,6 @@ type options struct {
 	OracleWallet          string
 }
 
-// SEM@3b682947: read rotator settings from the environment with defaults (pure)
 // SEM@3b682947: parse rotator options from the environment with defaults (pure)
 func loadOptions(getenv func(string) string) (options, error) {
 	get := func(k, def string) string {
@@ -69,7 +68,6 @@ func loadOptions(getenv func(string) string) (options, error) {
 	return o, nil
 }
 
-// SEM@3b682947: detect a Redis authentication rejection from an error (pure)
 // SEM@3b682947: validate whether an error is a Redis authentication failure (pure)
 func isRedisAuthError(err error) bool {
 	if err == nil {
@@ -84,7 +82,6 @@ func main() {
 	os.Exit(run())
 }
 
-// SEM@3b682947: wire cluster, Redis and DB clients and run every rotation; return the exit code
 // SEM@3b682947: wire cluster, Redis and DB clients and run every rotation; return the exit code
 func run() int {
 	logger := slogging.Get()
@@ -126,8 +123,8 @@ func run() int {
 	}
 	redisDB, err := db.NewRedisDB(db.RedisConfig{
 		Host: o.RedisHost, Port: o.RedisPort, DB: o.RedisDB,
-		Password:   sec.Data[rotator.RedisPasswordKey],
-		TLSEnabled: o.RedisTLSEnabled, TLSCAFile: o.RedisTLSCAFile,
+		PasswordFunc: rotator.RedisPasswordFromSecret(secrets, o.SecretName),
+		TLSEnabled:   o.RedisTLSEnabled, TLSCAFile: o.RedisTLSCAFile,
 	})
 	if err != nil {
 		if isRedisAuthError(err) {

@@ -30,7 +30,6 @@ type apiLoad struct {
 	bad  int32
 }
 
-// SEM@3b682947: start a background loop calling GET /me and counting server failures; stopped by t.Cleanup if not earlier
 // SEM@3b682947: start background API request load and return its handle
 func startAPILoad(t *testing.T, client *framework.IntegrationClient) *apiLoad {
 	l := &apiLoad{stop: make(chan struct{}), done: make(chan struct{})}
@@ -54,7 +53,6 @@ func startAPILoad(t *testing.T, client *framework.IntegrationClient) *apiLoad {
 }
 
 // finish stops the loop, waits for it to exit, and returns the failure count.
-// SEM@3b682947: stop the API load loop, wait for it to exit, and return the failed-call count (idempotent)
 // SEM@3b682947: stop background API load and return the failure count
 func (l *apiLoad) finish() int32 {
 	l.once.Do(func() { close(l.stop) })
@@ -62,7 +60,6 @@ func (l *apiLoad) finish() int32 {
 	return atomic.LoadInt32(&l.bad)
 }
 
-// SEM@3b682947: authenticate a test user (admin when empty) and build an integration client; skip unless integration tests are enabled
 // SEM@3b682947: build an authenticated integration client for secret rotation tests
 func rotationTestClient(t *testing.T, user string) *framework.IntegrationClient {
 	t.Helper()
@@ -94,7 +91,6 @@ func rotationTestClient(t *testing.T, user string) *framework.IntegrationClient 
 // connections) until the inline restore below. This test therefore proves the
 // rotation's Redis-side behaviour and that the server stays healthy through the
 // add/swap, not a full server roll (Task 14 covers that on k3s).
-// SEM@3b682947: verify Redis password rotation against the harness Redis while the server serves API traffic
 // SEM@3b682947: validate API keeps working through a Redis password rotation
 func TestSecretRotationIntegration_RedisPassword(t *testing.T) {
 	client := rotationTestClient(t, "alice")
@@ -293,7 +289,6 @@ func TestSecretRotationIntegration_RedisResumeAfterOldPasswordGone(t *testing.T)
 	_ = probe.Close()
 }
 
-// SEM@3b682947: verify settings re-encryption converts a stale row once and is idempotent while the server serves API traffic
 // SEM@3b682947: validate secret re-encryption completes under API load without failures
 func TestSecretRotationIntegration_ReencryptUnderLoad(t *testing.T) {
 	adminClient := rotationTestClient(t, "")
@@ -341,7 +336,6 @@ func TestSecretRotationIntegration_ReencryptUnderLoad(t *testing.T) {
 	}
 }
 
-// SEM@3b682947: hex SHA-256 of a string (pure)
 // SEM@3b682947: compute the hex-encoded SHA-256 digest of a string (pure)
 func sha256HexString(s string) string {
 	h := sha256.Sum256([]byte(s))

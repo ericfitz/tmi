@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -40,5 +41,24 @@ func TestRedisOptions_TLSPinsCAAndServerName(t *testing.T) {
 	}
 	if opts.TLSConfig.ServerName != "redis" {
 		t.Fatalf("ServerName = %q, want the configured host", opts.TLSConfig.ServerName)
+	}
+}
+
+// SEM@0000000: test that a password func becomes a per-connection credentials provider
+func TestRedisOptions_PasswordFuncIsCredentialsProvider(t *testing.T) {
+	pw := "first"
+	opts, err := redisOptions(RedisConfig{Host: "redis", Port: "6379", PasswordFunc: func(context.Context) (string, error) { return pw, nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.CredentialsProviderContext == nil {
+		t.Fatal("CredentialsProviderContext must be set")
+	}
+	for _, want := range []string{"first", "second"} {
+		pw = want
+		u, got, err := opts.CredentialsProviderContext(context.Background())
+		if err != nil || u != "" || got != want {
+			t.Fatalf("got (%q,%q,%v), want (\"\",%q,nil)", u, got, err, want)
+		}
 	}
 }
