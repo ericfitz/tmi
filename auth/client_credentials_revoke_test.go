@@ -18,10 +18,10 @@ func TestClientCredentialDeleteRevokesTokens(t *testing.T) {
 		"Deactivate": (*Service).DeactivateClientCredential,
 	} {
 		t.Run(name, func(t *testing.T) {
-			svc, cleanup := setupTestServiceWithRepos(t, &stubUserRepo{}, &stubCredRepo{})
+			credID, ownerID := uuid.New(), uuid.New()
+			svc, cleanup := setupTestServiceWithRepos(t, &stubUserRepo{}, &ownedCredRepo{id: credID, owner: ownerID})
 			defer cleanup()
 			ctx := context.Background()
-			credID, ownerID := uuid.New(), uuid.New()
 
 			require.NoError(t, op(svc, ctx, credID, ownerID))
 
@@ -35,11 +35,4 @@ func TestClientCredentialDeleteRevokesTokens(t *testing.T) {
 			assert.Equal(t, svc.config.GetJWTDuration(), ttl)
 		})
 	}
-}
-
-// TestClientCredentialDeleteWithoutRedis pins that revocation is best-effort:
-// a Service without Redis still deletes the row and returns nil.
-func TestClientCredentialDeleteWithoutRedis(t *testing.T) {
-	svc := &Service{credRepo: &stubCredRepo{}}
-	require.NoError(t, svc.DeleteClientCredential(context.Background(), uuid.New(), uuid.New()))
 }

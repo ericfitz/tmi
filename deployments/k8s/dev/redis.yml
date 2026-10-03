@@ -51,16 +51,18 @@ spec:
           # password is rebuilt from --requirepass at every start, which is
           # exactly what tmi-rotator relies on for password rotation (#965).
           #
-          # Memory cap: 160mb against the 256Mi container limit leaves
+          # Memory cap: 384mb against the 640Mi container limit leaves
           # headroom for the AOF-rewrite fork's copy-on-write. Without a cap an
-          # OOM-kill replays the same AOF and crash-loops. Trade-off:
-          # allkeys-lru may evict token-blacklist entries under memory
-          # pressure (before AOF an OOM wiped them all).
+          # OOM-kill replays the same AOF and crash-loops. Policy is
+          # noeviction (#1008): every key family is TTL-bounded, and any
+          # evicting policy (even volatile-*) could drop blacklist:token:*
+          # entries and silently re-validate revoked tokens. At the cap,
+          # writes fail with OOM instead (fail-closed for revocation).
           args:
             - "--maxmemory"
-            - "160mb"
+            - "384mb"
             - "--maxmemory-policy"
-            - "allkeys-lru"
+            - "noeviction"
             - "--save"
             - ""
             - "--appendonly"
@@ -102,8 +104,8 @@ spec:
             - name: data
               mountPath: /data
           resources:
-            requests: { cpu: 50m, memory: 64Mi }
-            limits: { cpu: 500m, memory: 256Mi }
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 640Mi }
       volumes:
         - name: tls
           secret:
@@ -114,8 +116,9 @@ spec:
 ---
 # Redis data (#965 PR 1): sessions, refresh tokens and cached authorization
 # decisions, all ENC:-encrypted under the settings key and all with TTLs.
-# 1Gi is far above the 256Mi memory limit; the AOF rewrite needs about 2x the
-# dataset on disk. No storageClassName here: docker-desktop uses its default
+# 1Gi covers the 384mb maxmemory cap: the AOF rewrite needs about 2x the
+# dataset on disk. Raising maxmemory further needs a bigger PVC, which only
+# expandable classes (gp3, longhorn) allow on a bound claim. No storageClassName here: docker-desktop uses its default
 # (hostpath) class; the k3s and aws overlays patch in longhorn / gp3.
 #
 # Lifecycle: `make dev-down` deletes the redis Deployment and Service but not
