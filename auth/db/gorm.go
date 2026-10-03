@@ -384,7 +384,7 @@ func (ns *OracleNamingStrategy) UniqueName(table, column string) string {
 }
 
 // NewGormDB creates a new GORM database connection based on configuration
-// SEM@071b827bb424ee44c1cd7233757df927b8f98547: connect to a database via GORM with pooling, capped statement cache, OTel tracing, and UTC session timezone
+// SEM@0000000: connect to a database via GORM with pooling, capped statement cache, OTel tracing, and UTC session timezone
 func NewGormDB(cfg GormConfig) (*GormDB, error) {
 	log := slogging.Get()
 	log.Debug("Initializing GORM connection for database type: %s", cfg.Type)
@@ -493,8 +493,7 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 	log.Debug("Opening GORM database connection")
 	db, err := gorm.Open(dialector, gormConfig)
 	if err != nil {
-		log.Error("Failed to open GORM connection: %v", err)
-		return nil, fmt.Errorf("failed to open gorm connection: %w", err)
+		return nil, failDB(log, "Failed to open GORM connection", err)
 	}
 
 	// Register OpenTelemetry GORM plugin for query tracing
@@ -502,14 +501,13 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 		otelgorm.WithDBName(cfg.Database),
 		otelgorm.WithoutQueryVariables(),
 	)); err != nil {
-		log.Warn("Failed to register OTel GORM plugin (tracing disabled for DB): %v", err)
+		log.Warn("Failed to register OTel GORM plugin (tracing disabled for DB) (error_class=%s)", safeErrClass(err))
 	}
 
 	// Get underlying sql.DB to configure connection pool
 	sqlDB, err := db.DB()
 	if err != nil {
-		log.Error("Failed to get underlying sql.DB: %v", err)
-		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
+		return nil, failDB(log, "Failed to get underlying sql.DB", err)
 	}
 
 	// Set connection pool parameters (configurable, with defaults)
@@ -545,15 +543,13 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 
 	log.Debug("Testing GORM connection with ping")
 	if err := sqlDB.PingContext(ctx); err != nil {
-		log.Error("Failed to ping database: %v", err)
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+		return nil, failDB(log, "Failed to ping database", err)
 	}
 	log.Debug("GORM connection established successfully")
 
 	// Configure session timezone for databases that require it
 	if err := configureSessionTimezone(db, cfg.Type, log); err != nil {
-		log.Error("Failed to configure session timezone: %v", err)
-		return nil, fmt.Errorf("failed to configure session timezone: %w", err)
+		return nil, failDB(log, "Failed to configure session timezone", err)
 	}
 
 	return &GormDB{
@@ -564,20 +560,18 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 }
 
 // Close closes the database connection
-// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: close the underlying database connection pool (mutates shared state)
+// SEM@0000000: close the underlying database connection pool (mutates shared state)
 func (g *GormDB) Close() error {
 	log := slogging.Get()
 	log.Debug("Closing GORM connection")
 
 	sqlDB, err := g.db.DB()
 	if err != nil {
-		log.Error("Failed to get underlying sql.DB for close: %v", err)
-		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
+		return failDB(log, "Failed to get underlying sql.DB for close", err)
 	}
 
 	if err := sqlDB.Close(); err != nil {
-		log.Error("Error closing GORM connection: %v", err)
-		return fmt.Errorf("error closing database connection: %w", err)
+		return failDB(log, "Error closing GORM connection", err)
 	}
 
 	log.Debug("GORM connection closed successfully")
@@ -597,19 +591,19 @@ func (g *GormDB) DatabaseType() DatabaseType {
 }
 
 // Ping checks if the database connection is alive
-// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: validate the GORM database connection is alive via ping (reads DB)
+// SEM@0000000: validate the GORM database connection is alive via ping (reads DB)
 func (g *GormDB) Ping(ctx context.Context) error {
 	log := slogging.Get()
 	log.Debug("Pinging GORM connection")
 
 	sqlDB, err := g.db.DB()
 	if err != nil {
-		log.Error("Failed to get underlying sql.DB for ping: %v", err)
-		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
+		return failDB(log, "Failed to get underlying sql.DB for ping", err)
 	}
 
 	if err := sqlDB.PingContext(ctx); err != nil {
-		log.Error("GORM ping failed: %v", err)
+		// Returned raw: health-check callers classify it by message text.
+		log.Error("GORM ping failed (error_class=%s)", safeErrClass(err))
 		return err
 	}
 
@@ -624,7 +618,7 @@ func (g *GormDB) LogStats() {
 
 	sqlDB, err := g.db.DB()
 	if err != nil {
-		log.Error("Failed to get underlying sql.DB for stats: %v", err)
+		log.Error("Failed to get underlying sql.DB for stats (error_class=%s)", safeErrClass(err))
 		return
 	}
 

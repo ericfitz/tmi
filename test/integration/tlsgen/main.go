@@ -91,7 +91,6 @@ requirepass %s
 	return ensureSettingsKey(dir)
 }
 
-// SEM@3b682947: append a random settings encryption key to secrets.env when absent (writes file)
 // SEM@3b682947: store a settings encryption key in the TLS directory if missing
 func ensureSettingsKey(dir string) error {
 	path := filepath.Join(dir, "secrets.env")

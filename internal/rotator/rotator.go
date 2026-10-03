@@ -12,7 +12,6 @@ import (
 )
 
 // Env is everything a Rotation needs from the cluster.
-// SEM@3b682947: cluster handles and settings shared by every rotation (pure)
 // SEM@3b682947: hold the dependencies and settings shared by secret rotations
 type Env struct {
 	Secrets          SecretStore
@@ -24,7 +23,6 @@ type Env struct {
 }
 
 // Rotation is one secret's phased, resumable rotation.
-// SEM@3b682947: phased, idempotent rotation of one named secret
 // SEM@3b682947: define a resumable, idempotent secret rotation
 type Rotation interface {
 	Name() string
@@ -37,7 +35,6 @@ type Rotation interface {
 
 // Run evaluates every rotation: forced, in progress (phase annotation set), or
 // due. Each rotation runs even if an earlier one failed; the first error is returned.
-// SEM@3b682947: run every forced, in-progress or due rotation and report the first failure
 // SEM@3b682947: run all due or forced rotations, reporting the first failure after running the rest
 func Run(ctx context.Context, env *Env, rotations []Rotation, force string) error {
 	logger := slogging.Get()
@@ -81,7 +78,6 @@ func Run(ctx context.Context, env *Env, rotations []Rotation, force string) erro
 // It is a compare-and-swap on the phase: if the recorded phase (missing == "")
 // is not fromPhase, another run advanced it, so nothing is written and the error
 // wraps ErrConflict. A stale resourceVersion conflict is likewise not retried.
-// SEM@3b682947: advance a rotation from an expected phase to the next atomically with its bookkeeping annotations
 // SEM@3b682947: advance a rotation phase atomically in the secret, rejecting concurrent runs
 func (e *Env) Transition(ctx context.Context, name, fromPhase, nextPhase string, mutate func(s *Secret)) error {
 	s, err := e.Secrets.Get(ctx, e.SecretName)
@@ -121,7 +117,6 @@ func (e *Env) Transition(ctx context.Context, name, fromPhase, nextPhase string,
 }
 
 // WaitServerRolled waits for the server rollout caused by the last Transition of name.
-// SEM@3b682947: wait for the server Deployment to roll past the generation recorded for a rotation
 // SEM@3b682947: wait for the server deployment to roll after a rotation write
 func (e *Env) WaitServerRolled(ctx context.Context, s *Secret, name string) error {
 	since, err := strconv.ParseInt(s.Annotations[AnnGeneration+name], 10, 64)

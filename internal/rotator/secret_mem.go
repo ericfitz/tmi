@@ -11,7 +11,6 @@ import (
 // MemorySecretStore is an in-memory SecretStore for tests. It bumps
 // resourceVersion on every Update and counts data writes so a FakeRolloutWaiter
 // can imitate Reloader (which rolls on data changes only).
-// SEM@3b682947: in-memory SecretStore with resourceVersion conflicts and data-write counting (mutates shared state)
 // SEM@3b682947: in-memory secret store with optimistic concurrency for tests
 type MemorySecretStore struct {
 	mu         sync.Mutex
@@ -21,7 +20,6 @@ type MemorySecretStore struct {
 }
 
 // NewMemorySecretStore builds a store seeded with the given Secrets.
-// SEM@3b682947: build a MemorySecretStore seeded with the given Secrets (pure)
 // SEM@3b682947: build an in-memory secret store seeded with secrets
 func NewMemorySecretStore(seed ...*Secret) *MemorySecretStore {
 	st := &MemorySecretStore{secrets: map[string]*Secret{}}
@@ -34,7 +32,6 @@ func NewMemorySecretStore(seed ...*Secret) *MemorySecretStore {
 }
 
 // Get returns a copy of the named Secret.
-// SEM@3b682947: return a copy of the named Secret or a not-found error
 // SEM@3b682947: fetch a copy of a secret from the in-memory store
 func (m *MemorySecretStore) Get(_ context.Context, name string) (*Secret, error) {
 	m.mu.Lock()
@@ -47,7 +44,6 @@ func (m *MemorySecretStore) Get(_ context.Context, name string) (*Secret, error)
 }
 
 // Update stores s if its resourceVersion is current.
-// SEM@3b682947: store the Secret if its resourceVersion is current, else ErrConflict
 // SEM@3b682947: update a secret in the in-memory store, rejecting stale versions (mutates shared state)
 func (m *MemorySecretStore) Update(_ context.Context, s *Secret) error {
 	m.mu.Lock()
@@ -70,7 +66,6 @@ func (m *MemorySecretStore) Update(_ context.Context, s *Secret) error {
 }
 
 // SEM@3b682947: compare two string maps for equality (pure)
-// SEM@3b682947: compare two string maps for equality (pure)
 func equalMaps(a, b map[string]string) bool {
 	if len(a) != len(b) {
 		return false
@@ -85,7 +80,6 @@ func equalMaps(a, b map[string]string) bool {
 
 // FakeRolloutWaiter reports a generation equal to the store's data-write count,
 // so every data write "rolls" the server immediately.
-// SEM@3b682947: RolloutWaiter fake whose generation tracks MemorySecretStore data writes
 // SEM@3b682947: fake rollout waiter driven by an in-memory secret store
 type FakeRolloutWaiter struct {
 	store      *MemorySecretStore
@@ -94,14 +88,12 @@ type FakeRolloutWaiter struct {
 }
 
 // NewFakeRolloutWaiter binds a fake waiter to a MemorySecretStore.
-// SEM@3b682947: build a FakeRolloutWaiter bound to a MemorySecretStore (pure)
 // SEM@3b682947: build a fake rollout waiter
 func NewFakeRolloutWaiter(store *MemorySecretStore, deployment string) *FakeRolloutWaiter {
 	return &FakeRolloutWaiter{store: store, deployment: deployment}
 }
 
 // Generation reports the fake Deployment generation.
-// SEM@3b682947: report the fake Deployment generation (data writes so far)
 // SEM@3b682947: return the in-memory store's generation as write count (pure)
 func (f *FakeRolloutWaiter) Generation(_ context.Context, deployment string) (int64, error) {
 	if deployment != f.deployment {
@@ -113,7 +105,6 @@ func (f *FakeRolloutWaiter) Generation(_ context.Context, deployment string) (in
 }
 
 // WaitRolled succeeds when a data write happened after since.
-// SEM@3b682947: succeed when a data write happened after since, else time out
 // SEM@3b682947: succeed if the store has been written since the given generation
 func (f *FakeRolloutWaiter) WaitRolled(ctx context.Context, deployment string, since int64, _ time.Duration) error {
 	f.Waits++
