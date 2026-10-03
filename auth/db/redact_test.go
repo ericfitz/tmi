@@ -79,13 +79,14 @@ func (e fakeOraCodeErr) Code() int     { return e.code }
 
 func TestIsPermanentConnectError(t *testing.T) {
 	wrap := func(err error) error { return failDB(slogging.Get(), "connect failed", err) }
-	for _, code := range []int{1017, 28000, 28001, 12154, 28759, 29024} {
+	for _, code := range []int{1017, 28000, 28001, 12154, 28759, 29024, 28040, 1045, 1005} {
 		assert.True(t, IsPermanentConnectError(wrap(fakeOraCodeErr{code})), "ORA-%05d", code)
 	}
 	for _, code := range []int{12514, 12541, 12170, 12537, 3113, 3114} {
 		assert.False(t, IsPermanentConnectError(wrap(fakeOraCodeErr{code})), "ORA-%05d is transient", code)
 	}
 	assert.True(t, IsPermanentConnectError(wrap(fakeDPIErr{msg: "DPI-1047: Cannot locate a 64-bit Oracle Client library"})))
+	assert.True(t, IsPermanentConnectError(wrap(fakeDPIErr{msg: "DPI-1072: the Oracle Client library version is unsupported"})))
 	assert.False(t, IsPermanentConnectError(wrap(fakeDPIErr{msg: "DPI-1080: connection was closed"})))
 	for _, code := range []string{"28P01", "28000", "3D000"} {
 		assert.True(t, IsPermanentConnectError(wrap(&pgconn.PgError{Code: code})), "sqlstate %s", code)

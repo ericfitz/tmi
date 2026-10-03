@@ -58,7 +58,8 @@ func safeErrClass(err error) string {
 // another failed login, which can lock the ADB account (#972 Oracle review).
 var permanentConnectClasses = map[string]bool{
 	"ORA-01017": true, "ORA-28000": true, "ORA-28001": true, "ORA-12154": true,
-	"ORA-28759": true, "ORA-29024": true, "DPI-1047": true,
+	"ORA-28759": true, "ORA-29024": true, "ORA-28040": true, "ORA-01045": true,
+	"ORA-01005": true, "DPI-1047": true, "DPI-1072": true,
 	"sqlstate=28P01": true, "sqlstate=28000": true, "sqlstate=3D000": true,
 }
 

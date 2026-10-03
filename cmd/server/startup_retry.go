@@ -7,6 +7,9 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
+// On Oracle ADB a single attempt can exceed the whole budget: wallet tnsnames
+// entries carry retry_count=20/retry_delay=3, so Oracle Net itself retries a
+// stopped ADB for about a minute. Then this loop makes one attempt and stops.
 const (
 	startupRetryBudget   = 30 * time.Second
 	startupRetryInitial  = 500 * time.Millisecond
