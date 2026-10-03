@@ -18,7 +18,7 @@ type DBWebhookSubscription struct {
 	Events        []string   `json:"events"`
 
 	Secret              string     `json:"secret,omitempty"`
-	Status              string     `json:"status"` // pending_verification, active, pending_delete
+	Status              string     `json:"status"` // pending_verification, active, inactive, pending_delete
 	Challenge           string     `json:"challenge,omitempty"`
 	ChallengesSent      int        `json:"challenges_sent"`
 	CreatedAt           time.Time  `json:"created_at"`
