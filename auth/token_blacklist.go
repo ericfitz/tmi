@@ -51,6 +51,11 @@ func isRetryableRedisError(err error) bool {
 		strings.Contains(msg, "connection pool timeout")
 }
 
+// ErrRevocationStorage marks a revocation that could not be recorded because the
+// backing store (Redis) is unavailable or rejected the write (e.g. at the memory
+// cap under noeviction). Callers fail closed (503) instead of reporting success.
+var ErrRevocationStorage = errors.New("revocation storage unavailable")
+
 // TokenBlacklist manages blacklisted JWT tokens using Redis
 // SEM@41fea1c48a3526015f75a5e401ec4970c6c9dfcf: Redis-backed store for revoked JWT tokens to prevent reuse after logout (reads DB)
 type TokenBlacklist struct {
@@ -121,7 +126,7 @@ func (tb *TokenBlacklist) BlacklistToken(ctx context.Context, tokenString string
 	err = tb.redis.Set(ctx, key, "blacklisted", ttl).Err()
 	if err != nil {
 		logger.Error("Failed to store token in blacklist token_hash=%v error=%v", tokenHash[:16]+"...", err)
-		return fmt.Errorf("failed to blacklist token: %w", err)
+		return fmt.Errorf("%w: failed to blacklist token: %w", ErrRevocationStorage, err)
 	}
 
 	logger.Info("Token successfully blacklisted token_hash=%v ttl_seconds=%v", tokenHash[:16]+"...", int(ttl.Seconds()))
@@ -164,7 +169,7 @@ func (tb *TokenBlacklist) RevokeCredential(ctx context.Context, credentialID str
 	key := fmt.Sprintf("blacklist:credential:%s", credentialID)
 	if err := tb.redis.Set(ctx, key, "revoked", ttl).Err(); err != nil {
 		slogging.Get().Error("Failed to revoke client credential tokens credential_id=%v error=%v", credentialID, err)
-		return fmt.Errorf("failed to revoke credential tokens: %w", err)
+		return fmt.Errorf("%w: failed to revoke credential tokens: %w", ErrRevocationStorage, err)
 	}
 	slogging.Get().Info("Client credential tokens revoked credential_id=%v ttl_seconds=%v", credentialID, int(ttl.Seconds()))
 	return nil

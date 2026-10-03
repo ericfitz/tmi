@@ -25,7 +25,7 @@ func (h *Handlers) revokeTokenInternal(ctx context.Context, tokenString string, 
 	// Check if blacklist service is available
 	if h.service == nil || h.service.dbManager == nil || h.service.dbManager.Redis() == nil {
 		logger.Error("Token blacklist service not available")
-		return fmt.Errorf("blacklist service unavailable")
+		return fmt.Errorf("%w: blacklist service unavailable", ErrRevocationStorage)
 	}
 
 	// Try to determine token type if hint not provided or is access_token
@@ -281,7 +281,17 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 
 	// Attempt to revoke the token
 	// Per RFC 7009 Section 2.2: Always return 200 OK (don't leak token validity)
-	_ = h.revokeTokenInternal(c.Request.Context(), req.Token, req.TokenTypeHint)
+	// Exception: if the revocation cannot be stored, fail closed with 503
+	// (RFC 7009 Section 2.2.1) rather than claiming a token is revoked when it is not.
+	if err := h.revokeTokenInternal(c.Request.Context(), req.Token, req.TokenTypeHint); errors.Is(err, ErrRevocationStorage) {
+		logger.Error("Token revocation could not be stored: %v", err)
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error":             "temporarily_unavailable",
+			"error_description": "Token revocation temporarily unavailable; retry later",
+		})
+		return
+	}
 
 	// Clear session cookies on revocation
 	if h.cookieOpts.Enabled {

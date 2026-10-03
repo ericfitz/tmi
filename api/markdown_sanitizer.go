@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/microcosm-cc/bluemonday"
+	xhtml "golang.org/x/net/html"
 )
 
 // markdownPolicy is the singleton bluemonday policy for markdown content fields.
@@ -88,15 +89,75 @@ func createMarkdownSanitizationPolicy() *bluemonday.Policy {
 	return p
 }
 
-// SanitizeMarkdownContent applies the bluemonday HTML sanitization policy
-// to a markdown content string. Safe HTML (per the allowlist) is preserved;
-// dangerous elements and attributes are stripped.
-// SEM@d6557548645ee87e8fe5910b447499fc633fbe6b: sanitize a markdown string by stripping disallowed HTML elements and attributes (pure)
+// SanitizeMarkdownContent strips dangerous HTML from a markdown string while
+// leaving all non-markup text byte-for-byte intact (#992).
+//
+// Markdown is not HTML, so the source is tokenized and only tag-like tokens
+// are run through the bluemonday allowlist; text tokens are copied verbatim
+// rather than re-serialized, which would entity-encode quotes, apostrophes and
+// ampersands. Content of script/style and similar elements is dropped, as
+// bluemonday does. Stripping a tag can splice neighbouring text into a new tag
+// (e.g. "<<script>script>"), so the pass repeats until stable; if it does not
+// settle, fall back to bluemonday's fully escaped output.
+// SEM@0000000: sanitize markdown by stripping disallowed HTML tags and attributes while keeping text verbatim (pure)
 func SanitizeMarkdownContent(content string) string {
 	if content == "" {
 		return content
 	}
-	return markdownPolicy.Sanitize(content)
+	cur := content
+	for i := 0; i < 10; i++ {
+		next := stripMarkdownHTML(cur)
+		if next == cur {
+			return cur
+		}
+		cur = next
+	}
+	return markdownPolicy.Sanitize(cur)
+}
+
+// markdownSkipContent lists elements whose entire content is dropped with the tag.
+// Void or rarely-closed elements (embed, applet, frame) are left out: skipping
+// their "content" would swallow the rest of the note; bluemonday drops the tag.
+var markdownSkipContent = map[string]bool{
+	"frameset": true, "iframe": true,
+	"object": true, "script": true, "style": true, "noscript": true,
+}
+
+// SEM@0000000: remove disallowed HTML markup in one pass, copying text tokens unchanged (pure)
+func stripMarkdownHTML(content string) string {
+	var out strings.Builder
+	z := xhtml.NewTokenizer(strings.NewReader(content))
+	skip := "" // element whose content is currently being dropped
+	for {
+		tt := z.Next()
+		if tt == xhtml.ErrorToken {
+			// Any unterminated trailing tag is dropped.
+			return out.String()
+		}
+		raw := string(z.Raw())
+		if skip != "" {
+			if tt == xhtml.EndTagToken {
+				if name, _ := z.TagName(); string(name) == skip {
+					skip = ""
+				}
+			}
+			continue
+		}
+		switch tt {
+		case xhtml.TextToken:
+			out.WriteString(raw)
+		case xhtml.StartTagToken, xhtml.SelfClosingTagToken:
+			name, _ := z.TagName()
+			if tt == xhtml.StartTagToken && markdownSkipContent[string(name)] {
+				skip = string(name)
+				continue
+			}
+			out.WriteString(markdownPolicy.Sanitize(raw))
+		case xhtml.EndTagToken:
+			out.WriteString(markdownPolicy.Sanitize(raw))
+		default: // comments and doctype are dropped
+		}
+	}
 }
 
 // SanitizeRequiredMarkdownContent sanitizes a markdown field the schema
