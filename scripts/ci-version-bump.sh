@@ -1,7 +1,12 @@
 #!/bin/bash
-# ci-version-bump.sh - Version computation and application for the PR-based
-# automatic semantic versioning workflow (see .github/workflows/version-bump.yml
-# and issue #627).
+# ci-version-bump.sh - Version computation and application for the automatic
+# semantic versioning workflow (see .github/workflows/version-bump.yml, issue
+# #627, and docs/superpowers/specs/2026-10-02-adr-post-merge-version-bump.md).
+#
+# CURRENT DESIGN (human decision, Eric 2026-10-02): PRs never touch version
+# files. After each merge, a workflow on `main` runs `plan-pending` to fold
+# every merged-but-unbumped commit into one bump and pushes a single
+# chore(version) commit. The history below explains the earlier designs.
 #
 # The old post-commit-hook design amended the commit it just observed on
 # `main`. That is unreachable under a PR-only branch-protection ruleset: every
@@ -54,6 +59,19 @@
 #       info.version reached the generated code (requires `make generate-api`
 #       to have been re-run after editing the spec).
 #
+#   ./ci-version-bump.sh plan-pending [ref]
+#       Run inside the repo. Finds the last first-parent commit on [ref]
+#       (default HEAD) that touched .version, then folds every later
+#       first-parent commit into the bump, oldest first: docs-only commits
+#       are skipped; each other commit bumps the server version per its
+#       subject (the squash-merge subject is the PR title); the schema
+#       version bumps per the same subject only when that commit changed the
+#       spec (diff vs its first parent, info.version excluded). Prints
+#       key=value lines: pending=<n>, server=<X.Y.Z>, schema=<X.Y.Z>,
+#       schema_changed=<true|false>, base=<sha>. pending=0 means nothing to
+#       do, which is what a run triggered by its own bump commit sees (that
+#       commit touched .version), so the bump can never cascade.
+#
 #   ./ci-version-bump.sh self-test
 #       Runs the computation against a scratch .version with a handful of
 #       synthetic PR titles and asserts the expected bump. Exits non-zero on
@@ -102,6 +120,24 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 bump_version() {
     local title="$1" major="$2" minor="$3" patch="$4"
     if echo "$title" | grep -qE '^feat(\(.+\))?(!)?:'; then
+        minor=$((minor + 1))
+        patch=0
+    else
+        patch=$((patch + 1))
+    fi
+    echo "${major}.${minor}.${patch}"
+}
+
+# Apply a PR title's schema-bump rule to MAJOR.MINOR.PATCH: a breaking marker
+# -> MAJOR, feat -> MINOR, anything else -> PATCH. Pure: prints only.
+bump_schema_version() {
+    local title="$1" version="$2" major minor patch
+    IFS='.' read -r major minor patch <<<"$version"
+    if echo "$title" | grep -qE '^[a-z]+(\(.+\))?!:'; then
+        major=$((major + 1))
+        minor=0
+        patch=0
+    elif echo "$title" | grep -qE '^feat(\(.+\))?(!)?:'; then
         minor=$((minor + 1))
         patch=0
     else
@@ -225,21 +261,70 @@ cmd_compute_schema_version() {
         return 0
     fi
 
-    local major minor patch
-    IFS='.' read -r major minor patch <<<"$base_version"
+    bump_schema_version "$title" "$base_version"
+}
 
-    if echo "$title" | grep -qE '^[a-z]+(\(.+\))?!:'; then
-        major=$((major + 1))
-        minor=0
-        patch=0
-    elif echo "$title" | grep -qE '^feat(\(.+\))?(!)?:'; then
-        minor=$((minor + 1))
-        patch=0
-    else
-        patch=$((patch + 1))
+# Fold every merged-but-unbumped first-parent commit into one bump (see usage).
+# Reads git in the current directory; writes nothing.
+cmd_plan_pending() {
+    local ref="${1:-HEAD}"
+    local base
+    base=$(git log -1 --first-parent --format=%H "$ref" -- "$VERSION_FILE_DEFAULT")
+    if [ -z "$base" ]; then
+        log_error "plan-pending: no commit on $ref ever touched $VERSION_FILE_DEFAULT"
+        exit 1
     fi
 
-    echo "${major}.${minor}.${patch}"
+    # Commits after base don't touch .version, and Version Check forbids PRs
+    # from changing info.version, so both values at ref are the last bumped ones.
+    local server schema major minor patch
+    server=$(git show "$ref:$VERSION_FILE_DEFAULT" | jq -r '"\(.major).\(.minor).\(.patch)"')
+    schema=$(git show "$ref:$OPENAPI_FILE" | jq -r '.info.version')
+
+    local pending=0 schema_changed=false c subject docs_only
+    for c in $(git rev-list --first-parent --reverse "$base..$ref"); do
+        subject=$(git log -1 --format=%s "$c")
+        docs_only=$(git diff --name-only "$c^1" "$c" | cmd_is_docs_only)
+        if [ "$docs_only" = "true" ]; then
+            log_info "skip (docs-only) $c $subject"
+            continue
+        fi
+        pending=$((pending + 1))
+        IFS='.' read -r major minor patch <<<"$server"
+        server=$(bump_version "$subject" "$major" "$minor" "$patch")
+        if ! diff -q <(git show "$c^1:$OPENAPI_FILE" 2>/dev/null | jq -S 'del(.info.version)') \
+            <(git show "$c:$OPENAPI_FILE" 2>/dev/null | jq -S 'del(.info.version)') >/dev/null; then
+            schema=$(bump_schema_version "$subject" "$schema")
+            schema_changed=true
+        fi
+        log_info "bump $c $subject -> server $server, schema $schema"
+    done
+
+    echo "pending=$pending"
+    echo "server=$server"
+    echo "schema=$schema"
+    echo "schema_changed=$schema_changed"
+    echo "base=$base"
+}
+
+# Fail when a PR edits version state that only the post-merge bump may write.
+# Args: <merge-base> <head>. Reads git in the current directory; prints the
+# offending paths and exits 1, or prints nothing and exits 0.
+cmd_check_pr_untouched() {
+    local mb="${1:-}" head="${2:-HEAD}" bad=()
+    if [ -z "$mb" ]; then
+        log_error "check-pr-untouched requires <merge-base> [head]"
+        exit 1
+    fi
+    git diff --quiet "$mb" "$head" -- "$VERSION_FILE_DEFAULT" || bad+=("$VERSION_FILE_DEFAULT")
+    git diff --quiet "$mb" "$head" -- "$VERSION_GO_FILE" || bad+=("$VERSION_GO_FILE")
+    if [ "$(git show "$mb:$OPENAPI_FILE" | jq -r '.info.version')" != "$(git show "$head:$OPENAPI_FILE" | jq -r '.info.version')" ]; then
+        bad+=("$OPENAPI_FILE info.version")
+    fi
+    if [ "${#bad[@]}" -gt 0 ]; then
+        printf '%s\n' "${bad[@]}"
+        return 1
+    fi
 }
 
 cmd_apply_schema_version() {
@@ -386,6 +471,62 @@ EOF
     assert_schema "fix: patch bump" "$spec_base" "$spec_head_changed" "2.3.2"
     assert_schema "chore!: breaking chore" "$spec_base" "$spec_head_changed" "3.0.0"
 
+    # plan-pending / check-pr-untouched against a scratch git repo.
+    local repo="$tmpdir/repo"
+    mkdir -p "$repo/api-schema" "$repo/docs" "$repo/api"
+    (
+        cd "$repo"
+        git init -q -b main
+        git config user.email t@example.invalid
+        git config user.name t
+        printf '{"major": 1, "minor": 8, "patch": 16, "prerelease": ""}\n' >.version
+        printf '{"info": {"version": "2.3.1"}, "paths": {"/a": {}}}\n' >api-schema/tmi-openapi.json
+        echo code >main.go
+        git add -A && git commit -qm "chore(version): bump to 1.8.16"
+    )
+    assert_plan() {
+        local label="$1" expected="$2" got
+        got=$(cd "$repo" && cmd_plan_pending 2>/dev/null | tr '\n' ' ' | sed 's/ base=.*//')
+        if [ "$got" = "$expected" ]; then
+            echo "PASS: plan-pending $label -> $got"
+        else
+            echo "FAIL: plan-pending $label -> '$got' (expected '$expected')"
+            failures=$((failures + 1))
+        fi
+    }
+    assert_plan "right after a bump" "pending=0 server=1.8.16 schema=2.3.1 schema_changed=false"
+    (cd "$repo" && echo x >>docs/a.md && git add -A && git commit -qm "docs: notes (#1)")
+    assert_plan "docs-only only" "pending=0 server=1.8.16 schema=2.3.1 schema_changed=false"
+    (cd "$repo" && echo y >>main.go && git add -A && git commit -qm "fix: one (#2)")
+    (cd "$repo" && printf '{"info": {"version": "2.3.1"}, "paths": {"/a": {}, "/b": {}}}\n' >api-schema/tmi-openapi.json \
+        && git add -A && git commit -qm "feat(api): add b (#3)")
+    (cd "$repo" && echo z >>main.go && git add -A && git commit -qm "fix: two (#4)")
+    assert_plan "fold of fix+feat(schema)+fix" "pending=3 server=1.9.1 schema=2.4.0 schema_changed=true"
+    (
+        cd "$repo"
+        printf '{"major": 1, "minor": 9, "patch": 1, "prerelease": ""}\n' >.version
+        jq '.info.version = "2.4.0"' api-schema/tmi-openapi.json >s.tmp && mv s.tmp api-schema/tmi-openapi.json
+        git add -A && git commit -qm "chore(version): bump server to 1.9.1, schema to 2.4.0"
+    )
+    assert_plan "after the bump commit (no cascade)" "pending=0 server=1.9.1 schema=2.4.0 schema_changed=false"
+
+    assert_untouched() {
+        local label="$1" expected="$2" got
+        got=$(cd "$repo" && cmd_check_pr_untouched HEAD~1 HEAD >/dev/null 2>&1 && echo ok || echo bad)
+        if [ "$got" = "$expected" ]; then
+            echo "PASS: check-pr-untouched $label -> $got"
+        else
+            echo "FAIL: check-pr-untouched $label -> $got (expected $expected)"
+            failures=$((failures + 1))
+        fi
+    }
+    (cd "$repo" && echo w >>main.go && git add -A && git commit -qm "fix: code only")
+    assert_untouched "code-only PR" ok
+    (cd "$repo" && printf '{"major": 9, "minor": 0, "patch": 0, "prerelease": ""}\n' >.version && git add -A && git commit -qm "fix: hand bump")
+    assert_untouched "hand-edited .version" bad
+    (cd "$repo" && jq '.info.version = "9.9.9"' api-schema/tmi-openapi.json >s.tmp && mv s.tmp api-schema/tmi-openapi.json && git add -A && git commit -qm "fix: hand schema bump")
+    assert_untouched "hand-edited info.version" bad
+
     rm -rf "$tmpdir"
 
     if [ "$failures" -eq 0 ]; then
@@ -418,6 +559,12 @@ main() {
     embedded-spec-version)
         cmd_embedded_spec_version "$@"
         ;;
+    plan-pending)
+        cmd_plan_pending "$@"
+        ;;
+    check-pr-untouched)
+        cmd_check_pr_untouched "$@"
+        ;;
     self-test)
         cmd_self_test "$@"
         ;;
@@ -430,6 +577,8 @@ main() {
         echo "  $0 compute-schema-version \"<PR title>\" <base-spec> <head-spec>"
         echo "  $0 apply-schema-version <MAJOR.MINOR.PATCH>"
         echo "  $0 embedded-spec-version [api.go path]"
+        echo "  $0 plan-pending [ref]"
+        echo "  $0 check-pr-untouched <merge-base> [head]"
         echo "  $0 self-test"
         exit 1
         ;;
