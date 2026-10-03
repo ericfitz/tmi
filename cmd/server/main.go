@@ -829,7 +829,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 
 	// Initialize GORM (required for all database types)
 	logger.Info("Initializing GORM database connection for %s", dbType)
-	if err := retryConnect(context.Background(), "Database", startupRetryBudget, func() error { return dbManager.InitGorm(gormCfg) }, ctxSleep); err != nil {
+	if err := retryConnect(context.Background(), "Database", startupRetryBudget, func() error { return dbManager.InitGorm(gormCfg) }, db.IsPermanentConnectError, ctxSleep); err != nil {
 		logger.Error("Failed to initialize GORM database: %v", err)
 		os.Exit(1)
 	}
@@ -842,7 +842,7 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	// Initialize Redis
 	logger.Info("Initializing Redis connection")
 	redisConfig := buildRedisConfig(config)
-	if err := retryConnect(context.Background(), "Redis", startupRetryBudget, func() error { return dbManager.InitRedis(redisConfig) }, ctxSleep); err != nil {
+	if err := retryConnect(context.Background(), "Redis", startupRetryBudget, func() error { return dbManager.InitRedis(redisConfig) }, nil, ctxSleep); err != nil {
 		logger.Error("Failed to initialize Redis: %v", err)
 		os.Exit(1)
 	}

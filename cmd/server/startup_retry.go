@@ -13,15 +13,24 @@ const (
 	startupRetryMaxDelay = 5 * time.Second
 )
 
-// SEM@0000000: retry a connect function with bounded exponential backoff until success, budget, or cancel
-func retryConnect(ctx context.Context, name string, budget time.Duration, connect func() error, sleep func(context.Context, time.Duration) error) error {
+// retryConnect retries connect with exponential backoff until it succeeds, the
+// budget (wall-clock: time inside attempts plus backoff) runs out, the context
+// is cancelled, or isPermanent (optional) says the error cannot be fixed by retrying.
+// SEM@82c42d73: retry a connect function with bounded backoff, stopping early on non-retryable errors
+func retryConnect(ctx context.Context, name string, budget time.Duration, connect func() error, isPermanent func(error) bool, sleep func(context.Context, time.Duration) error) error {
 	logger := slogging.Get()
 	delay := startupRetryInitial
 	var elapsed time.Duration
 	for attempt := 1; ; attempt++ {
+		start := time.Now()
 		err := connect()
+		elapsed += time.Since(start)
 		if err == nil {
 			return nil
+		}
+		if isPermanent != nil && isPermanent(err) {
+			logger.Warn("%s connection attempt %d failed with a non-retryable error; not retrying", name, attempt)
+			return err
 		}
 		if elapsed+delay > budget {
 			return err
