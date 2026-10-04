@@ -52,6 +52,23 @@ func safeErrClass(err error) string {
 	return fmt.Sprintf("%T", err)
 }
 
+// permanentConnectClasses are connect-error classes a retry cannot fix:
+// bad or locked credentials, unknown TNS alias, wallet/certificate failures,
+// a missing Oracle client, a missing Postgres database. Each Oracle retry is
+// another failed login, which can lock the ADB account (#972 Oracle review).
+var permanentConnectClasses = map[string]bool{
+	"ORA-01017": true, "ORA-28000": true, "ORA-28001": true, "ORA-12154": true,
+	"ORA-28759": true, "ORA-29024": true, "ORA-28040": true, "ORA-01045": true,
+	"ORA-01005": true, "DPI-1047": true, "DPI-1072": true,
+	"sqlstate=28P01": true, "sqlstate=28000": true, "sqlstate=3D000": true,
+}
+
+// IsPermanentConnectError reports whether a connect error can never succeed on retry.
+// SEM@82c42d73: classify a database connect error as non-retryable (pure)
+func IsPermanentConnectError(err error) bool {
+	return err != nil && permanentConnectClasses[safeErrClass(err)]
+}
+
 // failDB logs a fixed message plus the safe error class and returns an error
 // whose text is equally credential-free, so callers that log it don't re-leak.
 // SEM@0000000: log a driver failure with a fixed message and safe class, returning a redacted error
