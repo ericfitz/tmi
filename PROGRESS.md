@@ -32,6 +32,13 @@
   spectral-cli) has no fixed release.
 - **#1035** — re-anchored 473 SEM markers left stale or orphaned by squash merges (descriptions refreshed);
   `.claude/CLAUDE.md` now says `CLUSTER` is required for dev-* targets (no default).
+- **#1038** — three escrow/DB follow-ups, one commit each:
+  - #1030: IAM Deny on `secretsmanager:DeleteSecret` and `PutResourcePolicy` for `tmi-settings-key-escrow`,
+    attached to the admin users like `deny-release-tmi-nat-eip` (aws-persistent).
+  - #1031: test proving a failed escrow from `staged` leaves the Secret's data, annotations and write count unchanged.
+  - #1026: `NewGormDB` closes the connection pool on every failure path, including Oracle's pre-built godror pool
+    when gorm-oracle's `Initialize` fails before adopting it. Oracle review: APPROVED WITH NOTES (notes fixed; the
+    upstream gorm LRU-cleanup goroutine per `gorm.Open` is accepted).
 
 ## Decided (Eric)
 
@@ -53,7 +60,8 @@
 ## Filed
 
 - #1030, #1031 (escrow follow-ups), #1026 (close the pool on NewGormDB failure), #1033 (dev-config restore fails on
-  `ENC:v1:` values).
+  `ENC:v1:` values), #1036 (flaky `TestWorkerProbe_ContractEndToEnd_Integration`), #1037 (widen the escrow deny: KMS swap,
+  version overwrite, admin roles; security-review follow-up to #1030).
 
 # Session progress — 2026-09-30
 
