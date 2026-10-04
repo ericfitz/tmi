@@ -288,6 +288,20 @@ The stale-secret alarm (`tmi-secret-rotation-stale`) alarms on a day with no
 `rotation status` datapoint (`treat_missing_data = breaching`), so a fresh
 cluster alarms until the rotator's first run.
 
+### Rotator ServiceAccount and escrow ConfigMap (#1009)
+
+Two inline JSON6902 patches in `kustomization.yaml` point the rotator at the
+Terraform-created IRSA ServiceAccount `tmi-rotator-aws`, which holds
+`secretsmanager:PutSecretValue` on the settings-key escrow secret. The first
+replaces `serviceAccountName` on the `tmi-rotator` CronJob; the second appends
+`tmi-rotator-aws` to the `tmi-rotator` RoleBinding subjects so it keeps the same
+Secret and Deployment permissions. The base `tmi-rotator` ServiceAccount stays
+because dev clusters use it. The base CronJob also reads the optional ConfigMap
+`tmi-rotator-config` (`TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN`, created by
+Terraform) via `envFrom`; where it is absent, escrow is a no-op. Jobs created
+from the CronJob by `make rotate-secret` inherit the ServiceAccount and the
+env, so manual rotations escrow too.
+
 ## ConfigMap flat keys — naming bug fixed, and now wired via `envFrom`
 
 The terraform-side naming bug this section originally flagged is **fixed**

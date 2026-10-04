@@ -79,3 +79,21 @@ patches:
     target:
       kind: PersistentVolumeClaim
       name: redis-data
+  # #1009: the rotator runs as the Terraform-created IRSA ServiceAccount
+  # tmi-rotator-aws (escrow PutSecretValue), following the tmi-api precedent.
+  # The base tmi-rotator SA stays (dev clusters use it); the RoleBinding gains
+  # the AWS SA so it keeps the same Secret/Deployment permissions.
+  - target:
+      kind: CronJob
+      name: tmi-rotator
+    patch: |-
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/serviceAccountName
+        value: tmi-rotator-aws
+  - target:
+      kind: RoleBinding
+      name: tmi-rotator
+    patch: |-
+      - op: add
+        path: /subjects/-
+        value: { kind: ServiceAccount, name: tmi-rotator-aws, namespace: tmi-platform }
