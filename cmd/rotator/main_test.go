@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -59,15 +60,30 @@ func TestLoadOptions_SettingsEscrowARN(t *testing.T) {
 	require.Empty(t, o.SettingsEscrowARN)
 }
 
-// SEM@b949412f: verify a malformed or regionless escrow ARN is rejected at load
+// SEM@b949412f: verify malformed or regionless escrow ARNs are rejected without echoing them
 func TestLoadOptions_RejectsMalformedEscrowARN(t *testing.T) {
-	env := map[string]string{"TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN": "arn:aws:s3:::bucket"}
-	_, err := loadOptions(func(k string) string { return env[k] })
-	require.ErrorContains(t, err, "TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN")
+	for _, arn := range []string{"arn:aws:s3:::bucket", "arn:aws:secretsmanager::1:secret:x"} {
+		env := map[string]string{"TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN": arn}
+		_, err := loadOptions(func(k string) string { return env[k] })
+		require.EqualError(t, err, "TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN: not a Secrets Manager secret ARN with a region")
+		require.NotContains(t, err.Error(), arn)
+	}
 }
 
-// SEM@b949412f: verify run exits 2 on a malformed escrow ARN before touching the cluster
+// SEM@b949412f: verify startup exits 2 on a malformed escrow ARN and 0 on a valid one
 func TestRun_MalformedEscrowARNExits2(t *testing.T) {
+	// Isolate: a regression must never reach a real cluster.
+	t.Setenv("KUBECONFIG", filepath.Join(t.TempDir(), "none"))
+	t.Setenv("KUBERNETES_SERVICE_HOST", "")
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
+
+	bad := map[string]string{"TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN": "arn:aws:s3:::bucket"}
+	_, code := startupOptions(func(k string) string { return bad[k] })
+	require.Equal(t, 2, code)
+
+	_, code = startupOptions(func(string) string { return "" })
+	require.Equal(t, 0, code)
+
 	t.Setenv("TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN", "arn:aws:s3:::bucket")
 	require.Equal(t, 2, run())
 }

@@ -109,13 +109,22 @@ func main() {
 	os.Exit(run())
 }
 
+// SEM@b949412f: load rotator options at startup; return exit code 2 on invalid configuration
+func startupOptions(getenv func(string) string) (options, int) {
+	o, err := loadOptions(getenv)
+	if err != nil {
+		slogging.Get().Error("Invalid rotator configuration: %v", err)
+		return o, 2
+	}
+	return o, 0
+}
+
 // SEM@b949412f: wire cluster, Redis and DB clients and run every rotation; return the exit code
 func run() int {
 	logger := slogging.Get()
-	o, err := loadOptions(os.Getenv)
-	if err != nil {
-		logger.Error("Invalid rotator configuration: %v", err)
-		return 2
+	o, code := startupOptions(os.Getenv)
+	if code != 0 {
+		return code
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*o.RolloutTimeout+5*time.Minute)
 	defer cancel()
