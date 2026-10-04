@@ -315,6 +315,39 @@ resource "kubernetes_service_account_v1" "tmi_api" {
   automount_service_account_token = true
 }
 
+# #1009: IRSA identity for the tmi-rotator CronJob on AWS (the aws overlay
+# switches the CronJob to it and adds it to the tmi-rotator RoleBinding).
+resource "kubernetes_service_account_v1" "tmi_rotator_aws" {
+  metadata {
+    name      = "tmi-rotator-aws"
+    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
+    labels = {
+      app        = "tmi-rotator"
+      managed_by = "terraform"
+    }
+    annotations = {
+      "eks.amazonaws.com/role-arn" = aws_iam_role.tmi_rotator.arn
+    }
+  }
+
+  # The rotator calls the Kubernetes API and IRSA needs the projected token.
+  automount_service_account_token = true
+}
+
+resource "kubernetes_config_map_v1" "tmi_rotator_config" {
+  metadata {
+    name      = "tmi-rotator-config"
+    namespace = kubernetes_namespace_v1.tmi.metadata[0].name
+    labels = {
+      app        = "tmi-rotator"
+      managed_by = "terraform"
+    }
+  }
+  data = {
+    TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN = var.settings_key_escrow_secret_arn
+  }
+}
+
 # NOTE: Workload resources (TMI API Deployment/Service, Redis Deployment/
 # Service, ALB Ingress) previously lived here as kubernetes_deployment_v1 /
 # kubernetes_service_v1 / kubernetes_ingress_v1 resources. They have been

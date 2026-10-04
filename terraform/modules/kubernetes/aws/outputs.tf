@@ -83,3 +83,8 @@ output "redis_endpoint" {
   description = "Internal Redis service address. This is the DNS name the deploy overlay's Redis Service (deployments/k8s/dev/redis.yml, Service \"redis\" in this namespace) will resolve to — it is not backed by a terraform-managed Service."
   value       = "redis.${kubernetes_namespace_v1.tmi.metadata[0].name}.svc.cluster.local:6379"
 }
+
+output "rotator_role_arn" {
+  description = "IAM role ARN assumed by the tmi-rotator ServiceAccount (PutSecretValue on the escrow secret only)"
+  value       = aws_iam_role.tmi_rotator.arn
+}
