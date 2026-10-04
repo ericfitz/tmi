@@ -10,7 +10,7 @@ This directory contains scripts that are actively used by the refactored build s
 
 ### Version Management
 
-- **`update-version.sh`** - Automatic version management for TMI based on conventional commit types (feat: increments MINOR, others increment PATCH)
+- **`check-embedded-spec.sh`** - Fails if the OpenAPI spec embedded in `api/api.go` disagrees with `api-schema/tmi-openapi.json` (`info.version`). Run by version-bump-bot's PR guard; versions themselves are bumped after merge by the bot (see `.github/version-bump.toml`).
 
 ## Development and Analysis Tools
 

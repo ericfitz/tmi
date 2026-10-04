@@ -1,6 +1,6 @@
 # ADR: Skip version bump for docs-only PRs; decouple the OpenAPI schema version
 
-Date: 2026-09-28. Status: accepted.
+Date: 2026-09-28. Status: accepted; the bump MECHANISM (in-PR bump commit) is superseded by `2026-10-03-adr-adopt-version-bump-bot.md`. The docs-skip and schema-decoupling rules below still apply, now evaluated per merged commit by version-bump-bot.
 
 ## Human-made architectural decisions (Eric, 2026-09-28)
 

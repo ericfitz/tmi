@@ -17,23 +17,14 @@
 # wrong for this workflow independently: it would rewrite a commit that has
 # already been pushed to `main`.
 #
-# The replacement is `.github/workflows/version-bump.yml`, which computes the
-# bump from the PR TITLE (the string that becomes the squash-merge commit
-# subject) and pushes a `chore(version): bump to X.Y.Z` commit onto the PR's
-# own branch — so squash-merge lands it as part of the same change. A
-# "Version Check" job in the same workflow fails the PR if `.version`/
-# `api/version.go` disagree with the expected server version, or if the
-# OpenAPI `info.version` and the version embedded in `api/api.go` ever drift
-# out of step. Since 2026-09-28 the schema's `info.version` is its own value,
-# decoupled from `.version` — it only bumps when the schema itself changes.
-# See CLAUDE.md's "Versioning" section and #627 for the full design.
+# Versioning now happens after merge on main, by ericfitz/version-bump-bot
+# (.github/workflows/version.yml, config .github/version-bump.toml): PRs never
+# touch version files, and a push-to-main job commits and tags each bump.
+# See CLAUDE.md's "Versioning" section and
+# docs/superpowers/specs/2026-10-03-adr-adopt-version-bump-bot.md.
 #
 # Deliberately kept as an explanatory no-op rather than deleted, so the
 # history is discoverable from the path the docs point at, and so
 # `make install-hooks` (which chmods this file) keeps working.
-#
-# scripts/update-version.sh and scripts/ci-version-bump.sh are left in place;
-# the latter is what the CI workflow actually calls, the former still works
-# for a one-off manual/local bump.
 
 exit 0
