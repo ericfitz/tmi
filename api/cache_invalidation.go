@@ -78,7 +78,7 @@ func (ci *CacheInvalidator) InvalidateSubResourceChange(ctx context.Context, eve
 }
 
 // invalidateImmediately performs immediate cache invalidation
-// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: evict entity and related caches synchronously by entity type routing (mutates shared state)
+// SEM@d5abf2700f59ec278f7e45a485c9d19c90b0050f: evict entity and related caches synchronously, routed by entity type (mutates shared state)
 func (ci *CacheInvalidator) invalidateImmediately(ctx context.Context, event InvalidationEvent) error {
 	logger := slogging.Get()
 
@@ -505,7 +505,7 @@ func (ci *CacheInvalidator) BulkInvalidate(ctx context.Context, events []Invalid
 }
 
 // GetInvalidationPattern returns cache key patterns that would be affected by an entity change
-// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: return Redis key patterns affected by a change to the given entity and parent (pure)
+// SEM@d5abf2700f59ec278f7e45a485c9d19c90b0050f: compute the cache key patterns affected by a change to an entity and its parent (pure)
 func (ci *CacheInvalidator) GetInvalidationPattern(entityType, entityID, parentType, parentID string) []string {
 	var patterns []string
 

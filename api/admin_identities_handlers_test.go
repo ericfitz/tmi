@@ -30,7 +30,7 @@ import (
 // stubAPILinkedIdentityStore (my_identities_handlers_test.go), Delete here
 // records the (id, ownerUUID) it was called with so tests can assert the
 // handler scoped the delete to the target user, not the calling admin.
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: stub linked-identity store recording delete calls for admin identity tests
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: stub linked-identity store recording delete calls for tests
 type adminIdentitiesStubStore struct {
 	rows      []models.LinkedIdentity
 	deleteErr error
@@ -39,22 +39,22 @@ type adminIdentitiesStubStore struct {
 	lastDeleteOwner string
 }
 
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: stub a linked identity creation as a no-op for admin identity tests (pure)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: stub building a linked identity as a no-op (pure)
 func (s *adminIdentitiesStubStore) Create(_ context.Context, _ auth.LinkedIdentityInput) (models.LinkedIdentity, error) {
 	return models.LinkedIdentity{}, nil
 }
 
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: stub an exclusive linked identity creation as a no-op for admin identity tests (pure)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: stub building an exclusive linked identity as a no-op (pure)
 func (s *adminIdentitiesStubStore) CreateExclusive(_ context.Context, _ auth.LinkedIdentityInput) (models.LinkedIdentity, error) {
 	return models.LinkedIdentity{}, nil
 }
 
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: stub a linked-identity lookup by provider subject as always-not-found (pure)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: stub looking up a linked identity by provider subject as always not found (pure)
 func (s *adminIdentitiesStubStore) GetByProviderSub(_ context.Context, _, _ string) (models.LinkedIdentity, error) {
 	return models.LinkedIdentity{}, auth.ErrLinkedIdentityNotFound
 }
 
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: filter the stub's linked identities to those owned by a given user (pure)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: filter stub linked identities to those owned by a given user (pure)
 func (s *adminIdentitiesStubStore) ListByUser(_ context.Context, userInternalUUID string) ([]models.LinkedIdentity, error) {
 	var out []models.LinkedIdentity
 	for _, row := range s.rows {
@@ -65,10 +65,10 @@ func (s *adminIdentitiesStubStore) ListByUser(_ context.Context, userInternalUUI
 	return out, nil
 }
 
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: stub updating a linked identity's last-used timestamp as a no-op (pure)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: stub updating a linked identity's last-used time as a no-op (pure)
 func (s *adminIdentitiesStubStore) TouchLastUsed(_ context.Context, _ string) error { return nil }
 
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: stub deleting a linked identity, recording the call and honoring a forced error
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: stub deleting a linked identity, recording the call and honoring a forced error
 func (s *adminIdentitiesStubStore) Delete(_ context.Context, id, ownerUUID string) error {
 	s.lastDeleteID = id
 	s.lastDeleteOwner = ownerUUID
@@ -89,7 +89,7 @@ func (s *adminIdentitiesStubStore) Delete(_ context.Context, id, ownerUUID strin
 
 // newAdminIdentitiesContext builds a gin.Context with the minimal
 // admin-auth context values the handlers read (audit actor fields).
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: build a gin test context with admin auth fields for identity handler tests
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: build a gin test context with admin auth for identity handler tests
 func newAdminIdentitiesContext(t *testing.T, method, path, adminUUID string) (*gin.Context, *httptest.ResponseRecorder) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -105,7 +105,7 @@ func newAdminIdentitiesContext(t *testing.T, method, path, adminUUID string) (*g
 // AdminListUserIdentities tests
 // ---------------------------------------------------------------------------
 
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: test that listing a user's identities returns primary and linked entries
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: test that listing a user's identities returns primary and linked entries
 func TestAdminListUserIdentities_Success(t *testing.T) {
 	origStore := GlobalUserStore
 	defer func() { GlobalUserStore = origStore }()
@@ -173,7 +173,7 @@ func TestAdminListUserIdentities_Success(t *testing.T) {
 	assert.Equal(t, "sub-xyz", second["provider_user_id"])
 }
 
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: test that listing identities for an unknown user returns 404
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: test that listing identities for an unknown user returns 404
 func TestAdminListUserIdentities_UserNotFound(t *testing.T) {
 	origStore := GlobalUserStore
 	defer func() { GlobalUserStore = origStore }()
@@ -190,7 +190,7 @@ func TestAdminListUserIdentities_UserNotFound(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "not_found")
 }
 
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: test that listing identities without a wired identity store returns 500
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: test that listing identities without an identity store returns 500
 func TestAdminListUserIdentities_StoreNil(t *testing.T) {
 	origStore := GlobalUserStore
 	defer func() { GlobalUserStore = origStore }()
@@ -212,7 +212,7 @@ func TestAdminListUserIdentities_StoreNil(t *testing.T) {
 // parameter binding rejects it with 400 first. This mirrors how
 // admin_user_handlers_test.go exercises the same invariant for
 // GET /admin/users/{user_id}.
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: test that a malformed user_id path segment is rejected before the handler runs
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: test that a malformed user id path segment is rejected before the handler runs
 func TestAdminListUserIdentities_InvalidUUID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -236,7 +236,7 @@ func TestAdminListUserIdentities_InvalidUUID(t *testing.T) {
 // AdminDeleteUserIdentity tests
 // ---------------------------------------------------------------------------
 
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: test that deleting a target user's linked identity scopes the delete correctly
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: test that deleting a user's linked identity scopes the delete correctly
 func TestAdminDeleteUserIdentity_Success(t *testing.T) {
 	origStore := GlobalUserStore
 	defer func() { GlobalUserStore = origStore }()
@@ -278,7 +278,7 @@ func TestAdminDeleteUserIdentity_Success(t *testing.T) {
 	assert.Equal(t, targetUUID.String(), linkedStore.lastDeleteOwner)
 }
 
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: test that deleting an unknown linked identity returns 404
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: test that deleting an unknown linked identity returns 404
 func TestAdminDeleteUserIdentity_NotFound(t *testing.T) {
 	origStore := GlobalUserStore
 	defer func() { GlobalUserStore = origStore }()
@@ -306,7 +306,7 @@ func TestAdminDeleteUserIdentity_NotFound(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "not_found")
 }
 
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: test that deleting an identity for an unknown user returns 404
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: test that deleting an identity for an unknown user returns 404
 func TestAdminDeleteUserIdentity_UserNotFound(t *testing.T) {
 	origStore := GlobalUserStore
 	defer func() { GlobalUserStore = origStore }()
@@ -324,7 +324,7 @@ func TestAdminDeleteUserIdentity_UserNotFound(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "not_found")
 }
 
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: test that deleting an identity without a wired identity store returns 500
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: test that deleting an identity without an identity store returns 500
 func TestAdminDeleteUserIdentity_StoreNil(t *testing.T) {
 	origStore := GlobalUserStore
 	defer func() { GlobalUserStore = origStore }()

@@ -37,7 +37,7 @@ func (e *JobError) Error() string {
 // build-Result -> marshal -> publish -> return-terminal-JobError core.
 // A marshal or publish failure is returned as-is (the latter is transient and
 // triggers redelivery).
-// SEM@ef969bb79ad525fa5038847af0fb0be1038ae961: publish a terminal job failure result envelope and return a terminal job error (mutates shared state)
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: publish a terminal job failure result and return a terminal job error (mutates shared state)
 func (c *Conn) PublishFailureResult(ctx context.Context, jobID, reasonCode, detail string) error {
 	res := jobenvelope.Result{
 		JobID:        jobID,

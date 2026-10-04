@@ -844,7 +844,7 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 // PatchIntakeSurveyResponse partially updates a survey response.
 // PATCH /intake/survey_responses/{response_id}
 // Supports status transitions: draft->submitted, needs_revision->submitted
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: partially update a draft or needs-revision survey response and handle status transitions (mutates shared state)
+// SEM@f3001156265372b9948a40d00343139d8e9b3412: apply a JSON Patch to a draft or needs-revision survey response and handle status transitions (mutates DB)
 func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId, _ PatchIntakeSurveyResponseParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1136,7 +1136,7 @@ func (s *Server) GetTriageSurveyResponse(c *gin.Context, surveyResponseId Survey
 // PatchTriageSurveyResponse partially updates a survey response for triage.
 // PATCH /triage/survey_responses/{response_id}
 // Supports status transitions: submitted->ready_for_review, submitted->needs_revision, ready_for_review->needs_revision
-// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: partially update a survey response status in triage via JSON Patch (mutates shared state)
+// SEM@f3001156265372b9948a40d00343139d8e9b3412: apply a JSON Patch to update a survey response's triage status (mutates DB)
 func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -1325,7 +1325,7 @@ func processMappedAnswers(answers []SurveyAnswerRow) mappedAnswerResult {
 
 // createThreatModelFromResponse builds and creates a ThreatModel from a survey
 // response's answers, mapping fields according to mapsToTmField directives.
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: build and store a threat model from a survey response's mapped answers (mutates shared state)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: build and store a threat model from a survey response's mapped answers (mutates DB)
 func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse) (*ThreatModel, error) {
 	logger := slogging.Get()
 
@@ -1483,7 +1483,7 @@ func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse
 
 // CreateThreatModelFromSurveyResponse creates a threat model from an approved survey response.
 // POST /triage/survey_responses/{response_id}/create_threat_model
-// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: create a threat model from a ready-for-review survey response and emit webhooks (mutates shared state)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: build a threat model from a ready-for-review survey response and notify webhooks (mutates DB)
 func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()

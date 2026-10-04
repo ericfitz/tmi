@@ -435,7 +435,7 @@ func (c *apiClient) seedTMPatch(entry SeedEntry, refs RefMap) (*SeedResult, erro
 // transferOwnerViaDB sets threat model ownership directly in the database.
 // This is a fallback for when the API ownership transfer fails due to
 // server identity matching bugs (see #253).
-// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: update a threat model's owner directly in the database as an API fallback (reads DB)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: update a threat model's owner directly in the database as an API fallback (writes DB)
 func (c *apiClient) transferOwnerViaDB(tmID string, patch map[string]any) error {
 	log := slogging.Get()
 

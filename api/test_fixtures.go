@@ -47,7 +47,7 @@ var TestFixtures struct {
 }
 
 // InitTestFixtures initializes test data in stores
-// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: initialize in-memory stores with canonical test threat model and diagram fixtures (mutates shared state)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: build in-memory stores with canonical test threat model and diagram fixtures (mutates shared state)
 func InitTestFixtures() {
 	// Database stores are initialized by the main application
 
@@ -266,7 +266,7 @@ func (m *MockThreatModelStore) Get(id string) (ThreatModel, error) {
 	return ThreatModel{}, fmt.Errorf("threat model not found")
 }
 
-// SEM@ce7f0b599ec1a118c3d01ee48ad1e397e9f0c19d: list threat models as list items with query-param filters, pagination, and total count (pure)
+// SEM@c91b16ea67b50cc273cb925b803aeb2cac07d517: list threat models as list items with query-param filters, pagination, and total count (pure)
 func (m *MockThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int, error) {
 	var result []TMListItem
 	for _, item := range m.data {
@@ -462,7 +462,7 @@ func containsIgnoreCase(haystack, needle string) bool {
 	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))
 }
 
-// SEM@5981ac53dd2229e2bb211a96f0b495fe72df5f32: store a threat model in the mock store, assigning a UUID and default status if absent
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: store a threat model in the mock store, assigning a UUID and default status if absent
 func (m *MockThreatModelStore) Create(_ context.Context, item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
 	var id string
 	if item.Id != nil {
@@ -595,7 +595,7 @@ func (m *MockDiagramStore) List(offset, limit int, filter func(DfdDiagram) bool)
 	return result
 }
 
-// SEM@5981ac53dd2229e2bb211a96f0b495fe72df5f32: store a diagram in the mock store, assigning a UUID if absent
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: store a diagram in the mock store, assigning a UUID if absent
 func (m *MockDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
 	var id string
 	if item.Id != nil {

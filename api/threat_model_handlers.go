@@ -38,7 +38,7 @@ func NewThreatModelHandler(wsHub *WebSocketHub) *ThreatModelHandler {
 }
 
 // GetThreatModels returns a list of threat models
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: list threat models accessible to the authenticated user with pagination and filters (reads DB)
+// SEM@c91b16ea67b50cc273cb925b803aeb2cac07d517: list threat models accessible to the authenticated user with pagination and filters (reads DB)
 func (h *ThreatModelHandler) GetThreatModels(c *gin.Context) {
 	// Parse pagination parameters
 	limit := parseIntParam(c.DefaultQuery("limit", "20"), 20)
@@ -124,7 +124,7 @@ func (h *ThreatModelHandler) GetThreatModelByID(c *gin.Context) {
 }
 
 // CreateThreatModel creates a new threat model
-// SEM@bf7089dd40036d3e0ce00dfdf5db475d45382fd1: create a threat model owned by the caller with default authorization groups; classify FK errors as invalid input unless the caller's user row is confirmed gone (reads DB)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: build a threat model owned by the caller with default authorization groups; classify FK errors as invalid input unless the caller's user row is confirmed gone (reads DB)
 func (h *ThreatModelHandler) CreateThreatModel(c *gin.Context) {
 	// SEM@0162974a02f0c8de928d89413890cd366741a5d8: request body shape for threat model creation (pure)
 	type CreateThreatModelRequest struct {
@@ -853,7 +853,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 }
 
 // DeleteThreatModel deletes a threat model
-// SEM@533fc769067d317cc10f227729848688da16fba0: soft-delete a threat model, blocking if any diagram has an active collaboration session (reads DB)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: soft-delete a threat model, blocking if any diagram has an active collaboration session (reads DB)
 func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	// Parse ID from URL parameter
 	id := c.Param("threat_model_id")

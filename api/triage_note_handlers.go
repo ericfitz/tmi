@@ -177,7 +177,7 @@ func (h *TriageNoteSubResourceHandler) GetTriageNote(c *gin.Context) {
 }
 
 // CreateTriageNote creates a new triage note in a survey response
-// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: store a new sanitized triage note under a survey response, enforcing writer access (reads DB)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: store a new sanitized triage note under a survey response, enforcing writer access (writes DB)
 func (h *TriageNoteSubResourceHandler) CreateTriageNote(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateTriageNote - creating new triage note")

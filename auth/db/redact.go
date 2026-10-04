@@ -12,15 +12,16 @@ import (
 // redactedError carries a fixed, credential-free message while keeping the
 // original driver error reachable via Unwrap (errors.Is/As still work).
 // Error() deliberately never includes the driver text (#1005).
+// SEM@95321b8cbecc7eacfa25d00f151d85b891b7234a: error type carrying a credential-free message plus the original driver error
 type redactedError struct {
 	msg string
 	err error
 }
 
-// SEM@0000000: return the credential-free message of a redacted connection error (pure)
+// SEM@95321b8cbecc7eacfa25d00f151d85b891b7234a: return the credential-free message of a redacted error (pure)
 func (e *redactedError) Error() string { return e.msg }
 
-// SEM@0000000: expose the original driver error for errors.Is/As (pure)
+// SEM@95321b8cbecc7eacfa25d00f151d85b891b7234a: expose the original driver error for errors.Is/As (pure)
 func (e *redactedError) Unwrap() error { return e.err }
 
 // dpiCode matches the leading Oracle client-library code (e.g. DPI-1047).
@@ -31,7 +32,7 @@ var dpiCode = regexp.MustCompile(`^DPI-\d+`)
 // library errors (godror reports Code() 0 for those), else the Go type name.
 // classifyByString in internal/dberrors cannot see driver text through the
 // redacted error; wrap startup connects in retries only via typed checks.
-// SEM@0000000: derive a credential-free error class from a database driver error (pure)
+// SEM@95321b8cbecc7eacfa25d00f151d85b891b7234a: derive a credential-free error class from a database driver error (pure)
 func safeErrClass(err error) string {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
@@ -64,14 +65,14 @@ var permanentConnectClasses = map[string]bool{
 }
 
 // IsPermanentConnectError reports whether a connect error can never succeed on retry.
-// SEM@82c42d73: classify a database connect error as non-retryable (pure)
+// SEM@ab6a7ff21a80d96c9f7c490184f44a06dc5607b9: classify a database connect error as non-retryable (pure)
 func IsPermanentConnectError(err error) bool {
 	return err != nil && permanentConnectClasses[safeErrClass(err)]
 }
 
 // failDB logs a fixed message plus the safe error class and returns an error
 // whose text is equally credential-free, so callers that log it don't re-leak.
-// SEM@0000000: log a driver failure with a fixed message and safe class, returning a redacted error
+// SEM@95321b8cbecc7eacfa25d00f151d85b891b7234a: log a driver failure with a safe error class and return a redacted error
 func failDB(log *slogging.Logger, msg string, err error) error {
 	class := safeErrClass(err)
 	log.Error("%s (error_class=%s)", msg, class)

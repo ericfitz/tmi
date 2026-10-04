@@ -811,7 +811,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 }
 
 // ReencryptSystemSettings re-encrypts all system settings with the current encryption key (admin only)
-// SEM@0000000: handle admin re-encryption of all settings; map not-enabled and unreadable-cap to 409, transient DB failure to 503 (writes DB)
+// SEM@094904c7a8ba41296e31c7fa9623c72c3f018fa2: handle admin request to re-encrypt all system settings; map failures to 409/503 (writes DB)
 func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 	ctx := c.Request.Context()

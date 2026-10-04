@@ -103,7 +103,7 @@ func writeJSONReference(path string, refs RefMap, serverURL, user, provider stri
 	return os.WriteFile(path, data, 0o600)
 }
 
-// SEM@0000000000000000000000000000000000000000: serialize seeded resource IDs to a CATS-compatible YAML parameter substitution file (mutates shared state)
+// SEM@c621b4252e4c12e9977f08f9d2233e5751fccb02: serialize seeded resource IDs to a CATS-compatible YAML parameter reference file (writes file)
 func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
@@ -590,7 +590,7 @@ const (
 // findRefByKind ranges over a map, so with two instances seeded it would
 // return an arbitrary one — fine while every kind had exactly one instance,
 // actively wrong now that the decoys exist.
-// SEM@a3b4c5d6e7f8091a2b3c4d5e6f70819293041526: fetch a seeded id by exact ref, falling back to the first of a kind (pure)
+// SEM@6555823316e5b7d19376bb266bdaf21940c19d0d: search seeded ids for an exact ref, falling back to the first of a kind (pure)
 func findRefByName(refs RefMap, ref, kind string) string {
 	if r, ok := refs[ref]; ok && r.ID != "" {
 		return r.ID

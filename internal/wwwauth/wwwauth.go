@@ -32,7 +32,7 @@ const (
 //   - errType: Error code (invalid_request, invalid_token, insufficient_scope) or empty for a basic challenge
 //   - description: Human-readable error description (optional, ignored if errType is empty)
 //
-// SEM@212287c6c02d99be7f8071b21a50666223646bec: build a RFC 6750 Bearer WWW-Authenticate header value (pure)
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: build an RFC 6750 Bearer WWW-Authenticate header value (pure)
 func BuildHeader(errType, description string) string {
 	// Start with realm (always included per best practice).
 	header := fmt.Sprintf(`Bearer realm="%s"`, Realm)

@@ -65,7 +65,7 @@ func aclError(err error) error {
 // mid-rotation reconnects with whatever the Secret holds now. Redis accepts
 // the Secret's password in every phase: OLD before the swap, then OLD+NEW
 // (and finally only NEW) once the Secret holds NEW.
-// SEM@0000000: build a func that reads the current Redis password from the Secret on each call (reads Secret)
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: build a func that reads the current Redis password from the secret on each call (reads secret)
 func RedisPasswordFromSecret(store SecretStore, secretName string) func(context.Context) (string, error) {
 	return func(ctx context.Context) (string, error) {
 		s, err := store.Get(ctx, secretName)

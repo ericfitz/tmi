@@ -112,7 +112,7 @@ func (s *GormUserAPIQuotaStore) Count(ctx context.Context) (int, error) {
 }
 
 // Create creates a new user API quota
-// SEM@f02caa14cf5cd68c437a2bddba77d5f8f0d17f8c: store a new user API quota record in the database (mutates shared state)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new user API quota record (writes DB)
 func (s *GormUserAPIQuotaStore) Create(ctx context.Context, item UserAPIQuota) (UserAPIQuota, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -211,7 +211,7 @@ func (s *GormUserAPIQuotaStore) Delete(ctx context.Context, userID string) error
 // then reads the row back so the returned timestamps reflect what is
 // actually stored rather than a client-side stamp (#706)
 // This is cross-database compatible via GORM's dialect abstraction
-// SEM@a3e9da57dbe1d86ca32950a4827bc599ec349225: create or update a user's API quota via a cross-DB conflict clause, then read the row back (mutates DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store or update a user's API quota via cross-DB upsert, then read it back (writes DB)
 func (s *GormUserAPIQuotaStore) Upsert(ctx context.Context, item UserAPIQuota) (UserAPIQuota, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

@@ -50,7 +50,7 @@ func (p *HTTPEmbeddingSource) CanHandle(_ context.Context, ref EntityReference) 
 // Extract fetches the URL via the egress helper (DNS-pinned, SSRF-checked) and
 // returns extracted plain text. HTML responses have tags stripped; other content
 // types are returned as-is.
-// SEM@80346558ce851de593c85a2d5660f92a649b1686: fetch a URL via SSRF-safe client and return extracted plain text content
+// SEM@f69d82c5864c65f768181d82416962e3bbd63667: fetch a URL via SSRF-safe client and return extracted plain text content
 func (p *HTTPEmbeddingSource) Extract(ctx context.Context, ref EntityReference) (ExtractedContent, error) {
 	result, err := p.client.Fetch(ctx, ref.URI, SafeFetchOptions{
 		MaxBodyBytes: 10 * 1024 * 1024,

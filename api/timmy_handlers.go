@@ -551,7 +551,7 @@ func (s *Server) GetTimmyStatus(c *gin.Context) {
 
 // RefreshTimmySources re-scans sources for an active session, picking up
 // any documents whose access_status has changed to "accessible".
-// SEM@c309061af96f4db6e2d3a7da1d077b6a6f2f3c75: re-snapshot content sources for a session, updating the stored source snapshot (reads DB)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: re-snapshot content sources for a session, updating the stored source snapshot (reads DB)
 func (s *Server) RefreshTimmySources(c *gin.Context, threatModelId ThreatModelId, sessionId SessionId) {
 	logger := slogging.Get().WithContext(c)
 

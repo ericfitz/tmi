@@ -12,7 +12,7 @@ import (
 	"github.com/ericfitz/tmi/test/testdb"
 )
 
-// SEM@364c33df6cdbb1724be239b154783d0fc5031e93: load and apply a seed file to the database using DB or API strategies per entry (reads DB)
+// SEM@27f3772fc6f3f53382ff01e0a9b73204f0c5e377: load a seed file and apply its entries to the database via DB or API strategies (reads DB)
 func runDataSeed(db *testdb.TestDB, inputFile, serverURL, user, provider string, dryRun bool) error {
 	log := slogging.Get()
 
@@ -151,7 +151,7 @@ const (
 	strategyAPI = "api"
 )
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: map a seed entry kind to either the DB or API seeding strategy (pure)
+// SEM@c08cdcaa7bf770029c89db2c819eb12680bfe4b5: map a seed entry kind to the DB or API seeding strategy (pure)
 func classifyStrategy(kind string) string {
 	switch kind {
 	case kindUser, kindSetting:

@@ -1142,7 +1142,7 @@ func TestSettingsService_ReEncryptAll_RetriesBatchQuery(t *testing.T) {
 	assert.Empty(t, errs)
 }
 
-// SEM@0000000: verify re-encryption stops with ErrTooManyUnreadableSettings naming the cap when unreadable rows reach it
+// SEM@094904c7a8ba41296e31c7fa9623c72c3f018fa2: validate re-encryption stops with a too-many-unreadable error once the cap is reached
 func TestReEncryptAll_UnreadableCap(t *testing.T) {
 	gormDB := setupSettingsTestDB(t)
 	enc, err := crypto.NewSettingsEncryptorFromKeys(make([]byte, 32), nil, 1)

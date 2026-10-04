@@ -10,7 +10,7 @@ import (
 // UserContentToken is a per-user OAuth token used by delegated content providers.
 // access_token and refresh_token are AES-256-GCM ciphertexts (nonce prepended).
 // DBBytes maps to BYTEA on PostgreSQL and BLOB on Oracle / SQLite (#404).
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: DB model for a per-user OAuth token used by delegated content providers, with encrypted token fields (pure)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: define DB model for a user's delegated content-provider OAuth token with encrypted fields (pure)
 type UserContentToken struct {
 	ID                   DBVarchar `gorm:"primaryKey;not null;size:36"`
 	UserID               DBVarchar `gorm:"size:36;not null;index:idx_uct_user;uniqueIndex:uq_uct_user_provider,priority:1"`

@@ -48,7 +48,7 @@ type errString string
 // SEM@3b682947: return the error message string (pure)
 func (e errString) Error() string { return string(e) }
 
-// SEM@b949412f: verify the escrow ARN loads from the environment and is optional
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: verify the escrow ARN loads from the environment and is optional
 func TestLoadOptions_SettingsEscrowARN(t *testing.T) {
 	env := map[string]string{"TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN": "arn:aws:secretsmanager:us-east-1:1:secret:x"}
 	o, err := loadOptions(func(k string) string { return env[k] })
@@ -60,7 +60,7 @@ func TestLoadOptions_SettingsEscrowARN(t *testing.T) {
 	require.Empty(t, o.SettingsEscrowARN)
 }
 
-// SEM@b949412f: verify malformed or regionless escrow ARNs are rejected without echoing them
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: verify malformed or regionless escrow ARNs are rejected without echoing them
 func TestLoadOptions_RejectsMalformedEscrowARN(t *testing.T) {
 	for _, arn := range []string{"arn:aws:s3:::bucket", "arn:aws:secretsmanager::1:secret:x"} {
 		env := map[string]string{"TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN": arn}
@@ -70,7 +70,7 @@ func TestLoadOptions_RejectsMalformedEscrowARN(t *testing.T) {
 	}
 }
 
-// SEM@b949412f: verify startup exits 2 on a malformed escrow ARN and 0 on a valid one
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: verify startup exits 2 on a malformed escrow ARN and 0 on a valid one
 func TestRun_MalformedEscrowARNExits2(t *testing.T) {
 	// Isolate: a regression must never reach a real cluster.
 	t.Setenv("KUBECONFIG", filepath.Join(t.TempDir(), "none"))
@@ -88,7 +88,7 @@ func TestRun_MalformedEscrowARNExits2(t *testing.T) {
 	require.Equal(t, 2, run())
 }
 
-// SEM@b949412f: verify an empty escrow ARN yields the no-op escrow
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: verify an empty escrow ARN yields the no-op escrow
 func TestNewSettingsEscrow_EmptyARNIsNoop(t *testing.T) {
 	e, err := newSettingsEscrow(context.Background(), "")
 	require.NoError(t, err)

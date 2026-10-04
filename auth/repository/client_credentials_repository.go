@@ -29,7 +29,7 @@ func NewGormClientCredentialRepository(db *gorm.DB) *GormClientCredentialReposit
 }
 
 // Create creates a new client credential
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: store a new client credential record and return the persisted entity (reads DB)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: store a new client credential with hashed secret and ownership (writes DB)
 func (r *GormClientCredentialRepository) Create(ctx context.Context, params ClientCredentialCreateParams) (*ClientCredential, error) {
 	now := time.Now()
 
@@ -156,7 +156,7 @@ func (r *GormClientCredentialRepository) Delete(ctx context.Context, id, ownerUU
 }
 
 // convertModelToClientCredential converts a GORM ClientCredential model to a repository ClientCredential
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: convert a GORM ClientCredential model to the repository domain type (pure)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: convert a client credential database model to its domain type (pure)
 func convertModelToClientCredential(m *models.ClientCredential) *ClientCredential {
 	id, _ := uuid.Parse(string(m.ID))
 	ownerUUID, _ := uuid.Parse(string(m.OwnerUUID))

@@ -1521,7 +1521,7 @@ func TestBuildContentProviders_PickerConfigDeepCopy(t *testing.T) {
 // The pass runs in one transaction (#845), so a database failure is a whole-
 // request failure and must be reported as 503 (transient, retry) or 500, never
 // as the 409 "encryption_not_enabled" precondition.
-// SEM@0000000: verify reencrypt maps not-enabled and unreadable-cap to 409, transient DB failure to 503, other failure to 500
+// SEM@094904c7a8ba41296e31c7fa9623c72c3f018fa2: test reencrypt maps not-enabled/unreadable to 409, transient DB failure to 503, other to 500
 func TestReencryptSystemSettings_ErrorMapping(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)

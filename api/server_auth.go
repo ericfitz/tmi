@@ -164,7 +164,7 @@ func (s *Server) TransferCurrentUserOwnership(c *gin.Context) {
 }
 
 // TransferAdminUserOwnership handles POST /admin/users/{user_id}/transfer
-// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: route admin ownership transfer for a target user to the transfer handler
+// SEM@ce0791bb8871a87b7b663d6635564ffd28e00c3f: route admin ownership transfer for a target user to its handler
 func (s *Server) TransferAdminUserOwnership(c *gin.Context, userID UserIdPathParam) {
 	logger := slogging.Get()
 	logger.Info("[SERVER_INTERFACE] TransferAdminUserOwnership called")

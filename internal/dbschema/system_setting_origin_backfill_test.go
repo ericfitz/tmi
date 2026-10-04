@@ -20,7 +20,7 @@ import (
 // models.DefaultSystemSettings(), models.SystemSettingOriginExplicit, and
 // SystemSetting.IsExplicit() themselves, so mirroring the struct would just
 // duplicate DBText/NullableDBVarchar's Scan/Value behavior under test.
-// SEM@0000000000000000000000000000000000000000: build an in-memory SQLite DB migrated with the real SystemSetting model (pure)
+// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: build an in-memory SQLite DB migrated with the real SystemSetting model (pure)
 func newSystemSettingOriginTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
@@ -31,7 +31,7 @@ func newSystemSettingOriginTestDB(t *testing.T) *gorm.DB {
 
 // getSystemSetting reloads a single row by key, failing the test if it is
 // not found.
-// SEM@0000000000000000000000000000000000000000: fetch one system_settings row by key for test assertions (reads DB)
+// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: fetch one system_settings row by key for test assertions (reads DB)
 func getSystemSetting(t *testing.T, db *gorm.DB, key string) models.SystemSetting {
 	t.Helper()
 	var row models.SystemSetting
@@ -44,7 +44,7 @@ func getSystemSetting(t *testing.T, db *gorm.DB, key string) models.SystemSettin
 // API write or dbtool import from before Origin existed) must become
 // explicit, even though its value still happens to equal the registry
 // default.
-// SEM@0000000000000000000000000000000000000000: validate a NULL-origin row with modified_by set is stamped explicit
+// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: validate a NULL-origin row with modified_by set is stamped explicit
 func TestBackfillSystemSettingOrigin_ModifiedByStampsExplicit(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 	modifier := uuid.NewString()
@@ -72,7 +72,7 @@ func TestBackfillSystemSettingOrigin_ModifiedByStampsExplicit(t *testing.T) {
 // isn't named -- silently destroying the row's real last-modified timestamp,
 // which is operator-visible via the admin config API. BackfillSystemSettingOrigin
 // must use UpdateColumn to avoid this.
-// SEM@0000000000000000000000000000000000000000: validate the backfill does not disturb a stamped row's modified_at timestamp
+// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: validate the backfill does not disturb a stamped row's modified_at timestamp
 func TestBackfillSystemSettingOrigin_PreservesModifiedAt(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 	modifier := uuid.NewString()
@@ -102,7 +102,7 @@ func TestBackfillSystemSettingOrigin_PreservesModifiedAt(t *testing.T) {
 // default, so a NULL-origin encrypted row with no modified_by must be left
 // alone (reads as seeded) rather than stamped explicit on a meaningless
 // ciphertext mismatch.
-// SEM@0000000000000000000000000000000000000000: validate an encrypted NULL-origin row with no modified_by stays seeded rather than being stamped explicit on a meaningless comparison
+// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: validate an encrypted NULL-origin row without modified_by stays seeded, not explicit
 func TestBackfillSystemSettingOrigin_EncryptedValueRelinquishesToSeeded(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 
@@ -126,7 +126,7 @@ func TestBackfillSystemSettingOrigin_EncryptedValueRelinquishesToSeeded(t *testi
 // second operator-intent signal: a NULL-origin row whose value no longer
 // matches what SeedDefaults would seed for that key today must become
 // explicit.
-// SEM@0000000000000000000000000000000000000000: validate a NULL-origin row whose value differs from the registry default is stamped explicit
+// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: validate a NULL-origin row whose value differs from the registry default is stamped explicit
 func TestBackfillSystemSettingOrigin_ValueDiffersStampsExplicit(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 
@@ -149,7 +149,7 @@ func TestBackfillSystemSettingOrigin_ValueDiffersStampsExplicit(t *testing.T) {
 // NULL-origin row whose key SeedDefaults would never have inserted at all
 // (e.g. an operator- or extension-created setting): with no registry default
 // to compare against, it must be treated as showing operator intent.
-// SEM@0000000000000000000000000000000000000000: validate a NULL-origin row for a key absent from the registry is stamped explicit
+// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: validate a NULL-origin row for a key absent from the registry is stamped explicit
 func TestBackfillSystemSettingOrigin_UnknownKeyStampsExplicit(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 
@@ -171,7 +171,7 @@ func TestBackfillSystemSettingOrigin_UnknownKeyStampsExplicit(t *testing.T) {
 // TestBackfillSystemSettingOrigin_UntouchedDefaultStaysNil covers the
 // negative case: a NULL-origin row that still holds the registry default
 // with no modified_by must be left alone, so it continues to read as seeded.
-// SEM@0000000000000000000000000000000000000000: validate a NULL-origin row matching the registry default with no modified_by is left untouched
+// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: validate a NULL-origin row matching the registry default with no modified_by is left untouched
 func TestBackfillSystemSettingOrigin_UntouchedDefaultStaysNil(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 
@@ -195,7 +195,7 @@ func TestBackfillSystemSettingOrigin_UntouchedDefaultStaysNil(t *testing.T) {
 // already carrying a non-NULL origin: the backfill must never revisit them,
 // even when their value would otherwise look like it "differs" from the
 // registry default.
-// SEM@0000000000000000000000000000000000000000: validate rows already stamped seeded or explicit are never revisited
+// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: validate rows already stamped seeded or explicit are never revisited
 func TestBackfillSystemSettingOrigin_AlreadyStampedRowsUntouched(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 
@@ -228,7 +228,7 @@ func TestBackfillSystemSettingOrigin_AlreadyStampedRowsUntouched(t *testing.T) {
 // TestBackfillSystemSettingOrigin_Idempotent covers running the backfill
 // twice: the second pass must find nothing left to stamp and must not
 // change any row the first pass already resolved.
-// SEM@0000000000000000000000000000000000000000: validate running the backfill twice produces the same result as running it once
+// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: validate running the backfill twice produces the same result as running it once
 func TestBackfillSystemSettingOrigin_Idempotent(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 	modifier := uuid.NewString()
@@ -266,7 +266,7 @@ func TestBackfillSystemSettingOrigin_Idempotent(t *testing.T) {
 
 // TestBackfillSystemSettingOrigin_NoRows covers the empty-table fast path:
 // no NULL-origin rows at all must be a cheap no-op, not an error.
-// SEM@0000000000000000000000000000000000000000: validate the backfill no-ops cleanly against an empty system_settings table
+// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: validate the backfill no-ops cleanly against an empty system_settings table
 func TestBackfillSystemSettingOrigin_NoRows(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 
@@ -279,7 +279,7 @@ func TestBackfillSystemSettingOrigin_NoRows(t *testing.T) {
 // pins the SQLite short-circuit: SQLite has no ALTER TABLE ADD CONSTRAINT
 // form, so the function must return cleanly without attempting any DDL
 // against the test-fixture dialect used throughout this package's tests.
-// SEM@0000000000000000000000000000000000000000: validate the origin CHECK constraint installer no-ops cleanly on SQLite
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: validate the origin CHECK constraint installer no-ops cleanly on SQLite
 func TestEnsureSystemSettingOriginCheckConstraint_NoOpOnSQLite(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 	require.NoError(t, EnsureSystemSettingOriginCheckConstraint(context.Background(), db))

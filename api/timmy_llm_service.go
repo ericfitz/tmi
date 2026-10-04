@@ -75,7 +75,7 @@ Security rules (non-negotiable):
 
 // TimmyLLMService provides LLM chat and embedding capabilities via
 // internal/llm (a thin, provider-agnostic seam; see #754).
-// SEM@0000000000000000000000000000000000000000: holds LLM chat client, text and code embedders, and service config (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: hold LLM chat client, text and code embedders, and service config (pure)
 type TimmyLLMService struct {
 	chatClient   llm.ChatClient
 	textEmbedder llm.Embedder
@@ -90,7 +90,7 @@ type TimmyLLMService struct {
 // chat-completion / embedding traffic through SafeHTTPClient (scheme +
 // SSRF-allowlist + DNS-pinning + body cap) without losing streaming, since
 // FetchStreaming returns the live *http.Response.
-// SEM@0000000000000000000000000000000000000000: adapts SafeHTTPClient to the internal/llm HTTP doer interface for SSRF-safe LLM traffic (pure)
+// SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: adapt SafeHTTPClient to the internal/llm HTTP doer interface for SSRF-safe LLM traffic (pure)
 type safeHTTPDoer struct {
 	client  *SafeHTTPClient
 	timeout time.Duration
@@ -116,7 +116,7 @@ func (d *safeHTTPDoer) Do(req *http.Request) (*http.Response, error) {
 // NewTimmyLLMService creates a new LLM service from configuration. validator
 // MUST be non-nil; in production it is built from the operator's Timmy SSRF
 // allowlist (typically containing the configured LLM/embedding endpoint hosts).
-// SEM@06d5e5b913b744dc0132db2d119ef31db9c989ae: build a TimmyLLMService with SSRF-safe HTTP client, chat model, and text/code embedders from config
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build a TimmyLLMService with SSRF-safe HTTP client, chat model, and text/code embedders from config
 func NewTimmyLLMService(cfg config.TimmyConfig, validator *URIValidator) (*TimmyLLMService, error) {
 	if !cfg.IsConfigured() {
 		return nil, fmt.Errorf("timmy LLM/embedding providers not configured")
@@ -192,7 +192,7 @@ func NewTimmyLLMService(cfg config.TimmyConfig, validator *URIValidator) (*Timmy
 // parameters. httpClient satisfies llm.HTTPDoer (implemented by
 // safeHTTPDoer in this file) so embedding traffic flows through
 // SafeHTTPClient.
-// SEM@0000000000000000000000000000000000000000: build a provider Embedder routed through the safe HTTP client (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build a provider Embedder routed through the safe HTTP client (pure)
 func createEmbedder(provider, model, apiKey, baseURL string, httpClient *safeHTTPDoer) (llm.Embedder, error) {
 	embedder, err := llm.NewEmbedder(llm.Config{
 		Provider:   llm.Provider(provider),
@@ -208,7 +208,7 @@ func createEmbedder(provider, model, apiKey, baseURL string, httpClient *safeHTT
 }
 
 // getEmbedder returns the embedder and model name for the given index type.
-// SEM@91f0b520737c464edc1a86d1115904dac7df3fb9: return the embedder and model name for the given index type (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: return the embedder and model name for the given index type (pure)
 func (s *TimmyLLMService) getEmbedder(indexType string) (llm.Embedder, string, error) {
 	switch indexType {
 	case IndexTypeText:
@@ -274,7 +274,7 @@ func (s *TimmyLLMService) EmbeddingDimension(ctx context.Context, indexType stri
 // available (openai-go surfaces this via stream_options.include_usage);
 // otherwise it falls back to the stream-chunk count, matching the
 // pre-#754 approximation.
-// SEM@0000000000000000000000000000000000000000: stream LLM chat completion tokens via callback and return the full response text
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: stream LLM chat completion tokens via callback and return the full response text
 func (s *TimmyLLMService) GenerateStreamingResponse(
 	ctx context.Context,
 	systemPrompt string,
@@ -330,7 +330,7 @@ func (s *TimmyLLMService) GenerateStreamingResponse(
 
 // GenerateResponse sends a single-turn chat request and returns the full response text.
 // This is a convenience wrapper for non-streaming use cases like query decomposition.
-// SEM@0000000000000000000000000000000000000000: fetch a single-turn LLM chat completion and return the full response text (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: fetch a single-turn LLM completion for a prompt and return the full text
 func (s *TimmyLLMService) GenerateResponse(ctx context.Context, systemPrompt string, userMessage string) (string, error) {
 	messages := []llm.Message{
 		{Role: llm.RoleUser, Text: userMessage},

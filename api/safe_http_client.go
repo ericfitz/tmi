@@ -118,7 +118,7 @@ func WithDefaultTimeouts(overall, headerWait time.Duration, maxBody int64) SafeH
 // NewSafeHTTPClient builds a SafeHTTPClient backed by the given URIValidator.
 // The validator's scheme and allowlist policy are reused; this client adds
 // the IP-pinning, header timeout, and body-cap controls on top.
-// SEM@b554bb5371f70e0115912131e032671de29e8c09: build a SafeHTTPClient with SSRF protection using the given URI validator and options (pure)
+// SEM@f69d82c5864c65f768181d82416962e3bbd63667: build an HTTP client with SSRF protection using a URI validator and options (pure)
 func NewSafeHTTPClient(validator *URIValidator, opts ...SafeHTTPClientOption) *SafeHTTPClient {
 	c := &SafeHTTPClient{
 		validator:         validator,

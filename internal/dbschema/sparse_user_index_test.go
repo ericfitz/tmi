@@ -41,7 +41,7 @@ func newSparseIndexTestDB(t *testing.T) *gorm.DB {
 // (NULL provider_user_id) row sharing (provider, email) with an existing
 // sparse row, and must NOT constrain rows that carry a non-NULL
 // provider_user_id even when they share (provider, email).
-// SEM@87d1696b4bf3edbe042353cf7586a60de78c2028: validate creating the sparse user email index is idempotent and enforces uniqueness only for NULL provider_user_id rows
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: validate sparse user email index creation is idempotent and enforces uniqueness
 func TestEnsureSparseUserEmailIndex_CreatesAndIsIdempotent(t *testing.T) {
 	db := newSparseIndexTestDB(t)
 
@@ -72,7 +72,7 @@ func TestEnsureSparseUserEmailIndex_CreatesAndIsIdempotent(t *testing.T) {
 // no-auto-merge policy (mirroring #724 for provider identities): duplicate
 // sparse rows found ahead of index creation must abort with an actionable,
 // named-rows error rather than being silently merged or dropped.
-// SEM@df7fd289991cfd0c30ec2f8c8721a7b593f7d535: validate preexisting sparse duplicate rows abort index creation with an actionable error
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: validate preexisting sparse duplicate rows abort index creation with an actionable error
 func TestEnsureSparseUserEmailIndex_PreexistingSparseDuplicates(t *testing.T) {
 	db := newSparseIndexTestDB(t)
 
@@ -103,7 +103,7 @@ func TestEnsureSparseUserEmailIndex_PreexistingSparseDuplicates(t *testing.T) {
 // available: two sparse rows sharing (provider, email) must BOTH succeed,
 // because the impostor index never enforced uniqueness and
 // EnsureSparseUserEmailIndex's IF NOT EXISTS DDL declined to replace it.
-// SEM@df7fd289991cfd0c30ec2f8c8721a7b593f7d535: validate a non-unique impostor index leaves uniqueness unenforced but startup continues
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: validate a non-unique impostor index leaves uniqueness unenforced but startup continues
 func TestEnsureSparseUserEmailIndex_ImpostorIndexWarnsAndContinues(t *testing.T) {
 	db := newSparseIndexTestDB(t)
 
@@ -141,7 +141,7 @@ func TestEnsureSparseUserEmailIndex_ImpostorIndexWarnsAndContinues(t *testing.T)
 // though PG/Oracle unique indexes treat NULL key values as distinct (the
 // actual index would never reject such rows), so the check would be aborting
 // startup over rows the index itself does not consider duplicates.
-// SEM@f89431d54295774a73b0813422dc99486a99df5c: validate legacy rows with a NULL provider are excluded from the sparse-duplicate pre-check
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: validate legacy rows with a NULL provider are excluded from the sparse-duplicate pre-check
 func TestEnsureSparseUserEmailIndex_LegacyNullProviderRowsIgnored(t *testing.T) {
 	db := newSparseIndexTestDB(t)
 
@@ -162,7 +162,7 @@ func TestEnsureSparseUserEmailIndex_LegacyNullProviderRowsIgnored(t *testing.T) 
 	require.NoError(t, EnsureSparseUserEmailIndex(context.Background(), db), "NULL-provider rows must not false-positive the duplicate-sparse-email abort")
 }
 
-// SEM@87d1696b4bf3edbe042353cf7586a60de78c2028: validate sparse user email index creation is a no-op when the users table is absent
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: validate sparse user email index creation is a no-op when the users table is absent
 func TestEnsureSparseUserEmailIndex_NoTable(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)

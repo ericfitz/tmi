@@ -41,7 +41,7 @@ func embedConfigFromEnv() (embedConfig, error) {
 // OpenAI-only permanently — unlike chat, embeddings have no Anthropic
 // equivalent (Anthropic does not offer an embeddings API), so there is no
 // phase 2 provider seam to preserve here.
-// SEM@0000000000000000000000000000000000000000: build an OpenAI embedder from the given config (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build a text embedder client from configuration
 func newEmbedder(cfg embedConfig) (llm.Embedder, error) {
 	emb, err := llm.NewEmbedder(llm.Config{
 		Provider: llm.ProviderOpenAI,
@@ -56,7 +56,7 @@ func newEmbedder(cfg embedConfig) (llm.Embedder, error) {
 }
 
 // embedChunks embeds every chunk, returning one vector per chunk in order.
-// SEM@0000000000000000000000000000000000000000: compute embedding vectors for a slice of text chunks in order (reads DB)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: compute embedding vectors for text chunks
 func embedChunks(ctx context.Context, emb llm.Embedder, chunks []string) ([][]float32, error) {
 	if len(chunks) == 0 {
 		return nil, nil

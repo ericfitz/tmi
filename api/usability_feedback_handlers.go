@@ -222,7 +222,7 @@ func validateScreenshot(s *string) error {
 	return nil
 }
 
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a usability feedback input DTO to a DB model (pure)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: convert a usability feedback input DTO to a DB model (pure)
 func buildUsabilityFeedbackModel(in *UsabilityFeedbackInput, userInternalUUID string) *models.UsabilityFeedback {
 	row := &models.UsabilityFeedback{
 		Sentiment:     models.DBVarchar(string(in.Sentiment)),
@@ -243,7 +243,7 @@ func buildUsabilityFeedbackModel(in *UsabilityFeedbackInput, userInternalUUID st
 	return row
 }
 
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a DB usability feedback model to an API response DTO (pure)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: convert a usability feedback DB model to an API response DTO (pure)
 func modelToUsabilityFeedback(row *models.UsabilityFeedback) UsabilityFeedback {
 	out := UsabilityFeedback{
 		Id:            uuidMustParse(string(row.ID)),

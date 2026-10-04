@@ -692,7 +692,7 @@ var errSettingUnreadable = errors.New("setting unreadable")
 // modified_by are left as they were. Rows no key can open are reported in
 // []SettingError and excluded from later batches so the loop always terminates.
 // Returns the number of rows committed so far, also on error.
-// SEM@0000000: re-encrypt stale setting rows in per-row transactions; stop with a conflict error at the unreadable-row cap (writes DB)
+// SEM@094904c7a8ba41296e31c7fa9623c72c3f018fa2: update stale setting rows with re-encryption per row; stop at the unreadable-row cap (mutates DB)
 func (s *SettingsService) ReEncryptAll(ctx context.Context) (int, []SettingError, error) {
 	logger := slogging.Get()
 	if s.encryptor == nil || !s.encryptor.IsEnabled() {

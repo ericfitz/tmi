@@ -358,7 +358,7 @@ func dedupeMemberGroupPairs(tx *gorm.DB, groupMembersTable, survivor string) err
 // child subgroup as a member, which leaves the survivor listing that child
 // twice once both owning-side rows land on it. dedupeOwnedSubgroupRows
 // collapses those at the end, mirroring dedupeMemberGroupPairs above (#715).
-// SEM@0000000000000000000000000000000000000000: repoint group_members rows from losing groups to the survivor, dropping colliding rows (writes DB)
+// SEM@e13b1dbb9c83c0a6e2980a856e7f40116307c0ad: repoint group_members rows from losing groups to the survivor, dropping colliding rows (writes DB)
 func repointGroupMembers(tx *gorm.DB, survivor string, losers []string) error {
 	groupMembersTable := (&models.GroupMember{}).TableName()
 	if !tx.Migrator().HasTable(groupMembersTable) {
@@ -433,7 +433,7 @@ func repointGroupMembers(tx *gorm.DB, survivor string, losers []string) error {
 
 // ownedSubgroupDupKey is a raw scan target for the duplicate
 // member_group_internal_uuid key query under one owning survivor group.
-// SEM@0000000000000000000000000000000000000000: hold a duplicate owned-subgroup membership key and its row count (pure)
+// SEM@e13b1dbb9c83c0a6e2980a856e7f40116307c0ad: hold a duplicate owned-subgroup membership key and its row count (pure)
 type ownedSubgroupDupKey struct {
 	MemberGroupInternalUUID string
 	Cnt                     int64
@@ -454,7 +454,7 @@ type ownedSubgroupDupKey struct {
 // string IS NULL on Oracle but not on PostgreSQL (oracle-db-admin review), so
 // a NULL bucket left in would collapse inconsistently across dialects
 // instead of just being skipped on both.
-// SEM@0000000000000000000000000000000000000000: collapse duplicate owned-subgroup membership rows left by an owning-side repoint (writes DB)
+// SEM@e13b1dbb9c83c0a6e2980a856e7f40116307c0ad: collapse duplicate owned-subgroup membership rows left by an owning-side repoint (writes DB)
 func dedupeOwnedSubgroupRows(tx *gorm.DB, groupMembersTable, survivor string) error {
 	var dups []ownedSubgroupDupKey
 	if err := tx.Table(groupMembersTable).

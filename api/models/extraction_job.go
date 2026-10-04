@@ -24,7 +24,7 @@ const (
 // Components (workers) never touch this table. document_ref is indexed but
 // has no database-level foreign key, so a document deleted mid-job does not
 // cause a constraint violation; the result-consumer tolerates the missing row.
-// SEM@d8b4a7f6b4c480a8020df9e796e1deabb7f0fdb7: GORM model tracking the status lifecycle of one async extraction job (pure)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: GORM model tracking the status lifecycle of one async extraction job (pure)
 type ExtractionJob struct {
 	JobID DBVarchar `gorm:"primaryKey;not null;size:36"`
 	// DocumentRef is the document being extracted. NOT NULL with no DB-level FK.

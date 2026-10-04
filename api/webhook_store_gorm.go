@@ -291,7 +291,7 @@ func (s *GormWebhookSubscriptionStore) ListBroken(ctx context.Context, minFailur
 }
 
 // Create creates a new webhook subscription using GORM
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: store a new webhook subscription with generated ID and timestamps (mutates DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new webhook subscription with generated ID and timestamps (writes DB)
 func (s *GormWebhookSubscriptionStore) Create(ctx context.Context, item DBWebhookSubscription, idSetter func(DBWebhookSubscription, string) DBWebhookSubscription) (DBWebhookSubscription, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -689,7 +689,7 @@ func (s *GormWebhookQuotaStore) List(ctx context.Context, offset, limit int) ([]
 }
 
 // Create creates a new webhook quota using GORM
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: store a new webhook quota record with timestamps (mutates DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new webhook quota record with timestamps (writes DB)
 func (s *GormWebhookQuotaStore) Create(ctx context.Context, item DBWebhookQuota) (DBWebhookQuota, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -832,7 +832,7 @@ func (s *GormWebhookUrlDenyListStore) List(ctx context.Context) ([]WebhookUrlDen
 }
 
 // Create creates a new deny list entry using GORM
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: store a new webhook URL deny-list pattern entry with generated ID (mutates DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new webhook URL deny-list pattern with generated ID (writes DB)
 func (s *GormWebhookUrlDenyListStore) Create(ctx context.Context, item WebhookUrlDenyListEntry) (WebhookUrlDenyListEntry, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

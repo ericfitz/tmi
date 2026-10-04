@@ -11,7 +11,7 @@ import (
 	"github.com/ericfitz/tmi/internal/config"
 )
 
-// SEM@0000000: test that NewProvider selects the provider from config and validates it
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: test that the secrets provider is selected from config and validated
 func TestNewProvider(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "k"), []byte("v\n"), 0o600))

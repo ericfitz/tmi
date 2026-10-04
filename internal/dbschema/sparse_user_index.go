@@ -75,7 +75,7 @@ type sparseDupKey struct {
 // scan and the DDL once the index is confirmed present also means this
 // degrades to a single cheap catalog lookup in steady state instead of a
 // full-table GROUP BY on every boot.
-// SEM@1a0e294d083ec4d01a180cf33f9f58d98159a878: build a dialect-appropriate unique index over sparse user emails (writes DB)
+// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: build a dialect-appropriate unique index over sparse user emails (writes DB)
 func EnsureSparseUserEmailIndex(ctx context.Context, db *gorm.DB) error {
 	usersTable := (&models.User{}).TableName()
 	// #736: owner-aware probe. gorm's HasTable resolves through Oracle's
@@ -266,7 +266,7 @@ func verifySparseIndexEnforced(db *gorm.DB, usersTable string) error {
 // database can already hold a differently-defined index under it), but the
 // stricter probe costs nothing and closes the gap before it can open
 // (oracle-db-admin review, 1.8.4 round 2).
-// SEM@605e29546fe60dc8ac69862013475720a74dea8b: probe whether a valid, unique sparse-user email index already exists, per dialect (reads DB)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: probe whether a valid unique sparse-user email index exists, per dialect (reads DB)
 func sparseUserEmailIndexExists(db *gorm.DB, usersTable string) (bool, error) {
 	var cnt int64
 	var err error

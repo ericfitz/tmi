@@ -137,7 +137,7 @@ func metadataIndexExists(db *gorm.DB, indexName, tableName string) (bool, error)
 // Never aborts startup on a DDL failure, only on a failure to read the
 // catalog: a retired index that survives is a write-cost nuisance, not a
 // correctness problem, and the next boot or `tmi-dbtool --schema` retries.
-// SEM@71e0e25225d81c1ed3471b79ceaf458cbe5b17e7: drop the retired metadata timestamp indexes if present, else warn and continue (mutates DB)
+// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: drop retired metadata timestamp indexes if present, warning on failure (mutates DB)
 func DropRetiredMetadataIndexes(ctx context.Context, db *gorm.DB) error {
 	table := (&models.Metadata{}).TableName()
 	present, err := requireMigrationTable(db, table, "retired metadata index drop (#784)")

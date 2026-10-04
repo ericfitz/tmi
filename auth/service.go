@@ -223,7 +223,7 @@ type TokenPair struct {
 }
 
 // Claims represents the JWT claims
-// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: JWT claims struct carrying email, groups, role flags, delegation context, direct_write, addon link, and auth_time (pure)
+// SEM@a7d1b052bb879606eca59fea8d7f7bac57531eeb: JWT claims for a session token including identity, groups, roles, and delegation
 type Claims struct {
 	Email              string             `json:"email"`
 	EmailVerified      bool               `json:"email_verified,omitempty"`
@@ -1120,7 +1120,7 @@ func (s *Service) ClearUserGroups(ctx context.Context, email string) error {
 
 // HandleClientCredentialsGrant processes OAuth 2.0 Client Credentials Grant (RFC 6749 Section 4.4)
 // Returns an access token for machine-to-machine authentication
-// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: validate client credentials and mint a service-account JWT with direct_write and addon-link claims unless owner is admin (reads DB)
+// SEM@a7d1b052bb879606eca59fea8d7f7bac57531eeb: authenticate client credentials and issue an access token pair (OAuth client credentials grant)
 func (s *Service) HandleClientCredentialsGrant(ctx context.Context, clientID, clientSecret string) (*TokenPair, error) {
 	logger := slogging.Get()
 

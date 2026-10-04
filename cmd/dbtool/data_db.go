@@ -179,7 +179,7 @@ func setQuotas(db *testdb.TestDB, userInternalUUID string, quota map[string]any)
 	return nil
 }
 
-// SEM@0000000000000000000000000000000000000000: upsert a system setting key-value pair with explicit origin, skipping empty values (reads DB)
+// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: store a system setting with explicit origin, skipping empty values (writes DB)
 func seedSetting(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 	log := slogging.Get()
 

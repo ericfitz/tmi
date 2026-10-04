@@ -12,10 +12,10 @@ import (
 )
 
 // mapProvider is a secrets.Provider over a map; keys absent from it are not found.
-// SEM@0000000: in-memory secrets provider returning a canned error for any missing key (test double)
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: in-memory secrets provider returning a canned error for any missing key (test double)
 type mapProvider map[string]string
 
-// SEM@0000000: fetch a secret from the map or return ErrSecretNotFound (pure)
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: fetch a secret from the map or return ErrSecretNotFound (pure)
 func (m mapProvider) GetSecret(_ context.Context, key string) (string, error) {
 	if v, ok := m[key]; ok {
 		return v, nil
@@ -23,25 +23,25 @@ func (m mapProvider) GetSecret(_ context.Context, key string) (string, error) {
 	return "", secrets.ErrSecretNotFound
 }
 
-// SEM@0000000: list the map's secret keys (pure)
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: list the map's secret keys (pure)
 func (m mapProvider) ListSecrets(context.Context) ([]string, error) { return nil, nil }
 
-// SEM@0000000: return the provider name (pure)
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: return the provider name (pure)
 func (m mapProvider) Name() string { return "map" }
 
-// SEM@0000000: close the provider (pure)
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: close the provider (pure)
 func (m mapProvider) Close() error { return nil }
 
 // errProvider fails every lookup with a non-NotFound error.
-// SEM@0000000: secrets provider failing every lookup with a fixed error (test double)
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: secrets provider failing every lookup with a fixed error (test double)
 type errProvider struct{ mapProvider }
 
-// SEM@0000000: fail with a non-NotFound error (pure)
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: fail with a non-NotFound error (pure)
 func (errProvider) GetSecret(context.Context, string) (string, error) {
 	return "", errors.New("backend down")
 }
 
-// SEM@0000000: test that NewSettingsEncryptor builds the keyring from provider secrets
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: test that NewSettingsEncryptor builds the keyring from provider secrets
 func TestNewSettingsEncryptor_ProviderPath(t *testing.T) {
 	k1, k2 := hex.EncodeToString(generateTestKey(t)), hex.EncodeToString(generateTestKey(t))
 	sk := secrets.SecretKeys

@@ -109,7 +109,7 @@ func AcquireMigrationLock(ctx context.Context, db *gorm.DB, name string) (releas
 // so — mirroring acquireOracleLock's dropConn — the connection is discarded
 // via driver.ErrBadConn rather than returned to the pool: a plain Close()
 // would hand a possibly-still-locked backend back to an unrelated query.
-// SEM@bf7089dd40036d3e0ce00dfdf5db475d45382fd1: acquire a PostgreSQL advisory lock on a pinned session connection and return a release function (reads DB)
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: acquire a PostgreSQL advisory lock on a pinned session connection and return a release function (reads DB)
 func acquirePGLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slogging.Logger) (func(), error) {
 	key := nameToInt64(name)
 
@@ -193,7 +193,7 @@ func acquirePGLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slog
 //
 // All binds are positional (:1, :2, ...). Mixing ? and named binds (:h, :s)
 // is unreliable on godror.
-// SEM@2bc5bf8f3e1be695fa3f274458939777e390e85b: acquire an Oracle DBMS_LOCK exclusive lock on a pinned session connection, raising a single-slot pool to two first, and return a release function (reads DB)
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: acquire an Oracle exclusive lock on a pinned session and return a release function (reads DB)
 func acquireOracleLock(ctx context.Context, sqlDB *sql.DB, name string, logger *slogging.Logger) (func(), error) {
 	// A pool sized to exactly one connection (TMI_DB_MAX_OPEN_CONNS=1) cannot
 	// survive pinning a connection for the lock's lifetime: sqlDB.Conn below

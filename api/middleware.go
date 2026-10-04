@@ -940,7 +940,7 @@ func (w *bufferedResponseWriter) WriteHeader(statusCode int) {
 // write-deadline clear silently did nothing and streams were still cut at
 // http.Server.WriteTimeout. gin's own *responseWriter does implement Unwrap,
 // so with this one hop the chain reaches the real http.ResponseWriter.
-// SEM@0000000000000000000000000000000000000000: expose the wrapped response writer so a ResponseController can reach the connection (pure)
+// SEM@495d0e707e286e7230e11759448f784ebb220018: expose the wrapped response writer so a ResponseController can reach the connection (pure)
 func (w *bufferedResponseWriter) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
 }
@@ -1094,7 +1094,7 @@ func acceptsAnyOf(acceptHeader string, mediaTypes []string) bool {
 
 // AcceptHeaderValidation middleware validates that the Accept header is application/json
 // Returns 406 Not Acceptable for unsupported media types
-// SEM@29f63eb500c26288d0d3fe23737adf6fd94bdf9c: build middleware that rejects requests with unsupported Accept media types
+// SEM@2f8bdf4ee323d43b42d14954da7fbbf9544367c7: build middleware that rejects requests with unsupported Accept media types
 func AcceptHeaderValidation() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get logger from context

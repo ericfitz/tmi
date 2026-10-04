@@ -427,7 +427,7 @@ func (c *docxRenderCtx) emitPara() error {
 // maintains a running counter per (numId, ilvl) keyed list. Counters reset when
 // more than one non-list paragraph appears between consecutive items at the
 // same key. Unknown formats and missing numbering.xml fall back to "-".
-// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: compute the Markdown list prefix for a list-item paragraph, maintaining ordinal counters (pure)
+// SEM@f69d82c5864c65f768181d82416962e3bbd63667: compute the Markdown list prefix for a list-item paragraph, tracking ordinal counters (pure)
 func docxListMarker(st *docxState, p *docxParaState) string {
 	docxLoadNumbering(st)
 	numID := p.listNumID
@@ -463,7 +463,7 @@ func docxListMarker(st *docxState, p *docxParaState) string {
 
 // docxFormatOrdinal renders n in the requested numFmt style. Unknown formats
 // fall back to decimal.
-// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: convert an ordinal number to a string in the requested DOCX numFmt style (pure)
+// SEM@f69d82c5864c65f768181d82416962e3bbd63667: convert an ordinal number to a string in the requested DOCX number format (pure)
 func docxFormatOrdinal(fmtName string, n int) string {
 	switch fmtName {
 	case "decimal", "ordinal", "cardinalText", "ordinalText",
@@ -502,7 +502,7 @@ func docxAlphabetic(n int, base rune) string {
 
 // docxRoman renders n as upper-case Roman numerals. Falls back to decimal for
 // n <= 0 or n > 3999 (outside classical Roman range).
-// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: convert a positive integer to upper-case Roman numeral string (pure)
+// SEM@f69d82c5864c65f768181d82416962e3bbd63667: convert a positive integer to an upper-case Roman numeral string (pure)
 func docxRoman(n int) string {
 	if n <= 0 || n > 3999 {
 		return strconv.Itoa(n)
@@ -783,7 +783,7 @@ func (c *docxRenderCtx) handleParaEnd() error {
 	return nil
 }
 
-// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: emit an image placeholder with alt text from a wp:docPr drawing element (pure)
+// SEM@f69d82c5864c65f768181d82416962e3bbd63667: emit an image placeholder with alt text from a drawing properties element (pure)
 func (c *docxRenderCtx) handleDrawingDocPr(t xml.StartElement) {
 	var descr string
 	for _, a := range t.Attr {

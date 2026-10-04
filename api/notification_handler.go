@@ -31,7 +31,7 @@ func GetNotificationHub() *NotificationHub {
 }
 
 // HandleNotificationWebSocket handles WebSocket connections for notifications
-// SEM@212287c6c02d99be7f8071b21a50666223646bec: upgrade an authenticated HTTP connection to a notification WebSocket and register the client (mutates shared state)
+// SEM@a7d1b052bb879606eca59fea8d7f7bac57531eeb: upgrade an authenticated connection to a notification WebSocket and register the client (mutates shared state)
 func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 	logger := slogging.Get()
 

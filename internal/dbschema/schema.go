@@ -42,7 +42,7 @@ type ConstraintSchema struct {
 }
 
 // GetExpectedSchema returns the complete expected database schema
-// SEM@233ab212fbfe0072b0d2d8a570accc8e504d723e: return the full canonical database schema as a list of table descriptors (pure)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: return the full canonical database schema as a list of table descriptors (pure)
 func GetExpectedSchema() []TableSchema {
 	schema := []TableSchema{
 		{

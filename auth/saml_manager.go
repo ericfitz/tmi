@@ -286,7 +286,7 @@ func (m *SAMLManager) processUser(ctx context.Context, userInfo *saml.UserInfo, 
 // samlMatchType identifies which tier of processSAMLUser's matching strategy
 // found the user, so updateSAMLUserOnLogin can decide which fields are safe
 // to overwrite.
-// SEM@122ce250fa05684ec3cc6f61e7454fd3a4a76b93: enumerate the SAML user-match tiers used to gate profile field updates (pure)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: enumerate how a SAML login matched an existing user
 type samlMatchType int
 
 const (
@@ -399,7 +399,7 @@ func processSAMLUser(ctx context.Context, r samlUserResolver, userInfo *saml.Use
 // update case for it. Email-tier and email-only matches found the user BY
 // email, so there is nothing to "update" and a synthesized value must never
 // replace a real one.
-// SEM@35e7df01f7b0711718a863acbbc1fd63412f5120: apply guarded tier-aware profile updates to a matched SAML user (reads DB)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: update a user's login time, name, and email from a SAML assertion (writes DB)
 func updateSAMLUserOnLogin(ctx context.Context, r samlUserResolver, user User, userInfo *saml.UserInfo, match samlMatchType) (*User, error) {
 	logger := slogging.Get()
 	now := time.Now()

@@ -12,7 +12,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 )
 
-// SEM@0000000: test that the rollout waiter keeps waiting until generation, replicas and availability all settle
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: test that the rollout waiter keeps waiting until generation, replicas and availability all settle
 func TestKubeRolloutWaiter_NotRolledCases(t *testing.T) {
 	i32 := func(v int32) *int32 { return &v }
 	tests := []struct {
@@ -49,7 +49,7 @@ func TestKubeRolloutWaiter_NotRolledCases(t *testing.T) {
 	}
 }
 
-// SEM@0000000: test that the rollout waiter errors when the Deployment is missing
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: test that the rollout waiter errors when the Deployment is missing
 func TestKubeRolloutWaiter_MissingDeployment(t *testing.T) {
 	w := NewKubeRolloutWaiter(fake.NewClientset(), "tmi-platform")
 	_, err := w.Generation(context.Background(), "tmi-server")
@@ -57,7 +57,7 @@ func TestKubeRolloutWaiter_MissingDeployment(t *testing.T) {
 	require.Error(t, w.WaitRolled(context.Background(), "tmi-server", 0, time.Millisecond))
 }
 
-// SEM@0000000: test that the Redis rotation refuses an unknown phase without touching Redis or the Secret
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: test that the Redis rotation refuses an unknown phase without touching Redis or the Secret
 func TestRedisPasswordRotation_UnknownPhase(t *testing.T) {
 	sec := swappedSecret()
 	sec.Annotations[AnnPhase+"redis-password"] = "bogus"
@@ -70,7 +70,7 @@ func TestRedisPasswordRotation_UnknownPhase(t *testing.T) {
 	require.Zero(t, st.DataWrites)
 }
 
-// SEM@0000000: test that a rotation with no current Redis password fails before changing anything
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: test that a rotation with no current Redis password fails before changing anything
 func TestRedisPasswordRotation_EmptyPassword(t *testing.T) {
 	for name, data := range map[string]map[string]string{
 		"missing": {},
@@ -89,7 +89,7 @@ func TestRedisPasswordRotation_EmptyPassword(t *testing.T) {
 	}
 }
 
-// SEM@0000000: test that aclError keeps only the error class and never echoes the password
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: test that aclError keeps only the error class and never echoes the password
 func TestAclError_KeepsClassDropsPassword(t *testing.T) {
 	const pw = "s3cret-pw-value"
 	tests := []struct {
@@ -110,16 +110,16 @@ func TestAclError_KeepsClassDropsPassword(t *testing.T) {
 }
 
 // failingSettings fails ReEncrypt.
-// SEM@0000000: settings store test double whose ReEncrypt always fails
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: settings store test double whose ReEncrypt always fails
 type failingSettings struct {
 	fakeSettings
 	err error
 }
 
-// SEM@0000000: fail re-encryption with the canned error (test double)
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: fail re-encryption with the canned error (test double)
 func (f *failingSettings) ReEncrypt(context.Context, Keyring) (int, error) { return 0, f.err }
 
-// SEM@0000000: build a settings-key secret fixture with both keys present, in the given phase
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: build a settings-key secret fixture with both keys present, in the given phase
 func settingsSecretInPhase(phase string) *Secret {
 	sec := settingsSecret()
 	sec.Data["TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID"] = "2"
@@ -132,7 +132,7 @@ func settingsSecretInPhase(phase string) *Secret {
 	return sec
 }
 
-// SEM@0000000: test that a rotation does not start while a previous key pair is still present
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: test that a rotation does not start while a previous key pair is still present
 func TestSettingsKeyRotation_RefusesToStartWithPreviousPair(t *testing.T) {
 	env, st := testEnv(settingsSecretInPhase(""))
 	fs := &fakeSettings{rows: map[int]int64{}}
@@ -144,7 +144,7 @@ func TestSettingsKeyRotation_RefusesToStartWithPreviousPair(t *testing.T) {
 	require.Zero(t, fs.reencrypt)
 }
 
-// SEM@0000000: test that a ReEncrypt failure in the promoted phase keeps the phase for the next run
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: test that a ReEncrypt failure in the promoted phase keeps the phase for the next run
 func TestSettingsKeyRotation_ReEncryptErrorKeepsPromotedPhase(t *testing.T) {
 	env, st := testEnv(settingsSecretInPhase("promoted"))
 	st.DataWrites = 1 // the promote write already rolled the server
@@ -157,7 +157,7 @@ func TestSettingsKeyRotation_ReEncryptErrorKeepsPromotedPhase(t *testing.T) {
 	require.Equal(t, 1, st.DataWrites)
 }
 
-// SEM@0000000: test that a peer advancing the phase makes the settings-key transition fail with a conflict
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: test that a peer advancing the phase makes the settings-key transition fail with a conflict
 func TestSettingsKeyRotation_PhaseCASConflict(t *testing.T) {
 	advance := func(st *MemorySecretStore, to string) func() {
 		return func() {

@@ -59,7 +59,7 @@ type ThreatModelFilters struct {
 	IncludeDeleted      bool          // Include soft-deleted (tombstoned) entities
 }
 
-// SEM@c79f3cd129aecd7cd6562b875b7f02232594d3d1: interface for CRUD, soft-delete, list, count, and authorization operations on threat models
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: define interface for CRUD, soft-delete, list, count, and authorization of threat models
 type ThreatModelStoreInterface interface {
 	Get(id string) (ThreatModel, error)
 	GetIncludingDeleted(id string) (ThreatModel, error)

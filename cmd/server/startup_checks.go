@@ -13,7 +13,7 @@ import (
 
 // secretKeyGetter is the subset of SettingsServiceInterface needed by the startup checks
 // in this file. Using a minimal interface makes them unit-testable without a real DB.
-// SEM@99c7bf92a70c0288330ba2861b823dbda8ce3aa2: fetch a single system setting by key (reads DB)
+// SEM@7430764167888f43111b8fe959e8c73449a4f9af: fetch a single system setting by key (reads DB)
 type secretKeyGetter interface {
 	Get(ctx context.Context, key string) (*models.SystemSetting, error)
 	PlaintextKeys(ctx context.Context, keys []string) ([]string, error)
@@ -146,7 +146,7 @@ func warnIfPlaintextSecretsAtRest(
 // The function NEVER returns an error; a warning is informational only and must not
 // abort startup. Call this after both the settings service and config are ready —
 // ideally after SeedDefaults, so DB rows actually exist to compare against.
-// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: warn when an explicit config value and an explicit DB row disagree for an operational setting (reads DB)
+// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: warn when an explicit config value and a database setting disagree (reads DB)
 func warnIfConfigDatabaseDiverges(
 	ctx context.Context,
 	svc settingsLister,

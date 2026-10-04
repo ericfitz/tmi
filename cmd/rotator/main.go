@@ -21,7 +21,7 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
-// SEM@b949412f: configuration options for the secret rotator
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: hold configuration options for the secret rotator (pure)
 type options struct {
 	Force                 string
 	Namespace             string
@@ -38,7 +38,7 @@ type options struct {
 	OracleWallet          string
 }
 
-// SEM@b949412f: parse rotator options from the environment with defaults (pure)
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: parse rotator options from the environment with defaults (pure)
 func loadOptions(getenv func(string) string) (options, error) {
 	get := func(k, def string) string {
 		if v := getenv(k); v != "" {
@@ -77,7 +77,7 @@ func loadOptions(getenv func(string) string) (options, error) {
 	return o, nil
 }
 
-// SEM@b949412f: build the settings-key escrow from config; no-op without an ARN
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: build the settings-key escrow from config; no-op without an ARN
 func newSettingsEscrow(ctx context.Context, arn string) (rotator.Escrow, error) {
 	if arn == "" {
 		return rotator.NoopEscrow{}, nil
@@ -109,7 +109,7 @@ func main() {
 	os.Exit(run())
 }
 
-// SEM@b949412f: load rotator options at startup; return exit code 2 on invalid configuration
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: parse rotator options at startup; return exit code 2 on invalid configuration
 func startupOptions(getenv func(string) string) (options, int) {
 	o, err := loadOptions(getenv)
 	if err != nil {
@@ -119,7 +119,7 @@ func startupOptions(getenv func(string) string) (options, int) {
 	return o, 0
 }
 
-// SEM@b949412f: wire cluster, Redis and DB clients and run every rotation; return the exit code
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: parse CLI flags, connect to the database, and dispatch the requested dbtool operation (reads DB)
 func run() int {
 	logger := slogging.Get()
 	o, code := startupOptions(os.Getenv)

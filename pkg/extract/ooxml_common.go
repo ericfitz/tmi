@@ -422,7 +422,7 @@ func renderMarkdownTable(mb *markdownBuilder, rows [][]string, shapeComment stri
 // On timeout it returns context.DeadlineExceeded; on parent cancellation it
 // returns ctx.Err(). The wrapped fn receives the deadline-bearing context so
 // cooperative cancellation is possible.
-// SEM@b4a403da2147ccb51a674e10d71891d4fccfe06a: run an extractor function under a wall-clock budget, cancelling on timeout or parent context
+// SEM@4359a42e5ac4f24a1d76d8c8c8455c6cc91541c5: run an extractor under a wall-clock budget, cancelling on timeout or parent context
 func ExtractWithDeadline(ctx context.Context, budget time.Duration, fn func(context.Context) (ExtractedContent, error)) (ExtractedContent, error) {
 	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()

@@ -107,7 +107,7 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 }
 
 // CreateDiagram creates a new diagram for a threat model
-// SEM@f24c94ac3b48082482bcf5b8e9642017897fe3b6: create a new diagram under a threat model and return its location (reads DB)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: build a new diagram under a threat model and return its location (reads DB)
 func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId string) {
 	// SEM@fa90788260b7ad67805c563575b948d3d1607a99: request body shape for creating a diagram under a threat model (pure)
 	type CreateThreatModelDiagramRequest struct {
@@ -556,7 +556,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 }
 
 // DeleteDiagram deletes a diagram within a threat model
-// SEM@533fc769067d317cc10f227729848688da16fba0: soft-delete a diagram under a threat model; rejects active collaboration sessions (reads DB)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: soft-delete a diagram under a threat model; rejects active collaboration sessions (reads DB)
 func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId, diagramId string) {
 	// AuthzMiddleware (#365) has already enforced ownership=owner on this
 	// route. Load the threat model to verify diagram parentage below.

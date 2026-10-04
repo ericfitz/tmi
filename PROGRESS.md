@@ -1,3 +1,60 @@
+# Session progress — 2026-10-01 to 2026-10-04
+
+## Landed (pushed to main)
+
+- **#1014** (`93d22481`) — dropped 51 duplicate SEM markers left by #1011.
+- **#1015** (`094904c7`, 1.17.2) — `POST /admin/settings/reencrypt` returns 409 `unreadable_settings_limit` instead of
+  500 when it hits the unreadable-row cap (#1006).
+- **#1016** (`32eda6c8`) — rotator re-reads the Redis password on reconnect (#1001, #1002).
+- **#1017** (`95321b8c`) — DB layer logs fixed messages plus an error class instead of raw driver errors, so
+  connection failures can't echo a DSN password (#1005).
+- **#1018** (`9d7f415e`) — CloudWatch alarm `tmi-secret-rotation-failing` on repeated rotation failures (#1003).
+- **#1019** (`9750a568`) — Redis `maxmemory-policy noeviction` (384mb cap on a 640Mi limit) so revoked tokens are
+  never evicted; token revoke and credential delete fail closed with 503 (#1008).
+- **#1020** (`9924c9a9`) — sanitized markdown no longer entity-encodes quotes (#992; tmi-ux e2e verified).
+- **#1021** (`f3001156`, 1.17.10) — spec gaps #985/#986/#987; `inactive` added to the WebhookSubscription status enum.
+- **#1022, #1023, #1028** — automated dependency bumps.
+- **#1027** (`ab6a7ff2`) — startup retries DB and Redis connections (0.5s backoff doubling to 5s, 30s wall-clock
+  budget); permanent DB errors (bad/locked credentials, unknown TNS alias, wallet/cert, missing client or database)
+  are not retried (#972). Oracle review: APPROVED WITH NOTES (note 3 filed as #1026).
+- **#1029** (`070c69a1`, 1.18.0) — `feat(rotator)`: before promoting a new settings-encryption key, the rotator escrows
+  the current and previous key to Secrets Manager secret `tmi-settings-key-escrow` and fails closed if that write
+  fails (#1009). New config key `TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN` (no-op when unset). IRSA SA
+  `tmi-rotator-aws` with PutSecretValue on that ARN only. The secret lives in `aws-persistent` with
+  `prevent_destroy`. ADRs for the escrow and the #1008 Redis policy are in `docs/superpowers/specs/`.
+- **#1032** (`70ea38e6`) — `ci(version)`: versions are bumped after merge by
+  [version-bump-bot](https://github.com/ericfitz/version-bump-bot) v1, replacing the in-PR Version Bump/Check
+  (#627). PRs never edit version files; "guard / Version Guard" is the required check; squash-only merges with the
+  PR title as the subject; each bump is a `chore(version)` commit plus a `v<server>` tag (first: `v1.18.1`). The
+  `ericfitz-version-bump` App is the main ruleset's only bypass actor. Superseded and closed #1024.
+- **#1034** (`1011c62a`, 1.18.2) — fixed Dependabot alerts #84, #85, #88: pnpm overrides fast-uri 3.1.8 and
+  brace-expansion 1.1.21; go-yaml patch; `test/integration` module re-tidied. `braces` <=3.0.3 (dev-only, via
+  spectral-cli) has no fixed release.
+- **#1035** — re-anchored 473 SEM markers left stale or orphaned by squash merges (descriptions refreshed);
+  `.claude/CLAUDE.md` now says `CLUSTER` is required for dev-* targets (no default).
+
+## Decided (Eric)
+
+- 2026-10-01: #1009 = escrow the settings key to Secrets Manager; #1008 = noeviction plus a raised cap; #987 intake
+  rejecting `needs_revision` is by design.
+- 2026-10-02: escrow secret in `aws-persistent`, read by `aws-public` via data lookup; rotator IRSA follows the tmi-api
+  precedent. Versions bump after merge, not in the PR.
+- 2026-10-03: portable version-bump-bot and deps-bump-bot in their own repos; tmi adopts version-bump-bot v1. The
+  deps bot later pivoted to self-hosted Renovate with a shared preset (deps-bump-bot ADR 0001); tmi's cutover waits
+  for its kit.
+
+## Deployed
+
+- 2026-10-03: `aws-persistent` applied (escrow secret, RDS free-storage alarm from #974). api.tmi.dev on 1.18.0
+  (`070c69a1`): rotator IRSA role/SA/ConfigMap, rotation-failure alarm, coredns addon upgrade. A forced settings-key
+  rotation verified the escrow end to end (escrowed id 2, previous 1; 57 rows re-encrypted, 0 errors); the
+  settings-key deferral annotation was removed, so the next rotation follows the normal 90-day schedule.
+
+## Filed
+
+- #1030, #1031 (escrow follow-ups), #1026 (close the pool on NewGormDB failure), #1033 (dev-config restore fails on
+  `ENC:v1:` values).
+
 # Session progress — 2026-09-30
 
 ## Landed (pushed to main)

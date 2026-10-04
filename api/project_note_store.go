@@ -109,7 +109,7 @@ func projectNoteListItemFromRecord(record *models.ProjectNoteRecord) ProjectNote
 }
 
 // Create creates a new project note
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: store a new project note under a verified parent project (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new project note under a verified parent project (mutates DB)
 func (s *GormProjectNoteStore) Create(ctx context.Context, note *ProjectNote, projectID string) (*ProjectNote, error) {
 	logger := slogging.Get()
 

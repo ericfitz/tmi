@@ -3,7 +3,7 @@ package config
 import "fmt"
 
 // TimmyConfig holds configuration for the Timmy AI assistant feature
-// SEM@07385154fa2286de1a8805dbf00575c0f52ce941: configuration struct for the Timmy AI assistant feature (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: hold configuration for the Timmy AI assistant feature (pure)
 type TimmyConfig struct {
 	Enabled     bool   `yaml:"enabled" env:"TMI_TIMMY_ENABLED"`
 	LLMProvider string `yaml:"llm_provider" env:"TMI_TIMMY_LLM_PROVIDER"`
@@ -55,7 +55,7 @@ type TimmyConfig struct {
 }
 
 // DefaultTimmyConfig returns configuration with sensible defaults
-// SEM@e2a2db17eb103a24591f87c9d0932532a5750588: build a TimmyConfig populated with sensible operational defaults (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build a TimmyConfig populated with sensible operational defaults (pure)
 func DefaultTimmyConfig() TimmyConfig {
 	return TimmyConfig{
 		Enabled:                         false,
@@ -108,7 +108,7 @@ var validLLMProviders = map[string]bool{"openai": true, "anthropic": true}
 // IsConfigured's concern; this method only rejects an unrecognized non-empty
 // value, which deserves its own message rather than being folded into
 // "not configured."
-// SEM@0000000000000000000000000000000000000000: validate that a non-empty LLMProvider is a recognized provider name (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: validate that a non-empty LLMProvider is a recognized provider name (pure)
 func (tc TimmyConfig) ValidateLLMProvider() error {
 	if tc.LLMProvider == "" || validLLMProviders[tc.LLMProvider] {
 		return nil
@@ -120,7 +120,7 @@ func (tc TimmyConfig) ValidateLLMProvider() error {
 // is not an error — it means "use the backend's default" (see
 // DefaultTimmyConfig and internal/llm.anthropicDefaultMaxTokens) — only a
 // negative value is rejected.
-// SEM@0000000000000000000000000000000000000000: validate that LLMMaxTokens is non-negative (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: validate that LLMMaxTokens is non-negative (pure)
 func (tc TimmyConfig) ValidateLLMMaxTokens() error {
 	if tc.LLMMaxTokens < 0 {
 		return fmt.Errorf("timmy.llm_max_tokens must be non-negative, got %d", tc.LLMMaxTokens)

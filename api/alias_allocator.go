@@ -115,7 +115,7 @@ func allocateAliasFromSequence(ctx context.Context, tx *gorm.DB) (int32, error) 
 
 // allocateNextAliasRowLocked is the original SELECT ... FOR UPDATE row-counter
 // allocator, retained for per-scope sub-object aliases and for SQLite.
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: reserve the next alias by row-locking and incrementing a counter row in a transaction (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: reserve the next alias by row-locking and incrementing a counter in a transaction (writes DB)
 func allocateNextAliasRowLocked(ctx context.Context, tx *gorm.DB, parentID, objectType string) (int32, error) {
 	logger := slogging.Get()
 

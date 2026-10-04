@@ -256,7 +256,7 @@ func (h *WebSocketHub) FindSessionByID(sessionID string) *DiagramSession {
 }
 
 // UpdateDiagramResult contains the result of a centralized diagram update
-// SEM@0000000000000000000000000000000000000000: result of a centralized diagram update carrying the updated diagram, vector change, and optimistic-lock version (pure)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: result of a diagram update carrying updated diagram, vector change, and lock version (pure)
 type UpdateDiagramResult struct {
 	UpdatedDiagram    DfdDiagram
 	PreviousVector    int64
@@ -278,7 +278,7 @@ type UpdateDiagramResult struct {
 // expectedVersion, when non-nil, is the caller's optimistic-lock expected
 // version (#385); the CAS then runs in the same transaction as the content
 // write via DiagramStore.UpdateWithVersion (#594).
-// SEM@0000000000000000000000000000000000000000: apply an update function to a diagram with version control, persistence, audit, WebSocket notification, and optional same-tx optimistic-lock CAS (mutates shared state)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: apply an update function to a diagram with versioning, persistence, audit, and WebSocket notification (mutates shared state)
 func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagram) (DfdDiagram, bool, error), updateSource string, excludeUserID string, expectedVersion *int) (*UpdateDiagramResult, error) {
 	// Use dedicated update mutex to prevent race conditions on update_vector
 	h.updateMutex.Lock()
@@ -377,7 +377,7 @@ func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagra
 }
 
 // UpdateDiagramCells provides centralized diagram cell updates (convenience wrapper)
-// SEM@be6cc4edcc9140493267132a7d584481845e0dfe: replace a diagram's cell list and increment the update vector (mutates shared state)
+// SEM@af6a349e2a5aecd19848d6c0e8fa4c9c32380775: replace a diagram's cell list and increment the update vector (mutates shared state)
 func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []DfdDiagram_Cells_Item, updateSource string, excludeUserID string) (*UpdateDiagramResult, error) {
 	updateFunc := func(diagram DfdDiagram) (DfdDiagram, bool, error) {
 		// No conversion needed - newCells is already the union type
@@ -389,7 +389,7 @@ func (h *WebSocketHub) UpdateDiagramCells(diagramID string, newCells []DfdDiagra
 }
 
 // buildWebSocketURL constructs the absolute WebSocket URL from request context
-// SEM@827fca9702ebf3b2d415a499d701a41667df1a5a: build the absolute WebSocket URL for a diagram session from the client-facing scheme and request Host (pure)
+// SEM@70a1ab73044f098057ed09ca89a32292b1bdca7b: build the absolute WebSocket URL for a diagram session from request scheme and host (pure)
 func (h *WebSocketHub) buildWebSocketURL(c *gin.Context, threatModelId openapi_types.UUID, diagramID string, sessionID string) string {
 	scheme := websocketScheme(c)
 
@@ -1549,7 +1549,7 @@ func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, 
 }
 
 // HandleWS handles WebSocket connections
-// SEM@a9626140ff4ccb3bf8ae4b474024684bd7063b72: handle an incoming WebSocket connection request, authorize, upgrade, and register the client (mutates shared state)
+// SEM@a7d1b052bb879606eca59fea8d7f7bac57531eeb: handle a WebSocket connection request: authorize, upgrade, and register the client (mutates shared state)
 func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	// Validate request and get parameters
 	threatModelID, diagramID, _, err := h.validateWebSocketRequest(c)

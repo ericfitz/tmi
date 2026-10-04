@@ -359,7 +359,7 @@ func userProviderLookupDDL(dialect, usersTable string) (drop, createUnique, rest
 // userProviderLookupIndexExists does -- gorm's HasIndex is unusable on Oracle
 // (see that function) -- and filters to the session's CURRENT_SCHEMA rather
 // than the connected user's own objects (#736).
-// SEM@30424a23a3e8112b8be171d3d0fcb5cb63ca48a1: probe whether the users provider-lookup index exists with its intended definition, per dialect (reads DB)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: probe whether the users provider-lookup index exists with its intended definition, per dialect (reads DB)
 func userProviderLookupIndexState(db *gorm.DB, usersTable string) (exists, unique bool, err error) {
 	switch db.Name() {
 	case "oracle":

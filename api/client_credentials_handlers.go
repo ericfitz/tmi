@@ -18,7 +18,7 @@ import (
 
 // CreateCurrentUserClientCredential handles POST /me/client_credentials
 // Creates a new OAuth 2.0 client credential for machine-to-machine authentication
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: create a client credential for the authenticated user; enforces admin/reviewer authorization, quota, and refuses direct_write for administrator owners (reads DB)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: build a client credential for the authenticated user, enforcing authorization, quota, and direct_write rules (writes DB)
 func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -213,7 +213,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 
 // ListCurrentUserClientCredentials handles GET /me/client_credentials
 // Retrieves all client credentials owned by the authenticated user (without secrets)
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: list all client credentials owned by the authenticated user with pagination, omitting secrets (reads DB)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: list the authenticated user's client credentials with pagination, omitting secrets (reads DB)
 func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCurrentUserClientCredentialsParams) {
 	logger := slogging.Get().WithContext(c)
 	userUUID := c.GetString("userInternalUUID")
@@ -319,7 +319,7 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 
 // DeleteCurrentUserClientCredential handles DELETE /me/client_credentials/{credential_id}
 // Permanently deletes a client credential
-// SEM@469dc723f406bfcd7fd46bc19ba3a1f279f40f25: delete and revoke a client credential owned by the authenticated user (reads DB)
+// SEM@9750a568b8ffb60cfd241d61263b7e23f990899e: delete and revoke a client credential owned by the authenticated user (writes DB)
 func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 	userUUID := c.GetString("userInternalUUID")
@@ -464,7 +464,7 @@ func resolveCredentialAddonID(c *gin.Context, addonID *openapi_types.UUID, direc
 	return addonID.String(), nil
 }
 
-// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: convert an optional UUID string to an OpenAPI UUID pointer (pure)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: convert an optional UUID string to an OpenAPI UUID pointer (pure)
 func uuidPtrFromString(s string) *openapi_types.UUID {
 	if s == "" {
 		return nil

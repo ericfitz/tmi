@@ -205,7 +205,7 @@ func (r *GormGroupMemberRepository) CountMembers(ctx context.Context, groupInter
 }
 
 // AddMember adds a user to a group
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: store a user as a direct member of a group and return the created membership (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a user as a direct group member and return the membership (writes DB)
 func (r *GormGroupMemberRepository) AddMember(ctx context.Context, groupInternalUUID, userInternalUUID uuid.UUID, addedByInternalUUID *uuid.UUID, notes *string) (*GroupMember, error) {
 	// Check if group is the "everyone" pseudo-group
 	if groupInternalUUID == uuid.MustParse("00000000-0000-0000-0000-000000000000") {
@@ -386,7 +386,7 @@ func (r *GormGroupMemberRepository) IsMember(ctx context.Context, groupInternalU
 }
 
 // AddGroupMember adds a group as a member of another group (one level of nesting)
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: store a group as a nested member of another group and return the created membership (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a group as a nested member of another group and return the membership (writes DB)
 func (r *GormGroupMemberRepository) AddGroupMember(ctx context.Context, groupInternalUUID, memberGroupInternalUUID uuid.UUID, addedByInternalUUID *uuid.UUID, notes *string) (*GroupMember, error) {
 	// Check if target group is the "everyone" pseudo-group
 	if groupInternalUUID == uuid.MustParse("00000000-0000-0000-0000-000000000000") {
@@ -566,7 +566,7 @@ func (r *GormGroupMemberRepository) HasAnyMembers(ctx context.Context, groupInte
 // This queries the group_members table for user-type memberships and joins the groups table
 // to return group metadata. The "everyone" pseudo-group is excluded since it has no
 // membership records (all authenticated users are implicitly members).
-// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: list all TMI-managed groups a user has direct membership in (reads DB)
+// SEM@f55124e39b362ab7afb22c9e47e214d1027f8b69: list all TMI-managed groups a user has direct membership in (reads DB)
 func (r *GormGroupMemberRepository) GetGroupsForUser(ctx context.Context, userInternalUUID uuid.UUID) ([]Group, error) {
 	// Scan into models.Group (not an ad-hoc struct with hardcoded lowercase
 	// column: tags): result-set labels come back UPPERCASE from Oracle and

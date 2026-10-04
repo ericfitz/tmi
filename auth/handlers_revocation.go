@@ -18,7 +18,7 @@ import (
 
 // revokeTokenInternal handles the actual token revocation logic
 // This is shared between RevokeToken (RFC 7009) and MeLogout endpoints
-// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: revoke an access or refresh token by blacklisting or deleting it (mutates shared state)
+// SEM@9750a568b8ffb60cfd241d61263b7e23f990899e: revoke an access or refresh token by blacklisting or deleting it (mutates shared state)
 func (h *Handlers) revokeTokenInternal(ctx context.Context, tokenString string, tokenTypeHint string) error {
 	logger := slogging.Get()
 
@@ -108,7 +108,7 @@ func validateTokenTypeHint(hint string) string {
 // RevokeToken revokes a token per RFC 7009 OAuth 2.0 Token Revocation
 // The token to revoke is passed in the request body, not the Authorization header.
 // Authentication: Bearer token OR client credentials (client_id/client_secret)
-// SEM@6cdf4b6d0226e518be3ef44423f6712f7c1d2717: handle RFC 7009 token revocation requests authenticated by Bearer token or client credentials
+// SEM@9750a568b8ffb60cfd241d61263b7e23f990899e: handle RFC 7009 token revocation requests authenticated by bearer token or client credentials
 func (h *Handlers) RevokeToken(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 

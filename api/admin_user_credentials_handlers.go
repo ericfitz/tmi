@@ -50,7 +50,7 @@ func (s *Server) getAutomationUser(c *gin.Context, internalUuid openapi_types.UU
 }
 
 // ListAdminUserClientCredentials handles GET /admin/users/{user_id}/client_credentials
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: list client credentials for an automation user account with pagination (reads DB)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: list client credentials of an automation user account with pagination (reads DB)
 func (s *Server) ListAdminUserClientCredentials(c *gin.Context, internalUuid openapi_types.UUID, params ListAdminUserClientCredentialsParams) {
 	logger := slogging.Get().WithContext(c)
 
@@ -141,7 +141,7 @@ func (s *Server) ListAdminUserClientCredentials(c *gin.Context, internalUuid ope
 }
 
 // CreateAdminUserClientCredential handles POST /admin/users/{user_id}/client_credentials
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: build and store a new client credential for an automation user account, refusing direct_write for administrator owners, bypassing quota (mutates shared state)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: build and store a client credential for an automation user, refusing direct_write for administrators, bypassing quota (writes DB)
 func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 

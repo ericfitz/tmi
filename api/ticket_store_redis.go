@@ -30,7 +30,7 @@ func (s *RedisTicketStore) ticketKey(ticket string) string {
 }
 
 // IssueTicket creates a cryptographically random ticket and stores it in Redis with the given TTL.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: generate a cryptographically random upgrade ticket and store it in Redis with a TTL (mutates shared state)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: generate a cryptographically random upgrade ticket and store it in Redis with a TTL (mutates shared state)
 func (s *RedisTicketStore) IssueTicket(ctx context.Context, claims TicketClaims, ttl time.Duration) (string, error) {
 	logger := slogging.Get()
 
@@ -54,7 +54,7 @@ func (s *RedisTicketStore) IssueTicket(ctx context.Context, claims TicketClaims,
 }
 
 // ValidateTicket atomically retrieves and deletes a ticket from Redis (single-use), returning its bound claims.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: atomically consume and validate a single-use upgrade ticket from Redis (mutates shared state)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: atomically consume and validate a single-use upgrade ticket from Redis (mutates shared state)
 func (s *RedisTicketStore) ValidateTicket(ctx context.Context, ticket string) (TicketClaims, error) {
 	logger := slogging.Get()
 	key := s.ticketKey(ticket)

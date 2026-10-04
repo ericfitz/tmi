@@ -75,7 +75,7 @@ func (s *Server) GetEmbeddingConfig(c *gin.Context, threatModelId ThreatModelId)
 
 // IngestEmbeddings accepts a batch of pre-computed embeddings for a threat model.
 // POST /automation/embeddings/{threat_model_id}
-// SEM@12a333f6f1d8bf16f9daa952af09057188c98cdc: store a validated batch of pre-computed embeddings for a threat model and invalidate the vector index (reads DB)
+// SEM@f69d82c5864c65f768181d82416962e3bbd63667: store a validated batch of pre-computed embeddings for a threat model and invalidate the vector index (reads DB)
 func (s *Server) IngestEmbeddings(c *gin.Context, threatModelId ThreatModelId) {
 	logger := slogging.Get().WithContext(c)
 	tmID := threatModelId.String()
@@ -195,7 +195,7 @@ func (s *Server) IngestEmbeddings(c *gin.Context, threatModelId ThreatModelId) {
 
 // DeleteEmbeddings deletes embeddings for a threat model, optionally filtered.
 // DELETE /automation/embeddings/{threat_model_id}
-// SEM@12a333f6f1d8bf16f9daa952af09057188c98cdc: delete embeddings for a threat model filtered by entity or index type and invalidate the vector index (reads DB)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: delete embeddings for a threat model filtered by entity or index type and invalidate the vector index (reads DB)
 func (s *Server) DeleteEmbeddings(c *gin.Context, threatModelId ThreatModelId, params DeleteEmbeddingsParams) {
 	logger := slogging.Get().WithContext(c)
 	tmID := threatModelId.String()

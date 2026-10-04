@@ -32,7 +32,7 @@ import (
 // deploy-ordering mistake, which is the one that recurs.
 //
 // Callers exempt --schema (the remedy) and the no-flag health check.
-// SEM@0000000000000000000000000000000000000000: verify the database schema fingerprint matches this binary's models before a data operation, else fail with a remedy (reads DB)
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: validate the database schema fingerprint matches this binary's models, else fail with a remedy (reads DB)
 func preflightSchemaVersion(db *gorm.DB, toolVersion string, skip bool) error {
 	log := slogging.Get()
 	expected := dbschema.ComputeModelsFingerprint(api.GetAllModels()...)
@@ -70,7 +70,7 @@ To proceed anyway, re-run with --skip-schema-check.`,
 }
 
 // short abbreviates a fingerprint for display.
-// SEM@0000000000000000000000000000000000000000: abbreviate a schema fingerprint for display (pure)
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: format an abbreviated schema fingerprint for display (pure)
 func short(fp string) string {
 	if len(fp) > 12 {
 		return fp[:12] + "…"

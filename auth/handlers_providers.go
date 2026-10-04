@@ -23,7 +23,7 @@ var safeProviderIDForIcon = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 // used so built-in providers like "tmi" show their own branding; otherwise a
 // generic OAuth icon is returned. Falling back to the bare provider id instead
 // produced a malformed value the client resolved to a bogus URL (#498).
-// SEM@f298766967f135dd9ae0e6697257535bbcc1946d: resolve a provider's default sign-in icon path, preferring an embedded brand icon
+// SEM@911386962fdc28ca53ca803f744b6ebd792cee40: resolve a provider's sign-in icon path, falling back to a generic icon
 func providerSignInIcon(id string) string {
 	const generic = "/static/provider-logos/signin/oauth.svg"
 	if !safeProviderIDForIcon.MatchString(id) {
@@ -63,7 +63,7 @@ type SAMLProviderInfo struct {
 }
 
 // GetProviders returns the available OAuth providers
-// SEM@c1ae98795fcc480287e8ef03be0c86587e974cc5: list enabled OAuth providers with public endpoint URLs and resolved sign-in icons
+// SEM@911386962fdc28ca53ca803f744b6ebd792cee40: list enabled OAuth providers with endpoint URLs and sign-in icons
 func (h *Handlers) GetProviders(c *gin.Context) {
 	var enabledProviders map[string]OAuthProviderConfig
 

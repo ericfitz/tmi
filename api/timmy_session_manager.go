@@ -238,7 +238,7 @@ func (sm *TimmySessionManager) CreateSession(
 // The onToken callback receives streaming tokens as they arrive from the LLM.
 // The onStatus callback (optional, may be nil) receives phase transitions
 // ahead of token streaming so clients can surface "Timmy is …" affordances.
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: process a user chat message: build context, stream LLM response, persist messages, record usage (reads DB)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: handle a user chat message: build context, stream LLM reply, persist messages, record usage (reads DB)
 func (sm *TimmySessionManager) HandleMessage(
 	ctx context.Context,
 	sessionID, userID, userMessage string,
@@ -1075,7 +1075,7 @@ func (sm *TimmySessionManager) buildEntitySummaries(sources []SourceSnapshotEntr
 }
 
 // getConversationHistory loads recent messages and converts them to LLM message format
-// SEM@0000000000000000000000000000000000000000: fetch recent session messages and convert them to LLM message format (reads DB)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: fetch recent session messages and convert them to LLM message format (reads DB)
 func (sm *TimmySessionManager) getConversationHistory(ctx context.Context, sessionID string) ([]llm.Message, error) {
 	messages, _, err := GlobalTimmyMessageStore.ListBySession(ctx, sessionID, 0, sm.cfgFor(ctx).MaxConversationHistory)
 	if err != nil {

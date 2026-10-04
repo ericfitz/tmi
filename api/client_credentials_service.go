@@ -15,13 +15,13 @@ import (
 )
 
 // ClientCredentialService handles client credential generation and management
-// SEM@d5abf2700f59ec278f7e45a485c9d19c90b0050f: service for creating, listing, and revoking machine-to-machine client credentials (reads DB)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: service for building, listing, and revoking client credentials (reads DB)
 type ClientCredentialService struct {
 	authService *auth.Service
 }
 
 // NewClientCredentialService creates a new client credential service
-// SEM@d5abf2700f59ec278f7e45a485c9d19c90b0050f: build a ClientCredentialService from an auth service (pure)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: build a client credential service from an auth service (pure)
 func NewClientCredentialService(authService *auth.Service) *ClientCredentialService {
 	return &ClientCredentialService{
 		authService: authService,
@@ -29,7 +29,7 @@ func NewClientCredentialService(authService *auth.Service) *ClientCredentialServ
 }
 
 // CreateClientCredentialRequest contains parameters for creating a new client credential
-// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: parameters for creating a new client credential, including name, direct_write flag, addon link, and optional expiry (pure)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: parameters for building a client credential: name, direct_write, addon link, expiry
 type CreateClientCredentialRequest struct {
 	Name        string     `json:"name" binding:"required,min=1,max=100"`
 	Description string     `json:"description" binding:"max=500"`
@@ -40,7 +40,7 @@ type CreateClientCredentialRequest struct {
 
 // CreateClientCredentialResponse contains the response from creating a client credential
 // WARNING: The client_secret is ONLY returned at creation time and cannot be retrieved later
-// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: response for a new client credential including the plaintext secret, direct_write flag, and addon link, shown once (pure)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: response for a new client credential carrying the plaintext secret, shown once
 type CreateClientCredentialResponse struct {
 	ID           uuid.UUID  `json:"id"`
 	ClientID     string     `json:"client_id"`
@@ -54,7 +54,7 @@ type CreateClientCredentialResponse struct {
 }
 
 // ClientCredentialInfoInternal represents a client credential without the secret (internal type)
-// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: client credential metadata including direct_write flag and addon link, without the secret, for listing responses (pure)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: client credential metadata without the secret, for listing
 type ClientCredentialInfoInternal struct {
 	ID          uuid.UUID  `json:"id"`
 	ClientID    string     `json:"client_id"`
@@ -71,7 +71,7 @@ type ClientCredentialInfoInternal struct {
 
 // Create generates a new client credential for the specified owner
 // The client_secret is only returned once and cannot be retrieved later (GitHub PAT pattern)
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: generate and store a new bcrypt-hashed client credential, returning the plaintext secret once (reads DB)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: build and store a hashed client credential, returning the plaintext secret once (writes DB)
 func (s *ClientCredentialService) Create(ctx context.Context, ownerUUID uuid.UUID, req CreateClientCredentialRequest) (*CreateClientCredentialResponse, error) {
 	// 1. Generate client_id: tmi_cc_{base64url(16_bytes)}
 	clientIDBytes := make([]byte, 16)
@@ -129,7 +129,7 @@ func (s *ClientCredentialService) Create(ctx context.Context, ownerUUID uuid.UUI
 }
 
 // List retrieves all client credentials for the specified owner (without secrets)
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: list all client credentials for an owner, excluding secrets (reads DB)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: list an owner's client credentials without secrets (reads DB)
 func (s *ClientCredentialService) List(ctx context.Context, ownerUUID uuid.UUID) ([]*ClientCredentialInfoInternal, error) {
 	var creds []*auth.ClientCredential
 	dbErr := authdb.WithRetryableGormRead(ctx, authdb.DefaultRetryConfig(), func() error {
@@ -166,7 +166,7 @@ func (s *ClientCredentialService) List(ctx context.Context, ownerUUID uuid.UUID)
 }
 
 // Delete permanently deletes a client credential
-// SEM@d5abf2700f59ec278f7e45a485c9d19c90b0050f: permanently delete a client credential by ID and owner (reads DB)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: delete a client credential by ID and owner (writes DB)
 func (s *ClientCredentialService) Delete(ctx context.Context, credID uuid.UUID, ownerUUID uuid.UUID) error {
 	// Single DELETE: no transaction needed, and no retry, matching Deactivate (#911).
 	dbErr := s.authService.DeleteClientCredential(ctx, credID, ownerUUID)

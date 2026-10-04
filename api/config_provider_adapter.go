@@ -15,7 +15,7 @@ func NewConfigProviderAdapter(cfg *config.Config) *ConfigProviderAdapter {
 }
 
 // GetMigratableSettings returns migratable settings from the config
-// SEM@33a84a2f45e6081d58584c7c6233564fb6bbf063: convert config migratable settings to API-layer MigratableSetting values (pure)
+// SEM@10b74985ed52c143cb0fb6e853b2d5f106de198f: convert config migratable settings to API-layer MigratableSetting values (pure)
 func (a *ConfigProviderAdapter) GetMigratableSettings() []MigratableSetting {
 	configSettings := a.cfg.GetMigratableSettings()
 	settings := make([]MigratableSetting, len(configSettings))

@@ -138,7 +138,7 @@ func IsProjectTeamMemberOrAdmin(ctx context.Context, projectID string, userInter
 // looking the parent up, so an admin listing a sub-resource of a nonexistent
 // team got 200 with an empty list while a regular user got 404 for the same
 // URL (#609). Callers check existence first so both answers agree.
-// SEM@f2a3b4c5d6e7f8091a2b3c4d5e6f708192930415: report whether a team row exists (reads DB)
+// SEM@bfe3f043180e288dc7f18690340fbdd493d5813c: validate whether a team row exists (reads DB)
 func TeamExists(ctx context.Context, teamID string) (bool, error) {
 	if teamAuthDB == nil {
 		return false, fmt.Errorf("database not initialized") //nolint:goerr113
@@ -163,7 +163,7 @@ func TeamExists(ctx context.Context, teamID string) (bool, error) {
 }
 
 // GetProjectTeamID retrieves the team_id for a given project.
-// SEM@8590f761ec02582bd24052fdd19e0b7d39c07f1a: fetch the team ID that owns a given project (reads DB)
+// SEM@bfe3f043180e288dc7f18690340fbdd493d5813c: fetch the team ID that owns a given project (reads DB)
 func GetProjectTeamID(ctx context.Context, projectID string) (string, error) {
 	if teamAuthDB == nil {
 		return "", fmt.Errorf("database not initialized") //nolint:goerr113

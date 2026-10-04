@@ -27,7 +27,7 @@ import (
 // AdminListUserIdentities handles GET /admin/users/{user_id}/identities.
 // Returns the target user's primary identity (from the user record) and all
 // of their linked identities.
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: fetch a target user's primary and linked identities for an admin (reads DB)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: fetch a target user's primary and linked identities for an admin (reads DB)
 func (s *Server) AdminListUserIdentities(c *gin.Context, userId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 	logger.Debug("[SERVER_INTERFACE] AdminListUserIdentities called user_id=%s", userId.String())
@@ -72,7 +72,7 @@ func (s *Server) AdminListUserIdentities(c *gin.Context, userId openapi_types.UU
 	}
 
 	// Build linked array.
-	// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: shape a linked identity record for the admin identities list response
+	// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: convert a linked identity record to its admin list response form (pure)
 	type linkedIdentityResponse struct {
 		ID             string  `json:"id"`
 		Provider       string  `json:"provider"`
@@ -122,7 +122,7 @@ func (s *Server) AdminListUserIdentities(c *gin.Context, userId openapi_types.UU
 // Removes a linked identity from the target user's account. The primary
 // identity has no linked_identities row and so cannot be addressed here;
 // unknown or foreign identity ids return 404.
-// SEM@a18fd6d1633a3e16fa7f6eba88b562d23e5ae4b6: delete a target user's linked identity and audit the unlink (mutates DB)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: delete a target user's linked identity and audit the unlink (writes DB)
 func (s *Server) AdminDeleteUserIdentity(c *gin.Context, userId openapi_types.UUID, identityId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 	idStr := identityId.String()

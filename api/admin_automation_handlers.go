@@ -46,7 +46,7 @@ func normalizeAutomationName(name string) string {
 // CreateAutomationAccount handles POST /admin/users/automation
 // Creates an automation (service) account with TMI provider, sets automation=true,
 // adds to TMI Automation group, and creates a client credential.
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: handle POST /admin/users/automation: create a service account with group membership and client credential (reads DB)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: handle admin request to build an automation service account with group membership and client credential (writes DB)
 func (s *Server) CreateAutomationAccount(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
