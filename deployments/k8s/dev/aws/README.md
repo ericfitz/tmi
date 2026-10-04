@@ -293,12 +293,15 @@ cluster alarms until the rotator's first run.
 Two inline JSON6902 patches in `kustomization.yaml` point the rotator at the
 Terraform-created IRSA ServiceAccount `tmi-rotator-aws`, which holds
 `secretsmanager:PutSecretValue` on the settings-key escrow secret. The first
-replaces `serviceAccountName` on the `tmi-rotator` CronJob; the second appends
+replaces `serviceAccountName` on the `tmi-rotator` CronJob (and sets the
+`tmi-rotator-config` `envFrom` to `optional: false`); the second appends
 `tmi-rotator-aws` to the `tmi-rotator` RoleBinding subjects so it keeps the same
 Secret and Deployment permissions. The base `tmi-rotator` ServiceAccount stays
 because dev clusters use it. The base CronJob also reads the optional ConfigMap
 `tmi-rotator-config` (`TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN`, created by
-Terraform) via `envFrom`; where it is absent, escrow is a no-op. Jobs created
+Terraform) via `envFrom`; the base marks it optional, so on dev clusters where
+it is absent escrow is a no-op, but the AWS overlay makes it required so a
+missing ConfigMap blocks the run instead of silently skipping escrow. Jobs created
 from the CronJob by `make rotate-secret` inherit the ServiceAccount and the
 env, so manual rotations escrow too.
 

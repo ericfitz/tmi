@@ -90,6 +90,10 @@ patches:
       - op: replace
         path: /spec/jobTemplate/spec/template/spec/serviceAccountName
         value: tmi-rotator-aws
+      # #1009: on AWS a missing escrow ConfigMap must block the run, not silently skip escrow.
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/envFrom/0/configMapRef/optional
+        value: false
   - target:
       kind: RoleBinding
       name: tmi-rotator
