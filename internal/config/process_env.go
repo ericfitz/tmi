@@ -75,6 +75,7 @@ var processEnvVars = []ProcessEnvVar{
 	{Name: "TMI_ROTATOR_SERVER_DEPLOYMENT", Binary: "rotator", Purpose: "Deployment that Reloader rolls when the Secret changes (default tmi-server)"},
 	{Name: "TMI_ROTATOR_ROLLOUT_TIMEOUT", Binary: "rotator", Purpose: "Per-phase rollout wait as a Go duration (default 10m)"},
 	{Name: "TMI_ROTATOR_SETTINGS_PREVIOUS_GRACE", Binary: "rotator", Purpose: "Wait before the previous settings key is dropped, as a Go duration (default 192h)"},
+	{Name: "TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN", Binary: "rotator", Purpose: "Secrets Manager secret ARN the settings key is escrowed to before each promotion (#1009); unset means no escrow (dev clusters)"},
 	// --- prefix patterns: the operator supplies the part in angle brackets ---
 	{Name: "TMI_SECRET_<KEY>", Binary: "server", Pattern: true, Secret: true, Purpose: "Environment secrets provider: logical secret key, upper-cased, e.g. TMI_SECRET_JWT_SECRET or TMI_SECRET_SETTINGS_ENCRYPTION_KEY. Every value is a secret"},
 	{Name: "TMI_WORKER_SECRET_MOUNT_<NAME>", Binary: "workers", Pattern: true, Purpose: "Filesystem path to a mounted secret file, exposed to the worker under the logical name, e.g. TMI_WORKER_SECRET_MOUNT_EMBEDDING_API_KEY"},

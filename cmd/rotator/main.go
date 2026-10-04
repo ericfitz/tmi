@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -19,7 +21,7 @@ import (
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
-// SEM@3b682947: configuration options for the secret rotator
+// SEM@b949412f: configuration options for the secret rotator
 type options struct {
 	Force                 string
 	Namespace             string
@@ -27,6 +29,7 @@ type options struct {
 	ServerDeployment      string
 	RolloutTimeout        time.Duration
 	SettingsPreviousGrace time.Duration
+	SettingsEscrowARN     string
 	RedisHost, RedisPort  string
 	RedisDB               int
 	RedisTLSEnabled       bool
@@ -35,7 +38,7 @@ type options struct {
 	OracleWallet          string
 }
 
-// SEM@3b682947: parse rotator options from the environment with defaults (pure)
+// SEM@b949412f: parse rotator options from the environment with defaults (pure)
 func loadOptions(getenv func(string) string) (options, error) {
 	get := func(k, def string) string {
 		if v := getenv(k); v != "" {
@@ -44,16 +47,17 @@ func loadOptions(getenv func(string) string) (options, error) {
 		return def
 	}
 	o := options{
-		Force:            getenv("ROTATE"),
-		Namespace:        get("TMI_ROTATOR_NAMESPACE", "tmi-platform"),
-		SecretName:       get("TMI_ROTATOR_SECRET", "tmi-secrets"),
-		ServerDeployment: get("TMI_ROTATOR_SERVER_DEPLOYMENT", "tmi-server"),
-		RedisHost:        get("TMI_REDIS_HOST", "redis"),
-		RedisPort:        get("TMI_REDIS_PORT", "6379"),
-		RedisTLSEnabled:  get("TMI_REDIS_TLS_ENABLED", "false") == "true",
-		RedisTLSCAFile:   getenv("TMI_REDIS_TLS_CA_FILE"),
-		DatabaseURL:      getenv("TMI_DATABASE_URL"),
-		OracleWallet:     getenv("TMI_ORACLE_WALLET_LOCATION"),
+		Force:             getenv("ROTATE"),
+		Namespace:         get("TMI_ROTATOR_NAMESPACE", "tmi-platform"),
+		SecretName:        get("TMI_ROTATOR_SECRET", "tmi-secrets"),
+		ServerDeployment:  get("TMI_ROTATOR_SERVER_DEPLOYMENT", "tmi-server"),
+		RedisHost:         get("TMI_REDIS_HOST", "redis"),
+		RedisPort:         get("TMI_REDIS_PORT", "6379"),
+		RedisTLSEnabled:   get("TMI_REDIS_TLS_ENABLED", "false") == "true",
+		RedisTLSCAFile:    getenv("TMI_REDIS_TLS_CA_FILE"),
+		DatabaseURL:       getenv("TMI_DATABASE_URL"),
+		OracleWallet:      getenv("TMI_ORACLE_WALLET_LOCATION"),
+		SettingsEscrowARN: getenv("TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN"),
 	}
 	var err error
 	if o.RolloutTimeout, err = time.ParseDuration(get("TMI_ROTATOR_ROLLOUT_TIMEOUT", "10m")); err != nil {
@@ -65,7 +69,30 @@ func loadOptions(getenv func(string) string) (options, error) {
 	if o.RedisDB, err = strconv.Atoi(get("TMI_REDIS_DB", "0")); err != nil {
 		return o, fmt.Errorf("TMI_REDIS_DB: %w", err)
 	}
+	if o.SettingsEscrowARN != "" {
+		if _, err := rotator.RegionFromSecretARN(o.SettingsEscrowARN); err != nil {
+			return o, fmt.Errorf("TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN: %w", err)
+		}
+	}
 	return o, nil
+}
+
+// SEM@b949412f: build the settings-key escrow from config; no-op without an ARN
+func newSettingsEscrow(ctx context.Context, arn string) (rotator.Escrow, error) {
+	if arn == "" {
+		return rotator.NoopEscrow{}, nil
+	}
+	region, err := rotator.RegionFromSecretARN(arn)
+	if err != nil {
+		return nil, err
+	}
+	// IRSA: the pod identity webhook injects AWS_ROLE_ARN and AWS_WEB_IDENTITY_TOKEN_FILE,
+	// which the default credential chain picks up.
+	cfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+	if err != nil {
+		return nil, fmt.Errorf("load AWS config: %w", err)
+	}
+	return rotator.NewSecretsManagerEscrow(secretsmanager.NewFromConfig(cfg), arn), nil
 }
 
 // SEM@3b682947: validate whether an error is a Redis authentication failure (pure)
@@ -82,7 +109,7 @@ func main() {
 	os.Exit(run())
 }
 
-// SEM@3b682947: wire cluster, Redis and DB clients and run every rotation; return the exit code
+// SEM@b949412f: wire cluster, Redis and DB clients and run every rotation; return the exit code
 func run() int {
 	logger := slogging.Get()
 	o, err := loadOptions(os.Getenv)
@@ -156,10 +183,19 @@ func run() int {
 	}
 	defer func() { _ = gormDB.Close() }()
 
+	settingsEscrow, err := newSettingsEscrow(ctx, o.SettingsEscrowARN)
+	if err != nil {
+		logger.Error("Settings key escrow setup failed: %v", err)
+		return 2
+	}
+	if o.SettingsEscrowARN == "" {
+		logger.Info("Settings key escrow not configured; rotation proceeds without an off-cluster copy")
+	}
+
 	// Settings key first: it needs no Redis credential change, so a Redis
 	// password problem cannot strand it.
 	rotations := []rotator.Rotation{
-		rotator.NewSettingsKeyRotation(rotator.NewGormSettingsStore(gormDB.DB(), redisDB), o.SettingsPreviousGrace, rotator.NoopEscrow{}),
+		rotator.NewSettingsKeyRotation(rotator.NewGormSettingsStore(gormDB.DB(), redisDB), o.SettingsPreviousGrace, settingsEscrow),
 		rotator.NewRedisPasswordRotation(rotator.NewGoRedisACL(redisDB.GetClient())),
 	}
 	if err := rotator.Run(ctx, env, rotations, o.Force); err != nil {
