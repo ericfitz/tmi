@@ -139,7 +139,7 @@ require (
 	github.com/oapi-codegen/nullable v1.2.0 // indirect
 	github.com/onsi/ginkgo/v2 v2.33.0 // indirect
 	github.com/onsi/gomega v1.44.0 // indirect
-	github.com/pb33f/go-yaml v0.1.0 // indirect
+	github.com/pb33f/go-yaml v0.1.1 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.2 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
 	github.com/prometheus/common v0.72.0 // indirect

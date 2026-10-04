@@ -304,8 +304,8 @@ github.com/openai/openai-go/v3 v3.71.1 h1:s+gWLEUvnV3sZqtZ+mlWZ3ePTtfuIV5EBY+fsn
 github.com/openai/openai-go/v3 v3.71.1/go.mod h1:+dSPa+nbX+dNoXg1jecMnVpgRP+E/5IBA6Jiz9Pc8WM=
 github.com/oracle-samples/gorm-oracle v1.1.3 h1:B9Ij8EqYt+WQgeayIB9H9mjRTXnEc+xPYUEvRmFcoIU=
 github.com/oracle-samples/gorm-oracle v1.1.3/go.mod h1:HP3O55zJhHKDL38yd6DjGv5+uEa0OS1nG0sII0tzEbc=
-github.com/pb33f/go-yaml v0.1.0 h1:zZ6Gg+ATbumXlXZNLMHIe7+zTkVqe20lx+TSYRrXEuY=
-github.com/pb33f/go-yaml v0.1.0/go.mod h1:QvWdkHP5VjFYAeHMQUkaPQqREaQnBNOXmWzAjNrnSdo=
+github.com/pb33f/go-yaml v0.1.1 h1:yWGmhVdwzionRnSc/hEJwcfq6PaZL2QdYzyReXBbX7Q=
+github.com/pb33f/go-yaml v0.1.1/go.mod h1:QvWdkHP5VjFYAeHMQUkaPQqREaQnBNOXmWzAjNrnSdo=
 github.com/pb33f/ordered-map/v2 v2.3.2 h1:wDyaZ2Pv9QLh64X4utCeD5Zoi9nIv2aW3lwv172O5PQ=
 github.com/pb33f/ordered-map/v2 v2.3.2/go.mod h1:1OhFrXu3OYw3kM+FXF+Ug3ugmmZ9LE8z0JfQMLvtV0w=
 github.com/pelletier/go-toml/v2 v2.4.3 h1:GTRvJQutkOSftxIFD5xw9aepkYNuPWmVJpffdDPYVpY=
