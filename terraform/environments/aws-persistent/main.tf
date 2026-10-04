@@ -12,6 +12,7 @@
 # This stack creates:
 # - The NAT egress EIP (adopted via import, prevent_destroy)
 # - IAM Deny on ec2:ReleaseAddress for that EIP, attached to admin principals
+# - Settings-key escrow secret (#1009, prevent_destroy; written only by the rotator)
 # - S3 log bucket (CloudTrail, ALB access logs, VPC flow logs), 30 d retention
 # - CloudTrail (multi-region) to S3 + CloudWatch Logs
 # - SNS security alert topic + EventBridge rules for sensitive API calls
@@ -108,6 +109,26 @@ resource "aws_iam_user_policy_attachment" "deny_release_nat_eip" {
   for_each   = toset(var.admin_users)
   user       = each.value
   policy_arn = aws_iam_policy.deny_release_nat_eip.arn
+}
+
+# Off-cluster escrow of the rotated settings-encryption key (#1009). Lives
+# here, not in aws-public, so destroying the deployment never schedules the
+# only off-cluster key copy for deletion (human decision, Eric, 2026-10-02).
+# The rotator writes a new version before every promotion; Terraform never
+# writes a version, so applies never clobber escrowed keys. aws-public looks
+# it up by name (data "aws_secretsmanager_secret"); keep the name stable.
+resource "aws_secretsmanager_secret" "settings_key_escrow" {
+  name        = "tmi-settings-key-escrow"
+  description = "TMI settings-encryption key escrow written by the rotator"
+
+  tags = {
+    Environment = "public"
+    Retain      = "true"
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 ################################################################################

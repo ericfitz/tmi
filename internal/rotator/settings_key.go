@@ -3,6 +3,7 @@ package rotator
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -140,21 +141,41 @@ func (g *GormSettingsStore) CountWithID(ctx context.Context, kr Keyring, id int)
 
 // SettingsKeyRotation rotates the settings-encryption key: stage, promote,
 // re-encrypt, and (after previousGrace, once nothing references the old id) drop.
-// SEM@3b682947: phased rotation of the settings encryption key with deferred drop of the previous key
+// SEM@7f1038af: phased settings encryption key rotation with injected escrow and deferred previous-key drop
 type SettingsKeyRotation struct {
 	store         SettingsStore
 	previousGrace time.Duration
+	escrow        Escrow
 }
 
-// SEM@3b682947: build a SettingsKeyRotation (pure)
-func NewSettingsKeyRotation(store SettingsStore, previousGrace time.Duration) *SettingsKeyRotation {
-	return &SettingsKeyRotation{store: store, previousGrace: previousGrace}
+// SEM@69c2865a: build a SettingsKeyRotation with escrow, defaulting to a no-op (pure)
+func NewSettingsKeyRotation(store SettingsStore, previousGrace time.Duration, escrow Escrow) *SettingsKeyRotation {
+	if escrow == nil {
+		escrow = NoopEscrow{}
+	}
+	return &SettingsKeyRotation{store: store, previousGrace: previousGrace, escrow: escrow}
+}
+
+// escrowKey is one key and its context id in the escrow document.
+// SEM@69c2865a: key id and hex value pair in the escrow document (pure)
+type escrowKey struct {
+	ID     int    `json:"id"`
+	KeyHex string `json:"key_hex"`
+}
+
+// settingsEscrowDoc names the post-promotion roles, which the restore runbook relies on.
+// SEM@69c2865a: settings-key escrow document naming post-promotion current and previous keys (pure)
+type settingsEscrowDoc struct {
+	Rotation   string    `json:"rotation"`
+	EscrowedAt string    `json:"escrowed_at"`
+	Current    escrowKey `json:"current"`
+	Previous   escrowKey `json:"previous"`
 }
 
 // SEM@3b682947: return the rotation's name (pure)
 func (r *SettingsKeyRotation) Name() string { return settingsRotationName }
 
-// SEM@3b682947: advance the settings-key rotation from its recorded phase
+// SEM@69c2865a: advance the settings-key rotation from its recorded phase, escrowing before promotion
 func (r *SettingsKeyRotation) Run(ctx context.Context, env *Env) error {
 	logger := slogging.Get()
 	s, err := env.Secrets.Get(ctx, env.SecretName)
@@ -201,6 +222,20 @@ func (r *SettingsKeyRotation) Run(ctx context.Context, env *Env) error {
 		if kr.PreviousKeyHex == "" || kr.PreviousID != kr.CurrentID+1 {
 			return fmt.Errorf("staged phase but the staged key pair is missing or inconsistent; refusing to promote")
 		}
+		doc, err := json.Marshal(settingsEscrowDoc{
+			Rotation:   name,
+			EscrowedAt: env.Now().UTC().Format(time.RFC3339),
+			Current:    escrowKey{ID: kr.PreviousID, KeyHex: kr.PreviousKeyHex}, // the staged key becomes current
+			Previous:   escrowKey{ID: kr.CurrentID, KeyHex: kr.CurrentKeyHex},
+		})
+		if err != nil {
+			return fmt.Errorf("build settings key escrow document: %w", err)
+		}
+		if err := r.escrow.Put(ctx, doc); err != nil {
+			// Fail closed: stay staged; the next run retries, and the stale-rotation alarm (#1003) fires if it never succeeds.
+			return fmt.Errorf("settings key escrow: %w", err)
+		}
+		logger.Info("Settings key escrowed id=%d previous_id=%d", kr.PreviousID, kr.CurrentID)
 		if err := env.Transition(ctx, name, settingsPhaseStaged, settingsPhasePromoted, func(s *Secret) {
 			s.Data[SettingsKeyKey] = kr.PreviousKeyHex
 			s.Data[SettingsKeyIDKey] = strconv.Itoa(kr.PreviousID)

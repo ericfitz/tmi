@@ -154,17 +154,23 @@ resource "aws_ecr_repository" "tmi" {
 # Network
 # ============================================================================
 
-# The NAT egress EIP (34.232.165.1) and the log bucket are owned by the
-# long-lived aws-persistent stack, which must be applied first. The EIP is
+# The NAT egress EIP (34.232.165.1), the log bucket and the settings-key
+# escrow secret are owned by the long-lived aws-persistent stack, which must
+# be applied first. The EIP is
 # NEVER released: an external system monitors traffic from it (human-made
 # architectural decision, Eric, 2026-09-26). Destroying this environment
-# leaves both untouched.
+# leaves all three untouched.
 data "aws_caller_identity" "current" {}
 
 data "aws_eip" "nat_egress" {
   tags = {
     Name = "tmi-nat-eip"
   }
+}
+
+# Owned by aws-persistent (#1009); apply that stack first.
+data "aws_secretsmanager_secret" "settings_key_escrow" {
+  name = "tmi-settings-key-escrow"
 }
 
 locals {
@@ -257,6 +263,10 @@ module "kubernetes" {
   source = "../../modules/kubernetes/aws"
 
   name_prefix = var.name_prefix
+
+  # #1009: rotator-only escrow target; deliberately not in module.secrets.
+  settings_key_escrow_secret_arn = data.aws_secretsmanager_secret.settings_key_escrow.arn
+
   # null falls through to the module's own default (Terraform substitutes a
   # module variable's default when the caller passes null), so the pin lives in
   # one place unless an operator is deliberately stepping through an upgrade.

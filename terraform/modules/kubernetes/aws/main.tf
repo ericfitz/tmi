@@ -785,6 +785,49 @@ resource "aws_iam_role_policy_attachment" "tmi_secrets_access" {
   role       = aws_iam_role.tmi_pod.name
 }
 
+# #1009: the rotator's IRSA role may only write new versions of the escrow secret.
+resource "aws_iam_role" "tmi_rotator" {
+  name = "${var.name_prefix}-tmi-rotator-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Effect = "Allow"
+        Principal = {
+          Federated = local.oidc_provider_arn
+        }
+        Condition = {
+          StringEquals = {
+            "${local.oidc_provider_url}:aud" = "sts.amazonaws.com"
+            # Must match kubernetes_service_account_v1.tmi_rotator_aws.
+            "${local.oidc_provider_url}:sub" = "system:serviceaccount:tmi-platform:tmi-rotator-aws"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy" "tmi_rotator_escrow" {
+  name = "${var.name_prefix}-tmi-rotator-escrow"
+  role = aws_iam_role.tmi_rotator.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:PutSecretValue"]
+        Resource = [var.settings_key_escrow_secret_arn]
+      }
+    ]
+  })
+}
+
 # ============================================================================
 # AWS Load Balancer Controller (Helm)
 # ============================================================================

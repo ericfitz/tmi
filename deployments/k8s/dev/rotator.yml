@@ -66,6 +66,10 @@ spec:
               image: localhost:5000/tmi-server:dev
               imagePullPolicy: Always
               command: ["/tmi-rotator"]
+              # AWS only: Terraform creates this ConfigMap with TMI_ROTATOR_SETTINGS_ESCROW_SECRET_ARN (#1009).
+              # Absent on dev clusters, where escrow is a no-op.
+              envFrom:
+                - configMapRef: { name: tmi-rotator-config, optional: true }
               env:
                 - { name: TMI_ROTATOR_NAMESPACE, value: "tmi-platform" }
                 - { name: TMI_REDIS_HOST, value: "redis" }

@@ -232,3 +232,8 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "settings_key_escrow_secret_arn" {
+  description = "Secrets Manager ARN the rotator escrows the settings key to (#1009)"
+  type        = string
+}
