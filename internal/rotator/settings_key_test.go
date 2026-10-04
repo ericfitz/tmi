@@ -248,6 +248,8 @@ func TestSettingsKeyRotation_EscrowFailureStaysStagedThenRetries(t *testing.T) {
 	env, st := testEnv(settingsSecret())
 	esc := &fakeEscrow{failures: 1}
 	r := NewSettingsKeyRotation(&fakeSettings{rows: map[int]int64{1: 1}}, time.Hour, esc)
+	snap, _ := st.Get(context.Background(), "tmi-secrets")
+	krBefore, _ := KeyringFromSecret(snap)
 
 	err := r.Run(context.Background(), env)
 	require.Error(t, err)
@@ -256,12 +258,15 @@ func TestSettingsKeyRotation_EscrowFailureStaysStagedThenRetries(t *testing.T) {
 	require.Equal(t, "staged", s.Annotations[AnnPhase+"settings-key"])
 	kr, _ := KeyringFromSecret(s)
 	require.Equal(t, 1, kr.CurrentID, "not promoted")
+	// Staging legitimately adds the new key, so the live (current) key is what must be untouched.
+	require.Equal(t, krBefore.CurrentKeyHex, kr.CurrentKeyHex, "current key unchanged by failed escrow")
 	writes := st.DataWrites
 
 	require.NoError(t, r.Run(context.Background(), env)) // next nightly run
 	s, _ = st.Get(context.Background(), "tmi-secrets")
 	require.Equal(t, "reencrypted", s.Annotations[AnnPhase+"settings-key"])
 	require.Len(t, esc.puts, 2, "escrow retried on resume")
+	require.Equal(t, esc.puts[0], esc.puts[1], "retry escrows the identical payload")
 	require.Greater(t, st.DataWrites, writes)
 }
 

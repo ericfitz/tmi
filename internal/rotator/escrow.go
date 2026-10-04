@@ -2,6 +2,7 @@ package rotator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -60,7 +61,7 @@ func (e *SecretsManagerEscrow) Put(ctx context.Context, payload []byte) error {
 func RegionFromSecretARN(arn string) (string, error) {
 	f := strings.Split(arn, ":")
 	if len(f) < 7 || f[0] != "arn" || f[2] != "secretsmanager" || f[3] == "" {
-		return "", fmt.Errorf("not a Secrets Manager secret ARN with a region")
+		return "", errors.New("not a Secrets Manager secret ARN with a region")
 	}
 	return f[3], nil
 }

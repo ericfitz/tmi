@@ -10,11 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// SEM@7f1038af: Secrets Manager client test double recording writes and failing on demand
 type fakePutter struct {
 	in  []*secretsmanager.PutSecretValueInput
 	err error
 }
 
+// SEM@7f1038af: record a secret write, failing when an error is configured (test double)
 func (f *fakePutter) PutSecretValue(_ context.Context, in *secretsmanager.PutSecretValueInput, _ ...func(*secretsmanager.Options)) (*secretsmanager.PutSecretValueOutput, error) {
 	f.in = append(f.in, in)
 	if f.err != nil {
@@ -23,10 +25,12 @@ func (f *fakePutter) PutSecretValue(_ context.Context, in *secretsmanager.PutSec
 	return &secretsmanager.PutSecretValueOutput{}, nil
 }
 
+// SEM@7f1038af: verify the no-op escrow accepts any payload without error
 func TestNoopEscrow_Put(t *testing.T) {
 	require.NoError(t, NoopEscrow{}.Put(context.Background(), []byte("x")))
 }
 
+// SEM@7f1038af: verify escrow writes the payload as the secret string to the configured ARN
 func TestSecretsManagerEscrow_PutWritesSecretString(t *testing.T) {
 	p := &fakePutter{}
 	arn := "arn:aws:secretsmanager:us-east-1:111122223333:secret:tmi-settings-key-escrow-AbCdEf"
@@ -36,6 +40,7 @@ func TestSecretsManagerEscrow_PutWritesSecretString(t *testing.T) {
 	require.Equal(t, `{"a":1}`, aws.ToString(p.in[0].SecretString))
 }
 
+// SEM@7f1038af: verify an escrow write failure never echoes the payload
 func TestSecretsManagerEscrow_PutErrorOmitsPayload(t *testing.T) {
 	p := &fakePutter{err: errors.New("AccessDeniedException")}
 	err := NewSecretsManagerEscrow(p, "arn:aws:secretsmanager:us-east-1:1:secret:x").Put(context.Background(), []byte("SECRETKEYHEX"))
@@ -44,6 +49,7 @@ func TestSecretsManagerEscrow_PutErrorOmitsPayload(t *testing.T) {
 	require.ErrorContains(t, err, "AccessDeniedException")
 }
 
+// SEM@7f1038af: verify region parsing accepts valid secret ARNs and rejects malformed ones
 func TestRegionFromSecretARN(t *testing.T) {
 	r, err := RegionFromSecretARN("arn:aws:secretsmanager:us-east-1:111122223333:secret:name-AbCdEf")
 	require.NoError(t, err)

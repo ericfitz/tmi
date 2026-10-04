@@ -141,7 +141,7 @@ func (g *GormSettingsStore) CountWithID(ctx context.Context, kr Keyring, id int)
 
 // SettingsKeyRotation rotates the settings-encryption key: stage, promote,
 // re-encrypt, and (after previousGrace, once nothing references the old id) drop.
-// SEM@3b682947: phased rotation of the settings encryption key with deferred drop of the previous key
+// SEM@7f1038af: phased settings encryption key rotation with injected escrow and deferred previous-key drop
 type SettingsKeyRotation struct {
 	store         SettingsStore
 	previousGrace time.Duration
