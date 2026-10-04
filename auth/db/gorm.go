@@ -489,6 +489,19 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 		log.Debug("Using Oracle uppercase naming strategy")
 	}
 
+	// Every error return below must release the connection pool (#1026);
+	// startup retries (#972) would otherwise leak one pool per failed attempt.
+	// gorm.Open closes the pool itself on most failures, but not when the
+	// Oracle dialector's pre-built godror *sql.DB never reached db.ConnPool.
+	// sql.DB.Close is idempotent, so closing both handles is safe.
+	var db *gorm.DB
+	connected := false
+	defer func() {
+		if !connected {
+			closeFailedConnection(db, dialector, log)
+		}
+	}()
+
 	// Open database connection
 	log.Debug("Opening GORM database connection")
 	db, err := gorm.Open(dialector, gormConfig)
@@ -552,11 +565,32 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 		return nil, failDB(log, "Failed to configure session timezone", err)
 	}
 
+	connected = true
 	return &GormDB{
 		db:        db,
 		cfg:       cfg,
 		dialector: dialector,
 	}, nil
+}
+
+// closeFailedConnection releases whatever pool a failed NewGormDB opened: the
+// gorm-managed *sql.DB if gorm.Open got that far, and any connection the
+// dialector built up front (Oracle's godror connector). Errors are logged at
+// debug level only; the caller is already returning the original failure.
+// SEM@0000000: release a partially opened database pool after a failed connect (mutates shared state)
+func closeFailedConnection(db *gorm.DB, dialector gorm.Dialector, log *slogging.Logger) {
+	if db != nil {
+		if sqlDB, err := db.DB(); err == nil && sqlDB != nil {
+			if cerr := sqlDB.Close(); cerr != nil {
+				log.Debug("Closing pool after failed connect (error_class=%s)", safeErrClass(cerr))
+			}
+		}
+	}
+	if c, ok := dialector.(interface{ closeConn() error }); ok {
+		if cerr := c.closeConn(); cerr != nil {
+			log.Debug("Closing dialector connection after failed connect (error_class=%s)", safeErrClass(cerr))
+		}
+	}
 }
 
 // Close closes the database connection
@@ -715,8 +749,8 @@ func (l *gormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 // Note on connection pooling: a one-shot ALTER SESSION here would only affect a single
 // connection from the pool, leaving every other pooled session on the server's default
 // timezone (issue #459). Per-pool enforcement is therefore done in the DSN, not here:
-//   - Oracle: godror's onInit runs "ALTER SESSION SET TIME_ZONE = '+00:00'" on every new
-//     pooled session (see oracleSessionInitParams in gorm_oracle.go).
+//   - Oracle: godror runs "ALTER SESSION SET TIME_ZONE = '+00:00'" on every connection
+//     acquisition (params.OnInitStmts with InitOnNewConn=false; see getOracleDialector).
 //   - PostgreSQL/MySQL: TimeZone/loc=UTC is set in the DSN connection string.
 //
 // This function now only handles the per-connection cases that have no DSN-level lever.
@@ -724,8 +758,8 @@ func (l *gormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 func configureSessionTimezone(db *gorm.DB, dbType DatabaseType, log *slogging.Logger) error {
 	switch dbType {
 	case DatabaseTypeOracle:
-		// Oracle session timezone is enforced for every pooled connection via the
-		// godror onInit DSN parameter (oracleSessionInitParams). Doing it here would
+		// Oracle session timezone is enforced on every connection acquisition via
+		// godror's params.OnInitStmts (getOracleDialector). Doing it here would
 		// only cover one pooled session, so this is intentionally a no-op.
 		log.Debug("Oracle session timezone enforced per-pool via DSN onInit (issue #459); no per-connection ALTER needed")
 

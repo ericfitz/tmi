@@ -92,6 +92,21 @@ func getOracleDialector(cfg GormConfig) (gorm.Dialector, string) {
 	return dialector, cfg.OracleConnectString
 }
 
+// NewGormDB finds closeConn through an anonymous interface assertion, so a
+// rename or a switch to a pointer receiver would silently bring the #1026 leak
+// back. This fails the oracle build instead.
+var _ interface{ closeConn() error } = oracleAdditiveDialector{}
+
+// closeConn closes the godror *sql.DB the dialector was built with, so a
+// failed NewGormDB can release it even if gorm.Open never adopted it (#1026).
+// SEM@0000000: close the dialector's pre-built Oracle connection pool (mutates shared state)
+func (d oracleAdditiveDialector) closeConn() error {
+	if d.Dialector == nil || d.Config == nil || d.Conn == nil {
+		return nil
+	}
+	return d.Conn.Close()
+}
+
 // oracleAdditiveDialector wraps gorm-oracle's dialector to make schema
 // migration ADDITIVE: it delegates everything except Migrator, which returns a
 // migrator whose MigrateColumn is a no-op. See #474.
