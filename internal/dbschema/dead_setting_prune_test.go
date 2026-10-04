@@ -161,7 +161,7 @@ func TestPruneRetiredSystemSettings_NoRows(t *testing.T) {
 //
 // Watched to fail: swapping the two calls below makes the backfill report 1
 // stamped row instead of 0.
-// SEM@24731679561a852b21b37271caffd9a597080f0b: validate pruning precedes the origin backfill
+// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: validate pruning precedes the origin backfill
 func TestPruneRetiredSystemSettings_RunsBeforeOriginBackfill(t *testing.T) {
 	db := newSystemSettingOriginTestDB(t)
 

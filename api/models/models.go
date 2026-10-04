@@ -96,7 +96,7 @@ func (r *RefreshTokenRecord) BeforeCreate(tx *gorm.DB) error {
 
 // ClientCredential represents OAuth 2.0 client credentials for machine-to-machine auth
 // Note: Explicit column tags removed for Oracle compatibility
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: GORM model for an OAuth 2.0 client credential, with an opt-in direct_write authorization flag
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: GORM model for an OAuth 2.0 client credential, with an opt-in direct_write authorization flag
 type ClientCredential struct {
 	ID               DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	OwnerUUID        DBVarchar      `gorm:"size:36;not null;index"`

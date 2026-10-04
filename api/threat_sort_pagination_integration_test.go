@@ -61,7 +61,7 @@ func openSortPaginationIntegrationDB(t *testing.T) *gorm.DB {
 // to catch a reverted tiebreaker is the exact ORDER BY / CASE WHEN text
 // pinned in TestBuildOrderBy and TestBuildSemanticOrderExpr
 // (api/threat_store_gorm_test.go) -- those are the real regression guards.
-// SEM@78155d54: verify LIMIT/OFFSET pagination never drops or duplicates PostgreSQL rows tied on the sort key (reads DB)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: verify LIMIT/OFFSET pagination never drops or duplicates PostgreSQL rows tied on the sort key (reads DB)
 func TestSortPaginationStability_Integration(t *testing.T) {
 	ctx := context.Background()
 	db := openSortPaginationIntegrationDB(t)

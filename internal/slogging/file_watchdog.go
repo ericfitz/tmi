@@ -100,7 +100,7 @@ func (w *logFileWatchdog) handleMissing(eventDesc string) {
 // lumberjack self-rotation (rename to backup, then recreate) — skip silently.
 // Only a file that stays missing for the whole grace window is treated as an
 // external removal needing reopen.
-// SEM@2f80ec5d2bdaa65c830758314bb6b3bc6361d551: decide whether a missing log file is a self-rotation or an external removal needing reopen (mutates shared state)
+// SEM@2e8c4d56e426fb4be2f9f723c8bbd72338edc65e: decide whether a missing log file is a self-rotation or an external removal needing reopen (mutates shared state)
 func (w *logFileWatchdog) onActivePathGone(eventDesc string) {
 	deadline := time.Now().Add(rotationGrace)
 	for {
@@ -119,7 +119,7 @@ func (w *logFileWatchdog) onActivePathGone(eventDesc string) {
 	w.handleMissing(eventDesc)
 }
 
-// SEM@2f80ec5d2bdaa65c830758314bb6b3bc6361d551: event loop that detects log file removal via fsnotify and polling, and triggers reopen (mutates shared state)
+// SEM@2e8c4d56e426fb4be2f9f723c8bbd72338edc65e: watch for log file removal via fsnotify and polling, and trigger reopen (mutates shared state)
 func (w *logFileWatchdog) run() {
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()

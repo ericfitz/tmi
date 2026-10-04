@@ -28,7 +28,7 @@ func NewGormTimmySessionStore(db *gorm.DB) *GormTimmySessionStore {
 }
 
 // Create persists a new session
-// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: persist a new Timmy chat session in a retryable transaction (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new chat session in a retryable transaction (writes DB)
 func (s *GormTimmySessionStore) Create(ctx context.Context, session *models.TimmySession) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -238,7 +238,7 @@ func NewGormTimmyMessageStore(db *gorm.DB) *GormTimmyMessageStore {
 }
 
 // Create persists a new message
-// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: persist a new Timmy message to the database (writes DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new chat message in the database (writes DB)
 func (s *GormTimmyMessageStore) Create(ctx context.Context, message *models.TimmyMessage) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

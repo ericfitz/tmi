@@ -178,7 +178,7 @@ func InitAuthWithDB(dbManager *db.Manager, unified *config.Config) (*Handlers, e
 // This function creates its own database manager internally, which can lead to
 // duplicate initialization and DRY violations. Prefer passing a pre-initialized
 // db.Manager to InitAuthWithDB instead.
-// SEM@ebd32e782424ee1fd1698669b7522b6ab3eccf42: build the auth service: connect DB/Redis, migrate schema, register handlers (deprecated) (mutates DB)
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: build the auth service: connect DB and Redis, migrate schema, register handlers (deprecated) (mutates DB)
 func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, error) {
 	authConfig := ConfigFromUnified(unified)
 
@@ -275,7 +275,7 @@ func InitAuthWithConfig(router *gin.Engine, unified *config.Config) (*Handlers, 
 // wait up to 300s for another replica.
 const configAdapterMigrationTimeout = 20 * time.Minute
 
-// SEM@0000000000000000000000000000000000000000: run the config-adapter schema migration sequence under the caller's context: AutoMigrate, backfills, index upgrades (mutates DB)
+// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: run the auth schema migration sequence: AutoMigrate, backfills, index upgrades (mutates DB)
 func migrateSchemaForConfigAdapter(ctx context.Context, gormDB *db.GormDB, allModels []any, desiredFP string) error {
 	logger := slogging.Get()
 

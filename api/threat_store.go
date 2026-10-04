@@ -41,7 +41,7 @@ type ThreatFilter struct {
 }
 
 // ThreatRepository defines the interface for threat operations with caching support
-// SEM@3e2f91117dc821148cc037a1ea89214f2215cf5e: store interface for threat CRUD, soft-delete, restore, bulk, patch, and cache operations
+// SEM@436c1840b3eef9687193078750dec3e22874f10e: store interface for threat CRUD, soft-delete, restore, bulk, patch, and cache operations
 type ThreatRepository interface {
 	// CRUD operations
 	Create(ctx context.Context, threat *Threat) error

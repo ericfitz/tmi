@@ -16,7 +16,7 @@ import (
 )
 
 // SurveyStore defines the interface for survey operations
-// SEM@0bd9c0e0e0c0649294d164b9dc945b801cfd507c: interface for CRUD and list operations on survey templates (reads/writes DB)
+// SEM@e6ef5b1c60acd4e48fcb0cc113fb945bdd096c78: define interface for CRUD and list operations on survey templates
 type SurveyStore interface {
 	// CRUD operations
 	Create(ctx context.Context, survey *Survey, userInternalUUID string) error
@@ -51,7 +51,7 @@ func NewGormSurveyStore(db *gorm.DB) *GormSurveyStore {
 }
 
 // Create creates a new survey
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: store a new survey template and return server-assigned timestamps (writes DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new survey template and return server-assigned timestamps (mutates DB)
 func (s *GormSurveyStore) Create(ctx context.Context, survey *Survey, userInternalUUID string) error {
 	logger := slogging.Get()
 
@@ -218,7 +218,7 @@ func (s *GormSurveyStore) Update(ctx context.Context, survey *Survey) error {
 }
 
 // Delete removes a survey by ID
-// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: delete a survey template by ID (writes DB)
+// SEM@87b4ec5d8daf4d5e51cb9e32dac52de9f0990e6b: delete a survey template by ID (mutates DB)
 func (s *GormSurveyStore) Delete(ctx context.Context, id uuid.UUID) error {
 	logger := slogging.Get()
 

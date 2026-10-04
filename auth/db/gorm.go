@@ -384,7 +384,7 @@ func (ns *OracleNamingStrategy) UniqueName(table, column string) string {
 }
 
 // NewGormDB creates a new GORM database connection based on configuration
-// SEM@0000000: connect to a database via GORM with pooling, capped statement cache, OTel tracing, and UTC session timezone
+// SEM@95321b8cbecc7eacfa25d00f151d85b891b7234a: connect to a database via GORM with pooling, statement cache, tracing, and UTC timezone
 func NewGormDB(cfg GormConfig) (*GormDB, error) {
 	log := slogging.Get()
 	log.Debug("Initializing GORM connection for database type: %s", cfg.Type)
@@ -560,7 +560,7 @@ func NewGormDB(cfg GormConfig) (*GormDB, error) {
 }
 
 // Close closes the database connection
-// SEM@0000000: close the underlying database connection pool (mutates shared state)
+// SEM@95321b8cbecc7eacfa25d00f151d85b891b7234a: close the underlying database connection pool, returning a redacted error (mutates shared state)
 func (g *GormDB) Close() error {
 	log := slogging.Get()
 	log.Debug("Closing GORM connection")
@@ -591,7 +591,7 @@ func (g *GormDB) DatabaseType() DatabaseType {
 }
 
 // Ping checks if the database connection is alive
-// SEM@0000000: validate the GORM database connection is alive via ping (reads DB)
+// SEM@95321b8cbecc7eacfa25d00f151d85b891b7234a: validate the database connection is alive, returning the raw driver error (reads DB)
 func (g *GormDB) Ping(ctx context.Context) error {
 	log := slogging.Get()
 	log.Debug("Pinging GORM connection")
@@ -612,7 +612,7 @@ func (g *GormDB) Ping(ctx context.Context) error {
 }
 
 // LogStats logs statistics about the database connection pool
-// SEM@a251f60c11fe9831021be2539ff7d746fbd65b2c: log connection pool statistics to structured debug output (reads DB)
+// SEM@95321b8cbecc7eacfa25d00f151d85b891b7234a: log database connection pool statistics at debug level
 func (g *GormDB) LogStats() {
 	log := slogging.Get()
 

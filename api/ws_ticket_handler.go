@@ -12,7 +12,7 @@ import (
 const wsTicketTTL = 30 * time.Second
 
 // GetWsTicket issues a short-lived WebSocket authentication ticket.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: issue a short-lived WebSocket ticket bound to the caller's token for revocation
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: issue a short-lived WebSocket ticket bound to the caller's session token
 func (s *Server) GetWsTicket(c *gin.Context, params GetWsTicketParams) {
 	logger := slogging.GetContextLogger(c)
 

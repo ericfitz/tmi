@@ -44,7 +44,7 @@ func NewGormGroupRepository(db *gorm.DB) *GormGroupRepository {
 }
 
 // List returns groups with optional filtering and pagination
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: list groups with optional provider, name, authorization-usage filters, sorting, and pagination (reads DB)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: list groups with optional provider, name, authorization-usage filters, sorting, and pagination (reads DB)
 func (r *GormGroupRepository) List(ctx context.Context, filter GroupFilter) ([]Group, error) {
 	query := r.db.WithContext(ctx).Model(&models.Group{})
 
@@ -172,7 +172,7 @@ func (r *GormGroupRepository) GetByProviderAndName(ctx context.Context, provider
 }
 
 // Create creates a new group (primarily for provider-independent groups)
-// SEM@75d52ab3d1f4f71b22b1cef7144254cfdb837491: store a new group with default usage tracking fields (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new group with default usage-tracking fields (writes DB)
 func (r *GormGroupRepository) Create(ctx context.Context, group Group) error {
 	// Set default values if not provided
 	if group.InternalUUID == uuid.Nil {
@@ -229,7 +229,7 @@ func (r *GormGroupRepository) Update(ctx context.Context, group Group) error {
 }
 
 // Count returns total count of groups matching the filter
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: count groups matching provider, name, and authorization-usage filters (reads DB)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: count groups matching provider, name, and authorization-usage filters (reads DB)
 func (r *GormGroupRepository) Count(ctx context.Context, filter GroupFilter) (int, error) {
 	query := r.db.WithContext(ctx).Model(&models.Group{})
 
@@ -335,7 +335,7 @@ func (r *GormGroupRepository) GetGroupsForProvider(ctx context.Context, provider
 
 // UpsertGroup creates or updates a group (used during JWT group sync)
 // This is a concrete method not on the GroupRepository interface — kept for future JWT group sync use.
-// SEM@0953d9ec7f7a4717796566e1b4379a976404b07e: create or update a group by provider+name conflict key, tolerating a concurrent duplicate create (reads DB)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: upsert a group by provider and name, tolerating concurrent duplicate creates (writes DB)
 func (r *GormGroupRepository) UpsertGroup(ctx context.Context, group Group) error {
 	gormGroup := r.convertFromGroup(&group)
 

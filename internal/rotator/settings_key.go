@@ -148,7 +148,7 @@ type SettingsKeyRotation struct {
 	escrow        Escrow
 }
 
-// SEM@69c2865a: build a SettingsKeyRotation with escrow, defaulting to a no-op (pure)
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: build a settings key rotation with escrow, defaulting to a no-op (pure)
 func NewSettingsKeyRotation(store SettingsStore, previousGrace time.Duration, escrow Escrow) *SettingsKeyRotation {
 	if escrow == nil {
 		escrow = NoopEscrow{}
@@ -157,14 +157,14 @@ func NewSettingsKeyRotation(store SettingsStore, previousGrace time.Duration, es
 }
 
 // escrowKey is one key and its context id in the escrow document.
-// SEM@69c2865a: key id and hex value pair in the escrow document (pure)
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: key id and hex value pair in the escrow document (pure)
 type escrowKey struct {
 	ID     int    `json:"id"`
 	KeyHex string `json:"key_hex"`
 }
 
 // settingsEscrowDoc names the post-promotion roles, which the restore runbook relies on.
-// SEM@69c2865a: settings-key escrow document naming post-promotion current and previous keys (pure)
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: settings key escrow document naming post-promotion current and previous keys (pure)
 type settingsEscrowDoc struct {
 	Rotation   string    `json:"rotation"`
 	EscrowedAt string    `json:"escrowed_at"`
@@ -175,7 +175,7 @@ type settingsEscrowDoc struct {
 // SEM@3b682947: return the rotation's name (pure)
 func (r *SettingsKeyRotation) Name() string { return settingsRotationName }
 
-// SEM@69c2865a: advance the settings-key rotation from its recorded phase, escrowing before promotion
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: advance the settings key rotation from its recorded phase, escrowing before promotion
 func (r *SettingsKeyRotation) Run(ctx context.Context, env *Env) error {
 	logger := slogging.Get()
 	s, err := env.Secrets.Get(ctx, env.SecretName)

@@ -32,7 +32,7 @@ func (r EmbeddingResult) validate() error {
 }
 
 // chunkEmbedHandler is the JobHandler for tmi-chunk-embed.
-// SEM@0000000000000000000000000000000000000000: job handler holding NATS connection, text chunker, and embedding client (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: worker handler that chunks document text and embeds the chunks
 type chunkEmbedHandler struct {
 	conn     *worker.Conn
 	chunker  *extract.TextChunker
@@ -50,7 +50,7 @@ const (
 )
 
 // newChunkEmbedHandler builds the handler.
-// SEM@0000000000000000000000000000000000000000: build a chunkEmbedHandler with a configured text chunker and embedder (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build a chunk-and-embed worker handler
 func newChunkEmbedHandler(conn *worker.Conn, emb llm.Embedder) *chunkEmbedHandler {
 	return &chunkEmbedHandler{
 		conn:     conn,

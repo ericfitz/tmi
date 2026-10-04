@@ -305,7 +305,7 @@ type SeedSpecAddon struct {
 }
 
 // SeedSpecClientCred defines a client credential.
-// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: client credential definition with name, description, direct_write flag, and addon link for seeding (pure)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: define a client credential for seeding with direct_write flag and addon link (pure)
 type SeedSpecClientCred struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`

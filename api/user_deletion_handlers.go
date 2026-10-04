@@ -61,7 +61,7 @@ func (h *UserDeletionHandler) generateChallenge(c *gin.Context, userEmail string
 }
 
 // deleteWithChallenge validates the challenge and performs user deletion
-// SEM@0538436fe19e71299239f10214d737a09cf94961: validate a deletion challenge, delete the user account and data, then blacklist the JWT (reads DB)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: validate a deletion challenge, delete the user account and data, then revoke the session token (writes DB)
 func (h *UserDeletionHandler) deleteWithChallenge(c *gin.Context, userEmail, challengeText string) {
 	// Validate challenge
 	err := h.authService.ValidateDeletionChallenge(c.Request.Context(), userEmail, challengeText)

@@ -75,7 +75,7 @@ func NewTokenBlacklist(redisClient *redis.Client, keyManager *JWTKeyManager) *To
 }
 
 // BlacklistToken adds a JWT token to the blacklist
-// SEM@70ff47b7829f38ef04399520210ae8765d39495d: store a JWT in the revocation list until it expires (reads DB)
+// SEM@9750a568b8ffb60cfd241d61263b7e23f990899e: blacklist a session token until its expiry (mutates shared state)
 func (tb *TokenBlacklist) BlacklistToken(ctx context.Context, tokenString string) error {
 	logger := slogging.Get()
 	logger.Debug("Attempting to blacklist token")
@@ -134,14 +134,14 @@ func (tb *TokenBlacklist) BlacklistToken(ctx context.Context, tokenString string
 }
 
 // IsTokenBlacklisted checks if a JWT token is blacklisted
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: check whether a JWT has been revoked (reads DB)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: validate whether a session token is blacklisted (reads cache)
 func (tb *TokenBlacklist) IsTokenBlacklisted(ctx context.Context, tokenString string) (bool, error) {
 	return tb.IsTokenHashBlacklisted(ctx, HashToken(tokenString))
 }
 
 // IsTokenHashBlacklisted checks the blacklist by a hash from HashToken, for
 // callers that retain only the hash (WebSocket tickets, #869).
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: check whether a token hash has been revoked (reads DB)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: validate whether a session token hash is blacklisted (reads cache)
 func (tb *TokenBlacklist) IsTokenHashBlacklisted(ctx context.Context, tokenHash string) (bool, error) {
 	logger := slogging.Get()
 	key := fmt.Sprintf("blacklist:token:%s", tokenHash)
@@ -164,7 +164,7 @@ func (tb *TokenBlacklist) IsTokenHashBlacklisted(ctx context.Context, tokenHash 
 // so they cannot be blacklisted individually; instead the credential ID is
 // marked for ttl, which must be at least the access-token lifetime so that the
 // last token minted before the revoke has expired by the time the marker does.
-// SEM@48ae1daff849c4fbb75fe51c29185be3f169d27d: mark all service-account tokens of a client credential revoked until they expire (reads DB)
+// SEM@9750a568b8ffb60cfd241d61263b7e23f990899e: revoke all tokens issued to a client credential for a TTL (mutates shared state)
 func (tb *TokenBlacklist) RevokeCredential(ctx context.Context, credentialID string, ttl time.Duration) error {
 	key := fmt.Sprintf("blacklist:credential:%s", credentialID)
 	if err := tb.redis.Set(ctx, key, "revoked", ttl).Err(); err != nil {
@@ -177,7 +177,7 @@ func (tb *TokenBlacklist) RevokeCredential(ctx context.Context, credentialID str
 
 // IsCredentialRevoked reports whether service-account tokens minted from a
 // client credential have been revoked via RevokeCredential.
-// SEM@48ae1daff849c4fbb75fe51c29185be3f169d27d: check whether a client credential's service-account tokens are revoked (reads DB)
+// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: validate whether a client credential's tokens are revoked (reads cache)
 func (tb *TokenBlacklist) IsCredentialRevoked(ctx context.Context, credentialID string) (bool, error) {
 	return tb.keyExists(ctx, fmt.Sprintf("blacklist:credential:%s", credentialID), "credential_id="+credentialID)
 }
@@ -187,7 +187,7 @@ func (tb *TokenBlacklist) IsCredentialRevoked(ctx context.Context, credentialID 
 // otherwise valid request outright. Retry transient failures a bounded number
 // of times before giving up; a genuine outage still surfaces, just as 503
 // rather than 500 (see issue #660).
-// SEM@48ae1daff849c4fbb75fe51c29185be3f169d27d: check whether a Redis revocation key exists, retrying transient failures (reads DB)
+// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: check a cache key exists, retrying transient failures (reads cache)
 func (tb *TokenBlacklist) keyExists(ctx context.Context, key, logID string) (bool, error) {
 	logger := slogging.Get()
 	var exists int64
@@ -212,13 +212,13 @@ func (tb *TokenBlacklist) keyExists(ctx context.Context, key, logID string) (boo
 }
 
 // hashToken creates a SHA-256 hash of the token for storage
-// SEM@f5734776629db6dda852abe358113df500f282f0: compute a SHA-256 hex digest of a JWT string (pure)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: compute the SHA-256 hex digest of a session token (pure)
 func (tb *TokenBlacklist) hashToken(token string) string {
 	return HashToken(token)
 }
 
 // HashToken returns the blacklist key hash for a token string.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: hash a token string for blacklist lookup (pure)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: compute the SHA-256 hex digest of a session token (pure)
 func HashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])

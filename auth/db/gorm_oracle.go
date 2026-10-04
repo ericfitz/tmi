@@ -41,7 +41,7 @@ const utcSessionInitStmt = "ALTER SESSION SET TIME_ZONE = '+00:00'"
 // Uses SkipQuoteIdentifiers: true so Oracle folds all identifiers to unquoted
 // uppercase, avoiding the driver's inconsistent quoting in WHERE/ORDER BY.
 // See: https://github.com/oracle-samples/gorm-oracle/issues/49
-// SEM@ba7ef88caa84239c54ef87465cd9a14f01f61e3d: build a GORM dialector for Oracle ADB with UTC session pinning and additive-only migrations (pure)
+// SEM@95321b8cbecc7eacfa25d00f151d85b891b7234a: build a GORM dialector and connection string for Oracle ADB from config
 func getOracleDialector(cfg GormConfig) (gorm.Dialector, string) {
 	// godror "logfmt" connection string. configDir points at the wallet
 	// directory (tnsnames.ora + cwallet.sso) for Oracle ADB. Passwords with

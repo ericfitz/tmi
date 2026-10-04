@@ -92,7 +92,7 @@ func (r *GormDeletionRepository) DeleteUserByInternalUUID(ctx context.Context, i
 
 // deleteUserCore performs the actual user deletion within an existing transaction.
 // The user must already be resolved — this avoids identity re-resolution bugs.
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: transfer or hard-delete all threat models owned by a user, then remove the user record (reads DB)
+// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: delete a user's owned threat models and related data within a transaction (writes DB)
 func (r *GormDeletionRepository) deleteUserCore(tx *gorm.DB, user *models.User, result *DeletionResult) error {
 	// Get all threat models owned by user (including soft-deleted tombstones)
 	var threatModels []models.ThreatModel
@@ -875,7 +875,7 @@ func ensureSecurityReviewersGroupForDeletion(tx *gorm.DB) (string, error) {
 // TransferOwnership transfers all owned threat models and survey responses
 // from sourceUserUUID to targetUserUUID within a single transaction.
 // The source user is downgraded to "writer" role on all transferred items.
-// SEM@d0742bff5d3b93b3ab7b22df0377398a720a8d9c: transfer all owned threat models and survey responses from one user to another, downgrading the source to writer (mutates DB)
+// SEM@3b9af7c655cdfe5497882bbc367b72fd757569a9: transfer all threat model ownership from one user to another in a retryable transaction (writes DB)
 func (r *GormDeletionRepository) TransferOwnership(ctx context.Context, sourceUserUUID, targetUserUUID string) (*TransferResult, error) {
 	result := &TransferResult{}
 

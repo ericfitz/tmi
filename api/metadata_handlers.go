@@ -20,7 +20,7 @@ const maxMetadataValueBytes = 1024
 
 // validateMetadataKeyString validates a metadata key string.
 // Keys must be 1-256 characters matching validation.MetadataKeyPattern (the OpenAPI pattern).
-// SEM@59c58c6a840231ad2c078c9afd1e7bac7a07b651: validate a metadata key against length and character-set constraints (pure)
+// SEM@a7cac3f9cd8e77b1dc209e5a213cb6c7f7e40a29: validate a metadata key against length and character-set constraints (pure)
 func validateMetadataKeyString(key string) error {
 	if key == "" {
 		return InvalidInputError("Metadata key must not be empty")
@@ -55,7 +55,7 @@ func sanitizeMetadataValue(value string) (string, error) {
 	return sanitized, nil
 }
 
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: publish metadata.updated for any metadata write, tagged with owning threat model's owner
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: publish metadata.updated for any metadata write, tagged with owning threat model's owner
 func (h *GenericMetadataHandler) emitMetadataUpdated(c *gin.Context, entityID string) {
 	if GlobalEventEmitter == nil {
 		return
@@ -202,7 +202,7 @@ func (h *GenericMetadataHandler) GetByKey(c *gin.Context) {
 }
 
 // Create creates a new metadata entry.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: store a metadata key-value pair, reject duplicates, emit metadata.updated (mutates DB)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: store a metadata key-value pair, reject duplicates, emit metadata.updated (mutates DB)
 func (h *GenericMetadataHandler) Create(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GenericMetadataHandler.Create - creating new metadata entry for %s", h.entityType)
@@ -272,7 +272,7 @@ func (h *GenericMetadataHandler) Create(c *gin.Context) {
 }
 
 // Update updates an existing metadata entry.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: replace value of an existing metadata entry, emit metadata.updated (mutates DB)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: replace value of an existing metadata entry, emit metadata.updated (mutates DB)
 func (h *GenericMetadataHandler) Update(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GenericMetadataHandler.Update - updating metadata entry for %s", h.entityType)
@@ -348,7 +348,7 @@ func (h *GenericMetadataHandler) Update(c *gin.Context) {
 }
 
 // Delete deletes a metadata entry.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: delete a metadata entry by key, emit metadata.updated (mutates DB)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: delete a metadata entry by key, emit metadata.updated (mutates DB)
 func (h *GenericMetadataHandler) Delete(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GenericMetadataHandler.Delete - deleting metadata entry for %s", h.entityType)
@@ -385,7 +385,7 @@ func (h *GenericMetadataHandler) Delete(c *gin.Context) {
 }
 
 // BulkCreate creates multiple metadata entries in a single request.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: store multiple metadata entries, reject conflicts, emit metadata.updated (mutates DB)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: store multiple metadata entries, reject conflicts, emit metadata.updated (mutates DB)
 func (h *GenericMetadataHandler) BulkCreate(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GenericMetadataHandler.BulkCreate - creating multiple metadata entries for %s", h.entityType)
@@ -477,7 +477,7 @@ func (h *GenericMetadataHandler) BulkCreate(c *gin.Context) {
 }
 
 // BulkUpsert updates or creates multiple metadata entries in a single request.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: upsert multiple metadata entries in one request, emit metadata.updated (mutates DB)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: upsert multiple metadata entries in one request, emit metadata.updated (mutates DB)
 func (h *GenericMetadataHandler) BulkUpsert(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GenericMetadataHandler.BulkUpsert - upserting multiple metadata entries for %s", h.entityType)
@@ -565,7 +565,7 @@ func (h *GenericMetadataHandler) BulkUpsert(c *gin.Context) {
 // BulkReplace replaces all metadata for an entity with the provided set.
 // All existing metadata is deleted and replaced with the provided entries.
 // An empty array clears all metadata for the entity.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: replace all metadata entries for an entity, emit metadata.updated (mutates shared state)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: replace all metadata entries for an entity, emit metadata.updated (mutates shared state)
 func (h *GenericMetadataHandler) BulkReplace(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("GenericMetadataHandler.BulkReplace - replacing all metadata for %s", h.entityType)

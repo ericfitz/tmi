@@ -19,7 +19,7 @@ const (
 // retryConnect retries connect with exponential backoff until it succeeds, the
 // budget (wall-clock: time inside attempts plus backoff) runs out, the context
 // is cancelled, or isPermanent (optional) says the error cannot be fixed by retrying.
-// SEM@82c42d73: retry a connect function with bounded backoff, stopping early on non-retryable errors
+// SEM@ab6a7ff21a80d96c9f7c490184f44a06dc5607b9: retry a connect function with bounded backoff, stopping early on non-retryable errors
 func retryConnect(ctx context.Context, name string, budget time.Duration, connect func() error, isPermanent func(error) bool, sleep func(context.Context, time.Duration) error) error {
 	logger := slogging.Get()
 	delay := startupRetryInitial
@@ -48,7 +48,7 @@ func retryConnect(ctx context.Context, name string, budget time.Duration, connec
 	}
 }
 
-// SEM@0000000: sleep for a duration or until the context is cancelled
+// SEM@ab6a7ff21a80d96c9f7c490184f44a06dc5607b9: wait for a duration or until the context is cancelled
 func ctxSleep(ctx context.Context, d time.Duration) error {
 	t := time.NewTimer(d)
 	defer t.Stop()

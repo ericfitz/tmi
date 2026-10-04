@@ -15,7 +15,7 @@ package api
 // supply `user` — leaving it nil is the whole point, and doing so explicitly is
 // clearer than a struct literal that silently drops a field.
 
-// SEM@b4c5d6e7f8091a2b3c4d5e6f708192930415263: convert client-supplied team members to the resolved shape, leaving user unset (pure)
+// SEM@e62d1a7b2af9752a2675f7dbf5381ddbe55e1661: convert client-supplied team members to the resolved shape, leaving user unset (pure)
 func teamMembersFromInput(in *[]TeamMemberInput) *[]TeamMember {
 	if in == nil {
 		return nil
@@ -32,7 +32,7 @@ func teamMembersFromInput(in *[]TeamMemberInput) *[]TeamMember {
 	return &out
 }
 
-// SEM@b4c5d6e7f8091a2b3c4d5e6f708192930415263: convert client-supplied responsible parties to the resolved shape, leaving user unset (pure)
+// SEM@e62d1a7b2af9752a2675f7dbf5381ddbe55e1661: convert client-supplied responsible parties to the resolved shape, leaving user unset (pure)
 func responsiblePartiesFromInput(in *[]ResponsiblePartyInput) *[]ResponsibleParty {
 	if in == nil {
 		return nil

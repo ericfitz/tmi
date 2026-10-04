@@ -28,7 +28,7 @@ func NewGormAddonStore(db *gorm.DB) *GormAddonStore {
 }
 
 // Create creates a new add-on
-// SEM@263482d75164f5d9cc6ecfbf63ecc20515b79b0d: store a new add-on record in the database, assigning ID and timestamp if absent (writes DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new addon record, assigning ID and timestamp if absent (writes DB)
 func (s *GormAddonStore) Create(ctx context.Context, addon *Addon) error {
 	logger := slogging.Get()
 

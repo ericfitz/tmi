@@ -39,7 +39,7 @@ type tenancyFamily struct {
 // deleted child is invisible on its normal GET route but its audit_trail
 // stays readable (#664 fix-up, so audit history of a deleted child --
 // including the delete event itself -- doesn't vanish with it).
-// SEM@c11774be9599af9d8ae73a93d062afc4268a9bad: verify cross-parent sub-resource access is blocked with 404
+// SEM@436c1840b3eef9687193078750dec3e22874f10e: test that cross-parent sub-resource access is blocked with 404
 func TestSubResourceTenancy_Integration(t *testing.T) {
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
 		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")

@@ -121,7 +121,7 @@ func (s *Server) GetCurrentUserSessions(c *gin.Context) {
 // directly (server TLS enabled) or through a TLS-terminating proxy that sets
 // X-Forwarded-Proto (AWS ALB, Heroku router); otherwise "ws". Mirrors
 // auth.getBaseURL so auth and WebSocket URLs agree on the scheme.
-// SEM@827fca9702ebf3b2d415a499d701a41667df1a5a: determine the client-facing WebSocket scheme from TLS state and X-Forwarded-Proto (pure)
+// SEM@70a1ab73044f098057ed09ca89a32292b1bdca7b: compute the client-facing WebSocket scheme from TLS state and forwarded protocol header (pure)
 func websocketScheme(c *gin.Context) string {
 	if enabled, ok := c.Get("tlsEnabled"); ok {
 		if b, isBool := enabled.(bool); isBool && b {
@@ -135,7 +135,7 @@ func websocketScheme(c *gin.Context) string {
 }
 
 // buildWebSocketURL constructs the WebSocket base URL from request context
-// SEM@827fca9702ebf3b2d415a499d701a41667df1a5a: build the WebSocket base URL from the client-facing scheme and request Host (pure)
+// SEM@70a1ab73044f098057ed09ca89a32292b1bdca7b: build the WebSocket base URL from the client-facing scheme and request host (pure)
 func (s *Server) buildWebSocketURL(c *gin.Context) string {
 	scheme := websocketScheme(c)
 

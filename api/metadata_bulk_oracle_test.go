@@ -42,7 +42,7 @@ import (
 //     retired timestamp indexes are absent (#783, #784 acceptance).
 //
 // Run via `make test-integration-oci`.
-// SEM@7702bac58f9ef99ee9208eaf02746834d824b686: verify metadata bulk writes, INITRANS raise, and retired-index removal against Oracle ADB (reads DB)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: verify metadata bulk writes, INITRANS raise, and retired-index removal against Oracle ADB (reads DB)
 func TestMetadataBulkWriteOracleIntegration(t *testing.T) {
 	db := openAuditAppendOnlyOracleDB(t)
 	ctx := context.Background()

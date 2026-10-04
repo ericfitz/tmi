@@ -16,7 +16,7 @@ import (
 
 // WebhookDeliveryRecord is the unified delivery record used for both resource-change
 // events and addon invocations, backed by Redis.
-// SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: Redis-backed delivery record for resource-change events and addon invocations (pure)
+// SEM@411a53c663401d55a0f66913e00979599a208c93: Redis-backed delivery record for resource-change events and addon invocations (pure)
 type WebhookDeliveryRecord struct {
 	ID             uuid.UUID  `json:"id"`
 	SubscriptionID uuid.UUID  `json:"subscription_id"`
@@ -130,7 +130,7 @@ func (s *WebhookDeliveryRedisStore) buildDeliveryKey(id uuid.UUID) string {
 }
 
 // ttlForStatus returns the appropriate TTL for a delivery record based on its status
-// SEM@cd3dd48b5b6403e9553ba59af4c3b004de35f6fa: return the Redis TTL for a delivery record based on its status (pure)
+// SEM@411a53c663401d55a0f66913e00979599a208c93: compute the Redis TTL for a delivery record from its status (pure)
 func ttlForStatus(status string) time.Duration {
 	if isTerminalDeliveryStatus(status) {
 		return DeliveryTTLTerminal

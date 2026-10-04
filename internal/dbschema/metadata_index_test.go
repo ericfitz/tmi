@@ -91,7 +91,7 @@ func TestMetadataInitransIndexes_NamesMatchModel(t *testing.T) {
 // TestDropRetiredMetadataIndexes_SQLiteIsNoOp pins the design decision that
 // the drop only runs on the two production dialects: on the SQLite test
 // fixture it must return nil and leave every retired index in place.
-// SEM@e4f9a0e861abeeadddddf549e8b4a60158b4669c: verify the retired-index drop is an idempotent no-op on SQLite
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: verify the retired-index drop is an idempotent no-op on SQLite
 func TestDropRetiredMetadataIndexes_SQLiteIsNoOp(t *testing.T) {
 	db := newMetadataIndexTestDB(t)
 
@@ -107,7 +107,7 @@ func TestDropRetiredMetadataIndexes_SQLiteIsNoOp(t *testing.T) {
 
 // TestDropRetiredMetadataIndexes_NoTable covers a database whose metadata
 // table does not exist yet: nothing to do, no error.
-// SEM@e4f9a0e861abeeadddddf549e8b4a60158b4669c: verify the retired-index drop returns nil when the metadata table is absent
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: verify the retired-index drop returns nil when the metadata table is absent
 func TestDropRetiredMetadataIndexes_NoTable(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -141,7 +141,7 @@ func TestMetadataInitransState_Below(t *testing.T) {
 // TestEnsureMetadataInitrans_NonOracleIsNoOp covers every non-Oracle dialect:
 // INITRANS is an Oracle physical attribute, so the step returns before it
 // even looks for the table.
-// SEM@ab48d653f43808ff3c2f52355ef6eda46c8f20aa: verify the INITRANS raise is a no-op on non-Oracle dialects
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: verify the INITRANS raise is a no-op on non-Oracle dialects
 func TestEnsureMetadataInitrans_NonOracleIsNoOp(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)

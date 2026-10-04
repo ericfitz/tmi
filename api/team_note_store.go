@@ -109,7 +109,7 @@ func teamNoteListItemFromRecord(record *models.TeamNoteRecord) TeamNoteListItem 
 }
 
 // Create creates a new team note
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: persist a new team note under a verified parent team (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: persist a new team note under a verified parent team (reads DB)
 func (s *GormTeamNoteStore) Create(ctx context.Context, note *TeamNote, teamID string) (*TeamNote, error) {
 	logger := slogging.Get()
 

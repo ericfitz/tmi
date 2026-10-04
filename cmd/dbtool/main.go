@@ -26,7 +26,7 @@ func main() {
 	os.Exit(run())
 }
 
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: parse CLI flags, connect to the database, and dispatch the requested dbtool operation
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: parse CLI flags, connect to the database, and dispatch the requested dbtool operation (reads DB)
 func run() int {
 	// Define flags
 	schema := flag.Bool("schema", false, "Create/migrate database schema and seed system data")
@@ -181,7 +181,7 @@ func run() int {
 }
 
 // cliFlags holds the dereferenced CLI flag values needed to dispatch an operation.
-// SEM@7e3bc19f8950c8b27a14cef539ae7dff89e30a7a: DTO holding dereferenced CLI flag values for dispatching a dbtool operation (pure)
+// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: hold dereferenced CLI flag values for dispatching a dbtool operation (pure)
 type cliFlags struct {
 	schema               bool
 	importConfig         bool
@@ -205,7 +205,7 @@ type cliFlags struct {
 // dispatchOperation selects and runs the single requested dbtool operation
 // (schema, import-config, import-test-data, import-legacy, export-config, or
 // backfill-empty-strings), or a health check when no operation flag is set.
-// SEM@7e3bc19f8950c8b27a14cef539ae7dff89e30a7a: select and run the requested dbtool operation, or health check if none given (reads DB)
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: route to the requested dbtool operation, or run a health check if none given (reads DB)
 func dispatchOperation(db *testdb.TestDB, log *slogging.Logger, opCount int, f cliFlags) error {
 	switch {
 	case opCount == 0:
@@ -235,7 +235,7 @@ func dispatchOperation(db *testdb.TestDB, log *slogging.Logger, opCount int, f c
 }
 
 // dispatchImportConfig runs --import-config after validating --input-file.
-// SEM@7e3bc19f8950c8b27a14cef539ae7dff89e30a7a: validate --input-file and run config import into the database (reads/writes DB)
+// SEM@4afd7f119372f8474ff20768984986d1276d740e: validate input file flag and import config into the database (writes DB)
 func dispatchImportConfig(db *testdb.TestDB, log *slogging.Logger, f cliFlags) error {
 	if f.inputFile == "" {
 		return fmt.Errorf("--input-file / -f is required for --import-config")
@@ -249,7 +249,7 @@ func dispatchImportConfig(db *testdb.TestDB, log *slogging.Logger, f cliFlags) e
 }
 
 // dispatchImportTestData runs --import-test-data after validating --input-file.
-// SEM@7e3bc19f8950c8b27a14cef539ae7dff89e30a7a: validate --input-file and run test data import via the API (calls API)
+// SEM@4afd7f119372f8474ff20768984986d1276d740e: validate input file flag and import test data via the API (calls API)
 func dispatchImportTestData(db *testdb.TestDB, log *slogging.Logger, f cliFlags) error {
 	if f.inputFile == "" {
 		return fmt.Errorf("--input-file / -f is required for --import-test-data")
@@ -263,7 +263,7 @@ func dispatchImportTestData(db *testdb.TestDB, log *slogging.Logger, f cliFlags)
 }
 
 // dispatchImportLegacy runs --import-legacy after validating its flag combination.
-// SEM@7e3bc19f8950c8b27a14cef539ae7dff89e30a7a: validate legacy-import flag combination and run legacy config migration (reads/writes DB)
+// SEM@4afd7f119372f8474ff20768984986d1276d740e: validate legacy-import flag combination and run legacy config migration (writes DB)
 func dispatchImportLegacy(db *testdb.TestDB, log *slogging.Logger, f cliFlags) error {
 	switch {
 	case f.inputFile == "":
@@ -287,7 +287,7 @@ func dispatchImportLegacy(db *testdb.TestDB, log *slogging.Logger, f cliFlags) e
 }
 
 // dispatchExportConfig runs --export-config after validating --input-file and --output.
-// SEM@7e3bc19f8950c8b27a14cef539ae7dff89e30a7a: validate --input-file and --output and run database config export (reads DB, writes file)
+// SEM@4afd7f119372f8474ff20768984986d1276d740e: validate input and output flags and export database config to a file (reads DB, writes file)
 func dispatchExportConfig(db *testdb.TestDB, f cliFlags) error {
 	switch {
 	case f.outputFile == "":
@@ -323,7 +323,7 @@ func printExitSummary(info ToolInfo, args map[string]any, status, errMsg string)
 	fmt.Println(string(data))
 }
 
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: print CLI usage text for the dbtool command (pure)
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: format and print dbtool CLI usage text (pure)
 func printUsage() {
 	fmt.Fprintf(os.Stderr, `tmi-dbtool - TMI Database Administration Tool
 

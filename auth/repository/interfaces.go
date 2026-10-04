@@ -54,7 +54,7 @@ type UserProvider struct {
 }
 
 // ClientCredential represents an OAuth 2.0 client credential
-// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: machine-to-machine OAuth client credential with hashed secret, activity metadata, direct_write flag, and addon link (pure)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: domain record of a client credential with owner, hashed secret, and expiry
 type ClientCredential struct {
 	ID               uuid.UUID
 	OwnerUUID        uuid.UUID
@@ -72,7 +72,7 @@ type ClientCredential struct {
 }
 
 // ClientCredentialCreateParams contains parameters for creating a new client credential
-// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: parameters for registering a new client credential in the repository, including direct_write and addon link (pure)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: parameters for creating a client credential
 type ClientCredentialCreateParams struct {
 	OwnerUUID        uuid.UUID
 	ClientID         string

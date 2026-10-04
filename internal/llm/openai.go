@@ -20,7 +20,7 @@ const embedBatchSize = 512
 // client makes, streamed or not, chat or embeddings, goes through
 // cfg.HTTPClient when set; callers use this to route traffic through
 // TMI's SSRF-safe transport (see api.safeHTTPDoer).
-// SEM@0000000000000000000000000000000000000000: build shared openai-go request options including the injected HTTP doer (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build shared openai-go request options including the injected HTTP doer (pure)
 func openAIRequestOptions(cfg Config) []option.RequestOption {
 	opts := []option.RequestOption{option.WithAPIKey(cfg.APIKey)}
 	if cfg.BaseURL != "" {
@@ -34,7 +34,7 @@ func openAIRequestOptions(cfg Config) []option.RequestOption {
 
 // openAIChatClient implements ChatClient on top of openai-go's chat
 // completions streaming API.
-// SEM@0000000000000000000000000000000000000000: ChatClient backend for OpenAI chat completions (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: ChatClient backend for OpenAI chat completions (pure)
 type openAIChatClient struct {
 	client    openai.Client
 	model     string
@@ -42,7 +42,7 @@ type openAIChatClient struct {
 }
 
 // newOpenAIChatClient builds the OpenAI ChatClient backend.
-// SEM@0000000000000000000000000000000000000000: build an OpenAI-backed ChatClient from provider config (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build an OpenAI-backed ChatClient from provider config (pure)
 func newOpenAIChatClient(cfg Config) (*openAIChatClient, error) {
 	if cfg.Model == "" {
 		return nil, fmt.Errorf("llm: openai chat client requires a model")
@@ -58,7 +58,7 @@ func newOpenAIChatClient(cfg Config) (*openAIChatClient, error) {
 // onDelta and returning the provider-reported token usage from the final
 // chunk (stream_options.include_usage). Usage is the zero value if the
 // stream ends without a usage-bearing chunk (e.g. cancellation).
-// SEM@0000000000000000000000000000000000000000: stream an OpenAI chat completion via delta callback, returning reported token usage
+// SEM@f12bfb197606b1b466236d584e4f5c45b89599f1: stream an OpenAI chat completion via delta callback, returning reported token usage
 func (c *openAIChatClient) StreamChat(
 	ctx context.Context,
 	messages []Message,
@@ -115,7 +115,7 @@ func (c *openAIChatClient) StreamChat(
 // openai-go's message union type. Unrecognized roles fall back to user —
 // today the only caller (TimmyLLMService) only ever emits RoleSystem,
 // RoleUser, and RoleAssistant.
-// SEM@0000000000000000000000000000000000000000: convert internal chat messages to the OpenAI message union type (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: convert internal chat messages to the OpenAI message union type (pure)
 func toOpenAIMessages(messages []Message) []openai.ChatCompletionMessageParamUnion {
 	out := make([]openai.ChatCompletionMessageParamUnion, 0, len(messages))
 	for _, m := range messages {
@@ -132,14 +132,14 @@ func toOpenAIMessages(messages []Message) []openai.ChatCompletionMessageParamUni
 }
 
 // openAIEmbedder implements Embedder on top of openai-go's embeddings API.
-// SEM@0000000000000000000000000000000000000000: Embedder backend for OpenAI embeddings, index-aligned and batched (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: Embedder backend for OpenAI embeddings, index-aligned and batched (pure)
 type openAIEmbedder struct {
 	client openai.Client
 	model  string
 }
 
 // newOpenAIEmbedder builds the OpenAI Embedder backend.
-// SEM@0000000000000000000000000000000000000000: build an OpenAI-backed Embedder from provider config (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build an OpenAI-backed Embedder from provider config (pure)
 func newOpenAIEmbedder(cfg Config) (*openAIEmbedder, error) {
 	if cfg.Model == "" {
 		return nil, fmt.Errorf("llm: openai embedder requires a model")
@@ -156,7 +156,7 @@ func newOpenAIEmbedder(cfg Config) (*openAIEmbedder, error) {
 // result[i] is guaranteed to be the embedding of texts[i] even if a provider
 // ever returns items out of order — this index alignment is
 // correctness-critical for the vector store (#754).
-// SEM@0000000000000000000000000000000000000000: compute index-aligned embedding vectors for texts in batches (reads network)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: compute index-aligned embedding vectors for texts in batches (reads network)
 func (e *openAIEmbedder) EmbedDocuments(ctx context.Context, texts []string) ([][]float32, error) {
 	if len(texts) == 0 {
 		return nil, nil

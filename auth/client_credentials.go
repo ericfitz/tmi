@@ -13,7 +13,7 @@ import (
 )
 
 // ClientCredential represents an OAuth 2.0 client credential for machine-to-machine authentication
-// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: domain model for an OAuth 2.0 client credential, with opt-in direct_write flag and addon link
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: domain model for an OAuth client credential with direct_write flag and addon link
 type ClientCredential struct {
 	ID               uuid.UUID
 	OwnerUUID        uuid.UUID
@@ -31,7 +31,7 @@ type ClientCredential struct {
 }
 
 // ClientCredentialCreateParams contains parameters for creating a new client credential
-// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: parameters for creating a new client credential, including direct_write flag and addon link
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: parameters for creating a client credential, including direct_write flag and addon link
 type ClientCredentialCreateParams struct {
 	OwnerUUID        uuid.UUID
 	ClientID         string
@@ -44,7 +44,7 @@ type ClientCredentialCreateParams struct {
 }
 
 // CreateClientCredential creates a new client credential in the database
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: store a new client credential and return the persisted entity (mutates DB)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: store a new client credential and return the persisted entity (writes DB)
 func (s *Service) CreateClientCredential(ctx context.Context, params ClientCredentialCreateParams) (*ClientCredential, error) {
 	repoParams := repository.ClientCredentialCreateParams{
 		OwnerUUID:        params.OwnerUUID,
@@ -124,7 +124,7 @@ func (s *Service) DeactivateClientCredential(ctx context.Context, id uuid.UUID, 
 // cannot be stored it returns ErrRevocationStorage with nothing deleted, so the
 // caller can retry. Ownership is checked before revoking so a caller cannot
 // blacklist another user's credential.
-// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: revoke a client credential's issued tokens then permanently delete it, failing closed (mutates shared state)
+// SEM@9750a568b8ffb60cfd241d61263b7e23f990899e: revoke a client credential's issued tokens then delete it, failing closed (mutates shared state)
 func (s *Service) DeleteClientCredential(ctx context.Context, id uuid.UUID, ownerUUID uuid.UUID) error {
 	owned, err := s.credRepo.ListByOwner(ctx, ownerUUID)
 	if err != nil {
@@ -141,7 +141,7 @@ func (s *Service) DeleteClientCredential(ctx context.Context, id uuid.UUID, owne
 
 // revokeCredentialTokens is the best-effort variant (deactivate and user-delete
 // sweeps): failures are logged, not returned.
-// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: revoke service-account tokens of a client credential, best-effort (reads DB)
+// SEM@9750a568b8ffb60cfd241d61263b7e23f990899e: revoke a client credential's service-account tokens, best-effort (writes DB)
 func (s *Service) revokeCredentialTokens(ctx context.Context, id uuid.UUID) {
 	if err := s.revokeCredentialTokensStrict(ctx, id); err != nil {
 		slogging.Get().Warn("Client credential token revocation failed credential_id=%v error=%v", id, err)
@@ -151,7 +151,7 @@ func (s *Service) revokeCredentialTokens(ctx context.Context, id uuid.UUID) {
 // revokeCredentialTokensStrict marks tokens already minted from a credential as
 // revoked (#862), returning ErrRevocationStorage if Redis is unavailable or the
 // write fails.
-// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: revoke service-account tokens of a client credential, returning storage errors (reads DB)
+// SEM@9750a568b8ffb60cfd241d61263b7e23f990899e: revoke a client credential's service-account tokens, returning storage errors (writes DB)
 func (s *Service) revokeCredentialTokensStrict(ctx context.Context, id uuid.UUID) error {
 	if s.dbManager == nil || s.dbManager.Redis() == nil {
 		return fmt.Errorf("%w: Redis not available", ErrRevocationStorage)
@@ -161,7 +161,7 @@ func (s *Service) revokeCredentialTokensStrict(ctx context.Context, id uuid.UUID
 }
 
 // convertRepoCredToServiceCred converts a repository ClientCredential to a service ClientCredential
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: convert a repository client credential to the service-layer credential type (pure)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: convert a repository client credential to the service-layer credential type (pure)
 func convertRepoCredToServiceCred(rc *repository.ClientCredential) *ClientCredential {
 	return &ClientCredential{
 		ID:               rc.ID,

@@ -27,7 +27,7 @@ func (e *HTMLExtractor) CanHandle(contentType string) bool {
 
 // Extract strips HTML tags and returns the visible text.
 // Script and style element content is excluded.
-// SEM@d1c9c93fe4dd63680a390679e8df436b39c27a8b: parse HTML bytes and return visible text as extracted content (pure)
+// SEM@f69d82c5864c65f768181d82416962e3bbd63667: parse HTML bytes and return visible text as extracted content (pure)
 func (e *HTMLExtractor) Extract(data []byte, contentType string) (ExtractedContent, error) {
 	text := ExtractTextFromHTML(string(data))
 	return ExtractedContent{

@@ -150,7 +150,7 @@ type SAMLProviderConfig struct {
 }
 
 // LoadConfig loads configuration from environment variables.
-// SEM@0000000000000000000000000000000000000000: build the auth Config from environment variables; fail if TMI_DATABASE_URL is absent (reads env)
+// SEM@663417962552d1b180936cab2f93692cef6cb1c6: build the auth config from environment variables; fail if database URL is absent (reads env)
 func LoadConfig() (Config, error) {
 	logger := slogging.Get()
 	logger.Info("TRACE: LoadConfig() function called - START")

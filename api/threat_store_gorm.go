@@ -39,7 +39,7 @@ func NewGormThreatRepository(db *gorm.DB, cache *CacheService, invalidator *Cach
 }
 
 // Create creates a new threat with write-through caching using GORM
-// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: store a new threat with alias allocation and write-through cache update (reads DB)
+// SEM@d8c2762cd09ad64046f317cab75b4bf7f53e48ba: store a new threat with alias allocation and write-through cache update (reads DB)
 func (s *GormThreatRepository) Create(ctx context.Context, threat *Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Creating threat: %s in threat model: %s", threat.Name, threat.ThreatModelId)
@@ -885,7 +885,7 @@ func (s *GormThreatRepository) patchThreatTypeGorm(threat *Threat, op PatchOpera
 }
 
 // BulkCreate creates multiple threats in a single transaction using GORM
-// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: store multiple threats in a single transaction with alias allocation and cache invalidation (reads DB)
+// SEM@d8c2762cd09ad64046f317cab75b4bf7f53e48ba: store multiple threats in a single transaction with alias allocation and cache invalidation (reads DB)
 func (s *GormThreatRepository) BulkCreate(ctx context.Context, threats []Threat) error {
 	logger := slogging.Get()
 	logger.Debug("Bulk creating %d threats", len(threats))

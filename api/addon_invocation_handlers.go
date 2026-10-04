@@ -16,7 +16,7 @@ import (
 )
 
 // invokerContext holds the authenticated user context for an addon invocation
-// SEM@ca61a567c4babc9270ee913396aaa4fb530505a3: authenticated user identity used when recording an addon invocation
+// SEM@411a53c663401d55a0f66913e00979599a208c93: authenticated user identity recorded as the invoker of an addon invocation
 type invokerContext struct {
 	userEmail    string
 	userUUID     uuid.UUID
@@ -141,7 +141,7 @@ func validateAddonInvocationRequest(c *gin.Context, addonID uuid.UUID) (*InvokeA
 
 // InvokeAddon invokes an add-on (authenticated users).
 // Creates a WebhookDeliveryRecord and emits an addon.invoked event.
-// SEM@00add3d4f7dc1c0a9cc072d7e6ca32ace4d03641: handle an addon invocation request, enforce rate limits, and enqueue a webhook delivery record (reads DB)
+// SEM@411a53c663401d55a0f66913e00979599a208c93: handle an addon invocation request: enforce rate limits and enqueue a webhook delivery (reads DB)
 func InvokeAddon(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 

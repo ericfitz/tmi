@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// SEM@0000000: assert Redis deployment files pin maxmemory-policy noeviction so revocations are never evicted (pure)
+// SEM@9750a568b8ffb60cfd241d61263b7e23f990899e: test that Redis deployment files pin the noeviction memory policy so revocations are never evicted
 func TestRedisEvictionPolicyIsNoeviction(t *testing.T) {
 	// #1008: any evicting policy can drop blacklist:token:* entries and
 	// silently re-validate revoked tokens.

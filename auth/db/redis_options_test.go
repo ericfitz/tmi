@@ -44,7 +44,7 @@ func TestRedisOptions_TLSPinsCAAndServerName(t *testing.T) {
 	}
 }
 
-// SEM@0000000: test that a password func becomes a per-connection credentials provider
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: test that a password func becomes a per-connection Redis credentials provider
 func TestRedisOptions_PasswordFuncIsCredentialsProvider(t *testing.T) {
 	pw := "first"
 	opts, err := redisOptions(RedisConfig{Host: "redis", Port: "6379", PasswordFunc: func(context.Context) (string, error) { return pw, nil }})

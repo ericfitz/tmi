@@ -30,7 +30,7 @@ import (
 //     preserves comments, key ordering, and value types verbatim — none of
 //     which the *-migrated.yml writer below does.
 //
-// SEM@0000000000000000000000000000000000000000: migrate operational settings from a config file into the database with explicit origin, optionally writing a bootstrap-only YAML (writes DB)
+// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: seed database settings from a config source file, with overwrite and dry-run options
 func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, dryRun, emitLegacyMigratedYAML bool) error {
 	log := slogging.Get()
 

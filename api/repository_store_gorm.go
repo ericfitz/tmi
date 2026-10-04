@@ -38,7 +38,7 @@ func NewGormRepositoryRepository(db *gorm.DB, cache *CacheService, invalidator *
 }
 
 // Create creates a new repository
-// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: store a new repository under a threat model, allocating an alias and updating the cache (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new repository under a threat model, allocating an alias and caching it (mutates DB, cache)
 func (s *GormRepositoryRepository) Create(ctx context.Context, repository *Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -199,7 +199,7 @@ func (s *GormRepositoryRepository) Get(ctx context.Context, id string) (*Reposit
 }
 
 // Update updates an existing repository
-// SEM@a590912b68a0537a660bf71dd19959b3db635967: update a repository's fields, set modified_at explicitly, and refresh cache (mutates DB, cache)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: update a repository's fields and refresh its cache entry (mutates DB, cache)
 func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -502,7 +502,7 @@ func (s *GormRepositoryRepository) List(ctx context.Context, threatModelID strin
 }
 
 // BulkCreate creates multiple repositories in a single transaction
-// SEM@87d6f75bc3aecf3edd6c4103567546955c1afadf: insert multiple repositories under a threat model in a single retryable transaction (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store multiple repositories under a threat model in one retryable transaction (mutates DB)
 func (s *GormRepositoryRepository) BulkCreate(ctx context.Context, repositories []Repository, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -744,7 +744,7 @@ func (s *GormRepositoryRepository) saveMetadata(ctx context.Context, repositoryI
 }
 
 // updateMetadata updates metadata for a repository
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: delete and re-save metadata records for a repository (reads DB)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: replace all metadata entries for a repository (mutates DB)
 func (s *GormRepositoryRepository) updateMetadata(ctx context.Context, repositoryID string, metadata []Metadata) error {
 	// One transaction so a failed insert rolls back the delete instead of
 	// committing a bare metadata wipe (#670).

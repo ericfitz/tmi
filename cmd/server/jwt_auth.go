@@ -179,7 +179,7 @@ func NewClaimsExtractor(authHandlers *auth.Handlers, cfg *config.Config) *Claims
 // setServiceAccountContext parses a "sa:{credential_id}:{owner_provider_user_id}"
 // subject and sets the service-account context keys, including the #856
 // direct_write marker when the token carries tmi_direct_write=true.
-// SEM@bb016c3822e5987a6d2abf81bf6fcf80682851a4: parse a service-account JWT subject and set service-account, direct_write, and source-addon context (mutates shared state)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: parse a service-account JWT subject and set service-account, direct_write, and addon context (mutates shared state)
 func setServiceAccountContext(c *gin.Context, logger slogging.SimpleLogger, sub string, claims jwt.MapClaims) {
 	parts := strings.SplitN(sub, ":", 3)
 	if len(parts) != 3 {
@@ -214,7 +214,7 @@ func setServiceAccountContext(c *gin.Context, logger slogging.SimpleLogger, sub 
 var errUnmarkedServiceAccountSubject = errors.New("service-account subject without service-account claim")
 
 // ExtractAndSetClaims extracts claims from a valid token and sets them in the context
-// SEM@b2651daf2f388dbef96d4ddd4a0bb46fcb8da56b: parse JWT claims and set user identity and delegation fields in the Gin context (mutates shared state)
+// SEM@a7d1b052bb879606eca59fea8d7f7bac57531eeb: parse JWT claims and set user identity and delegation fields in the request context (mutates shared state)
 func (e *ClaimsExtractor) ExtractAndSetClaims(c *gin.Context, token *jwt.Token) error {
 	logger := slogging.GetContextLogger(c)
 
@@ -597,7 +597,7 @@ func revocationAuthError(logger slogging.SimpleLogger, err error) *AuthError {
 }
 
 // AuthenticateRequest performs the complete JWT authentication process
-// SEM@c161adfd8ba839441ccd825e818d342a09c63849: authenticate a request via bearer JWT or WebSocket ticket and enforce revocation
+// SEM@a7d1b052bb879606eca59fea8d7f7bac57531eeb: authenticate a request via bearer JWT or WebSocket ticket and enforce revocation
 func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 	logger := slogging.GetContextLogger(c)
 

@@ -398,7 +398,7 @@ func runMigrationsLocked(ctx context.Context, gormDB *db.GormDB, dbType string) 
 // the cross-replica migration advisory lock held (see runMigrationsLocked) —
 // several of its steps issue DDL that is not safe to run concurrently from
 // two replicas.
-// SEM@7ffca610d050b6fdbe2db2796298d3e746bb7491: run the schema-evolution sequence: AutoMigrate, backfills, index upgrades, and seeding (mutates DB)
+// SEM@d4baf9204f11e11bdb71462a0ea5af2d70f2cad5: migrate the database schema: auto-migrate, backfill, upgrade indexes, and seed data (writes DB)
 func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error {
 	logger := slogging.Get()
 
@@ -668,7 +668,7 @@ func migrateSchema(ctx context.Context, gormDB *db.GormDB, dbType string) error 
 // only), drop before raise so a retired index is never rebuilt. Runs even
 // when the fingerprint fast path skips AutoMigrate; never fatal on a DDL
 // failure -- each step logs and continues, and the next boot retries.
-// SEM@7ffca610d050b6fdbe2db2796298d3e746bb7491: drop retired metadata indexes then raise METADATA INITRANS in sequence (mutates DB)
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: drop retired metadata indexes then raise metadata INITRANS (writes DB)
 func ensureMetadataSchema(ctx context.Context, gormDB *gorm.DB) error {
 	if err := dbschema.DropRetiredMetadataIndexes(ctx, gormDB); err != nil {
 		return fmt.Errorf("failed to check the retired metadata indexes: %w", err)
@@ -739,7 +739,7 @@ func newSystemAuditRepo(db *gorm.DB, operatorName string) api.SystemAuditReposit
 	return repo
 }
 
-// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: initialize database connections, all subsystems, and register all API routes, returning the configured Gin engine
+// SEM@ab6a7ff21a80d96c9f7c490184f44a06dc5607b9: initialize databases and subsystems and register all API routes, returning the router
 func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.EmbeddingCleaner) {
 	// Create a gin router without default middleware
 	r := gin.New()
@@ -1909,7 +1909,7 @@ func startWebhookWorkers(ctx context.Context, cfg *config.Config) (*api.WebhookE
 	return webhookConsumer, challengeWorker, deliveryWorker, cleanupWorker
 }
 
-// SEM@b583a71af02ca00e2c408d9d52e1e41f514df3ff: parse flags, load config, resolve secrets, and launch the server process
+// SEM@d0dd04daab6a17c9492d01d80920f869be8a735a: parse flags, load config, resolve secrets, and launch the server process
 func main() {
 	// Parse command line flags
 	flags, err := config.ParseFlagsExt()

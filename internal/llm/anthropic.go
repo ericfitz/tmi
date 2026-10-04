@@ -24,7 +24,7 @@ const anthropicDefaultMaxTokens = 4096
 // (*http.Response, error)` shape as openai-go's, so cfg.HTTPClient (TMI's
 // SSRF-safe adapter, see api.safeHTTPDoer) routes every request — streamed
 // or not — through the same egress control as the OpenAI backend.
-// SEM@0000000000000000000000000000000000000000: build shared anthropic-sdk-go request options including the injected HTTP doer (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build shared anthropic-sdk-go request options including the injected HTTP doer (pure)
 func anthropicRequestOptions(cfg Config) []option.RequestOption {
 	opts := []option.RequestOption{option.WithAPIKey(cfg.APIKey)}
 	if cfg.BaseURL != "" {
@@ -42,7 +42,7 @@ func anthropicRequestOptions(cfg Config) []option.RequestOption {
 // #384 is a separate, deferred effort), but nothing about this struct's
 // shape forecloses adding it — a future tool-use extension can add fields
 // and branch in StreamChat without changing the ChatClient contract.
-// SEM@0000000000000000000000000000000000000000: ChatClient backend for Anthropic Messages API chat completions (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: ChatClient backend for Anthropic Messages API chat completions (pure)
 type anthropicChatClient struct {
 	client    anthropic.Client
 	model     string
@@ -54,7 +54,7 @@ type anthropicChatClient struct {
 // negative value is rejected rather than silently clamped, since it almost
 // certainly indicates a misconfiguration upstream (internal/config also
 // validates this ahead of time, but the backend does not trust that alone).
-// SEM@0000000000000000000000000000000000000000: build an Anthropic-backed ChatClient from provider config (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build an Anthropic-backed ChatClient from provider config (pure)
 func newAnthropicChatClient(cfg Config) (*anthropicChatClient, error) {
 	if cfg.Model == "" {
 		return nil, fmt.Errorf("llm: anthropic chat client requires a model")
@@ -80,7 +80,7 @@ func newAnthropicChatClient(cfg Config) (*anthropicChatClient, error) {
 // splitSystemAndTurns extracts and concatenates any RoleSystem messages
 // (TMI's caller sends at most one, but this is not assumed) and the
 // remainder becomes the user/assistant turn sequence.
-// SEM@0000000000000000000000000000000000000000: stream an Anthropic chat completion via delta callback, returning reported token usage
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: stream an Anthropic chat completion via delta callback, returning reported token usage
 func (c *anthropicChatClient) StreamChat(
 	ctx context.Context,
 	messages []Message,
@@ -135,7 +135,7 @@ func (c *anthropicChatClient) StreamChat(
 // array. Multiple system messages (not expected from TMI's caller today,
 // which sends exactly one) are concatenated with a blank line, matching how
 // a caller would join them if they appeared as consecutive system turns.
-// SEM@0000000000000000000000000000000000000000: split internal chat messages into a top-level system prompt and Anthropic message turns (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: split internal chat messages into a top-level system prompt and Anthropic message turns (pure)
 func splitSystemAndTurns(messages []Message) (string, []anthropic.MessageParam) {
 	var systemParts []string
 	turns := make([]anthropic.MessageParam, 0, len(messages))

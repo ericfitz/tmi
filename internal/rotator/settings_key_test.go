@@ -54,7 +54,7 @@ func settingsSecret() *Secret {
 	}, Annotations: map[string]string{}}
 }
 
-// SEM@3b682947: test that StageThenPromoteThenReencrypt
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: test that rotation stages, promotes, then re-encrypts across successive runs
 func TestSettingsKeyRotation_StageThenPromoteThenReencrypt(t *testing.T) {
 	env, st := testEnv(settingsSecret())
 	fs := &fakeSettings{rows: map[int]int64{1: 40}}
@@ -77,7 +77,7 @@ func TestSettingsKeyRotation_StageThenPromoteThenReencrypt(t *testing.T) {
 	require.Equal(t, "2026-09-28T12:00:00Z", s.Annotations[AnnPromotedAt+"settings-key"])
 }
 
-// SEM@3b682947: test that DropWaitsForGraceAndZeroRows
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: test that dropping the old key waits for the grace period and zero old-key rows
 func TestSettingsKeyRotation_DropWaitsForGraceAndZeroRows(t *testing.T) {
 	env, st := testEnv(settingsSecret())
 	fs := &fakeSettings{rows: map[int]int64{1: 3}}
@@ -110,7 +110,7 @@ func TestSettingsKeyRotation_DropWaitsForGraceAndZeroRows(t *testing.T) {
 	require.Equal(t, writes+1, st.DataWrites)
 }
 
-// SEM@3b682947: test that ResumeFromStaged
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: test that a rotation resumes from the staged phase and completes
 func TestSettingsKeyRotation_ResumeFromStaged(t *testing.T) {
 	sec := settingsSecret()
 	sec.Data["TMI_SECRET_SETTINGS_ENCRYPTION_PREVIOUS_KEY"] = "0000000000000000000000000000000000000000000000000000000000000002"
@@ -168,7 +168,7 @@ func TestGormSettingsStore_UnreadableRowDoesNotFail(t *testing.T) {
 	require.Zero(t, left)
 }
 
-// SEM@3b682947: test that StagedWithoutPairRefusesToPromote
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: test that a staged rotation without a key pair refuses to promote
 func TestSettingsKeyRotation_StagedWithoutPairRefusesToPromote(t *testing.T) {
 	sec := settingsSecret()
 	sec.Annotations[AnnPhase+"settings-key"] = "staged"
@@ -184,7 +184,7 @@ func TestSettingsKeyRotation_StagedWithoutPairRefusesToPromote(t *testing.T) {
 	require.Equal(t, 1, st.DataWrites)
 }
 
-// SEM@69c2865a: escrow test double recording payloads and the phase seen at each call
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: escrow test double recording payloads and the phase seen at each call
 type fakeEscrow struct {
 	puts     [][]byte
 	failures int // fail this many calls before succeeding
@@ -192,13 +192,13 @@ type fakeEscrow struct {
 }
 
 // memSecretStoreProbe records the settings-key phase at each Put, to prove ordering.
-// SEM@69c2865a: probe recording settings-key phases observed during escrow
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: probe recording settings key phases observed during escrow
 type memSecretStoreProbe struct {
 	get    func() *Secret
 	phases []string
 }
 
-// SEM@69c2865a: record a payload and phase, failing the configured number of times (test double)
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: record a payload and phase, failing the configured number of times (test double)
 func (f *fakeEscrow) Put(_ context.Context, p []byte) error {
 	if f.st != nil {
 		f.st.phases = append(f.st.phases, f.st.get().Annotations[AnnPhase+"settings-key"])
@@ -211,7 +211,7 @@ func (f *fakeEscrow) Put(_ context.Context, p []byte) error {
 	return nil
 }
 
-// SEM@69c2865a: verify escrow runs while staged and names post-promotion key roles
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: test that escrow runs while staged and names post-promotion key roles
 func TestSettingsKeyRotation_EscrowsBeforePromote(t *testing.T) {
 	env, st := testEnv(settingsSecret())
 	probe := &memSecretStoreProbe{get: func() *Secret { s, _ := st.Get(context.Background(), "tmi-secrets"); return s }}
@@ -243,7 +243,7 @@ func TestSettingsKeyRotation_EscrowsBeforePromote(t *testing.T) {
 	require.True(t, p.Previous.KeyHex == "0000000000000000000000000000000000000000000000000000000000000001", "escrow previous = old key")
 }
 
-// SEM@69c2865a: verify escrow failure leaves rotation staged and a rerun retries then promotes
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: test that escrow failure leaves rotation staged and a rerun retries then promotes
 func TestSettingsKeyRotation_EscrowFailureStaysStagedThenRetries(t *testing.T) {
 	env, st := testEnv(settingsSecret())
 	esc := &fakeEscrow{failures: 1}
@@ -270,7 +270,7 @@ func TestSettingsKeyRotation_EscrowFailureStaysStagedThenRetries(t *testing.T) {
 	require.Greater(t, st.DataWrites, writes)
 }
 
-// SEM@69c2865a: verify a nil escrow is treated as a no-op
+// SEM@070c69a19a7fed18f17f2bd3475d508172778494: test that a nil escrow is treated as a no-op
 func TestSettingsKeyRotation_NilEscrowIsNoop(t *testing.T) {
 	env, st := testEnv(settingsSecret())
 	require.NoError(t, NewSettingsKeyRotation(&fakeSettings{rows: map[int]int64{1: 1}}, time.Hour, nil).Run(context.Background(), env))

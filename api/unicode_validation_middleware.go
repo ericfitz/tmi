@@ -16,7 +16,7 @@ import (
 )
 
 // UnicodeNormalizationMiddleware normalizes Unicode in request bodies and rejects problematic characters
-// SEM@445f237f7a35ca185cf03ef25426c1a97b1a1917: normalize JSON request bodies to NFC and reject dangerous Unicode characters
+// SEM@2f8bdf4ee323d43b42d14954da7fbbf9544367c7: normalize JSON request bodies to NFC and reject dangerous Unicode characters
 func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)

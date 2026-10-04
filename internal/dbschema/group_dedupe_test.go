@@ -307,7 +307,7 @@ func TestDeduplicateGroups_CollapsesDuplicateSubgroupMembershipPair(t *testing.T
 // the survivor would list M twice if dedupeOwnedSubgroupRows didn't collapse
 // it -- idx_gm_group_user_type can't catch this since user_internal_uuid is
 // NULL on both rows.
-// SEM@0000000000000000000000000000000000000000: validate group dedupe collapses a duplicate owned-subgroup membership row
+// SEM@e13b1dbb9c83c0a6e2980a856e7f40116307c0ad: validate group dedupe collapses a duplicate owned-subgroup membership row
 func TestDeduplicateGroups_CollapsesDuplicateOwnedSubgroupRow(t *testing.T) {
 	db := newDedupeTestDB(t)
 

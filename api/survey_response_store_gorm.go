@@ -81,7 +81,7 @@ func NewGormSurveyResponseStore(db *gorm.DB) *GormSurveyResponseStore {
 }
 
 // Create creates a new survey response
-// SEM@ebf201816c3638ec74fc8483a2a649af3ccddfc9: store a new survey response with owner ACL, reviewer group, and automation group in a transaction (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new survey response with owner ACL and reviewer groups in a transaction (mutates DB)
 func (s *GormSurveyResponseStore) Create(ctx context.Context, response *SurveyResponse, userInternalUUID string) error {
 	logger := slogging.Get()
 

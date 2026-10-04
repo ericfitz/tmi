@@ -507,7 +507,7 @@ func applyThreatModelFilters(query *gorm.DB, filters *ThreatModelFilters) *gorm.
 	return query
 }
 
-// SEM@c91b16ea67b50cc273cb925b803aeb2cac07d517: list paginated threat model summaries with per-model sub-resource counts and auth filtering (reads DB)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: list paginated threat model summaries with per-model sub-resource counts and auth filtering (reads DB)
 func (s *GormThreatModelStore) ListWithCounts(offset, limit int, filter func(ThreatModel) bool, filters *ThreatModelFilters) ([]TMListItem, int, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -644,7 +644,7 @@ type entityCounts struct {
 
 // batchCounts loads sub-resource counts for multiple threat models in batch using
 // GROUP BY queries (6 queries total instead of 6×N).
-// SEM@df8dc0b3bc019d77933b5b20925f456071947e2e: fetch sub-resource counts for multiple threat models in batch GROUP BY queries (reads DB)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: fetch sub-resource counts for multiple threat models in batch GROUP BY queries (reads DB)
 func (s *GormThreatModelStore) batchCounts(ids []string) (map[string]entityCounts, error) {
 	result := make(map[string]entityCounts, len(ids))
 	if len(ids) == 0 {
@@ -704,7 +704,7 @@ type authWithOwner struct {
 
 // batchLoadAuthorizationLightweight loads authorization entries for multiple threat models
 // in batch for use by the list's auth filter.
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: batch-load owner and authorization entries for multiple threat models for list auth filtering (reads DB)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: batch-load owner and authorization entries for multiple threat models for list auth filtering (reads DB)
 func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, ownerMap map[string]User) (map[string]authWithOwner, error) {
 	result := make(map[string]authWithOwner, len(ids))
 	if len(ids) == 0 {
@@ -787,7 +787,7 @@ func (s *GormThreatModelStore) batchLoadAuthorizationLightweight(ids []string, o
 }
 
 // Create adds a new threat model using GORM
-// SEM@4bb1ca6bbafe7a223150ef101f24eb54a547dce1: persist a new threat model with authorization and metadata in a read-committed retryable transaction (writes DB)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: store a new threat model with authorization and metadata in a retryable transaction (writes DB)
 func (s *GormThreatModelStore) Create(ctx context.Context, item ThreatModel, idSetter func(ThreatModel, string) ThreatModel) (ThreatModel, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -1126,7 +1126,7 @@ func (s *GormThreatModelStore) Count() int {
 
 // loadAuthorization loads authorization entries for a threat model using GORM
 // Note: Using batch lookups instead of Preload for Oracle compatibility
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: fetch and resolve authorization entries for a threat model from access and user/group tables (reads DB)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: fetch and resolve authorization entries for a threat model from access and user/group tables (reads DB)
 func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Authorization, error) {
 	logger := slogging.Get()
 	var accessEntries []models.ThreatModelAccess
@@ -1210,7 +1210,7 @@ func (s *GormThreatModelStore) loadAuthorization(threatModelID string) ([]Author
 
 // resolveUsersAndGroupsBatch loads users and groups by internal UUIDs in batch.
 // Returns lookup maps keyed by internal_uuid. Oracle-compatible (chunks IN clauses at 999).
-// SEM@e530c9655ae71e6bf78a13b97320afcbd9b1e7b5: batch-fetch users and groups by internal UUIDs, chunked for Oracle IN-clause limits (reads DB)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: batch-fetch users and groups by internal UUIDs, chunked for Oracle IN-clause limits (reads DB)
 func (s *GormThreatModelStore) resolveUsersAndGroupsBatch(userUUIDs, groupUUIDs []string) (map[string]models.User, map[string]models.Group, error) {
 	userMap := make(map[string]models.User, len(userUUIDs))
 	groupMap := make(map[string]models.Group, len(groupUUIDs))
@@ -1823,7 +1823,7 @@ func (s *GormDiagramStore) CreateWithThreatModel(item DfdDiagram, threatModelID 
 }
 
 // Create adds a new diagram using GORM (maintains backward compatibility)
-// SEM@4c9d5815bc681f2c8dce2f5e3b22a82775ba58b9: persist a new diagram with a nil threat model ID for backward compatibility (reads DB)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: store a new diagram with no threat model ID for backward compatibility (writes DB)
 func (s *GormDiagramStore) Create(item DfdDiagram, idSetter func(DfdDiagram, string) DfdDiagram) (DfdDiagram, error) {
 	return s.CreateWithThreatModel(item, uuid.Nil.String(), idSetter)
 }

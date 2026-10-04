@@ -321,7 +321,7 @@ func (h *ThreatSubResourceHandler) GetThreat(c *gin.Context) {
 
 // CreateThreat creates a new threat in a threat model
 // POST /threat_models/{threat_model_id}/threats
-// SEM@f24c94ac3b48082482bcf5b8e9642017897fe3b6: store a new threat under a threat model, sanitizing inputs and recording an audit entry (mutates shared state)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: store a new threat under a threat model, sanitizing inputs and recording an audit entry (mutates shared state)
 func (h *ThreatSubResourceHandler) CreateThreat(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateThreat - creating new threat")

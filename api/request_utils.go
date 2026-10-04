@@ -26,7 +26,7 @@ const (
 const WWWAuthenticateRealm = wwwauth.Realm
 
 // WWWAuthenticateError represents error types per RFC 6750 section 3.1
-// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: string type enumerating RFC 6750 WWW-Authenticate error codes (pure)
+// SEM@212287c6c02d99be7f8071b21a50666223646bec: define string type enumerating RFC 6750 WWW-Authenticate error codes (pure)
 type WWWAuthenticateError string
 
 const (
@@ -395,7 +395,7 @@ func (e *RequestError) Error() string {
 }
 
 // HandleRequestError sends an appropriate HTTP error response
-// SEM@6fb83b19171915a13ed7b703a35fc8b25209fa8c: dispatch an HTTP error response for a request error, setting appropriate headers (pure)
+// SEM@5e107bce8eca9a7b10483bef568d3497a8b76f93: dispatch an HTTP error response for a request error with appropriate headers (pure)
 func HandleRequestError(c *gin.Context, err error) {
 	var reqErr *RequestError
 	if errors.As(err, &reqErr) {
@@ -527,7 +527,7 @@ func ForbiddenError(message string) *RequestError {
 
 // NotAcceptableError creates a RequestError for content negotiation failures
 // (no offered response media type matches the request's Accept header).
-// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: build a 406 RequestError for an unsatisfiable Accept header (pure)
+// SEM@29f63eb500c26288d0d3fe23737adf6fd94bdf9c: build a 406 request error for an unsatisfiable Accept header (pure)
 func NotAcceptableError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusNotAcceptable,
@@ -761,7 +761,7 @@ func isForeignKeyConstraintError(err error) bool {
 // happen to share that placeholder provider value. Reject both up front so
 // the caller lands on its generic 4xx path instead of a false 401 (1.8.3
 // oracle-db-admin review).
-// SEM@8dfef8f6: confirm via a direct lookup that a user's account row no longer exists, refusing empty or placeholder identities (reads DB)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: validate via direct lookup that a user's account no longer exists (reads DB)
 func isUserAccountConfirmedDeleted(ctx context.Context, provider, providerID string) bool {
 	if GlobalUserStore == nil {
 		return false

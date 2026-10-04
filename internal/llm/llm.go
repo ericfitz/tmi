@@ -17,7 +17,7 @@ import (
 )
 
 // Role identifies the speaker of a chat Message.
-// SEM@0000000000000000000000000000000000000000: identifies the speaker role of a chat message (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: identifies the speaker role of a chat message (pure)
 type Role string
 
 const (
@@ -29,7 +29,7 @@ const (
 // Message is one turn in a chat conversation. It is the only message shape
 // that may cross the internal/llm boundary — no provider SDK type may be
 // substituted for it anywhere else in the codebase.
-// SEM@0000000000000000000000000000000000000000: holds one chat turn's role and text (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: holds one chat turn's role and text (pure)
 type Message struct {
 	Role Role
 	Text string
@@ -39,7 +39,7 @@ type Message struct {
 // exposes it. A zero value means the provider did not report usage (e.g. the
 // stream was cancelled before the final chunk); callers should treat it as
 // "unknown" rather than "zero tokens used."
-// SEM@0000000000000000000000000000000000000000: holds prompt/completion/total token counts for a chat completion (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: holds prompt/completion/total token counts for a chat completion (pure)
 type Usage struct {
 	PromptTokens     int
 	CompletionTokens int
@@ -51,7 +51,7 @@ type Usage struct {
 // the completion (zero value if unavailable) and any error. Implementations
 // MUST route every request — including the streamed request itself —
 // through the Config.HTTPClient supplied at construction time.
-// SEM@0000000000000000000000000000000000000000: interface for streaming a chat completion via a delta callback (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: interface for streaming a chat completion via a delta callback (pure)
 type ChatClient interface {
 	StreamChat(ctx context.Context, messages []Message, onDelta func(ctx context.Context, chunk []byte) error) (Usage, error)
 }
@@ -59,7 +59,7 @@ type ChatClient interface {
 // Embedder computes embedding vectors for a batch of texts. Implementations
 // MUST preserve index alignment: result[i] is always the embedding of
 // texts[i], regardless of internal batching or provider response order.
-// SEM@0000000000000000000000000000000000000000: interface for computing index-aligned embedding vectors for a batch of texts (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: interface for computing index-aligned embedding vectors for a batch of texts (pure)
 type Embedder interface {
 	EmbedDocuments(ctx context.Context, texts []string) ([][]float32, error)
 }
@@ -70,13 +70,13 @@ type Embedder interface {
 // adapter here (see api.safeHTTPDoer) so all provider traffic, chat and
 // embeddings, streamed and non-streamed, flows through the same egress
 // control. No SDK type is referenced by this interface.
-// SEM@0000000000000000000000000000000000000000: minimal HTTP client contract accepted by provider constructors (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: minimal HTTP client contract accepted by provider constructors (pure)
 type HTTPDoer interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
 // Provider identifies which backend a Config targets.
-// SEM@0000000000000000000000000000000000000000: identifies which LLM backend a Config targets (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: identifies which LLM backend a Config targets (pure)
 type Provider string
 
 const (
@@ -88,7 +88,7 @@ const (
 // configures chat, text embeddings, and code embeddings as independent
 // model/key/base-URL triples, so callers construct one Config per endpoint
 // (see api.NewTimmyLLMService) rather than one Config for the whole service.
-// SEM@0000000000000000000000000000000000000000: connection settings for one provider chat or embedding endpoint (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: connection settings for one provider chat or embedding endpoint (pure)
 type Config struct {
 	Provider Provider
 	// Model is the chat or embedding model name, depending on which
@@ -109,7 +109,7 @@ type Config struct {
 
 // NewChatClient builds a ChatClient for cfg.Provider: OpenAI (phase 1) or
 // Anthropic (phase 2). Any other value is rejected with a clear error.
-// SEM@0000000000000000000000000000000000000000: build a ChatClient for the configured provider, rejecting unrecognized ones (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build a ChatClient for the configured provider, rejecting unrecognized ones (pure)
 func NewChatClient(cfg Config) (ChatClient, error) {
 	switch cfg.Provider {
 	case ProviderOpenAI:
@@ -125,7 +125,7 @@ func NewChatClient(cfg Config) (ChatClient, error) {
 // implemented — and, per #754, OpenAI is the only provider this ever
 // implements for embeddings: Anthropic has no embeddings API, so phase 2
 // does not add an Anthropic embedder.
-// SEM@0000000000000000000000000000000000000000: build an Embedder for the configured provider, rejecting unimplemented ones (pure)
+// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: build an Embedder for the configured provider, rejecting unimplemented ones (pure)
 func NewEmbedder(cfg Config) (Embedder, error) {
 	switch cfg.Provider {
 	case ProviderOpenAI:

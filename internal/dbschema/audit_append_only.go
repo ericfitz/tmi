@@ -197,7 +197,7 @@ func installPostgresAppendOnly(ctx context.Context, db *gorm.DB, logger *sloggin
 	return nil
 }
 
-// SEM@c3167c5165bed5f9d97b7f7eef032894393a917a: install append-only row-level triggers on Oracle ADB audit tables (mutates DB schema)
+// SEM@23e800356736db293bfbce04f9bd1f4c4cab3b6b: install append-only row-level triggers on Oracle ADB audit tables (mutates DB schema)
 func installOracleAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.Logger, auditFloorDays, snapshotFloorDays, systemAuditFloorDays int) error {
 	// Oracle CREATE OR REPLACE TRIGGER is atomic — no DROP/CREATE pair.
 	// RAISE_APPLICATION_ERROR(-20001, ...) bubbles up as ORA-20001;
@@ -250,7 +250,7 @@ func installOracleAppendOnly(ctx context.Context, db *gorm.DB, logger *slogging.
 	return nil
 }
 
-// SEM@0000000000000000000000000000000000000000: build the three Oracle append-only trigger definitions for the given floors (pure)
+// SEM@23e800356736db293bfbce04f9bd1f4c4cab3b6b: build the three Oracle append-only trigger definitions for the given floors (pure)
 func oracleAppendOnlyTriggers(auditFloorDays, snapshotFloorDays, systemAuditFloorDays int) []oracleTrigger {
 	return []oracleTrigger{
 		{"tmi_audit_entries_no_mutate", fmt.Sprintf(`CREATE OR REPLACE TRIGGER tmi_audit_entries_no_mutate
@@ -297,7 +297,7 @@ type oracleTrigger struct {
 // trigger body; the sha256 of the unmarked DDL follows it.
 const oracleTriggerMarkerPrefix = "-- tmi-ddl-sha256:"
 
-// SEM@0000000000000000000000000000000000000000: build the identity marker comment for a trigger DDL text (pure)
+// SEM@23e800356736db293bfbce04f9bd1f4c4cab3b6b: build the identity marker comment for a trigger DDL text (pure)
 func oracleTriggerMarker(ddl string) string {
 	sum := sha256.Sum256([]byte(ddl))
 	return oracleTriggerMarkerPrefix + hex.EncodeToString(sum[:])
@@ -306,7 +306,7 @@ func oracleTriggerMarker(ddl string) string {
 // oracleTriggerDDLWithMarker inserts the marker comment as the first line of
 // the trigger body (right after BEGIN), where Oracle preserves it verbatim in
 // ALL_SOURCE.
-// SEM@0000000000000000000000000000000000000000: embed the identity marker into a trigger body after BEGIN (pure)
+// SEM@23e800356736db293bfbce04f9bd1f4c4cab3b6b: embed the identity marker into a trigger body after BEGIN (pure)
 func oracleTriggerDDLWithMarker(ddl string) string {
 	return strings.Replace(ddl, "BEGIN\n", "BEGIN\n\t\t   "+oracleTriggerMarker(ddl)+"\n", 1)
 }
@@ -314,7 +314,7 @@ func oracleTriggerDDLWithMarker(ddl string) string {
 // oracleTriggerIsCurrent reports whether a VALID, ENABLED trigger named name
 // exists in CURRENT_SCHEMA whose source carries marker. ALL_* views filtered
 // to CURRENT_SCHEMA, like every other catalog probe here (#736).
-// SEM@0000000000000000000000000000000000000000: probe whether an Oracle trigger with the given identity marker is installed and valid (reads DB)
+// SEM@23e800356736db293bfbce04f9bd1f4c4cab3b6b: probe whether an Oracle trigger with the given identity marker is installed and valid (reads DB)
 func oracleTriggerIsCurrent(ctx context.Context, db *gorm.DB, name, marker string) (bool, error) {
 	var cnt int64
 	err := withMigrationRetry("append-only trigger "+name+" currency probe", func() error {

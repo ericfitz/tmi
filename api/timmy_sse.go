@@ -33,7 +33,7 @@ type SSEWriter struct {
 }
 
 // NewSSEWriter initializes an SSE response stream
-// SEM@495d0e707e286e7230e11759448f784ebb220018: initialize an SSE response stream with required headers on the Gin response
+// SEM@0c40bcbe0b127e722e6bc4ce4089674fc5303ce2: build an SSE response stream and set required headers on the response
 func NewSSEWriter(c *gin.Context) *SSEWriter {
 	c.Header("Content-Type", "text/event-stream")
 	// Do NOT override Cache-Control here. The SecurityHeaders middleware already

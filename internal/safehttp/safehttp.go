@@ -107,7 +107,7 @@ type PinningDialer struct {
 // host, bypasses the SSRF blocklist for that host; it is intended only for
 // tests that must reach a loopback httptest server and is never set in
 // production. dialTimeout defaults to 10s when non-positive.
-// SEM@e55d63794c48585aafab36880122df63ab8ab1be: build a PinningDialer with configurable resolver, allow-list bypass, and dial timeout (pure)
+// SEM@f69d82c5864c65f768181d82416962e3bbd63667: build a pinning dialer with configurable resolver, allow-list bypass, and dial timeout (pure)
 func NewPinningDialer(resolver HostResolver, allowHost func(host string) bool, dialTimeout time.Duration) *PinningDialer {
 	if resolver == nil {
 		resolver = DefaultResolver

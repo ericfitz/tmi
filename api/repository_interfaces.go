@@ -28,7 +28,7 @@ type GroupDeletionStats struct {
 }
 
 // Group represents a group in the system
-// SEM@3c1a01558012bffd79e59f37ab15f2ccc823c29c: domain model for an identity provider group with usage and enrichment fields (pure)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: define domain model for an identity provider group with usage fields (pure)
 type Group struct {
 	InternalUUID uuid.UUID `json:"internal_uuid"`
 	Provider     string    `json:"provider"`
@@ -49,7 +49,7 @@ type Group struct {
 }
 
 // GroupFilter defines filtering options for group queries
-// SEM@3c1a01558012bffd79e59f37ab15f2ccc823c29c: filtering, sorting, and pagination parameters for group list queries (pure)
+// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: define filter, sort, and pagination parameters for group list queries (pure)
 type GroupFilter struct {
 	Provider             string
 	GroupName            string // Case-insensitive ILIKE %name%

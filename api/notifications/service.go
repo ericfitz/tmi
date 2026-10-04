@@ -46,7 +46,7 @@ type NotificationService interface {
 // notification dropped (with a warning) rather than blocking the dispatcher.
 // The channel name is used only for log context. Each notifier builds the
 // Notification from its own input type and then calls this shared helper.
-// SEM@23998f331524274d028e5ec84e6d6b7d29d4e332: non-blocking fan-out of a notification to all subscriber channels (mutates shared state)
+// SEM@fcd7743e746718c31b33ef56fb3ba2f8ccf669c7: fan out a notification to all subscriber channels without blocking (mutates shared state)
 func dispatchToSubscribers(subscribers []chan Notification, notification Notification, channel string, logger *slogging.Logger) {
 	for _, ch := range subscribers {
 		select {

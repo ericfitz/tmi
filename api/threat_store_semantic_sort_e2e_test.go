@@ -17,7 +17,7 @@ import (
 // rows in canonical semantic order rather than lexicographic order (issue #280).
 // Complements TestBuildOrderBy / TestBuildSemanticOrderExpr by exercising the full
 // GORM pipeline: buildOrderBy -> query.Order -> SQLite execution.
-// SEM@0240c1fcec8f4ca8131c426f999aba63828ded4e: verify threat list sorts by semantic rank, not lexicographic order (reads DB)
+// SEM@0009f617a671a8b1d6ad8d25e96274ad7368888e: verify threat list sorts by semantic rank, not lexicographic order (reads DB)
 func TestSemanticSortEndToEnd(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -163,7 +163,7 @@ func TestSortPaginationStability(t *testing.T) {
 // sort=severity:desc (#910): critical > high > medium > low > informational >
 // unknown, with legacy stored values ranked as the client renders them and
 // unranked or missing values last, read through LIMIT/OFFSET pages.
-// SEM@c91b16ea67b50cc273cb925b803aeb2cac07d517: verify severity descending sort ranks current and legacy values across pages (reads DB)
+// SEM@0009f617a671a8b1d6ad8d25e96274ad7368888e: verify severity descending sort ranks current and legacy values across pages (reads DB)
 func TestSeverityDescAcrossPages(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)

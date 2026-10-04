@@ -100,7 +100,7 @@ func stringToUUID(s string) openapi_types.UUID {
 }
 
 // Create creates a new team, auto-adding the creator as a member with engineering_lead role
-// SEM@4eedf6e7a203606a23a27a5bef308389d4fe211d: store a new team and auto-enroll the creator as engineering lead (mutates DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new team and auto-enroll the creator as engineering lead (mutates DB)
 func (s *GormTeamStore) Create(ctx context.Context, team *Team, userInternalUUID string) (*Team, error) {
 	logger := slogging.Get()
 	logger.Debug("Creating team: %s", team.Name)

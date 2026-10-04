@@ -27,7 +27,7 @@ func NewGormTimmyUsageStore(db *gorm.DB) *GormTimmyUsageStore {
 }
 
 // Record persists a new usage record
-// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: persist a new Timmy usage record in a retryable transaction (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new usage record in a retryable transaction (writes DB)
 func (s *GormTimmyUsageStore) Record(ctx context.Context, usage *models.TimmyUsage) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

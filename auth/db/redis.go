@@ -15,7 +15,7 @@ import (
 )
 
 // RedisConfig holds the configuration for Redis connection
-// SEM@e50244f: Redis connection coordinates, credentials, and CA-pinned TLS settings (pure)
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: Redis connection settings: address, password source, database, and CA-pinned TLS
 type RedisConfig struct {
 	Host     string
 	Port     string
@@ -30,7 +30,7 @@ type RedisConfig struct {
 
 // redisOptions builds the go-redis client options for cfg. With TLS on, the
 // only trusted CA is cfg.TLSCAFile and the server name checked is cfg.Host.
-// SEM@0000000: build go-redis client options with per-connect credentials and optional CA-pinned TLS (pure)
+// SEM@32eda6c88eee02283fa8feb03bb2d42252451618: build go-redis client options with per-connect credentials and optional CA-pinned TLS
 func redisOptions(cfg RedisConfig) (*redis.Options, error) {
 	opts := &redis.Options{
 		Addr:            fmt.Sprintf("%s:%s", cfg.Host, cfg.Port),
@@ -208,7 +208,7 @@ func (db *RedisDB) LogStats(ctx context.Context) {
 // Set sets a key-value pair with expiration.
 // If an encryptor is configured and the key matches a sensitive pattern,
 // the value is encrypted before writing to Redis.
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: store a key-value pair in Redis, encrypting sensitive string or byte values at rest
+// SEM@678dbf33e51f2c734b5011e019d5f2bff6837612: store a Redis key-value with expiration, encrypting sensitive values at rest
 func (db *RedisDB) Set(ctx context.Context, key string, value any, expiration time.Duration) error {
 	if db.encryptor != nil && db.encryptor.IsEnabled() && shouldEncrypt(key) {
 		var strValue string
@@ -266,7 +266,7 @@ func (db *RedisDB) Del(ctx context.Context, key string) error {
 // HSet sets a hash field.
 // If an encryptor is configured and the key matches a sensitive pattern,
 // the field value is encrypted before writing to Redis.
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: store a hash field in Redis, encrypting sensitive keys at rest
+// SEM@678dbf33e51f2c734b5011e019d5f2bff6837612: store a Redis hash field, encrypting sensitive values at rest
 func (db *RedisDB) HSet(ctx context.Context, key, field string, value any) error {
 	if db.encryptor != nil && db.encryptor.IsEnabled() && shouldEncrypt(key) {
 		var strValue string

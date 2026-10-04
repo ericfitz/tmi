@@ -672,7 +672,7 @@ func transformSurveyResponses(responses []SeedSpecSurveyResp, users map[string]u
 	return seeds
 }
 
-// SEM@690b6a91dd88122c76b34cde3e9c1b6e4e5d7715: convert admin webhooks, test deliveries, addons, and client credentials to seed entries (pure)
+// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: convert admin webhooks, test deliveries, addons, and client credentials to seed entries (pure)
 func transformAdminWebhooksAndAddons(admin *SeedSpecAdmin) []SeedEntry {
 	if admin == nil {
 		return nil

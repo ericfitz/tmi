@@ -49,7 +49,7 @@ func (s *GormTimmyEmbeddingStore) ListByThreatModelAndIndexType(ctx context.Cont
 }
 
 // CreateBatch creates a batch of embeddings
-// SEM@fb2f7a7145abd513579b00a314e93717693bf60d: store a batch of embedding records in a single retryable transaction (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a batch of embedding records in a single retryable transaction (reads DB)
 func (s *GormTimmyEmbeddingStore) CreateBatch(ctx context.Context, embeddings []models.TimmyEmbedding) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

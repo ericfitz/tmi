@@ -249,7 +249,7 @@ func (h *AuditHandler) performRollback(c *gin.Context, entry *AuditEntryResponse
 	}
 }
 
-// SEM@c79f3cd129aecd7cd6562b875b7f02232594d3d1: restore a threat model from a snapshot, recreating it if previously deleted (mutates shared state)
+// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: restore a threat model from a snapshot, recreating it if deleted (writes DB)
 func (h *AuditHandler) rollbackThreatModel(ctx context.Context, entry *AuditEntryResponse, snapshotData []byte) error {
 	var tm ThreatModel
 	if err := json.Unmarshal(snapshotData, &tm); err != nil {

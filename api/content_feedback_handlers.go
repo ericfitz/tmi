@@ -267,7 +267,7 @@ func resolveContentFeedbackTarget(tmID string, in *ContentFeedbackInput) (Conten
 	}, nil
 }
 
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert feedback input and user identity into a ContentFeedback DB model (pure)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: convert feedback input and user identity into a ContentFeedback DB model (pure)
 func buildContentFeedbackModel(in *ContentFeedbackInput, tmID, userInternalUUID string) *models.ContentFeedback {
 	row := &models.ContentFeedback{
 		ThreatModelID: models.DBVarchar(tmID),
@@ -292,7 +292,7 @@ func buildContentFeedbackModel(in *ContentFeedbackInput, tmID, userInternalUUID 
 	return row
 }
 
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: convert a ContentFeedback DB model to its API DTO (pure)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: convert a ContentFeedback DB model to its API DTO (pure)
 func modelToContentFeedback(row *models.ContentFeedback) ContentFeedback {
 	out := ContentFeedback{
 		Id:            uuidMustParse(string(row.ID)),

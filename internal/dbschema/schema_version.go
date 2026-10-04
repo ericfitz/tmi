@@ -162,7 +162,7 @@ func SchemaFingerprintCurrent(db *gorm.DB, desired string) bool {
 
 // readSchemaFingerprint ensures the stamp table exists and returns the recorded
 // fingerprint, if any.
-// SEM@70c02e3f4b4dd833280d8f3ca9d152b483013ffe: fetch the stored schema fingerprint from the DB stamp table (reads DB)
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: fetch the stored schema fingerprint from the DB stamp table (reads DB)
 func readSchemaFingerprint(db *gorm.DB) (string, bool, error) {
 	fp, _, found, err := ReadSchemaStamp(db)
 	return fp, found, err
@@ -174,7 +174,7 @@ func readSchemaFingerprint(db *gorm.DB) (string, bool, error) {
 // (a pre-#480 database, or one never migrated by a stamping binary). Ensures
 // the stamp table exists, so the one side effect is an empty table on a
 // database that never had one.
-// SEM@0000000000000000000000000000000000000000: fetch the stored schema fingerprint stamp with its applied-at time (reads DB)
+// SEM@9d72eab25ff7508fb014a7b6d27836306f85bb2c: fetch the stored schema fingerprint stamp with its applied-at time (reads DB)
 func ReadSchemaStamp(db *gorm.DB) (fingerprint string, appliedAt time.Time, found bool, err error) {
 	if err := ensureSchemaVersionTable(db); err != nil {
 		return "", time.Time{}, false, err

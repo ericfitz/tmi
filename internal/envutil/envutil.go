@@ -26,7 +26,7 @@ func Get(key, fallback string) string {
 // Returns a non-nil empty map when nothing matches. Used for OAuth userinfo
 // claim mappings and additional OAuth parameters, which are dynamic-cardinality
 // (the concrete keys are only known at runtime).
-// SEM@33c446dc529c7bbdd5753f7eb5d6fb76e8f6ae6c: scan environment variables under a prefix into a lowercase suffix-to-value map (reads env)
+// SEM@f622b659f3a1f536265633cbf9dc2ff0ec703170: scan environment variables under a prefix into a lowercase suffix-to-value map (reads env)
 func ScanPrefixedMap(prefix string) map[string]string {
 	out := make(map[string]string)
 	for _, env := range os.Environ() {

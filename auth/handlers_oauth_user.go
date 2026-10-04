@@ -49,7 +49,7 @@ var errUnverifiedEmailMatch = errors.New("email not verified for sparse-record b
 // sentinel chain directly rather than relying on string matching. Any other
 // classified error (e.g. dberrors.ErrTransient) passes through unchanged and
 // is correctly reported as "not not-found" here.
-// SEM@1eb7997add7b39214eac29d20050d7968745a98d: classify a userResolver lookup error as not-found vs. a real failure (pure)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: classify a user lookup error as not-found versus a real failure (pure)
 func isUserNotFound(err error) bool {
 	return errors.Is(dberrors.Classify(err), dberrors.ErrNotFound)
 }

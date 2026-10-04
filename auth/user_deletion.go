@@ -109,7 +109,7 @@ func (s *Service) ValidateDeletionChallenge(ctx context.Context, userEmail, chal
 
 // DeleteUserAndData deletes a user by email and handles ownership transfer for threat models.
 // Used by the self-deletion flow (DELETE /me) where identity comes from JWT email.
-// SEM@cd187b523b66aef0fa87861d3a929c2017787b86: delete a user by email and transfer or remove owned threat models (mutates shared state)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: delete a user by email and their data after revoking tokens and credentials
 func (s *Service) DeleteUserAndData(ctx context.Context, userEmail string) (*DeletionResult, error) {
 	// Resolve email → internal UUID so the pre-delete sweeps can query by user ID.
 	if user, err := s.userRepo.GetByEmail(ctx, userEmail); err == nil {
@@ -136,7 +136,7 @@ func (s *Service) DeleteUserAndData(ctx context.Context, userEmail string) (*Del
 // BEFORE the DB delete so the rows are still present to read, and is
 // best-effort: failures are logged and never block deletion. Revoking before a
 // delete that then fails only costs a re-mint.
-// SEM@24d835d0aa601cdfaea187838ff139f49228ea26: revoke a user's content and service-account tokens before deleting the user, best-effort (reads DB)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: revoke a user's session tokens and client credentials before deletion
 func (s *Service) preUserDeleteSweep(ctx context.Context, internalUUID string) {
 	if s.preUserDeleteHook != nil {
 		s.preUserDeleteHook.RevokeUserTokens(ctx, internalUUID)
@@ -158,7 +158,7 @@ func (s *Service) preUserDeleteSweep(ctx context.Context, internalUUID string) {
 
 // DeleteUserByInternalUUID deletes a user by internal UUID and handles ownership transfer.
 // Used by admin deletion to avoid multi-hop identity resolution that can target the wrong user.
-// SEM@cd187b523b66aef0fa87861d3a929c2017787b86: delete a user by internal UUID and transfer or remove owned threat models (mutates shared state)
+// SEM@722ae4c635149d53c73f2831ee3d366695967cce: delete a user by internal ID and their data after revoking tokens
 func (s *Service) DeleteUserByInternalUUID(ctx context.Context, internalUUID string) (*DeletionResult, error) {
 	s.preUserDeleteSweep(ctx, internalUUID)
 

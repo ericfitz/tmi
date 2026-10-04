@@ -14,7 +14,7 @@ import (
 // TicketClaims is the identity bound to a WebSocket ticket. TokenHash and
 // CredentialID identify the token that minted the ticket so the upgrade can be
 // refused after that token or its client credential is revoked (#869).
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: identity and revocation handle bound to a WebSocket upgrade ticket (pure)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: hold identity and revocation handle bound to a WebSocket upgrade ticket (pure)
 type TicketClaims struct {
 	UserID       string `json:"user_id"`
 	Provider     string `json:"provider"`
@@ -25,7 +25,7 @@ type TicketClaims struct {
 }
 
 // TicketStore manages short-lived, single-use WebSocket authentication tickets.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: interface for issuing and consuming single-use WebSocket authentication tickets (pure)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: define interface for issuing and consuming single-use WebSocket authentication tickets (pure)
 type TicketStore interface {
 	// IssueTicket creates a ticket bound to the given claims, returning the ticket string.
 	IssueTicket(ctx context.Context, claims TicketClaims, ttl time.Duration) (string, error)
@@ -33,7 +33,7 @@ type TicketStore interface {
 	ValidateTicket(ctx context.Context, ticket string) (TicketClaims, error)
 }
 
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: in-memory record of a WebSocket authentication ticket and its expiry (pure)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: hold in-memory record of a WebSocket authentication ticket and its expiry (pure)
 type ticketEntry struct {
 	TicketClaims
 	ExpiresAt time.Time
@@ -61,7 +61,7 @@ func NewInMemoryTicketStore() *InMemoryTicketStore {
 }
 
 // IssueTicket creates a cryptographically random ticket bound to the given claims.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: generate a cryptographically random single-use ticket bound to a user session (mutates shared state)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: generate a cryptographically random single-use ticket bound to a user session (mutates shared state)
 func (s *InMemoryTicketStore) IssueTicket(_ context.Context, claims TicketClaims, ttl time.Duration) (string, error) {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
@@ -78,7 +78,7 @@ func (s *InMemoryTicketStore) IssueTicket(_ context.Context, claims TicketClaims
 }
 
 // ValidateTicket validates and consumes a ticket. It is single-use: the ticket is deleted on first access.
-// SEM@722ae4c635149d53c73f2831ee3d366695967cce: consume and validate a single-use ticket, returning its bound identity claims (mutates shared state)
+// SEM@c161adfd8ba839441ccd825e818d342a09c63849: consume and validate a single-use ticket, returning its bound identity claims (mutates shared state)
 func (s *InMemoryTicketStore) ValidateTicket(_ context.Context, ticket string) (TicketClaims, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

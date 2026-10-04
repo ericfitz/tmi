@@ -190,7 +190,7 @@ func (r *GormContentTokenRepository) Upsert(ctx context.Context, token *ContentT
 }
 
 // UpdateStatus updates the status and last_error fields for the given token ID.
-// SEM@4db312947ac9ae7ecc1e04865be072705812c8a8: update the status and last error fields of a content token (reads DB)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: update status and last error of a content token (writes DB)
 func (r *GormContentTokenRepository) UpdateStatus(ctx context.Context, id, status, lastError string) error {
 	res := r.db.WithContext(ctx).Model(&models.UserContentToken{}).
 		Where("id = ?", id).
@@ -305,7 +305,7 @@ func (r *GormContentTokenRepository) RefreshWithLock(ctx context.Context, id str
 }
 
 // encode converts a plaintext ContentToken to the GORM model with encrypted tokens.
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: convert a plaintext ContentToken to its encrypted GORM model representation (pure)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: convert a plaintext ContentToken to its encrypted GORM model representation (pure)
 func (r *GormContentTokenRepository) encode(t *ContentToken) (*models.UserContentToken, error) {
 	atCipher, err := r.enc.Encrypt([]byte(t.AccessToken))
 	if err != nil {
@@ -346,7 +346,7 @@ func (r *GormContentTokenRepository) encode(t *ContentToken) (*models.UserConten
 }
 
 // decode converts the GORM model (with encrypted tokens) to a plaintext ContentToken.
-// SEM@2dccb03396c9b3e288e2242edb54c418635c3e08: convert an encrypted GORM content token model to its plaintext domain struct (pure)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: convert an encrypted GORM content token model to its plaintext domain struct (pure)
 func (r *GormContentTokenRepository) decode(row *models.UserContentToken) (*ContentToken, error) {
 	at, err := r.enc.Decrypt([]byte(row.AccessToken))
 	if err != nil {

@@ -122,7 +122,7 @@ func GetWebhookDeliveryStatus(c *gin.Context) {
 }
 
 // UpdateWebhookDeliveryStatus updates the status of a webhook delivery (HMAC authenticated).
-// SEM@a3e8f5e791cb2d0db34a3485d770fb2aa7cdaaf5: update a webhook delivery status via HMAC-authenticated callback, resetting timeouts on success (mutates shared state)
+// SEM@411a53c663401d55a0f66913e00979599a208c93: update webhook delivery status via HMAC-authenticated callback, resetting timeouts on success (mutates shared state)
 func UpdateWebhookDeliveryStatus(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 

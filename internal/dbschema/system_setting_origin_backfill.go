@@ -113,7 +113,7 @@ func expectedSeedValues() map[string]string {
 // Idempotent and cheap in steady state: once a row is stamped, it no longer
 // matches `origin IS NULL` and is never re-examined. Safe to run on every
 // boot, ahead of AutoMigrate, mirroring DeduplicateGroups (group_dedupe.go).
-// SEM@0000000000000000000000000000000000000000: backfill explicit origin onto pre-existing system_settings rows that show operator intent, honoring ctx (writes DB)
+// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: backfill explicit origin onto pre-existing system settings rows showing operator intent (writes DB)
 func BackfillSystemSettingOrigin(ctx context.Context, db *gorm.DB) (int64, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err // HasTable swallows ctx errors on non-Oracle; fail loudly instead of reading as "no table"
@@ -215,7 +215,7 @@ func BackfillSystemSettingOrigin(ctx context.Context, db *gorm.DB) (int64, error
 // A no-op on SQLite: it is a test-fixture-only dialect here (see
 // sparseUserEmailIndexExists), and unlike CREATE INDEX, SQLite's ALTER TABLE
 // has no ADD CONSTRAINT form at all -- there is nothing to probe or run.
-// SEM@2daf3be663df9da54323f16d115f12d78d435c3f: add the origin CHECK constraint to system_settings, idempotently per dialect (writes DB)
+// SEM@9d11bae97f4fbff310c3bb9d258f4a55808f8abc: add the origin CHECK constraint to system_settings, idempotently per dialect (writes DB)
 func EnsureSystemSettingOriginCheckConstraint(ctx context.Context, db *gorm.DB) error {
 	settingsTable := (&models.SystemSetting{}).TableName()
 

@@ -416,7 +416,7 @@ func pendingAccessReasonCode(status, contentSource string) string {
 
 // CreateDocument creates a new document in a threat model
 // POST /threat_models/{threat_model_id}/documents
-// SEM@d994c2f113f9e0997f83a0815018638cc94111f7: store a new document under a threat model, optionally routing to async extraction (reads DB)
+// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: handle storing a new document under a threat model, optionally via async extraction (writes DB)
 func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateDocument - creating new document")

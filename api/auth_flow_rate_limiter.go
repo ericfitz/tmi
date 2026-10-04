@@ -90,14 +90,14 @@ func (r *AuthFlowRateLimiter) ResetUserRateLimit(ctx context.Context, userIdenti
 // CheckRateLimit checks all three scopes and returns the most restrictive result.
 // Scopes are evaluated most-specific-first: session (100/min), user identifier
 // (50/min), IP (100/min).
-// SEM@2ba330fcb59eb085d8f877fe8f75f90af9b69071: check all three auth-flow rate limit scopes and return the most restrictive result (reads DB)
+// SEM@e65e22eda9c7f823a595b68e0d38a22fae13d1ee: validate auth-flow session, user, and IP rate limits and return the most restrictive result (reads cache)
 func (r *AuthFlowRateLimiter) CheckRateLimit(ctx context.Context, sessionID string, ipAddress string, userIdentifier string) (*RateLimitResult, error) {
 	return r.checkRateLimitWithIPLimit(ctx, sessionID, ipAddress, userIdentifier, authFlowDefaultIPLimit)
 }
 
 // CheckRateLimitForTokenEndpoint checks rate limits for the token endpoint
 // Uses the same per-IP limit as other auth endpoints
-// SEM@c70d49ed2d6089c24d05f8bc287ba5711c73abde: check rate limits for the token endpoint using the standard per-IP limit (reads DB)
+// SEM@e65e22eda9c7f823a595b68e0d38a22fae13d1ee: validate token endpoint rate limits using the standard per-IP limit (reads cache)
 func (r *AuthFlowRateLimiter) CheckRateLimitForTokenEndpoint(ctx context.Context, sessionID string, ipAddress string, userIdentifier string) (*RateLimitResult, error) {
 	return r.checkRateLimitWithIPLimit(ctx, sessionID, ipAddress, userIdentifier, authFlowDefaultIPLimit)
 }
@@ -106,7 +106,7 @@ func (r *AuthFlowRateLimiter) CheckRateLimitForTokenEndpoint(ctx context.Context
 // Scopes are checked most-specific-first (session -> user -> IP) so that the
 // most narrowly-scoped counter is the one attributed when several would trip,
 // and so the lower per-user limit engages before the shared per-IP limit.
-// SEM@40c0e38339277e6a54d03dc01d30025bc0ef663d: check session, user, then IP rate limit scopes with a configurable IP limit (reads DB)
+// SEM@e65e22eda9c7f823a595b68e0d38a22fae13d1ee: validate session, user, then IP rate limit scopes with a configurable IP limit (reads cache)
 func (r *AuthFlowRateLimiter) checkRateLimitWithIPLimit(ctx context.Context, sessionID string, ipAddress string, userIdentifier string, ipLimit int) (*RateLimitResult, error) {
 	logger := slogging.Get()
 

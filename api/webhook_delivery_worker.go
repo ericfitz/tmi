@@ -33,7 +33,7 @@ const DelegationTokenHeader = "X-TMI-Delegation-Token"
 // All outbound requests go through SafeHTTPClient which pins the validated IP at
 // dial time, defending against DNS rebinding between subscription validation and
 // per-delivery dispatch.
-// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: background worker that dispatches pending webhook deliveries via SSRF-safe HTTP
+// SEM@d5abf2700f59ec278f7e45a485c9d19c90b0050f: background worker that dispatches pending webhook deliveries via SSRF-safe HTTP
 type WebhookDeliveryWorker struct {
 	baseWorker
 	client  *SafeHTTPClient
@@ -42,7 +42,7 @@ type WebhookDeliveryWorker struct {
 
 // NewWebhookDeliveryWorker creates a new delivery worker. The validator
 // controls the SSRF blocklist and URL schemes used for outbound calls.
-// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: build a WebhookDeliveryWorker with circuit breaker and SSRF-safe HTTP client
+// SEM@d5abf2700f59ec278f7e45a485c9d19c90b0050f: build a webhook delivery worker with circuit breaker and SSRF-safe HTTP client
 func NewWebhookDeliveryWorker(validator *URIValidator) *WebhookDeliveryWorker {
 	w := &WebhookDeliveryWorker{
 		client: NewSafeHTTPClient(
@@ -66,7 +66,7 @@ func NewWebhookDeliveryWorker(validator *URIValidator) *WebhookDeliveryWorker {
 const hardResponseBodyCap = 1 * 1024 * 1024
 
 // processPendingDeliveries processes all pending deliveries
-// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: fetch and dispatch all pending and retry-ready webhook deliveries in one batch (reads DB)
+// SEM@d5abf2700f59ec278f7e45a485c9d19c90b0050f: fetch and dispatch all pending and retry-ready webhook deliveries in one batch (reads DB)
 func (w *WebhookDeliveryWorker) processPendingDeliveries(ctx context.Context) error {
 	logger := slogging.Get()
 
@@ -106,7 +106,7 @@ func (w *WebhookDeliveryWorker) processPendingDeliveries(ctx context.Context) er
 }
 
 // deliverWebhook attempts to deliver a webhook to its endpoint
-// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: dispatch a single webhook delivery, handling circuit-breaker, HMAC signing, and async callback (reads DB)
+// SEM@d5abf2700f59ec278f7e45a485c9d19c90b0050f: dispatch one webhook delivery with circuit breaking, HMAC signing, and async callback (writes DB)
 func (w *WebhookDeliveryWorker) deliverWebhook(ctx context.Context, delivery WebhookDeliveryRecord) error {
 	logger := slogging.Get()
 
@@ -256,7 +256,7 @@ func truncateForLog(body []byte, n int) string {
 const logBodyCap = 10 * 1024
 
 // handleDeliveryFailure handles a failed delivery attempt
-// SEM@9bf8890e7d4a04bdbb3f0e80fb295392276e3a5d: schedule exponential retry or permanently fail a delivery after max attempts (reads DB)
+// SEM@d5abf2700f59ec278f7e45a485c9d19c90b0050f: schedule exponential retry or permanently fail a delivery after max attempts (writes DB)
 func (w *WebhookDeliveryWorker) handleDeliveryFailure(ctx context.Context, delivery WebhookDeliveryRecord, errorMsg string) error {
 	logger := slogging.Get()
 

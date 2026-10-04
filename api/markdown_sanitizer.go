@@ -99,7 +99,7 @@ func createMarkdownSanitizationPolicy() *bluemonday.Policy {
 // bluemonday does. Stripping a tag can splice neighbouring text into a new tag
 // (e.g. "<<script>script>"), so the pass repeats until stable; if it does not
 // settle, fall back to bluemonday's fully escaped output.
-// SEM@0000000: sanitize markdown by stripping disallowed HTML tags and attributes while keeping text verbatim (pure)
+// SEM@9924c9a931e361fced9cd376fbfd52220c9b0bc5: sanitize markdown by stripping disallowed HTML tags and attributes while keeping text verbatim (pure)
 func SanitizeMarkdownContent(content string) string {
 	if content == "" {
 		return content
@@ -123,7 +123,7 @@ var markdownSkipContent = map[string]bool{
 	"object": true, "script": true, "style": true, "noscript": true,
 }
 
-// SEM@0000000: remove disallowed HTML markup in one pass, copying text tokens unchanged (pure)
+// SEM@9924c9a931e361fced9cd376fbfd52220c9b0bc5: remove disallowed HTML markup in one pass, copying text tokens unchanged (pure)
 func stripMarkdownHTML(content string) string {
 	var out strings.Builder
 	z := xhtml.NewTokenizer(strings.NewReader(content))
@@ -176,7 +176,7 @@ func stripMarkdownHTML(content string) string {
 // This lives here rather than in each handler so the create, update and patch
 // paths across all four note resources cannot drift on it — the update paths
 // had no such check at all and silently persisted the empty value.
-// SEM@e1f2a3b4c5d6e7f8091a2b3c4d5e6f7081929304: sanitize a required markdown field, returning a 400 error when sanitization empties it (pure)
+// SEM@388282971a06c7f935aa98db0aff68602f0eda66: sanitize a required markdown field, returning a 400 error when sanitization empties it (pure)
 func SanitizeRequiredMarkdownContent(field, content string) (string, *RequestError) {
 	sanitized := SanitizeMarkdownContent(content)
 	if strings.TrimSpace(sanitized) == "" && strings.TrimSpace(content) != "" {

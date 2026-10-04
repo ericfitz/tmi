@@ -38,7 +38,7 @@ func NewGormNoteRepository(db *gorm.DB, cache *CacheService, invalidator *CacheI
 }
 
 // Create creates a new note
-// SEM@5dfa9dcf64aa0662920dbbab3bca200db1b22c73: store a new note under a threat model and populate its cache entry (reads DB)
+// SEM@dcd8d846ec500f67627f500efa9b1d25b7bc6c99: store a new note under a threat model and cache it (mutates DB, cache)
 func (s *GormNoteRepository) Create(ctx context.Context, note *Note, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -181,7 +181,7 @@ func (s *GormNoteRepository) Get(ctx context.Context, id string) (*Note, error) 
 }
 
 // Update updates an existing note
-// SEM@8dfef8f6c12df5ee0b3e4e320e4cb780a50506b0: update a note's fields in the DB and refresh its cache entry (mutates shared state)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: update a note's fields and refresh its cache entry (mutates DB, cache)
 func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModelID string) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -560,7 +560,7 @@ func (s *GormNoteRepository) saveMetadata(ctx context.Context, noteID string, me
 }
 
 // updateMetadata updates metadata for a note
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: replace all metadata entries for a note in the DB (reads DB)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: replace all metadata entries for a note (mutates DB)
 func (s *GormNoteRepository) updateMetadata(ctx context.Context, noteID string, metadata []Metadata) error {
 	// One transaction so a failed insert rolls back the delete instead of
 	// committing a bare metadata wipe (#670).

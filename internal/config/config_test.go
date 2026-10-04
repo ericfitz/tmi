@@ -963,7 +963,7 @@ func TestOverrideWithEnv(t *testing.T) {
 // TMI_SERVER_PORT is honored now)
 // =============================================================================
 
-// SEM@0000000000000000000000000000000000000000: verify a bare PORT env var no longer overrides Server.Port (reads env)
+// SEM@d0dd04daab6a17c9492d01d80920f869be8a735a: verify a bare PORT environment variable does not override the server port (reads env)
 func TestBarePortEnvVarIsIgnored(t *testing.T) {
 	content := `
 server:

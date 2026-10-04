@@ -15,7 +15,7 @@ import (
 
 // ContentOAuthHandlers holds the dependencies for the /me/content_tokens/* and
 // /oauth2/content_callback endpoints.
-// SEM@f7d829c2058f4f0be9f76648be2cbcfc3501f485: handler dependencies for content-token OAuth endpoints (struct)
+// SEM@f69d82c5864c65f768181d82416962e3bbd63667: handler dependencies for content-token OAuth endpoints (struct)
 type ContentOAuthHandlers struct {
 	Cfg           config.ContentOAuthConfig
 	Registry      *ContentOAuthProviderRegistry

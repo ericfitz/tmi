@@ -119,7 +119,7 @@ func requireMigrationTable(db *gorm.DB, table, step string) (bool, error) {
 // identifier quoting and whitespace, so definitions rendered by different
 // catalogs (pg_get_indexdef, sqlite_master.sql, ALL_IND_EXPRESSIONS) compare
 // structurally rather than textually (#756).
-// SEM@e733aa34cec28d44982ce9dd8937cf17ef810590: normalize an index definition string for cross-dialect structural comparison (pure)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: normalize an index definition string for cross-dialect structural comparison (pure)
 func normalizeIndexDDL(s string) string {
 	s = strings.ToLower(s)
 	for _, junk := range []string{`"`, "`", "'", " ", "\t", "\r", "\n"} {
@@ -146,7 +146,7 @@ func normalizeIndexDDL(s string) string {
 // COLUMN_POSITION order, scoped to the session's CURRENT_SCHEMA. Expression
 // (function-based) key parts appear as system-generated virtual columns
 // (SYS_NC...$); their expressions come from oracleIndexExpressions (#756).
-// SEM@e733aa34cec28d44982ce9dd8937cf17ef810590: fetch an Oracle index's column names in position order (reads DB)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: fetch an Oracle index's column names in position order (reads DB)
 func oracleIndexColumns(db *gorm.DB, indexName, tableName string) ([]string, error) {
 	var cols []string
 	err := db.Raw(
@@ -162,7 +162,7 @@ func oracleIndexColumns(db *gorm.DB, indexName, tableName string) ([]string, err
 // function-based key parts in COLUMN_POSITION order, scoped to the session's
 // CURRENT_SCHEMA. COLUMN_EXPRESSION is a LONG column; godror fetches LONG
 // values as strings, so a plain SELECT works (#756).
-// SEM@e733aa34cec28d44982ce9dd8937cf17ef810590: fetch an Oracle function-based index's key expressions in position order (reads DB)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: fetch an Oracle function-based index's key expressions in position order (reads DB)
 func oracleIndexExpressions(db *gorm.DB, indexName, tableName string) ([]string, error) {
 	var exprs []string
 	err := db.Raw(

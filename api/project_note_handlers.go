@@ -23,7 +23,7 @@ import (
 //
 // `action` completes "You must be a project team member or administrator to
 // <action> project notes".
-// SEM@e1f2a3b4c5d6e7f8091a2b3c4d5e6f7081929304: authorize a caller against a project's team, writing 404/403/500 as appropriate (reads DB)
+// SEM@bfe3f043180e288dc7f18690340fbdd493d5813c: authorize a caller as project team member or admin, writing 404/403/500 on failure (reads DB)
 func requireProjectTeamMemberOrAdmin(
 	c *gin.Context, ctx context.Context, projectID, userUUID, action string,
 ) bool {
@@ -70,7 +70,7 @@ func requireProjectTeamMemberOrAdmin(
 
 // ListProjectNotes returns a paginated list of notes for a project.
 // GET /projects/{project_id}/notes
-// SEM@8a8c018ad8b1686dd4e43f736f31431743de5393: fetch a paginated list of project notes, filtering non-sharable notes for unprivileged users (reads DB)
+// SEM@5180d2f924048649e7687f6b3733094086224488: list paginated project notes, hiding non-sharable notes from unprivileged users (reads DB)
 func (s *Server) ListProjectNotes(c *gin.Context, projectId openapi_types.UUID, params ListProjectNotesParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -129,7 +129,7 @@ func (s *Server) ListProjectNotes(c *gin.Context, projectId openapi_types.UUID, 
 
 // CreateProjectNote creates a new note for a project.
 // POST /projects/{project_id}/notes
-// SEM@8a8c018ad8b1686dd4e43f736f31431743de5393: store a new sanitized project note, enforcing sharable field restrictions by role (reads DB)
+// SEM@5180d2f924048649e7687f6b3733094086224488: store a new sanitized project note, restricting sharable fields by role (mutates DB)
 func (s *Server) CreateProjectNote(c *gin.Context, projectId openapi_types.UUID) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -198,7 +198,7 @@ func (s *Server) CreateProjectNote(c *gin.Context, projectId openapi_types.UUID)
 
 // GetProjectNote returns a specific project note.
 // GET /projects/{project_id}/notes/{project_note_id}
-// SEM@8a8c018ad8b1686dd4e43f736f31431743de5393: fetch a single project note, hiding non-sharable notes from unprivileged users as 404 (reads DB)
+// SEM@5180d2f924048649e7687f6b3733094086224488: fetch a project note, hiding non-sharable notes from unprivileged users as 404 (reads DB)
 func (s *Server) GetProjectNote(c *gin.Context, projectId openapi_types.UUID, projectNoteId ProjectNoteId) {
 	ctx := c.Request.Context()
 
@@ -232,7 +232,7 @@ func (s *Server) GetProjectNote(c *gin.Context, projectId openapi_types.UUID, pr
 
 // UpdateProjectNote replaces a project note.
 // PUT /projects/{project_id}/notes/{project_note_id}
-// SEM@8a8c018ad8b1686dd4e43f736f31431743de5393: replace a project note, enforcing sharable field and non-sharable visibility restrictions by role (reads DB)
+// SEM@5180d2f924048649e7687f6b3733094086224488: update a project note, enforcing sharable-field and visibility restrictions by role (mutates DB)
 func (s *Server) UpdateProjectNote(c *gin.Context, projectId openapi_types.UUID, projectNoteId ProjectNoteId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -316,7 +316,7 @@ func (s *Server) UpdateProjectNote(c *gin.Context, projectId openapi_types.UUID,
 
 // PatchProjectNote partially updates a project note using JSON Patch.
 // PATCH /projects/{project_id}/notes/{project_note_id}
-// SEM@8a8c018ad8b1686dd4e43f736f31431743de5393: apply JSON Patch to a project note, blocking sharable field changes for unprivileged users (reads DB)
+// SEM@5180d2f924048649e7687f6b3733094086224488: apply a JSON Patch to a project note, blocking sharable-field changes for unprivileged users (mutates DB)
 func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, projectNoteId ProjectNoteId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -380,7 +380,7 @@ func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, 
 
 // DeleteProjectNote deletes a project note.
 // DELETE /projects/{project_id}/notes/{project_note_id}
-// SEM@8a8c018ad8b1686dd4e43f736f31431743de5393: delete a project note, hiding non-sharable notes from unprivileged users as 404 (reads DB)
+// SEM@5180d2f924048649e7687f6b3733094086224488: delete a project note, hiding non-sharable notes from unprivileged users as 404 (mutates DB)
 func (s *Server) DeleteProjectNote(c *gin.Context, projectId openapi_types.UUID, projectNoteId ProjectNoteId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()

@@ -11,7 +11,7 @@ import (
 )
 
 // SurveyTemplate represents a survey template for security review intake
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model representing a versioned security review intake survey template (pure)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: GORM model representing a versioned security review intake survey template (pure)
 type SurveyTemplate struct {
 	ID                    DBVarchar      `gorm:"primaryKey;not null;size:36"`
 	Name                  DBVarchar      `gorm:"size:256;not null;index:idx_st_name;uniqueIndex:idx_st_name_version,priority:1"`
@@ -41,7 +41,7 @@ func (s *SurveyTemplate) BeforeCreate(tx *gorm.DB) error {
 }
 
 // SurveyTemplateVersion represents a versioned snapshot of a survey template definition
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model representing a frozen snapshot of a survey template definition (pure)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: GORM model representing a frozen snapshot of a survey template definition (pure)
 type SurveyTemplateVersion struct {
 	ID                    DBVarchar `gorm:"primaryKey;not null;size:36"`
 	TemplateID            DBVarchar `gorm:"size:36;not null;index:idx_stv_template;uniqueIndex:idx_stv_template_version,priority:1"`
@@ -70,7 +70,7 @@ func (s *SurveyTemplateVersion) BeforeCreate(tx *gorm.DB) error {
 }
 
 // SurveyResponse represents a user's response to a survey template
-// SEM@db6c3b75a42a48dd122e5984e9efdf0e6e15ca9d: GORM model representing a user's submitted answers to a survey template with lifecycle state (pure)
+// SEM@8ea37221e3186b49d52e78d8834a4e6dd35d2b93: GORM model representing a user's submitted answers to a survey template with lifecycle state (pure)
 type SurveyResponse struct {
 	ID                     DBVarchar         `gorm:"primaryKey;not null;size:36"`
 	TemplateID             DBVarchar         `gorm:"size:36;not null;index:idx_sr_template;index:idx_sr_template_status,priority:1"`

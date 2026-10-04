@@ -48,7 +48,7 @@ func (r *GormContentFeedbackRepository) Create(ctx context.Context, fb *models.C
 // On Oracle and PostgreSQL this is a real row lock; on SQLite (used in unit
 // tests) GORM's clause.Locking is silently ignored and the check still serializes
 // via the surrounding transaction's default isolation.
-// SEM@d0742bff5d3b93b3ab7b22df0377398a720a8d9c: insert content feedback only if its target row exists in the threat model, using a row lock (reads DB)
+// SEM@e8a1a5dcb2e991de1acdac2cb22163d5d00aa712: store content feedback only if its target exists in the threat model (writes DB)
 func (r *GormContentFeedbackRepository) CreateWithTargetCheck(ctx context.Context, fb *models.ContentFeedback, target ContentFeedbackTargetRef) error {
 	if fb.CreatedAt.IsZero() {
 		fb.CreatedAt = time.Now().UTC()
