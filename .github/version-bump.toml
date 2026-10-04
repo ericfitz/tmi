@@ -1,0 +1,25 @@
+# version-bump-bot config (ericfitz/version-bump-bot v1). The bot bumps
+# versions AFTER merge on main; PRs never edit these files (the guard rejects it).
+# See docs/superpowers/specs/2026-10-03-adr-adopt-version-bump-bot.md.
+
+[merge]
+skip_paths = ["docs/**", "PROGRESS.md", "**/*.md"]   # a commit touching only these bumps nothing
+
+[[stream]]
+name = "server"
+source = { file = ".version", format = "json-semver" }
+targets = [
+  { file = "api/version.go", regex = 'VersionMajor = "(?P<major>\d+)"' },
+  { file = "api/version.go", regex = 'VersionMinor = "(?P<minor>\d+)"' },
+  { file = "api/version.go", regex = 'VersionPatch = "(?P<patch>\d+)"' },
+]
+breaking = "minor"
+tag = "v{version}"
+
+[[stream]]
+name = "schema"
+source = { file = "api-schema/tmi-openapi.json", format = "json-path", path = "info.version" }
+trigger = { changed = ["api-schema/tmi-openapi.json"], ignore_json_paths = ["info.version"] }
+breaking = "major"
+after = ["make generate-api"]
+verify = ["scripts/check-embedded-spec.sh"]

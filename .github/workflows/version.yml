@@ -1,0 +1,23 @@
+# Versioning is done by ericfitz/version-bump-bot after merge (config:
+# .github/version-bump.toml). On PRs, "guard / Version Guard" (required)
+# fails if the PR edits a version file or the embedded spec drifts from
+# api-schema/tmi-openapi.json. On push to main, the bump job folds every
+# unbumped commit into one chore(version) commit plus a v<server> tag, pushed
+# by the ericfitz-version-bump App (the main ruleset's only bypass actor).
+name: Version
+on:
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  guard:
+    if: github.event_name == 'pull_request'
+    uses: ericfitz/version-bump-bot/.github/workflows/guard.yml@v1
+  bump:
+    if: github.event_name != 'pull_request'
+    uses: ericfitz/version-bump-bot/.github/workflows/bump.yml@v1
+    with:
+      setup: go,oapi-codegen@v2.7.1   # make generate-api after a schema bump; other oapi-codegen versions miscompile api/api.go
+    secrets: inherit
