@@ -32,6 +32,6 @@
 
 - If the escrow write fails, the rotation does not promote and stays in `staged` (fails closed), so the stale-rotation alarm fires.
 - Escrow is a no-op when no escrow ARN is configured, as on the docker-desktop and k3s dev clusters.
-- A restore runbook lives on the wiki Secret-Rotation page.
+- A restore runbook will be published on the wiki Secret-Rotation page (draft pending publication with #1009's deploy).
 - The JWT keyring (#965 PR 2) reuses the mechanism.
 - Until escrow ships, the AWS `tmi-secrets` Secret carries a `tmi.dev/rotated-at.settings-key` annotation set to the key's creation date (2026-07-26). That defers the first rotation to about 2026-10-24. Remove the annotation once escrow is live.
