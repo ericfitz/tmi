@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"maps"
 	"reflect"
 	"testing"
 	"time"
@@ -268,6 +269,30 @@ func TestSettingsKeyRotation_EscrowFailureStaysStagedThenRetries(t *testing.T) {
 	require.Len(t, esc.puts, 2, "escrow retried on resume")
 	require.Equal(t, esc.puts[0], esc.puts[1], "retry escrows the identical payload")
 	require.Greater(t, st.DataWrites, writes)
+}
+
+// SEM@0000000: verify a failed escrow from staged leaves Secret data, annotations, and writes untouched
+func TestSettingsKeyRotation_EscrowFailureFromStagedLeavesSecretUnchanged(t *testing.T) {
+	sec := settingsSecret()
+	sec.Data["TMI_SECRET_SETTINGS_ENCRYPTION_PREVIOUS_KEY"] = "0000000000000000000000000000000000000000000000000000000000000002"
+	sec.Data["TMI_SECRET_SETTINGS_ENCRYPTION_PREVIOUS_CONTEXT_ID"] = "2"
+	sec.Annotations[AnnPhase+"settings-key"] = "staged"
+	sec.Annotations[AnnGeneration+"settings-key"] = "0"
+	env, st := testEnv(sec)
+	st.DataWrites = 1 // the stage write already happened, so the rollout wait passes and escrow is reached
+	before, _ := st.Get(context.Background(), "tmi-secrets")
+	dataBefore := maps.Clone(before.Data)
+	annBefore := maps.Clone(before.Annotations)
+	esc := &fakeEscrow{failures: 1}
+
+	err := NewSettingsKeyRotation(&fakeSettings{rows: map[int]int64{1: 2}}, time.Hour, esc).Run(context.Background(), env)
+
+	require.Error(t, err)
+	require.Len(t, esc.puts, 1, "escrow was attempted")
+	after, _ := st.Get(context.Background(), "tmi-secrets")
+	require.Equal(t, dataBefore, after.Data, "a failed escrow must not change any Secret data")
+	require.Equal(t, annBefore, after.Annotations, "a failed escrow must not change any annotation")
+	require.Equal(t, 1, st.DataWrites, "a failed escrow must not write the Secret")
 }
 
 // SEM@070c69a19a7fed18f17f2bd3475d508172778494: test that a nil escrow is treated as a no-op
