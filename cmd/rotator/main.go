@@ -159,7 +159,7 @@ func run() int {
 	// Settings key first: it needs no Redis credential change, so a Redis
 	// password problem cannot strand it.
 	rotations := []rotator.Rotation{
-		rotator.NewSettingsKeyRotation(rotator.NewGormSettingsStore(gormDB.DB(), redisDB), o.SettingsPreviousGrace),
+		rotator.NewSettingsKeyRotation(rotator.NewGormSettingsStore(gormDB.DB(), redisDB), o.SettingsPreviousGrace, rotator.NoopEscrow{}),
 		rotator.NewRedisPasswordRotation(rotator.NewGoRedisACL(redisDB.GetClient())),
 	}
 	if err := rotator.Run(ctx, env, rotations, o.Force); err != nil {

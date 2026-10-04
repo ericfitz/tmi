@@ -136,7 +136,7 @@ func settingsSecretInPhase(phase string) *Secret {
 func TestSettingsKeyRotation_RefusesToStartWithPreviousPair(t *testing.T) {
 	env, st := testEnv(settingsSecretInPhase(""))
 	fs := &fakeSettings{rows: map[int]int64{}}
-	err := NewSettingsKeyRotation(fs, time.Hour).Run(context.Background(), env)
+	err := NewSettingsKeyRotation(fs, time.Hour, NoopEscrow{}).Run(context.Background(), env)
 	require.ErrorContains(t, err, "refusing to start a new rotation")
 	require.Zero(t, st.DataWrites)
 	s, _ := st.Get(context.Background(), "tmi-secrets")
@@ -149,7 +149,7 @@ func TestSettingsKeyRotation_ReEncryptErrorKeepsPromotedPhase(t *testing.T) {
 	env, st := testEnv(settingsSecretInPhase("promoted"))
 	st.DataWrites = 1 // the promote write already rolled the server
 	fs := &failingSettings{fakeSettings: fakeSettings{rows: map[int]int64{}}, err: errors.New("db down")}
-	err := NewSettingsKeyRotation(fs, time.Hour).Run(context.Background(), env)
+	err := NewSettingsKeyRotation(fs, time.Hour, NoopEscrow{}).Run(context.Background(), env)
 	require.ErrorContains(t, err, "db down")
 	s, _ := st.Get(context.Background(), "tmi-secrets")
 	require.Equal(t, "promoted", s.Annotations[AnnPhase+"settings-key"])
@@ -170,7 +170,7 @@ func TestSettingsKeyRotation_PhaseCASConflict(t *testing.T) {
 		env, st := testEnv(settingsSecretInPhase("promoted"))
 		st.DataWrites = 1
 		env.Rollouts = &afterWaitWaiter{RolloutWaiter: env.Rollouts, after: advance(st, "reencrypted")}
-		err := NewSettingsKeyRotation(&fakeSettings{rows: map[int]int64{}}, time.Hour).Run(context.Background(), env)
+		err := NewSettingsKeyRotation(&fakeSettings{rows: map[int]int64{}}, time.Hour, NoopEscrow{}).Run(context.Background(), env)
 		require.ErrorIs(t, err, ErrConflict)
 		s, _ := st.Get(context.Background(), "tmi-secrets")
 		require.Equal(t, "reencrypted", s.Annotations[AnnPhase+"settings-key"], "peer's phase is untouched")
@@ -183,7 +183,7 @@ func TestSettingsKeyRotation_PhaseCASConflict(t *testing.T) {
 		env, st := testEnv(sec)
 		st.DataWrites = 1
 		env.Rollouts = &afterWaitWaiter{RolloutWaiter: env.Rollouts, after: advance(st, "promoted")}
-		err := NewSettingsKeyRotation(&fakeSettings{rows: map[int]int64{}}, time.Hour).Run(context.Background(), env)
+		err := NewSettingsKeyRotation(&fakeSettings{rows: map[int]int64{}}, time.Hour, NoopEscrow{}).Run(context.Background(), env)
 		require.ErrorIs(t, err, ErrConflict)
 		s, _ := st.Get(context.Background(), "tmi-secrets")
 		require.Equal(t, "1", s.Data["TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID"], "no second promotion written")

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -56,7 +58,7 @@ func settingsSecret() *Secret {
 func TestSettingsKeyRotation_StageThenPromoteThenReencrypt(t *testing.T) {
 	env, st := testEnv(settingsSecret())
 	fs := &fakeSettings{rows: map[int]int64{1: 40}}
-	r := NewSettingsKeyRotation(fs, 8*24*time.Hour)
+	r := NewSettingsKeyRotation(fs, 8*24*time.Hour, NoopEscrow{})
 	require.NoError(t, r.Run(context.Background(), env))
 
 	s, _ := st.Get(context.Background(), "tmi-secrets")
@@ -79,7 +81,7 @@ func TestSettingsKeyRotation_StageThenPromoteThenReencrypt(t *testing.T) {
 func TestSettingsKeyRotation_DropWaitsForGraceAndZeroRows(t *testing.T) {
 	env, st := testEnv(settingsSecret())
 	fs := &fakeSettings{rows: map[int]int64{1: 3}}
-	r := NewSettingsKeyRotation(fs, 8*24*time.Hour)
+	r := NewSettingsKeyRotation(fs, 8*24*time.Hour, NoopEscrow{})
 	require.NoError(t, r.Run(context.Background(), env)) // -> reencrypted
 	writes := st.DataWrites
 
@@ -118,7 +120,7 @@ func TestSettingsKeyRotation_ResumeFromStaged(t *testing.T) {
 	env, st := testEnv(sec)
 	st.DataWrites = 1
 	fs := &fakeSettings{rows: map[int]int64{1: 2}}
-	require.NoError(t, NewSettingsKeyRotation(fs, time.Hour).Run(context.Background(), env))
+	require.NoError(t, NewSettingsKeyRotation(fs, time.Hour, NoopEscrow{}).Run(context.Background(), env))
 	s, _ := st.Get(context.Background(), "tmi-secrets")
 	kr, _ := KeyringFromSecret(s)
 	require.Equal(t, 2, kr.CurrentID)
@@ -175,9 +177,98 @@ func TestSettingsKeyRotation_StagedWithoutPairRefusesToPromote(t *testing.T) {
 	st.DataWrites = 1 // the stage write already happened, so the rollout wait passes and the guard is reached
 	before, _ := st.Get(context.Background(), "tmi-secrets")
 	dataBefore := before.Clone().Data
-	err := NewSettingsKeyRotation(&fakeSettings{rows: map[int]int64{}}, time.Hour).Run(context.Background(), env)
+	err := NewSettingsKeyRotation(&fakeSettings{rows: map[int]int64{}}, time.Hour, NoopEscrow{}).Run(context.Background(), env)
 	require.ErrorContains(t, err, "refusing to promote")
 	after, _ := st.Get(context.Background(), "tmi-secrets")
 	require.True(t, reflect.DeepEqual(dataBefore, after.Data), "secret data must be unchanged")
 	require.Equal(t, 1, st.DataWrites)
+}
+
+// SEM@69c2865a: escrow test double recording payloads and the phase seen at each call
+type fakeEscrow struct {
+	puts     [][]byte
+	failures int // fail this many calls before succeeding
+	st       *memSecretStoreProbe
+}
+
+// memSecretStoreProbe records the settings-key phase at each Put, to prove ordering.
+// SEM@69c2865a: probe recording settings-key phases observed during escrow
+type memSecretStoreProbe struct {
+	get    func() *Secret
+	phases []string
+}
+
+// SEM@69c2865a: record a payload and phase, failing the configured number of times (test double)
+func (f *fakeEscrow) Put(_ context.Context, p []byte) error {
+	if f.st != nil {
+		f.st.phases = append(f.st.phases, f.st.get().Annotations[AnnPhase+"settings-key"])
+	}
+	f.puts = append(f.puts, append([]byte(nil), p...))
+	if f.failures > 0 {
+		f.failures--
+		return errors.New("escrow down")
+	}
+	return nil
+}
+
+// SEM@69c2865a: verify escrow runs while staged and names post-promotion key roles
+func TestSettingsKeyRotation_EscrowsBeforePromote(t *testing.T) {
+	env, st := testEnv(settingsSecret())
+	probe := &memSecretStoreProbe{get: func() *Secret { s, _ := st.Get(context.Background(), "tmi-secrets"); return s }}
+	esc := &fakeEscrow{st: probe}
+	require.NoError(t, NewSettingsKeyRotation(&fakeSettings{rows: map[int]int64{1: 1}}, time.Hour, esc).Run(context.Background(), env))
+	require.Len(t, esc.puts, 1)
+	require.Equal(t, []string{"staged"}, probe.phases, "escrow ran while still staged, before promote")
+
+	var p struct {
+		Rotation   string `json:"rotation"`
+		EscrowedAt string `json:"escrowed_at"`
+		Current    struct {
+			ID     int    `json:"id"`
+			KeyHex string `json:"key_hex"`
+		} `json:"current"`
+		Previous struct {
+			ID     int    `json:"id"`
+			KeyHex string `json:"key_hex"`
+		} `json:"previous"`
+	}
+	require.NoError(t, json.Unmarshal(esc.puts[0], &p))
+	s, _ := st.Get(context.Background(), "tmi-secrets")
+	kr, _ := KeyringFromSecret(s)
+	require.Equal(t, "settings-key", p.Rotation)
+	require.Equal(t, "2026-09-28T12:00:00Z", p.EscrowedAt)
+	require.Equal(t, kr.CurrentID, p.Current.ID)
+	require.True(t, p.Current.KeyHex == kr.CurrentKeyHex, "escrow current = promoted key")
+	require.Equal(t, 1, p.Previous.ID)
+	require.True(t, p.Previous.KeyHex == "0000000000000000000000000000000000000000000000000000000000000001", "escrow previous = old key")
+}
+
+// SEM@69c2865a: verify escrow failure leaves rotation staged and a rerun retries then promotes
+func TestSettingsKeyRotation_EscrowFailureStaysStagedThenRetries(t *testing.T) {
+	env, st := testEnv(settingsSecret())
+	esc := &fakeEscrow{failures: 1}
+	r := NewSettingsKeyRotation(&fakeSettings{rows: map[int]int64{1: 1}}, time.Hour, esc)
+
+	err := r.Run(context.Background(), env)
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "0000000000000000000000000000000000000000000000000000000000000001")
+	s, _ := st.Get(context.Background(), "tmi-secrets")
+	require.Equal(t, "staged", s.Annotations[AnnPhase+"settings-key"])
+	kr, _ := KeyringFromSecret(s)
+	require.Equal(t, 1, kr.CurrentID, "not promoted")
+	writes := st.DataWrites
+
+	require.NoError(t, r.Run(context.Background(), env)) // next nightly run
+	s, _ = st.Get(context.Background(), "tmi-secrets")
+	require.Equal(t, "reencrypted", s.Annotations[AnnPhase+"settings-key"])
+	require.Len(t, esc.puts, 2, "escrow retried on resume")
+	require.Greater(t, st.DataWrites, writes)
+}
+
+// SEM@69c2865a: verify a nil escrow is treated as a no-op
+func TestSettingsKeyRotation_NilEscrowIsNoop(t *testing.T) {
+	env, st := testEnv(settingsSecret())
+	require.NoError(t, NewSettingsKeyRotation(&fakeSettings{rows: map[int]int64{1: 1}}, time.Hour, nil).Run(context.Background(), env))
+	s, _ := st.Get(context.Background(), "tmi-secrets")
+	require.Equal(t, "reencrypted", s.Annotations[AnnPhase+"settings-key"])
 }
