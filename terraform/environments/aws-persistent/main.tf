@@ -131,6 +131,35 @@ resource "aws_secretsmanager_secret" "settings_key_escrow" {
   }
 }
 
+# Terraform's prevent_destroy guards the escrow secret only against Terraform.
+# This Deny covers the console and CLI for the admin users too (#1030): deleting
+# the secret (even with a recovery window) or attaching a resource policy that
+# could expose the escrowed keys to another principal requires removing this
+# attachment first, a deliberate two-step change.
+resource "aws_iam_policy" "deny_delete_settings_key_escrow" {
+  name        = "deny-delete-tmi-settings-key-escrow"
+  description = "Deny deleting or re-permissioning the TMI settings-key escrow secret - only on explicit owner instruction"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid    = "DenyDeleteTmiSettingsKeyEscrow"
+      Effect = "Deny"
+      Action = [
+        "secretsmanager:DeleteSecret",
+        "secretsmanager:PutResourcePolicy",
+      ]
+      Resource = aws_secretsmanager_secret.settings_key_escrow.arn
+    }]
+  })
+}
+
+resource "aws_iam_user_policy_attachment" "deny_delete_settings_key_escrow" {
+  for_each   = toset(var.admin_users)
+  user       = each.value
+  policy_arn = aws_iam_policy.deny_delete_settings_key_escrow.arn
+}
+
 ################################################################################
 # Log bucket
 ################################################################################
