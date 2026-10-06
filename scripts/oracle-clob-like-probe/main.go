@@ -174,7 +174,7 @@ func main() {
 		return
 	}
 	if len(caseHits) == 1 && caseHits[0].ID == rows[0].ID {
-		fmt.Println("  PASS: LOWER(clob) LIKE LOWER('%fox%') matched the one expected row.")
+		fmt.Printf("  PASS: LOWER(clob) LIKE LOWER('%%fox%%') matched the one expected row.\n")
 	} else {
 		ok = false
 		fmt.Printf("  FAIL: expected exactly row 1 for '%%fox%%', got %d rows.\n", len(caseHits))
