@@ -40,6 +40,10 @@ from `go.mod` via `go mod tidy` once nothing imported it; `godror` (Oracle DB dr
 HashiCorp `vault` secrets providers, and the generic `CloudLogWriter`/`NoopCloudWriter`
 logging extension point, remain.
 
+**Single-instance topology (human decision, Eric, session 15, recorded 2026-10-06).** On every
+supported target, TMI runs single-instance stateful pods (server, Redis, PostgreSQL, NATS), with no HA
+replicas. Adding HA is a new architectural decision.
+
 ## Rationale
 
 Maintaining five cloud Terraform environments and a Heroku deployment path added review and
