@@ -3,7 +3,7 @@
 # See docs/superpowers/specs/2026-10-03-adr-adopt-version-bump-bot.md.
 
 [merge]
-skip_paths = ["docs/**", "PROGRESS.md", "**/*.md"]   # a commit touching only these bumps nothing
+skip_paths = ["docs/**", "**/*.md"]   # a commit touching only these bumps nothing
 
 [[stream]]
 name = "server"
