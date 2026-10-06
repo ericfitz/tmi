@@ -683,6 +683,16 @@ build-containers: build-all
 test: test-unit
 lint:
 	@uv run scripts/lint.py
+.PHONY: verify
+verify: ## Done gate: everything CI runs, in CI order (lint, build, all build tags, race unit tests)
+	$(MAKE) lint
+	~/go/bin/golangci-lint run --timeout=10m ./...
+	$(MAKE) build-server
+	go build ./...
+	go vet ./...
+	go vet -tags oracle ./...
+	go test -race -short ./...
+	@echo "verify: OK"
 clean: clean-everything
 dev: dev-up
 
