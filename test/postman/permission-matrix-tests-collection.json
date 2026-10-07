@@ -64,10 +64,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Alice owns the threat model the whole matrix operates on; Charlie is its reader; Diana has no access.",
-                  "// Known problem: in the dev stack Charlie is an administrator and a member of security-reviewers,",
-                  "// which the server adds to every threat model as owner, so Charlie's effective role is owner and",
-                  "// the reader assertions cannot hold for him. An unprivileged user (e.g. Bob) is needed as the reader.",
+                  "// Alice owns the threat model the whole matrix operates on; Bob is its reader; Diana has no access.",
+                  "// Bob is the reader, not Charlie: Charlie is an administrator (security-reviewers member), so the server makes him owner of every threat model.",
                   "// Load the real data factory (the runners provide its source via newman --globals)",
                   "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
                   "const factory = new TMITestDataFactory();",
@@ -76,7 +74,7 @@
                   "    description: 'Created by Alice for permission testing',",
                   "    additional: {",
                   "        authorization: [",
-                  "            { principal_type: 'user', provider: 'tmi', provider_id: 'charlie', email: 'charlie@tmi.local', role: 'reader' }",
+                  "            { principal_type: 'user', provider: 'tmi', provider_id: 'bob', email: 'bob@tmi.local', role: 'reader' }",
                   "        ]",
                   "    }",
                   "});",
@@ -94,12 +92,12 @@
                   "    pm.response.to.have.status(201);",
                   "});",
                   "",
-                  "pm.test('Alice owns the threat model and Charlie is a reader', function () {",
+                  "pm.test('Alice owns the threat model and Bob is a reader', function () {",
                   "    const responseData = pm.response.json();",
                   "    pm.expect(responseData.id).to.match(/^[0-9a-f-]{36}$/);",
                   "    pm.collectionVariables.set('aliceThreatModelId', responseData.id);",
-                  "    const charlie = responseData.authorization.find((a) => a.provider_id === 'charlie');",
-                  "    pm.expect(charlie).to.have.property('role', 'reader');",
+                  "    const bob = responseData.authorization.find((a) => a.provider_id === 'bob');",
+                  "    pm.expect(bob).to.have.property('role', 'reader');",
                   "});"
                 ]
               }
@@ -130,7 +128,7 @@
                 "threat_models"
               ]
             },
-            "description": "Alice creates the threat model used by the permission matrix and grants Charlie the reader role in the same request (authorization is part of the create body), so the collection runs standalone."
+            "description": "Alice creates the threat model used by the permission matrix and grants Bob the reader role in the same request (authorization is part of the create body), so the collection runs standalone."
           }
         },
         {
@@ -409,7 +407,7 @@
       "description": "Test owner permissions (full access)"
     },
     {
-      "name": "Reader Access Tests (Charlie)",
+      "name": "Reader Access Tests (Bob)",
       "item": [
         {
           "name": "Reader Read Access - Success (200)",
@@ -419,9 +417,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Switch to Charlie (reader)",
+                  "// Switch to Bob (reader)",
                   "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.setActiveUser('charlie');",
+                  "    tmiAuth.setActiveUser('bob');",
                   "}"
                 ]
               }
@@ -449,7 +447,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               }
             ],
             "url": {
@@ -462,7 +460,7 @@
                 "{{aliceThreatModelId}}"
               ]
             },
-            "description": "Charlie reads Alice's threat model (granted reader access)"
+            "description": "Bob reads Alice's threat model (granted reader access)"
           }
         },
         {
@@ -508,7 +506,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -529,7 +527,7 @@
                 "{{aliceThreatModelId}}"
               ]
             },
-            "description": "Charlie attempts to modify Alice's threat model (should fail)"
+            "description": "Bob attempts to modify Alice's threat model (should fail)"
           }
         },
         {
@@ -559,7 +557,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               }
             ],
             "url": {
@@ -572,7 +570,7 @@
                 "{{aliceThreatModelId}}"
               ]
             },
-            "description": "Charlie attempts to delete Alice's threat model (should fail)"
+            "description": "Bob attempts to delete Alice's threat model (should fail)"
           }
         }
       ],
@@ -838,9 +836,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Switch to Charlie (reader)",
+                  "// Switch to Bob (reader)",
                   "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.setActiveUser('charlie');",
+                  "    tmiAuth.setActiveUser('bob');",
                   "}",
                   "",
                   "const threatData = {",
@@ -875,7 +873,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -934,7 +932,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -978,7 +976,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               }
             ],
             "url": {
@@ -1175,9 +1173,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Switch to Charlie (reader)",
+                  "// Switch to Bob (reader)",
                   "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.setActiveUser('charlie');",
+                  "    tmiAuth.setActiveUser('bob');",
                   "}",
                   "",
                   "const docData = {",
@@ -1212,7 +1210,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -1271,7 +1269,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -1315,7 +1313,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               }
             ],
             "url": {
@@ -1452,9 +1450,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Switch to Charlie (reader)",
+                  "// Switch to Bob (reader)",
                   "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.setActiveUser('charlie');",
+                  "    tmiAuth.setActiveUser('bob');",
                   "}",
                   "",
                   "const diagramData = {",
@@ -1489,7 +1487,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -1548,7 +1546,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -1592,7 +1590,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               }
             ],
             "url": {
@@ -1661,9 +1659,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Switch to Charlie (reader)",
+                  "// Switch to Bob (reader)",
                   "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.setActiveUser('charlie');",
+                  "    tmiAuth.setActiveUser('bob');",
                   "}"
                 ]
               }
@@ -1690,7 +1688,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -1786,9 +1784,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Switch to Charlie (reader)",
+                  "// Switch to Bob (reader)",
                   "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.setActiveUser('charlie');",
+                  "    tmiAuth.setActiveUser('bob');",
                   "}",
                   "",
                   "const repoData = {",
@@ -1823,7 +1821,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -1882,7 +1880,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -1926,7 +1924,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               }
             ],
             "url": {
@@ -2065,9 +2063,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Switch to Charlie (reader)",
+                  "// Switch to Bob (reader)",
                   "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.setActiveUser('charlie');",
+                  "    tmiAuth.setActiveUser('bob');",
                   "}",
                   "",
                   "const assetData = {",
@@ -2102,7 +2100,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -2161,7 +2159,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -2205,7 +2203,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               }
             ],
             "url": {
@@ -2342,9 +2340,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Switch to Charlie (reader)",
+                  "// Switch to Bob (reader)",
                   "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.setActiveUser('charlie');",
+                  "    tmiAuth.setActiveUser('bob');",
                   "}",
                   "",
                   "const noteData = {",
@@ -2378,7 +2376,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -2436,7 +2434,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -2480,7 +2478,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               }
             ],
             "url": {
@@ -2555,9 +2553,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Switch to Charlie (reader)",
+                  "// Switch to Bob (reader)",
                   "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.setActiveUser('charlie');",
+                  "    tmiAuth.setActiveUser('bob');",
                   "}",
                   "",
                   "const metadataData = {",
@@ -2589,7 +2587,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -2633,7 +2631,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               }
             ],
             "url": {
@@ -2702,9 +2700,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Switch to Charlie (reader)",
+                  "// Switch to Bob (reader)",
                   "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.setActiveUser('charlie');",
+                  "    tmiAuth.setActiveUser('bob');",
                   "}",
                   "",
                   "const metadataData = {",
@@ -2736,7 +2734,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
@@ -2792,7 +2790,7 @@
             "header": [
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_charlie}}"
+                "value": "Bearer {{token_bob}}"
               },
               {
                 "key": "Content-Type",
