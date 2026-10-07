@@ -94,7 +94,7 @@ rules:
   # Schema Rule Adjustments
   # ============================================================================
 
-  # oas-schema-check: Suppress (3 warnings)
+  # oas-schema-check: Suppress (2 warnings)
   # Rationale: The discriminator warnings are for polymorphic schemas
   # (DfdDiagram.cells.items, DfdDiagramInput.cells.items) where the discriminator
   # property is defined in the referenced schemas (Node.shape, Edge.shape) rather

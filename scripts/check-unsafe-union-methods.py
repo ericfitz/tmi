@@ -7,11 +7,13 @@
 
 The generated FromNode, MergeNode, FromMinimalNode, and MergeMinimalNode methods
 in api/api.go currently marshal the value as given, but that is incidental:
-oapi-codegen writes a fixed discriminator value whenever exactly one mapping
-value maps to the target type, and a spec change that narrows Node's shape
-mapping, or a generator change, would silently corrupt cell shapes. Non-generated
-code must use SafeFromNode() or SafeFromEdge() from api/cell_union_helpers.go
-instead, which are the required entry points.
+oapi-codegen v2.7.1 assigns the discriminator in From<Variant>/Merge<Variant>
+only when the discriminator mapping has exactly one entry per oneOf member. Here
+cells.items has 2 members and 6 mapping entries, so nothing is assigned;
+collapsing Node's five shape entries to one would make the union qualify and
+hardcode a single shape into every node. Non-generated code must use
+SafeFromNode() or SafeFromEdge() from api/cell_union_helpers.go instead, which
+are the required entry points.
 
 Usage:
     uv run scripts/check-unsafe-union-methods.py
