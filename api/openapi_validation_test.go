@@ -183,6 +183,7 @@ func TestOpenAPIErrorHandler(t *testing.T) {
 // request validator with request bodies that break the spec's constraints and
 // asserts the documented 400 error code, invalid_input, rather than invalid_id
 // (which is reserved for malformed path/query identifiers).
+// SEM@52df980c1d7491dbcef92922d2b1574b07e802a8: validate that request-body schema violations yield invalid_input errors through the OpenAPI validator
 func TestOpenAPIValidation_BodyViolationsAreInvalidInput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	validator, err := SetupOpenAPIValidation()
@@ -231,6 +232,7 @@ func TestOpenAPIValidation_BodyViolationsAreInvalidInput(t *testing.T) {
 // request validator with malformed path/query parameters and asserts the
 // documented identifier error, invalid_id. It guards the classification in
 // OpenAPIErrorHandler against a change in kin-openapi's error wording.
+// SEM@b4c2229a7eadb976869dc9542c4df2639ff7e5bb: validate that request-parameter violations yield invalid_id errors through the OpenAPI validator
 func TestOpenAPIValidation_ParameterViolationsAreInvalidID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	validator, err := SetupOpenAPIValidation()

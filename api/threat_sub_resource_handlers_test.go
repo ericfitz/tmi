@@ -1255,6 +1255,7 @@ func TestBulkDeleteThreats(t *testing.T) {
 
 // A patch whose "id" is not a UUID is a request-body problem, so it is reported
 // as invalid_input; invalid_id is reserved for malformed path/query identifiers.
+// SEM@52df980c1d7491dbcef92922d2b1574b07e802a8: validate that a bulk threat patch with a malformed ID is rejected as invalid_input
 func TestBulkPatchThreats_MalformedPatchIDIsInvalidInput(t *testing.T) {
 	r, _ := setupThreatSubResourceHandler()
 

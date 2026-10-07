@@ -15,7 +15,7 @@ import (
 )
 
 // OpenAPIErrorHandler converts OpenAPI validation errors to TMI's error format
-// SEM@0000000: convert an OpenAPI validation error into a typed TMI error response, reporting body failures as invalid_input
+// SEM@52df980c1d7491dbcef92922d2b1574b07e802a8: convert an OpenAPI validation error into a typed error response, body failures as invalid_input
 func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 	var tmiError error
 
@@ -106,7 +106,7 @@ var parameterErrorPattern = regexp.MustCompile(`^(?:error in openapi3filter\.req
 // isParameterValidationError reports whether a lower-cased OpenAPI validation
 // message describes a failing path, query, header or cookie parameter (as
 // opposed to the request body).
-// SEM@0000000: report whether an OpenAPI validation message concerns a request parameter rather than the body (pure)
+// SEM@52df980c1d7491dbcef92922d2b1574b07e802a8: validate whether an OpenAPI error message concerns a request parameter rather than the body (pure)
 func isParameterValidationError(messageLower string) bool {
 	return parameterErrorPattern.MatchString(messageLower)
 }
