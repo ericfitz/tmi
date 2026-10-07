@@ -1252,3 +1252,31 @@ func TestBulkDeleteThreats(t *testing.T) {
 		mockStore.AssertNotCalled(t, "BulkSoftDelete", mock.Anything, mock.Anything, mock.Anything)
 	})
 }
+
+// A patch whose "id" is not a UUID is a request-body problem, so it is reported
+// as invalid_input; invalid_id is reserved for malformed path/query identifiers.
+func TestBulkPatchThreats_MalformedPatchIDIsInvalidInput(t *testing.T) {
+	r, _ := setupThreatSubResourceHandler()
+
+	body, err := json.Marshal(map[string]any{
+		"patches": []map[string]any{
+			{
+				"id": "not-a-uuid",
+				"operations": []map[string]any{
+					{"op": "replace", "path": "/name", "value": "x"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("PATCH", "/threat_models/"+testUUID1+"/threats/bulk", bytes.NewBuffer(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "invalid_input", resp["error"])
+}

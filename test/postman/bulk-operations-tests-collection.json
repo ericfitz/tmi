@@ -208,6 +208,7 @@
               "pm.test('Error indicates bulk validation failure', function () {",
               "    const responseData = pm.response.json();",
               "    pm.expect(responseData).to.have.property('error');",
+              "    pm.expect(responseData.error).to.equal('invalid_input');",
               "    pm.expect(responseData.error_description).to.be.a('string').that.is.not.empty;",
               "});",
               "",

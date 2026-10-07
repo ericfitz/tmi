@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -115,10 +116,38 @@ func TestOpenAPIErrorHandler(t *testing.T) {
 			wantCode:   "invalid_input",
 		},
 		{
-			name:       "Format error",
-			message:    "format validation failed",
+			name:       "Malformed path parameter format",
+			message:    "error in openapi3filter.RequestError: parameter \"threat_model_id\" in path has an error: string doesn't match the format \"uuid\"",
 			statusCode: http.StatusBadRequest,
 			wantCode:   "invalid_id",
+		},
+		{
+			name:       "Malformed query parameter pattern",
+			message:    "parameter \"filter\" in query has an error: string doesn't match the regular expression \"^[a-z]+$\" pattern",
+			statusCode: http.StatusBadRequest,
+			wantCode:   "invalid_id",
+		},
+		{
+			// kin-openapi embeds the failing schema (with its "pattern" and
+			// "format" keywords) in the message; that must not make a body
+			// validation failure look like a malformed identifier.
+			name: "Request body constraint violation with schema dump",
+			message: "multiple errors encountered: Error at \"/severity\": maximum string length is 50 " +
+				"Schema:   {     \"maxLength\": 50,     \"pattern\": \"^[^\\\\x00-\\\\x1F]*$\",     \"type\": \"string\"   }",
+			statusCode: http.StatusBadRequest,
+			wantCode:   "invalid_input",
+		},
+		{
+			name:       "Request body format violation",
+			message:    "error in openapi3filter.RequestError: request body has an error: doc validation failed: Error at \"/created_at\": string doesn't match the format \"date-time\"",
+			statusCode: http.StatusBadRequest,
+			wantCode:   "invalid_input",
+		},
+		{
+			name:       "Unclassified validation failure",
+			message:    "format validation failed",
+			statusCode: http.StatusBadRequest,
+			wantCode:   "invalid_input",
 		},
 	}
 
@@ -145,6 +174,54 @@ func TestOpenAPIErrorHandler(t *testing.T) {
 
 			errorCode, _ := errorResponse["error"].(string)
 			assert.Equal(t, tt.wantCode, errorCode)
+		})
+	}
+}
+
+// TestOpenAPIValidation_BodyViolationsAreInvalidInput drives the real OpenAPI
+// request validator with request bodies that break the spec's constraints and
+// asserts the documented 400 error code, invalid_input, rather than invalid_id
+// (which is reserved for malformed path/query identifiers).
+func TestOpenAPIValidation_BodyViolationsAreInvalidInput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	validator, err := SetupOpenAPIValidation()
+	require.NoError(t, err)
+
+	r := gin.New()
+	r.Use(validator)
+	ok := func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) }
+	r.POST("/threat_models/:threat_model_id/threats", ok)
+	r.POST("/threat_models/:threat_model_id/threats/bulk", ok)
+
+	tmPath := "/threat_models/" + testUUID1 + "/threats"
+	tests := []struct {
+		name string
+		path string
+		body string
+	}{
+		{
+			name: "single create with constraint violations",
+			path: tmPath,
+			body: `{"name":"T","threat_type":["Spoofing","Spoofing"],"severity":"` + strings.Repeat("x", 51) + `","mitigated":false}`,
+		},
+		{
+			name: "bulk create with wrong data types",
+			path: tmPath + "/bulk",
+			body: `[{"name":"Invalid Threat","description":"x"},{"name":123,"threat_type":true,"severity":"InvalidSeverity"}]`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, tt.path, strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			r.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+			var resp map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+			assert.Equal(t, "invalid_input", resp["error"], w.Body.String())
 		})
 	}
 }

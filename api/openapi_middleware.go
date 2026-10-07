@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -14,7 +15,7 @@ import (
 )
 
 // OpenAPIErrorHandler converts OpenAPI validation errors to TMI's error format
-// SEM@b01e07335548bf92e0c83fbddb8681759f35fdb7: convert an OpenAPI validation error into a typed TMI error response with correct HTTP status
+// SEM@0000000: convert an OpenAPI validation error into a typed TMI error response, reporting body failures as invalid_input
 func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 	var tmiError error
 
@@ -68,8 +69,12 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 			switch {
 			case strings.Contains(messageLower, "required"):
 				tmiError = InvalidInputError(message)
-			case strings.Contains(messageLower, "format") ||
-				strings.Contains(messageLower, "pattern"):
+			case isParameterValidationError(messageLower) &&
+				(strings.Contains(messageLower, "format") ||
+					strings.Contains(messageLower, "pattern")):
+				// A malformed path/query identifier. Request-body failures also
+				// reach here (their messages embed the failing schema, which
+				// contains "format"/"pattern"), but they are invalid_input.
 				tmiError = InvalidIDError(message)
 			default:
 				tmiError = InvalidInputError(message)
@@ -90,6 +95,20 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 	}
 
 	HandleRequestError(c, tmiError)
+}
+
+// parameterErrorPattern matches the leading text kin-openapi gives a request
+// parameter validation failure, optionally behind the oapi-codegen middleware's
+// "error in openapi3filter.RequestError: " prefix. Body failures begin with
+// "request body has an error" or "multiple errors encountered" instead.
+var parameterErrorPattern = regexp.MustCompile(`^(?:error in openapi3filter\.requesterror: )?parameter "[^"]*" in (?:path|query|header|cookie) has an error`)
+
+// isParameterValidationError reports whether a lower-cased OpenAPI validation
+// message describes a failing path, query, header or cookie parameter (as
+// opposed to the request body).
+// SEM@0000000: report whether an OpenAPI validation message concerns a request parameter rather than the body (pure)
+func isParameterValidationError(messageLower string) bool {
+	return parameterErrorPattern.MatchString(messageLower)
 }
 
 // GinServerErrorHandler converts parameter binding errors to TMI's error format
