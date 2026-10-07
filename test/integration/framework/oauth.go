@@ -65,15 +65,6 @@ type OAuthFlowStatusResponse struct {
 	Error       string       `json:"error,omitempty"`
 }
 
-// OAuthCredentialsResponse represents stored credentials response
-type OAuthCredentialsResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    string `json:"expires_in"`
-	State        string `json:"state"`
-}
-
 // AuthenticateUser performs OAuth authentication for a test user
 // This is the recommended method - uses automated end-to-end flow
 func AuthenticateUser(userID string) (*OAuthTokens, error) {
@@ -145,39 +136,6 @@ func AuthenticateUserWithStub(userID, stubURL string) (*OAuthTokens, error) {
 	return nil, fmt.Errorf("OAuth flow timed out after %d seconds", maxAttempts)
 }
 
-// GetStoredCredentials retrieves previously stored credentials for a user
-// Useful when you need to reuse credentials across multiple tests
-func GetStoredCredentials(userID string) (*OAuthTokens, error) {
-	return GetStoredCredentialsFromStub(userID, OAuthStubURL)
-}
-
-// GetStoredCredentialsFromStub retrieves credentials from specified stub URL
-func GetStoredCredentialsFromStub(userID, stubURL string) (*OAuthTokens, error) {
-	client := &http.Client{Timeout: 5 * time.Second}
-
-	resp, err := client.Get(fmt.Sprintf("%s/creds?userid=%s", stubURL, userID))
-	if err != nil {
-		return nil, fmt.Errorf("failed to get stored credentials: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to retrieve credentials (status %d): %s", resp.StatusCode, string(body))
-	}
-
-	var credsResp OAuthCredentialsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&credsResp); err != nil {
-		return nil, fmt.Errorf("failed to decode credentials: %w", err)
-	}
-
-	return &OAuthTokens{
-		AccessToken:  credsResp.AccessToken,
-		RefreshToken: credsResp.RefreshToken,
-		TokenType:    credsResp.TokenType,
-		ExpiresIn:    0, // Not provided in stored creds
-	}, nil
-}
 
 // RefreshToken refreshes an access token using a refresh token
 func RefreshToken(refreshToken, userID string) (*OAuthTokens, error) {
