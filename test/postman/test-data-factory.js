@@ -179,25 +179,40 @@ class TMITestDataFactory {
         };
     }
 
+    // Body for POST /threat_models/{id}/diagrams (CreateDiagramRequest: name and type only)
+    validCreateDiagramRequest(options = {}) {
+        return {
+            name: options.name || `Test Diagram ${this.testRunId}`,
+            type: options.type || "DFD-1.0.0"
+        };
+    }
+
+    // Cells conforming to the Node (process, store) and Edge (flow) schemas
     generateBasicDiagramCells() {
+        const processId = this.generateUUID();
+        const storeId = this.generateUUID();
         return [
             {
-                id: this.generateUUID(),
-                shape: "threat-model-process",
+                id: processId,
+                shape: "process",
                 x: 100,
-                y: 100, 
+                y: 100,
                 width: 120,
-                height: 80,
-                label: "User Process"
+                height: 80
+            },
+            {
+                id: storeId,
+                shape: "store",
+                x: 300,
+                y: 100,
+                width: 120,
+                height: 80
             },
             {
                 id: this.generateUUID(),
-                shape: "threat-model-datastore",
-                x: 300,
-                y: 100,
-                width: 120, 
-                height: 80,
-                label: "Database"
+                shape: "flow",
+                source: { cell: processId },
+                target: { cell: storeId }
             }
         ];
     }
