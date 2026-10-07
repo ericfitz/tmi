@@ -45,9 +45,8 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 	// Get diagrams associated with this threat model
 	var diagrams []DfdDiagram
 	if tm.Diagrams != nil {
-		for _, diagramUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to extract ID
-			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil {
 				// Since we already have the DfdDiagram, we can use it directly instead of querying the store
 				diagrams = append(diagrams, dfdDiag)
 			}
@@ -218,9 +217,8 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
 				diagramFound = true
 				break
 			}
@@ -271,9 +269,8 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
 				diagramFound = true
 				break
 			}
@@ -302,16 +299,9 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	preState, _ := SerializeForAudit(existingDiagram)
 
 	// Parse and validate the updated diagram from request body using OpenAPI validation
-	var updatedDiagramUnion Diagram
-	if err := c.ShouldBindJSON(&updatedDiagramUnion); err != nil {
+	var updatedDiagram DfdDiagram
+	if err := c.ShouldBindJSON(&updatedDiagram); err != nil {
 		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
-		return
-	}
-
-	// Convert union type to DfdDiagram for working with store
-	updatedDiagram, err := updatedDiagramUnion.AsDfdDiagram()
-	if err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid diagram format: "+err.Error()))
 		return
 	}
 
@@ -422,9 +412,8 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
 				diagramFound = true
 				break
 			}
@@ -569,9 +558,8 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
 				diagramFound = true
 				break
 			}
@@ -635,9 +623,8 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
 				diagramFound = true
 				break
 			}
@@ -700,9 +687,8 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
 				diagramFound = true
 				break
 			}
@@ -772,9 +758,8 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
 				diagramFound = true
 				break
 			}
@@ -863,9 +848,8 @@ func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelI
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId.String() {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId.String() {
 				diagramFound = true
 				break
 			}

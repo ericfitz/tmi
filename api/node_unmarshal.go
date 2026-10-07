@@ -35,7 +35,7 @@ func (n *Node) UnmarshalJSON(data []byte) error {
 		Angle    *float32              `json:"angle,omitempty"`
 		Attrs    *NodeAttrs            `json:"attrs,omitempty"`
 		Children *[]openapi_types.UUID `json:"children,omitempty"`
-		Data     *Node_Data            `json:"data,omitempty"`
+		Data     *CellData             `json:"data,omitempty"`
 		Id       openapi_types.UUID    `json:"id"`
 		Parent   *openapi_types.UUID   `json:"parent"`
 		Ports    *PortConfiguration    `json:"ports,omitempty"`
@@ -115,7 +115,7 @@ func (n Node) MarshalJSON() ([]byte, error) {
 		Angle    *float32              `json:"angle,omitempty"`
 		Attrs    *NodeAttrs            `json:"attrs,omitempty"`
 		Children *[]openapi_types.UUID `json:"children,omitempty"`
-		Data     *Node_Data            `json:"data,omitempty"`
+		Data     *CellData             `json:"data,omitempty"`
 		Height   float32               `json:"height"`
 		Id       openapi_types.UUID    `json:"id"`
 		Parent   *openapi_types.UUID   `json:"parent"`

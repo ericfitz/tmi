@@ -86,11 +86,7 @@ func TestWebSocketAuthorizationValidation(t *testing.T) {
 	}
 
 	// Add diagram to threat model
-	var diagramUnion Diagram
-	if err := diagramUnion.FromDfdDiagram(d); err != nil {
-		t.Fatalf("Failed to convert diagram: %v", err)
-	}
-	tm.Diagrams = &[]Diagram{diagramUnion}
+	tm.Diagrams = &[]DfdDiagram{d}
 	if err := ThreatModelStore.Update(context.Background(), tm.Id.String(), tm); err != nil {
 		t.Fatalf("Failed to update threat model with diagram: %v", err)
 	}

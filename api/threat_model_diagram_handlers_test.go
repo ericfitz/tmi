@@ -119,12 +119,8 @@ func createTestThreatModelWithDiagram(t *testing.T, router *gin.Engine, tmName, 
 	router.ServeHTTP(diagW, diagReq)
 	assert.Equal(t, http.StatusCreated, diagW.Code)
 
-	var diagramUnion Diagram
-	err = json.Unmarshal(diagW.Body.Bytes(), &diagramUnion)
-	require.NoError(t, err)
-
-	// Convert union type to DfdDiagram for return
-	diagram, err := diagramUnion.AsDfdDiagram()
+	var diagram DfdDiagram
+	err = json.Unmarshal(diagW.Body.Bytes(), &diagram)
 	require.NoError(t, err)
 
 	return tm, diagram
@@ -208,12 +204,8 @@ func TestCreateThreatModelDiagram(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, diagW.Code)
 
 	// Parse response
-	var diagramUnion Diagram
-	err = json.Unmarshal(diagW.Body.Bytes(), &diagramUnion)
-	require.NoError(t, err)
-
-	// Convert union type to DfdDiagram for field access
-	diagram, err := diagramUnion.AsDfdDiagram()
+	var diagram DfdDiagram
+	err = json.Unmarshal(diagW.Body.Bytes(), &diagram)
 	require.NoError(t, err)
 
 	// Check fields
@@ -233,9 +225,8 @@ func TestCreateThreatModelDiagram(t *testing.T) {
 	// Check that the diagram ID is in the threat model's diagrams array
 	diagramFound := false
 	if updatedTM.Diagrams != nil {
-		for _, diagramUnion := range *updatedTM.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+		for _, dfdDiag := range *updatedTM.Diagrams {
+			if dfdDiag.Id != nil {
 				if dfdDiag.Id.String() == diagram.Id.String() {
 					diagramFound = true
 					break
@@ -263,12 +254,8 @@ func TestGetThreatModelDiagramByID(t *testing.T) {
 	assert.Equal(t, http.StatusOK, getW.Code)
 
 	// Parse response
-	var retrievedDiagramUnion Diagram
-	err := json.Unmarshal(getW.Body.Bytes(), &retrievedDiagramUnion)
-	require.NoError(t, err)
-
-	// Convert union type to DfdDiagram for field access
-	retrievedDiagram, err := retrievedDiagramUnion.AsDfdDiagram()
+	var retrievedDiagram DfdDiagram
+	err := json.Unmarshal(getW.Body.Bytes(), &retrievedDiagram)
 	require.NoError(t, err)
 
 	// Check fields
@@ -304,12 +291,8 @@ func TestUpdateThreatModelDiagram(t *testing.T) {
 	assert.Equal(t, http.StatusOK, updateW.Code)
 
 	// Parse response
-	var resultDiagramUnion Diagram
-	err := json.Unmarshal(updateW.Body.Bytes(), &resultDiagramUnion)
-	require.NoError(t, err)
-
-	// Convert union type to DfdDiagram for field access
-	resultDiagram, err := resultDiagramUnion.AsDfdDiagram()
+	var resultDiagram DfdDiagram
+	err := json.Unmarshal(updateW.Body.Bytes(), &resultDiagram)
 	require.NoError(t, err)
 
 	// Check fields
@@ -352,12 +335,8 @@ func TestPatchThreatModelDiagram(t *testing.T) {
 	assert.Equal(t, http.StatusOK, patchW.Code)
 
 	// Parse response
-	var patchedDiagramUnion Diagram
-	err := json.Unmarshal(patchW.Body.Bytes(), &patchedDiagramUnion)
-	require.NoError(t, err)
-
-	// Convert union type to DfdDiagram for field access
-	patchedDiagram, err := patchedDiagramUnion.AsDfdDiagram()
+	var patchedDiagram DfdDiagram
+	err := json.Unmarshal(patchW.Body.Bytes(), &patchedDiagram)
 	require.NoError(t, err)
 
 	// Check fields - note that the current implementation doesn't actually apply the patch operations
@@ -396,9 +375,8 @@ func TestDeleteThreatModelDiagram(t *testing.T) {
 	// Check that the diagram ID is not in the threat model's diagrams array
 	diagramFound := false
 	if updatedTM.Diagrams != nil {
-		for _, diagramUnion := range *updatedTM.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+		for _, dfdDiag := range *updatedTM.Diagrams {
+			if dfdDiag.Id != nil {
 				if dfdDiag.Id.String() == diagram.Id.String() {
 					diagramFound = true
 					break
@@ -935,19 +913,15 @@ func TestImageUpdateVectorLogic(t *testing.T) {
 	assert.Equal(t, http.StatusOK, updateW1.Code)
 
 	// Parse response
-	var resultDiagramUnion1 Diagram
-	err := json.Unmarshal(updateW1.Body.Bytes(), &resultDiagramUnion1)
+	var resultDiagram1 DfdDiagram
+	err := json.Unmarshal(updateW1.Body.Bytes(), &resultDiagram1)
 	require.NoError(t, err)
 
-	// Convert union type to DfdDiagram for field access
-	resultDiagram1, err := resultDiagramUnion1.AsDfdDiagram()
-	require.NoError(t, err)
-
-	// Verify that image.update_vector was automatically set to match BaseDiagram.update_vector
+	// Verify that image.update_vector was automatically set to match DfdDiagram.update_vector
 	require.NotNil(t, resultDiagram1.Image, "Image should not be nil")
 	require.NotNil(t, resultDiagram1.Image.UpdateVector, "Image.UpdateVector should be auto-set")
-	require.NotNil(t, resultDiagram1.UpdateVector, "BaseDiagram.UpdateVector should exist")
-	assert.Equal(t, *resultDiagram1.UpdateVector, *resultDiagram1.Image.UpdateVector, "Image.UpdateVector should match BaseDiagram.UpdateVector")
+	require.NotNil(t, resultDiagram1.UpdateVector, "DfdDiagram.UpdateVector should exist")
+	assert.Equal(t, *resultDiagram1.UpdateVector, *resultDiagram1.Image.UpdateVector, "Image.UpdateVector should match DfdDiagram.UpdateVector")
 
 	// Test Case 2: Update diagram with SVG and explicit image.update_vector - should use provided value
 	explicitImageVector := int64(42)
@@ -973,12 +947,8 @@ func TestImageUpdateVectorLogic(t *testing.T) {
 	assert.Equal(t, http.StatusOK, updateW2.Code)
 
 	// Parse response
-	var resultDiagramUnion2 Diagram
-	err = json.Unmarshal(updateW2.Body.Bytes(), &resultDiagramUnion2)
-	require.NoError(t, err)
-
-	// Convert union type to DfdDiagram for field access
-	resultDiagram2, err := resultDiagramUnion2.AsDfdDiagram()
+	var resultDiagram2 DfdDiagram
+	err = json.Unmarshal(updateW2.Body.Bytes(), &resultDiagram2)
 	require.NoError(t, err)
 
 	// Verify that explicit image.update_vector was preserved
@@ -1005,12 +975,8 @@ func TestImageUpdateVectorLogic(t *testing.T) {
 	assert.Equal(t, http.StatusOK, updateW3.Code)
 
 	// Parse response
-	var resultDiagramUnion3 Diagram
-	err = json.Unmarshal(updateW3.Body.Bytes(), &resultDiagramUnion3)
-	require.NoError(t, err)
-
-	// Convert union type to DfdDiagram for field access
-	resultDiagram3, err := resultDiagramUnion3.AsDfdDiagram()
+	var resultDiagram3 DfdDiagram
+	err = json.Unmarshal(updateW3.Body.Bytes(), &resultDiagram3)
 	require.NoError(t, err)
 
 	// The logic should not affect image field when none was provided

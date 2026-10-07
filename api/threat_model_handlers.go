@@ -883,8 +883,8 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 
 	// Check if any diagrams in this threat model have active collaboration sessions
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil {
 				if h.wsHub.HasActiveSession(dfdDiag.Id.String()) {
 					HandleRequestError(c, ConflictError("Cannot delete threat model while a diagram has an active collaboration session. Please end all collaboration sessions first."))
 					return

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/google/uuid"
@@ -243,7 +244,7 @@ func TestSanitizeDiagramCellMetadata_PreservesShape(t *testing.T) {
 			Height float32 `json:"height"`
 			Width  float32 `json:"width"`
 		}{Height: 60, Width: 120},
-		Data: &Node_Data{
+		Data: &CellData{
 			UnderscoreMetadata: metadata,
 		},
 	}
@@ -350,7 +351,7 @@ func TestSanitizeDiagramCellMetadata_AllNodeShapes(t *testing.T) {
 						StrokeWidth     *float32                  `json:"strokeWidth,omitempty"`
 					}{},
 				},
-				Data: &Node_Data{
+				Data: &CellData{
 					UnderscoreMetadata: &[]Metadata{{Key: "test", Value: "value"}},
 				},
 			}
@@ -392,4 +393,19 @@ func TestCreateNode_PreservesShape(t *testing.T) {
 				"CreateNode should produce nodes with correct shape")
 		})
 	}
+}
+
+// SEM@0000000: verify cell data extra keys survive a Node JSON round-trip (test)
+func TestNodeCellDataRoundTripKeepsExtraKeys(t *testing.T) {
+	in := []byte(`{"id":"6f1c2c8e-7a51-4a38-9b1e-0d1c8f5a2b10","shape":"process","x":10,"y":20,"width":120,"height":60,"data":{"custom_note":"kept","_metadata":[{"key":"k","value":"v"}]}}`)
+	var n Node
+	require.NoError(t, json.Unmarshal(in, &n))
+	out, err := json.Marshal(n)
+	require.NoError(t, err)
+	var back map[string]any
+	require.NoError(t, json.Unmarshal(out, &back))
+	data, ok := back["data"].(map[string]any)
+	require.True(t, ok, "data missing after round-trip: %s", out)
+	require.Equal(t, "kept", data["custom_note"])
+	require.NotNil(t, data["_metadata"])
 }

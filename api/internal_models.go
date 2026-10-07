@@ -52,7 +52,7 @@ func (tm *ThreatModelInternal) ToThreatModel() (*ThreatModel, error) {
 
 	// Load diagrams
 	if len(tm.DiagramIds) > 0 {
-		diagrams := make([]Diagram, 0, len(tm.DiagramIds))
+		diagrams := make([]DfdDiagram, 0, len(tm.DiagramIds))
 		for _, diagramId := range tm.DiagramIds {
 			diagram, err := DiagramStore.Get(diagramId)
 			if err != nil {
@@ -68,11 +68,7 @@ func (tm *ThreatModelInternal) ToThreatModel() (*ThreatModel, error) {
 				}{}
 			}
 
-			var diagramUnion Diagram
-			if err := diagramUnion.FromDfdDiagram(diagram); err != nil {
-				continue
-			}
-			diagrams = append(diagrams, diagramUnion)
+			diagrams = append(diagrams, diagram)
 		}
 		if len(diagrams) > 0 {
 			result.Diagrams = &diagrams
@@ -106,8 +102,8 @@ func (tm *ThreatModelInternal) FromThreatModel(external *ThreatModel) {
 	// Extract diagram IDs
 	tm.DiagramIds = []string{}
 	if external.Diagrams != nil {
-		for _, diagramUnion := range *external.Diagrams {
-			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+		for _, dfdDiag := range *external.Diagrams {
+			if dfdDiag.Id != nil {
 				tm.DiagramIds = append(tm.DiagramIds, dfdDiag.Id.String())
 			}
 		}

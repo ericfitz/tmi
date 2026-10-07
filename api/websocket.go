@@ -315,7 +315,7 @@ func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagra
 	}
 
 	// Handle image.update_vector logic: if image.svg is provided but image.update_vector is not,
-	// then set image.update_vector to the current BaseDiagram.update_vector
+	// then set image.update_vector to the current DfdDiagram.update_vector
 	if updatedDiagram.Image != nil && updatedDiagram.Image.Svg != nil && updatedDiagram.Image.UpdateVector == nil {
 		// Use the current diagram's update_vector (after potential increment)
 		currentUpdateVector := newVector
@@ -855,8 +855,8 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 	// Find the diagram in the threat model to get its name
 	var diagramName string
 	if tm.Diagrams != nil {
-		for _, diagramUnion := range *tm.Diagrams {
-			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil {
 				if dfdDiag.Id.String() == diagramID {
 					diagramName = dfdDiag.Name
 					break
@@ -989,8 +989,8 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, user ResolvedUse
 		// Find the diagram in the threat model to get its name
 		var diagramName string
 		if tm.Diagrams != nil {
-			for _, diagramUnion := range *tm.Diagrams {
-				if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+			for _, dfdDiag := range *tm.Diagrams {
+				if dfdDiag.Id != nil {
 					if dfdDiag.Id.String() == diagramID {
 						diagramName = dfdDiag.Name
 						break
@@ -1092,8 +1092,8 @@ func (h *WebSocketHub) validateWebSocketDiagramAccessWithFlexibleMatching(userIn
 	// Check if the diagram actually exists in this threat model
 	diagramExists := false
 	if tm.Diagrams != nil {
-		for _, diagramUnion := range *tm.Diagrams {
-			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil {
 				if dfdDiag.Id.String() == diagramID {
 					diagramExists = true
 					break

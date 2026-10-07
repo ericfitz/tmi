@@ -161,20 +161,9 @@ func TestGetCurrentUserSessions(t *testing.T) {
 	})
 
 	// Add diagrams to threat models
-	var diagramUnion1, diagramUnion2, diagramUnion3 Diagram
-	if err := diagramUnion1.FromDfdDiagram(d1); err != nil {
-		t.Fatalf("Failed to convert diagram1: %v", err)
-	}
-	if err := diagramUnion2.FromDfdDiagram(d2); err != nil {
-		t.Fatalf("Failed to convert diagram2: %v", err)
-	}
-	if err := diagramUnion3.FromDfdDiagram(d3); err != nil {
-		t.Fatalf("Failed to convert diagram3: %v", err)
-	}
-
-	tm1.Diagrams = &[]Diagram{diagramUnion1}
-	tm2.Diagrams = &[]Diagram{diagramUnion2}
-	tm3.Diagrams = &[]Diagram{diagramUnion3}
+	tm1.Diagrams = &[]DfdDiagram{d1}
+	tm2.Diagrams = &[]DfdDiagram{d2}
+	tm3.Diagrams = &[]DfdDiagram{d3}
 
 	// Update threat models with diagrams
 	if err := ThreatModelStore.Update(context.Background(), tm1.Id.String(), tm1); err != nil {

@@ -199,12 +199,9 @@ func InitTestFixtures() {
 	TestFixtures.DiagramAuth = diagramAuth
 
 	// Associate the diagram with the threat model by adding it to the Diagrams array
-	var diagramUnion Diagram
-	if err := diagramUnion.FromDfdDiagram(diagram); err == nil {
-		diagrams := []Diagram{diagramUnion}
-		threatModel.Diagrams = &diagrams
-		TestFixtures.ThreatModel = threatModel
-	}
+	diagrams := []DfdDiagram{diagram}
+	threatModel.Diagrams = &diagrams
+	TestFixtures.ThreatModel = threatModel
 
 	// Initialize mock stores for unit tests, always resetting to ensure clean state.
 	// This prevents test contamination when other tests replace global stores.
@@ -243,16 +240,12 @@ func (m *MockThreatModelStore) Get(id string) (ThreatModel, error) {
 			return ThreatModel{}, fmt.Errorf("threat model not found")
 		}
 		// Dynamically load diagrams from DiagramStore
-		var diagrams []Diagram
+		var diagrams []DfdDiagram
 		if mockDiagStore, ok := DiagramStore.(*MockDiagramStore); ok {
 			for diagramID, threatModelID := range mockDiagStore.threatModelMapping {
 				if threatModelID == id {
 					if diagram, err := DiagramStore.Get(diagramID); err == nil {
-						// Convert DfdDiagram to Diagram union type
-						var diagUnion Diagram
-						if err := diagUnion.FromDfdDiagram(diagram); err == nil {
-							diagrams = append(diagrams, diagUnion)
-						}
+						diagrams = append(diagrams, diagram)
 					}
 				}
 			}
