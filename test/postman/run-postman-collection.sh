@@ -48,60 +48,8 @@ if ! curl -s http://127.0.0.1:8080/ >/dev/null 2>&1; then
 fi
 echo "✅ TMI server is ready"
 
-# Function to authenticate a user using PKCE flow via OAuth stub
-authenticate_user() {
-    local username="$1"
-    echo "Authenticating $username..." >&2
-
-    # Check for existing cached token
-    local existing_token=$(curl -s "http://127.0.0.1:8079/creds?userid=$username" 2>/dev/null | jq -r '.access_token' 2>/dev/null)
-    if [ "$existing_token" != "null" ] && [ -n "$existing_token" ] && [ "$existing_token" != "undefined" ]; then
-        local token_parts=$(echo "$existing_token" | tr -cd '.' | wc -c)
-        if [ "$token_parts" -eq 2 ]; then
-            echo "✅ Using cached token for $username" >&2
-            printf "%s" "$existing_token"
-            return 0
-        fi
-    fi
-
-    # Use OAuth stub's e2e flow (handles PKCE automatically)
-    local flow_response=$(curl -s -X POST "http://127.0.0.1:8079/flows/start" \
-        -H "Content-Type: application/json" \
-        -d "{\"userid\": \"$username\"}")
-    local flow_id=$(echo "$flow_response" | jq -r '.flow_id' 2>/dev/null)
-
-    if [ "$flow_id" == "null" ] || [ -z "$flow_id" ]; then
-        echo "❌ Failed to start OAuth flow for $username" >&2
-        echo "Response: $flow_response" >&2
-        return 1
-    fi
-
-    # Poll for completion (max 15 seconds)
-    for i in $(seq 1 15); do
-        local status_response=$(curl -s "http://127.0.0.1:8079/flows/$flow_id")
-        local tokens_ready=$(echo "$status_response" | jq -r '.tokens_ready' 2>/dev/null)
-
-        if [ "$tokens_ready" == "true" ]; then
-            local token=$(echo "$status_response" | jq -r '.tokens.access_token' 2>/dev/null)
-            if [ "$token" != "null" ] && [ -n "$token" ]; then
-                echo "✅ Token obtained for $username" >&2
-                printf "%s" "$token"
-                return 0
-            fi
-        fi
-
-        local status=$(echo "$status_response" | jq -r '.status' 2>/dev/null)
-        if [ "$status" == "failed" ] || [ "$status" == "error" ]; then
-            echo "❌ OAuth flow failed for $username" >&2
-            return 1
-        fi
-
-        sleep 1
-    done
-
-    echo "❌ Timeout waiting for OAuth flow for $username" >&2
-    return 1
-}
+# authenticate_user comes from lib/auth.sh (validates cached tokens against the server)
+source "${SCRIPT_DIR}/lib/auth.sh"
 
 # Authenticate test users
 echo ""

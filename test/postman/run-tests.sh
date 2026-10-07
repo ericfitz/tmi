@@ -109,67 +109,8 @@ fi
 echo ""
 echo "🔑 Pre-authenticating test users..."
 
-# Function to authenticate a user and extract JWT token using PKCE flow
-authenticate_user() {
-    local username="$1"
-    echo "Checking existing token for $username..." >&2
-
-    # First, check if we already have a valid token in the OAuth stub
-    local existing_token_response=$(curl -s "http://127.0.0.1:8079/creds?userid=$username" 2>/dev/null)
-    local existing_token=$(echo "$existing_token_response" | jq -r '.access_token' 2>/dev/null)
-
-    # Check if token exists and is valid (basic validation - not expired)
-    if [ "$existing_token" != "null" ] && [ "$existing_token" != "" ] && [ "$existing_token" != "undefined" ]; then
-        # Basic JWT token validation (check if it has 3 parts)
-        local token_parts_count=$(echo "$existing_token" | tr -cd '.' | wc -c)
-        if [ "$token_parts_count" -eq 2 ]; then
-            echo "✅ Using existing cached token for $username" >&2
-            printf "%s" "$existing_token"
-            return 0
-        fi
-    fi
-
-    echo "🔄 No valid cached token found, authenticating $username..." >&2
-
-    # Use OAuth stub's automated e2e flow which handles PKCE
-    local flow_response=$(curl -s -X POST "http://127.0.0.1:8079/flows/start" \
-        -H "Content-Type: application/json" \
-        -d "{\"userid\": \"$username\"}")
-    local flow_id=$(echo "$flow_response" | jq -r '.flow_id' 2>/dev/null)
-
-    if [ "$flow_id" == "null" ] || [ -z "$flow_id" ]; then
-        echo "❌ Failed to start OAuth flow for $username" >&2
-        echo "Response: $flow_response" >&2
-        return 1
-    fi
-
-    # Poll for flow completion (max 10 seconds)
-    for i in 1 2 3 4 5 6 7 8 9 10; do
-        local status_response=$(curl -s "http://127.0.0.1:8079/flows/$flow_id")
-        local status=$(echo "$status_response" | jq -r '.status' 2>/dev/null)
-        local tokens_ready=$(echo "$status_response" | jq -r '.tokens_ready' 2>/dev/null)
-
-        if [ "$tokens_ready" == "true" ]; then
-            local token=$(echo "$status_response" | jq -r '.tokens.access_token' 2>/dev/null)
-            if [ "$token" != "null" ] && [ -n "$token" ]; then
-                echo "✅ Token retrieved for $username" >&2
-                printf "%s" "$token"
-                return 0
-            fi
-        fi
-
-        if [ "$status" == "failed" ]; then
-            local error=$(echo "$status_response" | jq -r '.error' 2>/dev/null)
-            echo "❌ OAuth flow failed for $username: $error" >&2
-            return 1
-        fi
-
-        sleep 1
-    done
-
-    echo "❌ Timeout waiting for OAuth flow completion for $username" >&2
-    return 1
-}
+# authenticate_user comes from lib/auth.sh (validates cached tokens against the server)
+source "${SCRIPT_DIR}/lib/auth.sh"
 
 # Authenticate all test users
 TOKEN_ALICE=$(authenticate_user "alice")
