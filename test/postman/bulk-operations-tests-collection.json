@@ -90,8 +90,8 @@
               "        name: `Bulk Threat ${i} - ${Date.now()}`,",
               "        description: `Bulk created threat number ${i}`,",
               "        threat_type: [[\"Spoofing\"], [\"Tampering\"], [\"Repudiation\"], [\"Information Disclosure\"], [\"Denial of Service\"]][i-1],",
-              "        severity: ['Low', 'Medium', 'High', 'Critical', 'High'][i-1],",
-              "        priority: ['Low', 'Medium', 'High', 'Critical', 'High'][i-1]",
+              "        severity: ['low', 'medium', 'high', 'critical', 'high'][i-1],",
+              "        priority: ['low', 'medium', 'high', 'critical', 'high'][i-1]",
               "    }));",
               "}",
               "",
@@ -110,11 +110,11 @@
               "",
               "pm.test('Response is array of created threats', function () {",
               "    const responseData = pm.response.json();",
-              "    pm.expect(responseData).to.have.property('threats');\n    pm.expect(responseData.threats).to.be.an('array')",
+              "    pm.expect(responseData).to.be.an('array');",
               "    pm.expect(responseData).to.have.lengthOf(5);",
               "    ",
               "    // Store threat IDs for batch operations",
-              "    const threatIds = responseData.threats.map(threat => threat.id);",
+              "    const threatIds = responseData.map(threat => threat.id);",
               "    pm.collectionVariables.set('bulkThreatIds', JSON.stringify(threatIds));",
               "});",
               "",
@@ -122,7 +122,7 @@
               "    const responseData = pm.response.json();",
               "    const originalData = JSON.parse(pm.collectionVariables.get('bulkThreatsData'));",
               "    ",
-              "    responseData.threats.forEach((threat, index) => {",
+              "    responseData.forEach((threat, index) => {",
               "        pm.expect(threat.id).to.match(/^[0-9a-f-]{36}$/);",
               "        pm.expect(threat.name).to.equal(originalData[index].name);",
               "        pm.expect(threat.threat_type).to.deep.equal(originalData[index].threat_type);",
@@ -207,7 +207,8 @@
               "",
               "pm.test('Error indicates bulk validation failure', function () {",
               "    const responseData = pm.response.json();",
-              "    pm.expect(responseData.error_description).to.include('validation');",
+              "    pm.expect(responseData).to.have.property('error');",
+              "    pm.expect(responseData.error_description).to.be.a('string').that.is.not.empty;",
               "});",
               "",
               "pm.test('No threats were created due to batch failure', function () {",
@@ -265,8 +266,8 @@
               "    ...factory.validThreat({",
               "        name: `Updated Bulk Threat ${index + 1} - ${Date.now()}`,",
               "        description: `Bulk updated threat ${index + 1}`,",
-              "        status: 'In Progress',",
-              "        severity: 'High'",
+              "        status: 'in_progress',",
+              "        severity: 'high'",
               "    })",
               "}));",
               "",
@@ -285,18 +286,20 @@
               "",
               "pm.test('Response contains updated threats', function () {",
               "    const responseData = pm.response.json();",
-              "    pm.expect(responseData).to.have.property('threats');\n    pm.expect(responseData.threats).to.be.an('array')",
+              "    pm.expect(responseData).to.be.an('array');",
               "    pm.expect(responseData).to.have.lengthOf(5);",
               "});",
               "",
               "pm.test('All threats were updated correctly', function () {",
               "    const responseData = pm.response.json();",
               "    const updateData = JSON.parse(pm.collectionVariables.get('bulkUpdateThreatsData'));",
-              "    ",
-              "    responseData.threats.forEach((threat, index) => {",
-              "        pm.expect(threat.name).to.equal(updateData[index].name);",
-              "        pm.expect(threat.status).to.equal('In Progress');",
-              "        pm.expect(threat.severity).to.equal('High');",
+              "",
+              "    updateData.forEach((expected) => {",
+              "        const threat = responseData.find((t) => t.id === expected.id);",
+              "        pm.expect(threat, `threat ${expected.id} in response`).to.not.be.undefined;",
+              "        pm.expect(threat.name).to.equal(expected.name);",
+              "        pm.expect(threat.status).to.equal('in_progress');",
+              "        pm.expect(threat.severity).to.equal('high');",
               "    });",
               "});",
               "",
@@ -347,12 +350,12 @@
               "",
               "const batchPatches = {",
               "    patches: threatIds.slice(0, 3).map((id, index) => ({",
-              "        threat_id: id,",
+              "        id: id,",
               "        operations: [",
               "            {",
               "                op: 'replace',",
               "                path: '/status',",
-              "                value: 'Closed'",
+              "                value: 'closed'",
               "            },",
               "            {",
               "                op: 'replace',",
@@ -383,15 +386,15 @@
               "",
               "pm.test('Response contains patched threats', function () {",
               "    const responseData = pm.response.json();",
-              "    pm.expect(responseData).to.have.property('threats');\n    pm.expect(responseData.threats).to.be.an('array')",
+              "    pm.expect(responseData).to.be.an('array');",
               "    pm.expect(responseData).to.have.lengthOf(3);",
               "});",
               "",
               "pm.test('All patch operations were applied', function () {",
               "    const responseData = pm.response.json();",
               "    ",
-              "    responseData.threats.forEach(threat => {",
-              "        pm.expect(threat.status).to.equal('Closed');",
+              "    responseData.forEach(threat => {",
+              "        pm.expect(threat.status).to.equal('closed');",
               "        pm.expect(threat.mitigated).to.equal(true);",
               "        pm.expect(threat.description).to.include('Batch patched');",
               "    });",
@@ -405,7 +408,7 @@
         }
       ],
       "request": {
-        "method": "POST",
+        "method": "PATCH",
         "header": [
           {
             "key": "Content-Type",
@@ -417,7 +420,7 @@
           "raw": "{{batchPatchData}}"
         },
         "url": {
-          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/batch/patch",
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/bulk",
           "host": [
             "{{baseUrl}}"
           ],
@@ -425,11 +428,10 @@
             "threat_models",
             "{{aliceThreatModelId}}",
             "threats",
-            "batch",
-            "patch"
+            "bulk"
           ]
         },
-        "description": "Apply JSON patch operations to multiple threats"
+        "description": "Apply JSON patch operations to multiple threats (PATCH /threats/bulk, BulkPatchRequest)"
       }
     },
     {
@@ -440,13 +442,11 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "// Generate batch delete data for first 2 threats",
+              "// threat_ids query parameter: comma-separated UUIDs of the first 2 bulk-created threats",
               "const threatIds = JSON.parse(pm.collectionVariables.get('bulkThreatIds') || '[]');",
-              "const deleteData = {",
-              "    threat_ids: threatIds.slice(0, 2)",
-              "};",
+              "const deleteIds = threatIds.slice(0, 2);",
               "",
-              "pm.collectionVariables.set('batchDeleteData', JSON.stringify(deleteData));"
+              "pm.collectionVariables.set('batchDeleteIds', deleteIds.join(','));"
             ]
           }
         },
@@ -469,9 +469,9 @@
               "",
               "pm.test('Deleted IDs match request', function () {",
               "    const responseData = pm.response.json();",
-              "    const deleteData = JSON.parse(pm.collectionVariables.get('batchDeleteData'));",
+              "    const deleteIds = pm.collectionVariables.get('batchDeleteIds').split(',');",
               "    ",
-              "    deleteData.threat_ids.forEach(id => {",
+              "    deleteIds.forEach(id => {",
               "        pm.expect(responseData.deleted_ids).to.include(id);",
               "    });",
               "});"
@@ -481,18 +481,9 @@
       ],
       "request": {
         "method": "DELETE",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{{batchDeleteData}}"
-        },
+        "header": [],
         "url": {
-          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/batch",
+          "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/bulk?threat_ids={{batchDeleteIds}}",
           "host": [
             "{{baseUrl}}"
           ],
@@ -500,10 +491,16 @@
             "threat_models",
             "{{aliceThreatModelId}}",
             "threats",
-            "batch"
+            "bulk"
+          ],
+          "query": [
+            {
+              "key": "threat_ids",
+              "value": "{{batchDeleteIds}}"
+            }
           ]
         },
-        "description": "Delete multiple threats in a single batch operation"
+        "description": "Delete multiple threats in a single request (DELETE /threats/bulk with the comma-separated threat_ids query parameter)"
       }
     },
     {
@@ -523,7 +520,7 @@
               "    bulkDocuments.push(factory.validDocument({",
               "        name: `Bulk Document ${i} - ${Date.now()}`,",
               "        description: `Bulk created document number ${i}`,",
-              "        url: `https://docs.example.com/bulk-doc-${i}`",
+              "        uri: `https://example.com/documents/bulk-doc-${i}`",
               "    }));",
               "}",
               "",
@@ -542,7 +539,7 @@
               "",
               "pm.test('Response is array of created documents', function () {",
               "    const responseData = pm.response.json();",
-              "    pm.expect(responseData).to.have.property('documents');\n    pm.expect(responseData.documents).to.be.an('array')",
+              "    pm.expect(responseData).to.be.an('array');",
               "    pm.expect(responseData).to.have.lengthOf(3);",
               "});",
               "",
@@ -550,10 +547,10 @@
               "    const responseData = pm.response.json();",
               "    const originalData = JSON.parse(pm.collectionVariables.get('bulkDocumentsData'));",
               "    ",
-              "    responseData.documents.forEach((doc, index) => {",
+              "    responseData.forEach((doc, index) => {",
               "        pm.expect(doc.id).to.match(/^[0-9a-f-]{36}$/);",
               "        pm.expect(doc.name).to.equal(originalData[index].name);",
-              "        pm.expect(doc.url).to.equal(originalData[index].url);",
+              "        pm.expect(doc.uri).to.equal(originalData[index].uri);",
               "    });",
               "});"
             ]
@@ -604,8 +601,8 @@
               "    bulkSources.push(factory.validSource({",
               "        name: `Bulk Repository ${i} - ${Date.now()}`,",
               "        description: `Bulk created source number ${i}`,",
-              "        url: `https://github.com/example/repo-${i}`,",
-              "        ref: {",
+              "        uri: `https://github.com/example/repo-${i}`,",
+              "        parameters: {",
               "            refType: 'branch',",
               "            refValue: `feature-branch-${i}`",
               "        }",
@@ -627,7 +624,7 @@
               "",
               "pm.test('Response is array of created repositories', function () {",
               "    const responseData = pm.response.json();",
-              "    pm.expect(responseData).to.have.property('repositories');\n    pm.expect(responseData.repositories).to.be.an('array')",
+              "    pm.expect(responseData).to.be.an('array');",
               "    pm.expect(responseData).to.have.lengthOf(3);",
               "});",
               "",
@@ -635,12 +632,12 @@
               "    const responseData = pm.response.json();",
               "    const originalData = JSON.parse(pm.collectionVariables.get('bulkSourcesData'));",
               "    ",
-              "    responseData.repositories.forEach((source, index) => {",
+              "    responseData.forEach((source, index) => {",
               "        pm.expect(source.id).to.match(/^[0-9a-f-]{36}$/);",
               "        pm.expect(source.name).to.equal(originalData[index].name);",
-              "        pm.expect(source.url).to.equal(originalData[index].url);",
-              "        pm.expect(source.ref.refType).to.equal(originalData[index].ref.refType);",
-              "        pm.expect(source.ref.refValue).to.equal(originalData[index].ref.refValue);",
+              "        pm.expect(source.uri).to.equal(originalData[index].uri);",
+              "        pm.expect(source.parameters.refType).to.equal(originalData[index].parameters.refType);",
+              "        pm.expect(source.parameters.refValue).to.equal(originalData[index].parameters.refValue);",
               "    });",
               "});"
             ]

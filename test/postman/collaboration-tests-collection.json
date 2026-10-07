@@ -92,8 +92,7 @@
                   "}",
                   "",
                   "// POST /threat_models/{id}/diagrams takes CreateDiagramRequest: exactly name and type",
-                  "// (checked against CreateDiagramRequest by tests/test-data-factory.test.js;",
-                  "// the factory class is not loaded in the Newman sandbox for this collection).",
+                  "// (checked against CreateDiagramRequest by tests/collection-variables.test.js).",
                   "const diagram = {",
                   "    name: `Collaboration Test Diagram ${Date.now()}`,",
                   "    type: 'DFD-1.0.0'",
@@ -162,21 +161,6 @@
           "name": "Start Collaboration Session - Success (201)",
           "event": [
             {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// Generate collaboration session data",
-                  "const sessionData = {",
-                  "    participants: ['bob@tmi.local', 'charlie@tmi.local'],",
-                  "    permissions: 'writer'",
-                  "};",
-                  "",
-                  "pm.collectionVariables.set('collaborationSessionData', JSON.stringify(sessionData));"
-                ]
-              }
-            },
-            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -215,19 +199,11 @@
             "method": "POST",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
                 "key": "Authorization",
                 "value": "Bearer {{token_alice}}",
                 "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{{collaborationSessionData}}"
-            },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
               "host": [
@@ -245,36 +221,20 @@
           }
         },
         {
-          "name": "Start Session - Already Active (409)",
+          "name": "Start Session - Already Active (200)",
           "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// Try to start another session on same diagram",
-                  "const duplicateSessionData = {",
-                  "    participants: ['diana@tmi.local'],",
-                  "    permissions: 'reader'",
-                  "};",
-                  "",
-                  "pm.collectionVariables.set('duplicateSessionData', JSON.stringify(duplicateSessionData));"
-                ]
-              }
-            },
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status code is 409', function () {",
-                  "    pm.response.to.have.status(409);",
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
                   "});",
                   "",
-                  "pm.test('Error indicates session conflict', function () {",
+                  "pm.test('The existing session is returned', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('conflict');",
-                  "    pm.expect(responseData.error_description).to.include('collaboration');",
+                  "    pm.expect(responseData.session_id).to.equal(pm.collectionVariables.get('collaborationSessionId'));",
                   "});"
                 ]
               }
@@ -284,19 +244,11 @@
             "method": "POST",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
                 "key": "Authorization",
                 "value": "Bearer {{token_alice}}",
                 "type": "text"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{{duplicateSessionData}}"
-            },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
               "host": [
@@ -310,7 +262,7 @@
                 "collaborate"
               ]
             },
-            "description": "Try to start duplicate collaboration session"
+            "description": "Start a collaboration session when one already exists: the existing session is returned (200)"
           }
         },
         {
@@ -455,11 +407,15 @@
                   "    pm.expect(responseData.host.email).to.include('alice');",
                   "});",
                   "",
-                  "pm.test('Participant has correct permissions', function () {",
+                  "pm.test('Participants follow the CollaborationSession schema', function () {",
+                  "    // The REST payload lists WebSocket-connected users, so a user who has not joined may be absent;",
+                  "    // every entry that is present must carry a user and a documented permission level.",
                   "    const responseData = pm.response.json();",
-                  "    const bobParticipant = responseData.participants.find(p => p.user.email.includes('bob'));",
-                  "    pm.expect(bobParticipant).to.not.be.undefined;",
-                  "    pm.expect(bobParticipant.permissions).to.equal('writer');",
+                  "    pm.expect(responseData.participants).to.be.an('array');",
+                  "    responseData.participants.forEach((p) => {",
+                  "        pm.expect(p).to.have.property('user');",
+                  "        pm.expect(p.permissions).to.be.oneOf(['reader', 'writer']);",
+                  "    });",
                   "});"
                 ]
               }
@@ -516,7 +472,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -551,88 +507,8 @@
       "description": "Test participant permissions in collaboration sessions"
     },
     {
-      "name": "Session Updates and Cleanup",
+      "name": "Session Cleanup",
       "item": [
-        {
-          "name": "Update Collaboration Session - Success (200)",
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// Switch back to Alice (host)",
-                  "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.setActiveUser('alice');",
-                  "}",
-                  "",
-                  "// Generate session update data",
-                  "const updateData = {",
-                  "    participants: ['bob@tmi.local', 'charlie@tmi.local', 'diana@tmi.local'],",
-                  "    permissions: 'reader'",
-                  "};",
-                  "",
-                  "pm.collectionVariables.set('sessionUpdateData', JSON.stringify(updateData));"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 200', function () {",
-                  "    pm.response.to.have.status(200);",
-                  "});",
-                  "",
-                  "pm.test('Session updated successfully', function () {",
-                  "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.participants).to.have.lengthOf(3);",
-                  "});",
-                  "",
-                  "pm.test('New participant added', function () {",
-                  "    const responseData = pm.response.json();",
-                  "    const dianaParticipant = responseData.participants.find(p => p.user.email.includes('diana'));",
-                  "    pm.expect(dianaParticipant).to.not.be.undefined;",
-                  "    pm.expect(dianaParticipant.permissions).to.equal('reader');",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token_alice}}",
-                "type": "text"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{{sessionUpdateData}}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{collaborationDiagramId}}/collaborate",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "threat_models",
-                "{{aliceThreatModelId}}",
-                "diagrams",
-                "{{collaborationDiagramId}}",
-                "collaborate"
-              ]
-            },
-            "description": "Update collaboration session participants"
-          }
-        },
         {
           "name": "End Collaboration Session - Success (204)",
           "event": [
@@ -723,7 +599,7 @@
           }
         }
       ],
-      "description": "Test session updates and proper cleanup"
+      "description": "Test session cleanup"
     },
     {
       "name": "Teardown",

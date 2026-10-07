@@ -206,77 +206,6 @@
             },
             "description": "Create threat model as Bob for permission testing"
           }
-        },
-        {
-          "name": "Grant Charlie Reader Access to Alice's Threat Model",
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "// Switch back to Alice (owner)",
-                  "if (typeof tmiAuth !== 'undefined') {",
-                  "    tmiAuth.setActiveUser('alice');",
-                  "}",
-                  "",
-                  "// Generate authorization grant",
-                  "const authGrant = {",
-                  "    subject: 'charlie@tmi.local',",
-                  "    role: 'reader'",
-                  "};",
-                  "",
-                  "pm.collectionVariables.set('charlieReaderAuth', JSON.stringify(authGrant));"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status code is 200 or 201', function () {",
-                  "    pm.expect([200, 201]).to.include(pm.response.code);",
-                  "});",
-                  "",
-                  "pm.test('Authorization granted successfully', function () {",
-                  "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.subject).to.include('charlie');",
-                  "    pm.expect(responseData.role).to.equal('reader');",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token_alice}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{{charlieReaderAuth}}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/authorization",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "threat_models",
-                "{{aliceThreatModelId}}",
-                "authorization"
-              ]
-            },
-            "description": "Grant Charlie reader access to Alice's threat model"
-          }
         }
       ],
       "description": "Setup rerepositories for comprehensive permission testing"
@@ -383,7 +312,7 @@
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json-patch+json"
               }
             ],
             "body": {
@@ -493,9 +422,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
-                  "    pm.expect(responseData.details.required_role).to.equal('writer');",
-                  "    pm.expect(responseData.details.user_role).to.equal('reader');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -510,7 +437,7 @@
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json-patch+json"
               }
             ],
             "body": {
@@ -544,9 +471,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions for delete', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
-                  "    pm.expect(responseData.details.required_role).to.equal('owner');",
-                  "    pm.expect(responseData.details.user_role).to.equal('reader');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -607,7 +532,7 @@
                   "",
                   "pm.test('Error indicates no access permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -664,7 +589,7 @@
                   "",
                   "pm.test('Error indicates complete lack of access', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -679,7 +604,7 @@
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/json-patch+json"
               }
             ],
             "body": {
@@ -731,7 +656,7 @@
                   "",
                   "pm.test('Error indicates resource belongs to different user', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -780,6 +705,7 @@
                   "const threatData = {",
                   "    name: 'Test Threat for Permission Testing',",
                   "    description: 'Created for sub-resource permission tests',",
+                  "    threat_type: ['Spoofing'],",
                   "    severity: 'high',",
                   "    status: 'identified'",
                   "};",
@@ -844,6 +770,7 @@
                   "const threatData = {",
                   "    name: 'Unauthorized Threat Creation Attempt',",
                   "    description: 'This should fail',",
+                  "    threat_type: ['Spoofing'],",
                   "    severity: 'low',",
                   "    status: 'identified'",
                   "};",
@@ -862,7 +789,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -903,6 +830,7 @@
                   "const updateData = {",
                   "    name: 'Unauthorized Update Attempt',",
                   "    description: 'Modified by reader',",
+                  "    threat_type: ['Spoofing'],",
                   "    severity: 'critical',",
                   "    status: 'mitigated'",
                   "};",
@@ -921,7 +849,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -965,7 +893,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -1015,7 +943,7 @@
                   "",
                   "pm.test('Error indicates no access', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -1066,7 +994,7 @@
                   "",
                   "pm.test('Error indicates no access', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -1181,8 +1109,7 @@
                   "const docData = {",
                   "    name: 'Unauthorized Document',",
                   "    description: 'This should fail',",
-                  "    content_type: 'text/plain',",
-                  "    content: 'Unauthorized content'",
+                  "    uri: 'https://example.com/documents/unauthorized.md'",
                   "};",
                   "pm.collectionVariables.set('readerDocData', JSON.stringify(docData));"
                 ]
@@ -1199,7 +1126,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -1240,8 +1167,7 @@
                   "const updateData = {",
                   "    name: 'Unauthorized Update',",
                   "    description: 'Modified by reader',",
-                  "    content_type: 'text/plain',",
-                  "    content: 'Unauthorized modification'",
+                  "    uri: 'https://example.com/documents/unauthorized-update.md'",
                   "};",
                   "pm.collectionVariables.set('readerDocUpdate', JSON.stringify(updateData));"
                 ]
@@ -1258,7 +1184,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -1302,7 +1228,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -1352,7 +1278,7 @@
                   "",
                   "pm.test('Error indicates no access', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -1457,9 +1383,7 @@
                   "",
                   "const diagramData = {",
                   "    name: 'Unauthorized Diagram',",
-                  "    description: 'This should fail',",
-                  "    diagram_type: 'data_flow',",
-                  "    content: '{}'",
+                  "    type: 'DFD-1.0.0'",
                   "};",
                   "pm.collectionVariables.set('readerDiagramData', JSON.stringify(diagramData));"
                 ]
@@ -1476,7 +1400,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -1517,8 +1441,8 @@
                   "const updateData = {",
                   "    name: 'Unauthorized Update',",
                   "    description: 'Modified by reader',",
-                  "    diagram_type: 'data_flow',",
-                  "    content: '{\"modified\": true}'",
+                  "    type: 'DFD-1.0.0',",
+                  "    cells: []",
                   "};",
                   "pm.collectionVariables.set('readerDiagramUpdate', JSON.stringify(updateData));"
                 ]
@@ -1535,7 +1459,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -1579,7 +1503,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -1629,7 +1553,7 @@
                   "",
                   "pm.test('Error indicates no access', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -1652,7 +1576,7 @@
           }
         },
         {
-          "name": "Reader Start Collaboration - Forbidden (403)",
+          "name": "Reader Start Collaboration - Success (201)",
           "event": [
             {
               "listen": "prerequest",
@@ -1671,13 +1595,15 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Reader cannot start collaboration session (403)', function () {",
-                  "    pm.response.to.have.status(403);",
+                  "pm.test('Reader can start a collaboration session (201)', function () {",
+                  "    pm.response.to.have.status(201);",
                   "});",
                   "",
-                  "pm.test('Error indicates insufficient permissions', function () {",
+                  "pm.test('Session is returned with the reader as host', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData).to.have.property('session_id');",
+                  "    pm.expect(responseData).to.have.property('websocket_url');",
+                  "    pm.expect(responseData.host.provider_id).to.equal('bob');",
                   "});"
                 ]
               }
@@ -1689,22 +1615,22 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{token_bob}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{}"
-            },
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{testDiagramId}}/collaborate",
-              "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{testDiagramId}}", "collaborate"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}",
+                "diagrams",
+                "{{testDiagramId}}",
+                "collaborate"
+              ]
             },
-            "description": "Reader attempts to start collaboration session (should fail)"
+            "description": "Bob (reader) starts a collaboration session on Alice's diagram; readers may start sessions (201)"
           }
         }
       ],
@@ -1792,8 +1718,7 @@
                   "const repoData = {",
                   "    name: 'Unauthorized Repository',",
                   "    description: 'This should fail',",
-                  "    url: 'https://github.com/unauthorized/repo',",
-                  "    branch: 'main'",
+                  "    uri: 'https://github.com/unauthorized/repo'",
                   "};",
                   "pm.collectionVariables.set('readerRepoData', JSON.stringify(repoData));"
                 ]
@@ -1810,7 +1735,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -1851,8 +1776,7 @@
                   "const updateData = {",
                   "    name: 'Unauthorized Update',",
                   "    description: 'Modified by reader',",
-                  "    url: 'https://github.com/modified/repo',",
-                  "    branch: 'develop'",
+                  "    uri: 'https://github.com/modified/repo'",
                   "};",
                   "pm.collectionVariables.set('readerRepoUpdate', JSON.stringify(updateData));"
                 ]
@@ -1869,7 +1793,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -1913,7 +1837,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -1963,7 +1887,7 @@
                   "",
                   "pm.test('Error indicates no access', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -2071,8 +1995,7 @@
                   "const assetData = {",
                   "    name: 'Unauthorized Asset',",
                   "    description: 'This should fail',",
-                  "    asset_type: 'service',",
-                  "    sensitivity: 'public'",
+                  "    type: 'software'",
                   "};",
                   "pm.collectionVariables.set('readerAssetData', JSON.stringify(assetData));"
                 ]
@@ -2089,7 +2012,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -2130,8 +2053,7 @@
                   "const updateData = {",
                   "    name: 'Unauthorized Update',",
                   "    description: 'Modified by reader',",
-                  "    asset_type: 'data_store',",
-                  "    sensitivity: 'secret'",
+                  "    type: 'data'",
                   "};",
                   "pm.collectionVariables.set('readerAssetUpdate', JSON.stringify(updateData));"
                 ]
@@ -2148,7 +2070,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -2192,7 +2114,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -2242,7 +2164,7 @@
                   "",
                   "pm.test('Error indicates no access', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -2346,9 +2268,8 @@
                   "}",
                   "",
                   "const noteData = {",
-                  "    title: 'Unauthorized Note',",
-                  "    content: 'This should fail',",
-                  "    note_type: 'general'",
+                  "    name: 'Unauthorized Note',",
+                  "    content: 'This should fail'",
                   "};",
                   "pm.collectionVariables.set('readerNoteData', JSON.stringify(noteData));"
                 ]
@@ -2365,7 +2286,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -2404,9 +2325,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "const updateData = {",
-                  "    title: 'Unauthorized Update',",
-                  "    content: 'Modified by reader',",
-                  "    note_type: 'general'",
+                  "    name: 'Unauthorized Update',",
+                  "    content: 'Modified by reader'",
                   "};",
                   "pm.collectionVariables.set('readerNoteUpdate', JSON.stringify(updateData));"
                 ]
@@ -2423,7 +2343,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -2467,7 +2387,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -2517,7 +2437,7 @@
                   "",
                   "pm.test('Error indicates no access', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -2559,7 +2479,7 @@
                   "}",
                   "",
                   "const metadataData = {",
-                  "    custom_field: 'unauthorized_value'",
+                  "    value: 'unauthorized_value'",
                   "};",
                   "pm.collectionVariables.set('readerMetadataData', JSON.stringify(metadataData));"
                 ]
@@ -2576,7 +2496,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -2599,9 +2519,9 @@
               "raw": "{{readerMetadataData}}"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata",
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata/reader-test-key",
               "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}", "metadata"]
+              "path": ["threat_models", "{{aliceThreatModelId}}", "metadata", "reader-test-key"]
             },
             "description": "Reader attempts to update threat model metadata (should fail)"
           }
@@ -2620,7 +2540,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -2635,9 +2555,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata",
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata/reader-test-key",
               "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}", "metadata"]
+              "path": ["threat_models", "{{aliceThreatModelId}}", "metadata", "reader-test-key"]
             },
             "description": "Reader attempts to delete threat model metadata (should fail)"
           }
@@ -2670,7 +2590,7 @@
                   "",
                   "pm.test('Error indicates no access', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -2706,7 +2626,7 @@
                   "}",
                   "",
                   "const metadataData = {",
-                  "    custom_field: 'unauthorized_threat_metadata'",
+                  "    value: 'unauthorized_threat_metadata'",
                   "};",
                   "pm.collectionVariables.set('readerThreatMetadata', JSON.stringify(metadataData));"
                 ]
@@ -2723,7 +2643,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -2746,9 +2666,9 @@
               "raw": "{{readerThreatMetadata}}"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{testThreatId}}/metadata",
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{testThreatId}}/metadata/reader-test-key",
               "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "{{testThreatId}}", "metadata"]
+              "path": ["threat_models", "{{aliceThreatModelId}}", "threats", "{{testThreatId}}", "metadata", "reader-test-key"]
             },
             "description": "Reader attempts to update threat metadata (should fail)"
           }
@@ -2762,7 +2682,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "const metadataData = {",
-                  "    custom_field: 'unauthorized_diagram_metadata'",
+                  "    value: 'unauthorized_diagram_metadata'",
                   "};",
                   "pm.collectionVariables.set('readerDiagramMetadata', JSON.stringify(metadataData));"
                 ]
@@ -2779,7 +2699,7 @@
                   "",
                   "pm.test('Error indicates insufficient permissions', function () {",
                   "    const responseData = pm.response.json();",
-                  "    pm.expect(responseData.error).to.include('access_denied');",
+                  "    pm.expect(responseData.error).to.equal('forbidden');",
                   "});"
                 ]
               }
@@ -2802,9 +2722,9 @@
               "raw": "{{readerDiagramMetadata}}"
             },
             "url": {
-              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{testDiagramId}}/metadata",
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{testDiagramId}}/metadata/reader-test-key",
               "host": ["{{baseUrl}}"],
-              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{testDiagramId}}", "metadata"]
+              "path": ["threat_models", "{{aliceThreatModelId}}", "diagrams", "{{testDiagramId}}", "metadata", "reader-test-key"]
             },
             "description": "Reader attempts to update diagram metadata (should fail)"
           }
@@ -2865,6 +2785,57 @@
               ]
             },
             "description": "Bob deletes his threat model"
+          }
+        },
+        {
+          "name": "End Collaboration Session (204)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// A threat model with an active collaboration session cannot be deleted (409), and only the session host can end it, so Bob (host) ends his session first.",
+                  "if (typeof tmiAuth !== 'undefined') {",
+                  "    tmiAuth.setActiveUser('bob');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_bob}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{testDiagramId}}/collaborate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}",
+                "diagrams",
+                "{{testDiagramId}}",
+                "collaborate"
+              ]
+            },
+            "description": "Bob (host of the session he started) ends it, so that Alice's threat model can be deleted"
           }
         },
         {

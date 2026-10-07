@@ -178,7 +178,7 @@
               "pm.test('Error indicates missing key', function () {",
               "    const responseData = pm.response.json();",
               "    pm.expect(responseData).to.have.property('error');",
-              "    pm.expect(responseData.error_description).to.include('validation');",
+              "    pm.expect(responseData.error).to.equal('invalid_input');",
               "});"
             ]
           }
@@ -239,7 +239,7 @@
               "",
               "pm.test('Error indicates empty values not allowed', function () {",
               "    const responseData = pm.response.json();",
-              "    pm.expect(responseData.error_description).to.include('validation');",
+              "    pm.expect(responseData.error).to.equal('invalid_input');",
               "});"
             ]
           }
@@ -491,19 +491,21 @@
               "    pm.response.to.have.status(201);",
               "});",
               "",
-              "pm.test('Response is array of created metadata', function () {",
+              "pm.test('Response is array of metadata', function () {",
               "    const responseData = pm.response.json();",
               "    pm.expect(responseData).to.be.an('array');",
-              "    pm.expect(responseData).to.have.lengthOf(3);",
+              "    pm.expect(responseData.length).to.be.at.least(3);",
               "});",
               "",
               "pm.test('All metadata entries created correctly', function () {",
+              "    // The response lists the threat model's metadata entries, which include entries created by earlier requests",
               "    const responseData = pm.response.json();",
               "    const originalData = JSON.parse(pm.collectionVariables.get('bulkMetadataData'));",
-              "    ",
-              "    responseData.forEach((item, index) => {",
-              "        pm.expect(item.key).to.equal(originalData[index].key);",
-              "        pm.expect(item.value).to.equal(originalData[index].value);",
+              "",
+              "    originalData.forEach((expected) => {",
+              "        const item = responseData.find((m) => m.key === expected.key);",
+              "        pm.expect(item, `metadata key ${expected.key} in response`).to.not.be.undefined;",
+              "        pm.expect(item.value).to.equal(expected.value);",
               "    });",
               "});"
             ]

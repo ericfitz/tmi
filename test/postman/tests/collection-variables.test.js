@@ -5,7 +5,7 @@
 // the literal text "{{someId}}" on the wire (a 400 invalid_id, or a 401 with no auth).
 // That is how threat-crud, bulk-operations, metadata and permission-matrix ended up
 // failing in a standalone run: only comprehensive-test-collection created the threat
-// model they assumed. Run with: node --test test/postman/tests/
+// model they assumed. Run with: node --test test/postman/tests/*.test.js
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
