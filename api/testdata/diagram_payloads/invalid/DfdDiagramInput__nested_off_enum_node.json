@@ -1,0 +1,14 @@
+{
+  "name": "Nested off-enum node",
+  "type": "DFD-1.0.0",
+  "cells": [
+    {
+      "id": "a1b2c3d4-0000-4000-8000-000000000041",
+      "shape": "threat-model-process",
+      "x": 10,
+      "y": 20,
+      "width": 120,
+      "height": 60
+    }
+  ]
+}
