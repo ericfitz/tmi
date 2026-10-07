@@ -1,0 +1,13 @@
+{
+  "name": "Edge without source",
+  "type": "DFD-1.0.0",
+  "cells": [
+    {
+      "id": "a1b2c3d4-0000-4000-8000-000000000031",
+      "shape": "flow",
+      "target": {
+        "cell": "a1b2c3d4-0000-4000-8000-000000000012"
+      }
+    }
+  ]
+}

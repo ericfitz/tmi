@@ -1,0 +1,17 @@
+{
+  "type": "DFD-1.0.0",
+  "name": "Authentication Flow",
+  "description": "User authentication data flow",
+  "cells": [
+    {
+      "id": "d40eabcd-e89b-41d4-a716-446655440023",
+      "shape": "actor",
+      "x": 50,
+      "y": 100,
+      "width": 60,
+      "height": 60
+    }
+  ],
+  "include_in_report": true,
+  "timmy_enabled": true
+}

@@ -1,0 +1,9 @@
+{
+  "id": "a1b2c3d4-0000-4000-8000-000000000041",
+  "shape": "process",
+  "x": 100,
+  "y": 100,
+  "width": 120,
+  "height": 60,
+  "label": "New Process"
+}
