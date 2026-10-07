@@ -411,7 +411,7 @@
                   "    // GET /collaborate: \"The session payload indicates who has been authorized to the session, not who is",
                   "    // currently active in the WebSocket session.\" Bob was granted writer on the threat model, so he must",
                   "    // be listed with that role even though he has not connected over WebSocket.",
-                  "    // Known server bug: participants comes back empty — see GitHub issue (to be filed); this assertion fails until it's fixed.",
+                  "    // Known server bug #1046: participants comes back empty; this assertion fails until it's fixed.",
                   "    const responseData = pm.response.json();",
                   "    pm.expect(responseData.participants).to.be.an('array');",
                   "    responseData.participants.forEach((p) => {",
