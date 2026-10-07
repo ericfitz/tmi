@@ -47,7 +47,7 @@ var TestFixtures struct {
 }
 
 // InitTestFixtures initializes test data in stores
-// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: build in-memory stores with canonical test threat model and diagram fixtures (mutates shared state)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: build in-memory stores with canonical test threat model and diagram fixtures (mutates shared state)
 func InitTestFixtures() {
 	// Database stores are initialized by the main application
 
@@ -232,7 +232,7 @@ type MockThreatModelStore struct {
 	data map[string]ThreatModel
 }
 
-// SEM@e4005658033b63171bdc1130fb523d996fbff9a7: fetch a threat model by ID from the in-memory store, loading diagrams dynamically (pure)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: fetch a threat model by ID from the in-memory store, loading diagrams dynamically (pure)
 func (m *MockThreatModelStore) Get(id string) (ThreatModel, error) {
 	if item, exists := m.data[id]; exists {
 		// Filter out soft-deleted entities
@@ -561,7 +561,7 @@ type MockDiagramStore struct {
 	threatModelMapping map[string]string // diagram_id -> threat_model_id
 }
 
-// SEM@e4005658033b63171bdc1130fb523d996fbff9a7: fetch a diagram from the mock store by ID
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: fetch a diagram from the mock store by ID (test fixture)
 func (m *MockDiagramStore) Get(id string) (DfdDiagram, error) {
 	if item, exists := m.data[id]; exists {
 		return item, nil

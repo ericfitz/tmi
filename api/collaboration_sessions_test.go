@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: test listing active collaboration sessions visible to the current user
 func TestGetCurrentUserSessions(t *testing.T) {
 	InitTestFixtures()
 	// Setup test data with different permission levels
@@ -311,6 +312,7 @@ func TestGetCurrentUserSessions(t *testing.T) {
 	}
 }
 
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: test that the WebSocket hub lists active collaboration sessions (test)
 func TestWebSocketHub_GetActiveSessions(t *testing.T) {
 	// Test the hub method directly
 	hub := NewWebSocketHubForTests()

@@ -853,7 +853,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 }
 
 // DeleteThreatModel deletes a threat model
-// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: soft-delete a threat model, blocking if any diagram has an active collaboration session (reads DB)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: delete a threat model; reject if any diagram has active collaboration session (reads DB)
 func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	// Parse ID from URL parameter
 	id := c.Param("threat_model_id")

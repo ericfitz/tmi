@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// SEM@0000000: load and validate the OpenAPI spec from the repository file (test helper)
+// SEM@f7eaeac5d84cc3e6042933b926820caa7b7c6825: load and validate the OpenAPI spec from the repository file (test helper)
 func loadSpecFromFile(t *testing.T) *openapi3.T {
 	t.Helper()
 	loader := openapi3.NewLoader()
@@ -21,7 +21,7 @@ func loadSpecFromFile(t *testing.T) *openapi3.T {
 	return doc
 }
 
-// SEM@0000000: validate frozen diagram payloads against their schemas, valid and invalid (test)
+// SEM@f7eaeac5d84cc3e6042933b926820caa7b7c6825: validate frozen diagram payloads against their schemas, valid and invalid (test)
 func TestDiagramPayloadCorpus(t *testing.T) {
 	doc := loadSpecFromFile(t)
 	for _, dir := range []string{"valid", "invalid"} {

@@ -1376,7 +1376,7 @@ func (s *GormThreatModelStore) batchLoadThreatMetadata(threatIDs []string) map[s
 }
 
 // loadDiagramsDynamically loads diagrams using the DiagramStore for single source of truth
-// SEM@6a6c15749391c2817c30c64c8b54f8e0a4082a91: fetch diagrams for a threat model via the diagram store in batch (reads DB)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: fetch diagrams for a threat model via the diagram store (reads DB)
 func (s *GormThreatModelStore) loadDiagramsDynamically(threatModelID string) (*[]DfdDiagram, error) {
 	var diagramIDs []string
 	result := s.db.Model(&models.Diagram{}).

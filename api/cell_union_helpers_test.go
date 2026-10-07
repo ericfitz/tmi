@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// SEM@e0319b46956724d532b5b4f64b9f66b006e3a0a9: validate safe node union conversion preserves each node shape (test)
 func TestSafeFromNode_PreservesAllShapes(t *testing.T) {
 	shapes := []NodeShape{
 		NodeShapeActor,
@@ -47,6 +48,7 @@ func TestSafeFromNode_PreservesAllShapes(t *testing.T) {
 	}
 }
 
+// SEM@7bac1ed632ff8929eff543daec4372c53d51283a: verify safe node union builder preserves cell shape where generated builder corrupts it (test)
 func TestSafeFromNode_VsFromNode_ShapeCorruption(t *testing.T) {
 	// Historical note: earlier versions of oapi-codegen generated a FromNode
 	// that hardcoded a fixed discriminator shape (a bug). The current generator
@@ -93,6 +95,7 @@ func TestSafeFromNode_VsFromNode_ShapeCorruption(t *testing.T) {
 	}
 }
 
+// SEM@e0319b46956724d532b5b4f64b9f66b006e3a0a9: test that building an edge cell union preserves the edge shape (pure)
 func TestSafeFromEdge_PreservesShape(t *testing.T) {
 	id := uuid.New()
 	sourceID := uuid.New()
@@ -117,6 +120,7 @@ func TestSafeFromEdge_PreservesShape(t *testing.T) {
 	assert.Equal(t, targetID, extracted.Target.Cell, "target should be preserved")
 }
 
+// SEM@7bac1ed632ff8929eff543daec4372c53d51283a: test that building a cell union from a node preserves every node field (test)
 func TestSafeFromNode_PreservesAllNodeFields(t *testing.T) {
 	id := uuid.New()
 	parentID := uuid.New()
@@ -189,6 +193,7 @@ func TestSafeFromNode_PreservesAllNodeFields(t *testing.T) {
 	assert.Equal(t, &labelText, extracted.Attrs.Text.Text)
 }
 
+// SEM@e0319b46956724d532b5b4f64b9f66b006e3a0a9: validate diagram cell normalization preserves each cell shape (test)
 func TestNormalizeDiagramCells_PreservesShape(t *testing.T) {
 	// Create cells with different shapes
 	shapes := []NodeShape{
@@ -227,6 +232,7 @@ func TestNormalizeDiagramCells_PreservesShape(t *testing.T) {
 	}
 }
 
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: verify cell metadata sanitization keeps each cell's shape intact (test)
 func TestSanitizeDiagramCellMetadata_PreservesShape(t *testing.T) {
 	// Create an actor node with metadata
 	id := uuid.New()
@@ -269,6 +275,7 @@ func TestSanitizeDiagramCellMetadata_PreservesShape(t *testing.T) {
 // corrupted into edges during metadata sanitization. This is a regression test for #170
 // where nodes without position data would fail AsNode(), fall through to AsEdge(), and
 // get rewritten with edge-specific fields (source/target with nil UUIDs).
+// SEM@317f79feba10e514c12e91c57928a013cc52ed83: test that sanitizing cell metadata does not corrupt nodes into edges (pure)
 func TestSanitizeDiagramCellMetadata_NoNodeToEdgeCorruption(t *testing.T) {
 	// Create a node cell with metadata but simulate a scenario where the
 	// raw JSON might cause AsNode() to fail. Use a raw JSON node that has
@@ -315,6 +322,7 @@ func TestSanitizeDiagramCellMetadata_NoNodeToEdgeCorruption(t *testing.T) {
 
 // TestSanitizeDiagramCellMetadata_AllNodeShapes verifies that all node shapes
 // are correctly handled by metadata sanitization without corruption.
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: test that cell metadata sanitization handles every node shape (test)
 func TestSanitizeDiagramCellMetadata_AllNodeShapes(t *testing.T) {
 	shapes := []NodeShape{
 		NodeShapeActor,
@@ -372,6 +380,7 @@ func TestSanitizeDiagramCellMetadata_AllNodeShapes(t *testing.T) {
 	}
 }
 
+// SEM@e0319b46956724d532b5b4f64b9f66b006e3a0a9: validate node construction preserves the requested shape (test)
 func TestCreateNode_PreservesShape(t *testing.T) {
 	// Test the test fixture helper preserves shape correctly
 	shapes := []NodeShape{
@@ -395,7 +404,7 @@ func TestCreateNode_PreservesShape(t *testing.T) {
 	}
 }
 
-// SEM@0000000: verify cell data extra keys survive a Node JSON round-trip (test)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: verify cell data extra keys survive a Node JSON round-trip (test)
 func TestNodeCellDataRoundTripKeepsExtraKeys(t *testing.T) {
 	in := []byte(`{"id":"6f1c2c8e-7a51-4a38-9b1e-0d1c8f5a2b10","shape":"process","x":10,"y":20,"width":120,"height":60,"data":{"custom_note":"kept","_metadata":[{"key":"k","value":"v"}]}}`)
 	var n Node

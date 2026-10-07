@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: validate websocket collaboration authorization decisions by user role (test)
 func TestWebSocketAuthorizationValidation(t *testing.T) {
 	// Initialize test fixtures
 	InitTestFixtures()
@@ -131,6 +132,7 @@ func TestWebSocketAuthorizationValidation(t *testing.T) {
 	}
 }
 
+// SEM@034458046025bae84619446d5157380bd6119555: verify WebSocket upgrade endpoint enforces authorization by user role (test)
 func TestWebSocketAuthorizationHTTPEndpoint(t *testing.T) {
 	// Test the HTTP endpoint behavior without WebSocket upgrade
 	gin.SetMode(gin.TestMode)
@@ -167,6 +169,7 @@ func TestWebSocketAuthorizationHTTPEndpoint(t *testing.T) {
 	assert.Equal(t, "User not authenticated", errorResponse.ErrorDescription)
 }
 
+// SEM@aa51ce1166e071f4829b3df9a0fba28a99d118ee: test WebSocket connection is rejected for an invalid diagram ID
 func TestWebSocketAuthorizationInvalidDiagramID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
