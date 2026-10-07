@@ -122,11 +122,12 @@ func TestOpenAPIErrorHandler(t *testing.T) {
 			wantCode:   "invalid_id",
 		},
 		{
-			name:       "Malformed query parameter pattern",
-			message:    "parameter \"filter\" in query has an error: string doesn't match the regular expression \"^[a-z]+$\" pattern",
+			name:       "Malformed query parameter format",
+			message:    "error in openapi3filter.RequestError: parameter \"created_after\" in query has an error: string doesn't match the format \"date-time\"",
 			statusCode: http.StatusBadRequest,
 			wantCode:   "invalid_id",
 		},
+
 		{
 			// kin-openapi embeds the failing schema (with its "pattern" and
 			// "format" keywords) in the message; that must not make a body
@@ -222,6 +223,42 @@ func TestOpenAPIValidation_BodyViolationsAreInvalidInput(t *testing.T) {
 			var resp map[string]any
 			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 			assert.Equal(t, "invalid_input", resp["error"], w.Body.String())
+		})
+	}
+}
+
+// TestOpenAPIValidation_ParameterViolationsAreInvalidID drives the real OpenAPI
+// request validator with malformed path/query parameters and asserts the
+// documented identifier error, invalid_id. It guards the classification in
+// OpenAPIErrorHandler against a change in kin-openapi's error wording.
+func TestOpenAPIValidation_ParameterViolationsAreInvalidID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	validator, err := SetupOpenAPIValidation()
+	require.NoError(t, err)
+
+	r := gin.New()
+	r.Use(validator)
+	ok := func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) }
+	// Note: format "uuid" is not enforced by the validator (UUIDValidationMiddleware
+	// handles path UUIDs), so use parameters whose format/pattern it does enforce.
+	r.GET("/usability_feedback", ok)
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{name: "query parameter with date-time format", path: "/usability_feedback?created_after=not-a-date"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, tt.path, nil))
+
+			require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
+			var resp map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+			assert.Equal(t, "invalid_id", resp["error"], w.Body.String())
 		})
 	}
 }
