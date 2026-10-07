@@ -229,3 +229,10 @@ Secret *values* must never reach a command line, environment variable, log, or t
 - Injecting a secret into the cluster: follow `scripts/set-oauth-secret.sh` / `scripts/set-embedding-secret.sh` — the operator writes the value to a `umask 077` file and `kubectl --from-file` reads it from disk, so it never appears in argv or the environment.
 - Reading a secret for a deploy: `scripts/deploy-aws.sh` is the sanctioned caller of `aws secretsmanager get-secret-value`; it fetches DB credentials into a `umask 077` temp config and never prints them. Extend that script rather than adding ad-hoc callers.
 - Terraform-managed secrets (`terraform/modules/secrets/aws`, `random_password`) land in remote state, which is why `encrypt = true` is pinned in `terraform/environments/aws-public/main.tf` while bucket/table come per-deployer from the gitignored `backend.hcl`. Never write state locally or paste it anywhere; mark secret outputs `sensitive`.
+
+## Learned Preferences
+
+- CATS fuzzing is a branch-level gate run before merging a dev/feature branch into main, not part of per-task validation.
+- Security mitigations: prefer one centralized enforcement point (middleware, shared validator, allowlist) over per-handler checks, and simple readable implementations over clever ones.
+- Debugging: read the TMI server log first (`logs` skill / `logs/tmi.log`) before code review, hypotheses, or asking the user for details, unless the issue clearly cannot appear in the log.
+- Log identifiers and outcomes, never values, unless the user asks; then assess sensitivity, propose redaction, and write it so CodeQL can see it is safe (omit or transform the value; an `if IsSecret()` branch is NOT a sanitizer; use `MigratableSetting.IsSecret()`).
