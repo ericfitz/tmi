@@ -407,15 +407,20 @@
                   "    pm.expect(responseData.host.email).to.include('alice');",
                   "});",
                   "",
-                  "pm.test('Participants follow the CollaborationSession schema', function () {",
-                  "    // The REST payload lists WebSocket-connected users, so a user who has not joined may be absent;",
-                  "    // every entry that is present must carry a user and a documented permission level.",
+                  "pm.test('Participants list who is authorized to the session, including bob as writer', function () {",
+                  "    // GET /collaborate: \"The session payload indicates who has been authorized to the session, not who is",
+                  "    // currently active in the WebSocket session.\" Bob was granted writer on the threat model, so he must",
+                  "    // be listed with that role even though he has not connected over WebSocket.",
+                  "    // Known server bug: participants comes back empty — see GitHub issue (to be filed); this assertion fails until it's fixed.",
                   "    const responseData = pm.response.json();",
                   "    pm.expect(responseData.participants).to.be.an('array');",
                   "    responseData.participants.forEach((p) => {",
                   "        pm.expect(p).to.have.property('user');",
                   "        pm.expect(p.permissions).to.be.oneOf(['reader', 'writer']);",
                   "    });",
+                  "    const bob = responseData.participants.find((p) => p.user && p.user.email && p.user.email.includes('bob'));",
+                  "    pm.expect(bob, 'bob is listed in participants').to.not.be.undefined;",
+                  "    pm.expect(bob.permissions).to.equal('writer');",
                   "});"
                 ]
               }
