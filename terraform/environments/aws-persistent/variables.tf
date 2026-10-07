@@ -1,7 +1,7 @@
 # Variables for TMI AWS Persistent Environment
 
 variable "admin_users" {
-  description = "IAM users that get the explicit Deny on releasing the NAT egress EIP (every admin principal in the account)"
+  description = "IAM users that get the explicit Denies on releasing the NAT egress EIP and on deleting or overwriting the settings-key escrow secret (every admin principal in the account)"
   type        = list(string)
   default     = ["llm-platform-dev"]
 }

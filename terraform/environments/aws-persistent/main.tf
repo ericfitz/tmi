@@ -132,12 +132,24 @@ resource "aws_secretsmanager_secret" "settings_key_escrow" {
 }
 
 # Terraform's prevent_destroy guards the escrow secret only against Terraform.
-# This Deny covers the console and CLI for the admin users too (#1030): deleting
-# the secret (even with a recovery window) or attaching a resource policy that
-# could expose the escrowed keys to another principal requires removing this
-# attachment first, a deliberate two-step change.
+# This Deny covers the console and CLI for the admin users too (#1030, #1037):
+# deleting the secret (even with a recovery window), attaching a resource policy
+# that could expose the escrowed keys, or making the escrowed version
+# undecryptable or unreachable requires removing this attachment first, a
+# deliberate two-step change. The rotator writes versions through its IRSA role,
+# which this Deny does not touch. Blocked overwrite paths: PutSecretValue and
+# UpdateSecret --secret-string (new version takes AWSCURRENT), UpdateSecret
+# --kms-key-id (re-encrypt under a CMK that is then deleted), and
+# UpdateSecretVersionStage / RotateSecret (strip or replace staging labels).
+# UpdateSecret is denied outright because no condition key detects a
+# SecretString in the request (human decision, Eric, 2026-10-07), so editing
+# the description in Terraform is also a two-step change. Admin IAM roles are
+# not covered: the account has none (checked 2026-10-07); if an SSO or CI admin
+# role is added, add a secret resource policy (#1037 L1).
 resource "aws_iam_policy" "deny_delete_settings_key_escrow" {
-  name        = "deny-delete-tmi-settings-key-escrow"
+  name = "deny-delete-tmi-settings-key-escrow"
+  # Description is immutable on aws_iam_policy (a change forces replacement and
+  # a window with no Deny attached), so it keeps its #1030 wording.
   description = "Deny deleting or re-permissioning the TMI settings-key escrow secret - only on explicit owner instruction"
 
   policy = jsonencode({
@@ -148,6 +160,10 @@ resource "aws_iam_policy" "deny_delete_settings_key_escrow" {
       Action = [
         "secretsmanager:DeleteSecret",
         "secretsmanager:PutResourcePolicy",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:UpdateSecret",
+        "secretsmanager:UpdateSecretVersionStage",
+        "secretsmanager:RotateSecret",
       ]
       Resource = aws_secretsmanager_secret.settings_key_escrow.arn
     }]
