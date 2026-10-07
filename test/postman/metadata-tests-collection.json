@@ -2,6 +2,72 @@
   "name": "4. Metadata CRUD Tests",
   "item": [
     {
+      "name": "Setup",
+      "item": [
+        {
+          "name": "Setup - Create Alice's Threat Model (201)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Load the real data factory (the runners provide its source via newman --globals)",
+                  "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
+                  "const factory = new TMITestDataFactory();",
+                  "const threatModel = factory.validThreatModel({",
+                  "    name: `Standalone Test Threat Model ${Date.now()}`,",
+                  "    description: 'Created by Alice so this collection can run on its own'",
+                  "});",
+                  "pm.collectionVariables.set('aliceThreatModelData', JSON.stringify(threatModel));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Threat model created and id stored for this collection', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.id).to.match(/^[0-9a-f-]{36}$/);",
+                  "    pm.collectionVariables.set('aliceThreatModelId', responseData.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{aliceThreatModelData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
+            },
+            "description": "Creates the threat model (owned by Alice) that every other request in this collection operates on, so the collection does not depend on another collection having run first."
+          }
+        }
+      ]
+    },
+    {
       "name": "Create Threat Model Metadata - Success (201)",
       "event": [
         {
@@ -545,7 +611,53 @@
         },
         "description": "Verify metadata was actually deleted"
       }
+    },
+    {
+      "name": "Teardown",
+      "item": [
+        {
+          "name": "Teardown - Delete Alice's Threat Model (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
+            },
+            "description": "Deletes the threat model created by the setup request (cascades to its threats, documents, repositories and metadata)."
+          }
+        }
+      ]
     }
   ],
-  "description": "Comprehensive metadata CRUD testing with validation scenarios"
+  "description": "Comprehensive metadata CRUD testing with validation scenarios",
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token_alice}}",
+        "type": "string"
+      }
+    ]
+  }
 }

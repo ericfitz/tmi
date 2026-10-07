@@ -57,6 +57,83 @@
       "name": "Setup Permission Test Rerepositories",
       "item": [
         {
+          "name": "Create Alice's Threat Model",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Alice owns the threat model the whole matrix operates on; Charlie is its reader; Diana has no access.",
+                  "// Known problem: in the dev stack Charlie is an administrator and a member of security-reviewers,",
+                  "// which the server adds to every threat model as owner, so Charlie's effective role is owner and",
+                  "// the reader assertions cannot hold for him. An unprivileged user (e.g. Bob) is needed as the reader.",
+                  "// Load the real data factory (the runners provide its source via newman --globals)",
+                  "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
+                  "const factory = new TMITestDataFactory();",
+                  "const aliceThreatModel = factory.validThreatModel({",
+                  "    name: `Alice's Permission Matrix Threat Model ${Date.now()}`,",
+                  "    description: 'Created by Alice for permission testing',",
+                  "    additional: {",
+                  "        authorization: [",
+                  "            { principal_type: 'user', provider: 'tmi', provider_id: 'charlie', email: 'charlie@tmi.local', role: 'reader' }",
+                  "        ]",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.collectionVariables.set('aliceThreatModelData', JSON.stringify(aliceThreatModel));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Alice owns the threat model and Charlie is a reader', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.id).to.match(/^[0-9a-f-]{36}$/);",
+                  "    pm.collectionVariables.set('aliceThreatModelId', responseData.id);",
+                  "    const charlie = responseData.authorization.find((a) => a.provider_id === 'charlie');",
+                  "    pm.expect(charlie).to.have.property('role', 'reader');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{aliceThreatModelData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
+            },
+            "description": "Alice creates the threat model used by the permission matrix and grants Charlie the reader role in the same request (authorization is part of the create body), so the collection runs standalone."
+          }
+        },
+        {
           "name": "Create Bob's Threat Model",
           "event": [
             {
@@ -107,6 +184,10 @@
           "request": {
             "method": "POST",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_bob}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -173,6 +254,10 @@
             "method": "POST",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -236,7 +321,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
               "host": [
@@ -289,6 +379,10 @@
           "request": {
             "method": "PATCH",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -352,7 +446,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
               "host": [
@@ -408,6 +507,10 @@
             "method": "PATCH",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -453,7 +556,12 @@
           ],
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
               "host": [
@@ -509,7 +617,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_diana}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
               "host": [
@@ -562,6 +675,10 @@
           "request": {
             "method": "PATCH",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_diana}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -624,7 +741,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{bobThreatModelId}}",
               "host": [
@@ -688,6 +810,10 @@
             "method": "POST",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -748,6 +874,10 @@
             "method": "POST",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -803,6 +933,10 @@
             "method": "PUT",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -841,7 +975,12 @@
           ],
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{testThreatId}}",
               "host": ["{{baseUrl}}"],
@@ -886,7 +1025,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_diana}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats/{{testThreatId}}",
               "host": ["{{baseUrl}}"],
@@ -934,6 +1078,10 @@
             "method": "POST",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_diana}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -972,8 +1120,7 @@
                   "const docData = {",
                   "    name: 'Test Document for Permission Testing',",
                   "    description: 'Created for sub-resource permission tests',",
-                  "    content_type: 'text/markdown',",
-                  "    content: '# Test Document'",
+                  "    uri: 'https://example.com/documents/permission-test.md'",
                   "};",
                   "pm.collectionVariables.set('testDocumentData', JSON.stringify(docData));"
                 ]
@@ -999,6 +1146,10 @@
           "request": {
             "method": "POST",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -1060,6 +1211,10 @@
             "method": "POST",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -1115,6 +1270,10 @@
             "method": "PUT",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -1153,7 +1312,12 @@
           ],
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/documents/{{testDocumentId}}",
               "host": ["{{baseUrl}}"],
@@ -1198,7 +1362,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_diana}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/documents/{{testDocumentId}}",
               "host": ["{{baseUrl}}"],
@@ -1228,9 +1397,7 @@
                   "",
                   "const diagramData = {",
                   "    name: 'Test Diagram for Permission Testing',",
-                  "    description: 'Created for sub-resource permission tests',",
-                  "    diagram_type: 'data_flow',",
-                  "    content: '{\"nodes\": [], \"edges\": []}'",
+                  "    type: 'DFD-1.0.0'",
                   "};",
                   "pm.collectionVariables.set('testDiagramData', JSON.stringify(diagramData));"
                 ]
@@ -1256,6 +1423,10 @@
           "request": {
             "method": "POST",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -1317,6 +1488,10 @@
             "method": "POST",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -1372,6 +1547,10 @@
             "method": "PUT",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -1410,7 +1589,12 @@
           ],
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{testDiagramId}}",
               "host": ["{{baseUrl}}"],
@@ -1455,7 +1639,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_diana}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/diagrams/{{testDiagramId}}",
               "host": ["{{baseUrl}}"],
@@ -1500,6 +1689,10 @@
             "method": "POST",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -1538,8 +1731,7 @@
                   "const repoData = {",
                   "    name: 'Test Repository for Permission Testing',",
                   "    description: 'Created for sub-resource permission tests',",
-                  "    url: 'https://github.com/test/repo',",
-                  "    branch: 'main'",
+                  "    uri: 'https://github.com/test/repo'",
                   "};",
                   "pm.collectionVariables.set('testRepositoryData', JSON.stringify(repoData));"
                 ]
@@ -1565,6 +1757,10 @@
           "request": {
             "method": "POST",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -1626,6 +1822,10 @@
             "method": "POST",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -1681,6 +1881,10 @@
             "method": "PUT",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -1719,7 +1923,12 @@
           ],
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/repositories/{{testRepositoryId}}",
               "host": ["{{baseUrl}}"],
@@ -1764,7 +1973,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_diana}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/repositories/{{testRepositoryId}}",
               "host": ["{{baseUrl}}"],
@@ -1795,7 +2009,7 @@
                   "const assetData = {",
                   "    name: 'Test Asset for Permission Testing',",
                   "    description: 'Created for sub-resource permission tests',",
-                  "    asset_type: 'data_store',",
+                  "    type: 'data',",
                   "    sensitivity: 'confidential'",
                   "};",
                   "pm.collectionVariables.set('testAssetData', JSON.stringify(assetData));"
@@ -1822,6 +2036,10 @@
           "request": {
             "method": "POST",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -1883,6 +2101,10 @@
             "method": "POST",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -1938,6 +2160,10 @@
             "method": "PUT",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -1976,7 +2202,12 @@
           ],
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/assets/{{testAssetId}}",
               "host": ["{{baseUrl}}"],
@@ -2021,7 +2252,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_diana}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/assets/{{testAssetId}}",
               "host": ["{{baseUrl}}"],
@@ -2050,9 +2286,8 @@
                   "}",
                   "",
                   "const noteData = {",
-                  "    title: 'Test Note for Permission Testing',",
-                  "    content: 'Created for sub-resource permission tests',",
-                  "    note_type: 'general'",
+                  "    name: 'Test Note for Permission Testing',",
+                  "    content: 'Created for sub-resource permission tests'",
                   "};",
                   "pm.collectionVariables.set('testNoteData', JSON.stringify(noteData));"
                 ]
@@ -2078,6 +2313,10 @@
           "request": {
             "method": "POST",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -2138,6 +2377,10 @@
             "method": "POST",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -2192,6 +2435,10 @@
             "method": "PUT",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -2230,7 +2477,12 @@
           ],
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/notes/{{testNoteId}}",
               "host": ["{{baseUrl}}"],
@@ -2275,7 +2527,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_diana}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/notes/{{testNoteId}}",
               "host": ["{{baseUrl}}"],
@@ -2331,6 +2588,10 @@
             "method": "PUT",
             "header": [
               {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
+              {
                 "key": "Content-Type",
                 "value": "application/json"
               }
@@ -2369,7 +2630,12 @@
           ],
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata",
               "host": ["{{baseUrl}}"],
@@ -2414,7 +2680,12 @@
           ],
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_diana}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/metadata",
               "host": ["{{baseUrl}}"],
@@ -2463,6 +2734,10 @@
           "request": {
             "method": "PUT",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -2515,6 +2790,10 @@
           "request": {
             "method": "PUT",
             "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_charlie}}"
+              },
               {
                 "key": "Content-Type",
                 "value": "application/json"
@@ -2571,7 +2850,12 @@
           ],
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_bob}}"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/threat_models/{{bobThreatModelId}}",
               "host": [
@@ -2583,6 +2867,42 @@
               ]
             },
             "description": "Bob deletes his threat model"
+          }
+        },
+        {
+          "name": "Delete Alice's Threat Model",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alice}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
+            },
+            "description": "Alice deletes her threat model (and with it the sub-resources created during the matrix)"
           }
         }
       ],
