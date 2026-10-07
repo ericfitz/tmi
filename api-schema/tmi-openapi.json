@@ -12428,7 +12428,7 @@
               "authorizationError": {
                 "summary": "Insufficient permissions for sub-resource access",
                 "value": {
-                  "error": "access_denied",
+                  "error": "forbidden",
                   "error_description": "User does not have sufficient permissions to access this sub-resource",
                   "details": {
                     "code": "INSUFFICIENT_PERMISSIONS",
