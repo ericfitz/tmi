@@ -33,3 +33,4 @@ These sequences are documented in `api-schema/api-workflows.json`.
 - 401 "invalid number of segments": token variable mismatch / empty token.
 - 404 from stub `/creds`: user not authenticated yet, token not saved.
 - The `unauthorized-tests-collection.json` runs first, before authentication, to verify 401 behavior.
+- `TMITestDataFactory` is not shared between scripts: the runners pass `test-data-factory.js` as a Newman global (`lib/factory-globals.sh`), and every script that uses it starts with the loader line `const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\n;TMITestDataFactory');` (enforced by `tests/test-data-factory.test.js`). Never paste a copy of the class into a collection.

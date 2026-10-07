@@ -9,6 +9,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
+              "// Load the real data factory (the runners provide its source via newman --globals)",
+              "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
               "// Ensure Alice is active user and has a threat model",
               "if (typeof tmiAuth !== 'undefined') {",
               "    tmiAuth.setActiveUser('alice');",
@@ -363,6 +365,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
+              "// Load the real data factory (the runners provide its source via newman --globals)",
+              "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
               "// Generate valid threat data",
               "const factory = new TMITestDataFactory();",
               "const threat = factory.validThreat();",
@@ -469,6 +473,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
+              "// Load the real data factory (the runners provide its source via newman --globals)",
+              "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
               "// Generate updated threat data",
               "const factory = new TMITestDataFactory();",
               "const updatedThreat = factory.validThreat({",

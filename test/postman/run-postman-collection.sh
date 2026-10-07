@@ -48,6 +48,11 @@ if ! curl -s http://127.0.0.1:8080/ >/dev/null 2>&1; then
 fi
 echo "✅ TMI server is ready"
 
+# Provide the real test data factory to every script in the run (see lib/factory-globals.sh)
+source "${SCRIPT_DIR}/lib/factory-globals.sh"
+FACTORY_GLOBALS_FILE="$(make_factory_globals_tmp "${SCRIPT_DIR}/test-data-factory.js")" || exit 1
+trap 'rm -f "$FACTORY_GLOBALS_FILE"' EXIT
+
 # authenticate_user comes from lib/auth.sh (validates cached tokens against the server)
 source "${SCRIPT_DIR}/lib/auth.sh"
 
@@ -72,6 +77,7 @@ echo "🧪 Running collection: $COLLECTION_NAME"
 RESULT_FILE="$OUTPUT_DIR/${COLLECTION_NAME}-results-$TIMESTAMP.json"
 
 newman run "$COLLECTION_FILE" \
+    --globals "$FACTORY_GLOBALS_FILE" \
     --env-var "baseUrl=http://127.0.0.1:8080" \
     --env-var "oauthStubUrl=http://127.0.0.1:8079" \
     --env-var "token_alice=$TOKEN_ALICE" \

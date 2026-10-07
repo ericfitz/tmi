@@ -32,6 +32,11 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
+# Provide the real test data factory to every script in every run (see lib/factory-globals.sh)
+source "${SCRIPT_DIR}/lib/factory-globals.sh"
+FACTORY_GLOBALS_FILE="$(make_factory_globals_tmp "${SCRIPT_DIR}/test-data-factory.js")" || exit 1
+trap 'rm -f "$FACTORY_GLOBALS_FILE"' EXIT
+
 # Source shared OAuth stub helper
 source "${PROJECT_ROOT}/scripts/oauth-stub-lib.sh"
 
@@ -87,6 +92,7 @@ UNAUTHORIZED_OUTPUT="$OUTPUT_DIR/unauthorized-results-$TIMESTAMP.json"
 if [ -f "$UNAUTHORIZED_COLLECTION" ]; then
     echo "Running unauthorized tests without authentication..."
     newman run "$UNAUTHORIZED_COLLECTION" \
+            --globals "$FACTORY_GLOBALS_FILE" \
             --env-var "baseUrl=http://127.0.0.1:8080" \
             --reporters cli,json \
             --reporter-json-export "$UNAUTHORIZED_OUTPUT" \
@@ -146,6 +152,7 @@ cp "$SCRIPT_DIR/test-data-factory.js" /tmp/ 2>/dev/null || echo "⚠️ test-dat
 cp "$SCRIPT_DIR/multi-user-auth.js" /tmp/ 2>/dev/null || echo "⚠️ multi-user-auth.js not found"
 
 newman run "$COLLECTION_FILE" \
+    --globals "$FACTORY_GLOBALS_FILE" \
     --env-var "loginHint=test-runner-$TIMESTAMP" \
     --env-var "baseUrl=http://127.0.0.1:8080" \
     --env-var "oauthStubUrl=http://127.0.0.1:8079" \
@@ -182,6 +189,7 @@ for collection in "${NEW_COLLECTIONS[@]}"; do
         COLLECTION_OUTPUT="$OUTPUT_DIR/$(basename "$collection" .json)-results-$TIMESTAMP.json"
         
         newman run "$SCRIPT_DIR/$collection" \
+            --globals "$FACTORY_GLOBALS_FILE" \
             --env-var "baseUrl=http://127.0.0.1:8080" \
             --env-var "oauthStubUrl=http://127.0.0.1:8079" \
             --env-var "token_alice=$TOKEN_ALICE" \

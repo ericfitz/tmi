@@ -9,6 +9,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
+              "// Load the real data factory (the runners provide its source via newman --globals)",
+              "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
               "// Ensure Alice is active user",
               "if (typeof tmiAuth !== 'undefined') {",
               "    tmiAuth.setActiveUser('alice');",
@@ -104,6 +106,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
+              "// Load the real data factory (the runners provide its source via newman --globals)",
+              "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
               "// Generate bulk data with some invalid entries",
               "const factory = new TMITestDataFactory();",
               "const invalidBulkThreats = [",
@@ -184,6 +188,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
+              "// Load the real data factory (the runners provide its source via newman --globals)",
+              "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
               "// Generate bulk update data using existing threat IDs",
               "const threatIds = JSON.parse(pm.collectionVariables.get('bulkThreatIds') || '[]');",
               "const factory = new TMITestDataFactory();",
@@ -442,6 +448,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
+              "// Load the real data factory (the runners provide its source via newman --globals)",
+              "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
               "// Generate bulk document data",
               "const factory = new TMITestDataFactory();",
               "const bulkDocuments = [];",
@@ -521,6 +529,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
+              "// Load the real data factory (the runners provide its source via newman --globals)",
+              "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
               "// Generate bulk source data",
               "const factory = new TMITestDataFactory();",
               "const bulkSources = [];",
@@ -606,6 +616,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
+              "// Load the real data factory (the runners provide its source via newman --globals)",
+              "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
               "// Generate a larger bulk operation (20 threats)",
               "const factory = new TMITestDataFactory();",
               "const largeBulkThreats = [];",

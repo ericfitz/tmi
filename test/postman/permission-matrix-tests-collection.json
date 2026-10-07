@@ -70,6 +70,8 @@
                   "}",
                   "",
                   "// Generate threat model for Bob",
+                  "// Load the real data factory (the runners provide its source via newman --globals)",
+                  "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
                   "const factory = new TMITestDataFactory();",
                   "const bobThreatModel = factory.validThreatModel({",
                   "    name: `Bob's Private Threat Model ${Date.now()}`,",
