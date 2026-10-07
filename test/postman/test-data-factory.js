@@ -179,14 +179,6 @@ class TMITestDataFactory {
         };
     }
 
-    // Body for POST /threat_models/{id}/diagrams (CreateDiagramRequest: name and type only)
-    validCreateDiagramRequest(options = {}) {
-        return {
-            name: options.name || `Test Diagram ${this.testRunId}`,
-            type: options.type || "DFD-1.0.0"
-        };
-    }
-
     // Cells conforming to the Node (process, store) and Edge (flow) schemas
     generateBasicDiagramCells() {
         const processId = this.generateUUID();
