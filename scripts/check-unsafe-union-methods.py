@@ -6,9 +6,12 @@
 """Check that non-generated Go code does not call unsafe From*/Merge* union methods.
 
 The generated FromNode, MergeNode, FromMinimalNode, and MergeMinimalNode methods
-in api/api.go hardcode the shape discriminator to an arbitrary fixed value,
-corrupting cell shapes. Non-generated code must use SafeFromNode() or
-SafeFromEdge() from api/cell_union_helpers.go instead.
+in api/api.go currently marshal the value as given, but that is incidental:
+oapi-codegen writes a fixed discriminator value whenever exactly one mapping
+value maps to the target type, and a spec change that narrows Node's shape
+mapping, or a generator change, would silently corrupt cell shapes. Non-generated
+code must use SafeFromNode() or SafeFromEdge() from api/cell_union_helpers.go
+instead, which are the required entry points.
 
 Usage:
     uv run scripts/check-unsafe-union-methods.py

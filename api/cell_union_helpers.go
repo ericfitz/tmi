@@ -3,11 +3,12 @@ package api
 import "encoding/json"
 
 // SafeFromNode updates a DfdDiagram_Cells_Item with a Node while preserving
-// the node's actual shape value. The generated FromNode() method hardcodes
-// the shape to a fixed discriminator value (due to oapi-codegen limitation
-// where multiple discriminator values map to the same type), which corrupts
-// the shape field. This helper bypasses that by marshaling the node directly
-// and storing the raw bytes via UnmarshalJSON.
+// the node's actual shape value. The generated FromNode() currently marshals
+// the value as given, but oapi-codegen hardcodes a discriminator value whenever
+// exactly one mapping value maps to the target type, so a spec change that
+// narrows Node's shape mapping (or a generator change) would silently corrupt
+// shapes. This helper is the required guard: it marshals the node directly and
+// stores the raw bytes via UnmarshalJSON.
 // SEM@e0319b46956724d532b5b4f64b9f66b006e3a0a9: update a diagram cell union item with a node while preserving its actual shape discriminator (pure)
 func SafeFromNode(item *DfdDiagram_Cells_Item, node Node) error {
 	b, err := json.Marshal(node)

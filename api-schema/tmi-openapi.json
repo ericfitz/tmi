@@ -830,7 +830,7 @@
       },
       "Node": {
         "type": "object",
-        "description": "Diagram node representing a process, data store, external entity, or trust boundary",
+        "description": "Diagram node representing a process, data store, external entity, or trust boundary\n\nSupports both X6 position/size object format and flat x/y/width/height format. Input accepts either format. Output always uses flat format (x, y, width, height).",
         "required": [
           "id",
           "shape"
@@ -853,7 +853,8 @@
             ],
             "description": "Node type determining its visual representation and behavior",
             "maxLength": 64,
-            "pattern": "^[a-z][a-z0-9-]*$"
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "example": "process"
           },
           "position": {
             "type": "object",
@@ -965,7 +966,7 @@
       },
       "Edge": {
         "type": "object",
-        "description": "Diagram edge representing a data flow connection between nodes",
+        "description": "Diagram edge representing a data flow connection between nodes\n\nFully compatible with X6 Edge objects and supports X6 routing algorithms (manhattan, orth, one_side, metro, er), connector styles (normal, rounded, smooth, jumpover), custom markup, tools, and convenience properties (label, style) for easier integration.",
         "required": [
           "id",
           "shape",

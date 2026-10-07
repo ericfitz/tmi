@@ -21,7 +21,7 @@ PostgreSQL for persistence, Redis for caching and sessions, in-memory storage fo
 - `make validate-openapi` (jq + Vacuum with OWASP rules) writes `api-schema/openapi-validation-report.json`. `make validate-asyncapi` for the WS spec.
 - Public endpoints (OAuth, OIDC, SAML) carry the `x-public-endpoint` vendor extension and are intentionally unauthenticated per their RFCs.
 
-**Discriminator union type safety — CRITICAL:** never call the generated `FromNode`, `MergeNode`, `FromMinimalNode`, or `MergeMinimalNode` in non-generated code. They hardcode the `shape` discriminator to one fixed value and corrupt cell shapes (e.g. every node becomes `text-box`), an oapi-codegen limitation when several discriminator values map to one type. Use `SafeFromNode()` / `SafeFromEdge()` from `api/cell_union_helpers.go`. `FromEdge`/`MergeEdge` (one edge shape, `flow`) and `FromDfdDiagram` (one type, `DFD-1.0.0`) are safe. Affected unions: `DfdDiagram_Cells_Item`, `DfdDiagramInput_Cells_Item`, `MinimalCell`. `make check-unsafe-union-methods` enforces this (part of `make lint`).
+**Discriminator union type safety — CRITICAL:** never call the generated `FromNode`, `MergeNode`, `FromMinimalNode`, or `MergeMinimalNode` in non-generated code. They currently marshal the value as given, but oapi-codegen hardcodes the discriminator whenever a single mapping value maps to a type, so a spec change that narrows `Node`'s `shape` mapping, or a generator change, would silently corrupt cell shapes; the safe helpers are the guard. Use `SafeFromNode()` / `SafeFromEdge()` from `api/cell_union_helpers.go`. Affected unions: `DfdDiagram_Cells_Item`, `DfdDiagramInput_Cells_Item`, `MinimalCell`. `make check-unsafe-union-methods` enforces this (part of `make lint`).
 
 ## Commands
 

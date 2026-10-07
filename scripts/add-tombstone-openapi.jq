@@ -53,8 +53,8 @@ def include_deleted_param:
 # Add deleted_at to Repository response schema (in allOf[1].properties)
 | .components.schemas.Repository.allOf[1].properties.deleted_at = deleted_at_prop
 
-# Add deleted_at to BaseDiagram (diagrams use BaseDiagram -> DfdDiagram -> Diagram)
-| .components.schemas.BaseDiagram.properties.deleted_at = deleted_at_prop
+# Add deleted_at to DfdDiagram
+| .components.schemas.DfdDiagram.properties.deleted_at = deleted_at_prop
 
 # Add deleted_at to DiagramListItem
 | .components.schemas.DiagramListItem.properties.deleted_at = deleted_at_prop
