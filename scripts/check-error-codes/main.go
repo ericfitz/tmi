@@ -127,7 +127,7 @@ func skipFile(path string) bool {
 func run(root string) ([]finding, error) {
 	var all []finding
 	fset := token.NewFileSet()
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error { //nolint:gosec // G703 - root is the developer-supplied repo root of a lint tool
 		if err != nil {
 			return err
 		}
