@@ -114,16 +114,48 @@ func TestWorkerProbe_ContractEndToEnd_Integration(t *testing.T) {
 		t.Fatalf("build worker-probe: %v\n%s", err, buildOut)
 	}
 
-	// ── Step 4: start the probe process ──────────────────────────────────────
-	const jobID = "probe-job-1"
+	// ── Step 4: connect to NATS as the "monolith side" ───────────────────────
+	nc, err := nats.Connect(natsURL, append(framework.NATSTLSOptions(t), nats.Name("tmi-test-monolith"))...)
+	if err != nil {
+		t.Fatalf("NATS connect (monolith side): %v", err)
+	}
+	t.Cleanup(nc.Close)
 
-	probeCtx, probeCancel := context.WithTimeout(context.Background(), 25*time.Second)
+	// Subscribe to the probe's heartbeat and to the result subject BEFORE the
+	// probe starts, so neither core-NATS message can be missed. The probe
+	// publishes its heartbeat only after its jobs.probe subscription is
+	// flushed, so the heartbeat is the readiness signal for publishing the
+	// job. A fixed sleep here raced the probe's startup under load (#1036).
+	const jobID = "probe-job-1"
+	const heartbeatSubject = "workers.heartbeat.probe"
+	heartbeatCh := make(chan *nats.Msg, 1)
+	hbSub, err := nc.ChanSubscribe(heartbeatSubject, heartbeatCh)
+	if err != nil {
+		t.Fatalf("subscribe to %s: %v", heartbeatSubject, err)
+	}
+	t.Cleanup(func() { _ = hbSub.Unsubscribe() })
+
+	resultSubject := "jobs.result." + jobID
+	resultCh := make(chan *nats.Msg, 1)
+	sub, err := nc.ChanSubscribe(resultSubject, resultCh)
+	if err != nil {
+		t.Fatalf("subscribe to %s: %v", resultSubject, err)
+	}
+	t.Cleanup(func() { _ = sub.Unsubscribe() })
+
+	if err := nc.Flush(); err != nil {
+		t.Fatalf("flush subscriptions: %v", err)
+	}
+
+	// ── Step 5: start the probe process ──────────────────────────────────────
+	// Covers the readiness wait and the result wait (20s each).
+	probeCtx, probeCancel := context.WithTimeout(context.Background(), 45*time.Second)
 	t.Cleanup(probeCancel)
 
 	probeEnv := append(
 		os.Environ(),
 		"TMI_NATS_URL="+natsURL,
-		"TMI_WORKER_HEARTBEAT_SUBJECT=workers.heartbeat.probe",
+		"TMI_WORKER_HEARTBEAT_SUBJECT="+heartbeatSubject,
 		"TMI_WORKER_SECRET_MOUNT_EMBEDDING_API_KEY="+secretPath,
 	)
 
@@ -144,33 +176,14 @@ func TestWorkerProbe_ContractEndToEnd_Integration(t *testing.T) {
 		_ = probeCmd.Wait()
 	})
 
-	// ── Step 5: connect to NATS as the "monolith side" ───────────────────────
-	nc, err := nats.Connect(natsURL, append(framework.NATSTLSOptions(t), nats.Name("tmi-test-monolith"))...)
-	if err != nil {
-		t.Fatalf("NATS connect (monolith side): %v", err)
+	// Wait for the readiness heartbeat. The budget covers process start, TLS
+	// connect and subscribe on a loaded machine; the probe exits on its own
+	// if it fails first, and its log is in the test output.
+	select {
+	case <-heartbeatCh:
+	case <-time.After(20 * time.Second):
+		t.Fatal("timed out waiting for probe readiness heartbeat on " + heartbeatSubject)
 	}
-	t.Cleanup(nc.Close)
-
-	// Subscribe to the result subject BEFORE publishing the job so we cannot
-	// miss the reply. Buffer=1 is sufficient; the probe publishes exactly once.
-	resultSubject := "jobs.result." + jobID
-	resultCh := make(chan *nats.Msg, 1)
-	sub, err := nc.ChanSubscribe(resultSubject, resultCh)
-	if err != nil {
-		t.Fatalf("subscribe to %s: %v", resultSubject, err)
-	}
-	t.Cleanup(func() { _ = sub.Unsubscribe() })
-
-	// Flush so our result-subject subscription is registered on the server
-	// before we publish. This mirrors the pattern in
-	// internal/worker/heartbeat_test.go (sub.Flush after SubscribeSync).
-	if err := nc.Flush(); err != nil {
-		t.Fatalf("flush subscription: %v", err)
-	}
-	// Brief pause so the probe's own subscribe on "jobs.probe" is live before
-	// we publish. 200 ms is the standard pragmatic allowance used by NATS
-	// tests in this codebase.
-	time.Sleep(200 * time.Millisecond)
 
 	// ── Step 6: publish job envelope ─────────────────────────────────────────
 	// The StampedConfig MUST pass Validate(): non-empty Model and Endpoint,

@@ -150,7 +150,7 @@ func runEmbedStub() error {
 
 // run is the real entry point. Separating it from main allows defers to
 // execute before os.Exit is called by main.
-// SEM@946ec29: bootstrap, connect to NATS (TLS when configured), receive one probe job, and publish the result
+// SEM@9ba32a9b5e5e5a1a5b9bd665889095975f052ecb: bootstrap, connect to NATS, subscribe, announce readiness, and answer one probe job
 func run() error {
 	logger := slogging.Get()
 
@@ -178,18 +178,7 @@ func run() error {
 	defer nc.Close()
 	logger.Info("worker-probe: NATS connected")
 
-	// Step 3: publish heartbeat if a subject is configured
-	if wb.HeartbeatSubject != "" {
-		if err := nc.Publish(wb.HeartbeatSubject, []byte("worker-probe alive")); err != nil {
-			logger.Warn("worker-probe: heartbeat publish failed (non-fatal): %v", err)
-		} else {
-			logger.Info("worker-probe: heartbeat published subject=%s", wb.HeartbeatSubject)
-		}
-	} else {
-		logger.Info("worker-probe: no heartbeat subject configured, skipping")
-	}
-
-	// Step 4: receive exactly one message on jobs.probe with a 30s timeout
+	// Step 3: subscribe to jobs.probe (one message, 30s timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), receiveTimeout)
 	defer cancel()
 
@@ -204,6 +193,25 @@ func run() error {
 		return fmt.Errorf("subscribe failed subject=%s: %w", probeSubject, err)
 	}
 	defer func() { _ = sub.Unsubscribe() }()
+
+	// Flush so the server has registered the subscription before the
+	// heartbeat below announces readiness: jobs.probe is core NATS, and a job
+	// published before the subscription is live is dropped (#1036).
+	if err := nc.Flush(); err != nil {
+		return fmt.Errorf("flush subscription subject=%s: %w", probeSubject, err)
+	}
+
+	// Step 4: publish heartbeat if a subject is configured. It follows the
+	// flushed subscribe, so a publisher that waits for it cannot lose the job.
+	if wb.HeartbeatSubject != "" {
+		if err := nc.Publish(wb.HeartbeatSubject, []byte("worker-probe alive")); err != nil {
+			logger.Warn("worker-probe: heartbeat publish failed (non-fatal): %v", err)
+		} else {
+			logger.Info("worker-probe: heartbeat published subject=%s", wb.HeartbeatSubject)
+		}
+	} else {
+		logger.Info("worker-probe: no heartbeat subject configured, skipping")
+	}
 
 	logger.Info("worker-probe: waiting for job message subject=%s timeout=%s", probeSubject, receiveTimeout)
 
