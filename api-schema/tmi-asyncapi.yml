@@ -60,6 +60,7 @@ channels:
       - Sessions include automatic cleanup after 15 minutes of inactivity
       - Multiple clients can participate in the same session simultaneously
       - Each session tracks active participants and their join times
+      - The participants_update message lists currently connected users, whereas the REST CollaborationSession.participants lists every user authorized on the threat model
     parameters:
       threat_model_id:
         description: Unique identifier of the threat model (UUID format, matches OpenAPI path parameter)
