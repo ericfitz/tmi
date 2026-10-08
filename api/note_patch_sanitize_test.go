@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -271,10 +272,63 @@ func TestSanitizePatchedNoteText(t *testing.T) {
 	assert.Nil(t, pAfter.Description)
 
 	// Threat-model notes sanitize content only, as their create/update do.
-	tmAfter := &Note{Name: "<b>x</b>", Content: "ok"}
+	// A changed name is still held to the schema's name rules.
+	tmAfter := &Note{Name: "x y", Content: "ok"}
 	assert.NoError(t, checkPatchedNote(&Note{Name: "n", Content: "ok"}, tmAfter))
-	assert.Equal(t, "<b>x</b>", tmAfter.Name)
+	assert.Equal(t, "x y", tmAfter.Name)
+	assert.ErrorAs(t, checkPatchedNote(&Note{Name: "n", Content: "ok"}, &Note{Name: "<b>x</b>", Content: "ok"}), &reqErr)
+	// An unchanged legacy name does not block a content edit.
+	assert.NoError(t, checkPatchedNote(&Note{Name: "a & b", Content: "ok"}, &Note{Name: "a & b", Content: "new"}))
 
 	// A passing check returns a nil error interface, not a typed nil.
 	assert.Nil(t, checkPatchedNote(&Note{Content: "ok"}, &Note{Content: "ok"}))
+}
+
+// copy/move can carry content into name; the result must meet the name's
+// schema rules (maxLength 256, no <>"'&) and be rejected with a 400 before
+// the store writes it (an over-long name would otherwise hit ORA-12899).
+var copyContentToName = []PatchOperation{{Op: "copy", From: "/content", Path: "/name"}}
+
+func TestPatchTeamNote_RejectsInvalidPatchedName(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for name, content := range map[string]string{"300 chars": strings.Repeat("c", 300), "ampersand": "a & b"} {
+		t.Run(name, func(t *testing.T) {
+			store := newMockTeamNoteStore()
+			seedTeamNoteInStore(store, testTeamNoteID, true)
+			store.notes[testTeamNoteID].Content = content
+			before := store.notes[testTeamNoteID].Name
+			assert.Equal(t, http.StatusBadRequest, patchTeamNoteRequest(t, store, copyContentToName))
+			assert.Equal(t, before, store.notes[testTeamNoteID].Name)
+		})
+	}
+}
+
+func TestPatchProjectNote_RejectsInvalidPatchedName(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for name, content := range map[string]string{"300 chars": strings.Repeat("c", 300), "ampersand": "a & b"} {
+		t.Run(name, func(t *testing.T) {
+			store := newMockProjectNoteStore()
+			seedProjectNoteInStore(store, testProjectNoteID, true)
+			store.notes[testProjectNoteID].Content = content
+			before := store.notes[testProjectNoteID].Name
+			assert.Equal(t, http.StatusBadRequest, patchProjectNoteRequest(t, store, copyContentToName))
+			assert.Equal(t, before, store.notes[testProjectNoteID].Name)
+		})
+	}
+}
+
+func TestPatchNote_RejectsInvalidPatchedName(t *testing.T) {
+	for name, content := range map[string]string{"300 chars": strings.Repeat("c", 300), "angle bracket": "a <b> c"} {
+		t.Run(name, func(t *testing.T) {
+			r, mockStore := setupNoteSubResourceHandler()
+			noteID := testUUID2
+			noteUUID, _ := uuid.Parse(noteID)
+			row := &Note{Id: &noteUUID, Name: "n", Content: content}
+			mockStore.On("Get", mock.Anything, noteID).Return(row, nil)
+			persisted := patchNoteLikeStore(mockStore, noteID, row)
+
+			assert.Equal(t, http.StatusBadRequest, patchNoteRequest(r, noteID, copyContentToName))
+			assert.Empty(t, persisted.Name, "nothing may be persisted")
+		})
+	}
 }

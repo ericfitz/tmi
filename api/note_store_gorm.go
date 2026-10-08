@@ -588,8 +588,10 @@ const maxNoteNameLength = 256
 // the team and project note stores use (add on an existing member replaces;
 // copy, move and test work), after checking that every operation writes only
 // notePatchablePaths. Name and content must stay non-empty: both columns are
-// NOT NULL, and Oracle binds ” as NULL (#614). Errors are 400 RequestErrors.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: apply JSON Patch operations to a note, restricted to persisted fields and keeping name and content non-empty and name within its column (pure)
+// NOT NULL, and Oracle binds an empty string as NULL (#614); name must also fit
+// its column. Removed or null flags get the schema default (true). Errors are
+// 400 RequestErrors.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: apply JSON Patch operations to a note, restricted to persisted fields and keeping name and content non-empty, name within its column, and unset flags at their default (pure)
 func applyNotePatch(note Note, operations []PatchOperation) (Note, error) {
 	for _, op := range operations {
 		var writes []string
@@ -619,6 +621,17 @@ func applyNotePatch(note Note, operations []PatchOperation) (Note, error) {
 	}
 	if err := validation.ValidateNonEmpty("content", patched.Content); err != nil {
 		return Note{}, InvalidInputError(err.Error())
+	}
+	// remove (or null) on a flag means "unset"; restore the schema's documented
+	// default (true, also the column default) rather than letting Update
+	// write false.
+	if patched.IncludeInReport == nil {
+		t := true
+		patched.IncludeInReport = &t
+	}
+	if patched.TimmyEnabled == nil {
+		t := true
+		patched.TimmyEnabled = &t
 	}
 	// copy/move can carry content into name, a VARCHAR2(256)/varchar(256)
 	// column; reject over-long names here rather than as a database error.

@@ -6,6 +6,7 @@ import (
 	"html"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/microcosm-cc/bluemonday"
@@ -356,8 +357,8 @@ type noteText struct {
 // Each field the patch changed is sanitized in place as the create/update path
 // does: content as required markdown (a 400 if it empties, keeps an unsafe
 // link or is too complex to check), name and description as plain text when
-// includePlainText is set (an emptied name is a 400, an emptied description
-// becomes nil). Unchanged fields are not re-checked, so a legacy
+// includePlainText is set (an emptied description becomes nil). A changed
+// name is held to the schema's rules on every note type. Unchanged fields are not re-checked, so a legacy
 // value cannot block an unrelated edit.
 // SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize the note text fields a JSON Patch changed, in place on the patched entity, rejecting emptied required fields (pure)
 func sanitizePatchedNoteText(before, after noteText, includePlainText bool) *RequestError {
@@ -368,16 +369,16 @@ func sanitizePatchedNoteText(before, after noteText, includePlainText bool) *Req
 		}
 		*after.content = sanitized
 	}
+	if *after.name != *before.name {
+		if includePlainText {
+			*after.name = SanitizePlainText(*after.name)
+		}
+		if reqErr := validatePatchedNoteName(*after.name); reqErr != nil {
+			return reqErr
+		}
+	}
 	if !includePlainText {
 		return nil
-	}
-	if *after.name != *before.name {
-		*after.name = SanitizePlainText(*after.name)
-		// An empty name would be NULL on Oracle (NOT NULL column, a store
-		// error) but saved on PostgreSQL; reject it the same way on both.
-		if strings.TrimSpace(*after.name) == "" {
-			return InvalidInputError("name is empty after sanitization")
-		}
 	}
 	if desc := *after.description; desc != nil && (*before.description == nil || **before.description != *desc) {
 		sanitized := SanitizePlainText(*desc)
@@ -391,8 +392,31 @@ func sanitizePatchedNoteText(before, after noteText, includePlainText bool) *Req
 	return nil
 }
 
+// noteNamePattern is the schema pattern for note names (NoteBase,
+// TeamProjectNoteBase); maxNoteNameLength is their maxLength.
+var noteNamePattern = regexp.MustCompile(`^[^<>"'&]*$`)
+
+// validatePatchedNoteName holds a name produced by a JSON Patch to the rules
+// request validation applies to a name sent directly: copy and move can carry
+// any field's value (e.g. content) into it. An empty name would also be NULL on
+// Oracle (NOT NULL column, a store error) but saved on PostgreSQL, and an
+// over-long one would fail the VARCHAR2(256) column.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: validate a patched note name against the schema's non-empty, length and character rules (pure)
+func validatePatchedNoteName(name string) *RequestError {
+	switch {
+	case strings.TrimSpace(name) == "":
+		return InvalidInputError("name is empty after sanitization")
+	case utf8.RuneCountInString(name) > maxNoteNameLength:
+		return InvalidInputError(fmt.Sprintf("name must be at most %d characters", maxNoteNameLength))
+	case !noteNamePattern.MatchString(name):
+		return InvalidInputError(`name must not contain <, >, ", ' or &`)
+	}
+	return nil
+}
+
 // checkPatchedNote is the threat-model note store's patch check. It sanitizes
-// content only, as the threat-model note create and update paths do.
+// content only, as the threat-model note create and update paths do, and
+// validates a changed name.
 // SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize the content a JSON Patch changed on a threat-model note (pure)
 func checkPatchedNote(before, after *Note) error {
 	if reqErr := sanitizePatchedNoteText(

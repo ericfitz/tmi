@@ -273,6 +273,13 @@ func TestNotePatch_RFC6902Operations(t *testing.T) {
 			}
 			got, err := applyNotePatch(in, tc.ops)
 			require.NoError(t, err)
+			// Unset flags come back at their schema default (true).
+			if tc.want.IncludeInReport == nil {
+				tc.want.IncludeInReport = &yes
+			}
+			if tc.want.TimmyEnabled == nil {
+				tc.want.TimmyEnabled = &yes
+			}
 			assert.Equal(t, tc.want, got)
 		})
 	}
@@ -294,5 +301,23 @@ func TestNotePatch_RFC6902Operations(t *testing.T) {
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
 			}
 		})
+	}
+}
+
+// remove or null on include_in_report / timmy_enabled restores the documented
+// default (true, the column default), not false.
+func TestNotePatch_RemovedFlagsGetSchemaDefault(t *testing.T) {
+	no := false
+	in := Note{Name: "note", Content: "body", IncludeInReport: &no, TimmyEnabled: &no}
+	got, err := applyNotePatch(in, []PatchOperation{
+		{Op: string(Remove), Path: "/include_in_report"},
+		{Op: string(Replace), Path: "/timmy_enabled", Value: nil},
+	})
+	require.NoError(t, err)
+	if assert.NotNil(t, got.IncludeInReport) {
+		assert.True(t, *got.IncludeInReport)
+	}
+	if assert.NotNil(t, got.TimmyEnabled) {
+		assert.True(t, *got.TimmyEnabled)
 	}
 }
