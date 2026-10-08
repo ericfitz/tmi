@@ -195,7 +195,6 @@ func TestMarkdownGate_AttackDoesNotStarveOtherNotes(t *testing.T) {
 	t.Cleanup(func() { waitForGateParsesDone(t) })
 	attack := repeatTo("[a](", gateTestSize()) + forceGateParse
 	const attackers = 8
-	attackStart := time.Now()
 	var wg sync.WaitGroup
 	for i := 0; i < attackers; i++ {
 		wg.Add(1)
@@ -210,6 +209,10 @@ func TestMarkdownGate_AttackDoesNotStarveOtherNotes(t *testing.T) {
 	assert.Eventually(t, func() bool { return markdownGateInFlight.Load() >= attackers },
 		time.Second, time.Millisecond, "attack parses did not start")
 
+	// Time only the legitimate notes: measuring from attackStart also counted
+	// the attackers' startup, which under -race with the full suite running
+	// in parallel pushed the total past the bound without any starvation.
+	legitStart := time.Now()
 	small := "Note: hello"
 	out, err := SanitizeRequiredMarkdownContent("content", small)
 	assert.Nil(t, err, "small note rejected during attack")
@@ -219,8 +222,8 @@ func TestMarkdownGate_AttackDoesNotStarveOtherNotes(t *testing.T) {
 	_, err = SanitizeRequiredMarkdownContent("content", large)
 	assert.Nil(t, err, "large legitimate note rejected during attack")
 
-	assert.Less(t, time.Since(attackStart), markdownGateBudget+600*time.Millisecond,
-		"legitimate notes must complete within ~600 ms of the attack's deadline")
+	assert.Less(t, time.Since(legitStart), markdownGateBudget+600*time.Millisecond,
+		"legitimate notes must not wait for the attack's parses")
 	wg.Wait()
 }
 
