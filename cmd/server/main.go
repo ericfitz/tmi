@@ -1213,6 +1213,11 @@ func setupRouter(config *config.Config) (*gin.Engine, *api.Server, *api.Embeddin
 	// passes through to legacy per-resource middleware below.
 	r.Use(api.AuthzMiddleware())
 
+	// Reject empty (inverted) range filters on list endpoints with 400 (#1051).
+	// After authz so callers only learn about parameter problems on routes they
+	// may access.
+	r.Use(api.RangeFilterValidationMiddleware())
+
 	// Step-up authentication and admin audit logging (#355).
 	// Step-up enforces auth_time freshness on admin writes; admin-audit
 	// records every successful /admin/* write to system_audit_entries.
