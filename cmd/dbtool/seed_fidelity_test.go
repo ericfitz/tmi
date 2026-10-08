@@ -189,6 +189,7 @@ func TestSeedSurveyResponse_ExistingResponse(t *testing.T) {
 		wantErr   string
 	}{
 		{"draft is submitted", "draft", []string{"GET /intake/survey_responses", "PATCH /intake/survey_responses/resp-1"}, ""},
+		{"needs_revision is resubmitted", "needs_revision", []string{"GET /intake/survey_responses", "PATCH /intake/survey_responses/resp-1"}, ""},
 		{"submitted is left alone", "submitted", []string{"GET /intake/survey_responses"}, ""},
 		{"past submitted is an error", "ready_for_review", []string{"GET /intake/survey_responses"}, "delete the response"},
 	}
