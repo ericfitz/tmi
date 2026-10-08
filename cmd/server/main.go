@@ -282,7 +282,7 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 					c.Header("Retry-After", strconv.Itoa(authErr.RetryAfter))
 				}
 				c.JSON(authErr.StatusCode, api.Error{
-					Error:            authErr.Code,
+					Error:            api.ErrorError(authErr.Code),
 					ErrorDescription: authErr.Description,
 				})
 				c.Abort()

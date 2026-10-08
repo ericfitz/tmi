@@ -51,7 +51,7 @@ def build_test_command(args: argparse.Namespace) -> list[str]:
     """Construct the go test command list."""
     cmd = [
         "go", "test", "-short",
-        "./api/...", "./auth/...", "./cmd/...", "./internal/...",
+        "./api/...", "./auth/...", "./cmd/...", "./internal/...", "./scripts/...",
         "-v",
     ]
     if args.name:

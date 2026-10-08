@@ -1,0 +1,11 @@
+package fixture
+
+func good(c *gin.Context, code string, err error) {
+	_ = Error{Error: ErrorError(errcode.InvalidInput)}
+	_ = &RequestError{Code: errcode.NotFound}
+	c.JSON(400, gin.H{"error": string(errcode.InvalidInput), "error_description": "a sentence"})
+	_ = map[string]string{"error": code}
+	_ = gin.H{"error": err.Error()}
+	RespondWithError(c, 400, errcode.InvalidInput, "m")
+	_ = Error{ErrorDescription: "literal description is fine"}
+}
