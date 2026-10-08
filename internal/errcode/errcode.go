@@ -224,7 +224,7 @@ var (
 	protocolSet = toSet(protocolCodes())
 )
 
-// SEM@969f583602822a93cb58605bd0d26c0120d20df1: build the protocol-route code list from RFC and transport codes (pure)
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: build the protocol-route code list from RFC and transport codes (pure)
 func protocolCodes() []Code {
 	out := append([]Code{}, rfcCodes...)
 	for _, c := range transportCodes {
@@ -235,7 +235,7 @@ func protocolCodes() []Code {
 	return out
 }
 
-// SEM@969f583602822a93cb58605bd0d26c0120d20df1: report whether a code list contains a code (pure)
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: report whether a code list contains a code (pure)
 func contains(s []Code, c Code) bool {
 	for _, x := range s {
 		if x == c {
@@ -245,7 +245,7 @@ func contains(s []Code, c Code) bool {
 	return false
 }
 
-// SEM@969f583602822a93cb58605bd0d26c0120d20df1: convert a code list to a lookup set (pure)
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: convert a code list to a lookup set (pure)
 func toSet(s []Code) map[Code]struct{} {
 	m := make(map[Code]struct{}, len(s))
 	for _, c := range s {
@@ -255,28 +255,28 @@ func toSet(s []Code) map[Code]struct{} {
 }
 
 // REST returns the Tier 1 codes documented as the Error.error enum.
-// SEM@969f583602822a93cb58605bd0d26c0120d20df1: list the REST error codes (pure)
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: list the REST error codes (pure)
 func REST() []Code { return append([]Code{}, restCodes...) }
 
 // Protocol returns the codes documented as the OAuthError.error enum.
-// SEM@969f583602822a93cb58605bd0d26c0120d20df1: list the protocol-route error codes (pure)
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: list the protocol-route error codes (pure)
 func Protocol() []Code { return protocolCodes() }
 
 // Details returns the known details.code reasons.
-// SEM@969f583602822a93cb58605bd0d26c0120d20df1: list the known details.code reasons (pure)
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: list the known details.code reasons (pure)
 func Details() []Code { return append([]Code{}, detailCodes...) }
 
 // IsREST reports whether c is a documented REST error code.
-// SEM@969f583602822a93cb58605bd0d26c0120d20df1: check membership in the REST error vocabulary (pure)
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: check membership in the REST error vocabulary (pure)
 func IsREST(c Code) bool { _, ok := restSet[c]; return ok }
 
 // IsProtocol reports whether c is a documented protocol-route error code.
-// SEM@969f583602822a93cb58605bd0d26c0120d20df1: check membership in the protocol error vocabulary (pure)
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: check membership in the protocol error vocabulary (pure)
 func IsProtocol(c Code) bool { _, ok := protocolSet[c]; return ok }
 
 // ForStatus returns the REST code for an HTTP error status; an unmapped 4xx is
 // invalid_input and any other status is server_error.
-// SEM@969f583602822a93cb58605bd0d26c0120d20df1: map an HTTP error status to its REST error code (pure)
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: map an HTTP error status to its REST error code (pure)
 func ForStatus(status int) Code {
 	switch status {
 	case 400:
@@ -322,5 +322,5 @@ var protocolRoutePattern = regexp.MustCompile(`^/(oauth2/(authorize|token|refres
 
 // IsProtocolRoute reports whether an API path is a protocol route (OAuth, SAML
 // or discovery), whose errors use the OAuthError vocabulary.
-// SEM@969f583602822a93cb58605bd0d26c0120d20df1: check whether a request path is an OAuth, SAML or discovery route (pure)
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: check whether a request path is an OAuth, SAML or discovery route (pure)
 func IsProtocolRoute(path string) bool { return protocolRoutePattern.MatchString(path) }

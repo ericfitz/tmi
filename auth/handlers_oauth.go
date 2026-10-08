@@ -489,7 +489,7 @@ var authorizationErrorCodes = map[errcode.Code]bool{
 // upstreamErrorBody maps the error value an upstream identity provider sent on
 // the callback to a documented code. A value outside the RFC 6749 section 4.1.2.1
 // list becomes access_denied and is reported only in the description.
-// SEM@cc3c346ddf5e82b970dd9e99c11c9bef78f72185: map an upstream provider error value to a documented OAuth error code and description (pure)
+// SEM@af9681fcc1f146c9080eea9d242b4e815dfe1e2d: map an upstream provider error value to a documented OAuth error code and description (pure)
 func upstreamErrorBody(raw string) (errcode.Code, string) {
 	if c := errcode.Code(raw); authorizationErrorCodes[c] {
 		return c, "The identity provider returned an error: " + raw
