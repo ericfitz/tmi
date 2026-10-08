@@ -501,7 +501,7 @@ rules:
       # 334 matches on the 20260728T042755Z corpus.
       response_body:
         contains_any:
-          - patch_failed
+          - invalid_patch
           - request body has an error
           - Invalid request body
           - multiple errors encountered

@@ -439,7 +439,7 @@ func TestListSystemSettings_ServiceUnavailable(t *testing.T) {
 	var errResp Error
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
-	assert.Equal(t, "service_unavailable", string(errResp.Error))
+	assert.Equal(t, "server_error", string(errResp.Error))
 }
 
 // SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify fetching a system setting requires admin

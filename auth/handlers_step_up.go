@@ -143,7 +143,7 @@ func (h *Handlers) StepUp(c *gin.Context) {
 		// Should not happen — getProvider succeeded above.
 		_ = h.stepUpAud().LogRejected(c.Request.Context(), actor, "invalid_provider",
 			map[string]string{"provider": providerID})
-		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 	strength := ClassifyStepUpStrength(cfg)
@@ -172,7 +172,7 @@ func (h *Handlers) stepUpWeakShortCircuit(c *gin.Context, actor StepUpActor) {
 	user, err := h.service.GetUserByProviderID(ctx, actor.Provider, actor.ProviderUserID)
 	if err != nil {
 		logger.Error("step-up weak: user lookup failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 
@@ -192,7 +192,7 @@ func (h *Handlers) stepUpWeakShortCircuit(c *gin.Context, actor StepUpActor) {
 	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, nil)
 	if err != nil {
 		logger.Error("step-up weak: token mint failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 
@@ -262,7 +262,7 @@ func (h *Handlers) stepUpStrongRedirect(c *gin.Context, provider Provider, cfg O
 		state, err = generateRandomState()
 		if err != nil {
 			logger.Error("Failed to generate state for step-up: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 			return
 		}
 	}
@@ -274,7 +274,7 @@ func (h *Handlers) stepUpStrongRedirect(c *gin.Context, provider Provider, cfg O
 	user, err := h.service.GetUserByProviderID(ctx, actor.Provider, actor.ProviderUserID)
 	if err != nil {
 		logger.Error("step-up: user lookup failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 
@@ -293,26 +293,26 @@ func (h *Handlers) stepUpStrongRedirect(c *gin.Context, provider Provider, cfg O
 	stateJSON, err := json.Marshal(stateData)
 	if err != nil {
 		logger.Error("step-up: state marshal failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 	if err := h.service.dbManager.Redis().Set(ctx, stateKey, string(stateJSON), 10*time.Minute); err != nil {
 		logger.Error("step-up: state store failed: %v", err)
 		c.Header("Retry-After", "30")
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": string(errcode.TemporarilyUnavailable)})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": string(errcode.TemporarilyUnavailable), "error_description": "Service temporarily unavailable"})
 		return
 	}
 	if err := h.service.stateStore.StorePKCEChallenge(ctx, state, codeChallenge, codeChallengeMethod, 10*time.Minute); err != nil {
 		logger.Error("step-up: PKCE store failed: %v", err)
 		c.Header("Retry-After", "30")
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": string(errcode.TemporarilyUnavailable)})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": string(errcode.TemporarilyUnavailable), "error_description": "Service temporarily unavailable"})
 		return
 	}
 
 	authURL, err := BuildStepUpAuthorizationURL(provider, cfg, state, loginHint)
 	if err != nil {
 		logger.Error("step-up: URL build failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 	// Content negotiation (#455): XHR/fetch callers that send

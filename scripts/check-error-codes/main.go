@@ -238,6 +238,7 @@ func run(root string) ([]finding, error) {
 	return all, err
 }
 
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: run the error-code literal check and exit non-zero on violations
 func main() {
 	if len(os.Args) != 2 {
 		fmt.Fprintln(os.Stderr, "usage: check-error-codes <root>")

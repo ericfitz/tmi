@@ -107,7 +107,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 			quota := GlobalWebhookQuotaStore.GetOrDefault(c.Request.Context(), userID)
 			c.Header("Retry-After", "60")
 			c.JSON(http.StatusTooManyRequests, Error{
-				Error:            ErrorError(errcode.RateLimitExceeded),
+				Error:            ErrorError(errcode.QuotaExceeded),
 				ErrorDescription: fmt.Sprintf("%v (limit: %d)", err, quota.MaxSubscriptions),
 			})
 			return

@@ -519,7 +519,7 @@ func (s *Server) ListSystemSettings(c *gin.Context) {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    errcode.ServiceUnavailable,
+			Code:    errcode.ServerError,
 			Message: "Settings service unavailable",
 		})
 		return
@@ -560,7 +560,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    errcode.ServiceUnavailable,
+			Code:    errcode.ServerError,
 			Message: "Settings service unavailable",
 		})
 		return
@@ -642,7 +642,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    errcode.ServiceUnavailable,
+			Code:    errcode.ServerError,
 			Message: "Settings service unavailable",
 		})
 		return
@@ -741,7 +741,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    errcode.ServiceUnavailable,
+			Code:    errcode.ServerError,
 			Message: "Settings service unavailable",
 		})
 		return
@@ -823,7 +823,7 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    errcode.ServiceUnavailable,
+			Code:    errcode.ServerError,
 			Message: "Settings service unavailable",
 		})
 		return

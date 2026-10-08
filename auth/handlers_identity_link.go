@@ -105,7 +105,7 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 	user, err := h.service.GetUserByProviderID(ctx, claims.IdentityProvider, claims.Subject)
 	if err != nil {
 		logger.Error("StartIdentityLink: user lookup failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 
@@ -167,7 +167,7 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 	state, err := generateRandomState()
 	if err != nil {
 		logger.Error("StartIdentityLink: state generation failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 
@@ -181,13 +181,13 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 	stateJSON, err := json.Marshal(stateData)
 	if err != nil {
 		logger.Error("StartIdentityLink: state marshal failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 	if err := h.service.dbManager.Redis().Set(ctx, stateKey, string(stateJSON), identityLinkStateTTL); err != nil {
 		logger.Error("StartIdentityLink: state store failed: %v", err)
 		c.Header("Retry-After", "30")
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": string(errcode.ServiceUnavailable)})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": string(errcode.ServiceUnavailable), "error_description": "Service temporarily unavailable"})
 		return
 	}
 
@@ -197,13 +197,13 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 	if err != nil {
 		// Should not happen — getProviderWithContext succeeded above.
 		logger.Error("StartIdentityLink: provider config lookup failed after provider resolved: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 	authURL, err := BuildIdentityLinkAuthorizationURL(provider, cfg, state)
 	if err != nil {
 		logger.Error("StartIdentityLink: URL build failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 
@@ -410,7 +410,7 @@ func (h *Handlers) GetPendingIdentityLink(c *gin.Context) {
 	// Get link_id from path param.
 	linkID := c.Param("link_id")
 	if linkID == "" {
-		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound), "error_description": "Resource not found"})
 		return
 	}
 
@@ -422,14 +422,14 @@ func (h *Handlers) GetPendingIdentityLink(c *gin.Context) {
 	if err != nil {
 		// Missing or expired — return 404 with no distinguishable message.
 		logger.Debug("GetPendingIdentityLink: key not found or expired: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound), "error_description": "Resource not found"})
 		return
 	}
 
 	var pending identityLinkPendingData
 	if err := json.Unmarshal([]byte(pendingJSON), &pending); err != nil {
 		logger.Error("GetPendingIdentityLink: unmarshal failed: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound), "error_description": "Resource not found"})
 		return
 	}
 
@@ -437,12 +437,12 @@ func (h *Handlers) GetPendingIdentityLink(c *gin.Context) {
 	user, err := h.service.GetUserByProviderID(ctx, claims.IdentityProvider, claims.Subject)
 	if err != nil {
 		logger.Debug("GetPendingIdentityLink: user lookup failed: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound), "error_description": "Resource not found"})
 		return
 	}
 	if pending.UserUUID != user.InternalUUID {
 		logger.Debug("GetPendingIdentityLink: UUID mismatch: pending=%s caller=%s", pending.UserUUID, user.InternalUUID)
-		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound), "error_description": "Resource not found"})
 		return
 	}
 
@@ -515,14 +515,14 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 	pendingJSON, err := h.service.dbManager.Redis().Get(ctx, pendingKey)
 	if err != nil {
 		logger.Debug("ConfirmIdentityLink: pending key not found or expired: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound), "error_description": "Resource not found"})
 		return
 	}
 
 	var pending identityLinkPendingData
 	if err := json.Unmarshal([]byte(pendingJSON), &pending); err != nil {
 		logger.Error("ConfirmIdentityLink: unmarshal failed: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound), "error_description": "Resource not found"})
 		return
 	}
 
@@ -530,12 +530,12 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 	user, err := h.service.GetUserByProviderID(ctx, claims.IdentityProvider, claims.Subject)
 	if err != nil {
 		logger.Debug("ConfirmIdentityLink: user lookup failed: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound), "error_description": "Resource not found"})
 		return
 	}
 	if pending.UserUUID != user.InternalUUID {
 		logger.Debug("ConfirmIdentityLink: UUID mismatch: pending=%s caller=%s", pending.UserUUID, user.InternalUUID)
-		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound), "error_description": "Resource not found"})
 		return
 	}
 
@@ -576,7 +576,7 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 	// dberrors.ErrDuplicate so the 409 branch below handles both.
 	if h.identityLinkStore == nil {
 		logger.Error("ConfirmIdentityLink: identityLinkStore not wired")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 
@@ -612,7 +612,7 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 			return
 		}
 		logger.Error("ConfirmIdentityLink: create failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 
