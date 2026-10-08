@@ -482,7 +482,7 @@ func TestExchangeHandlerValidation(t *testing.T) {
 				"redirect_uri":  "http://localhost:3000/callback",
 			},
 			expectedStatus: http.StatusBadRequest,
-			expectedError:  "Invalid provider: invalid",
+			expectedError:  "invalid_provider",
 		},
 	}
 

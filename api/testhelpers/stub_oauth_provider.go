@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/ericfitz/tmi/internal/errcode"
 )
 
 // codeCounter is a global counter to generate unique authorization codes across tests.
@@ -196,7 +198,7 @@ func (s *StubOAuthProvider) handleToken(w http.ResponseWriter, r *http.Request) 
 	case "refresh_token":
 		s.handleRefresh(w, r)
 	default:
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported_grant_type"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": string(errcode.UnsupportedGrantType)})
 	}
 }
 
@@ -206,7 +208,7 @@ func (s *StubOAuthProvider) handleExchange(w http.ResponseWriter, r *http.Reques
 	// PKCE: code_verifier must be present (we don't validate S256 binding — the
 	// real provider does that; the stub just checks it's non-empty).
 	if r.FormValue("code_verifier") == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing code_verifier"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": string(errcode.InvalidRequest), "error_description": "missing code_verifier"})
 		return
 	}
 	s.mu.Lock()
@@ -233,11 +235,11 @@ func (s *StubOAuthProvider) handleRefresh(w http.ResponseWriter, r *http.Request
 
 	// RefreshStatus overrides normal behaviour.
 	if s.RefreshStatus != 0 {
-		writeJSON(w, s.RefreshStatus, map[string]string{"error": "invalid_grant"})
+		writeJSON(w, s.RefreshStatus, map[string]string{"error": string(errcode.InvalidGrant)})
 		return
 	}
 	if !s.RefreshSucceeds {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_grant"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": string(errcode.InvalidGrant)})
 		return
 	}
 

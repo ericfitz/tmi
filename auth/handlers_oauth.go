@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -24,7 +25,8 @@ func (h *Handlers) Authorize(c *gin.Context) {
 			providerID = defaultProviderID
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Missing required parameter: idp",
+				"error":             string(errcode.InvalidRequest),
+				"error_description": "Missing required parameter: idp",
 			})
 			return
 		}
@@ -36,7 +38,8 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		// Return 404 for unavailable providers (like test provider in production)
 		if strings.Contains(err.Error(), "not available in production") {
 			c.JSON(http.StatusNotFound, gin.H{
-				"error": "Provider not available",
+				"error":             string(errcode.NotFound),
+				"error_description": "Provider not available",
 			})
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -50,7 +53,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	scope := c.Query("scope")
 	if err := h.validateOAuthScope(scope); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_scope",
+			"error":             string(errcode.InvalidScope),
 			"error_description": err.Error(),
 		})
 		return
@@ -64,7 +67,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	}
 	if responseType != oauthResponseTypeCode {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "unsupported_response_type",
+			"error":             string(errcode.UnsupportedResponseType),
 			"error_description": "Only authorization code flow (response_type=code) is supported with PKCE",
 		})
 		return
@@ -79,7 +82,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		if !allow.Allowed(clientCallback) {
 			slogging.Get().WithContext(c).Warn("Rejected /oauth2/authorize: client_callback %q is not in the allowlist", clientCallback)
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_request",
+				"error":             string(errcode.InvalidRequest),
 				"error_description": "client_callback is not in the allowlist",
 			})
 			return
@@ -99,7 +102,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	// Validate PKCE parameters
 	if codeChallenge == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidRequest),
 			"error_description": "code_challenge parameter is required for PKCE",
 		})
 		return
@@ -111,7 +114,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 
 	if codeChallengeMethod != pkceMethodS256 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidRequest),
 			"error_description": "Only S256 code_challenge_method is supported",
 		})
 		return
@@ -120,7 +123,7 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	// Validate code_challenge format
 	if err := ValidateCodeChallengeFormat(codeChallenge); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidRequest),
 			"error_description": fmt.Sprintf("Invalid code_challenge format: %v", err),
 		})
 		return
@@ -135,7 +138,8 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		if err != nil {
 			slogging.Get().WithContext(c).Error("Failed to generate OAuth state parameter: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to generate state parameter",
+				"error":             string(errcode.ServerError),
+				"error_description": "Failed to generate state parameter",
 			})
 			return
 		}
@@ -161,7 +165,8 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	if err != nil {
 		slogging.Get().WithContext(c).Error("Failed to marshal OAuth state data for provider %s: %v", providerID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to encode state data",
+			"error":             string(errcode.ServerError),
+			"error_description": "Failed to encode state data",
 		})
 		return
 	}
@@ -170,7 +175,8 @@ func (h *Handlers) Authorize(c *gin.Context) {
 	if h.service == nil {
 		c.Header("Retry-After", "30")
 		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "OAuth service temporarily unavailable",
+			"error":             string(errcode.TemporarilyUnavailable),
+			"error_description": "OAuth service temporarily unavailable",
 		})
 		return
 	}
@@ -180,7 +186,8 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		slogging.Get().WithContext(c).Error("Failed to store OAuth state in Redis (key: %s, provider: %s): %v", stateKey, providerID, err)
 		c.Header("Retry-After", "30")
 		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "State storage temporarily unavailable - please retry",
+			"error":             string(errcode.TemporarilyUnavailable),
+			"error_description": "State storage temporarily unavailable - please retry",
 		})
 		return
 	}
@@ -191,7 +198,8 @@ func (h *Handlers) Authorize(c *gin.Context) {
 		slogging.Get().WithContext(c).Error("Failed to store PKCE challenge for state %s: %v", state, err)
 		c.Header("Retry-After", "30")
 		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "PKCE storage temporarily unavailable - please retry",
+			"error":             string(errcode.TemporarilyUnavailable),
+			"error_description": "PKCE storage temporarily unavailable - please retry",
 		})
 		return
 	}
@@ -217,7 +225,8 @@ func (h *Handlers) Authorize(c *gin.Context) {
 			slogging.Get().WithContext(c).Error("Failed to retrieve PKCE challenge for state %s: %v", state, err)
 			c.Header("Retry-After", "30")
 			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"error": "PKCE storage temporarily unavailable - please retry",
+				"error":             string(errcode.TemporarilyUnavailable),
+				"error_description": "PKCE storage temporarily unavailable - please retry",
 			})
 			return
 		}
@@ -233,7 +242,8 @@ func (h *Handlers) Authorize(c *gin.Context) {
 			slogging.Get().WithContext(c).Error("Failed to marshal PKCE data for code: %v", err)
 			// This is a true internal error - JSON marshaling of our own data failed
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Internal error processing PKCE data",
+				"error":             string(errcode.ServerError),
+				"error_description": "Internal error processing PKCE data",
 			})
 			return
 		}
@@ -243,7 +253,8 @@ func (h *Handlers) Authorize(c *gin.Context) {
 			slogging.Get().WithContext(c).Error("Failed to store PKCE challenge for code %s: %v", authCode, err)
 			c.Header("Retry-After", "30")
 			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"error": "PKCE storage temporarily unavailable - please retry",
+				"error":             string(errcode.TemporarilyUnavailable),
+				"error_description": "PKCE storage temporarily unavailable - please retry",
 			})
 			return
 		}
@@ -322,7 +333,8 @@ func (h *Handlers) Callback(c *gin.Context) {
 
 	if code == "" || state == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Missing code or state parameter",
+			"error":             string(errcode.InvalidRequest),
+			"error_description": "Missing code or state parameter",
 		})
 		return
 	}
@@ -331,7 +343,8 @@ func (h *Handlers) Callback(c *gin.Context) {
 	stateData, err := h.parseCallbackState(c, state)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid state parameter",
+			"error":             string(errcode.InvalidRequest),
+			"error_description": "Invalid state parameter",
 		})
 		return
 	}
@@ -403,7 +416,7 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 	// Require client callback URL
 	if stateData.ClientCallback == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidRequest),
 			"error_description": "client_callback URL is required",
 		})
 		return fmt.Errorf("missing client_callback")

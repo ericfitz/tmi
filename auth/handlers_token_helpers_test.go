@@ -144,16 +144,16 @@ func TestErrorHelpers_BodiesDoNotLeakInternals(t *testing.T) {
 func TestErrorHelpers_BodiesUseOAuthErrorCodes(t *testing.T) {
 	allowedCodes := map[string]bool{
 		// Spec codes (RFC 6749 §5.2).
-		"invalid_request": true,
-		"invalid_client":  true,
-		"invalid_grant":   true,
-		"server_error":    true,
+		"invalid_request":         true,
+		"invalid_client":          true,
+		"invalid_grant":           true,
+		"server_error":            true,
+		"temporarily_unavailable": true,
 		// TMI extension codes.
 		"provider_unreachable":      true,
 		"provider_response_invalid": true,
 		"account_conflict":          true,
 		"email_not_verified":        true,
-		"service_unavailable":       true,
 	}
 	for _, body := range bodiesUnderTest(t) {
 		code, ok := body["error"].(string)
@@ -228,7 +228,7 @@ func TestRespondUserPersistError_StatusMapping(t *testing.T) {
 			assert.Equal(t, tc.wantStatus, w.Code)
 			if tc.wantRetry {
 				assert.Equal(t, "30", w.Header().Get("Retry-After"))
-				assert.Contains(t, w.Body.String(), "service_unavailable")
+				assert.Contains(t, w.Body.String(), "temporarily_unavailable")
 			}
 		})
 	}

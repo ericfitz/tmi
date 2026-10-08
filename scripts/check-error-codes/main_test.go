@@ -9,7 +9,7 @@ import (
 func findingsFor(t *testing.T, path string) []finding {
 	t.Helper()
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, path, nil, 0)
+	f, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 	if err != nil {
 		t.Fatalf("parse %s: %v", path, err)
 	}

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"github.com/gin-gonic/gin"
@@ -135,7 +136,7 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 		if errMsg := strictJSONBindForRevoke(c, &req); errMsg != "" {
 			logger.Warn("Invalid JSON request body: %s", errMsg)
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_request",
+				"error":             string(errcode.InvalidRequest),
 				"error_description": errMsg,
 			})
 			return
@@ -145,7 +146,7 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 		if err := c.ShouldBind(&req); err != nil {
 			// Per RFC 7009 Section 2.2.1: Return 400 for missing token parameter
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_request",
+				"error":             string(errcode.InvalidRequest),
 				"error_description": "Missing required 'token' parameter",
 			})
 			return
@@ -157,7 +158,7 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 				if !allowedFields[field] {
 					logger.Warn("Unknown field in revocation request: %s", field)
 					c.JSON(http.StatusBadRequest, gin.H{
-						"error":             "invalid_request",
+						"error":             string(errcode.InvalidRequest),
 						"error_description": fmt.Sprintf("Unknown field in request: %s", field),
 					})
 					return
@@ -170,7 +171,7 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 	if errMsg := validateTokenRevocationField(req.Token, "token"); errMsg != "" {
 		logger.Warn("Invalid token in revocation request: %s", errMsg)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidRequest),
 			"error_description": errMsg,
 		})
 		return
@@ -180,7 +181,7 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 	if errMsg := validateTokenTypeHint(req.TokenTypeHint); errMsg != "" {
 		logger.Warn("Invalid token_type_hint in revocation request: %s", errMsg)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidRequest),
 			"error_description": errMsg,
 		})
 		return
@@ -190,7 +191,7 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 	if errMsg := validateTokenRevocationField(req.ClientID, "client_id"); errMsg != "" {
 		logger.Warn("Invalid client_id in revocation request: %s", errMsg)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidRequest),
 			"error_description": errMsg,
 		})
 		return
@@ -200,7 +201,7 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 	if errMsg := validateTokenRevocationField(req.ClientSecret, "client_secret"); errMsg != "" {
 		logger.Warn("Invalid client_secret in revocation request: %s", errMsg)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidRequest),
 			"error_description": errMsg,
 		})
 		return
@@ -237,7 +238,7 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 			)
 			c.Header("Retry-After", strconv.Itoa(int(d.RetryAfter.Seconds())))
 			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":             "too_many_requests",
+				"error":             string(errcode.RateLimitExceeded),
 				"error_description": "Too many failed authentication attempts; retry later",
 			})
 			return
@@ -261,7 +262,7 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 					)
 					c.Header("Retry-After", strconv.Itoa(int(d.RetryAfter.Seconds())))
 					c.JSON(http.StatusTooManyRequests, gin.H{
-						"error":             "too_many_requests",
+						"error":             string(errcode.RateLimitExceeded),
 						"error_description": "Too many failed authentication attempts; retry later",
 					})
 					return
@@ -273,7 +274,7 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 	if !isAuthenticated {
 		// RFC 7009 Section 2.2.1: 401 for invalid client credentials
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_client",
+			"error":             string(errcode.InvalidClient),
 			"error_description": "Client authentication failed",
 		})
 		return
@@ -287,7 +288,7 @@ func (h *Handlers) RevokeToken(c *gin.Context) {
 		logger.Error("Token revocation could not be stored: %v", err)
 		c.Header("Retry-After", "30")
 		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error":             "temporarily_unavailable",
+			"error":             string(errcode.TemporarilyUnavailable),
 			"error_description": "Token revocation temporarily unavailable; retry later",
 		})
 		return
@@ -326,7 +327,8 @@ func (h *Handlers) IntrospectToken(c *gin.Context) {
 
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request: token parameter is required",
+			"error":             string(errcode.InvalidRequest),
+			"error_description": "Invalid request: token parameter is required",
 		})
 		return
 	}

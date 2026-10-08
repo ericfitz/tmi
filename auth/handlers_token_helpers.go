@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -22,7 +23,7 @@ import (
 // SEM@022025c0087d1b5a5a082c0b361153b6d80265a6: build a sanitized OAuth error response and operator log message for an empty subject claim (pure)
 func emptySubjectError(providerID, email string) (gin.H, string) {
 	body := gin.H{
-		"error":             "provider_response_invalid",
+		"error":             string(errcode.ProviderResponseInvalid),
 		"error_description": "Authentication provider returned incomplete profile data. Please contact the administrator.",
 	}
 	defaultSubjectPath := DefaultClaimMappings["subject_claim"]
@@ -46,7 +47,7 @@ func emptySubjectError(providerID, email string) (gin.H, string) {
 // SEM@a050fb6e0fd9dcae1492b381c23e55964a2b9506: build a sanitized server_error response and operator log for a failed authorization code exchange (pure)
 func codeExchangeError(providerID, codePrefix string, err error) (gin.H, string) {
 	body := gin.H{
-		"error":             "server_error",
+		"error":             string(errcode.ServerError),
 		"error_description": "Could not complete authorization code exchange. Please retry or contact the administrator.",
 	}
 	msg := fmt.Sprintf("Failed to exchange authorization code for tokens in callback (provider: %s, code prefix: %.10s...): %v", providerID, codePrefix, err)
@@ -59,7 +60,7 @@ func codeExchangeError(providerID, codePrefix string, err error) (gin.H, string)
 // SEM@a050fb6e0fd9dcae1492b381c23e55964a2b9506: build a sanitized provider_unreachable response and operator log for a user-info fetch failure (pure)
 func userInfoFetchError(providerID string, err error) (gin.H, string) {
 	body := gin.H{
-		"error":             "provider_unreachable",
+		"error":             string(errcode.ProviderUnreachable),
 		"error_description": "Could not retrieve user information from the authentication provider. Please retry or contact the administrator.",
 	}
 	msg := fmt.Sprintf("Failed to get user info from OAuth provider (provider: %s): %v", providerID, err)
@@ -72,7 +73,7 @@ func userInfoFetchError(providerID string, err error) (gin.H, string) {
 // SEM@a050fb6e0fd9dcae1492b381c23e55964a2b9506: build a sanitized server_error response and operator log for a user find-or-create failure (pure)
 func userPersistError(providerID string, err error) (gin.H, string) {
 	body := gin.H{
-		"error":             "server_error",
+		"error":             string(errcode.ServerError),
 		"error_description": "Could not complete user account setup. Please retry or contact the administrator.",
 	}
 	msg := fmt.Sprintf("Failed to find or create user (provider: %s): %v", providerID, err)
@@ -83,10 +84,10 @@ func userPersistError(providerID string, err error) (gin.H, string) {
 // cause is a transient database condition (connection kill, deadlock,
 // serialization failure). Mapped to 503 + Retry-After so clients retry (#721);
 // the OpenAPI ServiceUnavailable component already documents this response.
-// SEM@fac8d2654bc689596c16a43b927554833b4685c5: build a service_unavailable response and operator log for a transient user-persist failure (pure)
+// SEM@fac8d2654bc689596c16a43b927554833b4685c5: build a temporarily_unavailable response and operator log for a transient user-persist failure (pure)
 func userPersistUnavailableError(providerID string, err error) (gin.H, string) {
 	body := gin.H{
-		"error":             "service_unavailable",
+		"error":             string(errcode.TemporarilyUnavailable),
 		"error_description": "Storage service temporarily unavailable - please retry",
 	}
 	msg := fmt.Sprintf("Transient database error during user find-or-create (provider: %s): %v", providerID, err)
@@ -101,12 +102,12 @@ func respondUserPersistError(c *gin.Context, providerID string, err error) {
 	switch {
 	case errors.Is(err, errCrossProviderConflict):
 		c.JSON(http.StatusConflict, gin.H{
-			"error":             "account_conflict",
+			"error":             string(errcode.AccountConflict),
 			"error_description": "This email is already linked to a different sign-in method.",
 		})
 	case errors.Is(err, errUnverifiedEmailMatch):
 		c.JSON(http.StatusForbidden, gin.H{
-			"error":             "email_not_verified",
+			"error":             string(errcode.EmailNotVerified),
 			"error_description": "Email address must be verified by your sign-in provider.",
 		})
 	case errors.Is(dberrors.Classify(err), dberrors.ErrTransient):
@@ -126,7 +127,7 @@ func respondUserPersistError(c *gin.Context, providerID string, err error) {
 // SEM@a050fb6e0fd9dcae1492b381c23e55964a2b9506: build a sanitized server_error response and operator log for a JWT generation failure (pure)
 func tokenIssuanceError(userEmail string, err error) (gin.H, string) {
 	body := gin.H{
-		"error":             "server_error",
+		"error":             string(errcode.ServerError),
 		"error_description": "Could not issue authentication tokens. Please retry or contact the administrator.",
 	}
 	msg := fmt.Sprintf("Failed to generate JWT tokens for user %s: %v", userEmail, err)
@@ -137,7 +138,7 @@ func tokenIssuanceError(userEmail string, err error) (gin.H, string) {
 // SEM@a050fb6e0fd9dcae1492b381c23e55964a2b9506: build an invalid_request response and operator log for a malformed PKCE code verifier (pure)
 func codeVerifierFormatError(err error) (gin.H, string) {
 	body := gin.H{
-		"error":             "invalid_request",
+		"error":             string(errcode.InvalidRequest),
 		"error_description": "Code verifier format is invalid.",
 	}
 	msg := fmt.Sprintf("PKCE code_verifier format validation failed: %v", err)
@@ -150,7 +151,7 @@ func codeVerifierFormatError(err error) (gin.H, string) {
 // SEM@a050fb6e0fd9dcae1492b381c23e55964a2b9506: build an invalid_grant response and operator log for a failed refresh token exchange (pure)
 func refreshTokenError(err error) (gin.H, string) {
 	body := gin.H{
-		"error":             "invalid_grant",
+		"error":             string(errcode.InvalidGrant),
 		"error_description": "The refresh token is invalid or expired.",
 	}
 	msg := fmt.Sprintf("Failed to refresh token: %v", err)

@@ -23,6 +23,7 @@ import (
 // SEM@81952f598eaf9b1599471d778c9fb82e7d2f2d7a: respond 404 when the delegated content provider feature is not configured on this deployment
 func contentOAuthUnavailable(c *gin.Context) {
 	c.JSON(http.StatusNotFound, Error{
+		// errcode:allow tmi-ux branches on this top-level code (content-token.service.ts); outside the Error enum until the client migrates (#1048)
 		Error:            "feature_not_available",
 		ErrorDescription: "Delegated content provider subsystem is not enabled on this deployment.",
 	})

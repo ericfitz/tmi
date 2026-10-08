@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -64,8 +65,9 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 	if !ok {
 		c.Header("WWW-Authenticate", `Bearer error="invalid_token"`)
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_token",
+			"error":             string(errcode.Unauthorized),
 			"error_description": "Missing or invalid access token",
+			"details":           gin.H{"code": string(errcode.DetailInvalidToken)},
 		})
 		return
 	}
@@ -73,8 +75,9 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 	if err != nil {
 		c.Header("WWW-Authenticate", `Bearer error="invalid_token"`)
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_token",
+			"error":             string(errcode.Unauthorized),
 			"error_description": "Token validation failed",
+			"details":           gin.H{"code": string(errcode.DetailInvalidToken)},
 		})
 		return
 	}
@@ -91,7 +94,7 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 		_ = h.identityLinkAud().LogRejected(c.Request.Context(), actor, "unsupported_grant_type",
 			map[string]string{"subject_prefix": "sa"})
 		c.JSON(http.StatusForbidden, gin.H{
-			"error":             "forbidden",
+			"error":             string(errcode.Forbidden),
 			"error_description": "Service accounts cannot link identities",
 		})
 		return
@@ -102,7 +105,7 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 	user, err := h.service.GetUserByProviderID(ctx, claims.IdentityProvider, claims.Subject)
 	if err != nil {
 		logger.Error("StartIdentityLink: user lookup failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
 		return
 	}
 
@@ -110,7 +113,7 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 	idp := c.Query("idp")
 	if idp == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidInput),
 			"error_description": "idp parameter is required",
 		})
 		return
@@ -121,12 +124,12 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 			map[string]string{"provider": idp})
 		if strings.Contains(err.Error(), "not available in production") {
 			c.JSON(http.StatusNotFound, gin.H{
-				"error":             "not_found",
+				"error":             string(errcode.NotFound),
 				"error_description": "Identity provider not available",
 			})
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_provider",
+				"error":             string(errcode.InvalidInput),
 				"error_description": fmt.Sprintf("Provider %q is not configured or is disabled", idp),
 			})
 		}
@@ -137,7 +140,7 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 	clientCallback := c.Query("client_callback")
 	if clientCallback == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidInput),
 			"error_description": "client_callback parameter is required",
 		})
 		return
@@ -146,7 +149,7 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 	if !allow.Allowed(clientCallback) {
 		logger.Warn("StartIdentityLink: client_callback %q not in allowlist", clientCallback)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidInput),
 			"error_description": "client_callback is not in the allowlist",
 		})
 		return
@@ -164,7 +167,7 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 	state, err := generateRandomState()
 	if err != nil {
 		logger.Error("StartIdentityLink: state generation failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
 		return
 	}
 
@@ -178,13 +181,13 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 	stateJSON, err := json.Marshal(stateData)
 	if err != nil {
 		logger.Error("StartIdentityLink: state marshal failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
 		return
 	}
 	if err := h.service.dbManager.Redis().Set(ctx, stateKey, string(stateJSON), identityLinkStateTTL); err != nil {
 		logger.Error("StartIdentityLink: state store failed: %v", err)
 		c.Header("Retry-After", "30")
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "temporarily_unavailable"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": string(errcode.ServiceUnavailable)})
 		return
 	}
 
@@ -194,13 +197,13 @@ func (h *Handlers) StartIdentityLink(c *gin.Context) {
 	if err != nil {
 		// Should not happen — getProviderWithContext succeeded above.
 		logger.Error("StartIdentityLink: provider config lookup failed after provider resolved: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
 		return
 	}
 	authURL, err := BuildIdentityLinkAuthorizationURL(provider, cfg, state)
 	if err != nil {
 		logger.Error("StartIdentityLink: URL build failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
 		return
 	}
 
@@ -225,7 +228,7 @@ func (h *Handlers) HandleIdentityLinkCallback(c *gin.Context, code string, state
 	// Ensure client_callback was set (required for the link flow).
 	if stateData.ClientCallback == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidInput),
 			"error_description": "client_callback is required for identity link flow",
 		})
 		return fmt.Errorf("missing client_callback for identity link callback")
@@ -385,20 +388,20 @@ func (h *Handlers) GetPendingIdentityLink(c *gin.Context) {
 	tokenStr, ok := h.readStepUpJWT(c)
 	if !ok {
 		c.Header("WWW-Authenticate", `Bearer error="invalid_token"`)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_token"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": string(errcode.Unauthorized), "error_description": "Missing or invalid access token", "details": gin.H{"code": string(errcode.DetailInvalidToken)}})
 		return
 	}
 	claims, err := h.service.ValidateToken(tokenStr)
 	if err != nil {
 		c.Header("WWW-Authenticate", `Bearer error="invalid_token"`)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_token"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": string(errcode.Unauthorized), "error_description": "Token validation failed", "details": gin.H{"code": string(errcode.DetailInvalidToken)}})
 		return
 	}
 
 	// Reject service accounts — consistent with the four sibling endpoints.
 	if strings.HasPrefix(claims.Subject, "sa:") {
 		c.JSON(http.StatusForbidden, gin.H{
-			"error":             "forbidden",
+			"error":             string(errcode.Forbidden),
 			"error_description": "Service accounts cannot link identities",
 		})
 		return
@@ -407,7 +410,7 @@ func (h *Handlers) GetPendingIdentityLink(c *gin.Context) {
 	// Get link_id from path param.
 	linkID := c.Param("link_id")
 	if linkID == "" {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
 		return
 	}
 
@@ -419,14 +422,14 @@ func (h *Handlers) GetPendingIdentityLink(c *gin.Context) {
 	if err != nil {
 		// Missing or expired — return 404 with no distinguishable message.
 		logger.Debug("GetPendingIdentityLink: key not found or expired: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
 		return
 	}
 
 	var pending identityLinkPendingData
 	if err := json.Unmarshal([]byte(pendingJSON), &pending); err != nil {
 		logger.Error("GetPendingIdentityLink: unmarshal failed: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
 		return
 	}
 
@@ -434,12 +437,12 @@ func (h *Handlers) GetPendingIdentityLink(c *gin.Context) {
 	user, err := h.service.GetUserByProviderID(ctx, claims.IdentityProvider, claims.Subject)
 	if err != nil {
 		logger.Debug("GetPendingIdentityLink: user lookup failed: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
 		return
 	}
 	if pending.UserUUID != user.InternalUUID {
 		logger.Debug("GetPendingIdentityLink: UUID mismatch: pending=%s caller=%s", pending.UserUUID, user.InternalUUID)
-		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
 		return
 	}
 
@@ -474,20 +477,20 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 	tokenStr, ok := h.readStepUpJWT(c)
 	if !ok {
 		c.Header("WWW-Authenticate", `Bearer error="invalid_token"`)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_token"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": string(errcode.Unauthorized), "error_description": "Missing or invalid access token", "details": gin.H{"code": string(errcode.DetailInvalidToken)}})
 		return
 	}
 	claims, err := h.service.ValidateToken(tokenStr)
 	if err != nil {
 		c.Header("WWW-Authenticate", `Bearer error="invalid_token"`)
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_token"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": string(errcode.Unauthorized), "error_description": "Token validation failed", "details": gin.H{"code": string(errcode.DetailInvalidToken)}})
 		return
 	}
 
 	// Reject service accounts.
 	if strings.HasPrefix(claims.Subject, "sa:") {
 		c.JSON(http.StatusForbidden, gin.H{
-			"error":             "forbidden",
+			"error":             string(errcode.Forbidden),
 			"error_description": "Service accounts cannot link identities",
 		})
 		return
@@ -499,7 +502,7 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidInput),
 			"error_description": "Missing required field: token",
 		})
 		return
@@ -512,14 +515,14 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 	pendingJSON, err := h.service.dbManager.Redis().Get(ctx, pendingKey)
 	if err != nil {
 		logger.Debug("ConfirmIdentityLink: pending key not found or expired: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
 		return
 	}
 
 	var pending identityLinkPendingData
 	if err := json.Unmarshal([]byte(pendingJSON), &pending); err != nil {
 		logger.Error("ConfirmIdentityLink: unmarshal failed: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
 		return
 	}
 
@@ -527,12 +530,12 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 	user, err := h.service.GetUserByProviderID(ctx, claims.IdentityProvider, claims.Subject)
 	if err != nil {
 		logger.Debug("ConfirmIdentityLink: user lookup failed: %v", err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
 		return
 	}
 	if pending.UserUUID != user.InternalUUID {
 		logger.Debug("ConfirmIdentityLink: UUID mismatch: pending=%s caller=%s", pending.UserUUID, user.InternalUUID)
-		c.JSON(http.StatusNotFound, gin.H{"error": "not_found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": string(errcode.NotFound)})
 		return
 	}
 
@@ -558,7 +561,7 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 			"sub":      redactSub(pending.ProviderUserID),
 		})
 		c.JSON(http.StatusConflict, gin.H{
-			"error":             "conflict",
+			"error":             string(errcode.Conflict),
 			"error_code":        "identity_already_bound",
 			"error_description": "This identity is already linked to a TMI account",
 		})
@@ -573,7 +576,7 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 	// dberrors.ErrDuplicate so the 409 branch below handles both.
 	if h.identityLinkStore == nil {
 		logger.Error("ConfirmIdentityLink: identityLinkStore not wired")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
 		return
 	}
 
@@ -591,7 +594,7 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 				"sub":      redactSub(pending.ProviderUserID),
 			})
 			c.JSON(http.StatusConflict, gin.H{
-				"error":             "conflict",
+				"error":             string(errcode.Conflict),
 				"error_code":        "identity_already_bound",
 				"error_description": "This identity is already linked to a TMI account",
 			})
@@ -603,13 +606,13 @@ func (h *Handlers) ConfirmIdentityLink(c *gin.Context) {
 		if errors.Is(err, dberrors.ErrConstraint) || errors.Is(err, dberrors.ErrForeignKey) {
 			logger.Warn("ConfirmIdentityLink: constraint error: %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_input",
+				"error":             string(errcode.InvalidInput),
 				"error_description": "Identity data violates a database constraint",
 			})
 			return
 		}
 		logger.Error("ConfirmIdentityLink: create failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError)})
 		return
 	}
 

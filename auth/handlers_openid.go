@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/gin-gonic/gin"
 )
 
@@ -239,7 +240,8 @@ func (h *Handlers) GetJWKS(c *gin.Context) {
 		jwk, err := h.createJWKFromPublicKey(publicKey, h.service.keyManager.GetSigningMethod())
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "Failed to create JWK",
+				"error":             string(errcode.ServerError),
+				"error_description": "Failed to create JWK",
 			})
 			return
 		}

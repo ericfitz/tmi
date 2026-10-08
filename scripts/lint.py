@@ -28,6 +28,9 @@ def main() -> None:
         cwd=project_root,
     )
 
+    log_info("Checking that error codes are internal/errcode constants...")
+    run_cmd(["go", "run", "./scripts/check-error-codes", "."], cwd=project_root)
+
     log_info("Checking for c.JSON(error) calls missing c.Abort()/return...")
     run_cmd(
         ["uv", "run", "scripts/check-missing-abort.py"],
