@@ -1624,7 +1624,7 @@
             "items": {
               "$ref": "#/components/schemas/Participant"
             },
-            "description": "Users authorized to take part in the session: the threat model owner and each user in its authorization list, each with their session permission, plus any connected user not otherwise listed. This is not the set of currently connected users. Group authorization entries are not expanded. For users who are not currently connected, last_activity is the session last-activity time.",
+            "description": "Users authorized to take part in the session: the threat model owner and each user in its authorization list, each with their session permission, plus any connected user not otherwise listed. This is not the set of currently connected users. Group authorization entries are not expanded. For users who are not currently connected, last_activity is the session last-activity time. For users who are not connected, permissions come from the threat model authorization role (owner and writer map to writer, reader to reader); roles elevated through group membership are not reflected.",
             "maxItems": 1000
           },
           "websocket_url": {

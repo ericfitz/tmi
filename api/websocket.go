@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/mail"
+	"regexp"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -755,7 +756,7 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 }
 
 // convertClientToParticipant converts a WebSocket client to a Participant
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: convert a WebSocket client to a Participant with resolved permissions (reads DB)
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: convert a WebSocket client to a Participant, matching identity by provider ID or internal UUID (reads DB)
 func convertClientToParticipant(c *gin.Context, client *WebSocketClient, _ *DiagramSession, tm *ThreatModel) *Participant {
 	// Get user's session permissions using existing auth system
 	var permissions ParticipantPermissions
@@ -828,9 +829,14 @@ func getSessionPermissionsForUser(c *gin.Context, user ResolvedUser, tm *ThreatM
 	return nil
 }
 
+// participantEmailPattern mirrors the OpenAPI User.email pattern.
+var participantEmailPattern = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+
 // buildSessionParticipants lists every user authorized on the session's threat model, plus any
 // connected or requesting user not otherwise covered. Callers must hold session.mu (read).
-// Group authorization entries have no user representation and are skipped.
+// Group authorization entries have no user representation and are skipped. Permissions for
+// users who are not connected come from the static authorization role map (owner/writer ->
+// writer, reader -> reader), so roles elevated through group membership are not reflected.
 // SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build session participants from authorized users and connected clients (reads DB)
 func buildSessionParticipants(c *gin.Context, session *DiagramSession, tm *ThreatModel, requester ResolvedUser) []Participant {
 	logger := slogging.Get()
@@ -866,16 +872,21 @@ func buildSessionParticipants(c *gin.Context, session *DiagramSession, tm *Threa
 		if alreadyListed(u) {
 			return
 		}
-		// Participant.user.email is required and must be a valid address or the whole
+		// Participant.user.email is required and must match the spec pattern or the whole
 		// response fails to serialize. Authorization entries may carry only a provider
 		// ID, which for several providers is the email address.
-		if _, err := mail.ParseAddress(u.Email); err != nil {
-			if _, idErr := mail.ParseAddress(u.ProviderID); idErr != nil {
-				logger.Warn("Session %s: authorized user provider=%s provider_id=%s has no valid email, omitting from participants",
+		if !participantEmailPattern.MatchString(u.Email) {
+			addr, idErr := mail.ParseAddress(u.ProviderID)
+			if idErr != nil || !participantEmailPattern.MatchString(addr.Address) {
+				logger.Debug("Session %s: authorized user provider=%s provider_id=%s has no valid email, omitting from participants",
 					session.ID, u.Provider, u.ProviderID)
 				return
 			}
-			u.Email = u.ProviderID
+			u.Email = addr.Address
+		}
+		// Participant.user.display_name is required with minLength 1.
+		if u.DisplayName == "" {
+			u.DisplayName = u.Email
 		}
 		seen = append(seen, u)
 		participants = append(participants, Participant{
@@ -918,7 +929,7 @@ func buildSessionParticipants(c *gin.Context, session *DiagramSession, tm *Threa
 }
 
 // buildCollaborationSessionFromDiagramSession creates a CollaborationSession struct from a DiagramSession
-// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: build a CollaborationSession DTO from a live DiagramSession for the current user (reads DB)
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a CollaborationSession DTO with authorized-user participants from a live DiagramSession (reads DB)
 func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Context, diagramID string, session *DiagramSession, currentUser ResolvedUser) (*CollaborationSession, error) {
 
 	session.mu.RLock()
@@ -991,7 +1002,7 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 }
 
 // GetActiveSessionsForUser returns all active collaboration sessions that the specified user has access to
-// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: list active collaboration sessions the given user has at least reader access to (reads DB)
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: list active collaboration sessions with authorized-user participants that the given user can read (reads DB)
 func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, user ResolvedUser) []CollaborationSession {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

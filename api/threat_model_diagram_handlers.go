@@ -663,7 +663,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 }
 
 // CreateDiagramCollaborate creates a new collaboration session for a diagram within a threat model
-// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: create or retrieve a WebSocket collaboration session for a diagram (reads DB)
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: create or retrieve a WebSocket collaboration session for a diagram (reads DB)
 func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, threatModelId, diagramId string) {
 	// Similar to DiagramHandler.PostDiagramCollaborate but with threat model access check
 	// For brevity, this implementation is simplified
@@ -712,17 +712,19 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 	statusCode := http.StatusOK // Default for existing session
 	if session == nil {
 		// Create new collaboration session
-		session, err = h.wsHub.CreateSession(diagramId, threatModelId, user)
-		if err != nil {
-			// A concurrent request may have created the session between our lookup and
-			// CreateSession; join it (200) rather than failing.
-			session = h.wsHub.GetSession(diagramId)
-			if session == nil {
-				HandleRequestError(c, ServerError("Failed to create collaboration session"))
-				return
+		// A concurrent request, or a session ending in between, can race with our lookup;
+		// join whichever session exists, retrying creation once.
+		for attempt := 0; attempt < 2 && session == nil; attempt++ {
+			if created, createErr := h.wsHub.CreateSession(diagramId, threatModelId, user); createErr == nil {
+				session = created
+				statusCode = http.StatusCreated // New session created
+			} else {
+				session = h.wsHub.GetSession(diagramId)
 			}
-		} else {
-			statusCode = http.StatusCreated // New session created
+		}
+		if session == nil {
+			HandleRequestError(c, ServerError("Failed to create collaboration session"))
+			return
 		}
 	}
 

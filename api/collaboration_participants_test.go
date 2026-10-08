@@ -8,11 +8,13 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// SEM@bdd626ede818b573d8e556f49930fac9f87be4f2: test that collaboration sessions list every authorized user as a participant (#1046)
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: test that collaboration sessions list every authorized user as a participant (#1046)
 func TestCollaborationSessionParticipantsIncludeAuthorizedUsers(t *testing.T) {
 	InitializeMockStores()
 	gin.SetMode(gin.TestMode)
@@ -23,8 +25,7 @@ func TestCollaborationSessionParticipantsIncludeAuthorizedUsers(t *testing.T) {
 		c.Set("userID", "alice-provider-id")
 		c.Set("userProvider", "test")
 		c.Set("userIdP", "test")
-		c.Set("userName", "Alice")
-		c.Set("userId", "alice@example.com")
+		c.Set("userDisplayName", "Alice")
 		c.Next()
 	})
 	r.Use(ThreatModelMiddleware())
@@ -87,7 +88,7 @@ func TestCollaborationSessionParticipantsIncludeAuthorizedUsers(t *testing.T) {
 		for _, p := range cs.Participants {
 			perms[string(p.User.Email)] = p.Permissions
 		}
-		assert.Len(t, cs.Participants, 3, "groups are skipped;", "participants: %v", perms)
+		assert.Len(t, cs.Participants, 3, "groups are skipped; participants: %v", perms)
 		assert.Equal(t, ParticipantPermissionsWriter, perms["alice@example.com"], "owner is a writer participant")
 		assert.Equal(t, ParticipantPermissionsWriter, perms["bob@example.com"])
 		assert.Equal(t, ParticipantPermissionsReader, perms["carol@example.com"])
@@ -102,4 +103,34 @@ func TestCollaborationSessionParticipantsIncludeAuthorizedUsers(t *testing.T) {
 	w = do("GET", collab, nil)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	check(w)
+}
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: test participant dedupe, email fallback and display name defaults when building session participants (#1046)
+func TestBuildSessionParticipantsEdgeCases(t *testing.T) {
+	owner := User{PrincipalType: UserPrincipalTypeUser, Provider: "test", ProviderId: "alice-id", Email: "alice@example.com", DisplayName: "Alice"}
+	email := func(s string) *openapi_types.Email { e := openapi_types.Email(s); return &e }
+	tm := &ThreatModel{
+		Owner: owner,
+		Authorization: &[]Authorization{
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: "alice-id", Email: email("alice@example.com"), Role: AuthorizationRoleOwner},
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: "Dave <dave@example.com>", Role: AuthorizationRoleReader},
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: "opaque-sub-123", Role: AuthorizationRoleReader},
+			{PrincipalType: AuthorizationPrincipalTypeUser, Provider: "test", ProviderId: "erin-id", Email: email("erin@example.com"), Role: AuthorizationRoleWriter},
+		},
+	}
+	session := &DiagramSession{ID: uuid.New().String(), Clients: map[*WebSocketClient]bool{}}
+
+	got := buildSessionParticipants(nil, session, tm, ResolvedUser{})
+
+	byEmail := map[string]Participant{}
+	for _, p := range got {
+		byEmail[string(p.User.Email)] = p
+		assert.NotEmpty(t, p.User.DisplayName, "display_name must be non-empty")
+	}
+	assert.Len(t, got, 3, "owner deduped, opaque provider_id omitted")
+	assert.Equal(t, ParticipantPermissionsWriter, byEmail["alice@example.com"].Permissions)
+	assert.Equal(t, "Alice", byEmail["alice@example.com"].User.DisplayName)
+	assert.Equal(t, ParticipantPermissionsReader, byEmail["dave@example.com"].Permissions, "provider_id parsed as email")
+	assert.Equal(t, "dave@example.com", byEmail["dave@example.com"].User.DisplayName, "display_name falls back to email")
+	assert.Equal(t, ParticipantPermissionsWriter, byEmail["erin@example.com"].Permissions)
 }
