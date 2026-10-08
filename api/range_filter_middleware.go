@@ -31,7 +31,7 @@ type rangePair struct {
 }
 
 // timePair builds a timestamp range pair.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a timestamp range pair from lower and upper parameter names (pure)
+// SEM@fa62a7fedb2dc47713f3862a6c20ac96e2b1bc8e: build a timestamp range pair from lower and upper parameter names (pure)
 func timePair(lower, upper string, lowerExclusive, upperExclusive bool) rangePair {
 	return rangePair{Lower: lower, Upper: upper, Kind: rangeKindTime, LowerExclusive: lowerExclusive, UpperExclusive: upperExclusive}
 }
@@ -39,7 +39,7 @@ func timePair(lower, upper string, lowerExclusive, upperExclusive bool) rangePai
 // inclusiveTimePairs builds `<name>_after` / `<name>_before` timestamp pairs
 // whose bounds are both inclusive (>= / <=), the semantics of every store
 // except the threat and usability-feedback lists.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build inclusive after/before timestamp range pairs for named fields (pure)
+// SEM@fa62a7fedb2dc47713f3862a6c20ac96e2b1bc8e: build inclusive after/before timestamp range pairs for named fields (pure)
 func inclusiveTimePairs(names ...string) []rangePair {
 	pairs := make([]rangePair, 0, len(names))
 	for _, n := range names {
@@ -84,7 +84,7 @@ var rangeFilterRoutes = map[string][]rangePair{
 // compareRangeBounds compares the raw lower and upper bound values (-1, 0, +1).
 // It reports false when either value is unparsable, so format errors are left
 // to the existing validation.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: compare two raw range bound strings as instants or finite numbers (pure)
+// SEM@fa62a7fedb2dc47713f3862a6c20ac96e2b1bc8e: compare two raw range bound strings as instants or finite numbers (pure)
 func compareRangeBounds(kind rangeValueKind, lowRaw, upRaw string) (int, bool) {
 	switch kind {
 	case rangeKindTime:
@@ -116,7 +116,7 @@ func compareRangeBounds(kind rangeValueKind, lowRaw, upRaw string) (int, bool) {
 
 // rangeIsEmpty reports whether the request's bounds for the pair describe an
 // empty range. Missing, empty, or unparsable bounds never do.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: detect an empty range among a pair's query bounds (pure)
+// SEM@fa62a7fedb2dc47713f3862a6c20ac96e2b1bc8e: detect an empty range among a pair's query bounds (pure)
 func rangeIsEmpty(c *gin.Context, p rangePair) bool {
 	lowRaw, okLow := c.GetQuery(p.Lower)
 	upRaw, okUp := c.GetQuery(p.Upper)
@@ -134,7 +134,7 @@ func rangeIsEmpty(c *gin.Context, p rangePair) bool {
 // describe an empty range (lower bound above upper bound, or equal when either
 // bound is exclusive) with 400 invalid_input. It is the single enforcement
 // point for all range query pairs (#1051).
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: reject list requests whose range query bounds form an empty range with 400 (pure)
+// SEM@fa62a7fedb2dc47713f3862a6c20ac96e2b1bc8e: reject list requests whose range query bounds form an empty range with 400 (pure)
 func RangeFilterValidationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.Method != http.MethodGet {
