@@ -99,14 +99,18 @@ func createMarkdownSanitizationPolicy() *bluemonday.Policy {
 // bluemonday does. Stripping a tag can splice neighbouring text into a new tag
 // (e.g. "<<script>script>"), so the pass repeats until stable; if it does not
 // settle, fall back to bluemonday's fully escaped output.
-// SEM@9924c9a931e361fced9cd376fbfd52220c9b0bc5: sanitize markdown by stripping disallowed HTML tags and attributes while keeping text verbatim (pure)
+//
+// Each pass also neutralizes markdown link, image and reference-definition
+// destinations whose scheme is not http, https or mailto (#1013); see
+// markdown_link_destinations.go.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize markdown by stripping disallowed HTML and unsafe link destinations while keeping text verbatim (pure)
 func SanitizeMarkdownContent(content string) string {
 	if content == "" {
 		return content
 	}
 	cur := content
 	for i := 0; i < 10; i++ {
-		next := stripMarkdownHTML(cur)
+		next := neutralizeMarkdownLinkDestinations(stripMarkdownHTML(cur))
 		if next == cur {
 			return cur
 		}

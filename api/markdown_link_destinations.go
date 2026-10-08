@@ -1,0 +1,208 @@
+package api
+
+import (
+	"html"
+	"regexp"
+	"strings"
+)
+
+// Markdown link and image destinations (#1013).
+//
+// The HTML pass in SanitizeMarkdownContent never looks at markdown syntax, so
+// `[x](javascript:alert(1))` (and entity-encoded variants) would be stored
+// verbatim and executed by any consumer that renders the note without its own
+// sanitizer. This pass finds every inline link/image destination and every
+// reference definition destination and neutralizes the unsafe ones.
+//
+// Neutralization policy: an unsafe destination (including an angle-bracket
+// one) is replaced by the inert fragment "#". The link text, image alt text and
+// title stay, and so does every other byte of the note. Code spans and fenced
+// blocks are deliberately not special-cased: a destination-looking construct
+// with an unsafe scheme is rewritten there too, because guessing where a given
+// renderer sees code is exactly how filters get bypassed.
+//
+// Autolinks (<javascript:...>) need no handling here: the HTML pass already
+// removes them as unknown tags, and that is tested.
+
+// safeLinkSchemes is the allowlist of URL schemes for link and image
+// destinations. Scheme-less (relative, fragment, query, protocol-relative)
+// destinations are always allowed.
+var safeLinkSchemes = map[string]bool{"http": true, "https": true, "mailto": true}
+
+// refDefRe matches the start of a reference definition ("[label]: ") up to the
+// start of its destination, which may sit on the following line. Block-quote
+// and list-item prefixes are tolerated.
+var refDefRe = regexp.MustCompile(`(?m)^[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)*\[(?:[^\]\\\n]|\\.)+\]:[ \t]*\n?[ \t]*`)
+
+// urlSchemeRe matches a leading URL scheme.
+var urlSchemeRe = regexp.MustCompile(`^([a-z][a-z0-9+.-]*):`)
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: neutralize markdown link, image and reference-definition destinations whose scheme is not allowlisted (pure)
+func neutralizeMarkdownLinkDestinations(content string) string {
+	content = neutralizeInlineDestinations(content)
+	return neutralizeRefDefinitions(content)
+}
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: replace unsafe destinations of inline links and images with a fragment (pure)
+func neutralizeInlineDestinations(content string) string {
+	var out strings.Builder
+	last := 0
+	for i := 0; i+1 < len(content); i++ {
+		if content[i] != ']' || content[i+1] != '(' || isBackslashEscaped(content, i) {
+			continue
+		}
+		start := skipMarkdownSpace(content, i+2)
+		end, ok := scanDestination(content, start)
+		if !ok {
+			continue
+		}
+		if !isSafeLinkDestination(content[start:end]) {
+			out.WriteString(content[last:start])
+			out.WriteString("#")
+			last = end
+		}
+		i = end - 1
+	}
+	if last == 0 {
+		return content
+	}
+	out.WriteString(content[last:])
+	return out.String()
+}
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: replace unsafe destinations of markdown reference definitions with a fragment (pure)
+func neutralizeRefDefinitions(content string) string {
+	var out strings.Builder
+	last := 0
+	for _, m := range refDefRe.FindAllStringIndex(content, -1) {
+		start := m[1]
+		if start < last {
+			continue
+		}
+		end, ok := scanDestination(content, start)
+		if !ok || isSafeLinkDestination(content[start:end]) {
+			continue
+		}
+		out.WriteString(content[last:start])
+		out.WriteString("#")
+		last = end
+	}
+	if last == 0 {
+		return content
+	}
+	out.WriteString(content[last:])
+	return out.String()
+}
+
+// isBackslashEscaped reports whether the byte at i is preceded by an odd
+// number of backslashes.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: report whether a byte is escaped by an odd run of preceding backslashes (pure)
+func isBackslashEscaped(s string, i int) bool {
+	n := 0
+	for j := i - 1; j >= 0 && s[j] == '\\'; j-- {
+		n++
+	}
+	return n%2 == 1
+}
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: advance past markdown whitespace (pure)
+func skipMarkdownSpace(s string, i int) int {
+	for i < len(s) && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
+		i++
+	}
+	return i
+}
+
+// scanDestination returns the end offset of the link destination starting at
+// start, following CommonMark: either <...> (no newline, no unescaped angle
+// brackets) or a raw run without spaces or control characters in which
+// parentheses balance. ok is false when no destination starts there, including
+// the empty destination, which is always safe.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: find the end of a markdown link destination, angle-bracketed or raw (pure)
+func scanDestination(s string, start int) (end int, ok bool) {
+	if start >= len(s) {
+		return 0, false
+	}
+	if s[start] == '<' {
+		for i := start + 1; i < len(s); i++ {
+			switch s[i] {
+			case '\\':
+				i++
+			case '\n', '<':
+				return 0, false
+			case '>':
+				return i + 1, true
+			}
+		}
+		return 0, false
+	}
+	depth := 0
+	i := start
+scan:
+	for ; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c == '\\' && i+1 < len(s):
+			i++
+		case c <= ' ' || c == 0x7f:
+			break scan
+		case c == '(':
+			depth++
+		case c == ')':
+			if depth == 0 {
+				break scan
+			}
+			depth--
+		}
+	}
+	return i, i > start
+}
+
+// isSafeLinkDestination reports whether a destination as written in markdown
+// (raw or <angle> form) resolves to a relative URL or an allowlisted scheme.
+// The destination is normalized the way a renderer and then a browser would
+// before looking at the scheme: angle brackets dropped, backslash escapes and
+// HTML entities decoded (repeatedly, so double encoding cannot hide a scheme),
+// tabs/newlines removed anywhere, and leading/trailing control characters and
+// spaces trimmed (WHATWG URL parsing).
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: decide whether a markdown link destination is relative or uses an allowlisted scheme (pure)
+func isSafeLinkDestination(dest string) bool {
+	if strings.HasPrefix(dest, "<") && strings.HasSuffix(dest, ">") {
+		dest = dest[1 : len(dest)-1]
+	}
+	dest = unescapeMarkdownBackslashes(dest)
+	for i := 0; i < 10; i++ {
+		next := html.UnescapeString(dest)
+		if next == dest {
+			break
+		}
+		dest = next
+	}
+	dest = strings.Map(func(r rune) rune {
+		if r == '\t' || r == '\n' || r == '\r' {
+			return -1
+		}
+		return r
+	}, dest)
+	dest = strings.TrimFunc(dest, func(r rune) bool { return r <= ' ' || r == 0x7f })
+	m := urlSchemeRe.FindStringSubmatch(strings.ToLower(dest))
+	if m == nil {
+		return true
+	}
+	return safeLinkSchemes[m[1]]
+}
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: remove markdown backslash escapes before ASCII punctuation (pure)
+func unescapeMarkdownBackslashes(s string) string {
+	if !strings.Contains(s, `\`) {
+		return s
+	}
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) && strings.IndexByte("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", s[i+1]) >= 0 {
+			i++
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
