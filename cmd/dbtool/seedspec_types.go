@@ -52,16 +52,20 @@ type SeedSpecQuota struct {
 }
 
 // SeedSpecTeam defines a team to seed.
-// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: team definition with members and metadata for seeding (pure)
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: team definition with fields, members, parties, metadata and notes for seeding (pure)
 type SeedSpecTeam struct {
-	Name     string                    `json:"name"`
-	Status   string                    `json:"status,omitempty"`
-	Members  []SeedSpecTeamMember      `json:"members,omitempty"`
-	Metadata []SeedSpecKV              `json:"metadata,omitempty"`
-	Notes    []SeedSpecTeamProjectNote `json:"notes,omitempty"`
+	Name               string                    `json:"name"`
+	Status             string                    `json:"status,omitempty"`
+	Description        string                    `json:"description,omitempty"`
+	EmailAddress       string                    `json:"email_address,omitempty"`
+	URI                string                    `json:"uri,omitempty"`
+	Members            []SeedSpecTeamMember      `json:"members,omitempty"`
+	ResponsibleParties []SeedSpecTeamMember      `json:"responsible_parties,omitempty"`
+	Metadata           []SeedSpecKV              `json:"metadata,omitempty"`
+	Notes              []SeedSpecTeamProjectNote `json:"notes,omitempty"`
 }
 
-// SeedSpecTeamMember defines a member within a team.
+// SeedSpecTeamMember defines a team member, or a team/project responsible party.
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: user membership entry within a seeded team (pure)
 type SeedSpecTeamMember struct {
 	UserID string `json:"user_id"`
@@ -69,13 +73,16 @@ type SeedSpecTeamMember struct {
 }
 
 // SeedSpecProject defines a project to seed.
-// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: project definition with team assignment and metadata for seeding (pure)
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: project definition with team, fields, parties, metadata and notes for seeding (pure)
 type SeedSpecProject struct {
-	Name     string                    `json:"name"`
-	Team     string                    `json:"team,omitempty"`
-	Status   string                    `json:"status,omitempty"`
-	Metadata []SeedSpecKV              `json:"metadata,omitempty"`
-	Notes    []SeedSpecTeamProjectNote `json:"notes,omitempty"`
+	Name               string                    `json:"name"`
+	Team               string                    `json:"team,omitempty"`
+	Status             string                    `json:"status,omitempty"`
+	Description        string                    `json:"description,omitempty"`
+	URI                string                    `json:"uri,omitempty"`
+	ResponsibleParties []SeedSpecTeamMember      `json:"responsible_parties,omitempty"`
+	Metadata           []SeedSpecKV              `json:"metadata,omitempty"`
+	Notes              []SeedSpecTeamProjectNote `json:"notes,omitempty"`
 }
 
 // SeedSpecTeamProjectNote defines a note nested within a team or project.

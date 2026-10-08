@@ -22,7 +22,7 @@ type userInfo struct {
 
 // transformSeedSpec converts a SeedSpecFile into the internal SeedFile format.
 // It emits SeedEntry items in strict dependency order so that RefMap resolution works.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert a SeedSpecFile to an ordered SeedFile with dependency-safe seed entries (pure)
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: validate and convert a seed spec into ordered seed entries (pure)
 func transformSeedSpec(spec *SeedSpecFile) (*SeedFile, error) {
 	users := buildUserLookup(spec.Users)
 	var seeds []SeedEntry
@@ -40,6 +40,9 @@ func transformSeedSpec(spec *SeedSpecFile) (*SeedFile, error) {
 	seeds = append(seeds, tmSeeds...)
 
 	seeds = append(seeds, transformSurveys(spec.Surveys)...)
+	if err := validateSurveyResponses(spec.SurveyResponses, users); err != nil {
+		return nil, err
+	}
 	seeds = append(seeds, transformSurveyResponses(spec.SurveyResponses, users)...)
 	seeds = append(seeds, transformAdminWebhooksAndAddons(spec.AdminEntities)...)
 	seeds = append(seeds, transformStandaloneMetadata(spec.Metadata)...)
@@ -198,23 +201,23 @@ func transformGroupsAndMembers(admin *SeedSpecAdmin, users []SeedSpecUser) []See
 	return seeds
 }
 
-// SEM@2f8bdf4ee323d43b42d14954da7fbbf9544367c7: convert seed spec teams with members and roles to team seed entries (pure)
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: convert seed spec teams with members, parties and metadata to seed entries (pure)
 func transformTeams(teams []SeedSpecTeam) []SeedEntry {
 	var seeds []SeedEntry
 	for _, t := range teams {
-		members := make([]map[string]any, 0, len(t.Members))
-		for _, m := range t.Members {
-			members = append(members, map[string]any{
-				"user_ref": userRef(m.UserID),
-				"role":     mapTeamRole(m.Role),
-			})
-		}
 		data := map[string]any{
 			"name":    t.Name,
-			"members": members,
+			"members": teamMemberRefs(t.Members),
 		}
-		if t.Status != "" {
-			data["status"] = t.Status
+		setIfNotEmpty(data, "status", t.Status)
+		setIfNotEmpty(data, "description", t.Description)
+		setIfNotEmpty(data, "email_address", t.EmailAddress)
+		setIfNotEmpty(data, "uri", t.URI)
+		if len(t.ResponsibleParties) > 0 {
+			data["responsible_parties"] = teamMemberRefs(t.ResponsibleParties)
+		}
+		if len(t.Metadata) > 0 {
+			data["metadata"] = kvToMaps(t.Metadata)
 		}
 		seeds = append(seeds, SeedEntry{
 			Kind: kindTeam,
@@ -226,6 +229,27 @@ func transformTeams(teams []SeedSpecTeam) []SeedEntry {
 		)...)
 	}
 	return seeds
+}
+
+// teamMemberRefs converts team members or responsible parties to API entries
+// whose user_ref the seeder resolves to a user_id.
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: convert team members or responsible parties to user-ref API entries (pure)
+func teamMemberRefs(members []SeedSpecTeamMember) []map[string]any {
+	out := make([]map[string]any, 0, len(members))
+	for _, m := range members {
+		out = append(out, map[string]any{
+			"user_ref": userRef(m.UserID),
+			"role":     mapTeamRole(m.Role),
+		})
+	}
+	return out
+}
+
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: set a map key only when the string value is non-empty (pure)
+func setIfNotEmpty(data map[string]any, key, value string) {
+	if value != "" {
+		data[key] = value
+	}
 }
 
 // transformTeamProjectNotes converts notes hanging off a team or project.
@@ -254,7 +278,7 @@ func transformTeamProjectNotes(
 	return seeds
 }
 
-// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: convert seed spec projects with optional team and status to project seed entries (pure)
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: convert seed spec projects with team, parties and metadata to seed entries (pure)
 func transformProjects(projects []SeedSpecProject) []SeedEntry {
 	var seeds []SeedEntry
 	for _, p := range projects {
@@ -264,8 +288,14 @@ func transformProjects(projects []SeedSpecProject) []SeedEntry {
 		if p.Team != "" {
 			data["team_ref"] = teamRef(p.Team)
 		}
-		if p.Status != "" {
-			data["status"] = p.Status
+		setIfNotEmpty(data, "status", p.Status)
+		setIfNotEmpty(data, "description", p.Description)
+		setIfNotEmpty(data, "uri", p.URI)
+		if len(p.ResponsibleParties) > 0 {
+			data["responsible_parties"] = teamMemberRefs(p.ResponsibleParties)
+		}
+		if len(p.Metadata) > 0 {
+			data["metadata"] = kvToMaps(p.Metadata)
 		}
 		seeds = append(seeds, SeedEntry{
 			Kind: kindProject,
@@ -622,7 +652,28 @@ func transformSurveys(surveys []SeedSpecSurvey) []SeedEntry {
 	return seeds
 }
 
-// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: convert seed spec survey responses with owner authorization to seed entries (pure)
+// validateSurveyResponses rejects survey responses the seeder cannot produce:
+// a status other than draft or submitted (later statuses are triage actions),
+// or a user the spec does not declare.
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: validate seed survey responses have seedable status and declared users (pure)
+func validateSurveyResponses(responses []SeedSpecSurveyResp, users map[string]userInfo) error {
+	for i, sr := range responses {
+		switch sr.Status {
+		case "", surveyStatusDraft, surveyStatusSubmitted:
+		default:
+			return fmt.Errorf("survey_responses[%d]: unsupported status %q (supported: %q, %q)",
+				i, sr.Status, surveyStatusDraft, surveyStatusSubmitted)
+		}
+		if sr.User != "" {
+			if _, ok := users[sr.User]; !ok {
+				return fmt.Errorf("survey_responses[%d]: user %q is not declared in users", i, sr.User)
+			}
+		}
+	}
+	return nil
+}
+
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: convert seed spec survey responses, with the user to act as, to seed entries (pure)
 func transformSurveyResponses(responses []SeedSpecSurveyResp, users map[string]userInfo) []SeedEntry {
 	var seeds []SeedEntry
 	for i, sr := range responses {
@@ -636,20 +687,11 @@ func transformSurveyResponses(responses []SeedSpecSurveyResp, users map[string]u
 		if sr.Status != "" {
 			data["status"] = sr.Status
 		}
+		// The server makes the caller the owner and ignores authorization on
+		// create, so the response is created while authenticated as sr.User.
 		if sr.User != "" {
-			u := users[sr.User]
-			provider := u.Provider
-			if provider == "" {
-				provider = defaultProvider
-			}
-			data["authorization"] = []map[string]any{
-				{
-					"principal_type": "user",
-					"provider":       provider,
-					"provider_id":    sr.User,
-					"role":           "owner",
-				},
-			}
+			data[seedActAsUser] = sr.User
+			data[seedActAsProvider] = userProvider(users, sr.User)
 		}
 		responseRef := fmt.Sprintf("survey-response:%d", i)
 		seeds = append(seeds, SeedEntry{
