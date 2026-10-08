@@ -2,12 +2,14 @@ package api
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUnicodeNormalizationMiddleware(t *testing.T) {
@@ -752,6 +754,38 @@ func TestIsLikelyRequiredField(t *testing.T) {
 		t.Run(tc.fieldName, func(t *testing.T) {
 			result := isLikelyRequiredField(tc.fieldName)
 			assert.Equal(t, tc.expected, result, "isLikelyRequiredField(%q) should be %v", tc.fieldName, tc.expected)
+		})
+	}
+}
+
+func TestUnicodeValidationCodeByRouteClass(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cases := []struct {
+		path string
+		code string
+	}{
+		{"/oauth2/token", "invalid_request"},
+		{"/saml/acs", "invalid_request"},
+		{"/threat_models", "invalid_input"},
+		{"/oauth2/providers", "invalid_input"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			router := gin.New()
+			router.Use(UnicodeNormalizationMiddleware())
+			router.POST(tc.path, func(c *gin.Context) { c.Status(http.StatusOK) })
+
+			// zero-width space in the body is rejected by the middleware
+			req := httptest.NewRequest("POST", tc.path, bytes.NewBufferString("{\"name\":\"a\u200bb\"}"))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusBadRequest, w.Code)
+			var body Error
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+			assert.Equal(t, tc.code, string(body.Error))
+			assert.NotEmpty(t, body.ErrorDescription)
 		})
 	}
 }
