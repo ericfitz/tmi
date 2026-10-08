@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"html"
 	"regexp"
@@ -334,59 +333,93 @@ func SanitizePatchOperations(operations []PatchOperation, paths []string) {
 	}
 }
 
-// sanitizePatchedNote enforces note sanitization on the entity a JSON Patch
-// produces, rather than inspecting individual operations: RFC 6902 copy and
-// move can carry a value between fields (e.g. copy /name to /content), so only
-// the result can be checked. It applies the operations to a JSON view of the
-// existing note and, for each field the patch changed, sanitizes it as the
-// create/update path does: "content" as required markdown (a 400 if it empties
-// or keeps an unsafe link), "name" and "description" as plain text when
-// includePlainText is set. Where sanitizing alters a value, a trailing replace
-// operation is appended so the store persists the sanitized text. Unchanged
-// fields are not re-checked, so a legacy value cannot block an unrelated edit.
-// If the operations do not apply, they are returned untouched for the store to
-// reject with its own error.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize the note fields a JSON Patch changed by checking the patched result, appending replace operations for altered values (pure)
-func sanitizePatchedNote(existing any, operations []PatchOperation, includePlainText bool) ([]PatchOperation, *RequestError) {
-	// Failures below are deliberately not errors here: the store applies the
-	// same operations and reports them with the right status.
-	raw, err := json.Marshal(existing)
-	if err != nil {
-		return operations, nil //nolint:nilerr // see above
-	}
-	var before map[string]any
-	if err := json.Unmarshal(raw, &before); err != nil {
-		return operations, nil //nolint:nilerr // see above
-	}
-	after, err := ApplyPatchOperations(before, operations)
-	if err != nil {
-		return operations, nil //nolint:nilerr // see above
-	}
-	out := operations
-	for _, field := range []string{"content", "name", "description"} {
-		if field != "content" && !includePlainText {
-			continue
+// noteText points at the text fields of a threat-model, team or project note.
+type noteText struct {
+	content     *string
+	name        *string
+	description **string
+}
+
+// sanitizePatchedNoteText enforces note sanitization on the entity a JSON
+// Patch produced, rather than on individual operations: RFC 6902 copy and move
+// can carry a value between fields (e.g. copy /name to /content), so only the
+// result can be checked. Note stores call it (through the check functions
+// below) on the very entity they are about to persist, so a concurrent write
+// between the handler's read and the store's cannot slip a value past it.
+// Each field the patch changed is sanitized in place as the create/update path
+// does: content as required markdown (a 400 if it empties, keeps an unsafe
+// link or is too complex to check), name and description as plain text when
+// includePlainText is set (an emptied name is a 400, an emptied description
+// becomes nil). Unchanged fields are not re-checked, so a legacy
+// value cannot block an unrelated edit.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize the note text fields a JSON Patch changed, in place on the patched entity, rejecting emptied required fields (pure)
+func sanitizePatchedNoteText(before, after noteText, includePlainText bool) *RequestError {
+	if *after.content != *before.content {
+		sanitized, reqErr := SanitizeRequiredMarkdownContent("content", *after.content)
+		if reqErr != nil {
+			return reqErr
 		}
-		value, ok := after[field].(string)
-		if !ok {
-			continue
+		*after.content = sanitized
+	}
+	if !includePlainText {
+		return nil
+	}
+	if *after.name != *before.name {
+		*after.name = SanitizePlainText(*after.name)
+		// An empty name would be NULL on Oracle (NOT NULL column, a store
+		// error) but saved on PostgreSQL; reject it the same way on both.
+		if strings.TrimSpace(*after.name) == "" {
+			return InvalidInputError("name is empty after sanitization")
 		}
-		if old, _ := before[field].(string); old == value {
-			continue
-		}
-		var sanitized string
-		if field == "content" {
-			var reqErr *RequestError
-			sanitized, reqErr = SanitizeRequiredMarkdownContent(field, value)
-			if reqErr != nil {
-				return nil, reqErr
-			}
+	}
+	if desc := *after.description; desc != nil && (*before.description == nil || **before.description != *desc) {
+		sanitized := SanitizePlainText(*desc)
+		if sanitized == "" {
+			// Oracle stores '' as NULL; store nil on every database.
+			*after.description = nil
 		} else {
-			sanitized = SanitizePlainText(value)
-		}
-		if sanitized != value {
-			out = append(out[:len(out):len(out)], PatchOperation{Op: string(Replace), Path: "/" + field, Value: sanitized})
+			*after.description = &sanitized
 		}
 	}
-	return out, nil
+	return nil
+}
+
+// checkPatchedNote is the threat-model note store's patch check. It sanitizes
+// content only, as the threat-model note create and update paths do.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize the content a JSON Patch changed on a threat-model note (pure)
+func checkPatchedNote(before, after *Note) error {
+	if reqErr := sanitizePatchedNoteText(
+		noteText{&before.Content, &before.Name, &before.Description},
+		noteText{&after.Content, &after.Name, &after.Description},
+		false,
+	); reqErr != nil {
+		return reqErr
+	}
+	return nil
+}
+
+// checkPatchedTeamNote is the team note store's patch check.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize the content, name and description a JSON Patch changed on a team note (pure)
+func checkPatchedTeamNote(before, after *TeamNote) error {
+	if reqErr := sanitizePatchedNoteText(
+		noteText{&before.Content, &before.Name, &before.Description},
+		noteText{&after.Content, &after.Name, &after.Description},
+		true,
+	); reqErr != nil {
+		return reqErr
+	}
+	return nil
+}
+
+// checkPatchedProjectNote is the project note store's patch check.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize the content, name and description a JSON Patch changed on a project note (pure)
+func checkPatchedProjectNote(before, after *ProjectNote) error {
+	if reqErr := sanitizePatchedNoteText(
+		noteText{&before.Content, &before.Name, &before.Description},
+		noteText{&after.Content, &after.Name, &after.Description},
+		true,
+	); reqErr != nil {
+		return reqErr
+	}
+	return nil
 }

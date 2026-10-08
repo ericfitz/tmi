@@ -424,9 +424,10 @@ func (s *GormNoteRepository) List(ctx context.Context, threatModelID string, off
 	return notes, nil
 }
 
-// Patch applies JSON patch operations to a note
-// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply JSON patch operations to a note and persist the result (mutates shared state)
-func (s *GormNoteRepository) Patch(ctx context.Context, id string, operations []PatchOperation) (*Note, error) {
+// Patch applies JSON patch operations to a note, runs check on the result,
+// and persists it.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: apply JSON patch operations to a note, validate the result with a caller check, and persist it (mutates shared state)
+func (s *GormNoteRepository) Patch(ctx context.Context, id string, operations []PatchOperation, check func(before, after *Note) error) (*Note, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching note %s with %d operations", id, len(operations))
 
@@ -435,6 +436,10 @@ func (s *GormNoteRepository) Patch(ctx context.Context, id string, operations []
 	if err != nil {
 		return nil, err
 	}
+
+	// applyPatchOperation replaces fields (never mutates what a pointer field
+	// points to), so a shallow copy keeps the stored values for check.
+	before := *note
 
 	// Apply patch operations
 	for _, op := range operations {
@@ -453,6 +458,13 @@ func (s *GormNoteRepository) Patch(ctx context.Context, id string, operations []
 				Code:    "patch_failed",
 				Message: "Failed to apply patch: " + err.Error(),
 			}
+		}
+	}
+
+	// Validate the entity that is about to be persisted (#1013)
+	if check != nil {
+		if err := check(&before, note); err != nil {
+			return nil, err
 		}
 	}
 

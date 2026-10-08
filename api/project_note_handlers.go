@@ -368,15 +368,9 @@ func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, 
 		}
 	}
 
-	// Sanitize the patched result, not the operations: copy/move can smuggle
-	// a value between fields (#1013).
-	operations, sanitizeErr := sanitizePatchedNote(existing, operations, true)
-	if sanitizeErr != nil {
-		HandleRequestError(c, sanitizeErr)
-		return
-	}
-
-	result, patchErr := GlobalProjectNoteStore.Patch(ctx, projectNoteId.String(), operations)
+	// The store sanitizes the patched result it persists, not the operations:
+	// copy/move can smuggle a value between fields (#1013).
+	result, patchErr := GlobalProjectNoteStore.Patch(ctx, projectNoteId.String(), operations, checkPatchedProjectNote)
 	if patchErr != nil {
 		logger.Error("Failed to patch project note: %v", patchErr)
 		HandleRequestError(c, StoreErrorToRequestError(patchErr, "Project note not found", "Failed to patch project note"))

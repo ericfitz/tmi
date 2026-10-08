@@ -21,7 +21,10 @@ type TeamNoteStoreInterface interface {
 	Get(ctx context.Context, id string) (*TeamNote, error)
 	Update(ctx context.Context, id string, note *TeamNote, teamID string) (*TeamNote, error)
 	Delete(ctx context.Context, id string) error
-	Patch(ctx context.Context, id string, operations []PatchOperation) (*TeamNote, error)
+	// Patch applies operations to the stored note, then calls check (when
+	// non-nil) with the stored and patched notes before persisting; check may
+	// rewrite the patched note, and an error from it aborts the patch.
+	Patch(ctx context.Context, id string, operations []PatchOperation, check func(before, after *TeamNote) error) (*TeamNote, error)
 	List(ctx context.Context, teamID string, offset, limit int, includeNonSharable bool) ([]TeamNoteListItem, int, error)
 	Count(ctx context.Context, teamID string, includeNonSharable bool) (int, error)
 }
@@ -235,9 +238,10 @@ func (s *GormTeamNoteStore) Delete(ctx context.Context, id string) error {
 	})
 }
 
-// Patch applies JSON Patch operations to a team note
-// SEM@c99517d0f78396ed3e7b16e756e0318aefc525db: apply JSON Patch operations to a team note and persist the result (reads DB)
-func (s *GormTeamNoteStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*TeamNote, error) {
+// Patch applies JSON Patch operations to a team note, runs check on the
+// result, and persists it.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: apply JSON Patch operations to a team note, validate the result with a caller check, and persist it (reads DB)
+func (s *GormTeamNoteStore) Patch(ctx context.Context, id string, operations []PatchOperation, check func(before, after *TeamNote) error) (*TeamNote, error) {
 	logger := slogging.Get()
 
 	// Get existing note
@@ -255,6 +259,13 @@ func (s *GormTeamNoteStore) Patch(ctx context.Context, id string, operations []P
 	// Preserve immutable fields
 	patched.Id = existing.Id
 	patched.CreatedAt = existing.CreatedAt
+
+	// Validate the entity that is about to be persisted (#1013)
+	if check != nil {
+		if err := check(existing, &patched); err != nil {
+			return nil, err
+		}
+	}
 
 	// Find the record to get the teamID
 	var record models.TeamNoteRecord

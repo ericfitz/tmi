@@ -365,15 +365,9 @@ func (s *Server) PatchTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNo
 		}
 	}
 
-	// Sanitize the patched result, not the operations: copy/move can smuggle
-	// a value between fields (#1013).
-	operations, sanitizeErr := sanitizePatchedNote(existing, operations, true)
-	if sanitizeErr != nil {
-		HandleRequestError(c, sanitizeErr)
-		return
-	}
-
-	result, patchErr := GlobalTeamNoteStore.Patch(ctx, teamNoteId.String(), operations)
+	// The store sanitizes the patched result it persists, not the operations:
+	// copy/move can smuggle a value between fields (#1013).
+	result, patchErr := GlobalTeamNoteStore.Patch(ctx, teamNoteId.String(), operations, checkPatchedTeamNote)
 	if patchErr != nil {
 		logger.Error("Failed to patch team note: %v", patchErr)
 		HandleRequestError(c, StoreErrorToRequestError(patchErr, "Team note not found", "Failed to patch team note"))

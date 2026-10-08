@@ -432,21 +432,11 @@ func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 		preState, _ = SerializeForAudit(existingNote)
 	}
 
-	// Sanitize the patched result, not the operations: copy/move can smuggle a
-	// value between fields, and a patch that empties content would otherwise
-	// surface as a store failure (500) instead of a 400 (#605, #1013).
-	baseline := existingNote
-	if baseline == nil {
-		baseline = &Note{} // unreadable note: treat every patched field as changed
-	}
-	operations, sanitizeErr := sanitizePatchedNote(baseline, operations, false)
-	if sanitizeErr != nil {
-		HandleRequestError(c, sanitizeErr)
-		return
-	}
-
-	// Apply patch operations
-	updatedNote, err := h.noteStore.Patch(c.Request.Context(), noteID, operations)
+	// Apply patch operations. The store sanitizes the patched result it
+	// persists, not the operations: copy/move can smuggle a value between
+	// fields, and content that sanitizes to nothing must be a 400, not a store
+	// failure (#605, #1013).
+	updatedNote, err := h.noteStore.Patch(c.Request.Context(), noteID, operations, checkPatchedNote)
 	if err != nil {
 		// Classify rather than assuming a server fault: the store returns a
 		// 400 patch_failed for an inapplicable JSON Patch and a not-found for
