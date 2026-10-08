@@ -214,7 +214,7 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 // write. The error lists keys only, never values.
 // SEM@34e0b98eb6d156b1641bee78bec52514ad1c2dc4: reject a settings source file containing encrypted values, listing offending keys (reads file)
 func rejectEncryptedSource(inputFile string) error {
-	data, readErr := os.ReadFile(inputFile) //nolint:gosec // operator-supplied path
+	data, readErr := os.ReadFile(inputFile) // #nosec G304 -- operator-supplied config path
 	if readErr != nil {
 		// The loader reports unreadable files with its own context.
 		return nil //nolint:nilerr
