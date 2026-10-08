@@ -552,11 +552,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 	// Check for reserved keys (e.g., "migrate" is reserved for the migrate endpoint)
 	if reserved, reason := isReservedSettingKey(key); reserved {
 		logger.Warn("Attempted to get reserved setting key: %s (%s)", key, reason)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "reserved_key",
-			Message: "Setting key '" + key + "' is reserved: " + reason,
-		})
+		HandleRequestError(c, WithDetailCode(InvalidInputError("Setting key '"+key+"' is reserved: "+reason), errcode.DetailReservedKey))
 		return
 	}
 
@@ -638,11 +634,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 	// Check for reserved keys (e.g., "migrate" is reserved for the migrate endpoint)
 	if reserved, reason := isReservedSettingKey(key); reserved {
 		logger.Warn("Attempted to update reserved setting key: %s (%s)", key, reason)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "reserved_key",
-			Message: "Setting key '" + key + "' is reserved: " + reason,
-		})
+		HandleRequestError(c, WithDetailCode(InvalidInputError("Setting key '"+key+"' is reserved: "+reason), errcode.DetailReservedKey))
 		return
 	}
 
@@ -741,11 +733,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 	// Check for reserved keys (e.g., "migrate" is reserved for the migrate endpoint)
 	if reserved, reason := isReservedSettingKey(key); reserved {
 		logger.Warn("Attempted to delete reserved setting key: %s (%s)", key, reason)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "reserved_key",
-			Message: "Setting key '" + key + "' is reserved: " + reason,
-		})
+		HandleRequestError(c, WithDetailCode(InvalidInputError("Setting key '"+key+"' is reserved: "+reason), errcode.DetailReservedKey))
 		return
 	}
 
@@ -846,19 +834,11 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 	case errors.Is(err, ErrEncryptionNotEnabled):
 		// Precondition, not a failure: 409 Conflict.
 		logger.Warn("Re-encryption refused: %v", err)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusConflict,
-			Code:    "encryption_not_enabled",
-			Message: err.Error(),
-		})
+		HandleRequestError(c, WithDetailCode(ConflictError(err.Error()), errcode.DetailEncryptionNotEnabled))
 		return
 	case errors.Is(err, ErrTooManyUnreadableSettings):
 		logger.Warn("Re-encryption stopped: %v", err)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusConflict,
-			Code:    "unreadable_settings_limit",
-			Message: err.Error(),
-		})
+		HandleRequestError(c, WithDetailCode(ConflictError(err.Error()), errcode.DetailUnreadableSettingsLimit))
 		return
 	case errors.Is(err, dberrors.ErrTransient):
 		// Each row commits on its own (#965): a transient database error

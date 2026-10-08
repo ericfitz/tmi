@@ -48,11 +48,7 @@ func SameProviderMiddleware() gin.HandlerFunc {
 		// Check if user's provider matches the requested provider
 		if userIdP != idp {
 			logger.Warn("SameProviderMiddleware: Provider mismatch - user_idp=%s, requested_idp=%s", userIdP, idp)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusForbidden,
-				Code:    "provider_mismatch",
-				Message: "You can only access resources for your own provider",
-			})
+			HandleRequestError(c, WithDetailCode(ForbiddenError("You can only access resources for your own provider"), errcode.DetailProviderMismatch))
 			c.Abort()
 			return
 		}
@@ -88,11 +84,7 @@ func SAMLProviderOnlyMiddleware() gin.HandlerFunc {
 		// Check if provider is a SAML provider (starts with "saml_")
 		if !strings.HasPrefix(idp, "saml_") {
 			logger.Warn("SAMLProviderOnlyMiddleware: Non-SAML provider requested - idp=%s", idp)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_provider_type",
-				Message: "This endpoint only supports SAML providers (provider must start with 'saml_')",
-			})
+			HandleRequestError(c, WithDetailCode(InvalidInputError("This endpoint only supports SAML providers (provider must start with 'saml_')"), errcode.DetailInvalidProviderType))
 			c.Abort()
 			return
 		}

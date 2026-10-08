@@ -297,21 +297,13 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 
 	// Self-deletion guard: admins cannot delete their own account
 	if actorUserID == internalUuid.String() {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusConflict,
-			Code:    "self_deletion",
-			Message: "Cannot delete your own user account",
-		})
+		HandleRequestError(c, WithDetailCode(ConflictError("Cannot delete your own user account"), errcode.DetailSelfDeletion))
 		return
 	}
 
 	// Operator system user guard: the operator system user is synthetic and cannot be deleted
 	if internalUuid.String() == OperatorSystemUserUUID {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusConflict,
-			Code:    "protected_user",
-			Message: "the operator system user is managed by server configuration and cannot be deleted",
-		})
+		HandleRequestError(c, WithDetailCode(ConflictError("the operator system user is managed by server configuration and cannot be deleted"), errcode.DetailProtectedUser))
 		return
 	}
 
@@ -357,11 +349,7 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 			// table is missing from the cascade — log loudly, but return a
 			// structured 409 rather than a raw 500 (zero-500 policy).
 			logger.Error("User deletion blocked by residual constraint (cascade gap): %v", err)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusConflict,
-				Code:    "deletion_blocked",
-				Message: "User cannot be deleted due to remaining references; contact support",
-			})
+			HandleRequestError(c, WithDetailCode(ConflictError("User cannot be deleted due to remaining references; contact support"), errcode.DetailDeletionBlocked))
 		default:
 			logger.Error("Failed to delete user: %v", err)
 			HandleRequestError(c, &RequestError{

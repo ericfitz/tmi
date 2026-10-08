@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
@@ -137,11 +138,7 @@ func (s *Server) IngestEmbeddings(c *gin.Context, threatModelId ThreatModelId) {
 			return
 		}
 		if len(item.Vector) != item.EmbeddingDim {
-			HandleRequestError(c, &RequestError{
-				Status:  422,
-				Code:    "dimension_mismatch",
-				Message: "item at index " + strconv.Itoa(i) + ": vector length does not match embedding_dim",
-			})
+			HandleRequestError(c, WithDetailCode(UnprocessableEntityError("item at index "+strconv.Itoa(i)+": vector length does not match embedding_dim"), errcode.DetailDimensionMismatch))
 			return
 		}
 	}
@@ -150,11 +147,7 @@ func (s *Server) IngestEmbeddings(c *gin.Context, threatModelId ThreatModelId) {
 	firstDim := req.Embeddings[0].EmbeddingDim
 	for i, item := range req.Embeddings {
 		if item.EmbeddingDim != firstDim {
-			HandleRequestError(c, &RequestError{
-				Status:  422,
-				Code:    "inconsistent_dimensions",
-				Message: "item at index " + strconv.Itoa(i) + ": all embeddings must have the same dimension",
-			})
+			HandleRequestError(c, WithDetailCode(UnprocessableEntityError("item at index "+strconv.Itoa(i)+": all embeddings must have the same dimension"), errcode.DetailInconsistentDimensions))
 			return
 		}
 	}

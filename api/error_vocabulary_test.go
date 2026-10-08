@@ -57,3 +57,42 @@ func TestErrorVocabularyHandleRequestErrorBodies(t *testing.T) {
 		})
 	}
 }
+
+// detailsCode returns details.code from a decoded error body, or nil.
+func detailsCode(body map[string]any) any {
+	d, _ := body["details"].(map[string]any)
+	return d["code"]
+}
+
+func TestErrorVocabularyDetailCodeBodies(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cases := []struct {
+		name   string
+		err    *RequestError
+		status int
+		code   string
+		detail string
+		retry  string
+	}{
+		{"protected group", WithDetailCode(ForbiddenError("x"), errcode.DetailProtectedGroup), http.StatusForbidden, "forbidden", "protected_group", ""},
+		{"provider not registered", WithDetailCode(UnprocessableEntityError("x"), errcode.DetailProviderNotRegistered), http.StatusUnprocessableEntity, "unprocessable_entity", "provider_not_registered", ""},
+		{"too many connections", WithDetailCode(RateLimitExceededError("x", 60), errcode.DetailTooManyConnections), http.StatusTooManyRequests, "rate_limit_exceeded", "too_many_connections", "60"},
+		{"session limit", WithDetailCode(QuotaExceededError(http.StatusTooManyRequests, "x"), errcode.DetailSessionLimitExceeded), http.StatusTooManyRequests, "quota_exceeded", "session_limit_exceeded", ""},
+		{"llm busy", WithDetailCode(ServiceUnavailableError("x"), errcode.DetailLlmBusy), http.StatusServiceUnavailable, "service_unavailable", "llm_busy", "30"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodGet, "/x", nil)
+			HandleRequestError(c, tc.err)
+			assert.Equal(t, tc.status, w.Code)
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+			assert.Equal(t, tc.code, body["error"])
+			assert.Equal(t, tc.detail, detailsCode(body))
+			assert.NotEmpty(t, body["error_description"])
+			assert.Equal(t, tc.retry, w.Header().Get("Retry-After"))
+		})
+	}
+}

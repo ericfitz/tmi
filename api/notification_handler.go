@@ -69,10 +69,7 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 	conn, err := withOriginCheck(c, upgrader).Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		logger.Error("Failed to upgrade HTTP connection to WebSocket for user %s: %v", userEmail, err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "websocket_upgrade_failed",
-			ErrorDescription: "Failed to upgrade connection",
-		})
+		HandleRequestError(c, WithDetailCode(ServerError("Failed to upgrade connection"), errcode.DetailWebsocketUpgradeFailed))
 		return
 	}
 

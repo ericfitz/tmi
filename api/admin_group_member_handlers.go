@@ -287,11 +287,7 @@ func (s *Server) handleGroupMemberError(c *gin.Context, logger *slogging.Context
 	case errors.Is(err, repository.ErrUserNotFound):
 		HandleRequestError(c, NotFoundError("User not found"))
 	case errors.Is(err, ErrGroupMemberDuplicate):
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusConflict,
-			Code:    "duplicate_membership",
-			Message: "Already a member of this group",
-		})
+		HandleRequestError(c, WithDetailCode(ConflictError("Already a member of this group"), errcode.DetailDuplicateMembership))
 	case errors.Is(err, ErrEveryoneGroup):
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusForbidden,

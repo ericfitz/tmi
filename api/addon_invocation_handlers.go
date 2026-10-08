@@ -331,11 +331,11 @@ func checkInvocationDeduplication(ctx context.Context, addonID uuid.UUID, userID
 	if errors.Is(err, redis.Nil) {
 		// Key already exists — this is a duplicate invocation within the window
 		logger.Debug("Duplicate invocation blocked: addon=%s, user=%s", addonID, userID)
-		return &RequestError{
+		return WithDetailCode(&RequestError{
 			Status:  http.StatusTooManyRequests,
-			Code:    "duplicate_invocation",
+			Code:    errcode.RateLimitExceeded,
 			Message: "You just invoked this add-on. Please wait a few seconds before invoking again.",
-		}
+		}, errcode.DetailDuplicateInvocation)
 	}
 
 	logger.Debug("Deduplication check passed: addon=%s, user=%s", addonID, userID)

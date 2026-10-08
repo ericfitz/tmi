@@ -1,8 +1,7 @@
 package api
 
 import (
-	"net/http"
-
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -19,11 +18,7 @@ func TransferEncodingValidationMiddleware() gin.HandlerFunc {
 		te := c.GetHeader("Transfer-Encoding")
 		if te != "" {
 			logger.Warn("Request rejected: unsupported Transfer-Encoding header: %s", te)
-			c.JSON(http.StatusBadRequest, Error{
-				Error:            "unsupported_encoding",
-				ErrorDescription: "Transfer-Encoding header is not supported. Please use standard Content-Length encoding.",
-			})
-			c.Abort()
+			HandleRequestError(c, WithDetailCode(InvalidInputError("Transfer-Encoding header is not supported. Please use standard Content-Length encoding."), errcode.DetailUnsupportedEncoding))
 			return
 		}
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/config"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/llm"
 	"github.com/ericfitz/tmi/internal/slogging"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -165,11 +167,9 @@ func (sm *TimmySessionManager) CreateSession(
 	}
 	c := sm.cfgFor(ctx)
 	if activeCount >= c.MaxSessionsPerThreatModel {
-		return nil, nil, &RequestError{
-			Status:  429,
-			Code:    "session_limit_exceeded",
-			Message: fmt.Sprintf("threat model has reached the maximum of %d active sessions", c.MaxSessionsPerThreatModel),
-		}
+		return nil, nil, WithDetailCode(
+			QuotaExceededError(http.StatusTooManyRequests, fmt.Sprintf("threat model has reached the maximum of %d active sessions", c.MaxSessionsPerThreatModel)),
+			errcode.DetailSessionLimitExceeded)
 	}
 
 	tracer := otel.Tracer("tmi.timmy")
@@ -255,38 +255,26 @@ func (sm *TimmySessionManager) HandleMessage(
 	// Get session
 	session, err := GlobalTimmySessionStore.Get(ctx, sessionID)
 	if err != nil {
-		return nil, &RequestError{
-			Status:  404,
-			Code:    "session_not_found",
-			Message: "session not found",
-		}
+		return nil, WithDetailCode(NotFoundError("session not found"), errcode.DetailSessionNotFound)
 	}
 
 	const sessionStatusActive = "active"
 	if session.Status != sessionStatusActive {
-		return nil, &RequestError{
-			Status:  409,
-			Code:    "session_not_active",
-			Message: "session is not active",
-		}
+		return nil, WithDetailCode(ConflictError("session is not active"), errcode.DetailSessionNotActive)
 	}
 
 	// Check message rate limit
 	if sm.rateLimiter != nil && !sm.rateLimiter.AllowMessage(userID) {
-		return nil, &RequestError{
+		return nil, WithDetailCode(&RequestError{
 			Status:  429,
-			Code:    "message_rate_limit",
+			Code:    errcode.RateLimitExceeded,
 			Message: "message rate limit exceeded, please wait before sending another message",
-		}
+		}, errcode.DetailMessageRateLimit)
 	}
 
 	// Acquire LLM slot
 	if sm.rateLimiter != nil && !sm.rateLimiter.AcquireLLMSlot() {
-		return nil, &RequestError{
-			Status:  503,
-			Code:    "llm_busy",
-			Message: "all LLM slots are in use, please try again shortly",
-		}
+		return nil, WithDetailCode(ServiceUnavailableError("all LLM slots are in use, please try again shortly"), errcode.DetailLlmBusy)
 	}
 	if sm.rateLimiter != nil {
 		defer sm.rateLimiter.ReleaseLLMSlot()
@@ -361,11 +349,7 @@ func (sm *TimmySessionManager) HandleMessage(
 
 	// Call LLM with streaming
 	if sm.llmService == nil {
-		return nil, &RequestError{
-			Status:  503,
-			Code:    "llm_not_configured",
-			Message: "LLM service is not configured",
-		}
+		return nil, WithDetailCode(ServiceUnavailableError("LLM service is not configured"), errcode.DetailLlmNotConfigured)
 	}
 
 	emitStatus("waiting_for_llm", "", "", "")

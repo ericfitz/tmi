@@ -241,11 +241,7 @@ func DuplicateHeaderValidationMiddleware() gin.HandlerFunc {
 			values := c.Request.Header.Values(header)
 			if len(values) > 1 {
 				logger.Warn("Rejected request with duplicate %s header: %d instances found", header, len(values))
-				c.JSON(http.StatusBadRequest, Error{
-					Error:            "duplicate_header",
-					ErrorDescription: fmt.Sprintf("Multiple %s headers not allowed", header),
-				})
-				c.Abort()
+				HandleRequestError(c, WithDetailCode(InvalidInputError(fmt.Sprintf("Multiple %s headers not allowed", header)), errcode.DetailDuplicateHeader))
 				return
 			}
 		}

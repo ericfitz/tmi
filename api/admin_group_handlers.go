@@ -231,11 +231,7 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrGroupDuplicate):
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusConflict,
-				Code:    "duplicate_group",
-				Message: "Group already exists for this provider",
-			})
+			HandleRequestError(c, WithDetailCode(ConflictError("Group already exists for this provider"), errcode.DetailDuplicateGroup))
 		case isDBValidationError(err):
 			// Handle validation errors (e.g., string too long after Unicode expansion)
 			logger.Warn("Group creation failed due to validation error: %v", err)
@@ -343,11 +339,7 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 		case errors.Is(err, ErrGroupNotFound):
 			HandleRequestError(c, NotFoundError("Group not found"))
 		case errors.Is(err, models.ErrBuiltInGroupProtected):
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusForbidden,
-				Code:    "protected_group",
-				Message: "Built-in groups cannot be renamed or have their description changed.",
-			})
+			HandleRequestError(c, WithDetailCode(ForbiddenError("Built-in groups cannot be renamed or have their description changed."), errcode.DetailProtectedGroup))
 		default:
 			logger.Error("Failed to update group: %v", err)
 			HandleRequestError(c, WriteErrorToRequestError(err, "Failed to update group"))
@@ -384,11 +376,7 @@ func (s *Server) DeleteAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 		case errors.Is(err, dberrors.ErrNotFound):
 			HandleRequestError(c, NotFoundError("Group not found"))
 		case errors.Is(err, models.ErrBuiltInGroupProtected):
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusForbidden,
-				Code:    "protected_group",
-				Message: "Built-in groups cannot be deleted.",
-			})
+			HandleRequestError(c, WithDetailCode(ForbiddenError("Built-in groups cannot be deleted."), errcode.DetailProtectedGroup))
 		default:
 			logger.Error("Failed to delete group: %v", err)
 			HandleRequestError(c, WriteErrorToRequestError(err, "Failed to delete group"))

@@ -9,6 +9,7 @@ import (
 
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/config"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -123,11 +124,11 @@ func (h *ContentOAuthHandlers) Authorize(c *gin.Context) {
 
 	var req authorizeRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.ClientCallback == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "client_callback_required"})
+		HandleRequestError(c, WithDetailCode(InvalidInputError("client_callback is required"), errcode.DetailClientCallbackRequired))
 		return
 	}
 	if !h.CallbackAllow.Allowed(req.ClientCallback) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "client_callback_not_allowed"})
+		HandleRequestError(c, WithDetailCode(InvalidInputError("client_callback is not an allowed callback URL"), errcode.DetailClientCallbackNotAllowed))
 		return
 	}
 

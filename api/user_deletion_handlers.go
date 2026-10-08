@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -67,11 +68,7 @@ func (h *UserDeletionHandler) deleteWithChallenge(c *gin.Context, userEmail, cha
 	err := h.authService.ValidateDeletionChallenge(c.Request.Context(), userEmail, challengeText)
 	if err != nil {
 		slogging.Get().WithContext(c).Error("Invalid deletion challenge for user %s: %v", userEmail, err)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_challenge",
-			Message: "Invalid or expired challenge",
-		})
+		HandleRequestError(c, WithDetailCode(InvalidInputError("Invalid or expired challenge"), errcode.DetailInvalidChallenge))
 		return
 	}
 

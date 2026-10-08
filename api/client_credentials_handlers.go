@@ -134,10 +134,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	if GlobalClientCredentialQuotaStore != nil {
 		if err := GlobalClientCredentialQuotaStore.CheckClientCredentialQuota(c.Request.Context(), ownerUUID); err != nil {
 			logger.Warn("Client credential quota exceeded for user %s: %v", userUUID, err)
-			c.JSON(http.StatusForbidden, Error{
-				Error:            "quota_exceeded",
-				ErrorDescription: err.Error(),
-			})
+			HandleRequestError(c, QuotaExceededError(http.StatusForbidden, err.Error()))
 			return
 		}
 	}
