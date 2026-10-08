@@ -68,14 +68,17 @@ dev-config-status, each honoring CLUSTER=.
 from __future__ import annotations
 
 import argparse
+import base64
+import contextlib
 import os
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from deploy import (  # noqa: E402
-    OAUTH_PROVIDERS_ENV_FILE, ensure_port_forward, set_active_context,
+    NS, OAUTH_PROVIDERS_ENV_FILE, ensure_port_forward, kubectl, set_active_context,
 )
 from tmi_common import (  # noqa: E402
     add_config_arg, add_verbosity_args, apply_verbosity, get_project_root,
@@ -106,7 +109,62 @@ def build_dbtool() -> Path:
     return root / "bin" / "tmi-dbtool"
 
 
-def _dbtool(argv: list[str], cluster: str) -> None:
+# Secret/tmi-secrets key -> logical secret name the Go encryptor asks its
+# provider for (internal/secrets/provider.go SecretKeys, read by
+# internal/crypto/settings_encryptor.go NewSettingsEncryptor). The FILE
+# provider reads <dir>/<logical name>. The first entry is required for any
+# decryption; the rest are optional.
+SETTINGS_KEY_SECRETS = (
+    ("TMI_SECRET_SETTINGS_ENCRYPTION_KEY", "settings_encryption_key"),
+    ("TMI_SECRET_SETTINGS_ENCRYPTION_CONTEXT_ID", "settings_encryption_context_id"),
+    ("TMI_SECRET_SETTINGS_ENCRYPTION_PREVIOUS_KEY", "settings_encryption_previous_key"),
+    ("TMI_SECRET_SETTINGS_ENCRYPTION_PREVIOUS_CONTEXT_ID", "settings_encryption_previous_context_id"),
+)
+
+
+@contextlib.contextmanager
+def settings_key_env():
+    """Yield env vars that point dbtool's FILE secrets provider at a private
+    temp dir holding the cluster's settings-encryption key, or None when
+    Secret/tmi-secrets lacks the key (fresh cluster, oracle).
+
+    The server encrypts every setting at rest, and the host-side dbtool cannot
+    decrypt without the key, which lives only in the cluster Secret (#1033).
+    Values travel kubectl stdout -> memory -> 0600 file; they never reach
+    argv, the environment, or logs. The only env vars set (provider name and
+    directory) hold no secret. The directory is removed on exit.
+    """
+    old_umask = os.umask(0o077)
+    try:
+        with tempfile.TemporaryDirectory(prefix="tmi-dev-secrets-") as tmp:
+            os.chmod(tmp, 0o700)
+            written = set()
+            for secret_key, name in SETTINGS_KEY_SECRETS:
+                out = kubectl(
+                    ["-n", NS, "get", "secret", "tmi-secrets", "-o",
+                     f"jsonpath={{.data.{secret_key}}}"],
+                    check=False, capture=True,
+                )
+                b64 = (out.stdout or "").strip() if out.returncode == 0 else ""
+                if not b64:
+                    continue
+                fd = os.open(os.path.join(tmp, name), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(fd, "wb") as fh:
+                    fh.write(base64.b64decode(b64))
+                written.add(secret_key)
+            if "TMI_SECRET_SETTINGS_ENCRYPTION_KEY" not in written:
+                log_warn(
+                    "Secret/tmi-secrets has no TMI_SECRET_SETTINGS_ENCRYPTION_KEY; "
+                    "encrypted settings cannot be decrypted and will be skipped from the snapshot"
+                )
+                yield None
+                return
+            yield {"TMI_SECRETS_PROVIDER": "file", "TMI_SECRETS_FILE_DIR": tmp}
+    finally:
+        os.umask(old_umask)
+
+
+def _dbtool(argv: list[str], cluster: str, *, with_settings_key: bool = False) -> None:
     """Run tmi-dbtool from the project root.
 
     The bootstrap config points the database at localhost:5432 for host-side
@@ -121,10 +179,19 @@ def _dbtool(argv: list[str], cluster: str) -> None:
     restore_dev_config), so it has no context pinned yet, and ensure_port_forward
     must target the cluster this snapshot/restore is actually for, not
     whatever the ambient kubeconfig happens to have selected.
+
+    with_settings_key (export only): give dbtool the cluster's settings key
+    via settings_key_env() so it can decrypt at-rest-encrypted settings. Restore
+    does not need it: import writes with the key if present but reads only
+    plaintext snapshots.
     """
     set_active_context(cluster)
     ensure_port_forward("postgres")
-    run_cmd(argv, cwd=str(get_project_root()))
+    if with_settings_key:
+        with settings_key_env() as env:
+            run_cmd(argv, cwd=str(get_project_root()), env=env)
+    else:
+        run_cmd(argv, cwd=str(get_project_root()))
 
 
 def cmd_snapshot(args: argparse.Namespace) -> None:
@@ -146,7 +213,7 @@ def cmd_snapshot(args: argparse.Namespace) -> None:
         f"--config={args.config}",
         "-f", args.config,
         "--output", str(out),
-    ], cluster=args.cluster)
+    ], cluster=args.cluster, with_settings_key=True)
     os.chmod(out, 0o600)
     log_success(f"Snapshot written: {out.relative_to(get_project_root())}")
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -33,6 +34,10 @@ import (
 // SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: seed database settings from a config source file, with overwrite and dry-run options
 func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, dryRun, emitLegacyMigratedYAML bool) error {
 	log := slogging.Get()
+
+	if err := rejectEncryptedSource(inputFile); err != nil {
+		return err
+	}
 
 	// LoadSettingsSource, not Load: inputFile is a settings source, not a server
 	// config. It may be a legacy config file that still carries bootstrap keys,
@@ -200,6 +205,51 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 	log.Info("  4. Restart the server")
 
 	return nil
+}
+
+// rejectEncryptedSource fails when the settings source holds any ENC:-prefixed
+// value. Such a file is a stale snapshot taken before --export-config decrypted
+// every encrypted setting (#1033): its ciphertext cannot unmarshal into typed
+// fields, and for string fields would be re-encrypted (double-encrypted) on
+// write. The error lists keys only, never values.
+// SEM@34e0b98eb6d156b1641bee78bec52514ad1c2dc4: reject a settings source file containing encrypted values, listing offending keys (reads file)
+func rejectEncryptedSource(inputFile string) error {
+	data, readErr := os.ReadFile(inputFile) // #nosec G304 -- operator-supplied config path
+	if readErr != nil {
+		// The loader reports unreadable files with its own context.
+		return nil //nolint:nilerr
+	}
+	var doc map[string]any
+	if yaml.Unmarshal(data, &doc) != nil {
+		return nil //nolint:nilerr // the loader reports malformed YAML with its own context
+	}
+	var keys []string
+	collectEncryptedKeys("", doc, &keys)
+	if len(keys) == 0 {
+		return nil
+	}
+	sort.Strings(keys)
+	return fmt.Errorf("%s contains %d encrypted (ENC:) value(s) and cannot be imported; "+
+		"re-take the snapshot with `make dev-config-snapshot CLUSTER=<cluster>` (the export decrypts them). Offending keys: %s",
+		inputFile, len(keys), strings.Join(keys, ", "))
+}
+
+// SEM@34e0b98eb6d156b1641bee78bec52514ad1c2dc4: collect dotted keys of nested map leaves whose string value is encrypted (pure)
+func collectEncryptedKeys(prefix string, node any, out *[]string) {
+	switch v := node.(type) {
+	case map[string]any:
+		for k, child := range v {
+			p := k
+			if prefix != "" {
+				p = prefix + "." + k
+			}
+			collectEncryptedKeys(p, child, out)
+		}
+	case string:
+		if crypto.IsEncrypted(v) {
+			*out = append(*out, prefix)
+		}
+	}
 }
 
 // SEM@bfaa16256208766cee3f74f1bf607d852fc877de: serialize bootstrap-only settings into a YAML config file (writes file)
