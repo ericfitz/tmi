@@ -90,7 +90,7 @@ func validateAddonInvocationRequest(c *gin.Context, addonID uuid.UUID) (*InvokeA
 		logger.Error("Failed to parse invoke add-on request: %v", err)
 		return nil, "", nil, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid request body",
 		}
 	}

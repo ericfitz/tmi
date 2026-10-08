@@ -156,7 +156,7 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 	if errMsg := StrictJSONBind(c, &req); errMsg != "" {
 		logger.Warn("Invalid request body: %s", errMsg)
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidInput),
 			ErrorDescription: errMsg,
 		})
 		return
@@ -166,7 +166,7 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 	if errMsg := validateClientCredentialName(req.Name); errMsg != "" {
 		logger.Warn("Invalid name in client credential request: %s", errMsg)
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidInput),
 			ErrorDescription: "Invalid name: " + errMsg,
 		})
 		return
@@ -180,7 +180,7 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 	if errMsg := validateClientCredentialDescription(description); errMsg != "" {
 		logger.Warn("Invalid description in client credential request: %s", errMsg)
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidInput),
 			ErrorDescription: "Invalid description: " + errMsg,
 		})
 		return
@@ -189,7 +189,7 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 	// Validate expires_at
 	if req.ExpiresAt != nil && req.ExpiresAt.Before(time.Now()) {
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidInput),
 			ErrorDescription: "expires_at must be a future date",
 		})
 		return
@@ -212,7 +212,7 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 		if ownerIsAdmin {
 			logger.Warn("[AUDIT] Refused direct_write credential for administrator automation user %s", internalUuid)
 			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_request",
+				Error:            ErrorError(errcode.InvalidInput),
 				ErrorDescription: directWriteAdminOwnerMessage,
 			})
 			return
@@ -233,7 +233,7 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 
 	addonID, err := resolveCredentialAddonID(c, req.AddonId, directWrite)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid_request", ErrorDescription: err.Error()})
+		c.JSON(http.StatusBadRequest, Error{Error: ErrorError(errcode.InvalidInput), ErrorDescription: err.Error()})
 		return
 	}
 

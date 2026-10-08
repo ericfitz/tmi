@@ -137,7 +137,7 @@ func (s *Server) GetAdminUser(c *gin.Context, internalUuid openapi_types.UUID) {
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_uuid",
+			Code:    errcode.InvalidID,
 			Message: "internal_uuid must be a valid UUID",
 		})
 		return
@@ -191,7 +191,7 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_uuid",
+			Code:    errcode.InvalidID,
 			Message: "internal_uuid must be a valid UUID",
 		})
 		return
@@ -202,7 +202,7 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	if err := c.ShouldBindJSON(&req); err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Invalid request body: %v", err),
 		})
 		return

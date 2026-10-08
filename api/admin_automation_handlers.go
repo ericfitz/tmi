@@ -56,7 +56,7 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 	if errMsg := StrictJSONBind(c, &req); errMsg != "" {
 		logger.Warn("Invalid request body: %s", errMsg)
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidInput),
 			ErrorDescription: errMsg,
 		})
 		return
@@ -66,14 +66,14 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 	name := strings.TrimSpace(req.Name)
 	if len(name) < 2 || len(name) > 64 {
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidInput),
 			ErrorDescription: "name must be between 2 and 64 characters",
 		})
 		return
 	}
 	if !automationNamePattern.MatchString(name) {
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidInput),
 			ErrorDescription: "name must start with a letter, end with a letter or digit, and contain only letters, digits, spaces, underscores, periods, at-signs, and hyphens",
 		})
 		return
@@ -81,7 +81,7 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 	// #883: validate the addon link before any side effects (user creation).
 	addonID, err := resolveCredentialAddonID(c, req.AddonId, boolFromPtr(req.DirectWrite))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid_request", ErrorDescription: err.Error()})
+		c.JSON(http.StatusBadRequest, Error{Error: ErrorError(errcode.InvalidInput), ErrorDescription: err.Error()})
 		return
 	}
 
@@ -89,7 +89,7 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 	normalized := normalizeAutomationName(name)
 	if len(normalized) < 2 {
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidInput),
 			ErrorDescription: "name normalizes to fewer than 2 characters after sanitization",
 		})
 		return

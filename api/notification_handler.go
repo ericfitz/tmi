@@ -51,7 +51,7 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 	if !ok {
 		slogging.Get().WithContext(c).Error("Notification WebSocket: Invalid user context - userEmail is not a string (type: %T, value: %v)", userEmailInterface, userEmailInterface)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "internal_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Invalid user context",
 		})
 		return

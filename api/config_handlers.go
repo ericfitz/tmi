@@ -530,7 +530,7 @@ func (s *Server) ListSystemSettings(c *gin.Context) {
 		logger.Error("Failed to list system settings: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "internal_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to list settings",
 		})
 		return
@@ -597,7 +597,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		logger.Error("Failed to get system setting %s: %v", key, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "internal_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to get setting",
 		})
 		return
@@ -677,7 +677,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 		logger.Warn("Invalid request body for setting update: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid request body",
 		})
 		return
@@ -715,7 +715,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 		logger.Error("Failed to update system setting %s: %v", key, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "validation_error",
+			Code:    errcode.InvalidInput,
 			Message: err.Error(),
 		})
 		return
@@ -778,7 +778,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		logger.Error("Failed to check system setting %s: %v", key, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "internal_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to check setting",
 		})
 		return
@@ -799,7 +799,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		logger.Error("Failed to delete system setting %s: %v", key, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "internal_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to delete setting",
 		})
 		return
@@ -824,7 +824,7 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 			logger.Warn("Unexpected request body in settings re-encryption request")
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_request",
+				Code:    errcode.InvalidInput,
 				Message: "This endpoint does not accept a request body",
 			})
 			return
@@ -876,7 +876,7 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 		logger.Error("Re-encryption stopped: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "internal_error",
+			Code:    errcode.ServerError,
 			Message: "Re-encryption stopped on a database error; rows already re-encrypted are kept",
 		})
 		return

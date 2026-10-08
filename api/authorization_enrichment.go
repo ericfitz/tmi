@@ -38,7 +38,7 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 	if auth.Provider == "" || auth.Provider == "*" {
 		return &RequestError{
 			Status:  400,
-			Code:    "validation_failed",
+			Code:    errcode.InvalidInput,
 			Message: "provider must be a valid identity provider name (e.g., \"tmi\", \"google\", \"github\")",
 		}
 	}
@@ -50,7 +50,7 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 	if !hasProviderID && !hasEmail {
 		return &RequestError{
 			Status:  400,
-			Code:    "validation_failed",
+			Code:    errcode.InvalidInput,
 			Message: "either provider_id or email must be provided for authorization entries",
 		}
 	}

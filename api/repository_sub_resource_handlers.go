@@ -551,7 +551,7 @@ func (h *RepositorySubResourceHandler) PatchRepository(c *gin.Context) {
 	updatedRepository, err := h.repositoryStore.Patch(c.Request.Context(), repositoryID, operations)
 	if err != nil {
 		// Classify rather than assuming a server fault: the store returns a
-		// 400 patch_failed for an inapplicable JSON Patch and a not-found for
+		// 400 invalid_patch for an inapplicable JSON Patch and a not-found for
 		// a missing repository, and hardcoding ServerError turned both into 500
 		// (#611). Matches the asset handler, which already did this.
 		logger.Error("Failed to patch repository %s: %v", repositoryID, err)

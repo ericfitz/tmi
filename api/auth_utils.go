@@ -337,7 +337,7 @@ func ValidateSparseAuthorizationEntries(authList []Authorization) error {
 		if auth.Provider == "" || auth.Provider == "*" {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "validation_failed",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Authorization entry at index %d: 'provider' must be a valid identity provider name (e.g., \"tmi\", \"google\", \"github\")", i),
 			}
 		}
@@ -349,7 +349,7 @@ func ValidateSparseAuthorizationEntries(authList []Authorization) error {
 		if !hasProviderID && !hasEmail {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "validation_failed",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Authorization entry at index %d: either 'provider_id' or 'email' must be provided", i),
 			}
 		}
@@ -358,7 +358,7 @@ func ValidateSparseAuthorizationEntries(authList []Authorization) error {
 		if auth.Role != RoleReader && auth.Role != RoleWriter && auth.Role != RoleOwner {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "validation_failed",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Authorization entry at index %d: invalid role '%s'. Must be one of: reader, writer, owner", i, auth.Role),
 			}
 		}
@@ -367,7 +367,7 @@ func ValidateSparseAuthorizationEntries(authList []Authorization) error {
 		if auth.DisplayName != nil && *auth.DisplayName != "" {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "validation_failed",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Authorization entry at index %d: 'display_name' cannot be provided in requests (it is a response-only field)", i),
 			}
 		}

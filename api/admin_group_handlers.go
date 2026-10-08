@@ -149,7 +149,7 @@ func (s *Server) GetAdminGroup(c *gin.Context, internalUuid openapi_types.UUID) 
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_uuid",
+			Code:    errcode.InvalidID,
 			Message: "internal_uuid must be a valid UUID",
 		})
 		return
@@ -196,7 +196,7 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Invalid request body: %v", err),
 		})
 		return
@@ -241,7 +241,7 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 			logger.Warn("Group creation failed due to validation error: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "validation_error",
+				Code:    errcode.InvalidInput,
 				Message: "Field value exceeds maximum allowed length or contains invalid characters",
 			})
 		default:
@@ -277,7 +277,7 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_uuid",
+			Code:    errcode.InvalidID,
 			Message: "internal_uuid must be a valid UUID",
 		})
 		return
@@ -288,7 +288,7 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	if err := c.ShouldBindJSON(&req); err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Invalid request body: %v", err),
 		})
 		return

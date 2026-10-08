@@ -49,7 +49,7 @@ func (s *Server) ListSAMLUsers(c *gin.Context, idp string, _ ListSAMLUsersParams
 	if err != nil || limit < 0 || limit > 500 {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_limit",
+			Code:    errcode.InvalidInput,
 			Message: "limit must be between 0 and 500",
 		})
 		return
@@ -59,7 +59,7 @@ func (s *Server) ListSAMLUsers(c *gin.Context, idp string, _ ListSAMLUsersParams
 	if err != nil || offset < 0 {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_offset",
+			Code:    errcode.InvalidInput,
 			Message: "offset must be a non-negative integer",
 		})
 		return

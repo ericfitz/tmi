@@ -12,6 +12,7 @@ import (
 	"github.com/ericfitz/tmi/api/validation"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -573,11 +574,11 @@ func (s *GormAssetRepository) patch(ctx context.Context, id string, operations [
 			// as a server fault — a `remove` on a path the document does not
 			// have returned "Failed to patch {kind}" with a 500. RequestError
 			// passes through StoreErrorToRequestError untouched, and matches
-			// the patch_failed code ApplyPatchOperations already returns for
+			// the invalid_patch code ApplyPatchOperations already returns for
 			// the entities that go through it.
 			return nil, 0, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "patch_failed",
+				Code:    errcode.InvalidPatch,
 				Message: "Failed to apply patch: " + err.Error(),
 			}
 		}
@@ -624,7 +625,7 @@ func (s *GormAssetRepository) applyPatchOperation(asset *Asset, op PatchOperatio
 				// PostgreSQL stores '' happily; Oracle binds '' as NULL and
 				// raises ORA-01407 -- the same request, two different answers
 				// on dev and prod. Rejecting here surfaces as a clean 400 via
-				// the existing patch_failed path (#614).
+				// the existing invalid_patch path (#614).
 				if err := validation.ValidateNonEmpty("name", name); err != nil {
 					return err
 				}

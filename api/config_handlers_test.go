@@ -1537,7 +1537,7 @@ func TestReencryptSystemSettings_ErrorMapping(t *testing.T) {
 		{"not enabled", ErrEncryptionNotEnabled, http.StatusConflict, "encryption_not_enabled"},
 		{"transient rolled back", fmt.Errorf("transaction failed after 3 attempts: %w", dberrors.Wrap(errors.New("ORA-08177"), dberrors.ErrTransient)), http.StatusServiceUnavailable, "service_unavailable"},
 		{"unreadable cap", fmt.Errorf("%w: 900 settings are unreadable", ErrTooManyUnreadableSettings), http.StatusConflict, "unreadable_settings_limit"},
-		{"other failure", errors.New("boom"), http.StatusInternalServerError, "internal_error"},
+		{"other failure", errors.New("boom"), http.StatusInternalServerError, "server_error"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

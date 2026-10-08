@@ -605,11 +605,11 @@ func (s *GormRepositoryRepository) Patch(ctx context.Context, id string, operati
 			// as a server fault — a `remove` on a path the document does not
 			// have returned "Failed to patch {kind}" with a 500. RequestError
 			// passes through StoreErrorToRequestError untouched, and matches
-			// the patch_failed code ApplyPatchOperations already returns for
+			// the invalid_patch code ApplyPatchOperations already returns for
 			// the entities that go through it.
 			return nil, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "patch_failed",
+				Code:    errcode.InvalidPatch,
 				Message: "Failed to apply patch: " + err.Error(),
 			}
 		}

@@ -1281,7 +1281,7 @@ func TestUpdateAdminUser(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "invalid_request")
+		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
 
 	t.Run("Error_StoreGetFailure_500", func(t *testing.T) {

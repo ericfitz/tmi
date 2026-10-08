@@ -163,7 +163,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", string(errResp.Error))
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "Request body is required")
 	})
 
@@ -179,7 +179,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", string(errResp.Error))
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 	})
 
 	t.Run("EmptyName", func(t *testing.T) {
@@ -195,7 +195,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", string(errResp.Error))
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "name cannot be empty")
 	})
 
@@ -212,7 +212,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", string(errResp.Error))
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "name cannot be empty")
 	})
 
@@ -230,7 +230,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", string(errResp.Error))
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "Invalid name")
 	})
 
@@ -248,7 +248,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", string(errResp.Error))
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "Invalid description")
 	})
 
@@ -266,7 +266,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", string(errResp.Error))
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "expires_at must be a future date")
 	})
 
@@ -367,7 +367,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", string(errResp.Error))
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "unknown field")
 	})
 
@@ -660,7 +660,7 @@ func TestCreateCurrentUserClientCredential_DirectWrite(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		var errResp Error
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-		assert.Equal(t, "invalid_request", string(errResp.Error))
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "direct_write")
 	})
 

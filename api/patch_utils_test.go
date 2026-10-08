@@ -148,7 +148,7 @@ func TestApplyPatchOperations(t *testing.T) {
 				{Op: "invalid_op", Path: "/name", Value: "value"},
 			},
 			expectError: true,
-			errorCode:   "patch_failed",
+			errorCode:   "invalid_patch",
 		},
 		{
 			// #815: a patched value that fails schema validation is the caller's
@@ -476,7 +476,7 @@ func TestValidatePatchedEntity(t *testing.T) {
 			},
 			userName:    "user",
 			expectError: true,
-			errorCode:   "validation_failed",
+			errorCode:   "invalid_input",
 		},
 		{
 			name: "validator with business logic",

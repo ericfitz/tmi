@@ -1044,7 +1044,7 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "validation_error")
+		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
 
 	t.Run("invalid JSON body returns 400", func(t *testing.T) {
@@ -1058,7 +1058,7 @@ func TestAdminGroupCreateAdminGroup(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "invalid_request")
+		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
 
 	t.Run("store server error returns 500", func(t *testing.T) {
@@ -1244,7 +1244,7 @@ func TestAdminGroupUpdateAdminGroup(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "invalid_request")
+		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
 
 	t.Run("built-in group cannot rename returns 403", func(t *testing.T) {
@@ -1590,7 +1590,7 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "invalid_limit")
+		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
 
 	t.Run("invalid negative limit returns 400", func(t *testing.T) {
@@ -1608,7 +1608,7 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "invalid_limit")
+		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
 
 	t.Run("invalid negative offset returns 400", func(t *testing.T) {
@@ -1626,7 +1626,7 @@ func TestAdminGroupListGroupMembers(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "invalid_offset")
+		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
 
 	t.Run("group not found returns 404", func(t *testing.T) {
@@ -1984,7 +1984,7 @@ func TestAdminGroupAddGroupMember(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "invalid_request")
+		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
 
 	t.Run("server error returns 500", func(t *testing.T) {

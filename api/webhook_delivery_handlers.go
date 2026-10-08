@@ -146,7 +146,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Failed to read request body: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: "Failed to read request body",
 		})
 		return
@@ -158,7 +158,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Failed to parse status update request: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid request body",
 		})
 		return

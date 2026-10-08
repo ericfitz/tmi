@@ -23,7 +23,7 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 	if err != nil {
 		return zero, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_format",
+			Code:    errcode.InvalidPatch,
 			Message: "Failed to preprocess patch operations: " + err.Error(),
 		}
 	}
@@ -48,7 +48,7 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 	if err != nil {
 		return zero, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_format",
+			Code:    errcode.InvalidPatch,
 			Message: "Failed to convert patch operations: " + err.Error(),
 		}
 	}
@@ -77,7 +77,7 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 	if err != nil {
 		return zero, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "patch_failed",
+			Code:    errcode.InvalidPatch,
 			Message: "Failed to apply patch: " + err.Error(),
 		}
 	}
@@ -247,7 +247,7 @@ func validateReplacePaths(originalBytes []byte, operations []PatchOperation) err
 		if !pathExistsInDoc(doc, parts) {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "patch_failed",
+				Code:    errcode.InvalidPatch,
 				Message: fmt.Sprintf("Replace operation target path does not exist: %s", op.Path),
 			}
 		}
@@ -298,7 +298,7 @@ func ValidatePatchedEntity[T any](original, patched T, userName string, validato
 	if err := validator(original, patched, userName); err != nil {
 		return &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "validation_failed",
+			Code:    errcode.InvalidInput,
 			Message: err.Error(),
 		}
 	}

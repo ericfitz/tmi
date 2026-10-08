@@ -41,7 +41,7 @@ func CreateAddon(c *gin.Context) {
 		logger.Error("Failed to parse create add-on request: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid request body",
 		})
 		return

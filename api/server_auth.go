@@ -315,7 +315,7 @@ func (s *Server) ProcessSAMLResponse(c *gin.Context) {
 
 	if samlResponse == "" {
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidRequest),
 			ErrorDescription: "Missing SAMLResponse",
 		})
 		return
@@ -372,7 +372,7 @@ func (s *Server) ProcessSAMLLogoutPost(c *gin.Context) {
 	samlRequest := c.PostForm("SAMLRequest")
 	if samlRequest == "" {
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidRequest),
 			ErrorDescription: "Missing SAMLRequest",
 		})
 		return

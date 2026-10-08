@@ -79,7 +79,7 @@ func (s *Server) ListMyGroupMembers(c *gin.Context, internalUuid openapi_types.U
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_uuid",
+			Code:    errcode.InvalidID,
 			Message: "internal_uuid must be a valid UUID",
 		})
 		return
@@ -135,7 +135,7 @@ func (s *Server) ListMyGroupMembers(c *gin.Context, internalUuid openapi_types.U
 		if limit < 0 || limit > 200 {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_limit",
+				Code:    errcode.InvalidInput,
 				Message: "limit must be between 0 and 200",
 			})
 			return
@@ -148,7 +148,7 @@ func (s *Server) ListMyGroupMembers(c *gin.Context, internalUuid openapi_types.U
 		if offset < 0 {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_offset",
+				Code:    errcode.InvalidInput,
 				Message: "offset must be a non-negative integer",
 			})
 			return

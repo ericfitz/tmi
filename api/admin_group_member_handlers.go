@@ -23,7 +23,7 @@ func (s *Server) ListGroupMembers(c *gin.Context, internalUuid openapi_types.UUI
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_uuid",
+			Code:    errcode.InvalidID,
 			Message: "internal_uuid must be a valid UUID",
 		})
 		return
@@ -43,7 +43,7 @@ func (s *Server) ListGroupMembers(c *gin.Context, internalUuid openapi_types.UUI
 		if limit < 0 || limit > 200 {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_limit",
+				Code:    errcode.InvalidInput,
 				Message: "limit must be between 0 and 200",
 			})
 			return
@@ -56,7 +56,7 @@ func (s *Server) ListGroupMembers(c *gin.Context, internalUuid openapi_types.UUI
 		if offset < 0 {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_offset",
+				Code:    errcode.InvalidInput,
 				Message: "offset must be a non-negative integer",
 			})
 			return
@@ -108,7 +108,7 @@ func (s *Server) AddGroupMember(c *gin.Context, internalUuid openapi_types.UUID)
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_uuid",
+			Code:    errcode.InvalidID,
 			Message: "internal_uuid must be a valid UUID",
 		})
 		return
@@ -119,7 +119,7 @@ func (s *Server) AddGroupMember(c *gin.Context, internalUuid openapi_types.UUID)
 	if err := c.ShouldBindJSON(&req); err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Invalid request body: %v", err),
 		})
 		return
@@ -154,7 +154,7 @@ func (s *Server) AddGroupMember(c *gin.Context, internalUuid openapi_types.UUID)
 		if req.MemberGroupInternalUuid == nil {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_request",
+				Code:    errcode.InvalidInput,
 				Message: "member_group_internal_uuid is required when subject_type is group",
 			})
 			return
@@ -163,7 +163,7 @@ func (s *Server) AddGroupMember(c *gin.Context, internalUuid openapi_types.UUID)
 		if err != nil {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_uuid",
+				Code:    errcode.InvalidID,
 				Message: "member_group_internal_uuid must be a valid UUID",
 			})
 			return
@@ -182,7 +182,7 @@ func (s *Server) AddGroupMember(c *gin.Context, internalUuid openapi_types.UUID)
 		if req.UserInternalUuid == nil {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_request",
+				Code:    errcode.InvalidInput,
 				Message: "user_internal_uuid is required when subject_type is user",
 			})
 			return
@@ -191,7 +191,7 @@ func (s *Server) AddGroupMember(c *gin.Context, internalUuid openapi_types.UUID)
 		if err != nil {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_uuid",
+				Code:    errcode.InvalidID,
 				Message: "user_internal_uuid must be a valid UUID",
 			})
 			return
@@ -220,7 +220,7 @@ func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UU
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_uuid",
+			Code:    errcode.InvalidID,
 			Message: "internal_uuid must be a valid UUID",
 		})
 		return
@@ -230,7 +230,7 @@ func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UU
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_uuid",
+			Code:    errcode.InvalidID,
 			Message: "member_uuid must be a valid UUID",
 		})
 		return
@@ -301,7 +301,7 @@ func (s *Server) handleGroupMemberError(c *gin.Context, logger *slogging.Context
 	case errors.Is(err, ErrSelfMembership):
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: "A group cannot be a member of itself",
 		})
 	default:

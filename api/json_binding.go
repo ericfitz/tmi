@@ -165,5 +165,5 @@ func RespondWithError(c *gin.Context, statusCode int, errorCode errcode.Code, er
 // RespondWithBadRequest sends a 400 Bad Request error response
 // SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: send a 400 JSON error response with the given description
 func RespondWithBadRequest(c *gin.Context, errorDescription string) {
-	RespondWithError(c, http.StatusBadRequest, "invalid_request", errorDescription)
+	RespondWithError(c, http.StatusBadRequest, errcode.InvalidInput, errorDescription)
 }
