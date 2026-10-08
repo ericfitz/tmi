@@ -633,14 +633,14 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 }
 
 // codeStr returns a pointer to the string form of a details.code reason.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a pointer to the string form of a details code (pure)
+// SEM@fd620bc496f9a7d21dff9b264a3834ac496dfd24: build a pointer to the string form of a details code (pure)
 func codeStr(c errcode.Code) *string {
 	s := string(c)
 	return &s
 }
 
 // WithDetailCode attaches a domain-specific details.code reason to err and returns it.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: attach a domain reason code to a RequestError (pure)
+// SEM@fd620bc496f9a7d21dff9b264a3834ac496dfd24: attach a domain reason code to a RequestError (pure)
 func WithDetailCode(err *RequestError, code errcode.Code) *RequestError {
 	if err.Details == nil {
 		err.Details = &ErrorDetails{}
@@ -649,61 +649,61 @@ func WithDetailCode(err *RequestError, code errcode.Code) *RequestError {
 	return err
 }
 
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a RequestError from status, code and message (pure)
+// SEM@fd620bc496f9a7d21dff9b264a3834ac496dfd24: build a RequestError from status, code and message (pure)
 func newRequestError(status int, code errcode.Code, message string) *RequestError {
 	return &RequestError{Status: status, Code: code, Message: message}
 }
 
 // InvalidPatchError creates a RequestError for a malformed or inapplicable JSON Patch
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a 400 RequestError for an invalid JSON Patch document (pure)
+// SEM@fd620bc496f9a7d21dff9b264a3834ac496dfd24: build a 400 RequestError for an invalid JSON Patch document (pure)
 func InvalidPatchError(message string) *RequestError {
 	return newRequestError(http.StatusBadRequest, errcode.InvalidPatch, message)
 }
 
 // InsufficientUserAuthenticationError creates a RequestError requiring step-up authentication
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a 401 RequestError requiring step-up authentication (pure)
+// SEM@fd620bc496f9a7d21dff9b264a3834ac496dfd24: build a 401 RequestError requiring step-up authentication (pure)
 func InsufficientUserAuthenticationError(message string) *RequestError {
 	return newRequestError(http.StatusUnauthorized, errcode.InsufficientUserAuthentication, message)
 }
 
 // MethodNotAllowedError creates a RequestError for an unsupported HTTP method
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a 405 RequestError for an unsupported method (pure)
+// SEM@fd620bc496f9a7d21dff9b264a3834ac496dfd24: build a 405 RequestError for an unsupported method (pure)
 func MethodNotAllowedError(message string) *RequestError {
 	return newRequestError(http.StatusMethodNotAllowed, errcode.MethodNotAllowed, message)
 }
 
 // GoneError creates a RequestError for a permanently removed resource
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a 410 RequestError for a permanently removed resource (pure)
+// SEM@fd620bc496f9a7d21dff9b264a3834ac496dfd24: build a 410 RequestError for a permanently removed resource (pure)
 func GoneError(message string) *RequestError {
 	return newRequestError(http.StatusGone, errcode.Gone, message)
 }
 
 // PayloadTooLargeError creates a RequestError for an oversized request body
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a 413 RequestError for an oversized payload (pure)
+// SEM@fd620bc496f9a7d21dff9b264a3834ac496dfd24: build a 413 RequestError for an oversized payload (pure)
 func PayloadTooLargeError(message string) *RequestError {
 	return newRequestError(http.StatusRequestEntityTooLarge, errcode.PayloadTooLarge, message)
 }
 
 // UnsupportedMediaTypeError creates a RequestError for an unaccepted Content-Type
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a 415 RequestError for an unsupported content type (pure)
+// SEM@fd620bc496f9a7d21dff9b264a3834ac496dfd24: build a 415 RequestError for an unsupported content type (pure)
 func UnsupportedMediaTypeError(message string) *RequestError {
 	return newRequestError(http.StatusUnsupportedMediaType, errcode.UnsupportedMediaType, message)
 }
 
 // UnprocessableEntityError creates a RequestError for a well-formed request that cannot be processed
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a 422 RequestError for an unprocessable request (pure)
+// SEM@fd620bc496f9a7d21dff9b264a3834ac496dfd24: build a 422 RequestError for an unprocessable request (pure)
 func UnprocessableEntityError(message string) *RequestError {
 	return newRequestError(http.StatusUnprocessableEntity, errcode.UnprocessableEntity, message)
 }
 
 // IfMatchRequiredError creates a RequestError for a missing If-Match header
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a 428 RequestError for a missing If-Match header (pure)
+// SEM@fd620bc496f9a7d21dff9b264a3834ac496dfd24: build a 428 RequestError for a missing If-Match header (pure)
 func IfMatchRequiredError(message string) *RequestError {
 	return newRequestError(http.StatusPreconditionRequired, errcode.IfMatchRequired, message)
 }
 
 // RateLimitExceededError creates a 429 RequestError; retryAfterSeconds feeds the Retry-After header
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a 429 RequestError carrying a retry-after hint (pure)
+// SEM@fd620bc496f9a7d21dff9b264a3834ac496dfd24: build a 429 RequestError carrying a retry-after hint (pure)
 func RateLimitExceededError(message string, retryAfterSeconds int) *RequestError {
 	e := newRequestError(http.StatusTooManyRequests, errcode.RateLimitExceeded, message)
 	e.Details = &ErrorDetails{Context: map[string]any{"retry_after": retryAfterSeconds}}
@@ -711,7 +711,7 @@ func RateLimitExceededError(message string, retryAfterSeconds int) *RequestError
 }
 
 // QuotaExceededError creates a RequestError for a hard cap (status 403 or 429)
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a RequestError for an exhausted hard quota (pure)
+// SEM@fd620bc496f9a7d21dff9b264a3834ac496dfd24: build a RequestError for an exhausted hard quota (pure)
 func QuotaExceededError(status int, message string) *RequestError {
 	return newRequestError(status, errcode.QuotaExceeded, message)
 }
