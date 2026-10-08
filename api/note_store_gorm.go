@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/api/validation"
@@ -437,33 +439,15 @@ func (s *GormNoteRepository) Patch(ctx context.Context, id string, operations []
 		return nil, err
 	}
 
-	// applyPatchOperation replaces fields (never mutates what a pointer field
-	// points to), so a shallow copy keeps the stored values for check.
+	// applyNotePatch works on a JSON copy, so before keeps the stored values
+	// for check.
 	before := *note
-
-	// Apply patch operations
-	for _, op := range operations {
-		if err := s.applyPatchOperation(note, op); err != nil {
-			logger.Error("Failed to apply patch operation %s to note %s: %v", op.Op, id, err)
-			var reqErr *RequestError
-			if errors.As(err, &reqErr) {
-				return nil, reqErr
-			}
-			// A malformed or inapplicable JSON Patch is client input, so it
-			// must surface as 400, not 500 (#611). fmt.Errorf here produced an
-			// untyped error that StoreErrorToRequestError could only classify
-			// as a server fault — a `remove` on a path the document does not
-			// have returned "Failed to patch {kind}" with a 500. RequestError
-			// passes through StoreErrorToRequestError untouched, and matches
-			// the patch_failed code ApplyPatchOperations already returns for
-			// the entities that go through it.
-			return nil, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "patch_failed",
-				Message: "Failed to apply patch: " + err.Error(),
-			}
-		}
+	patched, err := applyNotePatch(before, operations)
+	if err != nil {
+		logger.Debug("Rejected patch for note %s: %v", id, err)
+		return nil, err
 	}
+	note = &patched
 
 	// Validate the entity that is about to be persisted (#1013)
 	if check != nil {
@@ -585,64 +569,73 @@ func (s *GormNoteRepository) updateMetadata(ctx context.Context, noteID string, 
 	})
 }
 
-// applyPatchOperation applies a single patch operation to a note
-// Only replace on name and content, and add/replace/remove on description, are
-// supported; every other operation is rejected with a 400 rather than ignored.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: apply a single JSON patch operation to a note struct in memory, rejecting unsupported operations (pure)
-func (s *GormNoteRepository) applyPatchOperation(note *Note, op PatchOperation) error {
-	switch op.Path {
-	case PatchPathName:
-		if op.Op != string(Replace) {
-			return unsupportedNotePatchOp(op)
-		}
-		if name, ok := op.Value.(string); ok {
-			// NOTES.NAME is NOT NULL and Note validation lives in
-			// BeforeCreate only, so the update path has no hook fallback.
-			// PostgreSQL stores '', Oracle raises ORA-01407 -- same request,
-			// different answer per dialect (#614).
-			if err := validation.ValidateNonEmpty("name", name); err != nil {
-				return err
-			}
-			note.Name = name
-		} else {
-			return fmt.Errorf("invalid value type for name: expected string")
-		}
-	case patchPathContent:
-		if op.Op != string(Replace) {
-			return unsupportedNotePatchOp(op)
-		}
-		if content, ok := op.Value.(string); ok {
-			// NOTES.CONTENT is NOT NULL and DBText -> CLOB on Oracle, which
-			// binds '' as NULL exactly as VARCHAR2 does (#614).
-			if err := validation.ValidateNonEmpty("content", content); err != nil {
-				return err
-			}
-			note.Content = content
-		} else {
-			return fmt.Errorf("invalid value type for content: expected string")
-		}
-	case PatchPathDescription:
-		switch op.Op {
-		case string(Replace), string(Add):
-			if desc, ok := op.Value.(string); ok {
-				note.Description = &desc
-			} else {
-				return fmt.Errorf("invalid value type for description: expected string")
-			}
-		case string(Remove):
-			note.Description = nil
-		default:
-			return unsupportedNotePatchOp(op)
-		}
-	default:
-		return fmt.Errorf("unsupported patch path: %s", op.Path)
-	}
-	return nil
+// notePatchablePaths are the note fields a JSON Patch may change: exactly the
+// columns Update writes. A patch that would change any other field (metadata,
+// alias, timestamps, ...) is rejected rather than silently dropped on save.
+var notePatchablePaths = map[string]bool{
+	PatchPathName:        true,
+	patchPathContent:     true,
+	PatchPathDescription: true,
+	"/include_in_report": true,
+	"/timmy_enabled":     true,
 }
 
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build the 400 for a JSON patch operation the note store does not support (pure)
-func unsupportedNotePatchOp(op PatchOperation) error {
-	return InvalidInputError(fmt.Sprintf("unsupported patch operation %q on %s for notes", op.Op, op.Path))
+// maxNoteNameLength is the schema's maxLength for a note name and the size of
+// the NOTES.NAME column.
+const maxNoteNameLength = 256
+
+// applyNotePatch applies RFC 6902 operations to a note with the same engine
+// the team and project note stores use (add on an existing member replaces;
+// copy, move and test work), after checking that every operation writes only
+// notePatchablePaths. Name and content must stay non-empty: both columns are
+// NOT NULL, and Oracle binds ” as NULL (#614). Errors are 400 RequestErrors.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: apply JSON Patch operations to a note, restricted to persisted fields and keeping name and content non-empty and name within its column (pure)
+func applyNotePatch(note Note, operations []PatchOperation) (Note, error) {
+	for _, op := range operations {
+		var writes []string
+		switch op.Op {
+		case string(Add), string(Replace), string(Remove), string(Copy):
+			writes = []string{op.Path}
+		case string(Move):
+			writes = []string{op.Path, op.From}
+		case string(Test):
+		default:
+			return Note{}, InvalidInputError(fmt.Sprintf("unsupported patch operation %q", op.Op))
+		}
+		for _, path := range writes {
+			if !notePatchablePaths[topLevelPatchPath(path)] {
+				return Note{}, InvalidInputError(fmt.Sprintf(
+					"patch operation %q may not change %s; note patches may change name, content, description, include_in_report and timmy_enabled",
+					op.Op, path))
+			}
+		}
+	}
+	patched, err := ApplyPatchOperations(note, operations)
+	if err != nil {
+		return Note{}, err
+	}
+	if err := validation.ValidateNonEmpty("name", patched.Name); err != nil {
+		return Note{}, InvalidInputError(err.Error())
+	}
+	if err := validation.ValidateNonEmpty("content", patched.Content); err != nil {
+		return Note{}, InvalidInputError(err.Error())
+	}
+	// copy/move can carry content into name, a VARCHAR2(256)/varchar(256)
+	// column; reject over-long names here rather than as a database error.
+	if utf8.RuneCountInString(patched.Name) > maxNoteNameLength {
+		return Note{}, InvalidInputError(fmt.Sprintf("name must be at most %d characters", maxNoteNameLength))
+	}
+	return patched, nil
+}
+
+// topLevelPatchPath returns the first segment of a JSON Pointer as a path
+// ("/metadata/0/value" -> "/metadata").
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: extract the top-level member of a JSON Pointer path (pure)
+func topLevelPatchPath(path string) string {
+	if i := strings.IndexByte(strings.TrimPrefix(path, "/"), '/'); i >= 0 {
+		return path[:i+1]
+	}
+	return path
 }
 
 // getNoteThreatModelID retrieves the threat model ID for a note

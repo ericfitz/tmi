@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -195,12 +196,9 @@ func TestAssetPatch_AcceptsValidNameAndType(t *testing.T) {
 }
 
 func TestNotePatch_RejectsEmptyName(t *testing.T) {
-	s := &GormNoteRepository{}
-	n := &Note{Name: "original", Content: "body"}
+	n := Note{Name: "original", Content: "body"}
 
-	err := s.applyPatchOperation(n, PatchOperation{
-		Op: string(Replace), Path: PatchPathName, Value: "",
-	})
+	_, err := applyNotePatch(n, []PatchOperation{{Op: string(Replace), Path: PatchPathName, Value: ""}})
 
 	require.Error(t, err, "NOTES.NAME is NOT NULL; '' must not reach the store")
 	assert.Equal(t, "original", n.Name)
@@ -209,27 +207,17 @@ func TestNotePatch_RejectsEmptyName(t *testing.T) {
 // NOTES.CONTENT is DBText -> CLOB on Oracle, which binds ” as NULL exactly as
 // VARCHAR2 does, so the CLOB type buys no safety here.
 func TestNotePatch_RejectsEmptyContent(t *testing.T) {
-	s := &GormNoteRepository{}
-	n := &Note{Name: "note", Content: "body"}
-
-	err := s.applyPatchOperation(n, PatchOperation{
-		Op: string(Replace), Path: patchPathContent, Value: "",
-	})
-
-	require.Error(t, err, "NOTES.CONTENT is NOT NULL; '' must not reach the store")
-	assert.Equal(t, "body", n.Content)
-}
-
-func TestNotePatch_RejectsWhitespaceOnlyContent(t *testing.T) {
-	s := &GormNoteRepository{}
-	n := &Note{Name: "note", Content: "body"}
-
-	err := s.applyPatchOperation(n, PatchOperation{
-		Op: string(Replace), Path: patchPathContent, Value: "   \t\n ",
-	})
-
-	require.Error(t, err, "whitespace-only content is empty once trimmed")
-	assert.Equal(t, "body", n.Content)
+	for name, ops := range map[string][]PatchOperation{
+		"replace empty":    {{Op: string(Replace), Path: patchPathContent, Value: ""}},
+		"whitespace only":  {{Op: string(Replace), Path: patchPathContent, Value: "   \t\n "}},
+		"remove content":   {{Op: string(Remove), Path: patchPathContent}},
+		"move content out": {{Op: string(Move), From: patchPathContent, Path: PatchPathDescription}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := applyNotePatch(Note{Name: "note", Content: "body"}, ops)
+			require.Error(t, err, "NOTES.CONTENT is NOT NULL; '' must not reach the store")
+		})
+	}
 }
 
 func TestThreatPatch_RejectsEmptyName(t *testing.T) {
@@ -254,37 +242,57 @@ func TestThreatPatch_AcceptsValidName(t *testing.T) {
 	assert.Equal(t, "renamed", th.Name)
 }
 
-// The GORM note store applies operations itself and handles only
-// replace/add/remove on fields it knows; every other combination must be
-// rejected as a 400 invalid_input, never silently ignored (#1013).
-func TestNotePatch_RejectsUnsupportedOperations(t *testing.T) {
-	s := &GormNoteRepository{}
-	for name, op := range map[string]PatchOperation{
-		"copy":           {Op: string(Copy), From: PatchPathName, Path: patchPathContent},
-		"move":           {Op: string(Move), From: PatchPathName, Path: patchPathContent},
-		"test":           {Op: string(Test), Path: PatchPathName, Value: "note"},
-		"unknown op":     {Op: "frobnicate", Path: PatchPathName, Value: "x"},
-		"remove name":    {Op: string(Remove), Path: PatchPathName},
-		"remove content": {Op: string(Remove), Path: patchPathContent},
-		"add name":       {Op: string(Add), Path: PatchPathName, Value: "x"},
-		"add content":    {Op: string(Add), Path: patchPathContent, Value: "x"},
+// Threat-model notes accept the same RFC 6902 operations as team and project
+// notes (#1013), limited to the fields the store persists; anything else is a
+// 400 invalid_input, never silently ignored.
+func TestNotePatch_RFC6902Operations(t *testing.T) {
+	base := Note{Name: "note", Content: "body"}
+	desc := "d"
+	yes := true
+	for name, tc := range map[string]struct {
+		ops  []PatchOperation
+		want Note
+	}{
+		"add replaces name":    {[]PatchOperation{{Op: string(Add), Path: PatchPathName, Value: "x"}}, Note{Name: "x", Content: "body"}},
+		"copy name to content": {[]PatchOperation{{Op: string(Copy), From: PatchPathName, Path: patchPathContent}}, Note{Name: "note", Content: "note"}},
+		"move desc to content": {[]PatchOperation{{Op: string(Move), From: PatchPathDescription, Path: patchPathContent}}, Note{Name: "note", Content: "d"}},
+		"test then replace": {[]PatchOperation{
+			{Op: string(Test), Path: PatchPathName, Value: "note"},
+			{Op: string(Replace), Path: patchPathContent, Value: "new"},
+		}, Note{Name: "note", Content: "new"}},
+		"flags": {[]PatchOperation{
+			{Op: string(Replace), Path: "/include_in_report", Value: true},
+			{Op: string(Add), Path: "/timmy_enabled", Value: true},
+		}, Note{Name: "note", Content: "body", IncludeInReport: &yes, TimmyEnabled: &yes}},
+		"remove description": {[]PatchOperation{{Op: string(Remove), Path: PatchPathDescription}}, Note{Name: "note", Content: "body"}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			n := &Note{Name: "note", Content: "body"}
-			err := s.applyPatchOperation(n, op)
+			in := base
+			if name == "move desc to content" || name == "remove description" {
+				in.Description = &desc
+			}
+			got, err := applyNotePatch(in, tc.ops)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+
+	for name, op := range map[string]PatchOperation{
+		"unknown op":           {Op: "frobnicate", Path: PatchPathName, Value: "x"},
+		"metadata":             {Op: string(Add), Path: "/metadata", Value: []any{}},
+		"metadata element":     {Op: string(Replace), Path: "/metadata/0/value", Value: "x"},
+		"auto_generated":       {Op: string(Replace), Path: "/auto_generated", Value: true},
+		"copy onto deleted_at": {Op: string(Copy), From: "/created_at", Path: "/deleted_at"},
+		"move away id":         {Op: string(Move), From: "/id", Path: PatchPathDescription},
+		"failing test":         {Op: string(Test), Path: PatchPathName, Value: "other"},
+		"over-long name":       {Op: string(Replace), Path: PatchPathName, Value: strings.Repeat("n", 257)},
+	} {
+		t.Run("reject "+name, func(t *testing.T) {
+			_, err := applyNotePatch(base, []PatchOperation{op})
 			var reqErr *RequestError
 			if assert.ErrorAs(t, err, &reqErr) {
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
-				assert.Equal(t, "invalid_input", reqErr.Code)
-				assert.Contains(t, reqErr.Message, op.Op)
 			}
-			assert.Equal(t, &Note{Name: "note", Content: "body"}, n)
 		})
 	}
-	// Supported operations still apply.
-	n := &Note{Name: "note", Content: "body"}
-	require.NoError(t, s.applyPatchOperation(n, PatchOperation{Op: string(Add), Path: PatchPathDescription, Value: "d"}))
-	require.NoError(t, s.applyPatchOperation(n, PatchOperation{Op: string(Remove), Path: PatchPathDescription}))
-	require.NoError(t, s.applyPatchOperation(n, PatchOperation{Op: string(Replace), Path: patchPathContent, Value: "new"}))
-	assert.Equal(t, &Note{Name: "note", Content: "new"}, n)
 }
