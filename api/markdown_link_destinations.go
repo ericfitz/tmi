@@ -4,7 +4,9 @@ import (
 	"html"
 	"regexp"
 	"strings"
+	"time"
 
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
@@ -331,8 +333,8 @@ func markdownMayHaveUnsafeLink(content string) bool {
 
 // markdownHasUnsafeLink parses content as CommonMark (see markdownGateParser)
 // and reports whether any link, image or autolink has a destination that is
-// not relative or allowlisted. Callers bound the cost first with
-// markdownNestsTooDeeply and markdownMayHaveUnsafeLink.
+// not relative or allowlisted. Callers go through markdownGateCheck, which
+// bounds its running time.
 // SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: report whether parsed markdown contains a link, image or autolink with a disallowed destination (pure)
 func markdownHasUnsafeLink(content string) bool {
 	src := []byte(content)
@@ -356,4 +358,72 @@ func markdownHasUnsafeLink(content string) bool {
 		return ast.WalkContinue, nil
 	})
 	return unsafe
+}
+
+// markdownGateBudget bounds the wall-clock time one gate check may take,
+// including the wait for a parse slot. goldmark has inputs on which parsing is
+// quadratic (a run of "[a](" with no whitespace takes ~10 s at the 256 KiB
+// schema limit) and more may exist, so rather than chase each one the gate
+// gives up and rejects the note as too complex. A normal 256 KiB note parses in
+// ~20 ms. It is a variable so tests can shorten it.
+var markdownGateBudget = 500 * time.Millisecond
+
+// markdownGateSlots caps concurrent gate parses. A parse that outlives its
+// budget cannot be cancelled, so it keeps its slot until it finishes; the cap
+// stops abandoned parses from piling up and starving the server.
+var markdownGateSlots = make(chan struct{}, 4)
+
+// markdownGateScan is the parse the gate runs; tests replace it to control
+// timing.
+var markdownGateScan = markdownHasUnsafeLink
+
+// markdownGateResult is the outcome of markdownGateCheck.
+type markdownGateResult int
+
+const (
+	markdownGateSafe markdownGateResult = iota
+	markdownGateUnsafe
+	markdownGateTooComplex
+)
+
+// markdownGateCheck runs markdownGateScan on content within markdownGateBudget
+// and at most cap(markdownGateSlots) at a time. It reports
+// markdownGateTooComplex when no slot frees up or the parse does not finish in
+// time, and also when the parse panics (it runs on its own goroutine, where a
+// panic would otherwise take down the process).
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: run the markdown link gate under a time budget and concurrency cap, reporting too-complex on overrun
+func markdownGateCheck(content string) markdownGateResult {
+	timer := time.NewTimer(markdownGateBudget)
+	defer timer.Stop()
+	select {
+	case markdownGateSlots <- struct{}{}:
+	case <-timer.C:
+		slogging.Get().Warn("markdown link gate: no parse slot free within budget")
+		return markdownGateTooComplex
+	}
+	scan := markdownGateScan // read here, not on the goroutine, which may outlive a test's override
+	done := make(chan markdownGateResult, 1)
+	go func() {
+		// Deferred calls run last-in first-out: recover first, then free the
+		// slot, so the slot is released only when the parse has really ended.
+		defer func() { <-markdownGateSlots }()
+		defer func() {
+			if r := recover(); r != nil {
+				slogging.Get().Error("markdown link gate: parse panicked: %v", r)
+				done <- markdownGateTooComplex
+			}
+		}()
+		if scan(content) {
+			done <- markdownGateUnsafe
+		} else {
+			done <- markdownGateSafe
+		}
+	}()
+	select {
+	case result := <-done:
+		return result
+	case <-timer.C:
+		slogging.Get().Warn("markdown link gate: parse exceeded budget of %v (%d bytes)", markdownGateBudget, len(content))
+		return markdownGateTooComplex
+	}
 }

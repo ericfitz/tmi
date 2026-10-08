@@ -183,7 +183,7 @@ func stripMarkdownHTML(content string) string {
 // This lives here rather than in each handler so the create, update and patch
 // paths across all four note resources cannot drift on it — the update paths
 // had no such check at all and silently persisted the empty value.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize a required markdown field, returning a 400 when it empties, nests too deeply or keeps an unsafe link (pure)
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize a required markdown field, returning a 400 when it empties, nests too deeply, keeps an unsafe link or is too complex to check
 func SanitizeRequiredMarkdownContent(field, content string) (string, *RequestError) {
 	sanitized := SanitizeMarkdownContent(content)
 	// Authoritative gate (#1013): the destination scanner is best effort, so
@@ -194,11 +194,20 @@ func SanitizeRequiredMarkdownContent(field, content string) (string, *RequestErr
 			field,
 		))
 	}
-	if markdownMayHaveUnsafeLink(sanitized) && markdownHasUnsafeLink(sanitized) {
-		return "", InvalidInputError(fmt.Sprintf(
-			"%s contains a link or image with a disallowed URL scheme",
-			field,
-		))
+	if markdownMayHaveUnsafeLink(sanitized) {
+		switch markdownGateCheck(sanitized) {
+		case markdownGateSafe:
+		case markdownGateUnsafe:
+			return "", InvalidInputError(fmt.Sprintf(
+				"%s contains a link or image with a disallowed URL scheme",
+				field,
+			))
+		default:
+			return "", InvalidInputError(fmt.Sprintf(
+				"%s is too complex to validate",
+				field,
+			))
+		}
 	}
 	if strings.TrimSpace(sanitized) == "" && strings.TrimSpace(content) != "" {
 		return "", InvalidInputError(fmt.Sprintf(
