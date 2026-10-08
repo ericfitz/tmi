@@ -1031,7 +1031,7 @@ func JSONErrorHandler() gin.HandlerFunc {
 
 			// Create proper error response
 			errorResponse := Error{
-				Error:            ErrorError(http.StatusText(statusCode)),
+				Error:            ErrorError(errcode.ForStatus(statusCode)),
 				ErrorDescription: "The request could not be processed",
 			}
 
@@ -1044,7 +1044,7 @@ func JSONErrorHandler() gin.HandlerFunc {
 			jsonBody, err := json.Marshal(errorResponse)
 			if err != nil {
 				// Fallback if JSON marshaling fails
-				jsonBody = []byte(`{"error":"` + http.StatusText(statusCode) + `","error_description":"The request could not be processed"}`)
+				jsonBody = []byte(`{"error":"` + string(errcode.ForStatus(statusCode)) + `","error_description":"The request could not be processed"}`)
 			}
 
 			// Write the transformed response

@@ -249,3 +249,47 @@ func IsREST(c Code) bool { _, ok := restSet[c]; return ok }
 // IsProtocol reports whether c is a documented protocol-route error code.
 // SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: check membership in the protocol error vocabulary (pure)
 func IsProtocol(c Code) bool { _, ok := protocolSet[c]; return ok }
+
+// ForStatus returns the REST code for an HTTP error status; an unmapped 4xx is
+// invalid_input and any other status is server_error.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: map an HTTP error status to its REST error code (pure)
+func ForStatus(status int) Code {
+	switch status {
+	case 400:
+		return InvalidInput
+	case 401:
+		return Unauthorized
+	case 403:
+		return Forbidden
+	case 404:
+		return NotFound
+	case 405:
+		return MethodNotAllowed
+	case 406:
+		return NotAcceptable
+	case 409:
+		return Conflict
+	case 410:
+		return Gone
+	case 412:
+		return VersionMismatch
+	case 413:
+		return PayloadTooLarge
+	case 415:
+		return UnsupportedMediaType
+	case 422:
+		return UnprocessableEntity
+	case 428:
+		return IfMatchRequired
+	case 429:
+		return RateLimitExceeded
+	case 501:
+		return NotImplemented
+	case 503:
+		return ServiceUnavailable
+	}
+	if status >= 400 && status < 500 {
+		return InvalidInput
+	}
+	return ServerError
+}

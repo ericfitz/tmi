@@ -29,3 +29,14 @@ func TestSetsAreDisjointAndSnakeCase(t *testing.T) {
 		t.Error("invalid_request is protocol-only")
 	}
 }
+
+func TestForStatusAlwaysReturnsRESTCode(t *testing.T) {
+	for status := 400; status < 600; status++ {
+		if c := ForStatus(status); !IsREST(c) {
+			t.Errorf("ForStatus(%d) = %q, not a REST code", status, c)
+		}
+	}
+	if ForStatus(404) != NotFound || ForStatus(418) != InvalidInput || ForStatus(502) != ServerError {
+		t.Error("unexpected ForStatus mapping")
+	}
+}

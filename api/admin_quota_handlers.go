@@ -35,7 +35,7 @@ func (s *Server) ListUserAPIQuotas(c *gin.Context, params ListUserAPIQuotasParam
 	quotas, err := GlobalUserAPIQuotaStore.List(c.Request.Context(), offset, limit)
 	if err != nil {
 		logger.Error("failed to list user API quotas: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to list quotas"})
+		HandleRequestError(c, ServerError("failed to list quotas"))
 		return
 	}
 
@@ -71,7 +71,7 @@ func (s *Server) GetUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 	// Validate user ID format (should be done by OpenAPI, but defensive check)
 	if userID.String() == "" {
 		logger.Error("Invalid user ID in GetUserAPIQuota: empty UUID")
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid user ID format"})
+		HandleRequestError(c, InvalidIDError("invalid user ID format"))
 		return
 	}
 
@@ -80,7 +80,7 @@ func (s *Server) GetUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 	quota, err := GlobalUserAPIQuotaStore.Get(c.Request.Context(), userID.String())
 	if err != nil {
 		logger.Error("User API quota not found for user %s: %v", userID, err)
-		c.JSON(http.StatusNotFound, Error{Error: "quota not found"})
+		HandleRequestError(c, NotFoundError("quota not found"))
 		return
 	}
 
@@ -101,7 +101,7 @@ func (s *Server) UpdateUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: ErrorError("invalid request body: " + err.Error())})
+		HandleRequestError(c, InvalidInputError("invalid request body: "+err.Error()))
 		return
 	}
 
@@ -132,10 +132,10 @@ func (s *Server) UpdateUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 			logger.Error("failed to create user API quota for %s: %v", userID, err)
 			// Check if this is a foreign key constraint error (user doesn't exist)
 			if isForeignKeyConstraintError(err) {
-				c.JSON(http.StatusNotFound, Error{Error: ErrMsgUserNotFound})
+				HandleRequestError(c, NotFoundError(ErrMsgUserNotFound))
 				return
 			}
-			c.JSON(http.StatusInternalServerError, Error{Error: "failed to create quota"})
+			HandleRequestError(c, ServerError("failed to create quota"))
 			return
 		}
 
@@ -150,7 +150,7 @@ func (s *Server) UpdateUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 
 	if err := GlobalUserAPIQuotaStore.Update(c.Request.Context(), userID.String(), existingQuota); err != nil {
 		logger.Error("failed to update user API quota for %s: %v", userID, err)
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to update quota"})
+		HandleRequestError(c, ServerError("failed to update quota"))
 		return
 	}
 
@@ -176,7 +176,7 @@ func (s *Server) DeleteUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 	// Delete quota
 	if err := GlobalUserAPIQuotaStore.Delete(c.Request.Context(), userID.String()); err != nil {
 		logger.Error("failed to delete user API quota for %s: %v", userID, err)
-		c.JSON(http.StatusNotFound, Error{Error: "quota not found"})
+		HandleRequestError(c, NotFoundError("quota not found"))
 		return
 	}
 
@@ -214,7 +214,7 @@ func (s *Server) ListWebhookQuotas(c *gin.Context, params ListWebhookQuotasParam
 	dbQuotas, err := GlobalWebhookQuotaStore.List(c.Request.Context(), offset, limit)
 	if err != nil {
 		logger.Error("failed to list webhook quotas: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to list quotas"})
+		HandleRequestError(c, ServerError("failed to list quotas"))
 		return
 	}
 
@@ -268,7 +268,7 @@ func (s *Server) GetWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	// Validate user ID format (should be done by OpenAPI, but defensive check)
 	if userID.String() == "" {
 		logger.Error("Invalid user ID in GetWebhookQuota: empty UUID")
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid user ID format"})
+		HandleRequestError(c, InvalidIDError("invalid user ID format"))
 		return
 	}
 
@@ -277,7 +277,7 @@ func (s *Server) GetWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	quota, err := GlobalWebhookQuotaStore.Get(c.Request.Context(), userID.String())
 	if err != nil {
 		logger.Error("Webhook quota not found for user %s: %v", userID, err)
-		c.JSON(http.StatusNotFound, Error{Error: "quota not found"})
+		HandleRequestError(c, NotFoundError("quota not found"))
 		return
 	}
 
@@ -300,7 +300,7 @@ func (s *Server) UpdateWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: ErrorError("invalid request body: " + err.Error())})
+		HandleRequestError(c, InvalidInputError("invalid request body: "+err.Error()))
 		return
 	}
 
@@ -339,10 +339,10 @@ func (s *Server) UpdateWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 			logger.Error("failed to create webhook quota for %s: %v", userID, err)
 			// Check if this is a foreign key constraint error (user doesn't exist)
 			if isForeignKeyConstraintError(err) {
-				c.JSON(http.StatusNotFound, Error{Error: ErrMsgUserNotFound})
+				HandleRequestError(c, NotFoundError(ErrMsgUserNotFound))
 				return
 			}
-			c.JSON(http.StatusInternalServerError, Error{Error: "failed to create quota"})
+			HandleRequestError(c, ServerError("failed to create quota"))
 			return
 		}
 
@@ -359,7 +359,7 @@ func (s *Server) UpdateWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 
 	if err := GlobalWebhookQuotaStore.Update(c.Request.Context(), userID.String(), existingQuota); err != nil {
 		logger.Error("failed to update webhook quota for %s: %v", userID, err)
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to update quota"})
+		HandleRequestError(c, ServerError("failed to update quota"))
 		return
 	}
 
@@ -385,7 +385,7 @@ func (s *Server) DeleteWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	// Delete quota
 	if err := GlobalWebhookQuotaStore.Delete(c.Request.Context(), userID.String()); err != nil {
 		logger.Error("failed to delete webhook quota for %s: %v", userID, err)
-		c.JSON(http.StatusNotFound, Error{Error: "quota not found"})
+		HandleRequestError(c, NotFoundError("quota not found"))
 		return
 	}
 
@@ -423,7 +423,7 @@ func (s *Server) ListAddonInvocationQuotas(c *gin.Context, params ListAddonInvoc
 	quotas, err := GlobalAddonInvocationQuotaStore.List(context.Background(), offset, limit)
 	if err != nil {
 		logger.Error("failed to list addon invocation quotas: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to list quotas"})
+		HandleRequestError(c, ServerError("failed to list quotas"))
 		return
 	}
 
@@ -465,7 +465,7 @@ func (s *Server) GetAddonInvocationQuota(c *gin.Context, userId openapi_types.UU
 	// Validate user ID format (should be done by OpenAPI, but defensive check)
 	if userID.String() == "" {
 		logger.Error("Invalid user ID in GetAddonInvocationQuota: empty UUID")
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid user ID format"})
+		HandleRequestError(c, InvalidIDError("invalid user ID format"))
 		return
 	}
 
@@ -474,7 +474,7 @@ func (s *Server) GetAddonInvocationQuota(c *gin.Context, userId openapi_types.UU
 	quota, err := GlobalAddonInvocationQuotaStore.Get(context.Background(), userID)
 	if err != nil {
 		logger.Error("Addon invocation quota not found for user %s: %v", userID, err)
-		c.JSON(http.StatusNotFound, Error{Error: "quota not found"})
+		HandleRequestError(c, NotFoundError("quota not found"))
 		return
 	}
 
@@ -495,7 +495,7 @@ func (s *Server) UpdateAddonInvocationQuota(c *gin.Context, userId openapi_types
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: ErrorError("invalid request body: " + err.Error())})
+		HandleRequestError(c, InvalidInputError("invalid request body: "+err.Error()))
 		return
 	}
 
@@ -530,10 +530,10 @@ func (s *Server) UpdateAddonInvocationQuota(c *gin.Context, userId openapi_types
 		logger.Error("failed to set addon invocation quota for %s: %v", userID, err)
 		// Check if this is a foreign key constraint error (user doesn't exist)
 		if isForeignKeyConstraintError(err) {
-			c.JSON(http.StatusNotFound, Error{Error: ErrMsgUserNotFound})
+			HandleRequestError(c, NotFoundError(ErrMsgUserNotFound))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to set quota"})
+		HandleRequestError(c, ServerError("failed to set quota"))
 		return
 	}
 
@@ -541,7 +541,7 @@ func (s *Server) UpdateAddonInvocationQuota(c *gin.Context, userId openapi_types
 	finalQuota, err := GlobalAddonInvocationQuotaStore.GetOrDefault(context.Background(), userID)
 	if err != nil {
 		logger.Error("failed to retrieve addon invocation quota for %s: %v", userID, err)
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to retrieve quota"})
+		HandleRequestError(c, ServerError("failed to retrieve quota"))
 		return
 	}
 
@@ -564,7 +564,7 @@ func (s *Server) DeleteAddonInvocationQuota(c *gin.Context, userId openapi_types
 	// Delete quota
 	if err := GlobalAddonInvocationQuotaStore.Delete(context.Background(), userID); err != nil {
 		logger.Error("failed to delete addon invocation quota for %s: %v", userID, err)
-		c.JSON(http.StatusNotFound, Error{Error: "quota not found"})
+		HandleRequestError(c, NotFoundError("quota not found"))
 		return
 	}
 
