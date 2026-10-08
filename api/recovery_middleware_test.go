@@ -66,7 +66,7 @@ func TestCustomRecoveryMiddleware(t *testing.T) {
 			var response Error
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			assert.NoError(t, err)
-			assert.Equal(t, "internal_server_error", response.Error)
+			assert.Equal(t, "internal_server_error", string(response.Error))
 
 			// Check that stack trace is not exposed
 			bodyStr := w.Body.String()

@@ -151,7 +151,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 	// Validate webhook URL (scheme, hostname, deny list)
 	urlValidator := NewWebhookUrlValidatorWithHTTP(GlobalWebhookUrlDenyListStore, s.allowHTTPWebhooks)
 	if err := urlValidator.ValidateWebhookURL(c.Request.Context(), input.Url); err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: fmt.Sprintf("invalid webhook URL: %s", err.Error())})
+		c.JSON(http.StatusBadRequest, Error{Error: ErrorError(fmt.Sprintf("invalid webhook URL: %s", err.Error()))})
 		return
 	}
 

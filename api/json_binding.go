@@ -155,7 +155,7 @@ func jsonTypeName(val json.RawMessage) string {
 // SEM@81952f598eaf9b1599471d778c9fb82e7d2f2d7a: send a structured JSON error response and abort the middleware chain
 func RespondWithError(c *gin.Context, statusCode int, errorCode, errorDescription string) {
 	c.JSON(statusCode, Error{
-		Error:            errorCode,
+		Error:            ErrorError(errorCode),
 		ErrorDescription: errorDescription,
 	})
 	c.Abort()

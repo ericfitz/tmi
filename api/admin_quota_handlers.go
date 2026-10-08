@@ -101,7 +101,7 @@ func (s *Server) UpdateUserAPIQuota(c *gin.Context, userId openapi_types.UUID) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid request body: " + err.Error()})
+		c.JSON(http.StatusBadRequest, Error{Error: ErrorError("invalid request body: " + err.Error())})
 		return
 	}
 
@@ -300,7 +300,7 @@ func (s *Server) UpdateWebhookQuota(c *gin.Context, userId openapi_types.UUID) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid request body: " + err.Error()})
+		c.JSON(http.StatusBadRequest, Error{Error: ErrorError("invalid request body: " + err.Error())})
 		return
 	}
 
@@ -495,7 +495,7 @@ func (s *Server) UpdateAddonInvocationQuota(c *gin.Context, userId openapi_types
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid request body: " + err.Error()})
+		c.JSON(http.StatusBadRequest, Error{Error: ErrorError("invalid request body: " + err.Error())})
 		return
 	}
 

@@ -165,7 +165,7 @@ func TestWebSocketAuthorizationHTTPEndpoint(t *testing.T) {
 	var errorResponse Error
 	err = json.Unmarshal(w.Body.Bytes(), &errorResponse)
 	assert.NoError(t, err)
-	assert.Equal(t, "unauthorized", errorResponse.Error)
+	assert.Equal(t, "unauthorized", string(errorResponse.Error))
 	assert.Equal(t, "User not authenticated", errorResponse.ErrorDescription)
 }
 
@@ -220,7 +220,7 @@ func TestWebSocketAuthorizationInvalidDiagramID(t *testing.T) {
 			var errorResponse Error
 			err = json.Unmarshal(w.Body.Bytes(), &errorResponse)
 			assert.NoError(t, err)
-			assert.Equal(t, tt.expectedError, errorResponse.Error)
+			assert.Equal(t, tt.expectedError, string(errorResponse.Error))
 		})
 	}
 }

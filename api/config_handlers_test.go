@@ -402,7 +402,7 @@ func TestListSystemSettings_AdminRequired(t *testing.T) {
 	var errResp Error
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
-	assert.Equal(t, "forbidden", errResp.Error)
+	assert.Equal(t, "forbidden", string(errResp.Error))
 }
 
 // SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify listing system settings returns 503 when the service is unavailable
@@ -439,7 +439,7 @@ func TestListSystemSettings_ServiceUnavailable(t *testing.T) {
 	var errResp Error
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
-	assert.Equal(t, "service_unavailable", errResp.Error)
+	assert.Equal(t, "service_unavailable", string(errResp.Error))
 }
 
 // SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify fetching a system setting requires admin
@@ -852,7 +852,7 @@ func TestUpdateSystemSetting_409_ConfigSourced(t *testing.T) {
 	var errResp Error
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
-	assert.Equal(t, "conflict", errResp.Error)
+	assert.Equal(t, "conflict", string(errResp.Error))
 }
 
 // SEM@69e1295132f4de6082654f6ddb5283252d637f60: verify deleting a config-only setting without DB row returns 404

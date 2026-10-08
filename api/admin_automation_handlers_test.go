@@ -170,7 +170,7 @@ func TestCreateAutomationAccount_ValidationErrors(t *testing.T) {
 		var resp Error
 		err := json.Unmarshal(w.Body.Bytes(), &resp)
 		require.NoError(t, err)
-		assert.Equal(t, "conflict", resp.Error)
+		assert.Equal(t, "conflict", string(resp.Error))
 	})
 
 	t.Run("no auth service returns 503", func(t *testing.T) {

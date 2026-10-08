@@ -437,7 +437,7 @@ func TestThreatModelDiagramNotFound(t *testing.T) {
 	err = json.Unmarshal(getW.Body.Bytes(), &errResp)
 	require.NoError(t, err)
 
-	assert.Equal(t, "not_found", errResp.Error)
+	assert.Equal(t, "not_found", string(errResp.Error))
 	assert.Contains(t, errResp.ErrorDescription, "Diagram not found")
 }
 
@@ -459,7 +459,7 @@ func TestThreatModelNotFound(t *testing.T) {
 	err := json.Unmarshal(getW.Body.Bytes(), &errResp)
 	require.NoError(t, err)
 
-	assert.Equal(t, "not_found", errResp.Error)
+	assert.Equal(t, "not_found", string(errResp.Error))
 	assert.Contains(t, errResp.ErrorDescription, "Threat model not found")
 }
 
@@ -486,7 +486,7 @@ func TestDiagramNotInThreatModel(t *testing.T) {
 	err := json.Unmarshal(getW.Body.Bytes(), &errResp)
 	require.NoError(t, err)
 
-	assert.Equal(t, "not_found", errResp.Error)
+	assert.Equal(t, "not_found", string(errResp.Error))
 	assert.Contains(t, errResp.ErrorDescription, "Diagram not found in this threat model")
 }
 

@@ -410,7 +410,7 @@ func HandleRequestError(c *gin.Context, err error) {
 			sanitizedMessage = sanitizedMessage[:997] + "..."
 		}
 		response := Error{
-			Error:            reqErr.Code,
+			Error:            ErrorError(reqErr.Code),
 			ErrorDescription: sanitizedMessage,
 		}
 

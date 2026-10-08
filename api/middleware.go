@@ -1030,7 +1030,7 @@ func JSONErrorHandler() gin.HandlerFunc {
 
 			// Create proper error response
 			errorResponse := Error{
-				Error:            http.StatusText(statusCode),
+				Error:            ErrorError(http.StatusText(statusCode)),
 				ErrorDescription: "The request could not be processed",
 			}
 

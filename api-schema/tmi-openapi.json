@@ -1460,9 +1460,32 @@
         "properties": {
           "error": {
             "type": "string",
-            "description": "Error code",
+            "description": "Machine-readable REST error code. One of: invalid_input (400, a body, field, header or query value fails validation); invalid_id (400, a path or query identifier is malformed); invalid_patch (400, a JSON Patch document is malformed or cannot be applied); unauthorized (401, missing, expired or invalid credentials); insufficient_user_authentication (401, step-up authentication required, RFC 9470); forbidden (403, authenticated but not permitted); not_found (404, resource does not exist or is hidden by authorization); method_not_allowed (405); not_acceptable (406); conflict (409, duplicate, in use, or wrong lifecycle state); gone (410, permanently removed); version_mismatch (412, If-Match does not match the current version); payload_too_large (413); unsupported_media_type (415); unprocessable_entity (422, well-formed request that cannot be processed in the current state); if_match_required (428, If-Match header missing); rate_limit_exceeded (429, transient limit, honor Retry-After); quota_exceeded (403 or 429, hard cap reached, retrying does not help); server_error (500); not_implemented (501); service_unavailable (503, a dependency is unavailable, retry later). A domain-specific reason a client can act on is in details.code.",
             "pattern": "^[^\\x00-\\x1F]*$",
-            "maxLength": 1000
+            "maxLength": 1000,
+            "enum": [
+              "invalid_input",
+              "invalid_id",
+              "invalid_patch",
+              "unauthorized",
+              "insufficient_user_authentication",
+              "forbidden",
+              "not_found",
+              "method_not_allowed",
+              "not_acceptable",
+              "conflict",
+              "gone",
+              "version_mismatch",
+              "payload_too_large",
+              "unsupported_media_type",
+              "unprocessable_entity",
+              "if_match_required",
+              "rate_limit_exceeded",
+              "quota_exceeded",
+              "server_error",
+              "not_implemented",
+              "service_unavailable"
+            ]
           },
           "error_description": {
             "type": "string",
@@ -1484,7 +1507,7 @@
               "code": {
                 "type": "string",
                 "description": "Machine-readable error code for programmatic handling",
-                "example": "COLLABORATION_SESSION_NOT_FOUND",
+                "example": "session_not_found",
                 "pattern": "^[a-zA-Z0-9_-]*$",
                 "maxLength": 512
               },
@@ -1514,9 +1537,8 @@
           "error_description"
         ],
         "example": {
-          "error": "invalid_request",
-          "error_description": "The request is missing a required parameter",
-          "error_uri": "https://docs.example.com/oauth2/errors/invalid_request"
+          "error": "invalid_input",
+          "error_description": "The request is missing a required parameter"
         },
         "additionalProperties": false
       },
@@ -12414,6 +12436,96 @@
         "default": {
           "_metadata": []
         }
+      },
+      "OAuthError": {
+        "type": "object",
+        "description": "Error response for OAuth, SAML and discovery routes",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Error code for OAuth, SAML and discovery routes: the RFC 6749, 7009 and 9470 codes, the documented TMI extensions (identity_mismatch, account_conflict, email_not_verified, provider_unreachable, provider_response_invalid, invalid_provider), and the transport codes that route-agnostic middleware can emit (unauthorized, not_found, method_not_allowed, not_acceptable, rate_limit_exceeded, server_error).",
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "maxLength": 1000,
+            "enum": [
+              "invalid_request",
+              "invalid_client",
+              "invalid_grant",
+              "unauthorized_client",
+              "unsupported_grant_type",
+              "invalid_scope",
+              "access_denied",
+              "unsupported_response_type",
+              "server_error",
+              "temporarily_unavailable",
+              "unsupported_token_type",
+              "insufficient_user_authentication",
+              "identity_mismatch",
+              "account_conflict",
+              "email_not_verified",
+              "provider_unreachable",
+              "provider_response_invalid",
+              "invalid_provider",
+              "unauthorized",
+              "not_found",
+              "method_not_allowed",
+              "not_acceptable",
+              "rate_limit_exceeded"
+            ]
+          },
+          "error_description": {
+            "type": "string",
+            "description": "Human-readable error description",
+            "pattern": "^[^\\x00-\\x1F]*$",
+            "maxLength": 1000
+          },
+          "error_uri": {
+            "type": "string",
+            "format": "uri",
+            "description": "URI to documentation about the error",
+            "pattern": "^[a-zA-Z][a-zA-Z0-9+.-]*://[^\\s]*$",
+            "maxLength": 1000
+          },
+          "details": {
+            "type": "object",
+            "description": "Additional context-specific error information",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Machine-readable error code for programmatic handling",
+                "example": "session_not_found",
+                "pattern": "^[a-zA-Z0-9_-]*$",
+                "maxLength": 512
+              },
+              "context": {
+                "type": "object",
+                "description": "Contextual information about the error",
+                "additionalProperties": true,
+                "example": {
+                  "diagram_id": "550e8400-e29b-41d4-a716-446655440000",
+                  "requested_operation": "end_session"
+                }
+              },
+              "suggestion": {
+                "type": "string",
+                "description": "Human-readable suggestion for resolving the error",
+                "example": "Start a collaboration session first using POST /diagrams/{id}/collaborate",
+                "pattern": "^[^\\x00-\\x1F]*$",
+                "maxLength": 1000
+              }
+            },
+            "additionalProperties": false,
+            "nullable": true
+          }
+        },
+        "required": [
+          "error",
+          "error_description"
+        ],
+        "example": {
+          "error": "invalid_request",
+          "error_description": "The request is missing a required parameter"
+        },
+        "additionalProperties": false
       }
     },
     "responses": {
@@ -12431,7 +12543,7 @@
                   "error": "forbidden",
                   "error_description": "User does not have sufficient permissions to access this sub-resource",
                   "details": {
-                    "code": "INSUFFICIENT_PERMISSIONS",
+                    "code": "insufficient_permissions",
                     "context": {
                       "required_role": "writer",
                       "user_role": "reader",
@@ -12448,7 +12560,7 @@
                   "error": "not_found",
                   "error_description": "The requested sub-resource does not exist or does not belong to the specified threat model",
                   "details": {
-                    "code": "RESOURCE_NOT_FOUND",
+                    "code": "resource_not_found",
                     "context": {
                       "resource_id": "550e8400-e29b-41d4-a716-446655440999",
                       "resource_type": "document",
@@ -12464,7 +12576,7 @@
                   "error": "invalid_input",
                   "error_description": "The provided data does not meet validation requirements",
                   "details": {
-                    "code": "VALIDATION_FAILED",
+                    "code": "validation_failed",
                     "context": {
                       "field_errors": [
                         {
@@ -12545,7 +12657,7 @@
               "error": "rate_limit_exceeded",
               "error_description": "Rate limit exceeded: 100 requests per minute. Retry after 45 seconds.",
               "details": {
-                "code": "RATE_LIMIT_EXCEEDED",
+                "code": "rate_limit_exceeded",
                 "context": {
                   "limit": 100,
                   "window": "minute",
@@ -12647,7 +12759,7 @@
                 "error": {
                   "type": "string",
                   "description": "Error message describing what went wrong",
-                  "example": "internal_server_error"
+                  "example": "server_error"
                 },
                 "request_id": {
                   "type": "string",
@@ -12660,8 +12772,9 @@
               ]
             },
             "example": {
-              "error": "An internal server error occurred",
-              "request_id": "550e8400-e29b-41d4-a716-446655440000"
+              "error": "server_error",
+              "request_id": "550e8400-e29b-41d4-a716-446655440000",
+              "error_description": "An internal server error occurred"
             }
           }
         },
@@ -14926,7 +15039,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             },
@@ -15526,7 +15639,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             },
@@ -15568,7 +15681,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             }
@@ -15797,27 +15910,27 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 },
                 "examples": {
                   "invalid_provider": {
                     "summary": "Invalid provider",
                     "value": {
-                      "error": "Invalid provider: invalid_provider",
+                      "error": "invalid_request",
                       "error_description": "Provider 'invalid_provider' is not configured or supported"
                     }
                   },
                   "missing_code": {
                     "summary": "Missing authorization code",
                     "value": {
-                      "error": "Invalid request: missing required fields",
+                      "error": "invalid_request",
                       "error_description": "The 'code' parameter is required"
                     }
                   },
                   "invalid_state": {
                     "summary": "Invalid state parameter",
                     "value": {
-                      "error": "Invalid state parameter",
+                      "error": "invalid_request",
                       "error_description": "State parameter validation failed - possible CSRF attack"
                     }
                   }
@@ -15869,20 +15982,20 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 },
                 "examples": {
                   "provider_error": {
                     "summary": "OAuth provider communication failed",
                     "value": {
-                      "error": "Failed to exchange authorization code: oauth2: cannot fetch token: 400 Bad Request",
+                      "error": "server_error",
                       "error_description": "Unable to communicate with OAuth provider or invalid authorization code"
                     }
                   },
                   "user_info_error": {
                     "summary": "Failed to get user information",
                     "value": {
-                      "error": "Failed to get user info: 401 Unauthorized",
+                      "error": "server_error",
                       "error_description": "OAuth provider denied access to user information"
                     }
                   }
@@ -16004,20 +16117,20 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 },
                 "examples": {
                   "missing_token": {
                     "summary": "Missing refresh token",
                     "value": {
-                      "error": "Invalid request: missing required fields",
+                      "error": "invalid_request",
                       "error_description": "The 'refresh_token' parameter is required"
                     }
                   },
                   "invalid_format": {
                     "summary": "Invalid token format",
                     "value": {
-                      "error": "Invalid refresh token format",
+                      "error": "invalid_request",
                       "error_description": "Refresh token must be a valid UUID string"
                     }
                   }
@@ -16062,7 +16175,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             }
@@ -16108,20 +16221,20 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 },
                 "examples": {
                   "expired_token": {
                     "summary": "Expired refresh token",
                     "value": {
-                      "error": "Invalid refresh token",
+                      "error": "unauthorized",
                       "error_description": "The refresh token has expired or has been revoked"
                     }
                   },
                   "invalid_token": {
                     "summary": "Invalid refresh token",
                     "value": {
-                      "error": "Invalid refresh token",
+                      "error": "unauthorized",
                       "error_description": "The provided refresh token is not valid"
                     }
                   }
@@ -16225,7 +16338,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             },
@@ -16550,7 +16663,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 },
                 "example": {
                   "error": "invalid_request",
@@ -16652,7 +16765,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 },
                 "example": {
                   "error": "invalid_client",
@@ -21434,15 +21547,21 @@
                   "providerNotConfigured": {
                     "summary": "Content provider for the URI is not configured",
                     "value": {
-                      "error": "provider_not_configured",
-                      "error_description": "google_drive document access is not configured on this server. Contact your administrator."
+                      "error": "unprocessable_entity",
+                      "error_description": "google_drive document access is not configured on this server. Contact your administrator.",
+                      "details": {
+                        "code": "provider_not_configured"
+                      }
                     }
                   },
                   "providerNotRegistered": {
                     "summary": "picker_registration provider is not registered",
                     "value": {
-                      "error": "provider_not_registered",
-                      "error_description": "content provider \"google_workspace\" is not configured on this server"
+                      "error": "unprocessable_entity",
+                      "error_description": "content provider \"google_workspace\" is not configured on this server",
+                      "details": {
+                        "code": "provider_not_registered"
+                      }
                     }
                   }
                 }
@@ -35622,7 +35741,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             },
@@ -35706,7 +35825,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             },
@@ -35810,7 +35929,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             },
@@ -35976,7 +36095,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             },
@@ -37444,7 +37563,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             },
@@ -37486,7 +37605,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             }
@@ -37565,7 +37684,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             },
@@ -37607,7 +37726,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             }
@@ -37792,8 +37911,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -38040,8 +38160,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -38316,8 +38437,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -38577,8 +38699,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -38827,8 +38950,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -39103,8 +39227,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -39397,8 +39522,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -39664,8 +39790,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -39907,8 +40034,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -40121,7 +40249,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             },
@@ -40208,8 +40336,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -40219,7 +40348,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             }
@@ -40329,7 +40458,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             },
@@ -40362,7 +40491,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 }
               }
             },
@@ -40517,8 +40646,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -40770,8 +40900,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -41027,8 +41158,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -41277,8 +41409,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -41525,8 +41658,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -41801,8 +41935,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -42379,8 +42514,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -42603,8 +42739,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -51582,8 +51719,11 @@
                   "$ref": "#/components/schemas/Error"
                 },
                 "example": {
-                  "error": "encryption_not_enabled",
-                  "error_description": "Encryption is not enabled"
+                  "error": "conflict",
+                  "error_description": "Encryption is not enabled",
+                  "details": {
+                    "code": "encryption_not_enabled"
+                  }
                 }
               }
             },
@@ -51745,8 +51885,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -60841,8 +60982,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -68401,7 +68543,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 },
                 "examples": {
                   "invalid_request": {
@@ -68487,7 +68629,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 },
                 "example": {
                   "error": "server_error",
@@ -68627,11 +68769,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 },
                 "example": {
-                  "error": "invalid_token",
-                  "error_description": "Missing or invalid access token"
+                  "error": "unauthorized",
+                  "error_description": "Missing or invalid access token",
+                  "details": {
+                    "code": "invalid_token"
+                  }
                 }
               }
             }
@@ -68641,7 +68786,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 },
                 "example": {
                   "error": "unauthorized_client",
@@ -68687,7 +68832,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/OAuthError"
                 },
                 "example": {
                   "error": "temporarily_unavailable",
@@ -71164,8 +71309,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -71445,8 +71591,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -71721,8 +71868,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -71991,8 +72139,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -72272,8 +72421,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -72545,8 +72695,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -72821,8 +72972,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -73102,8 +73254,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -73427,8 +73580,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }
@@ -73706,8 +73860,9 @@
                   ]
                 },
                 "example": {
-                  "error": "Rate limit exceeded. Please try again later.",
-                  "retry_after": 60
+                  "error": "rate_limit_exceeded",
+                  "retry_after": 60,
+                  "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
             }

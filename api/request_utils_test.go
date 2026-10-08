@@ -317,7 +317,7 @@ func TestHandleRequestError(t *testing.T) {
 			var response Error
 			err := json.Unmarshal(w.Body.Bytes(), &response)
 			require.NoError(t, err)
-			assert.Equal(t, tt.expectedCode, response.Error)
+			assert.Equal(t, tt.expectedCode, string(response.Error))
 		})
 	}
 }
