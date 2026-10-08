@@ -109,3 +109,11 @@ About 160 sites change wire value; about 510 keep their value and only switch to
 - Adding a Tier 1 code is a spec change (schema MINOR); adding a `details.code` reason is not.
 - Wiki pages `API-Integration` (Error Handling), `API-Overview` (Error Responses) and `REST-API-Reference` get the Tier 1 and 1b tables after merge.
 - Follow-ups: WebSocket `ErrorMessage.error` enum (server issue) and the paired tmi-ux issue for `dfd-collaboration.service.ts` and `websocket-message.types.ts`; a tmi-ux PR that regenerates `api-types.d.ts`; regenerate tmi-clients.
+
+## Amendment (planning, 2026-10-08): implementation-time decisions
+
+Labeled as implementation-time decisions, not among Eric's human-made decisions above.
+
+1. **Two legacy domain codes stay at top level.** tmi-ux branches on top-level `error` for `feature_not_available` (404, `content-token.service.ts:34`) and `content_token_provider_not_configured` (422, `content-token.service.ts:151`). Moving them to `details.code` alone would break those paths, contradicting decision 2 (non-breaking). They stay as top-level `error` values, are added to the `Error.error` enum as documented exceptions (23 members: 21 Tier 1 plus these two), and are also set in `details.code` so clients can migrate. The 422 body keeps its top-level `provider_id`. They move to `details.code` only in a future breaking change; a paired tmi-ux issue is filed after merge.
+2. **Unicode validation middleware.** The ADR stated that `unicode_validation_middleware.go` already chose `invalid_request` on `/oauth2/token` and `invalid_input` elsewhere. It emitted `invalid_request` on every route. Implementation adds the route-class switch: REST routes return `invalid_input`, protocol routes (`/oauth2/{authorize,token,refresh,revoke,introspect,userinfo,callback,step_up}`, `/saml/*`, `/.well-known/*`) keep `invalid_request`.
+3. **Sentence-as-code bodies** were more numerous than counted (webhook handlers, `auth/` protocol handlers, `http.StatusText` in `api/middleware.go`); all now carry a vocabulary code with the sentence in `error_description`. Protocol routes use `invalid_request` (400), `not_found` (404), `server_error` (500) and `temporarily_unavailable` (503).

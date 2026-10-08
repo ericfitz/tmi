@@ -77,34 +77,12 @@ func isStringMapType(e ast.Expr) bool {
 	return false
 }
 
-// allowMarker exempts the literal on the same or the next line from the check.
-// It exists for documented legacy codes that a deployed client still branches on.
-const allowMarker = "errcode:allow"
-
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: collect line numbers carrying an errcode:allow marker comment (pure)
-func allowedLines(fset *token.FileSet, file *ast.File) map[int]bool {
-	lines := map[int]bool{}
-	for _, cg := range file.Comments {
-		for _, c := range cg.List {
-			if strings.Contains(c.Text, allowMarker) {
-				lines[fset.Position(c.Pos()).Line] = true
-			}
-		}
-	}
-	return lines
-}
-
 // SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: collect string-literal error codes in one parsed file (pure)
 func checkFile(fset *token.FileSet, file *ast.File) []finding {
 	var out []finding
-	allowed := allowedLines(fset, file)
 	add := func(e ast.Expr, kind string) {
 		if lit := firstStringLit(e); lit != nil {
-			pos := fset.Position(lit.Pos())
-			if allowed[pos.Line] || allowed[pos.Line-1] {
-				return
-			}
-			out = append(out, finding{pos: pos, lit: lit.Value, kind: kind})
+			out = append(out, finding{pos: fset.Position(lit.Pos()), lit: lit.Value, kind: kind})
 		}
 	}
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -163,7 +141,7 @@ func run(root string) ([]finding, error) {
 		if skipFile(rel) {
 			return nil
 		}
-		f, perr := parser.ParseFile(fset, path, nil, parser.ParseComments)
+		f, perr := parser.ParseFile(fset, path, nil, 0)
 		if perr != nil {
 			return perr
 		}

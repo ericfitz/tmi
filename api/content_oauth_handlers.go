@@ -115,10 +115,13 @@ func (h *ContentOAuthHandlers) Authorize(c *gin.Context) {
 	providerID := c.Param("provider_id")
 	provider, ok := h.Registry.Get(providerID)
 	if !ok {
+		// Legacy top-level code: tmi-ux branches on it (content-token.service.ts), so it
+		// stays in the Error enum and is repeated in details.code for future migration.
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			// errcode:allow tmi-ux branches on this top-level code (content-token.service.ts); outside the Error enum until the client migrates (#1048)
-			"error":       "content_token_provider_not_configured",
-			"provider_id": providerID,
+			"error":             string(errcode.DetailContentTokenProviderNotConfigured),
+			"error_description": "content provider is not configured: " + providerID,
+			"details":           gin.H{"code": string(errcode.DetailContentTokenProviderNotConfigured)},
+			"provider_id":       providerID,
 		})
 		return
 	}

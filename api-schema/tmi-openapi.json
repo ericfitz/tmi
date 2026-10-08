@@ -1460,7 +1460,7 @@
         "properties": {
           "error": {
             "type": "string",
-            "description": "Machine-readable REST error code. One of: invalid_input (400, a body, field, header or query value fails validation); invalid_id (400, a path or query identifier is malformed); invalid_patch (400, a JSON Patch document is malformed or cannot be applied); unauthorized (401, missing, expired or invalid credentials); insufficient_user_authentication (401, step-up authentication required, RFC 9470); forbidden (403, authenticated but not permitted); not_found (404, resource does not exist or is hidden by authorization); method_not_allowed (405); not_acceptable (406); conflict (409, duplicate, in use, or wrong lifecycle state); gone (410, permanently removed); version_mismatch (412, If-Match does not match the current version); payload_too_large (413); unsupported_media_type (415); unprocessable_entity (422, well-formed request that cannot be processed in the current state); if_match_required (428, If-Match header missing); rate_limit_exceeded (429, transient limit, honor Retry-After); quota_exceeded (403 or 429, hard cap reached, retrying does not help); server_error (500); not_implemented (501); service_unavailable (503, a dependency is unavailable, retry later). A domain-specific reason a client can act on is in details.code.",
+            "description": "Machine-readable REST error code. One of: invalid_input (400, a body, field, header or query value fails validation); invalid_id (400, a path or query identifier is malformed); invalid_patch (400, a JSON Patch document is malformed or cannot be applied); unauthorized (401, missing, expired or invalid credentials); insufficient_user_authentication (401, step-up authentication required, RFC 9470); forbidden (403, authenticated but not permitted); not_found (404, resource does not exist or is hidden by authorization); method_not_allowed (405); not_acceptable (406); conflict (409, duplicate, in use, or wrong lifecycle state); gone (410, permanently removed); version_mismatch (412, If-Match does not match the current version); payload_too_large (413); unsupported_media_type (415); unprocessable_entity (422, well-formed request that cannot be processed in the current state); if_match_required (428, If-Match header missing); rate_limit_exceeded (429, transient limit, honor Retry-After); quota_exceeded (403 or 429, hard cap reached, retrying does not help); server_error (500); not_implemented (501); service_unavailable (503, a dependency is unavailable, retry later); feature_not_available (404) and content_token_provider_not_configured (422) are legacy domain codes kept at top level because clients branch on them; they are also present in details.code and will move to details.code only in a future breaking change. A domain-specific reason a client can act on is in details.code.",
             "pattern": "^[^\\x00-\\x1F]*$",
             "maxLength": 1000,
             "enum": [
@@ -1484,7 +1484,9 @@
               "quota_exceeded",
               "server_error",
               "not_implemented",
-              "service_unavailable"
+              "service_unavailable",
+              "feature_not_available",
+              "content_token_provider_not_configured"
             ]
           },
           "error_description": {

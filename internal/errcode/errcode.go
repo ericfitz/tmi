@@ -150,8 +150,11 @@ var rfcCodes = []Code{
 	ProviderResponseInvalid, InvalidProvider,
 }
 
+// restCodes lists the REST enum: the 21 Tier 1 codes plus two legacy domain codes
+// (DetailFeatureNotAvailable, DetailContentTokenProviderNotConfigured) kept at top
+// level because deployed clients branch on them; they are also set in details.code.
 var restCodes = []Code{
-	InvalidInput, InvalidID, InvalidPatch, Unauthorized, InsufficientUserAuthentication, Forbidden, NotFound, MethodNotAllowed, NotAcceptable, Conflict, Gone, VersionMismatch, PayloadTooLarge, UnsupportedMediaType, UnprocessableEntity, IfMatchRequired, RateLimitExceeded, QuotaExceeded, ServerError, NotImplemented, ServiceUnavailable,
+	InvalidInput, InvalidID, InvalidPatch, Unauthorized, InsufficientUserAuthentication, Forbidden, NotFound, MethodNotAllowed, NotAcceptable, Conflict, Gone, VersionMismatch, PayloadTooLarge, UnsupportedMediaType, UnprocessableEntity, IfMatchRequired, RateLimitExceeded, QuotaExceeded, ServerError, NotImplemented, ServiceUnavailable, DetailFeatureNotAvailable, DetailContentTokenProviderNotConfigured,
 }
 
 var detailCodes = []Code{
@@ -171,7 +174,6 @@ var detailCodes = []Code{
 	DetailProtectedGroup,
 	DetailProviderMismatch,
 	DetailSessionNotFound,
-	DetailFeatureNotAvailable,
 	DetailDuplicateGroup,
 	DetailDuplicateMembership,
 	DetailSelfDeletion,
@@ -182,7 +184,6 @@ var detailCodes = []Code{
 	DetailSessionNotActive,
 	DetailProviderNotRegistered,
 	DetailProviderNotConfigured,
-	DetailContentTokenProviderNotConfigured,
 	DetailDimensionMismatch,
 	DetailInconsistentDimensions,
 	DetailNoSource,

@@ -68,7 +68,11 @@ REST_DESC = (
     "rate_limit_exceeded (429, transient limit, honor Retry-After); "
     "quota_exceeded (403 or 429, hard cap reached, retrying does not help); "
     "server_error (500); not_implemented (501); "
-    "service_unavailable (503, a dependency is unavailable, retry later). "
+    "service_unavailable (503, a dependency is unavailable, retry later); "
+    "feature_not_available (404) and content_token_provider_not_configured (422) are "
+    "legacy domain codes kept at top level because clients branch on them; they are "
+    "also present in details.code and will move to details.code only in a future "
+    "breaking change. "
     "A domain-specific reason a client can act on is in details.code."
 )
 PROTOCOL_DESC = (

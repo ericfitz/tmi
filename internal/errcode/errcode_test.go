@@ -19,7 +19,7 @@ func TestSetsAreDisjointAndSnakeCase(t *testing.T) {
 			seen[c] = name
 		}
 	}
-	if len(REST()) != 21 {
+	if len(REST()) != 23 {
 		t.Errorf("REST has %d codes, want 21", len(REST()))
 	}
 	if !IsProtocol(ServerError) || !IsREST(ServerError) {
@@ -38,5 +38,25 @@ func TestForStatusAlwaysReturnsRESTCode(t *testing.T) {
 	}
 	if ForStatus(404) != NotFound || ForStatus(418) != InvalidInput || ForStatus(502) != ServerError {
 		t.Error("unexpected ForStatus mapping")
+	}
+}
+
+// TestRESTLegacyExceptionsAreExactlyTwo pins the only non-Tier-1 members of the
+// REST enum: domain codes kept at top level because tmi-ux branches on them.
+func TestRESTLegacyExceptionsAreExactlyTwo(t *testing.T) {
+	legacy := map[Code]bool{DetailFeatureNotAvailable: true, DetailContentTokenProviderNotConfigured: true}
+	tier1 := 0
+	for _, c := range REST() {
+		if !legacy[c] {
+			tier1++
+		}
+	}
+	if tier1 != 21 {
+		t.Errorf("REST has %d non-legacy codes, want 21", tier1)
+	}
+	for c := range legacy {
+		if !IsREST(c) {
+			t.Errorf("%q must be in the REST enum", c)
+		}
 	}
 }
