@@ -95,11 +95,13 @@ func compareRangeBounds(kind rangeValueKind, lowRaw, upRaw string) (int, bool) {
 		}
 		return low.Compare(up), true
 	case rangeKindNumber:
-		low, err1 := strconv.ParseFloat(lowRaw, 64)
-		up, err2 := strconv.ParseFloat(upRaw, 64)
-		if err1 != nil || err2 != nil || math.IsNaN(low) || math.IsNaN(up) || math.IsInf(low, 0) || math.IsInf(up, 0) {
+		// Scores bind as float32 in the generated API, so compare at that precision.
+		lowF, err1 := strconv.ParseFloat(lowRaw, 32)
+		upF, err2 := strconv.ParseFloat(upRaw, 32)
+		if err1 != nil || err2 != nil || math.IsNaN(lowF) || math.IsNaN(upF) || math.IsInf(lowF, 0) || math.IsInf(upF, 0) {
 			return 0, false
 		}
+		low, up := float32(lowF), float32(upF)
 		switch {
 		case low < up:
 			return -1, true

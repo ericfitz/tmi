@@ -102,6 +102,16 @@ func TestRangeFilterValidationMiddleware_Instants(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, doRange(r, http.MethodGet, "/admin/users", q).Code)
 }
 
+// Scores bind as float32, so values that differ only below float32 precision
+// are equal and (with an exclusive bound) an empty range.
+func TestRangeFilterValidationMiddleware_ScoreFloat32(t *testing.T) {
+	r := newRangeFilterRouter()
+	q := url.Values{"score_gt": {"5.00000001"}, "score_lt": {"5.00000002"}}
+	assert.Equal(t, http.StatusBadRequest, doRange(r, http.MethodGet, "/threat_models/x/threats", q).Code)
+	q = url.Values{"score_ge": {"5.00000001"}, "score_le": {"5.00000002"}}
+	assert.Equal(t, http.StatusOK, doRange(r, http.MethodGet, "/threat_models/x/threats", q).Code, "inclusive equal at float32 precision")
+}
+
 func TestRangeFilterValidationMiddleware_IgnoresUnrelated(t *testing.T) {
 	r := newRangeFilterRouter()
 	inverted := url.Values{"created_after": {"2026-02-01T00:00:00Z"}, "created_before": {"2026-01-01T00:00:00Z"}}

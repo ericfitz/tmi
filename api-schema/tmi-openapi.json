@@ -13187,7 +13187,7 @@
           "type": "string",
           "format": "date-time"
         },
-        "description": "Filter results created after this timestamp (ISO 8601) If `created_before` is also supplied and the resulting range is empty (this value is later than `created_before`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
+        "description": "Filter results created after this timestamp (ISO 8601). If `created_before` is also supplied and the resulting range is empty (this value is later than `created_before`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
       },
       "CreatedBefore": {
         "name": "created_before",
@@ -13197,7 +13197,7 @@
           "type": "string",
           "format": "date-time"
         },
-        "description": "Filter results created before this timestamp (ISO 8601) If `created_after` is also supplied and the resulting range is empty (this value is later than `created_after`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
+        "description": "Filter results created before this timestamp (ISO 8601). If `created_after` is also supplied and the resulting range is empty (this value is later than `created_after`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
       },
       "ModifiedAfter": {
         "name": "modified_after",
@@ -13207,7 +13207,7 @@
           "type": "string",
           "format": "date-time"
         },
-        "description": "Filter results modified after this timestamp (ISO 8601) If `modified_before` is also supplied and the resulting range is empty (this value is later than `modified_before`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
+        "description": "Filter results modified after this timestamp (ISO 8601). If `modified_before` is also supplied and the resulting range is empty (this value is later than `modified_before`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
       },
       "ModifiedBefore": {
         "name": "modified_before",
@@ -13217,7 +13217,7 @@
           "type": "string",
           "format": "date-time"
         },
-        "description": "Filter results modified before this timestamp (ISO 8601) If `modified_after` is also supplied and the resulting range is empty (this value is later than `modified_after`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
+        "description": "Filter results modified before this timestamp (ISO 8601). If `modified_after` is also supplied and the resulting range is empty (this value is later than `modified_after`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
       },
       "IdpPathParam": {
         "name": "idp",
@@ -13400,7 +13400,7 @@
           "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$",
           "maxLength": 64
         },
-        "description": "Filter threat models where status was updated after this timestamp (RFC3339) If `status_updated_before` is also supplied and the resulting range is empty (this value is later than `status_updated_before`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
+        "description": "Filter threat models where status was updated after this timestamp (RFC3339). If `status_updated_before` is also supplied and the resulting range is empty (this value is later than `status_updated_before`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
       },
       "StatusUpdatedBeforeQueryParam": {
         "name": "status_updated_before",
@@ -13411,7 +13411,7 @@
           "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$",
           "maxLength": 64
         },
-        "description": "Filter threat models where status was updated before this timestamp (RFC3339) If `status_updated_after` is also supplied and the resulting range is empty (this value is later than `status_updated_after`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
+        "description": "Filter threat models where status was updated before this timestamp (RFC3339). If `status_updated_after` is also supplied and the resulting range is empty (this value is later than `status_updated_after`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
       },
       "SortQueryParam": {
         "name": "sort",
@@ -13519,7 +13519,7 @@
           "minimum": 0.0,
           "maximum": 10.0
         },
-        "description": "Filter threats with score greater than this value Must be less than `score_lt` and `score_le` when supplied (equal is also rejected when either bound is exclusive); an empty range is rejected with 400 `invalid_input`."
+        "description": "Filter threats with score greater than this value. Must be less than `score_lt` and `score_le` when supplied (equal is also rejected when either bound is exclusive); an empty range is rejected with 400 `invalid_input`."
       },
       "ScoreLtQueryParam": {
         "name": "score_lt",
@@ -13529,7 +13529,7 @@
           "minimum": 0.0,
           "maximum": 10.0
         },
-        "description": "Filter threats with score less than this value Must be greater than `score_gt` and `score_ge` when supplied; an empty range is rejected with 400 `invalid_input`."
+        "description": "Filter threats with score less than this value. Must be greater than `score_gt` and `score_ge` when supplied; an empty range is rejected with 400 `invalid_input`."
       },
       "ScoreEqQueryParam": {
         "name": "score_eq",
@@ -13549,7 +13549,7 @@
           "minimum": 0.0,
           "maximum": 10.0
         },
-        "description": "Filter threats with score greater than or equal to this value Must not be greater than `score_le` and must be less than `score_lt` when supplied; an empty range is rejected with 400 `invalid_input`."
+        "description": "Filter threats with score greater than or equal to this value. Must not be greater than `score_le` and must be less than `score_lt` when supplied; an empty range is rejected with 400 `invalid_input`."
       },
       "ScoreLeQueryParam": {
         "name": "score_le",
@@ -13559,7 +13559,7 @@
           "minimum": 0.0,
           "maximum": 10.0
         },
-        "description": "Filter threats with score less than or equal to this value Must be greater than `score_gt` and not less than `score_ge` when supplied; an empty range is rejected with 400 `invalid_input`."
+        "description": "Filter threats with score less than or equal to this value. Must be greater than `score_gt` and not less than `score_ge` when supplied; an empty range is rejected with 400 `invalid_input`."
       },
       "ThreatIdsQueryParam": {
         "name": "threat_ids",
@@ -13728,7 +13728,7 @@
           "type": "string",
           "format": "date-time"
         },
-        "description": "Filter users who logged in after this timestamp (RFC3339) If `last_login_before` is also supplied and the resulting range is empty (this value is later than `last_login_before`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
+        "description": "Filter users who logged in after this timestamp (RFC3339). If `last_login_before` is also supplied and the resulting range is empty (this value is later than `last_login_before`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
       },
       "LastLoginBeforeQueryParam": {
         "name": "last_login_before",
@@ -13737,7 +13737,7 @@
           "type": "string",
           "format": "date-time"
         },
-        "description": "Filter users who logged in before this timestamp (RFC3339) If `last_login_after` is also supplied and the resulting range is empty (this value is later than `last_login_after`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
+        "description": "Filter users who logged in before this timestamp (RFC3339). If `last_login_after` is also supplied and the resulting range is empty (this value is later than `last_login_after`, or equal to it when either bound is exclusive), the request is rejected with 400 `invalid_input`."
       },
       "SortByQueryParam": {
         "name": "sort_by",
@@ -18113,7 +18113,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "List threats in a threat model",
-        "description": "Returns a paginated list of threats within the specified threat model",
+        "description": "Returns a paginated list of threats within the specified threat model. The created_after/created_before and modified_after/modified_before bounds are exclusive, so equal bounds describe an empty range and are rejected with 400 invalid_input.",
         "operationId": "getThreatModelThreats",
         "security": [
           {
@@ -67844,7 +67844,7 @@
           "Feedback"
         ],
         "summary": "List usability feedback (admin)",
-        "description": "Admin-only listing with filters and pagination.",
+        "description": "Admin-only listing with filters and pagination. created_after is inclusive and created_before is exclusive, so equal bounds describe an empty range and are rejected with 400 invalid_input.",
         "operationId": "listUsabilityFeedback",
         "security": [
           {
