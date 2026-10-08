@@ -316,7 +316,7 @@ func (s *Server) UpdateProjectNote(c *gin.Context, projectId openapi_types.UUID,
 
 // PatchProjectNote partially updates a project note using JSON Patch.
 // PATCH /projects/{project_id}/notes/{project_note_id}
-// SEM@5180d2f924048649e7687f6b3733094086224488: apply a JSON Patch to a project note, blocking sharable-field changes for unprivileged users (mutates DB)
+// SEM@d276bf5e1126f3d0a1dcda0c73c3a265feffa704: apply a JSON Patch to a project note, sanitizing the patched fields and blocking sharable-field changes for unprivileged users (mutates DB)
 func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, projectNoteId ProjectNoteId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -368,7 +368,9 @@ func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, 
 		}
 	}
 
-	result, patchErr := GlobalProjectNoteStore.Patch(ctx, projectNoteId.String(), operations)
+	// The store sanitizes the patched result it persists, not the operations:
+	// copy/move can smuggle a value between fields (#1013).
+	result, patchErr := GlobalProjectNoteStore.Patch(ctx, projectNoteId.String(), operations, checkPatchedProjectNote)
 	if patchErr != nil {
 		logger.Error("Failed to patch project note: %v", patchErr)
 		HandleRequestError(c, StoreErrorToRequestError(patchErr, "Project note not found", "Failed to patch project note"))

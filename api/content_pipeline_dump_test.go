@@ -53,7 +53,7 @@ func (f *fakeNoteRepoForDump) HardDelete(_ context.Context, _ string) error { re
 func (f *fakeNoteRepoForDump) GetIncludingDeleted(_ context.Context, _ string) (*Note, error) {
 	return nil, nil
 }
-func (f *fakeNoteRepoForDump) Patch(_ context.Context, _ string, _ []PatchOperation) (*Note, error) {
+func (f *fakeNoteRepoForDump) Patch(_ context.Context, _ string, _ []PatchOperation, _ func(before, after *Note) error) (*Note, error) {
 	return nil, nil
 }
 func (f *fakeNoteRepoForDump) List(_ context.Context, _ string, _, _ int) ([]Note, error) {

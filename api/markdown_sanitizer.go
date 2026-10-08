@@ -1,11 +1,14 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"html"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
+	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/microcosm-cc/bluemonday"
 	xhtml "golang.org/x/net/html"
 )
@@ -99,20 +102,26 @@ func createMarkdownSanitizationPolicy() *bluemonday.Policy {
 // bluemonday does. Stripping a tag can splice neighbouring text into a new tag
 // (e.g. "<<script>script>"), so the pass repeats until stable; if it does not
 // settle, fall back to bluemonday's fully escaped output.
-// SEM@9924c9a931e361fced9cd376fbfd52220c9b0bc5: sanitize markdown by stripping disallowed HTML tags and attributes while keeping text verbatim (pure)
+//
+// Each pass also neutralizes markdown link, image and reference-definition
+// destinations whose scheme is not http, https or mailto (#1013); see
+// markdown_link_destinations.go.
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize markdown by stripping disallowed HTML and unsafe link destinations while keeping text verbatim (pure)
 func SanitizeMarkdownContent(content string) string {
 	if content == "" {
 		return content
 	}
 	cur := content
 	for i := 0; i < 10; i++ {
-		next := stripMarkdownHTML(cur)
+		next := neutralizeMarkdownLinkDestinations(stripMarkdownHTML(cur))
 		if next == cur {
 			return cur
 		}
 		cur = next
 	}
-	return markdownPolicy.Sanitize(cur)
+	// The fallback re-serializes the text, which can reassemble a destination
+	// that the pass above had just neutralized; neutralize once more.
+	return neutralizeMarkdownLinkDestinations(markdownPolicy.Sanitize(cur))
 }
 
 // markdownSkipContent lists elements whose entire content is dropped with the tag.
@@ -176,9 +185,37 @@ func stripMarkdownHTML(content string) string {
 // This lives here rather than in each handler so the create, update and patch
 // paths across all four note resources cannot drift on it — the update paths
 // had no such check at all and silently persisted the empty value.
-// SEM@388282971a06c7f935aa98db0aff68602f0eda66: sanitize a required markdown field, returning a 400 error when sanitization empties it (pure)
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize a required markdown field, returning a 400 when it empties, nests too deeply, keeps an unsafe link or is too complex to check
 func SanitizeRequiredMarkdownContent(field, content string) (string, *RequestError) {
 	sanitized := SanitizeMarkdownContent(content)
+	// Authoritative gate (#1013): the destination scanner is best effort, so
+	// reject whatever a real CommonMark parse still sees as an unsafe link.
+	if markdownNestsTooDeeply(sanitized) {
+		return "", InvalidInputError(fmt.Sprintf(
+			"%s nests block quotes or lists too deeply",
+			field,
+		))
+	}
+	if markdownMayHaveUnsafeLink(sanitized) {
+		switch markdownGateCheck(sanitized) {
+		case markdownGateSafe:
+		case markdownGateUnsafe:
+			return "", InvalidInputError(fmt.Sprintf(
+				"%s contains a link or image with a disallowed URL scheme",
+				field,
+			))
+		default:
+			if m := tmiotel.GlobalMetrics; m != nil {
+				m.MarkdownGateTooComplex.Add(context.Background(), 1)
+			}
+			reqErr := InvalidInputError(fmt.Sprintf(
+				"%s is too complex to validate",
+				field,
+			))
+			reqErr.markdownTooComplexBytes = len(sanitized)
+			return "", reqErr
+		}
+	}
 	if strings.TrimSpace(sanitized) == "" && strings.TrimSpace(content) != "" {
 		return "", InvalidInputError(fmt.Sprintf(
 			"%s is empty after sanitization; it consisted entirely of markup that is not permitted",
@@ -302,4 +339,118 @@ func SanitizePatchOperations(operations []PatchOperation, paths []string) {
 			}
 		}
 	}
+}
+
+// noteText points at the text fields of a threat-model, team or project note.
+type noteText struct {
+	content     *string
+	name        *string
+	description **string
+}
+
+// sanitizePatchedNoteText enforces note sanitization on the entity a JSON
+// Patch produced, rather than on individual operations: RFC 6902 copy and move
+// can carry a value between fields (e.g. copy /name to /content), so only the
+// result can be checked. Note stores call it (through the check functions
+// below) on the very entity they are about to persist, so a concurrent write
+// between the handler's read and the store's cannot slip a value past it.
+// Each field the patch changed is sanitized in place as the create/update path
+// does: content as required markdown (a 400 if it empties, keeps an unsafe
+// link or is too complex to check), name and description as plain text when
+// includePlainText is set (an emptied description becomes nil). A changed
+// name is held to the schema's rules on every note type. Unchanged fields are not re-checked, so a legacy
+// value cannot block an unrelated edit.
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize the note text fields a JSON Patch changed, in place on the patched entity, rejecting emptied required fields (pure)
+func sanitizePatchedNoteText(before, after noteText, includePlainText bool) *RequestError {
+	if *after.content != *before.content {
+		sanitized, reqErr := SanitizeRequiredMarkdownContent("content", *after.content)
+		if reqErr != nil {
+			return reqErr
+		}
+		*after.content = sanitized
+	}
+	if *after.name != *before.name {
+		if includePlainText {
+			*after.name = SanitizePlainText(*after.name)
+		}
+		if reqErr := validatePatchedNoteName(*after.name); reqErr != nil {
+			return reqErr
+		}
+	}
+	if !includePlainText {
+		return nil
+	}
+	if desc := *after.description; desc != nil && (*before.description == nil || **before.description != *desc) {
+		sanitized := SanitizePlainText(*desc)
+		if sanitized == "" {
+			// Oracle stores '' as NULL; store nil on every database.
+			*after.description = nil
+		} else {
+			*after.description = &sanitized
+		}
+	}
+	return nil
+}
+
+// noteNamePattern is the schema pattern for note names (NoteBase,
+// TeamProjectNoteBase); maxNoteNameLength is their maxLength.
+var noteNamePattern = regexp.MustCompile(`^[^<>"'&]*$`)
+
+// validatePatchedNoteName holds a name produced by a JSON Patch to the rules
+// request validation applies to a name sent directly: copy and move can carry
+// any field's value (e.g. content) into it. An empty name would also be NULL on
+// Oracle (NOT NULL column, a store error) but saved on PostgreSQL, and an
+// over-long one would fail the VARCHAR2(256) column.
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: validate a patched note name against the schema's non-empty, length and character rules (pure)
+func validatePatchedNoteName(name string) *RequestError {
+	switch {
+	case strings.TrimSpace(name) == "":
+		return InvalidInputError("name is empty after sanitization")
+	case utf8.RuneCountInString(name) > maxNoteNameLength:
+		return InvalidInputError(fmt.Sprintf("name must be at most %d characters", maxNoteNameLength))
+	case !noteNamePattern.MatchString(name):
+		return InvalidInputError(`name must not contain <, >, ", ' or &`)
+	}
+	return nil
+}
+
+// checkPatchedNote is the threat-model note store's patch check. It sanitizes
+// content only, as the threat-model note create and update paths do, and
+// validates a changed name.
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize the content a JSON Patch changed on a threat-model note (pure)
+func checkPatchedNote(before, after *Note) error {
+	if reqErr := sanitizePatchedNoteText(
+		noteText{&before.Content, &before.Name, &before.Description},
+		noteText{&after.Content, &after.Name, &after.Description},
+		false,
+	); reqErr != nil {
+		return reqErr
+	}
+	return nil
+}
+
+// checkPatchedTeamNote is the team note store's patch check.
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize the content, name and description a JSON Patch changed on a team note (pure)
+func checkPatchedTeamNote(before, after *TeamNote) error {
+	if reqErr := sanitizePatchedNoteText(
+		noteText{&before.Content, &before.Name, &before.Description},
+		noteText{&after.Content, &after.Name, &after.Description},
+		true,
+	); reqErr != nil {
+		return reqErr
+	}
+	return nil
+}
+
+// checkPatchedProjectNote is the project note store's patch check.
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize the content, name and description a JSON Patch changed on a project note (pure)
+func checkPatchedProjectNote(before, after *ProjectNote) error {
+	if reqErr := sanitizePatchedNoteText(
+		noteText{&before.Content, &before.Name, &before.Description},
+		noteText{&after.Content, &after.Name, &after.Description},
+		true,
+	); reqErr != nil {
+		return reqErr
+	}
+	return nil
 }

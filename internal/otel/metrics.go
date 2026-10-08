@@ -28,6 +28,7 @@ type TMIMetrics struct {
 	TimmyEmbedDuration          metric.Float64Histogram
 	TimmySSEDuration            metric.Float64Histogram
 	TimmySSEEvents              metric.Int64Counter
+	MarkdownGateTooComplex      metric.Int64Counter
 }
 
 // GlobalMetrics holds the TMI metrics instance for package-level access.
@@ -104,6 +105,10 @@ func NewTMIMetrics() (*TMIMetrics, error) {
 		return nil, err
 	}
 
+	if m.MarkdownGateTooComplex, err = meter.Int64Counter("tmi.markdown.gate_too_complex",
+		metric.WithDescription("Markdown note writes rejected because the link gate's parse exceeded its time budget")); err != nil {
+		return nil, err
+	}
 	return m, nil
 }
 

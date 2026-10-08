@@ -31454,7 +31454,7 @@
       },
       "patch": {
         "summary": "Partially update note",
-        "description": "Apply JSON Patch operations to partially update a note",
+        "description": "Apply JSON Patch (RFC 6902) operations to partially update a note. All six operations are supported. Operations may change only name, content, description, include_in_report and timmy_enabled; an operation that would change any other field returns 400. The patched content is sanitized like content sent by create and update.",
         "operationId": "patchThreatModelNote",
         "tags": [
           "Notes"

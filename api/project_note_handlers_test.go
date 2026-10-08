@@ -20,7 +20,11 @@ import (
 // =============================================================================
 
 type mockProjectNoteStore struct {
-	notes     map[string]*ProjectNote
+	patchedOps []PatchOperation // operations received by Patch
+	notes      map[string]*ProjectNote
+	// current, when set for an id, is the row Patch reads instead of notes:
+	// it simulates a concurrent write landing after the handler's Get.
+	current   map[string]*ProjectNote
 	listItems []ProjectNoteListItem
 	listTotal int
 
@@ -97,7 +101,8 @@ func (m *mockProjectNoteStore) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (m *mockProjectNoteStore) Patch(_ context.Context, id string, _ []PatchOperation) (*ProjectNote, error) {
+func (m *mockProjectNoteStore) Patch(_ context.Context, id string, ops []PatchOperation, check func(before, after *ProjectNote) error) (*ProjectNote, error) {
+	m.patchedOps = ops
 	if m.patchErr != nil {
 		return nil, m.patchErr
 	}
@@ -105,12 +110,25 @@ func (m *mockProjectNoteStore) Patch(_ context.Context, id string, _ []PatchOper
 		return nil, m.err
 	}
 	note, ok := m.notes[id]
+	if row, raced := m.current[id]; raced {
+		note, ok = row, true
+	}
 	if !ok {
 		return nil, &RequestError{Status: 404, Code: "not_found", Message: "not found"}
 	}
+	patched, err := ApplyPatchOperations(*note, ops)
+	if err != nil {
+		return nil, err
+	}
+	if check != nil {
+		if err := check(note, &patched); err != nil {
+			return nil, err
+		}
+	}
 	now := time.Now().UTC()
-	note.ModifiedAt = &now
-	return note, nil
+	patched.ModifiedAt = &now
+	m.notes[id] = &patched
+	return &patched, nil
 }
 
 func (m *mockProjectNoteStore) List(_ context.Context, _ string, _, _ int, _ bool) ([]ProjectNoteListItem, int, error) {

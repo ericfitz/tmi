@@ -379,6 +379,10 @@ type RequestError struct {
 	Code    string
 	Message string
 	Details *ErrorDetails
+	// markdownTooComplexBytes, when non-zero, marks a markdown link gate
+	// rejection (#1013) so HandleRequestError can log who sent it; it is the
+	// rejected content's size, never the content.
+	markdownTooComplexBytes int
 }
 
 // ErrorDetails provides structured context for errors
@@ -408,6 +412,13 @@ func HandleRequestError(c *gin.Context, err error) {
 		response := Error{
 			Error:            reqErr.Code,
 			ErrorDescription: sanitizedMessage,
+		}
+
+		if reqErr.markdownTooComplexBytes > 0 {
+			// Identifiers only (the logger adds user and request id): a burst
+			// of these is what a gate cost attack looks like.
+			slogging.Get().WithContext(c).Warn("markdown link gate rejected content as too complex to validate: method=%s route=%s bytes=%d",
+				c.Request.Method, c.FullPath(), reqErr.markdownTooComplexBytes)
 		}
 
 		// Add details if provided

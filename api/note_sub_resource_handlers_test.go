@@ -59,8 +59,12 @@ func (m *MockNoteStore) Count(ctx context.Context, threatModelID string) (int, e
 	return args.Int(0), args.Error(1)
 }
 
-func (m *MockNoteStore) Patch(ctx context.Context, id string, operations []PatchOperation) (*Note, error) {
-	args := m.Called(ctx, id, operations)
+func (m *MockNoteStore) Patch(ctx context.Context, id string, operations []PatchOperation, check func(before, after *Note) error) (*Note, error) {
+	args := m.Called(ctx, id, operations, check)
+	// Function return values let a test compute the result from the call.
+	if rf, ok := args.Get(0).(func(context.Context, string, []PatchOperation, func(before, after *Note) error) (*Note, error)); ok {
+		return rf(ctx, id, operations, check)
+	}
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -614,7 +618,7 @@ func TestPatchNote(t *testing.T) {
 		updatedNote.Id = &uuid1
 
 		mockStore.On("Get", mock.Anything, noteID).Return((*Note)(nil), nil)
-		mockStore.On("Patch", mock.Anything, noteID, mock.AnythingOfType("[]api.PatchOperation")).Return(updatedNote, nil)
+		mockStore.On("Patch", mock.Anything, noteID, mock.AnythingOfType("[]api.PatchOperation"), mock.Anything).Return(updatedNote, nil)
 
 		body, _ := json.Marshal(patchOps)
 		req := httptest.NewRequest("PATCH", "/threat_models/"+threatModelID+"/notes/"+noteID, bytes.NewBuffer(body))

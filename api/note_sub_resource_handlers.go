@@ -368,7 +368,7 @@ func (h *NoteSubResourceHandler) DeleteNote(c *gin.Context) {
 
 // PatchNote applies JSON patch operations to a note
 // PATCH /threat_models/{threat_model_id}/notes/{note_id}
-// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply authorized JSON patch operations to a note, sanitizing content paths, and emit audit record (mutates shared state)
+// SEM@d276bf5e1126f3d0a1dcda0c73c3a265feffa704: apply authorized JSON patch operations to a note, sanitizing the patched content, and emit audit record (mutates shared state)
 func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchNote - applying patch operations to note")
@@ -422,24 +422,6 @@ func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 		return
 	}
 
-	// Sanitize content values in patch operations before they reach the store.
-	// A patch that replaces content with markup the policy strips would leave
-	// the note's required content empty, which the store rejects — surfacing as
-	// a 500 rather than the 400 the input deserves (#605), exactly as on the
-	// create and update paths.
-	for i, op := range operations {
-		if op.Path == patchPathContent && (op.Op == string(Replace) || op.Op == string(Add)) {
-			if content, ok := op.Value.(string); ok {
-				sanitized, contentErr := SanitizeRequiredMarkdownContent("content", content)
-				if contentErr != nil {
-					HandleRequestError(c, contentErr)
-					return
-				}
-				operations[i].Value = sanitized
-			}
-		}
-	}
-
 	logger.Debug("Applying %d patch operations to note %s (user: %s)",
 		len(operations), noteID, user.Email)
 
@@ -450,8 +432,11 @@ func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 		preState, _ = SerializeForAudit(existingNote)
 	}
 
-	// Apply patch operations
-	updatedNote, err := h.noteStore.Patch(c.Request.Context(), noteID, operations)
+	// Apply patch operations. The store sanitizes the patched result it
+	// persists, not the operations: copy/move can smuggle a value between
+	// fields, and content that sanitizes to nothing must be a 400, not a store
+	// failure (#605, #1013).
+	updatedNote, err := h.noteStore.Patch(c.Request.Context(), noteID, operations, checkPatchedNote)
 	if err != nil {
 		// Classify rather than assuming a server fault: the store returns a
 		// 400 patch_failed for an inapplicable JSON Patch and a not-found for

@@ -16,7 +16,10 @@ type NoteRepository interface {
 	Restore(ctx context.Context, id string) error
 	HardDelete(ctx context.Context, id string) error
 	GetIncludingDeleted(ctx context.Context, id string) (*Note, error)
-	Patch(ctx context.Context, id string, operations []PatchOperation) (*Note, error)
+	// Patch applies operations to the stored note, then calls check (when
+	// non-nil) with the stored and patched notes before persisting; check may
+	// rewrite the patched note, and an error from it aborts the patch.
+	Patch(ctx context.Context, id string, operations []PatchOperation, check func(before, after *Note) error) (*Note, error)
 
 	// List operations with pagination
 	List(ctx context.Context, threatModelID string, offset, limit int) ([]Note, error)
