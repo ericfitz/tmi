@@ -473,9 +473,17 @@
           }
         }
       },
-      "BaseDiagram": {
+      "DfdDiagram": {
         "type": "object",
-        "description": "Base diagram object with common properties - used for API responses",
+        "description": "Data Flow Diagram with cells, edges, and visual styling for JointJS rendering",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "created_at",
+          "modified_at",
+          "cells"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -494,7 +502,7 @@
           },
           "type": {
             "type": "string",
-            "description": "Type of diagram with version",
+            "description": "DFD diagram type with version",
             "enum": [
               "DFD-1.0.0"
             ],
@@ -546,7 +554,7 @@
               "update_vector": {
                 "type": "integer",
                 "format": "int64",
-                "description": "Version of the diagram when this SVG was generated. If not provided when svg is updated, will be auto-set to BaseDiagram.update_vector",
+                "description": "Version of the diagram when this SVG was generated. If not provided when svg is updated, will be auto-set to the diagram update_vector",
                 "minimum": 0
               }
             },
@@ -599,35 +607,78 @@
             "minimum": 1,
             "readOnly": true,
             "description": "Server-assigned monotonically-increasing integer alias, unique within the parent threat model. Immutable after creation."
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "type",
-          "created_at",
-          "modified_at"
-        ],
-        "discriminator": {
-          "propertyName": "type",
-          "mapping": {
-            "DFD-1.0.0": "#/components/schemas/DfdDiagram"
+          },
+          "cells": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/Node"
+                },
+                {
+                  "$ref": "#/components/schemas/Edge"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "shape",
+                "mapping": {
+                  "actor": "#/components/schemas/Node",
+                  "process": "#/components/schemas/Node",
+                  "store": "#/components/schemas/Node",
+                  "security-boundary": "#/components/schemas/Node",
+                  "text-box": "#/components/schemas/Node",
+                  "flow": "#/components/schemas/Edge"
+                }
+              }
+            },
+            "description": "List of diagram cells (nodes and edges) following X6 structure",
+            "maxItems": 10000
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
           }
         },
         "example": {
-          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "id": "234e5678-e89b-41d4-a716-446655440002",
           "type": "DFD-1.0.0",
-          "name": "System Architecture",
-          "description": "High-level system architecture diagram",
+          "name": "Payment Data Flow",
+          "description": "Data flow through payment processing",
           "created_at": "2024-01-15T10:00:00Z",
           "modified_at": "2024-01-15T10:00:00Z",
+          "cells": [
+            {
+              "id": "c30eabcd-e89b-41d4-a716-446655440022",
+              "shape": "process",
+              "x": 150,
+              "y": 250,
+              "width": 140,
+              "height": 70
+            }
+          ],
           "include_in_report": true,
-          "timmy_enabled": true
+          "timmy_enabled": true,
+          "alias": 20,
+          "image": null,
+          "metadata": null,
+          "update_vector": 0,
+          "auto_generated": false,
+          "color_palette": [],
+          "deleted_at": "2026-01-01T00:00:00Z",
+          "version": 1
         }
       },
-      "BaseDiagramInput": {
+      "DfdDiagramInput": {
         "type": "object",
-        "description": "Base diagram input for PUT/PATCH requests - excludes readOnly server-managed fields",
+        "description": "Input schema for creating or updating a Data Flow Diagram",
+        "required": [
+          "name",
+          "type",
+          "cells"
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -638,7 +689,7 @@
           },
           "type": {
             "type": "string",
-            "description": "Type of diagram with version",
+            "description": "DFD diagram type with version",
             "enum": [
               "DFD-1.0.0"
             ],
@@ -668,7 +719,7 @@
               "update_vector": {
                 "type": "integer",
                 "format": "int64",
-                "description": "Version of the diagram when this SVG was generated. If not provided when svg is updated, will be auto-set to BaseDiagram.update_vector",
+                "description": "Version of the diagram when this SVG was generated. If not provided when svg is updated, will be auto-set to the diagram update_vector",
                 "minimum": 0
               }
             },
@@ -700,172 +751,34 @@
             "description": "Custom color palette for diagram elements, ordered by position",
             "nullable": true,
             "maxItems": 8
-          }
-        },
-        "required": [
-          "name",
-          "type"
-        ],
-        "discriminator": {
-          "propertyName": "type",
-          "mapping": {
-            "DFD-1.0.0": "#/components/schemas/DfdDiagramInput"
-          }
-        },
-        "example": {
-          "type": "DFD-1.0.0",
-          "name": "New Architecture Diagram",
-          "description": "Draft architecture for microservices migration",
-          "include_in_report": true,
-          "timmy_enabled": true
-        }
-      },
-      "DfdDiagram": {
-        "x-discriminator-value": "DFD-1.0.0",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/BaseDiagram"
           },
-          {
-            "type": "object",
-            "description": "Data Flow Diagram (DFD) with cells - API response schema",
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": [
-                  "DFD-1.0.0"
-                ],
-                "description": "DFD diagram type with version",
-                "maxLength": 1000
-              },
-              "cells": {
-                "type": "array",
-                "items": {
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/Node"
-                    },
-                    {
-                      "$ref": "#/components/schemas/Edge"
-                    }
-                  ],
-                  "discriminator": {
-                    "propertyName": "shape",
-                    "mapping": {
-                      "actor": "#/components/schemas/Node",
-                      "process": "#/components/schemas/Node",
-                      "store": "#/components/schemas/Node",
-                      "security-boundary": "#/components/schemas/Node",
-                      "text-box": "#/components/schemas/Node",
-                      "flow": "#/components/schemas/Edge"
-                    }
-                  }
+          "cells": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/Node"
                 },
-                "description": "List of diagram cells (nodes and edges) following X6 structure",
-                "maxItems": 10000
-              },
-              "version": {
-                "type": "integer",
-                "format": "int32",
-                "minimum": 1,
-                "readOnly": true,
-                "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
+                {
+                  "$ref": "#/components/schemas/Edge"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "shape",
+                "mapping": {
+                  "actor": "#/components/schemas/Node",
+                  "process": "#/components/schemas/Node",
+                  "store": "#/components/schemas/Node",
+                  "security-boundary": "#/components/schemas/Node",
+                  "text-box": "#/components/schemas/Node",
+                  "flow": "#/components/schemas/Edge"
+                }
               }
             },
-            "required": [
-              "cells"
-            ]
+            "description": "List of diagram cells (nodes and edges) following X6 structure",
+            "maxItems": 10000
           }
-        ],
-        "example": {
-          "id": "234e5678-e89b-41d4-a716-446655440002",
-          "type": "DFD-1.0.0",
-          "name": "Payment Data Flow",
-          "description": "Data flow through payment processing",
-          "created_at": "2024-01-15T10:00:00Z",
-          "modified_at": "2024-01-15T10:00:00Z",
-          "cells": [
-            {
-              "id": "c30eabcd-e89b-41d4-a716-446655440022",
-              "shape": "process",
-              "x": 150,
-              "y": 250,
-              "width": 140,
-              "height": 70
-            }
-          ],
-          "include_in_report": true,
-          "timmy_enabled": true,
-          "alias": 20,
-          "image": null,
-          "metadata": null,
-          "update_vector": 0,
-          "auto_generated": false,
-          "color_palette": [],
-          "deleted_at": "2026-01-01T00:00:00Z",
-          "version": 1
         },
-        "description": "Data Flow Diagram with cells, edges, and visual styling for JointJS rendering",
-        "properties": {
-          "version": {
-            "type": "integer",
-            "format": "int32",
-            "minimum": 1,
-            "readOnly": true,
-            "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
-          }
-        }
-      },
-      "DfdDiagramInput": {
-        "x-discriminator-value": "DFD-1.0.0",
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/BaseDiagramInput"
-          },
-          {
-            "type": "object",
-            "description": "Data Flow Diagram (DFD) input for PUT requests - excludes readOnly fields",
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": [
-                  "DFD-1.0.0"
-                ],
-                "description": "DFD diagram type with version",
-                "maxLength": 1000
-              },
-              "cells": {
-                "type": "array",
-                "items": {
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/Node"
-                    },
-                    {
-                      "$ref": "#/components/schemas/Edge"
-                    }
-                  ],
-                  "discriminator": {
-                    "propertyName": "shape",
-                    "mapping": {
-                      "actor": "#/components/schemas/Node",
-                      "process": "#/components/schemas/Node",
-                      "store": "#/components/schemas/Node",
-                      "security-boundary": "#/components/schemas/Node",
-                      "text-box": "#/components/schemas/Node",
-                      "flow": "#/components/schemas/Edge"
-                    }
-                  }
-                },
-                "description": "List of diagram cells (nodes and edges) following X6 structure",
-                "maxItems": 10000
-              }
-            },
-            "required": [
-              "cells"
-            ]
-          }
-        ],
         "example": {
           "type": "DFD-1.0.0",
           "name": "Authentication Flow",
@@ -882,8 +795,7 @@
           ],
           "include_in_report": true,
           "timmy_enabled": true
-        },
-        "description": "Input schema for creating or updating a Data Flow Diagram"
+        }
       },
       "CreateDiagramRequest": {
         "type": "object",
@@ -916,230 +828,133 @@
           "type": "DFD-1.0.0"
         }
       },
-      "Diagram": {
-        "deprecated": true,
-        "description": "DEPRECATED: Empty wrapper schema for polymorphic diagram types. Use DfdDiagram directly instead. This schema is kept for backward compatibility but generates empty classes in client libraries.",
-        "oneOf": [
-          {
-            "$ref": "#/components/schemas/DfdDiagram"
-          }
-        ],
-        "discriminator": {
-          "propertyName": "type",
-          "mapping": {
-            "DFD-1.0.0": "#/components/schemas/DfdDiagram"
-          }
-        },
-        "example": {
-          "id": "234e5678-e89b-41d4-a716-446655440001",
-          "type": "DFD-1.0.0",
-          "name": "Payment Flow Architecture",
-          "description": "Data flow diagram showing payment processing",
-          "created_at": "2024-01-15T10:35:00Z",
-          "modified_at": "2024-01-20T16:00:00Z",
-          "cells": []
-        },
-        "properties": {
-          "version": {
-            "type": "integer",
-            "format": "int32",
-            "minimum": 1,
-            "readOnly": true,
-            "description": "Server-managed monotonically-increasing optimistic-locking version. Returned on reads and bumped by every successful PUT/PATCH. Clients echo this back via the If-Match request header (preferred) or the body 'version' field on the next mutation. A mismatch returns 409 Conflict. See issue #385."
-          }
-        }
-      },
-      "Cell": {
+      "Node": {
         "type": "object",
-        "description": "Base schema for all diagram cells (nodes and edges). Contains common properties shared by Node and Edge types.",
-        "discriminator": {
-          "propertyName": "shape"
-        },
+        "description": "Diagram node representing a process, data store, external entity, or trust boundary\n\nSupports both X6 position/size object format and flat x/y/width/height format. Input accepts either format. Output always uses flat format (x, y, width, height).",
         "required": [
           "id",
           "shape"
         ],
         "properties": {
           "id": {
-            "type": "string",
-            "description": "Unique identifier of the cell (UUID)",
-            "format": "uuid",
-            "example": "37EAEDFA-BF37-4996-8665-242FEC34BBFF",
-            "maxLength": 36,
-            "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
+            "$ref": "#/components/schemas/CellId"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CellData"
           },
           "shape": {
             "type": "string",
-            "description": "Shape type identifier that determines cell structure and behavior",
-            "example": "process",
+            "enum": [
+              "actor",
+              "process",
+              "store",
+              "security-boundary",
+              "text-box"
+            ],
+            "description": "Node type determining its visual representation and behavior",
+            "maxLength": 64,
             "pattern": "^[a-z][a-z0-9-]*$",
-            "maxLength": 64
+            "example": "process"
           },
-          "data": {
+          "position": {
             "type": "object",
-            "description": "Flexible data storage compatible with X6, with reserved metadata namespace",
+            "description": "Node position in X6 nested format. Use either this with size object OR use flat x/y/width/height properties.",
             "properties": {
-              "_metadata": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/Metadata"
-                },
-                "description": "Reserved namespace for structured business metadata",
-                "maxItems": 100
-              },
-              "security_boundary": {
-                "type": "boolean",
-                "description": "Indicates whether this cell represents a security boundary in the threat model",
-                "default": false
-              },
-              "data_assets": {
-                "type": "array",
-                "description": "References to Asset IDs associated with this cell. Each UUID must reference an existing Asset in the same threat model.",
-                "items": {
-                  "type": "string",
-                  "format": "uuid",
-                  "description": "UUID reference to an Asset object",
-                  "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-                  "maxLength": 36
-                },
-                "minItems": 1,
-                "maxItems": 100,
-                "uniqueItems": true
-              }
-            },
-            "additionalProperties": true,
-            "default": {
-              "_metadata": []
-            }
-          }
-        },
-        "example": {
-          "id": "f60eabcd-e89b-41d4-a716-446655440015",
-          "shape": "process"
-        }
-      },
-      "Node": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Cell"
-          },
-          {
-            "type": "object",
-            "description": "A diagram node representing an entity, process, store, or boundary. Supports both X6 position/size object format and flat x/y/width/height format. Input accepts either format. Output always uses flat format (x, y, width, height).",
-            "properties": {
-              "shape": {
-                "type": "string",
-                "enum": [
-                  "actor",
-                  "process",
-                  "store",
-                  "security-boundary",
-                  "text-box"
-                ],
-                "description": "Node type determining its visual representation and behavior",
-                "maxLength": 1000
-              },
-              "position": {
-                "type": "object",
-                "description": "Node position in X6 nested format. Use either this with size object OR use flat x/y/width/height properties.",
-                "properties": {
-                  "x": {
-                    "type": "number",
-                    "description": "X coordinate"
-                  },
-                  "y": {
-                    "type": "number",
-                    "description": "Y coordinate"
-                  }
-                },
-                "required": [
-                  "x",
-                  "y"
-                ],
-                "additionalProperties": false
-              },
-              "size": {
-                "type": "object",
-                "description": "Node size in X6 nested format. Use either this with position object OR use flat x/y/width/height properties.",
-                "properties": {
-                  "width": {
-                    "type": "number",
-                    "description": "Width in pixels",
-                    "minimum": 40
-                  },
-                  "height": {
-                    "type": "number",
-                    "description": "Height in pixels",
-                    "minimum": 30
-                  }
-                },
-                "required": [
-                  "width",
-                  "height"
-                ],
-                "additionalProperties": false
-              },
-              "angle": {
-                "type": "number",
-                "description": "Rotation angle in degrees",
-                "default": 0
-              },
-              "attrs": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/NodeAttrs"
-                  }
-                ],
-                "description": "Visual styling attributes for the node"
-              },
-              "ports": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/PortConfiguration"
-                  }
-                ],
-                "description": "Port configuration for connections"
-              },
-              "parent": {
-                "type": "string",
-                "format": "uuid",
-                "description": "ID of the parent cell for nested/grouped nodes (UUID)",
-                "nullable": true,
-                "maxLength": 36,
-                "pattern": "^$|^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-              },
-              "children": {
-                "type": "array",
-                "description": "IDs of child cells contained within this node (UUIDs)",
-                "items": {
-                  "type": "string",
-                  "format": "uuid",
-                  "maxLength": 36,
-                  "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
-                },
-                "maxItems": 1000
-              },
               "x": {
                 "type": "number",
-                "description": "X coordinate (flat format). Use either this with y, width, height OR use position/size objects."
+                "description": "X coordinate"
               },
               "y": {
                 "type": "number",
-                "description": "Y coordinate (flat format)"
-              },
+                "description": "Y coordinate"
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ],
+            "additionalProperties": false
+          },
+          "size": {
+            "type": "object",
+            "description": "Node size in X6 nested format. Use either this with position object OR use flat x/y/width/height properties.",
+            "properties": {
               "width": {
                 "type": "number",
-                "description": "Width in pixels (flat format)",
+                "description": "Width in pixels",
                 "minimum": 40
               },
               "height": {
                 "type": "number",
-                "description": "Height in pixels (flat format)",
+                "description": "Height in pixels",
                 "minimum": 30
               }
-            }
+            },
+            "required": [
+              "width",
+              "height"
+            ],
+            "additionalProperties": false
+          },
+          "angle": {
+            "type": "number",
+            "description": "Rotation angle in degrees",
+            "default": 0
+          },
+          "attrs": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NodeAttrs"
+              }
+            ],
+            "description": "Visual styling attributes for the node"
+          },
+          "ports": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PortConfiguration"
+              }
+            ],
+            "description": "Port configuration for connections"
+          },
+          "parent": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the parent cell for nested/grouped nodes (UUID)",
+            "nullable": true,
+            "maxLength": 36,
+            "pattern": "^$|^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
+          },
+          "children": {
+            "type": "array",
+            "description": "IDs of child cells contained within this node (UUIDs)",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "maxLength": 36,
+              "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
+            },
+            "maxItems": 1000
+          },
+          "x": {
+            "type": "number",
+            "description": "X coordinate (flat format). Use either this with y, width, height OR use position/size objects."
+          },
+          "y": {
+            "type": "number",
+            "description": "Y coordinate (flat format)"
+          },
+          "width": {
+            "type": "number",
+            "description": "Width in pixels (flat format)",
+            "minimum": 40
+          },
+          "height": {
+            "type": "number",
+            "description": "Height in pixels (flat format)",
+            "minimum": 30
           }
-        ],
+        },
         "example": {
           "id": "c30eabcd-e89b-41d4-a716-446655440022",
           "shape": "process",
@@ -1147,97 +962,98 @@
           "y": 250,
           "width": 140,
           "height": 70
-        },
-        "description": "Diagram node representing a process, data store, external entity, or trust boundary"
+        }
       },
       "Edge": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Cell"
-          },
-          {
-            "type": "object",
-            "description": "A diagram edge representing a connection or data flow between nodes. Fully compatible with X6 Edge objects and supports X6 routing algorithms (manhattan, orth, one_side, metro, er), connector styles (normal, rounded, smooth, jumpover), custom markup, tools, and convenience properties (label, style) for easier integration.",
-            "required": [
-              "source",
-              "target"
-            ],
-            "properties": {
-              "shape": {
-                "type": "string",
-                "enum": [
-                  "flow"
-                ],
-                "description": "Edge type identifier",
-                "maxLength": 1000
-              },
-              "source": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/EdgeTerminal"
-                  }
-                ],
-                "description": "Source connection point"
-              },
-              "target": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/EdgeTerminal"
-                  }
-                ],
-                "description": "Target connection point"
-              },
-              "attrs": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/EdgeAttrs"
-                  }
-                ],
-                "description": "Visual styling attributes for the edge"
-              },
-              "labels": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/EdgeLabel"
-                },
-                "description": "Text labels positioned along the edge",
-                "maxItems": 1000
-              },
-              "vertices": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/Point"
-                },
-                "description": "Intermediate waypoints for edge routing",
-                "maxItems": 1000
-              },
-              "router": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/EdgeRouter"
-                  }
-                ],
-                "description": "Edge routing algorithm configuration for path calculation"
-              },
-              "connector": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/EdgeConnector"
-                  }
-                ],
-                "description": "Edge connector style configuration for visual appearance"
-              },
-              "defaultLabel": {
-                "allOf": [
-                  {
-                    "$ref": "#/components/schemas/EdgeLabel"
-                  }
-                ],
-                "description": "Default label configuration applied to edges without explicit labels"
-              }
-            }
-          }
+        "type": "object",
+        "description": "Diagram edge representing a data flow connection between nodes\n\nFully compatible with X6 Edge objects and supports X6 routing algorithms (manhattan, orth, one_side, metro, er), connector styles (normal, rounded, smooth, jumpover), custom markup, tools, and convenience properties (label, style) for easier integration.",
+        "required": [
+          "id",
+          "shape",
+          "source",
+          "target"
         ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CellId"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CellData"
+          },
+          "shape": {
+            "type": "string",
+            "enum": [
+              "flow"
+            ],
+            "description": "Edge type identifier",
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "source": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EdgeTerminal"
+              }
+            ],
+            "description": "Source connection point"
+          },
+          "target": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EdgeTerminal"
+              }
+            ],
+            "description": "Target connection point"
+          },
+          "attrs": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EdgeAttrs"
+              }
+            ],
+            "description": "Visual styling attributes for the edge"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EdgeLabel"
+            },
+            "description": "Text labels positioned along the edge",
+            "maxItems": 1000
+          },
+          "vertices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            },
+            "description": "Intermediate waypoints for edge routing",
+            "maxItems": 1000
+          },
+          "router": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EdgeRouter"
+              }
+            ],
+            "description": "Edge routing algorithm configuration for path calculation"
+          },
+          "connector": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EdgeConnector"
+              }
+            ],
+            "description": "Edge connector style configuration for visual appearance"
+          },
+          "defaultLabel": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EdgeLabel"
+              }
+            ],
+            "description": "Default label configuration applied to edges without explicit labels"
+          }
+        },
         "example": {
           "id": "a90eabcd-e89b-41d4-a716-446655440018",
           "shape": "flow",
@@ -1247,8 +1063,7 @@
           "target": {
             "cell": "b00eabcd-e89b-41d4-a716-446655440019"
           }
-        },
-        "description": "Diagram edge representing a data flow connection between nodes"
+        }
       },
       "ThreatModel": {
         "allOf": [
@@ -1313,7 +1128,7 @@
               "diagrams": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/Diagram"
+                  "$ref": "#/components/schemas/DfdDiagram"
                 },
                 "description": "List of diagram objects associated with this threat model",
                 "readOnly": true,
@@ -1890,7 +1705,7 @@
               "DFD-1.0.0"
             ],
             "description": "Type of the diagram",
-            "maxLength": 1000
+            "maxLength": 64
           },
           "description": {
             "type": "string",
@@ -12554,6 +12369,51 @@
           }
         },
         "additionalProperties": false
+      },
+      "CellId": {
+        "type": "string",
+        "description": "Unique identifier of the cell (UUID)",
+        "format": "uuid",
+        "example": "37EAEDFA-BF37-4996-8665-242FEC34BBFF",
+        "maxLength": 36,
+        "pattern": "^[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*-[0-9a-fA-F]*$"
+      },
+      "CellData": {
+        "type": "object",
+        "description": "Flexible data storage compatible with X6, with reserved metadata namespace",
+        "properties": {
+          "_metadata": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Metadata"
+            },
+            "description": "Reserved namespace for structured business metadata",
+            "maxItems": 100
+          },
+          "security_boundary": {
+            "type": "boolean",
+            "description": "Indicates whether this cell represents a security boundary in the threat model",
+            "default": false
+          },
+          "data_assets": {
+            "type": "array",
+            "description": "References to Asset IDs associated with this cell. Each UUID must reference an existing Asset in the same threat model.",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUID reference to an Asset object",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "maxLength": 36
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": true,
+        "default": {
+          "_metadata": []
+        }
       }
     },
     "responses": {
@@ -12568,7 +12428,7 @@
               "authorizationError": {
                 "summary": "Insufficient permissions for sub-resource access",
                 "value": {
-                  "error": "access_denied",
+                  "error": "forbidden",
                   "error_description": "User does not have sufficient permissions to access this sub-resource",
                   "details": {
                     "code": "INSUFFICIENT_PERMISSIONS",
@@ -28529,7 +28389,7 @@
                       "op": "add",
                       "path": "/cells/-",
                       "value": {
-                        "id": "new-cell-id",
+                        "id": "8a3f0c2e-5b7d-4e1a-9c6f-2d4b8e0a1f37",
                         "shape": "process",
                         "x": 100,
                         "y": 100,

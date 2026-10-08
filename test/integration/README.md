@@ -29,7 +29,6 @@ HTTP client with automatic OpenAPI validation:
 ### OAuth (`framework/oauth.go`)
 Automated OAuth authentication helpers:
 - `AuthenticateUser(userID)` - Automated PKCE flow
-- `GetStoredCredentials(userID)` - Retrieve existing tokens
 - `RefreshToken(refreshToken, userID)` - Token refresh
 
 ### Assertions (`framework/assertions.go`)

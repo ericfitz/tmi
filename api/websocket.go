@@ -315,7 +315,7 @@ func (h *WebSocketHub) UpdateDiagram(diagramID string, updateFunc func(DfdDiagra
 	}
 
 	// Handle image.update_vector logic: if image.svg is provided but image.update_vector is not,
-	// then set image.update_vector to the current BaseDiagram.update_vector
+	// then set image.update_vector to the current DfdDiagram.update_vector
 	if updatedDiagram.Image != nil && updatedDiagram.Image.Svg != nil && updatedDiagram.Image.UpdateVector == nil {
 		// Use the current diagram's update_vector (after potential increment)
 		currentUpdateVector := newVector
@@ -827,7 +827,7 @@ func getSessionPermissionsForUser(c *gin.Context, user ResolvedUser, tm *ThreatM
 }
 
 // buildCollaborationSessionFromDiagramSession creates a CollaborationSession struct from a DiagramSession
-// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: build a CollaborationSession DTO from a live DiagramSession for the current user (reads DB)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: build a CollaborationSession DTO from a live DiagramSession for the current user (reads DB)
 func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Context, diagramID string, session *DiagramSession, currentUser string) (*CollaborationSession, error) {
 
 	session.mu.RLock()
@@ -855,8 +855,8 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 	// Find the diagram in the threat model to get its name
 	var diagramName string
 	if tm.Diagrams != nil {
-		for _, diagramUnion := range *tm.Diagrams {
-			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil {
 				if dfdDiag.Id.String() == diagramID {
 					diagramName = dfdDiag.Name
 					break
@@ -943,7 +943,7 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 }
 
 // GetActiveSessionsForUser returns all active collaboration sessions that the specified user has access to
-// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: list active collaboration sessions the given user has at least reader access to (reads DB)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: list active collaboration sessions the given user has at least reader access to (reads DB)
 func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, user ResolvedUser) []CollaborationSession {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -989,8 +989,8 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, user ResolvedUse
 		// Find the diagram in the threat model to get its name
 		var diagramName string
 		if tm.Diagrams != nil {
-			for _, diagramUnion := range *tm.Diagrams {
-				if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+			for _, dfdDiag := range *tm.Diagrams {
+				if dfdDiag.Id != nil {
 					if dfdDiag.Id.String() == diagramID {
 						diagramName = dfdDiag.Name
 						break
@@ -1069,7 +1069,7 @@ func (h *WebSocketHub) getThreatModelIdForDiagram(diagramID string) openapi_type
 // validateWebSocketDiagramAccessWithFlexibleMatching validates that a user has at least reader access to a diagram
 // using flexible user identifier matching (email, provider_user_id, or internal_uuid)
 // This is critical for WebSocket security to prevent unauthorized access to collaboration sessions
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: authorize WebSocket access to a diagram using flexible identity matching; deny if no reader role (reads DB)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: authorize WebSocket access to a diagram using flexible identity matching; deny without reader role (reads DB)
 func (h *WebSocketHub) validateWebSocketDiagramAccessWithFlexibleMatching(userInfo *UserInfo, threatModelID string, diagramID string) bool {
 	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), deny access
 	if ThreatModelStore == nil {
@@ -1092,8 +1092,8 @@ func (h *WebSocketHub) validateWebSocketDiagramAccessWithFlexibleMatching(userIn
 	// Check if the diagram actually exists in this threat model
 	diagramExists := false
 	if tm.Diagrams != nil {
-		for _, diagramUnion := range *tm.Diagrams {
-			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil {
 				if dfdDiag.Id.String() == diagramID {
 					diagramExists = true
 					break

@@ -17,6 +17,7 @@ import (
 )
 
 // setupThreatModelDiagramRouter returns a router with threat model diagram handlers registered for the owner user
+// SEM@4d750df7cba8874ee1c0b9172e3ae8613e95b736: build a test router with threat model diagram handlers registered (test helper)
 func setupThreatModelDiagramRouter() *gin.Engine {
 	// Initialize test fixtures first
 	InitTestFixtures()
@@ -24,6 +25,7 @@ func setupThreatModelDiagramRouter() *gin.Engine {
 }
 
 // setupThreatModelDiagramRouterWithUser returns a router with threat model diagram handlers registered and specified user
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: build a test router with diagram handlers and an authenticated user
 func setupThreatModelDiagramRouterWithUser(userName string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -87,6 +89,7 @@ func setupThreatModelDiagramRouterWithUser(userName string) *gin.Engine {
 }
 
 // createTestThreatModelWithDiagram creates a test threat model with a diagram and returns both
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: build a threat model containing a diagram in the store (test helper)
 func createTestThreatModelWithDiagram(t *testing.T, router *gin.Engine, tmName, tmDescription, diagName, diagDescription string) (ThreatModel, DfdDiagram) {
 	// First create a threat model
 	tmReqBody, _ := json.Marshal(map[string]any{
@@ -119,18 +122,15 @@ func createTestThreatModelWithDiagram(t *testing.T, router *gin.Engine, tmName, 
 	router.ServeHTTP(diagW, diagReq)
 	assert.Equal(t, http.StatusCreated, diagW.Code)
 
-	var diagramUnion Diagram
-	err = json.Unmarshal(diagW.Body.Bytes(), &diagramUnion)
-	require.NoError(t, err)
-
-	// Convert union type to DfdDiagram for return
-	diagram, err := diagramUnion.AsDfdDiagram()
+	var diagram DfdDiagram
+	err = json.Unmarshal(diagW.Body.Bytes(), &diagram)
 	require.NoError(t, err)
 
 	return tm, diagram
 }
 
 // TestGetThreatModelDiagrams tests listing diagrams within a threat model
+// SEM@503212a05958ba0c15d423fab4dbceb92b747ed9: validate listing diagrams of a threat model via handler (test)
 func TestGetThreatModelDiagrams(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -169,6 +169,7 @@ func TestGetThreatModelDiagrams(t *testing.T) {
 }
 
 // TestCreateThreatModelDiagram tests creating a diagram within a threat model
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: verify diagram creation under a threat model handles valid and invalid requests (test)
 func TestCreateThreatModelDiagram(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -208,12 +209,8 @@ func TestCreateThreatModelDiagram(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, diagW.Code)
 
 	// Parse response
-	var diagramUnion Diagram
-	err = json.Unmarshal(diagW.Body.Bytes(), &diagramUnion)
-	require.NoError(t, err)
-
-	// Convert union type to DfdDiagram for field access
-	diagram, err := diagramUnion.AsDfdDiagram()
+	var diagram DfdDiagram
+	err = json.Unmarshal(diagW.Body.Bytes(), &diagram)
 	require.NoError(t, err)
 
 	// Check fields
@@ -233,9 +230,8 @@ func TestCreateThreatModelDiagram(t *testing.T) {
 	// Check that the diagram ID is in the threat model's diagrams array
 	diagramFound := false
 	if updatedTM.Diagrams != nil {
-		for _, diagramUnion := range *updatedTM.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+		for _, dfdDiag := range *updatedTM.Diagrams {
+			if dfdDiag.Id != nil {
 				if dfdDiag.Id.String() == diagram.Id.String() {
 					diagramFound = true
 					break
@@ -247,6 +243,7 @@ func TestCreateThreatModelDiagram(t *testing.T) {
 }
 
 // TestGetThreatModelDiagramByID tests retrieving a specific diagram from a threat model
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: test fetching a diagram by ID within a threat model
 func TestGetThreatModelDiagramByID(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -263,12 +260,8 @@ func TestGetThreatModelDiagramByID(t *testing.T) {
 	assert.Equal(t, http.StatusOK, getW.Code)
 
 	// Parse response
-	var retrievedDiagramUnion Diagram
-	err := json.Unmarshal(getW.Body.Bytes(), &retrievedDiagramUnion)
-	require.NoError(t, err)
-
-	// Convert union type to DfdDiagram for field access
-	retrievedDiagram, err := retrievedDiagramUnion.AsDfdDiagram()
+	var retrievedDiagram DfdDiagram
+	err := json.Unmarshal(getW.Body.Bytes(), &retrievedDiagram)
 	require.NoError(t, err)
 
 	// Check fields
@@ -277,6 +270,7 @@ func TestGetThreatModelDiagramByID(t *testing.T) {
 }
 
 // TestUpdateThreatModelDiagram tests updating a diagram within a threat model
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: test the handler that updates a threat model's diagram (test)
 func TestUpdateThreatModelDiagram(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -304,12 +298,8 @@ func TestUpdateThreatModelDiagram(t *testing.T) {
 	assert.Equal(t, http.StatusOK, updateW.Code)
 
 	// Parse response
-	var resultDiagramUnion Diagram
-	err := json.Unmarshal(updateW.Body.Bytes(), &resultDiagramUnion)
-	require.NoError(t, err)
-
-	// Convert union type to DfdDiagram for field access
-	resultDiagram, err := resultDiagramUnion.AsDfdDiagram()
+	var resultDiagram DfdDiagram
+	err := json.Unmarshal(updateW.Body.Bytes(), &resultDiagram)
 	require.NoError(t, err)
 
 	// Check fields
@@ -320,6 +310,7 @@ func TestUpdateThreatModelDiagram(t *testing.T) {
 }
 
 // TestPatchThreatModelDiagram tests partially updating a diagram within a threat model
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: validate patching a threat model diagram via handler (test)
 func TestPatchThreatModelDiagram(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -352,12 +343,8 @@ func TestPatchThreatModelDiagram(t *testing.T) {
 	assert.Equal(t, http.StatusOK, patchW.Code)
 
 	// Parse response
-	var patchedDiagramUnion Diagram
-	err := json.Unmarshal(patchW.Body.Bytes(), &patchedDiagramUnion)
-	require.NoError(t, err)
-
-	// Convert union type to DfdDiagram for field access
-	patchedDiagram, err := patchedDiagramUnion.AsDfdDiagram()
+	var patchedDiagram DfdDiagram
+	err := json.Unmarshal(patchW.Body.Bytes(), &patchedDiagram)
 	require.NoError(t, err)
 
 	// Check fields - note that the current implementation doesn't actually apply the patch operations
@@ -368,6 +355,7 @@ func TestPatchThreatModelDiagram(t *testing.T) {
 }
 
 // TestDeleteThreatModelDiagram tests deleting a diagram from a threat model
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: verify diagram deletion under a threat model handles existing and missing diagrams (test)
 func TestDeleteThreatModelDiagram(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -396,9 +384,8 @@ func TestDeleteThreatModelDiagram(t *testing.T) {
 	// Check that the diagram ID is not in the threat model's diagrams array
 	diagramFound := false
 	if updatedTM.Diagrams != nil {
-		for _, diagramUnion := range *updatedTM.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+		for _, dfdDiag := range *updatedTM.Diagrams {
+			if dfdDiag.Id != nil {
 				if dfdDiag.Id.String() == diagram.Id.String() {
 					diagramFound = true
 					break
@@ -416,6 +403,7 @@ func TestDeleteThreatModelDiagram(t *testing.T) {
 }
 
 // TestThreatModelDiagramNotFound tests behavior when a diagram is not found
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: test diagram endpoints return not found for missing diagrams
 func TestThreatModelDiagramNotFound(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -454,6 +442,7 @@ func TestThreatModelDiagramNotFound(t *testing.T) {
 }
 
 // TestThreatModelNotFound tests behavior when a threat model is not found
+// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: test diagram handlers return not found for a missing threat model (test)
 func TestThreatModelNotFound(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -475,6 +464,7 @@ func TestThreatModelNotFound(t *testing.T) {
 }
 
 // TestDiagramNotInThreatModel tests behavior when a diagram ID is valid but not associated with the threat model
+// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: validate diagram access is rejected when it belongs to another threat model (test)
 func TestDiagramNotInThreatModel(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -501,6 +491,7 @@ func TestDiagramNotInThreatModel(t *testing.T) {
 }
 
 // TestThreatModelDiagramReadWriteDeletePermissions tests access levels for different operations
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: verify diagram read, write and delete authorization across reader, writer and owner roles (test)
 func TestThreatModelDiagramReadWriteDeletePermissions(t *testing.T) {
 	// Reset stores to ensure clean state
 
@@ -611,6 +602,7 @@ func TestThreatModelDiagramReadWriteDeletePermissions(t *testing.T) {
 }
 
 // TestGetThreatModelDiagramCollaborate tests retrieving collaboration session status
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: test fetching the collaboration session for a diagram
 func TestGetThreatModelDiagramCollaborate(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -654,6 +646,7 @@ func TestGetThreatModelDiagramCollaborate(t *testing.T) {
 }
 
 // TestPostThreatModelDiagramCollaborate tests joining/starting a collaboration session
+// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: test the handler that starts a diagram collaboration session (test)
 func TestPostThreatModelDiagramCollaborate(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -698,6 +691,7 @@ func TestPostThreatModelDiagramCollaborate(t *testing.T) {
 }
 
 // TestDeleteThreatModelDiagramCollaborate tests leaving a collaboration session
+// SEM@4d750df7cba8874ee1c0b9172e3ae8613e95b736: validate deleting a diagram with active collaboration session is rejected (test)
 func TestDeleteThreatModelDiagramCollaborate(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -716,6 +710,7 @@ func TestDeleteThreatModelDiagramCollaborate(t *testing.T) {
 
 // TestDeleteThreatModelDiagramCollaborateImmediateDisconnection tests that when host deletes a session,
 // all participants are immediately disconnected and the session is fully cleaned up
+// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: verify deleting a diagram's collaboration session immediately disconnects participants (test)
 func TestDeleteThreatModelDiagramCollaborateImmediateDisconnection(t *testing.T) {
 	// Create a specific WebSocket hub for this test so we can access it directly
 	wsHub := NewWebSocketHubForTests()
@@ -825,6 +820,7 @@ func TestDeleteThreatModelDiagramCollaborateImmediateDisconnection(t *testing.T)
 }
 
 // TestCreateDiagramTimmyEnabledDefault tests that creating a diagram without timmy_enabled works correctly
+// SEM@028bb54799856ef996e1cae672ecb155cd91edef: test new diagrams get the default Timmy-enabled setting
 func TestCreateDiagramTimmyEnabledDefault(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -868,6 +864,7 @@ func TestCreateDiagramTimmyEnabledDefault(t *testing.T) {
 }
 
 // TestUpdateDiagramTimmyEnabledExplicitFalse tests that updating a diagram with timmy_enabled=false preserves the value
+// SEM@028bb54799856ef996e1cae672ecb155cd91edef: test that updating a diagram keeps an explicit false assistant-enabled flag (test)
 func TestUpdateDiagramTimmyEnabledExplicitFalse(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -902,6 +899,7 @@ func TestUpdateDiagramTimmyEnabledExplicitFalse(t *testing.T) {
 }
 
 // TestImageUpdateVectorLogic tests that image.update_vector is automatically set when SVG is provided but update_vector is not
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: validate diagram image update and vector handling rules (test)
 func TestImageUpdateVectorLogic(t *testing.T) {
 	r := setupThreatModelDiagramRouter()
 
@@ -935,19 +933,15 @@ func TestImageUpdateVectorLogic(t *testing.T) {
 	assert.Equal(t, http.StatusOK, updateW1.Code)
 
 	// Parse response
-	var resultDiagramUnion1 Diagram
-	err := json.Unmarshal(updateW1.Body.Bytes(), &resultDiagramUnion1)
+	var resultDiagram1 DfdDiagram
+	err := json.Unmarshal(updateW1.Body.Bytes(), &resultDiagram1)
 	require.NoError(t, err)
 
-	// Convert union type to DfdDiagram for field access
-	resultDiagram1, err := resultDiagramUnion1.AsDfdDiagram()
-	require.NoError(t, err)
-
-	// Verify that image.update_vector was automatically set to match BaseDiagram.update_vector
+	// Verify that image.update_vector was automatically set to match DfdDiagram.update_vector
 	require.NotNil(t, resultDiagram1.Image, "Image should not be nil")
 	require.NotNil(t, resultDiagram1.Image.UpdateVector, "Image.UpdateVector should be auto-set")
-	require.NotNil(t, resultDiagram1.UpdateVector, "BaseDiagram.UpdateVector should exist")
-	assert.Equal(t, *resultDiagram1.UpdateVector, *resultDiagram1.Image.UpdateVector, "Image.UpdateVector should match BaseDiagram.UpdateVector")
+	require.NotNil(t, resultDiagram1.UpdateVector, "DfdDiagram.UpdateVector should exist")
+	assert.Equal(t, *resultDiagram1.UpdateVector, *resultDiagram1.Image.UpdateVector, "Image.UpdateVector should match DfdDiagram.UpdateVector")
 
 	// Test Case 2: Update diagram with SVG and explicit image.update_vector - should use provided value
 	explicitImageVector := int64(42)
@@ -973,12 +967,8 @@ func TestImageUpdateVectorLogic(t *testing.T) {
 	assert.Equal(t, http.StatusOK, updateW2.Code)
 
 	// Parse response
-	var resultDiagramUnion2 Diagram
-	err = json.Unmarshal(updateW2.Body.Bytes(), &resultDiagramUnion2)
-	require.NoError(t, err)
-
-	// Convert union type to DfdDiagram for field access
-	resultDiagram2, err := resultDiagramUnion2.AsDfdDiagram()
+	var resultDiagram2 DfdDiagram
+	err = json.Unmarshal(updateW2.Body.Bytes(), &resultDiagram2)
 	require.NoError(t, err)
 
 	// Verify that explicit image.update_vector was preserved
@@ -1005,12 +995,8 @@ func TestImageUpdateVectorLogic(t *testing.T) {
 	assert.Equal(t, http.StatusOK, updateW3.Code)
 
 	// Parse response
-	var resultDiagramUnion3 Diagram
-	err = json.Unmarshal(updateW3.Body.Bytes(), &resultDiagramUnion3)
-	require.NoError(t, err)
-
-	// Convert union type to DfdDiagram for field access
-	resultDiagram3, err := resultDiagramUnion3.AsDfdDiagram()
+	var resultDiagram3 DfdDiagram
+	err = json.Unmarshal(updateW3.Body.Bytes(), &resultDiagram3)
 	require.NoError(t, err)
 
 	// The logic should not affect image field when none was provided
@@ -1020,6 +1006,7 @@ func TestImageUpdateVectorLogic(t *testing.T) {
 
 // setupThreatModelDiagramRouterWithServiceAccount returns a router that additionally sets
 // isServiceAccount in the gin context, used to verify the auto_generated flag.
+// SEM@f24c94ac3b48082482bcf5b8e9642017897fe3b6: build a test router with diagram handlers authenticated as a service account (test helper)
 func setupThreatModelDiagramRouterWithServiceAccount(isServiceAccount bool) *gin.Engine {
 	InitTestFixtures()
 	gin.SetMode(gin.TestMode)
@@ -1080,6 +1067,7 @@ func setupThreatModelDiagramRouterWithServiceAccount(isServiceAccount bool) *gin
 
 // TestCreateDiagram_SetsAutoGeneratedForServiceAccount verifies that creating a diagram with a
 // service-account principal sets auto_generated=true in the create response.
+// SEM@f24c94ac3b48082482bcf5b8e9642017897fe3b6: test diagrams created by a service account are flagged auto-generated
 func TestCreateDiagram_SetsAutoGeneratedForServiceAccount(t *testing.T) {
 	r := setupThreatModelDiagramRouterWithServiceAccount(true)
 
@@ -1120,6 +1108,7 @@ func TestCreateDiagram_SetsAutoGeneratedForServiceAccount(t *testing.T) {
 
 // TestCreateDiagram_DoesNotSetAutoGeneratedForRegularUser verifies that creating a diagram with a
 // regular user principal leaves auto_generated absent (false/omitted).
+// SEM@f24c94ac3b48082482bcf5b8e9642017897fe3b6: test that diagrams created by regular users are not marked auto-generated (test)
 func TestCreateDiagram_DoesNotSetAutoGeneratedForRegularUser(t *testing.T) {
 	r := setupThreatModelDiagramRouterWithServiceAccount(false)
 

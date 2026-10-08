@@ -94,9 +94,9 @@ rules:
   # Schema Rule Adjustments
   # ============================================================================
 
-  # oas-schema-check: Suppress (3 warnings)
-  # Rationale: The discriminator warnings are for polymorphic schemas (Diagram,
-  # DfdDiagram.cells.items, DfdDiagramInput.cells.items) where the discriminator
+  # oas-schema-check: Suppress (2 warnings)
+  # Rationale: The discriminator warnings are for polymorphic schemas
+  # (DfdDiagram.cells.items, DfdDiagramInput.cells.items) where the discriminator
   # property is defined in the referenced schemas (Node.shape, Edge.shape) rather
   # than at the parent oneOf level. Vacuum requires the property at the parent
   # level, but adding it there causes oapi-codegen to generate duplicate types
@@ -120,7 +120,7 @@ rules:
   # owasp-constrained-additionalProperties: Suppress (10 warnings)
   # owasp-no-additionalProperties: Suppress (10 warnings)
   # Rationale: These 10 schema locations require flexible additionalProperties:
-  # - JointJS diagram schemas (5): Cell.data, DfdDiagram...ports.groups,
+  # - JointJS diagram schemas (5): CellData, DfdDiagram...ports.groups,
   #   DfdDiagram...connector.args, DfdDiagram...router.args, MarkupElement.attrs
   #   JointJS library requires arbitrary properties for diagram rendering.
   # - Metadata fields (3): MinimalDiagramModel.metadata, MinimalCell[0].metadata,
@@ -147,13 +147,6 @@ rules:
   # structure (nested SVG elements like <g> containing more <g> elements). This
   # is valid JSON Schema and required for JointJS markup definitions.
   circular-references: off
-
-  # no-unnecessary-combinator: Suppress (1 warning)
-  # Rationale: Diagram.oneOf currently contains only DfdDiagram, but additional
-  # diagram types (sequence diagrams, architecture diagrams, etc.) will be added
-  # in future versions. The oneOf structure is intentional to support polymorphic
-  # diagram types.
-  no-unnecessary-combinator: off
 
   # owasp-protection-global-safe: Suppress (14 warnings)
   # Rationale: These GET endpoints are intentionally public and marked with

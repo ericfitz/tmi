@@ -384,61 +384,6 @@ func (cs *CacheService) GetCachedMetadata(ctx context.Context, entityType, entit
 	return metadata, nil
 }
 
-// CacheCells caches diagram cells collection
-// SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: store a diagram's cells collection in Redis with diagram TTL (mutates shared state)
-func (cs *CacheService) CacheCells(ctx context.Context, diagramID string, cells []Cell) error {
-	logger := slogging.Get()
-	key := cs.builder.CacheCellsKey(diagramID)
-
-	data, err := json.Marshal(cells)
-	if err != nil {
-		logger.Error("Failed to marshal cells for cache: %v", err)
-		return fmt.Errorf("failed to marshal cells: %w", err)
-	}
-
-	err = cs.redis.Set(ctx, key, data, DiagramCacheTTL)
-	if err != nil {
-		logger.Error("Failed to cache cells for diagram %s: %v", diagramID, err)
-		return fmt.Errorf("failed to cache cells: %w", err)
-	}
-
-	logger.Debug("Cached cells for diagram %s with TTL %v", diagramID, DiagramCacheTTL)
-	return nil
-}
-
-// GetCachedCells retrieves cached diagram cells
-// SEM@1f8a861705b8907dc184e3db47d54cbe24222ef9: fetch cached diagram cells from Redis, returning nil on cache miss (reads DB)
-func (cs *CacheService) GetCachedCells(ctx context.Context, diagramID string) ([]Cell, error) {
-	logger := slogging.Get()
-	key := cs.builder.CacheCellsKey(diagramID)
-
-	data, err := cs.redis.Get(ctx, key)
-	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			logger.Debug("Cache miss for cells %s", diagramID)
-			if m := tmiotel.GlobalMetrics; m != nil {
-				m.CacheMisses.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "cells")))
-			}
-			return nil, nil // Cache miss
-		}
-		logger.Error("Failed to get cached cells %s: %v", diagramID, err)
-		return nil, fmt.Errorf("failed to get cached cells: %w", err)
-	}
-
-	var cells []Cell
-	err = json.Unmarshal([]byte(data), &cells)
-	if err != nil {
-		logger.Error("Failed to unmarshal cached cells %s: %v", diagramID, err)
-		return nil, fmt.Errorf("failed to unmarshal cached cells: %w", err)
-	}
-
-	logger.Debug("Cache hit for cells %s", diagramID)
-	if m := tmiotel.GlobalMetrics; m != nil {
-		m.CacheHits.Add(ctx, 1, metric.WithAttributes(attribute.String("entity_type", "cells")))
-	}
-	return cells, nil
-}
-
 // CacheAuthData caches authorization data for a threat model
 // SEM@1d6e8926b4e58c0d98fff4d43bd3f6df1852d61a: store authorization data for a threat model in Redis with auth TTL (mutates shared state)
 func (cs *CacheService) CacheAuthData(ctx context.Context, threatModelID string, authData AuthorizationData) error {

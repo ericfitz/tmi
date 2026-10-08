@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: test listing active collaboration sessions visible to the current user
 func TestGetCurrentUserSessions(t *testing.T) {
 	InitTestFixtures()
 	// Setup test data with different permission levels
@@ -161,20 +162,9 @@ func TestGetCurrentUserSessions(t *testing.T) {
 	})
 
 	// Add diagrams to threat models
-	var diagramUnion1, diagramUnion2, diagramUnion3 Diagram
-	if err := diagramUnion1.FromDfdDiagram(d1); err != nil {
-		t.Fatalf("Failed to convert diagram1: %v", err)
-	}
-	if err := diagramUnion2.FromDfdDiagram(d2); err != nil {
-		t.Fatalf("Failed to convert diagram2: %v", err)
-	}
-	if err := diagramUnion3.FromDfdDiagram(d3); err != nil {
-		t.Fatalf("Failed to convert diagram3: %v", err)
-	}
-
-	tm1.Diagrams = &[]Diagram{diagramUnion1}
-	tm2.Diagrams = &[]Diagram{diagramUnion2}
-	tm3.Diagrams = &[]Diagram{diagramUnion3}
+	tm1.Diagrams = &[]DfdDiagram{d1}
+	tm2.Diagrams = &[]DfdDiagram{d2}
+	tm3.Diagrams = &[]DfdDiagram{d3}
 
 	// Update threat models with diagrams
 	if err := ThreatModelStore.Update(context.Background(), tm1.Id.String(), tm1); err != nil {
@@ -322,6 +312,7 @@ func TestGetCurrentUserSessions(t *testing.T) {
 	}
 }
 
+// SEM@9745b416c50726fc3ca5d4637364ba55d6ba0699: test that the WebSocket hub lists active collaboration sessions (test)
 func TestWebSocketHub_GetActiveSessions(t *testing.T) {
 	// Test the hub method directly
 	hub := NewWebSocketHubForTests()

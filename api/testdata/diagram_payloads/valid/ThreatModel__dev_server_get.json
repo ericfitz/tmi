@@ -1,0 +1,192 @@
+{
+  "alias": 10062,
+  "authorization": [
+    {
+      "display_name": "TMI Automation",
+      "principal_type": "group",
+      "provider": "tmi",
+      "provider_id": "tmi-automation",
+      "role": "writer"
+    },
+    {
+      "display_name": "Alice (TMI User)",
+      "email": "alice@tmi.local",
+      "principal_type": "user",
+      "provider": "tmi",
+      "provider_id": "alice",
+      "role": "owner"
+    },
+    {
+      "display_name": "Security Reviewers",
+      "principal_type": "group",
+      "provider": "tmi",
+      "provider_id": "security-reviewers",
+      "role": "owner"
+    }
+  ],
+  "created_at": "2026-10-07T15:48:08.671031Z",
+  "created_by": {
+    "display_name": "Alice (TMI User)",
+    "email": "alice@tmi.local",
+    "principal_type": "user",
+    "provider": "tmi",
+    "provider_id": "alice"
+  },
+  "description": "temporary, created by #956 verification",
+  "diagrams": [
+    {
+      "alias": 1,
+      "auto_generated": false,
+      "cells": [
+        {
+          "x": 10,
+          "y": 20,
+          "id": "a1b2c3d4-0000-4000-8000-000000000011",
+          "data": {
+            "_metadata": [],
+            "security_boundary": false
+          },
+          "angle": 0,
+          "shape": "process",
+          "width": 120,
+          "height": 60,
+          "parent": null
+        },
+        {
+          "x": 200,
+          "y": 20,
+          "id": "a1b2c3d4-0000-4000-8000-000000000012",
+          "data": {
+            "_metadata": [],
+            "security_boundary": false
+          },
+          "angle": 0,
+          "shape": "store",
+          "width": 120,
+          "height": 60,
+          "parent": null
+        },
+        {
+          "x": 0,
+          "y": 0,
+          "id": "a1b2c3d4-0000-4000-8000-000000000013",
+          "data": {
+            "_metadata": [],
+            "security_boundary": false
+          },
+          "angle": 0,
+          "shape": "security-boundary",
+          "width": 400,
+          "height": 300,
+          "parent": null,
+          "children": [
+            "a1b2c3d4-0000-4000-8000-000000000011",
+            "a1b2c3d4-0000-4000-8000-000000000012"
+          ]
+        },
+        {
+          "x": 50,
+          "y": 200,
+          "id": "a1b2c3d4-0000-4000-8000-000000000014",
+          "data": {
+            "_metadata": [],
+            "security_boundary": false
+          },
+          "angle": 0,
+          "shape": "text-box",
+          "width": 100,
+          "height": 40,
+          "parent": null
+        },
+        {
+          "x": 400,
+          "y": 20,
+          "id": "a1b2c3d4-0000-4000-8000-000000000015",
+          "data": {
+            "_metadata": [
+              {
+                "key": "owner",
+                "value": "team-a"
+              }
+            ],
+            "custom_note": "kept",
+            "data_assets": [
+              "a1b2c3d4-0000-4000-8000-0000000000a1"
+            ],
+            "security_boundary": true
+          },
+          "angle": 0,
+          "shape": "actor",
+          "width": 100,
+          "height": 60,
+          "parent": null
+        },
+        {
+          "id": "a1b2c3d4-0000-4000-8000-000000000016",
+          "data": {
+            "_metadata": [],
+            "security_boundary": false
+          },
+          "shape": "flow",
+          "labels": [
+            {
+              "attrs": {
+                "text": {
+                  "text": "query"
+                }
+              },
+              "position": 0.5
+            }
+          ],
+          "router": {
+            "args": {
+              "padding": 10
+            },
+            "name": "manhattan"
+          },
+          "source": {
+            "cell": "a1b2c3d4-0000-4000-8000-000000000011",
+            "port": "out"
+          },
+          "target": {
+            "cell": "a1b2c3d4-0000-4000-8000-000000000012"
+          },
+          "vertices": [
+            {
+              "x": 150,
+              "y": 100
+            }
+          ],
+          "connector": "rounded"
+        }
+      ],
+      "created_at": "2026-10-07T15:48:08.706906Z",
+      "description": "Input form",
+      "id": "454660ee-41fd-4310-a99b-559ed3a6d323",
+      "image": {},
+      "include_in_report": true,
+      "metadata": [],
+      "modified_at": "2026-10-07T15:48:08.739003Z",
+      "name": "Mixed cell formats input",
+      "timmy_enabled": true,
+      "type": "DFD-1.0.0",
+      "update_vector": 1
+    }
+  ],
+  "id": "5b67d8ad-2af4-4949-8383-e6279305a139",
+  "is_confidential": false,
+  "metadata": [],
+  "modified_at": "2026-10-07T15:48:08.671031Z",
+  "name": "956 corpus capture",
+  "owner": {
+    "display_name": "Alice (TMI User)",
+    "email": "alice@tmi.local",
+    "principal_type": "user",
+    "provider": "tmi",
+    "provider_id": "alice"
+  },
+  "status": "not_started",
+  "status_updated": "2026-10-07T15:48:08.672Z",
+  "threat_model_framework": "STRIDE",
+  "threats": []
+}

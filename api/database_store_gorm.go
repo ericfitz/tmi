@@ -1376,8 +1376,8 @@ func (s *GormThreatModelStore) batchLoadThreatMetadata(threatIDs []string) map[s
 }
 
 // loadDiagramsDynamically loads diagrams using the DiagramStore for single source of truth
-// SEM@6a6c15749391c2817c30c64c8b54f8e0a4082a91: fetch diagrams for a threat model via the diagram store in batch (reads DB)
-func (s *GormThreatModelStore) loadDiagramsDynamically(threatModelID string) (*[]Diagram, error) {
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: fetch diagrams for a threat model via the diagram store (reads DB)
+func (s *GormThreatModelStore) loadDiagramsDynamically(threatModelID string) (*[]DfdDiagram, error) {
 	var diagramIDs []string
 	result := s.db.Model(&models.Diagram{}).
 		Where("threat_model_id = ?", threatModelID).
@@ -1388,7 +1388,7 @@ func (s *GormThreatModelStore) loadDiagramsDynamically(threatModelID string) (*[
 	}
 
 	if len(diagramIDs) == 0 {
-		emptySlice := []Diagram{}
+		emptySlice := []DfdDiagram{}
 		return &emptySlice, nil
 	}
 
@@ -1398,7 +1398,7 @@ func (s *GormThreatModelStore) loadDiagramsDynamically(threatModelID string) (*[
 		return nil, dberrors.Classify(err)
 	}
 
-	diagrams := make([]Diagram, 0, len(apiDiagrams))
+	diagrams := make([]DfdDiagram, 0, len(apiDiagrams))
 	for i := range apiDiagrams {
 		// Ensure backward compatibility
 		if apiDiagrams[i].Image == nil {
@@ -1408,11 +1408,7 @@ func (s *GormThreatModelStore) loadDiagramsDynamically(threatModelID string) (*[
 			}{}
 		}
 
-		var diagramUnion Diagram
-		if err := diagramUnion.FromDfdDiagram(apiDiagrams[i]); err != nil {
-			continue
-		}
-		diagrams = append(diagrams, diagramUnion)
+		diagrams = append(diagrams, apiDiagrams[i])
 	}
 
 	return &diagrams, nil

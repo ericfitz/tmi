@@ -35,7 +35,7 @@ type ThreatModelInternal struct {
 
 // ToThreatModel converts internal representation to external API model
 // This function dynamically loads related entities from their respective stores
-// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: convert the internal threat model to the API DTO, loading related diagrams from stores (reads DB)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: convert the internal threat model to the API DTO, loading related diagrams from stores (reads DB)
 func (tm *ThreatModelInternal) ToThreatModel() (*ThreatModel, error) {
 	result := &ThreatModel{
 		Id:                   tm.Id,
@@ -52,7 +52,7 @@ func (tm *ThreatModelInternal) ToThreatModel() (*ThreatModel, error) {
 
 	// Load diagrams
 	if len(tm.DiagramIds) > 0 {
-		diagrams := make([]Diagram, 0, len(tm.DiagramIds))
+		diagrams := make([]DfdDiagram, 0, len(tm.DiagramIds))
 		for _, diagramId := range tm.DiagramIds {
 			diagram, err := DiagramStore.Get(diagramId)
 			if err != nil {
@@ -68,11 +68,7 @@ func (tm *ThreatModelInternal) ToThreatModel() (*ThreatModel, error) {
 				}{}
 			}
 
-			var diagramUnion Diagram
-			if err := diagramUnion.FromDfdDiagram(diagram); err != nil {
-				continue
-			}
-			diagrams = append(diagrams, diagramUnion)
+			diagrams = append(diagrams, diagram)
 		}
 		if len(diagrams) > 0 {
 			result.Diagrams = &diagrams
@@ -86,7 +82,7 @@ func (tm *ThreatModelInternal) ToThreatModel() (*ThreatModel, error) {
 }
 
 // FromThreatModel converts external API model to internal representation
-// SEM@d48970168f241f7cb359d0cfdb00f3e26abb59da: populate the internal threat model from an API DTO, extracting related entity IDs (pure)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: populate the internal threat model from an API DTO, extracting related entity IDs (pure)
 func (tm *ThreatModelInternal) FromThreatModel(external *ThreatModel) {
 	tm.Id = external.Id
 	tm.Name = external.Name
@@ -106,8 +102,8 @@ func (tm *ThreatModelInternal) FromThreatModel(external *ThreatModel) {
 	// Extract diagram IDs
 	tm.DiagramIds = []string{}
 	if external.Diagrams != nil {
-		for _, diagramUnion := range *external.Diagrams {
-			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+		for _, dfdDiag := range *external.Diagrams {
+			if dfdDiag.Id != nil {
 				tm.DiagramIds = append(tm.DiagramIds, dfdDiag.Id.String())
 			}
 		}

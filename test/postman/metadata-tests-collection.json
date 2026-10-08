@@ -2,6 +2,72 @@
   "name": "4. Metadata CRUD Tests",
   "item": [
     {
+      "name": "Setup",
+      "item": [
+        {
+          "name": "Setup - Create Alice's Threat Model (201)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Load the real data factory (the runners provide its source via newman --globals)",
+                  "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
+                  "const factory = new TMITestDataFactory();",
+                  "const threatModel = factory.validThreatModel({",
+                  "    name: `Standalone Test Threat Model ${Date.now()}`,",
+                  "    description: 'Created by Alice so this collection can run on its own'",
+                  "});",
+                  "pm.collectionVariables.set('aliceThreatModelData', JSON.stringify(threatModel));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Threat model created and id stored for this collection', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.id).to.match(/^[0-9a-f-]{36}$/);",
+                  "    pm.collectionVariables.set('aliceThreatModelId', responseData.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{aliceThreatModelData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
+            },
+            "description": "Creates the threat model (owned by Alice) that every other request in this collection operates on, so the collection does not depend on another collection having run first."
+          }
+        }
+      ]
+    },
+    {
       "name": "Create Threat Model Metadata - Success (201)",
       "event": [
         {
@@ -9,6 +75,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
+              "// Load the real data factory (the runners provide its source via newman --globals)",
+              "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
               "// Ensure Alice is active user",
               "if (typeof tmiAuth !== 'undefined') {",
               "    tmiAuth.setActiveUser('alice');",
@@ -110,7 +178,7 @@
               "pm.test('Error indicates missing key', function () {",
               "    const responseData = pm.response.json();",
               "    pm.expect(responseData).to.have.property('error');",
-              "    pm.expect(responseData.error_description).to.include('validation');",
+              "    pm.expect(responseData.error).to.equal('invalid_input');",
               "});"
             ]
           }
@@ -171,7 +239,7 @@
               "",
               "pm.test('Error indicates empty values not allowed', function () {",
               "    const responseData = pm.response.json();",
-              "    pm.expect(responseData.error_description).to.include('validation');",
+              "    pm.expect(responseData.error).to.equal('invalid_input');",
               "});"
             ]
           }
@@ -404,6 +472,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
+              "// Load the real data factory (the runners provide its source via newman --globals)",
+              "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
               "// Generate bulk metadata",
               "const factory = new TMITestDataFactory();",
               "const bulkMetadata = factory.bulkMetadata(3);",
@@ -421,19 +491,21 @@
               "    pm.response.to.have.status(201);",
               "});",
               "",
-              "pm.test('Response is array of created metadata', function () {",
+              "pm.test('Response is array of metadata', function () {",
               "    const responseData = pm.response.json();",
               "    pm.expect(responseData).to.be.an('array');",
-              "    pm.expect(responseData).to.have.lengthOf(3);",
+              "    pm.expect(responseData.length).to.be.at.least(3);",
               "});",
               "",
               "pm.test('All metadata entries created correctly', function () {",
+              "    // The response lists the threat model's metadata entries, which include entries created by earlier requests",
               "    const responseData = pm.response.json();",
               "    const originalData = JSON.parse(pm.collectionVariables.get('bulkMetadataData'));",
-              "    ",
-              "    responseData.forEach((item, index) => {",
-              "        pm.expect(item.key).to.equal(originalData[index].key);",
-              "        pm.expect(item.value).to.equal(originalData[index].value);",
+              "",
+              "    originalData.forEach((expected) => {",
+              "        const item = responseData.find((m) => m.key === expected.key);",
+              "        pm.expect(item, `metadata key ${expected.key} in response`).to.not.be.undefined;",
+              "        pm.expect(item.value).to.equal(expected.value);",
               "    });",
               "});"
             ]
@@ -541,7 +613,53 @@
         },
         "description": "Verify metadata was actually deleted"
       }
+    },
+    {
+      "name": "Teardown",
+      "item": [
+        {
+          "name": "Teardown - Delete Alice's Threat Model (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
+            },
+            "description": "Deletes the threat model created by the setup request (cascades to its threats, documents, repositories and metadata)."
+          }
+        }
+      ]
     }
   ],
-  "description": "Comprehensive metadata CRUD testing with validation scenarios"
+  "description": "Comprehensive metadata CRUD testing with validation scenarios",
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token_alice}}",
+        "type": "string"
+      }
+    ]
+  }
 }

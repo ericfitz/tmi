@@ -33,14 +33,6 @@ func CurrentTime() time.Time {
 	return time.Now().UTC()
 }
 
-// DiagramRequest is used for creating and updating diagrams
-// SEM@15f518ec5394b0508ff8c84d08d6c785286d76e2: request DTO for creating or updating a diagram (pure)
-type DiagramRequest struct {
-	Name        string  `json:"name" binding:"required"`
-	Description *string `json:"description,omitempty"`
-	GraphData   []Cell  `json:"graphData,omitempty"`
-}
-
 // Component represents a diagram component
 // SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: represent a typed diagram component with associated metadata (pure)
 type Component struct {

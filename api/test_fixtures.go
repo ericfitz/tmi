@@ -47,7 +47,7 @@ var TestFixtures struct {
 }
 
 // InitTestFixtures initializes test data in stores
-// SEM@cdeba66cdb2289bed68942ec9c782f4decc326e9: build in-memory stores with canonical test threat model and diagram fixtures (mutates shared state)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: build in-memory stores with canonical test threat model and diagram fixtures (mutates shared state)
 func InitTestFixtures() {
 	// Database stores are initialized by the main application
 
@@ -199,12 +199,9 @@ func InitTestFixtures() {
 	TestFixtures.DiagramAuth = diagramAuth
 
 	// Associate the diagram with the threat model by adding it to the Diagrams array
-	var diagramUnion Diagram
-	if err := diagramUnion.FromDfdDiagram(diagram); err == nil {
-		diagrams := []Diagram{diagramUnion}
-		threatModel.Diagrams = &diagrams
-		TestFixtures.ThreatModel = threatModel
-	}
+	diagrams := []DfdDiagram{diagram}
+	threatModel.Diagrams = &diagrams
+	TestFixtures.ThreatModel = threatModel
 
 	// Initialize mock stores for unit tests, always resetting to ensure clean state.
 	// This prevents test contamination when other tests replace global stores.
@@ -235,7 +232,7 @@ type MockThreatModelStore struct {
 	data map[string]ThreatModel
 }
 
-// SEM@e4005658033b63171bdc1130fb523d996fbff9a7: fetch a threat model by ID from the in-memory store, loading diagrams dynamically (pure)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: fetch a threat model by ID from the in-memory store, loading diagrams dynamically (pure)
 func (m *MockThreatModelStore) Get(id string) (ThreatModel, error) {
 	if item, exists := m.data[id]; exists {
 		// Filter out soft-deleted entities
@@ -243,16 +240,12 @@ func (m *MockThreatModelStore) Get(id string) (ThreatModel, error) {
 			return ThreatModel{}, fmt.Errorf("threat model not found")
 		}
 		// Dynamically load diagrams from DiagramStore
-		var diagrams []Diagram
+		var diagrams []DfdDiagram
 		if mockDiagStore, ok := DiagramStore.(*MockDiagramStore); ok {
 			for diagramID, threatModelID := range mockDiagStore.threatModelMapping {
 				if threatModelID == id {
 					if diagram, err := DiagramStore.Get(diagramID); err == nil {
-						// Convert DfdDiagram to Diagram union type
-						var diagUnion Diagram
-						if err := diagUnion.FromDfdDiagram(diagram); err == nil {
-							diagrams = append(diagrams, diagUnion)
-						}
+						diagrams = append(diagrams, diagram)
 					}
 				}
 			}
@@ -568,7 +561,7 @@ type MockDiagramStore struct {
 	threatModelMapping map[string]string // diagram_id -> threat_model_id
 }
 
-// SEM@e4005658033b63171bdc1130fb523d996fbff9a7: fetch a diagram from the mock store by ID
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: fetch a diagram from the mock store by ID (test fixture)
 func (m *MockDiagramStore) Get(id string) (DfdDiagram, error) {
 	if item, exists := m.data[id]; exists {
 		return item, nil

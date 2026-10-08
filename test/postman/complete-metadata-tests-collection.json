@@ -48,11 +48,6 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "// Load test data factory",
-          "if (typeof TMITestDataFactory === 'undefined') {",
-          "    eval(pm.globals.get('TMITestDataFactory'));",
-          "}",
-          "",
           "// Use pre-authenticated token from environment",
           "const aliceToken = pm.environment.get('token_alice');",
           "if (aliceToken) {",

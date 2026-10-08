@@ -853,7 +853,7 @@ func (h *ThreatModelHandler) PatchThreatModel(c *gin.Context) {
 }
 
 // DeleteThreatModel deletes a threat model
-// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: soft-delete a threat model, blocking if any diagram has an active collaboration session (reads DB)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: delete a threat model; reject if any diagram has active collaboration session (reads DB)
 func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 	// Parse ID from URL parameter
 	id := c.Param("threat_model_id")
@@ -883,8 +883,8 @@ func (h *ThreatModelHandler) DeleteThreatModel(c *gin.Context) {
 
 	// Check if any diagrams in this threat model have active collaboration sessions
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil {
 				if h.wsHub.HasActiveSession(dfdDiag.Id.String()) {
 					HandleRequestError(c, ConflictError("Cannot delete threat model while a diagram has an active collaboration session. Please end all collaboration sessions first."))
 					return

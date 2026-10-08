@@ -879,7 +879,7 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 
 // BulkPatchThreats applies JSON patch operations to multiple threats
 // PATCH /threat_models/{threat_model_id}/threats/bulk
-// SEM@436c1840b3eef9687193078750dec3e22874f10e: apply JSON patch operations to multiple threats, authorizing each (mutates DB)
+// SEM@52df980c1d7491dbcef92922d2b1574b07e802a8: apply JSON patch operations to multiple threats, authorizing each (mutates DB)
 func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkPatchThreats - applying patch operations to multiple threats")
@@ -927,9 +927,9 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 	// Apply patches to each threat
 	updatedThreats := make([]Threat, 0, len(bulkPatchRequest.Patches))
 	for _, patch := range bulkPatchRequest.Patches {
-		// Validate threat ID
+		// Validate threat ID (a request-body field, so a failure is invalid_input)
 		if _, err := ParseUUID(patch.ID); err != nil {
-			HandleRequestError(c, InvalidIDError(fmt.Sprintf("Invalid threat ID format: %s", patch.ID)))
+			HandleRequestError(c, InvalidInputError(fmt.Sprintf("Invalid threat ID format: %s", patch.ID)))
 			return
 		}
 

@@ -2,6 +2,72 @@
   "name": "3. Threat CRUD & Validation Tests",
   "item": [
     {
+      "name": "Setup",
+      "item": [
+        {
+          "name": "Setup - Create Alice's Threat Model (201)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Load the real data factory (the runners provide its source via newman --globals)",
+                  "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
+                  "const factory = new TMITestDataFactory();",
+                  "const threatModel = factory.validThreatModel({",
+                  "    name: `Standalone Test Threat Model ${Date.now()}`,",
+                  "    description: 'Created by Alice so this collection can run on its own'",
+                  "});",
+                  "pm.collectionVariables.set('aliceThreatModelData', JSON.stringify(threatModel));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Threat model created and id stored for this collection', function () {",
+                  "    const responseData = pm.response.json();",
+                  "    pm.expect(responseData.id).to.match(/^[0-9a-f-]{36}$/);",
+                  "    pm.collectionVariables.set('aliceThreatModelId', responseData.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{aliceThreatModelData}}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/threat_models",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models"
+              ]
+            },
+            "description": "Creates the threat model (owned by Alice) that every other request in this collection operates on, so the collection does not depend on another collection having run first."
+          }
+        }
+      ]
+    },
+    {
       "name": "Create Threat - Success (201)",
       "event": [
         {
@@ -9,6 +75,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
+              "// Load the real data factory (the runners provide its source via newman --globals)",
+              "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
               "// Ensure Alice is active user and has a threat model",
               "if (typeof tmiAuth !== 'undefined') {",
               "    tmiAuth.setActiveUser('alice');",
@@ -20,10 +88,10 @@
               "    name: `Test Threat ${Date.now()}`,",
               "    description: 'A comprehensive test threat',",
               "    threat_type: [\"Spoofing\"],",
-              "    severity: 'High',",
-              "    priority: 'High',",
+              "    severity: 'high',",
+              "    priority: 'high',",
               "    score: 8.5,",
-              "    status: 'Open',",
+              "    status: 'open',",
               "    mitigated: false",
               "});",
               "",
@@ -126,7 +194,7 @@
               "pm.test('Error response indicates missing fields', function () {",
               "    const responseData = pm.response.json();",
               "    pm.expect(responseData).to.have.property('error');",
-              "    pm.expect(responseData.error_description).to.include('validation');",
+              "    pm.expect(responseData.error).to.equal('invalid_input');",
               "});"
             ]
           }
@@ -159,24 +227,23 @@
       }
     },
     {
-      "name": "Create Threat - Invalid Enum Values (400)",
+      "name": "Create Threat - Constraint Violations (400)",
       "event": [
         {
           "listen": "prerequest",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "// Generate threat data with invalid enum values",
+              "// ThreatBase defines no enums for severity/priority/status (free strings), so use constraints it does document:",
+              "// severity maxLength 50 and threat_type uniqueItems",
               "const invalidThreat = {",
               "    name: 'Test Threat',",
-              "    threat_type: [\"InvalidThreatType\"],",
-              "    severity: 'InvalidSeverity', ",
-              "    priority: 'InvalidPriority',",
-              "    status: 'InvalidStatus',",
+              "    threat_type: ['Spoofing', 'Spoofing'],",
+              "    severity: 'x'.repeat(51),",
               "    mitigated: false",
               "};",
               "",
-              "pm.collectionVariables.set('invalidEnumThreatData', JSON.stringify(invalidThreat));"
+              "pm.collectionVariables.set('invalidConstraintThreatData', JSON.stringify(invalidThreat));"
             ]
           }
         },
@@ -189,9 +256,11 @@
               "    pm.response.to.have.status(400);",
               "});",
               "",
-              "pm.test('Error indicates invalid enum values', function () {",
+              "pm.test('Error indicates constraint violation', function () {",
               "    const responseData = pm.response.json();",
-              "    pm.expect(responseData.error_description).to.include('validation');",
+              "    pm.expect(responseData).to.have.property('error');",
+              "    pm.expect(responseData.error).to.equal('invalid_input');",
+              "    pm.expect(responseData.error_description).to.be.a('string').that.is.not.empty;",
               "});"
             ]
           }
@@ -207,7 +276,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{{invalidEnumThreatData}}"
+          "raw": "{{invalidConstraintThreatData}}"
         },
         "url": {
           "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}/threats",
@@ -220,7 +289,7 @@
             "threats"
           ]
         },
-        "description": "Test threat creation with invalid enum values"
+        "description": "Test threat creation with values that violate documented ThreatBase constraints (severity maxLength 50, threat_type uniqueItems)"
       }
     },
     {
@@ -257,7 +326,7 @@
               "",
               "pm.test('Error indicates invalid score range', function () {",
               "    const responseData = pm.response.json();",
-              "    pm.expect(responseData.error_description).to.include('validation');",
+              "    pm.expect(responseData.error).to.equal('invalid_input');",
               "});"
             ]
           }
@@ -323,7 +392,7 @@
               "",
               "pm.test('Error indicates type validation failure', function () {",
               "    const responseData = pm.response.json();",
-              "    pm.expect(responseData.error_description).to.include('validation');",
+              "    pm.expect(responseData.error).to.equal('invalid_input');",
               "});"
             ]
           }
@@ -363,6 +432,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
+              "// Load the real data factory (the runners provide its source via newman --globals)",
+              "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
               "// Generate valid threat data",
               "const factory = new TMITestDataFactory();",
               "const threat = factory.validThreat();",
@@ -469,13 +540,15 @@
           "script": {
             "type": "text/javascript",
             "exec": [
+              "// Load the real data factory (the runners provide its source via newman --globals)",
+              "const TMITestDataFactory = eval(pm.globals.get('TMITestDataFactory') + '\\n;TMITestDataFactory');",
               "// Generate updated threat data",
               "const factory = new TMITestDataFactory();",
               "const updatedThreat = factory.validThreat({",
               "    name: `Updated Threat ${Date.now()}`,",
               "    description: 'Updated threat description',",
-              "    severity: 'Critical',",
-              "    status: 'In Progress'",
+              "    severity: 'critical',",
+              "    status: 'in_progress'",
               "});",
               "",
               "pm.collectionVariables.set('updatedThreatData', JSON.stringify(updatedThreat));"
@@ -543,7 +616,7 @@
               "    {",
               "        op: 'replace',",
               "        path: '/status',",
-              "        value: 'Closed'",
+              "        value: 'closed'",
               "    },",
               "    {",
               "        op: 'replace',",
@@ -567,7 +640,7 @@
               "",
               "pm.test('Patch operations applied correctly', function () {",
               "    const responseData = pm.response.json();",
-              "    pm.expect(responseData.status).to.equal('Closed');",
+              "    pm.expect(responseData.status).to.equal('closed');",
               "    pm.expect(responseData.mitigated).to.equal(true);",
               "});"
             ]
@@ -579,7 +652,7 @@
         "header": [
           {
             "key": "Content-Type",
-            "value": "application/json"
+            "value": "application/json-patch+json"
           }
         ],
         "body": {
@@ -637,7 +710,53 @@
         },
         "description": "Delete the threat"
       }
+    },
+    {
+      "name": "Teardown",
+      "item": [
+        {
+          "name": "Teardown - Delete Alice's Threat Model (204)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/threat_models/{{aliceThreatModelId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "threat_models",
+                "{{aliceThreatModelId}}"
+              ]
+            },
+            "description": "Deletes the threat model created by the setup request (cascades to its threats, documents, repositories and metadata)."
+          }
+        }
+      ]
     }
   ],
-  "description": "Comprehensive CRUD testing for threats with all validation scenarios"
+  "description": "Comprehensive CRUD testing for threats with all validation scenarios",
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token_alice}}",
+        "type": "string"
+      }
+    ]
+  }
 }

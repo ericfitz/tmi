@@ -1,0 +1,107 @@
+{
+  "id": "123e4567-e89b-41d4-a716-446655440000",
+  "name": "Payment Gateway Threat Model",
+  "description": "Threat analysis for payment processing system",
+  "owner": {
+    "principal_type": "user",
+    "provider": "github",
+    "provider_id": "alice@example.com",
+    "display_name": "Alice Johnson",
+    "email": "alice@example.com"
+  },
+  "threat_model_framework": "STRIDE",
+  "authorization": [
+    {
+      "principal_type": "user",
+      "provider": "github",
+      "provider_id": "alice@example.com",
+      "display_name": "Alice Johnson",
+      "email": "alice@example.com",
+      "role": "owner"
+    },
+    {
+      "principal_type": "user",
+      "provider": "github",
+      "provider_id": "bob@example.com",
+      "display_name": "Bob Smith",
+      "email": "bob@example.com",
+      "role": "writer"
+    }
+  ],
+  "status": "In Progress",
+  "alias": 42,
+  "issue_uri": "https://github.com/example/project/issues/42",
+  "created_at": "2024-01-15T10:30:00Z",
+  "modified_at": "2024-01-20T14:45:00Z",
+  "is_confidential": false,
+  "created_by": {
+    "principal_type": "user",
+    "provider": "github",
+    "provider_id": "alice@example.com",
+    "display_name": "Alice Johnson",
+    "email": "alice@example.com"
+  },
+  "diagrams": [
+    {
+      "id": "234e5678-e89b-41d4-a716-446655440001",
+      "name": "Payment Flow DFD",
+      "type": "DFD-1.0.0",
+      "cells": [],
+      "created_at": "2024-01-15T10:35:00Z",
+      "modified_at": "2024-01-20T16:00:00Z"
+    }
+  ],
+  "threats": [
+    {
+      "id": "345e6789-e89b-41d4-a716-446655440002",
+      "name": "SQL Injection in Payment API",
+      "threat_type": [
+        "Tampering"
+      ],
+      "severity": "high",
+      "status": "open",
+      "alias": 1,
+      "asset_id": "00000000-0000-0000-0000-000000000000",
+      "auto_generated": false,
+      "cell_id": "00000000-0000-0000-0000-000000000000",
+      "created_at": "2026-01-01T00:00:00Z",
+      "cvss": [],
+      "cwe_id": [],
+      "deleted_at": "2026-01-01T00:00:00Z",
+      "description": "example",
+      "diagram_id": "00000000-0000-0000-0000-000000000000",
+      "include_in_report": true,
+      "issue_uri": "https://example.com/resource",
+      "metadata": [],
+      "mitigated": false,
+      "mitigation": "example",
+      "modified_at": "2026-01-01T00:00:00Z",
+      "priority": "example",
+      "score": 0.0,
+      "ssvc": {
+        "vector": "example",
+        "decision": "Defer",
+        "methodology": "example"
+      },
+      "threat_model_id": "00000000-0000-0000-0000-000000000000",
+      "timmy_enabled": true,
+      "version": 1
+    }
+  ],
+  "documents": [],
+  "repositories": [],
+  "notes": [],
+  "assets": [],
+  "deleted_at": "2026-01-01T00:00:00Z",
+  "metadata": [],
+  "project_id": "00000000-0000-0000-0000-000000000000",
+  "security_reviewer": {
+    "principal_type": "user",
+    "provider": "example",
+    "provider_id": "example",
+    "display_name": "example",
+    "email": "user@example.com"
+  },
+  "status_updated": "2026-01-01T00:00:00Z",
+  "version": 1
+}

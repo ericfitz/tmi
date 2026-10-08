@@ -27,7 +27,7 @@ func NewThreatModelDiagramHandler(wsHub *WebSocketHub) *ThreatModelDiagramHandle
 }
 
 // GetDiagrams returns a list of diagrams for a threat model
-// SEM@56c7ade8aa871465aa5ecb657172ddbf41f9112e: list diagrams for a threat model with pagination (reads DB)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: list diagrams for a threat model with pagination (reads DB)
 func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId string) {
 	// Parse pagination parameters
 	limit := parseIntParam(c.DefaultQuery("limit", "20"), 20)
@@ -45,9 +45,8 @@ func (h *ThreatModelDiagramHandler) GetDiagrams(c *gin.Context, threatModelId st
 	// Get diagrams associated with this threat model
 	var diagrams []DfdDiagram
 	if tm.Diagrams != nil {
-		for _, diagramUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to extract ID
-			if dfdDiag, err := diagramUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil {
 				// Since we already have the DfdDiagram, we can use it directly instead of querying the store
 				diagrams = append(diagrams, dfdDiag)
 			}
@@ -195,7 +194,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagram(c *gin.Context, threatModelId 
 }
 
 // GetDiagramByID retrieves a specific diagram within a threat model
-// SEM@533fc769067d317cc10f227729848688da16fba0: fetch a single diagram by ID after verifying parent threat model ownership (reads DB)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: fetch a single diagram by ID after verifying parent threat model access (reads DB)
 func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId, diagramId string) {
 	// Validate ID formats
 	if _, err := ParseUUID(threatModelId); err != nil {
@@ -218,9 +217,8 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
 				diagramFound = true
 				break
 			}
@@ -251,7 +249,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramByID(c *gin.Context, threatModelId
 }
 
 // UpdateDiagram fully updates a diagram within a threat model
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: fully replace a diagram's content with optimistic locking; rejects active collaboration sessions (reads DB)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: fully replace a diagram's content with optimistic locking; rejects active collaboration sessions (reads DB)
 func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId, diagramId string) {
 	// AuthzMiddleware (#365) has already enforced ownership=writer on this
 	// route. Identity is still pulled from the JWT for audit/log lines below.
@@ -271,9 +269,8 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
 				diagramFound = true
 				break
 			}
@@ -302,16 +299,9 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 	preState, _ := SerializeForAudit(existingDiagram)
 
 	// Parse and validate the updated diagram from request body using OpenAPI validation
-	var updatedDiagramUnion Diagram
-	if err := c.ShouldBindJSON(&updatedDiagramUnion); err != nil {
+	var updatedDiagram DfdDiagram
+	if err := c.ShouldBindJSON(&updatedDiagram); err != nil {
 		HandleRequestError(c, InvalidInputError("Invalid request body: "+err.Error()))
-		return
-	}
-
-	// Convert union type to DfdDiagram for working with store
-	updatedDiagram, err := updatedDiagramUnion.AsDfdDiagram()
-	if err != nil {
-		HandleRequestError(c, InvalidInputError("Invalid diagram format: "+err.Error()))
 		return
 	}
 
@@ -399,7 +389,7 @@ func (h *ThreatModelDiagramHandler) UpdateDiagram(c *gin.Context, threatModelId,
 }
 
 // PatchDiagram partially updates a diagram within a threat model
-// SEM@15f223d3629a108c4549d8bb619851c44a5d4b18: apply JSON Patch operations to a diagram with optimistic locking; rejects active sessions (reads DB)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: update a diagram by applying JSON Patch operations with optimistic locking; reject active sessions (reads DB)
 func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, diagramId string) {
 	// Similar to UpdateDiagram but with JSON Patch operations
 	// For brevity, this implementation is simplified
@@ -422,9 +412,8 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
 				diagramFound = true
 				break
 			}
@@ -556,7 +545,7 @@ func (h *ThreatModelDiagramHandler) PatchDiagram(c *gin.Context, threatModelId, 
 }
 
 // DeleteDiagram deletes a diagram within a threat model
-// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: soft-delete a diagram under a threat model; rejects active collaboration sessions (reads DB)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: delete a diagram under a threat model; reject if collaboration session active (reads DB)
 func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId, diagramId string) {
 	// AuthzMiddleware (#365) has already enforced ownership=owner on this
 	// route. Load the threat model to verify diagram parentage below.
@@ -569,9 +558,8 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
 				diagramFound = true
 				break
 			}
@@ -614,7 +602,7 @@ func (h *ThreatModelDiagramHandler) DeleteDiagram(c *gin.Context, threatModelId,
 }
 
 // GetDiagramCollaborate gets collaboration session status for a diagram within a threat model
-// SEM@533fc769067d317cc10f227729848688da16fba0: fetch the active collaboration session status for a diagram (reads DB)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: fetch the active collaboration session status for a diagram (reads DB)
 func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threatModelId, diagramId string) {
 	// AuthzMiddleware (#365) has already enforced ownership=reader on this
 	// route. Identity is still pulled from the JWT for the participant-list
@@ -635,9 +623,8 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
 				diagramFound = true
 				break
 			}
@@ -676,7 +663,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 }
 
 // CreateDiagramCollaborate creates a new collaboration session for a diagram within a threat model
-// SEM@533fc769067d317cc10f227729848688da16fba0: create or retrieve a WebSocket collaboration session for a diagram (reads DB)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: create or retrieve a WebSocket collaboration session for a diagram (reads DB)
 func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, threatModelId, diagramId string) {
 	// Similar to DiagramHandler.PostDiagramCollaborate but with threat model access check
 	// For brevity, this implementation is simplified
@@ -700,9 +687,8 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
 				diagramFound = true
 				break
 			}
@@ -748,7 +734,7 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 }
 
 // DeleteDiagramCollaborate leaves a collaboration session for a diagram within a threat model
-// SEM@533fc769067d317cc10f227729848688da16fba0: leave or close a collaboration session; host closes, other participants disconnect (mutates shared state)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: handle leaving or closing a collaboration session; host closes, participants disconnect (mutates shared state)
 func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, threatModelId, diagramId string) {
 	// Similar to DiagramHandler.DeleteDiagramCollaborate but with threat model access check
 	// For brevity, this implementation is simplified
@@ -772,9 +758,8 @@ func (h *ThreatModelDiagramHandler) DeleteDiagramCollaborate(c *gin.Context, thr
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId {
 				diagramFound = true
 				break
 			}
@@ -843,7 +828,7 @@ func areSlicesEqual(a, b []DfdDiagram_Cells_Item) bool {
 //   - application/graphml+xml
 //   - 406 Not Acceptable when the Accept header matches none of these
 //
-// SEM@29f63eb500c26288d0d3fe23737adf6fd94bdf9c: fetch a diagram model and serialize in the negotiated format (reads DB)
+// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: fetch a diagram model and serialize it in the negotiated format (reads DB)
 func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelId, diagramId openapi_types.UUID) {
 	// Determine output format from the Accept header (default application/json).
 	format, err := negotiateFormat(c)
@@ -863,9 +848,8 @@ func (h *ThreatModelDiagramHandler) GetDiagramModel(c *gin.Context, threatModelI
 	// Check if the diagram is associated with this threat model
 	diagramFound := false
 	if tm.Diagrams != nil {
-		for _, diagUnion := range *tm.Diagrams {
-			// Convert union type to DfdDiagram to get the ID
-			if dfdDiag, err := diagUnion.AsDfdDiagram(); err == nil && dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId.String() {
+		for _, dfdDiag := range *tm.Diagrams {
+			if dfdDiag.Id != nil && dfdDiag.Id.String() == diagramId.String() {
 				diagramFound = true
 				break
 			}

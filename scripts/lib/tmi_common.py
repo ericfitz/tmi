@@ -251,6 +251,37 @@ def ensure_volume(name: str) -> None:
         run_cmd(["docker", "volume", "create", name])
 
 
+def _container_mounts_match(name: str, volumes: dict) -> bool:
+    """Return True if container `name` mounts every requested {source: dest} pair.
+
+    Bind sources are compared by resolved real path; named volumes by name.
+    """
+    result = run_cmd(
+        ["docker", "inspect", "-f", "{{json .Mounts}}", name],
+        capture=True,
+        check=False,
+    )
+    try:
+        mounts = json.loads(result.stdout or "[]") or []
+    except json.JSONDecodeError:
+        mounts = []
+    actual = {}
+    for m in mounts:
+        if m.get("Type") == "bind":
+            actual[m.get("Destination")] = os.path.realpath(m.get("Source", ""))
+        else:
+            actual[m.get("Destination")] = m.get("Name", "")
+    for src, dst in volumes.items():
+        expected = os.path.realpath(src) if os.path.isabs(src) else src
+        if actual.get(dst) != expected:
+            log_warn(
+                f"Container {name} mounts {actual.get(dst)!r} at {dst}, "
+                f"expected {expected!r}; recreating"
+            )
+            return False
+    return True
+
+
 def ensure_container(
     name: str,
     host_port: int,
@@ -265,6 +296,8 @@ def ensure_container(
     - Creates the container if it does not exist.
     - Starts the container if it exists but is stopped.
     - No-op if the container is already running.
+    - If `volumes` is given and an existing container's mounts differ (for
+      example it was created from another checkout), removes it and recreates it.
 
     Args:
         name: Container name.
@@ -276,11 +309,16 @@ def ensure_container(
         cmd_args: Extra command arguments appended after the image (container
             entrypoint args, e.g. ["-js"] for NATS JetStream).
     """
-    if container_is_running(name):
+    exists = container_is_running(name) or container_exists(name)
+    if exists and volumes and not _container_mounts_match(name, volumes):
+        run_cmd(["docker", "rm", "-f", name])
+        exists = False
+
+    if exists and container_is_running(name):
         log_info(f"Container already running: {name}")
         return
 
-    if container_exists(name):
+    if exists:
         log_info(f"Starting existing container: {name}")
         run_cmd(["docker", "start", name])
         log_success(f"Container started: {name} \u2713")
