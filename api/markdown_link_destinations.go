@@ -405,6 +405,12 @@ var errMarkdownGateDeadline = errors.New("markdown gate parse deadline exceeded"
 // the deadline has passed. Between two context calls goldmark does at most
 // one linear scan of a line, so a parse stops within milliseconds of the
 // deadline. A parse is single-goroutine, so the counter needs no locking.
+//
+// Coverage assumption: in the inline phase only the link parser calls into the
+// Context; the code-span, autolink and raw-HTML inline parsers make no Context
+// calls, so inline-phase cancellation relies on the link parser. Adding an
+// inline parser or extension to markdownGateParser (re-enabling emphasis, GFM,
+// ...) must re-check that every potentially slow path still reaches tick.
 type gateDeadlineContext struct {
 	parser.Context
 	deadline time.Time
