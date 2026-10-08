@@ -134,7 +134,7 @@ func writeExportedConfig(rows []exportRow, outputPath string) error {
 // values at rest when encryption is on, not just secrets, #1033); otherwise
 // it is skipped with a warning naming the key (an encrypted blob is useless
 // across databases with different keys, and unimportable as a typed value).
-// SEM@1a4ca5f99be4a25df66b2836e9b9f4c87628184a: export system settings to a YAML file, decrypting encrypted values and skipping undecryptable and empty ones (reads DB, writes file)
+// SEM@34e0b98eb6d156b1641bee78bec52514ad1c2dc4: export system settings to a YAML file, decrypting encrypted values and skipping undecryptable and empty ones (reads DB, writes file)
 func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecrets bool) error {
 	log := slogging.Get()
 

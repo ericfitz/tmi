@@ -212,7 +212,7 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 // every encrypted setting (#1033): its ciphertext cannot unmarshal into typed
 // fields, and for string fields would be re-encrypted (double-encrypted) on
 // write. The error lists keys only, never values.
-// SEM@0000000: reject a settings source file containing encrypted values, listing offending keys (reads file)
+// SEM@34e0b98eb6d156b1641bee78bec52514ad1c2dc4: reject a settings source file containing encrypted values, listing offending keys (reads file)
 func rejectEncryptedSource(inputFile string) error {
 	data, readErr := os.ReadFile(inputFile) //nolint:gosec // operator-supplied path
 	if readErr != nil {
@@ -234,7 +234,7 @@ func rejectEncryptedSource(inputFile string) error {
 		inputFile, len(keys), strings.Join(keys, ", "))
 }
 
-// SEM@0000000: collect dotted keys of nested map leaves whose string value is encrypted (pure)
+// SEM@34e0b98eb6d156b1641bee78bec52514ad1c2dc4: collect dotted keys of nested map leaves whose string value is encrypted (pure)
 func collectEncryptedKeys(prefix string, node any, out *[]string) {
 	switch v := node.(type) {
 	case map[string]any:

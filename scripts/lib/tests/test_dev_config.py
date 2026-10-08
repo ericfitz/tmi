@@ -26,9 +26,9 @@ def _fake_kubectl(secrets):
     return run
 
 
-# SEM@d5bdfb1e: validate delivering the dev settings key to dbtool via a private file-provider dir
+# SEM@5149987ee2172bd73af1ed0a0727c09bdedfa562: validate delivering the dev settings key to dbtool via a private file-provider dir
 class TestSettingsKeyEnv(unittest.TestCase):
-    # SEM@d5bdfb1e: validate key files, perms, env, and cleanup
+    # SEM@5149987ee2172bd73af1ed0a0727c09bdedfa562: validate key files, perms, env, and cleanup
     def test_writes_private_files_and_cleans_up(self):
         secrets = {
             "TMI_SECRET_SETTINGS_ENCRYPTION_KEY": "k" * 64,
@@ -47,14 +47,14 @@ class TestSettingsKeyEnv(unittest.TestCase):
             self.assertNotIn("k" * 64, "".join(env.values()))
         self.assertFalse(d.exists())
 
-    # SEM@d5bdfb1e: validate fallback when the Secret lacks the key
+    # SEM@5149987ee2172bd73af1ed0a0727c09bdedfa562: validate fallback when the Secret lacks the key
     def test_missing_key_yields_none_and_warns(self):
         with mock.patch.object(dc, "kubectl", _fake_kubectl({})), \
                 mock.patch.object(dc, "log_warn") as warn, dc.settings_key_env() as env:
             self.assertIsNone(env)
         self.assertIn("TMI_SECRET_SETTINGS_ENCRYPTION_KEY", warn.call_args[0][0])
 
-    # SEM@d5bdfb1e: validate the umask is restored
+    # SEM@5149987ee2172bd73af1ed0a0727c09bdedfa562: validate the umask is restored
     def test_umask_restored(self):
         before = os.umask(0o022)
         try:
@@ -65,9 +65,9 @@ class TestSettingsKeyEnv(unittest.TestCase):
             os.umask(before)
 
 
-# SEM@d5bdfb1e: validate _dbtool passes the key env only when asked
+# SEM@5149987ee2172bd73af1ed0a0727c09bdedfa562: validate _dbtool passes the key env only when asked
 class TestDbtoolEnv(unittest.TestCase):
-    # SEM@d5bdfb1e: validate export passes env, restore does not
+    # SEM@5149987ee2172bd73af1ed0a0727c09bdedfa562: validate export passes env, restore does not
     def test_env_only_with_flag(self):
         with mock.patch.object(dc, "set_active_context"), \
                 mock.patch.object(dc, "ensure_port_forward"), \
