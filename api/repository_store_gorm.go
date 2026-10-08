@@ -13,6 +13,7 @@ import (
 	"github.com/ericfitz/tmi/api/validation"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -214,7 +215,7 @@ func (s *GormRepositoryRepository) Update(ctx context.Context, repository *Repos
 	// 400. Backstop for callers that bypass the handler/schema checks
 	// (validateURI skips "").
 	if err := validation.ValidateURI("uri", repository.Uri); err != nil {
-		return &RequestError{Status: http.StatusBadRequest, Code: "invalid_input", Message: err.Error()}
+		return &RequestError{Status: http.StatusBadRequest, Code: errcode.InvalidInput, Message: err.Error()}
 	}
 
 	// Convert type to string pointer
@@ -604,11 +605,11 @@ func (s *GormRepositoryRepository) Patch(ctx context.Context, id string, operati
 			// as a server fault — a `remove` on a path the document does not
 			// have returned "Failed to patch {kind}" with a 500. RequestError
 			// passes through StoreErrorToRequestError untouched, and matches
-			// the patch_failed code ApplyPatchOperations already returns for
+			// the invalid_patch code ApplyPatchOperations already returns for
 			// the entities that go through it.
 			return nil, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "patch_failed",
+				Code:    errcode.InvalidPatch,
 				Message: "Failed to apply patch: " + err.Error(),
 			}
 		}

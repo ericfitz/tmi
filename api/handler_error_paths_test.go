@@ -477,7 +477,7 @@ func TestHandleRequestError_Extended(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 		var response Error
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-		assert.Equal(t, "server_error", response.Error)
+		assert.Equal(t, "server_error", string(response.Error))
 		assert.NotContains(t, response.ErrorDescription, "goroutine",
 			"Stack trace should be truncated from generic error messages")
 		assert.Contains(t, response.ErrorDescription, "database connection failed")
@@ -595,14 +595,14 @@ func TestErrorConstructors(t *testing.T) {
 	t.Run("InvalidInputError", func(t *testing.T) {
 		err := InvalidInputError("bad field")
 		assert.Equal(t, http.StatusBadRequest, err.Status)
-		assert.Equal(t, "invalid_input", err.Code)
+		assert.Equal(t, "invalid_input", string(err.Code))
 		assert.Equal(t, "bad field", err.Message)
 	})
 
 	t.Run("InvalidIDError", func(t *testing.T) {
 		err := InvalidIDError("not a UUID")
 		assert.Equal(t, http.StatusBadRequest, err.Status)
-		assert.Equal(t, "invalid_id", err.Code)
+		assert.Equal(t, "invalid_id", string(err.Code))
 		assert.Equal(t, "not a UUID", err.Message)
 	})
 
@@ -777,7 +777,7 @@ func TestHandleRequestError_InternalServerError_Format(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	var response Error
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
-	assert.Equal(t, "server_error", response.Error)
+	assert.Equal(t, "server_error", string(response.Error))
 	// Control characters should be sanitized
 	assert.NotContains(t, response.ErrorDescription, "\x00")
 	assert.NotContains(t, response.ErrorDescription, "\n")

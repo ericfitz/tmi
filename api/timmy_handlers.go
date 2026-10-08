@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/errcode"
 	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
@@ -636,21 +637,13 @@ func (s *Server) RequestDocumentAccess(c *gin.Context, threatModelId ThreatModel
 
 	src, ok := csBundle.Sources.FindSource(c.Request.Context(), doc.Uri)
 	if !ok {
-		HandleRequestError(c, &RequestError{
-			Status:  422,
-			Code:    "no_source",
-			Message: "no content source available for this document's URI",
-		})
+		HandleRequestError(c, WithDetailCode(UnprocessableEntityError("no content source available for this document's URI"), errcode.DetailNoSource))
 		return
 	}
 
 	requester, ok := src.(AccessRequester)
 	if !ok {
-		HandleRequestError(c, &RequestError{
-			Status:  422,
-			Code:    "access_request_not_supported",
-			Message: "the content source for this document does not support access requests",
-		})
+		HandleRequestError(c, WithDetailCode(UnprocessableEntityError("the content source for this document does not support access requests"), errcode.DetailAccessRequestNotSupported))
 		return
 	}
 

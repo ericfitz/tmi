@@ -13,6 +13,7 @@ import (
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/config"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -582,14 +583,14 @@ func revocationAuthError(logger slogging.SimpleLogger, err error) *AuthError {
 	if strings.Contains(err.Error(), "revoked") {
 		// Use generic error message to avoid leaking implementation details
 		return &AuthError{
-			Code:        "unauthorized",
+			Code:        errcode.Unauthorized,
 			Description: "Authentication required",
 			StatusCode:  http.StatusUnauthorized,
 		}
 	}
 	logger.Error("Failed to check token blacklist: %v", err)
 	return &AuthError{
-		Code:        "service_unavailable",
+		Code:        errcode.ServiceUnavailable,
 		Description: "Authentication service temporarily unavailable - please retry",
 		StatusCode:  http.StatusServiceUnavailable,
 		RetryAfter:  blacklistUnavailableRetryAfterSeconds,
@@ -606,7 +607,7 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 	if err != nil {
 		// Use generic error message to avoid leaking implementation details
 		return &AuthError{
-			Code:        "unauthorized",
+			Code:        errcode.Unauthorized,
 			Description: "Authentication required",
 			StatusCode:  http.StatusUnauthorized,
 		}
@@ -618,14 +619,14 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 		if a.ticketValidator == nil {
 			logger.Error("Ticket validator not configured")
 			return &AuthError{
-				Code:        "server_error",
+				Code:        errcode.ServerError,
 				Description: "Ticket validation not available",
 				StatusCode:  http.StatusInternalServerError,
 			}
 		}
 		if err := a.ticketValidator.ValidateTicket(c, ticketStr); err != nil {
 			return &AuthError{
-				Code:        "unauthorized",
+				Code:        errcode.Unauthorized,
 				Description: "Authentication required",
 				StatusCode:  http.StatusUnauthorized,
 			}
@@ -641,7 +642,7 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 	if err != nil {
 		// Use generic error message to avoid leaking implementation details
 		return &AuthError{
-			Code:        "unauthorized",
+			Code:        errcode.Unauthorized,
 			Description: "Authentication required",
 			StatusCode:  http.StatusUnauthorized,
 		}
@@ -655,14 +656,14 @@ func (a *JWTAuthenticator) AuthenticateRequest(c *gin.Context) error {
 		if errors.Is(err, errUnmarkedServiceAccountSubject) {
 			logger.Warn("Rejected token: %v", err)
 			return &AuthError{
-				Code:        "unauthorized",
+				Code:        errcode.Unauthorized,
 				Description: "Authentication required",
 				StatusCode:  http.StatusUnauthorized,
 			}
 		}
 		logger.Error("Failed to extract claims: %v", err)
 		return &AuthError{
-			Code:        "server_error",
+			Code:        errcode.ServerError,
 			Description: "Authentication processing error",
 			StatusCode:  http.StatusInternalServerError,
 		}
@@ -834,7 +835,7 @@ func extractAuthTime(claims jwt.MapClaims) *time.Time {
 // AuthError represents an authentication error
 // SEM@7383e0ea99036c9a251ff7eefa5cb784ea3829a8: structured auth error carrying an OAuth error code and HTTP status code (pure)
 type AuthError struct {
-	Code        string
+	Code        errcode.Code
 	Description string
 	StatusCode  int
 	// RetryAfter, when non-zero, is emitted as the Retry-After response header

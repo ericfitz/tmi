@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -26,8 +27,9 @@ func (h *Handlers) StepUp(c *gin.Context) {
 	if !ok {
 		c.Header("WWW-Authenticate", `Bearer error="invalid_token"`)
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_token",
+			"error":             string(errcode.Unauthorized),
 			"error_description": "Missing or invalid access token",
+			"details":           gin.H{"code": string(errcode.DetailInvalidToken)},
 		})
 		return
 	}
@@ -36,8 +38,9 @@ func (h *Handlers) StepUp(c *gin.Context) {
 	if err != nil {
 		c.Header("WWW-Authenticate", `Bearer error="invalid_token"`)
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "invalid_token",
+			"error":             string(errcode.Unauthorized),
 			"error_description": "Token validation failed",
+			"details":           gin.H{"code": string(errcode.DetailInvalidToken)},
 		})
 		return
 	}
@@ -54,7 +57,7 @@ func (h *Handlers) StepUp(c *gin.Context) {
 		_ = h.stepUpAud().LogRejected(c.Request.Context(), actor, "unsupported_grant_type",
 			map[string]string{"subject_prefix": "sa"})
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "unsupported_grant_type",
+			"error":             string(errcode.UnsupportedGrantType),
 			"error_description": "Step-up does not apply to client credentials grants",
 		})
 		return
@@ -67,7 +70,7 @@ func (h *Handlers) StepUp(c *gin.Context) {
 		_ = h.stepUpAud().LogRejected(c.Request.Context(), actor, "invalid_provider",
 			map[string]string{"provider": providerID})
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_provider",
+			"error":             string(errcode.InvalidProvider),
 			"error_description": fmt.Sprintf("Provider %q is not configured or is disabled", providerID),
 		})
 		return
@@ -77,7 +80,7 @@ func (h *Handlers) StepUp(c *gin.Context) {
 	clientCallback := c.Query("client_callback")
 	if clientCallback == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidRequest),
 			"error_description": "client_callback parameter is required",
 		})
 		return
@@ -86,7 +89,7 @@ func (h *Handlers) StepUp(c *gin.Context) {
 	if !allow.Allowed(clientCallback) {
 		logger.Warn("Rejected /oauth2/step_up: client_callback %q not in allowlist", clientCallback)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidRequest),
 			"error_description": "client_callback is not in the allowlist",
 		})
 		return
@@ -95,14 +98,14 @@ func (h *Handlers) StepUp(c *gin.Context) {
 	codeChallenge := c.Query("code_challenge")
 	if codeChallenge == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidRequest),
 			"error_description": "code_challenge parameter is required",
 		})
 		return
 	}
 	if err := ValidateCodeChallengeFormat(codeChallenge); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidRequest),
 			"error_description": fmt.Sprintf("Invalid code_challenge format: %v", err),
 		})
 		return
@@ -113,7 +116,7 @@ func (h *Handlers) StepUp(c *gin.Context) {
 	}
 	if codeChallengeMethod != pkceMethodS256 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidRequest),
 			"error_description": "Only S256 code_challenge_method is supported",
 		})
 		return
@@ -121,14 +124,14 @@ func (h *Handlers) StepUp(c *gin.Context) {
 
 	if rt := c.Query("response_type"); rt != "" && rt != oauthResponseTypeCode {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "unsupported_response_type",
+			"error":             string(errcode.UnsupportedResponseType),
 			"error_description": "Only response_type=code is supported",
 		})
 		return
 	}
 	if sc := c.Query("scope"); sc != "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_scope",
+			"error":             string(errcode.InvalidScope),
 			"error_description": "scope is not accepted on /oauth2/step_up",
 		})
 		return
@@ -140,7 +143,7 @@ func (h *Handlers) StepUp(c *gin.Context) {
 		// Should not happen — getProvider succeeded above.
 		_ = h.stepUpAud().LogRejected(c.Request.Context(), actor, "invalid_provider",
 			map[string]string{"provider": providerID})
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 	strength := ClassifyStepUpStrength(cfg)
@@ -169,7 +172,7 @@ func (h *Handlers) stepUpWeakShortCircuit(c *gin.Context, actor StepUpActor) {
 	user, err := h.service.GetUserByProviderID(ctx, actor.Provider, actor.ProviderUserID)
 	if err != nil {
 		logger.Error("step-up weak: user lookup failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 
@@ -189,7 +192,7 @@ func (h *Handlers) stepUpWeakShortCircuit(c *gin.Context, actor StepUpActor) {
 	tokenPair, err := h.service.GenerateTokensWithUserInfo(ctx, user, nil)
 	if err != nil {
 		logger.Error("step-up weak: token mint failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 
@@ -259,7 +262,7 @@ func (h *Handlers) stepUpStrongRedirect(c *gin.Context, provider Provider, cfg O
 		state, err = generateRandomState()
 		if err != nil {
 			logger.Error("Failed to generate state for step-up: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 			return
 		}
 	}
@@ -271,7 +274,7 @@ func (h *Handlers) stepUpStrongRedirect(c *gin.Context, provider Provider, cfg O
 	user, err := h.service.GetUserByProviderID(ctx, actor.Provider, actor.ProviderUserID)
 	if err != nil {
 		logger.Error("step-up: user lookup failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 
@@ -290,26 +293,26 @@ func (h *Handlers) stepUpStrongRedirect(c *gin.Context, provider Provider, cfg O
 	stateJSON, err := json.Marshal(stateData)
 	if err != nil {
 		logger.Error("step-up: state marshal failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 	if err := h.service.dbManager.Redis().Set(ctx, stateKey, string(stateJSON), 10*time.Minute); err != nil {
 		logger.Error("step-up: state store failed: %v", err)
 		c.Header("Retry-After", "30")
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "temporarily_unavailable"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": string(errcode.TemporarilyUnavailable), "error_description": "Service temporarily unavailable"})
 		return
 	}
 	if err := h.service.stateStore.StorePKCEChallenge(ctx, state, codeChallenge, codeChallengeMethod, 10*time.Minute); err != nil {
 		logger.Error("step-up: PKCE store failed: %v", err)
 		c.Header("Retry-After", "30")
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "temporarily_unavailable"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": string(errcode.TemporarilyUnavailable), "error_description": "Service temporarily unavailable"})
 		return
 	}
 
 	authURL, err := BuildStepUpAuthorizationURL(provider, cfg, state, loginHint)
 	if err != nil {
 		logger.Error("step-up: URL build failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "server_error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Internal server error"})
 		return
 	}
 	// Content negotiation (#455): XHR/fetch callers that send

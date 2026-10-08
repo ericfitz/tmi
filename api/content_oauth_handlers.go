@@ -9,6 +9,7 @@ import (
 
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/config"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -114,20 +115,24 @@ func (h *ContentOAuthHandlers) Authorize(c *gin.Context) {
 	providerID := c.Param("provider_id")
 	provider, ok := h.Registry.Get(providerID)
 	if !ok {
+		// Legacy top-level code: tmi-ux branches on it (content-token.service.ts), so it
+		// stays in the Error enum and is repeated in details.code for future migration.
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"error":       "content_token_provider_not_configured",
-			"provider_id": providerID,
+			"error":             string(errcode.DetailContentTokenProviderNotConfigured),
+			"error_description": "content provider is not configured: " + providerID,
+			"details":           gin.H{"code": string(errcode.DetailContentTokenProviderNotConfigured)},
+			"provider_id":       providerID,
 		})
 		return
 	}
 
 	var req authorizeRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.ClientCallback == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "client_callback_required"})
+		HandleRequestError(c, WithDetailCode(InvalidInputError("client_callback is required"), errcode.DetailClientCallbackRequired))
 		return
 	}
 	if !h.CallbackAllow.Allowed(req.ClientCallback) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "client_callback_not_allowed"})
+		HandleRequestError(c, WithDetailCode(InvalidInputError("client_callback is not an allowed callback URL"), errcode.DetailClientCallbackNotAllowed))
 		return
 	}
 

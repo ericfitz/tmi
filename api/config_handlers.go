@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth"
@@ -518,7 +519,7 @@ func (s *Server) ListSystemSettings(c *gin.Context) {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "service_unavailable",
+			Code:    errcode.ServerError,
 			Message: "Settings service unavailable",
 		})
 		return
@@ -529,7 +530,7 @@ func (s *Server) ListSystemSettings(c *gin.Context) {
 		logger.Error("Failed to list system settings: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "internal_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to list settings",
 		})
 		return
@@ -551,11 +552,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 	// Check for reserved keys (e.g., "migrate" is reserved for the migrate endpoint)
 	if reserved, reason := isReservedSettingKey(key); reserved {
 		logger.Warn("Attempted to get reserved setting key: %s (%s)", key, reason)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "reserved_key",
-			Message: "Setting key '" + key + "' is reserved: " + reason,
-		})
+		HandleRequestError(c, WithDetailCode(InvalidInputError("Setting key '"+key+"' is reserved: "+reason), errcode.DetailReservedKey))
 		return
 	}
 
@@ -563,7 +560,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "service_unavailable",
+			Code:    errcode.ServerError,
 			Message: "Settings service unavailable",
 		})
 		return
@@ -575,7 +572,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		logger.Debug("System setting not found (internal-visibility key, not API-visible): %s", key)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Setting not found",
 		})
 		return
@@ -596,7 +593,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		logger.Error("Failed to get system setting %s: %v", key, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "internal_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to get setting",
 		})
 		return
@@ -606,7 +603,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		logger.Debug("System setting not found: %s", key)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Setting not found",
 		})
 		return
@@ -637,11 +634,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 	// Check for reserved keys (e.g., "migrate" is reserved for the migrate endpoint)
 	if reserved, reason := isReservedSettingKey(key); reserved {
 		logger.Warn("Attempted to update reserved setting key: %s (%s)", key, reason)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "reserved_key",
-			Message: "Setting key '" + key + "' is reserved: " + reason,
-		})
+		HandleRequestError(c, WithDetailCode(InvalidInputError("Setting key '"+key+"' is reserved: "+reason), errcode.DetailReservedKey))
 		return
 	}
 
@@ -649,7 +642,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "service_unavailable",
+			Code:    errcode.ServerError,
 			Message: "Settings service unavailable",
 		})
 		return
@@ -662,7 +655,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 				logger.Warn("Attempted to update config-controlled setting: %s (source: %s)", key, cs.Source)
 				HandleRequestError(c, &RequestError{
 					Status:  http.StatusConflict,
-					Code:    "conflict",
+					Code:    errcode.Conflict,
 					Message: "Setting '" + key + "' is controlled by " + cs.Source + " and cannot be modified via the API",
 				})
 				return
@@ -676,7 +669,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 		logger.Warn("Invalid request body for setting update: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid request body",
 		})
 		return
@@ -705,7 +698,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 
 	// Enable-validation gate: validate required fields when enabling a provider
 	if validationErr := s.validateProviderEnableKey(ctx, key, string(setting.Value)); validationErr != "" {
-		c.JSON(http.StatusConflict, gin.H{"error": validationErr})
+		HandleRequestError(c, ConflictError(validationErr))
 		return
 	}
 
@@ -714,7 +707,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 		logger.Error("Failed to update system setting %s: %v", key, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "validation_error",
+			Code:    errcode.InvalidInput,
 			Message: err.Error(),
 		})
 		return
@@ -740,11 +733,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 	// Check for reserved keys (e.g., "migrate" is reserved for the migrate endpoint)
 	if reserved, reason := isReservedSettingKey(key); reserved {
 		logger.Warn("Attempted to delete reserved setting key: %s (%s)", key, reason)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "reserved_key",
-			Message: "Setting key '" + key + "' is reserved: " + reason,
-		})
+		HandleRequestError(c, WithDetailCode(InvalidInputError("Setting key '"+key+"' is reserved: "+reason), errcode.DetailReservedKey))
 		return
 	}
 
@@ -752,7 +741,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "service_unavailable",
+			Code:    errcode.ServerError,
 			Message: "Settings service unavailable",
 		})
 		return
@@ -765,7 +754,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		logger.Debug("System setting not found for deletion (internal-visibility key, not API-visible): %s", key)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Setting not found in database",
 		})
 		return
@@ -777,7 +766,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		logger.Error("Failed to check system setting %s: %v", key, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "internal_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to check setting",
 		})
 		return
@@ -787,7 +776,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		logger.Debug("System setting not found for deletion: %s", key)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Setting not found in database",
 		})
 		return
@@ -798,7 +787,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		logger.Error("Failed to delete system setting %s: %v", key, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "internal_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to delete setting",
 		})
 		return
@@ -823,7 +812,7 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 			logger.Warn("Unexpected request body in settings re-encryption request")
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_request",
+				Code:    errcode.InvalidInput,
 				Message: "This endpoint does not accept a request body",
 			})
 			return
@@ -834,7 +823,7 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "service_unavailable",
+			Code:    errcode.ServerError,
 			Message: "Settings service unavailable",
 		})
 		return
@@ -845,19 +834,11 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 	case errors.Is(err, ErrEncryptionNotEnabled):
 		// Precondition, not a failure: 409 Conflict.
 		logger.Warn("Re-encryption refused: %v", err)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusConflict,
-			Code:    "encryption_not_enabled",
-			Message: err.Error(),
-		})
+		HandleRequestError(c, WithDetailCode(ConflictError(err.Error()), errcode.DetailEncryptionNotEnabled))
 		return
 	case errors.Is(err, ErrTooManyUnreadableSettings):
 		logger.Warn("Re-encryption stopped: %v", err)
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusConflict,
-			Code:    "unreadable_settings_limit",
-			Message: err.Error(),
-		})
+		HandleRequestError(c, WithDetailCode(ConflictError(err.Error()), errcode.DetailUnreadableSettingsLimit))
 		return
 	case errors.Is(err, dberrors.ErrTransient):
 		// Each row commits on its own (#965): a transient database error
@@ -866,7 +847,7 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 		logger.Warn("Re-encryption stopped on a transient database error: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusServiceUnavailable,
-			Code:    "service_unavailable",
+			Code:    errcode.ServiceUnavailable,
 			Message: "Re-encryption stopped on a transient database error; rows already re-encrypted are kept, retry to finish",
 		})
 		return
@@ -875,7 +856,7 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 		logger.Error("Re-encryption stopped: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "internal_error",
+			Code:    errcode.ServerError,
 			Message: "Re-encryption stopped on a database error; rows already re-encrypted are kept",
 		})
 		return

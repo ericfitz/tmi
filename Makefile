@@ -124,7 +124,7 @@ clean-test-infrastructure: clean-test-database clean-test-redis
 # ATOMIC COMPONENTS - Build Management
 # ============================================================================
 
-.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-rotator build-genconfig generate-config-example build-genconfigdocs generate-config-docs clean-build generate-api check-unsafe-union-methods check-missing-abort check-direct-http-client check-x-tmi-authz check-response-examples check-oracle-unsafe-map-keys check-oracle-table-names check-oracle-ddl-via-gorm check-scan-struct-column-tags check-sensitive-log-args
+.PHONY: build-server build-migrate build-dbtool build-dbtool-oci build-worker-probe build-rotator build-genconfig generate-config-example build-genconfigdocs generate-config-docs clean-build generate-api check-unsafe-union-methods check-error-codes check-missing-abort check-direct-http-client check-x-tmi-authz check-response-examples check-oracle-unsafe-map-keys check-oracle-table-names check-oracle-ddl-via-gorm check-scan-struct-column-tags check-sensitive-log-args
 
 build-server:
 	@uv run scripts/build-server.py
@@ -166,6 +166,11 @@ generate-api:
 # that corrupt discriminator values (see api/cell_union_helpers.go for details)
 check-unsafe-union-methods:
 	@uv run scripts/check-unsafe-union-methods.py
+
+# Check that error codes in non-generated code are internal/errcode constants,
+# not string literals (ADR 2026-10-08, issue #1048).
+check-error-codes:
+	@go run ./scripts/check-error-codes .
 
 # Check that c.JSON(non-2xx, ...) calls are followed by c.Abort() or return.
 # See issue #264 — missing aborts let downstream handlers overwrite error

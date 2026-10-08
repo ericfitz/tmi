@@ -1,0 +1,15 @@
+package fixture
+
+func good(c *gin.Context, code errcode.Code) {
+	_ = Error{Error: ErrorError(errcode.InvalidInput)}
+	_ = &RequestError{Code: errcode.NotFound}
+	c.JSON(400, gin.H{"error": string(errcode.InvalidInput), "error_description": "a sentence"})
+	_ = map[string]string{"error": string(code)}
+	RespondWithError(c, 400, errcode.InvalidInput, "m")
+	_ = Error{ErrorDescription: "literal description is fine"}
+}
+
+func typedHelper(c *gin.Context, code errcode.Code) {
+	c.JSON(400, gin.H{"error": string(code)})
+	_ = AuthError{Code: errcode.Unauthorized}
+}

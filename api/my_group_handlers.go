@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -19,7 +20,7 @@ func (s *Server) ListMyGroups(c *gin.Context) {
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Authentication required",
 		})
 		return
@@ -30,7 +31,7 @@ func (s *Server) ListMyGroups(c *gin.Context) {
 		logger.Error("ListMyGroups: invalid user UUID format: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to resolve user identity",
 		})
 		return
@@ -41,7 +42,7 @@ func (s *Server) ListMyGroups(c *gin.Context) {
 		logger.Error("ListMyGroups: failed to get groups for user: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to list groups",
 		})
 		return
@@ -78,7 +79,7 @@ func (s *Server) ListMyGroupMembers(c *gin.Context, internalUuid openapi_types.U
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_uuid",
+			Code:    errcode.InvalidID,
 			Message: "internal_uuid must be a valid UUID",
 		})
 		return
@@ -98,7 +99,7 @@ func (s *Server) ListMyGroupMembers(c *gin.Context, internalUuid openapi_types.U
 		if err != nil {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusUnauthorized,
-				Code:    "unauthorized",
+				Code:    errcode.Unauthorized,
 				Message: "Authentication required",
 			})
 			return
@@ -112,7 +113,7 @@ func (s *Server) ListMyGroupMembers(c *gin.Context, internalUuid openapi_types.U
 			logger.Error("ListMyGroupMembers: failed to check group membership: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to verify group membership",
 			})
 			return
@@ -120,7 +121,7 @@ func (s *Server) ListMyGroupMembers(c *gin.Context, internalUuid openapi_types.U
 		if !isMember {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusForbidden,
-				Code:    "forbidden",
+				Code:    errcode.Forbidden,
 				Message: "Not a member of this group",
 			})
 			return
@@ -134,7 +135,7 @@ func (s *Server) ListMyGroupMembers(c *gin.Context, internalUuid openapi_types.U
 		if limit < 0 || limit > 200 {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_limit",
+				Code:    errcode.InvalidInput,
 				Message: "limit must be between 0 and 200",
 			})
 			return
@@ -147,7 +148,7 @@ func (s *Server) ListMyGroupMembers(c *gin.Context, internalUuid openapi_types.U
 		if offset < 0 {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_offset",
+				Code:    errcode.InvalidInput,
 				Message: "offset must be a non-negative integer",
 			})
 			return
@@ -165,7 +166,7 @@ func (s *Server) ListMyGroupMembers(c *gin.Context, internalUuid openapi_types.U
 		logger.Error("ListMyGroupMembers: failed to list group members: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to list group members",
 		})
 		return

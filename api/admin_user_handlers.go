@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -84,7 +85,7 @@ func (s *Server) ListAdminUsers(c *gin.Context, params ListAdminUsersParams) {
 		logger.Error("Failed to list users: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to list users",
 		})
 		return
@@ -118,7 +119,7 @@ func (s *Server) ListAdminUsers(c *gin.Context, params ListAdminUsersParams) {
 		logger.Error("Failed to marshal user list response: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to serialize user list",
 		})
 		return
@@ -136,7 +137,7 @@ func (s *Server) GetAdminUser(c *gin.Context, internalUuid openapi_types.UUID) {
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_uuid",
+			Code:    errcode.InvalidID,
 			Message: "internal_uuid must be a valid UUID",
 		})
 		return
@@ -148,14 +149,14 @@ func (s *Server) GetAdminUser(c *gin.Context, internalUuid openapi_types.UUID) {
 		if errors.Is(err, ErrUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: "User not found",
 			})
 		} else {
 			logger.Error("Failed to get user: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to get user",
 			})
 		}
@@ -190,7 +191,7 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_uuid",
+			Code:    errcode.InvalidID,
 			Message: "internal_uuid must be a valid UUID",
 		})
 		return
@@ -201,7 +202,7 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 	if err := c.ShouldBindJSON(&req); err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Invalid request body: %v", err),
 		})
 		return
@@ -213,14 +214,14 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 		if errors.Is(err, ErrUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: "User not found",
 			})
 		} else {
 			logger.Error("Failed to get user: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to get user",
 			})
 		}
@@ -263,14 +264,14 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 		if errors.Is(err, ErrUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: "User not found",
 			})
 		} else {
 			logger.Error("Failed to update user: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to update user",
 			})
 		}
@@ -296,21 +297,13 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 
 	// Self-deletion guard: admins cannot delete their own account
 	if actorUserID == internalUuid.String() {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusConflict,
-			Code:    "self_deletion",
-			Message: "Cannot delete your own user account",
-		})
+		HandleRequestError(c, WithDetailCode(ConflictError("Cannot delete your own user account"), errcode.DetailSelfDeletion))
 		return
 	}
 
 	// Operator system user guard: the operator system user is synthetic and cannot be deleted
 	if internalUuid.String() == OperatorSystemUserUUID {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusConflict,
-			Code:    "protected_user",
-			Message: "the operator system user is managed by server configuration and cannot be deleted",
-		})
+		HandleRequestError(c, WithDetailCode(ConflictError("the operator system user is managed by server configuration and cannot be deleted"), errcode.DetailProtectedUser))
 		return
 	}
 
@@ -321,14 +314,14 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 		if errors.Is(err, ErrUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: "User not found",
 			})
 		} else {
 			logger.Error("Failed to look up user for deletion: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to look up user",
 			})
 		}
@@ -347,7 +340,7 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 		case errors.Is(err, ErrUserNotFound):
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: "User not found",
 			})
 		case errors.Is(err, dberrors.ErrConstraint):
@@ -356,16 +349,12 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 			// table is missing from the cascade — log loudly, but return a
 			// structured 409 rather than a raw 500 (zero-500 policy).
 			logger.Error("User deletion blocked by residual constraint (cascade gap): %v", err)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusConflict,
-				Code:    "deletion_blocked",
-				Message: "User cannot be deleted due to remaining references; contact support",
-			})
+			HandleRequestError(c, WithDetailCode(ConflictError("User cannot be deleted due to remaining references; contact support"), errcode.DetailDeletionBlocked))
 		default:
 			logger.Error("Failed to delete user: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to delete user",
 			})
 		}

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -17,9 +18,9 @@ import (
 // `error_description`. The SAML protocol handlers historically emitted a bare
 // `{"error": "<message>"}` body that violated the documented contract (#493).
 // SEM@3256ece0f5730b6c910aa6e61025555c7726a4a5: format and send a SAML error as a JSON HTTP response (pure)
-func samlErrorJSON(c *gin.Context, status int, code, description string) {
+func samlErrorJSON(c *gin.Context, status int, code errcode.Code, description string) {
 	c.JSON(status, gin.H{
-		"error":             code,
+		"error":             string(code),
 		"error_description": description,
 	})
 }
@@ -31,14 +32,14 @@ func (h *Handlers) GetSAMLMetadata(c *gin.Context, providerID string) {
 
 	// Check if SAML is enabled
 	if !h.samlEnabled(c.Request.Context()) {
-		samlErrorJSON(c, http.StatusNotFound, "saml_not_enabled", "SAML authentication is not enabled")
+		samlErrorJSON(c, http.StatusNotFound, errcode.SAMLNotEnabled, "SAML authentication is not enabled")
 		return
 	}
 
 	// Get SAML manager
 	samlManager := h.service.GetSAMLManager()
 	if samlManager == nil {
-		samlErrorJSON(c, http.StatusInternalServerError, "saml_unavailable", "SAML manager not initialized")
+		samlErrorJSON(c, http.StatusInternalServerError, errcode.SAMLUnavailable, "SAML manager not initialized")
 		return
 	}
 
@@ -50,7 +51,7 @@ func (h *Handlers) GetSAMLMetadata(c *gin.Context, providerID string) {
 	// Get provider
 	provider, err := samlManager.GetProvider(providerID)
 	if err != nil {
-		samlErrorJSON(c, http.StatusNotFound, "saml_provider_not_found",
+		samlErrorJSON(c, http.StatusNotFound, errcode.SAMLProviderNotFound,
 			fmt.Sprintf("SAML provider not found: %v", err))
 		return
 	}
@@ -59,7 +60,7 @@ func (h *Handlers) GetSAMLMetadata(c *gin.Context, providerID string) {
 	metadata, err := provider.GenerateMetadata()
 	if err != nil {
 		logger.Error("Failed to generate SAML metadata: %v", err)
-		samlErrorJSON(c, http.StatusInternalServerError, "saml_metadata_error", "Failed to generate metadata")
+		samlErrorJSON(c, http.StatusInternalServerError, errcode.SAMLMetadataError, "Failed to generate metadata")
 		return
 	}
 
@@ -80,21 +81,21 @@ func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCa
 		allow := NewClientCallbackAllowList(h.clientCallbackAllowList(c.Request.Context()))
 		if !allow.Allowed(*clientCallback) {
 			logger.WithContext(c).Warn("Rejected SAML login: client_callback %q is not in the allowlist", *clientCallback)
-			samlErrorJSON(c, http.StatusBadRequest, "invalid_request", "client_callback is not in the allowlist")
+			samlErrorJSON(c, http.StatusBadRequest, errcode.InvalidRequest, "client_callback is not in the allowlist")
 			return
 		}
 	}
 
 	// Check if SAML is enabled
 	if !h.samlEnabled(c.Request.Context()) {
-		samlErrorJSON(c, http.StatusNotFound, "saml_not_enabled", "SAML authentication is not enabled")
+		samlErrorJSON(c, http.StatusNotFound, errcode.SAMLNotEnabled, "SAML authentication is not enabled")
 		return
 	}
 
 	// Get SAML manager
 	samlManager := h.service.GetSAMLManager()
 	if samlManager == nil {
-		samlErrorJSON(c, http.StatusInternalServerError, "saml_unavailable", "SAML manager not initialized")
+		samlErrorJSON(c, http.StatusInternalServerError, errcode.SAMLUnavailable, "SAML manager not initialized")
 		return
 	}
 
@@ -106,7 +107,7 @@ func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCa
 	// Get provider
 	provider, err := samlManager.GetProvider(providerID)
 	if err != nil {
-		samlErrorJSON(c, http.StatusNotFound, "saml_provider_not_found",
+		samlErrorJSON(c, http.StatusNotFound, errcode.SAMLProviderNotFound,
 			fmt.Sprintf("SAML provider not found: %v", err))
 		return
 	}
@@ -115,14 +116,14 @@ func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCa
 	authURL, relayState, err := provider.InitiateLogin(clientCallback)
 	if err != nil {
 		logger.Error("Failed to initiate SAML login: %v", err)
-		samlErrorJSON(c, http.StatusInternalServerError, "saml_init_error", "Failed to initiate SAML authentication")
+		samlErrorJSON(c, http.StatusInternalServerError, errcode.SAMLInitError, "Failed to initiate SAML authentication")
 		return
 	}
 
 	// Store state for CSRF protection
 	if err := h.service.stateStore.StoreState(c.Request.Context(), relayState, providerID, 10*time.Minute); err != nil {
 		logger.Error("Failed to store SAML relay state: %v", err)
-		samlErrorJSON(c, http.StatusInternalServerError, "saml_init_error", "Failed to initiate SAML authentication")
+		samlErrorJSON(c, http.StatusInternalServerError, errcode.SAMLInitError, "Failed to initiate SAML authentication")
 		return
 	}
 
@@ -130,7 +131,7 @@ func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCa
 	if clientCallback != nil && *clientCallback != "" {
 		if err := h.service.stateStore.StoreCallbackURL(c.Request.Context(), relayState, *clientCallback, 10*time.Minute); err != nil {
 			logger.Error("Failed to store SAML callback URL: %v", err)
-			samlErrorJSON(c, http.StatusInternalServerError, "saml_init_error", "Failed to initiate SAML authentication")
+			samlErrorJSON(c, http.StatusInternalServerError, errcode.SAMLInitError, "Failed to initiate SAML authentication")
 			return
 		}
 		logger.Info("Stored SAML callback URL for relay state: %s -> %s", relayState, *clientCallback)
@@ -142,12 +143,12 @@ func (h *Handlers) InitiateSAMLLogin(c *gin.Context, providerID string, clientCa
 
 // redirectWithError attempts to redirect to client callback URL with error, or returns JSON error if no callback
 // For SAML: uses relayState to retrieve callback URL from state store.
-// errorCode is the OAuth 2.0-style machine-readable code (e.g. "saml_error",
+// errorCode is the OAuth 2.0-style machine-readable code (e.g. errcode.SAMLError,
 // "account_conflict") so clients can branch on the failure without parsing the
 // human-readable errorMsg; both the redirect fragment and the JSON fallback
 // carry error + error_description.
 // SEM@bad36697a83ba8606ae7e598eb5fe21f3afebcaa: redirect to a client callback with an OAuth-style error fragment, or return JSON if no callback
-func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayState string, statusCode int, errorCode string, errorMsg string) {
+func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayState string, statusCode int, errorCode errcode.Code, errorMsg string) {
 	logger := slogging.Get()
 
 	// Try to get callback URL - even if state validation failed, we might have stored it
@@ -159,7 +160,7 @@ func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayS
 		if err != nil {
 			logger.Error("Invalid callback URL during error redirect: %v", err)
 			c.JSON(statusCode, gin.H{
-				"error":             errorCode,
+				"error":             string(errorCode),
 				"error_description": errorMsg,
 			})
 			c.Abort()
@@ -167,7 +168,7 @@ func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayS
 		}
 
 		// Add error to fragment using OAuth 2.0 error format
-		fragment := fmt.Sprintf("error=%s&error_description=%s", url.QueryEscape(errorCode), url.QueryEscape(errorMsg))
+		fragment := fmt.Sprintf("error=%s&error_description=%s", url.QueryEscape(string(errorCode)), url.QueryEscape(errorMsg))
 		redirectURL.Fragment = fragment
 
 		c.Redirect(http.StatusFound, redirectURL.String())
@@ -177,7 +178,7 @@ func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayS
 
 	// No callback URL, return JSON error
 	c.JSON(statusCode, gin.H{
-		"error":             errorCode,
+		"error":             string(errorCode),
 		"error_description": errorMsg,
 	})
 	c.Abort()
@@ -195,12 +196,12 @@ func (h *Handlers) redirectWithError(c *gin.Context, ctx context.Context, relayS
 // does not disclose detail. ProcessSAMLResponse wraps processUser's error with
 // %w, so errors.Is sees through the wrapping.
 // SEM@bad36697a83ba8606ae7e598eb5fe21f3afebcaa: map a SAML processing error to HTTP status, OAuth error code, and user message (pure)
-func classifySAMLProcessError(err error) (statusCode int, errorCode string, errorMsg string) {
+func classifySAMLProcessError(err error) (statusCode int, errorCode errcode.Code, errorMsg string) {
 	if errors.Is(err, errCrossProviderConflict) {
-		return http.StatusConflict, "account_conflict",
+		return http.StatusConflict, errcode.AccountConflict,
 			"This email is already registered with a different sign-in provider. Please sign in with that provider, or link this provider to your account."
 	}
-	return http.StatusUnauthorized, "saml_error", fmt.Sprintf("Authentication failed: %v", err)
+	return http.StatusUnauthorized, errcode.SAMLError, fmt.Sprintf("Authentication failed: %v", err)
 }
 
 // redirectWithErrorOAuth redirects to client callback URL with error for OAuth flows
@@ -211,7 +212,8 @@ func (h *Handlers) redirectWithErrorOAuth(c *gin.Context, callbackURL string, st
 	if callbackURL == "" {
 		// No callback URL, return JSON error
 		c.JSON(statusCode, gin.H{
-			"error": errorMsg,
+			"error":             string(errcode.ServerError),
+			"error_description": errorMsg,
 		})
 		c.Abort()
 		return
@@ -222,7 +224,8 @@ func (h *Handlers) redirectWithErrorOAuth(c *gin.Context, callbackURL string, st
 	if err != nil {
 		logger.Error("Invalid callback URL during error redirect: %v", err)
 		c.JSON(statusCode, gin.H{
-			"error": errorMsg,
+			"error":             string(errcode.ServerError),
+			"error_description": errorMsg,
 		})
 		c.Abort()
 		return
@@ -244,14 +247,14 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 
 	// Check if SAML is enabled
 	if !h.samlEnabled(c.Request.Context()) {
-		h.redirectWithError(c, ctx, relayState, http.StatusNotFound, "saml_error", "SAML authentication is not enabled")
+		h.redirectWithError(c, ctx, relayState, http.StatusNotFound, errcode.SAMLError, "SAML authentication is not enabled")
 		return
 	}
 
 	// Get SAML manager
 	samlManager := h.service.GetSAMLManager()
 	if samlManager == nil {
-		h.redirectWithError(c, ctx, relayState, http.StatusInternalServerError, "saml_error", "SAML manager not initialized")
+		h.redirectWithError(c, ctx, relayState, http.StatusInternalServerError, errcode.SAMLError, "SAML manager not initialized")
 		return
 	}
 
@@ -260,7 +263,7 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 		storedProviderID, err := h.service.stateStore.ValidateState(ctx, relayState)
 		if err != nil {
 			logger.Error("Invalid SAML relay state: %v", err)
-			h.redirectWithError(c, ctx, relayState, http.StatusBadRequest, "saml_error", "Invalid or expired state")
+			h.redirectWithError(c, ctx, relayState, http.StatusBadRequest, errcode.SAMLError, "Invalid or expired state")
 			return
 		}
 		// Use the provider ID from the state if not specified
@@ -296,7 +299,7 @@ func (h *Handlers) ProcessSAMLResponse(c *gin.Context, providerID string, samlRe
 		redirectURL, err := url.Parse(callbackURL)
 		if err != nil {
 			logger.Error("Invalid callback URL: %v", err)
-			h.redirectWithError(c, ctx, relayState, http.StatusInternalServerError, "saml_error", "Invalid callback URL")
+			h.redirectWithError(c, ctx, relayState, http.StatusInternalServerError, errcode.SAMLError, "Invalid callback URL")
 			return
 		}
 
@@ -334,14 +337,14 @@ func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequ
 
 	// Check if SAML is enabled
 	if !h.samlEnabled(c.Request.Context()) {
-		samlErrorJSON(c, http.StatusNotFound, "saml_not_enabled", "SAML authentication is not enabled")
+		samlErrorJSON(c, http.StatusNotFound, errcode.SAMLNotEnabled, "SAML authentication is not enabled")
 		return
 	}
 
 	// Get SAML manager
 	samlManager := h.service.GetSAMLManager()
 	if samlManager == nil {
-		samlErrorJSON(c, http.StatusInternalServerError, "saml_unavailable", "SAML manager not initialized")
+		samlErrorJSON(c, http.StatusInternalServerError, errcode.SAMLUnavailable, "SAML manager not initialized")
 		return
 	}
 
@@ -353,7 +356,7 @@ func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequ
 	// Get provider
 	provider, err := samlManager.GetProvider(providerID)
 	if err != nil {
-		samlErrorJSON(c, http.StatusNotFound, "saml_provider_not_found",
+		samlErrorJSON(c, http.StatusNotFound, errcode.SAMLProviderNotFound,
 			fmt.Sprintf("SAML provider not found: %v", err))
 		return
 	}
@@ -365,7 +368,7 @@ func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequ
 	logoutReq, err := provider.ProcessLogoutRequest(samlRequest)
 	if err != nil {
 		logger.Error("Failed to process SAML logout: %v", err)
-		samlErrorJSON(c, http.StatusBadRequest, "saml_invalid_logout_request", "Invalid logout request")
+		samlErrorJSON(c, http.StatusBadRequest, errcode.SAMLInvalidLogoutRequest, "Invalid logout request")
 		return
 	}
 
@@ -392,7 +395,7 @@ func (h *Handlers) ProcessSAMLLogout(c *gin.Context, providerID string, samlRequ
 	logoutResponse, err := provider.MakeLogoutResponse(logoutReq.ID, "urn:oasis:names:tc:SAML:2.0:status:Success")
 	if err != nil {
 		logger.Error("Failed to create SAML logout response: %v", err)
-		samlErrorJSON(c, http.StatusInternalServerError, "saml_logout_error", "Failed to create logout response")
+		samlErrorJSON(c, http.StatusInternalServerError, errcode.SAMLLogoutError, "Failed to create logout response")
 		return
 	}
 

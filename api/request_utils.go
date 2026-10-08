@@ -11,6 +11,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/validation"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/wwwauth"
 	"github.com/gin-gonic/gin"
@@ -89,20 +90,12 @@ const (
 func ValidatePaginationParams(limit, offset *int) *RequestError {
 	if limit != nil {
 		if *limit < 0 || *limit > MaxPaginationLimit {
-			return &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_limit",
-				Message: fmt.Sprintf("limit must be between 0 and %d", MaxPaginationLimit),
-			}
+			return InvalidInputError(fmt.Sprintf("limit must be between 0 and %d", MaxPaginationLimit))
 		}
 	}
 	if offset != nil {
 		if *offset < 0 || *offset > MaxPaginationOffset {
-			return &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_offset",
-				Message: fmt.Sprintf("offset must be between 0 and %d", MaxPaginationOffset),
-			}
+			return InvalidInputError(fmt.Sprintf("offset must be between 0 and %d", MaxPaginationOffset))
 		}
 	}
 	return nil
@@ -115,7 +108,7 @@ func ParsePatchRequest(c *gin.Context) ([]PatchOperation, error) {
 	if err != nil {
 		return nil, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Failed to read request body: " + err.Error(),
 		}
 	}
@@ -123,7 +116,7 @@ func ParsePatchRequest(c *gin.Context) ([]PatchOperation, error) {
 	if len(bodyBytes) == 0 {
 		return nil, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Request body is empty",
 		}
 	}
@@ -135,7 +128,7 @@ func ParsePatchRequest(c *gin.Context) ([]PatchOperation, error) {
 	if err := json.Unmarshal(bodyBytes, &operations); err != nil {
 		return nil, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid JSON Patch format: " + err.Error(),
 		}
 	}
@@ -143,7 +136,7 @@ func ParsePatchRequest(c *gin.Context) ([]PatchOperation, error) {
 	if len(operations) == 0 {
 		return nil, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "PATCH request must contain at least one operation",
 		}
 	}
@@ -160,7 +153,7 @@ func ParseRequestBody[T any](c *gin.Context) (T, error) {
 	if err != nil {
 		return zero, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Failed to read request body: " + err.Error(),
 		}
 	}
@@ -168,7 +161,7 @@ func ParseRequestBody[T any](c *gin.Context) (T, error) {
 	if len(bodyBytes) == 0 {
 		return zero, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Request body is empty",
 		}
 	}
@@ -182,7 +175,7 @@ func ParseRequestBody[T any](c *gin.Context) (T, error) {
 	if !json.Valid(bodyBytes) {
 		return zero, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Request body contains invalid JSON",
 		}
 	}
@@ -197,7 +190,7 @@ func ParseRequestBody[T any](c *gin.Context) (T, error) {
 	if err != nil {
 		return zero, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Failed to process JSON: " + err.Error(),
 		}
 	}
@@ -206,7 +199,7 @@ func ParseRequestBody[T any](c *gin.Context) (T, error) {
 	if err := json.Unmarshal(cleanedJSON, &result); err != nil {
 		return zero, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid JSON format: " + err.Error(),
 		}
 	}
@@ -322,7 +315,7 @@ func checkDuplicateKeysInDecoder(dec *json.Decoder, path string) error {
 			if keys[key] {
 				return &RequestError{
 					Status:  http.StatusBadRequest,
-					Code:    "invalid_input",
+					Code:    errcode.InvalidInput,
 					Message: fmt.Sprintf("Duplicate key '%s' in JSON object", key),
 				}
 			}
@@ -376,7 +369,7 @@ func IsUserAdministrator(c *gin.Context) (bool, error) {
 // SEM@ccde596a38d5a3032cf965f5fbc2a4ffb144e534: structured HTTP error carrying status code, machine code, and human message (pure)
 type RequestError struct {
 	Status  int
-	Code    string
+	Code    errcode.Code
 	Message string
 	Details *ErrorDetails
 	// markdownTooComplexBytes, when non-zero, marks a markdown link gate
@@ -410,7 +403,7 @@ func HandleRequestError(c *gin.Context, err error) {
 			sanitizedMessage = sanitizedMessage[:997] + "..."
 		}
 		response := Error{
-			Error:            reqErr.Code,
+			Error:            ErrorError(reqErr.Code),
 			ErrorDescription: sanitizedMessage,
 		}
 
@@ -479,7 +472,7 @@ func HandleRequestError(c *gin.Context, err error) {
 		// Also sanitize to remove control characters per OpenAPI schema
 		sanitizedMsg := sanitizeErrorMessage("Internal server error: " + errorMsg)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: sanitizedMsg,
 		})
 		c.Abort()
@@ -491,7 +484,7 @@ func HandleRequestError(c *gin.Context, err error) {
 func InvalidInputError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusBadRequest,
-		Code:    "invalid_input",
+		Code:    errcode.InvalidInput,
 		Message: message,
 	}
 }
@@ -501,7 +494,7 @@ func InvalidInputError(message string) *RequestError {
 func InvalidIDError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusBadRequest,
-		Code:    "invalid_id",
+		Code:    errcode.InvalidID,
 		Message: message,
 	}
 }
@@ -511,7 +504,7 @@ func InvalidIDError(message string) *RequestError {
 func NotFoundError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusNotFound,
-		Code:    "not_found",
+		Code:    errcode.NotFound,
 		Message: message,
 	}
 }
@@ -521,7 +514,7 @@ func NotFoundError(message string) *RequestError {
 func ServerError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusInternalServerError,
-		Code:    "server_error",
+		Code:    errcode.ServerError,
 		Message: message,
 	}
 }
@@ -531,7 +524,7 @@ func ServerError(message string) *RequestError {
 func ForbiddenError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusForbidden,
-		Code:    "forbidden",
+		Code:    errcode.Forbidden,
 		Message: message,
 	}
 }
@@ -542,7 +535,7 @@ func ForbiddenError(message string) *RequestError {
 func NotAcceptableError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusNotAcceptable,
-		Code:    "not_acceptable",
+		Code:    errcode.NotAcceptable,
 		Message: message,
 	}
 }
@@ -551,7 +544,7 @@ func NotAcceptableError(message string) *RequestError {
 func UnauthorizedError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusUnauthorized,
-		Code:    "unauthorized",
+		Code:    errcode.Unauthorized,
 		Message: message,
 	}
 }
@@ -561,7 +554,7 @@ func UnauthorizedError(message string) *RequestError {
 func ConflictError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusConflict,
-		Code:    "conflict",
+		Code:    errcode.Conflict,
 		Message: message,
 	}
 }
@@ -573,7 +566,7 @@ func ConflictError(message string) *RequestError {
 func NotImplementedError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusNotImplemented,
-		Code:    "not_implemented",
+		Code:    errcode.NotImplemented,
 		Message: message,
 	}
 }
@@ -584,7 +577,7 @@ func NotImplementedError(message string) *RequestError {
 func ServiceUnavailableError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusServiceUnavailable,
-		Code:    "service_unavailable",
+		Code:    errcode.ServiceUnavailable,
 		Message: message,
 	}
 }
@@ -639,6 +632,90 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 	return ServerError(serverErrorMsg)
 }
 
+// codeStr returns a pointer to the string form of a details.code reason.
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a pointer to the string form of a details code (pure)
+func codeStr(c errcode.Code) *string {
+	s := string(c)
+	return &s
+}
+
+// WithDetailCode attaches a domain-specific details.code reason to err and returns it.
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: attach a domain reason code to a RequestError (pure)
+func WithDetailCode(err *RequestError, code errcode.Code) *RequestError {
+	if err.Details == nil {
+		err.Details = &ErrorDetails{}
+	}
+	err.Details.Code = codeStr(code)
+	return err
+}
+
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a RequestError from status, code and message (pure)
+func newRequestError(status int, code errcode.Code, message string) *RequestError {
+	return &RequestError{Status: status, Code: code, Message: message}
+}
+
+// InvalidPatchError creates a RequestError for a malformed or inapplicable JSON Patch
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 400 RequestError for an invalid JSON Patch document (pure)
+func InvalidPatchError(message string) *RequestError {
+	return newRequestError(http.StatusBadRequest, errcode.InvalidPatch, message)
+}
+
+// InsufficientUserAuthenticationError creates a RequestError requiring step-up authentication
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 401 RequestError requiring step-up authentication (pure)
+func InsufficientUserAuthenticationError(message string) *RequestError {
+	return newRequestError(http.StatusUnauthorized, errcode.InsufficientUserAuthentication, message)
+}
+
+// MethodNotAllowedError creates a RequestError for an unsupported HTTP method
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 405 RequestError for an unsupported method (pure)
+func MethodNotAllowedError(message string) *RequestError {
+	return newRequestError(http.StatusMethodNotAllowed, errcode.MethodNotAllowed, message)
+}
+
+// GoneError creates a RequestError for a permanently removed resource
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 410 RequestError for a permanently removed resource (pure)
+func GoneError(message string) *RequestError {
+	return newRequestError(http.StatusGone, errcode.Gone, message)
+}
+
+// PayloadTooLargeError creates a RequestError for an oversized request body
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 413 RequestError for an oversized payload (pure)
+func PayloadTooLargeError(message string) *RequestError {
+	return newRequestError(http.StatusRequestEntityTooLarge, errcode.PayloadTooLarge, message)
+}
+
+// UnsupportedMediaTypeError creates a RequestError for an unaccepted Content-Type
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 415 RequestError for an unsupported content type (pure)
+func UnsupportedMediaTypeError(message string) *RequestError {
+	return newRequestError(http.StatusUnsupportedMediaType, errcode.UnsupportedMediaType, message)
+}
+
+// UnprocessableEntityError creates a RequestError for a well-formed request that cannot be processed
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 422 RequestError for an unprocessable request (pure)
+func UnprocessableEntityError(message string) *RequestError {
+	return newRequestError(http.StatusUnprocessableEntity, errcode.UnprocessableEntity, message)
+}
+
+// IfMatchRequiredError creates a RequestError for a missing If-Match header
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 428 RequestError for a missing If-Match header (pure)
+func IfMatchRequiredError(message string) *RequestError {
+	return newRequestError(http.StatusPreconditionRequired, errcode.IfMatchRequired, message)
+}
+
+// RateLimitExceededError creates a 429 RequestError; retryAfterSeconds feeds the Retry-After header
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a 429 RequestError carrying a retry-after hint (pure)
+func RateLimitExceededError(message string, retryAfterSeconds int) *RequestError {
+	e := newRequestError(http.StatusTooManyRequests, errcode.RateLimitExceeded, message)
+	e.Details = &ErrorDetails{Context: map[string]any{"retry_after": retryAfterSeconds}}
+	return e
+}
+
+// QuotaExceededError creates a RequestError for a hard cap (status 403 or 429)
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: build a RequestError for an exhausted hard quota (pure)
+func QuotaExceededError(status int, message string) *RequestError {
+	return newRequestError(status, errcode.QuotaExceeded, message)
+}
+
 // WriteErrorToRequestError maps the error from a store write that has no
 // domain-specific outcome (create/update/delete fallbacks) to the response.
 // It only distinguishes the transient class: a serialization failure that
@@ -662,13 +739,13 @@ func WriteErrorToRequestError(err error, serverErrorMsg string) *RequestError {
 
 // NotFoundErrorWithDetails creates a RequestError for resource not found with additional context
 // SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: build a 404 RequestError with structured diagnostic context (pure)
-func NotFoundErrorWithDetails(message string, code string, context map[string]any, suggestion string) *RequestError {
+func NotFoundErrorWithDetails(message string, code errcode.Code, context map[string]any, suggestion string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusNotFound,
-		Code:    "not_found",
+		Code:    errcode.NotFound,
 		Message: message,
 		Details: &ErrorDetails{
-			Code:       &code,
+			Code:       codeStr(code),
 			Context:    context,
 			Suggestion: &suggestion,
 		},
@@ -677,13 +754,13 @@ func NotFoundErrorWithDetails(message string, code string, context map[string]an
 
 // ServerErrorWithDetails creates a RequestError for internal server errors with additional context
 // SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: build a 500 RequestError with structured diagnostic context (pure)
-func ServerErrorWithDetails(message string, code string, context map[string]any, suggestion string) *RequestError {
+func ServerErrorWithDetails(message string, code errcode.Code, context map[string]any, suggestion string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusInternalServerError,
-		Code:    "server_error",
+		Code:    errcode.ServerError,
 		Message: message,
 		Details: &ErrorDetails{
-			Code:       &code,
+			Code:       codeStr(code),
 			Context:    context,
 			Suggestion: &suggestion,
 		},
@@ -692,13 +769,13 @@ func ServerErrorWithDetails(message string, code string, context map[string]any,
 
 // InvalidInputErrorWithDetails creates a RequestError for validation failures with additional context
 // SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: build a 400 RequestError with structured diagnostic context (pure)
-func InvalidInputErrorWithDetails(message string, code string, context map[string]any, suggestion string) *RequestError {
+func InvalidInputErrorWithDetails(message string, code errcode.Code, context map[string]any, suggestion string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusBadRequest,
-		Code:    "invalid_input",
+		Code:    errcode.InvalidInput,
 		Message: message,
 		Details: &ErrorDetails{
-			Code:       &code,
+			Code:       codeStr(code),
 			Context:    context,
 			Suggestion: &suggestion,
 		},

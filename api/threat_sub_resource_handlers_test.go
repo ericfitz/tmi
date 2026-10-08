@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -884,7 +885,7 @@ func setupThreatSubResourceHandlerWithServiceAccount(isServiceAccount bool) (*gi
 // service-account principal sets auto_generated=true on the model before persistence.
 // The bulk patch handler used to wrap every store error in a 500, discarding
 // the classification the store had already made. A malformed JSON Pointer --
-// which the single-threat PATCH answers with 400 patch_failed -- came back as
+// which the single-threat PATCH answers with 400 invalid_patch -- came back as
 // 500 server_error from the bulk route (#632, 70 CATS findings).
 func TestBulkPatchThreats_ErrorClassification(t *testing.T) {
 	threatModelID := testUUID1
@@ -911,7 +912,7 @@ func TestBulkPatchThreats_ErrorClassification(t *testing.T) {
 		mockStore.On("Patch", mock.Anything, threatModelID, threatID, mock.Anything).
 			Return(nil, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "patch_failed",
+				Code:    errcode.InvalidPatch,
 				Message: "Failed to apply patch: unsupported patch path: /nonexistent~field",
 			})
 
@@ -924,7 +925,7 @@ func TestBulkPatchThreats_ErrorClassification(t *testing.T) {
 
 		var body map[string]any
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-		assert.Equal(t, "patch_failed", body["error"],
+		assert.Equal(t, "invalid_patch", body["error"],
 			"the store's own classification must survive, not be replaced by server_error")
 		mockStore.AssertExpectations(t)
 	})
@@ -1079,7 +1080,7 @@ func TestPatchThreat_RejectsAliasOperation(t *testing.T) {
 	var errResp Error
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
-	assert.Equal(t, "invalid_input", errResp.Error)
+	assert.Equal(t, "invalid_input", string(errResp.Error))
 	assert.Contains(t, errResp.ErrorDescription, "alias")
 }
 
@@ -1107,7 +1108,7 @@ func TestPutThreat_RejectsAliasInBody(t *testing.T) {
 	var errResp Error
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
-	assert.Equal(t, "invalid_input", errResp.Error)
+	assert.Equal(t, "invalid_input", string(errResp.Error))
 	assert.Contains(t, errResp.ErrorDescription, "alias")
 }
 

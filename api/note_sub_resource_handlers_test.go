@@ -824,7 +824,7 @@ func TestPatchNote_RejectsAliasOperation(t *testing.T) {
 	var errResp Error
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
-	assert.Equal(t, "invalid_input", errResp.Error)
+	assert.Equal(t, "invalid_input", string(errResp.Error))
 	assert.Contains(t, errResp.ErrorDescription, "alias")
 }
 
@@ -853,6 +853,6 @@ func TestPutNote_RejectsAliasInBody(t *testing.T) {
 	var errResp Error
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
-	assert.Equal(t, "invalid_input", errResp.Error)
+	assert.Equal(t, "invalid_input", string(errResp.Error))
 	assert.Contains(t, errResp.ErrorDescription, "alias")
 }

@@ -681,7 +681,7 @@ func TestListAdminUsers(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "invalid_limit")
+		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
 
 	t.Run("Error_InvalidLimitTooLarge", func(t *testing.T) {
@@ -695,7 +695,7 @@ func TestListAdminUsers(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "invalid_limit")
+		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
 
 	t.Run("Error_InvalidOffsetNegative", func(t *testing.T) {
@@ -709,7 +709,7 @@ func TestListAdminUsers(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "invalid_offset")
+		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
 
 	t.Run("Error_StoreListFailure", func(t *testing.T) {
@@ -1281,7 +1281,7 @@ func TestUpdateAdminUser(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "invalid_request")
+		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
 
 	t.Run("Error_StoreGetFailure_500", func(t *testing.T) {

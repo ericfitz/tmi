@@ -542,7 +542,8 @@ func TestCreateDocument(t *testing.T) {
 		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
-		assert.Equal(t, "provider_not_configured", response["error"])
+		assert.Equal(t, "unprocessable_entity", response["error"])
+		assert.Equal(t, "provider_not_configured", detailsCode(response))
 
 		// Ensure Create was never called
 		mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
@@ -1059,7 +1060,8 @@ func TestCreateDocument_PickerRegistration_FileIDMismatch(t *testing.T) {
 
 	var errBody map[string]interface{}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
-	assert.Equal(t, "picker_file_id_mismatch", errBody["error"])
+	assert.Equal(t, "invalid_input", errBody["error"])
+	assert.Equal(t, "picker_file_id_mismatch", detailsCode(errBody))
 
 	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
 }
@@ -1092,7 +1094,8 @@ func TestCreateDocument_PickerRegistration_EmptyFileID(t *testing.T) {
 
 	var errBody map[string]interface{}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
-	assert.Equal(t, "invalid_picker_registration", errBody["error"])
+	assert.Equal(t, "invalid_input", errBody["error"])
+	assert.Equal(t, "invalid_picker_registration", detailsCode(errBody))
 
 	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
 }
@@ -1126,7 +1129,8 @@ func TestCreateDocument_PickerRegistration_UnknownProvider(t *testing.T) {
 
 	var errBody map[string]interface{}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
-	assert.Equal(t, "provider_not_registered", errBody["error"])
+	assert.Equal(t, "unprocessable_entity", errBody["error"])
+	assert.Equal(t, "provider_not_registered", detailsCode(errBody))
 
 	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
 }
@@ -1163,7 +1167,8 @@ func TestCreateDocument_PickerRegistration_NoLinkedToken(t *testing.T) {
 
 	var errBody map[string]interface{}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
-	assert.Equal(t, "token_not_linked_or_failed", errBody["error"])
+	assert.Equal(t, "unauthorized", errBody["error"])
+	assert.Equal(t, "token_not_linked_or_failed", detailsCode(errBody))
 
 	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
 }
@@ -1204,7 +1209,8 @@ func TestCreateDocument_PickerRegistration_FailedRefreshToken(t *testing.T) {
 
 	var errBody map[string]interface{}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
-	assert.Equal(t, "token_not_linked_or_failed", errBody["error"])
+	assert.Equal(t, "unauthorized", errBody["error"])
+	assert.Equal(t, "token_not_linked_or_failed", detailsCode(errBody))
 
 	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
 }
@@ -1345,7 +1351,8 @@ func TestCreateDocument_PickerRegistration_Microsoft_NonSharePointURI(t *testing
 
 	var errBody map[string]interface{}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
-	assert.Equal(t, "picker_file_id_mismatch", errBody["error"])
+	assert.Equal(t, "invalid_input", errBody["error"])
+	assert.Equal(t, "picker_file_id_mismatch", detailsCode(errBody))
 
 	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
 }
@@ -1377,7 +1384,8 @@ func TestCreateDocument_PickerRegistration_Microsoft_MalformedFileID(t *testing.
 
 	var errBody map[string]interface{}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
-	assert.Equal(t, "picker_file_id_mismatch", errBody["error"])
+	assert.Equal(t, "invalid_input", errBody["error"])
+	assert.Equal(t, "picker_file_id_mismatch", detailsCode(errBody))
 
 	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
 }
@@ -1474,7 +1482,8 @@ func TestCreateDocument_PickerRegistration_Microsoft_ConsumerHost_MalformedFileI
 
 	var errBody map[string]interface{}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errBody))
-	assert.Equal(t, "picker_file_id_mismatch", errBody["error"])
+	assert.Equal(t, "invalid_input", errBody["error"])
+	assert.Equal(t, "picker_file_id_mismatch", detailsCode(errBody))
 
 	mockStore.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything)
 }

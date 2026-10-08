@@ -76,7 +76,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "forbidden", errResp.Error)
+		assert.Equal(t, "forbidden", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "administrators and security reviewers")
 	})
 
@@ -95,7 +95,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "forbidden", errResp.Error)
+		assert.Equal(t, "forbidden", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "service accounts")
 	})
 
@@ -146,7 +146,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "forbidden", errResp.Error)
+		assert.Equal(t, "forbidden", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "service accounts")
 	})
 
@@ -163,7 +163,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", errResp.Error)
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "Request body is required")
 	})
 
@@ -179,7 +179,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", errResp.Error)
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 	})
 
 	t.Run("EmptyName", func(t *testing.T) {
@@ -195,7 +195,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", errResp.Error)
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "name cannot be empty")
 	})
 
@@ -212,7 +212,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", errResp.Error)
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "name cannot be empty")
 	})
 
@@ -230,7 +230,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", errResp.Error)
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "Invalid name")
 	})
 
@@ -248,7 +248,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", errResp.Error)
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "Invalid description")
 	})
 
@@ -266,7 +266,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", errResp.Error)
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "expires_at must be a future date")
 	})
 
@@ -284,7 +284,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "unauthorized", errResp.Error)
+		assert.Equal(t, "unauthorized", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "Invalid authentication state")
 		// Should set WWW-Authenticate header
 		assert.NotEmpty(t, w.Header().Get("WWW-Authenticate"))
@@ -326,7 +326,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "quota_exceeded", errResp.Error)
+		assert.Equal(t, "quota_exceeded", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "quota exceeded")
 	})
 
@@ -348,7 +348,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "service_unavailable", errResp.Error)
+		assert.Equal(t, "service_unavailable", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "Authentication service temporarily unavailable")
 		// Should set Retry-After header
 		assert.Equal(t, "30", w.Header().Get("Retry-After"))
@@ -367,7 +367,7 @@ func TestCreateCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "invalid_request", errResp.Error)
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "unknown field")
 	})
 
@@ -433,7 +433,7 @@ func TestListCurrentUserClientCredentials(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "unauthorized", errResp.Error)
+		assert.Equal(t, "unauthorized", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "Invalid authentication state")
 		assert.NotEmpty(t, w.Header().Get("WWW-Authenticate"))
 	})
@@ -461,7 +461,7 @@ func TestListCurrentUserClientCredentials(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "service_unavailable", errResp.Error)
+		assert.Equal(t, "service_unavailable", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "Authentication service temporarily unavailable")
 		assert.Equal(t, "30", w.Header().Get("Retry-After"))
 	})
@@ -523,7 +523,7 @@ func TestDeleteCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "unauthorized", errResp.Error)
+		assert.Equal(t, "unauthorized", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "Invalid authentication state")
 		assert.NotEmpty(t, w.Header().Get("WWW-Authenticate"))
 	})
@@ -549,7 +549,7 @@ func TestDeleteCurrentUserClientCredential(t *testing.T) {
 		var errResp Error
 		err := json.Unmarshal(w.Body.Bytes(), &errResp)
 		require.NoError(t, err)
-		assert.Equal(t, "service_unavailable", errResp.Error)
+		assert.Equal(t, "service_unavailable", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "Authentication service temporarily unavailable")
 		assert.Equal(t, "30", w.Header().Get("Retry-After"))
 	})
@@ -660,7 +660,7 @@ func TestCreateCurrentUserClientCredential_DirectWrite(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		var errResp Error
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-		assert.Equal(t, "invalid_request", errResp.Error)
+		assert.Equal(t, "invalid_input", string(errResp.Error))
 		assert.Contains(t, errResp.ErrorDescription, "direct_write")
 	})
 

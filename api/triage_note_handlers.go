@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -214,7 +215,7 @@ func (h *TriageNoteSubResourceHandler) CreateTriageNote(c *gin.Context) {
 	if userInternalUUID == "" {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "User not authenticated",
 		})
 		return

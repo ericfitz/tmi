@@ -9,6 +9,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -109,7 +110,7 @@ func (s *Server) ListAdminGroups(c *gin.Context, params ListAdminGroupsParams) {
 		logger.Error("Failed to list groups: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to list groups",
 		})
 		return
@@ -148,7 +149,7 @@ func (s *Server) GetAdminGroup(c *gin.Context, internalUuid openapi_types.UUID) 
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_uuid",
+			Code:    errcode.InvalidID,
 			Message: "internal_uuid must be a valid UUID",
 		})
 		return
@@ -195,7 +196,7 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Invalid request body: %v", err),
 		})
 		return
@@ -230,17 +231,13 @@ func (s *Server) CreateAdminGroup(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrGroupDuplicate):
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusConflict,
-				Code:    "duplicate_group",
-				Message: "Group already exists for this provider",
-			})
+			HandleRequestError(c, WithDetailCode(ConflictError("Group already exists for this provider"), errcode.DetailDuplicateGroup))
 		case isDBValidationError(err):
 			// Handle validation errors (e.g., string too long after Unicode expansion)
 			logger.Warn("Group creation failed due to validation error: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "validation_error",
+				Code:    errcode.InvalidInput,
 				Message: "Field value exceeds maximum allowed length or contains invalid characters",
 			})
 		default:
@@ -276,7 +273,7 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_uuid",
+			Code:    errcode.InvalidID,
 			Message: "internal_uuid must be a valid UUID",
 		})
 		return
@@ -287,7 +284,7 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 	if err := c.ShouldBindJSON(&req); err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Invalid request body: %v", err),
 		})
 		return
@@ -313,7 +310,7 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 		if *req.Name == "" {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: "name cannot be empty",
 			})
 			return
@@ -342,11 +339,7 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 		case errors.Is(err, ErrGroupNotFound):
 			HandleRequestError(c, NotFoundError("Group not found"))
 		case errors.Is(err, models.ErrBuiltInGroupProtected):
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusForbidden,
-				Code:    "protected_group",
-				Message: "Built-in groups cannot be renamed or have their description changed.",
-			})
+			HandleRequestError(c, WithDetailCode(ForbiddenError("Built-in groups cannot be renamed or have their description changed."), errcode.DetailProtectedGroup))
 		default:
 			logger.Error("Failed to update group: %v", err)
 			HandleRequestError(c, WriteErrorToRequestError(err, "Failed to update group"))
@@ -383,11 +376,7 @@ func (s *Server) DeleteAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 		case errors.Is(err, dberrors.ErrNotFound):
 			HandleRequestError(c, NotFoundError("Group not found"))
 		case errors.Is(err, models.ErrBuiltInGroupProtected):
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusForbidden,
-				Code:    "protected_group",
-				Message: "Built-in groups cannot be deleted.",
-			})
+			HandleRequestError(c, WithDetailCode(ForbiddenError("Built-in groups cannot be deleted."), errcode.DetailProtectedGroup))
 		default:
 			logger.Error("Failed to delete group: %v", err)
 			HandleRequestError(c, WriteErrorToRequestError(err, "Failed to delete group"))

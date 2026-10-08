@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/crypto"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -55,7 +56,7 @@ func GetWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Invalid delivery ID: %s", deliveryIDStr)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid delivery ID format",
 		})
 		return
@@ -66,7 +67,7 @@ func GetWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Webhook delivery store not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusServiceUnavailable,
-			Code:    "service_unavailable",
+			Code:    errcode.ServiceUnavailable,
 			Message: "Delivery tracking not available",
 		})
 		return
@@ -77,7 +78,7 @@ func GetWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Failed to get delivery record: id=%s, error=%v", deliveryID, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Delivery record not found or expired",
 		})
 		return
@@ -133,7 +134,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Invalid delivery ID: %s", deliveryIDStr)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid delivery ID format",
 		})
 		return
@@ -145,7 +146,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Failed to read request body: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: "Failed to read request body",
 		})
 		return
@@ -157,7 +158,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Failed to parse status update request: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid request body",
 		})
 		return
@@ -173,7 +174,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Invalid status: %s", req.Status)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid status. Must be: in_progress, completed, or failed",
 		})
 		return
@@ -184,7 +185,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Invalid status_percent: %d", *req.StatusPercent)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Status percent must be between 0 and 100",
 		})
 		return
@@ -196,7 +197,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Status message too long: %d characters", len(*req.StatusMessage))
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Status message exceeds maximum length of 1024 characters",
 		})
 		return
@@ -207,7 +208,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Webhook delivery store not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusServiceUnavailable,
-			Code:    "service_unavailable",
+			Code:    errcode.ServiceUnavailable,
 			Message: "Delivery tracking not available",
 		})
 		return
@@ -218,7 +219,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Failed to get delivery record: id=%s, error=%v", deliveryID, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Delivery record not found or expired",
 		})
 		return
@@ -229,7 +230,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Webhook subscription store not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusServiceUnavailable,
-			Code:    "service_unavailable",
+			Code:    errcode.ServiceUnavailable,
 			Message: "Webhook service not available",
 		})
 		return
@@ -240,7 +241,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Failed to get webhook: id=%s, error=%v", record.SubscriptionID, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to verify delivery",
 		})
 		return
@@ -253,7 +254,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 			logger.Warn("Missing HMAC signature for delivery status update: %s", deliveryID)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusUnauthorized,
-				Code:    "unauthorized",
+				Code:    errcode.Unauthorized,
 				Message: "Missing webhook signature",
 			})
 			return
@@ -263,7 +264,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 			logger.Warn("Invalid HMAC signature for delivery status update: %s", deliveryID)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusUnauthorized,
-				Code:    "unauthorized",
+				Code:    errcode.Unauthorized,
 				Message: "Invalid webhook signature",
 			})
 			return
@@ -280,7 +281,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 			deliveryID, record.Status)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusConflict,
-			Code:    "conflict",
+			Code:    errcode.Conflict,
 			Message: "Cannot update delivery that is already delivered, failed, or cancelled",
 		})
 		return
@@ -308,7 +309,7 @@ func UpdateWebhookDeliveryStatus(c *gin.Context) {
 		logger.Error("Failed to update delivery record: id=%s, error=%v", deliveryID, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to update delivery status",
 		})
 		return
@@ -363,7 +364,7 @@ func verifyDeliveryHMAC(c *gin.Context, record *WebhookDeliveryRecord, signature
 		logger.Error("Webhook subscription store not initialized")
 		return &RequestError{
 			Status:  http.StatusServiceUnavailable,
-			Code:    "service_unavailable",
+			Code:    errcode.ServiceUnavailable,
 			Message: "Webhook service not available",
 		}
 	}
@@ -373,7 +374,7 @@ func verifyDeliveryHMAC(c *gin.Context, record *WebhookDeliveryRecord, signature
 		logger.Error("Failed to get webhook for HMAC verification: %v", err)
 		return &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to verify delivery",
 		}
 	}
@@ -382,7 +383,7 @@ func verifyDeliveryHMAC(c *gin.Context, record *WebhookDeliveryRecord, signature
 		logger.Warn("Webhook has no secret, cannot verify HMAC signature")
 		return &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Webhook secret not configured",
 		}
 	}
@@ -392,7 +393,7 @@ func verifyDeliveryHMAC(c *gin.Context, record *WebhookDeliveryRecord, signature
 		logger.Warn("Invalid HMAC signature for delivery access: %s", record.ID)
 		return &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Invalid webhook signature",
 		}
 	}
@@ -419,7 +420,7 @@ func verifyDeliveryJWTAccess(c *gin.Context, record *WebhookDeliveryRecord) erro
 	logger.Warn("Caller denied access to delivery %s", record.ID)
 	return &RequestError{
 		Status:  http.StatusForbidden,
-		Code:    "forbidden",
+		Code:    errcode.Forbidden,
 		Message: "Access denied",
 	}
 }
@@ -548,17 +549,17 @@ func CancelWebhookDelivery(c *gin.Context) {
 
 	deliveryID, err := uuid.Parse(c.Param("delivery_id"))
 	if err != nil {
-		HandleRequestError(c, &RequestError{Status: http.StatusBadRequest, Code: "invalid_input", Message: "Invalid delivery ID format"})
+		HandleRequestError(c, &RequestError{Status: http.StatusBadRequest, Code: errcode.InvalidInput, Message: "Invalid delivery ID format"})
 		return
 	}
 	if GlobalWebhookDeliveryRedisStore == nil {
 		logger.Error("Webhook delivery store not initialized")
-		HandleRequestError(c, &RequestError{Status: http.StatusServiceUnavailable, Code: "service_unavailable", Message: "Delivery tracking not available"})
+		HandleRequestError(c, &RequestError{Status: http.StatusServiceUnavailable, Code: errcode.ServiceUnavailable, Message: "Delivery tracking not available"})
 		return
 	}
 	record, err := GlobalWebhookDeliveryRedisStore.Get(c.Request.Context(), deliveryID)
 	if err != nil {
-		HandleRequestError(c, &RequestError{Status: http.StatusNotFound, Code: "not_found", Message: "Delivery record not found or expired"})
+		HandleRequestError(c, &RequestError{Status: http.StatusNotFound, Code: errcode.NotFound, Message: "Delivery record not found or expired"})
 		return
 	}
 	if err := verifyDeliveryJWTAccess(c, record); err != nil {
@@ -566,7 +567,7 @@ func CancelWebhookDelivery(c *gin.Context) {
 		return
 	}
 	if isTerminalDeliveryStatus(record.Status) {
-		HandleRequestError(c, &RequestError{Status: http.StatusConflict, Code: "conflict", Message: "Cannot cancel delivery that is already delivered, failed, or cancelled"})
+		HandleRequestError(c, &RequestError{Status: http.StatusConflict, Code: errcode.Conflict, Message: "Cannot cancel delivery that is already delivered, failed, or cancelled"})
 		return
 	}
 	// ponytail: get-then-update race with the delivery worker; a delivery that is
@@ -575,7 +576,7 @@ func CancelWebhookDelivery(c *gin.Context) {
 	record.Status = DeliveryStatusCancelled
 	if err := GlobalWebhookDeliveryRedisStore.Update(c.Request.Context(), record); err != nil {
 		logger.Error("Failed to cancel delivery record: id=%s, error=%v", deliveryID, err)
-		HandleRequestError(c, &RequestError{Status: http.StatusInternalServerError, Code: "server_error", Message: "Failed to cancel delivery"})
+		HandleRequestError(c, &RequestError{Status: http.StatusInternalServerError, Code: errcode.ServerError, Message: "Failed to cancel delivery"})
 		return
 	}
 	logger.Info("Delivery cancelled: id=%s", deliveryID)
@@ -594,7 +595,7 @@ func ListMyWebhookDeliveries(c *gin.Context, params ListMyWebhookDeliveriesParam
 	}
 	if GlobalWebhookDeliveryRedisStore == nil {
 		logger.Error("Webhook delivery store not initialized")
-		HandleRequestError(c, &RequestError{Status: http.StatusServiceUnavailable, Code: "service_unavailable", Message: "Delivery tracking not available"})
+		HandleRequestError(c, &RequestError{Status: http.StatusServiceUnavailable, Code: errcode.ServiceUnavailable, Message: "Delivery tracking not available"})
 		return
 	}
 	offset, limit := 0, 20
@@ -612,7 +613,7 @@ func ListMyWebhookDeliveries(c *gin.Context, params ListMyWebhookDeliveriesParam
 	all, _, err := GlobalWebhookDeliveryRedisStore.ListAll(ctx, 1<<30, 0)
 	if err != nil {
 		logger.Error("Failed to list delivery records: %v", err)
-		HandleRequestError(c, &RequestError{Status: http.StatusInternalServerError, Code: "server_error", Message: "Failed to list deliveries"})
+		HandleRequestError(c, &RequestError{Status: http.StatusInternalServerError, Code: errcode.ServerError, Message: "Failed to list deliveries"})
 		return
 	}
 	visible := all[:0]

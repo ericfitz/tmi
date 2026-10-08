@@ -6,6 +6,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"gorm.io/gorm"
@@ -37,7 +38,7 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 	if auth.Provider == "" || auth.Provider == "*" {
 		return &RequestError{
 			Status:  400,
-			Code:    "validation_failed",
+			Code:    errcode.InvalidInput,
 			Message: "provider must be a valid identity provider name (e.g., \"tmi\", \"google\", \"github\")",
 		}
 	}
@@ -49,7 +50,7 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 	if !hasProviderID && !hasEmail {
 		return &RequestError{
 			Status:  400,
-			Code:    "validation_failed",
+			Code:    errcode.InvalidInput,
 			Message: "either provider_id or email must be provided for authorization entries",
 		}
 	}
@@ -97,7 +98,7 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 		logger.Error("Database error looking up user: %v", result.Error)
 		return &RequestError{
 			Status:  500,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to lookup user",
 		}
 	}
@@ -131,7 +132,7 @@ func EnrichAuthorizationEntry(ctx context.Context, db *gorm.DB, auth *Authorizat
 			logger.Error("Failed to query user after sparse insert: %v", result.Error)
 			return &RequestError{
 				Status:  500,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to lookup user after creation",
 			}
 		}
@@ -259,7 +260,7 @@ func performSparseUserInsert(ctx context.Context, db *gorm.DB, auth *Authorizati
 				logger.Error("Failed to re-fetch user after duplicate-key insert conflict: %v", refetch.Error)
 				return &RequestError{
 					Status:  500,
-					Code:    "server_error",
+					Code:    errcode.ServerError,
 					Message: "Failed to create user record",
 				}
 			}
@@ -268,7 +269,7 @@ func performSparseUserInsert(ctx context.Context, db *gorm.DB, auth *Authorizati
 		logger.Error("Failed to insert sparse user record: %v", result.Error)
 		return &RequestError{
 			Status:  500,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to create user record",
 		}
 	}

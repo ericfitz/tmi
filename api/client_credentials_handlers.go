@@ -9,6 +9,7 @@ import (
 
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"github.com/gin-gonic/gin"
@@ -27,7 +28,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	if IsServiceAccountRequest(c) {
 		logger.Warn("Service account attempted to create client credential: %s", GetUserIdentityForLogging(c))
 		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
+			Error:            ErrorError(errcode.Forbidden),
 			ErrorDescription: "Client credential creation is not available to service accounts - administrators must provision credentials via the admin API",
 		})
 		return
@@ -41,7 +42,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	if !isAdminBool && !isSecurityReviewerBool {
 		logger.Warn("Non-privileged user attempted to create client credential: %s", GetUserIdentityForLogging(c))
 		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
+			Error:            ErrorError(errcode.Forbidden),
 			ErrorDescription: "Only administrators and security reviewers can create client credentials",
 		})
 		return
@@ -60,7 +61,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	if errMsg := StrictJSONBind(c, &req); errMsg != "" {
 		logger.Warn("Invalid request body: %s", errMsg)
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidInput),
 			ErrorDescription: errMsg,
 		})
 		return
@@ -71,7 +72,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 		logger.Warn("Invalid name in client credential request: %s (name=%s)",
 			errMsg, sanitizeForLogging(req.Name))
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidInput),
 			ErrorDescription: "Invalid name: " + errMsg,
 		})
 		return
@@ -82,7 +83,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	if errMsg := validateClientCredentialDescription(description); errMsg != "" {
 		logger.Warn("Invalid description in client credential request: %s", errMsg)
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidInput),
 			ErrorDescription: "Invalid description: " + errMsg,
 		})
 		return
@@ -92,7 +93,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	if req.ExpiresAt != nil && req.ExpiresAt.Before(time.Now()) {
 		logger.Warn("Client credential expiration date is in the past")
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidInput),
 			ErrorDescription: "expires_at must be a future date",
 		})
 		return
@@ -104,7 +105,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	if directWrite && isAdminBool {
 		logger.Warn("Administrator attempted to create a direct_write client credential: %s", GetUserIdentityForLogging(c))
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidInput),
 			ErrorDescription: directWriteAdminOwnerMessage,
 		})
 		return
@@ -112,7 +113,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 
 	addonID, err := resolveCredentialAddonID(c, req.AddonId, directWrite)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid_request", ErrorDescription: err.Error()})
+		c.JSON(http.StatusBadRequest, Error{Error: ErrorError(errcode.InvalidInput), ErrorDescription: err.Error()})
 		return
 	}
 
@@ -123,7 +124,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 		// Invalid UUID in auth context indicates corrupted authentication state
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication state - please re-authenticate")
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "Invalid authentication state - please re-authenticate",
 		})
 		return
@@ -133,10 +134,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	if GlobalClientCredentialQuotaStore != nil {
 		if err := GlobalClientCredentialQuotaStore.CheckClientCredentialQuota(c.Request.Context(), ownerUUID); err != nil {
 			logger.Warn("Client credential quota exceeded for user %s: %v", userUUID, err)
-			c.JSON(http.StatusForbidden, Error{
-				Error:            "quota_exceeded",
-				ErrorDescription: err.Error(),
-			})
+			HandleRequestError(c, QuotaExceededError(http.StatusForbidden, err.Error()))
 			return
 		}
 	}
@@ -147,7 +145,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 		logger.Error("Failed to get auth service adapter")
 		c.Header("Retry-After", "30")
 		c.JSON(http.StatusServiceUnavailable, Error{
-			Error:            "service_unavailable",
+			Error:            ErrorError(errcode.ServiceUnavailable),
 			ErrorDescription: "Authentication service temporarily unavailable - please retry",
 		})
 		return
@@ -170,7 +168,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 		if errors.Is(err, dberrors.ErrDuplicate) || errors.Is(err, dberrors.ErrConstraint) {
 			logger.Warn("Client credential creation failed due to constraint: %v", err)
 			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
+				Error:            ErrorError(errcode.Conflict),
 				ErrorDescription: "A client credential with these details already exists",
 			})
 			return
@@ -179,14 +177,14 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 			logger.Warn("Transient DB error creating client credential: %v", err)
 			c.Header("Retry-After", "30")
 			c.JSON(http.StatusServiceUnavailable, Error{
-				Error:            "service_unavailable",
+				Error:            ErrorError(errcode.ServiceUnavailable),
 				ErrorDescription: "Database temporarily unavailable, please retry",
 			})
 			return
 		}
 		logger.Error("Failed to create client credential for user %s: %v", ownerUUID, err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to create client credential",
 		})
 		return
@@ -235,7 +233,7 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 		// Invalid UUID in auth context indicates corrupted authentication state
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication state - please re-authenticate")
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "Invalid authentication state - please re-authenticate",
 		})
 		return
@@ -247,7 +245,7 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 		logger.Error("Failed to get auth service adapter")
 		c.Header("Retry-After", "30")
 		c.JSON(http.StatusServiceUnavailable, Error{
-			Error:            "service_unavailable",
+			Error:            ErrorError(errcode.ServiceUnavailable),
 			ErrorDescription: "Authentication service temporarily unavailable - please retry",
 		})
 		return
@@ -265,14 +263,14 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 			logger.Warn("Transient DB error listing client credentials: %v", err)
 			c.Header("Retry-After", "30")
 			c.JSON(http.StatusServiceUnavailable, Error{
-				Error:            "service_unavailable",
+				Error:            ErrorError(errcode.ServiceUnavailable),
 				ErrorDescription: "Database temporarily unavailable, please retry",
 			})
 			return
 		}
 		logger.Error("Unexpected error listing client credentials: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to list client credentials",
 		})
 		return
@@ -331,7 +329,7 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId 
 		// Invalid UUID in auth context indicates corrupted authentication state
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication state - please re-authenticate")
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "Invalid authentication state - please re-authenticate",
 		})
 		return
@@ -343,7 +341,7 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId 
 		logger.Error("Failed to get auth service adapter")
 		c.Header("Retry-After", "30")
 		c.JSON(http.StatusServiceUnavailable, Error{
-			Error:            "service_unavailable",
+			Error:            ErrorError(errcode.ServiceUnavailable),
 			ErrorDescription: "Authentication service temporarily unavailable - please retry",
 		})
 		return
@@ -359,7 +357,7 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId 
 		if errors.Is(err, dberrors.ErrNotFound) {
 			logger.Warn("Client credential not found: id=%s, owner=%s: %v", credentialId, userUUID, err)
 			c.JSON(http.StatusNotFound, Error{
-				Error:            "not_found",
+				Error:            ErrorError(errcode.NotFound),
 				ErrorDescription: "Client credential not found or not owned by user",
 			})
 			return
@@ -368,14 +366,14 @@ func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId 
 			logger.Warn("Transient error deleting client credential (nothing deleted if revocation failed): %v", err)
 			c.Header("Retry-After", "30")
 			c.JSON(http.StatusServiceUnavailable, Error{
-				Error:            "service_unavailable",
+				Error:            ErrorError(errcode.ServiceUnavailable),
 				ErrorDescription: "Database temporarily unavailable, please retry",
 			})
 			return
 		}
 		logger.Error("Unexpected error deleting client credential: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to delete client credential",
 		})
 		return

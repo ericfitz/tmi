@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -1556,7 +1557,7 @@ func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, 
 	// Validate threat model ID format
 	if _, err := uuid.Parse(threatModelID); err != nil {
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_id",
+			Error:            ErrorError(errcode.InvalidID),
 			ErrorDescription: "Invalid threat model ID format, must be a valid UUID",
 		})
 		return "", "", "", fmt.Errorf("invalid threat model ID")
@@ -1565,7 +1566,7 @@ func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, 
 	// Validate diagram ID format
 	if _, err := uuid.Parse(diagramID); err != nil {
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_id",
+			Error:            ErrorError(errcode.InvalidID),
 			ErrorDescription: "Invalid diagram ID format, must be a valid UUID",
 		})
 		return "", "", "", fmt.Errorf("invalid diagram ID")
@@ -1580,7 +1581,7 @@ func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, 
 		} else {
 			c.Header("WWW-Authenticate", "Bearer")
 			c.JSON(http.StatusUnauthorized, Error{
-				Error:            "unauthorized",
+				Error:            ErrorError(errcode.Unauthorized),
 				ErrorDescription: "User not authenticated",
 			})
 			return "", "", "", fmt.Errorf("user not authenticated")
@@ -1591,7 +1592,7 @@ func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, 
 	if !ok || userIDStr == "" {
 		c.Header("WWW-Authenticate", "Bearer")
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "Invalid user authentication",
 		})
 		return "", "", "", fmt.Errorf("invalid user authentication")
@@ -1625,21 +1626,17 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	if MaxConnectionsPerUser > 0 && h.CountUserConnections(userInfo.UserID) >= MaxConnectionsPerUser {
 		slogging.Get().Info("WebSocket upgrade rejected for user %s — per-user connection cap (%d) reached",
 			userInfo.UserID, MaxConnectionsPerUser)
-		c.Header("Retry-After", "60")
-		c.JSON(http.StatusTooManyRequests, Error{
-			Error:            "too_many_connections",
-			ErrorDescription: "user has reached the maximum number of WebSocket connections",
-		})
+		HandleRequestError(c, WithDetailCode(
+			RateLimitExceededError("user has reached the maximum number of WebSocket connections", 60),
+			errcode.DetailTooManyConnections))
 		return
 	}
 	if MaxParticipantsPerSession > 0 && h.CountSessionParticipants(diagramID) >= MaxParticipantsPerSession {
 		slogging.Get().Info("WebSocket upgrade rejected for user %s — per-session cap (%d) reached for diagram %s",
 			userInfo.UserID, MaxParticipantsPerSession, diagramID)
-		c.Header("Retry-After", "30")
-		c.JSON(http.StatusTooManyRequests, Error{
-			Error:            "session_full",
-			ErrorDescription: "diagram session has reached the maximum number of participants",
-		})
+		HandleRequestError(c, WithDetailCode(
+			RateLimitExceededError("diagram session has reached the maximum number of participants", 30),
+			errcode.DetailSessionFull))
 		return
 	}
 

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -24,7 +25,7 @@ func SameProviderMiddleware() gin.HandlerFunc {
 			logger.Error("SameProviderMiddleware: No idp/provider parameter found in path")
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Provider parameter not found in request path",
 			})
 			c.Abort()
@@ -37,7 +38,7 @@ func SameProviderMiddleware() gin.HandlerFunc {
 			logger.Error("SameProviderMiddleware: No userProvider found in context")
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusUnauthorized,
-				Code:    "unauthorized",
+				Code:    errcode.Unauthorized,
 				Message: "Authentication required",
 			})
 			c.Abort()
@@ -47,11 +48,7 @@ func SameProviderMiddleware() gin.HandlerFunc {
 		// Check if user's provider matches the requested provider
 		if userIdP != idp {
 			logger.Warn("SameProviderMiddleware: Provider mismatch - user_idp=%s, requested_idp=%s", userIdP, idp)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusForbidden,
-				Code:    "provider_mismatch",
-				Message: "You can only access resources for your own provider",
-			})
+			HandleRequestError(c, WithDetailCode(ForbiddenError("You can only access resources for your own provider"), errcode.DetailProviderMismatch))
 			c.Abort()
 			return
 		}
@@ -77,7 +74,7 @@ func SAMLProviderOnlyMiddleware() gin.HandlerFunc {
 			logger.Error("SAMLProviderOnlyMiddleware: No idp/provider parameter found in path")
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Provider parameter not found in request path",
 			})
 			c.Abort()
@@ -87,11 +84,7 @@ func SAMLProviderOnlyMiddleware() gin.HandlerFunc {
 		// Check if provider is a SAML provider (starts with "saml_")
 		if !strings.HasPrefix(idp, "saml_") {
 			logger.Warn("SAMLProviderOnlyMiddleware: Non-SAML provider requested - idp=%s", idp)
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_provider_type",
-				Message: "This endpoint only supports SAML providers (provider must start with 'saml_')",
-			})
+			HandleRequestError(c, WithDetailCode(InvalidInputError("This endpoint only supports SAML providers (provider must start with 'saml_')"), errcode.DetailInvalidProviderType))
 			c.Abort()
 			return
 		}

@@ -39,6 +39,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -100,11 +101,7 @@ func ParseIfMatchHeader(c *gin.Context) (int, bool, error) {
 	}
 	n, err := strconv.Atoi(v)
 	if err != nil || n < 0 {
-		return 0, true, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_if_match",
-			Message: "If-Match must be a non-negative integer version",
-		}
+		return 0, true, WithDetailCode(InvalidInputError("If-Match must be a non-negative integer version"), errcode.DetailInvalidIfMatch)
 	}
 	return n, true, nil
 }
@@ -127,11 +124,7 @@ func ResolveExpectedVersion(c *gin.Context, bodyVersion *int) (int, bool, error)
 	}
 	if bodyVersion != nil {
 		if *bodyVersion < 0 {
-			return 0, true, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "invalid_version",
-				Message: "version body field must be a non-negative integer",
-			}
+			return 0, true, WithDetailCode(InvalidInputError("version body field must be a non-negative integer"), errcode.DetailInvalidVersion)
 		}
 		return *bodyVersion, true, nil
 	}
@@ -146,7 +139,7 @@ func EnforceIfMatchOrWarn(c *gin.Context) error {
 	if RequireIfMatch() {
 		return &RequestError{
 			Status:  http.StatusPreconditionRequired,
-			Code:    "if_match_required",
+			Code:    errcode.IfMatchRequired,
 			Message: "If-Match header is required for this operation",
 		}
 	}
@@ -355,7 +348,7 @@ func MapVersionError(err error) *RequestError {
 	if errors.Is(err, ErrVersionMismatch) {
 		return &RequestError{
 			Status:  http.StatusConflict,
-			Code:    "version_mismatch",
+			Code:    errcode.VersionMismatch,
 			Message: "Resource version does not match If-Match precondition; refetch and retry",
 		}
 	}

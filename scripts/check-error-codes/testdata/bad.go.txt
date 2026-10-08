@@ -1,0 +1,16 @@
+package fixture
+
+func bad(c *gin.Context) {
+	_ = Error{Error: "invalid_input"}
+	_ = &RequestError{Code: "not_found"}
+	c.JSON(400, gin.H{"error": "bad thing"})
+	_ = map[string]string{"error": "oops"}
+	RespondWithError(c, 400, "invalid_input", "m")
+	_ = Error{Error: ErrorError("x")}
+}
+
+func helper(c *gin.Context, code string, err error) {
+	c.JSON(400, gin.H{"error": code})
+	_ = AuthError{Code: "unauthorized"}
+	_ = gin.H{"error": err.Error()}
+}

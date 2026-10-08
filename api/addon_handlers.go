@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -40,7 +41,7 @@ func CreateAddon(c *gin.Context) {
 		logger.Error("Failed to parse create add-on request: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_request",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid request body",
 		})
 		return
@@ -102,7 +103,7 @@ func CreateAddon(c *gin.Context) {
 		logger.Error("Failed to create add-on: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to create add-on",
 		})
 		return
@@ -127,7 +128,7 @@ func GetAddon(c *gin.Context) {
 		logger.Error("Invalid add-on ID: %s", addonIDStr)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid add-on ID format",
 		})
 		return
@@ -139,7 +140,7 @@ func GetAddon(c *gin.Context) {
 		logger.Error("Failed to get add-on: id=%s, error=%v", addonID, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Add-on not found",
 		})
 		return
@@ -181,7 +182,7 @@ func ListAddons(c *gin.Context) {
 			logger.Error("Invalid threat_model_id: %s", tmIDStr)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: "Invalid threat_model_id format",
 			})
 			return
@@ -194,7 +195,7 @@ func ListAddons(c *gin.Context) {
 		logger.Error("Failed to list add-ons: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to list add-ons",
 		})
 		return
@@ -243,7 +244,7 @@ func PatchAddon(c *gin.Context) {
 		logger.Error("Invalid add-on ID: %s", addonIDStr)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid add-on ID format",
 		})
 		return
@@ -253,7 +254,7 @@ func PatchAddon(c *gin.Context) {
 		logger.Error("Add-on store not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusServiceUnavailable,
-			Code:    "service_unavailable",
+			Code:    errcode.ServiceUnavailable,
 			Message: "Add-ons are not available",
 		})
 		return
@@ -264,7 +265,7 @@ func PatchAddon(c *gin.Context) {
 		logger.Error("Failed to get add-on: id=%s, error=%v", addonID, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Add-on not found",
 		})
 		return
@@ -306,7 +307,7 @@ func PatchAddon(c *gin.Context) {
 		if errors.Is(err, ErrAddonNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: "Add-on not found",
 			})
 			return
@@ -320,7 +321,7 @@ func PatchAddon(c *gin.Context) {
 		logger.Error("Failed to update add-on: id=%s, error=%v", addonID, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to update add-on",
 		})
 		return
@@ -381,7 +382,7 @@ func DeleteAddon(c *gin.Context) {
 		logger.Error("Invalid add-on ID: %s", addonIDStr)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid add-on ID format",
 		})
 		return
@@ -393,7 +394,7 @@ func DeleteAddon(c *gin.Context) {
 		logger.Error("Failed to count active invocations for add-on: id=%s, error=%v", addonID, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to verify add-on status",
 		})
 		return
@@ -403,7 +404,7 @@ func DeleteAddon(c *gin.Context) {
 		logger.Warn("Cannot delete add-on with active invocations: id=%s, count=%d", addonID, activeCount)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusConflict,
-			Code:    "conflict",
+			Code:    errcode.Conflict,
 			Message: "Cannot delete add-on with active invocations. Please wait for invocations to complete.",
 		})
 		return
@@ -414,7 +415,7 @@ func DeleteAddon(c *gin.Context) {
 		logger.Error("Failed to delete add-on: id=%s, error=%v", addonID, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Add-on not found",
 		})
 		return

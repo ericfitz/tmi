@@ -1,0 +1,326 @@
+// Package errcode holds the closed vocabulary of machine-readable error codes
+// returned in the "error" field (and "details.code") of TMI API error bodies
+// (ADR 2026-10-08 error-code vocabulary, issue #1048). It is dependency-free
+// so that both the api and auth packages can share it without an import cycle
+// (auth must not import api).
+package errcode
+
+import "regexp"
+
+// Code is a machine-readable error code.
+type Code string
+
+// Tier 1: REST codes (Error.error enum in the OpenAPI spec).
+const (
+	// InvalidInput is HTTP 400 body, field, header or query value fails validation.
+	InvalidInput Code = "invalid_input"
+	// InvalidID is HTTP 400 a path or query identifier is malformed.
+	InvalidID Code = "invalid_id"
+	// InvalidPatch is HTTP 400 JSON Patch document malformed, disallowed or inapplicable.
+	InvalidPatch Code = "invalid_patch"
+	// Unauthorized is HTTP 401 missing, expired or invalid credentials.
+	Unauthorized Code = "unauthorized"
+	// InsufficientUserAuthentication is HTTP 401 step-up authentication required (RFC 9470).
+	InsufficientUserAuthentication Code = "insufficient_user_authentication"
+	// Forbidden is HTTP 403 authenticated but not permitted.
+	Forbidden Code = "forbidden"
+	// NotFound is HTTP 404 resource or route does not exist or is hidden by authorization.
+	NotFound Code = "not_found"
+	// MethodNotAllowed is HTTP 405 method not allowed.
+	MethodNotAllowed Code = "method_not_allowed"
+	// NotAcceptable is HTTP 406 not acceptable.
+	NotAcceptable Code = "not_acceptable"
+	// Conflict is HTTP 409 state conflict: duplicate, in use, wrong lifecycle state.
+	Conflict Code = "conflict"
+	// Gone is HTTP 410 permanently removed.
+	Gone Code = "gone"
+	// VersionMismatch is HTTP 409 If-Match does not match the current version.
+	VersionMismatch Code = "version_mismatch"
+	// PayloadTooLarge is HTTP 413 payload too large.
+	PayloadTooLarge Code = "payload_too_large"
+	// UnsupportedMediaType is HTTP 415 Content-Type not accepted.
+	UnsupportedMediaType Code = "unsupported_media_type"
+	// UnprocessableEntity is HTTP 422 well-formed request that cannot be processed in the current state.
+	UnprocessableEntity Code = "unprocessable_entity"
+	// IfMatchRequired is HTTP 428 If-Match header missing.
+	IfMatchRequired Code = "if_match_required"
+	// RateLimitExceeded is HTTP 429 transient limit; honor Retry-After.
+	RateLimitExceeded Code = "rate_limit_exceeded"
+	// QuotaExceeded is HTTP 403 or 429 hard cap reached; retrying does not help.
+	QuotaExceeded Code = "quota_exceeded"
+	// ServerError is HTTP 500 unexpected failure, including panic recovery.
+	ServerError Code = "server_error"
+	// NotImplemented is HTTP 501 operation not supported by this server.
+	NotImplemented Code = "not_implemented"
+	// ServiceUnavailable is HTTP 503 dependency unavailable; retry later.
+	ServiceUnavailable Code = "service_unavailable"
+)
+
+// Tier 1b: additional codes accepted on protocol routes (OAuthError.error enum).
+// ServerError and InsufficientUserAuthentication above are shared with this tier.
+const (
+	// InvalidRequest: RFC 6749 malformed protocol request.
+	InvalidRequest Code = "invalid_request"
+	// InvalidClient: RFC 6749 client authentication failed.
+	InvalidClient Code = "invalid_client"
+	// InvalidGrant: RFC 6749 grant invalid, expired or revoked.
+	InvalidGrant Code = "invalid_grant"
+	// UnauthorizedClient: RFC 6749 client not authorized for this grant type.
+	UnauthorizedClient Code = "unauthorized_client"
+	// UnsupportedGrantType: RFC 6749 grant type not supported.
+	UnsupportedGrantType Code = "unsupported_grant_type"
+	// InvalidScope: RFC 6749 requested scope invalid.
+	InvalidScope Code = "invalid_scope"
+	// AccessDenied: RFC 6749 resource owner or server denied the request.
+	AccessDenied Code = "access_denied"
+	// UnsupportedResponseType: RFC 6749 response type not supported.
+	UnsupportedResponseType Code = "unsupported_response_type"
+	// TemporarilyUnavailable: RFC 6749 server temporarily unable to handle the request.
+	TemporarilyUnavailable Code = "temporarily_unavailable"
+	// UnsupportedTokenType: RFC 7009 token type not supported for revocation.
+	UnsupportedTokenType Code = "unsupported_token_type"
+	// IdentityMismatch: TMI extension: provider identity does not match the expected user.
+	IdentityMismatch Code = "identity_mismatch"
+	// AccountConflict: TMI extension: account conflicts with an existing account.
+	AccountConflict Code = "account_conflict"
+	// EmailNotVerified: TMI extension: provider email is not verified.
+	EmailNotVerified Code = "email_not_verified"
+	// ProviderUnreachable: TMI extension: identity provider could not be reached.
+	ProviderUnreachable Code = "provider_unreachable"
+	// ProviderResponseInvalid: TMI extension: identity provider returned an invalid response.
+	ProviderResponseInvalid Code = "provider_response_invalid"
+	// InvalidProvider: TMI extension: identity provider is unknown or disabled.
+	InvalidProvider Code = "invalid_provider"
+	// SAMLError: TMI extension: SAML login failed.
+	SAMLError Code = "saml_error"
+	// SAMLNotEnabled: TMI extension: SAML is not enabled.
+	SAMLNotEnabled Code = "saml_not_enabled"
+	// SAMLUnavailable: TMI extension: SAML manager not initialized.
+	SAMLUnavailable Code = "saml_unavailable"
+	// SAMLProviderNotFound: TMI extension: SAML provider is unknown.
+	SAMLProviderNotFound Code = "saml_provider_not_found"
+	// SAMLMetadataError: TMI extension: SAML metadata could not be generated.
+	SAMLMetadataError Code = "saml_metadata_error"
+	// SAMLInitError: TMI extension: SAML authentication could not be initiated.
+	SAMLInitError Code = "saml_init_error"
+	// SAMLInvalidLogoutRequest: TMI extension: SAML logout request is invalid.
+	SAMLInvalidLogoutRequest Code = "saml_invalid_logout_request"
+	// SAMLLogoutError: TMI extension: SAML logout response could not be created.
+	SAMLLogoutError Code = "saml_logout_error"
+)
+
+// Tier 2: domain reasons carried in details.code. The list is open; adding a
+// reason does not require a schema version bump.
+const (
+	DetailPickerFileIDMismatch              Code = "picker_file_id_mismatch"
+	DetailInvalidPickerRegistration         Code = "invalid_picker_registration"
+	DetailInvalidChallenge                  Code = "invalid_challenge"
+	DetailInvalidProviderType               Code = "invalid_provider_type"
+	DetailClientCallbackRequired            Code = "client_callback_required"
+	DetailClientCallbackNotAllowed          Code = "client_callback_not_allowed"
+	DetailInvalidIfMatch                    Code = "invalid_if_match"
+	DetailInvalidVersion                    Code = "invalid_version"
+	DetailDuplicateHeader                   Code = "duplicate_header"
+	DetailUnsupportedEncoding               Code = "unsupported_encoding"
+	DetailReservedKey                       Code = "reserved_key"
+	DetailTokenNotLinkedOrFailed            Code = "token_not_linked_or_failed"
+	DetailInvalidToken                      Code = "invalid_token"
+	DetailProtectedGroup                    Code = "protected_group"
+	DetailProviderMismatch                  Code = "provider_mismatch"
+	DetailSessionNotFound                   Code = "session_not_found"
+	DetailFeatureNotAvailable               Code = "feature_not_available"
+	DetailDuplicateGroup                    Code = "duplicate_group"
+	DetailDuplicateMembership               Code = "duplicate_membership"
+	DetailSelfDeletion                      Code = "self_deletion"
+	DetailProtectedUser                     Code = "protected_user"
+	DetailDeletionBlocked                   Code = "deletion_blocked"
+	DetailEncryptionNotEnabled              Code = "encryption_not_enabled"
+	DetailUnreadableSettingsLimit           Code = "unreadable_settings_limit"
+	DetailSessionNotActive                  Code = "session_not_active"
+	DetailProviderNotRegistered             Code = "provider_not_registered"
+	DetailProviderNotConfigured             Code = "provider_not_configured"
+	DetailContentTokenProviderNotConfigured Code = "content_token_provider_not_configured"
+	DetailDimensionMismatch                 Code = "dimension_mismatch"
+	DetailInconsistentDimensions            Code = "inconsistent_dimensions"
+	DetailNoSource                          Code = "no_source"
+	DetailAccessRequestNotSupported         Code = "access_request_not_supported"
+	DetailTooManyConnections                Code = "too_many_connections"
+	DetailSessionFull                       Code = "session_full"
+	DetailMessageRateLimit                  Code = "message_rate_limit"
+	DetailDuplicateInvocation               Code = "duplicate_invocation"
+	DetailSessionLimitExceeded              Code = "session_limit_exceeded"
+	DetailWebsocketUpgradeFailed            Code = "websocket_upgrade_failed"
+	DetailLlmBusy                           Code = "llm_busy"
+	DetailLlmNotConfigured                  Code = "llm_not_configured"
+	DetailCollaborationSessionExists        Code = "collaboration_session_exists"
+)
+
+// transportCodes are emitted by route-agnostic middleware before dispatch, so
+// they are valid on protocol routes too.
+var transportCodes = []Code{Unauthorized, NotFound, MethodNotAllowed, NotAcceptable, PayloadTooLarge, UnsupportedMediaType, RateLimitExceeded, ServerError}
+
+// rfcCodes lists the RFC 6749/7009/9470 codes plus the documented TMI extensions.
+var rfcCodes = []Code{
+	InvalidRequest, InvalidClient, InvalidGrant, UnauthorizedClient, UnsupportedGrantType,
+	InvalidScope, AccessDenied, UnsupportedResponseType, ServerError, TemporarilyUnavailable,
+	UnsupportedTokenType, InsufficientUserAuthentication,
+	IdentityMismatch, AccountConflict, EmailNotVerified, ProviderUnreachable,
+	ProviderResponseInvalid, InvalidProvider,
+	SAMLError, SAMLNotEnabled, SAMLUnavailable, SAMLProviderNotFound, SAMLMetadataError,
+	SAMLInitError, SAMLInvalidLogoutRequest, SAMLLogoutError,
+}
+
+// restCodes lists the REST enum: the 21 Tier 1 codes plus two legacy domain codes
+// (DetailFeatureNotAvailable, DetailContentTokenProviderNotConfigured) kept at top
+// level because deployed clients branch on them; they are also set in details.code.
+var restCodes = []Code{
+	InvalidInput, InvalidID, InvalidPatch, Unauthorized, InsufficientUserAuthentication, Forbidden, NotFound, MethodNotAllowed, NotAcceptable, Conflict, Gone, VersionMismatch, PayloadTooLarge, UnsupportedMediaType, UnprocessableEntity, IfMatchRequired, RateLimitExceeded, QuotaExceeded, ServerError, NotImplemented, ServiceUnavailable, DetailFeatureNotAvailable, DetailContentTokenProviderNotConfigured,
+}
+
+var detailCodes = []Code{
+	DetailPickerFileIDMismatch,
+	DetailInvalidPickerRegistration,
+	DetailInvalidChallenge,
+	DetailInvalidProviderType,
+	DetailClientCallbackRequired,
+	DetailClientCallbackNotAllowed,
+	DetailInvalidIfMatch,
+	DetailInvalidVersion,
+	DetailDuplicateHeader,
+	DetailUnsupportedEncoding,
+	DetailReservedKey,
+	DetailTokenNotLinkedOrFailed,
+	DetailInvalidToken,
+	DetailProtectedGroup,
+	DetailProviderMismatch,
+	DetailSessionNotFound,
+	DetailDuplicateGroup,
+	DetailDuplicateMembership,
+	DetailSelfDeletion,
+	DetailProtectedUser,
+	DetailDeletionBlocked,
+	DetailEncryptionNotEnabled,
+	DetailUnreadableSettingsLimit,
+	DetailSessionNotActive,
+	DetailProviderNotRegistered,
+	DetailProviderNotConfigured,
+	DetailDimensionMismatch,
+	DetailInconsistentDimensions,
+	DetailNoSource,
+	DetailAccessRequestNotSupported,
+	DetailTooManyConnections,
+	DetailSessionFull,
+	DetailMessageRateLimit,
+	DetailDuplicateInvocation,
+	DetailSessionLimitExceeded,
+	DetailWebsocketUpgradeFailed,
+	DetailLlmBusy,
+	DetailLlmNotConfigured,
+	DetailCollaborationSessionExists,
+}
+
+var (
+	restSet     = toSet(restCodes)
+	protocolSet = toSet(protocolCodes())
+)
+
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: build the protocol-route code list from RFC and transport codes (pure)
+func protocolCodes() []Code {
+	out := append([]Code{}, rfcCodes...)
+	for _, c := range transportCodes {
+		if !contains(out, c) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: report whether a code list contains a code (pure)
+func contains(s []Code, c Code) bool {
+	for _, x := range s {
+		if x == c {
+			return true
+		}
+	}
+	return false
+}
+
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: convert a code list to a lookup set (pure)
+func toSet(s []Code) map[Code]struct{} {
+	m := make(map[Code]struct{}, len(s))
+	for _, c := range s {
+		m[c] = struct{}{}
+	}
+	return m
+}
+
+// REST returns the Tier 1 codes documented as the Error.error enum.
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: list the REST error codes (pure)
+func REST() []Code { return append([]Code{}, restCodes...) }
+
+// Protocol returns the codes documented as the OAuthError.error enum.
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: list the protocol-route error codes (pure)
+func Protocol() []Code { return protocolCodes() }
+
+// Details returns the known details.code reasons.
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: list the known details.code reasons (pure)
+func Details() []Code { return append([]Code{}, detailCodes...) }
+
+// IsREST reports whether c is a documented REST error code.
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: check membership in the REST error vocabulary (pure)
+func IsREST(c Code) bool { _, ok := restSet[c]; return ok }
+
+// IsProtocol reports whether c is a documented protocol-route error code.
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: check membership in the protocol error vocabulary (pure)
+func IsProtocol(c Code) bool { _, ok := protocolSet[c]; return ok }
+
+// ForStatus returns the REST code for an HTTP error status; an unmapped 4xx is
+// invalid_input and any other status is server_error.
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: map an HTTP error status to its REST error code (pure)
+func ForStatus(status int) Code {
+	switch status {
+	case 400:
+		return InvalidInput
+	case 401:
+		return Unauthorized
+	case 403:
+		return Forbidden
+	case 404:
+		return NotFound
+	case 405:
+		return MethodNotAllowed
+	case 406:
+		return NotAcceptable
+	case 409:
+		return Conflict
+	case 410:
+		return Gone
+	case 413:
+		return PayloadTooLarge
+	case 415:
+		return UnsupportedMediaType
+	case 422:
+		return UnprocessableEntity
+	case 428:
+		return IfMatchRequired
+	case 429:
+		return RateLimitExceeded
+	case 501:
+		return NotImplemented
+	case 503:
+		return ServiceUnavailable
+	}
+	if status >= 400 && status < 500 {
+		return InvalidInput
+	}
+	return ServerError
+}
+
+// protocolRoutePattern matches the OAuth, SAML and discovery routes whose error
+// bodies use the OAuthError vocabulary rather than the REST one.
+var protocolRoutePattern = regexp.MustCompile(`^/(oauth2/(authorize|token|refresh|revoke|introspect|userinfo|callback|step_up)|saml(/|$)|\.well-known/)`)
+
+// IsProtocolRoute reports whether an API path is a protocol route (OAuth, SAML
+// or discovery), whose errors use the OAuthError vocabulary.
+// SEM@074f3ca8790e600162273d06152aff41b7223b07: check whether a request path is an OAuth, SAML or discovery route (pure)
+func IsProtocolRoute(path string) bool { return protocolRoutePattern.MatchString(path) }

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"github.com/gin-gonic/gin"
@@ -55,7 +56,7 @@ func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 		if hasProblematicUnicode(normalizedStr) {
 			logger.Warn("Request contains problematic Unicode characters")
 			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_request",
+				Error:            ErrorError(unicodeErrorCode(c)),
 				ErrorDescription: "Request contains unsupported Unicode characters (zero-width, bidirectional overrides, excessive combining marks, or control characters)",
 			})
 			c.Abort()
@@ -77,7 +78,7 @@ func UnicodeNormalizationMiddleware() gin.HandlerFunc {
 			if hasProblematicUnicodeDeep(decoded) {
 				logger.Warn("Request contains problematic Unicode characters in escaped form")
 				c.JSON(http.StatusBadRequest, Error{
-					Error:            "invalid_request",
+					Error:            ErrorError(unicodeErrorCode(c)),
 					ErrorDescription: "Request contains unsupported Unicode characters (zero-width, bidirectional overrides, excessive combining marks, or control characters)",
 				})
 				c.Abort()
@@ -175,7 +176,7 @@ func ContentTypeValidationMiddleware() gin.HandlerFunc {
 
 			logger.Warn("Missing Content-Type header for request with body")
 			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_request",
+				Error:            ErrorError(unicodeErrorCode(c)),
 				ErrorDescription: "Content-Type header is required for requests with a body",
 			})
 			c.Abort()
@@ -206,7 +207,7 @@ func ContentTypeValidationMiddleware() gin.HandlerFunc {
 			logger.Warn("Unsupported Content-Type: %s for %s %s", contentType, c.Request.Method, c.Request.URL.Path)
 			c.Header("Accept", "application/json")
 			c.JSON(http.StatusUnsupportedMediaType, Error{
-				Error:            "unsupported_media_type",
+				Error:            ErrorError(errcode.UnsupportedMediaType),
 				ErrorDescription: "The Content-Type header specifies an unsupported media type",
 			})
 			c.Abort()
@@ -239,11 +240,7 @@ func DuplicateHeaderValidationMiddleware() gin.HandlerFunc {
 			values := c.Request.Header.Values(header)
 			if len(values) > 1 {
 				logger.Warn("Rejected request with duplicate %s header: %d instances found", header, len(values))
-				c.JSON(http.StatusBadRequest, Error{
-					Error:            "duplicate_header",
-					ErrorDescription: fmt.Sprintf("Multiple %s headers not allowed", header),
-				})
-				c.Abort()
+				HandleRequestError(c, WithDetailCode(InvalidInputError(fmt.Sprintf("Multiple %s headers not allowed", header)), errcode.DetailDuplicateHeader))
 				return
 			}
 		}
@@ -396,7 +393,7 @@ func StrictJSONValidationMiddleware() gin.HandlerFunc {
 		if err := decoder.Decode(&temp); err != nil {
 			logger.Warn("Invalid JSON syntax: %v", err)
 			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_input",
+				Error:            ErrorError(errcode.InvalidInput),
 				ErrorDescription: "Request body contains invalid JSON syntax",
 			})
 			c.Abort()
@@ -408,7 +405,7 @@ func StrictJSONValidationMiddleware() gin.HandlerFunc {
 		if decoder.More() {
 			logger.Warn("JSON contains trailing garbage after valid value")
 			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_input",
+				Error:            ErrorError(errcode.InvalidInput),
 				ErrorDescription: "Request body contains invalid JSON: unexpected content after JSON value",
 			})
 			c.Abort()
@@ -420,7 +417,7 @@ func StrictJSONValidationMiddleware() gin.HandlerFunc {
 		if len(bytes.TrimSpace(remaining)) > 0 {
 			logger.Warn("JSON contains trailing content: %q", remaining)
 			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_input",
+				Error:            ErrorError(errcode.InvalidInput),
 				ErrorDescription: "Request body contains invalid JSON: unexpected content after JSON value",
 			})
 			c.Abort()
@@ -431,7 +428,7 @@ func StrictJSONValidationMiddleware() gin.HandlerFunc {
 		if err := validateNoDuplicateKeys(bodyBytes); err != nil {
 			logger.Warn("JSON contains duplicate keys: %v", err)
 			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_input",
+				Error:            ErrorError(errcode.InvalidInput),
 				ErrorDescription: err.Error(),
 			})
 			c.Abort()
@@ -510,4 +507,14 @@ func checkDuplicateKeysRecursive(dec *json.Decoder, path string) error {
 	}
 
 	return nil
+}
+
+// unicodeErrorCode selects the error code for a rejected request: RFC 6749
+// invalid_request on protocol routes, invalid_input on REST routes.
+// SEM@c8f99cf87abc45e76073b614dd579ad83da43d93: choose the validation error code by route class (pure)
+func unicodeErrorCode(c *gin.Context) errcode.Code {
+	if errcode.IsProtocolRoute(c.Request.URL.Path) {
+		return errcode.InvalidRequest
+	}
+	return errcode.InvalidInput
 }

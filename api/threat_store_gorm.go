@@ -14,6 +14,7 @@ import (
 	"github.com/ericfitz/tmi/api/validation"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/uuidgen"
 	"github.com/google/uuid"
@@ -732,11 +733,11 @@ func (s *GormThreatRepository) patch(ctx context.Context, threatModelID string, 
 			// as a server fault — a `remove` on a path the document does not
 			// have returned "Failed to patch {kind}" with a 500. RequestError
 			// passes through StoreErrorToRequestError untouched, and matches
-			// the patch_failed code ApplyPatchOperations already returns for
+			// the invalid_patch code ApplyPatchOperations already returns for
 			// the entities that go through it.
 			return nil, 0, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "patch_failed",
+				Code:    errcode.InvalidPatch,
 				Message: "Failed to apply patch: " + err.Error(),
 			}
 		}

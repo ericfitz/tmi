@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -22,7 +23,7 @@ func getUserUUID(c *gin.Context) (string, bool) {
 	val, exists := c.Get("userInternalUUID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "User not authenticated",
 		})
 		return "", false
@@ -30,7 +31,7 @@ func getUserUUID(c *gin.Context) (string, bool) {
 	uuid, ok := val.(string)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Invalid user context",
 		})
 		return "", false
@@ -93,7 +94,7 @@ func (s *Server) ListAdminSurveys(c *gin.Context, params ListAdminSurveysParams)
 	if err != nil {
 		logger.Error("Failed to list surveys: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to list surveys",
 		})
 		return
@@ -121,7 +122,7 @@ func (s *Server) CreateAdminSurvey(c *gin.Context) {
 	}
 	if userInternalUUID == "" {
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "User not authenticated",
 		})
 		return
@@ -158,14 +159,14 @@ func (s *Server) CreateAdminSurvey(c *gin.Context) {
 	if err := GlobalSurveyStore.Create(ctx, survey, userInternalUUID); err != nil {
 		if isDuplicateConstraintError(err) {
 			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
+				Error:            ErrorError(errcode.Conflict),
 				ErrorDescription: "A survey with this name and version already exists",
 			})
 			return
 		}
 		logger.Error("Failed to create survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to create survey",
 		})
 		return
@@ -200,7 +201,7 @@ func (s *Server) GetAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	if err != nil {
 		logger.Error("Failed to get survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to get survey",
 		})
 		return
@@ -208,7 +209,7 @@ func (s *Server) GetAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 	if survey == nil {
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Survey not found",
 		})
 		return
@@ -229,7 +230,7 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	if err != nil {
 		logger.Error("Failed to get survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to get survey",
 		})
 		return
@@ -237,7 +238,7 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 	if existing == nil {
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Survey not found",
 		})
 		return
@@ -253,7 +254,7 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	// Reject updates to archived surveys
 	if existing.Status != nil && *existing.Status == SurveyStatusArchived {
 		c.JSON(http.StatusConflict, Error{
-			Error:            "conflict",
+			Error:            ErrorError(errcode.Conflict),
 			ErrorDescription: "Cannot update an archived survey",
 		})
 		return
@@ -283,14 +284,14 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	if err := GlobalSurveyStore.Update(ctx, survey); err != nil {
 		if isDuplicateConstraintError(err) {
 			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
+				Error:            ErrorError(errcode.Conflict),
 				ErrorDescription: "A survey with this name and version already exists",
 			})
 			return
 		}
 		logger.Error("Failed to update survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to update survey",
 		})
 		return
@@ -301,7 +302,7 @@ func (s *Server) UpdateAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	if err != nil {
 		logger.Error("Failed to get updated survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to get updated survey",
 		})
 		return
@@ -343,7 +344,7 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 
 	if existing == nil {
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Survey not found",
 		})
 		return
@@ -352,7 +353,7 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	// Reject updates to archived surveys
 	if existing.Status != nil && *existing.Status == SurveyStatusArchived {
 		c.JSON(http.StatusConflict, Error{
-			Error:            "conflict",
+			Error:            ErrorError(errcode.Conflict),
 			ErrorDescription: "Cannot update an archived survey",
 		})
 		return
@@ -407,7 +408,7 @@ func (s *Server) PatchAdminSurvey(c *gin.Context, surveyId SurveyId) {
 	if err := GlobalSurveyStore.Update(ctx, &patched); err != nil {
 		if isDuplicateConstraintError(err) {
 			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
+				Error:            ErrorError(errcode.Conflict),
 				ErrorDescription: "A survey with this name and version already exists",
 			})
 			return
@@ -454,7 +455,7 @@ func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyId, params Del
 	if err != nil {
 		logger.Error("Failed to get survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to get survey",
 		})
 		return
@@ -462,7 +463,7 @@ func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyId, params Del
 
 	if existing == nil {
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Survey not found",
 		})
 		return
@@ -479,7 +480,7 @@ func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyId, params Del
 		if err := GlobalSurveyStore.ForceDelete(ctx, surveyId); err != nil && !errors.Is(err, ErrSurveyNotFound) {
 			logger.Error("Failed to force-delete survey: %v", err)
 			c.JSON(http.StatusInternalServerError, Error{
-				Error:            "server_error",
+				Error:            ErrorError(errcode.ServerError),
 				ErrorDescription: "Failed to delete survey",
 			})
 			return
@@ -490,7 +491,7 @@ func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyId, params Del
 		if err != nil {
 			logger.Error("Failed to check for responses: %v", err)
 			c.JSON(http.StatusInternalServerError, Error{
-				Error:            "server_error",
+				Error:            ErrorError(errcode.ServerError),
 				ErrorDescription: "Failed to check for responses",
 			})
 			return
@@ -498,7 +499,7 @@ func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyId, params Del
 
 		if hasResponses {
 			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
+				Error:            ErrorError(errcode.Conflict),
 				ErrorDescription: "Cannot delete survey with existing responses",
 			})
 			return
@@ -507,7 +508,7 @@ func (s *Server) DeleteAdminSurvey(c *gin.Context, surveyId SurveyId, params Del
 		if err := GlobalSurveyStore.Delete(ctx, surveyId); err != nil {
 			logger.Error("Failed to delete survey: %v", err)
 			c.JSON(http.StatusInternalServerError, Error{
-				Error:            "server_error",
+				Error:            ErrorError(errcode.ServerError),
 				ErrorDescription: "Failed to delete survey",
 			})
 			return
@@ -553,7 +554,7 @@ func (s *Server) ListIntakeSurveys(c *gin.Context, params ListIntakeSurveysParam
 	if err != nil {
 		logger.Error("Failed to list active surveys: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to list surveys",
 		})
 		return
@@ -578,7 +579,7 @@ func (s *Server) GetIntakeSurvey(c *gin.Context, surveyId SurveyId) {
 	if err != nil {
 		logger.Error("Failed to get survey: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to get survey",
 		})
 		return
@@ -586,7 +587,7 @@ func (s *Server) GetIntakeSurvey(c *gin.Context, surveyId SurveyId) {
 
 	if survey == nil {
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Survey not found",
 		})
 		return
@@ -595,7 +596,7 @@ func (s *Server) GetIntakeSurvey(c *gin.Context, surveyId SurveyId) {
 	// Check if survey is active (intake endpoints only show active surveys)
 	if survey.Status == nil || *survey.Status != SurveyStatusActive {
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Survey not found or not active",
 		})
 		return
@@ -635,7 +636,7 @@ func (s *Server) ListIntakeSurveyResponses(c *gin.Context, params ListIntakeSurv
 	if err != nil {
 		logger.Error("Failed to list survey responses: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to list survey responses",
 		})
 		return
@@ -684,7 +685,7 @@ func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 	if err := GlobalSurveyResponseStore.Create(ctx, response, userUUID); err != nil {
 		if errors.Is(err, ErrSurveyNotFound) {
 			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_input",
+				Error:            ErrorError(errcode.InvalidInput),
 				ErrorDescription: "Survey not found: " + response.SurveyId.String(),
 			})
 			return
@@ -692,14 +693,14 @@ func (s *Server) CreateIntakeSurveyResponse(c *gin.Context) {
 		if isForeignKeyConstraintError(err) {
 			logger.Warn("Foreign key constraint violation creating survey response: %v", err)
 			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_input",
+				Error:            ErrorError(errcode.InvalidInput),
 				ErrorDescription: "Referenced resource not found (e.g. linked_threat_model_id does not exist)",
 			})
 			return
 		}
 		logger.Error("Failed to create survey response: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to create survey response",
 		})
 		return
@@ -750,7 +751,7 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	// Only allow updates in draft or needs_revision status
 	if existing.Status != nil && *existing.Status != ResponseStatusDraft && *existing.Status != ResponseStatusNeedsRevision {
 		c.JSON(http.StatusConflict, Error{
-			Error:            "conflict",
+			Error:            ErrorError(errcode.Conflict),
 			ErrorDescription: "Can only update responses in draft or needs_revision status",
 		})
 		return
@@ -797,7 +798,7 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 		if isForeignKeyConstraintError(updateErr) {
 			logger.Warn("Foreign key constraint violation updating survey response: %v", updateErr)
 			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_input",
+				Error:            ErrorError(errcode.InvalidInput),
 				ErrorDescription: "Referenced resource not found (e.g. linked_threat_model_id does not exist)",
 			})
 			return
@@ -817,7 +818,7 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	if err != nil {
 		logger.Error("Failed to get updated survey response: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to get updated survey response",
 		})
 		return
@@ -857,7 +858,7 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 	// Only allow updates in draft or needs_revision status
 	if existing.Status != nil && *existing.Status != ResponseStatusDraft && *existing.Status != ResponseStatusNeedsRevision {
 		c.JSON(http.StatusConflict, Error{
-			Error:            "conflict",
+			Error:            ErrorError(errcode.Conflict),
 			ErrorDescription: "Can only update responses in draft or needs_revision status",
 		})
 		return
@@ -963,7 +964,7 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 			}
 			logger.Error("Failed to update survey response status: %v", err)
 			c.JSON(http.StatusInternalServerError, Error{
-				Error:            "server_error",
+				Error:            ErrorError(errcode.ServerError),
 				ErrorDescription: "Failed to update survey response status",
 			})
 			return
@@ -974,7 +975,7 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 	if err != nil {
 		logger.Error("Failed to get updated survey response: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to get updated survey response",
 		})
 		return
@@ -1013,7 +1014,7 @@ func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	if err := GlobalSurveyResponseStore.Delete(ctx, surveyResponseId); err != nil {
 		logger.Error("Failed to delete survey response: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to delete survey response",
 		})
 		return
@@ -1091,7 +1092,7 @@ func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurv
 	if err != nil {
 		logger.Error("Failed to list survey responses: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to list survey responses",
 		})
 		return
@@ -1198,7 +1199,7 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 			}
 			logger.Error("Failed to update survey response status: %v", err)
 			c.JSON(http.StatusInternalServerError, Error{
-				Error:            "server_error",
+				Error:            ErrorError(errcode.ServerError),
 				ErrorDescription: "Failed to update survey response status",
 			})
 			return
@@ -1209,7 +1210,7 @@ func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId Surv
 	if err != nil {
 		logger.Error("Failed to get updated survey response: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to get updated survey response",
 		})
 		return
@@ -1514,7 +1515,7 @@ func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyRespo
 			currentStatus = *response.Status
 		}
 		c.JSON(http.StatusConflict, Error{
-			Error:            "conflict",
+			Error:            ErrorError(errcode.Conflict),
 			ErrorDescription: fmt.Sprintf("Survey response must be in '%s' status to create a threat model (current: '%s')", ResponseStatusReadyForReview, currentStatus),
 		})
 		return
@@ -1522,7 +1523,7 @@ func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyRespo
 
 	if response.CreatedThreatModelId != nil {
 		c.JSON(http.StatusConflict, Error{
-			Error:            "conflict",
+			Error:            ErrorError(errcode.Conflict),
 			ErrorDescription: fmt.Sprintf("A threat model has already been created from this survey response (threat_model_id: %s)", response.CreatedThreatModelId.String()),
 		})
 		return

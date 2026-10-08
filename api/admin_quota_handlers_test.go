@@ -1896,3 +1896,38 @@ func TestDeleteAddonInvocationQuota(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 }
+
+// TestAdminQuotaErrorBodies pins the vocabulary code and a non-empty description
+// on admin quota error bodies (previously a sentence in the code slot, no description).
+func TestAdminQuotaErrorBodies(t *testing.T) {
+	t.Run("not found", func(t *testing.T) {
+		server, _, _, _, cleanup := setupAdminQuotaTest(t)
+		defer cleanup()
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request, _ = http.NewRequest("GET", "/admin/quotas/api/x", nil)
+		server.GetUserAPIQuota(c, uuid.New())
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+		var body Error
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, "not_found", string(body.Error))
+		assert.NotEmpty(t, body.ErrorDescription)
+	})
+
+	t.Run("invalid body", func(t *testing.T) {
+		server, _, _, _, cleanup := setupAdminQuotaTest(t)
+		defer cleanup()
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request, _ = http.NewRequest("PUT", "/admin/quotas/api/x", bytes.NewBufferString("{not json"))
+		c.Request.Header.Set("Content-Type", "application/json")
+		server.UpdateUserAPIQuota(c, uuid.New())
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		var body Error
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, "invalid_input", string(body.Error))
+		assert.NotEmpty(t, body.ErrorDescription)
+	})
+}

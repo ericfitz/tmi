@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/gin-gonic/gin"
 )
 
@@ -159,7 +160,7 @@ func ValidatePatchPathsAllowed(allowed []string, ops []PatchOperation) *RequestE
 			if path == "" || path[0] != '/' {
 				return &RequestError{
 					Status:  http.StatusBadRequest,
-					Code:    "invalid_patch",
+					Code:    errcode.InvalidPatch,
 					Message: fmt.Sprintf("Invalid PATCH path: %q", path),
 				}
 			}
@@ -175,7 +176,7 @@ func ValidatePatchPathsAllowed(allowed []string, ops []PatchOperation) *RequestE
 			if !permitted {
 				return &RequestError{
 					Status: http.StatusBadRequest,
-					Code:   "invalid_patch",
+					Code:   errcode.InvalidPatch,
 					Message: fmt.Sprintf("Field '%s' is not allowed in PATCH requests",
 						strings.TrimPrefix(path, "/")),
 				}

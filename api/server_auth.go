@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
@@ -199,7 +200,7 @@ func (s *Server) GetProviderGroups(c *gin.Context, idp string) {
 	if !s.authService.IsValidProvider(idp) {
 		logger.Debug("[SERVER_INTERFACE] Provider %s not found", idp)
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "OAuth provider not found",
 		})
 		return
@@ -314,7 +315,7 @@ func (s *Server) ProcessSAMLResponse(c *gin.Context) {
 
 	if samlResponse == "" {
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidRequest),
 			ErrorDescription: "Missing SAMLResponse",
 		})
 		return
@@ -371,7 +372,7 @@ func (s *Server) ProcessSAMLLogoutPost(c *gin.Context) {
 	samlRequest := c.PostForm("SAMLRequest")
 	if samlRequest == "" {
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_request",
+			Error:            ErrorError(errcode.InvalidRequest),
 			ErrorDescription: "Missing SAMLRequest",
 		})
 		return
@@ -399,7 +400,7 @@ func (s *Server) GetSAMLProviders(c *gin.Context) {
 
 	if s.authService == nil {
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Auth service not configured",
 		})
 		return

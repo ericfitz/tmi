@@ -103,7 +103,7 @@ func TestGetWsTicket_Unauthenticated(t *testing.T) {
 	var errResp Error
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
-	assert.Equal(t, "unauthorized", errResp.Error)
+	assert.Equal(t, "unauthorized", string(errResp.Error))
 }
 
 func TestGetWsTicket_SessionNotFound(t *testing.T) {

@@ -26,16 +26,6 @@ func NewAuditHandler(auditService AuditServiceInterface) *AuditHandler {
 	}
 }
 
-// GoneError creates a RequestError for resources that have been pruned/removed.
-// SEM@626c102e7b7f7ceffb64d01a6c51f618862c5f31: build a 410-Gone RequestError for a pruned or unavailable resource (pure)
-func GoneError(message string) *RequestError {
-	return &RequestError{
-		Status:  http.StatusGone,
-		Code:    "gone",
-		Message: message,
-	}
-}
-
 // GetThreatModelAuditTrail lists audit entries for a threat model and all sub-objects.
 // SEM@24454e2885191ae61007ef13d2194c563ebe6d37: list paginated audit entries for a threat model and its sub-objects (reads DB)
 func (h *AuditHandler) GetThreatModelAuditTrail(c *gin.Context, threatModelId ThreatModelId, params GetThreatModelAuditTrailParams) {

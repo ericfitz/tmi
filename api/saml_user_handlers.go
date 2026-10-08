@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -19,7 +20,7 @@ func (s *Server) ListSAMLUsers(c *gin.Context, idp string, _ ListSAMLUsersParams
 	if err != nil {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Authentication required",
 		})
 		return
@@ -32,7 +33,7 @@ func (s *Server) ListSAMLUsers(c *gin.Context, idp string, _ ListSAMLUsersParams
 		logger.Warn("User %s from provider %s attempted to list users from different provider %s", user.Email, userProvider, idp)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusForbidden,
-			Code:    "forbidden",
+			Code:    errcode.Forbidden,
 			Message: "Cannot list users from different SAML provider",
 		})
 		return
@@ -48,7 +49,7 @@ func (s *Server) ListSAMLUsers(c *gin.Context, idp string, _ ListSAMLUsersParams
 	if err != nil || limit < 0 || limit > 500 {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_limit",
+			Code:    errcode.InvalidInput,
 			Message: "limit must be between 0 and 500",
 		})
 		return
@@ -58,7 +59,7 @@ func (s *Server) ListSAMLUsers(c *gin.Context, idp string, _ ListSAMLUsersParams
 	if err != nil || offset < 0 {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_offset",
+			Code:    errcode.InvalidInput,
 			Message: "offset must be a non-negative integer",
 		})
 		return
@@ -80,7 +81,7 @@ func (s *Server) ListSAMLUsers(c *gin.Context, idp string, _ ListSAMLUsersParams
 		logger.Error("Failed to list SAML users: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to list users",
 		})
 		return

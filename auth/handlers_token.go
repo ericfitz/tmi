@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -25,7 +26,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	// Support both JSON and form-urlencoded content types
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
+			"error":             string(errcode.InvalidRequest),
 			"error_description": "Missing required fields for authorization_code grant",
 		})
 		return
@@ -34,7 +35,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	// Validate grant_type is "authorization_code"
 	if req.GrantType != "authorization_code" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_grant",
+			"error":             string(errcode.InvalidGrant),
 			"error_description": "grant_type must be 'authorization_code'",
 		})
 		return
@@ -57,7 +58,8 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 			providerID = defaultProviderID
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Missing required parameter: idp",
+				"error":             string(errcode.InvalidRequest),
+				"error_description": "Missing required parameter: idp",
 			})
 			return
 		}
@@ -69,11 +71,13 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 		// Return 404 for unavailable providers (like test provider in production)
 		if strings.Contains(err.Error(), "not available in production") {
 			c.JSON(http.StatusNotFound, gin.H{
-				"error": "Provider not available",
+				"error":             string(errcode.NotFound),
+				"error_description": "Provider not available",
 			})
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": fmt.Sprintf("Invalid provider: %s", providerID),
+				"error":             string(errcode.InvalidProvider),
+				"error_description": fmt.Sprintf("Invalid provider: %s", providerID),
 			})
 		}
 		return
@@ -96,7 +100,7 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 	if err != nil {
 		slogging.Get().WithContext(c).Error("Failed to retrieve PKCE challenge for code (provider: %s): %v", providerID, err)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_grant",
+			"error":             string(errcode.InvalidGrant),
 			"error_description": "Authorization code is invalid or expired",
 		})
 		return
@@ -107,7 +111,8 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 	if err := json.Unmarshal([]byte(pkceDataJSON), &pkceData); err != nil {
 		slogging.Get().WithContext(c).Error("Failed to parse PKCE data for code: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to validate PKCE challenge",
+			"error":             string(errcode.ServerError),
+			"error_description": "Failed to validate PKCE challenge",
 		})
 		return
 	}
@@ -127,7 +132,7 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 		// Delete the PKCE data to prevent retry attacks
 		_ = h.service.dbManager.Redis().Del(ctx, codeKey)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_grant",
+			"error":             string(errcode.InvalidGrant),
 			"error_description": "PKCE verification failed",
 		})
 		return
@@ -146,14 +151,19 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 		case strings.Contains(errMsg, "not supported"):
 			// Production-mode restriction (not a server error)
 			c.JSON(http.StatusForbidden, gin.H{
-				"error":             "unsupported_grant_type",
+				"error":             string(errcode.UnsupportedGrantType),
 				"error_description": errMsg,
 			})
-		case strings.Contains(errMsg, "invalid authorization code"),
-			strings.Contains(errMsg, "authorization code is required"):
-			// Client error: bad or missing authorization code
+		case strings.Contains(errMsg, "invalid authorization code"):
+			// Client error: bad authorization code (RFC 6749 section 5.2)
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": errMsg,
+				"error":             string(errcode.InvalidGrant),
+				"error_description": errMsg,
+			})
+		case strings.Contains(errMsg, "authorization code is required"):
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             string(errcode.InvalidRequest),
+				"error_description": errMsg,
 			})
 		default:
 			body, msg := codeExchangeError(providerID, code, err)
@@ -198,7 +208,7 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 	// Extract email from userInfo or claims with fallback
 	email, err := h.extractEmailWithFallback(c, providerID, userInfo, claims)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user email or ID from provider"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": string(errcode.ServerError), "error_description": "Failed to get user email or ID from provider"})
 		return
 	}
 
@@ -286,7 +296,7 @@ func (h *Handlers) stepUpIdentityMatchAndRotate(c *gin.Context, ctx context.Cont
 			"attempted_email": attemptedEmail,
 		})
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "identity_mismatch",
+			"error":             string(errcode.IdentityMismatch),
 			"error_description": "You must re-authenticate as the user who initiated step-up",
 		})
 		return false
@@ -342,7 +352,8 @@ func (h *Handlers) Token(c *gin.Context) {
 
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request",
+			"error":             string(errcode.InvalidRequest),
+			"error_description": "Invalid request",
 		})
 		return
 	}
@@ -352,7 +363,7 @@ func (h *Handlers) Token(c *gin.Context) {
 		// Handle authorization code grant with PKCE inline (don't delegate to Exchange to avoid double body read)
 		if req.Code == "" || req.RedirectURI == "" || req.CodeVerifier == "" {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_request",
+				"error":             string(errcode.InvalidRequest),
 				"error_description": "Missing required fields for authorization_code grant",
 			})
 			return
@@ -369,7 +380,8 @@ func (h *Handlers) Token(c *gin.Context) {
 		}
 		if req.RefreshToken == "" {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Missing refresh_token parameter",
+				"error":             string(errcode.InvalidRequest),
+				"error_description": "Missing refresh_token parameter",
 			})
 			return
 		}
@@ -396,7 +408,7 @@ func (h *Handlers) Token(c *gin.Context) {
 		// Handle client credentials grant (RFC 6749 Section 4.4)
 		if req.ClientID == "" || req.ClientSecret == "" {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_request",
+				"error":             string(errcode.InvalidRequest),
 				"error_description": "Missing client_id or client_secret parameter",
 			})
 			return
@@ -414,7 +426,7 @@ func (h *Handlers) Token(c *gin.Context) {
 			)
 			c.Header("Retry-After", strconv.Itoa(int(d.RetryAfter.Seconds())))
 			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":             "too_many_requests",
+				"error":             string(errcode.RateLimitExceeded),
 				"error_description": "Too many failed authentication attempts; retry later",
 			})
 			return
@@ -432,19 +444,19 @@ func (h *Handlers) Token(c *gin.Context) {
 					)
 					c.Header("Retry-After", strconv.Itoa(int(d.RetryAfter.Seconds())))
 					c.JSON(http.StatusTooManyRequests, gin.H{
-						"error":             "too_many_requests",
+						"error":             string(errcode.RateLimitExceeded),
 						"error_description": "Too many failed authentication attempts; retry later",
 					})
 					return
 				}
 				c.JSON(http.StatusUnauthorized, gin.H{
-					"error":             "invalid_client",
+					"error":             string(errcode.InvalidClient),
 					"error_description": "Client authentication failed",
 				})
 				return
 			}
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error":             "server_error",
+				"error":             string(errcode.ServerError),
 				"error_description": "Failed to process client credentials grant",
 			})
 			return
@@ -458,7 +470,8 @@ func (h *Handlers) Token(c *gin.Context) {
 
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("Unsupported grant type: %s", req.GrantType),
+			"error":             string(errcode.UnsupportedGrantType),
+			"error_description": fmt.Sprintf("Unsupported grant type: %s", req.GrantType),
 		})
 	}
 }
@@ -480,7 +493,8 @@ func (h *Handlers) Refresh(c *gin.Context) {
 
 	if req.RefreshToken == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Missing refresh_token",
+			"error":             string(errcode.InvalidRequest),
+			"error_description": "Missing refresh_token",
 		})
 		return
 	}

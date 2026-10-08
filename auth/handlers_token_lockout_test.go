@@ -52,7 +52,7 @@ func TestToken_ClientCredentials_LockoutReturns429(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusTooManyRequests, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "too_many_requests")
+	assert.Contains(t, w.Body.String(), "rate_limit_exceeded")
 
 	retryAfter := w.Header().Get("Retry-After")
 	require.NotEmpty(t, retryAfter, "Retry-After header must be present")
@@ -98,7 +98,7 @@ func TestRevoke_ClientCredentials_LockoutReturns429(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusTooManyRequests, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "too_many_requests")
+	assert.Contains(t, w.Body.String(), "rate_limit_exceeded")
 
 	retryAfter := w.Header().Get("Retry-After")
 	require.NotEmpty(t, retryAfter, "Retry-After header must be present")

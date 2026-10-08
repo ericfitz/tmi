@@ -15,6 +15,7 @@ import (
 	"github.com/ericfitz/tmi/api/validation"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -198,10 +199,10 @@ func (s *GormNoteRepository) Update(ctx context.Context, note *Note, threatModel
 	// unclassified 500 (#714). Reject it here as client input so both engines
 	// answer 400. Backstop for callers that bypass the handler/schema checks.
 	if err := validation.ValidateNonEmpty("name", note.Name); err != nil {
-		return &RequestError{Status: http.StatusBadRequest, Code: "invalid_input", Message: err.Error()}
+		return &RequestError{Status: http.StatusBadRequest, Code: errcode.InvalidInput, Message: err.Error()}
 	}
 	if err := validation.ValidateNonEmpty("content", note.Content); err != nil {
-		return &RequestError{Status: http.StatusBadRequest, Code: "invalid_input", Message: err.Error()}
+		return &RequestError{Status: http.StatusBadRequest, Code: errcode.InvalidInput, Message: err.Error()}
 	}
 
 	// Note: modified_at is handled automatically by GORM's autoUpdateTime tag.

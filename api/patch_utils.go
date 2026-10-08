@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	jsonpatch "github.com/evanphx/json-patch"
 )
 
@@ -22,7 +23,7 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 	if err != nil {
 		return zero, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_format",
+			Code:    errcode.InvalidPatch,
 			Message: "Failed to preprocess patch operations: " + err.Error(),
 		}
 	}
@@ -32,7 +33,7 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 	if err != nil {
 		return zero, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to serialize entity: " + err.Error(),
 		}
 	}
@@ -47,7 +48,7 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 	if err != nil {
 		return zero, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_format",
+			Code:    errcode.InvalidPatch,
 			Message: "Failed to convert patch operations: " + err.Error(),
 		}
 	}
@@ -57,7 +58,7 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 	if err != nil {
 		return zero, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_patch",
+			Code:    errcode.InvalidPatch,
 			Message: "Invalid JSON Patch: " + err.Error(),
 		}
 	}
@@ -76,7 +77,7 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 	if err != nil {
 		return zero, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "patch_failed",
+			Code:    errcode.InvalidPatch,
 			Message: "Failed to apply patch: " + err.Error(),
 		}
 	}
@@ -94,7 +95,7 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 		if p, bad := findCaseAliasedKey(patchedDoc, reflect.TypeFor[T](), ""); bad {
 			return zero, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: "Patch path must match the field name exactly (case-sensitive): " + p,
 			}
 		}
@@ -110,13 +111,13 @@ func ApplyPatchOperations[T any](original T, operations []PatchOperation) (T, er
 		if errors.As(err, &syntaxErr) {
 			return zero, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to deserialize patched entity: " + err.Error(),
 			}
 		}
 		return zero, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Patched entity is invalid: " + err.Error(),
 		}
 	}
@@ -134,7 +135,7 @@ func ValidatePatchAuthorization(operations []PatchOperation, userRole Role) erro
 	if (ownerChanging || authChanging) && userRole != RoleOwner {
 		return &RequestError{
 			Status:  http.StatusForbidden,
-			Code:    "forbidden",
+			Code:    errcode.Forbidden,
 			Message: "Only the owner can change ownership or authorization",
 		}
 	}
@@ -246,7 +247,7 @@ func validateReplacePaths(originalBytes []byte, operations []PatchOperation) err
 		if !pathExistsInDoc(doc, parts) {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "patch_failed",
+				Code:    errcode.InvalidPatch,
 				Message: fmt.Sprintf("Replace operation target path does not exist: %s", op.Path),
 			}
 		}
@@ -297,7 +298,7 @@ func ValidatePatchedEntity[T any](original, patched T, userName string, validato
 	if err := validator(original, patched, userName); err != nil {
 		return &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "validation_failed",
+			Code:    errcode.InvalidInput,
 			Message: err.Error(),
 		}
 	}

@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -22,11 +23,13 @@ import (
 // into retrying a permanent configuration absence.
 // SEM@81952f598eaf9b1599471d778c9fb82e7d2f2d7a: respond 404 when the delegated content provider feature is not configured on this deployment
 func contentOAuthUnavailable(c *gin.Context) {
-	c.JSON(http.StatusNotFound, Error{
-		Error:            "feature_not_available",
-		ErrorDescription: "Delegated content provider subsystem is not enabled on this deployment.",
-	})
-	c.Abort()
+	// Legacy top-level code: tmi-ux branches on it (content-token.service.ts), so it
+	// stays in the Error enum and is repeated in details.code for future migration.
+	HandleRequestError(c, WithDetailCode(&RequestError{
+		Status:  http.StatusNotFound,
+		Code:    errcode.DetailFeatureNotAvailable,
+		Message: "Delegated content provider subsystem is not enabled on this deployment.",
+	}, errcode.DetailFeatureNotAvailable))
 }
 
 // setProviderIDParam mutates the Gin context's path parameters so the

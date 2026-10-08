@@ -175,7 +175,8 @@ func TestTimmySessionManager_CreateSession_RateLimitEnforcement(t *testing.T) {
 	var reqErr *RequestError
 	require.ErrorAs(t, err, &reqErr)
 	assert.Equal(t, 429, reqErr.Status)
-	assert.Equal(t, "session_limit_exceeded", reqErr.Code)
+	assert.Equal(t, "quota_exceeded", string(reqErr.Code))
+	assert.Equal(t, "session_limit_exceeded", *reqErr.Details.Code)
 }
 
 func TestTimmySessionManager_HandleMessage_NoLLM(t *testing.T) {
@@ -195,7 +196,8 @@ func TestTimmySessionManager_HandleMessage_NoLLM(t *testing.T) {
 	var reqErr *RequestError
 	require.ErrorAs(t, err, &reqErr)
 	assert.Equal(t, 503, reqErr.Status)
-	assert.Equal(t, "llm_not_configured", reqErr.Code)
+	assert.Equal(t, "service_unavailable", string(reqErr.Code))
+	assert.Equal(t, "llm_not_configured", *reqErr.Details.Code)
 }
 
 func TestTimmySessionManager_HandleMessage_SessionNotFound(t *testing.T) {

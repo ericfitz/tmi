@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/gin-gonic/gin"
 )
 
@@ -188,7 +189,7 @@ func StructuredLogHandler() gin.HandlerFunc {
 		}
 
 		if err := c.ShouldBindJSON(&logRequest); err != nil {
-			c.JSON(400, gin.H{"error": "Invalid JSON format"})
+			c.AbortWithStatusJSON(400, gin.H{"error": string(errcode.InvalidInput), "error_description": "Invalid JSON format"})
 			return
 		}
 

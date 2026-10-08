@@ -29,6 +29,7 @@ import (
 	"github.com/ericfitz/tmi/internal/dbcheck"
 	"github.com/ericfitz/tmi/internal/dberrors"
 	"github.com/ericfitz/tmi/internal/dbschema"
+	"github.com/ericfitz/tmi/internal/errcode"
 	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/ericfitz/tmi/internal/secrets"
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -282,7 +283,7 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 					c.Header("Retry-After", strconv.Itoa(authErr.RetryAfter))
 				}
 				c.JSON(authErr.StatusCode, api.Error{
-					Error:            authErr.Code,
+					Error:            api.ErrorError(authErr.Code),
 					ErrorDescription: authErr.Description,
 				})
 				c.Abort()
@@ -292,7 +293,7 @@ func JWTMiddleware(cfg *config.Config, tokenBlacklist *auth.TokenBlacklist, auth
 			// Fallback for unexpected errors
 			logger.Error("[JWT_MIDDLEWARE] Unexpected authentication error: %v", err)
 			c.JSON(http.StatusInternalServerError, api.Error{
-				Error:            "server_error",
+				Error:            api.ErrorError(errcode.ServerError),
 				ErrorDescription: "Internal authentication error",
 			})
 			c.Abort()
@@ -315,7 +316,7 @@ func DevUserInfoHandler() gin.HandlerFunc {
 		userID, exists := c.Get("userName")
 		if !exists {
 			c.JSON(http.StatusUnauthorized, api.Error{
-				Error:            "unauthorized",
+				Error:            api.ErrorError(errcode.Unauthorized),
 				ErrorDescription: "Not authenticated",
 			})
 			return
@@ -324,7 +325,7 @@ func DevUserInfoHandler() gin.HandlerFunc {
 		userName, ok := userID.(string)
 		if !ok || userName == "" {
 			c.JSON(http.StatusUnauthorized, api.Error{
-				Error:            "unauthorized",
+				Error:            api.ErrorError(errcode.Unauthorized),
 				ErrorDescription: "Invalid user context",
 			})
 			return

@@ -57,7 +57,7 @@ func TestWebhookPinnedDelete_403(t *testing.T) {
 	var errResp Error
 	err = json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
-	assert.Contains(t, errResp.Error, "operator-pinned")
+	assert.Contains(t, errResp.ErrorDescription, "operator-pinned")
 
 	// Verify the subscription was NOT deleted
 	_, getErr := mockSubStore.Get(context.Background(), sub.Id.String())

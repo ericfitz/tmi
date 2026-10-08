@@ -12,6 +12,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -278,15 +279,9 @@ func mapDBError(err error) error {
 		return NotFoundError("not found")
 	}
 	if errors.Is(err, dberrors.ErrTransient) {
-		return &RequestError{Status: http.StatusServiceUnavailable, Code: "service_unavailable", Message: "transient database error, retry"}
+		return &RequestError{Status: http.StatusServiceUnavailable, Code: errcode.ServiceUnavailable, Message: "transient database error, retry"}
 	}
 	return ServerError("database error")
-}
-
-// PayloadTooLargeError returns a 413 RequestError.
-// SEM@72f2ef0deaad62ae1c2054ae42a059a253d123b7: build a 413 Payload Too Large request error (pure)
-func PayloadTooLargeError(msg string) error {
-	return &RequestError{Status: http.StatusRequestEntityTooLarge, Code: "payload_too_large", Message: msg}
 }
 
 // uuidMustParse parses a UUID string to openapi_types.UUID. The string is

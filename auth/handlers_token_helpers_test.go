@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
@@ -144,16 +145,16 @@ func TestErrorHelpers_BodiesDoNotLeakInternals(t *testing.T) {
 func TestErrorHelpers_BodiesUseOAuthErrorCodes(t *testing.T) {
 	allowedCodes := map[string]bool{
 		// Spec codes (RFC 6749 §5.2).
-		"invalid_request": true,
-		"invalid_client":  true,
-		"invalid_grant":   true,
-		"server_error":    true,
+		"invalid_request":         true,
+		"invalid_client":          true,
+		"invalid_grant":           true,
+		"server_error":            true,
+		"temporarily_unavailable": true,
 		// TMI extension codes.
 		"provider_unreachable":      true,
 		"provider_response_invalid": true,
 		"account_conflict":          true,
 		"email_not_verified":        true,
-		"service_unavailable":       true,
 	}
 	for _, body := range bodiesUnderTest(t) {
 		code, ok := body["error"].(string)
@@ -228,8 +229,22 @@ func TestRespondUserPersistError_StatusMapping(t *testing.T) {
 			assert.Equal(t, tc.wantStatus, w.Code)
 			if tc.wantRetry {
 				assert.Equal(t, "30", w.Header().Get("Retry-After"))
-				assert.Contains(t, w.Body.String(), "service_unavailable")
+				assert.Contains(t, w.Body.String(), "temporarily_unavailable")
 			}
 		})
 	}
+}
+
+func TestUpstreamErrorBody(t *testing.T) {
+	code, desc := upstreamErrorBody("access_denied")
+	assert.Equal(t, errcode.AccessDenied, code)
+	assert.Contains(t, desc, "access_denied")
+
+	code, desc = upstreamErrorBody("totally\x01made_up")
+	assert.Equal(t, errcode.AccessDenied, code, "values outside RFC 6749 4.1.2.1 map to access_denied")
+	assert.NotContains(t, desc, "\x01")
+	assert.Contains(t, desc, "made_up")
+
+	code, _ = upstreamErrorBody("invalid_grant")
+	assert.Equal(t, errcode.AccessDenied, code, "token-endpoint-only codes are not valid authorization errors")
 }

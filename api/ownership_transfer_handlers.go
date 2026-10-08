@@ -7,6 +7,7 @@ import (
 
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/auth/repository"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -37,7 +38,7 @@ func (h *OwnershipTransferHandler) TransferCurrentUserOwnership(c *gin.Context) 
 	if sourceUUID == "" {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Authentication required",
 		})
 		return

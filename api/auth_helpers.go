@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -40,7 +41,7 @@ func RequireAdministrator(c *gin.Context) (*AdminContext, error) {
 		logger.Warn("Admin check: access denied for non-admin user (test hook)")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusForbidden,
-			Code:    "forbidden",
+			Code:    errcode.Forbidden,
 			Message: "Administrator access required",
 		})
 		return nil, &RequestError{Status: http.StatusForbidden}
@@ -52,7 +53,7 @@ func RequireAdministrator(c *gin.Context) (*AdminContext, error) {
 			logger.Warn("Admin check: service account denied administrative access")
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusForbidden,
-				Code:    "forbidden",
+				Code:    errcode.Forbidden,
 				Message: "Administrative operations require interactive authentication",
 			})
 			return nil, &RequestError{Status: http.StatusForbidden}
@@ -65,7 +66,7 @@ func RequireAdministrator(c *gin.Context) (*AdminContext, error) {
 		logger.Warn("Admin check: failed to resolve membership context: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Authentication required",
 		})
 		return nil, &RequestError{Status: http.StatusUnauthorized}
@@ -77,7 +78,7 @@ func RequireAdministrator(c *gin.Context) (*AdminContext, error) {
 		logger.Error("Admin check: failed to check admin status for email=%s: %v", mc.Email, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to verify administrator status",
 		})
 		return nil, &RequestError{Status: http.StatusInternalServerError}
@@ -87,7 +88,7 @@ func RequireAdministrator(c *gin.Context) (*AdminContext, error) {
 		logger.Warn("Admin check: access denied for non-admin user: email=%s, provider=%s, groups=%v", mc.Email, mc.Provider, mc.GroupNames)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusForbidden,
-			Code:    "forbidden",
+			Code:    errcode.Forbidden,
 			Message: "Administrator access required",
 		})
 		return nil, &RequestError{Status: http.StatusForbidden}

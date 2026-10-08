@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -277,7 +278,7 @@ func threatModelMiddlewareLegacy(c *gin.Context, logger slogging.SimpleLogger) {
 		logger.Warn("Authentication required but userEmail not found in context for path: %s", c.Request.URL.Path)
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "No authentication token provided")
 		c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "Authentication required",
 		})
 		return
@@ -287,7 +288,7 @@ func threatModelMiddlewareLegacy(c *gin.Context, logger slogging.SimpleLogger) {
 		logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication token")
 		c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "Invalid authentication",
 		})
 		return
@@ -339,7 +340,7 @@ func threatModelMiddlewareLegacy(c *gin.Context, logger slogging.SimpleLogger) {
 		logger.Error("ThreatModelStore is not initialized")
 		c.Header("Retry-After", "30")
 		c.AbortWithStatusJSON(http.StatusServiceUnavailable, Error{
-			Error:            "service_unavailable",
+			Error:            ErrorError(errcode.ServiceUnavailable),
 			ErrorDescription: "Storage service temporarily unavailable - please retry",
 		})
 		return
@@ -358,7 +359,7 @@ func threatModelMiddlewareLegacy(c *gin.Context, logger slogging.SimpleLogger) {
 	if err != nil {
 		logger.Debug("Threat model not found: %s, error: %v", id, err)
 		c.AbortWithStatusJSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Threat model not found",
 		})
 		return
@@ -375,7 +376,7 @@ func threatModelMiddlewareLegacy(c *gin.Context, logger slogging.SimpleLogger) {
 		logger.Warn("Access denied for user %s with role %s, required role: %s",
 			userEmail, userRole, requiredRole)
 		c.AbortWithStatusJSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
+			Error:            ErrorError(errcode.Forbidden),
 			ErrorDescription: "You don't have sufficient permissions to perform this action",
 		})
 		return
@@ -488,7 +489,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 			logger.Warn("Authentication required but userEmail not found in context for path: %s", c.Request.URL.Path)
 			SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "No authentication token provided")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
-				Error:            "unauthorized",
+				Error:            ErrorError(errcode.Unauthorized),
 				ErrorDescription: "Authentication required",
 			})
 			return
@@ -499,7 +500,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
 			SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication token")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
-				Error:            "unauthorized",
+				Error:            ErrorError(errcode.Unauthorized),
 				ErrorDescription: "Invalid authentication",
 			})
 			return
@@ -605,7 +606,7 @@ func DiagramMiddleware() gin.HandlerFunc {
 			logger.Warn("Access denied for user %s with role %s, required role: %s",
 				userEmail, userRole, requiredRole)
 			c.AbortWithStatusJSON(http.StatusForbidden, Error{
-				Error:            "forbidden",
+				Error:            ErrorError(errcode.Forbidden),
 				ErrorDescription: "You don't have sufficient permissions to perform this action",
 			})
 			return
@@ -747,7 +748,7 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 			logger.Warn("Authentication required but userEmail not found in context for path: %s", c.Request.URL.Path)
 			SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "No authentication token provided")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
-				Error:            "unauthorized",
+				Error:            ErrorError(errcode.Unauthorized),
 				ErrorDescription: "Authentication required",
 			})
 			return
@@ -758,7 +759,7 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 			logger.Warn("Invalid authentication, userName is empty or not a string for path: %s", c.Request.URL.Path)
 			SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication token")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
-				Error:            "unauthorized",
+				Error:            ErrorError(errcode.Unauthorized),
 				ErrorDescription: "Invalid authentication",
 			})
 			return
@@ -793,7 +794,7 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 			logger.Error("Failed to check sub-resource access for user %s on threat model %s: %v",
 				userEmail, threatModelID, err)
 			c.AbortWithStatusJSON(http.StatusInternalServerError, Error{
-				Error:            "server_error",
+				Error:            ErrorError(errcode.ServerError),
 				ErrorDescription: "Failed to validate permissions",
 			})
 			return
@@ -803,7 +804,7 @@ func ValidateSubResourceAccess(db *sql.DB, cache *CacheService, requiredRole Rol
 			logger.Warn("Access denied for user %s on threat model %s (required role: %s)",
 				userEmail, threatModelID, requiredRole)
 			c.AbortWithStatusJSON(http.StatusForbidden, Error{
-				Error:            "forbidden",
+				Error:            ErrorError(errcode.Forbidden),
 				ErrorDescription: "You don't have sufficient permissions to perform this action",
 			})
 			return
@@ -1030,7 +1031,7 @@ func JSONErrorHandler() gin.HandlerFunc {
 
 			// Create proper error response
 			errorResponse := Error{
-				Error:            http.StatusText(statusCode),
+				Error:            ErrorError(errcode.ForStatus(statusCode)),
 				ErrorDescription: "The request could not be processed",
 			}
 
@@ -1043,7 +1044,7 @@ func JSONErrorHandler() gin.HandlerFunc {
 			jsonBody, err := json.Marshal(errorResponse)
 			if err != nil {
 				// Fallback if JSON marshaling fails
-				jsonBody = []byte(`{"error":"` + http.StatusText(statusCode) + `","error_description":"The request could not be processed"}`)
+				jsonBody = []byte(`{"error":"` + string(errcode.ForStatus(statusCode)) + `","error_description":"The request could not be processed"}`)
 			}
 
 			// Write the transformed response
@@ -1148,7 +1149,7 @@ func AcceptHeaderValidation() gin.HandlerFunc {
 		if !acceptsSupported {
 			logger.Debug("Rejecting request with unsupported Accept header: %s", acceptHeader)
 			c.AbortWithStatusJSON(http.StatusNotAcceptable, Error{
-				Error:            "not_acceptable",
+				Error:            ErrorError(errcode.NotAcceptable),
 				ErrorDescription: "The requested Accept header media type is not supported by this server.",
 			})
 			return

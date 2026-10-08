@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/ericfitz/tmi/internal/errcode"
 )
 
 // Compiled regexes for HTML/XSS detection (compiled once, used by all callers).
@@ -49,7 +51,7 @@ func CheckHTMLInjection(value, fieldName string) error {
 		if pattern.MatchString(value) {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Field '%s' contains potentially unsafe content", fieldName),
 			}
 		}
@@ -60,7 +62,7 @@ func CheckHTMLInjection(value, fieldName string) error {
 		if strings.Contains(value, tp.pattern) {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Field '%s' contains potentially unsafe %s pattern (%s)", fieldName, tp.desc, tp.pattern),
 			}
 		}

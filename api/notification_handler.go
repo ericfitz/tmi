@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -40,7 +41,7 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 	if !exists {
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "User not authenticated")
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "User not authenticated",
 		})
 		return
@@ -50,7 +51,7 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 	if !ok {
 		slogging.Get().WithContext(c).Error("Notification WebSocket: Invalid user context - userEmail is not a string (type: %T, value: %v)", userEmailInterface, userEmailInterface)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "internal_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Invalid user context",
 		})
 		return
@@ -68,10 +69,7 @@ func (s *Server) HandleNotificationWebSocket(c *gin.Context) {
 	conn, err := withOriginCheck(c, upgrader).Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		logger.Error("Failed to upgrade HTTP connection to WebSocket for user %s: %v", userEmail, err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "websocket_upgrade_failed",
-			ErrorDescription: "Failed to upgrade connection",
-		})
+		HandleRequestError(c, WithDetailCode(ServerError("Failed to upgrade connection"), errcode.DetailWebsocketUpgradeFailed))
 		return
 	}
 

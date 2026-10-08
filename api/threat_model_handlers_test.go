@@ -165,7 +165,7 @@ func TestCreateThreatModel_ForeignKeyViolation_UserExists_ReturnsBadRequest(t *t
 
 	var errResp Error
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
-	assert.Equal(t, "invalid_input", errResp.Error)
+	assert.Equal(t, "invalid_input", string(errResp.Error))
 	assert.Contains(t, w.Body.String(), "references an entity that does not exist")
 }
 
@@ -411,7 +411,7 @@ func TestCreateThreatModelWithDuplicateSubjects(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
 
-	assert.Equal(t, "invalid_input", errResp.Error)
+	assert.Equal(t, "invalid_input", string(errResp.Error))
 	assert.Contains(t, errResp.ErrorDescription, "Duplicate authorization subject")
 }
 
@@ -568,7 +568,7 @@ func TestUpdateThreatModelWithDuplicateSubjects(t *testing.T) {
 	err := json.Unmarshal(updateW.Body.Bytes(), &errResp)
 	require.NoError(t, err)
 
-	assert.Equal(t, "invalid_input", errResp.Error)
+	assert.Equal(t, "invalid_input", string(errResp.Error))
 	assert.Contains(t, errResp.ErrorDescription, "Duplicate authorization subject")
 }
 
@@ -626,7 +626,7 @@ func TestNonOwnerCannotChangeOwner(t *testing.T) {
 	err := json.Unmarshal(updateW.Body.Bytes(), &errResp)
 	require.NoError(t, err)
 
-	assert.Equal(t, "forbidden", errResp.Error)
+	assert.Equal(t, "forbidden", string(errResp.Error))
 	// The error message might vary based on the implementation, but it should be a forbidden error
 	// assert.Contains(t, errResp.ErrorDescription, "Only the owner can transfer ownership")
 }
@@ -1789,7 +1789,7 @@ func TestPatchThreatModel_RejectsAliasOperation(t *testing.T) {
 	var errResp Error
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
-	assert.Equal(t, "invalid_input", errResp.Error)
+	assert.Equal(t, "invalid_input", string(errResp.Error))
 	assert.Contains(t, errResp.ErrorDescription, "alias")
 }
 
@@ -1814,6 +1814,6 @@ func TestPutThreatModel_RejectsAliasInBody(t *testing.T) {
 	var errResp Error
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
-	assert.Equal(t, "invalid_input", errResp.Error)
+	assert.Equal(t, "invalid_input", string(errResp.Error))
 	assert.Contains(t, errResp.ErrorDescription, "alias")
 }

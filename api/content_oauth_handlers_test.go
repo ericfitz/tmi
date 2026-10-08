@@ -326,9 +326,11 @@ func TestContentOAuthHandlers_Authorize_ProviderNotRegistered(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnprocessableEntity, w.Code)
 
-	var resp map[string]string
+	var resp map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	assert.Equal(t, "content_token_provider_not_configured", resp["error"])
+	assert.Equal(t, "content_token_provider_not_configured", detailsCode(resp))
+	assert.Equal(t, "unknown", resp["provider_id"])
 }
 
 func TestContentOAuthHandlers_Authorize_ClientCallbackRejected(t *testing.T) {
@@ -346,9 +348,10 @@ func TestContentOAuthHandlers_Authorize_ClientCallbackRejected(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	var resp map[string]string
+	var resp map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
-	assert.Equal(t, "client_callback_not_allowed", resp["error"])
+	assert.Equal(t, "invalid_input", resp["error"])
+	assert.Equal(t, "client_callback_not_allowed", detailsCode(resp))
 }
 
 // =============================================================================

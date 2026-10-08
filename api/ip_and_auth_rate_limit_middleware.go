@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -75,7 +76,7 @@ func IPRateLimitMiddleware(server *Server) gin.HandlerFunc {
 				ipAddress, path, limit, window, retryAfter)
 			c.Header("Retry-After", fmt.Sprintf("%d", retryAfter))
 			c.JSON(http.StatusTooManyRequests, Error{
-				Error:            "rate_limit_exceeded",
+				Error:            ErrorError(errcode.RateLimitExceeded),
 				ErrorDescription: "IP rate limit exceeded. Please retry after the specified time.",
 			})
 			c.Abort()
@@ -149,7 +150,7 @@ func AuthFlowRateLimitMiddleware(server *Server) gin.HandlerFunc {
 				result.BlockedByScope, path, ipAddress, sessionID != "", userIdentifier != "", result.Limit, result.RetryAfter)
 			c.Header("Retry-After", fmt.Sprintf("%d", result.RetryAfter))
 			c.JSON(http.StatusTooManyRequests, Error{
-				Error:            "rate_limit_exceeded",
+				Error:            ErrorError(errcode.RateLimitExceeded),
 				ErrorDescription: fmt.Sprintf("Auth flow rate limit exceeded (%s scope). Please retry after the specified time.", result.BlockedByScope),
 			})
 			c.Abort()

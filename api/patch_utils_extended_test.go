@@ -315,7 +315,7 @@ func TestApplyPatchOperations_EdgeCases(t *testing.T) {
 		require.Error(t, err, "Test operation with wrong value should fail")
 		var reqErr *RequestError
 		require.True(t, errors.As(err, &reqErr))
-		assert.Equal(t, "patch_failed", reqErr.Code)
+		assert.Equal(t, "invalid_patch", string(reqErr.Code))
 	})
 
 	t.Run("replace_nonexistent_path_promoted_to_add", func(t *testing.T) {

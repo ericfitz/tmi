@@ -21,6 +21,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
@@ -35,7 +36,7 @@ func (s *Server) AdminListUserIdentities(c *gin.Context, userId openapi_types.UU
 	if s.linkedIdentityStore == nil {
 		logger.Error("AdminListUserIdentities: linkedIdentityStore not wired")
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Identity store not available",
 		})
 		return
@@ -48,14 +49,14 @@ func (s *Server) AdminListUserIdentities(c *gin.Context, userId openapi_types.UU
 		if errors.Is(err, ErrUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: "User not found",
 			})
 		} else {
 			logger.Error("AdminListUserIdentities: failed to get user: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to get user",
 			})
 		}
@@ -131,7 +132,7 @@ func (s *Server) AdminDeleteUserIdentity(c *gin.Context, userId openapi_types.UU
 	if s.linkedIdentityStore == nil {
 		logger.Error("AdminDeleteUserIdentity: linkedIdentityStore not wired")
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Identity store not available",
 		})
 		return
@@ -143,14 +144,14 @@ func (s *Server) AdminDeleteUserIdentity(c *gin.Context, userId openapi_types.UU
 		if errors.Is(err, ErrUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: "User not found",
 			})
 		} else {
 			logger.Error("AdminDeleteUserIdentity: failed to get user: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to get user",
 			})
 		}
@@ -177,7 +178,7 @@ func (s *Server) AdminDeleteUserIdentity(c *gin.Context, userId openapi_types.UU
 	if err := s.linkedIdentityStore.Delete(ctx, idStr, userUUIDStr); err != nil {
 		if errors.Is(err, auth.ErrLinkedIdentityNotFound) {
 			c.JSON(http.StatusNotFound, Error{
-				Error:            "not_found",
+				Error:            ErrorError(errcode.NotFound),
 				ErrorDescription: "Linked identity not found",
 			})
 			return

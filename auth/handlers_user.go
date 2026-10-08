@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -26,7 +27,7 @@ func (h *Handlers) MeLogout(c *gin.Context) {
 
 	if tokenStr == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "unauthorized",
+			"error":             string(errcode.Unauthorized),
 			"error_description": "Missing or invalid authentication",
 		})
 		return
@@ -37,7 +38,7 @@ func (h *Handlers) MeLogout(c *gin.Context) {
 	token, err := h.service.GetKeyManager().VerifyToken(tokenStr, claims)
 	if err != nil || !token.Valid {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":             "unauthorized",
+			"error":             string(errcode.Unauthorized),
 			"error_description": "Invalid token",
 		})
 		return
@@ -47,7 +48,7 @@ func (h *Handlers) MeLogout(c *gin.Context) {
 	if err := h.revokeTokenInternal(c.Request.Context(), tokenStr, "access_token"); err != nil {
 		logger.Error("Failed to revoke token during logout: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":             "server_error",
+			"error":             string(errcode.ServerError),
 			"error_description": "Failed to revoke token",
 		})
 		return
@@ -167,6 +168,7 @@ func (h *Handlers) Me(c *gin.Context) {
 	// User not found in context - not authenticated
 	setWWWAuthenticateHeader(c, "invalid_token", "User not authenticated")
 	c.JSON(http.StatusUnauthorized, gin.H{
-		"error": "User not authenticated",
+		"error":             string(errcode.Unauthorized),
+		"error_description": "User not authenticated",
 	})
 }

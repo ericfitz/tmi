@@ -1,6 +1,10 @@
 package api
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/ericfitz/tmi/internal/errcode"
+)
 
 // Quota ceiling constants define maximum allowed values for various quota types
 // These limits prevent integer overflow and ensure system stability
@@ -26,14 +30,14 @@ func ValidateQuotaValue(value int, minVal int, maxVal int, fieldName string) err
 	if value < minVal {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("%s must be at least %d (got %d)", fieldName, minVal, value),
 		}
 	}
 	if value > maxVal {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("%s exceeds maximum allowed value of %d (got %d)", fieldName, maxVal, value),
 		}
 	}

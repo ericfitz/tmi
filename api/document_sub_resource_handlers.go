@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -123,30 +124,18 @@ func (h *DocumentSubResourceHandler) validatePickerRegistration(
 	}
 	pr := sniff.PickerRegistration
 	if pr.ProviderID == "" || pr.FileID == "" || pr.MimeType == "" {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "invalid_picker_registration",
-			Message: "picker_registration must include non-empty provider_id, file_id, and mime_type",
-		})
+		HandleRequestError(c, WithDetailCode(InvalidInputError("picker_registration must include non-empty provider_id, file_id, and mime_type"), errcode.DetailInvalidPickerRegistration))
 		return false
 	}
 	// Registry check first: an unknown provider_id is a configuration issue
 	// (provider_not_registered, 422), distinct from a URI <-> file_id
 	// consistency failure (picker_file_id_mismatch, 400) below.
 	if h.contentOAuthRegistry == nil {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusUnprocessableEntity,
-			Code:    "provider_not_registered",
-			Message: fmt.Sprintf("content provider %q is not configured on this server", pr.ProviderID),
-		})
+		HandleRequestError(c, WithDetailCode(UnprocessableEntityError(fmt.Sprintf("content provider %q is not configured on this server", pr.ProviderID)), errcode.DetailProviderNotRegistered))
 		return false
 	}
 	if _, ok := h.contentOAuthRegistry.Get(pr.ProviderID); !ok {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusUnprocessableEntity,
-			Code:    "provider_not_registered",
-			Message: fmt.Sprintf("content provider %q is not configured on this server", pr.ProviderID),
-		})
+		HandleRequestError(c, WithDetailCode(UnprocessableEntityError(fmt.Sprintf("content provider %q is not configured on this server", pr.ProviderID)), errcode.DetailProviderNotRegistered))
 		return false
 	}
 	// Per-provider URI <-> file_id consistency check. Each branch validates
@@ -160,11 +149,7 @@ func (h *DocumentSubResourceHandler) validatePickerRegistration(
 	case ProviderGoogleWorkspace:
 		fileID, ok := extractGoogleDriveFileID(uri)
 		if !ok || fileID != pr.FileID {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "picker_file_id_mismatch",
-				Message: "picker_registration.file_id does not match the file id in uri",
-			})
+			HandleRequestError(c, WithDetailCode(InvalidInputError("picker_registration.file_id does not match the file id in uri"), errcode.DetailPickerFileIDMismatch))
 			return false
 		}
 	case ProviderMicrosoft:
@@ -178,11 +163,7 @@ func (h *DocumentSubResourceHandler) validatePickerRegistration(
 		// *.onedrive.live.com (consumer), and 1drv.ms (consumer short links).
 		parsed, err := url.Parse(uri)
 		if err != nil {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "picker_file_id_mismatch",
-				Message: "picker_registration.file_id does not match the file id in uri",
-			})
+			HandleRequestError(c, WithDetailCode(InvalidInputError("picker_registration.file_id does not match the file id in uri"), errcode.DetailPickerFileIDMismatch))
 			return false
 		}
 		host := strings.ToLower(parsed.Host)
@@ -191,44 +172,24 @@ func (h *DocumentSubResourceHandler) validatePickerRegistration(
 			strings.HasSuffix(host, "."+microsoftHostOneDriveLive) ||
 			host == microsoftHostOneDriveShort
 		if !isMicrosoftHost {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "picker_file_id_mismatch",
-				Message: "picker_registration.file_id does not match the file id in uri",
-			})
+			HandleRequestError(c, WithDetailCode(InvalidInputError("picker_registration.file_id does not match the file id in uri"), errcode.DetailPickerFileIDMismatch))
 			return false
 		}
 		if _, _, ok := decodeMicrosoftPickerFileID(pr.FileID); !ok {
-			HandleRequestError(c, &RequestError{
-				Status:  http.StatusBadRequest,
-				Code:    "picker_file_id_mismatch",
-				Message: "picker_registration.file_id does not match the file id in uri",
-			})
+			HandleRequestError(c, WithDetailCode(InvalidInputError("picker_registration.file_id does not match the file id in uri"), errcode.DetailPickerFileIDMismatch))
 			return false
 		}
 	default:
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusBadRequest,
-			Code:    "picker_file_id_mismatch",
-			Message: "picker_registration.file_id does not match the file id in uri",
-		})
+		HandleRequestError(c, WithDetailCode(InvalidInputError("picker_registration.file_id does not match the file id in uri"), errcode.DetailPickerFileIDMismatch))
 		return false
 	}
 	if h.contentTokens == nil || userInternalUUID == "" {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusUnauthorized,
-			Code:    "token_not_linked_or_failed",
-			Message: "caller has no active linked token for this provider",
-		})
+		HandleRequestError(c, WithDetailCode(UnauthorizedError("caller has no active linked token for this provider"), errcode.DetailTokenNotLinkedOrFailed))
 		return false
 	}
 	token, tokenErr := h.contentTokens.GetByUserAndProvider(c.Request.Context(), userInternalUUID, pr.ProviderID)
 	if tokenErr != nil || token == nil || token.Status != ContentTokenStatusActive {
-		HandleRequestError(c, &RequestError{
-			Status:  http.StatusUnauthorized,
-			Code:    "token_not_linked_or_failed",
-			Message: "caller has no active linked token for this provider",
-		})
+		HandleRequestError(c, WithDetailCode(UnauthorizedError("caller has no active linked token for this provider"), errcode.DetailTokenNotLinkedOrFailed))
 		return false
 	}
 	return true
@@ -496,11 +457,7 @@ func (h *DocumentSubResourceHandler) CreateDocument(c *gin.Context) {
 			// Known non-HTTP provider — check if a source for this specific provider is registered
 			_, hasSource := h.contentPipeline.Sources().FindSourceByName(provider)
 			if !hasSource {
-				HandleRequestError(c, &RequestError{
-					Status:  422,
-					Code:    "provider_not_configured",
-					Message: fmt.Sprintf("%s document access is not configured on this server. Contact your administrator.", provider),
-				})
+				HandleRequestError(c, WithDetailCode(UnprocessableEntityError(fmt.Sprintf("%s document access is not configured on this server. Contact your administrator.", provider)), errcode.DetailProviderNotConfigured))
 				return
 			}
 			contentSource = provider
@@ -1001,7 +958,7 @@ func (h *DocumentSubResourceHandler) PatchDocument(c *gin.Context) {
 			return
 		}
 		// Classify rather than assuming a server fault: the store returns a
-		// 400 patch_failed for an inapplicable JSON Patch and a not-found for
+		// 400 invalid_patch for an inapplicable JSON Patch and a not-found for
 		// a missing document, and hardcoding ServerError turned both into 500
 		// (#611). Matches the asset handler, which already did this.
 		logger.Error("Failed to patch document %s: %v", documentID, err)

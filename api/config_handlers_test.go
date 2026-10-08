@@ -402,7 +402,7 @@ func TestListSystemSettings_AdminRequired(t *testing.T) {
 	var errResp Error
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
-	assert.Equal(t, "forbidden", errResp.Error)
+	assert.Equal(t, "forbidden", string(errResp.Error))
 }
 
 // SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify listing system settings returns 503 when the service is unavailable
@@ -439,7 +439,7 @@ func TestListSystemSettings_ServiceUnavailable(t *testing.T) {
 	var errResp Error
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
-	assert.Equal(t, "service_unavailable", errResp.Error)
+	assert.Equal(t, "server_error", string(errResp.Error))
 }
 
 // SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify fetching a system setting requires admin
@@ -852,7 +852,7 @@ func TestUpdateSystemSetting_409_ConfigSourced(t *testing.T) {
 	var errResp Error
 	err := json.Unmarshal(w.Body.Bytes(), &errResp)
 	require.NoError(t, err)
-	assert.Equal(t, "conflict", errResp.Error)
+	assert.Equal(t, "conflict", string(errResp.Error))
 }
 
 // SEM@69e1295132f4de6082654f6ddb5283252d637f60: verify deleting a config-only setting without DB row returns 404
@@ -1537,7 +1537,7 @@ func TestReencryptSystemSettings_ErrorMapping(t *testing.T) {
 		{"not enabled", ErrEncryptionNotEnabled, http.StatusConflict, "encryption_not_enabled"},
 		{"transient rolled back", fmt.Errorf("transaction failed after 3 attempts: %w", dberrors.Wrap(errors.New("ORA-08177"), dberrors.ErrTransient)), http.StatusServiceUnavailable, "service_unavailable"},
 		{"unreadable cap", fmt.Errorf("%w: 900 settings are unreadable", ErrTooManyUnreadableSettings), http.StatusConflict, "unreadable_settings_limit"},
-		{"other failure", errors.New("boom"), http.StatusInternalServerError, "internal_error"},
+		{"other failure", errors.New("boom"), http.StatusInternalServerError, "server_error"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

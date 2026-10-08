@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -55,7 +56,7 @@ func (s *Server) ListWebhookSubscriptions(c *gin.Context, params ListWebhookSubs
 		allSubs, tmErr := GlobalWebhookSubscriptionStore.ListByThreatModel(c.Request.Context(), params.ThreatModelId.String(), offset, limit)
 		if tmErr != nil {
 			logger.Error("failed to list subscriptions by threat model: %v", tmErr)
-			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list subscriptions"})
+			HandleRequestError(c, ServerError("failed to list subscriptions"))
 			return
 		}
 		subscriptions = allSubs
@@ -106,7 +107,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 			quota := GlobalWebhookQuotaStore.GetOrDefault(c.Request.Context(), userID)
 			c.Header("Retry-After", "60")
 			c.JSON(http.StatusTooManyRequests, Error{
-				Error:            "rate_limit_exceeded",
+				Error:            ErrorError(errcode.QuotaExceeded),
 				ErrorDescription: fmt.Sprintf("%v (limit: %d)", err, quota.MaxSubscriptions),
 			})
 			return
@@ -119,7 +120,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 			quota := GlobalWebhookQuotaStore.GetOrDefault(c.Request.Context(), userID)
 			c.Header("Retry-After", "60")
 			c.JSON(http.StatusTooManyRequests, Error{
-				Error:            "rate_limit_exceeded",
+				Error:            ErrorError(errcode.RateLimitExceeded),
 				ErrorDescription: fmt.Sprintf("%v (limit: %d/minute)", err, quota.MaxSubscriptionRequestsPerMinute),
 			})
 			return
@@ -130,28 +131,28 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 	var input WebhookSubscriptionInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		logger.Error("failed to parse request body: %v", err)
-		c.JSON(http.StatusBadRequest, Error{Error: "invalid request body"})
+		HandleRequestError(c, InvalidInputError("invalid request body"))
 		return
 	}
 
 	// Validate required fields
 	if input.Name == "" {
-		c.JSON(http.StatusBadRequest, Error{Error: "name is required"})
+		HandleRequestError(c, InvalidInputError("name is required"))
 		return
 	}
 	if input.Url == "" {
-		c.JSON(http.StatusBadRequest, Error{Error: "url is required"})
+		HandleRequestError(c, InvalidInputError("url is required"))
 		return
 	}
 	if len(input.Events) == 0 {
-		c.JSON(http.StatusBadRequest, Error{Error: "at least one event type is required"})
+		HandleRequestError(c, InvalidInputError("at least one event type is required"))
 		return
 	}
 
 	// Validate webhook URL (scheme, hostname, deny list)
 	urlValidator := NewWebhookUrlValidatorWithHTTP(GlobalWebhookUrlDenyListStore, s.allowHTTPWebhooks)
 	if err := urlValidator.ValidateWebhookURL(c.Request.Context(), input.Url); err != nil {
-		c.JSON(http.StatusBadRequest, Error{Error: fmt.Sprintf("invalid webhook URL: %s", err.Error())})
+		HandleRequestError(c, InvalidInputError(fmt.Sprintf("invalid webhook URL: %s", err.Error())))
 		return
 	}
 
@@ -178,7 +179,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 		logger.Error("invalid user ID format in authentication context: %v", err)
 		// Invalid UUID in auth context indicates corrupted authentication state
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication state - please re-authenticate")
-		c.JSON(http.StatusUnauthorized, Error{Error: "invalid authentication state", ErrorDescription: "Please re-authenticate"})
+		HandleRequestError(c, UnauthorizedError("invalid authentication state, please re-authenticate"))
 		return
 	}
 
@@ -201,7 +202,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 	})
 	if err != nil {
 		logger.Error("failed to create subscription: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to create subscription"})
+		HandleRequestError(c, ServerError("failed to create subscription"))
 		return
 	}
 
@@ -223,7 +224,7 @@ func (s *Server) GetWebhookSubscription(c *gin.Context, webhookId openapi_types.
 	subscription, err := GlobalWebhookSubscriptionStore.Get(c.Request.Context(), webhookId.String())
 	if err != nil {
 		logger.Error("failed to get subscription %s: %v", webhookId, err)
-		c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
+		HandleRequestError(c, NotFoundError("subscription not found"))
 		return
 	}
 
@@ -242,14 +243,14 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 	subscription, err := GlobalWebhookSubscriptionStore.Get(c.Request.Context(), webhookId.String())
 	if err != nil {
 		logger.Error("failed to get subscription %s: %v", webhookId, err)
-		c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
+		HandleRequestError(c, NotFoundError("subscription not found"))
 		return
 	}
 
 	// Operator-pinned subscriptions are managed by server configuration and may
 	// not be mutated through the API.
 	if subscription.OperatorPinned {
-		c.JSON(http.StatusForbidden, Error{Error: "operator-pinned subscription is managed by server configuration and cannot be modified through the API"})
+		HandleRequestError(c, ForbiddenError("operator-pinned subscription is managed by server configuration and cannot be modified through the API"))
 		return
 	}
 
@@ -259,7 +260,7 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 		deletedCount, delErr := GlobalAddonStore.DeleteByWebhookID(c.Request.Context(), webhookId)
 		if delErr != nil {
 			logger.Error("failed to delete addons for subscription %s: %v", webhookId, delErr)
-			c.JSON(http.StatusInternalServerError, Error{Error: "failed to delete associated addons"})
+			HandleRequestError(c, ServerError("failed to delete associated addons"))
 			return
 		}
 		if deletedCount > 0 {
@@ -270,7 +271,7 @@ func (s *Server) DeleteWebhookSubscription(c *gin.Context, webhookId openapi_typ
 	// Delete the subscription
 	if err := GlobalWebhookSubscriptionStore.Delete(c.Request.Context(), webhookId.String()); err != nil {
 		logger.Error("failed to delete subscription %s: %v", webhookId, err)
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to delete subscription"})
+		HandleRequestError(c, ServerError("failed to delete subscription"))
 		return
 	}
 
@@ -296,7 +297,7 @@ func (s *Server) PatchAdminWebhookSubscription(c *gin.Context, webhookId openapi
 		logger.Error("webhook subscription store not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusServiceUnavailable,
-			Code:    "service_unavailable",
+			Code:    errcode.ServiceUnavailable,
 			Message: "Webhook subscriptions are not available",
 		})
 		return
@@ -307,7 +308,7 @@ func (s *Server) PatchAdminWebhookSubscription(c *gin.Context, webhookId openapi
 		logger.Error("failed to get subscription %s: %v", webhookId, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Subscription not found",
 		})
 		return
@@ -318,7 +319,7 @@ func (s *Server) PatchAdminWebhookSubscription(c *gin.Context, webhookId openapi
 	if existing.OperatorPinned {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusForbidden,
-			Code:    "forbidden",
+			Code:    errcode.Forbidden,
 			Message: "Operator-pinned subscription is managed by server configuration and cannot be modified through the API",
 		})
 		return
@@ -374,7 +375,7 @@ func (s *Server) PatchAdminWebhookSubscription(c *gin.Context, webhookId openapi
 		if errors.Is(err, ErrWebhookNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: "Subscription not found",
 			})
 			return
@@ -388,7 +389,7 @@ func (s *Server) PatchAdminWebhookSubscription(c *gin.Context, webhookId openapi
 		logger.Error("failed to update subscription %s: %v", webhookId, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to update subscription",
 		})
 		return
@@ -399,7 +400,7 @@ func (s *Server) PatchAdminWebhookSubscription(c *gin.Context, webhookId openapi
 		logger.Error("failed to re-read subscription %s after update: %v", webhookId, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to update subscription",
 		})
 		return
@@ -500,13 +501,13 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 	subscription, err := GlobalWebhookSubscriptionStore.Get(c.Request.Context(), webhookId.String())
 	if err != nil {
 		logger.Error("failed to get subscription %s: %v", webhookId, err)
-		c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
+		HandleRequestError(c, NotFoundError("subscription not found"))
 		return
 	}
 
 	// Operator-pinned subscriptions cannot be test-triggered through the API.
 	if subscription.OperatorPinned {
-		c.JSON(http.StatusForbidden, Error{Error: "operator-pinned subscription is managed by server configuration and cannot be modified through the API"})
+		HandleRequestError(c, ForbiddenError("operator-pinned subscription is managed by server configuration and cannot be modified through the API"))
 		return
 	}
 
@@ -529,14 +530,14 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 	payloadJSON, err := json.Marshal(testPayload)
 	if err != nil {
 		logger.Error("failed to marshal test payload: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to create test delivery"})
+		HandleRequestError(c, ServerError("failed to create test delivery"))
 		return
 	}
 
 	// Create delivery record in Redis
 	if GlobalWebhookDeliveryRedisStore == nil {
 		logger.Error("webhook delivery Redis store not available")
-		c.JSON(http.StatusInternalServerError, Error{Error: "delivery store not available"})
+		HandleRequestError(c, ServerError("delivery store not available"))
 		return
 	}
 
@@ -550,7 +551,7 @@ func (s *Server) TestWebhookSubscription(c *gin.Context, webhookId openapi_types
 
 	if err := GlobalWebhookDeliveryRedisStore.Create(c.Request.Context(), record); err != nil {
 		logger.Error("failed to create test delivery: %v", err)
-		c.JSON(http.StatusInternalServerError, Error{Error: "failed to create test delivery"})
+		HandleRequestError(c, ServerError("failed to create test delivery"))
 		return
 	}
 
@@ -574,7 +575,7 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 
 	if GlobalWebhookDeliveryRedisStore == nil {
 		logger.Error("webhook delivery Redis store not initialized")
-		c.JSON(http.StatusServiceUnavailable, Error{Error: "delivery tracking not available"})
+		HandleRequestError(c, ServiceUnavailableError("delivery tracking not available"))
 		return
 	}
 
@@ -600,7 +601,7 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 		_, subErr := GlobalWebhookSubscriptionStore.Get(ctx, params.SubscriptionId.String())
 		if subErr != nil {
 			logger.Error("failed to get subscription %s: %v", params.SubscriptionId, subErr)
-			c.JSON(http.StatusNotFound, Error{Error: "subscription not found"})
+			HandleRequestError(c, NotFoundError("subscription not found"))
 			return
 		}
 
@@ -608,7 +609,7 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 		records, total, err = GlobalWebhookDeliveryRedisStore.ListBySubscription(ctx, *params.SubscriptionId, limit, offset)
 		if err != nil {
 			logger.Error("failed to list deliveries for subscription %s: %v", params.SubscriptionId, err)
-			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list deliveries"})
+			HandleRequestError(c, ServerError("failed to list deliveries"))
 			return
 		}
 	} else {
@@ -616,7 +617,7 @@ func (s *Server) ListWebhookDeliveries(c *gin.Context, params ListWebhookDeliver
 		records, total, err = GlobalWebhookDeliveryRedisStore.ListAll(ctx, limit, offset)
 		if err != nil {
 			logger.Error("failed to list all deliveries: %v", err)
-			c.JSON(http.StatusInternalServerError, Error{Error: "failed to list deliveries"})
+			HandleRequestError(c, ServerError("failed to list deliveries"))
 			return
 		}
 	}
@@ -656,7 +657,7 @@ func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUI
 
 	if GlobalWebhookDeliveryRedisStore == nil {
 		logger.Error("webhook delivery Redis store not initialized")
-		c.JSON(http.StatusServiceUnavailable, Error{Error: "delivery tracking not available"})
+		HandleRequestError(c, ServiceUnavailableError("delivery tracking not available"))
 		return
 	}
 
@@ -664,7 +665,7 @@ func (s *Server) GetWebhookDelivery(c *gin.Context, deliveryId openapi_types.UUI
 	record, err := GlobalWebhookDeliveryRedisStore.Get(c.Request.Context(), deliveryId)
 	if err != nil {
 		logger.Error("failed to get delivery %s: %v", deliveryId, err)
-		c.JSON(http.StatusNotFound, Error{Error: "delivery not found"})
+		HandleRequestError(c, NotFoundError("delivery not found"))
 		return
 	}
 

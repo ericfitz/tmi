@@ -79,7 +79,7 @@ func TestPatchPathAllowList_OwnerOnlyGate(t *testing.T) {
 		require := assert.NotNil
 		require(t, err, "non-owner must not patch %q", p)
 		assert.Equal(t, 403, err.Status)
-		assert.Equal(t, "forbidden", err.Code)
+		assert.Equal(t, "forbidden", string(err.Code))
 
 		// Owner: allowed
 		err = ValidatePatchAllowlist(allow, ops, PatchAuthContext{IsOwner: true})

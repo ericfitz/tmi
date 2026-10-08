@@ -828,3 +828,36 @@ func TestHandleIdentityLinkCallback_OverLengthProviderUserID_RejectsWithRedirect
 	require.Len(t, h.auditW.entries, 1)
 	assert.Equal(t, "auth.identity_link_failed", h.auditW.entries[0].FieldPath)
 }
+
+func TestIdentityLinkStart_BadTokenUsesVocabulary(t *testing.T) {
+	h := newIdentityLinkTestHarness(t)
+	defer h.cleanup()
+
+	// No credentials: the route is a REST route, so the body uses the REST
+	// code and carries the legacy reason in details.code.
+	c, w := ginTestContext("POST", "/me/identities/link/start?idp=google&client_callback=http://localhost:4200/callback", "")
+	h.handlers.StartIdentityLink(c)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Header().Get("WWW-Authenticate"), "invalid_token")
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "unauthorized", resp["error"])
+	details, _ := resp["details"].(map[string]any)
+	assert.Equal(t, "invalid_token", details["code"])
+	assert.NotEmpty(t, resp["error_description"])
+}
+
+func TestIdentityLinkStart_UnknownProviderIsInvalidInput(t *testing.T) {
+	h := newIdentityLinkTestHarness(t)
+	defer h.cleanup()
+
+	c, w := ginTestContext("POST", "/me/identities/link/start?idp=unknown-provider&client_callback=http://localhost:4200/callback", "")
+	c.Request.Header.Set("Authorization", "Bearer "+h.testJWT)
+	h.handlers.StartIdentityLink(c)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "invalid_input", resp["error"])
+}

@@ -94,7 +94,7 @@ func TestValidateSparseAuthorizationEntries(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorCode:   "validation_failed",
+			errorCode:   "invalid_input",
 			errorMsg:    "must be a valid identity provider name",
 		},
 		{
@@ -108,7 +108,7 @@ func TestValidateSparseAuthorizationEntries(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorCode:   "validation_failed",
+			errorCode:   "invalid_input",
 			errorMsg:    "must be a valid identity provider name",
 		},
 		{
@@ -121,7 +121,7 @@ func TestValidateSparseAuthorizationEntries(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorCode:   "validation_failed",
+			errorCode:   "invalid_input",
 			errorMsg:    "either 'provider_id' or 'email' must be provided",
 		},
 		{
@@ -135,7 +135,7 @@ func TestValidateSparseAuthorizationEntries(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorCode:   "validation_failed",
+			errorCode:   "invalid_input",
 			errorMsg:    "either 'provider_id' or 'email' must be provided",
 		},
 		{
@@ -149,7 +149,7 @@ func TestValidateSparseAuthorizationEntries(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorCode:   "validation_failed",
+			errorCode:   "invalid_input",
 			errorMsg:    "either 'provider_id' or 'email' must be provided",
 		},
 		{
@@ -163,7 +163,7 @@ func TestValidateSparseAuthorizationEntries(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorCode:   "validation_failed",
+			errorCode:   "invalid_input",
 			errorMsg:    "invalid role 'superadmin'",
 		},
 		{
@@ -177,7 +177,7 @@ func TestValidateSparseAuthorizationEntries(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorCode:   "validation_failed",
+			errorCode:   "invalid_input",
 			errorMsg:    "invalid role ''",
 		},
 		{
@@ -192,7 +192,7 @@ func TestValidateSparseAuthorizationEntries(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorCode:   "validation_failed",
+			errorCode:   "invalid_input",
 			errorMsg:    "'display_name' cannot be provided in requests",
 		},
 		{
@@ -244,7 +244,7 @@ func TestValidateSparseAuthorizationEntries(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errorCode:   "validation_failed",
+			errorCode:   "invalid_input",
 			errorMsg:    "index 2",
 		},
 		{
@@ -282,7 +282,7 @@ func TestValidateSparseAuthorizationEntries(t *testing.T) {
 				var reqErr *RequestError
 				require.True(t, errors.As(err, &reqErr), "Expected RequestError, got %T", err)
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
-				assert.Equal(t, tt.errorCode, reqErr.Code)
+				assert.Equal(t, tt.errorCode, string(reqErr.Code))
 				assert.Contains(t, reqErr.Message, tt.errorMsg)
 			} else {
 				assert.NoError(t, err)

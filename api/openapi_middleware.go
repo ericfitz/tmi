@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -57,7 +58,7 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 	case strings.Contains(messageLower, "method not allowed"):
 		c.Header("Allow", getAllowedMethodsForPath(c.Request.URL.Path))
 		tmiError = &RequestError{
-			Code:    "method_not_allowed",
+			Code:    errcode.MethodNotAllowed,
 			Message: fmt.Sprintf("The HTTP method '%s' is not supported for this endpoint", c.Request.Method),
 			Status:  http.StatusMethodNotAllowed,
 		}
@@ -68,7 +69,7 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 			// Path exists but method doesn't - return 405 Method Not Allowed
 			c.Header("Allow", getAllowedMethodsForPath(c.Request.URL.Path))
 			tmiError = &RequestError{
-				Code:    "method_not_allowed",
+				Code:    errcode.MethodNotAllowed,
 				Message: fmt.Sprintf("The HTTP method '%s' is not supported for this endpoint", c.Request.Method),
 				Status:  http.StatusMethodNotAllowed,
 			}
@@ -79,7 +80,7 @@ func OpenAPIErrorHandler(c *gin.Context, message string, statusCode int) {
 					"Check the request method and path (including trailing slashes).",
 				c.Request.Method, c.Request.URL.Path)
 			tmiError = &RequestError{
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: detailedMessage,
 				Status:  http.StatusNotFound,
 			}

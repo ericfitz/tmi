@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"github.com/google/uuid"
 )
@@ -43,7 +44,7 @@ func ValidateUUID(s string, fieldName string) (uuid.UUID, error) {
 	if s == "" {
 		return uuid.Nil, &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("%s is required", fieldName),
 		}
 	}
@@ -52,7 +53,7 @@ func ValidateUUID(s string, fieldName string) (uuid.UUID, error) {
 	if err != nil {
 		return uuid.Nil, &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("%s must be a valid UUID format: %v", fieldName, err),
 		}
 	}
@@ -78,7 +79,7 @@ func ValidateNumericRange(value any, minVal, maxVal int64, fieldName string) err
 		if math.IsInf(float64(v), 0) || math.IsNaN(float64(v)) {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("%s contains invalid numeric value (infinity or NaN)", fieldName),
 			}
 		}
@@ -86,7 +87,7 @@ func ValidateNumericRange(value any, minVal, maxVal int64, fieldName string) err
 		if v > float32(math.MaxInt64) || v < float32(math.MinInt64) {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("%s exceeds numeric range", fieldName),
 			}
 		}
@@ -96,7 +97,7 @@ func ValidateNumericRange(value any, minVal, maxVal int64, fieldName string) err
 		if math.IsInf(v, 0) || math.IsNaN(v) {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("%s contains invalid numeric value (infinity or NaN)", fieldName),
 			}
 		}
@@ -104,7 +105,7 @@ func ValidateNumericRange(value any, minVal, maxVal int64, fieldName string) err
 		if v > float64(math.MaxInt64) || v < float64(math.MinInt64) {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("%s exceeds numeric range", fieldName),
 			}
 		}
@@ -127,7 +128,7 @@ func ValidateNumericRange(value any, minVal, maxVal int64, fieldName string) err
 	default:
 		return &RequestError{
 			Status:  500,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: fmt.Sprintf("unsupported numeric type for %s", fieldName),
 		}
 	}
@@ -135,7 +136,7 @@ func ValidateNumericRange(value any, minVal, maxVal int64, fieldName string) err
 	if numValue < minVal {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("%s is below minimum value of %d (got %d)", fieldName, minVal, numValue),
 		}
 	}
@@ -143,7 +144,7 @@ func ValidateNumericRange(value any, minVal, maxVal int64, fieldName string) err
 	if numValue > maxVal {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("%s exceeds maximum value of %d (got %d)", fieldName, maxVal, numValue),
 		}
 	}
@@ -160,7 +161,7 @@ func validateTextField(value, fieldName string, maxLength int, required bool) er
 		if required {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("%s is required", fieldName),
 			}
 		}
@@ -170,7 +171,7 @@ func validateTextField(value, fieldName string, maxLength int, required bool) er
 	if len(value) > maxLength {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("%s exceeds maximum length of %d characters (got %d)", fieldName, maxLength, len(value)),
 		}
 	}
@@ -179,7 +180,7 @@ func validateTextField(value, fieldName string, maxLength int, required bool) er
 	if unicodecheck.ContainsControlChars(value) {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Field '%s' contains control characters", fieldName),
 		}
 	}
@@ -188,7 +189,7 @@ func validateTextField(value, fieldName string, maxLength int, required bool) er
 	if unicodecheck.ContainsProblematicCategories(value) {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Field '%s' contains problematic Unicode characters", fieldName),
 		}
 	}
@@ -236,7 +237,7 @@ func NormalizeColorPalette(palette *[]ColorPaletteEntry) (*[]ColorPaletteEntry, 
 	if len(entries) > 8 {
 		return nil, &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "color_palette must contain at most 8 entries",
 		}
 	}
@@ -248,7 +249,7 @@ func NormalizeColorPalette(palette *[]ColorPaletteEntry) (*[]ColorPaletteEntry, 
 		if entry.Position < 1 || entry.Position > 8 {
 			return nil, &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("color_palette position must be between 1 and 8 (got %d)", entry.Position),
 			}
 		}
@@ -256,7 +257,7 @@ func NormalizeColorPalette(palette *[]ColorPaletteEntry) (*[]ColorPaletteEntry, 
 		if seenPositions[entry.Position] {
 			return nil, &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("duplicate color_palette position: %d", entry.Position),
 			}
 		}
@@ -265,7 +266,7 @@ func NormalizeColorPalette(palette *[]ColorPaletteEntry) (*[]ColorPaletteEntry, 
 		if !colorHexPattern.MatchString(entry.Color) {
 			return nil, &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("invalid color format %q: must be #RGB or #RRGGBB hex", entry.Color),
 			}
 		}

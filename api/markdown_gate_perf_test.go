@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -137,7 +138,7 @@ func assertTooComplex(t *testing.T, err *RequestError) {
 	t.Helper()
 	if assert.NotNil(t, err) {
 		assert.Equal(t, 400, err.Status)
-		assert.Equal(t, "invalid_input", err.Code)
+		assert.Equal(t, errcode.InvalidInput, err.Code)
 		assert.Contains(t, err.Message, "too complex to validate")
 		assert.Positive(t, err.markdownTooComplexBytes, "rejection must be tagged for logging")
 	}
@@ -209,9 +210,11 @@ func TestMarkdownGate_AttackDoesNotStarveOtherNotes(t *testing.T) {
 	assert.Eventually(t, func() bool { return markdownGateInFlight.Load() >= attackers },
 		time.Second, time.Millisecond, "attack parses did not start")
 
-	// Time only the legitimate notes: measuring from attackStart also counted
-	// the attackers' startup, which under -race with the full suite running
-	// in parallel pushed the total past the bound without any starvation.
+	// Starvation shows up as a too-complex rejection of the legitimate notes,
+	// which the Nil assertions below catch. The wall-clock bound only guards
+	// against a hang: sanitizing a 256 KiB note outside the gate (bluemonday,
+	// the scanner) is not covered by the gate's budget, and under -race on a
+	// 2-CPU CI runner with 8 attackers it alone took over 1.2 s.
 	legitStart := time.Now()
 	small := "Note: hello"
 	out, err := SanitizeRequiredMarkdownContent("content", small)
@@ -222,8 +225,8 @@ func TestMarkdownGate_AttackDoesNotStarveOtherNotes(t *testing.T) {
 	_, err = SanitizeRequiredMarkdownContent("content", large)
 	assert.Nil(t, err, "large legitimate note rejected during attack")
 
-	assert.Less(t, time.Since(legitStart), markdownGateBudget+600*time.Millisecond,
-		"legitimate notes must not wait for the attack's parses")
+	assert.Less(t, time.Since(legitStart), 10*time.Second,
+		"legitimate notes must not hang behind the attack's parses")
 	wg.Wait()
 }
 

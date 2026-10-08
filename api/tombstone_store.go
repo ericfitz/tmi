@@ -11,6 +11,7 @@ import (
 	"github.com/ericfitz/tmi/api/models"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -69,7 +70,7 @@ func AuthorizeIncludeDeleted(c *gin.Context) bool {
 
 	HandleRequestError(c, &RequestError{
 		Status:  http.StatusForbidden,
-		Code:    "forbidden",
+		Code:    errcode.Forbidden,
 		Message: "The include_deleted parameter requires owner or admin role",
 	})
 	return false

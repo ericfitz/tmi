@@ -10,6 +10,7 @@ import (
 
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
@@ -334,7 +335,7 @@ func GetAuthenticatedUser(c *gin.Context) (ResolvedUser, error) {
 	if !ok || userEmail == "" {
 		return ResolvedUser{}, &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Authentication required",
 		}
 	}
@@ -345,7 +346,7 @@ func GetAuthenticatedUser(c *gin.Context) (ResolvedUser, error) {
 	if !ok || providerID == "" {
 		return ResolvedUser{}, &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Authentication required",
 		}
 	}
@@ -397,7 +398,7 @@ func GetResourceRole(c *gin.Context) (Role, error) {
 	if !ok {
 		return "", &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to determine user role",
 		}
 	}
