@@ -20,9 +20,10 @@ import (
 // =============================================================================
 
 type mockProjectNoteStore struct {
-	notes     map[string]*ProjectNote
-	listItems []ProjectNoteListItem
-	listTotal int
+	patchedOps []PatchOperation // operations received by Patch
+	notes      map[string]*ProjectNote
+	listItems  []ProjectNoteListItem
+	listTotal  int
 
 	err       error
 	createErr error
@@ -97,7 +98,8 @@ func (m *mockProjectNoteStore) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (m *mockProjectNoteStore) Patch(_ context.Context, id string, _ []PatchOperation) (*ProjectNote, error) {
+func (m *mockProjectNoteStore) Patch(_ context.Context, id string, ops []PatchOperation) (*ProjectNote, error) {
+	m.patchedOps = ops
 	if m.patchErr != nil {
 		return nil, m.patchErr
 	}

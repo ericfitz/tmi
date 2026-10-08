@@ -317,3 +317,31 @@ func SanitizePatchOperations(operations []PatchOperation, paths []string) {
 		}
 	}
 }
+
+// sanitizeNotePatchOperations sanitizes the text fields a note create/update
+// sanitizes, for JSON Patch replace/add operations: /content as required
+// markdown (a 400 if it empties or keeps an unsafe link), /name and
+// /description as plain text. Operations are modified in place.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize note content, name and description values in JSON Patch operations, returning a 400 on rejected content (pure)
+func sanitizeNotePatchOperations(operations []PatchOperation) *RequestError {
+	for i, op := range operations {
+		if op.Op != string(Replace) && op.Op != string(Add) {
+			continue
+		}
+		value, ok := op.Value.(string)
+		if !ok {
+			continue
+		}
+		switch op.Path {
+		case patchPathContent:
+			sanitized, err := SanitizeRequiredMarkdownContent("content", value)
+			if err != nil {
+				return err
+			}
+			operations[i].Value = sanitized
+		case "/name", "/description":
+			operations[i].Value = SanitizePlainText(value)
+		}
+	}
+	return nil
+}

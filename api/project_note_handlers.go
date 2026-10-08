@@ -368,6 +368,12 @@ func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, 
 		}
 	}
 
+	// Sanitize text fields the create/update paths sanitize (#1013).
+	if sanitizeErr := sanitizeNotePatchOperations(operations); sanitizeErr != nil {
+		HandleRequestError(c, sanitizeErr)
+		return
+	}
+
 	result, patchErr := GlobalProjectNoteStore.Patch(ctx, projectNoteId.String(), operations)
 	if patchErr != nil {
 		logger.Error("Failed to patch project note: %v", patchErr)

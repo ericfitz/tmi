@@ -365,6 +365,12 @@ func (s *Server) PatchTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNo
 		}
 	}
 
+	// Sanitize text fields the create/update paths sanitize (#1013).
+	if sanitizeErr := sanitizeNotePatchOperations(operations); sanitizeErr != nil {
+		HandleRequestError(c, sanitizeErr)
+		return
+	}
+
 	result, patchErr := GlobalTeamNoteStore.Patch(ctx, teamNoteId.String(), operations)
 	if patchErr != nil {
 		logger.Error("Failed to patch team note: %v", patchErr)
