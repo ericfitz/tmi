@@ -4,6 +4,11 @@ import (
 	"html"
 	"regexp"
 	"strings"
+
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/text"
 )
 
 // Markdown link and image destinations (#1013).
@@ -21,8 +26,13 @@ import (
 // with an unsafe scheme is rewritten there too, because guessing where a given
 // renderer sees code is exactly how filters get bypassed.
 //
-// Autolinks (<javascript:...>) need no handling here: the HTML pass already
-// removes them as unknown tags, and that is tested.
+// This scanner is best effort: it does not model block containers (block
+// quotes, list items) that a real CommonMark parser strips from continuation
+// lines. markdownHasUnsafeLink is therefore the authoritative gate: it parses
+// the final text with goldmark and reports any link, image or autolink whose
+// destination is still unsafe, and SanitizeRequiredMarkdownContent rejects such
+// content with a 400. Autolinks (<javascript:...>) are removed by the HTML pass
+// as unknown tags, and are also covered by the gate.
 
 // safeLinkSchemes is the allowlist of URL schemes for link and image
 // destinations. Scheme-less (relative, fragment, query, protocol-relative)
@@ -32,7 +42,7 @@ var safeLinkSchemes = map[string]bool{"http": true, "https": true, "mailto": tru
 // refDefRe matches the start of a reference definition ("[label]: ") up to the
 // start of its destination, which may sit on the following line. Block-quote
 // and list-item prefixes are tolerated.
-var refDefRe = regexp.MustCompile(`(?m)^[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)*\[(?:[^\]\\\n]|\\.)+\]:[ \t]*\n?[ \t]*`)
+var refDefRe = regexp.MustCompile(`(?m)^[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)*\[(?:[^\]\\]|\\[\s\S])+\]:[ \t]*(?:\r?\n)?[ \t]*`)
 
 // urlSchemeRe matches a leading URL scheme.
 var urlSchemeRe = regexp.MustCompile(`^([a-z][a-z0-9+.-]*):`)
@@ -127,7 +137,9 @@ func scanDestination(s string, start int) (end int, ok bool) {
 		for i := start + 1; i < len(s); i++ {
 			switch s[i] {
 			case '\\':
-				i++
+				if i+1 < len(s) && isASCIIPunct(s[i+1]) {
+					i++
+				}
 			case '\n', '<':
 				return 0, false
 			case '>':
@@ -142,7 +154,7 @@ scan:
 	for ; i < len(s); i++ {
 		c := s[i]
 		switch {
-		case c == '\\' && i+1 < len(s):
+		case c == '\\' && i+1 < len(s) && isASCIIPunct(s[i+1]):
 			i++
 		case c <= ' ' || c == 0x7f:
 			break scan
@@ -199,10 +211,47 @@ func unescapeMarkdownBackslashes(s string) string {
 	}
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {
-		if s[i] == '\\' && i+1 < len(s) && strings.IndexByte("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", s[i+1]) >= 0 {
+		if s[i] == '\\' && i+1 < len(s) && isASCIIPunct(s[i+1]) {
 			i++
 		}
 		b.WriteByte(s[i])
 	}
 	return b.String()
+}
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: report whether a byte is ASCII punctuation, the only bytes a markdown backslash escapes (pure)
+func isASCIIPunct(c byte) bool {
+	return strings.IndexByte("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", c) >= 0
+}
+
+// markdownParser is the CommonMark+GFM parser used by the final gate. It is
+// only used to parse, never to render.
+var markdownParser = goldmark.New(goldmark.WithExtensions(extension.GFM)).Parser()
+
+// markdownHasUnsafeLink parses content as CommonMark with GFM extensions and
+// reports whether any link, image or autolink (including GFM literal
+// autolinks) has a destination that is not relative or allowlisted.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: report whether parsed markdown contains a link, image or autolink with a disallowed destination (pure)
+func markdownHasUnsafeLink(content string) bool {
+	src := []byte(content)
+	doc := markdownParser.Parse(text.NewReader(src))
+	unsafe := false
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch v := n.(type) {
+		case *ast.Link:
+			unsafe = unsafe || !isSafeLinkDestination(string(v.Destination))
+		case *ast.Image:
+			unsafe = unsafe || !isSafeLinkDestination(string(v.Destination))
+		case *ast.AutoLink:
+			unsafe = unsafe || !isSafeLinkDestination(string(v.URL(src)))
+		}
+		if unsafe {
+			return ast.WalkStop, nil
+		}
+		return ast.WalkContinue, nil
+	})
+	return unsafe
 }

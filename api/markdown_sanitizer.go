@@ -116,7 +116,9 @@ func SanitizeMarkdownContent(content string) string {
 		}
 		cur = next
 	}
-	return markdownPolicy.Sanitize(cur)
+	// The fallback re-serializes the text, which can reassemble a destination
+	// that the pass above had just neutralized; neutralize once more.
+	return neutralizeMarkdownLinkDestinations(markdownPolicy.Sanitize(cur))
 }
 
 // markdownSkipContent lists elements whose entire content is dropped with the tag.
@@ -183,6 +185,14 @@ func stripMarkdownHTML(content string) string {
 // SEM@388282971a06c7f935aa98db0aff68602f0eda66: sanitize a required markdown field, returning a 400 error when sanitization empties it (pure)
 func SanitizeRequiredMarkdownContent(field, content string) (string, *RequestError) {
 	sanitized := SanitizeMarkdownContent(content)
+	// Authoritative gate (#1013): the destination scanner is best effort, so
+	// reject whatever a real CommonMark parse still sees as an unsafe link.
+	if markdownHasUnsafeLink(sanitized) {
+		return "", InvalidInputError(fmt.Sprintf(
+			"%s contains a link or image with a disallowed URL scheme",
+			field,
+		))
+	}
 	if strings.TrimSpace(sanitized) == "" && strings.TrimSpace(content) != "" {
 		return "", InvalidInputError(fmt.Sprintf(
 			"%s is empty after sanitization; it consisted entirely of markup that is not permitted",
