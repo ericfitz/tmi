@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/api/models"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -62,7 +63,7 @@ func (s *Server) GetCurrentUserPreferences(c *gin.Context) {
 	if userUUID == "" {
 		logger.Warn("[PREFERENCES] No user UUID in context")
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "user not authenticated",
 		})
 		return
@@ -121,7 +122,7 @@ func (s *Server) CreateCurrentUserPreferences(c *gin.Context) {
 	if userUUID == "" {
 		logger.Warn("[PREFERENCES] No user UUID in context")
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "user not authenticated",
 		})
 		return
@@ -206,7 +207,7 @@ func (s *Server) UpdateCurrentUserPreferences(c *gin.Context) {
 	if userUUID == "" {
 		logger.Warn("[PREFERENCES] No user UUID in context")
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "user not authenticated",
 		})
 		return

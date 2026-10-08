@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -83,7 +84,7 @@ func RateLimitMiddleware(server *Server) gin.HandlerFunc {
 			c.Header("Retry-After", fmt.Sprintf("%d", retryAfter))
 
 			c.JSON(http.StatusTooManyRequests, Error{
-				Error:            "rate_limit_exceeded",
+				Error:            ErrorError(errcode.RateLimitExceeded),
 				ErrorDescription: "Rate limit exceeded. Please retry after the specified time.",
 			})
 			c.Abort()

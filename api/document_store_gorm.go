@@ -13,6 +13,7 @@ import (
 	"github.com/ericfitz/tmi/api/validation"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -207,10 +208,10 @@ func (s *GormDocumentRepository) update(ctx context.Context, document *Document,
 	// (#714). Reject as client input so both engines answer 400. Backstop for
 	// callers that bypass the handler/schema checks (validateURI skips "").
 	if err := validation.ValidateNonEmpty("name", document.Name); err != nil {
-		return 0, &RequestError{Status: http.StatusBadRequest, Code: "invalid_input", Message: err.Error()}
+		return 0, &RequestError{Status: http.StatusBadRequest, Code: errcode.InvalidInput, Message: err.Error()}
 	}
 	if err := validation.ValidateURI("uri", document.Uri); err != nil {
-		return 0, &RequestError{Status: http.StatusBadRequest, Code: "invalid_input", Message: err.Error()}
+		return 0, &RequestError{Status: http.StatusBadRequest, Code: errcode.InvalidInput, Message: err.Error()}
 	}
 
 	// modified_at explicitly: the SkipHooks session below suppresses GORM's

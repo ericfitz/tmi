@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"golang.org/x/text/unicode/norm"
 )
@@ -66,7 +67,7 @@ func ValidateIcon(icon string) error {
 	if len(icon) > MaxIconLength {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Icon exceeds maximum length of %d characters (got %d)", MaxIconLength, len(icon)),
 		}
 	}
@@ -78,7 +79,7 @@ func ValidateIcon(icon string) error {
 		}
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid Material Symbols icon format. Must be: material-symbols:{name} where name is snake_case (lowercase letters, digits, underscores; no consecutive underscores; no trailing underscore)",
 		}
 	}
@@ -90,7 +91,7 @@ func ValidateIcon(icon string) error {
 		}
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid FontAwesome icon format. Must be: fa-{style} fa-{icon} where style and icon are lowercase with single hyphens (e.g., 'fa-solid fa-rocket')",
 		}
 	}
@@ -98,7 +99,7 @@ func ValidateIcon(icon string) error {
 	// Unknown icon format
 	return &RequestError{
 		Status:  400,
-		Code:    "invalid_input",
+		Code:    errcode.InvalidInput,
 		Message: "Icon must be in Material Symbols format (material-symbols:name) or FontAwesome format (fa-style fa-icon)",
 	}
 }
@@ -115,7 +116,7 @@ func ValidateObjects(objects []string) error {
 	if len(objects) > MaxAddonObjects {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Objects array exceeds maximum size of %d (got %d)", MaxAddonObjects, len(objects)),
 		}
 	}
@@ -137,7 +138,7 @@ func ValidateObjects(objects []string) error {
 	if len(invalidObjects) > 0 {
 		return &RequestError{
 			Status: 400,
-			Code:   "invalid_input",
+			Code:   errcode.InvalidInput,
 			Message: fmt.Sprintf("Invalid object types: %s. Valid types: %s",
 				strings.Join(invalidObjects, ", "),
 				strings.Join(TMIObjectTypes, ", ")),
@@ -178,7 +179,7 @@ func ValidateUnicodeContent(value, fieldName string) error {
 	if unicodecheck.ContainsDangerousZeroWidthChars(normalizedValue) {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Field '%s' contains zero-width characters", fieldName),
 		}
 	}
@@ -186,7 +187,7 @@ func ValidateUnicodeContent(value, fieldName string) error {
 	if unicodecheck.ContainsBidiOverrides(normalizedValue) {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Field '%s' contains bidirectional text control characters", fieldName),
 		}
 	}
@@ -194,7 +195,7 @@ func ValidateUnicodeContent(value, fieldName string) error {
 	if unicodecheck.ContainsHangulFillers(normalizedValue) {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Field '%s' contains Hangul filler characters", fieldName),
 		}
 	}
@@ -205,7 +206,7 @@ func ValidateUnicodeContent(value, fieldName string) error {
 	if unicodecheck.HasExcessiveCombiningMarks(normalizedValue, 3) {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Field '%s' contains excessive combining diacritical marks", fieldName),
 		}
 	}
@@ -249,7 +250,7 @@ func ValidateAddonParameters(params []AddonParameter) error {
 	if len(params) > MaxAddonParameters {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameters array exceeds maximum size of %d (got %d)", MaxAddonParameters, len(params)),
 		}
 	}
@@ -261,7 +262,7 @@ func ValidateAddonParameters(params []AddonParameter) error {
 		if seen[nameLower] {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Duplicate parameter name: %s", p.Name),
 			}
 		}
@@ -282,21 +283,21 @@ func validateAddonParameter(p AddonParameter) error {
 	if p.Name == "" {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Parameter name is required",
 		}
 	}
 	if len(p.Name) > MaxAddonParameterNameLength {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter name '%s' exceeds maximum length of %d", p.Name, MaxAddonParameterNameLength),
 		}
 	}
 	if !addonParameterNamePattern.MatchString(p.Name) {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter name '%s' must start with a letter and contain only letters, digits, hyphens, and underscores", p.Name),
 		}
 	}
@@ -326,7 +327,7 @@ func validateAddonParameter(p AddonParameter) error {
 	default:
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' has invalid type: %s", p.Name, p.Type),
 		}
 	}
@@ -339,28 +340,28 @@ func rejectConstraintFields(p AddonParameter, typeName string) error {
 	if p.NumberMin != nil {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type '%s' must not have number_min", p.Name, typeName),
 		}
 	}
 	if p.NumberMax != nil {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type '%s' must not have number_max", p.Name, typeName),
 		}
 	}
 	if p.StringMaxLength != nil {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type '%s' must not have string_max_length", p.Name, typeName),
 		}
 	}
 	if p.StringValidationRegex != nil {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type '%s' must not have string_validation_regex", p.Name, typeName),
 		}
 	}
@@ -372,14 +373,14 @@ func validateEnumParameter(p AddonParameter) error {
 	if p.EnumValues == nil || len(*p.EnumValues) == 0 {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type 'enum' must have enum_values", p.Name),
 		}
 	}
 	if len(*p.EnumValues) > MaxAddonParameterEnumValues {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' enum_values exceeds maximum of %d", p.Name, MaxAddonParameterEnumValues),
 		}
 	}
@@ -387,14 +388,14 @@ func validateEnumParameter(p AddonParameter) error {
 		if v == "" {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Parameter '%s' enum_values[%d] must not be empty", p.Name, i),
 			}
 		}
 		if len(v) > MaxAddonParameterValueLength {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Parameter '%s' enum_values[%d] exceeds maximum length of %d", p.Name, i, MaxAddonParameterValueLength),
 			}
 		}
@@ -414,7 +415,7 @@ func validateEnumParameter(p AddonParameter) error {
 		if !found {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Parameter '%s' default_value '%s' is not in enum_values", p.Name, *p.DefaultValue),
 			}
 		}
@@ -422,7 +423,7 @@ func validateEnumParameter(p AddonParameter) error {
 	if p.MetadataKey != nil {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type 'enum' must not have metadata_key", p.Name),
 		}
 	}
@@ -437,7 +438,7 @@ func validateBooleanParameter(p AddonParameter) error {
 	if p.EnumValues != nil && len(*p.EnumValues) > 0 {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type 'boolean' must not have enum_values", p.Name),
 		}
 	}
@@ -445,7 +446,7 @@ func validateBooleanParameter(p AddonParameter) error {
 		if *p.DefaultValue != boolTrue && *p.DefaultValue != boolFalse {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Parameter '%s' of type 'boolean' default_value must be 'true' or 'false'", p.Name),
 			}
 		}
@@ -453,7 +454,7 @@ func validateBooleanParameter(p AddonParameter) error {
 	if p.MetadataKey != nil {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type 'boolean' must not have metadata_key", p.Name),
 		}
 	}
@@ -468,14 +469,14 @@ func validateStringParameter(p AddonParameter) error {
 	if p.EnumValues != nil && len(*p.EnumValues) > 0 {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type 'string' must not have enum_values", p.Name),
 		}
 	}
 	if p.MetadataKey != nil {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type 'string' must not have metadata_key", p.Name),
 		}
 	}
@@ -483,14 +484,14 @@ func validateStringParameter(p AddonParameter) error {
 	if p.NumberMin != nil {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type 'string' must not have number_min", p.Name),
 		}
 	}
 	if p.NumberMax != nil {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type 'string' must not have number_max", p.Name),
 		}
 	}
@@ -499,7 +500,7 @@ func validateStringParameter(p AddonParameter) error {
 		if *p.StringMaxLength < 1 || *p.StringMaxLength > MaxStringMaxLength {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Parameter '%s' string_max_length must be between 1 and %d", p.Name, MaxStringMaxLength),
 			}
 		}
@@ -509,7 +510,7 @@ func validateStringParameter(p AddonParameter) error {
 		if len(*p.StringValidationRegex) > MaxStringValidationRegexLength {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Parameter '%s' string_validation_regex exceeds maximum length of %d", p.Name, MaxStringValidationRegexLength),
 			}
 		}
@@ -517,7 +518,7 @@ func validateStringParameter(p AddonParameter) error {
 			if _, err := regexp.Compile(*p.StringValidationRegex); err != nil {
 				return &RequestError{
 					Status:  400,
-					Code:    "invalid_input",
+					Code:    errcode.InvalidInput,
 					Message: fmt.Sprintf("Parameter '%s' string_validation_regex is not a valid regular expression: %s", p.Name, err.Error()),
 				}
 			}
@@ -531,7 +532,7 @@ func validateStringParameter(p AddonParameter) error {
 		if p.StringMaxLength != nil && len(*p.DefaultValue) > *p.StringMaxLength {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Parameter '%s' default_value exceeds string_max_length of %d", p.Name, *p.StringMaxLength),
 			}
 		}
@@ -541,7 +542,7 @@ func validateStringParameter(p AddonParameter) error {
 			if err == nil && !re.MatchString(*p.DefaultValue) {
 				return &RequestError{
 					Status:  400,
-					Code:    "invalid_input",
+					Code:    errcode.InvalidInput,
 					Message: fmt.Sprintf("Parameter '%s' default_value does not match string_validation_regex", p.Name),
 				}
 			}
@@ -555,14 +556,14 @@ func validateNumberParameter(p AddonParameter) error {
 	if p.EnumValues != nil && len(*p.EnumValues) > 0 {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type 'number' must not have enum_values", p.Name),
 		}
 	}
 	if p.MetadataKey != nil {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type 'number' must not have metadata_key", p.Name),
 		}
 	}
@@ -570,14 +571,14 @@ func validateNumberParameter(p AddonParameter) error {
 	if p.StringMaxLength != nil {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type 'number' must not have string_max_length", p.Name),
 		}
 	}
 	if p.StringValidationRegex != nil {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type 'number' must not have string_validation_regex", p.Name),
 		}
 	}
@@ -585,7 +586,7 @@ func validateNumberParameter(p AddonParameter) error {
 	if p.NumberMin != nil && p.NumberMax != nil && *p.NumberMin > *p.NumberMax {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' number_min (%g) must not exceed number_max (%g)", p.Name, *p.NumberMin, *p.NumberMax),
 		}
 	}
@@ -594,21 +595,21 @@ func validateNumberParameter(p AddonParameter) error {
 		if err != nil {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Parameter '%s' of type 'number' default_value must be a valid number", p.Name),
 			}
 		}
 		if p.NumberMin != nil && defVal < float64(*p.NumberMin) {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Parameter '%s' default_value %s is below number_min (%g)", p.Name, *p.DefaultValue, *p.NumberMin),
 			}
 		}
 		if p.NumberMax != nil && defVal > float64(*p.NumberMax) {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Parameter '%s' default_value %s exceeds number_max (%g)", p.Name, *p.DefaultValue, *p.NumberMax),
 			}
 		}
@@ -621,28 +622,28 @@ func validateMetadataKeyParameter(p AddonParameter) error {
 	if p.MetadataKey == nil || *p.MetadataKey == "" {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type 'metadata_key' must have metadata_key field set", p.Name),
 		}
 	}
 	if len(*p.MetadataKey) > MaxAddonParameterMetadataKeyLength {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' metadata_key exceeds maximum length of %d", p.Name, MaxAddonParameterMetadataKeyLength),
 		}
 	}
 	if !metadataKeyPattern.MatchString(*p.MetadataKey) {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' metadata_key must match pattern: alphanumeric, underscores, dots, slashes, colons, hyphens", p.Name),
 		}
 	}
 	if p.EnumValues != nil && len(*p.EnumValues) > 0 {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' of type 'metadata_key' must not have enum_values", p.Name),
 		}
 	}
@@ -668,14 +669,14 @@ func ValidateInvocationData(data map[string]interface{}, params []AddonParameter
 		if data == nil {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Required parameter '%s' is missing", p.Name),
 			}
 		}
 		if _, ok := data[p.Name]; !ok {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Required parameter '%s' is missing", p.Name),
 			}
 		}
@@ -716,7 +717,7 @@ func validateInvocationValue(p AddonParameter, value interface{}) error {
 		if !ok {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Parameter '%s' must be a string", p.Name),
 			}
 		}
@@ -731,7 +732,7 @@ func validateInvocationValue(p AddonParameter, value interface{}) error {
 			if !found {
 				return &RequestError{
 					Status:  400,
-					Code:    "invalid_input",
+					Code:    errcode.InvalidInput,
 					Message: fmt.Sprintf("Parameter '%s' value '%s' is not in allowed values", p.Name, strVal),
 				}
 			}
@@ -745,14 +746,14 @@ func validateInvocationValue(p AddonParameter, value interface{}) error {
 			if v != boolTrue && v != boolFalse {
 				return &RequestError{
 					Status:  400,
-					Code:    "invalid_input",
+					Code:    errcode.InvalidInput,
 					Message: fmt.Sprintf("Parameter '%s' must be 'true' or 'false'", p.Name),
 				}
 			}
 		default:
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Parameter '%s' must be a boolean or string 'true'/'false'", p.Name),
 			}
 		}
@@ -774,14 +775,14 @@ func validateInvocationStringValue(p AddonParameter, value interface{}) error {
 	if !ok {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' must be a string", p.Name),
 		}
 	}
 	if p.StringMaxLength != nil && len(strVal) > *p.StringMaxLength {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' value exceeds maximum length of %d", p.Name, *p.StringMaxLength),
 		}
 	}
@@ -790,7 +791,7 @@ func validateInvocationStringValue(p AddonParameter, value interface{}) error {
 		if err == nil && !re.MatchString(strVal) {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Parameter '%s' value does not match validation pattern", p.Name),
 			}
 		}
@@ -816,7 +817,7 @@ func validateInvocationNumberValue(p AddonParameter, value interface{}) error {
 		if err != nil {
 			return &RequestError{
 				Status:  400,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Parameter '%s' must be a valid number", p.Name),
 			}
 		}
@@ -824,21 +825,21 @@ func validateInvocationNumberValue(p AddonParameter, value interface{}) error {
 	default:
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' must be a number", p.Name),
 		}
 	}
 	if p.NumberMin != nil && numVal < float64(*p.NumberMin) {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' value %g is below minimum of %g", p.Name, numVal, *p.NumberMin),
 		}
 	}
 	if p.NumberMax != nil && numVal > float64(*p.NumberMax) {
 		return &RequestError{
 			Status:  400,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: fmt.Sprintf("Parameter '%s' value %g exceeds maximum of %g", p.Name, numVal, *p.NumberMax),
 		}
 	}

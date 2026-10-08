@@ -7,6 +7,7 @@ import (
 
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -136,7 +137,7 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 	if !exists {
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Authentication required")
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "User not authenticated - no provider in context",
 		})
 		return
@@ -145,7 +146,7 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 	if !ok || provider == "" {
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication token")
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "Invalid provider context",
 		})
 		return
@@ -155,7 +156,7 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 	if !exists {
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Authentication required")
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "User not authenticated - no provider user ID in context",
 		})
 		return
@@ -164,7 +165,7 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 	if !ok || providerUserID == "" {
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication token")
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "Invalid user context",
 		})
 		return
@@ -174,7 +175,7 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 	if a.service == nil {
 		slogging.Get().WithContext(c).Error("AuthServiceAdapter: Auth service not available for user lookup (provider: %s, provider_user_id: %s)", provider, providerUserID)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Auth service unavailable",
 		})
 		return
@@ -185,7 +186,7 @@ func (a *AuthServiceAdapter) Me(c *gin.Context) {
 	if err != nil {
 		slogging.Get().WithContext(c).Warn("AuthServiceAdapter: User not found by provider ID (provider: %s, provider_user_id: %s): %v", provider, providerUserID, err)
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "User not found",
 		})
 		return

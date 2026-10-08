@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/ericfitz/tmi/internal/unicodecheck"
 	"github.com/gin-gonic/gin"
@@ -206,7 +207,7 @@ func ContentTypeValidationMiddleware() gin.HandlerFunc {
 			logger.Warn("Unsupported Content-Type: %s for %s %s", contentType, c.Request.Method, c.Request.URL.Path)
 			c.Header("Accept", "application/json")
 			c.JSON(http.StatusUnsupportedMediaType, Error{
-				Error:            "unsupported_media_type",
+				Error:            ErrorError(errcode.UnsupportedMediaType),
 				ErrorDescription: "The Content-Type header specifies an unsupported media type",
 			})
 			c.Abort()
@@ -396,7 +397,7 @@ func StrictJSONValidationMiddleware() gin.HandlerFunc {
 		if err := decoder.Decode(&temp); err != nil {
 			logger.Warn("Invalid JSON syntax: %v", err)
 			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_input",
+				Error:            ErrorError(errcode.InvalidInput),
 				ErrorDescription: "Request body contains invalid JSON syntax",
 			})
 			c.Abort()
@@ -408,7 +409,7 @@ func StrictJSONValidationMiddleware() gin.HandlerFunc {
 		if decoder.More() {
 			logger.Warn("JSON contains trailing garbage after valid value")
 			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_input",
+				Error:            ErrorError(errcode.InvalidInput),
 				ErrorDescription: "Request body contains invalid JSON: unexpected content after JSON value",
 			})
 			c.Abort()
@@ -420,7 +421,7 @@ func StrictJSONValidationMiddleware() gin.HandlerFunc {
 		if len(bytes.TrimSpace(remaining)) > 0 {
 			logger.Warn("JSON contains trailing content: %q", remaining)
 			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_input",
+				Error:            ErrorError(errcode.InvalidInput),
 				ErrorDescription: "Request body contains invalid JSON: unexpected content after JSON value",
 			})
 			c.Abort()
@@ -431,7 +432,7 @@ func StrictJSONValidationMiddleware() gin.HandlerFunc {
 		if err := validateNoDuplicateKeys(bodyBytes); err != nil {
 			logger.Warn("JSON contains duplicate keys: %v", err)
 			c.JSON(http.StatusBadRequest, Error{
-				Error:            "invalid_input",
+				Error:            ErrorError(errcode.InvalidInput),
 				ErrorDescription: err.Error(),
 			})
 			c.Abort()

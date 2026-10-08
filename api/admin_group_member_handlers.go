@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	repository "github.com/ericfitz/tmi/auth/repository"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -75,7 +76,7 @@ func (s *Server) ListGroupMembers(c *gin.Context, internalUuid openapi_types.UUI
 		logger.Error("Failed to list group members: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to list group members",
 		})
 		return
@@ -259,7 +260,7 @@ func (s *Server) RemoveGroupMember(c *gin.Context, internalUuid openapi_types.UU
 		case errors.Is(err, ErrEveryoneGroup):
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusForbidden,
-				Code:    "forbidden",
+				Code:    errcode.Forbidden,
 				Message: "Cannot remove members from the 'everyone' pseudo-group",
 			})
 		default:
@@ -294,7 +295,7 @@ func (s *Server) handleGroupMemberError(c *gin.Context, logger *slogging.Context
 	case errors.Is(err, ErrEveryoneGroup):
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusForbidden,
-			Code:    "forbidden",
+			Code:    errcode.Forbidden,
 			Message: "Cannot add members to the 'everyone' pseudo-group",
 		})
 	case errors.Is(err, ErrSelfMembership):

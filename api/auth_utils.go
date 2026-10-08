@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -72,7 +73,7 @@ func ValidateDuplicateSubjects(authList []Authorization) error {
 			}
 			return &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Duplicate authorization subject: %s", displaySubject),
 			}
 		}
@@ -302,7 +303,7 @@ func ValidateAuthorizationEntries(authList []Authorization) error {
 		if auth.ProviderId == "" {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: "Authorization subject cannot be empty",
 			}
 		}
@@ -383,7 +384,7 @@ func ValidateAuthorizationEntriesWithFormat(authList []Authorization) error {
 		if auth.ProviderId == "" {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Authorization subject at index %d cannot be empty", i),
 			}
 		}
@@ -391,7 +392,7 @@ func ValidateAuthorizationEntriesWithFormat(authList []Authorization) error {
 		if len(auth.ProviderId) > 255 {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Authorization subject '%s' exceeds maximum length of 255 characters", auth.ProviderId),
 			}
 		}
@@ -400,7 +401,7 @@ func ValidateAuthorizationEntriesWithFormat(authList []Authorization) error {
 		if auth.Role != RoleReader && auth.Role != RoleWriter && auth.Role != RoleOwner {
 			return &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: fmt.Sprintf("Invalid role '%s' for subject '%s'. Must be one of: reader, writer, owner", auth.Role, auth.ProviderId),
 			}
 		}
@@ -800,7 +801,7 @@ func ExtractAuthData(resource any) (AuthorizationData, error) {
 	// If no data available, return error
 	return authData, &RequestError{
 		Status:  http.StatusInternalServerError,
-		Code:    "server_error",
+		Code:    errcode.ServerError,
 		Message: "Unable to extract authorization data from resource",
 	}
 }

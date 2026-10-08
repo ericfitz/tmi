@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -48,13 +49,13 @@ func CustomRecoveryMiddleware() gin.HandlerFunc {
 				if isDevelopment {
 					// In development, provide more details (but still no full stack trace)
 					errorResponse = Error{
-						Error:            "internal_server_error",
+						Error:            ErrorError(errcode.ServerError),
 						ErrorDescription: fmt.Sprintf("Server panic: %v", err),
 					}
 				} else {
 					// In production, provide minimal information
 					errorResponse = Error{
-						Error:            "internal_server_error",
+						Error:            ErrorError(errcode.ServerError),
 						ErrorDescription: "An unexpected error occurred. Please try again later.",
 					}
 				}

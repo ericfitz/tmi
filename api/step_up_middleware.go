@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -51,7 +52,7 @@ func StepUpMiddleware(window time.Duration, table StepUpRouteTable) gin.HandlerF
 				maxAgeSeconds)
 			c.Header("WWW-Authenticate", challenge)
 			c.JSON(http.StatusUnauthorized, Error{
-				Error:            "insufficient_user_authentication",
+				Error:            ErrorError(errcode.InsufficientUserAuthentication),
 				ErrorDescription: "Recent re-authentication required",
 			})
 			c.Abort()

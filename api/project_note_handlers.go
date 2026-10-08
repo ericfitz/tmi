@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -59,7 +60,7 @@ func requireProjectTeamMemberOrAdmin(
 	}
 	if !authorized {
 		c.JSON(http.StatusForbidden, Error{
-			Error: "forbidden",
+			Error: ErrorError(errcode.Forbidden),
 			ErrorDescription: "You must be a project team member or administrator to " +
 				action + " project notes",
 		})
@@ -156,7 +157,7 @@ func (s *Server) CreateProjectNote(c *gin.Context, projectId openapi_types.UUID)
 	// Sharable field rules
 	if !privileged && req.Sharable != nil {
 		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
+			Error:            ErrorError(errcode.Forbidden),
 			ErrorDescription: "Only administrators and security reviewers can set the sharable field",
 		})
 		return
@@ -221,7 +222,7 @@ func (s *Server) GetProjectNote(c *gin.Context, projectId openapi_types.UUID, pr
 	// Non-privileged users cannot see non-sharable notes (return 404 to hide existence)
 	if !isPrivilegedUser(c) && note.Sharable != nil && !*note.Sharable {
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Project note not found",
 		})
 		return
@@ -259,7 +260,7 @@ func (s *Server) UpdateProjectNote(c *gin.Context, projectId openapi_types.UUID,
 	// Non-privileged users cannot update non-sharable notes (return 404 to hide existence)
 	if !privileged && existing.Sharable != nil && !*existing.Sharable {
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Project note not found",
 		})
 		return
@@ -275,7 +276,7 @@ func (s *Server) UpdateProjectNote(c *gin.Context, projectId openapi_types.UUID,
 	// Non-privileged users cannot set the sharable field
 	if !privileged && req.Sharable != nil {
 		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
+			Error:            ErrorError(errcode.Forbidden),
 			ErrorDescription: "Only administrators and security reviewers can set the sharable field",
 		})
 		return
@@ -343,7 +344,7 @@ func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, 
 	// Non-privileged users cannot patch non-sharable notes (return 404 to hide existence)
 	if !privileged && existing.Sharable != nil && !*existing.Sharable {
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Project note not found",
 		})
 		return
@@ -360,7 +361,7 @@ func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, 
 		for _, op := range operations {
 			if op.Path == "/sharable" {
 				c.JSON(http.StatusForbidden, Error{
-					Error:            "forbidden",
+					Error:            ErrorError(errcode.Forbidden),
 					ErrorDescription: "Only administrators and security reviewers can modify the sharable field",
 				})
 				return
@@ -407,7 +408,7 @@ func (s *Server) DeleteProjectNote(c *gin.Context, projectId openapi_types.UUID,
 	// Non-privileged users cannot delete non-sharable notes (return 404 to hide existence)
 	if !isPrivilegedUser(c) && existing.Sharable != nil && !*existing.Sharable {
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Project note not found",
 		})
 		return

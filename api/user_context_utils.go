@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,7 +17,7 @@ func GetUserFromContext(c *gin.Context) (*auth.User, error) {
 	if !exists {
 		return nil, &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Authentication required",
 		}
 	}
@@ -25,7 +26,7 @@ func GetUserFromContext(c *gin.Context) (*auth.User, error) {
 	if !ok {
 		return nil, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to retrieve user from context",
 		}
 	}
@@ -46,7 +47,7 @@ func GetUserInternalUUID(c *gin.Context) (string, error) {
 		// Context key exists but value is invalid - authentication is corrupted
 		return "", &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Invalid authentication state - please re-authenticate",
 		}
 	}
@@ -61,7 +62,7 @@ func GetUserInternalUUID(c *gin.Context) (string, error) {
 		// User object exists but UUID is empty - authentication is incomplete
 		return "", &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Authentication incomplete - please re-authenticate",
 		}
 	}
@@ -78,7 +79,7 @@ func GetUserEmail(c *gin.Context) (string, error) {
 	if !exists {
 		return "", &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Authentication required",
 		}
 	}
@@ -88,7 +89,7 @@ func GetUserEmail(c *gin.Context) (string, error) {
 		// Context key exists but value is invalid - authentication is corrupted
 		return "", &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Invalid authentication state - please re-authenticate",
 		}
 	}
@@ -108,7 +109,7 @@ func GetUserProvider(c *gin.Context) (string, error) {
 		if !exists {
 			return "", &RequestError{
 				Status:  http.StatusUnauthorized,
-				Code:    "unauthorized",
+				Code:    errcode.Unauthorized,
 				Message: "Authentication required",
 			}
 		}
@@ -119,7 +120,7 @@ func GetUserProvider(c *gin.Context) (string, error) {
 		// Context key exists but value is invalid - authentication is corrupted
 		return "", &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Invalid authentication state - please re-authenticate",
 		}
 	}
@@ -136,7 +137,7 @@ func GetUserProviderID(c *gin.Context) (string, error) {
 	if !exists {
 		return "", &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Authentication required",
 		}
 	}
@@ -146,7 +147,7 @@ func GetUserProviderID(c *gin.Context) (string, error) {
 		// Context key exists but value is invalid - authentication is corrupted
 		return "", &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "Invalid authentication state - please re-authenticate",
 		}
 	}

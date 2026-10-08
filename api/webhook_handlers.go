@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -106,7 +107,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 			quota := GlobalWebhookQuotaStore.GetOrDefault(c.Request.Context(), userID)
 			c.Header("Retry-After", "60")
 			c.JSON(http.StatusTooManyRequests, Error{
-				Error:            "rate_limit_exceeded",
+				Error:            ErrorError(errcode.RateLimitExceeded),
 				ErrorDescription: fmt.Sprintf("%v (limit: %d)", err, quota.MaxSubscriptions),
 			})
 			return
@@ -119,7 +120,7 @@ func (s *Server) CreateWebhookSubscription(c *gin.Context) {
 			quota := GlobalWebhookQuotaStore.GetOrDefault(c.Request.Context(), userID)
 			c.Header("Retry-After", "60")
 			c.JSON(http.StatusTooManyRequests, Error{
-				Error:            "rate_limit_exceeded",
+				Error:            ErrorError(errcode.RateLimitExceeded),
 				ErrorDescription: fmt.Sprintf("%v (limit: %d/minute)", err, quota.MaxSubscriptionRequestsPerMinute),
 			})
 			return
@@ -296,7 +297,7 @@ func (s *Server) PatchAdminWebhookSubscription(c *gin.Context, webhookId openapi
 		logger.Error("webhook subscription store not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusServiceUnavailable,
-			Code:    "service_unavailable",
+			Code:    errcode.ServiceUnavailable,
 			Message: "Webhook subscriptions are not available",
 		})
 		return
@@ -307,7 +308,7 @@ func (s *Server) PatchAdminWebhookSubscription(c *gin.Context, webhookId openapi
 		logger.Error("failed to get subscription %s: %v", webhookId, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Subscription not found",
 		})
 		return
@@ -318,7 +319,7 @@ func (s *Server) PatchAdminWebhookSubscription(c *gin.Context, webhookId openapi
 	if existing.OperatorPinned {
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusForbidden,
-			Code:    "forbidden",
+			Code:    errcode.Forbidden,
 			Message: "Operator-pinned subscription is managed by server configuration and cannot be modified through the API",
 		})
 		return
@@ -374,7 +375,7 @@ func (s *Server) PatchAdminWebhookSubscription(c *gin.Context, webhookId openapi
 		if errors.Is(err, ErrWebhookNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: "Subscription not found",
 			})
 			return
@@ -388,7 +389,7 @@ func (s *Server) PatchAdminWebhookSubscription(c *gin.Context, webhookId openapi
 		logger.Error("failed to update subscription %s: %v", webhookId, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to update subscription",
 		})
 		return
@@ -399,7 +400,7 @@ func (s *Server) PatchAdminWebhookSubscription(c *gin.Context, webhookId openapi
 		logger.Error("failed to re-read subscription %s after update: %v", webhookId, err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to update subscription",
 		})
 		return

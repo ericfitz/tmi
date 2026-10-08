@@ -8,6 +8,7 @@ import (
 	"github.com/ericfitz/tmi/api/models"
 	authdb "github.com/ericfitz/tmi/auth/db"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -48,7 +49,7 @@ func AuthzMiddleware() gin.HandlerFunc {
 		slogging.Get().Error("AuthzMiddleware: failed to load AuthzTable: %v", err)
 		return func(c *gin.Context) {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, Error{
-				Error:            "server_error",
+				Error:            ErrorError(errcode.ServerError),
 				ErrorDescription: "Authorization table not initialized",
 			})
 		}
@@ -160,7 +161,7 @@ func enforceSubjectAuthority(c *gin.Context, sa SubjectAuthority) bool {
 			)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusForbidden,
-				Code:    "forbidden",
+				Code:    errcode.Forbidden,
 				Message: "service account credentials cannot be used here; addon write-backs must use the delegation token from X-TMI-Delegation-Token",
 			})
 			return false
@@ -175,7 +176,7 @@ func enforceSubjectAuthority(c *gin.Context, sa SubjectAuthority) bool {
 			)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusForbidden,
-				Code:    "forbidden",
+				Code:    errcode.Forbidden,
 				Message: "this endpoint requires service-account credentials",
 			})
 			return false
@@ -233,7 +234,7 @@ func checkAuthzRoles(c *gin.Context, roles []AuthzRoleName) bool {
 	// already written a 401/403.
 	HandleRequestError(c, &RequestError{
 		Status:  http.StatusForbidden,
-		Code:    "forbidden",
+		Code:    errcode.Forbidden,
 		Message: "Access denied",
 	})
 	return false
@@ -289,7 +290,7 @@ func enforceOwnership(c *gin.Context, ownership Ownership) bool {
 			c.Request.Method, c.Request.URL.Path)
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "No authentication token provided")
 		c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "Authentication required",
 		})
 		return false
@@ -300,7 +301,7 @@ func enforceOwnership(c *gin.Context, ownership Ownership) bool {
 			c.Request.Method, c.Request.URL.Path)
 		SetWWWAuthenticateHeader(c, WWWAuthInvalidToken, "Invalid authentication token")
 		c.AbortWithStatusJSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "Invalid authentication",
 		})
 		return false
@@ -320,7 +321,7 @@ func enforceOwnership(c *gin.Context, ownership Ownership) bool {
 		logger.Error("AuthzMiddleware: ThreatModelStore not initialized")
 		c.Header("Retry-After", "30")
 		c.AbortWithStatusJSON(http.StatusServiceUnavailable, Error{
-			Error:            "service_unavailable",
+			Error:            ErrorError(errcode.ServiceUnavailable),
 			ErrorDescription: "Storage service temporarily unavailable - please retry",
 		})
 		return false
@@ -341,7 +342,7 @@ func enforceOwnership(c *gin.Context, ownership Ownership) bool {
 	if err != nil {
 		logger.Debug("AuthzMiddleware: threat model not found %s: %v", tmID, err)
 		c.AbortWithStatusJSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Threat model not found",
 		})
 		return false
@@ -359,7 +360,7 @@ func enforceOwnership(c *gin.Context, ownership Ownership) bool {
 		logger.Warn("AuthzMiddleware: access denied for user %s (role=%q, required=%q) on %s %s",
 			userEmail, userRole, requiredRole, c.Request.Method, c.Request.URL.Path)
 		c.AbortWithStatusJSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
+			Error:            ErrorError(errcode.Forbidden),
 			ErrorDescription: "You don't have sufficient permissions to perform this action",
 		})
 		return false
@@ -513,7 +514,7 @@ func enforceChildParentage(c *gin.Context) bool {
 			c.Request.Method, path, err)
 		c.Header("Retry-After", "30")
 		c.AbortWithStatusJSON(http.StatusServiceUnavailable, Error{
-			Error:            "service_unavailable",
+			Error:            ErrorError(errcode.ServiceUnavailable),
 			ErrorDescription: "Storage service temporarily unavailable - please retry",
 		})
 		return false
@@ -522,7 +523,7 @@ func enforceChildParentage(c *gin.Context) bool {
 		logger.Warn("AuthzMiddleware: %s %s not in threat model %s (404 for %s %s)",
 			family, childID, tmID, c.Request.Method, path)
 		c.AbortWithStatusJSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: fam.singular + " not found",
 		})
 		return false

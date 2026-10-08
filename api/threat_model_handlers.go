@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -1062,7 +1063,7 @@ func parseThreatModelFilters(c *gin.Context) (*ThreatModelFilters, error) {
 		if !isAdmin {
 			return nil, &RequestError{
 				Status:  http.StatusForbidden,
-				Code:    "forbidden",
+				Code:    errcode.Forbidden,
 				Message: "The include_deleted parameter requires admin role",
 			}
 		}
@@ -1227,7 +1228,7 @@ func (h *ThreatModelHandler) getExistingThreatModel(c *gin.Context, id string) (
 	if err != nil {
 		return zero, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Threat model not found",
 		}
 	}

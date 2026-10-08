@@ -12,6 +12,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/ericfitz/tmi/auth"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 )
 
@@ -27,7 +28,7 @@ func (s *Server) ListMyIdentities(c *gin.Context) {
 	if IsServiceAccountRequest(c) {
 		logger.Warn("Service account attempted to list identities: %s", GetUserIdentityForLogging(c))
 		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
+			Error:            ErrorError(errcode.Forbidden),
 			ErrorDescription: "Service accounts cannot list identities",
 		})
 		return
@@ -37,7 +38,7 @@ func (s *Server) ListMyIdentities(c *gin.Context) {
 	if userUUID == "" {
 		logger.Warn("ListMyIdentities: userInternalUUID not in context")
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "Authentication required",
 		})
 		return
@@ -51,7 +52,7 @@ func (s *Server) ListMyIdentities(c *gin.Context) {
 	if s.linkedIdentityStore == nil {
 		logger.Error("ListMyIdentities: linkedIdentityStore not wired")
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Identity store not available",
 		})
 		return
@@ -127,7 +128,7 @@ func (s *Server) DeleteMyIdentity(c *gin.Context, id openapi_types.UUID) {
 	if IsServiceAccountRequest(c) {
 		logger.Warn("Service account attempted to unlink identity: %s", GetUserIdentityForLogging(c))
 		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
+			Error:            ErrorError(errcode.Forbidden),
 			ErrorDescription: "Service accounts cannot unlink identities",
 		})
 		return
@@ -137,7 +138,7 @@ func (s *Server) DeleteMyIdentity(c *gin.Context, id openapi_types.UUID) {
 	if userUUID == "" {
 		logger.Warn("DeleteMyIdentity: userInternalUUID not in context")
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "Authentication required",
 		})
 		return
@@ -146,7 +147,7 @@ func (s *Server) DeleteMyIdentity(c *gin.Context, id openapi_types.UUID) {
 	if s.linkedIdentityStore == nil {
 		logger.Error("DeleteMyIdentity: linkedIdentityStore not wired")
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Identity store not available",
 		})
 		return
@@ -173,7 +174,7 @@ func (s *Server) DeleteMyIdentity(c *gin.Context, id openapi_types.UUID) {
 	if err := s.linkedIdentityStore.Delete(ctx, idStr, userUUID); err != nil {
 		if errors.Is(err, auth.ErrLinkedIdentityNotFound) {
 			c.JSON(http.StatusNotFound, Error{
-				Error:            "not_found",
+				Error:            ErrorError(errcode.NotFound),
 				ErrorDescription: "Linked identity not found",
 			})
 			return

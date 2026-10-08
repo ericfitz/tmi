@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -45,7 +46,7 @@ func requireTeamMemberOrAdmin(
 	}
 	if !authorized {
 		c.JSON(http.StatusForbidden, Error{
-			Error: "forbidden",
+			Error: ErrorError(errcode.Forbidden),
 			ErrorDescription: "You must be a team member or administrator to " +
 				action + " team notes",
 		})
@@ -153,7 +154,7 @@ func (s *Server) CreateTeamNote(c *gin.Context, teamId openapi_types.UUID) {
 	// Sharable field rules
 	if !privileged && req.Sharable != nil {
 		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
+			Error:            ErrorError(errcode.Forbidden),
 			ErrorDescription: "Only administrators and security reviewers can set the sharable field",
 		})
 		return
@@ -218,7 +219,7 @@ func (s *Server) GetTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNote
 	// Non-privileged users cannot see non-sharable notes (return 404 to hide existence)
 	if !isPrivilegedUser(c) && note.Sharable != nil && !*note.Sharable {
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Team note not found",
 		})
 		return
@@ -256,7 +257,7 @@ func (s *Server) UpdateTeamNote(c *gin.Context, teamId openapi_types.UUID, teamN
 	// Non-privileged users cannot update non-sharable notes (return 404 to hide existence)
 	if !privileged && existing.Sharable != nil && !*existing.Sharable {
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Team note not found",
 		})
 		return
@@ -272,7 +273,7 @@ func (s *Server) UpdateTeamNote(c *gin.Context, teamId openapi_types.UUID, teamN
 	// Non-privileged users cannot set the sharable field
 	if !privileged && req.Sharable != nil {
 		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
+			Error:            ErrorError(errcode.Forbidden),
 			ErrorDescription: "Only administrators and security reviewers can set the sharable field",
 		})
 		return
@@ -340,7 +341,7 @@ func (s *Server) PatchTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNo
 	// Non-privileged users cannot patch non-sharable notes (return 404 to hide existence)
 	if !privileged && existing.Sharable != nil && !*existing.Sharable {
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Team note not found",
 		})
 		return
@@ -357,7 +358,7 @@ func (s *Server) PatchTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNo
 		for _, op := range operations {
 			if op.Path == "/sharable" {
 				c.JSON(http.StatusForbidden, Error{
-					Error:            "forbidden",
+					Error:            ErrorError(errcode.Forbidden),
 					ErrorDescription: "Only administrators and security reviewers can modify the sharable field",
 				})
 				return
@@ -404,7 +405,7 @@ func (s *Server) DeleteTeamNote(c *gin.Context, teamId openapi_types.UUID, teamN
 	// Non-privileged users cannot delete non-sharable notes (return 404 to hide existence)
 	if !isPrivilegedUser(c) && existing.Sharable != nil && !*existing.Sharable {
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "Team note not found",
 		})
 		return

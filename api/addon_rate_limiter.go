@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/auth/db"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
@@ -108,7 +109,7 @@ func (rl *AddonRateLimiter) CheckActiveInvocationLimit(ctx context.Context, user
 
 		return &RequestError{
 			Status:  429,
-			Code:    "rate_limit_exceeded",
+			Code:    errcode.RateLimitExceeded,
 			Message: fmt.Sprintf("Active invocation limit reached: %d/%d concurrent invocations.", len(activeDeliveries), quota.MaxActiveInvocations),
 			Details: &ErrorDetails{
 				Context: map[string]any{
@@ -173,7 +174,7 @@ func (rl *AddonRateLimiter) CheckHourlyRateLimit(ctx context.Context, userID uui
 
 		return &RequestError{
 			Status:  429,
-			Code:    "rate_limit_exceeded",
+			Code:    errcode.RateLimitExceeded,
 			Message: fmt.Sprintf("Hourly invocation limit exceeded: %d/%d. Retry after %d seconds.", count, quota.MaxInvocationsPerHour, retryAfter),
 			Details: &ErrorDetails{
 				Context: map[string]any{

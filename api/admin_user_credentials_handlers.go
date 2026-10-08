@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -31,7 +32,7 @@ func (s *Server) getAutomationUser(c *gin.Context, internalUuid openapi_types.UU
 	if err != nil {
 		logger.Warn("Admin client credentials: user not found: %s", internalUuid)
 		c.JSON(http.StatusNotFound, Error{
-			Error:            "not_found",
+			Error:            ErrorError(errcode.NotFound),
 			ErrorDescription: "User not found",
 		})
 		return nil
@@ -40,7 +41,7 @@ func (s *Server) getAutomationUser(c *gin.Context, internalUuid openapi_types.UU
 	if user.Automation == nil || !*user.Automation {
 		logger.Warn("Admin client credentials: user %s is not an automation account", internalUuid)
 		c.JSON(http.StatusForbidden, Error{
-			Error:            "forbidden",
+			Error:            ErrorError(errcode.Forbidden),
 			ErrorDescription: "Client credentials management via admin API is only available for automation accounts",
 		})
 		return nil
@@ -75,7 +76,7 @@ func (s *Server) ListAdminUserClientCredentials(c *gin.Context, internalUuid ope
 		logger.Error("Failed to get auth service adapter")
 		c.Header("Retry-After", "30")
 		c.JSON(http.StatusServiceUnavailable, Error{
-			Error:            "service_unavailable",
+			Error:            ErrorError(errcode.ServiceUnavailable),
 			ErrorDescription: "Authentication service temporarily unavailable - please retry",
 		})
 		return
@@ -93,14 +94,14 @@ func (s *Server) ListAdminUserClientCredentials(c *gin.Context, internalUuid ope
 			logger.Warn("Transient DB error listing client credentials for user %s: %v", internalUuid, err)
 			c.Header("Retry-After", "30")
 			c.JSON(http.StatusServiceUnavailable, Error{
-				Error:            "service_unavailable",
+				Error:            ErrorError(errcode.ServiceUnavailable),
 				ErrorDescription: "Database temporarily unavailable, please retry",
 			})
 			return
 		}
 		logger.Error("Unexpected error listing client credentials for user %s: %v", internalUuid, err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to list client credentials",
 		})
 		return
@@ -203,7 +204,7 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 		if err != nil {
 			logger.Error("Failed to check Administrators membership for automation user %s: %v", internalUuid, err)
 			c.JSON(http.StatusInternalServerError, Error{
-				Error:            "server_error",
+				Error:            ErrorError(errcode.ServerError),
 				ErrorDescription: "Failed to create client credential",
 			})
 			return
@@ -224,7 +225,7 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 		logger.Error("Failed to get auth service adapter")
 		c.Header("Retry-After", "30")
 		c.JSON(http.StatusServiceUnavailable, Error{
-			Error:            "service_unavailable",
+			Error:            ErrorError(errcode.ServiceUnavailable),
 			ErrorDescription: "Authentication service temporarily unavailable - please retry",
 		})
 		return
@@ -253,7 +254,7 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 		if errors.Is(err, dberrors.ErrDuplicate) || errors.Is(err, dberrors.ErrConstraint) {
 			logger.Warn("Client credential creation failed due to constraint: %v", err)
 			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
+				Error:            ErrorError(errcode.Conflict),
 				ErrorDescription: "A client credential with these details already exists",
 			})
 			return
@@ -262,14 +263,14 @@ func (s *Server) CreateAdminUserClientCredential(c *gin.Context, internalUuid op
 			logger.Warn("Transient DB error creating client credential for user %s: %v", internalUuid, err)
 			c.Header("Retry-After", "30")
 			c.JSON(http.StatusServiceUnavailable, Error{
-				Error:            "service_unavailable",
+				Error:            ErrorError(errcode.ServiceUnavailable),
 				ErrorDescription: "Database temporarily unavailable, please retry",
 			})
 			return
 		}
 		logger.Error("Unexpected error creating client credential for user %s: %v", internalUuid, err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to create client credential",
 		})
 		return
@@ -312,7 +313,7 @@ func (s *Server) DeleteAdminUserClientCredential(c *gin.Context, internalUuid op
 			logger.Error("Failed to get auth service adapter")
 			c.Header("Retry-After", "30")
 			c.JSON(http.StatusServiceUnavailable, Error{
-				Error:            "service_unavailable",
+				Error:            ErrorError(errcode.ServiceUnavailable),
 				ErrorDescription: "Authentication service temporarily unavailable - please retry",
 			})
 			return
@@ -329,7 +330,7 @@ func (s *Server) DeleteAdminUserClientCredential(c *gin.Context, internalUuid op
 		if errors.Is(err, dberrors.ErrNotFound) {
 			logger.Warn("Client credential not found or unauthorized: user=%s, credential=%s: %v", internalUuid, credentialId, err)
 			c.JSON(http.StatusNotFound, Error{
-				Error:            "not_found",
+				Error:            ErrorError(errcode.NotFound),
 				ErrorDescription: "Client credential not found",
 			})
 			return
@@ -338,14 +339,14 @@ func (s *Server) DeleteAdminUserClientCredential(c *gin.Context, internalUuid op
 			logger.Warn("Transient DB error deleting client credential %s for user %s: %v", credentialId, internalUuid, err)
 			c.Header("Retry-After", "30")
 			c.JSON(http.StatusServiceUnavailable, Error{
-				Error:            "service_unavailable",
+				Error:            ErrorError(errcode.ServiceUnavailable),
 				ErrorDescription: "Database temporarily unavailable, please retry",
 			})
 			return
 		}
 		logger.Error("Failed to delete client credential %s for user %s: %v", credentialId, internalUuid, err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to delete client credential",
 		})
 		return

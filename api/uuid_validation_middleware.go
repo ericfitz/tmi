@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -136,7 +137,7 @@ func MethodNotAllowedJSONHandler() gin.HandlerFunc {
 			description = "The HTTP method '" + c.Request.Method + "' is not supported for this endpoint. Supported methods: " + allowHeader
 		}
 		c.JSON(http.StatusMethodNotAllowed, Error{
-			Error:            "method_not_allowed",
+			Error:            ErrorError(errcode.MethodNotAllowed),
 			ErrorDescription: description,
 		})
 		c.Abort()
@@ -168,7 +169,7 @@ func MethodNotAllowedHandler() gin.HandlerFunc {
 			c.Header("Allow", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 
 			c.JSON(http.StatusMethodNotAllowed, Error{
-				Error:            "method_not_allowed",
+				Error:            ErrorError(errcode.MethodNotAllowed),
 				ErrorDescription: "The requested HTTP method is not supported for this endpoint",
 			})
 			c.Abort()

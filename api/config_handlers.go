@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/auth"
@@ -518,7 +519,7 @@ func (s *Server) ListSystemSettings(c *gin.Context) {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "service_unavailable",
+			Code:    errcode.ServiceUnavailable,
 			Message: "Settings service unavailable",
 		})
 		return
@@ -563,7 +564,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "service_unavailable",
+			Code:    errcode.ServiceUnavailable,
 			Message: "Settings service unavailable",
 		})
 		return
@@ -575,7 +576,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		logger.Debug("System setting not found (internal-visibility key, not API-visible): %s", key)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Setting not found",
 		})
 		return
@@ -606,7 +607,7 @@ func (s *Server) GetSystemSetting(c *gin.Context, key string) {
 		logger.Debug("System setting not found: %s", key)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Setting not found",
 		})
 		return
@@ -649,7 +650,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "service_unavailable",
+			Code:    errcode.ServiceUnavailable,
 			Message: "Settings service unavailable",
 		})
 		return
@@ -662,7 +663,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 				logger.Warn("Attempted to update config-controlled setting: %s (source: %s)", key, cs.Source)
 				HandleRequestError(c, &RequestError{
 					Status:  http.StatusConflict,
-					Code:    "conflict",
+					Code:    errcode.Conflict,
 					Message: "Setting '" + key + "' is controlled by " + cs.Source + " and cannot be modified via the API",
 				})
 				return
@@ -752,7 +753,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "service_unavailable",
+			Code:    errcode.ServiceUnavailable,
 			Message: "Settings service unavailable",
 		})
 		return
@@ -765,7 +766,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		logger.Debug("System setting not found for deletion (internal-visibility key, not API-visible): %s", key)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Setting not found in database",
 		})
 		return
@@ -787,7 +788,7 @@ func (s *Server) DeleteSystemSetting(c *gin.Context, key string) {
 		logger.Debug("System setting not found for deletion: %s", key)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Setting not found in database",
 		})
 		return
@@ -834,7 +835,7 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 		logger.Error("Settings service not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "service_unavailable",
+			Code:    errcode.ServiceUnavailable,
 			Message: "Settings service unavailable",
 		})
 		return
@@ -866,7 +867,7 @@ func (s *Server) ReencryptSystemSettings(c *gin.Context) {
 		logger.Warn("Re-encryption stopped on a transient database error: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusServiceUnavailable,
-			Code:    "service_unavailable",
+			Code:    errcode.ServiceUnavailable,
 			Message: "Re-encryption stopped on a transient database error; rows already re-encrypted are kept, retry to finish",
 		})
 		return

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -47,7 +48,7 @@ func extractInvokerContext(c *gin.Context) (*invokerContext, error) {
 				logger.Error("Invalid user internal UUID in context: %s", uuidStr)
 				return nil, &RequestError{
 					Status:  http.StatusUnauthorized,
-					Code:    "unauthorized",
+					Code:    errcode.Unauthorized,
 					Message: "Invalid authentication context",
 				}
 			}
@@ -57,7 +58,7 @@ func extractInvokerContext(c *gin.Context) (*invokerContext, error) {
 		logger.Error("User internal UUID not found in context for email: %s", user.Email)
 		return nil, &RequestError{
 			Status:  http.StatusUnauthorized,
-			Code:    "unauthorized",
+			Code:    errcode.Unauthorized,
 			Message: "User identity not available",
 		}
 	}
@@ -99,7 +100,7 @@ func validateAddonInvocationRequest(c *gin.Context, addonID uuid.UUID) (*InvokeA
 		logger.Error("Payload too large: %d bytes (max 1024)", len(payloadStr))
 		return nil, "", nil, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Payload exceeds maximum size of 1024 bytes",
 		}
 	}
@@ -109,7 +110,7 @@ func validateAddonInvocationRequest(c *gin.Context, addonID uuid.UUID) (*InvokeA
 		logger.Error("Failed to get add-on: id=%s, error=%v", addonID, err)
 		return nil, "", nil, &RequestError{
 			Status:  http.StatusNotFound,
-			Code:    "not_found",
+			Code:    errcode.NotFound,
 			Message: "Add-on not found",
 		}
 	}
@@ -119,7 +120,7 @@ func validateAddonInvocationRequest(c *gin.Context, addonID uuid.UUID) (*InvokeA
 			logger.Error("Invalid object_type '%s' for add-on (allowed: %v)", string(*req.ObjectType), addon.Objects)
 			return nil, "", nil, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: "Object type not supported by this add-on",
 			}
 		}
@@ -152,7 +153,7 @@ func InvokeAddon(c *gin.Context) {
 		logger.Error("Invalid add-on ID: %s", addonIDStr)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusBadRequest,
-			Code:    "invalid_input",
+			Code:    errcode.InvalidInput,
 			Message: "Invalid add-on ID format",
 		})
 		return
@@ -208,7 +209,7 @@ func InvokeAddon(c *gin.Context) {
 		logger.Error("Failed to marshal delivery data: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to prepare invocation data",
 		})
 		return
@@ -228,7 +229,7 @@ func InvokeAddon(c *gin.Context) {
 		logger.Error("Failed to marshal envelope payload: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to prepare invocation payload",
 		})
 		return
@@ -239,7 +240,7 @@ func InvokeAddon(c *gin.Context) {
 		logger.Error("Webhook delivery store not initialized")
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusServiceUnavailable,
-			Code:    "service_unavailable",
+			Code:    errcode.ServiceUnavailable,
 			Message: "Delivery tracking not available",
 		})
 		return
@@ -262,7 +263,7 @@ func InvokeAddon(c *gin.Context) {
 		logger.Error("Failed to create delivery record: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to create invocation",
 		})
 		return

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
@@ -1556,7 +1557,7 @@ func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, 
 	// Validate threat model ID format
 	if _, err := uuid.Parse(threatModelID); err != nil {
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_id",
+			Error:            ErrorError(errcode.InvalidID),
 			ErrorDescription: "Invalid threat model ID format, must be a valid UUID",
 		})
 		return "", "", "", fmt.Errorf("invalid threat model ID")
@@ -1565,7 +1566,7 @@ func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, 
 	// Validate diagram ID format
 	if _, err := uuid.Parse(diagramID); err != nil {
 		c.JSON(http.StatusBadRequest, Error{
-			Error:            "invalid_id",
+			Error:            ErrorError(errcode.InvalidID),
 			ErrorDescription: "Invalid diagram ID format, must be a valid UUID",
 		})
 		return "", "", "", fmt.Errorf("invalid diagram ID")
@@ -1580,7 +1581,7 @@ func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, 
 		} else {
 			c.Header("WWW-Authenticate", "Bearer")
 			c.JSON(http.StatusUnauthorized, Error{
-				Error:            "unauthorized",
+				Error:            ErrorError(errcode.Unauthorized),
 				ErrorDescription: "User not authenticated",
 			})
 			return "", "", "", fmt.Errorf("user not authenticated")
@@ -1591,7 +1592,7 @@ func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, 
 	if !ok || userIDStr == "" {
 		c.Header("WWW-Authenticate", "Bearer")
 		c.JSON(http.StatusUnauthorized, Error{
-			Error:            "unauthorized",
+			Error:            ErrorError(errcode.Unauthorized),
 			ErrorDescription: "Invalid user authentication",
 		})
 		return "", "", "", fmt.Errorf("invalid user authentication")

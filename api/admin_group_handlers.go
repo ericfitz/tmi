@@ -9,6 +9,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -109,7 +110,7 @@ func (s *Server) ListAdminGroups(c *gin.Context, params ListAdminGroupsParams) {
 		logger.Error("Failed to list groups: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to list groups",
 		})
 		return
@@ -313,7 +314,7 @@ func (s *Server) UpdateAdminGroup(c *gin.Context, internalUuid openapi_types.UUI
 		if *req.Name == "" {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusBadRequest,
-				Code:    "invalid_input",
+				Code:    errcode.InvalidInput,
 				Message: "name cannot be empty",
 			})
 			return

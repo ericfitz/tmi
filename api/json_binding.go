@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/gin-gonic/gin"
 )
 
@@ -153,7 +154,7 @@ func jsonTypeName(val json.RawMessage) string {
 // RespondWithError sends a standardized error response matching the OpenAPI Error schema.
 // Calls c.Abort() so downstream middleware in the chain do not overwrite the status.
 // SEM@81952f598eaf9b1599471d778c9fb82e7d2f2d7a: send a structured JSON error response and abort the middleware chain
-func RespondWithError(c *gin.Context, statusCode int, errorCode, errorDescription string) {
+func RespondWithError(c *gin.Context, statusCode int, errorCode errcode.Code, errorDescription string) {
 	c.JSON(statusCode, Error{
 		Error:            ErrorError(errorCode),
 		ErrorDescription: errorDescription,

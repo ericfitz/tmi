@@ -10,6 +10,7 @@ import (
 
 	"github.com/ericfitz/tmi/auth"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -108,7 +109,7 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 	_, err = GlobalUserStore.GetByProviderAndID(c.Request.Context(), "tmi", providerUserID)
 	if err == nil {
 		c.JSON(http.StatusConflict, Error{
-			Error:            "conflict",
+			Error:            ErrorError(errcode.Conflict),
 			ErrorDescription: fmt.Sprintf("An account with provider_user_id %q already exists", providerUserID),
 		})
 		return
@@ -120,7 +121,7 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 		logger.Error("Failed to get auth service adapter")
 		c.Header("Retry-After", "30")
 		c.JSON(http.StatusServiceUnavailable, Error{
-			Error:            "service_unavailable",
+			Error:            ErrorError(errcode.ServiceUnavailable),
 			ErrorDescription: "Authentication service temporarily unavailable - please retry",
 		})
 		return
@@ -145,14 +146,14 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, dberrors.ErrDuplicate) || errors.Is(err, dberrors.ErrConstraint) {
 			c.JSON(http.StatusConflict, Error{
-				Error:            "conflict",
+				Error:            ErrorError(errcode.Conflict),
 				ErrorDescription: "An account with the same email or provider ID already exists",
 			})
 			return
 		}
 		logger.Error("Failed to create automation user: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to create automation account",
 		})
 		return
@@ -162,7 +163,7 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 	if err != nil {
 		logger.Error("Created user has invalid UUID: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "Failed to create automation account",
 		})
 		return
@@ -198,7 +199,7 @@ func (s *Server) CreateAutomationAccount(c *gin.Context) {
 		logger.Error("Failed to create client credential for automation user: %v", err)
 		// User is created but credential failed — return error so admin knows to retry
 		c.JSON(http.StatusInternalServerError, Error{
-			Error:            "server_error",
+			Error:            ErrorError(errcode.ServerError),
 			ErrorDescription: "User account created but client credential creation failed. Use POST /me/client_credentials to create one manually.",
 		})
 		return

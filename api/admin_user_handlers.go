@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -84,7 +85,7 @@ func (s *Server) ListAdminUsers(c *gin.Context, params ListAdminUsersParams) {
 		logger.Error("Failed to list users: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to list users",
 		})
 		return
@@ -118,7 +119,7 @@ func (s *Server) ListAdminUsers(c *gin.Context, params ListAdminUsersParams) {
 		logger.Error("Failed to marshal user list response: %v", err)
 		HandleRequestError(c, &RequestError{
 			Status:  http.StatusInternalServerError,
-			Code:    "server_error",
+			Code:    errcode.ServerError,
 			Message: "Failed to serialize user list",
 		})
 		return
@@ -148,14 +149,14 @@ func (s *Server) GetAdminUser(c *gin.Context, internalUuid openapi_types.UUID) {
 		if errors.Is(err, ErrUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: "User not found",
 			})
 		} else {
 			logger.Error("Failed to get user: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to get user",
 			})
 		}
@@ -213,14 +214,14 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 		if errors.Is(err, ErrUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: "User not found",
 			})
 		} else {
 			logger.Error("Failed to get user: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to get user",
 			})
 		}
@@ -263,14 +264,14 @@ func (s *Server) UpdateAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 		if errors.Is(err, ErrUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: "User not found",
 			})
 		} else {
 			logger.Error("Failed to update user: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to update user",
 			})
 		}
@@ -321,14 +322,14 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 		if errors.Is(err, ErrUserNotFound) {
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: "User not found",
 			})
 		} else {
 			logger.Error("Failed to look up user for deletion: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to look up user",
 			})
 		}
@@ -347,7 +348,7 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 		case errors.Is(err, ErrUserNotFound):
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusNotFound,
-				Code:    "not_found",
+				Code:    errcode.NotFound,
 				Message: "User not found",
 			})
 		case errors.Is(err, dberrors.ErrConstraint):
@@ -365,7 +366,7 @@ func (s *Server) DeleteAdminUser(c *gin.Context, internalUuid openapi_types.UUID
 			logger.Error("Failed to delete user: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to delete user",
 			})
 		}

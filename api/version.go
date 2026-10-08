@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -291,7 +292,7 @@ func (h *ApiInfoHandler) GetApiInfo(c *gin.Context) {
 		if err != nil {
 			logger.Error("Failed to marshal API info: %v", err)
 			c.JSON(http.StatusInternalServerError, Error{
-				Error:            "server_error",
+				Error:            ErrorError(errcode.ServerError),
 				ErrorDescription: "Failed to generate API info",
 			})
 			return

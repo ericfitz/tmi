@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -27,7 +28,7 @@ func AutomationMiddleware() gin.HandlerFunc {
 			logger.Warn("AutomationMiddleware: failed to resolve membership context: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusUnauthorized,
-				Code:    "unauthorized",
+				Code:    errcode.Unauthorized,
 				Message: "Authentication required",
 			})
 			c.Abort()
@@ -41,7 +42,7 @@ func AutomationMiddleware() gin.HandlerFunc {
 			logger.Error("AutomationMiddleware: failed to check tmi-automation membership for email=%s: %v", mc.Email, err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to verify automation group membership",
 			})
 			c.Abort()
@@ -53,7 +54,7 @@ func AutomationMiddleware() gin.HandlerFunc {
 			logger.Error("AutomationMiddleware: failed to check embedding-automation membership for email=%s: %v", mc.Email, err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to verify automation group membership",
 			})
 			c.Abort()
@@ -93,7 +94,7 @@ func EmbeddingAutomationMiddleware() gin.HandlerFunc {
 			logger.Warn("EmbeddingAutomationMiddleware: failed to resolve membership context: %v", err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusUnauthorized,
-				Code:    "unauthorized",
+				Code:    errcode.Unauthorized,
 				Message: "Authentication required",
 			})
 			c.Abort()
@@ -105,7 +106,7 @@ func EmbeddingAutomationMiddleware() gin.HandlerFunc {
 			logger.Error("EmbeddingAutomationMiddleware: failed to check embedding-automation membership for email=%s: %v", mc.Email, err)
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Failed to verify embedding automation group membership",
 			})
 			c.Abort()

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
@@ -24,7 +25,7 @@ func SameProviderMiddleware() gin.HandlerFunc {
 			logger.Error("SameProviderMiddleware: No idp/provider parameter found in path")
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Provider parameter not found in request path",
 			})
 			c.Abort()
@@ -37,7 +38,7 @@ func SameProviderMiddleware() gin.HandlerFunc {
 			logger.Error("SameProviderMiddleware: No userProvider found in context")
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusUnauthorized,
-				Code:    "unauthorized",
+				Code:    errcode.Unauthorized,
 				Message: "Authentication required",
 			})
 			c.Abort()
@@ -77,7 +78,7 @@ func SAMLProviderOnlyMiddleware() gin.HandlerFunc {
 			logger.Error("SAMLProviderOnlyMiddleware: No idp/provider parameter found in path")
 			HandleRequestError(c, &RequestError{
 				Status:  http.StatusInternalServerError,
-				Code:    "server_error",
+				Code:    errcode.ServerError,
 				Message: "Provider parameter not found in request path",
 			})
 			c.Abort()

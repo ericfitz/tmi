@@ -39,6 +39,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -146,7 +147,7 @@ func EnforceIfMatchOrWarn(c *gin.Context) error {
 	if RequireIfMatch() {
 		return &RequestError{
 			Status:  http.StatusPreconditionRequired,
-			Code:    "if_match_required",
+			Code:    errcode.IfMatchRequired,
 			Message: "If-Match header is required for this operation",
 		}
 	}
@@ -355,7 +356,7 @@ func MapVersionError(err error) *RequestError {
 	if errors.Is(err, ErrVersionMismatch) {
 		return &RequestError{
 			Status:  http.StatusConflict,
-			Code:    "version_mismatch",
+			Code:    errcode.VersionMismatch,
 			Message: "Resource version does not match If-Match precondition; refetch and retry",
 		}
 	}
