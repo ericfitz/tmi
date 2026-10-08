@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/getkin/kin-openapi/openapi3"
@@ -13,6 +14,27 @@ import (
 	"github.com/gin-gonic/gin"
 	middleware "github.com/oapi-codegen/gin-middleware"
 )
+
+// uuidFormatPattern is the canonical 8-4-4-4-12 hex UUID layout, version-agnostic.
+// An empty string is also accepted so schemas that deliberately allow "" via
+// their own pattern (e.g. optional references such as `^$|<uuid>`) keep working;
+// absent query parameters never reach format validation.
+const uuidFormatPattern = `^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})?$`
+
+var registerUUIDFormatOnce sync.Once
+
+// registerUUIDStringFormat registers kin-openapi's `uuid` string format, which it
+// does not validate by default. kin-openapi 0.149 only exposes a process-global
+// registry for this: per-validation WithStringFormatValidator options are not
+// threaded through openapi3filter's query/path parameter validation (only through
+// request-body validation), so a per-validator option would leave parameters
+// unchecked. Registration is idempotent and the validator is stateless.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: register the uuid string format with the OpenAPI schema validator exactly once
+func registerUUIDStringFormat() {
+	registerUUIDFormatOnce.Do(func() {
+		openapi3.DefineStringFormatValidator("uuid", openapi3.NewRegexpFormatValidator(uuidFormatPattern))
+	})
+}
 
 // OpenAPIErrorHandler converts OpenAPI validation errors to TMI's error format
 // SEM@52df980c1d7491dbcef92922d2b1574b07e802a8: convert an OpenAPI validation error into a typed error response, body failures as invalid_input
@@ -161,6 +183,8 @@ func GinServerErrorHandler(c *gin.Context, err error, statusCode int) {
 // SetupOpenAPIValidation creates and returns OpenAPI validation middleware
 // SEM@74d36522781dcfd28cfc8f5f32ed5cd9dd62a25e: build and return a Gin middleware that validates requests against the OpenAPI spec, skipping WebSocket routes
 func SetupOpenAPIValidation() (gin.HandlerFunc, error) {
+	registerUUIDStringFormat()
+
 	swagger, err := GetSwagger()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load OpenAPI spec: %w", err)
