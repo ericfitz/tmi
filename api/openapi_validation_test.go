@@ -241,8 +241,8 @@ func TestOpenAPIValidation_ParameterViolationsAreInvalidID(t *testing.T) {
 	r := gin.New()
 	r.Use(validator)
 	ok := func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) }
-	// Note: format "uuid" is not enforced by the validator (UUIDValidationMiddleware
-	// handles path UUIDs), so use parameters whose format/pattern it does enforce.
+	// Note: path UUIDs are also checked earlier by UUIDValidationMiddleware, so
+	// this test uses a date-time query parameter (see TestOpenAPIValidation_FormatUUID).
 	r.GET("/usability_feedback", ok)
 
 	tests := []struct {
@@ -261,6 +261,58 @@ func TestOpenAPIValidation_ParameterViolationsAreInvalidID(t *testing.T) {
 			var resp map[string]any
 			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 			assert.Equal(t, "invalid_id", resp["error"], w.Body.String())
+		})
+	}
+}
+
+// TestOpenAPIValidation_FormatUUID drives the real OpenAPI request validator
+// (no generated handlers) to confirm `format: uuid` is enforced on query
+// parameters and request-body fields, with parameter violations reported as
+// invalid_id and body violations as invalid_input.
+// SEM@56edbe58208af7f6f18c468266aaeafcf4c3a30f: validate that format uuid is enforced on query parameters and request bodies by the OpenAPI validator
+func TestOpenAPIValidation_FormatUUID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	validator, err := SetupOpenAPIValidation()
+	require.NoError(t, err)
+
+	r := gin.New()
+	r.Use(validator)
+	ok := func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) }
+	r.GET("/teams", ok)
+	r.POST("/addons", ok)
+
+	const goodUUID = "123e4567-e89b-12d3-a456-426614174000"
+
+	tests := []struct {
+		name     string
+		method   string
+		path     string
+		body     string
+		wantCode int
+		wantErr  string
+	}{
+		{name: "query uuid invalid", method: http.MethodGet, path: "/teams?member_user_id=not-a-uuid", wantCode: http.StatusBadRequest, wantErr: "invalid_id"},
+		{name: "query uuid valid", method: http.MethodGet, path: "/teams?member_user_id=" + goodUUID, wantCode: http.StatusOK},
+		{name: "query uuid absent", method: http.MethodGet, path: "/teams", wantCode: http.StatusOK},
+		{name: "body uuid invalid", method: http.MethodPost, path: "/addons", body: `{"name":"a","webhook_id":"not-a-uuid"}`, wantCode: http.StatusBadRequest, wantErr: "invalid_input"},
+		{name: "body uuid valid", method: http.MethodPost, path: "/addons", body: `{"name":"a","webhook_id":"` + goodUUID + `"}`, wantCode: http.StatusOK},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+			if tt.body != "" {
+				req.Header.Set("Content-Type", "application/json")
+			}
+			r.ServeHTTP(w, req)
+
+			require.Equal(t, tt.wantCode, w.Code, w.Body.String())
+			if tt.wantErr != "" {
+				var resp map[string]any
+				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+				assert.Equal(t, tt.wantErr, resp["error"], w.Body.String())
+			}
 		})
 	}
 }
