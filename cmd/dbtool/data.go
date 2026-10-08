@@ -31,6 +31,7 @@ func runDataSeed(db *testdb.TestDB, inputFile, serverURL, user, provider string,
 
 	refs := make(RefMap)
 	var token string
+	tokens := newTokenCache(serverURL, authenticateViaOAuthStub)
 
 	for i, entry := range seedFile.Seeds {
 		log.Info("Processing seed %d/%d: kind=%s ref=%s", i+1, len(seedFile.Seeds), entry.Kind, entry.Ref)
@@ -51,12 +52,19 @@ func runDataSeed(db *testdb.TestDB, inputFile, serverURL, user, provider string,
 		case strategyAPI:
 			if token == "" {
 				log.Info("Authenticating via OAuth stub for API calls...")
-				token, err = authenticateViaOAuthStub(serverURL, user, provider)
+				token, err = tokens.get(user, provider)
 				if err != nil {
 					return fmt.Errorf("failed to authenticate for API calls: %w", err)
 				}
 			}
-			result, err = seedViaAPI(serverURL, token, entry, refs, db)
+			entryToken := token
+			if asUser, asProvider := actAsUser(entry); asUser != "" {
+				entryToken, err = tokens.get(asUser, asProvider)
+				if err != nil {
+					return fmt.Errorf("failed to authenticate as %s for entry %d (kind=%s): %w", asUser, i+1, entry.Kind, err)
+				}
+			}
+			result, err = seedViaAPI(serverURL, entryToken, entry, refs, db)
 		default:
 			err = fmt.Errorf("unknown seed kind: %s", entry.Kind)
 		}
@@ -90,6 +98,55 @@ func runDataSeed(db *testdb.TestDB, inputFile, serverURL, user, provider string,
 	return nil
 }
 
+// Seed entry data keys naming the user an API entry must be created as, for
+// resources whose owner is whoever creates them (survey responses).
+const (
+	seedActAsUser     = "_act_as_user"
+	seedActAsProvider = "_act_as_provider"
+)
+
+// Survey response statuses the seeder can produce through the intake API.
+const (
+	surveyStatusDraft         = "draft"
+	surveyStatusSubmitted     = "submitted"
+	surveyStatusNeedsRevision = "needs_revision"
+)
+
+// actAsUser returns the user (and provider) an entry must be created as, or
+// "" to use the seeding user.
+func actAsUser(entry SeedEntry) (user, provider string) {
+	user, _ = entry.Data[seedActAsUser].(string)
+	provider, _ = entry.Data[seedActAsProvider].(string)
+	if provider == "" {
+		provider = defaultProvider
+	}
+	return user, provider
+}
+
+// tokenCache authenticates each user once per seed run.
+type tokenCache struct {
+	serverURL string
+	auth      func(serverURL, user, provider string) (string, error)
+	tokens    map[string]string
+}
+
+func newTokenCache(serverURL string, auth func(serverURL, user, provider string) (string, error)) *tokenCache {
+	return &tokenCache{serverURL: serverURL, auth: auth, tokens: map[string]string{}}
+}
+
+func (tc *tokenCache) get(user, provider string) (string, error) {
+	key := provider + "/" + user
+	if tok, ok := tc.tokens[key]; ok {
+		return tok, nil
+	}
+	tok, err := tc.auth(tc.serverURL, user, provider)
+	if err != nil {
+		return "", err
+	}
+	tc.tokens[key] = tok
+	return tok, nil
+}
+
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: parse a JSON seed spec file and transform it into a SeedFile (pure)
 func loadSeedFile(path string) (*SeedFile, error) {
 	data, err := os.ReadFile(path) // #nosec G304 -- path from CLI flags
@@ -105,6 +162,18 @@ func loadSeedFile(path string) (*SeedFile, error) {
 	var spec SeedSpecFile
 	if err := json.Unmarshal(data, &spec); err != nil {
 		return nil, fmt.Errorf("failed to parse seed-spec JSON: %w", err)
+	}
+
+	// Unknown fields are rejected: a field the transform does not know about
+	// would otherwise be dropped silently and the seeded object would differ
+	// from the spec without any error.
+	unknown, err := unknownSpecFields(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse seed-spec JSON: %w", err)
+	}
+	if len(unknown) > 0 {
+		return nil, fmt.Errorf("%s: unsupported seed-spec fields (remove them or add support to dbtool): %s",
+			path, strings.Join(unknown, ", "))
 	}
 
 	if spec.Version == "" {

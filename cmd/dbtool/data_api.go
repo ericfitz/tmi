@@ -312,25 +312,29 @@ func (c *apiClient) findExistingGroup(groupName string) string {
 	return c.findExistingByFieldHTTP("/admin/groups", "groups", "group_name", groupName, "internal_uuid")
 }
 
-// findExistingSurveyResponse checks if the current user already has a response for the given survey.
-// SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: fetch the ID of the current user's response to a given survey, returning empty if absent
-func (c *apiClient) findExistingSurveyResponse(surveyID string) string {
-	result, status, err := c.apiRequest("GET", "/intake/survey_responses?limit=100", nil)
-	if err != nil || status >= 300 {
-		return ""
+// findExistingSurveyResponse returns the ID and status of the current user's
+// response to the given survey, or empty strings if there is none.
+// SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: fetch the ID and status of the current user's response to a given survey
+func (c *apiClient) findExistingSurveyResponse(surveyID string) (id, status string) {
+	result, code, err := c.apiRequest("GET", "/intake/survey_responses?limit=100", nil)
+	if err != nil || code >= 300 {
+		return "", ""
 	}
-	if items, ok := result["survey_responses"].([]any); ok {
-		for _, item := range items {
-			if m, ok := item.(map[string]any); ok {
-				if sid, _ := m["survey_id"].(string); sid == surveyID {
-					if id, _ := m["id"].(string); id != "" {
-						return id
-					}
-				}
-			}
+	items, _ := result["survey_responses"].([]any)
+	for _, item := range items {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if sid, _ := m["survey_id"].(string); sid != surveyID {
+			continue
+		}
+		if rid, _ := m["id"].(string); rid != "" {
+			st, _ := m["status"].(string)
+			return rid, st
 		}
 	}
-	return ""
+	return "", ""
 }
 
 // findExistingClientCredential checks if the current user already has a credential with the given name.
@@ -495,72 +499,109 @@ func (c *apiClient) transferOwnerViaDB(tmID string, patch map[string]any) error 
 	return nil
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: create a team via API with resolved member refs, skipping if already present
+// seedTeam creates a team, or reconciles an existing team of the same name to
+// the spec (PUT replaces members, responsible parties and fields). Skipping an
+// existing team left it as it was: after its users had been deleted it kept
+// members=[] forever, and the spec's memberships never came back.
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: create or reconcile a team via API with resolved member refs and metadata
 func (c *apiClient) seedTeam(entry SeedEntry, refs RefMap) (*SeedResult, error) {
+	name, _ := entry.Data["name"].(string)
+	return c.seedTeamOrProject(entry, refs, "/teams", c.findExistingTeam(name))
+}
+
+// seedProject creates or reconciles a project; see seedTeam.
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: create or reconcile a project via API with resolved team ref, parties and metadata
+func (c *apiClient) seedProject(entry SeedEntry, refs RefMap) (*SeedResult, error) {
+	name, _ := entry.Data["name"].(string)
+	return c.seedTeamOrProject(entry, refs, "/projects", c.findExistingProject(name))
+}
+
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: create or fully replace a team or project, then replace its metadata (writes API)
+func (c *apiClient) seedTeamOrProject(entry SeedEntry, refs RefMap, collection, existingID string) (*SeedResult, error) {
 	log := slogging.Get()
 
-	name, _ := entry.Data["name"].(string)
-	if name != "" {
-		if existingID := c.findExistingTeam(name); existingID != "" {
-			log.Info("  team already exists: %s (skipping)", existingID)
-			return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: existingID}, nil
-		}
-	}
-
-	// Resolve user_ref in members to UUIDs
-	payload := copyMap(entry.Data)
-	if members, ok := payload["members"].([]map[string]any); ok {
-		resolved := make([]map[string]any, 0, len(members))
-		for _, m := range members {
-			member := copyMap(m)
-			if userRefName, ok := member["user_ref"].(string); ok {
-				userUUID, err := resolveRef(refs, userRefName)
-				if err != nil {
-					log.Debug("  Warning: could not resolve user_ref %q: %v", userRefName, err)
-					continue
-				}
-				member["user_id"] = userUUID
-				delete(member, "user_ref")
-			}
-			resolved = append(resolved, member)
-		}
-		payload["members"] = resolved
-	}
-
-	id, err := c.createAPIObject(entry.Kind, "/teams", payload)
+	payload, metadata, err := buildTeamOrProjectPayload(entry.Data, refs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s %v: %w", entry.Kind, entry.Data["name"], err)
 	}
+
+	// The PUT also follows a create: the server adds the creating user as a
+	// member, and replacing the members right away makes the first run end in
+	// the same state as every later run.
+	id := existingID
+	if id == "" {
+		id, err = c.createAPIObject(entry.Kind, collection, payload)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		log.Info("  %s already exists: %s (reconciling to spec)", entry.Kind, id)
+	}
+	result, status, err := c.apiRequest("PUT", collection+"/"+id, payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update %s %s: %w", entry.Kind, id, err)
+	}
+	if status < 200 || status >= 300 {
+		return nil, fmt.Errorf("failed to update %s %s: HTTP %d - %v", entry.Kind, id, status, result)
+	}
+
+	if len(metadata) > 0 {
+		path := fmt.Sprintf("%s/%s/metadata/bulk", collection, id)
+		result, status, reqErr := c.apiRequestAny("PUT", path, metadata)
+		if reqErr != nil {
+			return nil, fmt.Errorf("failed to set %s metadata: %w", entry.Kind, reqErr)
+		}
+		if status < 200 || status >= 300 {
+			return nil, fmt.Errorf("failed to set %s metadata: HTTP %d - %v", entry.Kind, status, result)
+		}
+		log.Info("  Set %d metadata entries on %s %s", len(metadata), entry.Kind, id)
+	}
+
 	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: create a project via API with resolved team ref, skipping if already present
-func (c *apiClient) seedProject(entry SeedEntry, refs RefMap) (*SeedResult, error) {
-	log := slogging.Get()
+// buildTeamOrProjectPayload resolves user_ref (members, responsible parties)
+// and team_ref to IDs and splits off metadata, which has its own endpoint.
+// An unresolvable ref is an error: dropping the entry would seed a team
+// without a member the spec declares.
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: resolve user and team refs in a team or project seed payload (pure)
+func buildTeamOrProjectPayload(data map[string]any, refs RefMap) (map[string]any, []map[string]any, error) {
+	payload := copyMap(data)
 
-	name, _ := entry.Data["name"].(string)
-	if name != "" {
-		if existingID := c.findExistingProject(name); existingID != "" {
-			log.Info("  project already exists: %s (skipping)", existingID)
-			return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: existingID}, nil
+	metadata, _ := payload["metadata"].([]map[string]any)
+	delete(payload, "metadata")
+
+	for _, field := range []string{"members", "responsible_parties"} {
+		entries, ok := payload[field].([]map[string]any)
+		if !ok {
+			continue
 		}
+		resolved := make([]map[string]any, 0, len(entries))
+		for _, e := range entries {
+			item := copyMap(e)
+			if userRefName, ok := item["user_ref"].(string); ok {
+				userID, err := resolveRef(refs, userRefName)
+				if err != nil {
+					return nil, nil, fmt.Errorf("%s: %w", field, err)
+				}
+				item["user_id"] = userID
+				delete(item, "user_ref")
+			}
+			resolved = append(resolved, item)
+		}
+		payload[field] = resolved
 	}
 
-	payload := copyMap(entry.Data)
 	if teamRefName, _ := payload["team_ref"].(string); teamRefName != "" {
 		teamID, err := resolveRef(refs, teamRefName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve team_ref: %w", err)
+			return nil, nil, fmt.Errorf("team_ref: %w", err)
 		}
 		payload["team_id"] = teamID
 		delete(payload, "team_ref")
 	}
 
-	id, err := c.createAPIObject(entry.Kind, "/projects", payload)
-	if err != nil {
-		return nil, err
-	}
-	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
+	return payload, metadata, nil
 }
 
 // SEM@364c33df6cdbb1724be239b154783d0fc5031e93: create an admin group via API, skipping if one with the same name exists
@@ -1123,11 +1164,19 @@ func (c *apiClient) seedSurvey(entry SeedEntry, _ RefMap) (*SeedResult, error) {
 	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
 }
 
-// SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: create a survey response via API with resolved survey ref, skipping if already submitted
+// seedSurveyResponse creates the spec's survey response and brings it to the
+// spec's status. The server ignores status and authorization on create and
+// makes the caller the owner, so runDataSeed hands this seeder a token for the
+// spec's user (seedActAsUser), and submission is a separate PATCH.
+// SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: create or reuse the caller's survey response and move it to the spec status (writes API)
 func (c *apiClient) seedSurveyResponse(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
 	payload := copyMap(entry.Data)
+	wantStatus, _ := payload["status"].(string)
+	delete(payload, "status")
+	delete(payload, seedActAsUser)
+	delete(payload, seedActAsProvider)
 
 	if surveyRefName, _ := payload["survey_ref"].(string); surveyRefName != "" {
 		surveyID, err := resolveRef(refs, surveyRefName)
@@ -1137,24 +1186,56 @@ func (c *apiClient) seedSurveyResponse(entry SeedEntry, refs RefMap) (*SeedResul
 		payload["survey_id"] = surveyID
 		delete(payload, "survey_ref")
 	}
+	surveyID, _ := payload["survey_id"].(string)
 
-	// Idempotency: check if the current user already has a response for this survey
-	if surveyID, _ := payload["survey_id"].(string); surveyID != "" {
-		if existingID := c.findExistingSurveyResponse(surveyID); existingID != "" {
-			log.Info("  survey response for survey %s already exists: %s (skipping)", surveyID, existingID)
-			return &SeedResult{Ref: entry.Ref, Kind: kindSurveyResponse, ID: existingID, Extra: map[string]string{
-				"survey_id": surveyID,
-			}}, nil
+	// Idempotency: reuse the caller's existing response to this survey
+	id, status := "", ""
+	if surveyID != "" {
+		id, status = c.findExistingSurveyResponse(surveyID)
+	}
+	if id != "" {
+		log.Info("  survey response for survey %s already exists: %s (status %s)", surveyID, id, status)
+	} else {
+		var err error
+		id, err = c.createAPIObject("survey response", "/intake/survey_responses", payload)
+		if err != nil {
+			return nil, err
 		}
+		status = surveyStatusDraft
 	}
 
-	id, err := c.createAPIObject("survey response", "/intake/survey_responses", payload)
-	if err != nil {
+	if err := c.reconcileSurveyResponseStatus(id, status, wantStatus); err != nil {
 		return nil, err
 	}
+
 	return &SeedResult{Ref: entry.Ref, Kind: kindSurveyResponse, ID: id, Extra: map[string]string{
-		"survey_id": fmt.Sprint(payload["survey_id"]),
+		"survey_id": surveyID,
 	}}, nil
+}
+
+// reconcileSurveyResponseStatus moves a response from its current status to
+// the spec's. Only draft and submitted are seedable (validateSurveyResponses);
+// a response already past the wanted status cannot be moved back through the
+// intake API, so that is an error naming the fix rather than a silent mismatch.
+// SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: submit a seeded survey response when the spec asks for submitted (writes API)
+func (c *apiClient) reconcileSurveyResponseStatus(id, current, want string) error {
+	if want == "" || want == current {
+		return nil
+	}
+	if want == surveyStatusSubmitted && (current == surveyStatusDraft || current == surveyStatusNeedsRevision) {
+		ops := []map[string]any{{"op": "replace", "path": "/status", "value": surveyStatusSubmitted}}
+		result, status, err := c.apiRequestWithType("PATCH", "/intake/survey_responses/"+id, ops, "application/json-patch+json")
+		if err != nil {
+			return fmt.Errorf("failed to submit survey response %s: %w", id, err)
+		}
+		if status < 200 || status >= 300 {
+			return fmt.Errorf("failed to submit survey response %s: HTTP %d - %v", id, status, result)
+		}
+		slogging.Get().Info("    Submitted survey response: %s", id)
+		return nil
+	}
+	return fmt.Errorf("survey response %s is %q but the spec wants %q, which the intake API cannot reach from there; "+
+		"delete the response and seed again", id, current, want)
 }
 
 // SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: create a top-level resource at a given API path, skipping if already present
@@ -1206,10 +1287,18 @@ func (c *apiClient) seedMetadata(entry SeedEntry, refs RefMap) (*SeedResult, err
 		resourcePath = fmt.Sprintf("/admin/surveys/%s/metadata", tmID)
 	case kindSurveyResponse:
 		resourcePath = fmt.Sprintf("/intake/survey_responses/%s/metadata", tmID)
+	case kindTeam:
+		resourcePath = fmt.Sprintf("/teams/%s/metadata", target.ID)
+	case kindProject:
+		resourcePath = fmt.Sprintf("/projects/%s/metadata", target.ID)
 	default:
-		if target.Extra != nil {
-			tmID = target.Extra["threat_model_id"]
+		// Threat model children: their ref carries the parent threat model.
+		// Anything else would be sent to a /threat_models path that does not
+		// exist, so reject it instead.
+		if target.Extra == nil || target.Extra["threat_model_id"] == "" {
+			return nil, fmt.Errorf("metadata target %q (kind %q) is not a supported metadata target", targetRef, targetKind)
 		}
+		tmID = target.Extra["threat_model_id"]
 		resourceID := target.ID
 		childPath := pluralizeKind(target.Kind)
 		resourcePath = fmt.Sprintf("/threat_models/%s/%s/%s/metadata/%s", tmID, childPath, resourceID, key)
@@ -1217,7 +1306,8 @@ func (c *apiClient) seedMetadata(entry SeedEntry, refs RefMap) (*SeedResult, err
 
 	payload := map[string]any{"key": key, "value": value}
 	method := "PUT"
-	if targetKind == kindSurvey || targetKind == kindSurveyResponse {
+	switch targetKind {
+	case kindSurvey, kindSurveyResponse, kindTeam, kindProject:
 		method = "POST"
 	}
 
@@ -1235,6 +1325,29 @@ func (c *apiClient) seedMetadata(entry SeedEntry, refs RefMap) (*SeedResult, err
 
 // SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: execute an authenticated HTTP request and return the parsed JSON response with status
 func (c *apiClient) apiRequest(method, path string, payload any) (map[string]any, int, error) {
+	result, status, err := c.apiRequestAny(method, path, payload)
+	if err != nil {
+		return nil, status, err
+	}
+	if result == nil {
+		return nil, status, nil
+	}
+	obj, ok := result.(map[string]any)
+	if !ok {
+		return nil, status, fmt.Errorf("expected a JSON object from %s %s (status %d), got %T", method, path, status, result)
+	}
+	return obj, status, nil
+}
+
+// apiRequestAny is apiRequest for endpoints whose response body may be a JSON
+// array (the metadata bulk endpoints).
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: execute an authenticated HTTP request and return the parsed JSON body of any shape with status
+func (c *apiClient) apiRequestAny(method, path string, payload any) (any, int, error) {
+	return c.apiRequestWithType(method, path, payload, "application/json")
+}
+
+// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: execute an authenticated HTTP request with a given body content type and parse the JSON reply
+func (c *apiClient) apiRequestWithType(method, path string, payload any, contentType string) (any, int, error) {
 	var body io.Reader
 	if payload != nil {
 		data, err := json.Marshal(payload)
@@ -1251,7 +1364,7 @@ func (c *apiClient) apiRequest(method, path string, payload any) (map[string]any
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	if payload != nil {
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Type", contentType)
 	}
 
 	httpClient := &http.Client{Timeout: 30 * time.Second}
@@ -1266,7 +1379,7 @@ func (c *apiClient) apiRequest(method, path string, payload any) (map[string]any
 		return nil, resp.StatusCode, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	var result map[string]any
+	var result any
 	if len(respBody) > 0 {
 		if err := json.Unmarshal(respBody, &result); err != nil {
 			return nil, resp.StatusCode, fmt.Errorf("failed to parse response (status %d): %s", resp.StatusCode, string(respBody))
