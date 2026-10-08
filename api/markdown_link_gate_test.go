@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,7 +17,7 @@ func assertNoUnsafeLinkStored(t *testing.T, in string) {
 	stored, reqErr := SanitizeRequiredMarkdownContent("content", in)
 	if reqErr != nil {
 		assert.Equal(t, 400, reqErr.Status, "input %q", in)
-		assert.Equal(t, "invalid_input", reqErr.Code, "input %q", in)
+		assert.Equal(t, errcode.InvalidInput, reqErr.Code, "input %q", in)
 		return
 	}
 	assert.False(t, markdownHasUnsafeLink(stored), "input %q stored as %q still parses to an unsafe link", in, stored)

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -137,7 +138,7 @@ func assertTooComplex(t *testing.T, err *RequestError) {
 	t.Helper()
 	if assert.NotNil(t, err) {
 		assert.Equal(t, 400, err.Status)
-		assert.Equal(t, "invalid_input", err.Code)
+		assert.Equal(t, errcode.InvalidInput, err.Code)
 		assert.Contains(t, err.Message, "too complex to validate")
 		assert.Positive(t, err.markdownTooComplexBytes, "rejection must be tagged for logging")
 	}
