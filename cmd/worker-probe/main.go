@@ -150,7 +150,7 @@ func runEmbedStub() error {
 
 // run is the real entry point. Separating it from main allows defers to
 // execute before os.Exit is called by main.
-// SEM@946ec29: bootstrap, connect to NATS (TLS when configured), subscribe, announce readiness, answer one probe job
+// SEM@9ba32a9b5e5e5a1a5b9bd665889095975f052ecb: bootstrap, connect to NATS, subscribe, announce readiness, and answer one probe job
 func run() error {
 	logger := slogging.Get()
 
