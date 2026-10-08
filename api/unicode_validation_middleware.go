@@ -511,7 +511,7 @@ func checkDuplicateKeysRecursive(dec *json.Decoder, path string) error {
 
 // unicodeErrorCode selects the error code for a rejected request: RFC 6749
 // invalid_request on protocol routes, invalid_input on REST routes.
-// SEM@1303aff7afe7252876c19de4155963dad1de9015: choose the validation error code by route class (pure)
+// SEM@7a6c0e66e5a81c2ac63c30ae0494bae880c5ca3a: choose the validation error code by route class (pure)
 func unicodeErrorCode(c *gin.Context) errcode.Code {
 	if errcode.IsProtocolRoute(c.Request.URL.Path) {
 		return errcode.InvalidRequest

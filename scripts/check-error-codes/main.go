@@ -33,7 +33,7 @@ var skipDirs = map[string]bool{
 	"bin": true, "graphify-out": true,
 }
 
-// SEM@06a7f48c2bb4b600ce38ad4dd7f56d29825f522d: return the first string literal inside an expression, ignoring function literals (pure)
+// SEM@a11598e767bdaf64954a242d6939cc01535c5bfa: return the first string literal inside an expression, ignoring function literals (pure)
 func firstStringLit(e ast.Expr) *ast.BasicLit {
 	var found *ast.BasicLit
 	ast.Inspect(e, func(n ast.Node) bool {
@@ -56,7 +56,7 @@ func firstStringLit(e ast.Expr) *ast.BasicLit {
 
 // isTypedCode reports whether e is an errcode constant or a string() conversion of
 // a typed value, the shapes allowed as a gin.H "error" value.
-// SEM@06a7f48c2bb4b600ce38ad4dd7f56d29825f522d: report whether an expression is an errcode constant or a string conversion of one (pure)
+// SEM@a11598e767bdaf64954a242d6939cc01535c5bfa: report whether an expression is an errcode constant or a string conversion of one (pure)
 func isTypedCode(e ast.Expr) bool {
 	switch x := e.(type) {
 	case *ast.SelectorExpr:
@@ -78,7 +78,7 @@ func isTypedCode(e ast.Expr) bool {
 // stringCodeParams flags string-typed parameters that a function writes into an
 // error body ("error" map key or Error/Code field of an error type), because a
 // string parameter lets callers pass any literal past the check.
-// SEM@06a7f48c2bb4b600ce38ad4dd7f56d29825f522d: find string parameters used as the error code of an error body (pure)
+// SEM@a11598e767bdaf64954a242d6939cc01535c5bfa: find string parameters used as the error code of an error body (pure)
 func stringCodeParams(fset *token.FileSet, fn *ast.FuncDecl) []finding {
 	if fn.Body == nil {
 		return nil
@@ -128,7 +128,7 @@ func stringCodeParams(fset *token.FileSet, fn *ast.FuncDecl) []finding {
 	return out
 }
 
-// SEM@06a7f48c2bb4b600ce38ad4dd7f56d29825f522d: return the unqualified name of a type expression (pure)
+// SEM@a11598e767bdaf64954a242d6939cc01535c5bfa: return the unqualified name of a type expression (pure)
 func typeName(e ast.Expr) string {
 	switch t := e.(type) {
 	case *ast.Ident:
@@ -139,7 +139,7 @@ func typeName(e ast.Expr) string {
 	return ""
 }
 
-// SEM@06a7f48c2bb4b600ce38ad4dd7f56d29825f522d: report whether a composite literal type is a gin.H or string-keyed map (pure)
+// SEM@a11598e767bdaf64954a242d6939cc01535c5bfa: report whether a composite literal type is a gin.H or string-keyed map (pure)
 func isStringMapType(e ast.Expr) bool {
 	if se, ok := e.(*ast.SelectorExpr); ok {
 		return se.Sel.Name == "H"
@@ -151,7 +151,7 @@ func isStringMapType(e ast.Expr) bool {
 	return false
 }
 
-// SEM@06a7f48c2bb4b600ce38ad4dd7f56d29825f522d: collect string-literal error codes in one parsed file (pure)
+// SEM@a11598e767bdaf64954a242d6939cc01535c5bfa: collect string-literal error codes in one parsed file (pure)
 func checkFile(fset *token.FileSet, file *ast.File) []finding {
 	var out []finding
 	add := func(e ast.Expr, kind string) {
@@ -197,14 +197,14 @@ func checkFile(fset *token.FileSet, file *ast.File) []finding {
 	return out
 }
 
-// SEM@06a7f48c2bb4b600ce38ad4dd7f56d29825f522d: report whether a file path is excluded from the scan (pure)
+// SEM@a11598e767bdaf64954a242d6939cc01535c5bfa: report whether a file path is excluded from the scan (pure)
 func skipFile(path string) bool {
 	base := filepath.Base(path)
 	// WebSocket message codes are out of scope (ADR decision 4).
 	return !strings.HasSuffix(base, ".go") || strings.HasPrefix(path, filepath.Join("api", "websocket")) || strings.HasSuffix(base, "_test.go") || path == filepath.Join("api", "api.go")
 }
 
-// SEM@06a7f48c2bb4b600ce38ad4dd7f56d29825f522d: scan a directory tree for string-literal error codes (reads filesystem)
+// SEM@a11598e767bdaf64954a242d6939cc01535c5bfa: scan a directory tree for string-literal error codes (reads filesystem)
 func run(root string) ([]finding, error) {
 	var all []finding
 	fset := token.NewFileSet()
@@ -238,7 +238,7 @@ func run(root string) ([]finding, error) {
 	return all, err
 }
 
-// SEM@06a7f48c2bb4b600ce38ad4dd7f56d29825f522d: run the error-code literal check and exit non-zero on violations
+// SEM@a11598e767bdaf64954a242d6939cc01535c5bfa: run the error-code literal check and exit non-zero on violations
 func main() {
 	if len(os.Args) != 2 {
 		fmt.Fprintln(os.Stderr, "usage: check-error-codes <root>")
