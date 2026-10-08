@@ -29,7 +29,7 @@ var registerUUIDFormatOnce sync.Once
 // threaded through openapi3filter's query/path parameter validation (only through
 // request-body validation), so a per-validator option would leave parameters
 // unchecked. Registration is idempotent and the validator is stateless.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: register the uuid string format with the OpenAPI schema validator exactly once
+// SEM@56edbe58208af7f6f18c468266aaeafcf4c3a30f: register the uuid string format with the OpenAPI schema validator exactly once
 func registerUUIDStringFormat() {
 	registerUUIDFormatOnce.Do(func() {
 		openapi3.DefineStringFormatValidator("uuid", openapi3.NewRegexpFormatValidator(uuidFormatPattern))

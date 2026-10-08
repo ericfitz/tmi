@@ -269,7 +269,7 @@ func TestOpenAPIValidation_ParameterViolationsAreInvalidID(t *testing.T) {
 // (no generated handlers) to confirm `format: uuid` is enforced on query
 // parameters and request-body fields, with parameter violations reported as
 // invalid_id and body violations as invalid_input.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: validate that format uuid is enforced on query parameters and request bodies by the OpenAPI validator
+// SEM@56edbe58208af7f6f18c468266aaeafcf4c3a30f: validate that format uuid is enforced on query parameters and request bodies by the OpenAPI validator
 func TestOpenAPIValidation_FormatUUID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	validator, err := SetupOpenAPIValidation()
