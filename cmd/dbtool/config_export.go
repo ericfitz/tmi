@@ -129,10 +129,12 @@ func writeExportedConfig(rows []exportRow, outputPath string) error {
 
 // runConfigExport reads all system_settings rows and writes them as a nested
 // YAML config file suitable for --import-config into another database.
-// Secret settings are decrypted when an encryptor is available and
-// decryptSecrets is true; otherwise they are skipped with a warning (an
-// encrypted blob is useless across databases with different keys).
-// SEM@1a4ca5f99be4a25df66b2836e9b9f4c87628184a: export system settings to a YAML file, skipping secret and empty values (reads DB, writes file)
+// Every value carrying the ENC: envelope is decrypted when an encryptor is
+// available and decryptSecrets is true (the settings service encrypts all
+// values at rest when encryption is on, not just secrets, #1033); otherwise
+// it is skipped with a warning naming the key (an encrypted blob is useless
+// across databases with different keys, and unimportable as a typed value).
+// SEM@1a4ca5f99be4a25df66b2836e9b9f4c87628184a: export system settings to a YAML file, decrypting encrypted values and skipping undecryptable and empty ones (reads DB, writes file)
 func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecrets bool) error {
 	log := slogging.Get()
 
@@ -171,6 +173,7 @@ func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecre
 
 	var rows []exportRow
 	var skippedSecrets int
+	var skippedEncrypted int
 	var skippedEmpty int
 	for _, s := range settings {
 		key := string(s.SettingKey)
@@ -188,6 +191,20 @@ func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecre
 			if encryptor == nil || !encryptor.IsEnabled() {
 				skippedSecrets++
 				log.Warn("Skipping secret setting %s (no decryptor available)", key)
+				continue
+			}
+			plain, derr := encryptor.Decrypt(value)
+			if derr != nil {
+				return fmt.Errorf("failed to decrypt setting %s: %w", key, derr)
+			}
+			value = plain
+		} else if crypto.IsEncrypted(value) {
+			// Non-secret value encrypted at rest. Decrypt it like a secret;
+			// without a working decryptor, skip it rather than write
+			// ciphertext that --import-config cannot parse (#1033).
+			if encryptor == nil || !encryptor.IsEnabled() {
+				skippedEncrypted++
+				log.Warn("Skipping encrypted setting %s (no decryptor available)", key)
 				continue
 			}
 			plain, derr := encryptor.Decrypt(value)
@@ -226,6 +243,6 @@ func runConfigExport(db *testdb.TestDB, cfgPath, outputFile string, decryptSecre
 	if err := writeExportedConfig(rows, outputFile); err != nil {
 		return fmt.Errorf("failed to write export: %w", err)
 	}
-	log.Info("Exported %d settings to %s (%d secrets skipped, %d empty skipped)", len(rows), outputFile, skippedSecrets, skippedEmpty)
+	log.Info("Exported %d settings to %s (%d secrets skipped, %d encrypted skipped, %d empty skipped)", len(rows), outputFile, skippedSecrets, skippedEncrypted, skippedEmpty)
 	return nil
 }
