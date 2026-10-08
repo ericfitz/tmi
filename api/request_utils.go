@@ -633,6 +633,7 @@ func StoreErrorToRequestError(err error, notFoundMsg, serverErrorMsg string) *Re
 }
 
 // codeStr returns a pointer to the string form of a details.code reason.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a pointer to the string form of a details code (pure)
 func codeStr(c errcode.Code) *string {
 	s := string(c)
 	return &s
@@ -648,6 +649,7 @@ func WithDetailCode(err *RequestError, code errcode.Code) *RequestError {
 	return err
 }
 
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a RequestError from status, code and message (pure)
 func newRequestError(status int, code errcode.Code, message string) *RequestError {
 	return &RequestError{Status: status, Code: code, Message: message}
 }
@@ -674,12 +676,6 @@ func MethodNotAllowedError(message string) *RequestError {
 // SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a 410 RequestError for a permanently removed resource (pure)
 func GoneError(message string) *RequestError {
 	return newRequestError(http.StatusGone, errcode.Gone, message)
-}
-
-// VersionMismatchError creates a RequestError for a failed If-Match precondition
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a 412 RequestError for a stale If-Match version (pure)
-func VersionMismatchError(message string) *RequestError {
-	return newRequestError(http.StatusPreconditionFailed, errcode.VersionMismatch, message)
 }
 
 // PayloadTooLargeError creates a RequestError for an oversized request body

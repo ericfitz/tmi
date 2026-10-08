@@ -26,7 +26,7 @@ PROTOCOL_PATH = re.compile(
 STATUS_CODE = {
     "400": "invalid_input", "401": "unauthorized", "403": "forbidden",
     "404": "not_found", "405": "method_not_allowed", "406": "not_acceptable",
-    "409": "conflict", "410": "gone", "412": "version_mismatch",
+    "409": "conflict", "410": "gone",
     "413": "payload_too_large", "415": "unsupported_media_type",
     "422": "unprocessable_entity", "428": "if_match_required",
     "429": "rate_limit_exceeded", "500": "server_error",

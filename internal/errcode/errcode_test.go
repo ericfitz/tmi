@@ -20,7 +20,7 @@ func TestSetsAreDisjointAndSnakeCase(t *testing.T) {
 		}
 	}
 	if len(REST()) != 23 {
-		t.Errorf("REST has %d codes, want 21", len(REST()))
+		t.Errorf("REST has %d codes, want 23", len(REST()))
 	}
 	if !IsProtocol(ServerError) || !IsREST(ServerError) {
 		t.Error("server_error must be in both tiers")
@@ -52,7 +52,7 @@ func TestRESTLegacyExceptionsAreExactlyTwo(t *testing.T) {
 		}
 	}
 	if tier1 != 21 {
-		t.Errorf("REST has %d non-legacy codes, want 21", tier1)
+		t.Errorf("REST has %d non-legacy codes, want 23", tier1)
 	}
 	for c := range legacy {
 		if !IsREST(c) {

@@ -34,7 +34,7 @@ const (
 	Conflict Code = "conflict"
 	// Gone is HTTP 410 permanently removed.
 	Gone Code = "gone"
-	// VersionMismatch is HTTP 412 If-Match does not match the current version.
+	// VersionMismatch is HTTP 409 If-Match does not match the current version.
 	VersionMismatch Code = "version_mismatch"
 	// PayloadTooLarge is HTTP 413 payload too large.
 	PayloadTooLarge Code = "payload_too_large"
@@ -224,6 +224,7 @@ var (
 	protocolSet = toSet(protocolCodes())
 )
 
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build the protocol-route code list from RFC and transport codes (pure)
 func protocolCodes() []Code {
 	out := append([]Code{}, rfcCodes...)
 	for _, c := range transportCodes {
@@ -234,6 +235,7 @@ func protocolCodes() []Code {
 	return out
 }
 
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: report whether a code list contains a code (pure)
 func contains(s []Code, c Code) bool {
 	for _, x := range s {
 		if x == c {
@@ -243,6 +245,7 @@ func contains(s []Code, c Code) bool {
 	return false
 }
 
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: convert a code list to a lookup set (pure)
 func toSet(s []Code) map[Code]struct{} {
 	m := make(map[Code]struct{}, len(s))
 	for _, c := range s {
@@ -292,8 +295,6 @@ func ForStatus(status int) Code {
 		return Conflict
 	case 410:
 		return Gone
-	case 412:
-		return VersionMismatch
 	case 413:
 		return PayloadTooLarge
 	case 415:

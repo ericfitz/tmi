@@ -853,7 +853,6 @@ func TestNewConstructorsUseVocabulary(t *testing.T) {
 	}{
 		{InvalidPatchError("x"), 400, errcode.InvalidPatch},
 		{GoneError("x"), 410, errcode.Gone},
-		{VersionMismatchError("x"), 412, errcode.VersionMismatch},
 		{IfMatchRequiredError("x"), 428, errcode.IfMatchRequired},
 		{UnprocessableEntityError("x"), 422, errcode.UnprocessableEntity},
 		{RateLimitExceededError("x", 30), 429, errcode.RateLimitExceeded},
