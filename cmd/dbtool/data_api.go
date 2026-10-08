@@ -314,7 +314,7 @@ func (c *apiClient) findExistingGroup(groupName string) string {
 
 // findExistingSurveyResponse returns the ID and status of the current user's
 // response to the given survey, or empty strings if there is none.
-// SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: fetch the ID and status of the current user's response to a given survey
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: fetch the ID and status of the caller's response to a survey
 func (c *apiClient) findExistingSurveyResponse(surveyID string) (id, status string) {
 	result, code, err := c.apiRequest("GET", "/intake/survey_responses?limit=100", nil)
 	if err != nil || code >= 300 {
@@ -503,20 +503,20 @@ func (c *apiClient) transferOwnerViaDB(tmID string, patch map[string]any) error 
 // the spec (PUT replaces members, responsible parties and fields). Skipping an
 // existing team left it as it was: after its users had been deleted it kept
 // members=[] forever, and the spec's memberships never came back.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: create or reconcile a team via API with resolved member refs and metadata
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: create or reconcile a team to its seed spec via API
 func (c *apiClient) seedTeam(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	name, _ := entry.Data["name"].(string)
 	return c.seedTeamOrProject(entry, refs, "/teams", c.findExistingTeam(name))
 }
 
 // seedProject creates or reconciles a project; see seedTeam.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: create or reconcile a project via API with resolved team ref, parties and metadata
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: create or reconcile a project to its seed spec via API
 func (c *apiClient) seedProject(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	name, _ := entry.Data["name"].(string)
 	return c.seedTeamOrProject(entry, refs, "/projects", c.findExistingProject(name))
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: create or fully replace a team or project, then replace its metadata (writes API)
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: create or replace a team or project, then replace its metadata (writes API)
 func (c *apiClient) seedTeamOrProject(entry SeedEntry, refs RefMap, collection, existingID string) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -564,7 +564,7 @@ func (c *apiClient) seedTeamOrProject(entry SeedEntry, refs RefMap, collection, 
 // and team_ref to IDs and splits off metadata, which has its own endpoint.
 // An unresolvable ref is an error: dropping the entry would seed a team
 // without a member the spec declares.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: resolve user and team refs in a team or project seed payload (pure)
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: resolve user and team refs in a team or project payload (pure)
 func buildTeamOrProjectPayload(data map[string]any, refs RefMap) (map[string]any, []map[string]any, error) {
 	payload := copyMap(data)
 
@@ -1168,7 +1168,7 @@ func (c *apiClient) seedSurvey(entry SeedEntry, _ RefMap) (*SeedResult, error) {
 // spec's status. The server ignores status and authorization on create and
 // makes the caller the owner, so runDataSeed hands this seeder a token for the
 // spec's user (seedActAsUser), and submission is a separate PATCH.
-// SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: create or reuse the caller's survey response and move it to the spec status (writes API)
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: create or reuse the caller's survey response and move it to spec status
 func (c *apiClient) seedSurveyResponse(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -1217,7 +1217,7 @@ func (c *apiClient) seedSurveyResponse(entry SeedEntry, refs RefMap) (*SeedResul
 // the spec's. Only draft and submitted are seedable (validateSurveyResponses);
 // a response already past the wanted status cannot be moved back through the
 // intake API, so that is an error naming the fix rather than a silent mismatch.
-// SEM@1975e60c784b7ccbf2f55b33ff97315d0b175851: submit a seeded survey response when the spec asks for submitted (writes API)
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: submit a survey response when the spec wants submitted, else reject (writes API)
 func (c *apiClient) reconcileSurveyResponseStatus(id, current, want string) error {
 	if want == "" || want == current {
 		return nil
@@ -1259,7 +1259,7 @@ func (c *apiClient) seedTopLevel(entry SeedEntry, path string) (*SeedResult, err
 	return &SeedResult{Ref: entry.Ref, Kind: entry.Kind, ID: id}, nil
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: attach a key-value metadata entry to a target resource via API
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: attach a key-value metadata entry to a supported seeded target via API
 func (c *apiClient) seedMetadata(entry SeedEntry, refs RefMap) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -1323,7 +1323,7 @@ func (c *apiClient) seedMetadata(entry SeedEntry, refs RefMap) (*SeedResult, err
 
 // --- HTTP helpers ---
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: execute an authenticated HTTP request and return the parsed JSON response with status
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: execute an authenticated JSON request and return the object response with status
 func (c *apiClient) apiRequest(method, path string, payload any) (map[string]any, int, error) {
 	result, status, err := c.apiRequestAny(method, path, payload)
 	if err != nil {
@@ -1341,12 +1341,12 @@ func (c *apiClient) apiRequest(method, path string, payload any) (map[string]any
 
 // apiRequestAny is apiRequest for endpoints whose response body may be a JSON
 // array (the metadata bulk endpoints).
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: execute an authenticated HTTP request and return the parsed JSON body of any shape with status
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: execute an authenticated JSON request and return a response of any shape
 func (c *apiClient) apiRequestAny(method, path string, payload any) (any, int, error) {
 	return c.apiRequestWithType(method, path, payload, "application/json")
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: execute an authenticated HTTP request with a given body content type and parse the JSON reply
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: execute an authenticated request with a given content type and parse the reply
 func (c *apiClient) apiRequestWithType(method, path string, payload any, contentType string) (any, int, error) {
 	var body io.Reader
 	if payload != nil {

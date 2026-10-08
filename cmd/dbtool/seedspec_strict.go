@@ -21,6 +21,7 @@ var rawMessageType = reflect.TypeFor[json.RawMessage]()
 // the first offender; this walk reports all of them so a spec author can fix
 // the file in one pass. Keys starting with "_" are comments and are accepted
 // anywhere.
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: list every seed spec JSON key the spec structs do not declare (pure)
 func unknownSpecFields(data []byte) ([]string, error) {
 	var doc any
 	if err := json.Unmarshal(data, &doc); err != nil {
@@ -32,6 +33,7 @@ func unknownSpecFields(data []byte) ([]string, error) {
 	return unknown, nil
 }
 
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: recursively collect JSON keys absent from the matching Go type (pure)
 func walkUnknownFields(v any, t reflect.Type, path string, unknown *[]string) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -74,6 +76,7 @@ func walkUnknownFields(v any, t reflect.Type, path string, unknown *[]string) {
 	}
 }
 
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: map a struct's JSON field names to their Go types (pure)
 func jsonFieldTypes(t reflect.Type) map[string]reflect.Type {
 	fields := make(map[string]reflect.Type, t.NumField())
 	for i := range t.NumField() {

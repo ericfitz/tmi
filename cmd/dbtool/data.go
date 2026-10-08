@@ -12,7 +12,7 @@ import (
 	"github.com/ericfitz/tmi/test/testdb"
 )
 
-// SEM@27f3772fc6f3f53382ff01e0a9b73204f0c5e377: load a seed file and apply its entries to the database via DB or API strategies (reads DB)
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: load a seed file and apply entries via DB or API, acting as per-entry users (reads DB)
 func runDataSeed(db *testdb.TestDB, inputFile, serverURL, user, provider string, dryRun bool) error {
 	log := slogging.Get()
 
@@ -114,6 +114,7 @@ const (
 
 // actAsUser returns the user (and provider) an entry must be created as, or
 // "" to use the seeding user.
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: read the user and provider a seed entry must be created as (pure)
 func actAsUser(entry SeedEntry) (user, provider string) {
 	user, _ = entry.Data[seedActAsUser].(string)
 	provider, _ = entry.Data[seedActAsProvider].(string)
@@ -124,16 +125,19 @@ func actAsUser(entry SeedEntry) (user, provider string) {
 }
 
 // tokenCache authenticates each user once per seed run.
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: per-run cache of bearer tokens keyed by provider and user
 type tokenCache struct {
 	serverURL string
 	auth      func(serverURL, user, provider string) (string, error)
 	tokens    map[string]string
 }
 
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: build an empty bearer token cache around an authenticator (pure)
 func newTokenCache(serverURL string, auth func(serverURL, user, provider string) (string, error)) *tokenCache {
 	return &tokenCache{serverURL: serverURL, auth: auth, tokens: map[string]string{}}
 }
 
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: fetch a cached bearer token for a user, authenticating on first use
 func (tc *tokenCache) get(user, provider string) (string, error) {
 	key := provider + "/" + user
 	if tok, ok := tc.tokens[key]; ok {
@@ -147,7 +151,7 @@ func (tc *tokenCache) get(user, provider string) (string, error) {
 	return tok, nil
 }
 
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: parse a JSON seed spec file and transform it into a SeedFile (pure)
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: parse a seed spec file, rejecting unknown fields, into a SeedFile
 func loadSeedFile(path string) (*SeedFile, error) {
 	data, err := os.ReadFile(path) // #nosec G304 -- path from CLI flags
 	if err != nil {

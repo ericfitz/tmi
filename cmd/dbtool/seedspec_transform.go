@@ -22,7 +22,7 @@ type userInfo struct {
 
 // transformSeedSpec converts a SeedSpecFile into the internal SeedFile format.
 // It emits SeedEntry items in strict dependency order so that RefMap resolution works.
-// SEM@a34497eeb7ed839ce3929a9839d3329bae19642a: convert a SeedSpecFile to an ordered SeedFile with dependency-safe seed entries (pure)
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: validate and convert a seed spec into ordered seed entries (pure)
 func transformSeedSpec(spec *SeedSpecFile) (*SeedFile, error) {
 	users := buildUserLookup(spec.Users)
 	var seeds []SeedEntry
@@ -201,7 +201,7 @@ func transformGroupsAndMembers(admin *SeedSpecAdmin, users []SeedSpecUser) []See
 	return seeds
 }
 
-// SEM@2f8bdf4ee323d43b42d14954da7fbbf9544367c7: convert seed spec teams with members and roles to team seed entries (pure)
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: convert seed spec teams with members, parties and metadata to seed entries (pure)
 func transformTeams(teams []SeedSpecTeam) []SeedEntry {
 	var seeds []SeedEntry
 	for _, t := range teams {
@@ -233,6 +233,7 @@ func transformTeams(teams []SeedSpecTeam) []SeedEntry {
 
 // teamMemberRefs converts team members or responsible parties to API entries
 // whose user_ref the seeder resolves to a user_id.
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: convert team members or responsible parties to user-ref API entries (pure)
 func teamMemberRefs(members []SeedSpecTeamMember) []map[string]any {
 	out := make([]map[string]any, 0, len(members))
 	for _, m := range members {
@@ -244,6 +245,7 @@ func teamMemberRefs(members []SeedSpecTeamMember) []map[string]any {
 	return out
 }
 
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: set a map key only when the string value is non-empty (pure)
 func setIfNotEmpty(data map[string]any, key, value string) {
 	if value != "" {
 		data[key] = value
@@ -276,7 +278,7 @@ func transformTeamProjectNotes(
 	return seeds
 }
 
-// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: convert seed spec projects with optional team and status to project seed entries (pure)
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: convert seed spec projects with team, parties and metadata to seed entries (pure)
 func transformProjects(projects []SeedSpecProject) []SeedEntry {
 	var seeds []SeedEntry
 	for _, p := range projects {
@@ -653,6 +655,7 @@ func transformSurveys(surveys []SeedSpecSurvey) []SeedEntry {
 // validateSurveyResponses rejects survey responses the seeder cannot produce:
 // a status other than draft or submitted (later statuses are triage actions),
 // or a user the spec does not declare.
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: validate seed survey responses have seedable status and declared users (pure)
 func validateSurveyResponses(responses []SeedSpecSurveyResp, users map[string]userInfo) error {
 	for i, sr := range responses {
 		switch sr.Status {
@@ -670,7 +673,7 @@ func validateSurveyResponses(responses []SeedSpecSurveyResp, users map[string]us
 	return nil
 }
 
-// SEM@92656a07a453bd98a92e5d098c4c425f30bbf9a4: convert seed spec survey responses, with the user to act as, to seed entries (pure)
+// SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: convert seed spec survey responses, with the user to act as, to seed entries (pure)
 func transformSurveyResponses(responses []SeedSpecSurveyResp, users map[string]userInfo) []SeedEntry {
 	var seeds []SeedEntry
 	for i, sr := range responses {
