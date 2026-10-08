@@ -313,7 +313,7 @@ func (s *Server) UpdateTeamNote(c *gin.Context, teamId openapi_types.UUID, teamN
 
 // PatchTeamNote partially updates a team note using JSON Patch.
 // PATCH /teams/{team_id}/notes/{team_note_id}
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: apply JSON Patch to a team note, sanitizing the patched fields and enforcing sharable-field and visibility privilege rules (mutates shared state)
+// SEM@d276bf5e1126f3d0a1dcda0c73c3a265feffa704: apply JSON Patch to a team note, sanitizing the patched fields and enforcing sharable-field and visibility privilege rules (mutates shared state)
 func (s *Server) PatchTeamNote(c *gin.Context, teamId openapi_types.UUID, teamNoteId TeamNoteId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()

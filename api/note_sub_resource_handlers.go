@@ -368,7 +368,7 @@ func (h *NoteSubResourceHandler) DeleteNote(c *gin.Context) {
 
 // PatchNote applies JSON patch operations to a note
 // PATCH /threat_models/{threat_model_id}/notes/{note_id}
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: apply authorized JSON patch operations to a note, sanitizing the patched content, and emit audit record (mutates shared state)
+// SEM@d276bf5e1126f3d0a1dcda0c73c3a265feffa704: apply authorized JSON patch operations to a note, sanitizing the patched content, and emit audit record (mutates shared state)
 func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchNote - applying patch operations to note")

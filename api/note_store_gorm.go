@@ -428,7 +428,7 @@ func (s *GormNoteRepository) List(ctx context.Context, threatModelID string, off
 
 // Patch applies JSON patch operations to a note, runs check on the result,
 // and persists it.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: apply JSON patch operations to a note, validate the result with a caller check, and persist it (mutates shared state)
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: apply JSON patch operations to a note, validate the result with a caller check, and persist it (mutates shared state)
 func (s *GormNoteRepository) Patch(ctx context.Context, id string, operations []PatchOperation, check func(before, after *Note) error) (*Note, error) {
 	logger := slogging.Get()
 	logger.Debug("Patching note %s with %d operations", id, len(operations))
@@ -591,7 +591,7 @@ const maxNoteNameLength = 256
 // NOT NULL, and Oracle binds an empty string as NULL (#614); name must also fit
 // its column. Removed or null flags get the schema default (true). Errors are
 // 400 RequestErrors.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: apply JSON Patch operations to a note, restricted to persisted fields and keeping name and content non-empty, name within its column, and unset flags at their default (pure)
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: apply JSON Patch operations to a note, restricted to persisted fields and keeping name and content non-empty, name within its column, and unset flags at their default (pure)
 func applyNotePatch(note Note, operations []PatchOperation) (Note, error) {
 	for _, op := range operations {
 		var writes []string
@@ -643,7 +643,7 @@ func applyNotePatch(note Note, operations []PatchOperation) (Note, error) {
 
 // topLevelPatchPath returns the first segment of a JSON Pointer as a path
 // ("/metadata/0/value" -> "/metadata").
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: extract the top-level member of a JSON Pointer path (pure)
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: extract the top-level member of a JSON Pointer path (pure)
 func topLevelPatchPath(path string) string {
 	if i := strings.IndexByte(strings.TrimPrefix(path, "/"), '/'); i >= 0 {
 		return path[:i+1]

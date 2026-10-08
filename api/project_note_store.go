@@ -240,7 +240,7 @@ func (s *GormProjectNoteStore) Delete(ctx context.Context, id string) error {
 
 // Patch applies JSON Patch operations to a project note, runs check on the
 // result, and persists it.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: apply JSON Patch operations to a project note, validate the result with a caller check, and persist it (reads DB)
+// SEM@d276bf5e1126f3d0a1dcda0c73c3a265feffa704: apply JSON Patch operations to a project note, validate the result with a caller check, and persist it (reads DB)
 func (s *GormProjectNoteStore) Patch(ctx context.Context, id string, operations []PatchOperation, check func(before, after *ProjectNote) error) (*ProjectNote, error) {
 	logger := slogging.Get()
 

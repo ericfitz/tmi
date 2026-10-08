@@ -316,7 +316,7 @@ func (s *Server) UpdateProjectNote(c *gin.Context, projectId openapi_types.UUID,
 
 // PatchProjectNote partially updates a project note using JSON Patch.
 // PATCH /projects/{project_id}/notes/{project_note_id}
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: apply a JSON Patch to a project note, sanitizing the patched fields and blocking sharable-field changes for unprivileged users (mutates DB)
+// SEM@d276bf5e1126f3d0a1dcda0c73c3a265feffa704: apply a JSON Patch to a project note, sanitizing the patched fields and blocking sharable-field changes for unprivileged users (mutates DB)
 func (s *Server) PatchProjectNote(c *gin.Context, projectId openapi_types.UUID, projectNoteId ProjectNoteId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()

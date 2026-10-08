@@ -106,7 +106,7 @@ func createMarkdownSanitizationPolicy() *bluemonday.Policy {
 // Each pass also neutralizes markdown link, image and reference-definition
 // destinations whose scheme is not http, https or mailto (#1013); see
 // markdown_link_destinations.go.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize markdown by stripping disallowed HTML and unsafe link destinations while keeping text verbatim (pure)
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize markdown by stripping disallowed HTML and unsafe link destinations while keeping text verbatim (pure)
 func SanitizeMarkdownContent(content string) string {
 	if content == "" {
 		return content
@@ -185,7 +185,7 @@ func stripMarkdownHTML(content string) string {
 // This lives here rather than in each handler so the create, update and patch
 // paths across all four note resources cannot drift on it — the update paths
 // had no such check at all and silently persisted the empty value.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize a required markdown field, returning a 400 when it empties, nests too deeply, keeps an unsafe link or is too complex to check
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize a required markdown field, returning a 400 when it empties, nests too deeply, keeps an unsafe link or is too complex to check
 func SanitizeRequiredMarkdownContent(field, content string) (string, *RequestError) {
 	sanitized := SanitizeMarkdownContent(content)
 	// Authoritative gate (#1013): the destination scanner is best effort, so
@@ -360,7 +360,7 @@ type noteText struct {
 // includePlainText is set (an emptied description becomes nil). A changed
 // name is held to the schema's rules on every note type. Unchanged fields are not re-checked, so a legacy
 // value cannot block an unrelated edit.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize the note text fields a JSON Patch changed, in place on the patched entity, rejecting emptied required fields (pure)
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize the note text fields a JSON Patch changed, in place on the patched entity, rejecting emptied required fields (pure)
 func sanitizePatchedNoteText(before, after noteText, includePlainText bool) *RequestError {
 	if *after.content != *before.content {
 		sanitized, reqErr := SanitizeRequiredMarkdownContent("content", *after.content)
@@ -401,7 +401,7 @@ var noteNamePattern = regexp.MustCompile(`^[^<>"'&]*$`)
 // any field's value (e.g. content) into it. An empty name would also be NULL on
 // Oracle (NOT NULL column, a store error) but saved on PostgreSQL, and an
 // over-long one would fail the VARCHAR2(256) column.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: validate a patched note name against the schema's non-empty, length and character rules (pure)
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: validate a patched note name against the schema's non-empty, length and character rules (pure)
 func validatePatchedNoteName(name string) *RequestError {
 	switch {
 	case strings.TrimSpace(name) == "":
@@ -417,7 +417,7 @@ func validatePatchedNoteName(name string) *RequestError {
 // checkPatchedNote is the threat-model note store's patch check. It sanitizes
 // content only, as the threat-model note create and update paths do, and
 // validates a changed name.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize the content a JSON Patch changed on a threat-model note (pure)
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize the content a JSON Patch changed on a threat-model note (pure)
 func checkPatchedNote(before, after *Note) error {
 	if reqErr := sanitizePatchedNoteText(
 		noteText{&before.Content, &before.Name, &before.Description},
@@ -430,7 +430,7 @@ func checkPatchedNote(before, after *Note) error {
 }
 
 // checkPatchedTeamNote is the team note store's patch check.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize the content, name and description a JSON Patch changed on a team note (pure)
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize the content, name and description a JSON Patch changed on a team note (pure)
 func checkPatchedTeamNote(before, after *TeamNote) error {
 	if reqErr := sanitizePatchedNoteText(
 		noteText{&before.Content, &before.Name, &before.Description},
@@ -443,7 +443,7 @@ func checkPatchedTeamNote(before, after *TeamNote) error {
 }
 
 // checkPatchedProjectNote is the project note store's patch check.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize the content, name and description a JSON Patch changed on a project note (pure)
+// SEM@10c9a5e09437f90bc83d37d55324096bf2875b49: sanitize the content, name and description a JSON Patch changed on a project note (pure)
 func checkPatchedProjectNote(before, after *ProjectNote) error {
 	if reqErr := sanitizePatchedNoteText(
 		noteText{&before.Content, &before.Name, &before.Description},
