@@ -103,7 +103,7 @@ func TestValidateDuplicateSubjects(t *testing.T) {
 				var reqErr *RequestError
 				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
-				assert.Equal(t, "invalid_input", reqErr.Code)
+				assert.Equal(t, "invalid_input", string(reqErr.Code))
 				assert.Contains(t, reqErr.Message, tt.duplicate)
 			} else {
 				require.NoError(t, err)
@@ -534,7 +534,7 @@ func TestValidateAuthorizationEntries(t *testing.T) {
 				var reqErr *RequestError
 				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
-				assert.Equal(t, "invalid_input", reqErr.Code)
+				assert.Equal(t, "invalid_input", string(reqErr.Code))
 				assert.Contains(t, reqErr.Message, "subject cannot be empty")
 			} else {
 				require.NoError(t, err)
@@ -640,7 +640,7 @@ func TestValidateAuthorizationEntriesWithFormat(t *testing.T) {
 				var reqErr *RequestError
 				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
-				assert.Equal(t, "invalid_input", reqErr.Code)
+				assert.Equal(t, "invalid_input", string(reqErr.Code))
 				assert.Contains(t, reqErr.Message, tt.errorMsg)
 			} else {
 				require.NoError(t, err)
@@ -996,7 +996,7 @@ func TestExtractAuthData(t *testing.T) {
 				var reqErr *RequestError
 				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, http.StatusInternalServerError, reqErr.Status)
-				assert.Equal(t, "server_error", reqErr.Code)
+				assert.Equal(t, "server_error", string(reqErr.Code))
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tt.expectedType, authData.Type)

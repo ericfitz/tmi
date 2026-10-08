@@ -174,7 +174,7 @@ func TestApplyPatchOperations(t *testing.T) {
 				require.Error(t, err)
 				var reqErr *RequestError
 				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
-				assert.Equal(t, tt.errorCode, reqErr.Code)
+				assert.Equal(t, tt.errorCode, string(reqErr.Code))
 				if tt.errorStatus != 0 {
 					assert.Equal(t, tt.errorStatus, reqErr.Status)
 				}
@@ -272,7 +272,7 @@ func TestValidatePatchAuthorization(t *testing.T) {
 				var reqErr *RequestError
 				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, http.StatusForbidden, reqErr.Status)
-				assert.Equal(t, "forbidden", reqErr.Code)
+				assert.Equal(t, "forbidden", string(reqErr.Code))
 			} else {
 				require.NoError(t, err)
 			}
@@ -500,7 +500,7 @@ func TestValidatePatchedEntity(t *testing.T) {
 				var reqErr *RequestError
 				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
-				assert.Equal(t, tt.errorCode, reqErr.Code)
+				assert.Equal(t, tt.errorCode, string(reqErr.Code))
 			} else {
 				require.NoError(t, err)
 			}

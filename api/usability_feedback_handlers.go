@@ -283,12 +283,6 @@ func mapDBError(err error) error {
 	return ServerError("database error")
 }
 
-// PayloadTooLargeError returns a 413 RequestError.
-// SEM@72f2ef0deaad62ae1c2054ae42a059a253d123b7: build a 413 Payload Too Large request error (pure)
-func PayloadTooLargeError(msg string) error {
-	return &RequestError{Status: http.StatusRequestEntityTooLarge, Code: "payload_too_large", Message: msg}
-}
-
 // uuidMustParse parses a UUID string to openapi_types.UUID. The string is
 // trusted (it comes from our own DB rows). On parse failure returns the zero
 // UUID and logs.

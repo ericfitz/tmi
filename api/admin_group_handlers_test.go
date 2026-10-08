@@ -638,7 +638,7 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "invalid_limit")
+		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
 
 	t.Run("limit exceeding max returns 400", func(t *testing.T) {
@@ -651,7 +651,7 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "invalid_limit")
+		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
 
 	t.Run("invalid negative offset returns 400", func(t *testing.T) {
@@ -664,7 +664,7 @@ func TestAdminGroupListAdminGroups(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "invalid_offset")
+		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
 
 	t.Run("store list error returns 500", func(t *testing.T) {

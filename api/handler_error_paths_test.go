@@ -595,14 +595,14 @@ func TestErrorConstructors(t *testing.T) {
 	t.Run("InvalidInputError", func(t *testing.T) {
 		err := InvalidInputError("bad field")
 		assert.Equal(t, http.StatusBadRequest, err.Status)
-		assert.Equal(t, "invalid_input", err.Code)
+		assert.Equal(t, "invalid_input", string(err.Code))
 		assert.Equal(t, "bad field", err.Message)
 	})
 
 	t.Run("InvalidIDError", func(t *testing.T) {
 		err := InvalidIDError("not a UUID")
 		assert.Equal(t, http.StatusBadRequest, err.Status)
-		assert.Equal(t, "invalid_id", err.Code)
+		assert.Equal(t, "invalid_id", string(err.Code))
 		assert.Equal(t, "not a UUID", err.Message)
 	})
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/ericfitz/tmi/api/validation"
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,7 +74,7 @@ func TestParsePatchRequest(t *testing.T) {
 				require.Error(t, err)
 				var reqErr *RequestError
 				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
-				assert.Equal(t, tt.errorCode, reqErr.Code)
+				assert.Equal(t, tt.errorCode, string(reqErr.Code))
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tt.expected, operations)
@@ -147,7 +148,7 @@ func TestParseRequestBody(t *testing.T) {
 				require.Error(t, err)
 				var reqErr *RequestError
 				require.True(t, errors.As(err, &reqErr), "Expected RequestError")
-				assert.Equal(t, tt.errorCode, reqErr.Code)
+				assert.Equal(t, tt.errorCode, string(reqErr.Code))
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tt.expected, result)
@@ -256,12 +257,12 @@ func TestGetAuthenticatedUser(t *testing.T) {
 					require.Error(t, roleErr)
 					var reqErr *RequestError
 					require.True(t, errors.As(roleErr, &reqErr), "Expected RequestError")
-					assert.Equal(t, tt.errorCode, reqErr.Code)
+					assert.Equal(t, tt.errorCode, string(reqErr.Code))
 				} else {
 					require.Error(t, err)
 					var reqErr *RequestError
 					require.True(t, errors.As(err, &reqErr), "Expected RequestError")
-					assert.Equal(t, tt.errorCode, reqErr.Code)
+					assert.Equal(t, tt.errorCode, string(reqErr.Code))
 				}
 			} else {
 				require.NoError(t, err)
@@ -432,7 +433,7 @@ func TestErrorUtilities(t *testing.T) {
 			err := tt.errFunc(tt.message)
 
 			assert.Equal(t, tt.expectedStatus, err.Status)
-			assert.Equal(t, tt.expectedCode, err.Code)
+			assert.Equal(t, tt.expectedCode, string(err.Code))
 			assert.Equal(t, tt.message, err.Message)
 			assert.Equal(t, tt.message, err.Error())
 		})
@@ -541,7 +542,7 @@ func TestParseRequestBody_FullwidthBrackets(t *testing.T) {
 			var reqErr *RequestError
 			require.True(t, errors.As(err, &reqErr), "Error should be RequestError type")
 			assert.Equal(t, http.StatusBadRequest, reqErr.Status, "Should return 400 Bad Request")
-			assert.Equal(t, "invalid_input", reqErr.Code)
+			assert.Equal(t, "invalid_input", string(reqErr.Code))
 		})
 	}
 }
@@ -603,7 +604,7 @@ func TestParseRequestBody_MalformedJSONPatterns(t *testing.T) {
 			var reqErr *RequestError
 			require.True(t, errors.As(err, &reqErr), "Error should be RequestError type")
 			assert.Equal(t, http.StatusBadRequest, reqErr.Status, "Should return 400 Bad Request")
-			assert.Equal(t, "invalid_input", reqErr.Code)
+			assert.Equal(t, "invalid_input", string(reqErr.Code))
 			assert.Contains(t, reqErr.Message, "invalid JSON", "Error message should mention invalid JSON")
 		})
 	}
@@ -820,7 +821,7 @@ func TestStoreErrorToRequestError_TransientMapsTo503(t *testing.T) {
 
 	require.NotNil(t, reqErr)
 	assert.Equal(t, http.StatusServiceUnavailable, reqErr.Status, "transient DB fault should map to 503")
-	assert.Equal(t, "service_unavailable", reqErr.Code)
+	assert.Equal(t, "service_unavailable", string(reqErr.Code))
 	assert.NotEqual(t, "Failed to update threat", reqErr.Message, "503 should not reuse the 500 message")
 }
 
@@ -832,7 +833,7 @@ func TestStoreErrorToRequestError_UnclassifiedStays500(t *testing.T) {
 
 	require.NotNil(t, reqErr)
 	assert.Equal(t, http.StatusInternalServerError, reqErr.Status)
-	assert.Equal(t, "server_error", reqErr.Code)
+	assert.Equal(t, "server_error", string(reqErr.Code))
 	assert.Equal(t, "Failed to create user", reqErr.Message)
 }
 
@@ -842,4 +843,39 @@ func TestWriteErrorToRequestError(t *testing.T) {
 	transient := fmt.Errorf("transaction failed after 3 attempts: %w", dberrors.ErrTransient)
 	assert.Equal(t, http.StatusServiceUnavailable, WriteErrorToRequestError(transient, "Failed to create thing").Status)
 	assert.Equal(t, http.StatusInternalServerError, WriteErrorToRequestError(errors.New("boom"), "Failed to create thing").Status)
+}
+
+func TestNewConstructorsUseVocabulary(t *testing.T) {
+	cases := []struct {
+		err    *RequestError
+		status int
+		code   errcode.Code
+	}{
+		{InvalidPatchError("x"), 400, errcode.InvalidPatch},
+		{GoneError("x"), 410, errcode.Gone},
+		{VersionMismatchError("x"), 412, errcode.VersionMismatch},
+		{IfMatchRequiredError("x"), 428, errcode.IfMatchRequired},
+		{UnprocessableEntityError("x"), 422, errcode.UnprocessableEntity},
+		{RateLimitExceededError("x", 30), 429, errcode.RateLimitExceeded},
+		{QuotaExceededError(403, "x"), 403, errcode.QuotaExceeded},
+		{MethodNotAllowedError("x"), 405, errcode.MethodNotAllowed},
+		{PayloadTooLargeError("x"), 413, errcode.PayloadTooLarge},
+		{UnsupportedMediaTypeError("x"), 415, errcode.UnsupportedMediaType},
+		{InsufficientUserAuthenticationError("x"), 401, errcode.InsufficientUserAuthentication},
+		{WithDetailCode(ForbiddenError("x"), errcode.DetailProtectedGroup), 403, errcode.Forbidden},
+	}
+	for _, c := range cases {
+		assert.Equal(t, c.status, c.err.Status)
+		assert.Equal(t, c.code, c.err.Code)
+	}
+	e := WithDetailCode(ForbiddenError("x"), errcode.DetailProtectedGroup)
+	assert.Equal(t, "protected_group", *e.Details.Code)
+	assert.Equal(t, 30, RateLimitExceededError("x", 30).Details.Context["retry_after"])
+}
+
+func TestValidatePaginationParamsUsesInvalidInput(t *testing.T) {
+	neg := -1
+	require.NotNil(t, ValidatePaginationParams(&neg, nil))
+	assert.Equal(t, errcode.InvalidInput, ValidatePaginationParams(&neg, nil).Code)
+	assert.Equal(t, errcode.InvalidInput, ValidatePaginationParams(nil, &neg).Code)
 }

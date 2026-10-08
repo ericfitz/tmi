@@ -282,7 +282,7 @@ func TestValidateSparseAuthorizationEntries(t *testing.T) {
 				var reqErr *RequestError
 				require.True(t, errors.As(err, &reqErr), "Expected RequestError, got %T", err)
 				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
-				assert.Equal(t, tt.errorCode, reqErr.Code)
+				assert.Equal(t, tt.errorCode, string(reqErr.Code))
 				assert.Contains(t, reqErr.Message, tt.errorMsg)
 			} else {
 				assert.NoError(t, err)
