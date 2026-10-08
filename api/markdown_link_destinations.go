@@ -1,9 +1,11 @@
 package api
 
 import (
+	"errors"
 	"html"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/ericfitz/tmi/internal/slogging"
@@ -305,7 +307,10 @@ var anySchemeRe = regexp.MustCompile(`([a-z][a-z0-9+.-]*):`)
 // decoded, control characters removed, lowercased), contains any "scheme:"
 // token whose scheme is not allowlisted. Notes without one cannot hold an
 // unsafe destination and skip the parse. It over-approximates (any "word:"
-// matches) and never under-approximates.
+// matches) and never under-approximates. Because of that, ordinary prose
+// ("Note:", "TODO:", "Step 1:") passes it, so most real notes do reach the
+// gate: the gate's cost limit (markdownGateCheck) protects every note write,
+// not just hostile ones.
 // SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: report whether text contains a colon-terminated token with a non-allowlisted scheme (pure)
 func markdownMayHaveUnsafeLink(content string) bool {
 	norm := content
@@ -333,12 +338,24 @@ func markdownMayHaveUnsafeLink(content string) bool {
 
 // markdownHasUnsafeLink parses content as CommonMark (see markdownGateParser)
 // and reports whether any link, image or autolink has a destination that is
-// not relative or allowlisted. Callers go through markdownGateCheck, which
-// bounds its running time.
+// not relative or allowlisted. It has no time limit; request paths go through
+// markdownGateCheck.
 // SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: report whether parsed markdown contains a link, image or autolink with a disallowed destination (pure)
 func markdownHasUnsafeLink(content string) bool {
+	return markdownHasUnsafeLinkBefore(content, time.Time{})
+}
+
+// markdownHasUnsafeLinkBefore is markdownHasUnsafeLink with a deadline (zero
+// means none): past it, the parse panics with errMarkdownGateDeadline (see
+// gateDeadlineContext).
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: report whether parsed markdown contains a disallowed link destination, aborting the parse at a deadline (pure)
+func markdownHasUnsafeLinkBefore(content string, deadline time.Time) bool {
 	src := []byte(content)
-	doc := markdownGateParser.Parse(text.NewReader(src))
+	var opts []parser.ParseOption
+	if !deadline.IsZero() {
+		opts = append(opts, parser.WithContext(&gateDeadlineContext{Context: parser.NewContext(), deadline: deadline}))
+	}
+	doc := markdownGateParser.Parse(text.NewReader(src), opts...)
 	unsafe := false
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
@@ -360,22 +377,99 @@ func markdownHasUnsafeLink(content string) bool {
 	return unsafe
 }
 
-// markdownGateBudget bounds the wall-clock time one gate check may take,
-// including the wait for a parse slot. goldmark has inputs on which parsing is
-// quadratic (a run of "[a](" with no whitespace takes ~10 s at the 256 KiB
-// schema limit) and more may exist, so rather than chase each one the gate
-// gives up and rejects the note as too complex. A normal 256 KiB note parses in
-// ~20 ms. It is a variable so tests can shorten it.
+// markdownGateBudget bounds the wall-clock time one gate check may take.
+// goldmark has inputs on which parsing is quadratic (a run of "[a](" with no
+// whitespace takes ~10 s at the 256 KiB schema limit) and more may exist, so
+// rather than chase each one the gate stops the parse at the deadline and
+// rejects the note as too complex. A normal 256 KiB note parses in ~20 ms. It
+// is a variable so tests can shorten it.
 var markdownGateBudget = 500 * time.Millisecond
 
-// markdownGateSlots caps concurrent gate parses. A parse that outlives its
-// budget cannot be cancelled, so it keeps its slot until it finishes; the cap
-// stops abandoned parses from piling up and starving the server.
-var markdownGateSlots = make(chan struct{}, 4)
+// markdownGateInFlight counts gate parses still running, including ones whose
+// caller already gave up; tests use it to check that cancellation is prompt.
+var markdownGateInFlight atomic.Int64
 
 // markdownGateScan is the parse the gate runs; tests replace it to control
-// timing.
-var markdownGateScan = markdownHasUnsafeLink
+// timing. It must give up (panic with errMarkdownGateDeadline) soon after the
+// deadline.
+var markdownGateScan = markdownHasUnsafeLinkBefore
+
+// errMarkdownGateDeadline is the panic value that aborts a gate parse.
+var errMarkdownGateDeadline = errors.New("markdown gate parse deadline exceeded")
+
+// gateDeadlineContext is the parser.Context for a gate parse. goldmark threads
+// one Context through every phase, including the inline phase, which reads
+// from its own internal block reader (so wrapping the input reader would not
+// reach the quadratic link-destination scan). Every few calls into the
+// context it checks the clock and panics with errMarkdownGateDeadline once
+// the deadline has passed. Between two context calls goldmark does at most
+// one linear scan of a line, so a parse stops within milliseconds of the
+// deadline. A parse is single-goroutine, so the counter needs no locking.
+type gateDeadlineContext struct {
+	parser.Context
+	deadline time.Time
+	calls    uint32
+}
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: abort the gate parse with a sentinel panic once its deadline has passed, checking the clock every few calls
+func (c *gateDeadlineContext) tick() {
+	c.calls++
+	if c.calls&7 == 0 && time.Now().After(c.deadline) {
+		panic(errMarkdownGateDeadline)
+	}
+}
+
+// The overrides below are the Context methods goldmark's block parsers,
+// inline parsers (links, code spans, autolinks, raw HTML) and the
+// link-reference paragraph transformer call as they work.
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: read a parse-context value after a deadline check
+func (c *gateDeadlineContext) Get(k parser.ContextKey) any { c.tick(); return c.Context.Get(k) }
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: compute or read a parse-context value after a deadline check
+func (c *gateDeadlineContext) ComputeIfAbsent(k parser.ContextKey, f func() any) any {
+	c.tick()
+	return c.Context.ComputeIfAbsent(k, f)
+}
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: store a parse-context value after a deadline check
+func (c *gateDeadlineContext) Set(k parser.ContextKey, v any) { c.tick(); c.Context.Set(k, v) }
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: record a link reference definition after a deadline check
+func (c *gateDeadlineContext) AddReference(r parser.Reference) { c.tick(); c.Context.AddReference(r) }
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: look up a link reference definition after a deadline check
+func (c *gateDeadlineContext) Reference(label string) (parser.Reference, bool) {
+	c.tick()
+	return c.Context.Reference(label)
+}
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: read the block offset after a deadline check
+func (c *gateDeadlineContext) BlockOffset() int { c.tick(); return c.Context.BlockOffset() }
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: read the block indent after a deadline check
+func (c *gateDeadlineContext) BlockIndent() int { c.tick(); return c.Context.BlockIndent() }
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: read the open block stack after a deadline check
+func (c *gateDeadlineContext) OpenedBlocks() []parser.Block {
+	c.tick()
+	return c.Context.OpenedBlocks()
+}
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: replace the open block stack after a deadline check
+func (c *gateDeadlineContext) SetOpenedBlocks(b []parser.Block) {
+	c.tick()
+	c.Context.SetOpenedBlocks(b)
+}
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: read the innermost open block after a deadline check
+func (c *gateDeadlineContext) LastOpenedBlock() parser.Block {
+	c.tick()
+	return c.Context.LastOpenedBlock()
+}
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: report whether the parser is inside a link label after a deadline check
+func (c *gateDeadlineContext) IsInLinkLabel() bool { c.tick(); return c.Context.IsInLinkLabel() }
 
 // markdownGateResult is the outcome of markdownGateCheck.
 type markdownGateResult int
@@ -386,34 +480,32 @@ const (
 	markdownGateTooComplex
 )
 
-// markdownGateCheck runs markdownGateScan on content within markdownGateBudget
-// and at most cap(markdownGateSlots) at a time. It reports
-// markdownGateTooComplex when no slot frees up or the parse does not finish in
-// time, and also when the parse panics (it runs on its own goroutine, where a
-// panic would otherwise take down the process).
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: run the markdown link gate under a time budget and concurrency cap, reporting too-complex on overrun
+// markdownGateCheck runs markdownGateScan on content with a deadline of
+// markdownGateBudget. It reports markdownGateTooComplex when the parse does
+// not finish in time or panics (it runs on its own goroutine, where a panic
+// would otherwise take down the process). The parse itself stops at the
+// deadline, so abandoned parses cannot accumulate; there is deliberately no
+// concurrency cap, which would turn a few slow requests into rejections for
+// every other user (#1013 review).
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: run the markdown link gate under a cancelling deadline, reporting too-complex on overrun or panic
 func markdownGateCheck(content string) markdownGateResult {
+	deadline := time.Now().Add(markdownGateBudget)
 	timer := time.NewTimer(markdownGateBudget)
 	defer timer.Stop()
-	select {
-	case markdownGateSlots <- struct{}{}:
-	case <-timer.C:
-		slogging.Get().Warn("markdown link gate: no parse slot free within budget")
-		return markdownGateTooComplex
-	}
 	scan := markdownGateScan // read here, not on the goroutine, which may outlive a test's override
 	done := make(chan markdownGateResult, 1)
+	markdownGateInFlight.Add(1)
 	go func() {
-		// Deferred calls run last-in first-out: recover first, then free the
-		// slot, so the slot is released only when the parse has really ended.
-		defer func() { <-markdownGateSlots }()
+		defer markdownGateInFlight.Add(-1)
 		defer func() {
 			if r := recover(); r != nil {
-				slogging.Get().Error("markdown link gate: parse panicked: %v", r)
+				if r != errMarkdownGateDeadline { //nolint:errorlint // sentinel panic value, compared by identity
+					slogging.Get().Error("markdown link gate: parse panicked: %v", r)
+				}
 				done <- markdownGateTooComplex
 			}
 		}()
-		if scan(content) {
+		if scan(content, deadline) {
 			done <- markdownGateUnsafe
 		} else {
 			done <- markdownGateSafe
@@ -423,7 +515,6 @@ func markdownGateCheck(content string) markdownGateResult {
 	case result := <-done:
 		return result
 	case <-timer.C:
-		slogging.Get().Warn("markdown link gate: parse exceeded budget of %v (%d bytes)", markdownGateBudget, len(content))
 		return markdownGateTooComplex
 	}
 }

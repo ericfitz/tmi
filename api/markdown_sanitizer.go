@@ -1,11 +1,13 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"html"
 	"regexp"
 	"strings"
 
+	tmiotel "github.com/ericfitz/tmi/internal/otel"
 	"github.com/microcosm-cc/bluemonday"
 	xhtml "golang.org/x/net/html"
 )
@@ -202,10 +204,15 @@ func SanitizeRequiredMarkdownContent(field, content string) (string, *RequestErr
 				field,
 			))
 		default:
-			return "", InvalidInputError(fmt.Sprintf(
+			if m := tmiotel.GlobalMetrics; m != nil {
+				m.MarkdownGateTooComplex.Add(context.Background(), 1)
+			}
+			reqErr := InvalidInputError(fmt.Sprintf(
 				"%s is too complex to validate",
 				field,
 			))
+			reqErr.markdownTooComplexBytes = len(sanitized)
+			return "", reqErr
 		}
 	}
 	if strings.TrimSpace(sanitized) == "" && strings.TrimSpace(content) != "" {

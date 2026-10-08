@@ -1,6 +1,7 @@
 package api
 
 import (
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -36,13 +37,25 @@ func gateTestSize() int {
 	return markdownMaxLen
 }
 
-// waitForGateSlotsDrained fails the test unless every gate parse slot frees up
-// in time, i.e. abandoned parses really finish and release their slot, and
-// keeps leftover parses from turning later gate tests into spurious 400s.
-func waitForGateSlotsDrained(t *testing.T) {
+// waitForGateParsesDone fails the test unless every gate parse, including
+// abandoned ones, has stopped within a short time, and keeps leftover parses
+// from skewing later tests.
+func waitForGateParsesDone(t *testing.T) {
 	t.Helper()
-	assert.Eventually(t, func() bool { return len(markdownGateSlots) == 0 },
-		2*time.Minute, 10*time.Millisecond, "markdown gate parse slots leaked")
+	assert.Eventually(t, func() bool { return markdownGateInFlight.Load() == 0 },
+		5*time.Second, time.Millisecond, "markdown gate parses kept running past their deadline")
+}
+
+// gatePathologicalInputs are the known quadratic shapes, each forcing the parse.
+func gatePathologicalInputs(n int) map[string]string {
+	n -= len(forceGateParse)
+	return map[string]string{
+		"[a](":         repeatTo("[a](", n) + forceGateParse,
+		"[](":          repeatTo("[](", n) + forceGateParse,
+		"![a](":        repeatTo("![a](", n) + forceGateParse,
+		"[ x n, ] x n": repeatTo("[", n/2) + repeatTo("]", n/2) + forceGateParse,
+		"ref defs":     repeatTo("[a]: /x\n", n) + forceGateParse,
+	}
 }
 
 // TestSanitizeRequiredMarkdownContent_BoundedCost guards the sanitizer plus the
@@ -53,7 +66,7 @@ func waitForGateSlotsDrained(t *testing.T) {
 // substring of the 400 message) or with the too-complex 400. Not skipped under
 // -race.
 func TestSanitizeRequiredMarkdownContent_BoundedCost(t *testing.T) {
-	t.Cleanup(func() { waitForGateSlotsDrained(t) })
+	t.Cleanup(func() { waitForGateParsesDone(t) })
 	n := gateTestSize() - len(forceGateParse)
 	cases := map[string]struct{ in, want string }{
 		"blockquote":        {repeatTo(">", n), "nests block quotes or lists too deeply"},
@@ -100,24 +113,6 @@ func TestSanitizeRequiredMarkdownContent_BoundedCost(t *testing.T) {
 	}
 }
 
-// slowGateScan replaces markdownGateScan with a parse that blocks until release
-// is closed, then reports the content safe. It restores the real scan on
-// cleanup (after release, so the blocked goroutines can finish).
-func slowGateScan(t *testing.T) (release func()) {
-	t.Helper()
-	ch := make(chan struct{})
-	var once sync.Once
-	release = func() { once.Do(func() { close(ch) }) }
-	orig := markdownGateScan
-	markdownGateScan = func(string) bool { <-ch; return false }
-	t.Cleanup(func() {
-		release()
-		waitForGateSlotsDrained(t)
-		markdownGateScan = orig
-	})
-	return release
-}
-
 // shortGateBudget sets markdownGateBudget for one test. Tests that use it must
 // not run in parallel.
 func shortGateBudget(t *testing.T, d time.Duration) {
@@ -127,20 +122,63 @@ func shortGateBudget(t *testing.T, d time.Duration) {
 	t.Cleanup(func() { markdownGateBudget = orig })
 }
 
+// stubGateScan replaces markdownGateScan for one test.
+func stubGateScan(t *testing.T, scan func(string, time.Time) bool) {
+	t.Helper()
+	orig := markdownGateScan
+	markdownGateScan = scan
+	t.Cleanup(func() {
+		waitForGateParsesDone(t)
+		markdownGateScan = orig
+	})
+}
+
 func assertTooComplex(t *testing.T, err *RequestError) {
 	t.Helper()
 	if assert.NotNil(t, err) {
 		assert.Equal(t, 400, err.Status)
 		assert.Equal(t, "invalid_input", err.Code)
 		assert.Contains(t, err.Message, "too complex to validate")
+		assert.Positive(t, err.markdownTooComplexBytes, "rejection must be tagged for logging")
 	}
 }
 
-// A parse that overruns the budget yields the too-complex 400 on time, and its
-// slot is released once the parse itself finishes, not before.
-func TestMarkdownGate_TimeoutReturnsTooComplexAndReleasesSlot(t *testing.T) {
+// The real parse stops at its deadline: for every known quadratic shape the
+// check returns the too-complex 400 on time and the parse goroutine exits
+// within a few milliseconds of the deadline, so abandoned work cannot pile up.
+func TestMarkdownGate_ParseCancelledAtDeadline(t *testing.T) {
+	t.Cleanup(func() { waitForGateParsesDone(t) })
+	shortGateBudget(t, 100*time.Millisecond)
+	for name, in := range gatePathologicalInputs(gateTestSize()) {
+		t.Run(name, func(t *testing.T) {
+			waitForGateParsesDone(t)
+			start := time.Now()
+			deadline := start.Add(markdownGateBudget)
+			result := markdownGateCheck(in)
+			returned := time.Now()
+			for markdownGateInFlight.Load() != 0 && time.Since(returned) < 5*time.Second {
+				time.Sleep(100 * time.Microsecond)
+			}
+			stopped := time.Now()
+			t.Logf("%s: %d bytes, result=%d, returned %v after deadline, parse stopped %v after deadline",
+				name, len(in), result, returned.Sub(deadline), stopped.Sub(deadline))
+			if result != markdownGateTooComplex {
+				// Fast enough to finish within the budget: nothing to cancel.
+				assert.Equal(t, markdownGateSafe, result)
+				return
+			}
+			assert.Less(t, stopped.Sub(deadline), 100*time.Millisecond, "parse kept running after its deadline")
+		})
+	}
+}
+
+// A scan that ignores the deadline still cannot hold the caller past the
+// budget (the timer is the backstop).
+func TestMarkdownGate_TimerBackstopsStuckScan(t *testing.T) {
 	shortGateBudget(t, 50*time.Millisecond)
-	release := slowGateScan(t)
+	release := make(chan struct{})
+	stubGateScan(t, func(string, time.Time) bool { <-release; return false })
+	defer close(release)
 
 	start := time.Now()
 	_, err := SanitizeRequiredMarkdownContent("content", "hello"+forceGateParse)
@@ -148,47 +186,49 @@ func TestMarkdownGate_TimeoutReturnsTooComplexAndReleasesSlot(t *testing.T) {
 	assertTooComplex(t, err)
 	assert.GreaterOrEqual(t, elapsed, 50*time.Millisecond)
 	assert.Less(t, elapsed, time.Second)
-	assert.Equal(t, 1, len(markdownGateSlots), "abandoned parse must keep its slot while running")
-
-	release()
-	waitForGateSlotsDrained(t)
 }
 
-// The real parser on a pathological input also hits the budget.
-func TestMarkdownGate_RealPathologicalParseTimesOut(t *testing.T) {
-	t.Cleanup(func() { waitForGateSlotsDrained(t) })
-	shortGateBudget(t, 20*time.Millisecond)
-	in := repeatTo("[a](", gateOverrunSize) + forceGateParse
-	start := time.Now()
-	_, err := SanitizeRequiredMarkdownContent("content", in)
-	assertTooComplex(t, err)
-	assert.Less(t, time.Since(start), time.Second)
-}
-
-// With every slot held by an abandoned parse, a new check waits at most the
-// budget for a slot and then returns the too-complex 400 without parsing.
-func TestMarkdownGate_NoFreeSlotReturnsTooComplex(t *testing.T) {
-	shortGateBudget(t, 50*time.Millisecond)
-	slowGateScan(t)
-	for i := 0; i < cap(markdownGateSlots); i++ {
-		_, err := SanitizeRequiredMarkdownContent("content", "hello"+forceGateParse)
-		assertTooComplex(t, err)
+// Starvation regression (#1013 review): pathological requests in flight must
+// not make anyone else's ordinary note fail. A small prose note and a large
+// link-heavy note sent mid-attack both succeed.
+func TestMarkdownGate_AttackDoesNotStarveOtherNotes(t *testing.T) {
+	t.Cleanup(func() { waitForGateParsesDone(t) })
+	attack := repeatTo("[a](", gateTestSize()) + forceGateParse
+	const attackers = 8
+	attackStart := time.Now()
+	var wg sync.WaitGroup
+	for i := 0; i < attackers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := SanitizeRequiredMarkdownContent("content", attack)
+			if err != nil {
+				assertTooComplex(t, err)
+			}
+		}()
 	}
-	assert.Equal(t, cap(markdownGateSlots), len(markdownGateSlots))
+	assert.Eventually(t, func() bool { return markdownGateInFlight.Load() >= attackers },
+		time.Second, time.Millisecond, "attack parses did not start")
 
-	start := time.Now()
-	_, err := SanitizeRequiredMarkdownContent("content", "hello"+forceGateParse)
-	assertTooComplex(t, err)
-	assert.Less(t, time.Since(start), time.Second)
+	small := "Note: hello"
+	out, err := SanitizeRequiredMarkdownContent("content", small)
+	assert.Nil(t, err, "small note rejected during attack")
+	assert.Equal(t, small, out)
+
+	large := repeatTo("Step: see [a](https://example.com/x) ", markdownMaxLen)
+	_, err = SanitizeRequiredMarkdownContent("content", large)
+	assert.Nil(t, err, "large legitimate note rejected during attack")
+
+	assert.Less(t, time.Since(attackStart), markdownGateBudget+600*time.Millisecond,
+		"legitimate notes must complete within ~600 ms of the attack's deadline")
+	wg.Wait()
 }
 
-// More parallel pathological requests than there are slots all return within
-// the bound: none queues behind another's abandoned parse for longer than the
-// budget.
+// More parallel pathological requests than CPUs all return within the bound,
+// and their parses stop promptly.
 func TestMarkdownGate_ConcurrentPathologicalRequestsBounded(t *testing.T) {
-	t.Cleanup(func() { waitForGateSlotsDrained(t) })
 	in := repeatTo("[a](", gateOverrunSize) + forceGateParse
-	const requests = 12
+	requests := 2*runtime.GOMAXPROCS(0) + 4
 	bound := markdownGateBudget + 2*time.Second
 	var wg sync.WaitGroup
 	errs := make([]*RequestError, requests)
@@ -209,17 +249,24 @@ func TestMarkdownGate_ConcurrentPathologicalRequestsBounded(t *testing.T) {
 			assertTooComplex(t, errs[i])
 		}
 	}
+	waitForGateParsesDone(t)
 }
 
-// A panic in the parse goroutine becomes the too-complex 400, not a crash, and
-// frees the slot.
+// A panic in the parse goroutine becomes the too-complex 400, not a crash.
 func TestMarkdownGate_PanicIsTooComplex(t *testing.T) {
-	orig := markdownGateScan
-	markdownGateScan = func(string) bool { panic("boom") }
-	t.Cleanup(func() { markdownGateScan = orig })
+	stubGateScan(t, func(string, time.Time) bool { panic("boom") })
 	_, err := SanitizeRequiredMarkdownContent("content", "hello"+forceGateParse)
 	assertTooComplex(t, err)
-	waitForGateSlotsDrained(t)
+}
+
+// The deadline context lets an unhurried parse finish normally.
+func TestMarkdownHasUnsafeLinkBefore_FinishesWithinDeadline(t *testing.T) {
+	far := time.Now().Add(time.Minute)
+	assert.True(t, markdownHasUnsafeLinkBefore("> [x](\n> javascript:alert(1))", far))
+	assert.False(t, markdownHasUnsafeLinkBefore("[x](https://example.com) Note: ok", far))
+	assert.Panics(t, func() {
+		markdownHasUnsafeLinkBefore(repeatTo("[a](", 64*1024), time.Now().Add(-time.Second))
+	})
 }
 
 // A very large note whose only unsafe construct is the last link must still be
