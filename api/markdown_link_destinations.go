@@ -5,10 +5,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 )
 
 // Markdown link and image destinations (#1013).
@@ -224,17 +224,119 @@ func isASCIIPunct(c byte) bool {
 	return strings.IndexByte("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", c) >= 0
 }
 
-// markdownParser is the CommonMark+GFM parser used by the final gate. It is
-// only used to parse, never to render.
-var markdownParser = goldmark.New(goldmark.WithExtensions(extension.GFM)).Parser()
+// markdownGateParser parses just enough CommonMark to find link, image and
+// autolink destinations: the default block parsers and paragraph transformers
+// (reference definitions), and inline parsers for code spans, links/images,
+// autolinks and raw HTML. The emphasis parser is left out because goldmark's
+// delimiter processing is quadratic on inputs like "*a" repeated, and links
+// take precedence over emphasis so destinations are unaffected. GFM is left
+// out too: its bare-text autolinks only ever produce http, https, ftp, www and
+// email links, never script-bearing schemes, so they are prose here. It is only
+// used to parse, never to render.
+var markdownGateParser = parser.NewParser(
+	parser.WithBlockParsers(parser.DefaultBlockParsers()...),
+	parser.WithParagraphTransformers(parser.DefaultParagraphTransformers()...),
+	parser.WithInlineParsers(
+		util.Prioritized(parser.NewCodeSpanParser(), 100),
+		util.Prioritized(parser.NewLinkParser(), 200),
+		util.Prioritized(parser.NewAutoLinkParser(), 300),
+		util.Prioritized(parser.NewRawHTMLParser(), 400),
+	),
+)
 
-// markdownHasUnsafeLink parses content as CommonMark with GFM extensions and
-// reports whether any link, image or autolink (including GFM literal
-// autolinks) has a destination that is not relative or allowlisted.
+// maxMarkdownContainerDepth bounds how many block quote markers and list
+// markers may prefix a single line. goldmark's block-quote matching is
+// quadratic in this depth; nobody writes notes nested 32 deep.
+const maxMarkdownContainerDepth = 32
+
+// listMarkerRe matches a list marker (bullet or ordered) at the start of s.
+var listMarkerRe = regexp.MustCompile(`^(?:[-*+]|[0-9]{1,9}[.)])(?:[ \t]|$)`)
+
+// markdownNestsTooDeeply reports whether any line's leading container prefix
+// (block quote markers and list markers, ignoring spaces) is deeper than
+// maxMarkdownContainerDepth.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: report whether any line nests block quotes or list markers deeper than the limit (pure)
+func markdownNestsTooDeeply(content string) bool {
+	for len(content) > 0 {
+		line := content
+		if i := strings.IndexByte(content, '\n'); i >= 0 {
+			line, content = content[:i], content[i+1:]
+		} else {
+			content = ""
+		}
+		if lineContainerDepth(line) > maxMarkdownContainerDepth {
+			return true
+		}
+	}
+	return false
+}
+
+// lineContainerDepth counts the block quote and list markers prefixing a line,
+// stopping early once the limit is exceeded.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: count block quote and list markers prefixing a line, stopping past the limit (pure)
+func lineContainerDepth(line string) int {
+	depth := 0
+	for depth <= maxMarkdownContainerDepth {
+		line = strings.TrimLeft(line, " \t")
+		switch {
+		case strings.HasPrefix(line, ">"):
+			line = line[1:]
+		case listMarkerRe.MatchString(line):
+			n := strings.IndexAny(line, " \t")
+			if n < 0 {
+				n = len(line)
+			}
+			line = line[n:]
+		default:
+			return depth
+		}
+		depth++
+	}
+	return depth
+}
+
+// anySchemeRe finds scheme-like tokens followed by a colon anywhere in text.
+var anySchemeRe = regexp.MustCompile(`([a-z][a-z0-9+.-]*):`)
+
+// markdownMayHaveUnsafeLink is a cheap prefilter for the parse: it reports
+// whether the text, normalized the way isSafeLinkDestination does (entities
+// decoded, control characters removed, lowercased), contains any "scheme:"
+// token whose scheme is not allowlisted. Notes without one cannot hold an
+// unsafe destination and skip the parse. It over-approximates (any "word:"
+// matches) and never under-approximates.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: report whether text contains a colon-terminated token with a non-allowlisted scheme (pure)
+func markdownMayHaveUnsafeLink(content string) bool {
+	norm := content
+	for i := 0; i < 10 && strings.Contains(norm, "&"); i++ {
+		next := html.UnescapeString(norm)
+		if next == norm {
+			break
+		}
+		norm = next
+	}
+	norm = strings.Map(func(r rune) rune {
+		if r < ' ' || r == 0x7f {
+			return -1
+		}
+		return r
+	}, norm)
+	norm = strings.ToLower(unescapeMarkdownBackslashes(norm))
+	for _, m := range anySchemeRe.FindAllStringSubmatch(norm, -1) {
+		if !safeLinkSchemes[m[1]] {
+			return true
+		}
+	}
+	return false
+}
+
+// markdownHasUnsafeLink parses content as CommonMark (see markdownGateParser)
+// and reports whether any link, image or autolink has a destination that is
+// not relative or allowlisted. Callers bound the cost first with
+// markdownNestsTooDeeply and markdownMayHaveUnsafeLink.
 // SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: report whether parsed markdown contains a link, image or autolink with a disallowed destination (pure)
 func markdownHasUnsafeLink(content string) bool {
 	src := []byte(content)
-	doc := markdownParser.Parse(text.NewReader(src))
+	doc := markdownGateParser.Parse(text.NewReader(src))
 	unsafe := false
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {

@@ -368,7 +368,7 @@ func (h *NoteSubResourceHandler) DeleteNote(c *gin.Context) {
 
 // PatchNote applies JSON patch operations to a note
 // PATCH /threat_models/{threat_model_id}/notes/{note_id}
-// SEM@53e21e0cf0da0cb86b9fd6c225c9a1a5ae52ba1c: apply authorized JSON patch operations to a note, sanitizing content paths, and emit audit record (mutates shared state)
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: apply authorized JSON patch operations to a note, sanitizing the patched content, and emit audit record (mutates shared state)
 func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("PatchNote - applying patch operations to note")
@@ -422,24 +422,6 @@ func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 		return
 	}
 
-	// Sanitize content values in patch operations before they reach the store.
-	// A patch that replaces content with markup the policy strips would leave
-	// the note's required content empty, which the store rejects — surfacing as
-	// a 500 rather than the 400 the input deserves (#605), exactly as on the
-	// create and update paths.
-	for i, op := range operations {
-		if op.Path == patchPathContent && (op.Op == string(Replace) || op.Op == string(Add)) {
-			if content, ok := op.Value.(string); ok {
-				sanitized, contentErr := SanitizeRequiredMarkdownContent("content", content)
-				if contentErr != nil {
-					HandleRequestError(c, contentErr)
-					return
-				}
-				operations[i].Value = sanitized
-			}
-		}
-	}
-
 	logger.Debug("Applying %d patch operations to note %s (user: %s)",
 		len(operations), noteID, user.Email)
 
@@ -448,6 +430,19 @@ func (h *NoteSubResourceHandler) PatchNote(c *gin.Context) {
 	var preState []byte
 	if existingNote != nil {
 		preState, _ = SerializeForAudit(existingNote)
+	}
+
+	// Sanitize the patched result, not the operations: copy/move can smuggle a
+	// value between fields, and a patch that empties content would otherwise
+	// surface as a store failure (500) instead of a 400 (#605, #1013).
+	baseline := existingNote
+	if baseline == nil {
+		baseline = &Note{} // unreadable note: treat every patched field as changed
+	}
+	operations, sanitizeErr := sanitizePatchedNote(baseline, operations, false)
+	if sanitizeErr != nil {
+		HandleRequestError(c, sanitizeErr)
+		return
 	}
 
 	// Apply patch operations

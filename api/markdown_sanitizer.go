@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"html"
 	"regexp"
@@ -182,12 +183,18 @@ func stripMarkdownHTML(content string) string {
 // This lives here rather than in each handler so the create, update and patch
 // paths across all four note resources cannot drift on it — the update paths
 // had no such check at all and silently persisted the empty value.
-// SEM@388282971a06c7f935aa98db0aff68602f0eda66: sanitize a required markdown field, returning a 400 error when sanitization empties it (pure)
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize a required markdown field, returning a 400 when it empties, nests too deeply or keeps an unsafe link (pure)
 func SanitizeRequiredMarkdownContent(field, content string) (string, *RequestError) {
 	sanitized := SanitizeMarkdownContent(content)
 	// Authoritative gate (#1013): the destination scanner is best effort, so
 	// reject whatever a real CommonMark parse still sees as an unsafe link.
-	if markdownHasUnsafeLink(sanitized) {
+	if markdownNestsTooDeeply(sanitized) {
+		return "", InvalidInputError(fmt.Sprintf(
+			"%s nests block quotes or lists too deeply",
+			field,
+		))
+	}
+	if markdownMayHaveUnsafeLink(sanitized) && markdownHasUnsafeLink(sanitized) {
 		return "", InvalidInputError(fmt.Sprintf(
 			"%s contains a link or image with a disallowed URL scheme",
 			field,
@@ -318,30 +325,59 @@ func SanitizePatchOperations(operations []PatchOperation, paths []string) {
 	}
 }
 
-// sanitizeNotePatchOperations sanitizes the text fields a note create/update
-// sanitizes, for JSON Patch replace/add operations: /content as required
-// markdown (a 400 if it empties or keeps an unsafe link), /name and
-// /description as plain text. Operations are modified in place.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize note content, name and description values in JSON Patch operations, returning a 400 on rejected content (pure)
-func sanitizeNotePatchOperations(operations []PatchOperation) *RequestError {
-	for i, op := range operations {
-		if op.Op != string(Replace) && op.Op != string(Add) {
+// sanitizePatchedNote enforces note sanitization on the entity a JSON Patch
+// produces, rather than inspecting individual operations: RFC 6902 copy and
+// move can carry a value between fields (e.g. copy /name to /content), so only
+// the result can be checked. It applies the operations to a JSON view of the
+// existing note and, for each field the patch changed, sanitizes it as the
+// create/update path does: "content" as required markdown (a 400 if it empties
+// or keeps an unsafe link), "name" and "description" as plain text when
+// includePlainText is set. Where sanitizing alters a value, a trailing replace
+// operation is appended so the store persists the sanitized text. Unchanged
+// fields are not re-checked, so a legacy value cannot block an unrelated edit.
+// If the operations do not apply, they are returned untouched for the store to
+// reject with its own error.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: sanitize the note fields a JSON Patch changed by checking the patched result, appending replace operations for altered values (pure)
+func sanitizePatchedNote(existing any, operations []PatchOperation, includePlainText bool) ([]PatchOperation, *RequestError) {
+	// Failures below are deliberately not errors here: the store applies the
+	// same operations and reports them with the right status.
+	raw, err := json.Marshal(existing)
+	if err != nil {
+		return operations, nil //nolint:nilerr // see above
+	}
+	var before map[string]any
+	if err := json.Unmarshal(raw, &before); err != nil {
+		return operations, nil //nolint:nilerr // see above
+	}
+	after, err := ApplyPatchOperations(before, operations)
+	if err != nil {
+		return operations, nil //nolint:nilerr // see above
+	}
+	out := operations
+	for _, field := range []string{"content", "name", "description"} {
+		if field != "content" && !includePlainText {
 			continue
 		}
-		value, ok := op.Value.(string)
+		value, ok := after[field].(string)
 		if !ok {
 			continue
 		}
-		switch op.Path {
-		case patchPathContent:
-			sanitized, err := SanitizeRequiredMarkdownContent("content", value)
-			if err != nil {
-				return err
+		if old, _ := before[field].(string); old == value {
+			continue
+		}
+		var sanitized string
+		if field == "content" {
+			var reqErr *RequestError
+			sanitized, reqErr = SanitizeRequiredMarkdownContent(field, value)
+			if reqErr != nil {
+				return nil, reqErr
 			}
-			operations[i].Value = sanitized
-		case "/name", "/description":
-			operations[i].Value = SanitizePlainText(value)
+		} else {
+			sanitized = SanitizePlainText(value)
+		}
+		if sanitized != value {
+			out = append(out[:len(out):len(out)], PatchOperation{Op: string(Replace), Path: "/" + field, Value: sanitized})
 		}
 	}
-	return nil
+	return out, nil
 }
