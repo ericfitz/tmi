@@ -445,6 +445,10 @@ func (s *GormNoteRepository) Patch(ctx context.Context, id string, operations []
 	for _, op := range operations {
 		if err := s.applyPatchOperation(note, op); err != nil {
 			logger.Error("Failed to apply patch operation %s to note %s: %v", op.Op, id, err)
+			var reqErr *RequestError
+			if errors.As(err, &reqErr) {
+				return nil, reqErr
+			}
 			// A malformed or inapplicable JSON Patch is client input, so it
 			// must surface as 400, not 500 (#611). fmt.Errorf here produced an
 			// untyped error that StoreErrorToRequestError could only classify
@@ -582,36 +586,40 @@ func (s *GormNoteRepository) updateMetadata(ctx context.Context, noteID string, 
 }
 
 // applyPatchOperation applies a single patch operation to a note
-// SEM@19668dc6d5b4991c9b461b7b41f18a37d90dfacc: apply a single JSON patch operation to a note struct in memory (pure)
+// Only replace on name and content, and add/replace/remove on description, are
+// supported; every other operation is rejected with a 400 rather than ignored.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: apply a single JSON patch operation to a note struct in memory, rejecting unsupported operations (pure)
 func (s *GormNoteRepository) applyPatchOperation(note *Note, op PatchOperation) error {
 	switch op.Path {
 	case PatchPathName:
-		if op.Op == string(Replace) {
-			if name, ok := op.Value.(string); ok {
-				// NOTES.NAME is NOT NULL and Note validation lives in
-				// BeforeCreate only, so the update path has no hook fallback.
-				// PostgreSQL stores '', Oracle raises ORA-01407 -- same request,
-				// different answer per dialect (#614).
-				if err := validation.ValidateNonEmpty("name", name); err != nil {
-					return err
-				}
-				note.Name = name
-			} else {
-				return fmt.Errorf("invalid value type for name: expected string")
+		if op.Op != string(Replace) {
+			return unsupportedNotePatchOp(op)
+		}
+		if name, ok := op.Value.(string); ok {
+			// NOTES.NAME is NOT NULL and Note validation lives in
+			// BeforeCreate only, so the update path has no hook fallback.
+			// PostgreSQL stores '', Oracle raises ORA-01407 -- same request,
+			// different answer per dialect (#614).
+			if err := validation.ValidateNonEmpty("name", name); err != nil {
+				return err
 			}
+			note.Name = name
+		} else {
+			return fmt.Errorf("invalid value type for name: expected string")
 		}
 	case patchPathContent:
-		if op.Op == string(Replace) {
-			if content, ok := op.Value.(string); ok {
-				// NOTES.CONTENT is NOT NULL and DBText -> CLOB on Oracle, which
-				// binds '' as NULL exactly as VARCHAR2 does (#614).
-				if err := validation.ValidateNonEmpty("content", content); err != nil {
-					return err
-				}
-				note.Content = content
-			} else {
-				return fmt.Errorf("invalid value type for content: expected string")
+		if op.Op != string(Replace) {
+			return unsupportedNotePatchOp(op)
+		}
+		if content, ok := op.Value.(string); ok {
+			// NOTES.CONTENT is NOT NULL and DBText -> CLOB on Oracle, which
+			// binds '' as NULL exactly as VARCHAR2 does (#614).
+			if err := validation.ValidateNonEmpty("content", content); err != nil {
+				return err
 			}
+			note.Content = content
+		} else {
+			return fmt.Errorf("invalid value type for content: expected string")
 		}
 	case PatchPathDescription:
 		switch op.Op {
@@ -623,11 +631,18 @@ func (s *GormNoteRepository) applyPatchOperation(note *Note, op PatchOperation) 
 			}
 		case string(Remove):
 			note.Description = nil
+		default:
+			return unsupportedNotePatchOp(op)
 		}
 	default:
 		return fmt.Errorf("unsupported patch path: %s", op.Path)
 	}
 	return nil
+}
+
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build the 400 for a JSON patch operation the note store does not support (pure)
+func unsupportedNotePatchOp(op PatchOperation) error {
+	return InvalidInputError(fmt.Sprintf("unsupported patch operation %q on %s for notes", op.Op, op.Path))
 }
 
 // getNoteThreatModelID retrieves the threat model ID for a note

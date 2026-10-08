@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -251,4 +252,39 @@ func TestThreatPatch_AcceptsValidName(t *testing.T) {
 		Op: string(Replace), Path: PatchPathName, Value: "renamed",
 	}))
 	assert.Equal(t, "renamed", th.Name)
+}
+
+// The GORM note store applies operations itself and handles only
+// replace/add/remove on fields it knows; every other combination must be
+// rejected as a 400 invalid_input, never silently ignored (#1013).
+func TestNotePatch_RejectsUnsupportedOperations(t *testing.T) {
+	s := &GormNoteRepository{}
+	for name, op := range map[string]PatchOperation{
+		"copy":           {Op: string(Copy), From: PatchPathName, Path: patchPathContent},
+		"move":           {Op: string(Move), From: PatchPathName, Path: patchPathContent},
+		"test":           {Op: string(Test), Path: PatchPathName, Value: "note"},
+		"unknown op":     {Op: "frobnicate", Path: PatchPathName, Value: "x"},
+		"remove name":    {Op: string(Remove), Path: PatchPathName},
+		"remove content": {Op: string(Remove), Path: patchPathContent},
+		"add name":       {Op: string(Add), Path: PatchPathName, Value: "x"},
+		"add content":    {Op: string(Add), Path: patchPathContent, Value: "x"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			n := &Note{Name: "note", Content: "body"}
+			err := s.applyPatchOperation(n, op)
+			var reqErr *RequestError
+			if assert.ErrorAs(t, err, &reqErr) {
+				assert.Equal(t, http.StatusBadRequest, reqErr.Status)
+				assert.Equal(t, "invalid_input", reqErr.Code)
+				assert.Contains(t, reqErr.Message, op.Op)
+			}
+			assert.Equal(t, &Note{Name: "note", Content: "body"}, n)
+		})
+	}
+	// Supported operations still apply.
+	n := &Note{Name: "note", Content: "body"}
+	require.NoError(t, s.applyPatchOperation(n, PatchOperation{Op: string(Add), Path: PatchPathDescription, Value: "d"}))
+	require.NoError(t, s.applyPatchOperation(n, PatchOperation{Op: string(Remove), Path: PatchPathDescription}))
+	require.NoError(t, s.applyPatchOperation(n, PatchOperation{Op: string(Replace), Path: patchPathContent, Value: "new"}))
+	assert.Equal(t, &Note{Name: "note", Content: "new"}, n)
 }
