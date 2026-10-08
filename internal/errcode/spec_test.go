@@ -158,3 +158,37 @@ func TestDetailsCodeExamplesAreSnakeCase(t *testing.T) {
 	}
 	walk("", loadSpec(t))
 }
+
+// TestProtocolRoutesUseOAuthError requires every 4xx/5xx JSON response on a
+// protocol route (resolved through components.responses) to use OAuthError, and
+// no REST route to use it.
+func TestProtocolRoutesUseOAuthError(t *testing.T) {
+	spec := loadSpec(t)
+	comps := asMap(asMap(spec["components"])["responses"])
+	for p, item := range asMap(spec["paths"]) {
+		for method, op := range asMap(item) {
+			for status, r := range asMap(asMap(op)["responses"]) {
+				if len(status) != 3 || (status[0] != '4' && status[0] != '5') {
+					continue
+				}
+				resp := asMap(r)
+				if ref, ok := resp["$ref"].(string); ok {
+					resp = asMap(comps[strings.TrimPrefix(ref, "#/components/responses/")])
+				}
+				json200 := asMap(asMap(resp["content"])["application/json"])
+				if json200 == nil {
+					continue
+				}
+				schema := asMap(json200["schema"])
+				ref, _ := schema["$ref"].(string)
+				where := p + " " + method + " " + status
+				switch {
+				case IsProtocolRoute(p) && ref != "#/components/schemas/OAuthError":
+					t.Errorf("%s: protocol route response uses %q, want OAuthError", where, ref)
+				case !IsProtocolRoute(p) && ref == "#/components/schemas/OAuthError":
+					t.Errorf("%s: REST route response must not use OAuthError", where)
+				}
+			}
+		}
+	}
+}

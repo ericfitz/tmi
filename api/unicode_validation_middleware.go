@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -510,15 +509,11 @@ func checkDuplicateKeysRecursive(dec *json.Decoder, path string) error {
 	return nil
 }
 
-// protocolRoutePattern matches the OAuth, SAML and discovery routes whose error
-// bodies use the OAuthError vocabulary (RFC 6749 codes) rather than the REST one.
-var protocolRoutePattern = regexp.MustCompile(`^/(oauth2/(authorize|token|refresh|revoke|introspect|userinfo|callback|step_up)|saml(/|$)|\.well-known/)`)
-
 // unicodeErrorCode selects the error code for a rejected request: RFC 6749
 // invalid_request on protocol routes, invalid_input on REST routes.
 // SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: choose the validation error code by route class (pure)
 func unicodeErrorCode(c *gin.Context) errcode.Code {
-	if protocolRoutePattern.MatchString(c.Request.URL.Path) {
+	if errcode.IsProtocolRoute(c.Request.URL.Path) {
 		return errcode.InvalidRequest
 	}
 	return errcode.InvalidInput

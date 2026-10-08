@@ -5,6 +5,8 @@
 // (auth must not import api).
 package errcode
 
+import "regexp"
+
 // Code is a machine-readable error code.
 type Code string
 
@@ -89,6 +91,22 @@ const (
 	ProviderResponseInvalid Code = "provider_response_invalid"
 	// InvalidProvider: TMI extension: identity provider is unknown or disabled.
 	InvalidProvider Code = "invalid_provider"
+	// SAMLError: TMI extension: SAML login failed.
+	SAMLError Code = "saml_error"
+	// SAMLNotEnabled: TMI extension: SAML is not enabled.
+	SAMLNotEnabled Code = "saml_not_enabled"
+	// SAMLUnavailable: TMI extension: SAML manager not initialized.
+	SAMLUnavailable Code = "saml_unavailable"
+	// SAMLProviderNotFound: TMI extension: SAML provider is unknown.
+	SAMLProviderNotFound Code = "saml_provider_not_found"
+	// SAMLMetadataError: TMI extension: SAML metadata could not be generated.
+	SAMLMetadataError Code = "saml_metadata_error"
+	// SAMLInitError: TMI extension: SAML authentication could not be initiated.
+	SAMLInitError Code = "saml_init_error"
+	// SAMLInvalidLogoutRequest: TMI extension: SAML logout request is invalid.
+	SAMLInvalidLogoutRequest Code = "saml_invalid_logout_request"
+	// SAMLLogoutError: TMI extension: SAML logout response could not be created.
+	SAMLLogoutError Code = "saml_logout_error"
 )
 
 // Tier 2: domain reasons carried in details.code. The list is open; adding a
@@ -139,7 +157,7 @@ const (
 
 // transportCodes are emitted by route-agnostic middleware before dispatch, so
 // they are valid on protocol routes too.
-var transportCodes = []Code{Unauthorized, NotFound, MethodNotAllowed, NotAcceptable, RateLimitExceeded, ServerError}
+var transportCodes = []Code{Unauthorized, NotFound, MethodNotAllowed, NotAcceptable, PayloadTooLarge, UnsupportedMediaType, RateLimitExceeded, ServerError}
 
 // rfcCodes lists the RFC 6749/7009/9470 codes plus the documented TMI extensions.
 var rfcCodes = []Code{
@@ -148,6 +166,8 @@ var rfcCodes = []Code{
 	UnsupportedTokenType, InsufficientUserAuthentication,
 	IdentityMismatch, AccountConflict, EmailNotVerified, ProviderUnreachable,
 	ProviderResponseInvalid, InvalidProvider,
+	SAMLError, SAMLNotEnabled, SAMLUnavailable, SAMLProviderNotFound, SAMLMetadataError,
+	SAMLInitError, SAMLInvalidLogoutRequest, SAMLLogoutError,
 }
 
 // restCodes lists the REST enum: the 21 Tier 1 codes plus two legacy domain codes
@@ -294,3 +314,12 @@ func ForStatus(status int) Code {
 	}
 	return ServerError
 }
+
+// protocolRoutePattern matches the OAuth, SAML and discovery routes whose error
+// bodies use the OAuthError vocabulary rather than the REST one.
+var protocolRoutePattern = regexp.MustCompile(`^/(oauth2/(authorize|token|refresh|revoke|introspect|userinfo|callback|step_up)|saml(/|$)|\.well-known/)`)
+
+// IsProtocolRoute reports whether an API path is a protocol route (OAuth, SAML
+// or discovery), whose errors use the OAuthError vocabulary.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: check whether a request path is an OAuth, SAML or discovery route (pure)
+func IsProtocolRoute(path string) bool { return protocolRoutePattern.MatchString(path) }

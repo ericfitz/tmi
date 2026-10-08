@@ -1460,7 +1460,7 @@
         "properties": {
           "error": {
             "type": "string",
-            "description": "Machine-readable REST error code. One of: invalid_input (400, a body, field, header or query value fails validation); invalid_id (400, a path or query identifier is malformed); invalid_patch (400, a JSON Patch document is malformed or cannot be applied); unauthorized (401, missing, expired or invalid credentials); insufficient_user_authentication (401, step-up authentication required, RFC 9470); forbidden (403, authenticated but not permitted); not_found (404, resource does not exist or is hidden by authorization); method_not_allowed (405); not_acceptable (406); conflict (409, duplicate, in use, or wrong lifecycle state); gone (410, permanently removed); version_mismatch (412, If-Match does not match the current version); payload_too_large (413); unsupported_media_type (415); unprocessable_entity (422, well-formed request that cannot be processed in the current state); if_match_required (428, If-Match header missing); rate_limit_exceeded (429, transient limit, honor Retry-After); quota_exceeded (403 or 429, hard cap reached, retrying does not help); server_error (500); not_implemented (501); service_unavailable (503, a dependency is unavailable, retry later); feature_not_available (404) and content_token_provider_not_configured (422) are legacy domain codes kept at top level because clients branch on them; they are also present in details.code and will move to details.code only in a future breaking change. A domain-specific reason a client can act on is in details.code.",
+            "description": "Machine-readable REST error code. One of: invalid_input (400, a body, field, header or query value fails validation); invalid_id (400, a path or query identifier is malformed); invalid_patch (400, a JSON Patch document is malformed or cannot be applied); unauthorized (401, missing, expired or invalid credentials); insufficient_user_authentication (401, step-up authentication required, RFC 9470); forbidden (403, authenticated but not permitted); not_found (404, resource does not exist or is hidden by authorization); method_not_allowed (405); not_acceptable (406); conflict (409, duplicate, in use, or wrong lifecycle state); gone (410, permanently removed); version_mismatch (409, If-Match does not match the current version); payload_too_large (413); unsupported_media_type (415); unprocessable_entity (422, well-formed request that cannot be processed in the current state); if_match_required (428, If-Match header missing); rate_limit_exceeded (429, transient limit, honor Retry-After); quota_exceeded (403 or 429, hard cap reached, retrying does not help); server_error (500); not_implemented (501); service_unavailable (503, a dependency is unavailable, retry later); feature_not_available (404) and content_token_provider_not_configured (422) are legacy domain codes kept at top level because clients branch on them; they are also present in details.code and will move to details.code only in a future breaking change. A domain-specific reason a client can act on is in details.code.",
             "pattern": "^[^\\x00-\\x1F]*$",
             "maxLength": 1000,
             "enum": [
@@ -12445,7 +12445,7 @@
         "properties": {
           "error": {
             "type": "string",
-            "description": "Error code for OAuth, SAML and discovery routes: the RFC 6749, 7009 and 9470 codes, the documented TMI extensions (identity_mismatch, account_conflict, email_not_verified, provider_unreachable, provider_response_invalid, invalid_provider), and the transport codes that route-agnostic middleware can emit (unauthorized, not_found, method_not_allowed, not_acceptable, rate_limit_exceeded, server_error).",
+            "description": "Error code for OAuth, SAML and discovery routes: the RFC 6749, 7009 and 9470 codes, the documented TMI extensions (identity_mismatch, account_conflict, email_not_verified, provider_unreachable, provider_response_invalid, invalid_provider), and the transport codes that route-agnostic middleware can emit (unauthorized, not_found, method_not_allowed, not_acceptable, payload_too_large, unsupported_media_type, rate_limit_exceeded, server_error). SAML routes also use the TMI extension codes saml_error, saml_not_enabled, saml_unavailable, saml_provider_not_found, saml_metadata_error, saml_init_error, saml_invalid_logout_request and saml_logout_error.",
             "pattern": "^[^\\x00-\\x1F]*$",
             "maxLength": 1000,
             "enum": [
@@ -12467,10 +12467,20 @@
               "provider_unreachable",
               "provider_response_invalid",
               "invalid_provider",
+              "saml_error",
+              "saml_not_enabled",
+              "saml_unavailable",
+              "saml_provider_not_found",
+              "saml_metadata_error",
+              "saml_init_error",
+              "saml_invalid_logout_request",
+              "saml_logout_error",
               "unauthorized",
               "not_found",
               "method_not_allowed",
               "not_acceptable",
+              "payload_too_large",
+              "unsupported_media_type",
               "rate_limit_exceeded"
             ]
           },
@@ -13154,6 +13164,390 @@
             "schema": {
               "type": "integer",
               "example": 1640995200
+            }
+          }
+        }
+      },
+      "OAuthErrorResponse": {
+        "description": "Error response (OAuth, SAML and discovery routes use the OAuthError schema.)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OAuthError"
+            }
+          }
+        },
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 1000
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 999
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "example": 1640995200
+            }
+          }
+        }
+      },
+      "OAuthMethodNotAllowed": {
+        "description": "Method Not Allowed - The HTTP method is not supported for this endpoint (OAuth, SAML and discovery routes use the OAuthError schema.)",
+        "headers": {
+          "Allow": {
+            "description": "List of allowed HTTP methods for this endpoint",
+            "schema": {
+              "type": "string",
+              "example": "GET, POST"
+            }
+          },
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 1000
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 999
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "example": 1640995200
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OAuthError"
+            }
+          }
+        }
+      },
+      "OAuthNotAcceptable": {
+        "description": "Not Acceptable - The requested media type is not supported. This API only supports application/json (OAuth, SAML and discovery routes use the OAuthError schema.)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OAuthError"
+            }
+          }
+        },
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 1000
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 999
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "example": 1640995200
+            }
+          }
+        }
+      },
+      "OAuthTooManyRequests": {
+        "description": "Too Many Requests - Rate limit exceeded. The client has sent too many requests in a given amount of time. See rate limit headers for details. (OAuth, SAML and discovery routes use the OAuthError schema.)",
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 100
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 0
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix timestamp (seconds since epoch) when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "example": 1640000000
+            }
+          },
+          "Retry-After": {
+            "description": "Number of seconds to wait before retrying the request",
+            "schema": {
+              "type": "integer",
+              "example": 60
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OAuthError"
+            }
+          }
+        }
+      },
+      "OAuthServiceUnavailable": {
+        "description": "Service Unavailable - A required backend service (authentication, database, or cache) is temporarily unavailable. The client should retry the request after the delay indicated in the Retry-After header. (OAuth, SAML and discovery routes use the OAuthError schema.)",
+        "headers": {
+          "Retry-After": {
+            "description": "Number of seconds to wait before retrying the request",
+            "schema": {
+              "type": "integer",
+              "example": 30
+            }
+          },
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 1000
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 999
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "example": 1640995200
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OAuthError"
+            }
+          }
+        }
+      },
+      "OAuthInternalServerError": {
+        "description": "Internal server error (OAuth, SAML and discovery routes use the OAuthError schema.)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OAuthError"
+            }
+          }
+        },
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 1000
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 999
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "example": 1640995200
+            }
+          }
+        }
+      },
+      "OAuthUnsupportedMediaType": {
+        "description": "Unsupported media type - the request Content-Type is not supported for this operation (OAuth, SAML and discovery routes use the OAuthError schema.)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OAuthError"
+            }
+          }
+        },
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 1000
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "example": 999
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "example": 1640995200
+            }
+          }
+        }
+      },
+      "OAuthUnauthorized": {
+        "description": "Unauthorized - missing or invalid authentication credentials (OAuth, SAML and discovery routes use the OAuthError schema.)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OAuthError"
+            }
+          }
+        },
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "OAuthForbidden": {
+        "description": "Forbidden - authenticated but not authorized for this operation (OAuth, SAML and discovery routes use the OAuthError schema.)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OAuthError"
+            }
+          }
+        },
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "OAuthNotFound": {
+        "description": "Resource not found (OAuth, SAML and discovery routes use the OAuthError schema.)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OAuthError"
+            }
+          }
+        },
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "OAuthConflict": {
+        "description": "Conflict — the supplied version does not match the resource's current version. Refetch and retry. (OAuth, SAML and discovery routes use the OAuthError schema.)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/OAuthError"
+            }
+          }
+        },
+        "headers": {
+          "X-RateLimit-Limit": {
+            "description": "Maximum number of requests allowed in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Remaining": {
+            "description": "Number of requests remaining in the current time window",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "X-RateLimit-Reset": {
+            "description": "Unix epoch seconds when the rate limit window resets",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
             }
           }
         }
@@ -14347,19 +14741,19 @@
         "security": [],
         "responses": {
           "400": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "200": {
             "description": "OpenID Connect configuration metadata",
@@ -14562,7 +14956,7 @@
             }
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -14599,19 +14993,19 @@
         "security": [],
         "responses": {
           "400": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "200": {
             "description": "OAuth 2.0 authorization server metadata",
@@ -14760,7 +15154,7 @@
             }
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -14797,19 +15191,19 @@
         "security": [],
         "responses": {
           "400": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "200": {
             "description": "JSON Web Key Set",
@@ -14905,7 +15299,7 @@
             }
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -14942,19 +15336,19 @@
         "security": [],
         "responses": {
           "400": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "200": {
             "description": "OAuth 2.0 protected resource metadata",
@@ -14990,7 +15384,7 @@
             }
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -15070,19 +15464,19 @@
             }
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
-            "$ref": "#/components/responses/InternalServerError"
+            "$ref": "#/components/responses/OAuthInternalServerError"
           },
           "415": {
-            "$ref": "#/components/responses/UnsupportedMediaType"
+            "$ref": "#/components/responses/OAuthUnsupportedMediaType"
           },
           "200": {
             "description": "Token introspection result",
@@ -15176,7 +15570,7 @@
             }
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "security": [],
@@ -15670,13 +16064,13 @@
             }
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
             "description": "Internal server error generating authorization URL",
@@ -15703,7 +16097,7 @@
             }
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           },
           "404": {
             "description": "Authorization endpoint encountered an unrecognized path/parameter; an HTML error page is rendered.",
@@ -15896,16 +16290,16 @@
         },
         "responses": {
           "401": {
-            "$ref": "#/components/responses/Unauthorized"
+            "$ref": "#/components/responses/OAuthUnauthorized"
           },
           "403": {
-            "$ref": "#/components/responses/Forbidden"
+            "$ref": "#/components/responses/OAuthForbidden"
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "$ref": "#/components/responses/OAuthNotFound"
           },
           "409": {
-            "$ref": "#/components/responses/Conflict"
+            "$ref": "#/components/responses/OAuthConflict"
           },
           "400": {
             "description": "Bad request - invalid provider, missing parameters, or invalid state",
@@ -15971,13 +16365,13 @@
             }
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
             "description": "Internal server error - OAuth provider communication failed",
@@ -16006,7 +16400,7 @@
             }
           },
           "415": {
-            "$ref": "#/components/responses/UnsupportedMediaType"
+            "$ref": "#/components/responses/OAuthUnsupportedMediaType"
           },
           "200": {
             "description": "OAuth exchange successful, TMI JWT tokens issued",
@@ -16042,7 +16436,7 @@
             }
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "security": [],
@@ -16164,13 +16558,13 @@
             }
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
             "description": "Internal server error",
@@ -16183,7 +16577,7 @@
             }
           },
           "415": {
-            "$ref": "#/components/responses/UnsupportedMediaType"
+            "$ref": "#/components/responses/OAuthUnsupportedMediaType"
           },
           "200": {
             "description": "New JWT issued successfully",
@@ -16268,7 +16662,7 @@
             }
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "security": [],
@@ -16369,16 +16763,16 @@
             }
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "200": {
             "description": "Current user information",
@@ -16472,10 +16866,10 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -16513,19 +16907,19 @@
         ],
         "responses": {
           "400": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "200": {
             "description": "JWT tokens issued successfully (legacy mode when no client_callback provided)",
@@ -16576,10 +16970,10 @@
             }
           },
           "401": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "security": [],
@@ -16705,19 +17099,19 @@
             }
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
-            "$ref": "#/components/responses/InternalServerError"
+            "$ref": "#/components/responses/OAuthInternalServerError"
           },
           "415": {
-            "$ref": "#/components/responses/UnsupportedMediaType"
+            "$ref": "#/components/responses/OAuthUnsupportedMediaType"
           },
           "200": {
             "description": "Token revocation processed. Per RFC 7009, this response is returned regardless of whether the token was valid, already revoked, or never existed - to prevent token existence disclosure.",
@@ -16800,7 +17194,7 @@
             }
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "x-rate-limit": {
@@ -35736,7 +36130,7 @@
         },
         "responses": {
           "409": {
-            "$ref": "#/components/responses/Conflict"
+            "$ref": "#/components/responses/OAuthConflict"
           },
           "400": {
             "description": "Invalid SAML response",
@@ -35772,19 +36166,19 @@
             }
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
-            "$ref": "#/components/responses/InternalServerError"
+            "$ref": "#/components/responses/OAuthInternalServerError"
           },
           "415": {
-            "$ref": "#/components/responses/UnsupportedMediaType"
+            "$ref": "#/components/responses/OAuthUnsupportedMediaType"
           },
           "200": {
             "description": "Authentication successful",
@@ -35856,10 +36250,10 @@
             }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "$ref": "#/components/responses/OAuthNotFound"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "security": [],
@@ -35960,16 +36354,16 @@
             }
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
-            "$ref": "#/components/responses/InternalServerError"
+            "$ref": "#/components/responses/OAuthInternalServerError"
           },
           "200": {
             "description": "Logout successful",
@@ -36016,10 +36410,10 @@
             }
           },
           "404": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "security": [],
@@ -36126,19 +36520,19 @@
             }
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
-            "$ref": "#/components/responses/InternalServerError"
+            "$ref": "#/components/responses/OAuthInternalServerError"
           },
           "415": {
-            "$ref": "#/components/responses/UnsupportedMediaType"
+            "$ref": "#/components/responses/OAuthUnsupportedMediaType"
           },
           "200": {
             "description": "Logout successful",
@@ -36185,10 +36579,10 @@
             }
           },
           "404": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "security": [],
@@ -37428,19 +37822,19 @@
         "operationId": "getSAMLProviders",
         "responses": {
           "400": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
-            "$ref": "#/components/responses/Error"
+            "$ref": "#/components/responses/OAuthErrorResponse"
           },
           "200": {
             "description": "List of available SAML providers",
@@ -37516,7 +37910,7 @@
             }
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "security": [],
@@ -37594,13 +37988,13 @@
             }
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
             "description": "Failed to initiate SAML authentication",
@@ -37616,10 +38010,10 @@
             "description": "Redirect to SAML IdP for authentication"
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "$ref": "#/components/responses/OAuthNotFound"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "security": [],
@@ -37715,13 +38109,13 @@
             }
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
             "description": "Failed to generate metadata",
@@ -37769,10 +38163,10 @@
             }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "$ref": "#/components/responses/OAuthNotFound"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "security": [],
@@ -40280,10 +40674,10 @@
             }
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
             "description": "Too many requests - rate limit exceeded",
@@ -40320,26 +40714,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "description": "Error message",
-                      "example": "rate_limit_exceeded"
-                    },
-                    "retry_after": {
-                      "type": "integer",
-                      "description": "Seconds until rate limit resets",
-                      "example": 60
-                    }
-                  },
-                  "required": [
-                    "error"
-                  ]
+                  "$ref": "#/components/schemas/OAuthError"
                 },
                 "example": {
                   "error": "rate_limit_exceeded",
-                  "retry_after": 60,
                   "error_description": "Rate limit exceeded. Please try again later."
                 }
               }
@@ -40522,10 +40900,10 @@
             }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "$ref": "#/components/responses/OAuthNotFound"
           },
           "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
+            "$ref": "#/components/responses/OAuthServiceUnavailable"
           }
         },
         "x-same-provider-required": true,
@@ -68618,13 +68996,13 @@
             }
           },
           "405": {
-            "$ref": "#/components/responses/MethodNotAllowed"
+            "$ref": "#/components/responses/OAuthMethodNotAllowed"
           },
           "406": {
-            "$ref": "#/components/responses/NotAcceptable"
+            "$ref": "#/components/responses/OAuthNotAcceptable"
           },
           "429": {
-            "$ref": "#/components/responses/TooManyRequests"
+            "$ref": "#/components/responses/OAuthTooManyRequests"
           },
           "500": {
             "description": "Internal server error.",

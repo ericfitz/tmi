@@ -19,9 +19,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ERRCODE = ROOT / "internal" / "errcode" / "errcode.go"
+# Mirrors errcode.protocolRoutePattern in internal/errcode/errcode.go.
 PROTOCOL_PATH = re.compile(
-    r"^/oauth2/(authorize|token|refresh|revoke|introspect|userinfo|callback|step_up)$"
-    r"|^/saml|^/\.well-known"
+    r"^/(oauth2/(authorize|token|refresh|revoke|introspect|userinfo|callback|step_up)|saml(/|$)|\.well-known/)"
 )
 STATUS_CODE = {
     "400": "invalid_input", "401": "unauthorized", "403": "forbidden",
@@ -61,7 +61,7 @@ REST_DESC = (
     "method_not_allowed (405); not_acceptable (406); "
     "conflict (409, duplicate, in use, or wrong lifecycle state); "
     "gone (410, permanently removed); "
-    "version_mismatch (412, If-Match does not match the current version); "
+    "version_mismatch (409, If-Match does not match the current version); "
     "payload_too_large (413); unsupported_media_type (415); "
     "unprocessable_entity (422, well-formed request that cannot be processed in the current state); "
     "if_match_required (428, If-Match header missing); "
@@ -80,7 +80,10 @@ PROTOCOL_DESC = (
     "the documented TMI extensions (identity_mismatch, account_conflict, email_not_verified, "
     "provider_unreachable, provider_response_invalid, invalid_provider), and the transport "
     "codes that route-agnostic middleware can emit (unauthorized, not_found, "
-    "method_not_allowed, not_acceptable, rate_limit_exceeded, server_error)."
+    "method_not_allowed, not_acceptable, payload_too_large, unsupported_media_type, "
+    "rate_limit_exceeded, server_error). SAML routes also use the TMI extension codes "
+    "saml_error, saml_not_enabled, saml_unavailable, saml_provider_not_found, "
+    "saml_metadata_error, saml_init_error, saml_invalid_logout_request and saml_logout_error."
 )
 
 
@@ -117,6 +120,10 @@ counts: collections.Counter = collections.Counter()
 def fix_error_value(
     holder: dict, status: str | None, enum: set[str], details: set[str], where: str
 ) -> None:
+    if "PROTOCOL_ENUM" in globals() and enum is PROTOCOL_ENUM and "retry_after" in holder:
+        holder.pop("retry_after")  # OAuthError has no retry_after; the header carries it
+        holder.setdefault("error_description", "Rate limit exceeded. Please try again later.")
+        counts["retry_after removed from protocol example"] += 1
     old = holder.get("error")
     if not isinstance(old, str) or old in enum:
         return
@@ -194,7 +201,9 @@ def main() -> None:
     schemas["OAuthError"] = oauth
     schemas["Error"] = error  # keep key order stable: OAuthError appended
 
+    global PROTOCOL_ENUM
     rest_set, proto_set = set(rest), set(proto)
+    PROTOCOL_ENUM = proto_set
     oauth_ref = {"$ref": "#/components/schemas/OAuthError"}
 
     for p, item in spec["paths"].items():
@@ -210,11 +219,42 @@ def main() -> None:
                 if c is None:
                     continue
                 sc = c.get("schema", {})
-                if is_proto and sc.get("$ref") == "#/components/schemas/Error":
+                if is_proto and (
+                    sc.get("$ref") == "#/components/schemas/Error"
+                    or (sc.get("type") == "object" and "error" in sc.get("properties", {}))
+                ):
                     c["schema"] = dict(oauth_ref)
                     counts["protocol responses retargeted"] += 1
                 fix_examples(c, st, enum, detail_set, f"{p} {method} {st}")
                 fix_examples(sc, st, enum, detail_set, f"{p} {method} {st} schema")
+    # Protocol operations that $ref a shared REST response get an OAuth variant of it.
+    comps = spec["components"].setdefault("responses", {})
+    for p, item in spec["paths"].items():
+        if not PROTOCOL_PATH.match(p):
+            continue
+        for method, op in item.items():
+            if not isinstance(op, dict) or "responses" not in op:
+                continue
+            for st, resp in op["responses"].items():
+                ref = resp.get("$ref", "") if re.match(r"[45]\d\d$", st) else ""
+                if not ref.startswith("#/components/responses/"):
+                    continue
+                base = ref.rsplit("/", 1)[1]
+                if base.startswith("OAuth"):
+                    continue
+                variant = "OAuth" + ("ErrorResponse" if base == "Error" else base)
+                if variant not in comps:
+                    v = json.loads(json.dumps(comps[base]))
+                    v["description"] = v.get("description", "Error response") + " (OAuth, SAML and discovery routes use the OAuthError schema.)"
+                    for ct, c in v.get("content", {}).items():
+                        if ct == "application/json":
+                            c["schema"] = dict(oauth_ref)
+                            c.pop("example", None)
+                            c.pop("examples", None)
+                    comps[variant] = v
+                    counts["OAuth response components"] += 1
+                resp["$ref"] = "#/components/responses/" + variant
+                counts["protocol shared refs retargeted"] += 1
     for name, resp in spec["components"].get("responses", {}).items():
         for ct, c in resp.get("content", {}).items():
             if ct != "application/json":
