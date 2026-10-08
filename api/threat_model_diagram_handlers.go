@@ -653,7 +653,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 	}
 
 	// Build proper CollaborationSession response using the same method as PUT
-	collaborationSession, err := h.wsHub.buildCollaborationSessionFromDiagramSession(c, diagramId, session, user.Email)
+	collaborationSession, err := h.wsHub.buildCollaborationSessionFromDiagramSession(c, diagramId, session, user)
 	if err != nil {
 		HandleRequestError(c, ServerError("Failed to build collaboration session response: "+err.Error()))
 		return
@@ -714,16 +714,22 @@ func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, thr
 		// Create new collaboration session
 		session, err = h.wsHub.CreateSession(diagramId, threatModelId, user)
 		if err != nil {
-			HandleRequestError(c, ServerError("Failed to create collaboration session"))
-			return
+			// A concurrent request may have created the session between our lookup and
+			// CreateSession; join it (200) rather than failing.
+			session = h.wsHub.GetSession(diagramId)
+			if session == nil {
+				HandleRequestError(c, ServerError("Failed to create collaboration session"))
+				return
+			}
+		} else {
+			statusCode = http.StatusCreated // New session created
 		}
-		statusCode = http.StatusCreated // New session created
 	}
 
 	// Don't add participants here - only when they connect via WebSocket
 
 	// Build proper CollaborationSession response
-	collaborationSession, err := h.wsHub.buildCollaborationSessionFromDiagramSession(c, diagramId, session, user.Email)
+	collaborationSession, err := h.wsHub.buildCollaborationSessionFromDiagramSession(c, diagramId, session, user)
 	if err != nil {
 		// Temporarily return detailed error for debugging
 		HandleRequestError(c, ServerError("Failed to build collaboration session response: "+err.Error()))

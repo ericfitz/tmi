@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/mail"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -761,9 +762,10 @@ func convertClientToParticipant(c *gin.Context, client *WebSocketClient, _ *Diag
 	if tm != nil {
 		// Build ResolvedUser from client info for permission check
 		permUser := ResolvedUser{
-			Provider:   client.UserProvider,
-			ProviderID: client.UserID,
-			Email:      client.UserEmail,
+			InternalUUID: client.InternalUUID,
+			Provider:     client.UserProvider,
+			ProviderID:   client.UserID,
+			Email:        client.UserEmail,
 		}
 		permsPtr := getSessionPermissionsForUser(c, permUser, tm)
 		if permsPtr == nil {
@@ -826,9 +828,98 @@ func getSessionPermissionsForUser(c *gin.Context, user ResolvedUser, tm *ThreatM
 	return nil
 }
 
+// buildSessionParticipants lists every user authorized on the session's threat model, plus any
+// connected or requesting user not otherwise covered. Callers must hold session.mu (read).
+// Group authorization entries have no user representation and are skipped.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build session participants from authorized users and connected clients (reads DB)
+func buildSessionParticipants(c *gin.Context, session *DiagramSession, tm *ThreatModel, requester ResolvedUser) []Participant {
+	logger := slogging.Get()
+	participants := make([]Participant, 0, len(session.Clients)+1)
+	seen := make([]ResolvedUser, 0, len(session.Clients)+1)
+	alreadyListed := func(u ResolvedUser) bool {
+		for _, s := range seen {
+			if SamePrincipal(s, u) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Connected clients first, so their live display name and activity time win.
+	for client := range session.Clients {
+		participant := convertClientToParticipant(c, client, session, tm)
+		if participant == nil {
+			logger.Debug("Session %s: connected client user_id=%s has no access to threat model %s, omitting from participants",
+				session.ID, client.UserID, session.ThreatModelID)
+			continue
+		}
+		participants = append(participants, *participant)
+		seen = append(seen, ResolvedUser{
+			InternalUUID: client.InternalUUID,
+			Provider:     client.UserProvider,
+			ProviderID:   client.UserID,
+			Email:        client.UserEmail,
+		})
+	}
+
+	add := func(u ResolvedUser, perm ParticipantPermissions) {
+		if alreadyListed(u) {
+			return
+		}
+		// Participant.user.email is required and must be a valid address or the whole
+		// response fails to serialize. Authorization entries may carry only a provider
+		// ID, which for several providers is the email address.
+		if _, err := mail.ParseAddress(u.Email); err != nil {
+			if _, idErr := mail.ParseAddress(u.ProviderID); idErr != nil {
+				logger.Warn("Session %s: authorized user provider=%s provider_id=%s has no valid email, omitting from participants",
+					session.ID, u.Provider, u.ProviderID)
+				return
+			}
+			u.Email = u.ProviderID
+		}
+		seen = append(seen, u)
+		participants = append(participants, Participant{
+			User:         u.ToUser(),
+			Permissions:  perm,
+			LastActivity: session.LastActivity,
+		})
+	}
+
+	// Owner, then authorization entries (owner and writer roles both edit, so both map to writer).
+	if owner := ResolvedUserFromUser(tm.Owner); !owner.IsEmpty() {
+		add(owner, ParticipantPermissionsWriter)
+	}
+	if tm.Authorization != nil {
+		for _, auth := range *tm.Authorization {
+			if auth.PrincipalType != "" && auth.PrincipalType != AuthorizationPrincipalTypeUser {
+				logger.Debug("Session %s: skipping non-user authorization entry (principal_type=%s)", session.ID, auth.PrincipalType)
+				continue
+			}
+			perm := ParticipantPermissionsReader
+			if auth.Role == AuthorizationRoleOwner || auth.Role == AuthorizationRoleWriter {
+				perm = ParticipantPermissionsWriter
+			}
+			add(ResolvedUserFromAuthorization(auth), perm)
+		}
+	}
+
+	// The requester was authorized by the handler, possibly via a group entry or the
+	// "everyone" pseudo-group; list them with their effective permission.
+	if !requester.IsEmpty() && !alreadyListed(requester) {
+		if perm := getSessionPermissionsForUser(c, requester, tm); perm != nil {
+			add(requester, *perm)
+		} else {
+			logger.Warn("Session %s: requester user_id=%s has no resolvable permission on threat model %s, omitting from participants",
+				session.ID, requester.ProviderID, session.ThreatModelID)
+		}
+	}
+
+	return participants
+}
+
 // buildCollaborationSessionFromDiagramSession creates a CollaborationSession struct from a DiagramSession
 // SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: build a CollaborationSession DTO from a live DiagramSession for the current user (reads DB)
-func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Context, diagramID string, session *DiagramSession, currentUser string) (*CollaborationSession, error) {
+func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Context, diagramID string, session *DiagramSession, currentUser ResolvedUser) (*CollaborationSession, error) {
 
 	session.mu.RLock()
 	defer session.mu.RUnlock()
@@ -865,50 +956,7 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 		}
 	}
 
-	// Convert clients to participants with proper permissions
-	participants := make([]Participant, 0, len(session.Clients))
-
-	// Track users already processed to avoid duplicates
-	processedUsers := make(map[string]bool)
-
-	// First, add users from active WebSocket clients
-	for client := range session.Clients {
-		participant := convertClientToParticipant(c, client, session, &tm)
-		if participant != nil {
-			participants = append(participants, *participant)
-			processedUsers[client.UserID] = true
-		}
-	}
-
-	// Finally, ensure current user is included if not already processed
-	// Note: The caller (handler) has already validated the current user has access to the threat model,
-	// so we don't need to check authorization again here. We just need to determine their permission level.
-	if currentUser != "" && !processedUsers[currentUser] {
-		// Get user provider from context (required for OpenAPI schema validation)
-		userProvider := "unknown"
-		if c != nil {
-			if provider := c.GetString("userProvider"); provider != "" {
-				userProvider = provider
-			}
-		}
-
-		// Create a temporary client for the current user
-		tempClient := &WebSocketClient{
-			UserID:       currentUser,
-			UserEmail:    currentUser, // Using currentUser as email for backwards compatibility
-			UserName:     currentUser, // Default to user ID if name not available
-			UserProvider: userProvider,
-		}
-		participant := convertClientToParticipant(c, tempClient, session, &tm)
-		if participant != nil {
-			// Set the last activity to now since this is a new participant
-			participant.LastActivity = time.Now().UTC()
-			participants = append(participants, *participant)
-		}
-		// If participant is nil, it means we couldn't determine their permission level,
-		// but that's OK - they just won't appear in the participants list.
-		// The handler has already validated they can access the session.
-	}
+	participants := buildSessionParticipants(c, session, &tm, currentUser)
 
 	// Convert session ID to UUID
 	sessionUUID, err := uuid.Parse(session.ID)
@@ -999,15 +1047,8 @@ func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, user ResolvedUse
 			}
 		}
 
-		// Convert clients to participants - include sessions even with no clients
-		participants := make([]Participant, 0, len(session.Clients))
-
-		for client := range session.Clients {
-			participant := convertClientToParticipant(c, client, session, &tm)
-			if participant != nil {
-				participants = append(participants, *participant)
-			}
-		}
+		// Include sessions even with no connected clients
+		participants := buildSessionParticipants(c, session, &tm, user)
 
 		// Convert session ID to UUID
 		sessionUUID, err := uuid.Parse(session.ID)

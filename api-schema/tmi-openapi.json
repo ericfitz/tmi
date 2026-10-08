@@ -1624,7 +1624,7 @@
             "items": {
               "$ref": "#/components/schemas/Participant"
             },
-            "description": "List of active participants",
+            "description": "Users authorized to take part in the session: the threat model owner and each user in its authorization list, each with their session permission, plus any connected user not otherwise listed. This is not the set of currently connected users. Group authorization entries are not expanded. For users who are not currently connected, last_activity is the session last-activity time.",
             "maxItems": 1000
           },
           "websocket_url": {
@@ -28740,7 +28740,7 @@
           "Collaboration"
         ],
         "summary": "Get diagram collaboration session",
-        "description": "Retrieves the current collaboration session details for a diagram. The session payload indicates who has been authorized to the session, not who is currently active in the WebSocket session. The 200 status indicates successful retrieval - clients must NOT evaluate the payload to determine session status.",
+        "description": "Retrieves the current collaboration session for a diagram. The participants list contains every user authorized on the threat model (the owner and each user in its authorization list, with their session permission), plus any connected user not otherwise listed; it does not indicate who is currently connected. Group authorization entries are not expanded. The 200 status indicates successful retrieval - clients must NOT evaluate the payload to determine session status.",
         "operationId": "getDiagramCollaborationSession",
         "security": [
           {
@@ -28870,7 +28870,7 @@
           "Collaboration"
         ],
         "summary": "Create diagram collaboration session",
-        "description": "Creates a new collaboration session for real-time diagram editing. Only one collaboration session can exist per diagram at a time. If a session already exists, returns 409 with a link to join the existing session.",
+        "description": "Creates a new collaboration session for real-time diagram editing, or returns the existing one. Only one collaboration session can exist per diagram at a time: if a session already exists, the existing session is returned with 200 so the caller can join it. The participants list is the same as for GET.",
         "operationId": "createDiagramCollaborationSession",
         "security": [
           {
@@ -28945,63 +28945,6 @@
           },
           "404": {
             "$ref": "#/components/responses/Error"
-          },
-          "409": {
-            "description": "Collaboration session already exists for this diagram",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error",
-                    "join_url"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "string",
-                      "description": "Error message indicating session already exists",
-                      "maxLength": 1000,
-                      "example": "collaboration_session_exists"
-                    },
-                    "join_url": {
-                      "type": "string",
-                      "description": "URL to join the existing collaboration session",
-                      "example": "http://localhost:8080/threat_models/{threat_model_id}/diagrams/{diagram_id}/collaborate",
-                      "pattern": "^\\s*https?:\\/\\/[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[0-9]{1,5})?(\\/[^\\s]*)?\\s*$",
-                      "maxLength": 1024
-                    }
-                  },
-                  "additionalProperties": false
-                },
-                "example": {
-                  "error": "collaboration_session_exists",
-                  "join_url": "http://localhost:8080/ws/diagrams/550e8400-e29b-41d4-a716-446655440000"
-                }
-              }
-            },
-            "headers": {
-              "X-RateLimit-Limit": {
-                "description": "Maximum number of requests allowed in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 1000
-                }
-              },
-              "X-RateLimit-Remaining": {
-                "description": "Number of requests remaining in the current time window",
-                "schema": {
-                  "type": "integer",
-                  "example": 999
-                }
-              },
-              "X-RateLimit-Reset": {
-                "description": "Unix epoch seconds when the rate limit window resets",
-                "schema": {
-                  "type": "integer",
-                  "example": 1640995200
-                }
-              }
-            }
           },
           "200": {
             "description": "Collaboration session already exists; the existing session is returned. Clients must NOT evaluate the payload to determine success.",
