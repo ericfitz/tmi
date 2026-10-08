@@ -18,8 +18,8 @@ func findingsFor(t *testing.T, path string) []finding {
 
 func TestCheckErrorCodesBad(t *testing.T) {
 	got := findingsFor(t, "testdata/bad.go.txt")
-	if len(got) != 6 {
-		t.Fatalf("bad fixture: got %d findings, want 6: %+v", len(got), got)
+	if len(got) != 10 {
+		t.Fatalf("bad fixture: got %d findings, want 10: %+v", len(got), got)
 	}
 }
 

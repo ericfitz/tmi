@@ -8,3 +8,9 @@ func bad(c *gin.Context) {
 	RespondWithError(c, 400, "invalid_input", "m")
 	_ = Error{Error: ErrorError("x")}
 }
+
+func helper(c *gin.Context, code string, err error) {
+	c.JSON(400, gin.H{"error": code})
+	_ = AuthError{Code: "unauthorized"}
+	_ = gin.H{"error": err.Error()}
+}

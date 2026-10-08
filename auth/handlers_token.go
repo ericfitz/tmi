@@ -154,11 +154,16 @@ func (h *Handlers) handleAuthorizationCodeGrant(c *gin.Context, code, codeVerifi
 				"error":             string(errcode.UnsupportedGrantType),
 				"error_description": errMsg,
 			})
-		case strings.Contains(errMsg, "invalid authorization code"),
-			strings.Contains(errMsg, "authorization code is required"):
-			// Client error: bad or missing authorization code
+		case strings.Contains(errMsg, "invalid authorization code"):
+			// Client error: bad authorization code (RFC 6749 section 5.2)
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": errMsg,
+				"error":             string(errcode.InvalidGrant),
+				"error_description": errMsg,
+			})
+		case strings.Contains(errMsg, "authorization code is required"):
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":             string(errcode.InvalidRequest),
+				"error_description": errMsg,
 			})
 		default:
 			body, msg := codeExchangeError(providerID, code, err)

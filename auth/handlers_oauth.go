@@ -43,7 +43,8 @@ func (h *Handlers) Authorize(c *gin.Context) {
 			})
 		} else {
 			c.JSON(http.StatusBadRequest, gin.H{
-				"error": err.Error(),
+				"error":             string(errcode.InvalidProvider),
+				"error_description": err.Error(),
 			})
 		}
 		return
@@ -324,7 +325,8 @@ func (h *Handlers) Callback(c *gin.Context) {
 			}
 		}
 		// Non-step-up, non-identity-link upstream error.
-		c.JSON(http.StatusBadRequest, gin.H{"error": upErr})
+		upCode, upDesc := upstreamErrorBody(upErr)
+		c.JSON(http.StatusBadRequest, gin.H{"error": string(upCode), "error_description": upDesc})
 		return
 	}
 
@@ -474,4 +476,32 @@ func (h *Handlers) processOAuthCallback(c *gin.Context, code string, stateData *
 	slogging.Get().WithContext(c).Debug("Redirecting to client with authorization code: %s", redirectURL)
 	c.Redirect(http.StatusFound, redirectURL)
 	return nil
+}
+
+// authorizationErrorCodes are the error codes RFC 6749 section 4.1.2.1 allows in
+// an authorization error response.
+var authorizationErrorCodes = map[errcode.Code]bool{
+	errcode.InvalidRequest: true, errcode.UnauthorizedClient: true, errcode.AccessDenied: true,
+	errcode.UnsupportedResponseType: true, errcode.InvalidScope: true, errcode.ServerError: true,
+	errcode.TemporarilyUnavailable: true,
+}
+
+// upstreamErrorBody maps the error value an upstream identity provider sent on
+// the callback to a documented code. A value outside the RFC 6749 section 4.1.2.1
+// list becomes access_denied and is reported only in the description.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: map an upstream provider error value to a documented OAuth error code and description (pure)
+func upstreamErrorBody(raw string) (errcode.Code, string) {
+	if c := errcode.Code(raw); authorizationErrorCodes[c] {
+		return c, "The identity provider returned an error: " + raw
+	}
+	clean := strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, raw)
+	if len(clean) > 200 {
+		clean = clean[:200]
+	}
+	return errcode.AccessDenied, "The identity provider returned an error: " + clean
 }

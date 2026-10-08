@@ -698,7 +698,7 @@ func (s *Server) UpdateSystemSetting(c *gin.Context, key string) {
 
 	// Enable-validation gate: validate required fields when enabling a provider
 	if validationErr := s.validateProviderEnableKey(ctx, key, string(setting.Value)); validationErr != "" {
-		c.JSON(http.StatusConflict, gin.H{"error": validationErr})
+		HandleRequestError(c, ConflictError(validationErr))
 		return
 	}
 

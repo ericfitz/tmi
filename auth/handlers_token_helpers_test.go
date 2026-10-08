@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/errcode"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
@@ -232,4 +233,18 @@ func TestRespondUserPersistError_StatusMapping(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpstreamErrorBody(t *testing.T) {
+	code, desc := upstreamErrorBody("access_denied")
+	assert.Equal(t, errcode.AccessDenied, code)
+	assert.Contains(t, desc, "access_denied")
+
+	code, desc = upstreamErrorBody("totally\x01made_up")
+	assert.Equal(t, errcode.AccessDenied, code, "values outside RFC 6749 4.1.2.1 map to access_denied")
+	assert.NotContains(t, desc, "\x01")
+	assert.Contains(t, desc, "made_up")
+
+	code, _ = upstreamErrorBody("invalid_grant")
+	assert.Equal(t, errcode.AccessDenied, code, "token-endpoint-only codes are not valid authorization errors")
 }

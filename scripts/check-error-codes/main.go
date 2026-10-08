@@ -25,7 +25,7 @@ type finding struct {
 }
 
 // errorTypes are the struct types whose Error/Code fields carry an error code.
-var errorTypes = map[string]bool{"Error": true, "OAuthError": true, "RequestError": true}
+var errorTypes = map[string]bool{"Error": true, "OAuthError": true, "RequestError": true, "AuthError": true}
 
 // skipDirs are directory names never scanned.
 var skipDirs = map[string]bool{
@@ -52,6 +52,80 @@ func firstStringLit(e ast.Expr) *ast.BasicLit {
 		return true
 	})
 	return found
+}
+
+// isTypedCode reports whether e is an errcode constant or a string() conversion of
+// a typed value, the shapes allowed as a gin.H "error" value.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: report whether an expression is an errcode constant or a string conversion of one (pure)
+func isTypedCode(e ast.Expr) bool {
+	switch x := e.(type) {
+	case *ast.SelectorExpr:
+		id, ok := x.X.(*ast.Ident)
+		return ok && id.Name == "errcode"
+	case *ast.CallExpr:
+		f, ok := x.Fun.(*ast.Ident)
+		if !ok || f.Name != "string" || len(x.Args) != 1 {
+			return false
+		}
+		switch x.Args[0].(type) {
+		case *ast.Ident, *ast.SelectorExpr:
+			return true
+		}
+	}
+	return false
+}
+
+// stringCodeParams flags string-typed parameters that a function writes into an
+// error body ("error" map key or Error/Code field of an error type), because a
+// string parameter lets callers pass any literal past the check.
+// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: find string parameters used as the error code of an error body (pure)
+func stringCodeParams(fset *token.FileSet, fn *ast.FuncDecl) []finding {
+	if fn.Body == nil {
+		return nil
+	}
+	params := map[string]*ast.Ident{}
+	for _, f := range fn.Type.Params.List {
+		if id, ok := f.Type.(*ast.Ident); ok && id.Name == "string" {
+			for _, n := range f.Names {
+				params[n.Name] = n
+			}
+		}
+	}
+	var out []finding
+	seen := map[string]bool{}
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		cl, ok := n.(*ast.CompositeLit)
+		if !ok || cl.Type == nil {
+			return true
+		}
+		for _, el := range cl.Elts {
+			kv, ok := el.(*ast.KeyValueExpr)
+			if !ok {
+				continue
+			}
+			isCodeKey := false
+			if k, ok := kv.Key.(*ast.BasicLit); ok && k.Kind == token.STRING && k.Value == `"error"` && isStringMapType(cl.Type) {
+				isCodeKey = true
+			}
+			if k, ok := kv.Key.(*ast.Ident); ok && (k.Name == "Error" || k.Name == "Code") && errorTypes[typeName(cl.Type)] {
+				isCodeKey = true
+			}
+			if !isCodeKey {
+				continue
+			}
+			ast.Inspect(kv.Value, func(v ast.Node) bool {
+				if id, ok := v.(*ast.Ident); ok {
+					if p, ok := params[id.Name]; ok && !seen[id.Name] {
+						seen[id.Name] = true
+						out = append(out, finding{pos: fset.Position(p.Pos()), lit: `"` + id.Name + ` string"`, kind: "string code parameter"})
+					}
+				}
+				return true
+			})
+		}
+		return true
+	})
+	return out
 }
 
 // SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: return the unqualified name of a type expression (pure)
@@ -103,10 +177,16 @@ func checkFile(fset *token.FileSet, file *ast.File) []finding {
 					}
 				case isStringMapType(x.Type):
 					if k, ok := kv.Key.(*ast.BasicLit); ok && k.Kind == token.STRING && k.Value == `"error"` {
-						add(kv.Value, `map "error"`)
+						if firstStringLit(kv.Value) != nil {
+							add(kv.Value, `map "error"`)
+						} else if !isTypedCode(kv.Value) {
+							out = append(out, finding{pos: fset.Position(kv.Value.Pos()), lit: "<non-constant>", kind: `map "error" value`})
+						}
 					}
 				}
 			}
+		case *ast.FuncDecl:
+			out = append(out, stringCodeParams(fset, x)...)
 		case *ast.CallExpr:
 			if typeName(x.Fun) == "RespondWithError" && len(x.Args) >= 3 {
 				add(x.Args[2], "RespondWithError code")
@@ -120,7 +200,8 @@ func checkFile(fset *token.FileSet, file *ast.File) []finding {
 // SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: report whether a file path is excluded from the scan (pure)
 func skipFile(path string) bool {
 	base := filepath.Base(path)
-	return !strings.HasSuffix(base, ".go") || strings.HasSuffix(base, "_test.go") || path == filepath.Join("api", "api.go")
+	// WebSocket message codes are out of scope (ADR decision 4).
+	return !strings.HasSuffix(base, ".go") || strings.HasPrefix(path, filepath.Join("api", "websocket")) || strings.HasSuffix(base, "_test.go") || path == filepath.Join("api", "api.go")
 }
 
 // SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: scan a directory tree for string-literal error codes (reads filesystem)
