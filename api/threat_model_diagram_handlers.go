@@ -663,7 +663,7 @@ func (h *ThreatModelDiagramHandler) GetDiagramCollaborate(c *gin.Context, threat
 }
 
 // CreateDiagramCollaborate creates a new collaboration session for a diagram within a threat model
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: create or retrieve a WebSocket collaboration session for a diagram (reads DB)
+// SEM@1ee903740fbfd71dacb8286ffc539a07887a60ad: create or retrieve a WebSocket collaboration session for a diagram (reads DB)
 func (h *ThreatModelDiagramHandler) CreateDiagramCollaborate(c *gin.Context, threatModelId, diagramId string) {
 	// Similar to DiagramHandler.PostDiagramCollaborate but with threat model access check
 	// For brevity, this implementation is simplified

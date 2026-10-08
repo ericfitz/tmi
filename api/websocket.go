@@ -756,7 +756,7 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 }
 
 // convertClientToParticipant converts a WebSocket client to a Participant
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: convert a WebSocket client to a Participant, matching identity by provider ID or internal UUID (reads DB)
+// SEM@1ee903740fbfd71dacb8286ffc539a07887a60ad: convert a WebSocket client to a Participant, matching identity by provider ID or internal UUID (reads DB)
 func convertClientToParticipant(c *gin.Context, client *WebSocketClient, _ *DiagramSession, tm *ThreatModel) *Participant {
 	// Get user's session permissions using existing auth system
 	var permissions ParticipantPermissions
@@ -837,7 +837,7 @@ var participantEmailPattern = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.
 // Group authorization entries have no user representation and are skipped. Permissions for
 // users who are not connected come from the static authorization role map (owner/writer ->
 // writer, reader -> reader), so roles elevated through group membership are not reflected.
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build session participants from authorized users and connected clients (reads DB)
+// SEM@1ee903740fbfd71dacb8286ffc539a07887a60ad: build session participants from authorized users and connected clients (reads DB)
 func buildSessionParticipants(c *gin.Context, session *DiagramSession, tm *ThreatModel, requester ResolvedUser) []Participant {
 	logger := slogging.Get()
 	participants := make([]Participant, 0, len(session.Clients)+1)
@@ -929,7 +929,7 @@ func buildSessionParticipants(c *gin.Context, session *DiagramSession, tm *Threa
 }
 
 // buildCollaborationSessionFromDiagramSession creates a CollaborationSession struct from a DiagramSession
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: build a CollaborationSession DTO with authorized-user participants from a live DiagramSession (reads DB)
+// SEM@1ee903740fbfd71dacb8286ffc539a07887a60ad: build a CollaborationSession DTO with authorized-user participants from a live DiagramSession (reads DB)
 func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Context, diagramID string, session *DiagramSession, currentUser ResolvedUser) (*CollaborationSession, error) {
 
 	session.mu.RLock()
@@ -1002,7 +1002,7 @@ func (h *WebSocketHub) buildCollaborationSessionFromDiagramSession(c *gin.Contex
 }
 
 // GetActiveSessionsForUser returns all active collaboration sessions that the specified user has access to
-// SEM@d5bdfb1ec1b8a5b6ae052d7475c567f2499f9824: list active collaboration sessions with authorized-user participants that the given user can read (reads DB)
+// SEM@1ee903740fbfd71dacb8286ffc539a07887a60ad: list active collaboration sessions with authorized-user participants that the given user can read (reads DB)
 func (h *WebSocketHub) GetActiveSessionsForUser(c *gin.Context, user ResolvedUser) []CollaborationSession {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
