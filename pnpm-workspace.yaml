@@ -1,8 +1,5 @@
 allowBuilds:
-  '@scarf/scarf': set this to true or false
-  core-js: set this to true or false
-  protobufjs: set this to true or false
-
+  '@scarf/scarf': false
 overrides:
   'minimatch@<3.1.4': 3.1.4
   'rollup@<2.80.0': 2.80.0
