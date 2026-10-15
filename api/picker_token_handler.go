@@ -1,6 +1,7 @@
 package api
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/http"
@@ -166,11 +167,13 @@ func (h *PickerTokenHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	// Step 7: Return the picker token response.
+	// Step 7: Return the picker token response. The legacy top-level fields
+	// come from ProviderConfig when present (map wins), else the deprecated
+	// struct fields.
 	resp := pickerTokenResponse{
 		AccessToken:  accessToken,
-		DeveloperKey: cfg.DeveloperKey,
-		AppID:        cfg.AppID,
+		DeveloperKey: cmp.Or(cfg.ProviderConfig["developer_key"], cfg.DeveloperKey),
+		AppID:        cmp.Or(cfg.ProviderConfig["app_id"], cfg.AppID),
 	}
 	if expiresAt != nil {
 		resp.ExpiresAt = *expiresAt

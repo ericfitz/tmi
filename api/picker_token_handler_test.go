@@ -135,6 +135,50 @@ func TestMintPickerToken_HappyPath(t *testing.T) {
 	assert.False(t, body.ExpiresAt.IsZero())
 }
 
+// Case 1b: A config that sets only ProviderConfig still fills the legacy
+// top-level developer_key/app_id response fields, so callers need not set the
+// deprecated struct fields.
+func TestMintPickerToken_LegacyFieldsFromProviderConfig(t *testing.T) {
+	expiry := futureExpiry()
+	repo := &mockContentTokenRepo{
+		getByUserAndProvider: func(_ context.Context, _, _ string) (*ContentToken, error) {
+			return &ContentToken{
+				ID:           "tok-1b",
+				UserID:       testUserID,
+				ProviderID:   pickerProviderID,
+				AccessToken:  "fresh-access-token",
+				RefreshToken: "refresh-token",
+				ExpiresAt:    expiry,
+				Status:       ContentTokenStatusActive,
+			}, nil
+		},
+	}
+	registry := NewContentOAuthProviderRegistry()
+	registry.Register(&stubRefreshableProvider{id: pickerProviderID})
+
+	configs := map[string]PickerTokenConfig{
+		pickerProviderID: {ProviderConfig: map[string]string{
+			"developer_key": "map-dev-key",
+			"app_id":        "map-app-id",
+		}},
+	}
+	h := newPickerTestHandler(repo, registry, configs)
+	r := pickerTestRouter(h)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/me/picker_tokens/"+pickerProviderID, nil)
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var body pickerTokenResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, "map-dev-key", body.DeveloperKey)
+	assert.Equal(t, "map-app-id", body.AppID)
+	assert.Equal(t, "map-dev-key", body.ProviderConfig["developer_key"])
+	assert.Equal(t, "map-app-id", body.ProviderConfig["app_id"])
+}
+
 // Case 2: No linked token → 404 with code "not_linked".
 func TestMintPickerToken_NoLinkedToken(t *testing.T) {
 	repo := &mockContentTokenRepo{
