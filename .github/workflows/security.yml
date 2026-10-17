@@ -26,10 +26,13 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Download modules (retry transient proxy errors)
+        run: bash scripts/ci-go-mod-download.sh
+
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.12.2
+          version: v2.14.0
           install-mode: goinstall
           args: --timeout=10m
           # The action's own cache is keyed only on platform + go.mod hash and
@@ -60,6 +63,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Download modules (retry transient proxy errors)
+        run: bash scripts/ci-go-mod-download.sh
+
+      - name: Self-test module download script
+        run: bash scripts/ci-go-mod-download_test.sh
+
       - name: Build server
         run: go build -o bin/tmiserver ./cmd/server
 
@@ -77,6 +86,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Download modules (retry transient proxy errors)
+        run: bash scripts/ci-go-mod-download.sh
 
       - name: Run unit tests
         run: go test -v -race -short ./...
@@ -165,6 +177,9 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Download modules (retry transient proxy errors)
+        run: bash scripts/ci-go-mod-download.sh
+
       - name: Install govulncheck
         # Pinned per repo convention. Verify this is the current release and
         # bump if a newer stable tag exists.
@@ -191,9 +206,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Download modules (retry transient proxy errors)
+        run: bash scripts/ci-go-mod-download.sh
+
       - name: Install gosec
         # Pinned per repo convention. Verify current release and bump if needed.
-        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.5
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
 
       - name: Run gosec (never fails the build)
         # -no-fail: exit 0 even on findings (informational job).
