@@ -183,7 +183,7 @@ jobs:
       - name: Install govulncheck
         # Pinned per repo convention. Verify this is the current release and
         # bump if a newer stable tag exists.
-        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
 
       # Fails on any reachable vulnerability that is not listed, unexpired, in
       # .github/govulncheck-allow.txt (for advisories with no fixed release).
