@@ -29,7 +29,7 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.12.2
+          version: v2.14.0
           install-mode: goinstall
           args: --timeout=10m
           # The action's own cache is keyed only on platform + go.mod hash and
