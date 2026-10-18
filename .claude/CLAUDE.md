@@ -10,7 +10,7 @@ Sibling projects (client, wiki, etc.) are registered in `.local/repos.json`; che
 
 ### Storage
 
-Use the generic `Store[T]` from `api/store.go`; each entity type has its own store instance (DiagramStore, ThreatModelStore) with CRUD and concurrency control. Validate entity fields before storing; use the `WithTimestamps` interface for entities with `created_at`/`modified_at`.
+`api/store.go` declares the store interfaces (DiagramStore, ThreatModelStore, etc.); each entity type has a GORM-backed implementation (`api/*_store_gorm.go`) with CRUD and concurrency control. There is no generic `Store[T]`. Validate entity fields before storing; use the `WithTimestamps` interface for entities with `created_at`/`modified_at`.
 
 PostgreSQL for persistence, Redis for caching and sessions, in-memory storage for tests. Schema is managed by GORM `AutoMigrate()` from struct tags in `api/models/*.go` (single source of truth). **Oracle ADB is a supported production target**; any DB-touching change must be reviewed by the `oracle-db-admin` subagent (see Policies).
 

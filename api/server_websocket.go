@@ -23,7 +23,7 @@ type ServerInfo struct {
 }
 
 // RegisterHandlers registers custom API handlers with the router
-// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: register custom WebSocket and server-info routes outside the OpenAPI spec (mutates shared state)
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: register custom WebSocket routes outside the OpenAPI spec (mutates shared state)
 func (s *Server) RegisterHandlers(r *gin.Engine) {
 	logger := slogging.Get()
 	logger.Info("[API_SERVER] Starting custom route registration")
@@ -46,10 +46,6 @@ func (s *Server) RegisterHandlers(r *gin.Engine) {
 	// Register notification WebSocket handler
 	logger.Info("[API_SERVER] Registering notification WebSocket route: GET /ws/notifications")
 	r.GET("/ws/notifications", s.HandleNotificationWebSocket)
-
-	// Register server info endpoint
-	logger.Info("[API_SERVER] Registering custom route: GET /api/server-info")
-	r.GET("/api/server-info", s.HandleServerInfo)
 
 	logger.Info("[API_SERVER] Custom route registration completed")
 }
@@ -145,6 +141,12 @@ func (s *Server) buildWebSocketURL(c *gin.Context) string {
 
 	// Build WebSocket URL
 	return fmt.Sprintf("%s://%s/ws", scheme, host)
+}
+
+// GetServerInfo implements the generated ServerInterface for GET /api/server-info
+// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: return server TLS and WebSocket configuration to clients
+func (s *Server) GetServerInfo(c *gin.Context) {
+	s.HandleServerInfo(c)
 }
 
 // HandleServerInfo provides server configuration information to clients

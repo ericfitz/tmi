@@ -11,7 +11,7 @@ satisfy. It is enforced by `api/authz_middleware.go` at request time and by
   "ownership":         "none" | "reader" | "writer" | "owner",  // required
   "roles":             ["admin" | "security_reviewer" | "automation" | "confidential_reviewer"],
   "public":            true | false,                            // default false
-  "audit":             "required" | "optional",                 // default "required" for non-GET
+  "audit":             "required" | "optional",                 // reserved; parsed but not enforced
   "subject_authority": "invoker" | "service_account"            // default "any" (omitted)
 }
 ```
@@ -41,7 +41,16 @@ roles in this slice:
   via `api/automation_middleware.go::EmbeddingAutomationMiddleware`.
 
 Future slices will register `security_reviewer` and `confidential_reviewer`
-as the spec grows.
+as the spec grows. Until then `checkAuthzRoles` logs a warning and skips any
+role other than `admin` and `automation`, so no operation may rely on one of
+them as a gate (the validator accepts the names, but nothing enforces them).
+
+Triage endpoints (`/triage/*`) do not use a role gate: they declare
+`ownership: none` and authorize inside the handler by membership in the
+Security Reviewers group (non-confidential responses) or the Confidential
+Project Reviewers group (confidential responses), not by ownership or the
+per-row ACL. See
+`docs/superpowers/specs/2026-10-17-adr-triage-access-by-reviewer-group.md`.
 
 ### `public` (optional, default `false`)
 
@@ -51,7 +60,12 @@ When `true`, the operation is unauthenticated. JWT middleware skips it via
 
 ### `audit` (optional)
 
-Informational in slice 1. Slice 8 wires audit-emission enforcement.
+Reserved. The value is parsed into the rule table and, when present, checked
+against the allowed values by `scripts/check-x-tmi-authz.py`, but nothing
+defaults, enforces or acts on it, and no operation in the spec sets it.
+Audit entries are emitted by explicit `RecordAuditCreate`, `RecordAuditUpdate`
+and `RecordAuditDelete` calls in the handlers (`api/audit_utils.go`),
+independent of this field.
 
 ### `subject_authority` (optional, default "any")
 
@@ -80,8 +94,9 @@ Constrains which kind of authenticated principal can satisfy the gate.
 // Resource-hierarchical write
 "x-tmi-authz": { "ownership": "writer" }
 
-// Resource-hierarchical write that additionally requires the security_reviewer role
-"x-tmi-authz": { "ownership": "writer", "roles": ["security_reviewer"] }
+// Resource-hierarchical write that additionally requires a role. Only `admin`
+// and `automation` are enforced today; see `roles` above.
+"x-tmi-authz": { "ownership": "writer", "roles": ["automation"] }
 ```
 
 ## Adding a new endpoint
@@ -99,7 +114,7 @@ extension (default-deny since #371). Steps for a new endpoint:
    - `none` for global collections, `/admin/*`, `/me/*`, public, and
      workflow paths whose role check is enforced inside the handler
      (team-membership for `/projects`, subject-self for `/me/*`,
-     HasAccess for `/triage/*`).
+     reviewer-group membership for `/triage/*`).
    - `reader` for any GET on a resource nested under a threat model.
    - `writer` for POST/PUT/PATCH on a nested resource (and for DELETE
      on most sub-resources — top-level threat-model and diagram DELETE
@@ -128,4 +143,4 @@ The `x-tmi-authz` migration shipped in eight slices:
 | 5 | #368 | `/addons*` + `/automation/embeddings/*` (introduces the `automation` role gate) |
 | 6 | #369 | `/threat_models/{id}/chat/sessions/*` Timmy chat endpoints |
 | 7 | #370 | `/intake/*`, `/triage/*`, `/projects*` workflow + cross-cutting |
-| 8 | #371 | Closes the long tail (`/teams/*`, `/webhook-deliveries/{id}`), flips the validator to default-deny, sweeps redundant route-level checks from handlers, adds the `check-no-adhoc-authz.py` lint rule |
+| 8 | #371 | Closes the long tail (`/teams/*`, `/webhook-deliveries/{id}`), flips the validator to default-deny, sweeps redundant route-level checks from handlers, adds the `check-no-adhoc-authz.py` lint rule. It did not wire audit enforcement: the `audit` field remains reserved. |

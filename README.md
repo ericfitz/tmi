@@ -22,7 +22,7 @@ For detailed setup instructions, see [Development Setup Guide](https://github.co
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.26+
 - Docker Desktop (for database & Redis containers)
 - Make (for build automation)
 
@@ -31,10 +31,10 @@ For detailed setup instructions, see [Development Setup Guide](https://github.co
 ```bash
 git clone https://github.com/ericfitz/tmi.git
 cd tmi
-make dev-up
+make dev-up CLUSTER=docker-desktop
 ```
 
-The complete development environment (a local kind cluster running the server, plus database and Redis) will start automatically, with the server reachable on port 8080.
+The complete development environment (the server, database and Redis, deployed into a Kubernetes cluster) will start automatically, with the server reachable on port 8080. `CLUSTER` is required: `docker-desktop` (local) or `k3s` (remote).
 
 ## Project Structure
 
@@ -46,34 +46,7 @@ The complete development environment (a local kind cluster running the server, p
 
 ### Data Storage Pattern
 
-The project uses strongly-typed concurrent maps for in-memory storage:
-
-```go
-// Store provides thread-safe storage for a specific entity type
-type Store[T any] struct {
-    data  map[string]T
-    mutex sync.RWMutex
-}
-
-// DiagramStore stores diagrams by UUID
-var DiagramStore = NewStore[api.Diagram]()
-
-// ThreatModelStore stores threat models by UUID
-var ThreatModelStore = NewStore[api.ThreatModel]()
-```
-
-Benefits of this approach:
-
-- Type safety with generics
-- Concurrency protection with mutexes
-- Clear separation between different entity stores
-- Easy to replace with a database implementation later
-
-This pattern is used for all entity types (diagrams, threat models, threats) and provides:
-
-- CRUD operations
-- Atomic updates
-- Support for filtering and queries
+Persistence goes through GORM. Entity models live in `api/models/` and are the single source of truth for the schema: tables are created and migrated from the model struct tags by `AutoMigrate()`. The database is PostgreSQL or Oracle Autonomous Database (a supported production target); the stores are accessed through the interfaces declared in `api/store.go`, with GORM-backed implementations in `api/*_store_gorm.go`. Redis is used for caching and sessions. Unit tests of the GORM stores run against SQLite.
 
 ## Documentation
 
@@ -98,67 +71,34 @@ See **[TMI Wiki](https://github.com/ericfitz/tmi/wiki)** for the complete docume
 ## Development Commands
 
 ```bash
-make dev-up             # Start complete dev environment (kind cluster)
-make dev-status         # Show dev environment status
-make dev-down           # Tear down dev environment (keep db data)
+make dev-up CLUSTER=docker-desktop      # Start complete dev environment
+make dev-status CLUSTER=docker-desktop  # Show dev environment status
+make dev-down CLUSTER=docker-desktop    # Tear down dev environment (keep db data)
 make build-server       # Build production binary
 make test-unit                # Run unit tests
-make test-integration-new     # Run integration tests (server must be running)
+make test-integration         # Run integration tests (needs a running stack)
 make cats-fuzz               # Run security fuzzing
 make lint               # Run code linting
 ```
 
 ## Configuration
 
-Server configuration can be set via environment variables or using a `.env` file:
-
-1. Copy the `.env.example` file to `.env`
-2. Modify the values as needed
-3. Start the server, which will automatically load the `.env` file
-
-You can also specify a custom .env file with:
+The server reads a YAML configuration file passed with `--config`, and every setting can be overridden with a `TMI_`-prefixed environment variable (for example `TMI_SERVER_PORT`, `TMI_JWT_EXPIRATION_SECONDS`, `TMI_REDIS_URL`). The YAML file holds the bootstrap keys needed to start the server; operational settings are stored in the database settings service and can be pinned with the environment or the YAML file.
 
 ```bash
-./bin/tmiserver --env=/path/to/custom.env
+./bin/tmiserver --config=/path/to/config.yml
+./bin/tmiserver --generate-config    # write an annotated example configuration
 ```
 
-Available configuration options:
-
-| Variable             | Default                           | Description                                 |
-| -------------------- | --------------------------------- | ------------------------------------------- |
-| SERVER_PORT          | 8080                              | HTTP/HTTPS server port                      |
-| SERVER_INTERFACE     | 0.0.0.0                           | Network interface to listen on              |
-| SERVER_READ_TIMEOUT  | 5s                                | HTTP read timeout                           |
-| SERVER_WRITE_TIMEOUT | 10s                               | HTTP write timeout                          |
-| SERVER_IDLE_TIMEOUT  | 60s                               | HTTP idle timeout                           |
-| LOG_LEVEL            | info                              | Logging level (debug, info, warn, error)    |
-| TLS_ENABLED          | false                             | Enable HTTPS/TLS                            |
-| TLS_CERT_FILE        |                                   | Path to TLS certificate file                |
-| TLS_KEY_FILE         |                                   | Path to TLS private key file                |
-| TLS_SUBJECT_NAME     | [hostname]                        | Subject name for certificate validation     |
-| TLS_HTTP_REDIRECT    | true                              | Redirect HTTP to HTTPS when TLS is enabled  |
-| JWT_SECRET           | secret                            | JWT signing secret (change for production!) |
-| JWT_EXPIRES_IN       | 24h                               | JWT expiration                              |
-| OAUTH_URL            | https://oauth-provider.com/oauth2 | OAuth provider URL                          |
-| OAUTH_SECRET         |                                   | OAuth client secret                         |
-| DB_URL               | localhost                         | Database URL                                |
-| DB_USERNAME          |                                   | Database username                           |
-| DB_PASSWORD          |                                   | Database password                           |
-| DB_NAME              | tmi                               | Database name                               |
-| ENV                  | development                       | Environment (development or production)     |
+See [config-example.yml](config-example.yml) for the bootstrap keys and their defaults, and the [TMI Wiki](https://github.com/ericfitz/tmi/wiki) for the full configuration reference. The environment variable for each key is declared with the key in `internal/config/config.go`.
 
 ### WebSocket URLs
 
-When TLS is enabled (`TLS_ENABLED=true`), clients should connect using secure WebSocket URLs:
+The collaborative editing WebSocket for a diagram is `GET /threat_models/{threat_model_id}/diagrams/{diagram_id}/ws`, and server-wide notifications are on `GET /ws/notifications`. Both are specified in the AsyncAPI document (`api-schema/tmi-asyncapi.yml`) and authenticate with a short-lived ticket passed as the `ticket` query parameter.
 
-- Use `wss://` instead of `ws://` for WebSocket connections
-- Example: `wss://your-server.com:8080/ws/diagrams/123`
+When the client reaches the server over TLS, use `wss://` instead of `ws://`. Example: `wss://your-server.com/threat_models/{threat_model_id}/diagrams/{diagram_id}/ws?ticket=...`
 
-When TLS is disabled, use standard WebSocket URLs:
-
-- Example: `ws://your-server.com:8080/ws/diagrams/123`
-
-You can use the `/api/server-info` endpoint to get the correct WebSocket base URL automatically.
+Use `GET /api/server-info` to discover the correct WebSocket base URL, scheme and TLS settings automatically.
 
 ## License
 

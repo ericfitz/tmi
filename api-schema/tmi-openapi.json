@@ -6696,6 +6696,32 @@
           "score": 9.8
         }
       },
+      "ServerInfoResponse": {
+        "type": "object",
+        "description": "Server TLS and WebSocket connection information for clients",
+        "required": [
+          "tls_enabled",
+          "websocket_base_url"
+        ],
+        "properties": {
+          "tls_enabled": {
+            "type": "boolean",
+            "description": "Whether the server itself terminates TLS"
+          },
+          "tls_subject_name": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Subject name of the server TLS certificate; omitted when empty"
+          },
+          "websocket_base_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "description": "WebSocket base URL derived from the host the client used and the client-facing scheme (wss when the request arrived over TLS directly or through a TLS-terminating proxy that sets X-Forwarded-Proto, otherwise ws)",
+            "example": "wss://api.example.com/ws"
+          }
+        },
+        "additionalProperties": false
+      },
       "ClientConfig": {
         "type": "object",
         "description": "Client configuration for tmi-ux and other client applications",
@@ -7850,9 +7876,17 @@
               },
               "status": {
                 "type": "string",
+                "x-go-type": "string",
+                "enum": [
+                  "draft",
+                  "submitted",
+                  "needs_revision",
+                  "ready_for_review",
+                  "review_created"
+                ],
                 "maxLength": 256,
                 "pattern": "^[^\\x00-\\x1F]*$",
-                "description": "Current status of the survey response in the triage workflow"
+                "description": "Current status of the survey response in the triage workflow. The server enforces the set of values (an unknown value is rejected with 400 invalid_input; needs_revision also requires revision_notes) but not the order of transitions."
               },
               "is_confidential": {
                 "type": "boolean",
@@ -8003,9 +8037,17 @@
           },
           "status": {
             "type": "string",
+            "x-go-type": "string",
+            "enum": [
+              "draft",
+              "submitted",
+              "needs_revision",
+              "ready_for_review",
+              "review_created"
+            ],
             "maxLength": 256,
             "pattern": "^[^\\x00-\\x1F]*$",
-            "description": "Current status of the survey response"
+            "description": "Current status of the survey response. The server enforces the set of values but not the order of transitions."
           },
           "is_confidential": {
             "type": "boolean",
@@ -13754,7 +13796,7 @@
         "name": "client_callback",
         "in": "query",
         "required": false,
-        "description": "Client callback URL where TMI should redirect after successful OAuth completion with tokens in URL fragment (#access_token=...). If not provided, tokens are returned as JSON response. Per OAuth 2.0 implicit flow spec, tokens are in fragments to prevent logging.",
+        "description": "Client callback URL where TMI redirects after successful authentication. For OAuth (authorization code with PKCE) the redirect carries the authorization code and state in the query string (?code=...&state=...); the client exchanges the code for tokens at POST /oauth2/token, which returns a JSON body and, when cookie delivery is enabled, also sets HttpOnly token cookies. OAuth never delivers tokens in the URL fragment. SAML login instead redirects with the tokens in the URL fragment (#access_token=...).",
         "schema": {
           "type": "string",
           "format": "uri",
@@ -14339,7 +14381,7 @@
       "SurveyResponseStatusQueryParam": {
         "name": "status",
         "in": "query",
-        "description": "Filter by response status. Supports comma-separated values for multi-status filtering (e.g., status=submitted,ready_for_review).",
+        "description": "Filter by response status. Supports comma-separated values for multi-status filtering (e.g., status=submitted,ready_for_review). Valid values: draft, submitted, needs_revision, ready_for_review, review_created.",
         "schema": {
           "type": "string",
           "maxLength": 256,
@@ -29520,7 +29562,7 @@
           "Collaboration"
         ],
         "summary": "End diagram collaboration session",
-        "description": "Terminates the active collaboration session for a diagram",
+        "description": "If the caller is the session host, terminates the session for all participants; otherwise the caller leaves the session (204 in both cases)",
         "operationId": "endDiagramCollaborationSession",
         "security": [
           {
@@ -44178,6 +44220,71 @@
         "x-authentication-required": false,
         "x-public-endpoint-purpose": "Client Configuration",
         "x-cacheable-endpoint": true,
+        "x-tmi-authz": {
+          "ownership": "none",
+          "public": true
+        }
+      }
+    },
+    "/api/server-info": {
+      "get": {
+        "tags": [
+          "Configuration"
+        ],
+        "summary": "Get server information",
+        "description": "Returns server TLS settings and the WebSocket base URL that clients should use. This endpoint is public.",
+        "operationId": "getServerInfo",
+        "responses": {
+          "200": {
+            "description": "Server information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerInfoResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Maximum number of requests allowed in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 1000
+                }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Number of requests remaining in the current time window",
+                "schema": {
+                  "type": "integer",
+                  "example": 999
+                }
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix epoch seconds when the rate limit window resets",
+                "schema": {
+                  "type": "integer",
+                  "example": 1735689600
+                }
+              }
+            }
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "security": [],
+        "x-public-endpoint": true,
+        "x-authentication-required": false,
+        "x-public-endpoint-purpose": "Server Information",
         "x-tmi-authz": {
           "ownership": "none",
           "public": true
@@ -59647,7 +59754,7 @@
           "Threat Models"
         ],
         "summary": "Restore a soft-deleted threat model",
-        "description": "Restores a soft-deleted threat model and all its soft-deleted children (diagrams, threats, assets, documents, notes, repositories). Restricted to owner role or administrators.",
+        "description": "Restores a soft-deleted threat model and all its soft-deleted children (diagrams, threats, assets, documents, notes, repositories). Restricted to the owner role.",
         "operationId": "restoreThreatModel",
         "security": [
           {
@@ -59811,7 +59918,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Restore a soft-deleted diagram",
-        "description": "Restores a soft-deleted diagram within a threat model. The parent threat model must not be deleted; returns 409 if it is. Restricted to owner role or administrators.",
+        "description": "Restores a soft-deleted diagram within a threat model. The parent threat model must not be deleted; returns 409 if it is. Restricted to the owner role.",
         "operationId": "restoreDiagram",
         "security": [
           {
@@ -59978,7 +60085,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Restore a soft-deleted threat",
-        "description": "Restores a soft-deleted threat within a threat model. The parent threat model must not be deleted; returns 409 if it is. Restricted to owner role or administrators.",
+        "description": "Restores a soft-deleted threat within a threat model. The parent threat model must not be deleted; returns 409 if it is. Restricted to the owner role.",
         "operationId": "restoreThreat",
         "security": [
           {
@@ -60145,7 +60252,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Restore a soft-deleted asset",
-        "description": "Restores a soft-deleted asset within a threat model. The parent threat model must not be deleted; returns 409 if it is. Restricted to owner role or administrators.",
+        "description": "Restores a soft-deleted asset within a threat model. The parent threat model must not be deleted; returns 409 if it is. Restricted to the owner role.",
         "operationId": "restoreAsset",
         "security": [
           {
@@ -60312,7 +60419,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Restore a soft-deleted document",
-        "description": "Restores a soft-deleted document within a threat model. The parent threat model must not be deleted; returns 409 if it is. Restricted to owner role or administrators.",
+        "description": "Restores a soft-deleted document within a threat model. The parent threat model must not be deleted; returns 409 if it is. Restricted to the owner role.",
         "operationId": "restoreDocument",
         "security": [
           {
@@ -60479,7 +60586,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Restore a soft-deleted note",
-        "description": "Restores a soft-deleted note within a threat model. The parent threat model must not be deleted; returns 409 if it is. Restricted to owner role or administrators.",
+        "description": "Restores a soft-deleted note within a threat model. The parent threat model must not be deleted; returns 409 if it is. Restricted to the owner role.",
         "operationId": "restoreNote",
         "security": [
           {
@@ -60646,7 +60753,7 @@
           "Threat Model Sub-Resources"
         ],
         "summary": "Restore a soft-deleted repository",
-        "description": "Restores a soft-deleted repository within a threat model. The parent threat model must not be deleted; returns 409 if it is. Restricted to owner role or administrators.",
+        "description": "Restores a soft-deleted repository within a threat model. The parent threat model must not be deleted; returns 409 if it is. Restricted to the owner role.",
         "operationId": "restoreRepository",
         "security": [
           {
