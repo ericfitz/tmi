@@ -80,13 +80,12 @@ func TestUserAPIRateLimiting_Integration(t *testing.T) {
 		}
 		remaining, convErr := strconv.Atoi(resp.Headers.Get("X-RateLimit-Remaining"))
 		framework.AssertNoError(t, convErr, "X-RateLimit-Remaining not an integer")
-		if prevRemaining >= 0 && remaining >= prevRemaining {
-			t.Errorf("Request %d: X-RateLimit-Remaining %d did not decrease from %d", i, remaining, prevRemaining)
-		}
-		prevRemaining = remaining
-
 		if resp.StatusCode == 429 {
 			limited = true
+			// The exhausted window reports 0 remaining, the same as the last allowed request.
+			if remaining != 0 {
+				t.Errorf("Request %d: X-RateLimit-Remaining on 429 = %d, want 0", i, remaining)
+			}
 			if i <= quota {
 				t.Errorf("Request %d was rate limited before the quota of %d was used", i, quota)
 			}
@@ -105,6 +104,10 @@ func TestUserAPIRateLimiting_Integration(t *testing.T) {
 		if resp.StatusCode != 200 {
 			t.Fatalf("Request %d: expected 200, got %d; body: %s", i, resp.StatusCode, string(resp.Body))
 		}
+		if prevRemaining >= 0 && remaining >= prevRemaining {
+			t.Errorf("Request %d: X-RateLimit-Remaining %d did not decrease from %d", i, remaining, prevRemaining)
+		}
+		prevRemaining = remaining
 	}
 	if !limited {
 		t.Fatalf("No 429 after %d requests with a quota of %d", quota+1, quota)
