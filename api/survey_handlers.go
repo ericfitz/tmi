@@ -856,10 +856,23 @@ func (s *Server) UpdateIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 	c.JSON(http.StatusOK, updated)
 }
 
+// validateIntakeStatusTarget rejects any status an intake caller may not set.
+// The submitter may only move a response to draft or submitted; approval and
+// review states belong to triage reviewers (#1100). PUT and create carry no
+// status field, so PATCH is the only intake path that reaches this check.
+// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: validate that an intake caller may set a survey response status only to draft or submitted (pure)
+func validateIntakeStatusTarget(status string) error {
+	if status != ResponseStatusDraft && status != ResponseStatusSubmitted {
+		return fmt.Errorf("status %q cannot be set through intake endpoints; only %q or %q is allowed",
+			status, ResponseStatusDraft, ResponseStatusSubmitted)
+	}
+	return nil
+}
+
 // PatchIntakeSurveyResponse partially updates a survey response.
 // PATCH /intake/survey_responses/{response_id}
 // Supports status transitions: draft->submitted, needs_revision->submitted
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: apply a JSON Patch to a draft or needs-revision survey response and handle status transitions (mutates DB)
+// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: apply a JSON Patch to a draft or needs-revision survey response, allowing only draft or submitted status targets (mutates DB)
 func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId, _ PatchIntakeSurveyResponseParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
@@ -924,6 +937,10 @@ func (s *Server) PatchIntakeSurveyResponse(c *gin.Context, surveyResponseId Surv
 	// transition never lets the CAS-guarded write commit only to fail on an
 	// unrelated validation afterward.
 	if hasStatusChange && patched.Status != nil && *patched.Status != *existing.Status {
+		if err := validateIntakeStatusTarget(*patched.Status); err != nil {
+			HandleRequestError(c, InvalidInputError(err.Error()))
+			return
+		}
 		if err := ValidateSurveyResponseStatusTransition(*patched.Status, nil); err != nil {
 			HandleRequestError(c, InvalidInputError(err.Error())) // validation failure, not a conflict (#987)
 			return

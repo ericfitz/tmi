@@ -31,7 +31,7 @@ func NewTriageNoteSubResourceHandler(store TriageNoteStore) *TriageNoteSubResour
 // this check, anyone authenticated could enumerate or write triage notes on
 // arbitrary survey responses (T5, #357).
 //
-// Returns the parent survey-response ID string and true on success. On
+// Returns true on success. On
 // failure (not found OR access denied — collapsed into 404 to avoid existence
 // disclosure) writes the error response and returns false.
 // SEM@0e2dc694: authorize the caller on a parent survey response via row ACL, or accept a pre-verified triage reviewer, returning 404 on failure

@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -250,7 +251,7 @@ func TestTriageAccess_IntakeUnchangedForSubmitter(t *testing.T) {
 		[]byte(`[{"op":"replace","path":"/ui_state","value":{"a":1}}]`))
 	f.alice.SetContext(c2)
 	f.server.PatchIntakeSurveyResponse(c2, draftID, PatchIntakeSurveyResponseParams{})
-	assert.NotEqual(t, http.StatusNotFound, w2.Code, "submitter keeps intake patch access: %s", w2.Body.String())
+	assert.Equal(t, http.StatusOK, w2.Code, "submitter keeps intake patch access: %s", w2.Body.String())
 
 	c3, w3 := CreateTestGinContext("GET", "/x")
 	f.alice.SetContext(c3)
@@ -271,4 +272,73 @@ func asTriageUser(t *testing.T, c *gin.Context, groups ...BuiltInGroup) TestUser
 	installTriageMembership(t).grant(u, groups...)
 	u.SetContext(c)
 	return u
+}
+
+func TestTriageMetadata_ReviewerAllowed(t *testing.T) {
+	f := newTriageFixture(t)
+	md := &MockMetadataStore{}
+	md.On("List", mock.Anything, "survey_response", f.normalID.String()).Return([]Metadata{{Key: "k", Value: "v"}}, nil)
+	md.On("Get", mock.Anything, "survey_response", f.normalID.String(), "k").Return(&Metadata{Key: "k", Value: "v"}, nil)
+	f.server.surveyResponseMetadata = NewGenericMetadataHandler(md, "survey_response", "survey_response_id", nil)
+
+	c, w := CreateTestGinContext("GET", "/x")
+	f.sr.SetContext(c)
+	c.Params = append(c.Params, gin.Param{Key: "survey_response_id", Value: f.normalID.String()})
+	f.server.GetTriageSurveyResponseMetadata(c, f.normalID)
+	assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	c2, w2 := CreateTestGinContext("GET", "/x")
+	f.sr.SetContext(c2)
+	c2.Params = append(c2.Params,
+		gin.Param{Key: "survey_response_id", Value: f.normalID.String()},
+		gin.Param{Key: "key", Value: "k"})
+	f.server.GetTriageSurveyResponseMetadataByKey(c2, f.normalID, "k")
+	assert.Equal(t, http.StatusOK, w2.Code, w2.Body.String())
+}
+
+// Intake callers may only set status to draft or submitted; approval states
+// belong to triage reviewers (#1100).
+func TestIntakePatch_SubmitterCannotSetReviewStatus(t *testing.T) {
+	f := newTriageFixture(t)
+
+	patchStatus := func(id uuid.UUID, status string) (int, string) {
+		body := []byte(fmt.Sprintf(`[{"op":"replace","path":"/status","value":%q}]`, status))
+		c, w := CreateTestGinContextWithBody("PATCH", "/x", "application/json-patch+json", body)
+		f.alice.SetContext(c)
+		f.server.PatchIntakeSurveyResponse(c, id, PatchIntakeSurveyResponseParams{})
+		return w.Code, w.Body.String()
+	}
+
+	for _, from := range []string{ResponseStatusDraft, ResponseStatusNeedsRevision} {
+		for _, target := range []string{ResponseStatusReadyForReview, ResponseStatusNeedsRevision, ResponseStatusReviewCreated} {
+			if from == target {
+				continue
+			}
+			t.Run(from+"_to_"+target, func(t *testing.T) {
+				id := seedSurveyResponse(f.respStore, uuid.New(), from, f.alice.InternalUUID)
+				code, body := patchStatus(id, target)
+				assert.Equal(t, http.StatusBadRequest, code, body)
+				assert.Equal(t, from, *f.respStore.responses[id].Status, "status must be unchanged")
+			})
+		}
+	}
+
+	t.Run("draft_to_submitted_allowed", func(t *testing.T) {
+		id := seedSurveyResponse(f.respStore, uuid.New(), ResponseStatusDraft, f.alice.InternalUUID)
+		code, body := patchStatus(id, ResponseStatusSubmitted)
+		assert.Equal(t, http.StatusOK, code, body)
+	})
+	t.Run("needs_revision_to_submitted_allowed", func(t *testing.T) {
+		id := seedSurveyResponse(f.respStore, uuid.New(), ResponseStatusNeedsRevision, f.alice.InternalUUID)
+		code, body := patchStatus(id, ResponseStatusSubmitted)
+		assert.Equal(t, http.StatusOK, code, body)
+	})
+}
+
+func TestValidateIntakeStatusTarget(t *testing.T) {
+	assert.NoError(t, validateIntakeStatusTarget(ResponseStatusDraft))
+	assert.NoError(t, validateIntakeStatusTarget(ResponseStatusSubmitted))
+	assert.Error(t, validateIntakeStatusTarget(ResponseStatusReadyForReview))
+	assert.Error(t, validateIntakeStatusTarget(ResponseStatusReviewCreated))
+	assert.Error(t, validateIntakeStatusTarget("bogus"))
 }

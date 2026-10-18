@@ -75,11 +75,15 @@ func RequireTriageAccess(c *gin.Context, responseID SurveyResponseId) (*SurveyRe
 // and nil means both.
 // SEM@0e2dc694: resolve the confidentiality scope a caller may triage from reviewer group membership (reads DB)
 func triageReviewerScope(c *gin.Context) (confidential *bool, hasScope bool, err error) {
-	isSR, err := IsGroupMemberFromContext(c, GroupSecurityReviewers)
+	mc, err := ResolveMembershipContext(c)
 	if err != nil {
 		return nil, false, err
 	}
-	isCPR, err := IsGroupMemberFromContext(c, GroupConfidentialProjectReviewers)
+	isSR, err := IsGroupMember(c.Request.Context(), mc, GroupSecurityReviewers)
+	if err != nil {
+		return nil, false, err
+	}
+	isCPR, err := IsGroupMember(c.Request.Context(), mc, GroupConfidentialProjectReviewers)
 	if err != nil {
 		return nil, false, err
 	}

@@ -263,9 +263,12 @@ func (m *mockSurveyResponseStore) List(_ context.Context, _, _ int, filters *Sur
 	return m.listItems, m.listTotal, nil
 }
 
-func (m *mockSurveyResponseStore) UpdateStatus(_ context.Context, _ uuid.UUID, _ string, _ *string, _ *string) error {
+func (m *mockSurveyResponseStore) UpdateStatus(_ context.Context, id uuid.UUID, newStatus string, _ *string, _ *string) error {
 	if m.updateStatusErr != nil {
 		return m.updateStatusErr
+	}
+	if r, ok := m.responses[id]; ok {
+		r.Status = &newStatus
 	}
 	return nil
 }
