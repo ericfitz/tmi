@@ -12,7 +12,7 @@ import (
 )
 
 // RateLimitMiddleware creates a middleware that enforces API rate limiting
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: enforce per-user API rate limits and set rate limit response headers, skipping public and auth endpoints
+// SEM@198cb4aafd0f97decb9482d12ee2c915f8d3983c: enforce per-user API rate limits and set rate limit headers, skipping public endpoints
 func RateLimitMiddleware(server *Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
@@ -90,7 +90,7 @@ func RateLimitMiddleware(server *Server) gin.HandlerFunc {
 
 // rateLimitUserKey returns the per-user rate limit key from the JWT middleware's context
 // values: the internal UUID (the quota store key), else the provider user ID.
-// SEM@0000000: resolve the authenticated user's rate limit key from request context (pure)
+// SEM@198cb4aafd0f97decb9482d12ee2c915f8d3983c: derive the rate limit bucket key for the authenticated user from request context (pure)
 func rateLimitUserKey(c *gin.Context) (string, bool) {
 	for _, key := range []string{"userInternalUUID", "userID"} {
 		if v, ok := c.Get(key); ok {
