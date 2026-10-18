@@ -188,7 +188,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 // SEM@0000000: map credential create error to documented HTTP error response
 func respondClientCredentialCreateError(c *gin.Context, logger *slogging.ContextLogger, ownerUUID uuid.UUID, err error) {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		logger.Debug("Request cancelled during credential create: %v", err)
+		logger.Debug("Request canceled during credential create: %v", err)
 		return
 	}
 	if errors.Is(err, dberrors.ErrDuplicate) || errors.Is(err, dberrors.ErrConstraint) {
