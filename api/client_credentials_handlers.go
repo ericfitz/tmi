@@ -161,32 +161,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 		ExpiresAt:   timeFromPtr(req.ExpiresAt),
 	})
 	if err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			logger.Debug("Request cancelled during credential create: %v", err)
-			return
-		}
-		if errors.Is(err, dberrors.ErrDuplicate) || errors.Is(err, dberrors.ErrConstraint) {
-			logger.Warn("Client credential creation failed due to constraint: %v", err)
-			c.JSON(http.StatusConflict, Error{
-				Error:            ErrorError(errcode.Conflict),
-				ErrorDescription: "A client credential with these details already exists",
-			})
-			return
-		}
-		if errors.Is(err, dberrors.ErrTransient) {
-			logger.Warn("Transient DB error creating client credential: %v", err)
-			c.Header("Retry-After", "30")
-			c.JSON(http.StatusServiceUnavailable, Error{
-				Error:            ErrorError(errcode.ServiceUnavailable),
-				ErrorDescription: "Database temporarily unavailable, please retry",
-			})
-			return
-		}
-		logger.Error("Failed to create client credential for user %s: %v", ownerUUID, err)
-		c.JSON(http.StatusInternalServerError, Error{
-			Error:            ErrorError(errcode.ServerError),
-			ErrorDescription: "Failed to create client credential",
-		})
+		respondClientCredentialCreateError(c, logger, ownerUUID, err)
 		return
 	}
 
@@ -207,6 +182,37 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, apiResp)
+}
+
+// respondClientCredentialCreateError maps a credential create failure to a documented response.
+// SEM@0000000: map credential create error to documented HTTP error response
+func respondClientCredentialCreateError(c *gin.Context, logger *slogging.ContextLogger, ownerUUID uuid.UUID, err error) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		logger.Debug("Request cancelled during credential create: %v", err)
+		return
+	}
+	if errors.Is(err, dberrors.ErrDuplicate) || errors.Is(err, dberrors.ErrConstraint) {
+		logger.Warn("Client credential creation failed due to constraint: %v", err)
+		c.JSON(http.StatusBadRequest, Error{
+			Error:            ErrorError(errcode.InvalidInput),
+			ErrorDescription: "The client credential could not be created with the supplied details",
+		})
+		return
+	}
+	if errors.Is(err, dberrors.ErrTransient) {
+		logger.Warn("Transient DB error creating client credential: %v", err)
+		c.Header("Retry-After", "30")
+		c.JSON(http.StatusServiceUnavailable, Error{
+			Error:            ErrorError(errcode.ServiceUnavailable),
+			ErrorDescription: "Database temporarily unavailable, please retry",
+		})
+		return
+	}
+	logger.Error("Failed to create client credential for user %s: %v", ownerUUID, err)
+	c.JSON(http.StatusInternalServerError, Error{
+		Error:            ErrorError(errcode.ServerError),
+		ErrorDescription: "Failed to create client credential",
+	})
 }
 
 // ListCurrentUserClientCredentials handles GET /me/client_credentials

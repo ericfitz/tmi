@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ericfitz/tmi/internal/dberrors"
+	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -753,4 +755,33 @@ func TestCreateCurrentUserClientCredential_AddonLink(t *testing.T) {
 	// Valid link passes validation and reaches the nil-auth 503 stop.
 	w, _ = post(`{"name":"tf-wh","direct_write":true,"addon_id":"` + knownAddon.String() + `"}`)
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+}
+
+// #1105: POST /me/client_credentials documents no 409, so a store constraint or
+// duplicate error must map to a documented code (400 invalid_input).
+func TestRespondClientCredentialCreateError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cases := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantCode   string
+	}{
+		{"Constraint", fmt.Errorf("insert: %w", dberrors.ErrConstraint), http.StatusBadRequest, "invalid_input"},
+		{"Duplicate", fmt.Errorf("insert: %w", dberrors.ErrDuplicate), http.StatusBadRequest, "invalid_input"},
+		{"Transient", fmt.Errorf("insert: %w", dberrors.ErrTransient), http.StatusServiceUnavailable, "service_unavailable"},
+		{"Unknown", fmt.Errorf("boom"), http.StatusInternalServerError, "server_error"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, w := CreateTestGinContextWithBody("POST", "/me/client_credentials", "application/json", []byte(testCredBody))
+			respondClientCredentialCreateError(c, slogging.Get().WithContext(c), uuid.New(), tc.err)
+
+			assert.Equal(t, tc.wantStatus, w.Code)
+			var errResp Error
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &errResp))
+			assert.Equal(t, tc.wantCode, string(errResp.Error))
+		})
+	}
 }
