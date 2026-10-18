@@ -203,6 +203,12 @@ func seedSetting(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 		return nil, nil
 	}
 
+	// seedSetting bypasses SettingsService.Set, so apply its semantic
+	// validators before any write (#1108).
+	if err := api.ValidateSettingSemantics(key, value, settingsProductionMode("")); err != nil {
+		return nil, fmt.Errorf("invalid setting %s: %w", key, err)
+	}
+
 	description, _ := entry.Data["description"].(string)
 
 	// origin is stamped explicit: a hand-authored seed entry is an operator

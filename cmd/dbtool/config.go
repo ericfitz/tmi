@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/crypto"
@@ -111,6 +112,13 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 		}
 	}
 
+	// Validate every value first (#1108): dbtool bypasses SettingsService.Set,
+	// so apply its semantic validators here and write nothing if any fails.
+	productionMode := settingsProductionMode(cfg.Auth.BuildMode)
+	if err := validateSettingValues(operationalSettings, productionMode); err != nil {
+		return err
+	}
+
 	// Write DB-eligible settings
 	var written, skipped int
 	for _, s := range operationalSettings {
@@ -205,6 +213,37 @@ func runConfigSeed(db *testdb.TestDB, inputFile, outputFile string, overwrite, d
 	log.Info("  4. Restart the server")
 
 	return nil
+}
+
+// settingsProductionMode reports whether dbtool is writing for a production
+// build: the source file's auth.build_mode, else TMI_BUILD_MODE (the same
+// fallback SettingsService.isProductionMode uses).
+// SEM@0000000: report whether settings are written for a production build (pure)
+func settingsProductionMode(sourceBuildMode string) bool {
+	if sourceBuildMode != "" {
+		return sourceBuildMode == "production"
+	}
+	return os.Getenv("TMI_BUILD_MODE") == "production"
+}
+
+// validateSettingValues applies api.ValidateSettingSemantics to every
+// non-empty setting (empty values are skipped on write) and returns one error
+// listing each rejected key; values are never included.
+// SEM@0000000: validate settings against server semantic rules, naming every rejected key (pure)
+func validateSettingValues(settings []config.MigratableSetting, productionMode bool) error {
+	var problems []string
+	for _, s := range settings {
+		if s.Value == "" {
+			continue
+		}
+		if err := api.ValidateSettingSemantics(s.Key, s.Value, productionMode); err != nil {
+			problems = append(problems, err.Error())
+		}
+	}
+	if len(problems) == 0 {
+		return nil
+	}
+	return fmt.Errorf("refusing to write invalid settings (nothing was written; fix the source and re-run): %s", strings.Join(problems, "; "))
 }
 
 // rejectEncryptedSource fails when the settings source holds any ENC:-prefixed
