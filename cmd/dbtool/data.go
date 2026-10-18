@@ -34,7 +34,7 @@ func validateSeedSettings(entries []SeedEntry) error {
 	if len(problems) == 0 {
 		return nil
 	}
-	return fmt.Errorf("refusing to seed invalid settings (nothing was written; fix the seed file and re-run): %s", strings.Join(problems, "; "))
+	return fmt.Errorf("refusing to seed invalid settings (validation failed before any write; fix the seed file and re-run): %s", strings.Join(problems, "; "))
 }
 
 // SEM@541d27268f750bac24e7c22a2fc48f78b990d9a7: load a seed file and apply entries via DB or API, acting as per-entry users (reads DB)

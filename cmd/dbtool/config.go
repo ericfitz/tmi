@@ -244,7 +244,7 @@ func validateSettingValues(settings []config.MigratableSetting, productionMode b
 	if len(problems) == 0 {
 		return nil
 	}
-	return fmt.Errorf("refusing to write invalid settings (nothing was written; fix the source and re-run): %s", strings.Join(problems, "; "))
+	return fmt.Errorf("refusing to write invalid settings (validation failed before any write; fix the source and re-run): %s", strings.Join(problems, "; "))
 }
 
 // rejectEncryptedSource fails when the settings source holds any ENC:-prefixed
