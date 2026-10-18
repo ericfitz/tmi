@@ -34,12 +34,17 @@ func NewTriageNoteSubResourceHandler(store TriageNoteStore) *TriageNoteSubResour
 // Returns the parent survey-response ID string and true on success. On
 // failure (not found OR access denied — collapsed into 404 to avoid existence
 // disclosure) writes the error response and returns false.
-// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: authorize the caller's required role on a parent survey response, returning 404 on any failure
+// SEM@0e2dc694: authorize the caller on a parent survey response via row ACL, or accept a pre-verified triage reviewer, returning 404 on failure
 func (h *TriageNoteSubResourceHandler) requireSurveyResponseAccessForTriageNote(
 	c *gin.Context,
 	surveyResponseID string,
 	requiredRole AuthorizationRole,
 ) bool {
+	// Triage routes authorize by reviewer-group membership (RequireTriageAccess)
+	// before delegating here; the intake-oriented row ACL does not apply.
+	if verified, _ := c.Get(triageAccessVerifiedKey); verified == true {
+		return true
+	}
 	surveyResponseUUID, _ := ParseUUID(surveyResponseID) // already validated format by caller
 	if _, ok := RequireSurveyResponseAccess(c, surveyResponseUUID, requiredRole); !ok {
 		return false

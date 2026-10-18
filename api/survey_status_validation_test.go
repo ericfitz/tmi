@@ -35,7 +35,7 @@ func TestPatchSurveyResponse_StatusValidationReturns400(t *testing.T) {
 		id := seedSurveyResponse(store, uuid.New(), ResponseStatusSubmitted, TestUsers.Owner.InternalUUID)
 
 		c, w := CreateTestGinContextWithBody("PATCH", fmt.Sprintf("/triage/survey_responses/%s", id), "application/json-patch+json", patch)
-		TestUsers.Owner.SetContext(c)
+		asTriageUser(t, c, GroupSecurityReviewers)
 		(&Server{}).PatchTriageSurveyResponse(c, id)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())

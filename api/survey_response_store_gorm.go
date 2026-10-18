@@ -66,6 +66,10 @@ type SurveyResponseFilters struct {
 	Status   *string
 	SurveyID *uuid.UUID
 	OwnerID  *string
+
+	// IsConfidential, when set, restricts results to responses whose
+	// is_confidential flag equals the value (triage reviewer scoping, #1100).
+	IsConfidential *bool
 }
 
 // GormSurveyResponseStore implements SurveyResponseStore using GORM
@@ -530,6 +534,11 @@ func (s *GormSurveyResponseStore) List(ctx context.Context, limit, offset int, f
 		}
 		if filters.OwnerID != nil {
 			query = query.Where("owner_internal_uuid = ?", *filters.OwnerID)
+		}
+		if filters.IsConfidential != nil {
+			query = query.Where(ColumnMap(query.Name(), map[string]any{
+				"is_confidential": models.DBBool(*filters.IsConfidential),
+			}))
 		}
 	}
 

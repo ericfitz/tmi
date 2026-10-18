@@ -141,18 +141,18 @@ func (s *Server) UpdateIntakeSurveyResponseMetadataByKey(c *gin.Context, surveyR
 // Survey Response Metadata Methods - Triage (read-only)
 
 // GetTriageSurveyResponseMetadata gets triage survey response metadata
-// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: authorize reader access then list all triage survey response metadata entries (reads DB)
+// SEM@0e2dc694: authorize triage reviewer access then list triage survey response metadata entries (reads DB)
 func (s *Server) GetTriageSurveyResponseMetadata(c *gin.Context, surveyResponseId SurveyResponseId) {
-	if _, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleReader); !ok {
+	if _, ok := RequireTriageAccess(c, surveyResponseId); !ok {
 		return
 	}
 	s.surveyResponseMetadata.List(c)
 }
 
 // GetTriageSurveyResponseMetadataByKey gets triage survey response metadata by key
-// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: authorize reader access then fetch triage survey response metadata by key (reads DB)
+// SEM@0e2dc694: authorize triage reviewer access then fetch triage survey response metadata by key (reads DB)
 func (s *Server) GetTriageSurveyResponseMetadataByKey(c *gin.Context, surveyResponseId SurveyResponseId, key MetadataKey) {
-	if _, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleReader); !ok {
+	if _, ok := RequireTriageAccess(c, surveyResponseId); !ok {
 		return
 	}
 	s.surveyResponseMetadata.GetByKey(c)
@@ -161,22 +161,31 @@ func (s *Server) GetTriageSurveyResponseMetadataByKey(c *gin.Context, surveyResp
 // Survey Response Triage Notes Methods - Triage (create + read)
 
 // ListTriageSurveyResponseTriageNotes lists triage notes for a survey response
-// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: list triage notes for a survey response via the triage stage (reads DB)
+// SEM@0e2dc694: authorize triage reviewer access then list triage notes for a survey response (reads DB)
 func (s *Server) ListTriageSurveyResponseTriageNotes(c *gin.Context, surveyResponseId SurveyResponseId, params ListTriageSurveyResponseTriageNotesParams) {
+	if _, ok := RequireTriageAccess(c, surveyResponseId); !ok {
+		return
+	}
 	c.Params = append(c.Params, gin.Param{Key: "survey_response_id", Value: surveyResponseId.String()})
 	s.triageNoteHandler.ListTriageNotes(c)
 }
 
 // CreateTriageSurveyResponseTriageNote creates a triage note
-// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: store a new triage note for a survey response via the triage stage (mutates shared state)
+// SEM@0e2dc694: authorize triage reviewer access then store a new triage note (mutates shared state)
 func (s *Server) CreateTriageSurveyResponseTriageNote(c *gin.Context, surveyResponseId SurveyResponseId) {
+	if _, ok := RequireTriageAccess(c, surveyResponseId); !ok {
+		return
+	}
 	c.Params = append(c.Params, gin.Param{Key: "survey_response_id", Value: surveyResponseId.String()})
 	s.triageNoteHandler.CreateTriageNote(c)
 }
 
 // GetTriageSurveyResponseTriageNote gets a specific triage note
-// SEM@28792aa3991e394010e49c040d3db2d5f14a6eff: fetch a single triage note for a survey response via the triage stage (reads DB)
+// SEM@0e2dc694: authorize triage reviewer access then fetch a single triage note (reads DB)
 func (s *Server) GetTriageSurveyResponseTriageNote(c *gin.Context, surveyResponseId SurveyResponseId, triageNoteId TriageNoteId) {
+	if _, ok := RequireTriageAccess(c, surveyResponseId); !ok {
+		return
+	}
 	c.Params = append(c.Params, gin.Param{Key: "survey_response_id", Value: surveyResponseId.String()})
 	c.Params = append(c.Params, gin.Param{Key: "triage_note_id", Value: strconv.Itoa(triageNoteId)})
 	s.triageNoteHandler.GetTriageNote(c)

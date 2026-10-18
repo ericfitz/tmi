@@ -142,9 +142,7 @@ func TestCreateThreatModelFromSurveyResponse_WrongStatus(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/triage/survey_responses/"+responseID.String()+"/create_threat_model", nil)
-	c.Set("userInternalUUID", "user-123")
-	c.Set("userEmail", "alice@example.com")
-	c.Set("userID", "alice-provider-id")
+	asTriageUser(t, c, GroupSecurityReviewers)
 
 	server.CreateThreatModelFromSurveyResponse(c, responseID)
 
@@ -173,9 +171,7 @@ func TestCreateThreatModelFromSurveyResponse_DuplicateTM(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/triage/survey_responses/"+responseID.String()+"/create_threat_model", nil)
-	c.Set("userInternalUUID", "user-123")
-	c.Set("userEmail", "alice@example.com")
-	c.Set("userID", "alice")
+	asTriageUser(t, c, GroupSecurityReviewers)
 
 	server.CreateThreatModelFromSurveyResponse(c, responseID)
 	assert.Equal(t, http.StatusConflict, w.Code)
@@ -201,9 +197,7 @@ func TestCreateThreatModelFromSurveyResponse_NilOwner(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/triage/survey_responses/"+responseID.String()+"/create_threat_model", nil)
-	c.Set("userInternalUUID", "user-123")
-	c.Set("userEmail", "alice@example.com")
-	c.Set("userID", "alice")
+	asTriageUser(t, c, GroupSecurityReviewers)
 
 	server.CreateThreatModelFromSurveyResponse(c, responseID)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
@@ -230,9 +224,7 @@ func TestCreateThreatModelFromSurveyResponse_AccessDenied(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/triage/survey_responses/"+responseID.String()+"/create_threat_model", nil)
-	c.Set("userInternalUUID", "user-123")
-	c.Set("userEmail", "alice@example.com")
-	c.Set("userID", "alice")
+	asTriageUser(t, c)
 
 	server.CreateThreatModelFromSurveyResponse(c, responseID)
 	// T5 (#357): access denied collapses to 404 to avoid existence disclosure.

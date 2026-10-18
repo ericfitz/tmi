@@ -204,7 +204,7 @@ func TestSurveyResponseMetadata_ACLGated(t *testing.T) {
 
 	t.Run("triage metadata GET denies external as 404", func(t *testing.T) {
 		c, w := CreateTestGinContext("GET", fmt.Sprintf("/triage/survey_responses/%s/metadata", responseID))
-		TestUsers.External.SetContext(c)
+		asTriageUser(t, c) // not a reviewer
 
 		server.GetTriageSurveyResponseMetadata(c, responseID)
 
@@ -212,9 +212,9 @@ func TestSurveyResponseMetadata_ACLGated(t *testing.T) {
 	})
 }
 
-func TestListTriageSurveyResponses_FiltersByACL(t *testing.T) {
-	// Previously this endpoint had a TODO for the ACL filter and returned
-	// every survey response in the system regardless of caller identity.
+func TestListTriageSurveyResponses_NonReviewerSeesNothing(t *testing.T) {
+	// A caller in neither reviewer group must see an empty list with total=0
+	// even when the store holds rows they own (#357, #1100).
 
 	gin.SetMode(gin.TestMode)
 
@@ -222,31 +222,19 @@ func TestListTriageSurveyResponses_FiltersByACL(t *testing.T) {
 	saveSurveyStores(t, nil, respStore)
 
 	surveyID := uuid.New()
-
-	// Three responses: owner-A, owner-B, owner-A confidential.
 	idA := seedSurveyResponse(respStore, surveyID, ResponseStatusReadyForReview, TestUsers.Owner.InternalUUID)
-	idB := seedSurveyResponse(respStore, surveyID, ResponseStatusReadyForReview, TestUsers.Writer.InternalUUID)
 	idC := seedSurveyResponse(respStore, surveyID, ResponseStatusReadyForReview, TestUsers.Owner.InternalUUID)
 	conf := true
 	respStore.responses[idC].IsConfidential = &conf
+	respStore.listItems = []SurveyResponseListItem{{Id: &idA}, {Id: &idC}}
+	respStore.listTotal = 2
 
-	// Wire list-items so the mock returns all three from List(...)
-	respStore.listItems = []SurveyResponseListItem{
-		{Id: &idA},
-		{Id: &idB},
-		{Id: &idC},
-	}
-	respStore.listTotal = 3
-
-	// External user has no access to any response — must see empty list,
-	// total=0, even though the underlying store returns 3 rows.
 	server := &Server{}
 	c, w := CreateTestGinContext("GET", "/triage/survey_responses")
-	TestUsers.External.SetContext(c)
+	asTriageUser(t, c)
 
 	server.ListTriageSurveyResponses(c, ListTriageSurveyResponsesParams{})
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	body := w.Body.String()
-	assert.Contains(t, body, `"total":0`, "external user must see total=0 — list count must NOT leak existence of confidential or other-user responses")
+	assert.Contains(t, w.Body.String(), `"total":0`)
 }

@@ -1054,13 +1054,12 @@ func (s *Server) DeleteIntakeSurveyResponse(c *gin.Context, surveyResponseId Sur
 
 // ListTriageSurveyResponses returns survey responses for triage.
 // GET /triage/survey_responses
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: list survey responses visible to the triage reviewer, filtered by per-row ACL (reads DB)
+// SEM@0e2dc694: list survey responses scoped to the caller's reviewer groups by confidentiality (reads DB)
 func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurveyResponsesParams) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
-	userInternalUUID, ok := getUserUUID(c)
-	if !ok {
+	if _, ok := getUserUUID(c); !ok {
 		return
 	}
 
@@ -1083,26 +1082,34 @@ func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurv
 		}
 	}
 
-	// Authorization model (T5, #357):
-	// The triage queue is intentionally not owner-scoped — security reviewers
-	// must see responses they did not submit. Per-row ACL (seeded at create)
-	// already encodes who can see what:
-	//   - non-confidential responses grant Security Reviewers group owner role
-	//   - confidential responses grant Confidential Project Reviewers group owner role
-	//   - the submitter has direct owner role
-	// We unconditionally fetch the page from the store (no ACL pre-filter) and
-	// apply HasAccess in-memory to the returned items + recompute total. This
-	// keeps the list, per-row, and confidentiality decisions consistent and
-	// closes the previous TODO that left this endpoint enumerating all
-	// responses regardless of caller identity.
-	//
-	// We over-fetch here (full table for the requested filter) and paginate in
-	// memory; this is an N-roundtrip pattern that mirrors ListWithCounts on
-	// threat models and is acceptable for the triage queue size today. If the
-	// queue grows past a few thousand rows this should move to a SQL JOIN
-	// against survey_response_access + group_members (tracked separately).
-	const overFetchLimit = 10000
-	allItems, _, err := GlobalSurveyResponseStore.List(ctx, overFetchLimit, 0, filters)
+	// Authorization model (#1100): only reviewer-group members may triage.
+	// Security Reviewers see non-confidential responses, Confidential Project
+	// Reviewers see confidential ones, both see all; ownership and the row ACL
+	// grant nothing here. The confidentiality scope is pushed into the store
+	// query so pagination and totals stay correct.
+	confidential, hasScope, err := triageReviewerScope(c)
+	if err != nil {
+		logger.Error("Failed to resolve triage reviewer scope: %v", err)
+		HandleRequestError(c, ServerError("Failed to check access"))
+		return
+	}
+	if !hasScope {
+		c.JSON(http.StatusOK, ListSurveyResponsesResponse{
+			SurveyResponses: []SurveyResponseListItem{},
+			Total:           0,
+			Limit:           limit,
+			Offset:          offset,
+		})
+		return
+	}
+	if confidential != nil {
+		if filters == nil {
+			filters = &SurveyResponseFilters{}
+		}
+		filters.IsConfidential = confidential
+	}
+
+	items, total, err := GlobalSurveyResponseStore.List(ctx, limit, offset, filters)
 	if err != nil {
 		logger.Error("Failed to list survey responses: %v", err)
 		c.JSON(http.StatusInternalServerError, Error{
@@ -1112,25 +1119,8 @@ func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurv
 		return
 	}
 
-	visible := FilterSurveyResponseListItemsByAccess(ctx, userInternalUUID, allItems, AuthorizationRoleReader)
-	total := len(visible)
-
-	if offset >= total {
-		c.JSON(http.StatusOK, ListSurveyResponsesResponse{
-			SurveyResponses: []SurveyResponseListItem{},
-			Total:           total,
-			Limit:           limit,
-			Offset:          offset,
-		})
-		return
-	}
-	end := offset + limit
-	if end > total || limit <= 0 {
-		end = total
-	}
-
 	c.JSON(http.StatusOK, ListSurveyResponsesResponse{
-		SurveyResponses: visible[offset:end],
+		SurveyResponses: items,
 		Total:           total,
 		Limit:           limit,
 		Offset:          offset,
@@ -1139,9 +1129,9 @@ func (s *Server) ListTriageSurveyResponses(c *gin.Context, params ListTriageSurv
 
 // GetTriageSurveyResponse returns a specific survey response for triage.
 // GET /triage/survey_responses/{response_id}
-// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: fetch an authorized survey response for triage review (reads DB)
+// SEM@0e2dc694: fetch a survey response for a caller in the matching triage reviewer group (reads DB)
 func (s *Server) GetTriageSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
-	response, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleReader)
+	response, ok := RequireTriageAccess(c, surveyResponseId)
 	if !ok {
 		return
 	}
@@ -1151,12 +1141,12 @@ func (s *Server) GetTriageSurveyResponse(c *gin.Context, surveyResponseId Survey
 // PatchTriageSurveyResponse partially updates a survey response for triage.
 // PATCH /triage/survey_responses/{response_id}
 // Supports status transitions: submitted->ready_for_review, submitted->needs_revision, ready_for_review->needs_revision
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: apply a JSON Patch to update a survey response's triage status (mutates DB)
+// SEM@0e2dc694: apply a JSON Patch to a survey response's triage status for a matching triage reviewer (mutates DB)
 func (s *Server) PatchTriageSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
-	existing, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleOwner)
+	existing, ok := RequireTriageAccess(c, surveyResponseId)
 	if !ok {
 		return
 	}
@@ -1498,18 +1488,18 @@ func createThreatModelFromResponse(ctx context.Context, response *SurveyResponse
 
 // CreateThreatModelFromSurveyResponse creates a threat model from an approved survey response.
 // POST /triage/survey_responses/{response_id}/create_threat_model
-// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a threat model from a ready-for-review survey response and notify webhooks (mutates DB)
+// SEM@0e2dc694: build a threat model from a ready-for-review response for a matching triage reviewer and notify webhooks (mutates DB)
 func (s *Server) CreateThreatModelFromSurveyResponse(c *gin.Context, surveyResponseId SurveyResponseId) {
 	logger := slogging.Get()
 	ctx := c.Request.Context()
 
-	// Step 1: Load + access check via centralized helper
-	response, ok := RequireSurveyResponseAccess(c, surveyResponseId, AuthorizationRoleOwner)
+	// Step 1: Load + triage reviewer check via centralized helper
+	response, ok := RequireTriageAccess(c, surveyResponseId)
 	if !ok {
 		return
 	}
 
-	// Step 2: Extract user identity (already validated by RequireSurveyResponseAccess)
+	// Step 2: Extract user identity (already validated by RequireTriageAccess)
 	user, err := GetAuthenticatedUser(c)
 	if err != nil {
 		HandleRequestError(c, err)

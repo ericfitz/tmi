@@ -1,16 +1,15 @@
 package api
 
 import (
-	"context"
-
 	"github.com/ericfitz/tmi/internal/slogging"
 	"github.com/gin-gonic/gin"
 )
 
 // RequireSurveyResponseAccess centralizes the existence check + access check
 // for survey-response sub-resources. It is the single enforcement point for
-// the four-question authorization decision on /intake/survey_responses/* and
-// /triage/survey_responses/* paths.
+// the authorization decision on /intake/survey_responses/* paths. Triage paths
+// use RequireTriageAccess (reviewer-group membership) instead; the row ACL
+// grants no triage access (#1100).
 //
 // On success, it returns the loaded survey response. On any failure
 // (not found, access denied, internal error) it writes the appropriate error
@@ -77,43 +76,4 @@ func RequireSurveyResponseAccess(
 	}
 
 	return response, true
-}
-
-// FilterSurveyResponseListItemsByAccess narrows a list of survey-response list
-// items to only those the caller can read. Used by triage/intake list endpoints
-// where the underlying store query does not enforce per-row ACL (e.g.
-// ListTriageSurveyResponses, which intentionally does not filter by owner).
-//
-// This is an in-memory filter against the same HasAccess(...) the per-row
-// handlers use, so list and per-row decisions stay in sync. The returned
-// total reflects the filtered count, so pagination metadata never leaks the
-// existence of confidential responses the caller cannot read (matching the
-// list-leak acceptance criterion in #357).
-// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: filter a list of survey response items to only those the caller can read, without leaking existence of others (reads DB)
-func FilterSurveyResponseListItemsByAccess(
-	ctx context.Context,
-	userInternalUUID string,
-	items []SurveyResponseListItem,
-	requiredRole AuthorizationRole,
-) []SurveyResponseListItem {
-	if len(items) == 0 || GlobalSurveyResponseStore == nil {
-		return items
-	}
-	out := make([]SurveyResponseListItem, 0, len(items))
-	logger := slogging.Get()
-	for _, item := range items {
-		if item.Id == nil {
-			continue
-		}
-		hasAccess, err := GlobalSurveyResponseStore.HasAccess(ctx, *item.Id, userInternalUUID, requiredRole)
-		if err != nil {
-			logger.Warn("FilterSurveyResponseListItemsByAccess: HasAccess error for response %s user %s: %v — excluding from list",
-				item.Id.String(), userInternalUUID, err)
-			continue
-		}
-		if hasAccess {
-			out = append(out, item)
-		}
-	}
-	return out
 }
