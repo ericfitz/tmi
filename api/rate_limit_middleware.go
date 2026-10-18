@@ -12,7 +12,7 @@ import (
 )
 
 // RateLimitMiddleware creates a middleware that enforces API rate limiting
-// SEM@c70d49ed2d6089c24d05f8bc287ba5711c73abde: enforce per-user API rate limits and set rate limit response headers, skipping public and auth endpoints
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: enforce per-user API rate limits and set rate limit response headers, skipping public and auth endpoints
 func RateLimitMiddleware(server *Server) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		logger := slogging.Get().WithContext(c)
@@ -115,7 +115,7 @@ func isPublicEndpoint(path string) bool {
 }
 
 // isAuthFlowEndpoint checks if the path is an OAuth or SAML auth flow endpoint
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: report whether a request path is an OAuth or SAML auth flow endpoint exempt from rate limiting (pure)
+// SEM@c0b50b4b57f4dcf67acd03dc8524fccfc907c40c: report whether a request path is an OAuth or SAML auth flow endpoint governed by the auth-flow limiter, not the per-user limiter (pure)
 func isAuthFlowEndpoint(path string) bool {
 	authPaths := []string{
 		"/oauth2/authorize",
@@ -123,6 +123,7 @@ func isAuthFlowEndpoint(path string) bool {
 		"/oauth2/token",
 		"/oauth2/refresh",
 		"/oauth2/introspect",
+		"/oauth2/step_up",
 		"/saml/login",
 		"/saml/acs",
 		"/saml/slo",
