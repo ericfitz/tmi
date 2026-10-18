@@ -1079,18 +1079,34 @@ func (c *Config) ResolveSecretReferences(ctx context.Context, vault SecretResolv
 // as of #754, that a non-empty LLMProvider names a recognized backend.
 //
 // NOTE: Timmy config is CategoryOperational (DB-seeded as of #415), so this is
-// NOT called from Load()-time Validate(). It is retained as a unit-testable
-// validator and may be invoked by callers that hold an effective Config.
-// SEM@f7cc4344884e20bc7f6fb9a5815e2e1d530c0ff6: validate dev-only Timmy flags and LLM provider settings (pure)
+// NOT called from Load()-time Validate(). Instead the server calls
+// ValidateTimmyConfig at startup, on both the env/YAML config and the
+// DB-resolved effective config (#1102), and the settings service applies the
+// per-key checks on writes.
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: validate dev-only Timmy flags and LLM provider settings (pure)
 func (c *Config) validateTimmy() error {
-	if c.Timmy.DumpExtractedTextToNote && c.Auth.BuildMode == "production" {
+	return ValidateTimmyConfig(c.Timmy, c.Auth.BuildMode)
+}
+
+// ValidateTimmyConfig enforces the Timmy invariants on any Timmy config
+// (env/YAML or DB-resolved) for the given build mode.
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: validate Timmy dev-only flag, LLM provider and max tokens for a build mode (pure)
+func ValidateTimmyConfig(t TimmyConfig, buildMode string) error {
+	if err := ValidateTimmyDumpFlag(t.DumpExtractedTextToNote, buildMode); err != nil {
+		return err
+	}
+	if err := t.ValidateLLMProvider(); err != nil {
+		return err
+	}
+	return t.ValidateLLMMaxTokens()
+}
+
+// ValidateTimmyDumpFlag rejects enabling timmy.dump_extracted_text_to_note in
+// production builds.
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: reject enabling the dev-only extracted-text dump flag in production builds (pure)
+func ValidateTimmyDumpFlag(enabled bool, buildMode string) error {
+	if enabled && buildMode == "production" {
 		return fmt.Errorf("timmy.dump_extracted_text_to_note is a dev/test-only flag; set TMI_BUILD_MODE != production or disable TMI_TIMMY_DUMP_EXTRACTED_TEXT_TO_NOTE")
-	}
-	if err := c.Timmy.ValidateLLMProvider(); err != nil {
-		return err
-	}
-	if err := c.Timmy.ValidateLLMMaxTokens(); err != nil {
-		return err
 	}
 	return nil
 }

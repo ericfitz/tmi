@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/crypto"
@@ -694,5 +696,94 @@ func TestWarnIfConfigDatabaseDiverges_RedactsProviderClientSecret(t *testing.T) 
 			"the config-side client secret must never reach a log line")
 		assert.NotContains(t, entry.msg, dbSecret,
 			"the database-side client secret must never reach a log line")
+	}
+}
+
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: verify startup Timmy validation rejects the production dump flag and unknown providers
+func TestValidateTimmyAtStartup(t *testing.T) {
+	dump := config.TimmyConfig{DumpExtractedTextToNote: true}
+	badProvider := config.TimmyConfig{LLMProvider: "bogus"}
+
+	tests := []struct {
+		name      string
+		source    string
+		cfg       config.TimmyConfig
+		buildMode string
+		wantErr   string
+	}{
+		{"production dump flag from env/YAML", "env/YAML", dump, "production", "timmy.dump_extracted_text_to_note"},
+		{"production dump flag from DB-resolved", "settings", dump, "production", "timmy.dump_extracted_text_to_note"},
+		{"development dump flag accepted", "env/YAML", dump, "dev", ""},
+		{"unknown provider rejected", "env/YAML", badProvider, "dev", "timmy.llm_provider"},
+		{"unknown provider rejected in production", "settings", badProvider, "production", "timmy.llm_provider"},
+		{"empty provider accepted", "env/YAML", config.TimmyConfig{}, "production", ""},
+		{"known provider accepted", "env/YAML", config.TimmyConfig{LLMProvider: "anthropic"}, "production", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateTimmyAtStartup(tt.source, tt.cfg, tt.buildMode)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+			assert.Contains(t, err.Error(), tt.source)
+		})
+	}
+}
+
+// timmyStubSettings serves canned string values for the keys read by
+// api.TimmyConfigProvider.Current; every other method panics via the nil embed.
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: stub settings service returning canned values by key (pure)
+type timmyStubSettings struct {
+	api.SettingsServiceInterface
+	values map[string]string
+}
+
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: fetch a canned string setting from the stub (pure)
+func (s timmyStubSettings) GetString(_ context.Context, key string) (string, error) {
+	return s.values[key], nil
+}
+
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: fetch a canned int setting from the stub (pure)
+func (s timmyStubSettings) GetInt(_ context.Context, key string) (int, error) {
+	if v, ok := s.values[key]; ok {
+		return strconv.Atoi(v)
+	}
+	return 0, nil
+}
+
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: fetch a canned bool setting from the stub (pure)
+func (s timmyStubSettings) GetBool(_ context.Context, key string) (bool, error) {
+	if v, ok := s.values[key]; ok {
+		return strconv.ParseBool(v)
+	}
+	return false, nil
+}
+
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: verify the DB-resolved Timmy config path enforces production dump flag and provider validity
+func TestValidateEffectiveTimmyAtStartup(t *testing.T) {
+	tests := []struct {
+		name      string
+		values    map[string]string
+		buildMode string
+		wantErr   string
+	}{
+		{"production dump flag from DB", map[string]string{"timmy.dump_extracted_text_to_note": "true"}, "production", "timmy.dump_extracted_text_to_note"},
+		{"development dump flag from DB", map[string]string{"timmy.dump_extracted_text_to_note": "true"}, "dev", ""},
+		{"unknown provider from DB", map[string]string{"timmy.llm_provider": "bogus"}, "production", "timmy.llm_provider"},
+		{"valid config from DB", map[string]string{"timmy.llm_provider": "openai", "timmy.dump_extracted_text_to_note": "false"}, "production", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateEffectiveTimmyAtStartup(context.Background(), timmyStubSettings{values: tt.values}, tt.buildMode)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
 	}
 }

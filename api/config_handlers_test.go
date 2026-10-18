@@ -365,7 +365,7 @@ func TestGetClientConfig_TimmyReaderAbsent(t *testing.T) {
 	assert.False(t, *cfg.Features.TimmyEnabled)
 }
 
-// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify listing system settings requires admin
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: verify listing system settings requires admin
 func TestListSystemSettings_AdminRequired(t *testing.T) {
 	// Save original admin store
 	originalAdminStore := GlobalGroupMemberRepository
@@ -405,7 +405,7 @@ func TestListSystemSettings_AdminRequired(t *testing.T) {
 	assert.Equal(t, "forbidden", string(errResp.Error))
 }
 
-// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify listing system settings returns 503 when the service is unavailable
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: verify listing system settings returns 503 when the service is unavailable
 func TestListSystemSettings_ServiceUnavailable(t *testing.T) {
 	// Save original admin store
 	originalAdminStore := GlobalGroupMemberRepository
@@ -812,7 +812,7 @@ func TestGetSystemSetting_ConfigSourced(t *testing.T) {
 	assert.Equal(t, true, setting["read_only"])
 }
 
-// SEM@1aa36c06c7b700d3f00bf6f4b22125d673b1070a: verify updating a config-sourced setting returns 409
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: verify updating a config-sourced setting returns 409
 func TestUpdateSystemSetting_409_ConfigSourced(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
@@ -1521,7 +1521,7 @@ func TestBuildContentProviders_PickerConfigDeepCopy(t *testing.T) {
 // The pass runs in one transaction (#845), so a database failure is a whole-
 // request failure and must be reported as 503 (transient, retry) or 500, never
 // as the 409 "encryption_not_enabled" precondition.
-// SEM@094904c7a8ba41296e31c7fa9623c72c3f018fa2: test reencrypt maps not-enabled/unreadable to 409, transient DB failure to 503, other to 500
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: test reencrypt maps not-enabled/unreadable to 409, transient DB failure to 503, other to 500
 func TestReencryptSystemSettings_ErrorMapping(t *testing.T) {
 	originalAdminStore := GlobalGroupMemberRepository
 	defer restoreConfigStores(originalAdminStore)
@@ -1676,4 +1676,47 @@ func TestSystemSetting_UnclassifiedKeyGetAndDelete(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, do("GET", "e2e_admin_setting_custom"), "gone after delete")
 	assert.Equal(t, http.StatusNotFound, do("GET", "never_created_key"), "unclassified and absent is a plain 404")
 	assert.Equal(t, http.StatusNotFound, do("DELETE", "never_created_key"))
+}
+
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: verify the system-setting PUT handler returns 400 for invalid Timmy values
+func TestUpdateSystemSetting_TimmyValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	originalAdminStore := GlobalGroupMemberRepository
+	defer restoreConfigStores(originalAdminStore)
+	GlobalGroupMemberRepository = &mockGroupMemberStoreForAdmin{isAdminResult: true}
+
+	put := func(t *testing.T, buildMode, key, body string) *httptest.ResponseRecorder {
+		t.Helper()
+		t.Setenv("TMI_BUILD_MODE", buildMode)
+		server := &Server{settingsService: NewSettingsService(setupSettingsTestDB(t), nil)}
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Set("userUUID", uuid.New().String())
+		c.Set("userEmail", "test@example.com")
+		c.Set("userInternalUUID", uuid.New().String())
+		c.Set("userProvider", "test")
+		c.Request = httptest.NewRequest("PUT", "/admin/settings/"+key, strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		server.UpdateSystemSetting(c, key)
+		return w
+	}
+
+	t.Run("production dump flag true is 400", func(t *testing.T) {
+		w := put(t, "production", "timmy.dump_extracted_text_to_note", `{"value": "true", "type": "bool"}`)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "invalid_input")
+	})
+	t.Run("unknown provider is 400", func(t *testing.T) {
+		w := put(t, "dev", "timmy.llm_provider", `{"value": "bogus", "type": "string"}`)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "invalid_input")
+	})
+	t.Run("development dump flag true is 200", func(t *testing.T) {
+		w := put(t, "dev", "timmy.dump_extracted_text_to_note", `{"value": "true", "type": "bool"}`)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+	t.Run("known provider is 200", func(t *testing.T) {
+		w := put(t, "dev", "timmy.llm_provider", `{"value": "openai", "type": "string"}`)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
 }

@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/ericfitz/tmi/api"
 	"github.com/ericfitz/tmi/api/models"
 	"github.com/ericfitz/tmi/internal/config"
 	"github.com/ericfitz/tmi/internal/crypto"
@@ -51,6 +53,7 @@ type settingsLister interface {
 // anything else (request logs start with REQUEST_COMPLETE).
 const settingsAtRestCheckPrefix = "settings-at-rest check: "
 
+// SEM@7430764167888f43111b8fe959e8c73449a4f9af: warn when secret-classified settings are stored as plaintext at rest (reads DB)
 func warnIfPlaintextSecretsAtRest(
 	ctx context.Context,
 	encryptor *crypto.SettingsEncryptor,
@@ -242,4 +245,34 @@ func secretClassifiedKeys(cfg *config.Config) []string {
 		}
 	}
 	return keys
+}
+
+// validateTimmyAtStartup enforces the Timmy invariants (no dump flag in
+// production, recognized llm_provider) on one Timmy config. main calls it on
+// the env/YAML config after Load and again on the DB-resolved effective config
+// once the settings service is up (#1102); source labels the config in the
+// returned error.
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: validate Timmy config at startup, labeling the failing config source (pure)
+func validateTimmyAtStartup(source string, timmyCfg config.TimmyConfig, buildMode string) error {
+	if err := config.ValidateTimmyConfig(timmyCfg, buildMode); err != nil {
+		return fmt.Errorf("invalid Timmy configuration (%s): %w", source, err)
+	}
+	return nil
+}
+
+// validateEffectiveTimmyAtStartup runs validateTimmyAtStartup on the Timmy
+// config resolved through the settings service (config-first, then DB).
+// SEM@97bdf895453505ffee1c671271b82af781c61b72: validate the DB-resolved effective Timmy config at startup (reads DB)
+func validateEffectiveTimmyAtStartup(ctx context.Context, settings api.SettingsServiceInterface, buildMode string) error {
+	return validateTimmyAtStartup("settings", api.NewTimmyConfigProvider(settings).Current(ctx), buildMode)
+}
+
+// exitOnInvalidEffectiveTimmy logs the failure and exits the process when the
+// effective Timmy config is invalid.
+// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: terminate startup when the effective Timmy config is invalid (exits process)
+func exitOnInvalidEffectiveTimmy(ctx context.Context, settings api.SettingsServiceInterface, buildMode string) {
+	if err := validateEffectiveTimmyAtStartup(ctx, settings, buildMode); err != nil {
+		slogging.Get().Error("%v", err)
+		os.Exit(1)
+	}
 }
