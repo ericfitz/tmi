@@ -229,7 +229,8 @@ func settingsProductionMode(sourceBuildMode string) bool {
 
 // validateSettingValues applies api.ValidateSettingSemantics to every
 // non-empty setting (empty values are skipped on write) and returns one error
-// listing each rejected key; values are never included.
+// listing each rejected key. Validator messages may echo the rejected value;
+// no validated key is secret (see settingSemanticValidators in api).
 // SEM@0000000: validate settings against server semantic rules, naming every rejected key (pure)
 func validateSettingValues(settings []config.MigratableSetting, productionMode bool) error {
 	var problems []string
