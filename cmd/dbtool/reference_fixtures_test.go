@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 // readManifest writes a manifest for `ids` into a temp dir and parses it back.
@@ -88,8 +90,14 @@ func TestFixtureManifestMarksDecoyedAnchors(t *testing.T) {
 		// an ordinary DELETE took the only seeded record and the run went INVALID.
 		// They now get decoys of their own.
 		"team_note_id": true, "webhook_id": true,
+		// Threat-model children with nested paths (metadata, restore, audit_trail)
+		// and a DELETE on their own path (#1115): CATS walks lexical order, so an
+		// undecoyed DELETE runs before every nested path and leaves them all on a
+		// deleted fixture.
+		"diagram_id": true, "threat_id": true, "document_id": true,
+		"asset_id": true, "note_id": true, "repository_id": true,
 		// Nested fixtures with no decoy.
-		"threat_id": false, "note_id": false, "survey_id": false,
+		"survey_id": false,
 	}
 	for _, f := range m.Fixtures {
 		want, tracked := decoyed[f.Key]
@@ -124,6 +132,98 @@ func TestFixtureManifestExcludesUnseededIDs(t *testing.T) {
 	for _, key := range []string{"credential_id", "addon_id"} {
 		if _, ok := m.Unverifiable[key]; !ok {
 			t.Errorf("%q must be recorded as unverifiable", key)
+		}
+	}
+}
+
+// childFixtures lists the threat-model children that get a real fixture plus a
+// throwaway decoy (#1115): the kind, the seed ref builder for each name, the
+// exact CATS anchor path, and the refData parameter name.
+var childFixtures = []struct {
+	kind, param, path   string
+	realName, decoyName string
+	ref                 func(name string) string
+}{
+	{"diagram", "diagram_id", "/threat_models/{threat_model_id}/diagrams/{diagram_id}",
+		realDiagramName, throwawayDiagramName,
+		func(n string) string { return childRef("diagram", realThreatModelName, n) }},
+	{"threat", "threat_id", "/threat_models/{threat_model_id}/threats/{threat_id}",
+		realThreatName, throwawayThreatName,
+		func(n string) string { return childRef("threat", realThreatModelName, n) }},
+	{"document", "document_id", "/threat_models/{threat_model_id}/documents/{document_id}",
+		realDocumentName, throwawayDocumentName,
+		func(n string) string { return childRef("document", realThreatModelName, n) }},
+	{"asset", "asset_id", "/threat_models/{threat_model_id}/assets/{asset_id}",
+		realAssetName, throwawayAssetName,
+		func(n string) string { return childRef("asset", realThreatModelName, n) }},
+	{"note", "note_id", "/threat_models/{threat_model_id}/notes/{note_id}",
+		realNoteName, throwawayNoteName,
+		func(n string) string { return childRef("note", realThreatModelName, n) }},
+	{"repository", "repository_id", "/threat_models/{threat_model_id}/repositories/{repository_id}",
+		realRepositoryName, throwawayRepositoryName,
+		func(n string) string { return childRef("repo", realThreatModelName, n) }},
+}
+
+// With two instances of a kind seeded, the global refData id must still be the
+// REAL fixture (findRefByKind ranges over a map and would pick either), and the
+// exact anchor path must be overridden with the decoy (#1115).
+func TestWriteYAMLReferenceDecoysThreatModelChildren(t *testing.T) {
+	refs := RefMap{
+		tmRef(realThreatModelName):      {Kind: "threat_model", ID: "tm-real"},
+		tmRef(throwawayThreatModelName): {Kind: "threat_model", ID: "tm-decoy"},
+	}
+	for _, c := range childFixtures {
+		refs[c.ref(c.realName)] = &SeedResult{Kind: c.kind, ID: c.kind + "-real"}
+		refs[c.ref(c.decoyName)] = &SeedResult{Kind: c.kind, ID: c.kind + "-decoy"}
+	}
+
+	// Map iteration order is random per range; repeat so a kind-based lookup
+	// cannot pass by luck.
+	for i := 0; i < 40; i++ {
+		path := filepath.Join(t.TempDir(), "cats-test-data.yml")
+		if err := writeYAMLReference(path, refs, "charlie", "tmi"); err != nil {
+			t.Fatalf("writeYAMLReference: %v", err)
+		}
+		data, err := os.ReadFile(path) // #nosec G304 -- test-controlled temp path
+		if err != nil {
+			t.Fatalf("read refData: %v", err)
+		}
+		var doc map[string]map[string]any
+		if err := yaml.Unmarshal(data, &doc); err != nil {
+			t.Fatalf("parse refData: %v", err)
+		}
+		for _, c := range childFixtures {
+			if got := doc["all"][c.param]; got != c.kind+"-real" {
+				t.Fatalf("all.%s = %v, want %s-real (global id must be the real fixture)", c.param, got, c.kind)
+			}
+			sec, ok := doc[c.path]
+			if !ok {
+				t.Fatalf("no decoy section for %s", c.path)
+			}
+			if got := sec[c.param]; got != c.kind+"-decoy" {
+				t.Fatalf("%s: %s = %v, want %s-decoy", c.path, c.param, got, c.kind)
+			}
+		}
+	}
+}
+
+// The checked-in CATS seed must define a real and a throwaway instance of every
+// decoyed child kind under the real threat model, with the names the reference
+// writer resolves them by (#1115).
+func TestCatsSeedDefinesChildDecoys(t *testing.T) {
+	seedFile, err := loadSeedFile("../../test/seeds/cats-seed-data.json")
+	if err != nil {
+		t.Fatalf("loadSeedFile: %v", err)
+	}
+	have := map[string]bool{}
+	for _, e := range seedFile.Seeds {
+		have[e.Ref] = true
+	}
+	for _, c := range childFixtures {
+		for _, name := range []string{c.realName, c.decoyName} {
+			if ref := c.ref(name); !have[ref] {
+				t.Errorf("seed lacks %s %q (ref %q)", c.kind, name, ref)
+			}
 		}
 	}
 }
