@@ -878,3 +878,43 @@ func TestValidatePaginationParamsUsesInvalidInput(t *testing.T) {
 	assert.Equal(t, errcode.InvalidInput, ValidatePaginationParams(&neg, nil).Code)
 	assert.Equal(t, errcode.InvalidInput, ValidatePaginationParams(nil, &neg).Code)
 }
+
+func TestValidatePatchOperationPaths(t *testing.T) {
+	tests := []struct {
+		name    string
+		ops     []PatchOperation
+		wantErr bool
+	}{
+		{"normal replace", []PatchOperation{{Op: "replace", Path: "/name", Value: "x"}}, false},
+		{"move with pointer from", []PatchOperation{{Op: "move", Path: "/a", From: "/b"}}, false},
+		{"root path replace", []PatchOperation{{Op: "replace", Path: "", Value: map[string]any{"owner": "x"}}}, true},
+		{"path without leading slash", []PatchOperation{{Op: "replace", Path: "name", Value: "x"}}, true},
+		{"second op is root", []PatchOperation{{Op: "replace", Path: "/name", Value: "x"}, {Op: "add", Path: ""}}, true},
+		{"move with empty from", []PatchOperation{{Op: "move", Path: "/a", From: ""}}, true},
+		{"copy with bad from", []PatchOperation{{Op: "copy", Path: "/a", From: "b"}}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reqErr := ValidatePatchOperationPaths(tt.ops)
+			if !tt.wantErr {
+				assert.Nil(t, reqErr)
+				return
+			}
+			require.NotNil(t, reqErr)
+			assert.Equal(t, http.StatusBadRequest, reqErr.Status)
+			assert.Equal(t, errcode.InvalidInput, reqErr.Code)
+		})
+	}
+}
+
+func TestParsePatchRequestRejectsRootPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest("PATCH", "/test", strings.NewReader(`[{"op":"replace","path":"","value":{"owner":"x"}}]`))
+	_, err := ParsePatchRequest(c)
+	var reqErr *RequestError
+	require.ErrorAs(t, err, &reqErr)
+	assert.Equal(t, http.StatusBadRequest, reqErr.Status)
+	assert.Equal(t, errcode.InvalidInput, reqErr.Code)
+}

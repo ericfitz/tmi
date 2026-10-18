@@ -497,9 +497,10 @@ func (s *SettingsService) ListByPrefix(ctx context.Context, prefix string) ([]mo
 // settingSemanticValidators is the single key -> validator map applied by Set,
 // so semantic checks on specific settings are enforced for every writer that
 // goes through Set (the admin API) rather than per handler. Writers that
-// bypass Set, such as dbtool (cmd/dbtool/config.go) and raw DB writes, are not
-// covered here; the startup check catches their values at the next boot. The
-// validators mirror the startup checks in config.ValidateTimmyConfig (#1102).
+// bypass Set (raw DB writes) are not covered here; the startup check catches
+// their values at the next boot. dbtool reuses this map through
+// ValidateSettingSemantics so its direct writes obey the same rules (#1108).
+// The validators mirror the startup checks in config.ValidateTimmyConfig (#1102).
 var settingSemanticValidators = map[string]func(value string, productionMode bool) error{
 	"timmy.dump_extracted_text_to_note": func(value string, productionMode bool) error {
 		enabled, err := strconv.ParseBool(value)
@@ -515,16 +516,31 @@ var settingSemanticValidators = map[string]func(value string, productionMode boo
 	"timmy.llm_provider": func(value string, _ bool) error {
 		return config.TimmyConfig{LLMProvider: value}.ValidateLLMProvider()
 	},
+	"timmy.llm_max_tokens": func(value string, _ bool) error {
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("timmy.llm_max_tokens: value is not a valid integer")
+		}
+		return config.TimmyConfig{LLMMaxTokens: n}.ValidateLLMMaxTokens()
+	},
 }
 
-// validateSettingSemantics applies the per-key validator for the setting, if any.
-// SEM@57a0ccb18013f0ed5d8a8631da478fae012e3c67: validate a setting value against its key-specific semantic rules (pure)
-func (s *SettingsService) validateSettingSemantics(setting *models.SystemSetting) error {
-	validate, ok := settingSemanticValidators[string(setting.SettingKey)]
+// ValidateSettingSemantics applies the per-key semantic validator for key, if
+// any; keys without a validator pass. Exported so writers that bypass
+// SettingsService.Set (cmd/dbtool) enforce the same rules (#1108).
+// SEM@05d35fa239ce471ca0d0d0c324c69e93e1c8c21c: validate a setting value against its key-specific semantic rules (pure)
+func ValidateSettingSemantics(key, value string, productionMode bool) error {
+	validate, ok := settingSemanticValidators[key]
 	if !ok {
 		return nil
 	}
-	return validate(string(setting.Value), s.isProductionMode())
+	return validate(value, productionMode)
+}
+
+// validateSettingSemantics applies the per-key validator for the setting, if any.
+// SEM@05d35fa239ce471ca0d0d0c324c69e93e1c8c21c: validate a system setting's value using the service's production-mode semantic rules (pure)
+func (s *SettingsService) validateSettingSemantics(setting *models.SystemSetting) error {
+	return ValidateSettingSemantics(string(setting.SettingKey), string(setting.Value), s.isProductionMode())
 }
 
 // Set creates or updates a setting

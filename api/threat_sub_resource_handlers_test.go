@@ -650,10 +650,7 @@ func TestPatchThreat(t *testing.T) {
 			},
 		}
 
-		// Expect the store to be called with invalid operations and return an error
-		// Handler preserves RequestError status codes (400 for InvalidInputError)
-		mockStore.On("Get", mock.Anything, threatID).Return((*Threat)(nil), nil)
-		mockStore.On("Patch", mock.Anything, threatModelID, threatID, mock.AnythingOfType("[]api.PatchOperation")).Return(nil, InvalidInputError("Invalid patch operation: path is required"))
+		// The shared patch parser rejects the missing path with 400 before any store call
 
 		body, _ := json.Marshal(invalidPatchOps)
 		req := httptest.NewRequest("PATCH", "/threat_models/"+threatModelID+"/threats/"+threatID, bytes.NewBuffer(body))
@@ -663,7 +660,9 @@ func TestPatchThreat(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		mockStore.AssertExpectations(t)
+		assert.Contains(t, w.Body.String(), "invalid_input")
+		mockStore.AssertNotCalled(t, "Get", mock.Anything, mock.Anything)
+		mockStore.AssertNotCalled(t, "Patch", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 	})
 }
 

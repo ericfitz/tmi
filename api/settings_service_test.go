@@ -1205,6 +1205,26 @@ func TestSettingsService_SetValidatesTimmyKeys(t *testing.T) {
 		})
 	}
 
+	t.Run("negative llm_max_tokens rejected", func(t *testing.T) {
+		t.Setenv("TMI_BUILD_MODE", "dev")
+		svc := NewSettingsService(nil, nil)
+		err := svc.Set(context.Background(), mk("timmy.llm_max_tokens", "-1", models.SystemSettingTypeInt))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "timmy.llm_max_tokens")
+	})
+
+	for _, v := range []string{"0", "4096"} {
+		t.Run("llm_max_tokens accepts "+v, func(t *testing.T) {
+			t.Setenv("TMI_BUILD_MODE", "dev")
+			svc := NewSettingsService(setupSettingsTestDB(t), nil)
+			require.NoError(t, svc.Set(context.Background(), mk("timmy.llm_max_tokens", v, models.SystemSettingTypeInt)))
+		})
+	}
+
+	t.Run("llm_max_tokens validator fails closed on unparseable value", func(t *testing.T) {
+		require.Error(t, settingSemanticValidators["timmy.llm_max_tokens"]("abc", false))
+	})
+
 	t.Run("llm_provider validator accepts empty", func(t *testing.T) {
 		// Set itself rejects empty strings for all string settings (use DELETE);
 		// the provider validator must not be what rejects them.

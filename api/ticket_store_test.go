@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"encoding/json"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -13,7 +15,7 @@ func TestInMemoryTicketStore_IssueAndValidate(t *testing.T) {
 	defer store.Close()
 	ctx := context.Background()
 
-	in := TicketClaims{UserID: "user123", Provider: "tmi", InternalUUID: "uuid-abc", SessionID: "session456", TokenHash: "h1", CredentialID: "c1"}
+	in := TicketClaims{UserID: "user123", Provider: "tmi", InternalUUID: "uuid-abc", SessionID: "session456", TokenHash: "h1", CredentialID: "c1", Groups: []string{"g1", "g2"}}
 	ticket, err := store.IssueTicket(ctx, in, 30*time.Second)
 	if err != nil {
 		t.Fatalf("IssueTicket failed: %v", err)
@@ -26,7 +28,7 @@ func TestInMemoryTicketStore_IssueAndValidate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ValidateTicket failed: %v", err)
 	}
-	if out != in {
+	if !reflect.DeepEqual(out, in) {
 		t.Errorf("claims round-trip mismatch: got %+v, want %+v", out, in)
 	}
 }
@@ -81,4 +83,29 @@ func TestInMemoryTicketStore_InvalidTicket(t *testing.T) {
 func TestRedisTicketStore_ImplementsInterface(t *testing.T) {
 	// Compile-time check that RedisTicketStore implements TicketStore
 	var _ TicketStore = (*RedisTicketStore)(nil)
+}
+
+// #1107: groups survive the JSON encoding used by the Redis store, and a ticket
+// issued before the field existed decodes to no groups (fail closed).
+func TestTicketClaims_GroupsJSONRoundTrip(t *testing.T) {
+	in := TicketClaims{UserID: "u", Provider: "tmi", SessionID: "s", Groups: []string{"g1", "g2"}}
+	data, err := json.Marshal(in)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var out TicketClaims
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !reflect.DeepEqual(out.Groups, in.Groups) {
+		t.Errorf("groups = %v, want %v", out.Groups, in.Groups)
+	}
+
+	var legacy TicketClaims
+	if err := json.Unmarshal([]byte(`{"user_id":"u","provider":"tmi","session_id":"s"}`), &legacy); err != nil {
+		t.Fatalf("unmarshal legacy: %v", err)
+	}
+	if len(legacy.Groups) != 0 {
+		t.Errorf("legacy ticket groups = %v, want empty", legacy.Groups)
+	}
 }

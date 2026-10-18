@@ -13,20 +13,25 @@ and deletes the real fixture. The server is behaving correctly there — that is
 what `?` means in a URL — so this cannot be closed server-side.
 
 What it can be is *visible*. Run as the plugin's `post_run` hook, this probes
-each anchor the reference file names and prints the casualties, so a run whose
-nested coverage was quietly truncated says so instead of looking clean. It
-never fails the run: the campaign is already over by the time it executes, and
-the run-validity gates own the pass/fail decision.
+each fixture and prints the casualties, so a run whose nested coverage was
+quietly truncated says so instead of looking clean. The fixture list comes from
+the manifest dbtool writes beside the reference file (cats-fixtures.json,
+#608/#1115), which names every seeded fixture with its verify URL; the built-in
+ANCHORS table is only a fallback for runs seeded before the manifest existed.
+It never fails the run: the campaign is already over by the time it executes,
+and the run-validity gates own the pass/fail decision.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 
 import yaml
@@ -42,6 +47,60 @@ ANCHORS: dict[str, str] = {
     "user_id": "/admin/users/{id}",
     "survey_response_id": "/intake/survey_responses/{id}",
 }
+
+
+class ManifestError(Exception):
+    """The fixture manifest exists but cannot be used."""
+
+
+def load_manifest(path: Path) -> list[tuple[str, str]]:
+    """Return (key, verify_url) for every fixture in the manifest.
+
+    Raises ManifestError on anything malformed: silently falling back to the
+    built-in table would hide exactly the fixtures this report exists to show.
+    """
+    try:
+        doc = json.loads(path.read_text())
+    except (OSError, ValueError) as exc:
+        raise ManifestError(f"cannot read {path}: {exc}") from exc
+    fixtures = doc.get("fixtures") if isinstance(doc, dict) else None
+    if not isinstance(fixtures, list):
+        raise ManifestError(f"{path}: missing 'fixtures' list")
+    targets = []
+    for i, f in enumerate(fixtures):
+        key = f.get("key") if isinstance(f, dict) else None
+        url = f.get("verify_url") if isinstance(f, dict) else None
+        if not isinstance(key, str) or not isinstance(url, str) or not key or not url.startswith("/"):
+            raise ManifestError(f"{path}: fixtures[{i}] needs string 'key' and a server-relative 'verify_url'")
+        targets.append((key, url))
+    return targets
+
+
+def anchor_targets(globals_: dict) -> list[tuple[str, str]]:
+    """Fallback: (key, path) for the ANCHORS the reference file names."""
+    targets = []
+    for key, template in ANCHORS.items():
+        rid = globals_.get(key)
+        if not rid or str(rid).startswith("00000000-"):
+            continue
+        targets.append((key, template.format(id=rid)))
+    return targets
+
+
+def classify(
+    server: str, token: str, targets: list[tuple[str, str]],
+    probe_fn: Callable[[str, str, str], int] | None = None,
+) -> tuple[list[tuple[str, str, int]], list[tuple[str, str, int]]]:
+    """Split targets into (casualties, survivors) by probing each one."""
+    probe_fn = probe_fn or probe
+    casualties, survivors = [], []
+    for key, path in targets:
+        status = probe_fn(server, path, token)
+        # 404/410 means gone. 401/403 means we cannot tell, which is not a
+        # casualty - reporting it as one would cry wolf on every permissions
+        # quirk. 0 means the probe itself failed.
+        (casualties if status in (404, 410) else survivors).append((key, path, status))
+    return casualties, survivors
 
 
 def probe(server: str, path: str, token: str) -> int:
@@ -60,6 +119,7 @@ def probe(server: str, path: str, token: str) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ref-data", help="path to cats-test-data.yml")
+    parser.add_argument("--fixtures", help="path to cats-fixtures.json (the fixture manifest)")
     parser.add_argument("--server", help="base URL (defaults to $CATS_SERVER)")
     parser.add_argument(
         "--token-cmd",
@@ -72,17 +132,27 @@ def main() -> int:
         print("cats-check-fixtures: no --server and no CATS_SERVER; skipping", file=sys.stderr)
         return 0
 
-    ref_data = Path(args.ref_data or
-                    Path(os.environ.get("CATS_RESULTS_DIR", "test/results/cats")) / "cats-test-data.yml")
-    if not ref_data.is_file():
-        print(f"cats-check-fixtures: {ref_data} not found; skipping", file=sys.stderr)
-        return 0
-
-    try:
-        data = yaml.safe_load(ref_data.read_text()) or {}
-    except (OSError, yaml.YAMLError) as exc:
-        print(f"cats-check-fixtures: cannot read {ref_data}: {exc}", file=sys.stderr)
-        return 0
+    results_dir = Path(os.environ.get("CATS_RESULTS_DIR", "test/results/cats"))
+    manifest = Path(args.fixtures or results_dir / "cats-fixtures.json")
+    targets: list[tuple[str, str]]
+    if manifest.is_file():
+        try:
+            targets = load_manifest(manifest)
+        except ManifestError as exc:
+            print(f"cats-check-fixtures: {exc}", file=sys.stderr)
+            return 0
+    else:
+        ref_data = Path(args.ref_data or results_dir / "cats-test-data.yml")
+        if not ref_data.is_file():
+            print(f"cats-check-fixtures: neither {manifest} nor {ref_data} found; skipping",
+                  file=sys.stderr)
+            return 0
+        try:
+            data = yaml.safe_load(ref_data.read_text()) or {}
+        except (OSError, yaml.YAMLError) as exc:
+            print(f"cats-check-fixtures: cannot read {ref_data}: {exc}", file=sys.stderr)
+            return 0
+        targets = anchor_targets(data.get("all") or {})
 
     # shell=True is for the OPERATOR's own token command (same trust model as
     # the cats plugin's hooks — it needs pipes, quoting and env expansion), but
@@ -98,18 +168,7 @@ def main() -> int:
         print("cats-check-fixtures: could not mint a token; skipping", file=sys.stderr)
         return 0
 
-    globals_ = data.get("all") or {}
-    casualties, survivors = [], []
-    for key, template in ANCHORS.items():
-        rid = globals_.get(key)
-        if not rid or str(rid).startswith("00000000-"):
-            continue
-        path = template.format(id=rid)
-        status = probe(server, path, token)
-        # 404/410 means gone. 401/403 means we cannot tell, which is not a
-        # casualty — reporting it as one would cry wolf on every permissions
-        # quirk. 0 means the probe itself failed.
-        (casualties if status in (404, 410) else survivors).append((key, path, status))
+    casualties, survivors = classify(server, token, targets)
 
     print()
     print("Seeded fixture survival (#608):")
@@ -120,7 +179,7 @@ def main() -> int:
 
     if casualties:
         print()
-        print(f"{len(casualties)} seeded anchor(s) did not survive the campaign. Every path "
+        print(f"{len(casualties)} seeded fixture(s) did not survive the campaign. Every path "
               "nested under them was fuzzed against a 404 from the point of deletion "
               "onward, so per-path conclusions for those families are unreliable. "
               "Re-seed before analysing them. See issue #608.")

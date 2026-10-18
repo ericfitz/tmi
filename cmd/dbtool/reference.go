@@ -103,18 +103,21 @@ func writeJSONReference(path string, refs RefMap, serverURL, user, provider stri
 	return os.WriteFile(path, data, 0o600)
 }
 
-// SEM@c621b4252e4c12e9977f08f9d2233e5751fccb02: serialize seeded resource IDs to a CATS-compatible YAML parameter reference file (writes file)
+// SEM@3f6bbfeb4674fdaa5885dfc24c251bc03bfecef0: serialize seeded resource IDs to a CATS-compatible YAML parameter reference file (writes file)
 func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	tmID := findRefByName(refs, tmRef(realThreatModelName), "threat_model")
-	threatID := findRefByKind(refs, "threat")
-	diagramID := findRefByKind(refs, "diagram")
-	documentID := findRefByKind(refs, "document")
-	assetID := findRefByKind(refs, "asset")
-	noteID := findRefByKind(refs, "note")
+	// Threat-model children are looked up by name, not kind: each has a
+	// throwaway sibling (#1115) so a kind lookup could return the decoy, which
+	// the anchor DELETE consumes, leaving every nested path on a dead fixture.
+	threatID := findRefByName(refs, childRef("threat", realThreatModelName, realThreatName), "threat")
+	diagramID := findRefByName(refs, childRef("diagram", realThreatModelName, realDiagramName), "diagram")
+	documentID := findRefByName(refs, childRef("document", realThreatModelName, realDocumentName), "document")
+	assetID := findRefByName(refs, childRef("asset", realThreatModelName, realAssetName), "asset")
+	noteID := findRefByName(refs, childRef("note", realThreatModelName, realNoteName), "note")
 	// Index 0 explicitly, for the same reason as survey-response:0 below: team
 	// notes are seeded positionally and findRefByKind ranges over a map, so once
 	// the #608 decoy note exists this could return either one — and the decoy is
@@ -129,7 +132,7 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	if triageNoteID == nilUUID {
 		triageNoteID = "0"
 	}
-	repoID := findRefByKind(refs, "repository")
+	repoID := findRefByName(refs, childRef("repo", realThreatModelName, realRepositoryName), "repository")
 	// By name, not by kind: the #608 decoy webhook makes a map-ranging lookup
 	// nondeterministic, and returning the decoy here would leave the real
 	// subscription unfuzzed while the decoy absorbed both roles.
@@ -137,7 +140,7 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 	deliveryID := findRefByKind(refs, "webhook_test_delivery")
 	addonID := findRefByKind(refs, "addon")
 	credID := findRefByKind(refs, "client_credential")
-	surveyID := findRefByKind(refs, "survey")
+	surveyID := findRefByName(refs, surveyRef(realSurveyName), "survey")
 	// Index 0 explicitly: survey responses are seeded positionally and
 	// findRefByKind ranges over a map, so with the #608 decoy present it
 	// could return either one — and the decoy is the one DELETE consumes.
@@ -201,6 +204,27 @@ func writeYAMLReference(path string, refs RefMap, user, provider string) error {
 		// run 20260728T062255Z deleted a user at test 13815 and fuzzed
 		// .../client_credentials immediately after.
 		{"/admin/users/{user_id}", "user_id", findRefByName(refs, userRef("cats-decoy"), "")},
+		// Children of the real threat model (#1115). Run 20261018T072650Z deleted
+		// the seeded diagram at test 202 (DELETE sorts before every nested
+		// diagram path) and fuzzed ~16,000 requests against a dead fixture. Each
+		// of these has a DELETE on its own path plus nested metadata/restore/
+		// audit_trail paths, so each needs a throwaway of its own. The decoys
+		// hang off the REAL threat model, because only the exact
+		// /threat_models/{threat_model_id} anchor is overridden.
+		{"/threat_models/{threat_model_id}/diagrams/{diagram_id}", "diagram_id",
+			findRefByName(refs, childRef("diagram", realThreatModelName, throwawayDiagramName), "")},
+		{"/threat_models/{threat_model_id}/threats/{threat_id}", "threat_id",
+			findRefByName(refs, childRef("threat", realThreatModelName, throwawayThreatName), "")},
+		{"/threat_models/{threat_model_id}/documents/{document_id}", "document_id",
+			findRefByName(refs, childRef("document", realThreatModelName, throwawayDocumentName), "")},
+		{"/threat_models/{threat_model_id}/assets/{asset_id}", "asset_id",
+			findRefByName(refs, childRef("asset", realThreatModelName, throwawayAssetName), "")},
+		{"/threat_models/{threat_model_id}/notes/{note_id}", "note_id",
+			findRefByName(refs, childRef("note", realThreatModelName, throwawayNoteName), "")},
+		{"/threat_models/{threat_model_id}/repositories/{repository_id}", "repository_id",
+			findRefByName(refs, childRef("repo", realThreatModelName, throwawayRepositoryName), "")},
+		{"/admin/surveys/{survey_id}", "survey_id",
+			findRefByName(refs, surveyRef(throwawaySurveyName), "")},
 		// Survey responses are seeded positionally; index 1 is the decoy.
 		{"/intake/survey_responses/{survey_response_id}", "survey_response_id",
 			findRefByName(refs, "survey-response:1", "")},
@@ -434,7 +458,7 @@ all:
 	)
 }
 
-// SEM@0: resolved seeded ids the fixture manifest is built from (pure)
+// SEM@ab7ea33a868b16fca968f4640659ee8149524a1e: hold resolved seeded resource IDs used to build the fixture manifest (pure)
 type fixtureIDs struct {
 	threatModelID, threatID, diagramID, documentID, assetID, noteID string
 	feedbackID, repositoryID                                        string
@@ -444,7 +468,7 @@ type fixtureIDs struct {
 	webhookID, deliveryID                                           string
 }
 
-// SEM@0: one seeded fixture the campaign depends on, plus how to check it is still alive (pure)
+// SEM@ab7ea33a868b16fca968f4640659ee8149524a1e: describe one seeded fixture and how to verify it still exists (pure)
 type referenceFixture struct {
 	// Key is the refData key CATS substitutes this id into.
 	Key string `json:"key"`
@@ -462,7 +486,7 @@ type referenceFixture struct {
 	Decoyed bool `json:"decoyed"`
 }
 
-// SEM@0: fixture manifest file structure listing verifiable and unverifiable seeded fixtures (pure)
+// SEM@ab7ea33a868b16fca968f4640659ee8149524a1e: hold the fixture integrity manifest of verifiable and unverifiable seeded fixtures (pure)
 type fixtureManifest struct {
 	Version   string             `json:"version"`
 	CreatedAt string             `json:"created_at"`
@@ -474,7 +498,7 @@ type fixtureManifest struct {
 	Unverifiable map[string]string `json:"unverifiable"`
 }
 
-// SEM@0: serialize the seeded-fixture integrity manifest consumed by the CATS runner gates (mutates shared state)
+// SEM@3f6bbfeb4674fdaa5885dfc24c251bc03bfecef0: serialize the seeded-fixture integrity manifest consumed by the CATS runner gates (writes file)
 func writeFixtureManifest(path string, ids fixtureIDs) error {
 	tm := ids.threatModelID
 	// Anchors that writeYAMLReference emits a decoy override for. Keep in step
@@ -488,6 +512,15 @@ func writeFixtureManifest(path string, ids fixtureIDs) error {
 		"/intake/survey_responses/{survey_response_id}": true,
 		"/teams/{team_id}/notes/{team_note_id}":         true,
 		"/admin/webhooks/subscriptions/{webhook_id}":    true,
+
+		"/admin/surveys/{survey_id}": true,
+
+		"/threat_models/{threat_model_id}/diagrams/{diagram_id}":        true,
+		"/threat_models/{threat_model_id}/threats/{threat_id}":          true,
+		"/threat_models/{threat_model_id}/documents/{document_id}":      true,
+		"/threat_models/{threat_model_id}/assets/{asset_id}":            true,
+		"/threat_models/{threat_model_id}/notes/{note_id}":              true,
+		"/threat_models/{threat_model_id}/repositories/{repository_id}": true,
 	}
 
 	candidates := []referenceFixture{
@@ -580,6 +613,31 @@ const (
 	realProjectName         = "CATS Test Project"
 	realGroupName           = "CATS Test Group"
 	realThreatModelName     = "CATS Test Threat Model"
+
+	// Children of the real threat model that have a DELETE on their own path
+	// and nested paths beneath it (#1115). Each real fixture is looked up by
+	// name, never by kind, because the throwaway of the same kind makes a
+	// map-ranging lookup nondeterministic.
+	realDiagramName    = "CATS Test Diagram"
+	realThreatName     = "CATS Test Threat"
+	realDocumentName   = "CATS Test Document"
+	realAssetName      = "CATS Test Asset"
+	realNoteName       = "CATS Test Note"
+	realRepositoryName = "CATS Test Repository"
+
+	throwawayDiagramName    = "CATS Throwaway Diagram"
+	throwawayThreatName     = "CATS Throwaway Threat"
+	throwawayDocumentName   = "CATS Throwaway Document"
+	throwawayAssetName      = "CATS Throwaway Asset"
+	throwawayNoteName       = "CATS Throwaway Note"
+	throwawayRepositoryName = "CATS Throwaway Repository"
+
+	// Survey decoy (#1115). A separate survey with no responses: the existing
+	// "CATS Decoy Survey" carries the survey_response decoy, and /admin/surveys
+	// sorts before /intake/survey_responses, so deleting it would cascade the
+	// response decoy away.
+	realSurveyName      = "CATS Test Survey"
+	throwawaySurveyName = "CATS Throwaway Survey"
 )
 
 // findRefByName returns a seeded id by its exact seed ref, falling back to the

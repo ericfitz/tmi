@@ -106,11 +106,25 @@
           "severity": "high",
           "priority": "high",
           "status": "identified"
+        },
+        {
+          "name": "CATS Throwaway Threat",
+          "description": "Throwaway threat consumed by DELETE fuzzing so the real fixture survives",
+          "threat_type": [
+            "Tampering"
+          ],
+          "severity": "high",
+          "priority": "high",
+          "status": "identified"
         }
       ],
       "diagrams": [
         {
           "name": "CATS Test Diagram",
+          "type": "DFD-1.0.0"
+        },
+        {
+          "name": "CATS Throwaway Diagram",
           "type": "DFD-1.0.0"
         }
       ],
@@ -119,6 +133,11 @@
           "name": "CATS Test Document",
           "uri": "https://example.com/cats-test-document.pdf",
           "description": "Test document for CATS fuzzing"
+        },
+        {
+          "name": "CATS Throwaway Document",
+          "uri": "https://example.com/cats-throwaway-document.pdf",
+          "description": "Throwaway document consumed by DELETE fuzzing"
         }
       ],
       "assets": [
@@ -126,17 +145,31 @@
           "name": "CATS Test Asset",
           "description": "Test asset for CATS fuzzing",
           "type": "software"
+        },
+        {
+          "name": "CATS Throwaway Asset",
+          "description": "Throwaway asset consumed by DELETE fuzzing",
+          "type": "software"
         }
       ],
       "notes": [
         {
           "name": "CATS Test Note",
           "content": "CATS test note for comprehensive API fuzzing"
+        },
+        {
+          "name": "CATS Throwaway Note",
+          "content": "Throwaway note consumed by DELETE fuzzing"
         }
       ],
       "repositories": [
         {
-          "uri": "https://github.com/example/cats-test-repo"
+          "uri": "https://github.com/example/cats-test-repo",
+          "name": "CATS Test Repository"
+        },
+        {
+          "name": "CATS Throwaway Repository",
+          "uri": "https://github.com/example/cats-throwaway-repo"
         }
       ],
       "feedback": [
@@ -182,6 +215,29 @@
     {
       "name": "CATS Decoy Survey",
       "description": "Carrier for the destructive-fuzz decoy survey response (#608).",
+      "version": "1.0",
+      "status": "active",
+      "survey_json": {
+        "pages": [
+          {
+            "name": "page1",
+            "elements": [
+              {
+                "type": "text",
+                "name": "project_name",
+                "title": "Project Name"
+              }
+            ]
+          }
+        ]
+      },
+      "settings": {
+        "allow_threat_model_linking": true
+      }
+    },
+    {
+      "name": "CATS Throwaway Survey",
+      "description": "Throwaway survey consumed by DELETE fuzzing; has no responses",
       "version": "1.0",
       "status": "active",
       "survey_json": {
@@ -324,7 +380,7 @@
       "value": "cats-test-value"
     },
     {
-      "target": "repo:cats-test-threat-model:",
+      "target": "repo:cats-test-threat-model:cats-test-repository",
       "target_kind": "repository",
       "key": "cats-test-key",
       "value": "cats-test-value"

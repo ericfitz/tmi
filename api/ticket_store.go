@@ -14,7 +14,7 @@ import (
 // TicketClaims is the identity bound to a WebSocket ticket. TokenHash and
 // CredentialID identify the token that minted the ticket so the upgrade can be
 // refused after that token or its client credential is revoked (#869).
-// SEM@c161adfd8ba839441ccd825e818d342a09c63849: hold identity and revocation handle bound to a WebSocket upgrade ticket (pure)
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: hold identity, group memberships and revocation handle bound to a WebSocket upgrade ticket (pure)
 type TicketClaims struct {
 	UserID       string `json:"user_id"`
 	Provider     string `json:"provider"`
@@ -22,6 +22,10 @@ type TicketClaims struct {
 	SessionID    string `json:"session_id"`
 	TokenHash    string `json:"token_hash,omitempty"`
 	CredentialID string `json:"credential_id,omitempty"`
+	// Groups are the minting token's group claims, frozen at issue time so the
+	// ticket-authenticated upgrade can make group-aware access checks. Absent
+	// (nil) on tickets issued before this field existed, which fails closed.
+	Groups []string `json:"groups,omitempty"`
 }
 
 // TicketStore manages short-lived, single-use WebSocket authentication tickets.

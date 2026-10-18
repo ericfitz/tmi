@@ -879,7 +879,7 @@ func (h *ThreatSubResourceHandler) BulkUpdateThreats(c *gin.Context) {
 
 // BulkPatchThreats applies JSON patch operations to multiple threats
 // PATCH /threat_models/{threat_model_id}/threats/bulk
-// SEM@52df980c1d7491dbcef92922d2b1574b07e802a8: apply JSON patch operations to multiple threats, authorizing each (mutates DB)
+// SEM@e92145ccb20292d695dc5d2f767278b6fc18e4f3: update multiple threats by applying JSON Patch operations, authorizing each (mutates DB)
 func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("BulkPatchThreats - applying patch operations to multiple threats")
@@ -924,12 +924,22 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 
 	logger.Debug("Bulk patching %d threats (user: %s)", len(bulkPatchRequest.Patches), user.Email)
 
-	// Apply patches to each threat
-	updatedThreats := make([]Threat, 0, len(bulkPatchRequest.Patches))
-	for _, patch := range bulkPatchRequest.Patches {
+	// Validate every entry before applying any, so a rejected entry never
+	// leaves earlier entries committed.
+	for i := range bulkPatchRequest.Patches {
+		patch := &bulkPatchRequest.Patches[i]
 		// Validate threat ID (a request-body field, so a failure is invalid_input)
 		if _, err := ParseUUID(patch.ID); err != nil {
 			HandleRequestError(c, InvalidInputError(fmt.Sprintf("Invalid threat ID format: %s", patch.ID)))
+			return
+		}
+
+		if reqErr := ValidatePatchOperationPaths(patch.Operations); reqErr != nil {
+			HandleRequestError(c, reqErr)
+			return
+		}
+		if reqErr := ValidatePatchProhibitedPaths(patch.Operations); reqErr != nil {
+			HandleRequestError(c, reqErr)
 			return
 		}
 
@@ -945,7 +955,11 @@ func (h *ThreatSubResourceHandler) BulkPatchThreats(c *gin.Context) {
 			HandleRequestError(c, err)
 			return
 		}
+	}
 
+	// Apply patches to each threat
+	updatedThreats := make([]Threat, 0, len(bulkPatchRequest.Patches))
+	for _, patch := range bulkPatchRequest.Patches {
 		// Apply patch. Classify the error rather than calling everything a
 		// server fault: ApplyPatchOperations returns a *RequestError carrying
 		// 400 for a patch document the client got wrong (malformed JSON

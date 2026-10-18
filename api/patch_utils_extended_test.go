@@ -269,7 +269,7 @@ func TestCheckOwnershipChanges_NearMissPaths(t *testing.T) {
 		{"/authorization_note is not /authorization", "/authorization_note", false, false},
 		{"/auth is not /authorization", "/auth", false, false},
 		{"/authorized is not /authorization", "/authorized", false, false},
-		{"/owner/name is not tracked", "/owner/name", false, false},
+		{"/owner/provider_id is an owner change", "/owner/provider_id", true, false},
 	}
 
 	for _, tt := range tests {

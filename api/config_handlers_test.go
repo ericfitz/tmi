@@ -1711,6 +1711,11 @@ func TestUpdateSystemSetting_TimmyValidation(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 		assert.Contains(t, w.Body.String(), "invalid_input")
 	})
+	t.Run("negative max tokens is 400", func(t *testing.T) {
+		w := put(t, "dev", "timmy.llm_max_tokens", `{"value": "-5", "type": "int"}`)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "invalid_input")
+	})
 	t.Run("development dump flag true is 200", func(t *testing.T) {
 		w := put(t, "dev", "timmy.dump_extracted_text_to_note", `{"value": "true", "type": "bool"}`)
 		assert.Equal(t, http.StatusOK, w.Code)

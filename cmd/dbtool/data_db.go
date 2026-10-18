@@ -179,7 +179,7 @@ func setQuotas(db *testdb.TestDB, userInternalUUID string, quota map[string]any)
 	return nil
 }
 
-// SEM@05517d8cb7bfbe65374f23c29bbc9bd51efe97e2: store a system setting with explicit origin, skipping empty values (writes DB)
+// SEM@05d35fa239ce471ca0d0d0c324c69e93e1c8c21c: store a system setting with explicit origin after semantic validation, skipping empty values (writes DB)
 func seedSetting(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 	log := slogging.Get()
 
@@ -201,6 +201,12 @@ func seedSetting(db *testdb.TestDB, entry SeedEntry) (*SeedResult, error) {
 	if value == "" {
 		log.Debug("  Skipping empty setting: %s", key)
 		return nil, nil
+	}
+
+	// seedSetting bypasses SettingsService.Set, so apply its semantic
+	// validators before any write (#1108).
+	if err := api.ValidateSettingSemantics(key, value, settingsProductionMode("")); err != nil {
+		return nil, fmt.Errorf("invalid setting %s: %w", key, err)
 	}
 
 	description, _ := entry.Data["description"].(string)

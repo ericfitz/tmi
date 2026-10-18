@@ -14,7 +14,7 @@ import (
 type UserInfoExtractor struct{}
 
 // UserInfo represents extracted user information
-// SEM@a9626140ff4ccb3bf8ae4b474024684bd7063b72: value object holding authenticated user identity and JWT expiry for a WebSocket session
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: value object holding authenticated user identity, group memberships and JWT expiry for a WebSocket session
 type UserInfo struct {
 	UserID       string
 	UserName     string
@@ -26,10 +26,13 @@ type UserInfo struct {
 	// context value populated by the JWT middleware. Zero when the
 	// caller is not JWT-authenticated (e.g., test fixtures).
 	TokenExpiry time.Time
+	// Groups are the caller's group claims from the "userGroups" gin context
+	// value (JWT claim, or the minting token's claims for a ticket upgrade).
+	Groups []string
 }
 
 // ExtractUserInfo extracts user information from the gin context
-// SEM@a9626140ff4ccb3bf8ae4b474024684bd7063b72: extract and validate user identity fields from the Gin context, returning an error if the user ID is absent (pure)
+// SEM@9cae882d37d446fa1e16af883a2f1ef7d166fbb9: extract user identity and group fields from the Gin context, returning an error if the user ID is absent (pure)
 func (u *UserInfoExtractor) ExtractUserInfo(c *gin.Context) (*UserInfo, error) {
 	// Get user ID from context (required)
 	userIDStr := ""
@@ -92,6 +95,12 @@ func (u *UserInfoExtractor) ExtractUserInfo(c *gin.Context) (*UserInfo, error) {
 		}
 	}
 
+	// Get group claims from context (optional; empty fails closed for group grants).
+	var groups []string
+	if g, exists := c.Get("userGroups"); exists {
+		groups, _ = g.([]string)
+	}
+
 	return &UserInfo{
 		UserID:       userIDStr,
 		UserName:     userNameStr,
@@ -99,6 +108,7 @@ func (u *UserInfoExtractor) ExtractUserInfo(c *gin.Context) (*UserInfo, error) {
 		UserProvider: userProviderStr,
 		InternalUUID: internalUUIDStr,
 		TokenExpiry:  tokenExpiry,
+		Groups:       groups,
 	}, nil
 }
 

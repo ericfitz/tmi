@@ -132,7 +132,7 @@ type HistoryEntry struct {
 }
 
 // WebSocketClient represents a connected client
-// SEM@a9626140ff4ccb3bf8ae4b474024684bd7063b72: connected WebSocket participant holding user identity, connection, and outbound message channel
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: connected WebSocket participant holding user identity, group memberships, connection, and outbound message channel
 type WebSocketClient struct {
 	// Hub reference
 	Hub *WebSocketHub
@@ -150,6 +150,10 @@ type WebSocketClient struct {
 	UserProvider string
 	// Internal UUID from users table (system-assigned)
 	InternalUUID string
+	// Groups are the user's group claims, captured at connect time. They are
+	// frozen for the socket's lifetime, like JWT claims on REST requests; the
+	// heartbeat re-check (checkReadPermission) still observes ACL changes.
+	Groups []string
 	// Buffered channel of outbound messages
 	Send chan []byte
 	// Last activity timestamp
@@ -687,7 +691,7 @@ func (h *OperationHistory) cleanupOldEntries() {
 }
 
 // GetActiveSessions returns all active collaboration sessions
-// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: list all active collaboration sessions with participants and metadata (reads DB)
+// SEM@9cae882d37d446fa1e16af883a2f1ef7d166fbb9: list active collaboration sessions the caller may access, with participants and metadata (reads DB)
 func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -714,7 +718,7 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 		}
 
 		for client := range session.Clients {
-			participant := convertClientToParticipant(nil, client, session, tm)
+			participant := convertClientToParticipant(client, session, tm)
 			if participant != nil {
 				participants = append(participants, *participant)
 			}
@@ -757,8 +761,8 @@ func (h *WebSocketHub) GetActiveSessions() []CollaborationSession {
 }
 
 // convertClientToParticipant converts a WebSocket client to a Participant
-// SEM@1ee903740fbfd71dacb8286ffc539a07887a60ad: convert a WebSocket client to a Participant, matching identity by provider ID or internal UUID (reads DB)
-func convertClientToParticipant(c *gin.Context, client *WebSocketClient, _ *DiagramSession, tm *ThreatModel) *Participant {
+// SEM@9cae882d37d446fa1e16af883a2f1ef7d166fbb9: convert a WebSocket client to a Participant with its resolved session permission (reads DB)
+func convertClientToParticipant(client *WebSocketClient, _ *DiagramSession, tm *ThreatModel) *Participant {
 	// Get user's session permissions using existing auth system
 	var permissions ParticipantPermissions
 	if tm != nil {
@@ -769,7 +773,7 @@ func convertClientToParticipant(c *gin.Context, client *WebSocketClient, _ *Diag
 			ProviderID:   client.UserID,
 			Email:        client.UserEmail,
 		}
-		permsPtr := getSessionPermissionsForUser(c, permUser, tm)
+		permsPtr := getSessionPermissionsForUser(permUser, client.Groups, tm)
 		if permsPtr == nil {
 			// User is unauthorized
 			return nil
@@ -794,33 +798,19 @@ func convertClientToParticipant(c *gin.Context, client *WebSocketClient, _ *Diag
 }
 
 // getSessionPermissionsForUser determines session permissions using the existing auth system.
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: resolve a user's session permissions against a threat model's ACL (reads DB)
-func getSessionPermissionsForUser(c *gin.Context, user ResolvedUser, tm *ThreatModel) *ParticipantPermissions {
-	// Use the existing AccessCheck system to determine permissions
+// The caller supplies the user's own groups (a connected client's frozen groups, or the
+// requester's request-context groups) so group-based grants are honored.
+// SEM@9cae882d37d446fa1e16af883a2f1ef7d166fbb9: resolve a user's session permissions against a threat model's ACL, honoring group grants (pure)
+func getSessionPermissionsForUser(user ResolvedUser, groups []string, tm *ThreatModel) *ParticipantPermissions {
 	// Check for writer/resource owner access first (highest permission)
-	var hasWriterAccess bool
-	var err error
-	if c != nil {
-		// Use context-aware check that includes provider ID, groups, etc.
-		hasWriterAccess, err = CheckResourceAccessFromContext(c, user, tm, RoleWriter)
-	} else {
-		// Fallback to basic check when context not available
-		hasWriterAccess, err = CheckResourceAccess(user.Email, tm, RoleWriter)
-	}
+	hasWriterAccess, err := CheckResourceAccessWithGroups(user, groups, tm, RoleWriter)
 	if err == nil && hasWriterAccess {
 		permissions := ParticipantPermissionsWriter
 		return &permissions
 	}
 
 	// Check for reader access (lowest permission that grants session access)
-	var hasReaderAccess bool
-	if c != nil {
-		// Use context-aware check that includes provider ID, groups, etc.
-		hasReaderAccess, err = CheckResourceAccessFromContext(c, user, tm, RoleReader)
-	} else {
-		// Fallback to basic check when context not available
-		hasReaderAccess, err = CheckResourceAccess(user.Email, tm, RoleReader)
-	}
+	hasReaderAccess, err := CheckResourceAccessWithGroups(user, groups, tm, RoleReader)
 	if err == nil && hasReaderAccess {
 		permissions := ParticipantPermissionsReader
 		return &permissions
@@ -838,7 +828,7 @@ var participantEmailPattern = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.
 // Group authorization entries have no user representation and are skipped. Permissions for
 // users who are not connected come from the static authorization role map (owner/writer ->
 // writer, reader -> reader), so roles elevated through group membership are not reflected.
-// SEM@1ee903740fbfd71dacb8286ffc539a07887a60ad: build session participants from authorized users and connected clients (reads DB)
+// SEM@9cae882d37d446fa1e16af883a2f1ef7d166fbb9: build session participants from ACL-authorized users, groups and connected clients (reads DB)
 func buildSessionParticipants(c *gin.Context, session *DiagramSession, tm *ThreatModel, requester ResolvedUser) []Participant {
 	logger := slogging.Get()
 	participants := make([]Participant, 0, len(session.Clients)+1)
@@ -854,7 +844,7 @@ func buildSessionParticipants(c *gin.Context, session *DiagramSession, tm *Threa
 
 	// Connected clients first, so their live display name and activity time win.
 	for client := range session.Clients {
-		participant := convertClientToParticipant(c, client, session, tm)
+		participant := convertClientToParticipant(client, session, tm)
 		if participant == nil {
 			logger.Debug("Session %s: connected client user_id=%s has no access to threat model %s, omitting from participants",
 				session.ID, client.UserID, session.ThreatModelID)
@@ -918,7 +908,11 @@ func buildSessionParticipants(c *gin.Context, session *DiagramSession, tm *Threa
 	// The requester was authorized by the handler, possibly via a group entry or the
 	// "everyone" pseudo-group; list them with their effective permission.
 	if !requester.IsEmpty() && !alreadyListed(requester) {
-		if perm := getSessionPermissionsForUser(c, requester, tm); perm != nil {
+		var requesterGroups []string
+		if c != nil {
+			_, _, _, requesterGroups = GetUserAuthFieldsForAccessCheck(c)
+		}
+		if perm := getSessionPermissionsForUser(requester, requesterGroups, tm); perm != nil {
 			add(requester, *perm)
 		} else {
 			logger.Warn("Session %s: requester user_id=%s has no resolvable permission on threat model %s, omitting from participants",
@@ -1122,7 +1116,7 @@ func (h *WebSocketHub) getThreatModelIdForDiagram(diagramID string) openapi_type
 // validateWebSocketDiagramAccessWithFlexibleMatching validates that a user has at least reader access to a diagram
 // using flexible user identifier matching (email, provider_user_id, or internal_uuid)
 // This is critical for WebSocket security to prevent unauthorized access to collaboration sessions
-// SEM@1524e7cb61267e6446a36c10c9608588c60f51b5: authorize WebSocket access to a diagram using flexible identity matching; deny without reader role (reads DB)
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: authorize WebSocket access to a diagram by user or group identity matching; deny without reader role (reads DB)
 func (h *WebSocketHub) validateWebSocketDiagramAccessWithFlexibleMatching(userInfo *UserInfo, threatModelID string, diagramID string) bool {
 	// Safety check: if ThreatModelStore is not initialized (e.g., in tests), deny access
 	if ThreatModelStore == nil {
@@ -1167,10 +1161,10 @@ func (h *WebSocketHub) validateWebSocketDiagramAccessWithFlexibleMatching(userIn
 		Email:      userInfo.UserEmail,
 	}
 	hasAccess, err := CheckResourceAccessWithGroups(
-		wsUser,     // user
-		nil,        // groups (not available in WebSocket context)
-		tm,         // resource
-		RoleReader, // requiredRole
+		wsUser,          // user
+		userInfo.Groups, // groups
+		tm,              // resource
+		RoleReader,      // requiredRole
 	)
 	if err != nil {
 		// If there's an error checking access, deny access
@@ -1548,7 +1542,7 @@ func (s *DiagramSession) Run() {
 }
 
 // validateWebSocketRequest validates the basic request parameters and returns user info
-// SEM@7fa07f774e8f6d45ba5fd95cc267d32f11f2e2a4: validate WebSocket path parameters and extract the authenticated user ID from context (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: validate WebSocket path parameters and extract the authenticated user identity and groups from context (pure)
 func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, diagramID, userIDStr string, err error) {
 	// Get threat model ID and diagram ID from path
 	threatModelID = c.Param("threat_model_id")
@@ -1602,7 +1596,7 @@ func (h *WebSocketHub) validateWebSocketRequest(c *gin.Context) (threatModelID, 
 }
 
 // HandleWS handles WebSocket connections
-// SEM@a7d1b052bb879606eca59fea8d7f7bac57531eeb: handle a WebSocket connection request: authorize, upgrade, and register the client (mutates shared state)
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: handle a WebSocket connection request: authorize, upgrade, and register the client (mutates shared state)
 func (h *WebSocketHub) HandleWS(c *gin.Context) {
 	// Validate request and get parameters
 	threatModelID, diagramID, _, err := h.validateWebSocketRequest(c)
@@ -1704,6 +1698,7 @@ func (h *WebSocketHub) HandleWS(c *gin.Context) {
 		UserEmail:    userInfo.UserEmail,
 		UserProvider: userInfo.UserProvider,
 		InternalUUID: userInfo.InternalUUID,
+		Groups:       userInfo.Groups,
 		Send:         make(chan []byte, 256),
 		LastActivity: time.Now().UTC(),
 		JWTExpiry:    userInfo.TokenExpiry,
@@ -2312,7 +2307,7 @@ func (s *DiagramSession) processRedoRequest(client *WebSocketClient, message []b
 // Helper methods
 
 // handlePresenterDisconnection handles when the current presenter leaves the session
-// SEM@ab27b1c7ef336f1860c29d6f19f34f84adfc5b02: reassign the presenter role when the current presenter disconnects (mutates shared state)
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: reassign the presenter role when the current presenter disconnects (mutates shared state)
 func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -2347,10 +2342,10 @@ func (s *DiagramSession) handlePresenterDisconnection(disconnectedUserID string)
 			for client := range s.Clients {
 				clientUser := ResolvedUserFromWebSocketClient(client)
 				hasWriteAccess, err := CheckResourceAccessWithGroups(
-					clientUser, // user
-					nil,        // groups (not available in client)
-					tm,         // resource
-					RoleWriter, // requiredRole
+					clientUser,    // user
+					client.Groups, // groups
+					tm,            // resource
+					RoleWriter,    // requiredRole
 				)
 				if err == nil && hasWriteAccess {
 					newPresenter = &clientUser
@@ -2621,7 +2616,7 @@ func (s *DiagramSession) broadcastParticipantsUpdate() {
 
 // checkMutationPermission checks if user can perform mutations
 // Uses flexible user identifier matching (email, provider_user_id, or internal_uuid)
-// SEM@17f6e77aac81a016d5aee8d2d0d0f06e671a4a2e: validate that the client holds writer access to the session's threat model (reads DB)
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: validate that the client holds writer access, directly or via group, to the session's threat model (reads DB)
 func (s *DiagramSession) checkMutationPermission(client *WebSocketClient) bool {
 	// Anonymous users cannot perform mutations
 	if client == nil || client.UserID == "" {
@@ -2647,10 +2642,10 @@ func (s *DiagramSession) checkMutationPermission(client *WebSocketClient) bool {
 		Email:      client.UserEmail,
 	}
 	hasWriteAccess, err := CheckResourceAccessWithGroups(
-		clientUser, // user
-		nil,        // groups (not available in client)
-		tm,         // resource
-		RoleWriter, // requiredRole
+		clientUser,    // user
+		client.Groups, // groups
+		tm,            // resource
+		RoleWriter,    // requiredRole
 	)
 	if err != nil {
 		// If there's an error checking access, deny for safety
@@ -2666,7 +2661,7 @@ func (s *DiagramSession) checkMutationPermission(client *WebSocketClient) bool {
 // called from the WritePump heartbeat so that a user whose role is revoked
 // mid-session stops receiving broadcast diagram content instead of keeping
 // read access until disconnect or JWT expiry.
-// SEM@d056a3ea026249d40d05ab6af7f092a043f72c7a: validate that the client still holds reader access to the session's threat model (reads DB)
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: validate that the client still holds reader access, directly or via group, to the session's threat model (reads DB)
 func (s *DiagramSession) checkReadPermission(client *WebSocketClient) bool {
 	// Anonymous users cannot hold read access
 	if client == nil || client.UserID == "" {
@@ -2695,10 +2690,10 @@ func (s *DiagramSession) checkReadPermission(client *WebSocketClient) bool {
 	// Full resolved identity (includes InternalUUID) for SamePrincipal matching
 	clientUser := ResolvedUserFromWebSocketClient(client)
 	hasReadAccess, err := CheckResourceAccessWithGroups(
-		clientUser, // user
-		nil,        // groups (not available in WebSocket context; same as the connect-time check)
-		tm,         // resource
-		RoleReader, // requiredRole
+		clientUser,    // user
+		client.Groups, // groups
+		tm,            // resource
+		RoleReader,    // requiredRole
 	)
 	if err != nil {
 		// If there's an error checking access, deny for safety

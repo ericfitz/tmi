@@ -12,7 +12,7 @@ import (
 const wsTicketTTL = 30 * time.Second
 
 // GetWsTicket issues a short-lived WebSocket authentication ticket.
-// SEM@c161adfd8ba839441ccd825e818d342a09c63849: issue a short-lived WebSocket ticket bound to the caller's session token
+// SEM@8f024ae72bf58934840386d79ff0d425d3d3d426: issue a short-lived WebSocket ticket carrying the caller's identity and groups, bound to their session token
 func (s *Server) GetWsTicket(c *gin.Context, params GetWsTicketParams) {
 	logger := slogging.GetContextLogger(c)
 
@@ -62,6 +62,8 @@ func (s *Server) GetWsTicket(c *gin.Context, params GetWsTicketParams) {
 
 	// Bind the ticket to the issuing token so the upgrade is refused once that
 	// token or its client credential is revoked (#869).
+	// Groups are frozen into the ticket, as JWT claims are for REST requests.
+	_, _, _, groups := GetUserAuthFieldsForAccessCheck(c)
 	claims := TicketClaims{
 		UserID:       user.ProviderID,
 		Provider:     c.GetString("userProvider"),
@@ -69,6 +71,7 @@ func (s *Server) GetWsTicket(c *gin.Context, params GetWsTicketParams) {
 		SessionID:    sessionID,
 		TokenHash:    c.GetString("authTokenHash"),
 		CredentialID: c.GetString("serviceAccountCredentialID"),
+		Groups:       groups,
 	}
 	ticket, err := s.ticketStore.IssueTicket(c.Request.Context(), claims, wsTicketTTL)
 	if err != nil {

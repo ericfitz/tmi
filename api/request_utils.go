@@ -86,7 +86,7 @@ const (
 
 // ValidatePaginationParams validates limit and offset parameters
 // Returns a RequestError if validation fails, nil otherwise
-// SEM@d8e6843d222487b09e3f3ab6f1ce56ed7ab59ac6: validate limit and offset pagination parameters against allowed bounds (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: validate limit and offset pagination parameters against allowed bounds (pure)
 func ValidatePaginationParams(limit, offset *int) *RequestError {
 	if limit != nil {
 		if *limit < 0 || *limit > MaxPaginationLimit {
@@ -102,7 +102,7 @@ func ValidatePaginationParams(limit, offset *int) *RequestError {
 }
 
 // ParsePatchRequest parses JSON Patch operations from the request body
-// SEM@59c58c6a840231ad2c078c9afd1e7bac7a07b651: parse and validate a JSON Patch operation array from the request body (pure)
+// SEM@40d527743ae56474b63b0a5f7d5f397c797e4d33: parse a JSON Patch operation array from the request body and validate its paths
 func ParsePatchRequest(c *gin.Context) ([]PatchOperation, error) {
 	bodyBytes, err := c.GetRawData()
 	if err != nil {
@@ -141,11 +141,32 @@ func ParsePatchRequest(c *gin.Context) ([]PatchOperation, error) {
 		}
 	}
 
+	if reqErr := ValidatePatchOperationPaths(operations); reqErr != nil {
+		return nil, reqErr
+	}
+
 	return operations, nil
 }
 
+// ValidatePatchOperationPaths rejects whole-document JSON Patch operations: a
+// root path ("") or any path or move/copy "from" that is not a JSON Pointer
+// starting with "/". Exact-path checks on prohibited fields cannot see a
+// root-path operation, so every PATCH handler must reject them up front.
+// SEM@40d527743ae56474b63b0a5f7d5f397c797e4d33: reject JSON Patch operations targeting the document root or invalid pointer paths (pure)
+func ValidatePatchOperationPaths(operations []PatchOperation) *RequestError {
+	for i, op := range operations {
+		if !strings.HasPrefix(op.Path, "/") {
+			return InvalidInputError(fmt.Sprintf("operation %d: path must be a JSON Pointer starting with '/'; root-path operations are not allowed", i))
+		}
+		if (op.Op == "move" || op.Op == "copy") && !strings.HasPrefix(op.From, "/") {
+			return InvalidInputError(fmt.Sprintf("operation %d: from must be a JSON Pointer starting with '/'", i))
+		}
+	}
+	return nil
+}
+
 // ParseRequestBody parses JSON request body into the specified type
-// SEM@e890b588ef2cb844c92f6ddd0d56e797bb39b7e2: parse, validate, and deserialize a JSON request body into a typed value (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: parse, validate, and deserialize a JSON request body into a typed value
 func ParseRequestBody[T any](c *gin.Context) (T, error) {
 	var zero T
 
@@ -288,7 +309,7 @@ func checkDuplicateJSONKeys(jsonBytes []byte) error {
 }
 
 // checkDuplicateKeysInDecoder recursively checks for duplicate keys in JSON
-// SEM@e890b588ef2cb844c92f6ddd0d56e797bb39b7e2: recursively detect duplicate keys in a streaming JSON decoder (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: detect duplicate object keys recursively in a streaming JSON decoder (pure)
 func checkDuplicateKeysInDecoder(dec *json.Decoder, path string) error {
 	// Read opening token
 	t, err := dec.Token()
@@ -366,7 +387,7 @@ func IsUserAdministrator(c *gin.Context) (bool, error) {
 }
 
 // RequestError represents an error that should be returned as an HTTP response
-// SEM@ccde596a38d5a3032cf965f5fbc2a4ffb144e534: structured HTTP error carrying status code, machine code, and human message (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: structured HTTP error carrying status code, machine code, and human message (pure)
 type RequestError struct {
 	Status  int
 	Code    errcode.Code
@@ -392,7 +413,7 @@ func (e *RequestError) Error() string {
 }
 
 // HandleRequestError sends an appropriate HTTP error response
-// SEM@5e107bce8eca9a7b10483bef568d3497a8b76f93: dispatch an HTTP error response for a request error with appropriate headers (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: dispatch an HTTP error response for a request error with appropriate headers
 func HandleRequestError(c *gin.Context, err error) {
 	var reqErr *RequestError
 	if errors.As(err, &reqErr) {
@@ -480,7 +501,7 @@ func HandleRequestError(c *gin.Context, err error) {
 }
 
 // InvalidInputError creates a RequestError for validation failures
-// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: build a 400 RequestError for input validation failures (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 400 request error for input validation failures (pure)
 func InvalidInputError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusBadRequest,
@@ -490,7 +511,7 @@ func InvalidInputError(message string) *RequestError {
 }
 
 // InvalidIDError creates a RequestError for invalid ID formats
-// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: build a 400 RequestError for invalid resource ID format (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 400 request error for an invalid resource ID format (pure)
 func InvalidIDError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusBadRequest,
@@ -500,7 +521,7 @@ func InvalidIDError(message string) *RequestError {
 }
 
 // NotFoundError creates a RequestError for resource not found
-// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: build a 404 RequestError for a missing resource (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 404 request error for a missing resource (pure)
 func NotFoundError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusNotFound,
@@ -510,7 +531,7 @@ func NotFoundError(message string) *RequestError {
 }
 
 // ServerError creates a RequestError for internal server errors
-// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: build a 500 RequestError for an internal server error (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 500 request error for an internal server failure (pure)
 func ServerError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusInternalServerError,
@@ -520,7 +541,7 @@ func ServerError(message string) *RequestError {
 }
 
 // ForbiddenError creates a RequestError for forbidden access
-// SEM@c9dfddf1e0b3e1f0e3423564ea4d4a997e4fdc45: build a 403 RequestError for forbidden access (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 403 request error for forbidden access (pure)
 func ForbiddenError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusForbidden,
@@ -531,7 +552,7 @@ func ForbiddenError(message string) *RequestError {
 
 // NotAcceptableError creates a RequestError for content negotiation failures
 // (no offered response media type matches the request's Accept header).
-// SEM@29f63eb500c26288d0d3fe23737adf6fd94bdf9c: build a 406 request error for an unsatisfiable Accept header (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 406 request error for an unsatisfiable Accept header (pure)
 func NotAcceptableError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusNotAcceptable,
@@ -540,7 +561,7 @@ func NotAcceptableError(message string) *RequestError {
 	}
 }
 
-// SEM@420d8bdd24035796662ee4234e3bfaa6ba1a73bf: build a 401 RequestError for unauthenticated access (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 401 request error for unauthenticated access (pure)
 func UnauthorizedError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusUnauthorized,
@@ -550,7 +571,7 @@ func UnauthorizedError(message string) *RequestError {
 }
 
 // ConflictError creates a RequestError for resource conflicts
-// SEM@8559837d482fde8e2f7e1a9ea5e99d2bb2414141: build a 409 RequestError for a resource conflict (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 409 request error for a resource conflict (pure)
 func ConflictError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusConflict,
@@ -562,7 +583,7 @@ func ConflictError(message string) *RequestError {
 // NotImplementedError creates a RequestError for features not implemented (501)
 // Use for features that are defined in the API but not yet implemented,
 // or when a particular provider doesn't support a feature.
-// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: build a 501 RequestError for an unimplemented feature (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 501 request error for an unimplemented feature (pure)
 func NotImplementedError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusNotImplemented,
@@ -573,7 +594,7 @@ func NotImplementedError(message string) *RequestError {
 
 // ServiceUnavailableError creates a RequestError for temporarily unavailable services (503)
 // Use when a dependent service (database, Redis, external provider) is temporarily unavailable.
-// SEM@93f28e44afc91d0a7917b5dc1aaed9a52b00529a: build a 503 RequestError for a temporarily unavailable dependency (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 503 request error for a temporarily unavailable dependency (pure)
 func ServiceUnavailableError(message string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusServiceUnavailable,
@@ -738,7 +759,7 @@ func WriteErrorToRequestError(err error, serverErrorMsg string) *RequestError {
 }
 
 // NotFoundErrorWithDetails creates a RequestError for resource not found with additional context
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: build a 404 RequestError with structured diagnostic context (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 404 request error with structured diagnostic context (pure)
 func NotFoundErrorWithDetails(message string, code errcode.Code, context map[string]any, suggestion string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusNotFound,
@@ -753,7 +774,7 @@ func NotFoundErrorWithDetails(message string, code errcode.Code, context map[str
 }
 
 // ServerErrorWithDetails creates a RequestError for internal server errors with additional context
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: build a 500 RequestError with structured diagnostic context (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 500 request error with structured diagnostic context (pure)
 func ServerErrorWithDetails(message string, code errcode.Code, context map[string]any, suggestion string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusInternalServerError,
@@ -768,7 +789,7 @@ func ServerErrorWithDetails(message string, code errcode.Code, context map[strin
 }
 
 // InvalidInputErrorWithDetails creates a RequestError for validation failures with additional context
-// SEM@3d0d5a8cf02fa74fad102f0f99c2b936a164bbea: build a 400 RequestError with structured diagnostic context (pure)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: build a 400 request error with structured diagnostic context (pure)
 func InvalidInputErrorWithDetails(message string, code errcode.Code, context map[string]any, suggestion string) *RequestError {
 	return &RequestError{
 		Status:  http.StatusBadRequest,
