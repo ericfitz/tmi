@@ -126,9 +126,10 @@ func TestCreateThreatModelFromSurveyResponse_WrongStatus(t *testing.T) {
 	mockResponseStore := &mockSurveyResponseStore{
 		responses: map[uuid.UUID]*SurveyResponse{
 			responseID: {
-				Id:     &responseID,
-				Status: &draftStatus,
-				Owner:  owner,
+				Id:             &responseID,
+				Status:         &draftStatus,
+				Owner:          owner,
+				IsConfidential: new(bool),
 			},
 		},
 		accessMap: map[string]AuthorizationRole{
@@ -142,9 +143,7 @@ func TestCreateThreatModelFromSurveyResponse_WrongStatus(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/triage/survey_responses/"+responseID.String()+"/create_threat_model", nil)
-	c.Set("userInternalUUID", "user-123")
-	c.Set("userEmail", "alice@example.com")
-	c.Set("userID", "alice-provider-id")
+	asTriageUser(t, c, GroupSecurityReviewers)
 
 	server.CreateThreatModelFromSurveyResponse(c, responseID)
 
@@ -162,7 +161,7 @@ func TestCreateThreatModelFromSurveyResponse_DuplicateTM(t *testing.T) {
 
 	mockResponseStore := &mockSurveyResponseStore{
 		responses: map[uuid.UUID]*SurveyResponse{
-			responseID: {Id: &responseID, Status: &readyStatus, Owner: owner, CreatedThreatModelId: &existingTMID},
+			responseID: {Id: &responseID, Status: &readyStatus, Owner: owner, IsConfidential: new(bool), CreatedThreatModelId: &existingTMID},
 		},
 		accessMap: map[string]AuthorizationRole{responseID.String() + ":user-123": AuthorizationRoleOwner},
 	}
@@ -173,9 +172,7 @@ func TestCreateThreatModelFromSurveyResponse_DuplicateTM(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/triage/survey_responses/"+responseID.String()+"/create_threat_model", nil)
-	c.Set("userInternalUUID", "user-123")
-	c.Set("userEmail", "alice@example.com")
-	c.Set("userID", "alice")
+	asTriageUser(t, c, GroupSecurityReviewers)
 
 	server.CreateThreatModelFromSurveyResponse(c, responseID)
 	assert.Equal(t, http.StatusConflict, w.Code)
@@ -190,7 +187,7 @@ func TestCreateThreatModelFromSurveyResponse_NilOwner(t *testing.T) {
 
 	mockResponseStore := &mockSurveyResponseStore{
 		responses: map[uuid.UUID]*SurveyResponse{
-			responseID: {Id: &responseID, Status: &readyStatus, Owner: nil},
+			responseID: {Id: &responseID, Status: &readyStatus, Owner: nil, IsConfidential: new(bool)},
 		},
 		accessMap: map[string]AuthorizationRole{responseID.String() + ":user-123": AuthorizationRoleOwner},
 	}
@@ -201,9 +198,7 @@ func TestCreateThreatModelFromSurveyResponse_NilOwner(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/triage/survey_responses/"+responseID.String()+"/create_threat_model", nil)
-	c.Set("userInternalUUID", "user-123")
-	c.Set("userEmail", "alice@example.com")
-	c.Set("userID", "alice")
+	asTriageUser(t, c, GroupSecurityReviewers)
 
 	server.CreateThreatModelFromSurveyResponse(c, responseID)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
@@ -230,9 +225,7 @@ func TestCreateThreatModelFromSurveyResponse_AccessDenied(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/triage/survey_responses/"+responseID.String()+"/create_threat_model", nil)
-	c.Set("userInternalUUID", "user-123")
-	c.Set("userEmail", "alice@example.com")
-	c.Set("userID", "alice")
+	asTriageUser(t, c)
 
 	server.CreateThreatModelFromSurveyResponse(c, responseID)
 	// T5 (#357): access denied collapses to 404 to avoid existence disclosure.

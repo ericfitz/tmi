@@ -15,7 +15,7 @@ import (
 func TestPatchSurveyResponse_StatusValidationReturns400(t *testing.T) {
 	patch := []byte(`[{"op":"replace","path":"/status","value":"needs_revision"}]`)
 
-	t.Run("intake: needs_revision without revision_notes", func(t *testing.T) {
+	t.Run("intake: needs_revision is not an intake target (#1100)", func(t *testing.T) {
 		store := newMockSurveyResponseStore()
 		saveSurveyStores(t, nil, store)
 		id := seedSurveyResponse(store, uuid.New(), ResponseStatusDraft, TestUsers.Owner.InternalUUID)
@@ -25,7 +25,7 @@ func TestPatchSurveyResponse_StatusValidationReturns400(t *testing.T) {
 		(&Server{}).PatchIntakeSurveyResponse(c, id, PatchIntakeSurveyResponseParams{})
 
 		assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
-		assert.Contains(t, w.Body.String(), "revision_notes required")
+		assert.Contains(t, w.Body.String(), "cannot be set through intake")
 	})
 
 	t.Run("triage: store reports missing revision_notes", func(t *testing.T) {
@@ -35,7 +35,7 @@ func TestPatchSurveyResponse_StatusValidationReturns400(t *testing.T) {
 		id := seedSurveyResponse(store, uuid.New(), ResponseStatusSubmitted, TestUsers.Owner.InternalUUID)
 
 		c, w := CreateTestGinContextWithBody("PATCH", fmt.Sprintf("/triage/survey_responses/%s", id), "application/json-patch+json", patch)
-		TestUsers.Owner.SetContext(c)
+		asTriageUser(t, c, GroupSecurityReviewers)
 		(&Server{}).PatchTriageSurveyResponse(c, id)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())

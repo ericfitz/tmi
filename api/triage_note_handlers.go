@@ -31,15 +31,20 @@ func NewTriageNoteSubResourceHandler(store TriageNoteStore) *TriageNoteSubResour
 // this check, anyone authenticated could enumerate or write triage notes on
 // arbitrary survey responses (T5, #357).
 //
-// Returns the parent survey-response ID string and true on success. On
-// failure (not found OR access denied — collapsed into 404 to avoid existence
-// disclosure) writes the error response and returns false.
-// SEM@368e91d91cb110162c64b6ea10d49562a59bf3f0: authorize the caller's required role on a parent survey response, returning 404 on any failure
+// Returns true on success. On failure (not found OR access denied, collapsed
+// into 404 to avoid existence disclosure) writes the error response and
+// returns false.
+// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: authorize the caller on a parent survey response via row ACL, or accept a pre-verified triage reviewer, returning 404 on failure
 func (h *TriageNoteSubResourceHandler) requireSurveyResponseAccessForTriageNote(
 	c *gin.Context,
 	surveyResponseID string,
 	requiredRole AuthorizationRole,
 ) bool {
+	// Triage routes authorize by reviewer-group membership (RequireTriageAccess)
+	// before delegating here; the intake-oriented row ACL does not apply.
+	if verified, _ := c.Get(triageAccessVerifiedKey); verified == true {
+		return true
+	}
 	surveyResponseUUID, _ := ParseUUID(surveyResponseID) // already validated format by caller
 	if _, ok := RequireSurveyResponseAccess(c, surveyResponseUUID, requiredRole); !ok {
 		return false
@@ -178,7 +183,7 @@ func (h *TriageNoteSubResourceHandler) GetTriageNote(c *gin.Context) {
 }
 
 // CreateTriageNote creates a new triage note in a survey response
-// SEM@b01ccb8e475aed5b956de76b96fe25b3de6076d0: store a new sanitized triage note under a survey response, enforcing writer access (writes DB)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: store a new sanitized triage note under a survey response after access check (writes DB)
 func (h *TriageNoteSubResourceHandler) CreateTriageNote(c *gin.Context) {
 	logger := slogging.GetContextLogger(c)
 	logger.Debug("CreateTriageNote - creating new triage note")

@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 
@@ -21,6 +22,43 @@ import (
 // - PATCH /triage/survey_responses/{survey_response_id} (PatchTriageSurveyResponse)
 //
 // Total: 10 operations
+// confidentialReviewersGroupUUID is the well-known UUID of the built-in
+// Confidential Project Reviewers group.
+const confidentialReviewersGroupUUID = "00000000-0000-0000-0000-000000000003"
+
+// newReviewerClient authenticates userID and adds that user to the given
+// built-in group in the server's database. Group membership is resolved per
+// request, so no re-authentication is needed.
+func newReviewerClient(t *testing.T, serverURL, userID, groupUUID string) *framework.IntegrationClient {
+	t.Helper()
+	tokens, err := framework.AuthenticateUser(userID)
+	framework.AssertNoError(t, err, "Authentication failed for "+userID)
+	c, err := framework.NewClient(serverURL, tokens)
+	framework.AssertNoError(t, err, "Failed to create client for "+userID)
+
+	db, err := framework.NewDevDatabase()
+	framework.AssertNoError(t, err, "Failed to open database")
+	defer db.Close()
+	userUUID, err := db.QueryString(fmt.Sprintf(
+		"SELECT internal_uuid FROM users WHERE provider_user_id = '%s' AND provider = 'tmi' FETCH FIRST 1 ROWS ONLY", userID))
+	framework.AssertNoError(t, err, "Failed to look up user")
+	if userUUID == "" {
+		t.Fatalf("user %s not found in database", userID)
+	}
+	err = db.InsertIgnoreDuplicate(fmt.Sprintf(
+		"INSERT INTO group_members (id, group_internal_uuid, user_internal_uuid, subject_type, added_at, notes) "+
+			"VALUES ('%s-%s', '%s', '%s', 'user', CURRENT_TIMESTAMP, 'Integration test reviewer')",
+		userID, groupUUID[len(groupUUID)-4:], groupUUID, userUUID))
+	framework.AssertNoError(t, err, "Failed to add group member")
+	t.Cleanup(func() {
+		if cdb, cerr := framework.NewDevDatabase(); cerr == nil {
+			defer cdb.Close()
+			_ = cdb.ExecSQL(fmt.Sprintf("DELETE FROM group_members WHERE id = '%s-%s'", userID, groupUUID[len(groupUUID)-4:]))
+		}
+	})
+	return c
+}
+
 func TestSurveyResponseWorkflow(t *testing.T) {
 	if os.Getenv("INTEGRATION_TESTS") != "true" {
 		t.Skip("Skipping integration test (set INTEGRATION_TESTS=true to run)")
@@ -248,8 +286,49 @@ func TestSurveyResponseWorkflow(t *testing.T) {
 		t.Logf("Listed %d triage survey responses (total: %d)", len(response.SurveyResponses), response.Total)
 	})
 
+	// #1100: triage is open only to reviewer-group members; the submitter (here
+	// the admin user, who owns the response) gets 404 on the per-id routes.
+	srClient := newReviewerClient(t, serverURL, "test-sr-reviewer", securityReviewersGroupUUID)
+	cprClient := newReviewerClient(t, serverURL, "test-cpr-reviewer", confidentialReviewersGroupUUID)
+
+	markReady := []map[string]interface{}{
+		{"op": "replace", "path": "/status", "value": "ready_for_review"},
+	}
+
+	t.Run("TriageDeniedToSubmitter", func(t *testing.T) {
+		resp, err := client.Do(framework.Request{Method: "GET", Path: "/triage/survey_responses/" + responseID})
+		framework.AssertNoError(t, err, "Failed to get triage survey response")
+		framework.AssertStatusCode(t, resp, 404)
+
+		resp, err = client.Do(framework.Request{Method: "PATCH", Path: "/triage/survey_responses/" + responseID, Body: markReady})
+		framework.AssertNoError(t, err, "Failed to patch triage survey response")
+		framework.AssertStatusCode(t, resp, 404)
+
+		// Cross-group: a Confidential Project Reviewers member cannot triage a
+		// non-confidential response.
+		resp, err = cprClient.Do(framework.Request{Method: "GET", Path: "/triage/survey_responses/" + responseID})
+		framework.AssertNoError(t, err, "Failed to get triage survey response as cpr")
+		framework.AssertStatusCode(t, resp, 404)
+	})
+
+	t.Run("SubmitterCannotSelfApproveViaIntake", func(t *testing.T) {
+		fixture := framework.NewSurveyResponseFixture(surveyID).WithAuthorization(userAuth)
+		resp, err := client.Do(framework.Request{Method: "POST", Path: "/intake/survey_responses", Body: fixture})
+		framework.AssertNoError(t, err, "Failed to create draft survey response")
+		framework.AssertStatusCreated(t, resp)
+		draftID := framework.ExtractID(t, resp, "id")
+
+		resp, err = client.Do(framework.Request{Method: "PATCH", Path: "/intake/survey_responses/" + draftID, Body: markReady})
+		framework.AssertNoError(t, err, "Failed to patch intake survey response")
+		framework.AssertStatusCode(t, resp, 400)
+
+		resp, err = client.Do(framework.Request{Method: "DELETE", Path: "/intake/survey_responses/" + draftID})
+		framework.AssertNoError(t, err, "Failed to delete draft survey response")
+		framework.AssertStatusCode(t, resp, 204)
+	})
+
 	t.Run("GetTriageResponse", func(t *testing.T) {
-		resp, err := client.Do(framework.Request{
+		resp, err := srClient.Do(framework.Request{
 			Method: "GET",
 			Path:   "/triage/survey_responses/" + responseID,
 		})
@@ -263,18 +342,10 @@ func TestSurveyResponseWorkflow(t *testing.T) {
 	})
 
 	t.Run("PatchTriageResponse_MarkReadyForReview", func(t *testing.T) {
-		patchPayload := []map[string]interface{}{
-			{
-				"op":    "replace",
-				"path":  "/status",
-				"value": "ready_for_review",
-			},
-		}
-
-		resp, err := client.Do(framework.Request{
+		resp, err := srClient.Do(framework.Request{
 			Method: "PATCH",
 			Path:   "/triage/survey_responses/" + responseID,
-			Body:   patchPayload,
+			Body:   markReady,
 		})
 		framework.AssertNoError(t, err, "Failed to patch triage survey response")
 		framework.AssertStatusOK(t, resp)
@@ -282,6 +353,33 @@ func TestSurveyResponseWorkflow(t *testing.T) {
 		framework.AssertJSONField(t, resp, "status", "ready_for_review")
 
 		t.Logf("Marked survey response as ready_for_review: %s", responseID)
+	})
+
+	t.Run("ConfidentialResponse_TriageByCPROnly", func(t *testing.T) {
+		fixture := framework.NewSurveyResponseFixture(surveyID).
+			WithAuthorization(userAuth).
+			WithConfidential(true)
+		resp, err := client.Do(framework.Request{Method: "POST", Path: "/intake/survey_responses", Body: fixture})
+		framework.AssertNoError(t, err, "Failed to create confidential survey response")
+		framework.AssertStatusCreated(t, resp)
+		confID := framework.ExtractID(t, resp, "id")
+
+		submit := []map[string]interface{}{{"op": "replace", "path": "/status", "value": "submitted"}}
+		resp, err = client.Do(framework.Request{Method: "PATCH", Path: "/intake/survey_responses/" + confID, Body: submit})
+		framework.AssertNoError(t, err, "Failed to submit confidential survey response")
+		framework.AssertStatusOK(t, resp)
+
+		resp, err = srClient.Do(framework.Request{Method: "GET", Path: "/triage/survey_responses/" + confID})
+		framework.AssertNoError(t, err, "Failed to get confidential response as sr")
+		framework.AssertStatusCode(t, resp, 404)
+
+		resp, err = cprClient.Do(framework.Request{Method: "GET", Path: "/triage/survey_responses/" + confID})
+		framework.AssertNoError(t, err, "Failed to get confidential response as cpr")
+		framework.AssertStatusOK(t, resp)
+
+		resp, err = cprClient.Do(framework.Request{Method: "PATCH", Path: "/triage/survey_responses/" + confID, Body: markReady})
+		framework.AssertNoError(t, err, "Failed to patch confidential response as cpr")
+		framework.AssertStatusOK(t, resp)
 	})
 
 	// Create a second response for delete testing (only draft responses can be deleted)

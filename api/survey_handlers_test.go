@@ -250,12 +250,25 @@ func (m *mockSurveyResponseStore) List(_ context.Context, _, _ int, filters *Sur
 	if m.err != nil {
 		return nil, 0, m.err
 	}
+	if filters != nil && filters.IsConfidential != nil {
+		out := make([]SurveyResponseListItem, 0, len(m.listItems))
+		for _, it := range m.listItems {
+			isConf := it.IsConfidential != nil && *it.IsConfidential
+			if isConf == *filters.IsConfidential {
+				out = append(out, it)
+			}
+		}
+		return out, len(out), nil
+	}
 	return m.listItems, m.listTotal, nil
 }
 
-func (m *mockSurveyResponseStore) UpdateStatus(_ context.Context, _ uuid.UUID, _ string, _ *string, _ *string) error {
+func (m *mockSurveyResponseStore) UpdateStatus(_ context.Context, id uuid.UUID, newStatus string, _ *string, _ *string) error {
 	if m.updateStatusErr != nil {
 		return m.updateStatusErr
+	}
+	if r, ok := m.responses[id]; ok {
+		r.Status = &newStatus
 	}
 	return nil
 }
@@ -348,6 +361,9 @@ func seedSurveyResponse(store *mockSurveyResponseStore, surveyID uuid.UUID, stat
 		Id:       &id,
 		SurveyId: surveyID,
 		Status:   strPtr(status),
+		// Mirrors the column default; a nil value is unknown and fails closed
+		// as confidential in triage access.
+		IsConfidential: new(bool),
 	}
 	now := time.Now().UTC()
 	r.CreatedAt = &now
@@ -1607,12 +1623,10 @@ func TestListTriageSurveyResponses(t *testing.T) {
 	server := &Server{}
 
 	t.Run("success", func(t *testing.T) {
-		// T5 (#357): triage list now ACL-filters in memory; the caller must
-		// have at least reader role on each row to see it. Seed the listItems
-		// with a UUID for which the owner has access.
+		// #1100: the triage list is scoped by reviewer-group membership, not
+		// the row ACL; a Security Reviewers member sees non-confidential rows.
 		respStore := newMockSurveyResponseStore()
 		visibleID := uuid.New()
-		respStore.accessMap[respStore.accessKey(visibleID, TestUsers.Owner.InternalUUID)] = AuthorizationRoleOwner
 		respStore.listItems = []SurveyResponseListItem{
 			{Id: &visibleID, Status: "submitted", SurveyId: uuid.New(), CreatedAt: time.Now().UTC()},
 		}
@@ -1620,7 +1634,7 @@ func TestListTriageSurveyResponses(t *testing.T) {
 		saveSurveyStores(t, nil, respStore)
 
 		c, w := CreateTestGinContext("GET", "/triage/survey_responses")
-		TestUsers.Owner.SetContext(c)
+		asTriageUser(t, c, GroupSecurityReviewers)
 
 		server.ListTriageSurveyResponses(c, ListTriageSurveyResponsesParams{})
 
@@ -1647,7 +1661,7 @@ func TestListTriageSurveyResponses(t *testing.T) {
 		saveSurveyStores(t, nil, respStore)
 
 		c, w := CreateTestGinContext("GET", "/triage/survey_responses")
-		TestUsers.Owner.SetContext(c)
+		asTriageUser(t, c, GroupSecurityReviewers)
 
 		server.ListTriageSurveyResponses(c, ListTriageSurveyResponsesParams{})
 
@@ -1667,7 +1681,7 @@ func TestGetTriageSurveyResponse(t *testing.T) {
 		responseID := seedSurveyResponse(respStore, surveyID, ResponseStatusSubmitted, TestUsers.Owner.InternalUUID)
 
 		c, w := CreateTestGinContext("GET", fmt.Sprintf("/triage/survey_responses/%s", responseID))
-		TestUsers.Owner.SetContext(c)
+		asTriageUser(t, c, GroupSecurityReviewers)
 
 		server.GetTriageSurveyResponse(c, responseID)
 
@@ -1679,7 +1693,7 @@ func TestGetTriageSurveyResponse(t *testing.T) {
 		saveSurveyStores(t, nil, respStore)
 
 		c, w := CreateTestGinContext("GET", "/triage/survey_responses/"+uuid.New().String())
-		TestUsers.Owner.SetContext(c)
+		asTriageUser(t, c, GroupSecurityReviewers)
 
 		server.GetTriageSurveyResponse(c, uuid.New())
 
@@ -1694,7 +1708,7 @@ func TestGetTriageSurveyResponse(t *testing.T) {
 		responseID := seedSurveyResponse(respStore, surveyID, ResponseStatusSubmitted, TestUsers.Owner.InternalUUID)
 
 		c, w := CreateTestGinContext("GET", fmt.Sprintf("/triage/survey_responses/%s", responseID))
-		TestUsers.External.SetContext(c)
+		asTriageUser(t, c) // not a reviewer
 
 		server.GetTriageSurveyResponse(c, responseID)
 

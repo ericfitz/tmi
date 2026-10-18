@@ -61,11 +61,15 @@ type SurveyResponseStore interface {
 }
 
 // SurveyResponseFilters defines filter options for listing responses
-// SEM@0bd9c0e0e0c0649294d164b9dc945b801cfd507c: filter parameters for listing survey responses by status, survey, or owner (pure)
+// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: filter parameters for listing survey responses by status, survey, owner, or confidentiality (pure)
 type SurveyResponseFilters struct {
 	Status   *string
 	SurveyID *uuid.UUID
 	OwnerID  *string
+
+	// IsConfidential, when set, restricts results to responses whose
+	// is_confidential flag equals the value (triage reviewer scoping, #1100).
+	IsConfidential *bool
 }
 
 // GormSurveyResponseStore implements SurveyResponseStore using GORM
@@ -508,7 +512,7 @@ func (s *GormSurveyResponseStore) Delete(ctx context.Context, id uuid.UUID) erro
 }
 
 // List retrieves survey responses with pagination and optional filters
-// SEM@b11b7d1f947994479701d4db877ed4964b3bfaa6: list paginated survey responses with optional status/survey/owner filters (reads DB)
+// SEM@49259ca96d8bf22bf9c7a384c528d9a39bebe16d: list paginated survey responses with optional status/survey/owner/confidentiality filters (reads DB)
 func (s *GormSurveyResponseStore) List(ctx context.Context, limit, offset int, filters *SurveyResponseFilters) ([]SurveyResponseListItem, int, error) {
 	logger := slogging.Get()
 
@@ -530,6 +534,11 @@ func (s *GormSurveyResponseStore) List(ctx context.Context, limit, offset int, f
 		}
 		if filters.OwnerID != nil {
 			query = query.Where("owner_internal_uuid = ?", *filters.OwnerID)
+		}
+		if filters.IsConfidential != nil {
+			query = query.Where(ColumnMap(query.Name(), map[string]any{
+				"is_confidential": models.DBBool(*filters.IsConfidential),
+			}))
 		}
 	}
 
