@@ -270,7 +270,7 @@ func modelToUsabilityFeedback(row *models.UsabilityFeedback) UsabilityFeedback {
 }
 
 // mapDBError converts a typed DB error to a RequestError.
-// SEM@0e2dc69485d441800c3787a4ed43a930e6bb3312: convert a typed DB error, including constraint violations, to the appropriate HTTP request error
+// SEM@ae02d3a25239883796442773be1394afed5e417c: convert a typed DB error, including constraint violations, to the appropriate HTTP request error
 func mapDBError(err error) error {
 	if err == nil {
 		return nil
@@ -285,7 +285,7 @@ func mapDBError(err error) error {
 	// constraint-compatible code the spec documents for the feedback POSTs
 	// (409 is not), and the raw driver text must not reach the response (#1099).
 	if errors.Is(err, dberrors.ErrConstraint) {
-		slogging.Get().Warn("feedback request rejected: data constraint violation")
+		slogging.Get().Warn("feedback request rejected: data constraint violation: %v", err)
 		return InvalidInputError("request violates a data constraint")
 	}
 	return ServerError("database error")

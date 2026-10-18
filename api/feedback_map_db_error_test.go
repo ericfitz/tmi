@@ -81,6 +81,7 @@ func TestUsabilityFeedbackHandler_CreateConstraintViolationReturns400(t *testing
 
 	require.Equal(t, http.StatusBadRequest, rec.Code, "body=%s", rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "invalid_input")
+	assert.NotContains(t, rec.Body.String(), "insert:")
 }
 
 func TestContentFeedbackHandler_CreateConstraintViolationReturns400(t *testing.T) {
@@ -98,6 +99,7 @@ func TestContentFeedbackHandler_CreateConstraintViolationReturns400(t *testing.T
 
 	require.Equal(t, http.StatusBadRequest, rec.Code, "body=%s", rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "invalid_input")
+	assert.NotContains(t, rec.Body.String(), "insert:")
 }
 
 func TestCreateAdminSurvey_ConstraintViolationReturns400(t *testing.T) {
