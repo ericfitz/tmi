@@ -19,7 +19,7 @@ import (
 
 // CreateCurrentUserClientCredential handles POST /me/client_credentials
 // Creates a new OAuth 2.0 client credential for machine-to-machine authentication
-// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: build a client credential for the authenticated user, enforcing authorization, quota, and direct_write rules (writes DB)
+// SEM@fd749f0ab4b11da6219ce6594a51301843131dc9: build a client credential for the authenticated user, enforcing quota and conflict rules (writes DB)
 func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 	logger := slogging.Get().WithContext(c)
 
@@ -185,7 +185,7 @@ func (s *Server) CreateCurrentUserClientCredential(c *gin.Context) {
 }
 
 // respondClientCredentialCreateError maps a credential create failure to a documented response.
-// SEM@0000000: map credential create error to documented HTTP error response
+// SEM@4f8575cbdd6a06b8391482229de6c8cb075359d3: map a client credential create error to its documented HTTP error response
 func respondClientCredentialCreateError(c *gin.Context, logger *slogging.ContextLogger, ownerUUID uuid.UUID, err error) {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		logger.Debug("Request canceled during credential create: %v", err)
@@ -217,7 +217,7 @@ func respondClientCredentialCreateError(c *gin.Context, logger *slogging.Context
 
 // ListCurrentUserClientCredentials handles GET /me/client_credentials
 // Retrieves all client credentials owned by the authenticated user (without secrets)
-// SEM@32e22d40fa43dfa14fa39b14713e41c740ebe026: list the authenticated user's client credentials with pagination, omitting secrets (reads DB)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: list the authenticated user's client credentials with pagination, omitting secrets (reads DB)
 func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCurrentUserClientCredentialsParams) {
 	logger := slogging.Get().WithContext(c)
 	userUUID := c.GetString("userInternalUUID")
@@ -323,7 +323,7 @@ func (s *Server) ListCurrentUserClientCredentials(c *gin.Context, params ListCur
 
 // DeleteCurrentUserClientCredential handles DELETE /me/client_credentials/{credential_id}
 // Permanently deletes a client credential
-// SEM@9750a568b8ffb60cfd241d61263b7e23f990899e: delete and revoke a client credential owned by the authenticated user (writes DB)
+// SEM@db94db3c8118cffb5220bf9a44c2fde0ada20427: delete and revoke a client credential owned by the authenticated user (writes DB)
 func (s *Server) DeleteCurrentUserClientCredential(c *gin.Context, credentialId openapi_types.UUID) {
 	logger := slogging.Get().WithContext(c)
 	userUUID := c.GetString("userInternalUUID")
